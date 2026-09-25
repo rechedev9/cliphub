@@ -10,28 +10,15 @@ import (
 // unified CLI passes them through (zv record / zv shorts render) or forwards
 // them onto the recorder/editor stages (zv short).
 
-func TestRecordValueFlagsIncludePerfFlags(t *testing.T) {
-	flags := commandValueFlags(`"record"`, []string{"--killplan", "--demo", "--out"})
-	for _, want := range []string{"--encoder", "--gap-timescale", "--settle-seconds"} {
-		if !containsString(flags, want) {
-			t.Errorf("record value flags = %v, missing %s", flags, want)
+func TestValidateSkillCommandAcceptsPerfFlagValues(t *testing.T) {
+	for _, command := range [][]string{
+		{"record", "--killplan", "plan.json", "--demo", "match.dem", "--out", "recording", "--encoder", "x", "--gap-timescale", "1", "--settle-seconds", "1"},
+		{"short", "match.dem", "--prompt", "all kills", "--encoder", "x", "--gap-timescale", "1", "--settle-seconds", "1", "--threads", "4"},
+		{"shorts", "render", "--recording-result", "recording-result.json", "--out", "shorts", "--threads", "4"},
+	} {
+		if issue := validateSkillCommand(command); issue != "" {
+			t.Errorf("validateSkillCommand(%q) = %q, want none", command, issue)
 		}
-	}
-}
-
-func TestShortValueFlagsIncludePerfFlags(t *testing.T) {
-	flags := commandValueFlags(`"short"`, []string{"--prompt"})
-	for _, want := range []string{"--encoder", "--gap-timescale", "--settle-seconds", "--threads"} {
-		if !containsString(flags, want) {
-			t.Errorf("short value flags = %v, missing %s", flags, want)
-		}
-	}
-}
-
-func TestShortsRenderValueFlagsIncludeThreads(t *testing.T) {
-	flags := commandValueFlags(`"shorts render"`, []string{"--recording-result", "--out"})
-	if !containsString(flags, "--threads") {
-		t.Errorf("shorts render value flags = %v, missing --threads", flags)
 	}
 }
 

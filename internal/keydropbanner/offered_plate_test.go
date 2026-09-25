@@ -4,11 +4,7 @@ import (
 	"bytes"
 	"image/png"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
-
-	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 // Studio offers every KeyDrop style as a chip. A missing plate used to fail
@@ -43,37 +39,5 @@ func TestStudioOfferedKeyDropPlatesMaterialize(t *testing.T) {
 				t.Fatalf("materialized %s plate: %v size=%d", id, err, info.Size())
 			}
 		})
-	}
-}
-
-func TestCompositeOfferedJcorkoStyleWithCode(t *testing.T) {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not available")
-	}
-	filterList, err := exec.Command("ffmpeg", "-hide_banner", "-filters").Output()
-	if err != nil {
-		t.Skipf("ffmpeg -filters failed: %v", err)
-	}
-	if !bytes.Contains(filterList, []byte("drawtext")) {
-		t.Skip("ffmpeg build has no drawtext filter")
-	}
-	font, err := mediafont.Materialize()
-	if err != nil {
-		t.Fatalf("font: %v", err)
-	}
-	out := filepath.Join(t.TempDir(), "jcorko-huaso.png")
-	if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, StyleJcorko, "HUASO", font, out); err != nil {
-		t.Fatalf("composite jcorko HUASO: %v", err)
-	}
-	info, err := os.Stat(out)
-	if err != nil || info.Size() < 1000 {
-		t.Fatalf("composited jcorko plate: %v size=%d", err, info.Size())
-	}
-	raw, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile("/tmp/kd-jcorko-huaso.png", raw, 0o644); err != nil {
-		t.Fatal(err)
 	}
 }

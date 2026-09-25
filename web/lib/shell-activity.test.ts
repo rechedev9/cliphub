@@ -154,7 +154,9 @@ test('freshness expires so the shell resumes polling when a page stops pushing',
 
 test('nothing has ever published before the first push', () => {
   assert.equal(shellActivityIsStale(0), true);
-  assert.deepEqual(serverShellActivitySnapshot(), shellActivitySnapshot());
+  const empty = { jobs: [], capturing: false, publishedAt: 0 };
+  assert.deepEqual(serverShellActivitySnapshot(), empty);
+  assert.deepEqual(shellActivitySnapshot(), empty);
 });
 
 test('collectShellJobs merges parsing partidas and stream jobs with reels', () => {

@@ -15,7 +15,7 @@ echo "=== overlay compositor + fixture capture + shorts portrait ==="
 export FULL_DEMO_OVERLAY_OUT="$OUT"
 (
   cd "$ROOT"
-  go test ./internal/parser -run 'TestSegmentRecapIsOneContinuousLiveRoundNotAJumpCut|TestCollectorRecapPistolRoundStaysOneContinuousLiveWindow|TestWithIntroFreeze|TestWithOutroHold' -count=1 -v
+  go test ./internal/parser -run 'TestSegmentRecap|TestCollectorRecapPistolRoundStaysOneContinuousLiveWindow|TestWithIntroFreeze|TestWithOutroHold' -count=1 -v
   go test ./internal/recording -run 'TestGenerateHLAEJavaScriptLocksFirstPersonOnOneRecapWindow|TestNewPlanFromKillPlanDropsRecapEventsOutsideLiveWindow' -count=1 -v
   go test ./internal/editor -run 'TestFullDemoOverlayCompositesOntoFixtureCapture|TestShortsParsePlanPortraitSeam|TestBuildManifestShortsPathIgnoresFullDemoOverlay|TestBuildManifestFullDemoAttachesIntroAndOutroOverlays' -count=1 -timeout 3m -v
   go test ./internal/workers -run 'TestRenderWorkerNativePOVDropsMusicBed|TestRenderWorkerPassesFullDemoOverlay' -count=1 -v

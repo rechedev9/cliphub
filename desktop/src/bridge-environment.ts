@@ -1,5 +1,5 @@
 /** The ClipHub Portal bridge settings `internal/cloudbridge` reads. */
-export const BRIDGE_ENVIRONMENT_KEYS = ['ZV_BRIDGE_URL', 'ZV_BRIDGE_TOKEN'] as const;
+const BRIDGE_ENVIRONMENT_KEYS = ['ZV_BRIDGE_URL', 'ZV_BRIDGE_TOKEN'] as const;
 
 /**
  * Forward the bridge settings into the orchestrator's curated environment.

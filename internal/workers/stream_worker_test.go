@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
@@ -279,8 +280,9 @@ func TestAcquireWorkerFailureRecordsReasonAndObs(t *testing.T) {
 	if strings.Contains(got.FailureReason, "HTTP Error 404") {
 		t.Fatalf("failure reason = %q, leaked the raw yt-dlp stderr", got.FailureReason)
 	}
-	if got.FailureCode != streamclips.AcquireCodeNotFound {
-		t.Fatalf("failure_code = %q, want %q so HTTP can select without the Spanish reason", got.FailureCode, streamclips.AcquireCodeNotFound)
+	events := journalEventsFor(t, obs.Default(), id.String(), streamclips.AcquireCodeNotFound)
+	if len(events) != 1 || events[0].Stage != obs.StageStreamAcquire || events[0].Task != tasks.TypeStreamAcquire {
+		t.Fatalf("journal events = %#v, want one %s/%s event", events, obs.StageStreamAcquire, streamclips.AcquireCodeNotFound)
 	}
 }
 

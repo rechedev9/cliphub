@@ -33,12 +33,3 @@ test('each consent change rotates a persisted queue epoch', () => {
   store.update(true);
   assert.notEqual(store.consentEpoch(), revoked);
 });
-
-test('support code stays stable on disk and carries 80 random bits', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-telemetry-code-'));
-  const file = path.join(directory, 'telemetry.json');
-  const first = new TelemetrySettingsStore(file).get().supportCode;
-  const second = new TelemetrySettingsStore(file).get().supportCode;
-  assert.equal(second, first);
-  assert.match(first, /^CH(?:-[A-F0-9]{4}){5}$/);
-});

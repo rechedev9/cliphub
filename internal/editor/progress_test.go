@@ -34,37 +34,6 @@ func TestFFmpegEncodeFraction(t *testing.T) {
 	}
 }
 
-func TestParseFFmpegProgressOutTimeUs(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-		want    int64
-		wantOK  bool
-	}{
-		{
-			name: "reads last out_time_us",
-			content: "frame=1\nout_time_us=1000000\nprogress=continue\nout_time_us=2500000\nprogress=continue\n",
-			want:   2_500_000,
-			wantOK: true,
-		},
-		{name: "missing value", content: "progress=continue\n", wantOK: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseFFmpegProgressOutTimeUs(tt.content)
-			if ok != tt.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
-			}
-			if !tt.wantOK {
-				return
-			}
-			if got != tt.want {
-				t.Fatalf("out_time_us = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestEncodeProgressStateMonotonic(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/progress.json"

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot } from './full-demo-plan.ts';
+import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot } from './full-demo-plan.ts';
 import { DEFAULT_FULL_DEMO_TRANSITIONS, fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 function fixture() {
@@ -10,20 +10,6 @@ function fixture() {
   raw.document.options = currentFullDemoOptions(raw.document.options);
   return raw;
 }
-
-test('the Dynamic preset is the only generated transition configuration', () => {
-  const snapshot = fixture();
-  const before = JSON.stringify(snapshot);
-  assert.ok(fullDemoApprovalKey(snapshot.document, snapshot.document.options));
-  fullDemoPlanEdit(snapshot);
-  assert.equal(JSON.stringify(snapshot), before);
-  const changed = { ...snapshot.document.options, transitions: { ...fullDemoTransitionPreset(), enabled: false } };
-  assert.ok(isFullDemoOptions(changed));
-  assert.notEqual(fullDemoOptionsKey(changed), fullDemoOptionsKey(snapshot.document.options));
-  assert.equal(fullDemoApprovalKey(snapshot.document, changed), null);
-  snapshot.document.options = changed;
-  assert.deepEqual(fullDemoPlanEdit(snapshot).fullDemo?.document.options.transitions, changed.transitions);
-});
 
 test('the Dynamic preset stays within the strict options boundary', () => {
   const transitions = fullDemoTransitionPreset();

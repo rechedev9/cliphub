@@ -122,25 +122,15 @@ func TestOpusPacketDurations(t *testing.T) {
 	}
 }
 
-func TestSpillClosedAndOversizedPacketsFail(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		close bool
-		size  int
-	}{{"closed", true, 3}, {"oversized", false, 65536}} {
-		t.Run(tc.name, func(t *testing.T) {
-			s, err := newPacketSpill(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer s.Close()
-			if tc.close {
-				s.Close()
-			}
-			if err := s.write(0, 1, 100, make([]byte, tc.size), nil); err == nil {
-				t.Fatal("silently accepted unwritable packet")
-			}
-		})
+// Oversized payloads are covered by TestPacketSpillRejectsInvalidBounds.
+func TestSpillWriteAfterCloseFails(t *testing.T) {
+	s, err := newPacketSpill(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if err := s.write(0, 1, 100, make([]byte, 3), nil); err == nil {
+		t.Fatal("silently accepted a packet after the spill was closed")
 	}
 }
 

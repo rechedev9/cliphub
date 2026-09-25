@@ -5,19 +5,6 @@ import { parseCaptureProgress } from '../capture-progress.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 
-test('render stage survives the production batch progress parser', () => {
-  const progress = { done: 82, total: 100, percent: 82, stage: 'Comprobando audio final (1/3)' };
-  const result = projectBatchStatusItem({ job_id: JOB, variant: 'gameplay-pov-60', job: { status: 'recorded', progress } }, parseCaptureProgress);
-  assert.deepEqual(result.job?.progress, progress);
-});
-
-/** Stands in for the route's capture-progress parser. */
-const passthroughProgress = (raw: { done?: number; total?: number; percent?: number } | undefined): { done: number; total: number; percent?: number } | undefined => {
-  const p = raw;
-  if (!p || typeof p.done !== 'number' || typeof p.total !== 'number') return undefined;
-  return p.percent === undefined ? { done: p.done, total: p.total } : { done: p.done, total: p.total, percent: p.percent };
-};
-
 test('projectBatchStatusItem keeps the fields the client reconciles on', async (t) => {
   const cases: Array<{ name: string; upstream: BatchStatusUpstreamItem; expected: BatchStatusItem }> = [
     {
@@ -81,6 +68,20 @@ test('projectBatchStatusItem keeps the fields the client reconciles on', async (
       },
     },
     {
+      name: 'the render stage survives the progress parser',
+      upstream: {
+        job_id: JOB,
+        variant: 'gameplay-pov-60',
+        job: { status: 'recorded', progress: { done: 82, total: 100, percent: 82, stage: 'Comprobando audio final (1/3)' } },
+      },
+      expected: {
+        job_id: JOB,
+        variant: 'gameplay-pov-60',
+        job: { status: 'recorded', progress: { done: 82, total: 100, percent: 82, stage: 'Comprobando audio final (1/3)' } },
+        render: null,
+      },
+    },
+    {
       name: 'an unknown upstream field is not forwarded',
       upstream: {
         job_id: JOB,
@@ -95,15 +96,7 @@ test('projectBatchStatusItem keeps the fields the client reconciles on', async (
 
   for (const kase of cases) {
     await t.test(kase.name, () => {
-      assert.deepEqual(projectBatchStatusItem(kase.upstream, passthroughProgress), kase.expected);
+      assert.deepEqual(projectBatchStatusItem(kase.upstream, parseCaptureProgress), kase.expected);
     });
   }
-});
-
-test('projectBatchStatusItem does not invent an error key when there is none', () => {
-  const out = projectBatchStatusItem(
-    { job_id: JOB, variant: 'viral-60-clean', job: { status: 'done' }, render: null },
-    passthroughProgress,
-  );
-  assert.equal('error' in out, false);
 });

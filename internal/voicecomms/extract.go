@@ -56,11 +56,7 @@ func extractFile(ctx context.Context, demoPath, target, dir string, strict bool)
 }
 
 func WriteTracks(dir string, report Report, packets []Packet, sightings []Sighting) (Index, error) {
-	return writeTracksWithSpill(dir, report, packets, sightings, nil)
-}
-
-func writeTracksWithSpill(dir string, report Report, packets []Packet, sightings []Sighting, spill *packetSpill) (Index, error) {
-	return writeTracksWithSpillContext(context.Background(), dir, report, packets, sightings, spill)
+	return writeTracksWithSpillContext(context.Background(), dir, report, packets, sightings, nil)
 }
 
 func writeTracksWithSpillContext(ctx context.Context, dir string, report Report, packets []Packet, sightings []Sighting, spill *packetSpill) (Index, error) {

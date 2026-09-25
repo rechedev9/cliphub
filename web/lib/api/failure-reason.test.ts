@@ -11,7 +11,6 @@ import {
   JOB_RECAPTURE_FAILURE_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
   UNPLAYABLE_START_PREFIX,
-  failedStripLabel,
   jobFailureTitle,
   parseFailureReason,
 } from './failure-reason.ts';
@@ -38,7 +37,6 @@ test('parseFailureReason classifies each reason into its kind and retry hint', (
     assert.equal(result.kind, kind, name);
     assert.equal(result.retryCanHelp, retryCanHelp, name);
     assert.match(result.message, message, name);
-    assert.equal(failedStripLabel(reason), FAILED_STRIP_LABEL.pipeline, name);
   }
 });
 
@@ -74,14 +72,32 @@ test('playback-ended demo is demo-incompatible with its own message', () => {
   assert.match(result.message, /Se capturaron 3 de 16 jugadas/);
 });
 
-test('a generic reason stays generic, retryable, and does not leak internals', () => {
-  const reason = 'ffmpeg exited with code 1';
-  const result = parseFailureReason(reason);
-  assert.equal(result.kind, 'generic');
-  assert.equal(result.retryCanHelp, true);
-  assert.match(result.message, /No se pudo completar el vídeo/);
-  assert.doesNotMatch(result.message, /ffmpeg/);
-  assert.equal(result.counts, undefined);
+test('generic reasons stay retryable with the diagnostics copy and do not leak internals', () => {
+  const cases: Array<{ reason: string | undefined; leaks?: RegExp }> = [
+    { reason: undefined },
+    { reason: '' },
+    { reason: '   ' },
+    { reason: 'ffmpeg exited with code 1', leaks: /ffmpeg/ },
+    { reason: 'compose failed', leaks: /compose/ },
+    { reason: 'editor timed out', leaks: /editor|timed out/ },
+    { reason: 'capture POV verification failed: observer drifted before the protected kill', leaks: /POV|HLAE|observer/ },
+    { reason: 'capture POV verification failed: HLAE console stopped responding', leaks: /POV|HLAE|observer/ },
+    // Outside Full Demo an observer target that stayed unknown is not a POV verification failure.
+    {
+      reason: 'recorder failed: capture POV verification failed: observer target remained unknown during seg-003',
+      leaks: /observer|seg-003/,
+    },
+  ];
+  for (const { reason, leaks } of cases) {
+    const name = String(reason);
+    const result = parseFailureReason(reason);
+    assert.equal(result.kind, 'generic', name);
+    assert.equal(result.retryCanHelp, true, name);
+    assert.equal(result.counts, undefined, name);
+    assert.match(result.message, /No se pudo completar el vídeo/, name);
+    assert.match(result.message, /comparte el diagnóstico desde Ajustes/, name);
+    if (leaks) assert.doesNotMatch(result.message, leaks, name);
+  }
 });
 
 test('a non-reusable capture reason is retryable with a Spanish re-record message', () => {
@@ -98,25 +114,6 @@ test('a non-reusable capture reason is retryable with a Spanish re-record messag
     assert.equal(result.retryCanHelp, true, reason);
     assert.match(result.message, /no es reutilizable/);
     assert.match(result.message, /volverá a grabar/i);
-  }
-});
-
-test('ordinary tool failures stay generic without surfacing raw tool output', () => {
-  for (const reason of ['ffmpeg exited with code 1', 'compose failed', 'editor timed out']) {
-    const result = parseFailureReason(reason);
-    assert.equal(result.kind, 'generic', reason);
-    assert.equal(result.retryCanHelp, true, reason);
-    assert.match(result.message, /comparte el diagnóstico desde Ajustes/);
-    assert.notEqual(result.message, reason);
-  }
-});
-
-test('undefined and empty reasons fall back to a generic retryable message', () => {
-  for (const reason of [undefined, '', '   ']) {
-    const result = parseFailureReason(reason);
-    assert.equal(result.kind, 'generic');
-    assert.equal(result.retryCanHelp, true);
-    assert.match(result.message, /No se pudo completar el vídeo/);
   }
 });
 
@@ -158,7 +155,6 @@ test('observer-target drift offers recapture without ruling out a pipeline bug',
   assert.doesNotMatch(result.message, /No es un error de pipeline/);
   assert.match(result.message, /diagnóstico/);
   assert.doesNotMatch(result.message, /console\.log|76561198307734468|seg-001/);
-  assert.equal(failedStripLabel(reason, { fullDemo: true }), FAILED_STRIP_LABEL.capture);
 });
 
 test('observer mismatch before record-start is the same capture flake', () => {
@@ -167,7 +163,6 @@ test('observer mismatch before record-start is the same capture flake', () => {
   const result = parseFailureReason(reason);
   assert.equal(result.kind, 'capture-flake');
   assert.equal(result.retryCanHelp, true);
-  assert.equal(failedStripLabel(reason), FAILED_STRIP_LABEL.capture);
 });
 
 test('Full Demo respawn acquisition requires a fresh plan, not the same retry', () => {
@@ -181,7 +176,6 @@ test('Full Demo respawn acquisition requires a fresh plan, not the same retry', 
     assert.equal(result.retryCanHelp, false);
     assert.match(result.message, /preparar y aprobar/);
     assert.doesNotMatch(result.message, /765611|600 frames|round-004|No es un error de pipeline/);
-    assert.equal(failedStripLabel(reason, { fullDemo: true }), FAILED_STRIP_LABEL.capture);
   }
 });
 
@@ -195,35 +189,6 @@ test('native unknown-mode wording remains actionable and sanitized', () => {
   const result = parseFailureReason('pov_contract_failed: observer target or first-person mode unknown during round-003', { fullDemo: true });
   assert.equal(result.kind, 'pov-verification');
   assert.equal(result.retryCanHelp, false);
-});
-
-test('generic failures keep the pipeline-dead strip label', () => {
-  assert.equal(failedStripLabel('ffmpeg exited with code 1'), FAILED_STRIP_LABEL.pipeline);
-});
-
-test('other POV verification failures stay sanitized and retryable', () => {
-  const reasons = [
-    'capture POV verification failed: observer drifted before the protected kill',
-    'capture POV verification failed: HLAE console stopped responding',
-  ];
-
-  for (const reason of reasons) {
-    const result = parseFailureReason(reason);
-    assert.equal(result.kind, 'generic', reason);
-    assert.equal(result.retryCanHelp, true, reason);
-    assert.match(result.message, /No se pudo completar el vídeo/);
-    assert.doesNotMatch(result.message, /POV|HLAE|observer/);
-  }
-});
-
-test('observer-target failure remains retryable outside Full Demo', () => {
-  const reason =
-    'recorder failed: capture POV verification failed: observer target remained unknown during seg-003';
-  const result = parseFailureReason(reason);
-
-  assert.equal(result.kind, 'generic');
-  assert.equal(result.retryCanHelp, true);
-  assert.doesNotMatch(result.message, /observer|seg-003/);
 });
 
 test('the exported prefix is the exact orchestrator token', () => {

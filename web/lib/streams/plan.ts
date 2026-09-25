@@ -188,13 +188,6 @@ export function fitPlanToSourceDuration(
   return { ...plan, schema_version: schemaVersion, clips };
 }
 
-export function formatStreamTimestamp(seconds: number): string {
-  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainder = safeSeconds - minutes * 60;
-  return `${minutes}:${remainder.toFixed(2).padStart(5, '0')}`;
-}
-
 /** Render-affecting plan fingerprint; updated_at is excluded on purpose. */
 export function planFingerprint(plan: StreamEditPlan): string {
   const rect = (r?: NormalizedRect) => (r ? [r.x, r.y, r.width, r.height] : null);
@@ -296,43 +289,12 @@ export function clipTimelineGeometry(
 
 /** `m:ss` (or `h:mm:ss`) clock for rails, rulers and cut cards. */
 export function formatStreamClock(seconds: number): string {
-  // Round to the nearest second so this matches the decimal clocks shown
-  // elsewhere (e.g. formatStreamTimestamp) instead of always truncating down.
+  // Round to the nearest second instead of truncating, so 7.9 s reads 0:08.
   const total = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = String(total % 60).padStart(2, '0');
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
-}
-
-/** A timeline click opens a cut from 4 s before to 8 s after the clicked second. */
-export const TIMELINE_CLIP_BEFORE_SECONDS = 4;
-export const TIMELINE_CLIP_AFTER_SECONDS = 8;
-const TIMELINE_MIN_CLIP_SECONDS = 1;
-
-/**
- * Range for a new cut around `seconds`, clamped to the source and to the
- * neighbouring cuts; null when the click lands on a cut or in a gap too small.
- */
-export function timelineClipAt(
-  clips: readonly StreamClipRange[],
-  seconds: number,
-  sourceDuration: number,
-): { start_seconds: number; end_seconds: number } | null {
-  if (!Number.isFinite(seconds) || !Number.isFinite(sourceDuration) || sourceDuration <= 0) return null;
-  const t = Math.min(Math.max(seconds, 0), sourceDuration);
-  if (clips.some((clip) => t >= clip.start_seconds && t < clip.end_seconds)) return null;
-  let start = Math.max(0, t - TIMELINE_CLIP_BEFORE_SECONDS);
-  let end = Math.min(sourceDuration, t + TIMELINE_CLIP_AFTER_SECONDS);
-  for (const clip of clips) {
-    if (clip.end_seconds <= t) start = Math.max(start, clip.end_seconds);
-    if (clip.start_seconds >= t) end = Math.min(end, clip.start_seconds);
-  }
-  // Round inwards: a cut must never grow back over a neighbour it was clamped to.
-  start = Math.ceil(start * 10) / 10;
-  end = Math.floor(end * 10) / 10;
-  if (end - start < TIMELINE_MIN_CLIP_SECONDS) return null;
-  return { start_seconds: start, end_seconds: end };
 }
 
 /** Cuts stay in source order so their numbers match the timeline left to right. */

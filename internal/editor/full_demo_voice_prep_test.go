@@ -164,12 +164,18 @@ func TestFullDemoVoicePoolCancelledBeforeStart(t *testing.T) {
 	}
 }
 
+// Voice preparation overlaps the video branch since the concurrent pipelines
+// change, so its pool is sized to cover a full team instead of staying out of
+// the item encoders' way. It must still be explicitly bounded and CPU-aware.
 func TestFullDemoVoiceJobsIsBoundedAndCPUAware(t *testing.T) {
 	if got := fullDemoVoiceJobs(0); got != 0 {
 		t.Fatalf("jobs for no tracks = %d, want 0", got)
 	}
 	if got := fullDemoVoiceJobs(1); got != 1 {
 		t.Fatalf("jobs for one track = %d, want 1", got)
+	}
+	if got := fullDemoVoiceJobs(5); got != min(5, runtime.NumCPU()) {
+		t.Fatalf("jobs for a five-track team = %d, want every track running at once on %d CPUs", got, runtime.NumCPU())
 	}
 	for _, count := range []int{2, 3, 5, 20} {
 		jobs := fullDemoVoiceJobs(count)

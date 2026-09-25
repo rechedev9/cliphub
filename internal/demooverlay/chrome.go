@@ -6,9 +6,6 @@ import (
 	"os"
 )
 
-//go:embed intro-chrome.png
-var introChromePNG []byte
-
 //go:embed outro-chrome.png
 var outroChromePNG []byte
 

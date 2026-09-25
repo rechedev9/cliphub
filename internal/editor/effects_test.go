@@ -99,10 +99,16 @@ end)
 	}
 }
 
-func TestEvaluateEffectsTextFadeOptions(t *testing.T) {
-	source := effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `
+func TestEvaluateEffectsTextOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		script   string
+		headshot bool
+		check    func(t *testing.T, effect Effect)
+	}{
+		{
+			name: "fade options",
+			script: `
 on_kill(function(k)
   text({
     value = "HEADSHOT",
@@ -114,34 +120,16 @@ on_kill(function(k)
   })
 end)
 `,
-	}
-	short := ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-		Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AK-47", Headshot: true}},
-	}
-
-	effects, warnings, err := evaluateEffects(source, short)
-	if err != nil {
-		t.Fatalf("evaluateEffects error = %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v", warnings)
-	}
-	if len(effects) != 1 {
-		t.Fatalf("effects len = %d, want 1: %#v", len(effects), effects)
-	}
-	effect := effects[0]
-	if effect.Type != EffectText || effect.FadeInSeconds != 0.08 || effect.FadeOutSeconds != 0.18 {
-		t.Fatalf("text fade effect = %#v", effect)
-	}
-}
-
-func TestEvaluateEffectsTextFontFileOption(t *testing.T) {
-	source := effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `
+			headshot: true,
+			check: func(t *testing.T, effect Effect) {
+				if effect.Type != EffectText || effect.FadeInSeconds != 0.08 || effect.FadeOutSeconds != 0.18 {
+					t.Fatalf("text fade effect = %#v", effect)
+				}
+			},
+		},
+		{
+			name: "font file",
+			script: `
 on_kill(function(k)
   text({
     value = "FAST TRADE",
@@ -150,33 +138,15 @@ on_kill(function(k)
   })
 end)
 `,
-	}
-	short := ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-		Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AK-47"}},
-	}
-
-	effects, warnings, err := evaluateEffects(source, short)
-	if err != nil {
-		t.Fatalf("evaluateEffects error = %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v", warnings)
-	}
-	if len(effects) != 1 {
-		t.Fatalf("effects len = %d, want 1: %#v", len(effects), effects)
-	}
-	if got, want := effects[0].FontFile, "C:/fonts/BebasNeue-Regular.ttf"; got != want {
-		t.Fatalf("fontfile = %q, want %q", got, want)
-	}
-}
-
-func TestEvaluateEffectsTextShadowOptions(t *testing.T) {
-	source := effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `
+			check: func(t *testing.T, effect Effect) {
+				if got, want := effect.FontFile, "C:/fonts/BebasNeue-Regular.ttf"; got != want {
+					t.Fatalf("fontfile = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name: "shadow options",
+			script: `
 on_kill(function(k)
   text({
     value = "HEADSHOT",
@@ -187,66 +157,76 @@ on_kill(function(k)
   })
 end)
 `,
-	}
-	short := ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-		Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AK-47", Headshot: true}},
-	}
-
-	effects, warnings, err := evaluateEffects(source, short)
-	if err != nil {
-		t.Fatalf("evaluateEffects error = %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v", warnings)
-	}
-	if len(effects) != 1 {
-		t.Fatalf("effects len = %d, want 1: %#v", len(effects), effects)
-	}
-	effect := effects[0]
-	if effect.ShadowColor != "black@0.55" || effect.ShadowX != 2 || effect.ShadowY != 3 {
-		t.Fatalf("text shadow effect = %#v", effect)
-	}
-}
-
-func TestEvaluateEffectsTextShadowDefaultsOff(t *testing.T) {
-	source := effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `
+			headshot: true,
+			check: func(t *testing.T, effect Effect) {
+				if effect.ShadowColor != "black@0.55" || effect.ShadowX != 2 || effect.ShadowY != 3 {
+					t.Fatalf("text shadow effect = %#v", effect)
+				}
+			},
+		},
+		{
+			name: "shadow defaults off",
+			script: `
 on_kill(function(k)
   text({ value = "HEADSHOT", at = k.time })
 end)
 `,
+			check: func(t *testing.T, effect Effect) {
+				if effect.ShadowColor != "" {
+					t.Fatalf("shadow color = %q, want empty (shadow off by default)", effect.ShadowColor)
+				}
+			},
+		},
 	}
-	short := ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-		Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AK-47"}},
-	}
-
-	effects, _, err := evaluateEffects(source, short)
-	if err != nil {
-		t.Fatalf("evaluateEffects error = %v", err)
-	}
-	if len(effects) != 1 {
-		t.Fatalf("effects len = %d, want 1: %#v", len(effects), effects)
-	}
-	if effects[0].ShadowColor != "" {
-		t.Fatalf("shadow color = %q, want empty (shadow off by default)", effects[0].ShadowColor)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			effects, warnings, err := evaluateEffects(effectsSource{
+				Preset: EffectsPresetExternal,
+				Script: tt.script,
+			}, ShortEdit{
+				SegmentID:       "seg-001",
+				Preset:          PresetViral60Clean,
+				DurationSeconds: 5,
+				Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AK-47", Headshot: tt.headshot}},
+			})
+			if err != nil {
+				t.Fatalf("evaluateEffects error = %v", err)
+			}
+			if len(warnings) != 0 {
+				t.Fatalf("warnings = %v", warnings)
+			}
+			if len(effects) != 1 {
+				t.Fatalf("effects len = %d, want 1: %#v", len(effects), effects)
+			}
+			tt.check(t, effects[0])
+		})
 	}
 }
 
-func TestEvaluateEffectsRejectsInvalidShadow(t *testing.T) {
+func TestEvaluateEffectsRejectsInvalidFields(t *testing.T) {
 	cases := []struct {
 		name   string
 		script string
+		kills  []KillCue
 		want   string
 	}{
 		{
-			name: "bad color",
+			name: "negative fade",
+			script: `
+on_segment(function(s)
+  text({ value = "bad", start = 0, duration = 1, fade_in = -0.1 })
+end)
+`,
+			want: "fade_in",
+		},
+		{
+			name:   "zoom scale",
+			script: `on_kill(function(k) zoom({ at = k.time, scale = 9 }) end)`,
+			kills:  []KillCue{{TimeSeconds: 1}},
+			want:   "scale",
+		},
+		{
+			name: "bad shadow color",
 			script: `
 on_segment(function(s)
   text({ value = "bad", start = 0, duration = 1, shadow_color = "black:enable=1" })
@@ -255,13 +235,33 @@ end)
 			want: "shadow_color",
 		},
 		{
-			name: "offset out of range",
+			name: "shadow offset out of range",
 			script: `
 on_segment(function(s)
   text({ value = "bad", start = 0, duration = 1, shadow_color = "black@0.5", shadow_x = 99 })
 end)
 `,
 			want: "shadow_x",
+		},
+		{
+			name:   "shake amplitude",
+			script: `on_segment(function(s) shake({ amplitude = 99, start = 0, duration = 0.2 }) end)`,
+			want:   "amplitude",
+		},
+		{
+			name:   "shake frequency",
+			script: `on_segment(function(s) shake({ frequency = 1, start = 0, duration = 0.2 }) end)`,
+			want:   "frequency",
+		},
+		{
+			name:   "chroma intensity",
+			script: `on_segment(function(s) chroma({ intensity = 40, start = 0, duration = 0.2 }) end)`,
+			want:   "intensity",
+		},
+		{
+			name:   "glitch intensity",
+			script: `on_segment(function(s) glitch({ intensity = 0, start = 0, duration = 0.2 }) end)`,
+			want:   "intensity",
 		},
 	}
 	for _, tc := range cases {
@@ -273,6 +273,7 @@ end)
 				SegmentID:       "seg-001",
 				Preset:          PresetViral60Clean,
 				DurationSeconds: 5,
+				Kills:           tc.kills,
 			})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("evaluateEffects error = %v, want %s validation", err, tc.want)
@@ -354,24 +355,6 @@ func TestGameplayNativeEmitsNoGrade(t *testing.T) {
 	}
 	if len(effects) != 0 {
 		t.Fatalf("gameplay-native effects = %#v, want none so CS2 HUD stays ungraded", effects)
-	}
-}
-
-func TestEvaluateEffectsRejectsInvalidFade(t *testing.T) {
-	_, _, err := evaluateEffects(effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `
-on_segment(function(s)
-  text({ value = "bad", start = 0, duration = 1, fade_in = -0.1 })
-end)
-`,
-	}, ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-	})
-	if err == nil || !strings.Contains(err.Error(), "fade_in") {
-		t.Fatalf("evaluateEffects error = %v, want fade validation", err)
 	}
 }
 
@@ -703,21 +686,6 @@ end)
 	}
 	if effect.SourceKillWeapon != "MP9" || !effect.SourceKillHeadshot {
 		t.Fatalf("killfeed source metadata = %#v", effect)
-	}
-}
-
-func TestEvaluateEffectsRejectsInvalidScript(t *testing.T) {
-	_, _, err := evaluateEffects(effectsSource{
-		Preset: EffectsPresetExternal,
-		Script: `on_kill(function(k) zoom({ at = k.time, scale = 9 }) end)`,
-	}, ShortEdit{
-		SegmentID:       "seg-001",
-		Preset:          PresetViral60Clean,
-		DurationSeconds: 5,
-		Kills:           []KillCue{{TimeSeconds: 1}},
-	})
-	if err == nil || !strings.Contains(err.Error(), "scale") {
-		t.Fatalf("evaluateEffects error = %v, want scale validation", err)
 	}
 }
 
@@ -1117,47 +1085,6 @@ end)
 	}
 	if len(again) != len(effects) || again[0] != effects[0] || again[1] != effects[1] || again[2] != effects[2] {
 		t.Fatalf("effects are not deterministic:\n%#v\n%#v", effects, again)
-	}
-}
-
-func TestEvaluateEffectsRejectsInvalidMotionFields(t *testing.T) {
-	cases := []struct {
-		name   string
-		script string
-		want   string
-	}{
-		{
-			name:   "shake amplitude",
-			script: `on_segment(function(s) shake({ amplitude = 99, start = 0, duration = 0.2 }) end)`,
-			want:   "amplitude",
-		},
-		{
-			name:   "shake frequency",
-			script: `on_segment(function(s) shake({ frequency = 1, start = 0, duration = 0.2 }) end)`,
-			want:   "frequency",
-		},
-		{
-			name:   "chroma intensity",
-			script: `on_segment(function(s) chroma({ intensity = 40, start = 0, duration = 0.2 }) end)`,
-			want:   "intensity",
-		},
-		{
-			name:   "glitch intensity",
-			script: `on_segment(function(s) glitch({ intensity = 0, start = 0, duration = 0.2 }) end)`,
-			want:   "intensity",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := evaluateEffects(effectsSource{Preset: EffectsPresetExternal, Script: tc.script}, ShortEdit{
-				SegmentID:       "seg-001",
-				Preset:          PresetViral60Clean,
-				DurationSeconds: 5,
-			})
-			if err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("evaluateEffects error = %v, want %s validation", err, tc.want)
-			}
-		})
 	}
 }
 

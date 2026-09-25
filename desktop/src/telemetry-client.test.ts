@@ -52,20 +52,18 @@ test('waits for the informed choice and uploads only fixed error labels', async 
   assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
 });
 
-test('normalizes prerelease versions to the collector release contract', async () => {
-  const { client, requests } = fixture(202, '2.4.35-beta.1+local');
-  client.update(true);
-  client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
-  await client.flush();
-  assert.equal(JSON.parse(requests[0].body).events[0].release, '2.4.35');
-});
-
-test('uses a valid sentinel for malformed app versions', async () => {
-  const { client, requests } = fixture(202, 'development');
-  client.update(true);
-  client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
-  await client.flush();
-  assert.equal(JSON.parse(requests[0].body).events[0].release, '0.0.0');
+test('normalizes app versions to the collector release contract', async () => {
+  const cases: Array<{ name: string; appVersion: string; want: string }> = [
+    { name: 'prerelease with build metadata', appVersion: '2.4.35-beta.1+local', want: '2.4.35' },
+    { name: 'malformed version uses the sentinel', appVersion: 'development', want: '0.0.0' },
+  ];
+  for (const tc of cases) {
+    const { client, requests } = fixture(202, tc.appVersion);
+    client.update(true);
+    client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
+    await client.flush();
+    assert.equal(JSON.parse(requests[0].body).events[0].release, tc.want, tc.name);
+  }
 });
 
 test('disabling diagnostics aborts an in-flight upload before clearing the queue', async () => {
@@ -158,14 +156,6 @@ test('isolates a rejected batch before discarding only its poison event', async 
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   assert.deepEqual(batchClasses, [['valid', 'poison'], ['valid'], ['poison']]);
-  assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
-});
-
-test('discards an isolated poison event rejected by the collector schema', async () => {
-  const { client, queuePath } = fixture(422);
-  client.update(true);
-  client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
-  await client.flush();
   assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
 });
 

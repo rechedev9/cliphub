@@ -175,55 +175,6 @@ func TestRecentMatchesFetchesHistoryAndStatsConcurrently(t *testing.T) {
 	}
 }
 
-func TestRecentMatchesMatchesSequentialMerge(t *testing.T) {
-	t.Parallel()
-	const historyBody = `{"items":[
-		{"match_id":"match-a","started_at":1700000000,"finished_at":1700003600,"competition_name":"FACEIT Ladder","teams":{"faction1":{"players":[{"player_id":"player-1"}]},"faction2":{"players":[{"player_id":"player-2"}]}},"results":{"winner":"faction1","score":{"faction1":13,"faction2":7}}},
-		{"match_id":"match-b","started_at":1699990000,"finished_at":1699993600,"competition_name":"FACEIT Ladder","teams":{"faction1":{"players":[{"player_id":"player-2"}]},"faction2":{"players":[{"player_id":"player-1"}]}},"results":{"winner":"faction1","score":{"faction1":13,"faction2":4}}}
-	]}`
-	const statsBody = `{"items":[
-		{"stats":{"Match Id":"match-b","Map":"de_mirage","Result":"0","Rounds":"17","Kills":"14","Deaths":"18","Assists":"3","ADR":"61.4","K/D Ratio":"0.78","K/R Ratio":"0.82","Headshots":"7","Headshots %":"50"}},
-		{"stats":{"Match Id":"match-a","Map":"de_dust2","Result":"1","Rounds":"20","Kills":"28","Deaths":"12","Assists":"5","ADR":"104.2","K/D Ratio":"2.33","K/R Ratio":"1.4","Headshots":"16","Headshots %":"57"}}
-	]}`
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/history"):
-			_, _ = w.Write([]byte(historyBody))
-		case strings.HasSuffix(r.URL.Path, "/stats"):
-			_, _ = w.Write([]byte(statsBody))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-	client, err := New(Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-
-	history, err := client.fetchRecentHistory(ctx, "player-1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stats, err := client.fetchRecentStats(ctx, "player-1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := buildRecentMatches("player-1", history, stats, 10)
-	if len(want) != 2 || want[0].ID != "match-a" || want[0].Stats == nil || want[0].Stats.Kills != 28 {
-		t.Fatalf("sequential reference is not the expected fixture merge: %+v", want)
-	}
-
-	got, err := client.RecentMatches(ctx, "player-1", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("concurrent merge = %+v, want sequential merge %+v", got, want)
-	}
-}
-
 func TestClientCredentialSurfaceStaysRedacted(t *testing.T) {
 	t.Parallel()
 	const apiKey = "faceit-secret-key-value"

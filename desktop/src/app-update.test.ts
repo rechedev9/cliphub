@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import type { SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -8,15 +10,14 @@ import test from 'node:test';
 import {
   APP_UPDATE_STATE,
   AppUpdateController,
-  GITHUB_LATEST_RELEASE_URL,
   checksumForFile,
   compareVersions,
   digestMatches,
-  INSTALLER_SPAWN_ARGS,
   installerAssetName,
   parseGithubLatestRelease,
   parseReleaseVersion,
   releaseDownloadUrl,
+  spawnVerifiedInstaller,
   type AppUpdateHost,
   type AppUpdateStatus,
   type UpdateFailurePhase,
@@ -46,13 +47,26 @@ test('parses and compares release versions', () => {
   }
 });
 
-test('silent NSIS apply asks electron-builder to relaunch after replace', () => {
+test('silent NSIS apply asks electron-builder to relaunch after replace', async () => {
   const cases: Array<{ flag: string; reason: string }> = [
     { flag: '/S', reason: 'silent so the wizard never appears' },
     { flag: '--updated', reason: 'NSIS treats this as a replace of a running install' },
     { flag: '--force-run', reason: 'assisted silent installs skip the finish-page Run checkbox' },
   ];
-  assert.deepEqual([...INSTALLER_SPAWN_ARGS], cases.map((row) => row.flag));
+  const spawned: Array<{ command: string; args: readonly string[]; options: SpawnOptions }> = [];
+  let unrefs = 0;
+  await spawnVerifiedInstaller('C:\\updates\\ClipHub.Studio.Setup.2.4.30.exe', (command, args, options) => {
+    spawned.push({ command, args, options });
+    const child = Object.assign(new EventEmitter(), { unref: () => { unrefs += 1; } });
+    queueMicrotask(() => child.emit('spawn'));
+    return child;
+  });
+  assert.deepEqual(spawned, [{
+    command: 'C:\\updates\\ClipHub.Studio.Setup.2.4.30.exe',
+    args: cases.map((row) => row.flag),
+    options: { detached: true, stdio: 'ignore', windowsHide: true },
+  }]);
+  assert.equal(unrefs, 1);
 
   const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8'));
@@ -81,9 +95,6 @@ test('silent NSIS apply asks electron-builder to relaunch after replace', () => 
   const endIfAt = nsis.indexOf('${endIf}', forceRunAt);
   assert.notEqual(forceRunAt, -1);
   assert.ok(launchAt > forceRunAt && launchAt < endIfAt, 'ExecShellAsUser must sit inside ifNot isForceRun');
-
-  const mainSource = fs.readFileSync(path.join(desktopDirectory, 'src', 'main.ts'), 'utf8');
-  assert.equal(mainSource.includes('spawn(installerPath, [...INSTALLER_SPAWN_ARGS]'), true);
 });
 
 test('builds installer URLs only for the release contract', () => {
@@ -102,7 +113,7 @@ test('builds installer URLs only for the release contract', () => {
   );
 });
 
-test('landing download URL matches desktop version and the updater always hits GitHub latest', () => {
+test('landing download URL matches the desktop version', () => {
   const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const version = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8')).version;
   assert.equal(typeof version, 'string');
@@ -111,10 +122,6 @@ test('landing download URL matches desktop version and the updater always hits G
   const landing = fs.readFileSync(path.join(desktopDirectory, '..', 'landing', 'app', 'page.tsx'), 'utf8');
   assert.equal(landing.includes(downloadUrl), true, downloadUrl);
   assert.equal(landing.includes(`const RELEASE_VERSION = "v${version}"`), true, version);
-  assert.equal(
-    GITHUB_LATEST_RELEASE_URL,
-    'https://api.github.com/repos/rechedev9/cliphub/releases/latest',
-  );
 });
 
 test('reads GitHub latest JSON and SHA256SUMS.txt entries', () => {

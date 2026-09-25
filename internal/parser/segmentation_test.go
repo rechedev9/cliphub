@@ -245,10 +245,13 @@ func TestSegmentRoundEndKillPostRollGrace(t *testing.T) {
 		wantEnd     int
 	}{
 		{
-			name:      "last kill equals round end tick keeps grace post-roll",
+			name:      "next round starting after the grace keeps full grace post-roll",
 			kills:     []RawKill{mkKill(10750, 12, "ak47")},
 			roundEnds: []RoundEnd{{Round: 12, Tick: 10750}},
-			wantEnd:   10750 + graceTicks,
+			roundStarts: []RoundStart{
+				{Round: 13, Tick: 10750 + graceTicks + testTickrate},
+			},
+			wantEnd: 10750 + graceTicks,
 		},
 		{
 			name: "grace stops before the next round freeze",
@@ -851,44 +854,5 @@ func TestWithOutroHoldKeepsWinBannerThenScoreboardAndSkipsDeathcam(t *testing.T)
 				t.Fatalf("utility rewritten: %#v", last.Utility)
 			}
 		})
-	}
-}
-
-func TestSegmentRecapIsOneContinuousLiveRoundNotAJumpCut(t *testing.T) {
-	// imfcnd pistol: CT spawn → A ramp → under A. Three USP kills sit more
-	// than the Shorts 8s window apart; a highlight stitch would emit three
-	// segments. Recap-plan live rounds stay one continuous window.
-	spawn := 9400
-	ramp := spawn + 20*testTickrate
-	underA := ramp + 16*testTickrate
-	kills := []RawKill{
-		mkKill(spawn, 1, "usp_silencer"),
-		mkKill(ramp, 1, "usp_silencer"),
-		mkKill(underA, 1, "usp_silencer"),
-	}
-	roundStarts := []RoundStart{{Round: 1, Tick: 8000}}
-	liveStarts := []RoundLiveStart{{Round: 1, Tick: 9200}}
-	roundEnds := []RoundEnd{{Round: 1, Tick: 14000}}
-	r := defaultTestRules()
-
-	got := SegmentRecap(kills, nil, roundStarts, liveStarts, roundEnds, nil, r, testTickrate)
-	if len(got) != 1 {
-		t.Fatalf("recap segments = %d, want one continuous live round (not a stitch)", len(got))
-	}
-	if got[0].TickStart != 9200 || got[0].TickEnd != 14000 {
-		t.Fatalf("recap window = %d-%d, want freeze-end 9200 to round-end 14000", got[0].TickStart, got[0].TickEnd)
-	}
-	if len(got[0].Kills) != 3 {
-		t.Fatalf("recap kills = %d, want all three in the same window", len(got[0].Kills))
-	}
-	for i := 1; i < len(got); i++ {
-		if got[i].TickStart < got[i-1].TickEnd {
-			t.Fatalf("recap overlapped %d-%d then %d-%d", got[i-1].TickStart, got[i-1].TickEnd, got[i].TickStart, got[i].TickEnd)
-		}
-	}
-
-	shorts := Segment(kills, roundEnds, nil, r, testTickrate)
-	if len(shorts) != 3 {
-		t.Fatalf("shorts segments = %d, want 3 kill bursts so the recap contrast is real", len(shorts))
 	}
 }

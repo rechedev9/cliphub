@@ -1,6 +1,7 @@
 package timelineplan
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -72,11 +73,6 @@ func TestDocumentValidate(t *testing.T) {
 			},
 			wantErr: "must stay within the canvas",
 		},
-		{
-			name:    "unknown field already stripped by decode",
-			mutate:  func(*Document) {},
-			wantErr: "",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -105,13 +101,20 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestValidateForRenderRequiresItems(t *testing.T) {
+func TestDefaultDocumentIsAValidDraftButNotRenderable(t *testing.T) {
 	t.Parallel()
-	doc := DefaultDocument()
+	raw, err := json.Marshal(DefaultDocument())
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := Decode(raw)
+	if err != nil {
+		t.Fatalf("Decode(DefaultDocument) = %v, want nil", err)
+	}
 	if err := doc.Validate(); err != nil {
 		t.Fatalf("draft Validate() = %v", err)
 	}
-	if err := doc.ValidateForRender(); err == nil || !strings.Contains(err.Error(), "no items") {
-		t.Fatalf("ValidateForRender() = %v, want no items", err)
+	if err := doc.ValidateForRender(); err == nil || err.Error() != "timeline has no items" {
+		t.Fatalf("ValidateForRender() = %v, want %q", err, "timeline has no items")
 	}
 }

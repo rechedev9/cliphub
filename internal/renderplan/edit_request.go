@@ -78,16 +78,10 @@ func DefaultEditRequest() EditRequest {
 	}
 }
 
-// RecapEditRequest is the locked 16:9 Full Demo treatment: native HUD, team
-// comms, no Shorts garnish. Studio /record retries do not carry generate
-// intent, so the record worker uses this to chain the recap render.
-func RecapEditRequest() EditRequest {
-	return RecapEditRequestWithSource("")
-}
-
-// RecapEditRequestWithSource is the Studio Full Demo chain: locked recap
-// treatment plus the user-selected overlay source (premier / professional /
-// faceit). Empty source keeps demo-facts-only overlays.
+// RecapEditRequestWithSource is the Studio Full Demo chain: the locked 16:9
+// recap treatment (native HUD, team comms, no Shorts garnish) plus the
+// user-selected overlay source (premier / professional / faceit). Empty
+// source keeps demo-facts-only overlays.
 func RecapEditRequestWithSource(source string) EditRequest {
 	voice := DefaultRecapVoiceVolume
 	return NormalizeEditRequest(EditRequest{

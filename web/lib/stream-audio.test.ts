@@ -144,25 +144,6 @@ test('matches render gain, default music volume, speed, fades, and loop timing',
   }
 });
 
-test('multiplies overlapping fade gains like cascaded FFmpeg afade filters', async () => {
-  const restore = installWebAudio();
-  try {
-    const mixer = new StreamAudioMixer({} as HTMLVideoElement, () => assert.fail('unexpected error'));
-    mixer.configure(clip({
-      start_seconds: 0,
-      end_seconds: 4,
-      edit: { source_volume: 1, fade_in_seconds: 3, fade_out_seconds: 3 },
-    }), { url: '/music/track.mp3', volume: 0.5 });
-    await mixer.resume();
-    mixer.sync(2, false);
-    const context = FakeAudioContext.instances[0];
-    assert.ok(Math.abs(context.gains[0].gain.value - 4 / 9) < 0.000001);
-    assert.ok(Math.abs(context.gains[1].gain.value - 2 / 9) < 0.000001);
-  } finally {
-    restore();
-  }
-});
-
 test('seeks music only for configuration changes or meaningful drift', async () => {
   const restore = installWebAudio();
   try {

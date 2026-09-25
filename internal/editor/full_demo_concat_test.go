@@ -97,25 +97,6 @@ func TestBuildFFmpegCommandFullDemoUsesConcatDemuxer(t *testing.T) {
 	}
 }
 
-func TestFullDemoConcatListEscapesQuotesAndBackslashes(t *testing.T) {
-	short := ShortEdit{
-		Preset:       PresetGameplayPOV60,
-		OutputFormat: OutputFormatLandscape16x9,
-		OutputFPS:    60,
-		Parts: []ShortPart{{
-			Input:           `C:\tmp\clip's\seg-001.mp4`,
-			DurationSeconds: 2,
-		}},
-	}
-	got, err := fullDemoConcatList(short)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(got, strings.TrimSuffix(composition.ConcatFileLine(short.Parts[0].Input), "\n")) {
-		t.Fatalf("concat list = %q, want composition.ConcatFileLine escaping", got)
-	}
-}
-
 func TestFullDemoConcatListRejectsRhythmGapsAndMusic(t *testing.T) {
 	base := ShortEdit{
 		Preset:       PresetGameplayPOV60,
@@ -196,7 +177,7 @@ func TestWriteFullDemoConcatListWritesBesideOutput(t *testing.T) {
 	if err := writeFullDemoConcatList(short); err != nil {
 		t.Fatal(err)
 	}
-	body, err := os.ReadFile(fullDemoConcatListPath(short))
+	body, err := os.ReadFile(filepath.Join(dir, "concat-list.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,6 +255,9 @@ func TestFullDemoCompilationFilterKeepsOverlays(t *testing.T) {
 		if strings.Contains(got, forbidden) {
 			t.Fatalf("outro dim must not use split/overlay buffering, found %q:\n%s", forbidden, got)
 		}
+	}
+	if strings.Contains(got, "fade=t=in:st=5.000") {
+		t.Fatalf("intro still faded in instead of sliding:\n%s", got)
 	}
 	if strings.Contains(got, "concat=n=") && strings.Contains(got, ":v=1") {
 		t.Fatalf("full demo filter still concat-decoded parts:\n%s", got)

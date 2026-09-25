@@ -142,15 +142,3 @@ func TestOccupancyBuilderIgnoresNaN(t *testing.T) {
 		t.Fatalf("samples = %d, want 0", b.samples)
 	}
 }
-
-func TestCellCenter(t *testing.T) {
-	geo := MapGeometry{CellSize: 64}
-	x, y := geo.CellCenter(0, 0)
-	if x != 32 || y != 32 {
-		t.Fatalf("cell (0,0) centre = (%v, %v), want (32, 32)", x, y)
-	}
-	x, y = geo.CellCenter(-1, 2)
-	if x != -32 || y != 160 {
-		t.Fatalf("cell (-1,2) centre = (%v, %v), want (-32, 160)", x, y)
-	}
-}

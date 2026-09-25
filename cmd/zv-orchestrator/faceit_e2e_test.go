@@ -2,10 +2,8 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,17 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
-
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/store"
-	"github.com/rechedev9/cliphub/internal/tasks"
 )
-
-const faceitZstdDemoPath = `C:\Users\reche\Downloads\1-b5604ae7-c676-454b-901a-0b02014abd94-1-2.dem.zst`
 
 func TestFaceitStudioSidebarE2E(t *testing.T) {
 	apiKey := strings.TrimSpace(os.Getenv("FACEIT_API_KEY"))
@@ -62,7 +54,7 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 
 	capsBody := getJSON(t, httpClient, srv.URL+"/api/capabilities", http.StatusOK)
 	assertNoCredential(t, capsBody, apiKey)
-	if !bytes.Contains(capsBody, []byte(`"faceit":{"enabled":true}`)) && !bytes.Contains(capsBody, []byte(`"enabled":true`)) {
+	if !bytes.Contains(capsBody, []byte(`"faceit":{"enabled":true}`)) {
 		t.Fatalf("capabilities missing faceit enabled: %s", capsBody)
 	}
 
@@ -178,107 +170,6 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 	}
 	if len(remaining.Players) == 0 {
 		t.Fatalf("followed after unfollow = %s, want the seeded default roster", after)
-	}
-}
-
-func TestFaceitZstdUploadE2E(t *testing.T) {
-	info, err := os.Stat(faceitZstdDemoPath)
-	if err != nil {
-		t.Skip("FACEIT .dem.zst fixture is not on this machine")
-	}
-
-	dataDir := t.TempDir()
-	repo := store.NewMemoryJobRepository()
-	files, err := storage.NewLocal(dataDir)
-	if err != nil {
-		t.Fatalf("storage: %v", err)
-	}
-	queue := newInlineQueue(map[string]taskHandler{
-		tasks.TypeScanRoster: func(context.Context, *asynq.Task) error { return nil },
-	}, 1)
-	queueCtx, cancelQueue := context.WithCancel(context.Background())
-	t.Cleanup(cancelQueue)
-	queue.Start(queueCtx)
-	handlers := httpapi.NewHandlers(repo, files, queue)
-
-	srv := httptest.NewServer(httpapi.Routes(handlers))
-	t.Cleanup(srv.Close)
-	httpClient := srv.Client()
-	httpClient.Timeout = 3 * time.Minute
-
-	src, err := os.Open(faceitZstdDemoPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer src.Close()
-
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	part, err := mw.CreateFormFile("demo", filepath.Base(faceitZstdDemoPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.Copy(part, src); err != nil {
-		t.Fatal(err)
-	}
-	if err := mw.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/jobs", &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	res, err := httpClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, err := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != http.StatusCreated {
-		t.Fatalf("upload status = %d body=%s", res.StatusCode, redact(payload))
-	}
-	var created struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(payload, &created); err != nil {
-		t.Fatal(err)
-	}
-	id, err := uuid.Parse(created.ID)
-	if err != nil {
-		t.Fatalf("job id: %v", err)
-	}
-	stored, err := repo.Get(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stored.DemoFileName != "1-b5604ae7-c676-454b-901a-0b02014abd94-1-2.dem" {
-		t.Fatalf("DemoFileName = %q, want stripped .zst", stored.DemoFileName)
-	}
-	rc, err := files.Open(stored.DemoPath)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rc.Close()
-	header := make([]byte, 7)
-	if _, err := io.ReadFull(rc, header); err != nil {
-		t.Fatal(err)
-	}
-	if string(header) != "PBDEMS2" {
-		t.Fatalf("stored magic = %q, want PBDEMS2", header)
-	}
-	rest, err := io.Copy(io.Discard, rc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decompressed := rest + 7
-	if decompressed <= info.Size() {
-		t.Fatalf("decompressed %d bytes, compressed %d; want expansion", decompressed, info.Size())
 	}
 }
 

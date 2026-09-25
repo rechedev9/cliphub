@@ -179,8 +179,23 @@ func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 		job.StatusParsed,
 		job.StatusRecorded,
 		job.StatusComposed,
+		job.StatusReviewRequired,
 		job.StatusDone,
 		job.StatusFailed,
+	}
+	// Every status must be classified, so a new one cannot slip past the sweep
+	// without a decision here.
+	classified := map[job.Status]bool{}
+	for _, s := range append(append([]job.Status{}, nonresumable...), untouched...) {
+		classified[s] = true
+	}
+	for _, s := range job.Statuses() {
+		if !classified[s] {
+			t.Fatalf("status %s is neither nonresumable nor untouched", s)
+		}
+	}
+	if len(classified) != len(job.Statuses()) {
+		t.Fatalf("classified %d statuses, job.Statuses() has %d", len(classified), len(job.Statuses()))
 	}
 
 	for name, repo := range repos {

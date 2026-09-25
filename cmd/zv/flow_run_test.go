@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,19 +38,6 @@ func phaseByName(report flowRunReport, name string) (flowRunPhaseReport, bool) {
 	return flowRunPhaseReport{}, false
 }
 
-func TestFlowsRunRejectsWithoutDryRun(t *testing.T) {
-	ws := t.TempDir()
-	plan := writeStageContractPlan(t, ws)
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"zv", "flows", "run", "demo", "--killplan", plan, "--run-dir", filepath.Join(ws, "run")}, &stdout, &stderr, nil, &fakeRunner{})
-	if code != exitInvalidArgs {
-		t.Fatalf("code = %d, want %d\nstderr: %s", code, exitInvalidArgs, stderr.String())
-	}
-	if !strings.Contains(stderr.String(), "supports only --dry-run") {
-		t.Fatalf("stderr = %q, want the stage-by-stage explanation", stderr.String())
-	}
-}
-
 // TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites keeps the advertised
 // zero-execution preflight aligned with the runner's fail-fast requirements.
 func TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites(t *testing.T) {
@@ -60,29 +48,31 @@ func TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites(t *testing.T) {
 	}{
 		{
 			name: "dry run is required",
-			args: []string{"demo", "--killplan", "plan.json", "--run-dir", "run"},
+			args: []string{"demo", "--killplan", "plan.json"},
 			want: "supports only --dry-run",
 		},
 		{
 			name: "demo needs an input source",
-			args: []string{"demo", "--run-dir", "run", "--dry-run"},
+			args: []string{"demo", "--dry-run"},
 			want: "requires --demo for capture and render",
 		},
 		{
 			name: "demo parsing needs a target player",
-			args: []string{"demo", "--demo", "match.dem", "--run-dir", "run", "--dry-run"},
+			args: []string{"demo", "--demo", "match.dem", "--dry-run"},
 			want: "--demo requires --steamid",
 		},
 		{
 			name: "stream needs a source video",
-			args: []string{"stream", "--run-dir", "run", "--dry-run"},
+			args: []string{"stream", "--dry-run"},
 			want: "stream flow requires --input",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			runDir := filepath.Join(t.TempDir(), "run")
+			args := append(append([]string(nil), tc.args...), "--run-dir", runDir)
 			var validatedOut, validatedErr bytes.Buffer
-			validateArgs := append([]string{"zv", "workflows", "validate", "flows-run", "--format", "json", "--"}, tc.args...)
+			validateArgs := append([]string{"zv", "workflows", "validate", "flows-run", "--format", "json", "--"}, args...)
 			code := Run(validateArgs, &validatedOut, &validatedErr, nil, &fakeRunner{})
 			if got, want := code, exitInvalidArgs; got != want {
 				t.Fatalf("validator code = %d, want %d; stderr=%s", got, want, validatedErr.String())
@@ -96,12 +86,15 @@ func TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites(t *testing.T) {
 			}
 
 			var runOut, runErr bytes.Buffer
-			code = Run(append([]string{"zv", "flows", "run"}, tc.args...), &runOut, &runErr, nil, &fakeRunner{})
+			code = Run(append([]string{"zv", "flows", "run"}, args...), &runOut, &runErr, nil, &fakeRunner{})
 			if got, want := code, exitInvalidArgs; got != want {
 				t.Fatalf("runner code = %d, want %d; stderr=%s", got, want, runErr.String())
 			}
-			if output := runOut.String() + runErr.String(); !strings.Contains(output, tc.want) {
-				t.Fatalf("runner output = %q, want error containing %q", output, tc.want)
+			if !strings.Contains(runErr.String(), tc.want) {
+				t.Fatalf("runner stderr = %q, want error containing %q", runErr.String(), tc.want)
+			}
+			if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+				t.Fatalf("run dir %s exists after fail-fast rejection; stat err = %v", runDir, err)
 			}
 		})
 	}
@@ -141,22 +134,25 @@ func TestFlowsRunRequiresFlowNameFirst(t *testing.T) {
 	}
 }
 
-// TestFlowsRunRejectsTemplateFlowWithoutCreatingRunDir pins that the literal
-// documentation token "<demo|stream>" is rejected at runtime with a non-zero
-// exit BEFORE the run dir is created, rather than exiting 0 with an empty report.
-func TestFlowsRunRejectsTemplateFlowWithoutCreatingRunDir(t *testing.T) {
-	ws := t.TempDir()
-	runDir := filepath.Join(ws, "run")
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"zv", "flows", "run", "<demo|stream>", "--run-dir", runDir, "--dry-run"}, &stdout, &stderr, nil, &fakeRunner{})
-	if code == exitSuccess {
-		t.Fatalf("code = %d, want a non-zero exit for the template token\nstdout: %s", code, stdout.String())
-	}
-	if !strings.Contains(stderr.String()+stdout.String(), "unknown flow") {
-		t.Fatalf("output = %q/%q, want unknown flow error", stdout.String(), stderr.String())
-	}
-	if _, err := os.Stat(runDir); err == nil {
-		t.Fatalf("run dir %s was created for a rejected flow, want no directory", runDir)
+// TestFlowsRunRejectsUnknownFlowWithoutCreatingRunDir pins that unknown flow
+// names, including the literal documentation token "<demo|stream>", fail
+// before the run dir is created rather than exiting 0 with an empty report.
+func TestFlowsRunRejectsUnknownFlowWithoutCreatingRunDir(t *testing.T) {
+	for _, flow := range []string{"movie", "<demo|stream>"} {
+		t.Run(flow, func(t *testing.T) {
+			runDir := filepath.Join(t.TempDir(), "run")
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"zv", "flows", "run", flow, "--run-dir", runDir, "--dry-run"}, &stdout, &stderr, nil, &fakeRunner{})
+			if got, want := code, exitInvalidArgs; got != want {
+				t.Fatalf("code = %d, want %d\nstdout: %s", got, want, stdout.String())
+			}
+			if want := fmt.Sprintf("unknown flow %q", flow); !strings.Contains(stderr.String(), want) {
+				t.Fatalf("stderr = %q, want %q", stderr.String(), want)
+			}
+			if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+				t.Fatalf("run dir %s exists for a rejected flow; stat err = %v", runDir, err)
+			}
+		})
 	}
 }
 
@@ -252,42 +248,6 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 	}
 }
 
-func TestFlowsRunDemoFailsFastOnMissingParseInputs(t *testing.T) {
-	cases := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{
-			name: "demo without steamid",
-			args: []string{"--demo", "match.dem"},
-			want: "--demo requires --steamid",
-		},
-		{
-			name: "neither demo nor killplan",
-			args: []string{},
-			want: "requires --demo for capture and render",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			runDir := filepath.Join(t.TempDir(), "run")
-			args := append([]string{"zv", "flows", "run", "demo", "--run-dir", runDir, "--dry-run"}, tc.args...)
-			var stdout, stderr bytes.Buffer
-			code := Run(args, &stdout, &stderr, nil, &fakeRunner{})
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-			}
-			if !strings.Contains(stderr.String(), tc.want) {
-				t.Fatalf("stderr = %q, want %q", stderr.String(), tc.want)
-			}
-			if _, err := os.Stat(runDir); !os.IsNotExist(err) {
-				t.Fatalf("run dir %s exists after fail-fast rejection; stat err = %v", runDir, err)
-			}
-		})
-	}
-}
-
 func TestFlowPhaseFailureReason(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -328,18 +288,6 @@ func TestFlowPhaseFailureReason(t *testing.T) {
 				t.Fatalf("flowPhaseFailureReason() = %q, want %q", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestFlowsRunUnknownFlowIsRejected(t *testing.T) {
-	ws := t.TempDir()
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"zv", "flows", "run", "movie", "--run-dir", ws, "--dry-run"}, &stdout, &stderr, nil, &fakeRunner{})
-	if code != exitInvalidArgs {
-		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
-	}
-	if !strings.Contains(stderr.String(), `unknown flow "movie"`) {
-		t.Fatalf("stderr = %q, want unknown flow error", stderr.String())
 	}
 }
 

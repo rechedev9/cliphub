@@ -1,31 +1,20 @@
 // Format-only checks for CS2 share codes. Run: node --test "lib/**/*.test.ts"
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkShareCode, normalizeShareCode } from './sharecode.ts';
+import { checkShareCode } from './sharecode.ts';
 
 const GOLDEN = 'GADqfjjyJ8cSP2rsmZRoTO2xK';
 
-test('normalizeShareCode strips prefix, dashes and whitespace', () => {
-  const cases: ReadonlyArray<{ name: string; raw: string; want: string }> = [
-    { name: 'with CSGO- prefix', raw: 'CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK', want: GOLDEN },
-    { name: 'without prefix', raw: 'GADqf-jjyJ8-cSP2r-smZRo-TO2xK', want: GOLDEN },
-    { name: 'lowercase csgo- prefix', raw: 'csgo-GADqf-jjyJ8-cSP2r-smZRo-TO2xK', want: GOLDEN },
-    { name: 'surrounding spaces', raw: '  CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK  ', want: GOLDEN },
-    { name: 'internal spaces', raw: 'CSGO-GADqf jjyJ8 cSP2r smZRo TO2xK', want: GOLDEN },
-  ];
-  for (const c of cases) {
-    assert.equal(normalizeShareCode(c.raw), c.want, c.name);
-  }
-});
-
-test('checkShareCode accepts a well-formed code', () => {
+test('checkShareCode accepts a well-formed code, stripping prefix, dashes and whitespace', () => {
   const cases: ReadonlyArray<{ name: string; raw: string }> = [
-    { name: 'with prefix', raw: 'CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK' },
+    { name: 'with CSGO- prefix', raw: 'CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK' },
     { name: 'without prefix', raw: 'GADqf-jjyJ8-cSP2r-smZRo-TO2xK' },
+    { name: 'lowercase csgo- prefix', raw: 'csgo-GADqf-jjyJ8-cSP2r-smZRo-TO2xK' },
+    { name: 'surrounding spaces', raw: '  CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK  ' },
+    { name: 'internal spaces', raw: 'CSGO-GADqf jjyJ8 cSP2r smZRo TO2xK' },
   ];
   for (const c of cases) {
-    const got = checkShareCode(c.raw);
-    assert.deepEqual(got, { ok: true, normalized: GOLDEN }, c.name);
+    assert.deepEqual(checkShareCode(c.raw), { ok: true, normalized: GOLDEN }, c.name);
   }
 });
 

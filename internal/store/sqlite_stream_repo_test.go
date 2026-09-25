@@ -16,10 +16,9 @@ import (
 
 // newTestSQLiteStreamRepo builds a sqlite stream job repository the same way
 // main.go's sqlite branch does: sharing the *sql.DB opened by
-// NewSQLiteJobRepository rather than opening the file twice. This is the
-// regression coverage for the bug where ClipHub Studio (desktop, which runs
-// the orchestrator with ZV_DATABASE_URL=sqlite) left streamRepo nil, so every
-// /api/stream-jobs endpoint 500'd.
+// NewSQLiteJobRepository rather than opening the file twice. The wiring
+// regression itself (streamRepo left nil, every /api/stream-jobs endpoint
+// 500'd) is covered end to end in cmd/zv-orchestrator/sqlite_stream_http_test.go.
 func newTestSQLiteStreamRepo(t *testing.T) *SQLiteStreamJobRepository {
 	t.Helper()
 	jobRepo, err := NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
@@ -320,26 +319,5 @@ func TestSQLiteStreamRepoUpdateStatusUnknownJobReturnsNotFound(t *testing.T) {
 
 	if err := repo.UpdateStatus(ctx, uuid.New(), streamclips.StatusFailed, "nope"); !errors.Is(err, streamclips.ErrNotFound) {
 		t.Fatalf("UpdateStatus unknown job: got %v, want ErrNotFound", err)
-	}
-}
-
-func TestSQLiteStreamRepoSharesDBWithJobRepository(t *testing.T) {
-	// Regression test for the desktop bug: the sqlite branch in main.go must
-	// wire streamRepo from the same *sql.DB the job repository opened,
-	// instead of leaving it nil. This exercises that construction path
-	// directly rather than through main().
-	dbPath := filepath.Join(t.TempDir(), "jobs.db")
-	jobRepo, err := NewSQLiteJobRepository(dbPath)
-	if err != nil {
-		t.Fatalf("NewSQLiteJobRepository: %v", err)
-	}
-	defer func() { _ = jobRepo.Close() }()
-
-	streamRepo, err := NewSQLiteStreamJobRepository(jobRepo.db)
-	if err != nil {
-		t.Fatalf("NewSQLiteStreamJobRepository: %v", err)
-	}
-	if streamRepo.db != jobRepo.db {
-		t.Fatal("stream repo does not share the job repository's *sql.DB")
 	}
 }

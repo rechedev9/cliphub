@@ -1,12 +1,11 @@
 import {
   cpSync,
-  existsSync,
   lstatSync,
   mkdtempSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 export const E2E_USER_DATA_ENV = 'CLIPHUB_E2E_USER_DATA';
 const E2E_TOOL_FIXTURE_ENV = 'CLIPHUB_E2E_TOOL_FIXTURE';
@@ -74,9 +73,4 @@ export function createE2EProfile(label, options = {}, {
       disposed = true;
     },
   };
-}
-
-export function profileHasCopiedToolFixture(profileRoot) {
-  const tools = join(resolve(profileRoot), 'tools');
-  return existsSync(tools) && basename(tools) === 'tools';
 }

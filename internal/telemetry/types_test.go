@@ -91,6 +91,18 @@ func TestCanonicalFingerprintUsesOnlyBoundedLabels(t *testing.T) {
 	if first != second || len(first) != 64 {
 		t.Fatalf("fingerprints = %q and %q", first, second)
 	}
+	// Per-occurrence and per-user fields must not split one error group.
+	occurrence := event
+	occurrence.ID = "b838ff59-f6a1-49fc-b11d-7478550238d1"
+	occurrence.OccurredAt = time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	occurrence.SupportCode = "CH-ABCD-1234-5678-90AB-CDEF"
+	occurrence.SessionID = "a20a070d-c99f-4744-a613-5759d6ecc74c"
+	occurrence.JobID = "8a46e7a4-d86a-4512-bc41-dc270a296461"
+	occurrence.Message = "encoder failed opening C:/Users/Luis/demo.dem"
+	occurrence.DurationMS = 1200
+	if got := canonicalFingerprint(occurrence); got != first {
+		t.Fatalf("occurrence fields changed the fingerprint: %q, want %q", got, first)
+	}
 	event.Class = "process_gone"
 	if first == canonicalFingerprint(event) {
 		t.Fatal("different canonical labels produced the same fingerprint")

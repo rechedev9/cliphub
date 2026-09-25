@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -44,8 +46,24 @@ func TestOptionsSampleRate(t *testing.T) {
 func TestEndReasonSlugsAreStable(t *testing.T) {
 	// These strings are a filter vocabulary the UI and the CLI both match on,
 	// so they must never drift with a library upgrade.
-	if got := endReasonSlug(0); got != "unknown" {
-		t.Fatalf("an unmapped reason = %q, want %q", got, "unknown")
+	tests := []struct {
+		reason events.RoundEndReason
+		want   string
+	}{
+		{events.RoundEndReasonTargetBombed, "bomb_exploded"},
+		{events.RoundEndReasonBombDefused, "bomb_defused"},
+		{events.RoundEndReasonCTWin, "ct_eliminated_t"},
+		{events.RoundEndReasonTerroristsWin, "t_eliminated_ct"},
+		{events.RoundEndReasonTargetSaved, "time_expired"},
+		{events.RoundEndReasonTerroristsSurrender, "t_surrender"},
+		{events.RoundEndReasonCTSurrender, "ct_surrender"},
+		{events.RoundEndReasonDraw, "draw"},
+		{0, "unknown"},
+	}
+	for _, tc := range tests {
+		if got := endReasonSlug(tc.reason); got != tc.want {
+			t.Errorf("endReasonSlug(%d) = %q, want %q", tc.reason, got, tc.want)
+		}
 	}
 }
 

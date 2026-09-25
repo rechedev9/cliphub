@@ -62,28 +62,48 @@ func TestRenderProgressReporterWatchFinalWrite(t *testing.T) {
 	jobID := uuid.New()
 	progressPath := filepath.Join(t.TempDir(), "editor-progress.json")
 	reporter := newRenderProgressReporter(store, jobID, progressPath)
+	tracker := editor.NewProgressTracker(progressPath)
+	tracker.Flush("Preparando", 10)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go reporter.watch(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		reporter.watch(ctx)
+	}()
+	// Wait for watch's initial report so the 88 below can only be published by
+	// the final report on cancellation, well before the first 1 s tick.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for storedRenderPercent(t, store, jobID) != 10 {
+		if time.Now().After(deadline) {
+			t.Fatal("watch did not publish its initial report")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 
-	tracker := editor.NewProgressTracker(progressPath)
 	tracker.Flush("Montando cortes y ritmo", 88)
-	time.Sleep(1200 * time.Millisecond)
 	cancel()
-	time.Sleep(50 * time.Millisecond)
+	<-done
 
+	if got := storedRenderPercent(t, store, jobID); got != 88 {
+		t.Fatalf("percent = %d, want 88 from the final report on cancel", got)
+	}
+}
+
+// storedRenderPercent returns the published render progress percent, or -1
+// when no complete document is published yet.
+func storedRenderPercent(t *testing.T, store storage.Storage, jobID uuid.UUID) int {
+	t.Helper()
 	rc, err := store.Open(artifacts.RenderProgressKey(jobID))
 	if err != nil {
-		t.Fatal(err)
+		return -1
 	}
 	defer rc.Close()
 	var got editor.EditorProgress
 	if err := json.NewDecoder(rc).Decode(&got); err != nil {
-		t.Fatal(err)
+		return -1
 	}
-	if got.Percent != 88 {
-		t.Fatalf("percent = %d, want 88", got.Percent)
-	}
+	return got.Percent
 }
 
 func TestRenderProgressReporterSkipsUnchangedPut(t *testing.T) {

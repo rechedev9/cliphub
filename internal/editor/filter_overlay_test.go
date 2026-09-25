@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 )
@@ -66,11 +65,14 @@ func TestImageOverlayFilterUsesActiveWindowNotFullDuration(t *testing.T) {
 
 func TestImageOverlayFilterDegenerateWindowIsSafe(t *testing.T) {
 	short := ShortEdit{DurationSeconds: 24, OutputFPS: 60}
+	// A fade is what routes an image through the windowed loop/trim branch;
+	// without it the zero-length guard is never reached.
 	effect := Effect{
-		Type:         EffectImage,
-		Source:       "full-demo-outro",
-		StartSeconds: 16,
-		EndSeconds:   16,
+		Type:          EffectImage,
+		Source:        "full-demo-outro",
+		StartSeconds:  16,
+		EndSeconds:    16,
+		FadeInSeconds: demooverlay.IntroOverlaySlideSeconds,
 	}
 	got := imageOverlayFilter(effect, short)
 	if strings.Contains(got, "trim=duration=") {
@@ -87,11 +89,22 @@ func TestImageOverlayClauseUsesEOFPass(t *testing.T) {
 	}
 }
 
-func TestCompilationFilterFullDemoOverlayWindowGraph(t *testing.T) {
+func TestFullDemoCompilationFilterOverlayWindowGraph(t *testing.T) {
 	short := fullDemoOverlayFixtureShort()
-	got := CompilationFilter(short)
-	if strings.Contains(got, "trim=duration=24.000") && strings.Contains(got, "full-demo") {
-		t.Fatalf("compilation filter still trims overlay streams to full short duration:\n%s", got)
+	got := fullDemoCompilationFilter(short)
+	fullTrims := []string{
+		fmt.Sprintf("trim=duration=%.3f", short.DurationSeconds),
+		fmt.Sprintf("trim=duration=%.3f", short.DurationSeconds+1.0/float64(short.OutputFPS)),
+	}
+	for _, clause := range strings.Split(got, ";") {
+		if !strings.HasPrefix(clause, "[1:v]") && !strings.HasPrefix(clause, "[2:v]") {
+			continue
+		}
+		for _, full := range fullTrims {
+			if strings.Contains(clause, full) {
+				t.Fatalf("overlay input still trims to the full %.0fs program (%s):\n%s", short.DurationSeconds, full, clause)
+			}
+		}
 	}
 	for _, want := range []string{
 		"trim=duration=2.033",
@@ -101,7 +114,7 @@ func TestCompilationFilterFullDemoOverlayWindowGraph(t *testing.T) {
 		"eof_action=pass:repeatlast=0",
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("CompilationFilter missing %q:\n%s", want, got)
+			t.Fatalf("fullDemoCompilationFilter missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -231,7 +244,12 @@ func overlayCompositeRawHash(t *testing.T, ffmpeg string, short ShortEdit, overl
 	return hex.EncodeToString(sum[:])
 }
 
+// overlayEquivalenceFilter renders the production intro slide and outro
+// overlay clauses with overlayFn swapped in as the image overlay filter.
 func overlayEquivalenceFilter(short ShortEdit, overlayFn func(Effect, ShortEdit) string) string {
+	previous := imageOverlayFilterFunc
+	imageOverlayFilterFunc = overlayFn
+	defer func() { imageOverlayFilterFunc = previous }()
 	var intro, outro *Effect
 	for i := range short.Effects {
 		switch short.Effects[i].Source {
@@ -250,66 +268,14 @@ func overlayEquivalenceFilter(short ShortEdit, overlayFn func(Effect, ShortEdit)
 		clauses = append(clauses, dim...)
 		current = dimOut
 	}
-	slide, next := introSlideOverlayClausesWithFilter(current, 1, "img0", "vintro", *intro, short, overlayFn)
+	slide, next := introSlideOverlayClauses(current, 1, "img0", "vintro", *intro, short)
 	clauses = append(clauses, slide...)
 	current = next
 	clauses = append(clauses,
-		fmt.Sprintf("[2:v]%s[outroimg]", overlayFn(*outro, short)),
+		fmt.Sprintf("[2:v]%s[outroimg]", imageOverlayFilter(*outro, short)),
 		imageOverlayClause(current, "outroimg", "vout", "0", "0", betweenExpression(outro.StartSeconds, outro.EndSeconds)),
 	)
 	return strings.Join(clauses, ";") + ";[vout]format=yuv420p[vfinal]"
-}
-
-func introSlideOverlayClausesWithFilter(current string, imageInput int, imageLabel, next string, effect Effect, short ShortEdit, overlayFn func(Effect, ShortEdit) string) ([]string, string) {
-	l := demooverlay.DefaultLayout()
-	leftW := l.Intro.LeftPanelX + l.Intro.PanelWidth + 16
-	rightX := l.Intro.RightPanelX - 16
-	rightW := demooverlay.FrameWidth - rightX
-	enable := betweenExpression(effect.StartSeconds, effect.EndSeconds)
-	slideOut := demooverlay.IntroOverlaySlideOutSeconds
-	outStart := effect.EndSeconds - slideOut
-	if outStart < effect.StartSeconds+effect.FadeInSeconds {
-		outStart = effect.StartSeconds + effect.FadeInSeconds
-	}
-	mid := imageLabel + "L"
-	clauses := []string{
-		fmt.Sprintf("[%d:v]%s[%s]", imageInput, overlayFn(effect, short), imageLabel),
-		fmt.Sprintf("[%s]split=2[%ssrcL][%ssrcR]", imageLabel, imageLabel, imageLabel),
-		fmt.Sprintf("[%ssrcL]crop=%d:%d:0:0[%sL]", imageLabel, leftW, demooverlay.FrameHeight, imageLabel),
-		fmt.Sprintf("[%ssrcR]crop=%d:%d:%d:0[%sR]", imageLabel, rightW, demooverlay.FrameHeight, rightX, imageLabel),
-		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
-			current, imageLabel,
-			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, -leftW, 0),
-			enable, mid),
-		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
-			mid, imageLabel,
-			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, demooverlay.FrameWidth, rightX),
-			enable, next),
-	}
-	return clauses, next
-}
-
-func renderFullDemoOverlayFixture(t *testing.T, ffmpeg, dir string, short ShortEdit, overlayFn func(Effect, ShortEdit) string) string {
-	t.Helper()
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(dir, fmt.Sprintf("render-%p.mp4", overlayFn))
-	filter := overlayEquivalenceFilter(short, overlayFn)
-	cmd := exec.Command(ffmpeg, "-y", "-v", "error",
-		"-i", short.Parts[0].Input,
-		"-loop", "1", "-i", short.Effects[0].Path,
-		"-loop", "1", "-i", short.Effects[1].Path,
-		"-filter_complex", filter,
-		"-map", "[vfinal]",
-		"-t", fmt.Sprintf("%.3f", short.DurationSeconds),
-		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
-		out,
-	)
-	if runOut, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("render overlay fixture: %v: %s\nfilter=%s", err, runOut, filter)
-	}
-	return out
 }
 
 func writeLavfiCaptureAtFPS(t *testing.T, ffmpeg, path string, width, height, fps int, seconds float64) {
@@ -338,39 +304,4 @@ func writeSolidPNG(t *testing.T, ffmpeg, dir, name, color string, width, height 
 		t.Fatalf("write png %s: %v: %s", path, err, out)
 	}
 	return path
-}
-
-func TestFullDemoOverlayWindowBenchmark(t *testing.T) {
-	if os.Getenv("FULL_DEMO_OVERLAY_BENCH") != "1" {
-		t.Skip("set FULL_DEMO_OVERLAY_BENCH=1 for local wall-time comparison")
-	}
-	ffmpeg := ffmpegForEquivalence(t)
-	dir := t.TempDir()
-	const duration = 30.0 * 60
-	const fps = 60
-	base := filepath.Join(dir, "base-long.mp4")
-	writeLavfiCaptureAtFPS(t, ffmpeg, base, 1920, 1080, fps, duration)
-	introPNG := writeSolidPNG(t, ffmpeg, dir, "intro.png", "red", demooverlay.FrameWidth, demooverlay.FrameHeight)
-	outroPNG := writeSolidPNG(t, ffmpeg, dir, "outro.png", "blue", demooverlay.FrameWidth, demooverlay.FrameHeight)
-
-	short := fullDemoOverlayFixtureShort()
-	short.DurationSeconds = duration
-	short.Parts = []ShortPart{{Input: base, DurationSeconds: duration}}
-	short.Effects[0].Path = introPNG
-	introStart, introEnd, outroStart, outroEnd := demooverlay.OverlayWindows(duration)
-	short.Effects[0].StartSeconds = introStart
-	short.Effects[0].EndSeconds = introEnd
-	short.Effects[1].Path = outroPNG
-	short.Effects[1].StartSeconds = outroStart
-	short.Effects[1].EndSeconds = outroEnd
-
-	measure := func(label string, overlayFn func(Effect, ShortEdit) string) time.Duration {
-		start := time.Now()
-		renderFullDemoOverlayFixture(t, ffmpeg, filepath.Join(dir, label), short, overlayFn)
-		return time.Since(start)
-	}
-	legacyDur := measure("legacy", legacyImageOverlayFilter)
-	optDur := measure("optimized", buildImageOverlayFilter)
-	t.Logf("30min 1080p60 overlay composite wall: legacy=%s optimized=%s delta=%.1f%%",
-		legacyDur, optDur, (1-float64(optDur)/float64(legacyDur))*100)
 }

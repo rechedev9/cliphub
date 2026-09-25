@@ -8,7 +8,6 @@ import {
   fitPlanToSourceDuration,
   withDefaultStreamTitle,
   formatStreamClock,
-  formatStreamTimestamp,
   insertClipSorted,
   isServiceUnavailable,
   KNOWN_STREAM_ERROR_MESSAGES,
@@ -20,7 +19,6 @@ import {
   resolveStreamerBannerPlatform,
   streamSourceLabel,
   DEFAULT_FACE_CROP,
-  timelineClipAt,
   STREAM_INVALID_URL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
 } from './plan.ts';
@@ -121,13 +119,6 @@ test('fitting preserves custom overruns for strict backend validation', () => {
   };
   assert.equal(fitPlanToSourceDuration(plan, 15.15).clips[0].end_seconds, 42);
   assert.equal(fitPlanToSourceDuration(plan, 0).clips[0].end_seconds, 42);
-});
-
-test('timestamps render as m:ss.hh with a padded seconds field', () => {
-  assert.equal(formatStreamTimestamp(0), '0:00.00');
-  assert.equal(formatStreamTimestamp(65.5), '1:05.50');
-  assert.equal(formatStreamTimestamp(Number.NaN), '0:00.00');
-  assert.equal(formatStreamTimestamp(-4), '0:00.00');
 });
 
 test('an all-defaults edit prunes to undefined so the fingerprint does not move', () => {
@@ -232,55 +223,6 @@ test('the clock rounds to the nearest second and adds hours only past sixty minu
   assert.equal(formatStreamClock(84), '1:24');
   assert.equal(formatStreamClock(3725), '1:02:05');
   assert.equal(formatStreamClock(Number.NaN), '0:00');
-});
-
-test('a timeline click opens a cut around the second, clamped to the source and its neighbours', () => {
-  const clips: StreamClipRange[] = [
-    { id: 'a', start_seconds: 10, end_seconds: 20 },
-    { id: 'b', start_seconds: 40, end_seconds: 50 },
-  ];
-  const cases: [number, number, ReturnType<typeof timelineClipAt>][] = [
-    [30, 90, { start_seconds: 26, end_seconds: 38 }],
-    [22, 90, { start_seconds: 20, end_seconds: 30 }],
-    [2, 90, { start_seconds: 0, end_seconds: 10 }],
-    [88, 90, { start_seconds: 84, end_seconds: 90 }],
-    [15, 90, null],
-    [30, 0, null],
-  ];
-  for (const [seconds, duration, expected] of cases) {
-    assert.deepEqual(timelineClipAt(clips, seconds, duration), expected);
-  }
-  const tight: StreamClipRange[] = [
-    { id: 'a', start_seconds: 0, end_seconds: 20 },
-    { id: 'b', start_seconds: 20.5, end_seconds: 30 },
-  ];
-  assert.equal(timelineClipAt(tight, 20.2, 90), null);
-});
-
-test('a cut clamped to non-decimal neighbours rounds inwards and never overlaps them', () => {
-  const clips: StreamClipRange[] = [
-    { id: 'a', start_seconds: 0, end_seconds: 3.04 },
-    { id: 'b', start_seconds: 5.06, end_seconds: 10 },
-  ];
-  const cases: [readonly StreamClipRange[], number, ReturnType<typeof timelineClipAt>][] = [
-    [clips, 4.5, { start_seconds: 3.1, end_seconds: 5 }],
-    [clips, 3.05, { start_seconds: 3.1, end_seconds: 5 }],
-    // A gap under the minimum collapses to nothing instead of stealing a frame.
-    [
-      [{ id: 'a', start_seconds: 0, end_seconds: 3.04 }, { id: 'b', start_seconds: 3.9, end_seconds: 10 }],
-      3.5,
-      null,
-    ],
-  ];
-  for (const [ranges, seconds, expected] of cases) {
-    const range = timelineClipAt(ranges, seconds, 20);
-    assert.deepEqual(range, expected);
-    if (range !== null) {
-      for (const neighbour of ranges) {
-        assert.ok(range.end_seconds <= neighbour.start_seconds || range.start_seconds >= neighbour.end_seconds);
-      }
-    }
-  }
 });
 
 test('inserted cuts keep source order so numbering follows the timeline', () => {

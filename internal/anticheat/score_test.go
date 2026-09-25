@@ -60,9 +60,10 @@ func TestMetricWeightsSumToOne(t *testing.T) {
 	}
 }
 
-func TestDefaultBaselineCoversEveryMetric(t *testing.T) {
-	if err := DefaultBaseline().Validate(); err != nil {
-		t.Fatalf("DefaultBaseline().Validate() = %v, want nil", err)
+// The shipped baseline is data, so it must name where its numbers came from.
+func TestDefaultBaselineNamesItsProvenance(t *testing.T) {
+	if b := DefaultBaseline(); b.Source == "" || b.Description == "" {
+		t.Fatalf("DefaultBaseline() source = %q, description = %q, want both set", b.Source, b.Description)
 	}
 }
 

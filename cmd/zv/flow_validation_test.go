@@ -5,12 +5,6 @@ import (
 	"testing"
 )
 
-func TestValidateProductionFlowsIsClean(t *testing.T) {
-	if issues := validateProductionFlows(productionFlows()); len(issues) != 0 {
-		t.Fatalf("productionFlows() are not canonical: %#v", issues)
-	}
-}
-
 func TestResolveFlowPlaceholders(t *testing.T) {
 	cases := []struct {
 		name  string

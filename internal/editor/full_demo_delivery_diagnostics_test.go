@@ -126,6 +126,12 @@ func TestFullDemoDeliveryCombinedDiagnosticsDisabledAndTruncated(t *testing.T) {
 	if plain.QualityLog != "" || len(plain.QualityWarnings) != 0 {
 		t.Fatalf("disabled diagnostics produced quality data: %+v", plain)
 	}
+	if !plain.Evidence.FullDecode || plain.Evidence.FrameCount != 60 {
+		t.Fatalf("disabled diagnostics lost strict frame evidence: %+v", plain.Evidence)
+	}
+	if _, err := verifyFullDemoDeliveryWithDiagnostics(ctx, ffmpeg, ffprobe, file, 59, nil, nil); err == nil {
+		t.Fatal("wrong canonical frame count passed delivery")
+	}
 	combined, err := verifyFullDemoDeliveryWithDiagnostics(ctx, ffmpeg, ffprobe, file, 60, nil, &fullDemoDeliveryDiagnostics{
 		SegmentID: "demo-compilation",
 		Filters:   qualityCheckFilters(ShortEdit{Preset: PresetGameplayPOV60}),

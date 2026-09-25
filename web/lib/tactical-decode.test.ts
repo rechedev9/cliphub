@@ -4,10 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   decodeFrames,
-  decodePositions,
   decodePositionsHeader,
   decodeRoundFrames,
-  decodeRoundFramesFromSlice,
   TacticalDecodeError,
   tacticalDecodeErrorMessage,
 } from './tactical-decode.ts';
@@ -47,7 +45,6 @@ type BlobSpec = {
   rounds: RoundSpec[];
   magic?: string;
   version?: number;
-  frameCount?: number;
 };
 
 const QUANTUM = 0.25;
@@ -87,7 +84,7 @@ function encodeBlob(spec: BlobSpec): { buffer: ArrayBuffer; offsets: TacticalRou
   data.setFloat32(16, spec.origin[0], true);
   data.setFloat32(20, spec.origin[1], true);
   data.setFloat32(24, spec.origin[2], true);
-  data.setUint32(28, spec.frameCount ?? frames.length, true);
+  data.setUint32(28, frames.length, true);
 
   const offsets: TacticalRoundOffset[] = [];
   let pos = POSITIONS_HEADER_SIZE;
@@ -177,6 +174,12 @@ function twoRoundBlob(): { buffer: ArrayBuffer; offsets: TacticalRoundOffset[] }
   });
 }
 
+/** Decodes every round the way the viewer does: header scale, then each round at its offset. */
+function decodeAllRounds(buffer: ArrayBuffer, offsets: readonly TacticalRoundOffset[]) {
+  const header = decodePositionsHeader(buffer);
+  return { header, frames: offsets.flatMap((offset) => decodeRoundFrames(buffer, offset, header)) };
+}
+
 test('decodes the fixed header exactly as the Go encoder wrote it', () => {
   const { buffer } = twoRoundBlob();
   const header = decodePositionsHeader(buffer);
@@ -191,8 +194,8 @@ test('decodes the fixed header exactly as the Go encoder wrote it', () => {
 });
 
 test('decodes every frame, dequantising against the header origin and quantum', () => {
-  const { buffer } = twoRoundBlob();
-  const { header, frames } = decodePositions(buffer);
+  const { buffer, offsets } = twoRoundBlob();
+  const { header, frames } = decodeAllRounds(buffer, offsets);
   assert.equal(frames.length, 3);
   assert.deepEqual(
     frames.map((frame) => frame.tick),
@@ -219,8 +222,8 @@ test('decodes every frame, dequantising against the header origin and quantum', 
 });
 
 test('decodes negative int16 step counts as world coordinates below the origin', () => {
-  const { buffer } = twoRoundBlob();
-  const { frames } = decodePositions(buffer);
+  const { buffer, offsets } = twoRoundBlob();
+  const { frames } = decodeAllRounds(buffer, offsets);
   const slot9 = frames[2].samples[0];
   assert.equal(slot9.slot, 9);
   assert.equal(slot9.x, ORIGIN[0] + 32000 * QUANTUM);
@@ -229,8 +232,8 @@ test('decodes negative int16 step counts as world coordinates below the origin',
 });
 
 test('decodes the flag byte into the documented bits', () => {
-  const { buffer } = twoRoundBlob();
-  const { frames } = decodePositions(buffer);
+  const { buffer, offsets } = twoRoundBlob();
+  const { frames } = decodeAllRounds(buffer, offsets);
   const t = frames[0].samples[1];
   assert.equal(t.health, 56);
   assert.ok(hasSampleFlags(t.flags, TACTICAL_SAMPLE_FLAGS.alive));
@@ -246,7 +249,7 @@ test('decodes the flag byte into the documented bits', () => {
 
 test('decodes yaw over the full circle, wrapping instead of overflowing', () => {
   const yaws = [0, 45, 90, 180, 270, 359.9999, -90];
-  const { buffer } = encodeBlob({
+  const { buffer, offsets } = encodeBlob({
     quantum: QUANTUM,
     origin: ORIGIN,
     slotCount: 1,
@@ -261,7 +264,7 @@ test('decodes yaw over the full circle, wrapping instead of overflowing', () => 
       },
     ],
   });
-  const { frames } = decodePositions(buffer);
+  const { frames } = decodeAllRounds(buffer, offsets);
   const decoded = frames.map((frame) => frame.samples[0].yaw);
   for (const yaw of decoded) {
     assert.ok(yaw >= 0 && yaw < 360, `yaw ${yaw} outside [0, 360)`);
@@ -285,11 +288,6 @@ test('decodes one round from its byte offset without reading the rest of the blo
   assert.equal(frames.length, 1);
   assert.equal(frames[0].tick, 500);
   assert.equal(frames[0].samples[0].slot, 9);
-
-  // The same round, fetched as a Range slice that starts at its byte offset.
-  const slice = buffer.slice(second.byte_offset, second.byte_offset + second.byte_length);
-  assert.equal(slice.byteLength, second.byte_length);
-  assert.deepEqual(decodeRoundFramesFromSlice(slice, second, header), frames);
 });
 
 test('decodes with the JSON descriptor scale as well as with the header', () => {
@@ -302,14 +300,14 @@ test('decodes with the JSON descriptor scale as well as with the header', () => 
 });
 
 test('an empty stream still decodes', () => {
-  const { buffer } = encodeBlob({
+  const { buffer, offsets } = encodeBlob({
     quantum: QUANTUM,
     origin: ORIGIN,
     slotCount: 0,
     sampleTicks: 8,
     rounds: [],
   });
-  const { header, frames } = decodePositions(buffer);
+  const { header, frames } = decodeAllRounds(buffer, offsets);
   assert.equal(header.frameCount, 0);
   assert.deepEqual(frames, []);
 });
@@ -379,27 +377,28 @@ test('rejects a non-positive quantum', () => {
 });
 
 test('rejects truncated frames instead of decoding half of one', () => {
-  const { buffer } = twoRoundBlob();
+  const { buffer, offsets } = twoRoundBlob();
+  const header = decodePositionsHeader(buffer);
   assert.throws(
-    () => decodePositions(buffer.slice(0, POSITIONS_HEADER_SIZE + 8)),
+    () => decodeRoundFrames(buffer.slice(0, POSITIONS_HEADER_SIZE + 8), offsets[0], header),
     /truncated samples/,
   );
   assert.throws(
-    () => decodePositions(buffer.slice(0, POSITIONS_HEADER_SIZE + 3)),
+    () => decodeRoundFrames(buffer.slice(0, POSITIONS_HEADER_SIZE + 3), offsets[0], header),
     /truncated frame header/,
   );
 });
 
-test('rejects a frame count the blob cannot satisfy', () => {
-  const { buffer } = encodeBlob({
+test('rejects a round frame count the blob cannot satisfy', () => {
+  const { buffer, offsets } = encodeBlob({
     quantum: QUANTUM,
     origin: ORIGIN,
     slotCount: 1,
     sampleTicks: 8,
-    frameCount: 5,
     rounds: [{ round: 1, frames: [{ tick: 1, samples: [sample(0, [0, 0, 0])] }] }],
   });
-  assert.throws(() => decodePositions(buffer), /truncated frame header/);
+  const header = decodePositionsHeader(buffer);
+  assert.throws(() => decodeRoundFrames(buffer, { ...offsets[0], frame_count: 5 }, header), /truncated frame header/);
 });
 
 test('rejects an offset outside the blob or inside the header', () => {
@@ -407,14 +406,6 @@ test('rejects an offset outside the blob or inside the header', () => {
   const header = decodePositionsHeader(buffer);
   assert.throws(() => decodeFrames(buffer, buffer.byteLength + 1, 1, header), /outside the/);
   assert.throws(() => decodeFrames(buffer, 4, 1, header), /outside the/);
-});
-
-test('rejects a round slice shorter than the round it claims to carry', () => {
-  const { buffer, offsets } = twoRoundBlob();
-  const header = decodePositionsHeader(buffer);
-  const round = offsets[0];
-  const short = buffer.slice(round.byte_offset, round.byte_offset + round.byte_length - 1);
-  assert.throws(() => decodeRoundFramesFromSlice(short, round, header), /slice is/);
 });
 
 test('rejects a descriptor with no quantum', () => {

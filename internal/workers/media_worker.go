@@ -167,19 +167,14 @@ func recordPreservedRecordingFailure(ctx context.Context, repo statusUpdater, id
 // task context (e.g. direct unit tests) it returns true so a failure is still
 // recorded.
 func taskIsTerminal(ctx context.Context) bool {
-	if retried, maxRetry, ok := tasks.TaskAttempt(ctx); ok {
-		return isTerminalAttempt(retried, maxRetry, true)
-	}
-	retried, ok1 := asynq.GetRetryCount(ctx)
-	maxRetry, ok2 := asynq.GetMaxRetry(ctx)
-	return isTerminalAttempt(retried, maxRetry, ok1 && ok2)
-}
-
-// isTerminalAttempt holds the retry arithmetic separately so it can be tested
-// without an Asynq task context.
-func isTerminalAttempt(retried, maxRetry int, inTask bool) bool {
-	if !inTask {
-		return true
+	retried, maxRetry, ok := tasks.TaskAttempt(ctx)
+	if !ok {
+		var hasRetry, hasMax bool
+		retried, hasRetry = asynq.GetRetryCount(ctx)
+		maxRetry, hasMax = asynq.GetMaxRetry(ctx)
+		if !hasRetry || !hasMax {
+			return true
+		}
 	}
 	return retried >= maxRetry
 }
@@ -766,7 +761,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err != nil {
 		return fmt.Errorf("build expected recording identity: %w", err)
 	}
-	missing, reusedKeys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile, ctx)
+	missing, reusedKeys, err := recordingOutputsReady(ctx, w.storage, j.ID, requested, expectedProfile)
 	if err != nil {
 		return err
 	}
@@ -3652,11 +3647,7 @@ func putRecordingResult(store storage.Storage, id uuid.UUID, result recording.Re
 // stay authoritative: a clip is only reused when it was captured under the
 // exact same profile and segment definition, so HUD modes are never mixed
 // within one reel.
-func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan, contexts ...context.Context) ([]string, []string, error) {
-	ctx := context.Background()
-	if len(contexts) > 0 {
-		ctx = contexts[0]
-	}
+func recordingOutputsReady(ctx context.Context, store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) ([]string, []string, error) {
 	if len(requested) == 0 {
 		return nil, nil, nil
 	}

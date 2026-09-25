@@ -98,8 +98,8 @@ func TestRunWithContextReturnsUnderlyingResultWhenNotCancelled(t *testing.T) {
 
 	_, err := RunWithContext(context.Background(), p, testTargetSteamID, rules.Rules{}, PlanMeta{}, RunOptions{})
 
-	if errors.Is(err, context.Canceled) {
-		t.Fatalf("RunWithContext err = %v, want the underlying parser result, not a context error", err)
+	if !errors.Is(err, ErrTargetNotFound) {
+		t.Fatalf("RunWithContext err = %v, want the underlying ErrTargetNotFound, not a context error", err)
 	}
 	if p.cancelCalled.Load() {
 		t.Error("parser Cancel() was called on a run that was never cancelled")

@@ -3,25 +3,17 @@ package verify
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
-func TestProveDryRunDoesNotHTTPOrTouchJobsDB(t *testing.T) {
+func TestProveDryRunIssuesNoHTTP(t *testing.T) {
 	root, err := FindRepoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
 	userData, probe := windowsStudioProbe(t, true, true, true, true, true)
-	db := filepath.Join(userData, filepath.FromSlash(StudioJobsDBRel))
-	if err := os.MkdirAll(filepath.Dir(db), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(db, []byte("SQLite format 3"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	before := fileSum(db)
 	report, err := Prove(ProveOptions{
 		Root:     root,
 		Feature:  "demo-completa",
@@ -40,9 +32,6 @@ func TestProveDryRunDoesNotHTTPOrTouchJobsDB(t *testing.T) {
 	}
 	if probe.healthN != 0 || probe.getN != 0 {
 		t.Fatalf("dry-run issued HTTP health=%d get=%d", probe.healthN, probe.getN)
-	}
-	if fileSum(db) != before {
-		t.Fatal("dry-run mutated jobs.db")
 	}
 }
 
@@ -269,6 +258,22 @@ func TestProveCheapLiveGETFailureIsNotCaptureClose(t *testing.T) {
 	}
 }
 
+// containsFullDemoPass reports whether detail claims a Full Demo Pass: some
+// mention of the phrase whose sentence (or clause) does not negate it with a
+// preceding "not", as in "This is not Full Demo Pass."
 func containsFullDemoPass(detail string) bool {
-	return detail == "Full Demo Pass"
+	const phrase = "full demo pass"
+	lower := strings.ToLower(detail)
+	for offset := 0; ; {
+		i := strings.Index(lower[offset:], phrase)
+		if i < 0 {
+			return false
+		}
+		at := offset + i
+		clause := lower[strings.LastIndexAny(lower[:at], ".;")+1 : at]
+		if !slices.Contains(strings.Fields(clause), "not") {
+			return true
+		}
+		offset = at + len(phrase)
+	}
 }

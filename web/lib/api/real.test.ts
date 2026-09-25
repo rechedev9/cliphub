@@ -457,25 +457,6 @@ test('an already-aborted createVideo does not persist an intent or POST generate
   }
 });
 
-test('aborting createVideo after getMatch starts does not persist an intent', async () => {
-  const gate = gateFetch(planReadyReply);
-  try {
-    const client = new RealApiClient();
-    const controller = new AbortController();
-    const pending = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
-    const rejected = assert.rejects(pending, isAbortError);
-    await drain();
-    assert.ok(gate.calls.includes(STATUS_URL));
-    controller.abort();
-    await gate.release();
-    await gate.release();
-    await rejected;
-    assert.equal((client as unknown as Seedable).intents.size, 0);
-  } finally {
-    gate.restore();
-  }
-});
-
 for (const status of ['parsing', 'parsed']) {
   test(`getScan reports ${status} targeted imports without requiring a roster`, async () => {
     const gate = gateFetch(url => url === STATUS_URL ? json({ status }) : json({ error: 'roster not ready' }, 409));

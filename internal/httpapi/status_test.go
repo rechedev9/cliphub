@@ -204,6 +204,15 @@ func TestGetJobStatusOmitsKillPlanAndPreservesLifecycleFields(t *testing.T) {
 			if got.Progress != nil {
 				t.Fatalf("status response included progress %+v", got.Progress)
 			}
+
+			full := httptest.NewRecorder()
+			router.ServeHTTP(full, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String(), nil))
+			if full.Code != http.StatusOK {
+				t.Fatalf("full GET status = %d, want 200: %s", full.Code, full.Body.String())
+			}
+			if !strings.Contains(full.Body.String(), "kill_plan") || !strings.Contains(full.Body.String(), "seg-001") {
+				t.Fatalf("full GET omitted kill_plan: %s", full.Body.String())
+			}
 		})
 	}
 }
@@ -228,40 +237,16 @@ func TestGetJobStatusReportsCaptureSelectionProgressWithoutKillPlan(t *testing.T
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
 	}
+	if strings.Contains(response.Body.String(), "kill_plan") {
+		t.Fatalf("status response contains kill plan: %s", response.Body.String())
+	}
 	var got jobStatusResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode status response: %v", err)
 	}
+	// The reel selects s2,s3 out of a 4-segment plan; s1 is a stale clip from
+	// a previous reel and must not be counted, and total is the selection size.
 	if got.Progress == nil || got.Progress.Done != 1 || got.Progress.Total != 2 || got.Progress.Percent != 50 {
 		t.Fatalf("progress = %+v, want 1/2 50%%", got.Progress)
-	}
-}
-
-func TestGetJobFullPayloadLargerThanStatusView(t *testing.T) {
-	repo := newFakeRepo()
-	j := benchmarkStatusJob()
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
-	router := chi.NewRouter()
-	router.Get("/api/jobs/{id}", h.GetJob)
-
-	full := httptest.NewRecorder()
-	router.ServeHTTP(full, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String(), nil))
-	status := httptest.NewRecorder()
-	router.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"?view=status", nil))
-
-	if full.Code != http.StatusOK || status.Code != http.StatusOK {
-		t.Fatalf("full=%d status=%d, want 200/200", full.Code, status.Code)
-	}
-	fullLen := full.Body.Len()
-	statusLen := status.Body.Len()
-	if fullLen <= statusLen {
-		t.Fatalf("full GET body %d bytes is not larger than ?view=status %d bytes", fullLen, statusLen)
-	}
-	if strings.Contains(status.Body.String(), "kill_plan") {
-		t.Fatalf("status view still embeds kill_plan: %s", status.Body.String())
-	}
-	if !strings.Contains(full.Body.String(), "kill_plan") {
-		t.Fatal("full GET omitted kill_plan")
 	}
 }

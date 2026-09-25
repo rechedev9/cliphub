@@ -169,41 +169,6 @@ func TestCaptureProgressReporterIncludesLiveTakeElapsed(t *testing.T) {
 	}
 }
 
-func TestStartCaptureProgressAttemptReplacesStaleAttemptBeforeCapture(t *testing.T) {
-	store, err := storage.NewLocal(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	jobID := uuid.New()
-	oldAttemptID := uuid.New()
-	old := newCaptureProgressReporter(store, jobID, oldAttemptID, "", []string{"s1", "s2"})
-	if err := old.write([]string{"s1", "s2"}); err != nil {
-		t.Fatal(err)
-	}
-
-	attemptID, err := startCaptureProgressAttempt(store, jobID, []string{"s1", "s2"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if attemptID == oldAttemptID {
-		t.Fatal("new capture reused the stale attempt id")
-	}
-	rc, err := store.Open(artifacts.CaptureProgressKey(jobID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rc.Close()
-	var progress recording.CaptureProgress
-	if err := json.NewDecoder(rc).Decode(&progress); err != nil {
-		t.Fatal(err)
-	}
-	if progress.AttemptID != attemptID ||
-		len(progress.CompletedSegmentIDs) != 0 ||
-		len(progress.SegmentIDs) != 2 {
-		t.Fatalf("fresh progress = %#v, want new attempt with 0/2 completed", progress)
-	}
-}
-
 func TestRecordWorkerPublishesFreshAttemptBeforeRecordingStatus(t *testing.T) {
 	store := newFakeStorage()
 	base := newFakeRepo()
@@ -284,6 +249,9 @@ func TestRecordWorkerCacheHitKeepsExistingCaptureProgressAttempt(t *testing.T) {
 
 	if err := worker.HandleRecordDemo(context.Background(), recordTask(t, jobID)); err != nil {
 		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if repo.jobs[jobID].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[jobID].Status)
 	}
 	progress := storedCaptureProgress(t, store, jobID)
 	if progress.AttemptID != oldAttemptID || len(progress.CompletedSegmentIDs) != len(segmentIDs) {

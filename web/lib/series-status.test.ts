@@ -74,28 +74,17 @@ test('forgeable matches statuses at or past a ready kill plan', () => {
 });
 
 test('summarize buckets statuses disjointly for the header', () => {
-  assert.deepEqual(summarizeSeriesStatuses([]), { ready: 0, pending: 0, failed: 0, skipped: 0 });
-  assert.deepEqual(summarizeSeriesStatuses(['parsed', 'done', 'recording']), {
-    ready: 3,
-    pending: 0,
-    failed: 0,
-    skipped: 0,
-  });
-  assert.deepEqual(summarizeSeriesStatuses(['parsing', 'scanned', 'failed', 'parsed']), {
-    ready: 1,
-    pending: 1,
-    failed: 1,
-    skipped: 1,
-  });
-});
-
-test('summarize never calls a settled map pending', () => {
-  // 'scanned' (no chosen player) and 'failed' are settled: they must land in
-  // their own buckets, never in pending, so the header cannot claim they are
-  // still processing.
-  const summary = summarizeSeriesStatuses(['scanned', 'scanned', 'failed']);
-  assert.equal(summary.pending, 0);
-  assert.deepEqual(summary, { ready: 0, pending: 0, failed: 1, skipped: 2 });
+  const cases: [string[], ReturnType<typeof summarizeSeriesStatuses>][] = [
+    [[], { ready: 0, pending: 0, failed: 0, skipped: 0 }],
+    [['parsed', 'done', 'recording'], { ready: 3, pending: 0, failed: 0, skipped: 0 }],
+    [['parsing', 'scanned', 'failed', 'parsed'], { ready: 1, pending: 1, failed: 1, skipped: 1 }],
+    // 'scanned' (no chosen player) and 'failed' are settled: never pending, so
+    // the header cannot claim they are still processing.
+    [['scanned', 'scanned', 'failed'], { ready: 0, pending: 0, failed: 1, skipped: 2 }],
+  ];
+  for (const [statuses, want] of cases) {
+    assert.deepEqual(summarizeSeriesStatuses(statuses), want, statuses.join(','));
+  }
 });
 
 test('summarize keeps an unknown status consistent with its "analizando" pill', () => {

@@ -781,60 +781,43 @@ func TestLauncherFailurePreservesCauseWithoutAssumingCS2Ownership(t *testing.T) 
 }
 
 func TestWaitForWindowsProcessRunAndExitStopsOwnedProcessOnDemoParseFailure(t *testing.T) {
-	var stopped string
-	status := func(image string) (bool, string, error) {
-		return false, "", &demoParseError{path: `C:\game\csgo\console.log`}
+	tests := []struct {
+		name      string
+		firstWait time.Duration
+		poll      time.Duration
+	}{
+		{name: "detected while polling", firstWait: time.Second, poll: time.Millisecond},
+		{name: "detected at first deadline", firstWait: time.Millisecond, poll: time.Hour},
 	}
-	terminate := func(image string) error {
-		stopped = image
-		return nil
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stopped string
+			status := func(image string) (bool, string, error) {
+				return false, "", &demoParseError{path: `C:\game\csgo\console.log`}
+			}
+			terminate := func(image string) error {
+				stopped = image
+				return nil
+			}
 
-	err := waitForWindowsProcessRunAndExitWith(
-		context.Background(),
-		"cs2.exe",
-		time.Second,
-		time.Millisecond,
-		time.Hour,
-		nil,
-		status,
-		terminate,
-	)
-	var parseErr *demoParseError
-	if !errors.As(err, &parseErr) {
-		t.Fatalf("error = %v, want demoParseError", err)
-	}
-	if stopped != "cs2.exe" {
-		t.Fatalf("terminated image = %q, want cs2.exe", stopped)
-	}
-}
-
-func TestWaitForWindowsProcessRunAndExitChecksDemoParseFailureAtFirstDeadline(t *testing.T) {
-	var stopped string
-	status := func(image string) (bool, string, error) {
-		return false, "", &demoParseError{path: `C:\game\csgo\console.log`}
-	}
-	terminate := func(image string) error {
-		stopped = image
-		return nil
-	}
-
-	err := waitForWindowsProcessRunAndExitWith(
-		context.Background(),
-		"cs2.exe",
-		time.Millisecond,
-		time.Hour,
-		time.Hour,
-		nil,
-		status,
-		terminate,
-	)
-	var parseErr *demoParseError
-	if !errors.As(err, &parseErr) {
-		t.Fatalf("error = %v, want demoParseError", err)
-	}
-	if stopped != "cs2.exe" {
-		t.Fatalf("terminated image = %q, want cs2.exe", stopped)
+			err := waitForWindowsProcessRunAndExitWith(
+				context.Background(),
+				"cs2.exe",
+				tt.firstWait,
+				tt.poll,
+				time.Hour,
+				nil,
+				status,
+				terminate,
+			)
+			var parseErr *demoParseError
+			if !errors.As(err, &parseErr) {
+				t.Fatalf("error = %v, want demoParseError", err)
+			}
+			if stopped != "cs2.exe" {
+				t.Fatalf("terminated image = %q, want cs2.exe", stopped)
+			}
+		})
 	}
 }
 

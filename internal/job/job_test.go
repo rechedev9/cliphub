@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestStatusStringMapping(t *testing.T) {
+// TestStatusWireNames pins the canonical name of every status in both
+// directions: String, ParseStatus and the JSON encoding all use it.
+func TestStatusWireNames(t *testing.T) {
 	cases := map[Status]string{
 		StatusQueued:         "queued",
 		StatusParsing:        "parsing",
@@ -24,10 +26,34 @@ func TestStatusStringMapping(t *testing.T) {
 		StatusScanned:        "scanned",
 		StatusReviewRequired: "review_required",
 	}
+	if len(cases) != len(Statuses()) {
+		t.Fatalf("wire names cover %d statuses, Statuses() has %d", len(cases), len(Statuses()))
+	}
 	for s, want := range cases {
 		if got := s.String(); got != want {
 			t.Errorf("Status(%d).String() = %q, want %q", s, got, want)
 		}
+		if parsed, err := ParseStatus(want); err != nil || parsed != s {
+			t.Errorf("ParseStatus(%q) = (%v, %v), want %v", want, parsed, err, s)
+		}
+		b, err := json.Marshal(s)
+		if err != nil || string(b) != `"`+want+`"` {
+			t.Errorf("json.Marshal(%v) = (%s, %v), want %q", s, b, err, want)
+		}
+		var decoded Status
+		if err := json.Unmarshal(b, &decoded); err != nil || decoded != s {
+			t.Errorf("json.Unmarshal(%s) = (%v, %v), want %v", b, decoded, err, s)
+		}
+	}
+}
+
+func TestStatusRejectsUnknownName(t *testing.T) {
+	if _, err := ParseStatus("bogus"); err == nil {
+		t.Error("ParseStatus(bogus) error = nil, want error")
+	}
+	var s Status
+	if err := json.Unmarshal([]byte(`"bogus"`), &s); err == nil {
+		t.Error("Unmarshal(\"bogus\") error = nil, want error")
 	}
 }
 
@@ -57,22 +83,6 @@ func TestCanHaveRenderStateCoversEveryStatus(t *testing.T) {
 	}
 }
 
-func TestParseStatusValid(t *testing.T) {
-	s, err := ParseStatus("parsed")
-	if err != nil {
-		t.Fatalf("ParseStatus(parsed) error = %v", err)
-	}
-	if s != StatusParsed {
-		t.Errorf("ParseStatus(parsed) = %v, want %v", s, StatusParsed)
-	}
-}
-
-func TestParseStatusInvalid(t *testing.T) {
-	if _, err := ParseStatus("bogus"); err == nil {
-		t.Error("ParseStatus(bogus) error = nil, want error")
-	}
-}
-
 func TestJobMarshalsToExpectedShape(t *testing.T) {
 	j := Job{
 		ID:            uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -96,28 +106,5 @@ func TestJobMarshalsToExpectedShape(t *testing.T) {
 	}
 	if strings.Contains(out, "failure_code") || strings.Contains(out, "failure_reason") {
 		t.Errorf("empty failure fields should be omitted: %s", out)
-	}
-}
-
-func TestStatusJSONRoundTrip(t *testing.T) {
-	for _, s := range []Status{StatusQueued, StatusParsing, StatusParsed, StatusRecording, StatusRecorded, StatusComposing, StatusComposed, StatusDone, StatusFailed, StatusScanning, StatusScanned, StatusReviewRequired} {
-		b, err := json.Marshal(s)
-		if err != nil {
-			t.Fatalf("marshal %v: %v", s, err)
-		}
-		var got Status
-		if err := json.Unmarshal(b, &got); err != nil {
-			t.Fatalf("unmarshal %s: %v", b, err)
-		}
-		if got != s {
-			t.Errorf("round-trip: got %v, want %v", got, s)
-		}
-	}
-}
-
-func TestStatusUnmarshalRejectsUnknown(t *testing.T) {
-	var s Status
-	if err := json.Unmarshal([]byte(`"bogus"`), &s); err == nil {
-		t.Error("Unmarshal(\"bogus\") error = nil, want error")
 	}
 }

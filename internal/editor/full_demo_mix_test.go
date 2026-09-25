@@ -10,90 +10,66 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-func TestFullDemoCaptureSeekKeepsShortOffsetsUnchanged(t *testing.T) {
-	for _, offset := range []int64{0, 1, 61, 120} {
-		seek, trim := fullDemoCaptureSeek(offset)
-		if seek != 0 || trim != offset {
-			t.Fatalf("offset %d: seek=%d trim=%d, want seek 0 trim %d", offset, seek, trim, offset)
-		}
-	}
-}
-
-func TestFullDemoCaptureSeekPrerollsTwoSeconds(t *testing.T) {
-	seek, trim := fullDemoCaptureSeek(1000)
-	if seek != 880 || trim != 120 {
-		t.Fatalf("seek=%d trim=%d, want 880/120 (2s preroll at 60fps)", seek, trim)
-	}
-	if seek+trim != 1000 {
-		t.Fatalf("seek+trim = %d, want original offset 1000", seek+trim)
-	}
-}
-
+// Capture offsets up to the 2 s preroll (120 frames at 60 fps) trim from the
+// start of the capture; longer offsets input-seek to 2 s before the item and
+// keep a 120-frame trim, so the trimmed window is the same capture frames.
 func TestFullDemoItemCommandSeeksCaptureBeforeTrim(t *testing.T) {
-	options := recapplan.DefaultOptions()
-	options.Capture.HUDProfile = "native-clean-spectator"
-	options.Overlays.HUDTheme = ""
-	short := ShortEdit{
-		Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
-		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
-		fullDemo: &fullDemoRenderContext{
-			ffmpeg:    "ffmpeg",
-			recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
-		},
+	tests := []struct {
+		name         string
+		startTick    int
+		offsetFrames int64
+		wantSeek     int64
+		wantTrim     string
+		wantAtrim    string
+	}{
+		{name: "short tick offset 61", startTick: 129, wantTrim: "trim=start_frame=61:end_frame=121", wantAtrim: "atrim=start_sample=48800:end_sample=96800"},
+		{name: "preroll boundary 120", startTick: 64, offsetFrames: 120, wantTrim: "trim=start_frame=120:end_frame=180", wantAtrim: "atrim=start_sample=96000:end_sample=144000"},
+		{name: "one past preroll 121", startTick: 64, offsetFrames: 121, wantSeek: 1, wantTrim: "trim=start_frame=120:end_frame=180", wantAtrim: "atrim=start_sample=96000:end_sample=144000"},
+		{name: "long tick offset 1000", startTick: 64 + 1067, wantSeek: 880, wantTrim: "trim=start_frame=120:end_frame=180", wantAtrim: "atrim=start_sample=96000:end_sample=144000"},
 	}
-	item := recapplan.TimelineItem{
-		Role: "round", SourceRef: "round-001",
-		SourceStartTick: 64 + 1067, SourceOffsetFrames: 0,
-		EndFrame: 60, EndSample: 48000,
-	}
-	command, err := fullDemoItemCommand(short, item, "round.nut")
-	if err != nil {
-		t.Fatal(err)
-	}
-	seconds, ok := firstInputSeek(command)
-	if !ok {
-		t.Fatalf("missing input -ss before game -i: %v", command)
-	}
-	seekFrames := int64(seconds*recapplan.OutputFPS + 0.5)
-	if seekFrames != 880 {
-		t.Fatalf("input seek = %d frames (%v), want 880", seekFrames, command)
-	}
-	joined := strings.Join(command, " ")
-	if !strings.Contains(joined, "trim=start_frame=120:end_frame=180") {
-		t.Fatalf("video trim lost its capture-relative window: %v", command)
-	}
-	if !strings.Contains(joined, "atrim=start_sample=96000:end_sample=144000") {
-		t.Fatalf("audio trim lost its capture-relative window: %v", command)
-	}
-}
-
-func TestFullDemoItemCommandDoesNotSeekShortCaptureOffset(t *testing.T) {
-	options := recapplan.DefaultOptions()
-	options.Capture.HUDProfile = "native-clean-spectator"
-	options.Overlays.HUDTheme = ""
-	short := ShortEdit{
-		Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
-		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
-		fullDemo: &fullDemoRenderContext{
-			ffmpeg:    "ffmpeg",
-			recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
-		},
-	}
-	item := recapplan.TimelineItem{
-		Role: "round", SourceRef: "round-001",
-		SourceStartTick: 129, SourceOffsetFrames: 0,
-		EndFrame: 60, EndSample: 48000,
-	}
-	command, err := fullDemoItemCommand(short, item, "round.nut")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := firstInputSeek(command); ok {
-		t.Fatalf("short capture offset should not input-seek: %v", command)
-	}
-	joined := strings.Join(command, " ")
-	if !strings.Contains(joined, "trim=start_frame=61:end_frame=121") {
-		t.Fatalf("video trim = %v, want original capture offset 61", command)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := recapplan.DefaultOptions()
+			options.Capture.HUDProfile = "native-clean-spectator"
+			options.Overlays.HUDTheme = ""
+			short := ShortEdit{
+				Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
+				FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
+				fullDemo: &fullDemoRenderContext{
+					ffmpeg:    "ffmpeg",
+					recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
+				},
+			}
+			item := recapplan.TimelineItem{
+				Role: "round", SourceRef: "round-001",
+				SourceStartTick: tt.startTick, SourceOffsetFrames: tt.offsetFrames,
+				EndFrame: 60, EndSample: 48000,
+			}
+			command, err := fullDemoItemCommand(short, item, "round.nut")
+			if err != nil {
+				t.Fatal(err)
+			}
+			seconds, ok := firstInputSeek(command)
+			if tt.wantSeek == 0 {
+				if ok {
+					t.Fatalf("offset within preroll should not input-seek: %v", command)
+				}
+			} else {
+				if !ok {
+					t.Fatalf("missing input -ss before game -i: %v", command)
+				}
+				if seekFrames := int64(seconds*recapplan.OutputFPS + 0.5); seekFrames != tt.wantSeek {
+					t.Fatalf("input seek = %d frames, want %d: %v", seekFrames, tt.wantSeek, command)
+				}
+			}
+			joined := strings.Join(command, " ")
+			if !strings.Contains(joined, tt.wantTrim) {
+				t.Fatalf("video trim missing %q: %v", tt.wantTrim, command)
+			}
+			if !strings.Contains(joined, tt.wantAtrim) {
+				t.Fatalf("audio trim missing %q: %v", tt.wantAtrim, command)
+			}
+		})
 	}
 }
 
@@ -174,21 +150,6 @@ func TestFullDemoItemPoolJobsPerStreamKind(t *testing.T) {
 	} {
 		if got := fullDemoItemPoolJobs(streams); got != want {
 			t.Fatalf("pool jobs for stream kind %d = %d, want %d", streams, got, want)
-		}
-	}
-}
-
-// Voice preparation overlaps the video branch since the concurrent pipelines
-// change, so its pool is sized to cover a full team instead of staying out of
-// the item encoders' way. It must still be explicitly bounded and CPU-aware.
-func TestFullDemoVoiceJobsCoverAFullTeamWithinTheCPUBound(t *testing.T) {
-	if got := fullDemoVoiceJobs(5); got != min(5, runtime.NumCPU()) {
-		t.Fatalf("jobs for a five-track team = %d, want every track running at once on %d CPUs", got, runtime.NumCPU())
-	}
-	for _, count := range []int{1, 2, 3, 5, 20} {
-		jobs := fullDemoVoiceJobs(count)
-		if jobs < 1 || jobs > fullDemoVoiceJobsMax || jobs > count || jobs > runtime.NumCPU() {
-			t.Fatalf("jobs for %d tracks = %d, want 1..min(%d, count, %d CPUs)", count, jobs, fullDemoVoiceJobsMax, runtime.NumCPU())
 		}
 	}
 }

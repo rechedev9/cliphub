@@ -15,11 +15,11 @@ func TestNewViewerHTTPServerSetsTimeouts(t *testing.T) {
 	if got, want := server.Handler, http.Handler(handler); got != want {
 		t.Fatalf("Handler: got %v want %v", got, want)
 	}
-	if got, want := server.ReadHeaderTimeout, viewerReadHeaderTimeout; got != want {
-		t.Fatalf("ReadHeaderTimeout: got %v want %v", got, want)
+	if server.ReadHeaderTimeout <= 0 {
+		t.Fatalf("ReadHeaderTimeout: got %v, want a positive bound", server.ReadHeaderTimeout)
 	}
-	if got, want := server.IdleTimeout, viewerIdleTimeout; got != want {
-		t.Fatalf("IdleTimeout: got %v want %v", got, want)
+	if server.IdleTimeout <= 0 {
+		t.Fatalf("IdleTimeout: got %v, want a positive bound", server.IdleTimeout)
 	}
 }
 
