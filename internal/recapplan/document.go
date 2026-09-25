@@ -25,6 +25,16 @@ const (
 	SamplesPerFrame  = SampleRate / OutputFPS
 )
 
+// The outro scoreboard waits ScoreboardAfterLastKillSeconds after the last
+// kill so it never covers the final play, then stays ScoreboardSeconds. The
+// planner keeps enough final-round tail for both.
+const (
+	ScoreboardAfterLastKillSeconds = 1.0
+	ScoreboardSeconds              = 8
+	// Matches the parser's demo-end safety margin.
+	scoreboardEOFMarginSeconds = 2
+)
+
 // Options contains creative decisions only. Facts and resolved media properties
 // are supplied by the server, and approval binds the resulting Document.
 type Options struct {

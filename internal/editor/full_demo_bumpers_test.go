@@ -104,6 +104,44 @@ func TestFullDemoNeonOverlaysFollowTheGameplaySpanBetweenBumpers(t *testing.T) {
 	}
 }
 
+func TestFullDemoOutroScoreboardWaitsASecondAfterTheLastKill(t *testing.T) {
+	short, _, _ := bumperShort(t)
+	short.FullDemoIntroImagePath, short.FullDemoOutroImagePath = "intro.png", "outro.png"
+	outro := func(kills ...float64) []Effect {
+		short.Kills = nil
+		for _, at := range kills {
+			short.Kills = append(short.Kills, KillCue{TimeSeconds: at})
+		}
+		var out []Effect
+		for _, effect := range generatedFullDemoOverlayEffects(short) {
+			if effect.Source == "full-demo-outro" {
+				out = append(out, effect)
+			}
+		}
+		return out
+	}
+	// Gameplay spans 3-13 s, so the default outro window is 8-13 s.
+	for _, tt := range []struct {
+		name       string
+		kills      []float64
+		wantStart  float64
+		wantOutros int
+	}{
+		{"early kills keep the default window", []float64{4, 6.5}, 8, 1},
+		{"a late kill delays the scoreboard", []float64{4, 10.5}, 11.5, 1},
+		{"kills inside the outro bumper are ignored", []float64{6, 14}, 8, 1},
+		{"no room after the last kill drops the scoreboard", []float64{12.5}, 0, 0},
+	} {
+		got := outro(tt.kills...)
+		if len(got) != tt.wantOutros {
+			t.Fatalf("%s: outro effects = %+v", tt.name, got)
+		}
+		if tt.wantOutros == 1 && (got[0].StartSeconds != tt.wantStart || got[0].EndSeconds != 13) {
+			t.Fatalf("%s: outro = %.2f-%.2f, want %.2f-13", tt.name, got[0].StartSeconds, got[0].EndSeconds, tt.wantStart)
+		}
+	}
+}
+
 func TestFullDemoCoverNeverLandsInsideABumper(t *testing.T) {
 	short, _, _ := bumperShort(t)
 	sheet := strings.Join(BuildCoverSheetFFmpegCommand("ffmpeg", short), " ")

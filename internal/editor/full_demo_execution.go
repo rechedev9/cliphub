@@ -326,10 +326,11 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if (d.Options.Overlays.Roster && short.FullDemoIntroImagePath == "") || (d.Options.Overlays.Scoreboard && short.FullDemoOutroImagePath == "") {
 		return fmt.Errorf("full_demo_asset_missing: selected roster or scoreboard overlay is unavailable")
 	}
-	short.Effects = generatedFullDemoOverlayEffects(*short)
+	// The outro window reads the projected kill cues, so project first.
 	if err := projectFullDemoTimeline(short, effective); err != nil {
 		return err
 	}
+	short.Effects = generatedFullDemoOverlayEffects(*short)
 	short.Title = fmt.Sprintf("%s — %s | Full match POV", short.Player, short.Map)
 	short.Headline, short.Label = short.Title, short.Title
 	short.Hashtags = []string{"#CS2", "#FullDemo"}

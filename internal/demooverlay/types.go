@@ -2,6 +2,8 @@
 // overlays from demo roster facts plus optional FACEIT enrichment.
 package demooverlay
 
+import "github.com/rechedev9/cliphub/internal/recapplan"
+
 const (
 	SchemaVersion = "cliphub.full-demo-overlay/v1"
 
@@ -19,8 +21,9 @@ const (
 	IntroOverlaySlideSeconds    = 0.4
 	IntroOverlaySlideOutSeconds = 0.3
 	IntroFreezeSeconds          = 15
-	OutroSeconds                = 8
+	OutroSeconds                = recapplan.ScoreboardSeconds
 	BannerHoldSeconds           = 4
+	OutroAfterLastKillSeconds   = recapplan.ScoreboardAfterLastKillSeconds
 
 	FrameWidth  = 1920
 	FrameHeight = 1080
