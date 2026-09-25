@@ -7,6 +7,7 @@ import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRO
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
 const DRAFT_KEY = `cliphub.full-demo.draft.v1:${JOB}`;
+const BUMPER_MEMORY_KEY = 'cliphub.full-demo.bumpers.v1';
 const PLAN = {
   demo: { map: 'de_inferno' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz', team_at_start: 'CT' },
   stats: { total_kills_target: 24 }, segments: [{ id: 'r1', round: 1, tick_start: 100, tick_end: 200, kills: [{ weapon: 'ak47' }] }],
@@ -274,6 +275,37 @@ test.describe('Full POV simplified constructor', () => {
       } } } } });
     });
   }
+
+  test('a demo that was never planned opens with the clips chosen last time', async ({ page }) => {
+    const intro = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) };
+    const outro = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sha256: 'e'.repeat(64) };
+    const sponsor = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+    const defaults = editorial().options;
+    delete defaults.bumpers;
+    await stubParsedMatch(page, null, defaults);
+    await seedStorage(page, { [BUMPER_MEMORY_KEY]: JSON.stringify({ intro: { enabled: true, video: intro }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: sponsor } }) });
+    const clip = readFileSync(new URL('./fixtures/stream-source.mp4', import.meta.url));
+    await page.route('**/api/editor/assets/*/media', (route) => route.fulfill({ contentType: 'video/mp4', body: clip }));
+    await page.route(`**/api/editor/assets/${intro.id}`, (route) => route.fulfill({ json: { id: intro.id, sha256: intro.sha256, file_name: 'intro.mp4' } }));
+    // The sponsor clip was deleted from the library since it was chosen.
+    await page.route(`**/api/editor/assets/${sponsor.id}`, (route) => route.fulfill({ status: 404, json: { error: 'not found' } }));
+    await page.route(`**/api/editor/assets/${outro.id}`, (route) => route.fulfill({ json: { id: outro.id, sha256: outro.sha256, file_name: 'outro.mp4' } }));
+    await page.route('**/api/editor/assets', (route) => route.fulfill({ status: 201, json: outro }));
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Subir MP4 de sponsor', exact: true })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
+    const memory = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), BUMPER_MEMORY_KEY);
+    await expect.poll(memory).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: false, video: null } });
+    await page.getByLabel('Archivo MP4 de outro', { exact: true }).setInputFiles({ name: 'outro.mp4', mimeType: 'video/mp4', buffer: clip });
+    await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+    await expect.poll(memory).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } });
+    // The remembered clips are part of the starting point, so a draft that only chose them is not a recovered draft.
+    await page.reload();
+    await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
+  });
 
   test('a fresh plan starts with the game at 100% and team voices at 110%', async ({ page }) => {
     const defaults: unknown = JSON.parse(readFileSync(new URL('../lib/full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));

@@ -9,8 +9,9 @@ import { hubHref, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
-  FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions,
+  FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions,
 } from '@/lib/full-demo-plan';
+import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
@@ -50,9 +51,17 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   useEffect(() => {
     const controller = new AbortController();
     setBusy('load'); setError(null); setDocument(null); setOptions(null); setBaseline(null); setRestored(false); setShowMissing(false);
-    void loadFullDemoPlan(matchId, controller.signal).then((loaded) => {
+    void loadFullDemoPlan(matchId, controller.signal).then(async (loaded) => {
       if (controller.signal.aborted) return;
-      const base = currentFullDemoOptions(loaded.document?.options ?? loaded.defaults);
+      // A demo that was never planned opens with the intro, sponsor and outro chosen last time.
+      let remembered: FullDemoBumperOptions | undefined;
+      if (!loaded.document) {
+        const recalled = recallFullDemoBumpers();
+        remembered = await availableFullDemoBumpers(recalled, controller.signal);
+        if (controller.signal.aborted) return;
+        if (recalled && JSON.stringify(remembered) !== JSON.stringify(recalled)) rememberFullDemoBumpers(remembered);
+      }
+      const base = currentFullDemoOptions(loaded.document?.options ?? withRememberedBumpers(loaded.defaults, remembered));
       let draft: unknown = null;
       try {
         const raw = localStorage.getItem(draftKey);
@@ -89,6 +98,8 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
 
   function change(next: FullDemoOptions): void {
     next = currentFullDemoOptions(next);
+    // Only an actual clip choice updates the memory: editing another option of an older plan without clips must not forget them.
+    if (JSON.stringify(next.bumpers ?? null) !== JSON.stringify(options?.bumpers ?? null)) rememberFullDemoBumpers(next.bumpers);
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { }
   }

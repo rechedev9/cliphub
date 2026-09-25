@@ -44,3 +44,12 @@ disabled.
 The "Intro, sponsor y outro" card uploads each clip with provenance.
 `bumpers` and its `sponsor` slot are optional in the plan schema and never
 defaulted in, so an approved plan without them stays approvable.
+
+The last clip choice is remembered across demos in `localStorage`
+(`cliphub.full-demo.bumpers.v1`, `web/lib/produce/full-demo-bumper-memory.ts`).
+Clips live in the global editor asset library, so a reference chosen for one
+match is valid for any other. A demo that was never planned starts from the
+server defaults plus the remembered clips; a planned demo keeps its own
+options. Before applying them, the producer drops clips the library no longer
+has (404) or whose bytes changed (sha256 mismatch). Only a change to the clips
+updates the memory, and removing every clip clears it.

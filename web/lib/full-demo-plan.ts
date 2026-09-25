@@ -68,6 +68,9 @@ const bumperOptions = object({ intro: bumperSlot, outro: bumperSlot, sponsor: bu
  */
 const legacy: Guard<Record<string, unknown>> = record;
 export type FullDemoBumperOptions = Guarded<typeof bumperOptions>;
+export function isFullDemoBumperOptions(value: unknown): value is FullDemoBumperOptions {
+  return bumperOptions(value);
+}
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({

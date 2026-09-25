@@ -28,7 +28,7 @@ export function FullDemoBumpers({ options, document, onChange, onAssetBusy }: Pr
       <div className={styles.headingTitle}><Film aria-hidden /><h2 id={headingId}>Intro, sponsor y outro</h2></div>
       <span className={styles.optional}>Opcional</span>
     </header>
-    <p className={styles.description}>Tu marca al principio y al final, y tu sponsor tras la ronda 2.</p>
+    <p className={styles.description}>Tu marca al principio y al final, y tu sponsor tras la ronda 2. Se quedan guardados para tus próximas demos.</p>
     <div className={styles.sequence} role="img" aria-label="Orden del vídeo: intro, rondas 1 y 2, sponsor, resto de la demo y outro">
       <span data-active={!!loaded('intro')}>Intro</span>
       <ChevronRight aria-hidden />
