@@ -117,6 +117,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		providedCode  bool
 		broadcast     bool
 		legacyHUD     bool
+		trueView      bool
 		tickStep      int
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
@@ -149,6 +150,9 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "radar scale restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_radar_scale"}},
 		{name: "safe area unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"safezonex"}},
 		{name: "HUD color restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_color"}},
+		{name: "TrueView forces CS2 demo prediction", outcome: "verified", trim: true, wantEnd: 892, trueView: true},
+		{name: "TrueView with broadcast HUD", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, trueView: true},
+		{name: "TrueView prediction unavailable", outcome: "failed", trim: true, trueView: true, missing: []string{"cl_demo_predict"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fullDemoCaptureFixture(t)
@@ -158,6 +162,10 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 					p.FullDemo.Options.Capture.HUDProfile = customhud.LegacyCaptureProfile
 				}
 				p.FullDemo.Options.Overlays.HUDTheme = "arena"
+				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
+			}
+			if tc.trueView {
+				p.FullDemo.Options.Capture.TrueView = true
 				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
 			}
 			if tc.providedCode {
@@ -240,6 +248,15 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if result.FinalCvars["snd_voipvolume"] != 0.63 || result.FinalCvars["tv_listen_voice_indices"] != float64(7) || result.FinalCvars["cl_show_observer_crosshair"] != float64(1) {
 					t.Fatal("restoration guessed defaults instead of restoring actual values")
+				}
+				wantPredict := "0"
+				if tc.trueView {
+					wantPredict = "2"
+				}
+				for _, applied := range evidence.Applied {
+					if applied.Name == "cl_demo_predict" && string(applied.Value) != wantPredict {
+						t.Fatalf("cl_demo_predict applied=%s, want %s", applied.Value, wantPredict)
+					}
 				}
 				if tc.broadcast && (result.FinalCvars["cl_draw_only_deathnotices"] != false || result.FinalCvars["cl_drawhud_force_radar"] != float64(0) || result.FinalCvars["cl_drawhud_force_deathnotices"] != float64(0)) {
 					t.Fatal("broadcast capture did not restore the original HUD settings")

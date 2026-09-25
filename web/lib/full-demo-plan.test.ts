@@ -9,7 +9,7 @@ import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
 import { parseEffectiveEditConfig } from './api/render-hydration.ts';
 import { fullDemoIntentConflict, shouldReuseReelIntent } from './api/reel-identity.ts';
-import { CUSTOM_HUD_THEMES, CUSTOM_HUD_CAPTURE_PROFILE } from './custom-hud.ts';
+import { CUSTOM_HUD_THEMES, CUSTOM_HUD_CAPTURE_PROFILE, NATIVE_HUD_CAPTURE_PROFILE } from './custom-hud.ts';
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 // Serialized by the real Go planner in the synthetic FFmpeg canary. This is
@@ -26,14 +26,15 @@ test('old drafts normalize removed choices into the automatic Full Demo contract
   assert.ok(isFullDemoSnapshot(raw));
   const normalized = currentFullDemoOptions(raw.document.options);
   assert.deepEqual(normalized.capture.crosshair, { mode: 'observed', code: '', allow_capture_default: false });
-  assert.equal(normalized.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
+  // The fixture predates custom HUDs; its native capture stays a native HUD.
+  assert.equal(normalized.capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
   assert.equal(normalized.audio.music.enabled, false);
   assert.deepEqual(normalized.audio.music, {
     enabled: false, assets: [], reference_level: 'track-lufs-minus-16-v1', bed_gain_db: -21, loop_policy: 'ordered-loop',
     ducking: { enabled: true, game_contribution: 0, attack_ms: 20, release_ms: 800, threshold: .025, ratio: 8 },
   });
   assert.deepEqual(normalized.editorial.manual_ranges, []);
-  assert.deepEqual(normalized.overlays, { roster: true, scoreboard: true, theme: 'neon-violet', source: 'demo', mode: 'generated', hud_theme: CUSTOM_HUD_THEMES[0]?.id });
+  assert.deepEqual(normalized.overlays, { roster: true, scoreboard: true, theme: 'neon-violet', source: 'demo', mode: 'generated' });
   assert.equal(normalized.transitions?.enabled, true);
   assert.equal(fullDemoApprovalKey(raw.document, normalized), null);
 });
@@ -99,12 +100,32 @@ test('all eleven custom HUDs survive approval, persistence and the render reques
     const options = fixture().document.options;
     assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
   }
-  assert.ok(Boolean(fixture().document.options.overlays.hud_theme));
+});
+
+test('the custom HUD is optional and TrueView is an explicit capture choice', () => {
+  const options = fixture().document.options;
+  assert.equal(options.overlays.hud_theme, undefined);
+  assert.equal(options.capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
+  assert.ok(isFullDemoOptions(options));
+  // Plain "native" keeps spectator panels; new plans use the clean native HUD.
+  assert.equal(currentFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: 'native' } }).capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
+  // A broadcast capture without a theme is not a native choice.
+  const orphan = currentFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } });
+  assert.equal(orphan.overlays.hud_theme, CUSTOM_HUD_THEMES[0]?.id);
+
+  // Go omits trueview when off: false must not become a key that dirties the plan.
+  assert.equal('trueview' in currentFullDemoOptions({ ...options, capture: { ...options.capture, trueview: false } }).capture, false);
+  const trueView = currentFullDemoOptions({ ...options, capture: { ...options.capture, trueview: true } });
+  assert.equal(trueView.capture.trueview, true);
+  assert.ok(isFullDemoOptions(trueView));
+  assert.notEqual(fullDemoOptionsKey(trueView), fullDemoOptionsKey(options));
+  assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, trueview: 1 } }), false);
 });
 
 test('Focus portrait survives draft migration and render persistence and invalidates approval when changed', () => {
   const snapshot = fixture();
   snapshot.document.options = currentFullDemoOptions(snapshot.document.options);
+  snapshot.document.options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
   snapshot.document.options.overlays.hud_theme = 'focus';
   const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
   snapshot.document.options.overlays.hud_portrait = portrait;

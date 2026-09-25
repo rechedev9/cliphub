@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -48,6 +49,17 @@ func TestCS2LaunchCommandLineUsesWindowedMode(t *testing.T) {
 				t.Fatalf("cs2LaunchCommandLine() = %q", got)
 			}
 		})
+	}
+}
+
+func TestCS2LaunchCommandLineLeavesFullDemoPredictionToTheRuntime(t *testing.T) {
+	plan := recording.RecordingPlan{DemoPath: `C:\demos\match.dem`, Stream: recording.StreamConfig{Width: 1920, Height: 1080}}
+	if got := cs2LaunchCommandLine(plan, `C:\runs\recording.js`); !strings.Contains(got, "+cl_demo_predict 0") {
+		t.Fatalf("clips must keep disabling demo prediction at launch: %q", got)
+	}
+	plan.FullDemo = &recapplan.Document{}
+	if got := cs2LaunchCommandLine(plan, `C:\runs\recording.js`); strings.Contains(got, "cl_demo_predict") {
+		t.Fatalf("Full Demo prediction (TrueView) must be set by the runtime, not the launch line: %q", got)
 	}
 }
 

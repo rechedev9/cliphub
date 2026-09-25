@@ -333,3 +333,49 @@ preview and exercised all four detail views at 390, 1024 and 1440 px.
 The full 19-round Arena export then passed with 56,413 frames (940.217 seconds),
 decoded AAC at -14.24 LUFS / -3.63 dBTP, and working seek/play/pause in Studio.
 Sampled final frames include both sides of the match and the last round.
+
+## Optional HUD and TrueView POV (2026-09-25)
+
+The custom HUD is optional again. The constructor's "HUD" choice selects a
+broadcast design (`broadcast-clean-v2` plus `overlays.hud_theme`) or
+"Original de CS2", which captures `native-clean-spectator` with no theme: the
+observed player's health, ammunition, radar, killfeed and crosshair, plus
+CS2's observer team bar (money and utility for both teams). The demo
+controller, scoreboard and other spectator panels are hidden. `CanonicalNewOptions` and
+`currentFullDemoOptions` keep that native choice instead of upgrading it to the
+default design; plain `native` (with spectator panels) is canonicalized to the
+clean profile and a broadcast capture without a theme still gets the default.
+
+"POV original 1:1 (TrueView)" sets `capture.trueview`. Full Demo captures used
+to force `cl_demo_predict 0`, which disables CS2's TrueView demo playback and
+shows the interpolated server view. With TrueView the runtime applies
+`cl_demo_predict 2` so the client re-runs the recorded player prediction; the
+readback and evidence contract require that value. `1` is not enough: CS2 then
+enables TrueView only when the demo and client builds match, and logs
+`Demo is version 14182, client is version 14184. TrueView is DISABLED as per
+cl_demo_predict=1` for a FACEIT demo recorded the same day as a CS2 update.
+
+Real capture on 2026-09-25 (CS2 1.41.8.4, HLAE 2.192.4, FACEIT de_anubis demo
+of protocol 14182, rounds 3 and 4, native HUD, NVENC 1080p60):
+
+| Capture | CS2 console | Median PSNR vs. TrueView off |
+| --- | --- | --- |
+| Off, second run | - | 35.4-35.6 dB (run-to-run noise) |
+| `cl_demo_predict 1` | TrueView DISABLED (version mismatch) | 38.7-39.4 dB, within noise |
+| `cl_demo_predict 2` | `TrueView active for slot 1` | 21.7-23.3 dB, visibly different aim |
+
+All captures certified, 35-40 Mb/s, no `blackdetect` hits. With `2` the
+console also logs `TrueView target time going in reverse` during the sped-up
+seek before a round; the recorded windows were unaffected. Demos further
+behind the client build than this one have not been captured. The field is `omitempty`: existing documents keep their wire
+format and capture hash, and TrueView changes the capture hash because it
+changes the footage. It is independent of the HUD choice.
+
+`mirv_pov` (advancedfx PR #1174) is not a substitute: it makes the radar,
+flash, enemy details in the team bar, sound circles and voice HUD follow the
+observed player, but it does not change the camera. TrueView does the camera.
+The PR was closed unmerged on 2026-08-26 and the pinned 2.192.4
+`AfxHookSource2.dll` does not register the command (checked 2026-09-25). When
+an official release ships it, it belongs in the "Original de CS2" capture
+profile; do not build it from the unmerged branch (see the HLAE pin rules in
+`AGENTS.md`).

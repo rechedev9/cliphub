@@ -242,7 +242,7 @@ func (o Options) Validate() error {
 	}{
 		{"profile_id", o.ProfileID, []string{ProfileChill}},
 		{"source_kind", o.SourceKind, []string{"demo", "premier", "professional", "faceit"}},
-		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native", customhud.CaptureProfile, customhud.LegacyCaptureProfile}},
+		{"hud_profile", o.Capture.HUDProfile, []string{NativeHUDProfile, "native", customhud.CaptureProfile, customhud.LegacyCaptureProfile}},
 		{"camera_policy", o.Capture.CameraPolicy, []string{"strict-first-person"}},
 		{"contract_version", o.Capture.ContractVersion, []string{CaptureContract}},
 		{"crosshair.mode", o.Capture.Crosshair.Mode, []string{"observed", "provided-code"}},
