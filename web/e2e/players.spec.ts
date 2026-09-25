@@ -38,8 +38,9 @@ async function stubFaceit(page: Page): Promise<void> {
       }
       await route.fulfill({ json: { enabled: true, players: followed } }); return;
     }
+    // A live profile lookup knows nothing about the roster: no seeded flag, no zone.
     const player = followed.find((candidate) => candidate.nickname === url.searchParams.get('nickname'));
-    await route.fulfill({ json: { player } });
+    await route.fulfill({ json: { player: player && { ...player, seeded: undefined, zone: undefined } } });
   });
 }
 

@@ -54,7 +54,8 @@ export function followedPlayersReducer(state: FollowedPlayersState, action: Acti
       return { players, selectedID: state.selectedID === action.id ? players[0]?.id ?? null : state.selectedID };
     }
     case 'profile':
+      // A live profile knows nothing about the roster, so it must not clear the row's list membership.
       return { ...state, players: state.players.map((player) => player.id === action.player.id
-        ? { ...player, ...action.player, seeded: player.seeded } : player) };
+        ? { ...player, ...action.player, seeded: player.seeded, zone: player.zone } : player) };
   }
 }

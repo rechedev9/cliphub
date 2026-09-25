@@ -56,3 +56,9 @@ test('following a zone player keeps the zone, and unfollowing returns them to it
   // Removing the seeded row itself is a dismissal.
   assert.deepEqual(followedPlayersReducer(unfollowed, { type: 'unfollowed', id: 'pro' }), { players: [], selectedID: null });
 });
+
+test('a live profile refresh keeps the row in its zone list', () => {
+  const initial: FollowedPlayersState = { players: [{ ...player('pro'), seeded: true, zone: 'cis' }], selectedID: 'pro' };
+  const refreshed = followedPlayersReducer(initial, { type: 'profile', player: { ...player('pro'), elo: 4800 } });
+  assert.deepEqual(refreshed.players, [{ ...player('pro'), elo: 4800, seeded: true, zone: 'cis' }]);
+});
