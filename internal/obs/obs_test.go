@@ -87,6 +87,25 @@ func eventsFor(events []Event, jobID, class string) []Event {
 	return out
 }
 
+func TestReadJournalAcceptsLinesBeyondDefaultScannerToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "errors.jsonl")
+	message := strings.Repeat("x", 100*1024)
+	line, err := json.Marshal(Event{JobID: "job-1", Stage: "render", Class: ClassCaptureFlake, Message: message})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	events, err := ReadJournal(path)
+	if err != nil {
+		t.Fatalf("ReadJournal: %v", err)
+	}
+	if len(events) != 1 || events[0].Message != message {
+		t.Fatalf("events = %d, want the one 100 KiB event intact", len(events))
+	}
+}
+
 func TestClassOfTable(t *testing.T) {
 	cases := []struct {
 		name    string

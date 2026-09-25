@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -100,5 +99,4 @@ func TestFullDemoConsoleTransportRejectsIncompleteOrForeignEvidence(t *testing.T
 			t.Fatalf("err=%v, want %v", err, bufio.ErrTooLong)
 		}
 	})
-	_ = fmt.Sprint
 }

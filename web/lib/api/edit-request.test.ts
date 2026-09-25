@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRequest } from './edit-request.ts';
 import type { EditConfig } from './types.ts';
+import { FULL_DEMO_EDIT } from '../full-demo.ts';
 
 function edit(overrides: Partial<EditConfig> = {}): EditConfig {
   return {
@@ -36,6 +37,25 @@ test('buildEditRequest persists family with the style so a later render cannot f
   const off = buildEditRequest(edit({ keyDropFamily: 'KEYDROP', keyDropStyle: '' }));
   assert.equal(off.keydrop_family, undefined);
   assert.equal(off.keydrop_style, undefined);
+});
+
+test('buildEditRequest sends the locked Full Demo treatment on the wire', () => {
+  assert.deepEqual(buildEditRequest(FULL_DEMO_EDIT), {
+    format: 'landscape-16x9',
+    killEffect: 'clean',
+    transition: 'cut',
+    intro: false,
+    outro: false,
+    hook_text: false,
+    kill_counter: false,
+    match_recap: true,
+    voice_comms: true,
+    voice_volume: 0.85,
+    native_hud: true,
+    cover_strategy: 'generated-gameplay',
+    demo_source: 'faceit',
+    overlay_theme: 'faceit-orange',
+  });
 });
 
 test('buildEditRequest serializes overlay_theme when set', () => {

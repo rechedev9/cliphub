@@ -133,7 +133,7 @@ func TestCatalogCoversStudioNav(t *testing.T) {
 	}
 }
 
-func TestProveFeatureFailsClosedForCapture(t *testing.T) {
+func TestProveFailsClosedForCapture(t *testing.T) {
 	root, err := FindRepoRoot()
 	if err != nil {
 		t.Fatal(err)

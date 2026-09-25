@@ -76,6 +76,15 @@ func TestCaptureProgressDocumentUsesStoredLivePercent(t *testing.T) {
 	if !ok || got.Done != 3 || got.Total != 4 || got.Percent != 82 {
 		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 3/4 82%%", got, ok)
 	}
+	// The progress document is a non-committing attempt record: reading it must
+	// never publish a segment clip for the completed ids.
+	clipKey, err := artifacts.SegmentClipKey(id, "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists, err := store.Exists(clipKey); err != nil || exists {
+		t.Fatalf("progress document committed a segment clip: exists=%v err=%v", exists, err)
+	}
 }
 
 func TestCaptureProgress(t *testing.T) {

@@ -167,16 +167,22 @@ func TestMakefileRunsProjectCheck(t *testing.T) {
 	}
 	// workflowDocs already requires the recipe commands; this pins the targets.
 	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
-	var phony map[string]struct{}
+	// make accepts several .PHONY lines and targets with prerequisites, so
+	// union every .PHONY list and match a rule by its name before the colon.
+	var phonyNames []string
 	targets := map[string]bool{}
 	for _, line := range lines {
 		if rest, ok := strings.CutPrefix(line, ".PHONY:"); ok {
-			phony = stringSet(strings.Fields(rest))
+			phonyNames = append(phonyNames, strings.Fields(rest)...)
+			continue
 		}
-		targets[line] = true
+		if name, _, ok := strings.Cut(line, ":"); ok && name != "" && !strings.ContainsAny(name, " \t=") {
+			targets[name] = true
+		}
 	}
+	phony := stringSet(phonyNames)
 	for _, target := range []string{"check", "workflows-check"} {
-		if !targets[target+":"] {
+		if !targets[target] {
 			t.Fatalf("%s does not define target %q", path, target)
 		}
 		if _, ok := phony[target]; !ok {
