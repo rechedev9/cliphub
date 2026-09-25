@@ -9,7 +9,7 @@ import { writeClipboardText } from './clipboard-write.ts';
 export type PublishAssistantAvailability = 'ready' | 'waiting' | 'failed';
 
 export const PUBLISH_ASSISTANT_WAITING_COPY =
-  'La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.';
+  'La preparación para YouTube estará disponible cuando el vídeo esté listo.';
 export const PUBLISH_ASSISTANT_FAILED_COPY =
   'No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.';
 

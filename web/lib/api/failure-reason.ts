@@ -215,12 +215,3 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   return genericFailure(context);
 }
-
-/** Library strip label: capture flakes are not a dead pipeline. */
-export function failedStripLabel(reason: string | undefined, context: FailureContext = {}): string {
-  const kind = parseFailureReason(reason, context).kind;
-  if (kind !== 'recording-not-reusable' && CAPTURE_KINDS.has(kind)) {
-    return FAILED_STRIP_LABEL.capture;
-  }
-  return FAILED_STRIP_LABEL.pipeline;
-}

@@ -5,7 +5,6 @@ import {
   canRerenderWithMusic,
   constrainEditConfig,
   isLandscapeRecap,
-  musicBriefValue,
   reelCreativeBrief,
 } from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
@@ -33,15 +32,6 @@ test('forging starts with configured options and no separate approval', () => {
   assert.equal(canForgeReel({ ...ready, hasPreset: false }), false);
   assert.equal(canForgeReel({ ...ready, selectionCount: 0 }), false);
   assert.equal(canForgeReel({ ...ready, musicDecided: false }), false);
-});
-
-test('music brief distinguishes pending from an explicit no-music choice', () => {
-  assert.equal(musicBriefValue({ status: 'pending' }), 'Pendiente de decisión');
-  assert.equal(musicBriefValue({ status: 'none' }), 'Sin música');
-  assert.equal(
-    musicBriefValue({ status: 'track', title: 'Tema CC0', volumePercent: 35, gameVolumePercent: 20 }),
-    'Tema CC0 · música 35% · juego 20%',
-  );
 });
 
 test('creative brief resolves every required production choice', () => {
@@ -104,6 +94,8 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Afiliado'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
+  const pending = reelCreativeBrief(edit, null, { status: 'pending' }).find((item) => item.label === 'Música');
+  assert.equal(pending?.value, 'Pendiente de decisión');
 });
 
 test('9:16 shorts brief never claims a landscape recap even if those flags leak in', () => {

@@ -33,8 +33,6 @@ export type MatchOutput = {
   percent: number | null;
   /** Segment/round counter while capturing; null elsewhere. */
   rounds: { done: number; total: number } | null;
-  /** QA review pending: still `ready` for the row, but the card says so. */
-  reviewRequired: boolean;
   video: Video;
 };
 
@@ -129,7 +127,6 @@ export function toOutput(video: Video): MatchOutput {
     title: video.title,
     percent: hasProgress ? captureProgressPercent(progress) : null,
     rounds: state === OUTPUT_STATE.rec && hasProgress ? { done: progress.done, total: progress.total } : null,
-    reviewRequired: video.status === 'review_required',
     video,
   };
 }
@@ -399,16 +396,13 @@ export const OUTPUT_TONE = {
 } as const satisfies Record<OutputState, string>;
 export type OutputTone = (typeof OUTPUT_TONE)[OutputState];
 
-/** A ready output whose QA left warnings: the render exists, a human must sign it off. */
-export const REVIEW_TAG_LABEL = 'REVISIÓN QA';
-
 /** The uppercase HUD tag an output item shows: LISTO, RENDER 41%, REC R3/20, EN COLA, FALLÓ. */
 export function outputTagLabel(
-  output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'> & Partial<Pick<MatchOutput, 'reviewRequired'>>,
+  output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'>,
 ): string {
   switch (output.state) {
     case OUTPUT_STATE.ready:
-      return output.reviewRequired === true ? REVIEW_TAG_LABEL : 'LISTO';
+      return 'LISTO';
     case OUTPUT_STATE.render:
       return output.percent === null ? 'RENDER' : `RENDER ${output.percent}%`;
     case OUTPUT_STATE.rec:

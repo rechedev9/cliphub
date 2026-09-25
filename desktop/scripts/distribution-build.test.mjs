@@ -77,6 +77,9 @@ test('distribution entrypoint locks and recovers before starting a rebuild', () 
 
   assert.notEqual(acquire, -1, 'dist.mjs must acquire the publication lock');
   assert.notEqual(recover, -1, 'dist.mjs must recover interrupted publication before rebuilding');
+  assert.notEqual(rebuild, -1, 'dist.mjs must invoke the guarded runtime rebuild');
+  assert.notEqual(commit, -1, 'dist.mjs must commit the verified publication');
+  assert.notEqual(release, -1, 'dist.mjs must release the publication lock');
   assert.ok(acquire < recover, 'recovery must happen under the exclusive lock');
   assert.ok(recover < rebuild, 'recovery must happen before the long distribution build');
   assert.ok(commit < release, 'the publication lock must remain held through commit');

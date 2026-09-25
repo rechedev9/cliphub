@@ -24,13 +24,9 @@ type HostFacts struct {
 	CS2Running   bool
 }
 
-// InspectHost resolves the live Studio surface on this machine.
-// Linux never claims capture recertification, even if stubs exist.
-func InspectHost() Host {
-	return InspectHostWith(DoctorOptions{})
-}
-
-// InspectHostWith applies GOOS/probe overrides used by tests and the CLI.
+// InspectHostWith resolves the live Studio surface on this machine, applying
+// the GOOS/probe overrides used by tests and the CLI. Linux never claims
+// capture recertification, even if stubs exist.
 func InspectHostWith(opts DoctorOptions) Host {
 	goos := runtimeGOOS(opts.GOOS)
 	goarch := runtimeGOARCH(opts.GOARCH)

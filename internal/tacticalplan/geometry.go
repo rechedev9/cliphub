@@ -194,9 +194,3 @@ func (b *OccupancyBuilder) Build(mapName string, cal radarmap.Calibration, minSa
 	})
 	return geo
 }
-
-// CellCenter returns the world centre of a grid cell, which is what a renderer
-// needs to place the cell without re-deriving the grid convention.
-func (g MapGeometry) CellCenter(cellX, cellY int) (float64, float64) {
-	return (float64(cellX) + 0.5) * g.CellSize, (float64(cellY) + 0.5) * g.CellSize
-}

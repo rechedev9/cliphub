@@ -1,29 +1,11 @@
 package renderplan
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/editor"
 )
-
-func TestGenerateIntentNormalizeDefaultsEdit(t *testing.T) {
-	got := GenerateIntent{Variant: editor.PresetViral60Clean, Edit: EditRequest{Intro: true}}.Normalize()
-	want := GenerateIntent{
-		Variant: editor.PresetViral60Clean,
-		Edit: EditRequest{
-			Format:        FormatShort9x16,
-			KillEffect:    KillEffectPunchIn,
-			Transition:    TransitionFlash,
-			Intro:         true,
-			CoverStrategy: CoverStrategyGenerated,
-		},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("intent = %#v, want %#v", got, want)
-	}
-}
 
 func TestGenerateIntentValidate(t *testing.T) {
 	valid := func() EditRequest {

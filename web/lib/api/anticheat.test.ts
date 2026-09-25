@@ -3,14 +3,12 @@ import test from 'node:test';
 import {
   ANTICHEAT_VERDICT,
   AnticheatServiceError,
-  VERDICT_LABEL,
   anticheatErrorMessage,
   fetchAnticheat,
   fetchDossier,
   isDemoStillIngesting,
   isReviewable,
   startAnticheat,
-  type AnticheatVerdict,
 } from './anticheat.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 
@@ -31,13 +29,6 @@ function stubFetch(handler: (call: FetchCall) => Response | Promise<Response>): 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
-
-test('every verdict band has a Spanish label', () => {
-  const bands: AnticheatVerdict[] = Object.values(ANTICHEAT_VERDICT);
-  for (const band of bands) {
-    assert.ok(VERDICT_LABEL[band].length > 0, `missing label for ${band}`);
-  }
-});
 
 test('only the two review bands unlock the dossier', () => {
   assert.equal(isReviewable(ANTICHEAT_VERDICT.highlyAnomalous), true);

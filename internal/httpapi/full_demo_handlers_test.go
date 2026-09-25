@@ -46,7 +46,7 @@ func fullDemoAPIFixture(t *testing.T) (*Handlers, job.Job, *fakeStorage, *fakeQu
 		t.Fatal(err)
 	}
 	o := recapplan.DefaultOptions()
-	o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Audio.Music.Enabled, o.Sponsor.Enabled = false, false, false, false
+	o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Audio.Music.Enabled = false, false, false
 	h := NewHandlers(repo, store, queue)
 	return h, j, store, queue, o
 }
@@ -309,7 +309,7 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 	if len(s.Document.Rounds) != 2 || s.Document.Options.Audio.Game.Gain != recapplan.DefaultOptions().Audio.Game.Gain ||
 		s.Document.Options.Audio.Voice.Enabled || s.Document.Options.Audio.Voice.Gain != recapplan.DefaultOptions().Audio.Voice.Gain ||
 		s.Document.Options.Overlays.HUDTheme != recapplan.DefaultOptions().Overlays.HUDTheme || s.Document.Options.SourceKind != "demo" ||
-		s.Document.Options.Transitions == nil || !s.Document.Options.Transitions.Enabled || s.Document.Options.Sponsor.Enabled {
+		s.Document.Options.Transitions == nil || !s.Document.Options.Transitions.Enabled || s.Document.Options.HasBumpers() {
 		t.Fatal("plan lost zero-kill rounds or negative decisions")
 	}
 	h.capabilities.RecordEnabled = true
@@ -326,23 +326,15 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 			t.Fatal("capture retries were enabled")
 		}
 	}
-	render, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, "", 0, nil, intent.Edit, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload tasks.RenderVariantPayload
-	if err := json.Unmarshal(render.Payload(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload.Edit.FullDemo.Approval != s.Approval || payload.Edit.VoiceComms || payload.Edit.VoiceVolume == nil || *payload.Edit.VoiceVolume != recapplan.DefaultOptions().Audio.Voice.Gain {
-		t.Fatal("render payload changed explicit decisions")
+	if intent.Edit.FullDemo.Approval != s.Approval || intent.Edit.VoiceComms || intent.Edit.VoiceVolume == nil || *intent.Edit.VoiceVolume != recapplan.DefaultOptions().Audio.Voice.Gain {
+		t.Fatal("generate intent changed explicit decisions")
 	}
 	if _, err := h.generateIntents.Finish(j.ID, intent.ActiveRunID, nil); err != nil {
 		t.Fatal(err)
 	}
 	// A fresh handler represents process restart: no in-memory options survive.
 	restarted := NewHandlers(h.repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
-	rw = fullDemoAPIRequest(t, restarted, j, "/record", map[string]any{"preset": "gameplay-pov-60", "edit": renderplan.RecapEditRequest()})
+	rw = fullDemoAPIRequest(t, restarted, j, "/record", map[string]any{"preset": "gameplay-pov-60", "edit": renderplan.RecapEditRequestWithSource("")})
 	if rw.Code != http.StatusAccepted {
 		t.Fatalf("retry: %d %s", rw.Code, rw.Body.String())
 	}

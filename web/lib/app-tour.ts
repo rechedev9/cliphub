@@ -114,7 +114,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'HUD de la partida',
-        text: 'Elige entre once diseños de retransmisión o el HUD nativo de CS2, con retrato del jugador opcional.',
+        text: 'Elige entre once diseños de retransmisión o el HUD original de CS2, y activa el POV original 1:1 con TrueView.',
       },
       {
         term: 'Sonido',
@@ -125,8 +125,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Transiciones entre rondas y rótulos de inicio y final según el origen de la demo: FACEIT, Premier, Profesional o local.',
       },
       {
-        term: 'Intro, outro y sponsor',
-        text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor si tienes sus derechos de uso.',
+        term: 'Intro, sponsor y outro',
+        text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor que se reproduce después de la ronda 2 si tienes sus derechos de uso.',
       },
     ],
   },
@@ -186,7 +186,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Jugadores',
     title: 'Sigue jugadores de FACEIT',
     lead:
-      'Busca por nick o URL de FACEIT y añádelo a «Siguiendo». Verás su nivel, victorias, K/D, ADR, headshots y su historial de partidas filtrable por mapa y resultado.',
+      'Busca por nick o URL de FACEIT y añádelo a tu lista Custom, o explora los mejores de CIS y LATAM. Verás su nivel, victorias, K/D, ADR, headshots y su historial de partidas filtrable por mapa y resultado.',
     points: [
       {
         term: 'De la partida al clip',

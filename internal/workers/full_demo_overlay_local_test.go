@@ -47,7 +47,7 @@ func TestWriteFullDemoOverlayUsesLocalSteamSnapshotWithoutFACEITFacts(t *testing
 			return []byte("fake portrait"), nil
 		},
 	})
-	edit := renderplan.RecapEditRequest()
+	edit := renderplan.RecapEditRequestWithSource("")
 	edit.OverlayTheme = renderplan.OverlayThemeNeonViolet
 	path, err := w.writeFullDemoOverlay(j, t.TempDir(), "gameplay-pov-60", edit)
 	if err != nil {

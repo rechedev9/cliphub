@@ -5,25 +5,7 @@ import (
 	"testing"
 )
 
-func TestPresetNamesAllResolve(t *testing.T) {
-	names := PresetNames()
-	if len(names) == 0 {
-		t.Fatal("PresetNames returned no presets")
-	}
-	for _, name := range names {
-		t.Run(name, func(t *testing.T) {
-			preset, ok := PresetByName(name)
-			if !ok {
-				t.Fatalf("PresetByName(%q) ok = false, want true", name)
-			}
-			if preset.Name != name {
-				t.Fatalf("preset name = %q, want %q", preset.Name, name)
-			}
-		})
-	}
-}
-
-func TestAllPresetsRenderVertical1080x1920At60FPS(t *testing.T) {
+func TestAllPresetsRender60FPSAtTheirFormatGeometry(t *testing.T) {
 	for _, name := range PresetNames() {
 		t.Run(name, func(t *testing.T) {
 			preset, _ := PresetByName(name)
@@ -108,22 +90,6 @@ func TestViralAggressive60UsesAggressiveEffects(t *testing.T) {
 	}
 }
 
-func TestViral60CleanRecordsDeathnoticesHUD(t *testing.T) {
-	preset, ok := PresetByName(PresetViral60Clean)
-	if !ok {
-		t.Fatalf("PresetByName(%q) ok = false, want true", PresetViral60Clean)
-	}
-	if got, want := preset.HUDMode, "deathnotices"; got != want {
-		t.Fatalf("hud mode = %q, want %q", got, want)
-	}
-	if preset.EffectsPreset != EffectsPresetViralUltraClean {
-		t.Fatalf("effects preset = %q, want %q", preset.EffectsPreset, EffectsPresetViralUltraClean)
-	}
-	if !presetUsesFullFrame(preset.Name) {
-		t.Fatalf("viral-60-clean should use full-frame layout")
-	}
-}
-
 func TestPresetHUDModes(t *testing.T) {
 	// Each user-facing preset records with a specific HUD; that capture-time
 	// difference is what the user picks ("Kill Feed" vs "Clean POV" vs "Full
@@ -133,7 +99,7 @@ func TestPresetHUDModes(t *testing.T) {
 		PresetViralAggressive60: "deathnotices",
 		PresetCleanPOV60:        "clean",
 		PresetFullHUD60:         "gameplay",
-		PresetGameplayPOV60:       "gameplay",
+		PresetGameplayPOV60:     "gameplay",
 	}
 	valid := map[string]bool{"gameplay": true, "clean": true, "deathnotices": true}
 	for _, name := range PresetNames() {

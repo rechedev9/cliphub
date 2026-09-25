@@ -11,10 +11,3 @@ test('only the latest selected stream job may finish loading the editor', () => 
   assert.equal(isCurrentStreamEditorLoad(second, second), true);
   assert.equal(isCurrentStreamEditorLoad({ ...second, jobId: 'job-a' }, second), false);
 });
-
-test('a late autosave response from the previous job is stale', () => {
-  const autosaveStarted = { generation: 4, jobId: 'job-a' };
-  const selectedNow = { generation: 5, jobId: 'job-b' };
-
-  assert.equal(isCurrentStreamEditorLoad(autosaveStarted, selectedNow), false);
-});

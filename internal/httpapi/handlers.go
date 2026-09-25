@@ -263,7 +263,7 @@ func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
 }
 
 // WithFaceitSeeds supplies the refreshable default roster. A nil store still
-// projects the embedded top 10: SeedStore.Document degrades to DefaultSeed.
+// projects the embedded zone rosters: SeedStore.Document degrades to DefaultSeed.
 func WithFaceitSeeds(seeds *faceit.SeedStore) Option {
 	return func(h *Handlers) {
 		h.faceitSeeds = seeds
@@ -1617,16 +1617,12 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// renders every recorded segment.
 	var musicRequest renderMusicRequest
 	var editPatch renderEditRequest
-	var expectedArtifactPrefix string
-	var expectedWarnings []string
 	var segmentIDs []string
 	if r.Body != nil {
 		var req struct {
-			Music                  renderMusicRequest `json:"music"`
-			Edit                   renderEditRequest  `json:"edit"`
-			ExpectedArtifactPrefix string             `json:"expected_artifact_prefix"`
-			ExpectedWarnings       []string           `json:"expected_warnings"`
-			SegmentIDs             []string           `json:"segment_ids"`
+			Music      renderMusicRequest `json:"music"`
+			Edit       renderEditRequest  `json:"edit"`
+			SegmentIDs []string           `json:"segment_ids"`
 		}
 		switch err := decodeRenderJSONBody(w, r, &req, true); {
 		case err == nil, errors.Is(err, io.EOF):
@@ -1644,8 +1640,6 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			segmentIDs = req.SegmentIDs
-			expectedArtifactPrefix = req.ExpectedArtifactPrefix
-			expectedWarnings = req.ExpectedWarnings
 		default:
 			writeError(w, http.StatusBadRequest, "invalid render request JSON")
 			return
@@ -1654,19 +1648,6 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	previous, _, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant, nil)
 	if err != nil {
 		internalError(w, "read render state", err)
-		return
-	}
-	reviewReplacement := previous != nil && previous.Status == renderplan.RenderVariantStatusReview
-	if reviewReplacement &&
-		(expectedArtifactPrefix == "" ||
-			expectedWarnings == nil ||
-			previous.ArtifactPrefix != expectedArtifactPrefix ||
-			!slices.Equal(previous.Warnings, expectedWarnings)) {
-		writeError(w, http.StatusConflict, "render changed while the correction was being prepared; inspect the current warnings")
-		return
-	}
-	if !reviewReplacement && (expectedArtifactPrefix != "" || expectedWarnings != nil) {
-		writeError(w, http.StatusConflict, "render is no longer awaiting this correction")
 		return
 	}
 	editRequest := renderplan.DefaultEditRequest()
@@ -1687,29 +1668,6 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	var musicKey string
 	var musicVolume float64
 	var gameVolume *float64
-	if reviewReplacement {
-		document, err := h.readRenderVariantDocument(previous.EditDocumentKey)
-		if err != nil {
-			internalError(w, "read effective render document for correction", err)
-			return
-		}
-		if document == nil {
-			if !editPatch.complete() || !musicRequest.set {
-				writeError(w, http.StatusConflict, "the reviewed render has no effective edit document; submit every edit and music choice")
-				return
-			}
-		} else {
-			editRequest = document.Edit
-			if document.Music != nil {
-				musicKey = document.Music.Key
-				musicVolume = document.Music.Volume
-				gameVolume = document.Music.GameVolume
-			} else if !musicRequest.set {
-				writeError(w, http.StatusConflict, "the reviewed render does not record its effective music choice; submit music explicitly")
-				return
-			}
-		}
-	}
 	editRequest = editPatch.merge(editRequest)
 	if err := h.approveFullDemo(r.Context(), j, &editRequest); err != nil {
 		rejectFullDemo(w, err)
@@ -1776,10 +1734,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		default:
-			if reviewReplacement || state.FullDemo != nil || (previous != nil && previous.FullDemo != nil) {
+			if state.FullDemo != nil || (previous != nil && previous.FullDemo != nil) {
 				if !postAdmission {
-					// Rejected work never published queuedState, so preserving
-					// the prior review requires no compensating write.
+					// Rejected work never published queuedState, so the prior
+					// state needs no compensating write.
 					return nil
 				}
 				current, exists, readErr := h.readRenderVariantState(j.ID, variant)
@@ -1793,12 +1751,8 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 				if !exists || !matches {
 					// The worker or another request already advanced the
 					// durable state. A stale discard must fail closed instead
-					// of resurrecting the superseded review.
+					// of overwriting it with a failure.
 					return nil
-				}
-				if reviewReplacement {
-					state = *previous
-					return h.writeRenderVariantState(*previous)
 				}
 			}
 			failedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
@@ -1816,10 +1770,6 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	}, asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {
-			if reviewReplacement {
-				writeError(w, http.StatusConflict, "another render is already active; this correction was not accepted")
-				return
-			}
 			writeJSON(w, http.StatusAccepted, map[string]any{
 				"id":         j.ID,
 				"task":       tasks.TypeRenderVariant,
@@ -1867,75 +1817,6 @@ func sameRenderVariantState(a, b *renderplan.RenderVariantState) (bool, error) {
 	return bytes.Equal(aJSON, bJSON), nil
 }
 
-const maxRenderReviewNoteLength = 1000
-
-// ResolveRenderReview records that a human inspected the current QA warnings
-// and documented why they are intentional. The request must echo the exact
-// artifact revision and warnings it showed, so a racing or later render can
-// never inherit a stale approval.
-func (h *Handlers) ResolveRenderReview(w http.ResponseWriter, r *http.Request) {
-	// Metadata only: the review resolution is written against the render state
-	// document, which is keyed by job id alone.
-	j, ok := h.loadJobMeta(w, r)
-	if !ok {
-		return
-	}
-	variant := chi.URLParam(r, "variant")
-	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	var req struct {
-		Note                   string   `json:"note"`
-		ExpectedArtifactPrefix string   `json:"expected_artifact_prefix"`
-		ExpectedWarnings       []string `json:"expected_warnings"`
-	}
-	if err := decodeSingleJSONBody(w, r, &req, true); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid review resolution JSON")
-		return
-	}
-	req.Note = strings.TrimSpace(req.Note)
-	if req.Note == "" {
-		writeError(w, http.StatusBadRequest, "review note is required")
-		return
-	}
-	if len([]rune(req.Note)) > maxRenderReviewNoteLength {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("review note must be at most %d characters", maxRenderReviewNoteLength))
-		return
-	}
-
-	h.renderStateMu.Lock()
-	defer h.renderStateMu.Unlock()
-	state, exists, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant, nil)
-	if err != nil {
-		internalError(w, "read render state for review", err)
-		return
-	}
-	if !exists || state.Status != renderplan.RenderVariantStatusReview {
-		writeError(w, http.StatusConflict, "render is not awaiting review")
-		return
-	}
-	if req.ExpectedArtifactPrefix != state.ArtifactPrefix ||
-		!slices.Equal(req.ExpectedWarnings, state.Warnings) {
-		writeError(w, http.StatusConflict, "render changed while it was being reviewed; inspect the current warnings")
-		return
-	}
-	now := time.Now().UTC()
-	state.Status = renderplan.RenderVariantStatusReady
-	state.ReviewResolution = &renderplan.RenderReviewResolution{
-		ArtifactPrefix: state.ArtifactPrefix,
-		Warnings:       append([]string(nil), state.Warnings...),
-		Note:           req.Note,
-		ReviewedAt:     now,
-	}
-	state.UpdatedAt = now
-	if err := h.writeRenderVariantState(*state); err != nil {
-		internalError(w, "write render review resolution", err)
-		return
-	}
-	h.writeRenderVariant(w, state)
-}
-
 // GetRenderVariant handles GET /api/jobs/{id}/renders/{variant}.
 func (h *Handlers) GetRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// Metadata only: this is the endpoint Studio polls while a render runs, and
@@ -1962,12 +1843,11 @@ func (h *Handlers) GetRenderVariant(w http.ResponseWriter, r *http.Request) {
 }
 
 // readOrMaterializeRenderVariantState reads the durable state, migrating a
-// warning-bearing legacy render result before returning it. The shared render
-// lock makes that migration atomic with correction and review-resolution POSTs:
-// the API never exposes a review CAS token that those endpoints cannot consume.
+// legacy render result or review_required state to ready before returning it.
+// The shared render lock makes that migration atomic with render POSTs.
 func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
 	// Steady state is a settled durable document: serve it without the
-	// process-wide lock so one job's migration or review write never stalls
+	// process-wide lock so one job's migration write never stalls
 	// every other job's render poll. Artifacts are replaced atomically, so a
 	// concurrent write yields either revision, never a torn one; anything that
 	// is not provably settled takes the lock and runs the full path.
@@ -1978,9 +1858,7 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 			return state, true, nil
 		}
 		// Carry down only the warnings this read already decoded, never the
-		// state: the locked path must re-read the state document so its review
-		// token and the revision a correction or resolution POST consumes are
-		// one revision.
+		// state: the locked path must re-read the state document under the lock.
 		knownWarnings = warnings
 	}
 	h.renderStateMu.Lock()
@@ -1990,8 +1868,9 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 }
 
 // renderVariantStateSettled reports whether the locked path would return the
-// state unchanged: every non-ready state, and a ready state whose warnings
-// already match the complete-render result and its review resolution.
+// state unchanged: every state that is neither ready nor legacy
+// review_required, and a ready state whose warnings already match the
+// complete-render result.
 //
 // It also returns the complete-render warnings it decoded so an unsettled
 // caller can hand them to the locked migration instead of opening and decoding
@@ -1999,6 +1878,9 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 // non-ready state, an unreadable result) and when the result carries no
 // warnings at all; the locked path reads them itself in that case.
 func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantState) (bool, []string) {
+	if state.Status == renderplan.RenderVariantStatusReview {
+		return false, nil
+	}
 	if state.Status != renderplan.RenderVariantStatusReady {
 		return true, nil
 	}
@@ -2006,10 +1888,7 @@ func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantStat
 	if err != nil {
 		return false, nil
 	}
-	if state.ReviewResolvedFor(warnings) {
-		return slices.Equal(state.Warnings, warnings), warnings
-	}
-	return len(warnings) == 0 && len(state.Warnings) == 0 && state.ReviewResolution == nil, warnings
+	return slices.Equal(state.Warnings, warnings), warnings
 }
 
 // MaterializeRenderVariantStates runs the legacy render-state migration for
@@ -2065,8 +1944,8 @@ func (h *Handlers) materializeRenderVariantState(id uuid.UUID, variant string) (
 
 // readOrMaterializeRenderVariantStateLocked performs the durable migration and
 // reports whether it rewrote the state document. The caller must hold
-// renderStateMu so the returned review token and the state consumed by
-// correction or resolution requests are one coherent revision.
+// renderStateMu so the migration and a concurrent render POST see one
+// coherent revision.
 //
 // knownWarnings is the complete-render warning set a caller already decoded
 // from the same render result; nil means "decode it here". Only the warnings
@@ -2081,33 +1960,34 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 		return nil, false, false, err
 	}
 	if ok {
-		if stored.Status != renderplan.RenderVariantStatusReady {
+		if stored.Status != renderplan.RenderVariantStatusReady && stored.Status != renderplan.RenderVariantStatusReview {
 			return stored, true, false, nil
 		}
 		warnings := knownWarnings
 		if warnings == nil {
 			decoded, err := h.readCompleteRenderWarnings(*stored)
-			if err != nil {
+			switch {
+			case err == nil:
+				warnings = decoded
+			case stored.Status == renderplan.RenderVariantStatusReview:
+				// A legacy review state was always served without reading its
+				// result. Keep doing so when the result is unreadable: clients
+				// treat review_required as ready, and failing the read would
+				// break every poll of an old job.
+				return stored, true, false, nil
+			default:
 				return nil, false, false, err
 			}
-			warnings = decoded
 		}
-		switch {
-		case stored.ReviewResolvedFor(warnings):
-			if slices.Equal(stored.Warnings, warnings) {
-				return stored, true, false, nil
-			}
+		// QA warnings are informational: a legacy review_required state is
+		// promoted to ready so nothing waits on a human sign-off.
+		if stored.Status == renderplan.RenderVariantStatusReady && slices.Equal(stored.Warnings, warnings) {
+			return stored, true, false, nil
+		}
+		stored.Status = renderplan.RenderVariantStatusReady
+		stored.Warnings = nil
+		if len(warnings) > 0 {
 			stored.Warnings = append([]string(nil), warnings...)
-		case len(warnings) == 0:
-			if len(stored.Warnings) == 0 && stored.ReviewResolution == nil {
-				return stored, true, false, nil
-			}
-			stored.Warnings = nil
-			stored.ReviewResolution = nil
-		default:
-			stored.Status = renderplan.RenderVariantStatusReview
-			stored.Warnings = append([]string(nil), warnings...)
-			stored.ReviewResolution = nil
 		}
 		stored.UpdatedAt = time.Now().UTC()
 		if err := h.writeRenderVariantState(*stored); err != nil {
@@ -2133,11 +2013,9 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 		return nil, false, false, err
 	}
 	warnings := renderplan.CompleteRenderWarnings(result)
-	status := "ready"
+	status := renderplan.RenderVariantStatusReady
 	if result.Error != "" {
-		status = "failed"
-	} else if len(warnings) > 0 {
-		status = renderplan.RenderVariantStatusReview
+		status = renderplan.RenderVariantStatusFailed
 	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
@@ -2152,12 +2030,6 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 	})
 	if err != nil {
 		return nil, false, false, err
-	}
-	if materialized.Status == renderplan.RenderVariantStatusReview {
-		if err := h.writeRenderVariantState(materialized); err != nil {
-			return nil, false, false, err
-		}
-		return &materialized, true, true, nil
 	}
 	return &materialized, true, false, nil
 }
@@ -2396,7 +2268,7 @@ func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request)
 		JobID:          j.ID,
 		Variant:        variant,
 		SegmentIDs:     segmentIDs,
-		Warnings:       unresolvedRenderWarnings(snapshot.state, renderplan.CompleteRenderWarnings(result)),
+		Warnings:       renderplan.CompleteRenderWarnings(result),
 		Error:          result.Error,
 		CoversRequired: result.CoversEnabled,
 		ArtifactPrefix: artifactPrefix,
@@ -2417,25 +2289,7 @@ func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request)
 			board.Error = snapshot.state.Error
 		}
 	}
-	response := renderPublishBoardResponse{PublishBoard: board}
-	if snapshot.state != nil && snapshot.state.Status == renderplan.RenderVariantStatusReview {
-		response.ExpectedArtifactPrefix = snapshot.state.ArtifactPrefix
-		response.ExpectedWarnings = append([]string(nil), snapshot.state.Warnings...)
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-type renderPublishBoardResponse struct {
-	renderplan.PublishBoard
-	ExpectedArtifactPrefix string   `json:"expected_artifact_prefix,omitempty"`
-	ExpectedWarnings       []string `json:"expected_warnings,omitempty"`
-}
-
-func unresolvedRenderWarnings(state *renderplan.RenderVariantState, warnings []string) []string {
-	if state != nil && state.ReviewResolvedFor(warnings) {
-		return nil
-	}
-	return warnings
+	writeJSON(w, http.StatusOK, board)
 }
 
 // GetRenderQuality handles GET /api/jobs/{id}/renders/{variant}/quality.

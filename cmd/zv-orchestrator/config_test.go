@@ -34,17 +34,6 @@ func TestLoadConfigAllowsParserOnlyMode(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsLANBindWithoutMutationToken(t *testing.T) {
-	clearConfigEnv(t)
-	t.Setenv("ZV_DATABASE_URL", "postgres://example")
-	t.Setenv("ZV_HTTP_ADDR", "0.0.0.0:8080")
-
-	_, err := loadConfig()
-	if err == nil {
-		t.Fatal("loadConfig error = nil, want mutation token requirement")
-	}
-}
-
 func TestLoadConfigRejectsLANBindEvenWithMutationToken(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("ZV_DATABASE_URL", "postgres://example")

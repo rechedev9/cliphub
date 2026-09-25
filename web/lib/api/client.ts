@@ -3,20 +3,6 @@ import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
 
-export type VideoReviewResolution =
-  | {
-      kind: 'rerender';
-      editConfig: EditConfig;
-      expectedArtifactPrefix: string;
-      expectedWarnings: string[];
-    }
-  | {
-      kind: 'accept';
-      note: string;
-      expectedArtifactPrefix: string;
-      expectedWarnings: string[];
-    };
-
 export interface ApiClient {
   getCaptureReadiness(): Promise<CaptureReadiness>;
   listMatches(): Promise<Match[]>;
@@ -39,7 +25,6 @@ export interface ApiClient {
   getVideo(id: string): Promise<Video | null>;
   getPublishAssistant(id: string): Promise<PublishAssistant>;
   retryVideo(id: string): Promise<Video>;
-  resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video>;
   rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video>;
   selectVideoCover(id: string, coverName: string): Promise<Video>;
   deleteVideo(id: string): Promise<void>;

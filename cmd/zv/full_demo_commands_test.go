@@ -172,26 +172,40 @@ func TestFullDemoCLIPlanningAndApprovedAdmission(t *testing.T) {
 
 func TestFullDemoCLIBoundaryRejectsAmbiguityBeforeHTTP(t *testing.T) {
 	snapshot, plan, options := fullDemoCLIFixture(t)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, "unexpected request", http.StatusTeapot)
+	}))
+	defer server.Close()
 	for _, tc := range []struct {
 		name string
 		args []string
+		want string
 	}{
-		{"missing approval", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--allow-safe-tail-trim=true"}},
-		{"different approval", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", strings.Repeat("0", 64), "--allow-safe-tail-trim=true"}},
-		{"missing safety choice", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", snapshot.Document.PlanHash}},
-		{"different safety choice", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", snapshot.Document.PlanHash, "--allow-safe-tail-trim=false"}},
-		{"invalid job", []string{"plan", "--job", "../other", "--options", options, "--out", "unused.json"}},
-		{"overwrite input", []string{"plan", "--job", fullDemoCLIJobID, "--options", options, "--out", options}},
-		{"ambiguous inspection", []string{"inspect", "--plan", plan, "--job", fullDemoCLIJobID}},
-		{"unknown option", []string{"defaults", "--voice-volume", "0"}},
-		{"duplicate option", []string{"defaults", "--format", "json", "--format", "text"}},
+		{"missing approval", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--allow-safe-tail-trim=true"}, `missing required flag --approve for "full-demo execute"`},
+		{"different approval", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", strings.Repeat("0", 64), "--allow-safe-tail-trim=true"}, "full_demo_plan_stale"},
+		{"missing safety choice", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", snapshot.Document.PlanHash}, "requires explicit --allow-safe-tail-trim=true or =false"},
+		{"different safety choice", []string{"execute", "--job", fullDemoCLIJobID, "--plan", plan, "--approve", snapshot.Document.PlanHash, "--allow-safe-tail-trim=false"}, "full_demo_plan_stale"},
+		{"invalid job", []string{"plan", "--job", "../other", "--options", options, "--out", "unused.json"}, "invalid --job UUID"},
+		{"overwrite input", []string{"plan", "--job", fullDemoCLIJobID, "--options", options, "--out", options}, "--out must not overwrite --options"},
+		{"ambiguous inspection", []string{"inspect", "--plan", plan, "--job", fullDemoCLIJobID}, "requires exactly one of --plan or --job"},
+		{"unknown option", []string{"defaults", "--voice-volume", "0"}, `unknown flag --voice-volume for "full-demo defaults"`},
+		{"duplicate option", []string{"defaults", "--format", "json", "--format", "text"}, "duplicate flag --format"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			args := append(append([]string(nil), tc.args...), "--url", server.URL)
 			var stdout, stderr bytes.Buffer
-			if code := runFullDemo(tc.args, &stdout, &stderr); code != exitInvalidArgs {
+			if code := runFullDemo(args, &stdout, &stderr); code != exitInvalidArgs {
 				t.Fatalf("code=%d: %s %s", code, stdout.String(), stderr.String())
 			}
+			if output := stdout.String() + stderr.String(); !strings.Contains(output, tc.want) {
+				t.Fatalf("output = %q, want reason %q", output, tc.want)
+			}
 		})
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("server received %d requests, want none", got)
 	}
 }
 

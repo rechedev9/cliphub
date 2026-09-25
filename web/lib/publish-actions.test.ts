@@ -4,7 +4,6 @@ import { YOUTUBE_STUDIO_URL, parsePublishAssistant } from './api/publish-assista
 import {
   PUBLISH_ASSISTANT_FAILED_COPY,
   PUBLISH_ASSISTANT_WAITING_COPY,
-  copyPublishText,
   downloadPublishMP4,
   initialPublishDraft,
   openYouTubeStudio,
@@ -58,7 +57,7 @@ function assistant() {
 test('failed videos are not waiting for a YouTube draft', () => {
   assert.equal(publishAssistantAvailability('ready'), 'ready');
   assert.equal(publishAssistantAvailability('failed'), 'failed');
-  for (const status of ['queued', 'recording', 'composing', 'review_required'] as const) {
+  for (const status of ['queued', 'recording', 'composing'] as const) {
     assert.equal(publishAssistantAvailability(status), 'waiting', status);
   }
   assert.match(PUBLISH_ASSISTANT_WAITING_COPY, /esté listo/);
@@ -80,22 +79,8 @@ test('selecting a recommendation replaces editable title, description, and tags'
   });
 });
 
-test('copies title, description, and formatted tags through the clipboard', async () => {
-  const copied: string[] = [];
-  const previous = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: { clipboard: { writeText: async (value: string) => { copied.push(value); } } },
-  });
-  try {
-    await copyPublishText('Título');
-    await copyPublishText('Descripción');
-    await copyPublishText(publishTagsText(['CS2', 'Mirage', '4K']));
-  } finally {
-    if (previous) Object.defineProperty(globalThis, 'navigator', previous);
-    else Reflect.deleteProperty(globalThis, 'navigator');
-  }
-  assert.deepEqual(copied, ['Título', 'Descripción', 'CS2, Mirage, 4K']);
+test('formats tags as a comma-separated list for the clipboard', () => {
+  assert.equal(publishTagsText(['CS2', 'Mirage', '4K']), 'CS2, Mirage, 4K');
 });
 
 test('downloads the MP4 with a safe filename and clicks the temporary anchor', () => {

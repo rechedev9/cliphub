@@ -8,7 +8,7 @@ export type ShareCodeCheck =
   | { readonly ok: true; readonly normalized: string }
   | { readonly ok: false; readonly reason: 'empty' | 'length' | 'character'; readonly message: string };
 
-export function normalizeShareCode(raw: string): string {
+function normalizeShareCode(raw: string): string {
   return raw
     .trim()
     .replace(/\s+/g, '')

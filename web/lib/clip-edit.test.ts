@@ -61,8 +61,8 @@ test('range validation reports source bounds immediately in Spanish', () => {
 
 const overlapCases: [string, StreamClipRange[], boolean][] = [
   ['disjoint cuts do not overlap', [
-    { id: 'c1', start_seconds: 0, end_seconds: 5 },
-    { id: 'c2', start_seconds: 5, end_seconds: 10 },
+    { id: 'c1', start_seconds: 0, end_seconds: 4 },
+    { id: 'c2', start_seconds: 6, end_seconds: 10 },
   ], false],
   ['adjacent-but-touching cuts do not overlap', [
     { id: 'c1', start_seconds: 0, end_seconds: 5 },

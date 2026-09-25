@@ -38,11 +38,6 @@ import { opponentSide } from './tactical-labels.ts';
 /** The read surface of a query string, satisfied by both `URLSearchParams` and Next's readonly one. */
 export type FilterQuery = Pick<URLSearchParams, 'get' | 'getAll'>;
 
-/** Reports whether a filter selects every round (`Filter.Empty`). */
-export function isEmptyTacticalFilter(filter: TacticalFilter): boolean {
-  return tacticalFilterParams(filter).toString() === '';
-}
-
 /** How many independent constraints a filter carries, for a "N filtros" badge. */
 export function tacticalFilterCount(filter: TacticalFilter): number {
   const fields = [
@@ -202,7 +197,7 @@ export type TeamSides = { key: string; start_side: TacticalSide; slots?: number[
  * are the starting side, even halves the swap. Undefined when the team did not
  * play (another map of a series document).
  */
-export function teamSideInRound(
+function teamSideInRound(
   teams: readonly TeamSides[],
   teamKey: string,
   half: number,

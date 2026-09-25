@@ -35,7 +35,7 @@ Use ORCHESTRATOR_URL and ZV_MUTATION_TOKEN for its address and session token.
 Import queues the existing parser; inspect --document status reports its progress.
 Plan resolves facts, voice and assets and persists a draft; it never starts CS2.
 Defaults include dynamic transitions, generated violet overlays and the player's crosshair.
-Full Demo has no background music. An optional sponsor requires declared assets.
+Full Demo has no background music. Optional intro, sponsor (after round 2) and outro clips require declared assets.
 Inspect prints the complete options, assets, round/timeline choices and blockers.
 Execute approves that exact hash and queues the same capture/render flow as Studio.
 It requires a reviewed creative brief and a current-run HLAE/CS2 hardware grant.

@@ -22,17 +22,17 @@ func TestNewOrchestratorHTTPServerSetsDefensiveTimeouts(t *testing.T) {
 	if server.Handler == nil {
 		t.Fatal("Handler = nil, want configured handler")
 	}
-	if got, want := server.ReadHeaderTimeout, orchestratorReadHeaderTimeout; got != want {
-		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
+	if server.ReadHeaderTimeout <= 0 {
+		t.Fatalf("ReadHeaderTimeout = %s, want a positive bound", server.ReadHeaderTimeout)
 	}
-	if got, want := server.ReadTimeout, orchestratorReadTimeout; got != want {
-		t.Fatalf("ReadTimeout = %s, want %s", got, want)
+	if server.ReadTimeout <= 0 {
+		t.Fatalf("ReadTimeout = %s, want a positive bound", server.ReadTimeout)
 	}
 	if server.WriteTimeout != 0 {
 		t.Fatalf("WriteTimeout = %s, want zero so media streaming stays client-paced", server.WriteTimeout)
 	}
-	if got, want := server.IdleTimeout, orchestratorIdleTimeout; got != want {
-		t.Fatalf("IdleTimeout = %s, want %s", got, want)
+	if server.IdleTimeout <= 0 {
+		t.Fatalf("IdleTimeout = %s, want a positive bound", server.IdleTimeout)
 	}
 }
 

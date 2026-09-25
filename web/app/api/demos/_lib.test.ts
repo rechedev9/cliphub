@@ -204,17 +204,6 @@ test('ifNoneMatchInit forwards only a present validator', () => {
   assert.deepEqual(init, { headers: { 'If-None-Match': 'W/"jobs1"' } });
 });
 
-test('notModifiedFromUpstream mirrors a 304 ETag and ignores a 200', () => {
-  assert.equal(notModifiedFromUpstream(new Response('ok', { status: 200 })), null);
-  const mirrored = notModifiedFromUpstream(new Response(null, {
-    status: 304,
-    headers: { ETag: 'W/"jobs1"' },
-  }));
-  assert.equal(mirrored?.status, 304);
-  assert.equal(mirrored?.headers.get('ETag'), 'W/"jobs1"');
-  assert.equal(mirrored?.headers.get('Cache-Control'), 'private, no-cache');
-});
-
 test('conditional poll survives the orchestrator transport as a 304 without an error', async (t) => {
   const errors = t.mock.method(console, 'error', () => {});
   const { response, init } = await withUpstream(
@@ -236,6 +225,7 @@ test('conditional poll survives the orchestrator transport as a 304 without an e
   assert.equal((init?.headers as Record<string, string>)['If-None-Match'], 'W/"jobs1"');
   assert.equal(init?.redirect, 'manual');
   assert.equal(errors.mock.callCount(), 0);
+  assert.equal(notModifiedFromUpstream(new Response('ok', { status: 200 })), null, 'a 200 is not mirrored');
 });
 
 test('orchestrator transport still rejects redirects without exposing Location', async (t) => {

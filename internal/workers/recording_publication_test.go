@@ -392,7 +392,7 @@ func TestRecordingPublicationLeavesCanonicalResultPendingWhenCommitFails(t *test
 		t.Fatal("canonical recording result is ready after clip overwrite and failed commit")
 	}
 	expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, "seg-001")
-	missing, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
+	missing, _, readyErr := recordingOutputsReady(t.Context(), base, id, []string{"seg-001"}, expected)
 	if readyErr != nil {
 		t.Fatal(readyErr)
 	}
@@ -470,7 +470,7 @@ func TestRecordingPublicationRestoresPreviousCommitWhenOnlyNewClipKeysChanged(t 
 		t.Fatalf("restored previous commit validation: %v", err)
 	}
 	expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, "seg-001")
-	missing, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
+	missing, _, readyErr := recordingOutputsReady(t.Context(), base, id, []string{"seg-001"}, expected)
 	if readyErr != nil {
 		t.Fatal(readyErr)
 	}
@@ -522,7 +522,7 @@ func TestRecordingPublicationRetryCommitsAndPreservesCompatibleSegments(t *testi
 	}
 	for _, segmentID := range []string{"seg-001", "seg-002"} {
 		expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, segmentID)
-		missing, _, err := recordingOutputsReady(base, id, []string{segmentID}, expected)
+		missing, _, err := recordingOutputsReady(t.Context(), base, id, []string{segmentID}, expected)
 		if err != nil {
 			t.Fatalf("recordingOutputsReady(%s): %v", segmentID, err)
 		}

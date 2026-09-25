@@ -13,7 +13,7 @@ import (
 
 func TestDefaultOptionsUseSimplifiedFullDemoDefaults(t *testing.T) {
 	o := DefaultOptions()
-	if o.Audio.Music.Enabled || len(o.Audio.Music.Assets) != 0 || o.Sponsor.Enabled {
+	if o.Audio.Music.Enabled || len(o.Audio.Music.Assets) != 0 || o.HasBumpers() {
 		t.Fatalf("new plan defaults activate optional media: %+v", o)
 	}
 	if o.Capture.HUDProfile != customhud.CaptureProfile || o.Overlays.HUDTheme == "" {
@@ -149,8 +149,7 @@ func TestCurrentPolicyPreservesSupportedChoicesAndEmptyHistoricalSlices(t *testi
 	o.Overlays.HUDTheme = "mono"
 	o.Audio.Voice.Enabled = false
 	o.Transitions.Enabled = false
-	o.Sponsor.PlacementPolicy = "round-boundary"
-	o.Sponsor.AfterRoundID = "round-002"
+	o.Bumpers = &BumperOptions{Sponsor: &BumperSlot{}}
 	o.Editorial.ManualRanges = nil
 	o.Audio.Music.Assets = nil
 	before, err := HashValue(o)
@@ -166,20 +165,58 @@ func TestCurrentPolicyPreservesSupportedChoicesAndEmptyHistoricalSlices(t *testi
 	}
 }
 
-func TestObservedCrosshairBlockerDoesNotOfferRetiredFallback(t *testing.T) {
-	o := DefaultOptions()
-	o.Audio.Voice.Enabled = false
-	d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+func TestCustomHUDIsOptionalAndTrueViewIsACaptureChoice(t *testing.T) {
+	native := DefaultOptions()
+	native.Overlays.HUDTheme = ""
+	native.Capture.HUDProfile = NativeHUDProfile
+	got, err := CanonicalNewOptions(native)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, blocker := range d.Blockers {
-		if blocker.Code == ErrPOVContract && strings.Contains(blocker.Message, "mira del jugador") {
-			if strings.Contains(blocker.Message, "provide a code") || strings.Contains(blocker.Message, "capture default") {
-				t.Fatalf("retired fallback leaked into blocker: %q", blocker.Message)
-			}
-			return
+	if got.Overlays.HUDTheme != "" || got.Capture.HUDProfile != NativeHUDProfile {
+		t.Fatalf("native HUD was replaced by a broadcast HUD: %+v %+v", got.Capture, got.Overlays)
+	}
+	if err := got.ValidateCurrentFullDemoPolicy(); err != nil {
+		t.Fatalf("native HUD plan must be admitted: %v", err)
+	}
+
+	spectator := native
+	spectator.Capture.HUDProfile = "native"
+	if err := spectator.ValidateCurrentFullDemoPolicy(); err == nil {
+		t.Fatal("spectator panels of the plain native profile were admitted")
+	}
+	if got, err := CanonicalNewOptions(spectator); err != nil || got.Capture.HUDProfile != NativeHUDProfile {
+		t.Fatalf("plain native must become the clean native profile: %+v %v", got.Capture, err)
+	}
+
+	orphan := DefaultOptions()
+	orphan.Overlays.HUDTheme = ""
+	if got, err := CanonicalNewOptions(orphan); err != nil || got.Overlays.HUDTheme != DefaultOptions().Overlays.HUDTheme {
+		t.Fatalf("broadcast capture without a theme must get the default theme: %+v %v", got.Overlays, err)
+	}
+
+	for _, base := range []Options{DefaultOptions(), got} {
+		off, err := json.Marshal(base.Capture)
+		if err != nil || strings.Contains(string(off), "trueview") {
+			t.Fatalf("TrueView off must keep the historical wire: %s %v", off, err)
+		}
+		trueView := base
+		trueView.Capture.TrueView = true
+		canonical, err := CanonicalNewOptions(trueView)
+		if err != nil || !canonical.Capture.TrueView {
+			t.Fatalf("TrueView choice was dropped: %+v %v", canonical.Capture, err)
+		}
+		if err := trueView.ValidateCurrentFullDemoPolicy(); err != nil {
+			t.Fatalf("TrueView plan must be admitted: %v", err)
+		}
+		plain, trueViewDoc := Document{Options: base}, Document{Options: trueView}
+		a, errA := plain.CaptureHash()
+		b, errB := trueViewDoc.CaptureHash()
+		if errA != nil || errB != nil || a == b {
+			t.Fatal("TrueView must change the capture hash")
+		}
+		if CaptureCovers(plain, trueViewDoc) || CaptureCovers(trueViewDoc, plain) {
+			t.Fatal("a capture must not be reused across TrueView choices")
 		}
 	}
-	t.Fatalf("missing observed-crosshair blocker: %+v", d.Blockers)
 }

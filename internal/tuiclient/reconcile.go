@@ -53,7 +53,7 @@ func NextStep(jobStatus string, render *RenderVariantState) Step {
 		return StepRecording
 	case StatusComposing:
 		return StepComposing
-	case StatusRecorded, StatusComposed, StatusDone:
+	case StatusRecorded, StatusComposed, StatusReviewRequired, StatusDone:
 		return StepRender
 	default:
 		return StepWait

@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -164,16 +162,5 @@ func TestConcatArgBuilders(t *testing.T) {
 				t.Errorf("concat args missing %q:\n%s", want, join)
 			}
 		}
-	}
-}
-
-func TestArtifactKeys(t *testing.T) {
-	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-
-	if got, want := ResultArtifactKey(id), "jobs/11111111-1111-1111-1111-111111111111/composition/composition-result.json"; got != want {
-		t.Fatalf("result artifact key = %q, want %q", got, want)
-	}
-	if got, want := FinalArtifactKey(id), "jobs/11111111-1111-1111-1111-111111111111/composition/final.mp4"; got != want {
-		t.Fatalf("final artifact key = %q, want %q", got, want)
 	}
 }

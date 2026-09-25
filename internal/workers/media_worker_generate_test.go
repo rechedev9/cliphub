@@ -328,28 +328,6 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 	}
 }
 
-func TestRecordWorkerDoesNotChainShortsRenderWithoutGenerateIntent(t *testing.T) {
-	store := newFakeStorage()
-	repo, id := parsedRecordJob(store)
-	enq := &fakeEnqueuer{}
-	w := newRecordWorkerForTest(repo, store, t)
-	w.UseEnqueuer(enq)
-	task, err := tasks.NewRecordDemoTaskWithRecap(id, "", nil, false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := w.HandleRecordDemo(context.Background(), task); err != nil {
-		t.Fatalf("HandleRecordDemo error = %v", err)
-	}
-	if repo.jobs[id].Status != job.StatusRecorded {
-		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
-	}
-	if len(enq.tasks) != 0 {
-		t.Fatalf("shorts record without generate intent enqueued %d task(s), want 0", len(enq.tasks))
-	}
-}
-
 func TestRecordWorkerChainsRenderFromGenerateIntent(t *testing.T) {
 	store := newFakeStorage()
 	repo, id := parsedRecordJob(store)
@@ -722,7 +700,7 @@ func TestRecordWorkerGenerateHandoffCarriesCommittedRenderRevision(t *testing.T)
 	committed, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 		JobID:      id,
 		Loadout:    loadout,
-		Status:     renderplan.RenderVariantStatusReview,
+		Status:     renderplan.RenderVariantStatusReady,
 		Warnings:   []string{"freeze"},
 		RevisionID: uuid.New(),
 	})
@@ -745,24 +723,6 @@ func TestRecordWorkerGenerateHandoffCarriesCommittedRenderRevision(t *testing.T)
 		failed.ArtifactPrefix != committed.ArtifactPrefix ||
 		failed.RenderResultKey != committed.RenderResultKey {
 		t.Fatalf("handoff state lost committed revision: %#v", failed)
-	}
-}
-
-func TestRecordWorkerWithoutIntentDoesNotChain(t *testing.T) {
-	store := newFakeStorage()
-	repo, id := parsedRecordJob(store)
-	enq := &fakeEnqueuer{}
-	w := newRecordWorkerForTest(repo, store, t)
-	w.UseEnqueuer(enq)
-
-	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
-		t.Fatalf("HandleRecordDemo error = %v", err)
-	}
-	if repo.jobs[id].Status != job.StatusRecorded {
-		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
-	}
-	if len(enq.tasks) != 0 {
-		t.Fatalf("chained tasks = %d, want 0 without an intent", len(enq.tasks))
 	}
 }
 
@@ -884,6 +844,9 @@ func TestRecordWorkerPlainRecordIgnoresStaleGenerateArtifact(t *testing.T) {
 
 	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
 		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if repo.jobs[id].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
 	}
 	if len(enq.tasks) != 0 {
 		t.Fatalf("chained tasks = %d, want 0 for plain record with stale artifact", len(enq.tasks))

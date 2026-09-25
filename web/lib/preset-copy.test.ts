@@ -2,43 +2,39 @@
 // Run: node --test preset-copy.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES, presetDescription, presetHudChip } from './preset-copy.ts';
+import { readFileSync } from 'node:fs';
+import { PRESET_DESCRIPTION_ES, presetDescription } from './preset-copy.ts';
 
-// The preset names registered in internal/editor/preset.go. Every override must
-// key on one of these; a stray key means a typo or a renamed/removed preset.
-const KNOWN_PRESET_NAMES = ['viral-60-clean', 'viral-aggressive-60', 'clean-pov-60', 'full-hud-60', 'gameplay-pov-60'] as const;
+// The registry in internal/editor/preset.go is the source of truth: read the
+// Go names and English descriptions so a renamed, added or reworded preset
+// fails here instead of silently falling back to English in the picker.
+const PRESET_GO = readFileSync(new URL('../../internal/editor/preset.go', import.meta.url), 'utf8');
+const PRESET_CONSTS = new Map(
+  [...PRESET_GO.matchAll(/^\s*(Preset\w+)\s*=\s*"([^"]+)"/gm)].map((m) => [m[1], m[2]]),
+);
+const ENGLISH_DESCRIPTIONS = new Map(
+  [...PRESET_GO.matchAll(/^\s*Name:\s*(Preset\w+),[\s\S]*?^\s*Description:\s*"([^"]+)"/gm)].map((m) => {
+    const name = PRESET_CONSTS.get(m[1]);
+    assert.ok(name, `unresolved preset constant ${m[1]}`);
+    return [name, m[2]];
+  }),
+);
 
-// Exact English registry copy; an untranslated override must fail.
-const ENGLISH_DESCRIPTIONS: Record<(typeof KNOWN_PRESET_NAMES)[number], string> = {
-  'viral-60-clean':
-    'default clean viral edit: HUD-less 60fps POV that keeps the in-game kill feed, with punch-in kills',
-  'clean-pov-60':
-    'fully HUD-less first-person POV: cinematic punch-in kills, no in-game HUD or kill feed',
-  'full-hud-60':
-    'full in-game HUD POV: keeps the CS2 HUD, health, ammo, and radar visible over the viral edit',
-  'viral-aggressive-60':
-    'aggressive TikTok edit: HUD-less 60fps POV that keeps the kill feed, with a saturated grade and headshot chroma pulses',
-  'gameplay-pov-60':
-    'YouTube POV with native CS2 HUD (radar, health, ammo, killfeed); 1920x1080 at 60fps with no viral grade',
-};
-
-test('every override key is a known registry preset name', () => {
-  const known = new Set<string>(KNOWN_PRESET_NAMES);
-  for (const name of Object.keys(PRESET_DESCRIPTION_ES)) {
-    assert.ok(known.has(name), `unexpected preset key: ${name}`);
-  }
+test('overrides cover exactly the registry preset names', () => {
+  assert.ok(ENGLISH_DESCRIPTIONS.size > 0, 'no presets parsed from preset.go');
+  assert.deepEqual(Object.keys(PRESET_DESCRIPTION_ES).sort(), [...ENGLISH_DESCRIPTIONS.keys()].sort());
 });
 
 test('no override value is empty or left as the English source', () => {
-  for (const name of KNOWN_PRESET_NAMES) {
+  for (const [name, english] of ENGLISH_DESCRIPTIONS) {
     const value = PRESET_DESCRIPTION_ES[name];
     assert.ok(value && value.trim().length > 0, `empty override for ${name}`);
-    assert.notEqual(value, ENGLISH_DESCRIPTIONS[name], `override for ${name} is still English`);
+    assert.notEqual(value, english, `override for ${name} is still English`);
   }
 });
 
 test('presetDescription returns the Spanish override for a known preset', () => {
-  const preset = { name: 'viral-60-clean', description: ENGLISH_DESCRIPTIONS['viral-60-clean'] };
+  const preset = { name: 'viral-60-clean', description: ENGLISH_DESCRIPTIONS.get('viral-60-clean') ?? '' };
   assert.equal(presetDescription(preset), PRESET_DESCRIPTION_ES['viral-60-clean']);
   assert.notEqual(presetDescription(preset), preset.description);
 });
@@ -46,15 +42,4 @@ test('presetDescription returns the Spanish override for a known preset', () => 
 test('presetDescription falls back to the API description for an unknown preset', () => {
   const preset = { name: 'some-future-preset', description: 'brand new registry copy' };
   assert.equal(presetDescription(preset), 'brand new registry copy');
-});
-
-test('presetHudChip names native CS2 HUD for gameplay-pov-60 and leaves Shorts enums', () => {
-  assert.equal(
-    presetHudChip({ name: 'gameplay-pov-60', hudMode: 'gameplay' }),
-    NATIVE_HUD_LABEL,
-  );
-  assert.equal(presetHudChip({ name: 'full-hud-60', hudMode: 'gameplay' }), 'gameplay');
-  assert.equal(presetHudChip({ name: 'viral-60-clean', hudMode: 'deathnotices' }), 'deathnotices');
-  assert.equal(presetHudChip({ name: 'clean-pov-60', hudMode: 'clean' }), 'clean');
-  assert.equal(presetHudChip({ name: 'viral-aggressive-60' }), undefined);
 });

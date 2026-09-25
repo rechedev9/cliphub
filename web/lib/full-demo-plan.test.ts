@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, fullDemoProvenance, fullDemoSourceError, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
 import { parseEffectiveEditConfig } from './api/render-hydration.ts';
 import { fullDemoIntentConflict, shouldReuseReelIntent } from './api/reel-identity.ts';
-import { CUSTOM_HUD_THEMES, CUSTOM_HUD_CAPTURE_PROFILE } from './custom-hud.ts';
+import { CUSTOM_HUD_THEMES, CUSTOM_HUD_CAPTURE_PROFILE, NATIVE_HUD_CAPTURE_PROFILE } from './custom-hud.ts';
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 // Serialized by the real Go planner in the synthetic FFmpeg canary. This is
@@ -26,14 +26,15 @@ test('old drafts normalize removed choices into the automatic Full Demo contract
   assert.ok(isFullDemoSnapshot(raw));
   const normalized = currentFullDemoOptions(raw.document.options);
   assert.deepEqual(normalized.capture.crosshair, { mode: 'observed', code: '', allow_capture_default: false });
-  assert.equal(normalized.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
+  // The fixture predates custom HUDs; its native capture stays a native HUD.
+  assert.equal(normalized.capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
   assert.equal(normalized.audio.music.enabled, false);
   assert.deepEqual(normalized.audio.music, {
     enabled: false, assets: [], reference_level: 'track-lufs-minus-16-v1', bed_gain_db: -21, loop_policy: 'ordered-loop',
     ducking: { enabled: true, game_contribution: 0, attack_ms: 20, release_ms: 800, threshold: .025, ratio: 8 },
   });
   assert.deepEqual(normalized.editorial.manual_ranges, []);
-  assert.deepEqual(normalized.overlays, { roster: true, scoreboard: true, theme: 'neon-violet', source: 'demo', mode: 'generated', hud_theme: CUSTOM_HUD_THEMES[0]?.id });
+  assert.deepEqual(normalized.overlays, { roster: true, scoreboard: true, theme: 'neon-violet', source: 'demo', mode: 'generated' });
   assert.equal(normalized.transitions?.enabled, true);
   assert.equal(fullDemoApprovalKey(raw.document, normalized), null);
 });
@@ -99,12 +100,32 @@ test('all eleven custom HUDs survive approval, persistence and the render reques
     const options = fixture().document.options;
     assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
   }
-  assert.ok(Boolean(fixture().document.options.overlays.hud_theme));
+});
+
+test('the custom HUD is optional and TrueView is an explicit capture choice', () => {
+  const options = fixture().document.options;
+  assert.equal(options.overlays.hud_theme, undefined);
+  assert.equal(options.capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
+  assert.ok(isFullDemoOptions(options));
+  // Plain "native" keeps spectator panels; new plans use the clean native HUD.
+  assert.equal(currentFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: 'native' } }).capture.hud_profile, NATIVE_HUD_CAPTURE_PROFILE);
+  // A broadcast capture without a theme is not a native choice.
+  const orphan = currentFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } });
+  assert.equal(orphan.overlays.hud_theme, CUSTOM_HUD_THEMES[0]?.id);
+
+  // Go omits trueview when off: false must not become a key that dirties the plan.
+  assert.equal('trueview' in currentFullDemoOptions({ ...options, capture: { ...options.capture, trueview: false } }).capture, false);
+  const trueView = currentFullDemoOptions({ ...options, capture: { ...options.capture, trueview: true } });
+  assert.equal(trueView.capture.trueview, true);
+  assert.ok(isFullDemoOptions(trueView));
+  assert.notEqual(fullDemoOptionsKey(trueView), fullDemoOptionsKey(options));
+  assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, trueview: 1 } }), false);
 });
 
 test('Focus portrait survives draft migration and render persistence and invalidates approval when changed', () => {
   const snapshot = fixture();
   snapshot.document.options = currentFullDemoOptions(snapshot.document.options);
+  snapshot.document.options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
   snapshot.document.options.overlays.hud_theme = 'focus';
   const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
   snapshot.document.options.overlays.hud_portrait = portrait;
@@ -175,7 +196,7 @@ test('Go editorial document survives edit wire, local persistence and render hyd
   options.audio.voice.enabled = false; options.audio.voice.gain = 0;
   options.audio.game.gain = 0; options.audio.game.voice_priority = false;
   options.audio.music.ducking.enabled = false; options.audio.music.ducking.game_contribution = 0;
-  options.sponsor.enabled = false; options.overlays.roster = false; options.overlays.scoreboard = false;
+  options.overlays.roster = false; options.overlays.scoreboard = false;
   options.outputs.cover_policy = 'no-cover';
   const edit = fullDemoPlanEdit(snapshot);
   const body = buildEditRequest(edit);
@@ -191,8 +212,8 @@ test('Go editorial document survives edit wire, local persistence and render hyd
 for (const [name, mutate] of [
   ['range with unchanged round ID', (o: FullDemoOptions): void => { o.editorial.freeze_seconds = 5; }],
   ['game volume zero', (o: FullDemoOptions): void => { o.audio.game.gain = 0; }],
-  ['sponsor split', (o: FullDemoOptions): void => { o.sponsor.allow_split_round = true; }],
   ['cover', (o: FullDemoOptions): void => { o.outputs.cover_policy = 'generated-gameplay'; }],
+  ['transitions disabled', (o: FullDemoOptions): void => { o.transitions = { ...fullDemoTransitionPreset(), enabled: false }; }],
 ] satisfies [string, (options: FullDemoOptions) => void][]) {
   test(`changing ${name} invalidates approval`, () => {
     const { document } = fixture();
@@ -214,7 +235,7 @@ test('identical options and hashes survive re-fetch, key ordering and approval t
   assert.ok(editConfigsEqual(fullDemoPlanEdit(snapshot), fullDemoPlanEdit(other)));
 });
 
-test('intro and outro bumpers are optional, preserved verbatim and part of the approval key', () => {
+test('intro, sponsor and outro bumpers are optional, preserved verbatim and part of the approval key', () => {
   const { document } = fixture();
   const options = structuredClone(document.options);
   assert.equal(options.bumpers, undefined);
@@ -223,22 +244,42 @@ test('intro and outro bumpers are optional, preserved verbatim and part of the a
   const ref = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'e'.repeat(64) };
   const withBumpers = { ...options, bumpers: { intro: { enabled: true, video: ref }, outro: { enabled: true, video: null } } };
   assert.ok(isFullDemoOptions(withBumpers));
-  assert.equal(bumperSummary(withBumpers), 'Intro y Outro');
+  assert.equal(bumperSummary(withBumpers), 'Intro y outro');
   assert.deepEqual(currentFullDemoOptions(withBumpers).bumpers, withBumpers.bumpers);
   assert.equal(fullDemoApprovalKey(document, withBumpers), null, 'enabling a bumper changes the approved plan');
   assert.equal(bumperSummary({ bumpers: { intro: { enabled: false, video: null }, outro: { enabled: true, video: ref } } }), 'Outro');
+  const withSponsor = { ...withBumpers, bumpers: { ...withBumpers.bumpers, sponsor: { enabled: true, video: ref } } };
+  assert.ok(isFullDemoOptions(withSponsor));
+  assert.equal(bumperSummary(withSponsor), 'Intro, sponsor y outro');
+  assert.deepEqual(currentFullDemoOptions(withSponsor).bumpers, withSponsor.bumpers);
+  assert.equal(bumperSummary({ bumpers: { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: ref } } }), 'Sponsor');
+});
+
+test('an old draft or stored plan with the retired sponsor group stays readable but never reaches the wire', () => {
+  const { document } = fixture();
+  const video = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+  const legacy = { ...document.options, sponsor: { enabled: true, video, placement_policy: 'round-boundary', after_round_id: 'round-001' } };
+  assert.ok(isFullDemoOptions(legacy));
+  assert.ok(isFullDemoSnapshot({ ...fixture(), document: { ...document, options: legacy, sponsor_placement: { boundary: 'round-001' } } }));
+  const migrated = currentFullDemoOptions(legacy);
+  assert.equal(Object.hasOwn(migrated, 'sponsor'), false);
+  assert.deepEqual(migrated.bumpers, { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video } });
+  assert.equal(fullDemoApprovalKey({ ...document, options: legacy }, migrated), null, 'a legacy sponsor plan must be prepared again');
+  for (const sponsor of [{ enabled: true, video: null }, { enabled: false, video }]) {
+    assert.equal(fullDemoOptionsKey(currentFullDemoOptions({ ...document.options, sponsor })), fullDemoOptionsKey(document.options), 'an unused legacy sponsor is dropped without adding bumpers');
+  }
 });
 
 for (const [name, value] of [
-  ['missing option', { ...fixture().document.options, sponsor: undefined }],
+  ['missing option', { ...fixture().document.options, outputs: undefined }],
   ['bumper without slots', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null } } }],
   ['bumper with a policy', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null, placement: 'start' }, outro: { enabled: false, video: null } } }],
+  ['sponsor bumper with a placement', { ...fixture().document.options, bumpers: { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: null, after_round_id: 'round-001' } } }],
   ['bumper with a bad ref', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: { id: 'x', sha256: 'y' } }, outro: { enabled: false, video: null } } }],
   ['null boolean', { ...fixture().document.options, capture: { ...fixture().document.options.capture, xray: null } }],
   ['unknown key', { ...fixture().document.options, pipeline: 'new' }],
   ['invalid profile', { ...fixture().document.options, profile_id: 'legacy' }],
   ['nonfinite gain', { ...fixture().document.options, audio: { ...fixture().document.options.audio, game: { gain: Number.NaN, voice_priority: false } } }],
-  ['reversed window', { ...fixture().document.options, sponsor: { ...fixture().document.options.sponsor, window_start_seconds: 140, window_end_seconds: 130 } }],
 ] satisfies [string, unknown][]) {
   test(`rejects ${name} without defaulting`, () => assert.equal(isFullDemoOptions(value), false));
 }
@@ -365,26 +406,8 @@ test('bumper upload accepts MP4 directly without inventing ownership and rejects
   assert.equal(calls, 1);
 });
 
-test('a file-only asset declares itself as local, and typed rights fields win over the declaration', () => {
-  const file = new File(['test'], 'ZACK KEYDROP PREROLL.mp4', { type: 'video/mp4' });
-  const blank = { title: ' ', creator: '', source_url: '', permission: '', attribution: '' };
-  // Same values as internal/mediaassets TestProvenanceValidateLocalFileDeclaration.
-  assert.deepEqual(fullDemoProvenance(file, blank), {
-    title: 'ZACK KEYDROP PREROLL.mp4', creator: 'No declarado', source_url: 'local:ZACK%20KEYDROP%20PREROLL.mp4',
-    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
-  });
-  assert.deepEqual(fullDemoProvenance(file, { ...blank, creator: ' Zack ', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack' }), {
-    ...localFileProvenance(file), creator: 'Zack', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack',
-  });
-  // The server bounds the title in UTF-8 bytes, not UTF-16 units.
+test('a local file declaration bounds its title in UTF-8 bytes like the server', () => {
   const long = localFileProvenance(new File(['test'], `${'ñ'.repeat(150)}.mp4`));
   assert.equal(long.title, 'ñ'.repeat(100));
   assert.equal(long.source_url, `local:${encodeURIComponent('ñ'.repeat(100))}`);
-});
-
-test('an asset source must be an http(s) link or a local declaration before it reaches the server', () => {
-  for (const source of ['', '  ', 'local:archivo-propio', 'LOCAL:x', 'https://zack.gg/preroll', 'http://zack.gg']) assert.equal(fullDemoSourceError(source), null, source);
-  for (const source of ['ZACK KEYDROP', 'www.zack.gg/preroll', 'https:zack.gg', 'https://user@zack.gg', 'ftp://zack.gg', 'C:\\Videos\\preroll.mp4']) {
-    assert.match(fullDemoSourceError(source) ?? '', /https:\/\/.*local:/, source);
-  }
 });

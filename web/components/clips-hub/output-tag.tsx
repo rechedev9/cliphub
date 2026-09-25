@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { OUTPUT_STATE, OUTPUT_TONE, outputTagLabel, type MatchOutput } from '@/lib/clips/hub';
 import { StatusTag } from '@/components/studio/status-tag';
 
 export type OutputTagProps = {
-  output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'> & Partial<Pick<MatchOutput, 'reviewRequired'>>;
+  output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'>;
   className?: string;
 };
 
@@ -14,12 +14,7 @@ export function OutputTag({ output, className }: OutputTagProps): ReactNode {
   const tone = OUTPUT_TONE[output.state];
   switch (output.state) {
     case OUTPUT_STATE.ready:
-      // QA left warnings: the MP4 exists but nobody has signed it off yet.
-      return output.reviewRequired === true ? (
-        <StatusTag tone="warning" icon={AlertTriangle} className={className}>
-          {label}
-        </StatusTag>
-      ) : (
+      return (
         <StatusTag tone={tone} icon={Check} className={className}>
           {label}
         </StatusTag>

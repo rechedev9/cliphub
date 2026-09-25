@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestValidateAndNormalize(t *testing.T) {
+func TestValidateStyleAndCode(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string

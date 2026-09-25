@@ -1,92 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  advanceMontagePlayback,
   STREAMER_BANNER_MAX_POSITION,
-  activeTextOverlays,
   STREAMER_BANNER_MIN_POSITION,
-  calculateCropCoverGeometry,
   clampStreamerBannerPosition,
-  defaultStreamerBannerPosition,
   keyDropPreviewSourceSeconds,
-  representativeFrameTime,
   resolveStreamerBannerPosition,
-  startMontagePlayback,
 } from './stream-preview.ts';
-
-const SOURCE = { width: 1920, height: 1080 };
-
-test('full-frame gameplay covers the 40/60 gameplay band without stretching', () => {
-  const geometry = calculateCropCoverGeometry(
-    { x: 0, y: 0, width: 1, height: 1 },
-    SOURCE,
-    { width: 1080, height: 1152 },
-  );
-
-  assert.ok(geometry);
-  const expectedWidthPercent = (SOURCE.width * (1152 / SOURCE.height) * 100) / 1080;
-  assert.equal(geometry.heightPercent, 100);
-  assert.equal(geometry.widthPercent, expectedWidthPercent);
-  assert.ok(Math.abs(geometry.leftPercent - (100 - expectedWidthPercent) / 2) < 1e-12);
-  assert.equal(geometry.topPercent, 0);
-
-  const displayedAspect = (geometry.widthPercent * 1080) / (geometry.heightPercent * 1152);
-  assert.equal(displayedAspect, SOURCE.width / SOURCE.height);
-});
-
-test('reported facecam crop stays centered and aspect-correct in its output band', () => {
-  const rect = {
-    x: 0.0414141414,
-    y: 0.2711560045,
-    width: 0.1863636364,
-    height: 0.2066217733,
-  };
-  const output = { width: 1080, height: 768 };
-  const geometry = calculateCropCoverGeometry(rect, SOURCE, output);
-
-  assert.ok(geometry);
-  const scaleFromWidth = (geometry.widthPercent / 100 * output.width) / SOURCE.width;
-  const scaleFromHeight = (geometry.heightPercent / 100 * output.height) / SOURCE.height;
-  assert.ok(Math.abs(scaleFromWidth - scaleFromHeight) < 1e-12);
-
-  const scaledCropWidth = SOURCE.width * rect.width * scaleFromWidth;
-  const scaledCropHeight = SOURCE.height * rect.height * scaleFromHeight;
-  assert.ok(scaledCropWidth >= output.width);
-  assert.ok(scaledCropHeight >= output.height);
-  assert.ok(Math.abs(scaledCropHeight - output.height) < 1e-9);
-
-  const visibleCenterX = (-geometry.leftPercent / 100 * output.width + output.width / 2) / scaleFromWidth;
-  const visibleCenterY = (-geometry.topPercent / 100 * output.height + output.height / 2) / scaleFromHeight;
-  assert.ok(Math.abs(visibleCenterX - SOURCE.width * (rect.x + rect.width / 2)) < 1e-9);
-  assert.ok(Math.abs(visibleCenterY - SOURCE.height * (rect.y + rect.height / 2)) < 1e-9);
-});
-
-test('legacy 520/1400 bands cover without changing the source aspect ratio', () => {
-  for (const output of [
-    { width: 1080, height: 520 },
-    { width: 1080, height: 1400 },
-  ]) {
-    const geometry = calculateCropCoverGeometry(
-      { x: 0, y: 0, width: 1, height: 1 },
-      SOURCE,
-      output,
-    );
-
-    assert.ok(geometry);
-    const displayedWidth = geometry.widthPercent / 100 * output.width;
-    const displayedHeight = geometry.heightPercent / 100 * output.height;
-    assert.equal(displayedWidth / displayedHeight, SOURCE.width / SOURCE.height);
-    assert.ok(displayedWidth >= output.width);
-    assert.ok(displayedHeight >= output.height);
-  }
-});
-
-test('representative time is the safe midpoint for every editor video', () => {
-  assert.equal(representativeFrameTime(42), 21);
-  assert.equal(representativeFrameTime(0.05), 0);
-  assert.equal(representativeFrameTime(0), 0);
-  assert.equal(representativeFrameTime(Number.POSITIVE_INFINITY), 0);
-});
 
 test('KeyDrop preview seeks into the plate window when the playhead is outside it', () => {
   const clips = [{ id: 'c1', start_seconds: 0, end_seconds: 20 }];
@@ -97,12 +17,6 @@ test('KeyDrop preview seeks into the plate window when the playhead is outside i
   // Offset window on a later clip.
   const later = [{ id: 'c2', start_seconds: 30, end_seconds: 50 }];
   assert.equal(keyDropPreviewSourceSeconds(later, 40, 1, 3), 31);
-});
-
-test('streamer banner defaults follow each output layout', () => {
-  assert.equal(defaultStreamerBannerPosition('streamer-vertical-stack-40-60'), 0.374);
-  assert.equal(defaultStreamerBannerPosition('streamer-vertical-stack'), 520 / 1920);
-  assert.equal(defaultStreamerBannerPosition('streamer-fullframe-nocam'), 0.2);
 });
 
 test('explicit streamer banner position stays absolute across layouts', () => {
@@ -127,67 +41,4 @@ test('undefined streamer banner position resets to the current layout default', 
   assert.equal(resolveStreamerBannerPosition('streamer-vertical-stack-40-60', undefined), 0.374);
   assert.equal(resolveStreamerBannerPosition('streamer-vertical-stack', undefined), 520 / 1920);
   assert.equal(resolveStreamerBannerPosition('streamer-fullframe-nocam', undefined), 0.2);
-});
-
-test('active text overlays follow the owning clip and their source-time window', () => {
-  const clips = [
-    {
-      id: 'clip-1',
-      start_seconds: 10,
-      end_seconds: 20,
-      edit: {
-        text_overlays: [
-          { text: 'always on', position_y: 0.2 },
-          { text: 'windowed', position_y: 0.6, start_seconds: 2, end_seconds: 4 },
-        ],
-      },
-    },
-    { id: 'clip-2', start_seconds: 30, end_seconds: 40 },
-  ];
-
-  assert.deepEqual(
-    activeTextOverlays(clips, 11).map((o) => o.text),
-    ['always on'],
-  );
-  assert.deepEqual(
-    activeTextOverlays(clips, 13).map((o) => o.text),
-    ['always on', 'windowed'],
-  );
-  assert.deepEqual(
-    activeTextOverlays(clips, 14.5).map((o) => o.text),
-    ['always on'],
-  );
-  assert.deepEqual(activeTextOverlays(clips, 25), []);
-  assert.deepEqual(activeTextOverlays(clips, 35), []);
-  assert.deepEqual(activeTextOverlays(clips, Number.NaN), []);
-});
-
-test('montage playback skips excluded source gaps and applies each clip speed', () => {
-  const clips = [
-    { id: 'clip-1', start_seconds: 10, end_seconds: 15, edit: { speed: 0.5 } },
-    { id: 'invalid', start_seconds: 20, end_seconds: 20 },
-    { id: 'clip-2', start_seconds: 40, end_seconds: 45, edit: { speed: 2 } },
-  ];
-
-  assert.deepEqual(startMontagePlayback(clips, 12), {
-    clipIndex: 0,
-    sourceSeconds: 12,
-    playbackRate: 0.5,
-  });
-  assert.deepEqual(startMontagePlayback(clips, 25), {
-    clipIndex: 0,
-    sourceSeconds: 10,
-    playbackRate: 0.5,
-  });
-  assert.deepEqual(advanceMontagePlayback(clips, 0, 14.9), {
-    clipIndex: 0,
-    sourceSeconds: 14.9,
-    playbackRate: 0.5,
-  });
-  assert.deepEqual(advanceMontagePlayback(clips, 0, 15), {
-    clipIndex: 2,
-    sourceSeconds: 40,
-    playbackRate: 2,
-  });
-  assert.equal(advanceMontagePlayback(clips, 2, 45), null);
 });

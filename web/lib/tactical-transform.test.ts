@@ -4,18 +4,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cellRadarRect,
-  cellWorldCenter,
   cellWorldRect,
-  geometryLevel,
   isCalibrationUsable,
   isMultiLevelMap,
   levelForAltitude,
   maxCellWeight,
   occupancyBounds,
-  pixelToWorld,
   radarScaleFactor,
   radarViewRect,
-  renderedToWorld,
   worldRectToRadarRect,
   worldToPixel,
   worldToRendered,
@@ -111,19 +107,6 @@ test('a higher world Y is a smaller radar Y', () => {
   assertClose(south.y - north.y, 2000 / MIRAGE.scale, 'inverted Y span');
 });
 
-test('pixelToWorld round-trips worldToPixel', () => {
-  for (const point of [
-    [0, 0],
-    [123.5, 987.25],
-    [1023, 1023],
-  ] as const) {
-    const world = pixelToWorld(MIRAGE, point[0], point[1]);
-    const back = worldToPixel(MIRAGE, world.x, world.y);
-    assertClose(back.x, point[0], 'round-trip x');
-    assertClose(back.y, point[1], 'round-trip y');
-  }
-});
-
 test('scaling to a rendered size is one factor for both axes', () => {
   assert.equal(radarScaleFactor(MIRAGE, 1024), 1);
   assert.equal(radarScaleFactor(MIRAGE, 512), 0.5);
@@ -138,13 +121,6 @@ test('scaling to a rendered size is one factor for both axes', () => {
   const half = worldToRendered(MIRAGE, -1500, -600, 512);
   assertClose(half.x, 173, 'rendered x at half size');
   assertClose(half.y, 231.3, 'rendered y at half size');
-});
-
-test('renderedToWorld round-trips worldToRendered', () => {
-  const rendered = worldToRendered(MIRAGE, -1500, -600, 720);
-  const world = renderedToWorld(MIRAGE, rendered.x, rendered.y, 720);
-  assertClose(world.x, -1500, 'rendered round-trip x');
-  assertClose(world.y, -600, 'rendered round-trip y');
 });
 
 test('level selection splits on altitude and stays default without a lower section', () => {
@@ -162,8 +138,6 @@ test('occupancy cells map onto the world rectangle they were binned from', () =>
   const geo = geometry();
   // Cells are indexed by floor(world / cell_size), so cell 2 spans [128, 192).
   assert.deepEqual(cellWorldRect(geo, 2, -3), { minX: 128, minY: -192, maxX: 192, maxY: -128 });
-  assert.deepEqual(cellWorldCenter(geo, 2, -3), { x: 160, y: -160 });
-  assert.deepEqual(cellWorldCenter(geo, 0, 0), { x: 32, y: 32 });
 });
 
 test('a cell rectangle is drawn from the world maximum Y downwards', () => {
@@ -307,12 +281,8 @@ test('the radar view window falls back to the whole square', () => {
   }
 });
 
-test('geometry levels are looked up by name and weighted by their heaviest cell', () => {
-  const geo = geometry();
-  const level = geometryLevel(geo, RADAR_LEVELS.default);
-  assert.ok(level);
-  assert.equal(level.cells.length, 3);
-  assert.equal(geometryLevel(geo, RADAR_LEVELS.lower), undefined);
+test('a geometry level is weighted by its heaviest cell', () => {
+  const [level] = geometry().levels;
   assert.equal(maxCellWeight(level), 12);
   assert.equal(maxCellWeight({ name: RADAR_LEVELS.lower, cells: [] }), 0);
 });

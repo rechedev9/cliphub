@@ -4,7 +4,8 @@
 
 The long-video form keeps the choices that change the user's result: HUD design,
 overlay data source, team voices with separate game and voice levels (0–200 %),
-between-round effects, and an optional sponsor. Calibration, team policy, and
+between-round effects, and optional intro, sponsor and outro clips (the sponsor
+plays after round 2; see `full-demo-bumpers.md`). Calibration, team policy, and
 the voice fallback stay automatic; only the two levels are the user's mix.
 Roster and scoreboard overlays are always generated with the neon-violet theme.
 The player's observed crosshair is used throughout. Background music is unavailable
@@ -18,9 +19,6 @@ of prerequisites the user must configure.
 Creating a video prepares the current plan before enqueueing it. A missing,
 incompatible, stale, or blocked plan must never be substituted with an older
 approval. Historical documents remain readable; retired options require a new plan.
-On a first-use sponsor placement, choosing a specific round prepares the plan to
-discover certified round boundaries without starting capture. Creation then binds
-the selected boundary to a newly approved plan.
 
 ## Local demo overlays
 

@@ -64,9 +64,10 @@ func TestStreamJourneyBinaryChainsPlanAndRender(t *testing.T) {
 	}
 }
 
-// TestFlowsRunStreamDryRunChainsPlanAndRender exercises `zv flows run stream
-// --dry-run` end to end and proves that both phases are planned without writes.
-func TestFlowsRunStreamDryRunChainsPlanAndRender(t *testing.T) {
+// TestFlowsRunStreamDryRunReportsUnmaterializedRenderDependency exercises `zv
+// flows run stream --dry-run` end to end: the plan phase dry-runs without
+// writes and the render phase is skipped because edit-plan.json does not exist.
+func TestFlowsRunStreamDryRunReportsUnmaterializedRenderDependency(t *testing.T) {
 	ffmpeg := requireStreamMediaTools(t)
 	exe := buildDelegatedBinaries(t)
 

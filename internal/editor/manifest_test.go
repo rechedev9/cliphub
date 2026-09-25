@@ -445,36 +445,35 @@ func TestVideoFilterTextShadowAndBoxNone(t *testing.T) {
 	}
 }
 
-func TestVideoFilterTextBorderIsOmittedByDefault(t *testing.T) {
-	filter := VideoFilter(ShortEdit{
-		Effects: []Effect{
-			{Type: EffectText, Value: "HEADSHOT", StartSeconds: 1, EndSeconds: 2, BoxColor: "none"},
-		},
-	})
-	if strings.Contains(filter, "borderw=") || strings.Contains(filter, "bordercolor=") {
-		t.Fatalf("filter contains border options with BorderWidth unset:\n%s", filter)
+func TestVideoFilterTextBorder(t *testing.T) {
+	tests := []struct {
+		name       string
+		width      int
+		color      string
+		want       string
+		wantAbsent bool
+	}{
+		{name: "omitted by default", wantAbsent: true},
+		{name: "default color when unset", width: 6, want: "borderw=6:bordercolor=black@0.9"},
+		{name: "custom color", width: 6, color: "red@0.8", want: "borderw=6:bordercolor=red@0.8"},
 	}
-}
-
-func TestVideoFilterTextBorderUsesDefaultColorWhenUnset(t *testing.T) {
-	filter := VideoFilter(ShortEdit{
-		Effects: []Effect{
-			{Type: EffectText, Value: "HEADSHOT", StartSeconds: 1, EndSeconds: 2, BoxColor: "none", BorderWidth: 6},
-		},
-	})
-	if !strings.Contains(filter, "borderw=6:bordercolor=black@0.9") {
-		t.Fatalf("filter missing default-colored border:\n%s", filter)
-	}
-}
-
-func TestVideoFilterTextBorderUsesCustomColor(t *testing.T) {
-	filter := VideoFilter(ShortEdit{
-		Effects: []Effect{
-			{Type: EffectText, Value: "HEADSHOT", StartSeconds: 1, EndSeconds: 2, BoxColor: "none", BorderWidth: 6, BorderColor: "red@0.8"},
-		},
-	})
-	if !strings.Contains(filter, "borderw=6:bordercolor=red@0.8") {
-		t.Fatalf("filter missing custom-colored border:\n%s", filter)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := VideoFilter(ShortEdit{
+				Effects: []Effect{
+					{Type: EffectText, Value: "HEADSHOT", StartSeconds: 1, EndSeconds: 2, BoxColor: "none", BorderWidth: tt.width, BorderColor: tt.color},
+				},
+			})
+			if tt.wantAbsent {
+				if strings.Contains(filter, "borderw=") || strings.Contains(filter, "bordercolor=") {
+					t.Fatalf("filter contains border options with BorderWidth unset:\n%s", filter)
+				}
+				return
+			}
+			if !strings.Contains(filter, tt.want) {
+				t.Fatalf("filter missing %q:\n%s", tt.want, filter)
+			}
+		})
 	}
 }
 

@@ -3,6 +3,8 @@ import catalog from '../public/hud/catalog.json' with { type: 'json' };
 
 export const CUSTOM_HUD_CAPTURE_PROFILE = 'broadcast-clean-v2';
 export const CUSTOM_HUD_LEGACY_CAPTURE_PROFILE = 'broadcast-clean';
+/** Mirrors recapplan.NativeHUDProfile: the player's own CS2 HUD, no spectator panels. */
+export const NATIVE_HUD_CAPTURE_PROFILE = 'native-clean-spectator';
 
 export function isCustomHudCaptureProfile(profile: string): boolean {
   return profile === CUSTOM_HUD_CAPTURE_PROFILE || profile === CUSTOM_HUD_LEGACY_CAPTURE_PROFILE;
@@ -19,5 +21,5 @@ export function customHudTheme(id: string | undefined): CustomHudTheme | undefin
 }
 
 export function customHudLabel(id: string | undefined): string {
-  return customHudTheme(id)?.name ?? 'Nativo CS2';
+  return customHudTheme(id)?.name ?? 'Original de CS2';
 }

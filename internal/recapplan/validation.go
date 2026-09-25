@@ -21,7 +21,6 @@ const (
 	ErrVoiceUnavailable  = "voice_unavailable"
 	ErrVoiceDecode       = "voice_decode_failed"
 	ErrPOVContract       = "pov_contract_failed"
-	ErrSponsorPlacement  = "sponsor_placement_conflict"
 	ErrAudioMaster       = "audio_master_validation_failed"
 	ErrFactsInsufficient = "full_demo_facts_insufficient"
 )
@@ -75,6 +74,7 @@ func decodeStrict(data []byte, target any) error {
 	if len(data) > 4<<20 {
 		return fmt.Errorf("full demo document exceeds 4 MiB")
 	}
+	data = dropRetiredSponsor(data)
 	if err := requireFields(data, reflect.TypeOf(target).Elem(), "$", 0); err != nil {
 		return err
 	}
@@ -88,6 +88,67 @@ func decodeStrict(data []byte, target any) error {
 		return fmt.Errorf("full demo document must contain one JSON value")
 	}
 	return nil
+}
+
+// dropRetiredSponsor removes the wire fields of the sponsor that preceded the
+// sponsor bumper slot (options.sponsor with its placement policy and the
+// document's sponsor_placement), so documents approved before it still decode
+// for render history. Their content hash no longer matches, so admission
+// treats them as stale plans instead of rendering them.
+func dropRetiredSponsor(data []byte) []byte {
+	if !bytes.Contains(data, []byte(`"sponsor_placement"`)) && !bytes.Contains(data, []byte(`"placement_policy"`)) {
+		return data
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var value any
+	if err := dec.Decode(&value); err != nil {
+		return data
+	}
+	if !dropRetiredSponsorValue(value) {
+		return data
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return data
+	}
+	return b
+}
+
+func dropRetiredSponsorValue(value any) bool {
+	dropped := false
+	switch v := value.(type) {
+	case map[string]any:
+		if _, ok := v["sponsor_placement"]; ok {
+			delete(v, "sponsor_placement")
+			dropped = true
+		}
+		if sponsor, ok := v["sponsor"].(map[string]any); ok {
+			if _, retired := sponsor["placement_policy"]; retired {
+				delete(v, "sponsor")
+				dropped = true
+			}
+		}
+		for _, child := range v {
+			dropped = dropRetiredSponsorValue(child) || dropped
+		}
+	case []any:
+		for _, child := range v {
+			dropped = dropRetiredSponsorValue(child) || dropped
+		}
+	}
+	return dropped
+}
+
+// hasRetiredSponsor reports a stored document written before the sponsor
+// became a bumper slot.
+func hasRetiredSponsor(data []byte) bool {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil {
+		return false
+	}
+	_, ok := fields["sponsor_placement"]
+	return ok
 }
 
 func requireFields(data []byte, typ reflect.Type, field string, depth int) error {
@@ -181,7 +242,7 @@ func (o Options) Validate() error {
 	}{
 		{"profile_id", o.ProfileID, []string{ProfileChill}},
 		{"source_kind", o.SourceKind, []string{"demo", "premier", "professional", "faceit"}},
-		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native", customhud.CaptureProfile, customhud.LegacyCaptureProfile}},
+		{"hud_profile", o.Capture.HUDProfile, []string{NativeHUDProfile, "native", customhud.CaptureProfile, customhud.LegacyCaptureProfile}},
 		{"camera_policy", o.Capture.CameraPolicy, []string{"strict-first-person"}},
 		{"contract_version", o.Capture.ContractVersion, []string{CaptureContract}},
 		{"crosshair.mode", o.Capture.Crosshair.Mode, []string{"observed", "provided-code"}},
@@ -191,10 +252,6 @@ func (o Options) Validate() error {
 		{"music.reference_level", o.Audio.Music.ReferenceLevel, []string{"track-lufs-minus-16-v1"}},
 		{"music.loop_policy", o.Audio.Music.LoopPolicy, []string{"ordered-loop", "once-pad-silence"}},
 		{"loudness.policy_version", o.Audio.Loudness.PolicyVersion, []string{"program-aac-v1"}},
-		{"sponsor.audio_policy", o.Sponsor.AudioPolicy, []string{"embedded", "replace-narration"}},
-		{"sponsor.short_narration_policy", o.Sponsor.ShortNarrationPolicy, []string{"block", "pad-silence"}},
-		{"sponsor.placement_policy", o.Sponsor.PlacementPolicy, []string{"first-two-rounds", "round-boundary", "manual-frame"}},
-		{"sponsor.music_policy", o.Sponsor.MusicPolicy, []string{"pause-resume"}},
 		{"overlays.theme", o.Overlays.Theme, []string{"faceit-orange", "neon-violet"}},
 		{"overlays.source", o.Overlays.Source, []string{"demo", "faceit"}},
 		{"overlays.mode", o.Overlays.Mode, []string{"", "generated", "screenshots"}},
@@ -255,8 +312,6 @@ func (o Options) Validate() error {
 		{"loudness.target_i_lufs", o.Audio.Loudness.TargetILUFS, -14, -14},
 		{"loudness.target_tp_dbtp", o.Audio.Loudness.TargetTPDBTP, -1.5, -1.5},
 		{"loudness.target_lra", o.Audio.Loudness.TargetLRA, 11, 11},
-		{"sponsor.window_start_seconds", o.Sponsor.WindowStartSeconds, 0, 43200},
-		{"sponsor.window_end_seconds", o.Sponsor.WindowEndSeconds, 0, 43200},
 	} {
 		if math.IsNaN(n.value) || math.IsInf(n.value, 0) || n.value < n.low || n.value > n.high {
 			return fmt.Errorf("%s must be finite and between %g and %g", n.name, n.low, n.high)
@@ -264,15 +319,6 @@ func (o Options) Validate() error {
 	}
 	if o.Editorial.MaxFreezeSeconds < o.Editorial.FreezeSeconds {
 		return fmt.Errorf("max freeze must cover base freeze")
-	}
-	if o.Sponsor.WindowEndSeconds < o.Sponsor.WindowStartSeconds {
-		return fmt.Errorf("sponsor window is reversed")
-	}
-	if o.Sponsor.PlacementPolicy == "manual-frame" && (o.Sponsor.ManualStartFrame == nil || *o.Sponsor.ManualStartFrame < 0) {
-		return fmt.Errorf("manual sponsor frame is required and non-negative")
-	}
-	if o.Sponsor.PlacementPolicy == "round-boundary" && o.Sponsor.AfterRoundID == "" {
-		return fmt.Errorf("sponsor round boundary is required")
 	}
 	if len(o.Audio.Music.Assets) > 20 || len(o.Editorial.ManualRanges) > 200 {
 		return fmt.Errorf("full demo selection exceeds item limit")
@@ -282,9 +328,12 @@ func (o Options) Validate() error {
 			return err
 		}
 	}
-	refs := []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage, o.Overlays.HUDPortrait}
+	refs := []*AssetRef{o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage, o.Overlays.HUDPortrait}
 	if o.Bumpers != nil {
 		refs = append(refs, o.Bumpers.Intro.Video, o.Bumpers.Outro.Video)
+		if o.Bumpers.Sponsor != nil {
+			refs = append(refs, o.Bumpers.Sponsor.Video)
+		}
 	}
 	for _, ref := range refs {
 		if ref != nil {
@@ -405,22 +454,16 @@ func (d Document) Validate() error {
 	if err := expected.RebuildTimeline(); err != nil {
 		return err
 	}
-	gotTimeline, err := HashValue(struct {
-		Items   []TimelineItem
-		Sponsor SponsorPlacement
-	}{d.Timeline, d.SponsorPlacement})
+	gotTimeline, err := HashValue(d.Timeline)
 	if err != nil {
 		return err
 	}
-	wantTimeline, err := HashValue(struct {
-		Items   []TimelineItem
-		Sponsor SponsorPlacement
-	}{expected.Timeline, expected.SponsorPlacement})
+	wantTimeline, err := HashValue(expected.Timeline)
 	if err != nil {
 		return err
 	}
 	if gotTimeline != wantTimeline {
-		return fmt.Errorf("full demo timeline does not derive from its round and sponsor document")
+		return fmt.Errorf("full demo timeline does not derive from its round and bumper document")
 	}
 	return nil
 }

@@ -162,8 +162,11 @@ test('jobToMatch names the row after the resolved target player', () => {
   assert.equal(match.player, 's1mple');
 });
 
-test('jobToMatch leaves player undefined when the target is not in the roster', () => {
-  assert.equal(jobToMatch(job({ jobId: 'job-4', createdAt: '2026-07-16T10:00:00Z' }), { map: 'de_nuke' }).player, undefined);
+test('jobToMatch keeps the map but no player or stats when the target is not in the roster', () => {
+  const match = jobToMatch(job({ jobId: 'job-4', createdAt: '2026-07-16T10:00:00Z' }), { map: 'de_nuke' });
+  assert.equal(match.map, 'Nuke');
+  assert.equal(match.player, undefined);
+  assert.deepEqual(match.stats, ZERO_STATS);
   assert.equal(jobToMatch(job({ jobId: 'job-5' })).player, undefined);
 });
 
@@ -176,12 +179,6 @@ test('jobToMatch falls back to a filename-titled, zeroed entry without enrichmen
 
 test('jobToMatch titles a roster-less, nameless job as "Partida"', () => {
   assert.equal(jobToMatch(job({ jobId: 'job-3' })).map, 'Partida');
-});
-
-test('jobToMatch zeroes stats when the target is not in the roster (map only)', () => {
-  const match = jobToMatch(job({ jobId: 'job-4', createdAt: '2026-07-16T10:00:00Z' }), { map: 'de_nuke' });
-  assert.equal(match.map, 'Nuke');
-  assert.deepEqual(match.stats, ZERO_STATS);
 });
 
 test('summarizeSeries folds split demo parts into one logical map', () => {

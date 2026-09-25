@@ -56,21 +56,15 @@ func TestJobFailureIsQueryableByJobIDAndClass(t *testing.T) {
 			if got.FailureCode != tc.want {
 				t.Fatalf("FailureCode = %q, want %q", got.FailureCode, tc.want)
 			}
-			found, err := rec.SelectErrors(id.String(), tc.want)
-			if err != nil {
-				t.Fatalf("SelectErrors: %v", err)
-			}
+			found := journalEventsFor(t, rec, id.String(), tc.want)
 			if len(found) != 1 {
-				t.Fatalf("SelectErrors(%s, %s) = %#v, want one journal line", id, tc.want, found)
+				t.Fatalf("journal events for (%s, %s) = %#v, want one journal line", id, tc.want, found)
 			}
 			if found[0].JobID != id.String() || found[0].Class != tc.want || found[0].Task != tc.task {
 				t.Fatalf("journal event = %+v", found[0])
 			}
 			if found[0].Message != tc.err.Error() {
 				t.Fatalf("journal message = %q", found[0].Message)
-			}
-			if obs.Select(found, id.String(), "no-such-class") != nil {
-				t.Fatal("Select matched a class that is not on the event")
 			}
 		})
 	}
@@ -87,10 +81,7 @@ func TestRecorderJournalPreservesCauseWithoutExpandingUserFacingFailure(t *testi
 	if repo.jobs[id].FailureReason != "recorder failed: capture failed" {
 		t.Fatalf("user-facing reason changed: %q", repo.jobs[id].FailureReason)
 	}
-	events, err := obs.Default().SelectErrors(id.String(), errorClass(tasks.TypeRecordDemo, failure))
-	if err != nil {
-		t.Fatal(err)
-	}
+	events := journalEventsFor(t, obs.Default(), id.String(), errorClass(tasks.TypeRecordDemo, failure))
 	if len(events) != 1 || !strings.Contains(events[0].Message, cause.Error()) {
 		t.Fatalf("subprocess cause lost from journal: %#v", events)
 	}
@@ -103,4 +94,21 @@ func TestVerboseRecorderJournalRetainsFinalCauseWithinReaderLimit(t *testing.T) 
 	if len(message) > 65*1024 || !strings.HasPrefix(message, failure.Error()) || !strings.HasSuffix(message, "error: final encoder failure") {
 		t.Fatalf("invalid bounded recorder diagnostic: length=%d", len(message))
 	}
+}
+
+// journalEventsFor reads rec's error journal and returns the events recorded
+// for jobID+class.
+func journalEventsFor(t *testing.T, rec *obs.Recorder, jobID, class string) []obs.Event {
+	t.Helper()
+	events, err := obs.ReadJournal(rec.JournalPath())
+	if err != nil {
+		t.Fatalf("ReadJournal: %v", err)
+	}
+	var out []obs.Event
+	for _, ev := range events {
+		if ev.JobID == jobID && ev.Class == class {
+			out = append(out, ev)
+		}
+	}
+	return out
 }

@@ -412,10 +412,7 @@ func TestRenderWorkerFailsRenderWhenSelectedSegmentIsNotRecorded(t *testing.T) {
 	if journal == nil {
 		t.Fatal("obs.Default is nil")
 	}
-	found, err := journal.SelectErrors(id.String(), obs.ClassRecordingNotReusable)
-	if err != nil {
-		t.Fatalf("SelectErrors: %v", err)
-	}
+	found := journalEventsFor(t, journal, id.String(), obs.ClassRecordingNotReusable)
 	if len(found) != 1 || found[0].Task != tasks.TypeRenderVariant || found[0].Stage != obs.StageWorker {
 		t.Fatalf("obs journal for %s/%s = %#v, want exactly one %s event", id, obs.ClassRecordingNotReusable, found, tasks.TypeRenderVariant)
 	}
@@ -740,27 +737,72 @@ func TestRecordWorkerInvalidSuccessfulAttemptPreservesPriorResult(t *testing.T) 
 	}
 }
 
-func TestRenderCoversToleratesPlanSegmentWithoutClip(t *testing.T) {
-	store := newFakeStorage()
-	id := uuid.New()
-	// Partial capture: the plan lists seg-001 and seg-002 but only seg-001 has a
-	// clip. The editor only renders clip-bearing segments, so coverage must not
-	// demand a short for seg-002 (which would loop the render forever).
-	rec := recording.RecordingResult{
-		Plan:      recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}}},
-		Artifacts: []recording.RecordingArtifact{{SegmentID: "seg-001", Role: "segment", Type: "video"}},
+func TestRenderCoversRecordedSegments(t *testing.T) {
+	cases := []struct {
+		name    string
+		clips   []string // recorded segment artifacts; the plan always lists seg-001 and seg-002
+		shorts  []string
+		want    bool
+		wantWhy string
+	}{
+		{
+			// Partial capture: only seg-001 has a clip. The editor only renders
+			// clip-bearing segments, so coverage must not demand a short for
+			// seg-002 (which would loop the render forever).
+			name:    "plan segment without a clip is not required",
+			clips:   []string{"seg-001"},
+			shorts:  []string{"seg-001"},
+			want:    true,
+			wantWhy: "a plan segment without a clip must not make render coverage unsatisfiable",
+		},
+		{
+			name:    "render covering one of two recorded segments",
+			clips:   []string{"seg-001", "seg-002"},
+			shorts:  []string{"seg-001"},
+			want:    false,
+			wantWhy: "render covering only seg-001 should NOT cover a 2-segment recording",
+		},
+		{
+			name:    "render covering every recorded segment",
+			clips:   []string{"seg-001", "seg-002"},
+			shorts:  []string{"seg-001", "seg-002"},
+			want:    true,
+			wantWhy: "render covering both segments should be considered covered",
+		},
+		{
+			// A compilation render is always treated as covered (different render mode).
+			name:    "compilation render",
+			clips:   []string{"seg-001", "seg-002"},
+			shorts:  []string{compilationSegmentID},
+			want:    true,
+			wantWhy: "compilation render should be treated as covered",
+		},
 	}
-	if err := putRecordingResult(store, id, rec); err != nil {
-		t.Fatal(err)
-	}
-	covered, err := renderCoversRecordedSegments(store, id, editor.Result{
-		Shorts: []editor.ShortResult{{SegmentID: "seg-001"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !covered {
-		t.Fatal("a plan segment without a clip must not make render coverage unsatisfiable")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStorage()
+			id := uuid.New()
+			rec := recording.RecordingResult{
+				Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}}},
+			}
+			for _, sid := range tc.clips {
+				rec.Artifacts = append(rec.Artifacts, recording.RecordingArtifact{SegmentID: sid, Role: "segment", Type: "video"})
+			}
+			if err := putRecordingResult(store, id, rec); err != nil {
+				t.Fatal(err)
+			}
+			var result editor.Result
+			for _, sid := range tc.shorts {
+				result.Shorts = append(result.Shorts, editor.ShortResult{SegmentID: sid})
+			}
+			covered, err := renderCoversRecordedSegments(store, id, result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if covered != tc.want {
+				t.Fatalf("covered = %v: %s", covered, tc.wantWhy)
+			}
+		})
 	}
 }
 
@@ -790,7 +832,7 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 		t.Fatal(err)
 	}
 
-	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err := recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -808,7 +850,7 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, legacy); err != nil {
 		t.Fatal(err)
 	}
-	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -822,7 +864,7 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
-	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -837,7 +879,7 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
-	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +925,7 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err := recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,7 +965,7 @@ func TestRecordingOutputsReadyReusesLegacyZeroPlaybackTimescale(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err := recordingOutputsReady(t.Context(), store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -986,7 +1028,7 @@ func TestRecordingOutputsReadyReturnsOnlyTheMissingSubset(t *testing.T) {
 				}
 			}
 
-			missing, _, err := recordingOutputsReady(store, id, tc.requested, expectedPlan)
+			missing, _, err := recordingOutputsReady(t.Context(), store, id, tc.requested, expectedPlan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1017,54 +1059,6 @@ func TestRecordingProfilesCompatibleRejectsLegacyPOVContract(t *testing.T) {
 	}
 	if !recordingProfilesCompatible(current, current) {
 		t.Fatal("matching current capture profiles should remain compatible")
-	}
-}
-
-func TestRenderVariantOutputsReadyRequiresSegmentCoverage(t *testing.T) {
-	store := newFakeStorage()
-	id := uuid.New()
-
-	// Recording result holds two segments (two reels recorded).
-	rec := recording.RecordingResult{
-		Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}}},
-		Artifacts: []recording.RecordingArtifact{
-			{SegmentID: "seg-001", Role: "segment", Type: "video"},
-			{SegmentID: "seg-002", Role: "segment", Type: "video"},
-		},
-	}
-	if err := putRecordingResult(store, id, rec); err != nil {
-		t.Fatal(err)
-	}
-
-	covered, err := renderCoversRecordedSegments(store, id, editor.Result{
-		Shorts: []editor.ShortResult{{SegmentID: "seg-001"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if covered {
-		t.Fatal("render covering only seg-001 should NOT cover a 2-segment recording")
-	}
-
-	covered, err = renderCoversRecordedSegments(store, id, editor.Result{
-		Shorts: []editor.ShortResult{{SegmentID: "seg-001"}, {SegmentID: "seg-002"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !covered {
-		t.Fatal("render covering both segments should be considered covered")
-	}
-
-	// A compilation render is always treated as covered (different render mode).
-	covered, err = renderCoversRecordedSegments(store, id, editor.Result{
-		Shorts: []editor.ShortResult{{SegmentID: compilationSegmentID}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !covered {
-		t.Fatal("compilation render should be treated as covered")
 	}
 }
 

@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -43,49 +44,45 @@ func TestDefaultRules(t *testing.T) {
 	}
 }
 
-func TestLoadEmptyJSON(t *testing.T) {
-	r, err := Load(strings.NewReader(`{}`))
-	if err != nil {
-		t.Fatalf("Load({}) error = %v, want nil", err)
-	}
-	if r.WindowSeconds != 8 {
-		t.Errorf("WindowSeconds = %d, want 8 (default)", r.WindowSeconds)
-	}
-	if len(r.Weapons) == 0 {
-		t.Errorf("Weapons empty, expected defaults to be applied")
-	}
-}
-
-func TestLoadEmptyReaderYieldsDefaults(t *testing.T) {
-	r, err := Load(strings.NewReader(""))
-	if err != nil {
-		t.Fatalf("Load(\"\") error = %v, want nil (empty document yields defaults)", err)
-	}
-	if r.WindowSeconds != 8 || len(r.Weapons) == 0 {
-		t.Errorf("Load(\"\") = %#v, want Default()", r)
-	}
-}
-
-func TestLoadWhitespaceOnlyYieldsDefaults(t *testing.T) {
-	r, err := Load(strings.NewReader("   \n\t  "))
-	if err != nil {
-		t.Fatalf("Load(whitespace) error = %v, want nil", err)
-	}
-	if r.WindowSeconds != 8 || len(r.Weapons) == 0 {
-		t.Errorf("Load(whitespace) = %#v, want Default()", r)
-	}
-}
-
-func TestLoadTrailingContentRejected(t *testing.T) {
-	for _, body := range []string{
-		`{"window_seconds": 5} {"window_seconds": 10}`, // second document
-		`{"window_seconds": 5}}`,                       // stray closing brace
-		`{"window_seconds": 5}]`,                       // stray closing bracket
-		`{"window_seconds": 5} garbage`,                // trailing garbage
+func TestLoadEmptyDocumentYieldsDefaults(t *testing.T) {
+	for name, body := range map[string]string{
+		"empty object":    `{}`,
+		"empty reader":    "",
+		"whitespace only": "   \n\t  ",
 	} {
-		if _, err := Load(strings.NewReader(body)); err == nil {
-			t.Errorf("Load(%q) error = nil, want error about trailing content", body)
-		}
+		t.Run(name, func(t *testing.T) {
+			r, err := Load(strings.NewReader(body))
+			if err != nil {
+				t.Fatalf("Load(%q) error = %v, want nil", body, err)
+			}
+			if !reflect.DeepEqual(r, Default()) {
+				t.Fatalf("Load(%q) = %#v, want Default()", body, r)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsInvalidDocuments(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{name: "second document", body: `{"window_seconds": 5} {"window_seconds": 10}`, wantErr: "unexpected content after rules document"},
+		{name: "stray closing brace", body: `{"window_seconds": 5}}`, wantErr: "unexpected content after rules document"},
+		{name: "stray closing bracket", body: `{"window_seconds": 5}]`, wantErr: "unexpected content after rules document"},
+		{name: "trailing garbage", body: `{"window_seconds": 5} garbage`, wantErr: "unexpected content after rules document"},
+		{name: "invalid json", body: `{not-json}`, wantErr: "decoding rules"},
+		{name: "empty weapons", body: `{"weapons": []}`, wantErr: "weapons must contain at least one entry"},
+		{name: "negative window", body: `{"window_seconds": -1}`, wantErr: "window_seconds must be >= 0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Load(strings.NewReader(tt.body))
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load(%q) error = %v, want %q", tt.body, err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -105,30 +102,6 @@ func TestLoadPartialJSONMergesWithDefaults(t *testing.T) {
 	}
 	if len(r.Weapons) == 0 {
 		t.Errorf("Weapons empty, expected defaults to be kept")
-	}
-}
-
-func TestLoadEmptyWeaponsRejected(t *testing.T) {
-	_, err := Load(strings.NewReader(`{"weapons": []}`))
-	if err == nil {
-		t.Fatal("Load({weapons:[]}) error = nil, want validation error")
-	}
-	if !strings.Contains(err.Error(), "weapons") {
-		t.Errorf("error message %q should mention 'weapons'", err.Error())
-	}
-}
-
-func TestLoadNegativeWindowRejected(t *testing.T) {
-	_, err := Load(strings.NewReader(`{"window_seconds": -1}`))
-	if err == nil {
-		t.Fatal("Load({window_seconds:-1}) error = nil, want validation error")
-	}
-}
-
-func TestLoadInvalidJSONRejected(t *testing.T) {
-	_, err := Load(strings.NewReader(`{not-json}`))
-	if err == nil {
-		t.Fatal("Load(not-json) error = nil, want parse error")
 	}
 }
 

@@ -105,6 +105,6 @@ test('failed long videos show an error instead of waiting copy', async ({ page }
   } }));
   await gotoStudio(page, `/clips/${JOB}/publicar/${encodeURIComponent(VIDEO)}`);
   await expect(page.getByRole('alert').getByText('No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.')).toBeVisible();
-  await expect(page.getByText('La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.')).toHaveCount(0);
+  await expect(page.getByText('La preparación para YouTube estará disponible cuando el vídeo esté listo.')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Plantillas para vídeo largo' })).toHaveCount(0);
 });

@@ -3,13 +3,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument, type FullDemoOptions } from '../lib/full-demo-plan.ts';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
-import { FULL_DEMO_MISSING_FILES } from '../lib/produce/full-demo-requirements.ts';
-
-const FULL_DEMO_SPONSOR_MISSING = 'Añade el vídeo del sponsor o desactívalo.';
+import { CUSTOM_HUD_CAPTURE_PROFILE, NATIVE_HUD_CAPTURE_PROFILE } from '../lib/custom-hud.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
 const DRAFT_KEY = `cliphub.full-demo.draft.v1:${JOB}`;
+const BUMPER_MEMORY_KEY = 'cliphub.full-demo.bumpers.v1';
 const PLAN = {
   demo: { map: 'de_inferno' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz', team_at_start: 'CT' },
   stats: { total_kills_target: 24 }, segments: [{ id: 'r1', round: 1, tick_start: 100, tick_end: 200, kills: [{ weapon: 'ak47' }] }],
@@ -19,7 +18,8 @@ const ROSTER = { players: [{ steamid64: '76561198000000001', name: 'ropz', team:
 function editorial(legacy = false): FullDemoDocument {
   const raw: unknown = JSON.parse(readFileSync(new URL('../lib/full-demo-plan.fixture.json', import.meta.url), 'utf8'));
   if (!isFullDemoSnapshot(raw)) throw new Error('Invalid Full Demo fixture');
-  if (!legacy) raw.document.options = currentFullDemoOptions(raw.document.options);
+  // The fixture predates custom HUDs; current plans start from the broadcast default.
+  if (!legacy) raw.document.options = currentFullDemoOptions({ ...raw.document.options, capture: { ...raw.document.options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } });
   return raw.document;
 }
 
@@ -33,12 +33,6 @@ async function seedStorage(page: Page, entries: Record<string, string>): Promise
 
 async function fulfillJson(page: Page, path: string, status: number, body: unknown): Promise<void> {
   await page.route(`**/api/demos/${JOB}${path}`, (route) => route.fulfill({ status, json: body }));
-}
-
-/** The asset upload is multipart; its `config` part carries the provenance declaration. */
-function uploadedConfig(body: Buffer | null): unknown {
-  const config = body?.toString('utf8').match(/name="config"\r\n\r\n(.*?)\r\n--/)?.[1];
-  return config === undefined ? null : JSON.parse(config);
 }
 
 async function stubParsedMatch(page: Page, document: FullDemoDocument | null = editorial(), defaults = editorial().options): Promise<void> {
@@ -93,6 +87,43 @@ test.describe('Full POV simplified constructor', () => {
   }
 
   for (const width of [390, 1024, 1440]) {
+    test(`the original CS2 HUD and TrueView POV reach generation at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubParsedMatch(page);
+      let planned: FullDemoOptions | undefined;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        planned = route.request().postDataJSON().options;
+        await route.fulfill({ status: 201, json: { ...editorial(), options: planned, plan_hash: 'b'.repeat(64) } });
+      });
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+      await gotoStudio(page, PRODUCE_FULL);
+      const trueView = page.getByRole('checkbox', { name: 'POV original 1:1 (TrueView)', exact: true });
+      await expect(trueView).not.toBeChecked();
+      await page.getByRole('combobox', { name: 'Diseño', exact: true }).click();
+      await page.getByRole('option', { name: 'Mono', exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'Diseño de retransmisión', exact: true })).toBeChecked();
+      await page.getByText('Original de CS2', { exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'Original de CS2', exact: true })).toBeChecked();
+      await expect(page.getByRole('combobox', { name: 'Diseño', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('img', { name: 'Vista previa ilustrativa del HUD original de CS2', exact: true })).toBeVisible();
+      await trueView.check();
+      await page.screenshot({ path: testInfo.outputPath('native-trueview.png'), animations: 'disabled' });
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      // Switching back restores the last chosen design.
+      await page.getByText('Diseño de retransmisión', { exact: true }).click();
+      await expect(page.getByRole('img', { name: 'Vista previa del HUD Mono', exact: true })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('custom-trueview.png'), animations: 'disabled' });
+      await page.getByText('Original de CS2', { exact: true }).click();
+      await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
+      await expect.poll(() => planned?.capture).toMatchObject({ hud_profile: NATIVE_HUD_CAPTURE_PROFILE, trueview: true });
+      expect(planned?.overlays.hud_theme).toBeUndefined();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: NATIVE_HUD_CAPTURE_PROFILE, trueview: true } } } } } });
+    });
+  }
+
+  for (const width of [390, 1024, 1440]) {
     test(`keeps useful choices usable at ${width}px with an unbroken player name`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await stubParsedMatch(page);
@@ -121,7 +152,10 @@ test.describe('Full POV simplified constructor', () => {
     const legacy = editorial(true);
     legacy.options.overlays.roster = false;
     legacy.options.overlays.scoreboard = false;
-    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(legacy.options) });
+    // Drafts saved before the sponsor became a bumper slot still carry the retired sponsor group.
+    const sponsor = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+    const draft = { ...legacy.options, sponsor: { enabled: true, video: sponsor, narration: null, audio_policy: 'embedded', placement_policy: 'first-two-rounds', after_round_id: '' } };
+    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(draft) });
     await stubParsedMatch(page, editorial(true));
     let generated: unknown;
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
@@ -129,10 +163,13 @@ test.describe('Full POV simplified constructor', () => {
       const body: unknown = route.request().postDataJSON();
       if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
       expect(body.options).toMatchObject({ capture: { crosshair: { mode: 'observed', code: '', allow_capture_default: false } }, audio: { music: { enabled: false, assets: [] } }, overlays: { roster: true, scoreboard: true, theme: 'neon-violet', mode: 'generated' } });
+      expect(body.options).not.toHaveProperty('sponsor');
+      expect(body.options.bumpers).toEqual({ intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: sponsor } });
       await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'b'.repeat(64) } });
     });
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('button', { name: 'Cambiar MP4 de sponsor', exact: true })).toBeVisible();
     await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
   });
@@ -162,104 +199,15 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
   });
 
-  test('sponsor starts optional and can be enabled before its asset is chosen', async ({ page }) => {
-    const document = editorial();
-    document.options.sponsor.enabled = false;
-    document.options.sponsor.video = null;
-    await stubParsedMatch(page, document);
-    await gotoStudio(page, PRODUCE_FULL);
-    const sponsor = page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true });
-    await expect(sponsor).not.toBeChecked();
-    await sponsor.check();
-    await expect(sponsor).toBeChecked();
-    // A hint while editing, with the file picker already open; not an error yet.
-    await expect(page.getByText(FULL_DEMO_SPONSOR_MISSING, { exact: true })).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_SPONSOR_MISSING })).toHaveCount(0);
-    await expect(page.getByLabel('Archivo local', { exact: true })).toBeVisible();
-  });
-
-  test('creating with an enabled sponsor but no video shows the error and plans nothing', async ({ page }) => {
-    const document = editorial();
-    document.options.sponsor.enabled = false;
-    document.options.sponsor.video = null;
-    let planned = 0;
-    await stubParsedMatch(page, document);
-    await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => { if (route.request().method() === 'POST') planned += 1; return route.fallback(); });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_SPONSOR_MISSING })).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_MISSING_FILES })).toBeVisible();
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).uncheck();
-    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_MISSING_FILES })).toHaveCount(0);
-    expect(planned).toBe(0);
-  });
-
-  test('uploads an opted-in sponsor from the file alone with a local declaration', async ({ page }) => {
-    const document = editorial();
-    document.options.sponsor.enabled = false;
-    document.options.sponsor.video = null;
-    const provenances: unknown[] = [];
-    await stubParsedMatch(page, document);
-    await page.route('**/api/editor/assets', async (route) => {
-      expect(route.request().method()).toBe('POST');
-      provenances.push(uploadedConfig(route.request().postDataBuffer()));
-      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
-    });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'ZACK KEYDROP PREROLL.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    // The rights fields stay folded: choosing the file is enough.
-    await expect(page.getByLabel('Autor o titular', { exact: true })).toBeHidden();
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await expect.poll(() => provenances).toEqual([{ provenance: {
-      title: 'ZACK KEYDROP PREROLL.mp4', creator: 'No declarado', source_url: 'local:ZACK%20KEYDROP%20PREROLL.mp4',
-      permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
-    } }]);
-    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
-  });
-
-  test('explains an invalid typed sponsor source before uploading and keeps the typed rights', async ({ page }) => {
-    const document = editorial();
-    document.options.sponsor.enabled = false;
-    document.options.sponsor.video = null;
-    const provenances: unknown[] = [];
-    await stubParsedMatch(page, document);
-    await page.route('**/api/editor/assets', async (route) => {
-      provenances.push(uploadedConfig(route.request().postDataBuffer()));
-      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
-    });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByText('Autoría y licencia (opcional)', { exact: true }).click();
-    await page.getByLabel('Autor o titular', { exact: true }).fill('Zack');
-    const source = page.getByLabel('Fuente', { exact: true });
-    await source.fill('zack keydrop');
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: 'La fuente debe ser un enlace que empiece por https://' })).toBeVisible();
-    await expect(source).toBeFocused();
-    await expect(source).toHaveAttribute('aria-invalid', 'true');
-    expect(provenances).toEqual([]);
-    await source.fill('https://zack.gg/preroll');
-    await expect(page.getByRole('alert').filter({ hasText: 'La fuente debe ser' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await expect.poll(() => provenances).toEqual([{ provenance: {
-      title: 'sponsor.mp4', creator: 'Zack', source_url: 'https://zack.gg/preroll',
-      permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
-    } }]);
-  });
-
   for (const width of [390, 1024, 1440]) {
     test(`bumper MP4 states, hover, persistence and generation at ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 });
       const document = editorial();
       delete document.options.bumpers;
-      document.options.sponsor.enabled = false;
-      document.options.sponsor.video = null;
       await stubParsedMatch(page, document);
       const intro = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) };
       const outro = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sha256: 'e'.repeat(64) };
+      const sponsor = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
       const clip = readFileSync(new URL('./fixtures/stream-source.mp4', import.meta.url));
       await page.route('**/api/editor/assets/*/media', (route) => route.fulfill({ contentType: 'video/mp4', body: clip }));
       let finishUpload: (() => void) | undefined;
@@ -272,15 +220,16 @@ test.describe('Full POV simplified constructor', () => {
         expect(body).toContain('No declarado');
         if (uploaded === 1) await new Promise<void>((resolve) => { finishUpload = resolve; });
         await route.fulfill(fail ? { status: 422, json: { error: 'El archivo no contiene vídeo válido.' } }
-          : { status: 201, json: body.includes('outro.mp4') ? outro : intro });
+          : { status: 201, json: Object.entries({ 'outro.mp4': outro, 'sponsor.mp4': sponsor }).find(([name]) => body.includes(name))?.[1] ?? intro });
       });
       await page.route(`**/api/editor/assets/${intro.id}`, (route) => route.fulfill({ json: { file_name: 'intro.mp4' } }));
       await page.route(`**/api/editor/assets/${outro.id}`, (route) => route.fulfill({ json: { file_name: 'outro.mp4' } }));
+      await page.route(`**/api/editor/assets/${sponsor.id}`, (route) => route.fulfill({ json: { file_name: 'sponsor.mp4' } }));
       let generated: unknown;
       await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
         if (route.request().method() !== 'POST') return route.fallback();
         const body = route.request().postDataJSON();
-        expect(body.options.bumpers).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } });
+        expect(body.options.bumpers).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro }, sponsor: { enabled: true, video: sponsor } });
         expect(body.options.transitions.enabled).toBe(false);
         await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'b'.repeat(64) } });
       });
@@ -334,14 +283,20 @@ test.describe('Full POV simplified constructor', () => {
       fail = false;
       await input.setInputFiles(mp4);
       await expect(card.getByRole('alert')).toHaveCount(0);
+      // The sponsor slot is never defaulted into the plan: only adding its video creates it.
+      await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').bumpers, DRAFT_KEY)).not.toHaveProperty('sponsor');
       await page.getByLabel('Archivo MP4 de outro', { exact: true }).setInputFiles({ ...mp4, name: 'outro.mp4' });
       await expect(page.getByRole('button', { name: 'Cambiar MP4 de outro', exact: true })).toBeEnabled();
+      await expect(page.locator('[data-bumper="sponsor"]').getByText('Tras la ronda 2', { exact: true })).toBeVisible();
+      await page.getByLabel('Archivo MP4 de sponsor', { exact: true }).setInputFiles({ ...mp4, name: 'sponsor.mp4' });
+      await expect(page.getByRole('button', { name: 'Cambiar MP4 de sponsor', exact: true })).toBeEnabled();
       await page.getByRole('checkbox', { name: 'Activar efectos entre rondas', exact: true }).uncheck();
       await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').bumpers?.outro.video, DRAFT_KEY)).toEqual(outro);
       await page.reload();
       await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
       await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
-      await card.screenshot({ path: testInfo.outputPath('06-both-restored.png') });
+      await expect(page.getByText('sponsor.mp4', { exact: true })).toBeVisible();
+      await card.screenshot({ path: testInfo.outputPath('06-all-restored.png') });
       expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       const longName = `${'clip-del-canal-'.repeat(14)}.mp4`;
       await input.setInputFiles({ ...mp4, name: longName });
@@ -355,111 +310,40 @@ test.describe('Full POV simplified constructor', () => {
       await expect(page.getByRole('button', { name: 'Cambiar MP4 de intro', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
       await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: {
-        bumpers: { intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } }, transitions: { enabled: false },
+        bumpers: { intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro }, sponsor: { enabled: true, video: sponsor } }, transitions: { enabled: false },
       } } } } });
     });
   }
 
-  test('prepares canonical sponsor boundaries from an empty plan, then creates the selected boundary', async ({ page }) => {
+  test('a demo that was never planned opens with the clips chosen last time', async ({ page }) => {
+    const intro = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) };
+    const outro = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sha256: 'e'.repeat(64) };
+    const sponsor = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
     const defaults = editorial().options;
-    defaults.sponsor.enabled = false;
-    defaults.sponsor.video = null;
-    defaults.sponsor.placement_policy = 'first-two-rounds';
-    defaults.sponsor.after_round_id = '';
-    const prepared = editorial();
-    prepared.options.sponsor.enabled = true;
-    prepared.options.sponsor.video = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
-    let plans = 0;
-    let generated: unknown;
+    delete defaults.bumpers;
     await stubParsedMatch(page, null, defaults);
-    await page.route('**/api/editor/assets', async (route) => {
-      expect(route.request().method()).toBe('POST');
-      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
-    });
-    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-      if (route.request().method() !== 'POST') return route.fallback();
-      plans += 1;
-      const body: unknown = route.request().postDataJSON();
-      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
-      if (plans === 1) {
-        expect(body.options.sponsor).toMatchObject({
-          enabled: true,
-          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
-          placement_policy: 'first-two-rounds',
-        });
-      } else {
-        expect(body.options.sponsor).toMatchObject({
-          enabled: true,
-          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
-          placement_policy: 'round-boundary',
-          after_round_id: 'round-002',
-        });
-      }
-      await route.fulfill({ status: 201, json: { ...prepared, options: body.options, plan_hash: plans === 1 ? 'a'.repeat(64) : 'b'.repeat(64) } });
-    });
-    await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
-      generated = route.request().postDataJSON();
-      await route.fulfill({ status: 202, json: { accepted: true } });
-    });
+    await seedStorage(page, { [BUMPER_MEMORY_KEY]: JSON.stringify({ intro: { enabled: true, video: intro }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: sponsor } }) });
+    const clip = readFileSync(new URL('./fixtures/stream-source.mp4', import.meta.url));
+    await page.route('**/api/editor/assets/*/media', (route) => route.fulfill({ contentType: 'video/mp4', body: clip }));
+    await page.route(`**/api/editor/assets/${intro.id}`, (route) => route.fulfill({ json: { id: intro.id, sha256: intro.sha256, file_name: 'intro.mp4' } }));
+    // The sponsor clip was deleted from the library since it was chosen.
+    await page.route(`**/api/editor/assets/${sponsor.id}`, (route) => route.fulfill({ status: 404, json: { error: 'not found' } }));
+    await page.route(`**/api/editor/assets/${outro.id}`, (route) => route.fulfill({ json: { id: outro.id, sha256: outro.sha256, file_name: 'outro.mp4' } }));
+    await page.route('**/api/editor/assets', (route) => route.fulfill({ status: 201, json: outro }));
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
-    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
-    const boundary = page.getByRole('combobox', { name: 'Insertar después de', exact: true });
-    await expect(boundary).toBeVisible();
-    await expect.poll(() => plans).toBe(1);
-    expect(generated).toBeUndefined();
-    await boundary.click();
-    await page.getByRole('option', { name: 'Ronda 2', exact: true }).click();
-    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
-    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
-    expect(plans).toBe(2);
-  });
-
-  test('reopening round-boundary keeps the certified round already chosen', async ({ page }) => {
-    const document = editorial();
-    document.options.sponsor.enabled = true;
-    document.options.sponsor.placement_policy = 'first-two-rounds';
-    document.options.sponsor.after_round_id = 'round-002';
-    await stubParsedMatch(page, document);
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
-    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
-    await expect(page.getByRole('combobox', { name: 'Insertar después de', exact: true })).toHaveText('Ronda 2');
-  });
-
-  test('leaving Full Demo while preparing sponsor rounds does not claim missing rounds', async ({ page }) => {
-    const defaults = editorial().options;
-    defaults.sponsor.enabled = false;
-    defaults.sponsor.video = null;
-    defaults.sponsor.placement_policy = 'first-two-rounds';
-    defaults.sponsor.after_round_id = '';
-    let held = false;
-    await stubParsedMatch(page, null, defaults);
-    await page.route('**/api/editor/assets', async (route) => {
-      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
-    });
-    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-      if (route.request().method() !== 'POST') return route.fallback();
-      held = true;
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const body: unknown = route.request().postDataJSON();
-      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
-      try { await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'e'.repeat(64) } }); } catch { /* Navigation aborts the held request. */ }
-    });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
-    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
-    await expect.poll(() => held).toBe(true);
-    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-    await page.waitForTimeout(700);
-    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: 'No hay una ronda certificada disponible para el sponsor.' })).toHaveCount(0);
+    await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Subir MP4 de sponsor', exact: true })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
+    const memory = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), BUMPER_MEMORY_KEY);
+    await expect.poll(memory).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: false, video: null } });
+    await page.getByLabel('Archivo MP4 de outro', { exact: true }).setInputFiles({ name: 'outro.mp4', mimeType: 'video/mp4', buffer: clip });
+    await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+    await expect.poll(memory).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } });
+    // The remembered clips are part of the starting point, so a draft that only chose them is not a recovered draft.
+    await page.reload();
+    await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
   });
 
   test('a fresh plan starts with the game at 100% and team voices at 110%', async ({ page }) => {

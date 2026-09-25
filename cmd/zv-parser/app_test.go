@@ -93,14 +93,22 @@ func TestRunInvalidRulesFileExits2(t *testing.T) {
 }
 
 func TestRunRulesFileNotFoundExits3(t *testing.T) {
-	code, _, _ := runApp(t,
+	dir := t.TempDir()
+	demoPath := filepath.Join(dir, "match.dem")
+	if err := os.WriteFile(demoPath, []byte("demo"), 0o644); err != nil {
+		t.Fatalf("write demo: %v", err)
+	}
+	code, _, stderr := runApp(t,
 		"parse",
-		"--demo", "/tmp/x.dem",
+		"--demo", demoPath,
 		"--steamid", "76561198000000000",
-		"--rules", "/tmp/no-such-rules.json",
+		"--rules", filepath.Join(dir, "no-such-rules.json"),
 	)
 	if code != 3 {
 		t.Errorf("exit code = %d, want 3 (missing rules file)", code)
+	}
+	if !strings.Contains(stderr, "rules file not found") {
+		t.Errorf("stderr %q should report the missing rules file", stderr)
 	}
 }
 

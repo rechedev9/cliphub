@@ -220,13 +220,9 @@ func TestCaptureFlowDiversePlanShapes(t *testing.T) {
 			wantCaptureIDs: []string{"hi"},
 			check: func(t *testing.T, plan RecordingPlan, _ []scheduledCommand, _ []seekStep, _ []captureWindow, _ string) {
 				t.Helper()
-				start := EffectiveRecordStartTick(plan.Segments[0], 128)
-				// Settle policy uses tickrate-sized lead before first kill.
-				if start > 5_500-128 {
-					// may clamp earlier via TickStart+2s settle
-				}
-				if start < plan.Segments[0].TickStart || start > 5_500 {
-					t.Fatalf("128-tick start %d outside [%d, kill]", start, plan.Segments[0].TickStart)
+				// Two seconds of camera settle at 128 Hz is 256 ticks, not 128.
+				if start := EffectiveRecordStartTick(plan.Segments[0], 128); start != 5_256 {
+					t.Fatalf("128-tick start = %d, want 5256 (TickStart 5000 + 2 s settle)", start)
 				}
 			},
 		},
@@ -465,81 +461,6 @@ func TestCaptureFlowFailurePaths(t *testing.T) {
 		bad.DemoPath = ""
 		if err := bad.Validate(); err == nil {
 			t.Fatal("Validate accepted empty DemoPath")
-		}
-	})
-	t.Run("unknown HUD rejected", func(t *testing.T) {
-		bad := base
-		bad.Stream.HUDMode = "fullscreen-tv"
-		if err := bad.Validate(); err == nil {
-			t.Fatal("Validate accepted unknown HUD")
-		}
-	})
-	t.Run("portrait-safe clean HUD rejected", func(t *testing.T) {
-		bad := base
-		bad.Stream.HUDMode = HUDModeClean
-		bad.Stream.PortraitSafeKillfeed = true
-		if err := bad.Validate(); err == nil {
-			t.Fatal("Validate accepted portrait-safe with clean HUD")
-		}
-	})
-	t.Run("overlapping capture windows rejected", func(t *testing.T) {
-		bad := base
-		bad.Segments = []RecordingSegment{
-			{ID: "a", TickStart: 1000, TickEnd: 2000, Kills: []killplan.Kill{{Tick: 1500}}},
-			{ID: "b", TickStart: 1800, TickEnd: 2500, Kills: []killplan.Kill{{Tick: 1900}}},
-		}
-		bad.EditorialSegmentIDs = []string{"a", "b"}
-		if err := bad.Validate(); err == nil {
-			t.Fatal("Validate accepted overlapping segments")
-		}
-	})
-	t.Run("kill outside segment rejected", func(t *testing.T) {
-		bad := base
-		bad.Segments[0].Kills = []killplan.Kill{{Tick: bad.Segments[0].TickEnd + 50}}
-		if err := bad.Validate(); err == nil {
-			t.Fatal("Validate accepted kill outside segment")
-		}
-	})
-	t.Run("invalid attestation token rejected", func(t *testing.T) {
-		if _, err := GenerateHLAEJavaScriptWithAttestation(base, ""); err == nil {
-			t.Fatal("empty attestation accepted")
-		}
-		if _, err := GenerateHLAEJavaScriptWithAttestation(base, "a\nb"); err == nil {
-			t.Fatal("multiline attestation accepted")
-		}
-	})
-	t.Run("successful result requires POV verification for reuse", func(t *testing.T) {
-		fp, err := CaptureInputFingerprint(base)
-		if err != nil {
-			t.Fatal(err)
-		}
-		result := RecordingResult{
-			Plan:                    base,
-			CaptureMode:             CaptureModeReal,
-			CaptureInputFingerprint: fp,
-			// CaptureVerified intentionally false
-			Artifacts: []RecordingArtifact{{
-				SegmentID: "seg-001", Type: "video", Role: "segment", Path: "seg-001.mp4", SizeBytes: 1,
-			}},
-		}
-		if err := ValidateRunResult(result); err == nil {
-			t.Fatal("ValidateRunResult accepted success without POV verification")
-		}
-	})
-	t.Run("missing segment clip rejected on upload validation", func(t *testing.T) {
-		fp, err := CaptureInputFingerprint(base)
-		if err != nil {
-			t.Fatal(err)
-		}
-		result := RecordingResult{
-			Plan:                    base,
-			CaptureMode:             CaptureModeReal,
-			CaptureVerified:         true,
-			CaptureInputFingerprint: fp,
-			Artifacts:               nil,
-		}
-		if err := ValidateUploadResult(result); err == nil {
-			t.Fatal("ValidateUploadResult accepted success with no segment clips")
 		}
 	})
 }

@@ -30,32 +30,14 @@ import {
 const isWin32 = process.platform === 'win32';
 const winTest = isWin32 ? test : test.skip;
 
-test('invokes the Windows write-through rename helper without shell interpolation', () => {
-  if (process.platform !== 'win32') return;
-  let invocation;
-  renameWindowsPathDurably('C:\\release parent\\from', 'C:\\release parent\\to', {
-    spawnProcess(executable, args, options) {
-      invocation = { executable, args, options };
-      return { status: 0, stderr: '' };
-    },
-  });
-
-  assert.equal(invocation.executable, 'powershell.exe');
-  assert.equal(invocation.options.windowsHide, true);
-  assert.ok(invocation.args.includes('-File'));
-  assert.ok(invocation.args.some((argument) => argument.endsWith('move-publication-path.ps1')));
-  assert.ok(invocation.args.includes(resolve('C:\\release parent\\from')));
-  assert.ok(invocation.args.includes(resolve('C:\\release parent\\to')));
-});
-
 test('renames a real Windows directory through the write-through helper', (t) => {
   if (process.platform !== 'win32') {
     t.skip('durable rename helper is Windows-specific');
     return;
   }
   const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-durable-rename-'));
-  const source = join(testRoot, 'source');
-  const destination = join(testRoot, 'destination');
+  const source = join(testRoot, "release parent's $source");
+  const destination = join(testRoot, "release parent's $destination");
   mkdirSync(source);
   writeFileSync(join(source, 'marker.txt'), 'moved durably');
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
@@ -807,16 +789,6 @@ test('missing release marker waits for stdio and preserves the helper failure', 
     /publication lock helper failed \(7\): deterministic helper failure/,
   );
   assert.equal(spawnCalls, 2);
-});
-
-test('waitForExit recognizes an already signalled child', async () => {
-  await waitForExit({
-    exitCode: null,
-    signalCode: 'SIGTERM',
-    once() {
-      throw new Error('must not subscribe after a signal was recorded');
-    },
-  });
 });
 
 function fakeLockHelper(onInput) {

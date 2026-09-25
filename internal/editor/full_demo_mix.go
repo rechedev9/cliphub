@@ -458,26 +458,11 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 			}
 			audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), edges)
 		}
-	} else if item.Role == "sponsor" {
-		video, err := runtime.execution.assetPath(*options.Sponsor.Video)
-		if err != nil {
-			return nil, err
-		}
-		command = append(command, "-i", video)
-		audioInput := "[0:a]"
-		if withAudio && options.Sponsor.AudioPolicy == "replace-narration" {
-			narration, err := runtime.execution.assetPath(*options.Sponsor.Narration)
-			if err != nil {
-				return nil, err
-			}
-			command = append(command, "-i", narration)
-			audioInput = "[1:a]"
-		}
-		audio = sampleWindow(audioInput, 0, samples, 1, "a")
 	} else if item.Role == "bumper" {
-		// Uploaded intro/outro clips retain their embedded audio. A silent clip
-		// gets a silent bed instead of mapping a missing [0:a] stream; boundary
-		// transition sounds are mixed below without extending the clip.
+		// Uploaded intro, sponsor and outro clips retain their embedded audio.
+		// A silent clip gets a silent bed instead of mapping a missing [0:a]
+		// stream; boundary transition sounds are mixed below without extending
+		// the clip.
 		ref, evidence, err := fullDemoBumperAsset(short.FullDemo.Effective, item)
 		if err != nil {
 			return nil, err
@@ -662,14 +647,7 @@ func (s *fullDemoItemProgress) markDone(i int, stage string) {
 // planner evidence, so the audio graph can decide between the clip's own track
 // and silence without probing the file again at render time.
 func fullDemoBumperAsset(d recapplan.Document, item recapplan.TimelineItem) (recapplan.AssetRef, recapplan.AssetEvidence, error) {
-	var slot recapplan.BumperSlot
-	var ok bool
-	switch item.Reason {
-	case recapplan.BumperRoleIntro:
-		slot, ok = d.Options.IntroBumper()
-	case recapplan.BumperRoleOutro:
-		slot, ok = d.Options.OutroBumper()
-	}
+	slot, ok := d.Options.BumperFor(item.Reason)
 	if !ok || slot.Video == nil || slot.Video.ID != item.SourceRef {
 		return recapplan.AssetRef{}, recapplan.AssetEvidence{}, fmt.Errorf("full_demo_asset_missing: bumper %s is not approved", item.SourceRef)
 	}

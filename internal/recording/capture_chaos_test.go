@@ -50,13 +50,9 @@ func TestCaptureFlowChaos(t *testing.T) {
 			}()
 
 			if mutate {
+				// Every chaosMutatePlan edit is destructive; none may validate.
 				if err := draw.plan.Validate(); err == nil {
-					// Some mutations may still be valid (e.g. no-op); only count as
-					// success if Generate still works when Validate passes.
-					if _, err := GenerateHLAEJavaScript(draw.plan); err != nil {
-						t.Fatalf("Validate ok but script gen failed after mut %q: %v", mutName, err)
-					}
-					return
+					t.Fatalf("Validate accepted destructive mut %q", mutName)
 				}
 				// Rejected plans must not be forced through script gen without error.
 				if _, err := GenerateHLAEJavaScript(draw.plan); err == nil {
@@ -157,7 +153,6 @@ func TestCaptureResultChaos(t *testing.T) {
 	}
 
 	const n = 200
-	rejected := 0
 	for i := 0; i < n; i++ {
 		i := i
 		result := good
@@ -187,22 +182,11 @@ func TestCaptureResultChaos(t *testing.T) {
 					t.Fatalf("ValidateUploadResult accepted fatal mut %q", mut)
 				}
 			}
-			if runErr != nil || upErr != nil {
-				// counted outside via channel would race; just log
-			}
 		})
-		// Count rejections for mix health (best-effort, sequential).
-		result2 := good
-		result2.Artifacts = append([]RecordingArtifact(nil), good.Artifacts...)
-		result2.Plan.Segments = append([]RecordingSegment(nil), good.Plan.Segments...)
-		// re-mutate with same sequence is hard; approximate with Validate of mutated
-		_ = mut
-		if ValidateRunResult(result) != nil || ValidateUploadResult(result) != nil {
-			rejected++
-		}
 	}
-	// Parallel subtests may complete after this check; re-run a serial rejection sample.
-	rejected = 0
+	// Parallel subtests may complete after this loop; count rejections on a
+	// serial replay of the same seeded mutations.
+	rejected := 0
 	rng2 := rand.New(rand.NewSource(captureChaosSeed ^ 0x5f3759df))
 	for i := 0; i < n; i++ {
 		result := good

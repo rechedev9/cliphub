@@ -4,7 +4,7 @@
     "schema_version": "1.0",
     "plan_id": "ce5282af-6f33-45bd-91cf-faa4f96d88db",
     "revision": 1,
-    "plan_hash": "ba4703318eea3d60d303424ebcf0cfdf8690a74c52f222d4d95a41940f003e02",
+    "plan_hash": "c3ef2f3704dcab940806c017e038bd2325b9995cd5c7c89290ec2708ef3d4394",
     "planner_version": "full-demo-editorial-v2",
     "input": {
       "demo_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -84,23 +84,6 @@
           "target_lra": 11,
           "policy_version": "program-aac-v1"
         }
-      },
-      "sponsor": {
-        "enabled": true,
-        "video": {
-          "id": "ce0ea91d-7d61-43c1-a88d-bf08df692130",
-          "sha256": "42376033397ab99f8d95df563f61eb3e5feaa9135a676a98b4837c95cc146dec"
-        },
-        "narration": null,
-        "audio_policy": "embedded",
-        "short_narration_policy": "block",
-        "placement_policy": "round-boundary",
-        "window_start_seconds": 90,
-        "window_end_seconds": 130,
-        "after_round_id": "round-001",
-        "manual_start_frame": null,
-        "allow_split_round": false,
-        "music_policy": "pause-resume"
       },
       "overlays": {
         "roster": false,
@@ -215,37 +198,8 @@
         "source_url": "https://example.invalid/synthetic-fixture",
         "permission": "Original synthetic signal",
         "attribution": ""
-      },
-      {
-        "ref": {
-          "id": "ce0ea91d-7d61-43c1-a88d-bf08df692130",
-          "sha256": "42376033397ab99f8d95df563f61eb3e5feaa9135a676a98b4837c95cc146dec"
-        },
-        "duration_frames": 60,
-        "has_video": true,
-        "has_audio": true,
-        "title": "Synthetic test source",
-        "creator": "ClipHub test",
-        "source_url": "https://example.invalid/synthetic-fixture",
-        "permission": "Original synthetic signal",
-        "attribution": ""
       }
     ],
-    "sponsor_placement": {
-      "boundary": "round-001",
-      "start_frame": 121,
-      "duration_frames": 60,
-      "candidates": [
-        {
-          "after_round_id": "round-001",
-          "frame": 121
-        },
-        {
-          "after_round_id": "round-002",
-          "frame": 242
-        }
-      ]
-    },
     "timeline": [
       {
         "role": "round",
@@ -260,27 +214,15 @@
         "reason": "fixed-freeze-2s/round-tail"
       },
       {
-        "role": "sponsor",
-        "source_ref": "ce0ea91d-7d61-43c1-a88d-bf08df692130",
-        "source_start_tick": 0,
-        "source_end_tick": 0,
-        "source_offset_frames": 0,
-        "start_frame": 121,
-        "end_frame": 181,
-        "start_sample": 96800,
-        "end_sample": 144800,
-        "reason": "approved-sponsor-placement"
-      },
-      {
         "role": "round",
         "source_ref": "round-002",
         "source_start_tick": 448,
         "source_end_tick": 577,
         "source_offset_frames": 0,
-        "start_frame": 181,
-        "end_frame": 302,
-        "start_sample": 144800,
-        "end_sample": 241600,
+        "start_frame": 121,
+        "end_frame": 242,
+        "start_sample": 96800,
+        "end_sample": 193600,
         "reason": "fixed-freeze-2s/round-tail"
       }
     ],
@@ -299,7 +241,7 @@
     "blockers": []
   },
   "approval": {
-    "approved_plan_hash": "ba4703318eea3d60d303424ebcf0cfdf8690a74c52f222d4d95a41940f003e02",
+    "approved_plan_hash": "c3ef2f3704dcab940806c017e038bd2325b9995cd5c7c89290ec2708ef3d4394",
     "allow_safe_tail_trim": true,
     "timestamp": "2026-09-05T15:09:00.4857572Z"
   }

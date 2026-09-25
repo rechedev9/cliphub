@@ -48,7 +48,7 @@ func TestFullDemoFactsIndependentRoundEvents(t *testing.T) {
 				t.Fatalf("facts: %+v", facts)
 			}
 			o := recapplan.DefaultOptions()
-			o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Sponsor.Enabled, o.Editorial.KeepFreezeVoice = false, false, false, false
+			o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Editorial.KeepFreezeVoice = false, false, false
 			o.Capture.Crosshair.AllowCaptureDefault = true
 			d, err := recapplan.Plan(facts, o, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
 			if err != nil {

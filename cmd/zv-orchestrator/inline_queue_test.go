@@ -110,31 +110,6 @@ func TestInlineQueueReportsTaskTypePolicy(t *testing.T) {
 	<-handled
 }
 
-func TestInlineQueueRetriesPureTaskOnceAfterFailure(t *testing.T) {
-	queue := newInlineQueue(nil, 1)
-	var calls int
-	queued := inlineTask{
-		task: asynq.NewTask(tasktypes.TypeParseDemo, nil),
-		policy: inlineTaskPolicy{
-			attemptTimeout: time.Minute,
-			maxRetries:     1,
-		},
-	}
-	err, _ := queue.handle(context.Background(), queued, func(context.Context, *asynq.Task) error {
-		calls++
-		if calls == 1 {
-			return errors.New("transient parse failure")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("handle() error = %v", err)
-	}
-	if calls != 2 {
-		t.Fatalf("handler calls = %d, want 2", calls)
-	}
-}
-
 func TestInlineQueueProvidesAttemptMetadataToHandlers(t *testing.T) {
 	queue := newInlineQueue(nil, 1)
 	queued := inlineTask{
@@ -822,7 +797,6 @@ func TestInlineQueueValidatesSupportedOptions(t *testing.T) {
 		t.Fatalf("Enqueue() with MaxRetry(0) error = %v", err)
 	}
 	unsupported := []asynq.Option{
-		asynq.MaxRetry(1),
 		asynq.Timeout(time.Minute),
 		asynq.Deadline(time.Now().Add(time.Minute)),
 		asynq.ProcessIn(time.Minute),
@@ -1282,67 +1256,60 @@ func TestInlineQueueCompensatesPoppedTaskCanceledBeforeFirstAttempt(t *testing.T
 	}
 }
 
-func TestInlineQueueDoesNotCompensatePoppedTaskCanceledAfterHandlerStarts(t *testing.T) {
-	queue := newInlineQueue(nil, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	wantErr := errors.New("render interrupted")
-	transitionCalls := 0
-	queued := inlineTask{
-		task: asynq.NewTask("render", []byte("popped")),
-		id:   "inline-popped",
-		transition: func(error) error {
-			transitionCalls++
-			return nil
-		},
-		unique:    true,
-		uniqueKey: inlineUniqueKeyFor(inlineDefaultQueue, asynq.NewTask("render", []byte("popped"))),
+func TestInlineQueueDoesNotCompensateHandlerFailure(t *testing.T) {
+	tests := []struct {
+		name             string
+		unique           bool
+		cancelAfterStart bool
+	}{
+		{name: "live context"},
+		{name: "popped unique task canceled after handler starts", unique: true, cancelAfterStart: true},
 	}
-	queue.uniqueLocks[queued.uniqueKey] = inlineUniqueLock{
-		taskID:    queued.id,
-		expiresAt: time.Now().Add(time.Minute),
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queue := newInlineQueue(nil, 1)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			wantErr := errors.New("render failed")
+			transitionCalls := 0
+			queued := inlineTask{
+				task: asynq.NewTask("render", []byte("popped")),
+				id:   "inline-popped",
+				transition: func(error) error {
+					transitionCalls++
+					return nil
+				},
+			}
+			if tt.unique {
+				queued.unique = true
+				queued.uniqueKey = inlineUniqueKeyFor(inlineDefaultQueue, asynq.NewTask("render", []byte("popped")))
+				queue.uniqueLocks[queued.uniqueKey] = inlineUniqueLock{
+					taskID:    queued.id,
+					expiresAt: time.Now().Add(time.Minute),
+				}
+			}
 
-	handlerCalls := 0
-	err := queue.process(ctx, queued, func(context.Context, *asynq.Task) error {
-		handlerCalls++
-		cancel()
-		return wantErr
-	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("process() error = %v, want %v", err, wantErr)
-	}
-	if handlerCalls != 1 {
-		t.Fatalf("handler calls = %d, want 1", handlerCalls)
-	}
-	if transitionCalls != 0 {
-		t.Fatalf("discard transition calls = %d, want 0", transitionCalls)
-	}
-	if got := len(queue.uniqueLocks); got != 0 {
-		t.Fatalf("unique locks after handler failure = %d, want 0", got)
-	}
-}
-
-func TestInlineQueueDoesNotCompensateNormalHandlerFailure(t *testing.T) {
-	queue := newInlineQueue(nil, 1)
-	wantErr := errors.New("render failed")
-	transitionCalls := 0
-	queued := inlineTask{
-		task: asynq.NewTask("render", nil),
-		id:   "inline-failed",
-		transition: func(error) error {
-			transitionCalls++
-			return nil
-		},
-	}
-
-	err := queue.process(context.Background(), queued, func(context.Context, *asynq.Task) error {
-		return wantErr
-	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("process() error = %v, want %v", err, wantErr)
-	}
-	if transitionCalls != 0 {
-		t.Fatalf("discard transition calls = %d, want 0", transitionCalls)
+			handlerCalls := 0
+			err := queue.process(ctx, queued, func(context.Context, *asynq.Task) error {
+				handlerCalls++
+				if tt.cancelAfterStart {
+					cancel()
+				}
+				return wantErr
+			})
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("process() error = %v, want %v", err, wantErr)
+			}
+			if handlerCalls != 1 {
+				t.Fatalf("handler calls = %d, want 1", handlerCalls)
+			}
+			if transitionCalls != 0 {
+				t.Fatalf("discard transition calls = %d, want 0", transitionCalls)
+			}
+			if got := len(queue.uniqueLocks); got != 0 {
+				t.Fatalf("unique locks after handler failure = %d, want 0", got)
+			}
+		})
 	}
 }
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FULL_DEMO_EDIT, fullDemoEdit } from './full-demo.ts';
+import { FULL_DEMO_EDIT } from './full-demo.ts';
 import { constrainEditConfig, isLandscapeRecap } from './reel-brief.ts';
 import { DEFAULT_EDIT_CONFIG } from './api/reel-store.ts';
 
@@ -13,7 +13,7 @@ test('constrainEditConfig strips recap only when format becomes short-9x16', () 
   assert.equal(kept.nativeHud, true);
   assert.equal(kept.format, 'landscape-16x9');
 
-  const collapsed = constrainEditConfig({ ...fullDemoEdit(), format: 'short-9x16' });
+  const collapsed = constrainEditConfig({ ...FULL_DEMO_EDIT, format: 'short-9x16' });
   assert.equal(collapsed.format, 'short-9x16');
   assert.equal(collapsed.matchRecap, false);
   assert.equal(collapsed.voiceComms, false);

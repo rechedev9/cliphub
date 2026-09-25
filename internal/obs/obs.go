@@ -180,6 +180,9 @@ func ReadJournal(path string) ([]Event, error) {
 	defer f.Close()
 	var events []Event
 	sc := bufio.NewScanner(f)
+	// A bounded worker diagnostic plus its JSON envelope can exceed the
+	// scanner's 64 KiB default token size.
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
@@ -195,30 +198,6 @@ func ReadJournal(path string) ([]Event, error) {
 		return nil, fmt.Errorf("scan journal: %w", err)
 	}
 	return events, nil
-}
-
-// Select returns journal events whose JobID and Class both match. It does not
-// inspect Message.
-func Select(events []Event, jobID, class string) []Event {
-	if jobID == "" && class == "" {
-		return nil
-	}
-	var out []Event
-	for _, ev := range events {
-		if ev.JobID == jobID && ev.Class == class {
-			out = append(out, ev)
-		}
-	}
-	return out
-}
-
-// SelectErrors loads this recorder's journal and returns events for jobID+class.
-func (r *Recorder) SelectErrors(jobID, class string) ([]Event, error) {
-	events, err := ReadJournal(r.JournalPath())
-	if err != nil {
-		return nil, err
-	}
-	return Select(events, jobID, class), nil
 }
 
 // SpansPath is the newline-delimited local duration journal.

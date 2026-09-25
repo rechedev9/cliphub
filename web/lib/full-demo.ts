@@ -1,13 +1,5 @@
-import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type OverlayTheme, type Preset } from './api/types.ts';
+import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
-export const FULL_DEMO_ROUNDS_PENDING = 'Generando el plan de rondas…';
-
-export const FULL_DEMO_RECAP_ERROR =
-  'No se pudo cargar el plan de rondas de esta partida. Recarga o elige otra demo.';
-
-export const FULL_DEMO_FORGE_HINT_EMPTY = 'Espera el plan de rondas para empezar.';
-
-export const FULL_DEMO_FORGE_HINT_ERROR = 'No se pudo cargar el plan de rondas.';
 
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
@@ -30,29 +22,6 @@ export const FULL_DEMO_EDIT: EditConfig = {
   demoSource: DEMO_SOURCE.faceit,
   overlayTheme: OVERLAY_THEME.faceitOrange,
 };
-
-export const FULL_DEMO_OVERLAY_THEME_OPTIONS = [
-  { value: OVERLAY_THEME.faceitOrange, label: 'FACEIT naranja' },
-  { value: OVERLAY_THEME.neonViolet, label: 'Neón violeta' },
-] as const;
-
-export function fullDemoOverlayThemeLabel(theme: OverlayTheme | ''): string {
-  return FULL_DEMO_OVERLAY_THEME_OPTIONS.find((option) => option.value === theme)?.label ?? '';
-}
-
-export function fullDemoEdit(overlayTheme: OverlayTheme = OVERLAY_THEME.faceitOrange): EditConfig {
-  return { ...FULL_DEMO_EDIT, overlayTheme };
-}
-
-export function canStartFullDemoCapture({
-  roundCount,
-  creating,
-}: {
-  roundCount: number;
-  creating: boolean;
-}): boolean {
-  return roundCount > 0 && !creating;
-}
 
 export const FULL_DEMO_PRESET: Preset = {
   name: FULL_DEMO_VARIANT,

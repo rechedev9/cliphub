@@ -20,38 +20,12 @@ func TestVariantPublishable(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "ready with reviewed warnings on this revision",
-			state: &renderplan.RenderVariantState{
-				Status:         renderplan.RenderVariantStatusReady,
-				ArtifactPrefix: "jobs/x/renders/viral-60-clean",
-				Warnings:       []string{"loud audio"},
-				ReviewResolution: &renderplan.RenderReviewResolution{
-					ArtifactPrefix: "jobs/x/renders/viral-60-clean",
-					Warnings:       []string{"loud audio"},
-				},
-			},
-			want: true,
-		},
-		{
-			name: "ready with unreviewed warnings",
+			name: "ready with informational warnings",
 			state: &renderplan.RenderVariantState{
 				Status:   renderplan.RenderVariantStatusReady,
 				Warnings: []string{"loud audio"},
 			},
-			want: false,
-		},
-		{
-			name: "ready with a review that belongs to an older revision",
-			state: &renderplan.RenderVariantState{
-				Status:         renderplan.RenderVariantStatusReady,
-				ArtifactPrefix: "jobs/x/renders/viral-60-clean-v2",
-				Warnings:       []string{"loud audio"},
-				ReviewResolution: &renderplan.RenderReviewResolution{
-					ArtifactPrefix: "jobs/x/renders/viral-60-clean",
-					Warnings:       []string{"loud audio"},
-				},
-			},
-			want: false,
+			want: true,
 		},
 		{
 			name:  "still rendering",
@@ -64,9 +38,9 @@ func TestVariantPublishable(t *testing.T) {
 			want:  false,
 		},
 		{
-			name:  "awaiting review",
-			state: &renderplan.RenderVariantState{Status: renderplan.RenderVariantStatusReview},
-			want:  false,
+			name:  "legacy review_required counts as rendered",
+			state: &renderplan.RenderVariantState{Status: renderplan.RenderVariantStatusReview, Warnings: []string{"loud audio"}},
+			want:  true,
 		},
 		{
 			name:  "failed",

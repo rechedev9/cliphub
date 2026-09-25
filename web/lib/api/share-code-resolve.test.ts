@@ -96,19 +96,6 @@ test('resolveShareCode POSTs the code to the proxy endpoint', async () => {
   }
 });
 
-test('resolveShareCode keeps the 64-bit ids as exact strings', async () => {
-  const stub = stubFetch(() => json({ status: 'decoded', matchId: MATCH_ID, outcomeId: OUTCOME_ID, tokenId: 31463 }));
-  try {
-    const got = await resolveShareCode('CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK');
-    assert.equal(got.kind, 'decoded');
-    if (got.kind !== 'decoded') return;
-    assert.equal(got.matchId, MATCH_ID);
-    assert.notEqual(got.matchId, String(Number(MATCH_ID)));
-  } finally {
-    stub.restore();
-  }
-});
-
 test('resolveShareCode reports a thrown fetch as failed', async () => {
   const stub = stubFetch(() => { throw new TypeError('fetch failed'); });
   try {

@@ -8,7 +8,7 @@ import {
   lookupFaceitPlayer, unfollowFaceitPlayer,
 } from '@/lib/api/faceit';
 import { FACEIT_NOT_CONFIGURED_CODE, SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import { followedPlayersReducer } from '@/lib/followed-players';
+import { defaultPlayerTab, followedPlayersReducer, inPlayerTab, type PlayerTab } from '@/lib/followed-players';
 import { FollowPlayerForm } from '@/components/players/follow-player-form';
 import { FollowedPlayerList } from '@/components/players/followed-player-list';
 import { PlayerMatches } from '@/components/players/player-matches';
@@ -31,7 +31,12 @@ export default function PlayersPage(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [unfollowingID, setUnfollowingID] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const selected = players.find((player) => player.id === selectedID) ?? null;
+  const [chosenTab, setChosenTab] = useState<PlayerTab | null>(null);
+  const tab = chosenTab ?? defaultPlayerTab(players);
+  // The profile always belongs to the open list: a selection from another tab falls back to this tab's first player.
+  const tabPlayers = players.filter((player) => inPlayerTab(player, tab));
+  const selected = tabPlayers.find((player) => player.id === selectedID) ?? tabPlayers[0] ?? null;
+  const shownID = selected?.id ?? null;
   const playersRef = useRef(players);
   playersRef.current = players;
 
@@ -54,8 +59,8 @@ export default function PlayersPage(): ReactNode {
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (selectedID === null || state !== 'ready') return;
-    const player = playersRef.current.find((candidate) => candidate.id === selectedID);
+    if (shownID === null || state !== 'ready') return;
+    const player = playersRef.current.find((candidate) => candidate.id === shownID);
     if (!player) return;
     let cancelled = false;
     void (async () => {
@@ -69,23 +74,31 @@ export default function PlayersPage(): ReactNode {
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedID, state]);
+  }, [shownID, state]);
 
-  async function onFollow(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const nickname = query.trim();
-    if (nickname === '' || busy) return;
+  async function follow(nickname: string): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       const followed = await followFaceitPlayer(nickname);
       dispatch({ type: 'followed', player: followed });
-      setQuery('');
       setState('ready');
+      return true;
     } catch (err) {
       setError(followErrorMessage(err));
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onFollow(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const nickname = query.trim();
+    if (nickname === '' || busy) return;
+    if (await follow(nickname)) {
+      setQuery('');
+      setChosenTab('custom');
     }
   }
 
@@ -125,9 +138,11 @@ export default function PlayersPage(): ReactNode {
       description="Busca un nick o pega una URL de FACEIT para abrir su historial aquí." compact />;
   } else {
     body = <div className={WORKSPACE_GRID}>
-      <FollowedPlayerList players={players} selectedID={selectedID} onSelect={(id) => dispatch({ type: 'selected', id })} />
+      <FollowedPlayerList players={players} tab={tab} onTabChange={setChosenTab}
+        selectedID={shownID} onSelect={(id) => dispatch({ type: 'selected', id })} />
       {selected ? <section aria-label={`Perfil de ${selected.nickname}`} className="studio-panel min-w-0 overflow-hidden">
-        <PlayerProfile player={selected} onUnfollow={() => void onUnfollow(selected.id)} unfollowing={unfollowingID !== null} />
+        <PlayerProfile player={selected} onUnfollow={() => void onUnfollow(selected.id)} unfollowing={unfollowingID !== null}
+          onFollow={selected.seeded === true ? () => { if (!busy) void follow(selected.nickname); } : undefined} />
         <PlayerMatches key={selected.id} playerID={selected.id} enabled={state === 'ready'} />
       </section> : null}
     </div>;

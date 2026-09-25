@@ -73,7 +73,6 @@ test('outputState maps the video pipeline onto the handoff vocabulary', () => {
     ['recording', 'rec'],
     ['composing', 'render'],
     ['ready', 'ready'],
-    ['review_required', 'ready'],
     ['failed', 'failed'],
   ];
   for (const [status, state] of cases) {
@@ -98,19 +97,6 @@ test('matchRowStage: plan-ready is ready, scanned is unpicked, anything earlier 
     ['validating', HUB_ROW_STAGE.parsing],
   ];
   for (const [status, want] of cases) assert.equal(matchRowStage(status), want, status);
-  assert.equal(matchRowStage('failed'), 'failed');
-  assert.equal(hubNextStep({ stage: 'failed', shorts: [], fulls: [] }), 'none');
-  assert.equal(hubRowExpandable({ stage: 'failed', shorts: [], fulls: [] }), false);
-  assert.equal(hubRowCanProduce({ stage: 'failed' }), false);
-});
-
-test('hubTransitions announces a parse only when a parsing row becomes ready, not unpicked', () => {
-  const before = buildHubModel([match('m1', 'parsing'), match('m2', 'parsing'), match('m3', 'scanned')], []);
-  const after = buildHubModel([match('m1', 'parsed'), match('m2', 'scanned'), match('m3', 'parsed')], []);
-  assert.deepEqual(
-    hubTransitions(before, after).parsed.map((row) => row.match.id),
-    ['m1'],
-  );
 });
 
 function fulfilled<T>(value: T): PromiseSettledResult<T> {
@@ -184,9 +170,6 @@ test('toOutput carries progress only while REC or render report one', () => {
   assert.equal(render.rounds, null);
   const queued = toOutput(reel({ id: 'c', status: 'queued', captureProgress: { done: 0, total: 10 } }));
   assert.equal(queued.percent, null);
-  const review = toOutput(reel({ id: 'd', status: 'review_required' }));
-  assert.equal(review.reviewRequired, true);
-  assert.equal(review.state, 'ready');
 });
 
 test('buildHubModel groups reels under their partida and keeps orphans apart', () => {
@@ -269,7 +252,6 @@ test('fullChipLabel follows the latest Full POV state', () => {
 test('outputTagLabel: one uppercase tag per state, with progress when reported', () => {
   const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
     [{ state: 'ready', percent: null, rounds: null }, 'LISTO'],
-    [{ state: 'ready', percent: null, rounds: null, reviewRequired: true }, 'REVISIÓN QA'],
     [{ state: 'render', percent: 41, rounds: null }, 'RENDER 41%'],
     [{ state: 'render', percent: null, rounds: null }, 'RENDER'],
     [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'REC R3/20'],
@@ -299,16 +281,17 @@ test('roundsFromScore: sums both halves, null when unparseable', () => {
 });
 
 test('hubTransitions: reports rows that finished parsing and outputs that became ready', () => {
-  const prev = buildHubModel([match('m1', 'parsing'), match('m2')], [
+  const prev = buildHubModel([match('m1', 'parsing'), match('m2'), match('m3', 'parsing'), match('m4', 'scanned')], [
     reel({ id: 'v1', jobId: 'm2', status: 'composing' }),
     reel({ id: 'v2', jobId: 'm2', status: 'ready' }),
   ]);
-  const next = buildHubModel([match('m1', 'parsed'), match('m2')], [
+  const next = buildHubModel([match('m1', 'parsed'), match('m2'), match('m3', 'scanned'), match('m4', 'parsed')], [
     reel({ id: 'v1', jobId: 'm2', status: 'ready' }),
     reel({ id: 'v2', jobId: 'm2', status: 'ready' }),
     reel({ id: 'v3', jobId: 'm2', status: 'ready' }),
   ]);
   const got = hubTransitions(prev, next);
+  // Only parsing -> ready announces: m3 stopped at unpicked and m4 was never parsing.
   assert.deepEqual(got.parsed.map((row) => row.match.id), ['m1']);
   // v2 was already ready and v3 is new (first seen ready), so only v1 flipped.
   assert.deepEqual(got.ready.map((clip) => clip.id), ['v1']);

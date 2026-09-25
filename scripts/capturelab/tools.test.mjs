@@ -185,5 +185,5 @@ test('a fake capture can never issue a real compatibility certificate', async ()
     '--hlae-version', 'test', '--cs2-build', 'test', '--argv-json', argvPath, '--out', join(dir, 'certificate.json'),
   ]);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /capture_mode.*real|certified argv/);
+  assert.match(result.stderr, /capture_mode=real/);
 });

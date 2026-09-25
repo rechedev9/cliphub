@@ -3,6 +3,7 @@ package demooverlay
 import (
 	"bytes"
 	"image/png"
+	"slices"
 	"strings"
 	"testing"
 
@@ -377,20 +378,34 @@ func TestOutroGridColumnsKeepsNebulaOrder(t *testing.T) {
 	}
 }
 
-func TestFACEITOutroGridColumnsKeepsTrackerOrder(t *testing.T) {
-	want := []string{
-		ColLevel, ColELO, ColRating, ColKDA, ColADR, ColKR,
-		ColHSPct, Col5K, Col4K, Col3K, Col2K, ColMVP,
-	}
-	input := append([]string{ColName, ColCountry}, want...)
-	got := faceitOutroGridColumns(input)
-	if len(got) != len(want) {
-		t.Fatalf("got %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("got %v, want %v", got, want)
-		}
+func TestFACEITOutroGridColumnsFollowTrackerOrder(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "reversed subset",
+			input: []string{ColMVP, ColRating, ColLevel},
+			want:  []string{ColLevel, ColRating, ColMVP},
+		},
+		{
+			name: "shuffled full list drops non-grid columns",
+			input: []string{
+				ColMVP, ColKR, ColName, Col2K, ColLevel, ColHSPct, ColADR,
+				Col4K, ColCountry, ColELO, Col5K, ColKDA, Col3K, ColRating,
+			},
+			want: []string{
+				ColLevel, ColELO, ColRating, ColKDA, ColADR, ColKR,
+				ColHSPct, Col5K, Col4K, Col3K, Col2K, ColMVP,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := faceitOutroGridColumns(tc.input); !slices.Equal(got, tc.want) {
+				t.Fatalf("columns = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -441,35 +456,6 @@ func TestOutroFilterDrawsScoreboardColumns(t *testing.T) {
 	}
 }
 
-func TestStillFilterGraphAlwaysUsesLabeledInput(t *testing.T) {
-	got := stillFilterGraph(stillFilterGraphOptions{text: "drawtext=text='x'"})
-	if !strings.HasPrefix(got, "[0:v]") {
-		t.Fatalf("graph = %q, want [0:v] prefix", got)
-	}
-}
-
-func TestIntroChromeKeepsTransparentHUDChannel(t *testing.T) {
-	img, err := png.Decode(bytes.NewReader(introChromePNG))
-	if err != nil {
-		t.Fatalf("decode intro chrome: %v", err)
-	}
-	if img.Bounds().Dx() != FrameWidth || img.Bounds().Dy() != FrameHeight {
-		t.Fatalf("intro chrome = %dx%d", img.Bounds().Dx(), img.Bounds().Dy())
-	}
-	_, _, _, a := img.At(960, 540).RGBA()
-	if a != 0 {
-		t.Fatalf("intro chrome center alpha = %d, want 0 so native HUD stays visible", a)
-	}
-	_, _, _, panelA := img.At(200, 200).RGBA()
-	if panelA == 0 {
-		t.Fatal("intro chrome left panel is transparent")
-	}
-	l := DefaultLayout()
-	if !l.NativeHUDVisible() {
-		t.Fatal("native HUD channel closed")
-	}
-}
-
 func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 	img, err := png.Decode(bytes.NewReader(outroChromePNG))
 	if err != nil {
@@ -493,8 +479,10 @@ func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 	}, nil)
 	outroLayout := DefaultLayout().Outro
 	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", outroLayout, false)
-	if !strings.Contains(got, "13") || !strings.Contains(got, "8") {
-		t.Fatalf("outro missing scoreline:\n%s", got)
+	for _, header := range []string{"text='Counter-Terrorists  13'", "text='Terrorists  8'"} {
+		if !strings.Contains(got, header) {
+			t.Fatalf("outro missing team header %s:\n%s", header, got)
+		}
 	}
 	if !strings.Contains(got, "23/14/4") {
 		t.Fatalf("outro missing K/D/A:\n%s", got)

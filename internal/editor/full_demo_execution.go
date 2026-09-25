@@ -338,11 +338,11 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if len(execution.VoiceTracks) > 0 && d.Options.Audio.Voice.Gain > 0 {
 		short.Caption += " Team communications from the demo."
 	}
-	if d.Options.Sponsor.Enabled {
-		short.Caption += " Includes a sponsor video insert."
-	}
 	if _, ok := d.Options.IntroBumper(); ok {
 		short.Caption += " Opens with a channel intro."
+	}
+	if _, ok := d.Options.SponsorBumper(); ok {
+		short.Caption += " Includes a sponsor video."
 	}
 	if _, ok := d.Options.OutroBumper(); ok {
 		short.Caption += " Ends with a channel outro."
@@ -413,10 +413,10 @@ func projectFullDemoTimeline(short *ShortEdit, d recapplan.Document) error {
 	}
 	short.KillCount = len(short.Kills)
 	short.CoverTimeSeconds = coverTimeSeconds(short.Kills, short.DurationSeconds)
-	// The cover is a gameplay frame: never the sponsor and never a bumper.
-	// Non-round items can sit back to back (intro then sponsor, sponsor then
-	// outro), so the fallback is the nearest round frame rather than the frame
-	// next to the item that captured the cover.
+	// The cover is a gameplay frame, never a bumper. Bumpers can sit back to
+	// back (a one-round program plays the sponsor right before the outro), so
+	// the fallback is the nearest round frame rather than the frame next to
+	// the item that captured the cover.
 	for i, item := range d.Timeline {
 		if item.Role == "round" || short.CoverTimeSeconds < float64(item.StartFrame)/60 || short.CoverTimeSeconds >= float64(item.EndFrame)/60 {
 			continue

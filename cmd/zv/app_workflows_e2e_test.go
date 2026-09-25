@@ -2,106 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestZVBinaryWorkflowsCatalogEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-
-	listOut := runZVBinary(t, exe, tempDir, "workflows", "list")
-	for _, want := range []string{
-		"demo-parse\tParse a CS2 demo",
-		"workflows-check\tValidate optional skills, the workflow catalog, and executable scripts.",
-		"project-check\tValidate the ClipHub CLI, compiled workflows, build scripts, and optional skills.",
-	} {
-		if !strings.Contains(listOut, want) {
-			t.Fatalf("list output = %q, want %q", listOut, want)
-		}
-	}
-	if got, want := listOut, workflowListText(workflowCatalog()); got != want {
-		t.Fatalf("workflow list text = %q, want %q", got, want)
-	}
-
-	showOut := runZVBinary(t, exe, tempDir, "workflows", "show", "demo-parse")
-	if !strings.Contains(showOut, "command: zv demo parse --demo <demo.dem> --steamid <SteamID64> --out <plan.json>") {
-		t.Fatalf("show output = %q, want demo parse command", showOut)
-	}
-	if !strings.Contains(showOut, "run_command: zv workflows run demo-parse") {
-		t.Fatalf("show output = %q, want demo parse run command", showOut)
-	}
-	if !strings.Contains(showOut, "validate_command: zv workflows validate demo-parse") {
-		t.Fatalf("show output = %q, want demo parse validate command", showOut)
-	}
-
-	jsonOut := runZVBinary(t, exe, tempDir, "workflows", "show", "demo-parse", "--format", "json")
-	var workflow workflowInfo
-	if err := json.Unmarshal([]byte(jsonOut), &workflow); err != nil {
-		t.Fatalf("unmarshal show json: %v\n%s", err, jsonOut)
-	}
-	if got, want := workflow.Name, "demo-parse"; got != want {
-		t.Fatalf("workflow.Name = %q, want %q", got, want)
-	}
-	if got, want := workflow.RunCommand, "zv workflows run demo-parse"; got != want {
-		t.Fatalf("workflow.RunCommand = %q, want %q", got, want)
-	}
-
-	listJSONOut := runZVBinary(t, exe, tempDir, "workflows", "list", "--format", "json")
-	var rawWorkflows []map[string]any
-	if err := json.Unmarshal([]byte(listJSONOut), &rawWorkflows); err != nil {
-		t.Fatalf("unmarshal list json: %v\n%s", err, listJSONOut)
-	}
-	if got, want := len(rawWorkflows), len(workflowCatalog()); got != want {
-		t.Fatalf("list json workflow count = %d, want %d", got, want)
-	}
-	for i, workflow := range rawWorkflows {
-		if _, ok := workflow["run_command"]; !ok {
-			t.Fatalf("list json workflow %d missing run_command: %#v", i, workflow)
-		}
-		if _, ok := workflow["validate_command"]; !ok {
-			t.Fatalf("list json workflow %d missing validate_command: %#v", i, workflow)
-		}
-		if _, ok := workflow["run_args"]; ok {
-			t.Fatalf("list json workflow %d leaked run_args: %#v", i, workflow)
-		}
-	}
-	var workflows []workflowInfo
-	if err := json.Unmarshal([]byte(listJSONOut), &workflows); err != nil {
-		t.Fatalf("unmarshal typed list json: %v\n%s", err, listJSONOut)
-	}
-	if got, want := workflowNames(workflows), workflowNames(workflowCatalog()); strings.Join(got, "\x00") != strings.Join(want, "\x00") {
-		t.Fatalf("workflow list json order = %#v, want %#v", got, want)
-	}
-	for i, want := range workflowCatalog() {
-		got := workflows[i]
-		if got.Name != want.Name || got.Description != want.Description || got.Command != want.Command || got.RunCommand != want.RunCommand {
-			t.Fatalf("list workflow %d = %#v, want %#v", i, got, want)
-		}
-		showOut := runZVBinary(t, exe, tempDir, "workflows", "show", want.Name)
-		for _, expected := range []string{
-			want.Name,
-			want.Description,
-			"command: " + want.Command,
-			"run_command: " + want.RunCommand,
-			"validate_command: " + want.ValidateCommand,
-		} {
-			if !strings.Contains(showOut, expected) {
-				t.Fatalf("show output for %s = %q, want %q", want.Name, showOut, expected)
-			}
-		}
-		showJSONOut := runZVBinary(t, exe, tempDir, "workflows", "show", want.Name, "--format", "json")
-		var shown workflowInfo
-		if err := json.Unmarshal([]byte(showJSONOut), &shown); err != nil {
-			t.Fatalf("unmarshal show json for %s: %v\n%s", want.Name, err, showJSONOut)
-		}
-		if shown.Name != want.Name || shown.Description != want.Description || shown.Command != want.Command || shown.RunCommand != want.RunCommand {
-			t.Fatalf("show workflow %s = %#v, want %#v", want.Name, shown, want)
-		}
-	}
-}
 
 func TestZVBinaryEveryWorkflowRunCommandEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
@@ -1004,388 +910,6 @@ func TestZVBinaryCanonicalWorkflowBooleanFlagsRejectSeparateValuesEndToEnd(t *te
 	}
 }
 
-func TestZVBinaryEveryWorkflowRunRejectsMissingRequiredArgsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-missing-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-missing-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsEmptyForwardedRequiredArgsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-empty-forwarded-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-empty-forwarded-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, "--")
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsEmptyEqualsRequiredFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-empty-equals-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-empty-equals-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, emptyEqualsRequiredFlag(t, workflowRunSampleForwardedArgs(t, workflow, galleryPath), required[0])...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsEmptySeparateRequiredFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-empty-separate-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-empty-separate-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, emptySeparateRequiredFlag(t, workflowRunSampleForwardedArgs(t, workflow, galleryPath), required[0])...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsDuplicateRequiredFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-duplicate-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-duplicate-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			forwarded := duplicateFlagValue(t, workflowRunSampleForwardedArgs(t, workflow, galleryPath), required[0])
-			args = append(args, forwarded...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if want := "duplicate flag " + required[0]; !strings.Contains(stderr, want) {
-				t.Fatalf("stderr = %q, want %q", stderr, want)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsUnexpectedPositionalArgsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-unexpected-positional.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-unexpected-positional-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, append(workflowRunSampleForwardedArgs(t, workflow, galleryPath), "unquoted path tail")...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unexpected positional arg "unquoted path tail"`) {
-				t.Fatalf("stderr = %q, want unexpected positional arg error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsUnknownFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-unknown-flag.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-unknown-flag-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, append(workflowRunSampleForwardedArgs(t, workflow, galleryPath), "--zv-unknown")...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unknown flag --zv-unknown`) {
-				t.Fatalf("stderr = %q, want unknown flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryWorkflowRunRejectsUnknownEqualsFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-unknown-equals-flag.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-unknown-equals-flag-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := workflowRunCommandArgs(t, workflow)
-			args = append(args, append(workflowRunSampleForwardedArgs(t, workflow, galleryPath), "--zv-unknown=value")...)
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unknown flag --zv-unknown`) {
-				t.Fatalf("stderr = %q, want unknown flag error", stderr)
-			}
-			if !strings.Contains(stderr, workflowsRunUsage) {
-				t.Fatalf("stderr = %q, want workflows run usage", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsMissingRequiredArgsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-missing-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-missing-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, workflow.RunArgs...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
 func TestZVBinaryEveryDirectWorkflowAcceptsEqualsRequiredFlagsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
@@ -1440,316 +964,134 @@ func TestZVBinaryEveryDirectWorkflowAcceptsEqualsRequiredFlagsEndToEnd(t *testin
 	}
 }
 
-func TestZVBinaryEveryDirectWorkflowRejectsEmptyEqualsRequiredFlagsEndToEnd(t *testing.T) {
+func TestZVBinaryEveryWorkflowRejectsInvalidRequiredArgsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	exe := buildZVBinary(t, tempDir)
 	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
 
 	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
 	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
+
+	// bare is the command without forwarded args; sample is the valid catalog sample.
+	type invocation struct {
+		bare, sample []string
+		run          bool
+	}
+	mutations := []struct {
+		name    string
+		runOnly bool
+		mutate  func(t *testing.T, call invocation, flag string) []string
+		want    func(flag string) string
+	}{
+		{
+			name:   "missing required args",
+			mutate: func(_ *testing.T, call invocation, _ string) []string { return call.bare },
+			want:   func(string) string { return "missing required flag" },
+		},
+		{
+			name:    "empty forwarded required args",
+			runOnly: true,
+			mutate: func(_ *testing.T, call invocation, _ string) []string {
+				return append(append([]string(nil), call.bare...), "--")
+			},
+			want: func(string) string { return "missing required flag" },
+		},
+		{
+			name: "empty equals required flag",
+			mutate: func(t *testing.T, call invocation, flag string) []string {
+				return emptyEqualsRequiredFlag(t, call.sample, flag)
+			},
+			want: func(string) string { return "missing required flag" },
+		},
+		{
+			name: "empty separate required flag",
+			mutate: func(t *testing.T, call invocation, flag string) []string {
+				return emptySeparateRequiredFlag(t, call.sample, flag)
+			},
+			want: func(string) string { return "missing required flag" },
+		},
+		{
+			name: "duplicate required flag",
+			mutate: func(t *testing.T, call invocation, flag string) []string {
+				return duplicateFlagValue(t, call.sample, flag)
+			},
+			want: func(flag string) string { return "duplicate flag " + flag },
+		},
+		{
+			name: "unexpected positional arg",
+			mutate: func(_ *testing.T, call invocation, _ string) []string {
+				return append(append([]string(nil), call.sample...), "unquoted path tail")
+			},
+			want: func(string) string { return `unexpected positional arg "unquoted path tail"` },
+		},
+		{
+			name: "unknown flag",
+			mutate: func(_ *testing.T, call invocation, _ string) []string {
+				return append(append([]string(nil), call.sample...), "--zv-unknown")
+			},
+			want: func(string) string { return "unknown flag --zv-unknown" },
+		},
+		{
+			name: "unknown equals flag",
+			mutate: func(_ *testing.T, call invocation, _ string) []string {
+				return append(append([]string(nil), call.sample...), "--zv-unknown=value")
+			},
+			want: func(string) string { return "unknown flag --zv-unknown" },
+		},
+	}
 
 	for _, workflow := range workflowCatalog() {
 		required := requiredFlagsForRunArgs(workflow.RunArgs...)
 		if len(required) == 0 {
 			continue
 		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-empty-equals-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-empty-equals-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := emptyEqualsRequiredFlag(t, workflowDirectSampleArgs(t, workflow, galleryPath), required[0])
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsEmptySeparateRequiredFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
+		runArgs := workflowRunCommandArgs(t, workflow)
+		invocations := map[string]invocation{
+			"workflows run": {
+				bare:   runArgs,
+				sample: append(append([]string(nil), runArgs...), workflowRunSampleForwardedArgs(t, workflow, galleryPath)...),
+				run:    true,
+			},
+			"direct": {
+				bare:   append([]string(nil), workflow.RunArgs...),
+				sample: workflowDirectSampleArgs(t, workflow, galleryPath),
+			},
 		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-empty-separate-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-empty-separate-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
+		for mode, call := range invocations {
+			for _, mutation := range mutations {
+				if mutation.runOnly && !call.run {
+					continue
+				}
+				t.Run(workflow.Name+"/"+mode+"/"+mutation.name, func(t *testing.T) {
+					logPrefix := filepath.Join(tempDir, strings.ReplaceAll(workflow.Name+"-"+mode+"-"+mutation.name, " ", "-"))
+					subcommandLogPath := logPrefix + ".jsonl"
+					openPathLogPath := logPrefix + "-open.txt"
+					env := []string{
+						"ZV_FAKE_SUBCOMMAND=1",
+						"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
+						"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
+					}
+
+					args := mutation.mutate(t, call, required[0])
+					stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
+
+					if got, want := code, exitInvalidArgs; got != want {
+						t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
+					}
+					if stdout != "" {
+						t.Fatalf("stdout = %q, want empty", stdout)
+					}
+					if want := mutation.want(required[0]); !strings.Contains(stderr, want) {
+						t.Fatalf("stderr = %q, want %q", stderr, want)
+					}
+					if call.run && !strings.Contains(stderr, workflowsRunUsage) {
+						t.Fatalf("stderr = %q, want workflows run usage", stderr)
+					}
+					assertPathDoesNotExist(t, subcommandLogPath)
+					assertPathDoesNotExist(t, openPathLogPath)
+				})
 			}
-
-			args := emptySeparateRequiredFlag(t, workflowDirectSampleArgs(t, workflow, galleryPath), required[0])
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, "missing required flag") {
-				t.Fatalf("stderr = %q, want missing required flag error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsUnknownFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
 		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unknown-flag.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unknown-flag-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := append(workflowDirectSampleArgs(t, workflow, galleryPath), "--zv-unknown")
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unknown flag --zv-unknown`) {
-				t.Fatalf("stderr = %q, want unknown flag error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsUnknownEqualsFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unknown-equals-flag.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unknown-equals-flag-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := append(workflowDirectSampleArgs(t, workflow, galleryPath), "--zv-unknown=value")
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unknown flag --zv-unknown`) {
-				t.Fatalf("stderr = %q, want unknown flag error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsUnexpectedPositionalArgsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unexpected-positional.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-unexpected-positional-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := append(workflowDirectSampleArgs(t, workflow, galleryPath), "unquoted path tail")
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if !strings.Contains(stderr, `unexpected positional arg "unquoted path tail"`) {
-				t.Fatalf("stderr = %q, want unexpected positional arg error", stderr)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryEveryDirectWorkflowRejectsDuplicateRequiredFlagsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	for _, workflow := range workflowCatalog() {
-		required := requiredFlagsForRunArgs(workflow.RunArgs...)
-		if len(required) == 0 {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			subcommandLogPath := filepath.Join(tempDir, workflow.Name+"-direct-duplicate-required.jsonl")
-			openPathLogPath := filepath.Join(tempDir, workflow.Name+"-direct-duplicate-required-open.txt")
-			env := []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-				"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-			}
-
-			args := duplicateFlagValue(t, workflowDirectSampleArgs(t, workflow, galleryPath), required[0])
-			stdout, stderr, code := runZVBinaryFailureSplitWithEnv(t, exe, tempDir, env, args...)
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-			if want := "duplicate flag " + required[0]; !strings.Contains(stderr, want) {
-				t.Fatalf("stderr = %q, want %q", stderr, want)
-			}
-			assertPathDoesNotExist(t, subcommandLogPath)
-			assertPathDoesNotExist(t, openPathLogPath)
-		})
-	}
-}
-
-func TestZVBinaryWorkflowListJSONRunCommandsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	if err := os.MkdirAll(filepath.Join(tempDir, "gallery"), 0o755); err != nil {
-		t.Fatalf("mkdir gallery: %v", err)
-	}
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	listJSON, stderr := runZVBinarySplit(t, exe, tempDir, "workflows", "list", "--format", "json")
-	if stderr != "" {
-		t.Fatalf("workflows list json wrote stderr %q", stderr)
-	}
-	var listed []workflowInfo
-	if err := json.Unmarshal([]byte(listJSON), &listed); err != nil {
-		t.Fatalf("unmarshal workflows list json: %v\n%s", err, listJSON)
-	}
-
-	subcommandLogPath := filepath.Join(tempDir, "subcommands.jsonl")
-	openPathLogPath := filepath.Join(tempDir, "open-paths.txt")
-	env := []string{
-		"ZV_FAKE_SUBCOMMAND=1",
-		"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-		"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-	}
-
-	seen := make(map[string]bool)
-	var wantSubcommandCalls, wantOpenPathCalls int
-	for _, listedWorkflow := range listed {
-		catalogWorkflow, ok := findWorkflow(listedWorkflow.Name)
-		if !ok {
-			t.Fatalf("workflow %q from list json is not cataloged", listedWorkflow.Name)
-		}
-		args := workflowRunCommandArgs(t, listedWorkflow)
-		args = append(args, workflowRunSampleForwardedArgs(t, catalogWorkflow, galleryPath)...)
-		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
-		seen[listedWorkflow.Name] = true
-		switch {
-		case catalogWorkflow.RunArgs[0] == "gallery":
-			wantOpenPathCalls++
-		case !workflowDelegatesExternally(catalogWorkflow):
-		default:
-			wantSubcommandCalls++
-		}
-	}
-
-	for _, workflow := range workflowCatalog() {
-		if !seen[workflow.Name] {
-			t.Fatalf("workflows list json did not expose executable run_command for %q; saw %#v", workflow.Name, seen)
-		}
-	}
-	if got, want := len(readFakeSubcommandCalls(t, subcommandLogPath)), wantSubcommandCalls; got != want {
-		t.Fatalf("subcommand calls = %d, want %d", got, want)
-	}
-	if got, want := len(readLines(t, openPathLogPath)), wantOpenPathCalls; got != want {
-		t.Fatalf("open path calls = %d, want %d", got, want)
 	}
 }
 
@@ -1790,153 +1132,6 @@ func TestZVBinaryWorkflowListAndShowJSONMatchCatalogEndToEnd(t *testing.T) {
 			listedWorkflow.RunCommand != shown.RunCommand {
 			t.Fatalf("workflow discovery mismatch for %s\nlist: %#v\nshow: %#v", catalogWorkflow.Name, listedWorkflow, shown)
 		}
-	}
-}
-
-func TestZVBinaryWorkflowDiscoveryJSONRunCommandsMatchDirectCommandsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	if err := os.MkdirAll(filepath.Join(tempDir, "gallery"), 0o755); err != nil {
-		t.Fatalf("mkdir gallery: %v", err)
-	}
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	listJSON, stderr := runZVBinarySplit(t, exe, tempDir, "workflows", "list", "--format", "json")
-	if stderr != "" {
-		t.Fatalf("workflows list json wrote stderr %q", stderr)
-	}
-	var listed []workflowInfo
-	if err := json.Unmarshal([]byte(listJSON), &listed); err != nil {
-		t.Fatalf("unmarshal workflows list json: %v\n%s", err, listJSON)
-	}
-
-	seenList := make(map[string]bool)
-	for i, discovered := range listed {
-		catalogWorkflow, ok := findWorkflow(discovered.Name)
-		if !ok {
-			t.Fatalf("workflow %q from list json is not cataloged", discovered.Name)
-		}
-		if !workflowDirectDocCommandIsComparable(catalogWorkflow) {
-			continue
-		}
-		seenList[catalogWorkflow.Name] = true
-		assertDiscoveredWorkflowRunMatchesDirect(t, exe, tempDir, "list", i, discovered, catalogWorkflow, galleryPath)
-	}
-
-	seenShow := make(map[string]bool)
-	for i, catalogWorkflow := range workflowCatalog() {
-		showJSON, stderr := runZVBinarySplit(t, exe, tempDir, "workflows", "show", catalogWorkflow.Name, "--format", "json")
-		if stderr != "" {
-			t.Fatalf("workflows show json for %s wrote stderr %q", catalogWorkflow.Name, stderr)
-		}
-		var shown workflowInfo
-		if err := json.Unmarshal([]byte(showJSON), &shown); err != nil {
-			t.Fatalf("unmarshal workflows show json for %s: %v\n%s", catalogWorkflow.Name, err, showJSON)
-		}
-		if !workflowDirectDocCommandIsComparable(catalogWorkflow) {
-			continue
-		}
-		seenShow[catalogWorkflow.Name] = true
-		assertDiscoveredWorkflowRunMatchesDirect(t, exe, tempDir, "show", i, shown, catalogWorkflow, galleryPath)
-	}
-
-	for _, workflow := range workflowCatalog() {
-		if !workflowDirectDocCommandIsComparable(workflow) {
-			continue
-		}
-		if !seenList[workflow.Name] {
-			t.Fatalf("workflows list json did not compare run_command for workflow %q", workflow.Name)
-		}
-		if !seenShow[workflow.Name] {
-			t.Fatalf("workflows show json did not compare run_command for workflow %q", workflow.Name)
-		}
-	}
-}
-
-func TestZVBinaryWorkflowShowJSONRunCommandsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	if err := os.MkdirAll(filepath.Join(tempDir, "gallery"), 0o755); err != nil {
-		t.Fatalf("mkdir gallery: %v", err)
-	}
-	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
-	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
-
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	subcommandLogPath := filepath.Join(tempDir, "subcommands.jsonl")
-	openPathLogPath := filepath.Join(tempDir, "open-paths.txt")
-	env := []string{
-		"ZV_FAKE_SUBCOMMAND=1",
-		"ZV_FAKE_SUBCOMMAND_LOG=" + subcommandLogPath,
-		"ZV_FAKE_OPEN_PATH_LOG=" + openPathLogPath,
-	}
-
-	seen := make(map[string]bool)
-	var wantSubcommandCalls, wantOpenPathCalls int
-	for _, catalogWorkflow := range workflowCatalog() {
-		showJSON, stderr := runZVBinarySplit(t, exe, tempDir, "workflows", "show", catalogWorkflow.Name, "--format", "json")
-		if stderr != "" {
-			t.Fatalf("workflows show json for %s wrote stderr %q", catalogWorkflow.Name, stderr)
-		}
-		var shown workflowInfo
-		if err := json.Unmarshal([]byte(showJSON), &shown); err != nil {
-			t.Fatalf("unmarshal workflows show json for %s: %v\n%s", catalogWorkflow.Name, err, showJSON)
-		}
-		if shown.Name != catalogWorkflow.Name || shown.RunCommand == "" {
-			t.Fatalf("workflows show json for %s = %#v, want matching name and non-empty run_command", catalogWorkflow.Name, shown)
-		}
-
-		args := workflowRunCommandArgs(t, shown)
-		args = append(args, workflowRunSampleForwardedArgs(t, catalogWorkflow, galleryPath)...)
-		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
-		seen[shown.Name] = true
-		switch {
-		case catalogWorkflow.RunArgs[0] == "gallery":
-			wantOpenPathCalls++
-		case !workflowDelegatesExternally(catalogWorkflow):
-		default:
-			wantSubcommandCalls++
-		}
-	}
-
-	for _, workflow := range workflowCatalog() {
-		if !seen[workflow.Name] {
-			t.Fatalf("workflows show json did not expose executable run_command for %q; saw %#v", workflow.Name, seen)
-		}
-	}
-	if got, want := len(readFakeSubcommandCalls(t, subcommandLogPath)), wantSubcommandCalls; got != want {
-		t.Fatalf("subcommand calls = %d, want %d", got, want)
-	}
-	if got, want := len(readLines(t, openPathLogPath)), wantOpenPathCalls; got != want {
-		t.Fatalf("open path calls = %d, want %d", got, want)
 	}
 }
 
@@ -2169,68 +1364,25 @@ func TestZVBinaryWorkflowHelpMatchesDirectDelegationEndToEnd(t *testing.T) {
 	exe := buildZVBinary(t, tempDir)
 	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
 
-	for _, workflow := range workflowCatalog() {
-		if !workflowHelpDelegatesExternally(workflow) {
-			continue
-		}
-		t.Run(workflow.Name, func(t *testing.T) {
-			directLogPath := filepath.Join(tempDir, workflow.Name+"-direct-help.jsonl")
-			runLogPath := filepath.Join(tempDir, workflow.Name+"-run-help.jsonl")
-
-			directArgs := append([]string(nil), workflow.RunArgs...)
-			directArgs = append(directArgs, "--help")
-			runZVBinaryWithEnv(t, exe, tempDir, []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + directLogPath,
-			}, directArgs...)
-
-			runArgs := workflowRunCommandArgs(t, workflow)
-			runArgs = append(runArgs, "--", "--help")
-			runZVBinaryWithEnv(t, exe, tempDir, []string{
-				"ZV_FAKE_SUBCOMMAND=1",
-				"ZV_FAKE_SUBCOMMAND_LOG=" + runLogPath,
-			}, runArgs...)
-
-			directCalls := readFakeSubcommandCalls(t, directLogPath)
-			runCalls := readFakeSubcommandCalls(t, runLogPath)
-			if got, want := len(directCalls), 1; got != want {
-				t.Fatalf("direct help calls len = %d, want %d: %#v", got, want, directCalls)
-			}
-			if got, want := len(runCalls), 1; got != want {
-				t.Fatalf("workflow help calls len = %d, want %d: %#v", got, want, runCalls)
-			}
-			if got, want := runCalls[0].Executable, directCalls[0].Executable; got != want {
-				t.Fatalf("workflow help executable = %q, want direct executable %q", got, want)
-			}
-			if got, want := strings.Join(runCalls[0].Args, "\x00"), strings.Join(directCalls[0].Args, "\x00"); got != want {
-				t.Fatalf("workflow help args = %#v, want direct args %#v", runCalls[0].Args, directCalls[0].Args)
-			}
-		})
-	}
-}
-
-func TestZVBinaryWorkflowHelpAliasesMatchDirectDelegationEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
-
-	for _, alias := range []string{"-h", "help"} {
+	for i, alias := range []string{"--help", "-h", "help"} {
 		for _, workflow := range workflowCatalog() {
 			if !workflowHelpDelegatesExternally(workflow) {
 				continue
 			}
 			t.Run(workflow.Name+"/"+alias, func(t *testing.T) {
-				directLogPath := filepath.Join(tempDir, workflow.Name+"-"+strings.TrimPrefix(alias, "-")+"-direct-help-alias.jsonl")
-				runLogPath := filepath.Join(tempDir, workflow.Name+"-"+strings.TrimPrefix(alias, "-")+"-run-help-alias.jsonl")
+				logPrefix := filepath.Join(tempDir, fmt.Sprintf("%s-alias%d", workflow.Name, i))
+				directLogPath := logPrefix + "-direct-help.jsonl"
+				runLogPath := logPrefix + "-run-help.jsonl"
+
 				directArgs := append([]string(nil), workflow.RunArgs...)
 				directArgs = append(directArgs, alias)
-				runArgs := workflowRunCommandArgs(t, workflow)
-				runArgs = append(runArgs, "--", alias)
-
 				runZVBinaryWithEnv(t, exe, tempDir, []string{
 					"ZV_FAKE_SUBCOMMAND=1",
 					"ZV_FAKE_SUBCOMMAND_LOG=" + directLogPath,
 				}, directArgs...)
+
+				runArgs := workflowRunCommandArgs(t, workflow)
+				runArgs = append(runArgs, "--", alias)
 				runZVBinaryWithEnv(t, exe, tempDir, []string{
 					"ZV_FAKE_SUBCOMMAND=1",
 					"ZV_FAKE_SUBCOMMAND_LOG=" + runLogPath,
@@ -2239,16 +1391,16 @@ func TestZVBinaryWorkflowHelpAliasesMatchDirectDelegationEndToEnd(t *testing.T) 
 				directCalls := readFakeSubcommandCalls(t, directLogPath)
 				runCalls := readFakeSubcommandCalls(t, runLogPath)
 				if got, want := len(directCalls), 1; got != want {
-					t.Fatalf("direct calls = %d, want %d: %#v", got, want, directCalls)
+					t.Fatalf("direct help calls len = %d, want %d: %#v", got, want, directCalls)
 				}
 				if got, want := len(runCalls), 1; got != want {
-					t.Fatalf("workflow run calls = %d, want %d: %#v", got, want, runCalls)
+					t.Fatalf("workflow help calls len = %d, want %d: %#v", got, want, runCalls)
 				}
 				if got, want := runCalls[0].Executable, directCalls[0].Executable; got != want {
-					t.Fatalf("workflow run executable = %q, want direct executable %q", got, want)
+					t.Fatalf("workflow help executable = %q, want direct executable %q", got, want)
 				}
 				if got, want := strings.Join(runCalls[0].Args, "\x00"), strings.Join(directCalls[0].Args, "\x00"); got != want {
-					t.Fatalf("workflow run args = %#v, want direct args %#v", runCalls[0].Args, directCalls[0].Args)
+					t.Fatalf("workflow help args = %#v, want direct args %#v", runCalls[0].Args, directCalls[0].Args)
 				}
 			})
 		}

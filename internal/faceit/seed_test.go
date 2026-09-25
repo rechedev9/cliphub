@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,12 +22,10 @@ func TestDefaultSeedParsesEmbeddedRoster(t *testing.T) {
 	if doc.GeneratedAt.IsZero() {
 		t.Fatal("generated_at is zero, want the measurement date")
 	}
-	if len(doc.Players) != 10 {
-		t.Fatalf("players = %d, want the shipped top 10", len(doc.Players))
-	}
 	if len(doc.Regions) != len(rankingRegions) {
 		t.Fatalf("regions = %v, want every allowlisted region covered", doc.Regions)
 	}
+	byZone := map[string][]SeedPlayer{}
 	for i, player := range doc.Players {
 		if !ValidPlayerID(player.PlayerID) || player.Nickname == "" || player.ELO <= 0 {
 			t.Fatalf("player %d = %#v", i, player)
@@ -33,11 +33,24 @@ func TestDefaultSeedParsesEmbeddedRoster(t *testing.T) {
 		if _, ok := canonicalRankingRegion(player.Region); !ok {
 			t.Fatalf("player %d region = %q, want an allowlisted region", i, player.Region)
 		}
-		if player.Rank != i+1 {
-			t.Fatalf("player %d rank = %d, want %d", i, player.Rank, i+1)
+		countries, _ := zoneCountries(player.Zone)
+		if !slices.Contains(countries, player.Country) {
+			t.Fatalf("player %d country %q is not in zone %q", i, player.Country, player.Zone)
 		}
-		if i > 0 && doc.Players[i-1].ELO < player.ELO {
-			t.Fatalf("players are not ordered by elo at %d: %d then %d", i, doc.Players[i-1].ELO, player.ELO)
+		byZone[player.Zone] = append(byZone[player.Zone], player)
+	}
+	for _, zone := range Zones() {
+		players := byZone[zone]
+		if len(players) != SeedZoneLimit {
+			t.Fatalf("zone %s players = %d, want the shipped %d", zone, len(players), SeedZoneLimit)
+		}
+		for i, player := range players {
+			if player.Rank != i+1 {
+				t.Fatalf("zone %s player %d rank = %d, want %d", zone, i, player.Rank, i+1)
+			}
+			if i > 0 && players[i-1].ELO < player.ELO {
+				t.Fatalf("zone %s is not ordered by elo at %d: %d then %d", zone, i, players[i-1].ELO, player.ELO)
+			}
 		}
 	}
 
@@ -60,12 +73,13 @@ func TestSeedDocumentValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "shipped document", mutate: func(*SeedDocument) {}},
-		{name: "unknown schema", mutate: func(d *SeedDocument) { d.SchemaVersion = "cliphub.faceit-top10/v0" }, wantErr: true},
+		{name: "unknown schema", mutate: func(d *SeedDocument) { d.SchemaVersion = "cliphub.faceit-zones/v0" }, wantErr: true},
 		{name: "missing generated_at", mutate: func(d *SeedDocument) { d.GeneratedAt = time.Time{} }, wantErr: true},
 		{name: "no players", mutate: func(d *SeedDocument) { d.Players = nil }, wantErr: true},
 		{name: "invalid player id", mutate: func(d *SeedDocument) { d.Players[3].PlayerID = "not a uuid" }, wantErr: true},
 		{name: "missing nickname", mutate: func(d *SeedDocument) { d.Players[3].Nickname = "" }, wantErr: true},
 		{name: "duplicate player", mutate: func(d *SeedDocument) { d.Players[3].PlayerID = d.Players[0].PlayerID }, wantErr: true},
+		{name: "unknown zone", mutate: func(d *SeedDocument) { d.Players[3].Zone = "eu" }, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -83,10 +97,10 @@ func TestSeedDocumentValidate(t *testing.T) {
 func TestSeedStoreDocumentPrecedence(t *testing.T) {
 	t.Parallel()
 	override := `{
-		"schema_version": "cliphub.faceit-top10/v1",
+		"schema_version": "cliphub.faceit-zones/v1",
 		"generated_at": "2026-09-04T10:00:00Z",
 		"regions": ["EU"],
-		"players": [{"player_id":"fresh-1","nickname":"fresher","country":"es","region":"EU","position":1,"faceit_elo":5000,"game_skill_level":10,"rank":1}]
+		"players": [{"player_id":"fresh-1","nickname":"fresher","country":"ru","region":"EU","position":1,"faceit_elo":5000,"game_skill_level":10,"zone":"cis","rank":1}]
 	}`
 	tests := []struct {
 		name        string
@@ -97,15 +111,16 @@ func TestSeedStoreDocumentPrecedence(t *testing.T) {
 		{name: "no override uses the embedded default", wantDefault: true},
 		{name: "valid override wins", payload: override, write: true},
 		{name: "corrupt override falls back", payload: "{not json", write: true, wantDefault: true},
+		{name: "legacy top-10 override falls back", payload: strings.ReplaceAll(override, "faceit-zones", "faceit-top10"), write: true, wantDefault: true},
 		{name: "unknown schema falls back", payload: `{"schema_version":"v0","generated_at":"2026-09-04T10:00:00Z","players":[]}`, write: true, wantDefault: true},
-		{name: "empty player list falls back", payload: `{"schema_version":"cliphub.faceit-top10/v1","generated_at":"2026-09-04T10:00:00Z","players":[]}`, write: true, wantDefault: true},
-		{name: "invalid row falls back", payload: `{"schema_version":"cliphub.faceit-top10/v1","generated_at":"2026-09-04T10:00:00Z","players":[{"player_id":"bad id","nickname":"x"}]}`, write: true, wantDefault: true},
-		{name: "oversized override falls back", payload: `{"schema_version":"cliphub.faceit-top10/v1","filler":"` + strings.Repeat("x", maxSeedFileBytes) + `"}`, write: true, wantDefault: true},
+		{name: "empty player list falls back", payload: `{"schema_version":"cliphub.faceit-zones/v1","generated_at":"2026-09-04T10:00:00Z","players":[]}`, write: true, wantDefault: true},
+		{name: "invalid row falls back", payload: `{"schema_version":"cliphub.faceit-zones/v1","generated_at":"2026-09-04T10:00:00Z","players":[{"player_id":"bad id","nickname":"x"}]}`, write: true, wantDefault: true},
+		{name: "oversized override falls back", payload: `{"schema_version":"cliphub.faceit-zones/v1","filler":"` + strings.Repeat("x", maxSeedFileBytes) + `"}`, write: true, wantDefault: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			path := filepath.Join(t.TempDir(), "top10.json")
+			path := filepath.Join(t.TempDir(), "zones.json")
 			if test.write {
 				if err := os.WriteFile(path, []byte(test.payload), 0o600); err != nil {
 					t.Fatal(err)
@@ -149,16 +164,17 @@ func TestSeedStoreDocumentFallsBackForNilStore(t *testing.T) {
 	}
 }
 
-func TestSeedStoreRefreshCommitsGlobalTop(t *testing.T) {
+func TestSeedStoreRefreshCommitsZoneRosters(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "eu-0", region: "EU", elo: 4600},
-		{id: "eu-1", region: "EU", elo: 4500},
-		{id: "na-0", region: "NA", elo: 4000},
-		{id: "sea-0", region: "SEA", elo: 3400},
+		{id: "es-0", region: "EU", elo: 5000},
+		{id: "ru-0", region: "EU", country: "ru", elo: 4600},
+		{id: "ua-0", region: "NA", country: "ua", elo: 4500},
+		{id: "br-0", region: "SA", country: "br", elo: 4000},
+		{id: "mx-0", region: "EU", country: "mx", elo: 3900},
 	}
 	client := leaderboardServer(t, population, nil)
-	path := filepath.Join(t.TempDir(), "faceit", "top10.json")
+	path := filepath.Join(t.TempDir(), "faceit", "zones.json")
 	store, err := NewSeedStore(path)
 	if err != nil {
 		t.Fatal(err)
@@ -184,21 +200,15 @@ func TestSeedStoreRefreshCommitsGlobalTop(t *testing.T) {
 	if !doc.GeneratedAt.Equal(want) {
 		t.Fatalf("generated_at = %v, want the client clock %v", doc.GeneratedAt, want)
 	}
-	if got := len(doc.Players); got != 3 {
-		t.Fatalf("players = %d, want the requested 3", got)
+	got := make([]string, 0, len(doc.Players))
+	for _, player := range doc.Players {
+		got = append(got, fmt.Sprintf("%s:%s#%d", player.Zone, player.PlayerID, player.Rank))
 	}
-	for i, player := range doc.Players {
-		if player.Rank != i+1 {
-			t.Fatalf("player %d rank = %d, want the merged global rank %d", i, player.Rank, i+1)
-		}
+	if fmt.Sprint(got) != "[cis:ru-0#1 cis:ua-0#2 latam:br-0#1 latam:mx-0#2]" {
+		t.Fatalf("players = %v, want each zone ranked on its own and es-0 in none", got)
 	}
-	if doc.Players[0].PlayerID != "eu-0" || doc.Players[2].PlayerID != "na-0" {
-		t.Fatalf("players = %#v, want the global order", doc.Players)
-	}
-	// A region that answers with nothing still answered, so it stays in the
-	// coverage record.
 	if got := strings.Join(doc.Regions, ","); got != "EU,NA,SA,OCE,SEA" {
-		t.Fatalf("regions = %q, want every region that answered", got)
+		t.Fatalf("regions = %q, want every region read", got)
 	}
 
 	reopened, err := NewSeedStore(path)
@@ -206,7 +216,7 @@ func TestSeedStoreRefreshCommitsGlobalTop(t *testing.T) {
 		t.Fatal(err)
 	}
 	persisted := reopened.Document()
-	if len(persisted.Players) != 3 || persisted.Players[0].PlayerID != "eu-0" {
+	if len(persisted.Players) != 4 || persisted.Players[2].PlayerID != "br-0" || persisted.Players[2].Zone != ZoneLATAM {
 		t.Fatalf("persisted document = %#v", persisted.Players)
 	}
 	raw, err := os.ReadFile(path)
@@ -214,30 +224,28 @@ func TestSeedStoreRefreshCommitsGlobalTop(t *testing.T) {
 		t.Fatal(err)
 	}
 	var shape struct {
-		SchemaVersion string   `json:"schema_version"`
-		GeneratedAt   string   `json:"generated_at"`
-		Regions       []string `json:"regions"`
+		SchemaVersion string `json:"schema_version"`
 		Players       []struct {
 			PlayerID string `json:"player_id"`
+			Zone     string `json:"zone"`
 			Rank     int    `json:"rank"`
 			Position int    `json:"position"`
-			ELO      int    `json:"faceit_elo"`
 		} `json:"players"`
 	}
 	if err := json.Unmarshal(raw, &shape); err != nil {
 		t.Fatal(err)
 	}
-	if shape.SchemaVersion != SeedSchemaVersion || shape.GeneratedAt != "2026-09-04T00:00:00Z" || len(shape.Players) != 3 {
+	if shape.SchemaVersion != SeedSchemaVersion || len(shape.Players) != 4 {
 		t.Fatalf("committed file = %s", raw)
 	}
-	if shape.Players[2].PlayerID != "na-0" || shape.Players[2].Rank != 3 || shape.Players[2].Position != 1 {
-		t.Fatalf("committed row = %#v, want global rank 3 and NA position 1", shape.Players[2])
+	if row := shape.Players[3]; row.PlayerID != "mx-0" || row.Zone != "latam" || row.Rank != 2 || row.Position != 1 {
+		t.Fatalf("committed row = %#v, want LATAM rank 2 and EU position 1", row)
 	}
 }
 
 func TestSeedStoreRefreshRequiresClient(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join(t.TempDir(), "top10.json")
+	path := filepath.Join(t.TempDir(), "zones.json")
 	store, err := NewSeedStore(path)
 	if err != nil {
 		t.Fatal(err)
@@ -259,18 +267,19 @@ func TestSeedStoreRefreshRequiresClient(t *testing.T) {
 
 func TestSeedStoreRefreshKeepsTheLastDocumentOnFailure(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join(t.TempDir(), "top10.json")
+	path := filepath.Join(t.TempDir(), "zones.json")
 	store, err := NewSeedStore(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := leaderboardServer(t, []rankedFixture{{id: "eu-0", region: "EU", elo: 4600}}, nil)
+	client := leaderboardServer(t, []rankedFixture{{id: "eu-0", region: "EU", country: "ru", elo: 4600}}, nil)
 	if _, err := store.Refresh(context.Background(), client, 5); err != nil {
 		t.Fatal(err)
 	}
-	broken := leaderboardServer(t, nil, map[string]bool{"EU": true, "NA": true, "SA": true, "OCE": true, "SEA": true})
+	// One unreadable region is enough: a zone roster is all or nothing.
+	broken := leaderboardServer(t, nil, map[string]bool{"SEA": true})
 	if _, err := store.Refresh(context.Background(), broken, 5); err == nil {
-		t.Fatal("Refresh error = nil, want a total-outage failure")
+		t.Fatal("Refresh error = nil, want the SEA outage to fail it")
 	}
 	doc := store.Document()
 	if len(doc.Players) != 1 || doc.Players[0].PlayerID != "eu-0" {

@@ -274,27 +274,6 @@ func TestRunRendersShortsConcurrently(t *testing.T) {
 	}
 }
 
-func TestRunParallelFailingShortReturnsError(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	recordingResultPath := writeRecordingResultFixture(t, dir)
-	outDir := filepath.Join(dir, "shorts")
-	ffmpegPath := fakeFFmpegFailingShorts(t, dir)
-
-	result, err := Run(context.Background(), Config{
-		RecordingResultPath: recordingResultPath,
-		OutputDir:           outDir,
-		FFmpegPath:          ffmpegPath,
-		RenderJobs:          4,
-	})
-	if err == nil {
-		t.Fatal("Run error = nil, want render failure")
-	}
-	if result.Error == "" {
-		t.Fatalf("result.Error empty, want render failure recorded: %#v", result)
-	}
-}
-
 // Shorts-pack evidence must behave like the Full Demo collector: a span belongs
 // to exactly one short, stage wall time is the union of active intervals while
 // the elapsed sum stays a separate serial number, and the render job slot

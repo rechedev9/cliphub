@@ -24,14 +24,10 @@ import (
 // This is a real FFmpeg canary over synthetic sources. It invokes the same
 // Full Demo preparation/concat/master stages but does not manufacture an HLAE
 // attestation or pass synthetic capture through the production-real gate.
-func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
+func TestFullDemoSponsorBumperAndAudioMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
-	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "final-boundary", "muxed-bframes", "tail-pad"} {
+	for _, scenario := range []string{"sponsor-after-round-two", "muxed-bframes", "tail-pad"} {
 		t.Run(scenario, func(t *testing.T) {
-			audioPolicy := "embedded"
-			if scenario == "replace-narration" {
-				audioPolicy = scenario
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
 			dir := t.TempDir()
@@ -83,7 +79,6 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				}
 			}
 			sponsor := makeMedia("sponsor", "lime", 660, 1)
-			narration := makeMedia("narration", "black", 1200, 1)
 			voice := makeMedia("team-voice", "black", 880, 10)
 			options := recapplan.DefaultOptions()
 			options.Capture.HUDProfile = "native-clean-spectator"
@@ -92,17 +87,6 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 			options.Editorial.FreezeSeconds, options.Editorial.RoundTailSeconds = 0, 0
 			options.Editorial.KeepFreezeVoice = false
 			options.Audio.Voice.Normalization = "none"
-			options.Sponsor.Enabled = true
-			options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "round-boundary", "round-001"
-			options.Sponsor.AudioPolicy = audioPolicy
-			if scenario == "final-boundary" {
-				options.Sponsor.AfterRoundID = "round-002"
-			}
-			if scenario == "manual-split" {
-				frame := int64(60)
-				options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "manual-frame", ""
-				options.Sponsor.ManualStartFrame, options.Sponsor.AllowSplitRound = &frame, true
-			}
 			assets := []recapplan.AssetEvidence{}
 			local := []FullDemoLocalMedia{}
 			addAsset := func(path string, frames int64) recapplan.AssetRef {
@@ -117,11 +101,7 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				return ref
 			}
 			videoRef := addAsset(sponsor, 60)
-			options.Sponsor.Video = &videoRef
-			if audioPolicy == "replace-narration" {
-				ref := addAsset(narration, 60)
-				options.Sponsor.Narration = &ref
-			}
+			options.Bumpers = &recapplan.BumperOptions{Sponsor: &recapplan.BumperSlot{Enabled: true, Video: &videoRef}}
 			facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 640, Complete: true, Rounds: []recapplan.RoundFacts{
 				// Each clip contains fixed 2s freeze plus one live tick, rounded to 121 frames.
 				{ID: "round-001", Number: 1, StartTick: 0, FreezeEndTick: 256, RoundEndTick: 256, NextStartTick: 320, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
@@ -212,11 +192,16 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 					t.Fatalf("missing completed media stage %q: %+v", stage, stages)
 				}
 			}
-			adStart := float64(document.SponsorPlacement.StartFrame) / 60
+			// Two rounds, so the sponsor follows round two: red, blue, then lime.
+			ad := document.Timeline[len(document.Timeline)-1]
+			if ad.Reason != recapplan.BumperRoleSponsor || document.Timeline[1].SourceRef != "round-002" {
+				t.Fatalf("sponsor must follow round two: %+v", document.Timeline)
+			}
+			adStart := float64(ad.StartFrame) / 60
 			for _, sample := range []struct {
 				at      float64
 				channel int
-			}{{.5, 0}, {adStart + .5, 1}, {3.5, 2}} {
+			}{{.5, 0}, {3.5, 2}, {adStart + .5, 1}} {
 				command := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-ss", decimal(sample.at), "-i", short.Output, "-frames:v", "1", "-vf", "scale=1:1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1")
 				pixel, err := command.Output()
 				if err != nil || len(pixel) != 3 || pixel[sample.channel] < 150 {
@@ -224,12 +209,8 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				}
 			}
 			pcm := fullDemoReadAudio(t, ctx, ffmpeg, short.Output, adStart+.4, .1)
-			wantFrequency, removedFrequency := 660.0, 1200.0
-			if audioPolicy == "replace-narration" {
-				wantFrequency, removedFrequency = removedFrequency, wantFrequency
-			}
-			wanted := fullDemoFrequencyPower(pcm, wantFrequency)
-			for _, absent := range []float64{440, 880, 220, 330, removedFrequency} {
+			wanted := fullDemoFrequencyPower(pcm, 660)
+			for _, absent := range []float64{440, 880, 220, 330} {
 				if unwanted := fullDemoFrequencyPower(pcm, absent); wanted < unwanted*100 {
 					t.Fatalf("sponsor contains %.0fHz: wanted=%g unwanted=%g", absent, wanted, unwanted)
 				}
@@ -251,11 +232,7 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				t.Fatal(err)
 			}
 			pixel, err := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-i", short.CoverPath, "-frames:v", "1", "-vf", "scale=1:1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1").Output()
-			coverChannel := 0
-			if scenario == "final-boundary" {
-				coverChannel = 2
-			}
-			if err != nil || len(pixel) != 3 || pixel[coverChannel] < 150 || pixel[1] > 80 {
+			if err != nil || len(pixel) != 3 || pixel[2] < 150 || pixel[1] > 80 {
 				t.Fatalf("automatic cover entered sponsor: %v %v", pixel, err)
 			}
 			if root := os.Getenv("FULL_DEMO_EVIDENCE_DIR"); root != "" {
