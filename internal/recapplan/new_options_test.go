@@ -234,5 +234,8 @@ func TestCustomHUDIsOptionalAndTrueViewIsACaptureChoice(t *testing.T) {
 		if errA != nil || errB != nil || a == b {
 			t.Fatal("TrueView must change the capture hash")
 		}
+		if CaptureCovers(plain, trueViewDoc) || CaptureCovers(trueViewDoc, plain) {
+			t.Fatal("a capture must not be reused across TrueView choices")
+		}
 	}
 }

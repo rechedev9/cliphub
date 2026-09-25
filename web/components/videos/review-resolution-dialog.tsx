@@ -8,6 +8,7 @@ import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { constrainEditConfig, isLandscapeRecap, reelCreativeBrief } from '@/lib/reel-brief';
 import { FULL_DEMO_CONTRACT, FULL_DEMO_PRESET } from '@/lib/full-demo';
 import { bumperSummary } from '@/lib/full-demo-plan';
+import { customHudLabel } from '@/lib/custom-hud';
 import { FullDemoEvidence } from './full-demo-evidence';
 import {
   Dialog,
@@ -67,7 +68,8 @@ export function ReviewResolutionDialog({
   const editorial = original.fullDemo?.document.options;
   const fullDemoContract = editorial ? [
     { label: 'Formato', value: '1920×1080 · 60 fps · 1×' },
-    { label: 'HUD', value: editorial.capture.hud_profile },
+    { label: 'HUD', value: customHudLabel(editorial.overlays.hud_theme) },
+    { label: 'POV', value: editorial.capture.trueview ? 'Original 1:1' : 'Estándar' },
     { label: 'Voces', value: editorial.audio.voice.enabled ? `${editorial.audio.voice.gain}×` : 'Desactivadas' },
     { label: 'Música', value: editorial.audio.music.enabled ? `${editorial.audio.music.assets.length} pistas · ${editorial.audio.music.bed_gain_db} dB` : 'Desactivada' },
     { label: 'Sponsor', value: editorial.sponsor.enabled ? editorial.sponsor.audio_policy : 'Desactivado' },

@@ -21,10 +21,9 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
   options: FullDemoOptions; map: string; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
 }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
-  // Remember the last design so switching to the CS2 HUD and back keeps it.
-  const lastTheme = useRef(theme?.id ?? CUSTOM_HUD_THEMES[0]?.id);
-  if (theme) lastTheme.current = theme.id;
-  const selected = theme ?? customHudTheme(lastTheme.current) ?? CUSTOM_HUD_THEMES[0];
+  // The design (and Focus portrait) set aside for the CS2 HUD, restored when switching back.
+  const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null }>({});
+  const selected = theme ?? customHudTheme(setAside.theme) ?? CUSTOM_HUD_THEMES[0];
   const kind: HudKind = theme ? 'custom' : 'native';
   const portrait = options.overlays.hud_portrait;
   const previewName = kind === 'custom' && selected ? `HUD ${selected.name}` : 'HUD original de CS2';
@@ -40,7 +39,20 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
       const ref = await uploadFullDemoPortrait(file, controller.signal);
       if (!controller.signal.aborted) onChange({ ...options, overlays: { ...options.overlays, hud_portrait: ref } });
     } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo subir el retrato.'); }
-    finally { if (!controller.signal.aborted) onAssetBusy(false); }
+    finally {
+      if (!controller.signal.aborted) onAssetBusy(false);
+      if (request.current === controller) request.current = null;
+    }
+  }
+
+  // A pending upload resolves against the options it started with; changing the
+  // HUD first must drop it, or its result would bring the old design back.
+  function cancelUpload(): void {
+    const pending = request.current;
+    if (!pending) return;
+    request.current = null;
+    pending.abort();
+    onAssetBusy(false);
   }
 
   function removePortrait(): void {
@@ -48,21 +60,24 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
     onChange({ ...options, overlays });
   }
 
-  function choose(id: string): void {
+  function choose(id: string, kept = portrait): void {
     const { hud_portrait: _portrait, ...overlays } = options.overlays;
+    cancelUpload();
     setError(null);
     onChange({
       ...options,
       capture: { ...options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE },
-      overlays: { ...overlays, hud_theme: id, ...(id === 'focus' && portrait ? { hud_portrait: portrait } : {}) },
+      overlays: { ...overlays, hud_theme: id, ...(id === 'focus' && kept ? { hud_portrait: kept } : {}) },
     });
   }
 
   function chooseKind(next: HudKind): void {
     if (next === kind) return;
-    if (next === 'custom' && selected) { choose(selected.id); return; }
+    if (next === 'custom' && selected) { choose(selected.id, setAside.portrait); return; }
     const { hud_theme: _theme, hud_portrait: _portrait, ...overlays } = options.overlays;
+    cancelUpload();
     setError(null);
+    setSetAside({ theme: theme?.id, portrait });
     onChange({ ...options, capture: { ...options.capture, hud_profile: NATIVE_HUD_CAPTURE_PROFILE }, overlays });
   }
 

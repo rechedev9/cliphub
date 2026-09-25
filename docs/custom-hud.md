@@ -348,11 +348,12 @@ clean profile and a broadcast capture without a theme still gets the default.
 "POV original 1:1 (TrueView)" sets `capture.trueview`. Full Demo captures used
 to force `cl_demo_predict 0`, which disables CS2's TrueView demo playback and
 shows the interpolated server view. With TrueView the runtime applies
-`cl_demo_predict 1`, CS2's default, so the client re-runs the recorded player
-prediction; the readback and evidence contract require that value. CS2 only
-enables TrueView for demos recorded by the same game version (value `2` would
-force it and is deliberately not used), so older demos fall back to the
-standard view. The field is `omitempty`: existing documents keep their wire
+`cl_demo_predict 1` so the client re-runs the recorded player prediction; the
+readback and evidence contract require that value. Valve documents TrueView as
+automatic only when the demo was recorded by the same game version; community
+guides describe `cl_demo_predict 2` as forcing it, which is deliberately not
+used. Older demos therefore fall back to the standard view. No real CS2 capture
+with TrueView has been verified yet. The field is `omitempty`: existing documents keep their wire
 format and capture hash, and TrueView changes the capture hash because it
 changes the footage. It is independent of the HUD choice.
 
