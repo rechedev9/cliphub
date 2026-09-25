@@ -25,7 +25,7 @@ func respawnCaptureFixture(t *testing.T) RecordingPlan {
 		}}
 	o := recapplan.DefaultOptions()
 	o.Capture.Crosshair.AllowCaptureDefault = true
-	o.Audio.Music.Enabled, o.Sponsor.Enabled = false, false
+	o.Audio.Music.Enabled = false
 	voice := recapplan.VoiceEvidence{Availability: "available", IndexHash: strings.Repeat("b", 64), IndexRef: "voice/index.json", ClockKind: recapplan.ClockIngame, Activity: []recapplan.TickRange{{Start: 19030, End: 20310}, {Start: 25341, End: 26621}}}
 	d, err := recapplan.Plan(f, o, voice, nil, "facts.json")
 	if err != nil {

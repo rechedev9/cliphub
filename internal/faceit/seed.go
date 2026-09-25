@@ -14,19 +14,28 @@ import (
 	"github.com/rechedev9/cliphub/internal/filecommit"
 )
 
-// SeedSchemaVersion identifies the default-roster document.
-const SeedSchemaVersion = "cliphub.faceit-top10/v1"
+// SeedSchemaVersion identifies the default-roster document. It replaced
+// cliphub.faceit-top10/v1, the single global top 10, when the roster split
+// into zones; an old override file now fails validation and falls back to the
+// embedded zones.
+const SeedSchemaVersion = "cliphub.faceit-zones/v1"
+
+// SeedZoneLimit is how many players each zone roster holds.
+const SeedZoneLimit = 20
 
 // maxSeedFileBytes bounds the on-disk override. The document holds a handful of
 // leaderboard rows; anything larger is not one.
 const maxSeedFileBytes = 256 * 1024
 
-// defaultSeedJSON is the roster the Players section shows before anyone
-// follows anybody: the FACEIT global top 10 by ELO, measured against the live
-// Data API. It lives as data rather than as literals so refreshing it is a file
-// swap and its provenance (generated_at, regions) travels with the numbers.
+// defaultSeedJSON is the roster the Players section shows next to the user's
+// own follows: the top SeedZoneLimit FACEIT players by ELO for each zone
+// (CIS, LATAM), measured against the live Data API. It lives as data rather
+// than as literals so refreshing it is a file swap
+// (FACEIT_API_KEY=... go generate ./internal/faceit) and its provenance
+// (generated_at, regions) travels with the numbers.
 //
-//go:embed top10_default.json
+//go:generate go run gen_zones.go
+//go:embed zones_default.json
 var defaultSeedJSON []byte
 
 // loadDefaultSeed parses the embedded roster once. A malformed embedded file is
@@ -35,7 +44,7 @@ var defaultSeedJSON []byte
 var loadDefaultSeed = sync.OnceValue(func() SeedDocument {
 	doc, err := DecodeSeed(bytes.NewReader(defaultSeedJSON))
 	if err != nil {
-		panic("faceit: embedded default top-10 roster is invalid: " + err.Error())
+		panic("faceit: embedded default zone roster is invalid: " + err.Error())
 	}
 	return doc
 })
@@ -73,6 +82,9 @@ func (d SeedDocument) Validate() error {
 		}
 		if player.Nickname == "" {
 			return fmt.Errorf("FACEIT seed roster player %d has no nickname", i)
+		}
+		if _, ok := zoneCountries(player.Zone); !ok {
+			return fmt.Errorf("FACEIT seed roster player %d has an unknown zone %q", i, player.Zone)
 		}
 		if seen[player.PlayerID] {
 			return fmt.Errorf("FACEIT seed roster player %d is a duplicate", i)
@@ -134,10 +146,10 @@ func (s *SeedStore) Document() SeedDocument {
 	return DefaultSeed()
 }
 
-// Refresh replaces the on-disk roster with a live FACEIT global top `limit`.
+// Refresh replaces the on-disk roster with the live top `limit` of every zone.
 // It is explicit only: nothing calls it on startup or on a read, so the seeded
 // list is a deliberate refresh rather than a request that silently fans out to
-// five leaderboards.
+// a few hundred leaderboards.
 func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (SeedDocument, error) {
 	if s == nil {
 		return SeedDocument{}, errors.New("FACEIT seed roster store is not configured")
@@ -145,15 +157,18 @@ func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (See
 	if client == nil {
 		return SeedDocument{}, ErrNotConfigured
 	}
-	players, regions, err := client.globalTop(ctx, limit)
-	if err != nil {
-		return SeedDocument{}, fmt.Errorf("refresh FACEIT seed roster: %w", err)
-	}
 	doc := SeedDocument{
 		SchemaVersion: SeedSchemaVersion,
 		GeneratedAt:   client.now().UTC(),
-		Regions:       regions,
-		Players:       seedPlayers(players),
+		// ZoneTop fails unless every region answered for every country.
+		Regions: append([]string(nil), rankingRegions...),
+	}
+	for _, zone := range Zones() {
+		players, err := client.ZoneTop(ctx, zone, limit)
+		if err != nil {
+			return SeedDocument{}, fmt.Errorf("refresh FACEIT seed roster: %w", err)
+		}
+		doc.Players = append(doc.Players, seedPlayers(zone, players)...)
 	}
 	if err := doc.Validate(); err != nil {
 		return SeedDocument{}, err
@@ -166,12 +181,13 @@ func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (See
 	return doc, nil
 }
 
-// seedPlayers stamps the merged global order onto the rows. Position stays the
-// player's place inside their own region, which is what FACEIT reported.
-func seedPlayers(players []RankedPlayer) []SeedPlayer {
+// seedPlayers stamps the zone and the merged zone order onto the rows.
+// Position stays the player's place inside their own region ladder, which is
+// what FACEIT reported.
+func seedPlayers(zone string, players []RankedPlayer) []SeedPlayer {
 	out := make([]SeedPlayer, 0, len(players))
 	for i, player := range players {
-		out = append(out, SeedPlayer{RankedPlayer: player, Rank: i + 1})
+		out = append(out, SeedPlayer{RankedPlayer: player, Zone: zone, Rank: i + 1})
 	}
 	return out
 }

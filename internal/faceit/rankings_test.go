@@ -92,25 +92,25 @@ func TestRankingsDecodesRegionalLeaderboard(t *testing.T) {
 			wantRequest: true,
 		},
 		{
-			name:        "invalid player id fails the page",
-			region:      "EU",
-			body:        `{"items":[{"player_id":"ok-1","nickname":"good","position":1,"faceit_elo":4000,"game_skill_level":10},{"player_id":"not a uuid","nickname":"bad","position":2,"faceit_elo":3900,"game_skill_level":10}]}`,
+			name:         "invalid player id fails the page",
+			region:       "EU",
+			body:         `{"items":[{"player_id":"ok-1","nickname":"good","position":1,"faceit_elo":4000,"game_skill_level":10},{"player_id":"not a uuid","nickname":"bad","position":2,"faceit_elo":3900,"game_skill_level":10}]}`,
 			wantErr:      true,
 			wantSentinel: ErrInvalidResponse,
 			wantRequest:  true,
 		},
 		{
-			name:        "missing nickname fails the page",
-			region:      "EU",
-			body:        `{"items":[{"player_id":"ok-1","nickname":"","position":1,"faceit_elo":4000,"game_skill_level":10}]}`,
+			name:         "missing nickname fails the page",
+			region:       "EU",
+			body:         `{"items":[{"player_id":"ok-1","nickname":"","position":1,"faceit_elo":4000,"game_skill_level":10}]}`,
 			wantErr:      true,
 			wantSentinel: ErrInvalidResponse,
 			wantRequest:  true,
 		},
 		{
-			name:        "reflected credential fails the page",
-			region:      "EU",
-			body:        `{"items":[{"player_id":"ok-1","nickname":"` + rankingsTestKey + `","position":1,"faceit_elo":4000,"game_skill_level":10}]}`,
+			name:         "reflected credential fails the page",
+			region:       "EU",
+			body:         `{"items":[{"player_id":"ok-1","nickname":"` + rankingsTestKey + `","position":1,"faceit_elo":4000,"game_skill_level":10}]}`,
 			wantErr:      true,
 			wantSentinel: ErrInvalidResponse,
 			wantRequest:  true,
@@ -222,15 +222,25 @@ func TestRankingsSendsPagingAndCountryQuery(t *testing.T) {
 }
 
 // rankedFixture is a synthetic FACEIT population used to prove the merge.
+// A fixture without a country reports "es", which is in no zone.
 type rankedFixture struct {
-	id     string
-	region string
-	elo    int
+	id      string
+	region  string
+	country string
+	elo     int
+}
+
+func (f rankedFixture) countryCode() string {
+	if f.country == "" {
+		return "es"
+	}
+	return f.country
 }
 
 // leaderboardServer serves each region's own top `limit` out of the population,
 // exactly as FACEIT does: sorted by ELO with a position counted inside the
-// region.
+// region, narrowed to the country query when there is one. A broken key is a
+// region ("EU") or a region/country ladder ("EU/ru").
 func leaderboardServer(t *testing.T, population []rankedFixture, broken map[string]bool) *Client {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +249,8 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 			http.NotFound(w, r)
 			return
 		}
-		if broken[region] {
+		country := r.URL.Query().Get("country")
+		if broken[region] || broken[region+"/"+country] {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -250,7 +261,7 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 		}
 		var rows []rankedFixture
 		for _, player := range population {
-			if player.region == region {
+			if player.region == region && (country == "" || player.countryCode() == country) {
 				rows = append(rows, player)
 			}
 		}
@@ -268,7 +279,7 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 			items = append(items, apiRankedPlayer{
 				PlayerID:       row.id,
 				Nickname:       row.id + "-nick",
-				Country:        "es",
+				Country:        row.countryCode(),
 				Position:       i + 1,
 				FaceitELO:      row.elo,
 				GameSkillLevel: 10,
@@ -295,96 +306,17 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 	return client
 }
 
-// globalTopOf is the answer the merge has to reproduce: the whole population
-// ranked, truncated to limit.
-func globalTopOf(population []rankedFixture, limit int) []string {
-	ranked := append([]rankedFixture(nil), population...)
-	sort.Slice(ranked, func(i, j int) bool {
-		if ranked[i].elo != ranked[j].elo {
-			return ranked[i].elo > ranked[j].elo
-		}
-		return ranked[i].id < ranked[j].id
-	})
-	if len(ranked) > limit {
-		ranked = ranked[:limit]
-	}
-	out := make([]string, 0, len(ranked))
-	for _, player := range ranked {
-		out = append(out, player.id)
-	}
-	return out
-}
-
-// TestGlobalTopEqualsTheTrueGlobalRanking encodes the invariant the merge rests
-// on: a player inside the global top N is necessarily inside their own
-// region's top N, so N rows per region are enough to reproduce the global
-// ranking exactly. The population is deliberately lopsided the way the real
-// one is — the strong region's Nth outranks every other region's 1st.
-func TestGlobalTopEqualsTheTrueGlobalRanking(t *testing.T) {
-	t.Parallel()
-	var population []rankedFixture
-	for i := range 30 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("eu-%02d", i), region: "EU", elo: 4600 - i*10})
-	}
-	for i := range 30 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("na-%02d", i), region: "NA", elo: 4000 - i*10})
-	}
-	for i := range 12 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("sa-%02d", i), region: "SA", elo: 3800 - i*10})
-	}
-	population = append(population,
-		rankedFixture{id: "oce-00", region: "OCE", elo: 3500},
-		rankedFixture{id: "sea-00", region: "SEA", elo: 3400},
-	)
-
-	client := leaderboardServer(t, population, nil)
-	for _, limit := range []int{1, 5, 10, 25} {
-		players, err := client.GlobalTop(context.Background(), limit)
-		if err != nil {
-			t.Fatalf("limit %d: %v", limit, err)
-		}
-		got := make([]string, 0, len(players))
-		for _, player := range players {
-			got = append(got, player.PlayerID)
-		}
-		want := globalTopOf(population, limit)
-		if fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Fatalf("limit %d: global top = %v, want %v", limit, got, want)
-		}
-	}
-
-	players, err := client.GlobalTop(context.Background(), 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(players) != 10 {
-		t.Fatalf("players = %d, want 10", len(players))
-	}
-	for _, player := range players {
-		if player.Region != "EU" {
-			t.Fatalf("player %#v, want the lopsided population to leave only EU in the top 10", player)
-		}
-	}
-	if players[0].ELO < players[9].ELO {
-		t.Fatalf("players are not ordered by elo: %d then %d", players[0].ELO, players[9].ELO)
-	}
-	// Region position is preserved, so a seeded row can say where it came from.
-	if players[9].Position != 10 {
-		t.Fatalf("tenth player position = %d, want its EU position 10", players[9].Position)
-	}
-}
-
-func TestGlobalTopBreaksTiesByPlayerID(t *testing.T) {
+func TestZoneTopBreaksTiesByPlayerID(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "zz-tied", region: "EU", elo: 4000},
-		{id: "aa-tied", region: "NA", elo: 4000},
-		{id: "mm-tied", region: "SA", elo: 4000},
-		{id: "low", region: "SEA", elo: 3000},
+		{id: "zz-tied", region: "EU", country: "ru", elo: 4000},
+		{id: "aa-tied", region: "NA", country: "ua", elo: 4000},
+		{id: "mm-tied", region: "SA", country: "kz", elo: 4000},
+		{id: "low", region: "SEA", country: "by", elo: 3000},
 	}
 	client := leaderboardServer(t, population, nil)
 	for attempt := range 5 {
-		players, err := client.GlobalTop(context.Background(), 4)
+		players, err := client.ZoneTop(context.Background(), ZoneCIS, 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -399,15 +331,15 @@ func TestGlobalTopBreaksTiesByPlayerID(t *testing.T) {
 	}
 }
 
-func TestGlobalTopDropsDuplicatePlayerAcrossRegions(t *testing.T) {
+func TestZoneTopDropsDuplicatePlayerAcrossLadders(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "double", region: "EU", elo: 4200},
-		{id: "double", region: "NA", elo: 4100},
-		{id: "single", region: "SA", elo: 4000},
+		{id: "double", region: "EU", country: "ru", elo: 4200},
+		{id: "double", region: "NA", country: "ru", elo: 4100},
+		{id: "single", region: "SA", country: "ua", elo: 4000},
 	}
 	client := leaderboardServer(t, population, nil)
-	players, err := client.GlobalTop(context.Background(), 10)
+	players, err := client.ZoneTop(context.Background(), ZoneCIS, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,62 +351,55 @@ func TestGlobalTopDropsDuplicatePlayerAcrossRegions(t *testing.T) {
 	}
 }
 
-func TestGlobalTopRegionOutages(t *testing.T) {
+// TestZoneTopEqualsTheTrueZoneRanking reads every zone country on every
+// region: the best player of a country can queue anywhere, and a player
+// outside the zone must never leak in however high their ELO.
+func TestZoneTopEqualsTheTrueZoneRanking(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "eu-0", region: "EU", elo: 4600},
-		{id: "na-0", region: "NA", elo: 4000},
-		{id: "sa-0", region: "SA", elo: 3900},
-		{id: "oce-0", region: "OCE", elo: 3800},
-		{id: "sea-0", region: "SEA", elo: 3700},
+		{id: "es-top", region: "EU", elo: 5000},
+		{id: "ru-eu", region: "EU", country: "ru", elo: 4600},
+		{id: "ua-na", region: "NA", country: "ua", elo: 4500},
+		{id: "kz-sea", region: "SEA", country: "kz", elo: 4400},
+		{id: "ru-eu-2", region: "EU", country: "ru", elo: 4300},
+		{id: "mx-eu", region: "EU", country: "mx", elo: 3900},
+		{id: "br-sa", region: "SA", country: "br", elo: 3800},
+		{id: "br-sa-2", region: "SA", country: "br", elo: 3700},
+		{id: "us-na", region: "NA", country: "us", elo: 4200},
 	}
-	tests := []struct {
-		name        string
-		broken      []string
-		wantIDs     string
-		wantRegions string
-		wantErr     bool
-	}{
-		{name: "all regions answer", wantIDs: "[eu-0 na-0 sa-0 oce-0 sea-0]", wantRegions: "[EU NA SA OCE SEA]"},
-		{name: "one region down", broken: []string{"EU"}, wantIDs: "[na-0 sa-0 oce-0 sea-0]", wantRegions: "[NA SA OCE SEA]"},
-		{name: "only one region up", broken: []string{"EU", "NA", "SA", "OCE"}, wantIDs: "[sea-0]", wantRegions: "[SEA]"},
-		{name: "every region down", broken: []string{"EU", "NA", "SA", "OCE", "SEA"}, wantErr: true},
+	client := leaderboardServer(t, population, nil)
+	for zone, want := range map[string]string{
+		ZoneCIS:   "[ru-eu ua-na kz-sea]",
+		ZoneLATAM: "[mx-eu br-sa br-sa-2]",
+	} {
+		players, err := client.ZoneTop(context.Background(), zone, 3)
+		if err != nil {
+			t.Fatalf("%s: %v", zone, err)
+		}
+		got := make([]string, 0, len(players))
+		for _, player := range players {
+			got = append(got, player.PlayerID)
+		}
+		if fmt.Sprint(got) != want {
+			t.Fatalf("%s top = %v, want %s", zone, got, want)
+		}
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			broken := make(map[string]bool, len(test.broken))
-			for _, region := range test.broken {
-				broken[region] = true
-			}
-			client := leaderboardServer(t, population, broken)
-			players, regions, err := client.globalTop(context.Background(), 10)
-			if test.wantErr {
-				if err == nil {
-					t.Fatal("error = nil, want a failure when no region answers")
-				}
-				if !errors.Is(err, ErrUnavailable) {
-					t.Fatalf("error = %v, want the per-region cause joined in", err)
-				}
-				if players != nil || regions != nil {
-					t.Fatalf("players = %#v regions = %#v, want none", players, regions)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			ids := make([]string, 0, len(players))
-			for _, player := range players {
-				ids = append(ids, player.PlayerID)
-			}
-			if fmt.Sprint(ids) != test.wantIDs {
-				t.Fatalf("players = %v, want %s", ids, test.wantIDs)
-			}
-			if fmt.Sprint(regions) != test.wantRegions {
-				t.Fatalf("regions = %v, want %s", regions, test.wantRegions)
-			}
-		})
+}
+
+// A zone roster missing one country would look complete, so one failed ladder
+// fails the whole zone.
+func TestZoneTopFailsOnAnyMissingLadder(t *testing.T) {
+	t.Parallel()
+	population := []rankedFixture{{id: "ru-eu", region: "EU", country: "ru", elo: 4600}}
+	client := leaderboardServer(t, population, map[string]bool{"OCE/md": true})
+	if _, err := client.ZoneTop(context.Background(), ZoneCIS, 10); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("ZoneTop error = %v, want the failed OCE/md ladder", err)
+	}
+	if players, err := client.ZoneTop(context.Background(), ZoneLATAM, 10); err != nil || len(players) != 0 {
+		t.Fatalf("LATAM = %#v, %v; want an empty roster from healthy ladders", players, err)
+	}
+	if _, err := client.ZoneTop(context.Background(), "eu", 10); err == nil {
+		t.Fatal("ZoneTop accepted an unknown zone")
 	}
 }
 
@@ -491,8 +416,8 @@ func TestRankingsRequiresAPIKey(t *testing.T) {
 			if _, err := client.Rankings(context.Background(), "EU", "", 0, 10); !errors.Is(err, ErrNotConfigured) {
 				t.Fatalf("Rankings error = %v, want ErrNotConfigured", err)
 			}
-			if _, err := client.GlobalTop(context.Background(), 10); !errors.Is(err, ErrNotConfigured) {
-				t.Fatalf("GlobalTop error = %v, want ErrNotConfigured", err)
+			if _, err := client.ZoneTop(context.Background(), ZoneCIS, 10); !errors.Is(err, ErrNotConfigured) {
+				t.Fatalf("ZoneTop error = %v, want ErrNotConfigured", err)
 			}
 		})
 	}

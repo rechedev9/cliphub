@@ -36,7 +36,7 @@ func TestFullDemoRecordingAcceptsApprovedTailBeyondLegacyDuration(t *testing.T) 
 				facts.Rounds[0].DeathTick = &tc.deathTick
 			}
 			options := recapplan.DefaultOptions()
-			options.Audio.Voice.Enabled, options.Audio.Music.Enabled, options.Sponsor.Enabled = false, false, false
+			options.Audio.Voice.Enabled, options.Audio.Music.Enabled = false, false
 			options.Capture.Crosshair.AllowCaptureDefault = true
 			doc, err := recapplan.Plan(facts, options, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
 			if err != nil {

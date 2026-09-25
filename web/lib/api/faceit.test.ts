@@ -68,7 +68,8 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
         enabled: true,
         players: [
           player,
-          { ...player, id: 'seed-1', nickname: 'donk666', seeded: true, region: 'EU', position: 1 },
+          { ...player, id: 'seed-1', nickname: 'donk666', seeded: true, zone: 'cis', region: 'EU', position: 1 },
+          { ...player, id: 'seed-2', nickname: 'odd', seeded: true, zone: 'eu' },
         ],
       });
     }
@@ -85,6 +86,8 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
     assert.equal(listed.enabled, true);
     assert.equal(listed.players[0]?.id, 'player-1');
     assert.equal(listed.players[1]?.seeded, true);
+    assert.equal(listed.players[1]?.zone, 'cis');
+    assert.equal(listed.players[2]?.zone, undefined);
     assert.equal(listed.players[1]?.region, 'EU');
     assert.equal(listed.players[1]?.position, 1);
     const followed = await followFaceitPlayer('m0NESY');

@@ -11,7 +11,7 @@ export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
   const complete = video.status === 'ready';
   return <section className="studio-panel space-y-3 p-4" aria-label="Plan y verificación de Full Demo">
     <h2 className="font-display text-body-lg font-semibold text-fg-1">Plan y verificación</h2>
-    <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · sponsor {options.sponsor.enabled ? 'incluido' : 'desactivado'} · intro/outro {bumperSummary(options).toLowerCase()}.</p>
+    <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · vídeos añadidos: {bumperSummary(options).toLowerCase()}.</p>
     <p className="font-mono text-meta text-fg-3">Plan aprobado: {snapshot.approval.approved_plan_hash.slice(0, 12)}</p>
     <div className="flex flex-wrap gap-x-4 gap-y-2 text-body-sm text-primary">
       <Link href={`/clips/${video.jobId}/nuevo?formato=full`} className="underline">Revisar ajustes y crear otra revisión</Link>

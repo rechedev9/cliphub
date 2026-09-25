@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -175,13 +176,21 @@ func (h *Handlers) UnfollowFaceitPlayer(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "FACEIT player id is invalid")
 		return
 	}
-	if err := h.faceitFollows.Unfollow(playerID); err != nil {
+	followed, err := h.faceitFollows.List()
+	if err != nil {
 		writeFaceitError(w, err)
 		return
 	}
-	// A seeded row was never in followed.json, so Unfollow alone would no-op
-	// and the player would reappear on the next Roster read.
-	if err := h.faceitFollows.DismissSeed(playerID); err != nil {
+	// Unfollowing a player the user chose puts them back in their zone list, if
+	// any. Removing a seeded row has to be a dismissal: it was never in
+	// followed.json, so Unfollow alone would no-op and the player would
+	// reappear on the next Roster read.
+	if slices.ContainsFunc(followed, func(player faceit.FollowedPlayer) bool { return player.ID == playerID }) {
+		err = h.faceitFollows.Unfollow(playerID)
+	} else {
+		err = h.faceitFollows.DismissSeed(playerID)
+	}
+	if err != nil {
 		writeFaceitError(w, err)
 		return
 	}

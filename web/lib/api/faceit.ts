@@ -31,9 +31,13 @@ export type FaceitPlayer = {
   elo?: number;
 };
 
+/** Seeded roster a player belongs to, as the local service tags it. */
+export type FaceitZone = 'cis' | 'latam';
+
 export type FaceitFollowedPlayer = FaceitPlayer & {
   followed_at?: string;
   seeded?: boolean;
+  zone?: FaceitZone;
   region?: string;
   position?: number;
 };
@@ -173,6 +177,7 @@ function parsePlayer(raw: unknown, key: string): FaceitFollowedPlayer {
     elo: optionalNumber(player.elo),
     followed_at: optionalString(player.followed_at),
     seeded: player.seeded === true ? true : undefined,
+    zone: player.zone === 'cis' || player.zone === 'latam' ? player.zone : undefined,
     region: optionalString(player.region),
     position: optionalNumber(player.position),
   };

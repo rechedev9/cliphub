@@ -56,10 +56,21 @@ const transitionOptions = object({
 });
 export type FullDemoTransitionOptions = Guarded<typeof transitionOptions>;
 const bumperSlot = object({ enabled: boolean, video: nullable(assetRef) });
-// Mirrors recapplan.BumperOptions. The key is optional and never defaulted in:
-// Go omits it when absent, so adding it locally would dirty an approved plan.
-const bumperOptions = object({ intro: bumperSlot, outro: bumperSlot });
+// Mirrors recapplan.BumperOptions. The keys `bumpers` and `bumpers.sponsor` are
+// optional and never defaulted in: Go omits them when absent, so adding them
+// locally would dirty an approved plan. The sponsor clip plays right after the
+// second gameplay round (after the only round when there is just one).
+const bumperOptions = object({ intro: bumperSlot, outro: bumperSlot, sponsor: bumperSlot }, ['sponsor']);
+/**
+ * The retired sponsor group (`options.sponsor`, `sponsor_placement`, timeline
+ * role `sponsor`). Old approved snapshots and browser drafts still carry it, so
+ * it stays readable, but `currentFullDemoOptions` never lets it back on the wire.
+ */
+const legacy: Guard<Record<string, unknown>> = record;
 export type FullDemoBumperOptions = Guarded<typeof bumperOptions>;
+export function isFullDemoBumperOptions(value: unknown): value is FullDemoBumperOptions {
+  return bumperOptions(value);
+}
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
@@ -81,11 +92,7 @@ const optionsShape = object({
     }),
     loudness: object({ target_i_lufs: number(-14, -14), target_tp_dbtp: number(-1.5, -1.5), target_lra: number(11, 11), policy_version: oneOf('program-aac-v1') }),
   }),
-  sponsor: object({
-    enabled: boolean, video: nullable(assetRef), narration: nullable(assetRef), audio_policy: oneOf('embedded', 'replace-narration'), short_narration_policy: oneOf('block', 'pad-silence'),
-    placement_policy: oneOf('first-two-rounds', 'round-boundary', 'manual-frame'), window_start_seconds: number(0, 43200), window_end_seconds: number(0, 43200),
-    after_round_id: string, manual_start_frame: nullable(integer), allow_split_round: boolean, music_policy: oneOf('pause-resume'),
-  }),
+  sponsor: legacy,
   overlays: object({
     roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit'),
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
@@ -95,7 +102,7 @@ const optionsShape = object({
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
   bumpers: bumperOptions,
-}, ['transitions', 'bumpers']);
+}, ['transitions', 'bumpers', 'sponsor']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -110,8 +117,8 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
  * draft cannot bring back music, capture fallbacks, uploaded overlays, or a
  * finely tuned transition after the corresponding controls disappeared.
  */
-export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySponsor = false): FullDemoOptions {
-  const fixed = fixedFullDemoFreeze(options);
+export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
+  const { sponsor: legacySponsor, ...fixed } = fixedFullDemoFreeze(options);
   const hudTheme = fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
@@ -142,9 +149,6 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
         ducking: { enabled: true, game_contribution: 0, attack_ms: 20, release_ms: 800, threshold: .025, ratio: 8 },
       },
     },
-    // Only first-load migration disables an inherited empty sponsor. During an
-    // edit, the user must be able to enable it before choosing its video.
-    sponsor: { ...fixed.sponsor, enabled: disableEmptySponsor ? fixed.sponsor.enabled && fixed.sponsor.video !== null : fixed.sponsor.enabled },
     overlays: {
       ...overlays,
       roster: true,
@@ -157,19 +161,25 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
     },
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
+    ...legacySponsorBumper(fixed.bumpers, legacySponsor),
   };
+}
+
+/** An old draft's chosen sponsor video moves to the sponsor slot; an empty or disabled one is dropped. */
+function legacySponsorBumper(bumpers: FullDemoOptions['bumpers'], sponsor: unknown): Pick<FullDemoOptions, 'bumpers'> | Record<string, never> {
+  if (bumpers?.sponsor || !record(sponsor) || sponsor.enabled !== true || !assetRef(sponsor.video)) return {};
+  const off = { enabled: false, video: null };
+  return { bumpers: { intro: bumpers?.intro ?? off, outro: bumpers?.outro ?? off, sponsor: { enabled: true, video: sponsor.video } } };
 }
 
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
-  const { editorial, sponsor, capture } = value;
+  const { editorial, capture } = value;
   const lowpass = value.transitions?.game_tail_lowpass_hz ?? 0;
   if (lowpass > 0 && lowpass < 200) return false;
   if (Boolean(value.overlays.hud_theme) !== isCustomHudCaptureProfile(capture.hud_profile)) return false;
   if (value.overlays.hud_portrait && value.overlays.hud_theme !== 'focus') return false;
-  if (editorial.max_freeze_seconds < editorial.freeze_seconds || sponsor.window_end_seconds < sponsor.window_start_seconds) return false;
-  if (sponsor.placement_policy === 'manual-frame' && sponsor.manual_start_frame === null) return false;
-  if (sponsor.placement_policy === 'round-boundary' && sponsor.after_round_id === '') return false;
+  if (editorial.max_freeze_seconds < editorial.freeze_seconds) return false;
   if (capture.crosshair.mode === 'observed' && capture.crosshair.code !== '') return false;
   if (capture.crosshair.mode === 'provided-code' && !/^CSGO(?:-[ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789]{5}){5}$/.test(capture.crosshair.code)) return false;
   const ranges = editorial.manual_ranges;
@@ -193,10 +203,12 @@ const documentShape = object({
   options: isFullDemoOptions, rounds: array(round, 200),
   voice: object({ availability: string, index_ref: string, index_hash: string, extractor_version: string, clock_kind: string, activity: nullable(array(interval)), selected_packets: integer, excluded_packets: integer }),
   assets: nullable(array(object({ ref: assetRef, duration_frames: integer, has_video: boolean, has_audio: boolean, has_image: boolean, title: string, creator: string, source_url: string, permission: string, attribution: string }, ['has_image']), 100)),
-  sponsor_placement: object({ boundary: string, start_frame: integer, duration_frames: integer, candidates: nullable(array(object({ after_round_id: string, frame: integer }), 200)) }),
+  sponsor_placement: legacy,
+  // 'sponsor' only appears in documents approved before the sponsor became a bumper slot; current plans
+  // emit 'round' and 'bumper' (reason 'intro-bumper', 'sponsor-bumper' or 'outro-bumper').
   timeline: nullable(array(object({ role: oneOf('round', 'sponsor', 'bumper'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
-});
+}, ['sponsor_placement']);
 export type FullDemoDocument = Guarded<typeof documentShape>;
 export type FullDemoRound = Guarded<typeof round>;
 const snapshotShape = object({ document: documentShape, approval: object({ approved_plan_hash: hash, allow_safe_tail_trim: boolean, timestamp: string }) });
@@ -249,10 +261,16 @@ export function fullDemoOverlayLabel(source: EditConfig['demoSource']): string {
   }
 }
 
-/** One-line brief for the intro and outro bumpers, shared by the form and the evidence views. */
+/** Brief label for the added intro, sponsor and outro clips, shared by the form and the review dialog. */
+export const FULL_DEMO_BUMPERS_LABEL = 'Vídeos añadidos';
+
+/** One-line brief for the intro, sponsor and outro clips, e.g. "Intro, sponsor y outro". */
 export function bumperSummary(options: Pick<FullDemoOptions, 'bumpers'>): string {
-  const parts = [options.bumpers?.intro.enabled ? 'Intro' : null, options.bumpers?.outro.enabled ? 'Outro' : null].filter((part) => part !== null);
-  return parts.length > 0 ? parts.join(' y ') : 'Desactivados';
+  const bumpers = options.bumpers;
+  const parts = [bumpers?.intro.enabled ? 'intro' : null, bumpers?.sponsor?.enabled ? 'sponsor' : null, bumpers?.outro.enabled ? 'outro' : null].filter((part) => part !== null);
+  if (parts.length === 0) return 'Desactivados';
+  const text = parts.length === 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} y ${parts.slice(-1).join('')}`;
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export function fullDemoPlanEdit(snapshot: FullDemoSnapshot): EditConfig {
@@ -283,7 +301,7 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, signal?: AbortSignal): Promise<FullDemoDocument> {
   options = currentFullDemoOptions(options);
-  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio, sponsor e intro/outro.');
+  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y vídeos añadidos.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan de vídeo largo incompatible.');
   return value;
@@ -313,21 +331,6 @@ export function localFileProvenance(file: File): FullDemoProvenance {
     title, creator: 'No declarado', source_url: `local:${encodeURIComponent(title)}`,
     permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
   };
-}
-/** Typed rights fields win; blank ones keep the local declaration. */
-export function fullDemoProvenance(file: File, typed: FullDemoProvenance): FullDemoProvenance {
-  const local = localFileProvenance(file);
-  const pick = (key: keyof FullDemoProvenance): string => typed[key].trim() || local[key];
-  return { title: pick('title'), creator: pick('creator'), source_url: pick('source_url'), permission: pick('permission'), attribution: typed.attribution.trim() };
-}
-/** Mirrors the server's source rule so a typo is explained before it becomes a 400. */
-export function fullDemoSourceError(source: string): string | null {
-  const value = source.trim();
-  if (value === '' || /^local:/i.test(value)) return null;
-  // The slashes matter: the browser reads `https:host` as a host, the server as an opaque path.
-  const url = /^https?:\/\//i.test(value) && URL.canParse(value) ? new URL(value) : null;
-  if (url && url.hostname !== '' && url.username === '' && url.password === '') return null;
-  return 'La fuente debe ser un enlace que empiece por https:// o una declaración local: (por ejemplo, local:archivo-propio). Déjala vacía si el archivo es tuyo.';
 }
 export async function uploadFullDemoBumper(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   if (!/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Selecciona un vídeo MP4.');

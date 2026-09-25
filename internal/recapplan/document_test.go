@@ -32,7 +32,6 @@ func fixtureOptions() Options {
 	o.Capture.Crosshair.AllowCaptureDefault = true
 	o.Audio.Voice.Enabled = false
 	o.Audio.Music.Enabled = false
-	o.Sponsor.Enabled = false
 	return o
 }
 
@@ -61,7 +60,7 @@ func TestDocumentStrictRoundTrip(t *testing.T) {
 	if err := got.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got.Options.Audio.Game.Gain != 0 || got.Options.Audio.Voice.Enabled || got.Options.Sponsor.Enabled || got.Options.Sponsor.Video != nil || got.Input.TargetSteamID64 != "76561198000000001" {
+	if got.Options.Audio.Game.Gain != 0 || got.Options.Audio.Voice.Enabled || got.Options.HasBumpers() || got.Input.TargetSteamID64 != "76561198000000001" {
 		t.Fatalf("decisions or identity changed: %+v", got)
 	}
 	store := &memStore{}
@@ -83,13 +82,17 @@ func TestDocumentStrictRoundTrip(t *testing.T) {
 func TestOptionsRejectAmbiguousJSON(t *testing.T) {
 	b, _ := json.Marshal(fixtureOptions())
 	valid := string(b)
+	withBumpers := fixtureOptions()
+	withBumpers.Bumpers = &BumperOptions{}
+	b, _ = json.Marshal(withBumpers)
+	bumpers := string(b)
 	for _, tc := range []struct{ name, input string }{
 		{"missing false", strings.Replace(valid, `"xray":false,`, "", 1)},
 		{"null false", strings.Replace(valid, `"xray":false`, `"xray":null`, 1)},
 		{"unknown", strings.Replace(valid, `"xray":false`, `"xray":false,"surprise":1`, 1)},
 		{"duplicate", strings.Replace(valid, `"xray":false`, `"xray":true,"xray":false`, 1)},
 		{"future profile", strings.Replace(valid, ProfileChill, "full-demo-pov-chill-v2", 1)},
-		{"missing nullable asset", strings.Replace(valid, `"video":null,`, "", 1)},
+		{"missing nullable asset", strings.Replace(bumpers, `,"video":null`, "", 1)},
 		{"partial nested object", strings.Replace(valid, `"gain":1,"voice_priority":false`, `"gain":1`, 1)},
 		{"trailing", valid + `{}`},
 	} {
@@ -172,7 +175,7 @@ func TestContentHashesAndCaptureReuse(t *testing.T) {
 		{"volatile metadata", func(d *Document) { d.PlanID = uuid.NewString(); d.Revision++; d.Input.FactsRef = "another/path" }, false, false},
 		{"same round IDs new ticks", func(d *Document) { d.Rounds[0].RequestedStartTick++; d.Rounds[0].CaptureStartTick++ }, true, true},
 		{"mix only", func(d *Document) { d.Options.Audio.Game.Gain = 0 }, true, false},
-		{"sponsor only", func(d *Document) { d.Options.Sponsor.Enabled = true }, true, false},
+		{"sponsor only", func(d *Document) { d.Options.Bumpers = &BumperOptions{Sponsor: &BumperSlot{Enabled: true}} }, true, false},
 		{"crosshair", func(d *Document) { d.Options.Capture.Crosshair.AllowCaptureDefault = false }, true, true},
 		{"hud", func(d *Document) { d.Options.Capture.HUDProfile = "native" }, true, true},
 		{"demo same name new bytes", func(d *Document) { d.Input.DemoSHA256 = strings.Repeat("c", 64) }, true, true},
@@ -199,48 +202,7 @@ func TestContentHashesAndCaptureReuse(t *testing.T) {
 	}
 }
 
-func TestSponsorTimelineAndSafeTail(t *testing.T) {
-	ref := AssetRef{uuid.NewString(), strings.Repeat("d", 64)}
-	asset := AssetEvidence{Ref: ref, DurationFrames: 20 * 60, HasAudio: true, HasVideo: true, Title: "Synthetic sponsor", Creator: "ClipHub tests", SourceURL: "local:test-fixture", Permission: "test-only"}
-	for _, tc := range []struct {
-		name    string
-		edit    func(*Options)
-		start   int64
-		blocked bool
-		items   int
-	}{
-		{"after second round", func(*Options) {}, 104 * 60, false, 4},
-		{"no eligible boundary", func(o *Options) { o.Sponsor.WindowStartSeconds = 120; o.Sponsor.WindowEndSeconds = 130 }, 0, true, 3},
-		{"explicit alternate boundary", func(o *Options) { o.Sponsor.PlacementPolicy = "round-boundary"; o.Sponsor.AfterRoundID = "round-001" }, 64 * 60, false, 4},
-		{"manual split approved", func(o *Options) {
-			o.Sponsor.PlacementPolicy = "manual-frame"
-			frame := int64(30 * 60)
-			o.Sponsor.ManualStartFrame = &frame
-			o.Sponsor.AllowSplitRound = true
-		}, 30 * 60, false, 5},
-		{"manual split unapproved", func(o *Options) {
-			o.Sponsor.PlacementPolicy = "manual-frame"
-			frame := int64(30 * 60)
-			o.Sponsor.ManualStartFrame = &frame
-		}, 0, true, 3},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			o := fixtureOptions()
-			o.Sponsor.Enabled = true
-			o.Sponsor.Video = &ref
-			tc.edit(&o)
-			d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "no_packets"}, []AssetEvidence{asset}, "facts")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if (len(d.Blockers) > 0) != tc.blocked || len(d.Timeline) != tc.items {
-				t.Fatalf("blockers=%+v timeline=%+v", d.Blockers, d.Timeline)
-			}
-			if !tc.blocked && (d.SponsorPlacement.StartFrame != tc.start || d.Timeline[len(d.Timeline)-1].EndFrame != 148*60) {
-				t.Fatalf("wrong independently calculated timing: %+v", d.Timeline)
-			}
-		})
-	}
+func TestCertifiedEndsKeepTheApprovedDocument(t *testing.T) {
 	d := fixtureDocument(t)
 	snapshot := Snapshot{Document: d, Approval: Approval{d.PlanHash, true, time.Now().UTC()}}
 	for _, tc := range []struct {
@@ -267,81 +229,18 @@ func TestSponsorTimelineAndSafeTail(t *testing.T) {
 	}
 }
 
-func TestSponsorAppendsAfterFinalRound(t *testing.T) {
-	ref := AssetRef{uuid.NewString(), strings.Repeat("d", 64)}
-	asset := AssetEvidence{Ref: ref, DurationFrames: 20 * 60, HasAudio: true, HasVideo: true, Title: "Synthetic sponsor", Creator: "ClipHub tests", SourceURL: "local:test-fixture", Permission: "test-only"}
-	for _, tc := range []struct {
-		name   string
-		rounds int
-		policy string
-		start  int64
-	}{
-		{"default one round", 1, "first-two-rounds", 107 * 60},
-		{"default two rounds", 2, "first-two-rounds", 104 * 60},
-		{"explicit final round", 3, "round-boundary", 128 * 60},
-		{"manual final boundary without splitting", 3, "manual-frame", 128 * 60},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			facts, options := fixtureFacts(), fixtureOptions()
-			facts.Rounds = facts.Rounds[:tc.rounds]
-			if tc.rounds == 1 {
-				facts.Rounds[0].RoundEndTick = 12800
-				facts.Rounds[0].NextStartTick = 0
-			}
-			options.Sponsor.Enabled, options.Sponsor.Video = true, &ref
-			options.Sponsor.PlacementPolicy = tc.policy
-			lastRound := facts.Rounds[len(facts.Rounds)-1].ID
-			if tc.policy == "round-boundary" {
-				options.Sponsor.AfterRoundID = lastRound
-			} else if tc.policy == "manual-frame" {
-				options.Sponsor.ManualStartFrame = &tc.start
-			}
-			d, err := Plan(facts, options, VoiceEvidence{Availability: "no_packets"}, []AssetEvidence{asset}, "facts")
-			if err != nil || len(d.Blockers) > 0 {
-				t.Fatalf("plan: %v; blockers: %+v", err, d.Blockers)
-			}
-			if len(d.Timeline) != tc.rounds+1 || d.SponsorPlacement.Boundary != lastRound || d.SponsorPlacement.StartFrame != tc.start {
-				t.Fatalf("final boundary missing: %+v; timeline: %+v", d.SponsorPlacement, d.Timeline)
-			}
-			sponsor := d.Timeline[len(d.Timeline)-1]
-			if sponsor.Role != "sponsor" || sponsor.SourceRef != ref.ID || sponsor.StartFrame != tc.start || sponsor.EndFrame != tc.start+20*60 || sponsor.StartSample != tc.start*800 || sponsor.EndSample != (tc.start+20*60)*800 {
-				t.Fatalf("appended sponsor timing: %+v", sponsor)
-			}
-			if d.Timeline[len(d.Timeline)-2].EndFrame != tc.start {
-				t.Fatal("sponsor consumed gameplay frames")
-			}
-			if err := d.Validate(); err != nil {
-				t.Fatalf("appended timeline does not survive document validation: %v", err)
-			}
-		})
-	}
-}
-
-func TestSponsorRejectsManualFrameBeyondProgram(t *testing.T) {
-	frame := int64(601)
-	options := DefaultOptions().Sponsor
-	options.PlacementPolicy, options.ManualStartFrame, options.AllowSplitRound = "manual-frame", &frame, true
-	if _, _, found := resolveSponsor(options, []Boundary{{AfterRoundID: "round-001", Frame: 600}}, 0, 600); found {
-		t.Fatal("sponsor accepted a frame beyond the final round")
-	}
-	frame = 0
-	if _, _, found := resolveSponsor(options, nil, 0, 0); found {
-		t.Fatal("sponsor accepted a boundary in an empty program")
-	}
-}
-
 func TestUnavailableAssetsAndVoiceRemainEnabled(t *testing.T) {
 	for _, availability := range []string{"no_packets", "no_team_packets", "silent", "unsupported_codec", "invalid_timeline", "failed"} {
 		t.Run(availability, func(t *testing.T) {
 			o := fixtureOptions()
 			o.Audio.Voice.Enabled = true
 			o.Audio.Music.Enabled = true
-			o.Sponsor.Enabled = true
+			o.Bumpers = &BumperOptions{Sponsor: &BumperSlot{Enabled: true}}
 			d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: availability}, nil, "facts")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(d.Blockers) < 3 || !d.Options.Audio.Music.Enabled || !d.Options.Sponsor.Enabled || !d.Options.Audio.Voice.Enabled {
+			if len(d.Blockers) < 3 || !d.Options.Audio.Music.Enabled || !d.Options.HasBumpers() || !d.Options.Audio.Voice.Enabled {
 				t.Fatalf("silently degraded: %+v", d)
 			}
 			err = (Snapshot{Document: d, Approval: Approval{d.PlanHash, true, time.Now().UTC()}}).Validate()

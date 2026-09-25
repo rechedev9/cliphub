@@ -314,7 +314,7 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	}
 	last := e.ProgramLoudness.DecodedAAC[len(e.ProgramLoudness.DecodedAAC)-1]
 	a := e.Effective.Options.Audio
-	if last.Status == "silent" && e.ProgramLoudness.Status == "silent-approved" && a.Game.Gain == 0 && (!a.Voice.Enabled || a.Voice.Gain == 0) && !a.Music.Enabled && !e.Effective.Options.Sponsor.Enabled && !e.Effective.Options.HasBumpers() && !e.Effective.HasTransitionSFX() {
+	if last.Status == "silent" && e.ProgramLoudness.Status == "silent-approved" && a.Game.Gain == 0 && (!a.Voice.Enabled || a.Voice.Gain == 0) && !a.Music.Enabled && !e.Effective.Options.HasBumpers() && !e.Effective.HasTransitionSFX() {
 		return nil
 	}
 	if e.ProgramLoudness.Status != "verified-decoded-aac" || last.Status != "measured" || last.IntegratedLUFS == nil || last.TruePeakDBTP == nil || math.IsNaN(*last.IntegratedLUFS) || math.IsNaN(*last.TruePeakDBTP) || math.IsInf(*last.IntegratedLUFS, 0) || math.IsInf(*last.TruePeakDBTP, 0) || math.Abs(*last.IntegratedLUFS-a.Loudness.TargetILUFS) > .5 || *last.TruePeakDBTP > a.Loudness.TargetTPDBTP {
