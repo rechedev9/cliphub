@@ -40,7 +40,10 @@ type ProgramLoudnessEvidence struct {
 
 func decimal(v float64) string { return strconv.FormatFloat(v, 'f', 6, 64) }
 
+// loudnessFilter clamps at the one place a loudnorm target becomes an FFmpeg
+// argument, so no retarget path can abort the render with an out-of-range value.
 func loudnessFilter(target recapplan.LoudnessOptions) string {
+	target = clampLoudnormTarget(target)
 	return "loudnorm=I=" + decimal(target.TargetILUFS) + ":TP=" + decimal(target.TargetTPDBTP) + ":LRA=" + decimal(target.TargetLRA)
 }
 
@@ -165,10 +168,8 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 			recovery.discard()
 		}
 	}()
-	attemptTarget := target
+	attemptTarget := aacHeadroomTarget(target)
 	masterSamples := int64(math.Round(duration * recapplan.SampleRate))
-	// Reserve a small initial headroom for lossy AAC reconstruction.
-	attemptTarget.TargetTPDBTP -= 0.3
 	for attempt := 0; attempt < 3; attempt++ {
 		start := .08 + float64(attempt)*.25
 		stage := fmt.Sprintf("Ajustando audio final (%d/3)", attempt+1)
@@ -247,7 +248,23 @@ const (
 	loudnormMaxILUFS  = -5.0
 	loudnormMinTPDBTP = -9.0
 	loudnormMaxTPDBTP = 0.0
+	loudnormMinLRA    = 1.0
+	loudnormMaxLRA    = 50.0
 )
+
+func clampLoudnormTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
+	target.TargetILUFS = max(loudnormMinILUFS, min(loudnormMaxILUFS, target.TargetILUFS))
+	target.TargetTPDBTP = max(loudnormMinTPDBTP, min(loudnormMaxTPDBTP, target.TargetTPDBTP))
+	target.TargetLRA = max(loudnormMinLRA, min(loudnormMaxLRA, target.TargetLRA))
+	return target
+}
+
+// aacHeadroomTarget reserves a small true-peak headroom for lossy AAC
+// reconstruction; the first native master and every recovery master use it.
+func aacHeadroomTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
+	target.TargetTPDBTP -= .3
+	return clampLoudnormTarget(target)
+}
 
 // nextMasterTarget derives the next native master target from the decoded AAC
 // measurement, clamped to loudnorm's accepted ranges. It reports false when the
@@ -258,7 +275,6 @@ func nextMasterTarget(current, target recapplan.LoudnessOptions, decoded Loudnes
 	if *decoded.TruePeakDBTP > target.TargetTPDBTP {
 		next.TargetTPDBTP -= *decoded.TruePeakDBTP - target.TargetTPDBTP + 0.2
 	}
-	next.TargetILUFS = max(loudnormMinILUFS, min(loudnormMaxILUFS, next.TargetILUFS))
-	next.TargetTPDBTP = max(loudnormMinTPDBTP, min(loudnormMaxTPDBTP, next.TargetTPDBTP))
+	next = clampLoudnormTarget(next)
 	return next, next != current
 }
