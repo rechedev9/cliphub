@@ -28,6 +28,8 @@ const (
 const (
 	ScoreboardAfterLastKillSeconds = 1.0
 	ScoreboardSeconds              = 8
+	// Matches the parser's demo-end safety margin.
+	scoreboardEOFMarginSeconds = 2
 )
 
 // Options contains creative decisions only. Facts and resolved media properties

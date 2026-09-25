@@ -35,7 +35,8 @@ func (d Document) Hash() (string, error) {
 }
 
 // CaptureHash covers capture decisions and requested coverage, independently
-// of music, sponsor, overlays and export settings.
+// of music, sponsor, overlays and export settings. The scoreboard overlay still
+// reaches it through the final round's requested tail.
 func (d Document) CaptureHash() (string, error) {
 	type coverage struct {
 		ID         string
@@ -231,9 +232,9 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	if !f.Complete {
 		d.block(ErrFactsInsufficient, "Source ended without complete round evidence")
 	}
+	lastFact := -1
 	for i, fact := range f.Rounds {
-		scoreboardTail := i == len(f.Rounds)-1 && options.Overlays.Scoreboard
-		r, notices, err := planRound(f, fact, options.Editorial, scoreboardTail)
+		r, notices, err := planRound(f, fact, options.Editorial, false)
 		if err != nil {
 			return Document{}, err
 		}
@@ -246,7 +247,18 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 		}
 		if r.RequestedEndTick > r.RequestedStartTick {
 			d.Rounds = append(d.Rounds, r)
+			lastFact = i
 		}
+	}
+	// The outro scoreboard sits on the last published round, which is not the
+	// last source round when that one was excluded. Its notices were already
+	// recorded above and do not depend on the tail.
+	if options.Overlays.Scoreboard && lastFact >= 0 {
+		r, _, err := planRound(f, f.Rounds[lastFact], options.Editorial, true)
+		if err != nil {
+			return Document{}, err
+		}
+		d.Rounds[len(d.Rounds)-1] = r
 	}
 	if len(d.Rounds) == 0 {
 		d.block(ErrFactsInsufficient, "No publishable player round remains")
@@ -357,7 +369,8 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	return d, err
 }
 
-// scoreboardTail marks the final round of a plan with the outro scoreboard.
+// scoreboardTail marks the last published round of a plan with the outro
+// scoreboard.
 func planRound(f Facts, source RoundFacts, opts EditorialOptions, scoreboardTail bool) (Round, []Notice, error) {
 	notices := []Notice{}
 	r := Round{ID: source.ID, Number: source.Number, LiveStartTick: source.FreezeEndTick, RoundEndTick: source.RoundEndTick, DeathTick: source.DeathTick, BoundsEvidence: source.Evidence, ExcludedIntervals: []TickRange{}, Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}
@@ -384,14 +397,18 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions, scoreboardTail
 		// The outro scoreboard starts a second after the last kill and must not
 		// be cut short by the two-second round tail. Only a surviving POV is
 		// extended, and only when an uncertified tail may be trimmed instead
-		// of failing the capture.
+		// of failing the capture. Kills after the round end are captured and
+		// delay the scoreboard too, so they count. Full Demo windows are exact,
+		// so the extension stays scoreboardEOFMarginSeconds away from demo EOF
+		// where record-end may never fire.
 		lastKill := 0
 		for _, k := range source.Kills {
-			if k.Tick >= start && k.Tick <= source.RoundEndTick {
+			if k.Tick >= start && k.Tick < limit {
 				lastKill = max(lastKill, k.Tick)
 			}
 		}
-		if hold := min(limit, lastKill+secondsTicks(ScoreboardAfterLastKillSeconds+ScoreboardSeconds, f.TickRate)); lastKill > 0 && hold > end {
+		hold := min(limit, f.EndTick-scoreboardEOFMarginSeconds*f.TickRate, lastKill+secondsTicks(ScoreboardAfterLastKillSeconds+ScoreboardSeconds, f.TickRate))
+		if lastKill > 0 && hold > end {
 			end = hold
 			r.EndReason = "scoreboard-tail"
 		}

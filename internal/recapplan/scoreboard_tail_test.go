@@ -18,10 +18,15 @@ func TestFinalRoundTailFitsTheScoreboardAfterTheLastKill(t *testing.T) {
 	}{
 		{"late final kill extends the tail", func(*Facts, *Options) {}, 2, 19800, "scoreboard-tail"},
 		{"early final kill keeps the round tail", func(f *Facts, _ *Options) { f.Rounds[2].Kills = f.Rounds[2].Kills[:1] }, 2, 19200, "round-tail"},
-		{"demo end caps the extension", func(f *Facts, _ *Options) { f.EndTick = 19500 }, 2, 19500, "scoreboard-tail"},
+		{"demo end caps the extension two seconds early", func(f *Facts, _ *Options) { f.EndTick = 19500 }, 2, 19300, "scoreboard-tail"},
+		{"a demo ending inside the round tail is not extended", func(f *Facts, _ *Options) { f.EndTick = 19350 }, 2, 19200, "round-tail"},
 		{"no scoreboard keeps the round tail", func(_ *Facts, o *Options) { o.Overlays.Scoreboard = false }, 2, 19200, "round-tail"},
 		{"no safe tail trim keeps the round tail", func(_ *Facts, o *Options) { o.Editorial.AllowSafeTailTrim = false }, 2, 19200, "round-tail"},
 		{"a dead POV keeps the death tail", func(f *Facts, _ *Options) { death := 18950; f.Rounds[2].DeathTick = &death }, 2, 19250, "death-tail-requires-certified-pov"},
+		{"a kill after the round end counts", func(f *Facts, _ *Options) { f.Rounds[2].Kills = []killplan.Kill{{Tick: 17800}, {Tick: 19100}} }, 2, 20000, "scoreboard-tail"},
+		{"an excluded last source round passes the tail to the last published one", func(f *Facts, _ *Options) {
+			f.Rounds = append(f.Rounds, RoundFacts{ID: "round-026", Number: 26, StartTick: 20000, Evidence: "round-events"})
+		}, 2, 19800, "scoreboard-tail"},
 		{"earlier rounds keep the round tail", func(f *Facts, _ *Options) {
 			f.Rounds[0].Kills = []killplan.Kill{{Tick: 8400}}
 		}, 0, 8700, "round-tail"},

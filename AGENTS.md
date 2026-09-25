@@ -104,8 +104,8 @@ The outro scoreboard starts no earlier than
 `recapplan.ScoreboardAfterLastKillSeconds` after the last kill and ends with
 the gameplay span (`generatedFullDemoOverlayEffects`). With the scoreboard
 enabled, the planner extends the final round's tail to fit that second plus
-`recapplan.ScoreboardSeconds` (`EndReason` `scoreboard-tail`), capped by the
-demo end. It extends only a surviving POV and only when safe tail trim is
+`recapplan.ScoreboardSeconds` (`EndReason` `scoreboard-tail`), capped two
+seconds before the demo end because Full Demo windows are exact. It extends only a surviving POV and only when safe tail trim is
 approved, so an uncertified post-match tail is trimmed instead of failing the
 capture. Toggling the scoreboard therefore changes the final capture window.
 
