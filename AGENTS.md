@@ -37,6 +37,9 @@ Rules that follow from it:
   reach it.** Write a unit test that drives the loop with the measured values
   from the incident (see `TestFullDemoMasterRetargetStaysWithinLoudnormRange`)
   and asserts the hand-over happens.
+  `TestFullDemoMasteringFiltersStayInRangeForAnyMeasurement` sweeps the
+  measurement space for both the native and the recovery loop; add any new
+  computed filter option to its `computedFilterRanges` table.
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
   installer can bundle. It is present on all standard Windows editions and
   the shipped FFmpeg exposes it; only "N/KN" editions lack it. Do not
@@ -94,6 +97,8 @@ Rules that follow from it:
   `fullDemoOverlaySource` mirrors it and both are covered by tests.
 - Do not add a plan option that the render never reads. If a field exists in
   the wire and the UI, something must consume it or it must be removed.
+  `TestEveryChangeableFullDemoOptionIsRead` enforces it for every field the
+  execution gate lets a user change.
 - When a user reports a regression "caused by feature X", check telemetry
   for the last successful run of the same path before X shipped. If every
   run in between failed, the regression window is the whole gap, not X.
