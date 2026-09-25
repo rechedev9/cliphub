@@ -1,8 +1,10 @@
-# Pins this shell to the packaged HLAE 2.192.3 unpack and prints capture readiness.
-# Identity is the unpacked path + Test-Path. Do not Get-FileHash HLAE.exe against
-# desktop/src/hlae-tool.json: sha256 is the zip, treeSha256 is Studio's tree digest.
+# Pins this shell to the packaged HLAE unpack named by desktop/src/hlae-tool.json
+# and prints capture readiness. Identity is the unpacked path + Test-Path. Do not
+# Get-FileHash HLAE.exe against the manifest: sha256 is the zip, treeSha256 is
+# Studio's tree digest.
 $ErrorActionPreference = 'Stop'
-$pin = Join-Path $env:APPDATA 'cliphub-studio\tools\hlae\2.192.3\HLAE.exe'
+$manifest = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\desktop\src\hlae-tool.json') | ConvertFrom-Json
+$pin = Join-Path $env:APPDATA "cliphub-studio\tools\hlae\$($manifest.version)\$($manifest.exeRel)"
 if (-not (Test-Path -LiteralPath $pin)) {
     throw "HLAE pin missing: $pin"
 }
