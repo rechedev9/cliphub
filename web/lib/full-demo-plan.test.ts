@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, fullDemoProvenance, fullDemoSourceError, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
@@ -175,7 +175,7 @@ test('Go editorial document survives edit wire, local persistence and render hyd
   options.audio.voice.enabled = false; options.audio.voice.gain = 0;
   options.audio.game.gain = 0; options.audio.game.voice_priority = false;
   options.audio.music.ducking.enabled = false; options.audio.music.ducking.game_contribution = 0;
-  options.sponsor.enabled = false; options.overlays.roster = false; options.overlays.scoreboard = false;
+  options.overlays.roster = false; options.overlays.scoreboard = false;
   options.outputs.cover_policy = 'no-cover';
   const edit = fullDemoPlanEdit(snapshot);
   const body = buildEditRequest(edit);
@@ -191,7 +191,6 @@ test('Go editorial document survives edit wire, local persistence and render hyd
 for (const [name, mutate] of [
   ['range with unchanged round ID', (o: FullDemoOptions): void => { o.editorial.freeze_seconds = 5; }],
   ['game volume zero', (o: FullDemoOptions): void => { o.audio.game.gain = 0; }],
-  ['sponsor split', (o: FullDemoOptions): void => { o.sponsor.allow_split_round = true; }],
   ['cover', (o: FullDemoOptions): void => { o.outputs.cover_policy = 'generated-gameplay'; }],
   ['transitions disabled', (o: FullDemoOptions): void => { o.transitions = { ...fullDemoTransitionPreset(), enabled: false }; }],
 ] satisfies [string, (options: FullDemoOptions) => void][]) {
@@ -215,7 +214,7 @@ test('identical options and hashes survive re-fetch, key ordering and approval t
   assert.ok(editConfigsEqual(fullDemoPlanEdit(snapshot), fullDemoPlanEdit(other)));
 });
 
-test('intro and outro bumpers are optional, preserved verbatim and part of the approval key', () => {
+test('intro, sponsor and outro bumpers are optional, preserved verbatim and part of the approval key', () => {
   const { document } = fixture();
   const options = structuredClone(document.options);
   assert.equal(options.bumpers, undefined);
@@ -224,22 +223,42 @@ test('intro and outro bumpers are optional, preserved verbatim and part of the a
   const ref = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'e'.repeat(64) };
   const withBumpers = { ...options, bumpers: { intro: { enabled: true, video: ref }, outro: { enabled: true, video: null } } };
   assert.ok(isFullDemoOptions(withBumpers));
-  assert.equal(bumperSummary(withBumpers), 'Intro y Outro');
+  assert.equal(bumperSummary(withBumpers), 'Intro y outro');
   assert.deepEqual(currentFullDemoOptions(withBumpers).bumpers, withBumpers.bumpers);
   assert.equal(fullDemoApprovalKey(document, withBumpers), null, 'enabling a bumper changes the approved plan');
   assert.equal(bumperSummary({ bumpers: { intro: { enabled: false, video: null }, outro: { enabled: true, video: ref } } }), 'Outro');
+  const withSponsor = { ...withBumpers, bumpers: { ...withBumpers.bumpers, sponsor: { enabled: true, video: ref } } };
+  assert.ok(isFullDemoOptions(withSponsor));
+  assert.equal(bumperSummary(withSponsor), 'Intro, sponsor y outro');
+  assert.deepEqual(currentFullDemoOptions(withSponsor).bumpers, withSponsor.bumpers);
+  assert.equal(bumperSummary({ bumpers: { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: ref } } }), 'Sponsor');
+});
+
+test('an old draft or stored plan with the retired sponsor group stays readable but never reaches the wire', () => {
+  const { document } = fixture();
+  const video = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+  const legacy = { ...document.options, sponsor: { enabled: true, video, placement_policy: 'round-boundary', after_round_id: 'round-001' } };
+  assert.ok(isFullDemoOptions(legacy));
+  assert.ok(isFullDemoSnapshot({ ...fixture(), document: { ...document, options: legacy, sponsor_placement: { boundary: 'round-001' } } }));
+  const migrated = currentFullDemoOptions(legacy);
+  assert.equal(Object.hasOwn(migrated, 'sponsor'), false);
+  assert.deepEqual(migrated.bumpers, { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video } });
+  assert.equal(fullDemoApprovalKey({ ...document, options: legacy }, migrated), null, 'a legacy sponsor plan must be prepared again');
+  for (const sponsor of [{ enabled: true, video: null }, { enabled: false, video }]) {
+    assert.equal(fullDemoOptionsKey(currentFullDemoOptions({ ...document.options, sponsor })), fullDemoOptionsKey(document.options), 'an unused legacy sponsor is dropped without adding bumpers');
+  }
 });
 
 for (const [name, value] of [
-  ['missing option', { ...fixture().document.options, sponsor: undefined }],
+  ['missing option', { ...fixture().document.options, outputs: undefined }],
   ['bumper without slots', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null } } }],
   ['bumper with a policy', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null, placement: 'start' }, outro: { enabled: false, video: null } } }],
+  ['sponsor bumper with a placement', { ...fixture().document.options, bumpers: { intro: { enabled: false, video: null }, outro: { enabled: false, video: null }, sponsor: { enabled: true, video: null, after_round_id: 'round-001' } } }],
   ['bumper with a bad ref', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: { id: 'x', sha256: 'y' } }, outro: { enabled: false, video: null } } }],
   ['null boolean', { ...fixture().document.options, capture: { ...fixture().document.options.capture, xray: null } }],
   ['unknown key', { ...fixture().document.options, pipeline: 'new' }],
   ['invalid profile', { ...fixture().document.options, profile_id: 'legacy' }],
   ['nonfinite gain', { ...fixture().document.options, audio: { ...fixture().document.options.audio, game: { gain: Number.NaN, voice_priority: false } } }],
-  ['reversed window', { ...fixture().document.options, sponsor: { ...fixture().document.options.sponsor, window_start_seconds: 140, window_end_seconds: 130 } }],
 ] satisfies [string, unknown][]) {
   test(`rejects ${name} without defaulting`, () => assert.equal(isFullDemoOptions(value), false));
 }
@@ -366,26 +385,8 @@ test('bumper upload accepts MP4 directly without inventing ownership and rejects
   assert.equal(calls, 1);
 });
 
-test('a file-only asset declares itself as local, and typed rights fields win over the declaration', () => {
-  const file = new File(['test'], 'ZACK KEYDROP PREROLL.mp4', { type: 'video/mp4' });
-  const blank = { title: ' ', creator: '', source_url: '', permission: '', attribution: '' };
-  // Same values as internal/mediaassets TestProvenanceValidateLocalFileDeclaration.
-  assert.deepEqual(fullDemoProvenance(file, blank), {
-    title: 'ZACK KEYDROP PREROLL.mp4', creator: 'No declarado', source_url: 'local:ZACK%20KEYDROP%20PREROLL.mp4',
-    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
-  });
-  assert.deepEqual(fullDemoProvenance(file, { ...blank, creator: ' Zack ', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack' }), {
-    ...localFileProvenance(file), creator: 'Zack', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack',
-  });
-  // The server bounds the title in UTF-8 bytes, not UTF-16 units.
+test('a local file declaration bounds its title in UTF-8 bytes like the server', () => {
   const long = localFileProvenance(new File(['test'], `${'ñ'.repeat(150)}.mp4`));
   assert.equal(long.title, 'ñ'.repeat(100));
   assert.equal(long.source_url, `local:${encodeURIComponent('ñ'.repeat(100))}`);
-});
-
-test('an asset source must be an http(s) link or a local declaration before it reaches the server', () => {
-  for (const source of ['', '  ', 'local:archivo-propio', 'LOCAL:x', 'https://zack.gg/preroll', 'http://zack.gg']) assert.equal(fullDemoSourceError(source), null, source);
-  for (const source of ['ZACK KEYDROP', 'www.zack.gg/preroll', 'https:zack.gg', 'https://user@zack.gg', 'ftp://zack.gg', 'C:\\Videos\\preroll.mp4']) {
-    assert.match(fullDemoSourceError(source) ?? '', /https:\/\/.*local:/, source);
-  }
 });

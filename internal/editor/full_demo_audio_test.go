@@ -187,8 +187,7 @@ func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
 // for TP=-10.18, outside its [-9, 0] range, failing the render at 81 %.
 func TestFullDemoMasterRetargetStaysWithinLoudnormRange(t *testing.T) {
 	target := recapplan.DefaultOptions().Audio.Loudness
-	current := target
-	current.TargetTPDBTP -= 0.3
+	current := aacHeadroomTarget(target)
 	lufs, peak := target.TargetILUFS, 2.99
 	decoded := LoudnessMeasurement{Status: "measured", IntegratedLUFS: &lufs, TruePeakDBTP: &peak}
 	var changed bool

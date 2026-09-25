@@ -56,13 +56,21 @@ func SaveDocument(store storage.Storage, id uuid.UUID, document Document) error 
 	}{document.PlanID})
 }
 
+// LoadDocument reads a stored plan. A plan written before the sponsor became a
+// bumper slot reads as absent, so the producer plans again from the defaults.
 func LoadDocument(store storage.Storage, id, planID uuid.UUID) (Document, bool, error) {
-	var document Document
-	found, err := readJSON(store, artifacts.FullDemoPlanKey(id, planID), &document)
-	if err == nil && found {
-		err = document.Validate()
+	b, found, err := readBytes(store, artifacts.FullDemoPlanKey(id, planID))
+	if err != nil || !found {
+		return Document{}, found, err
 	}
-	return document, found, err
+	if hasRetiredSponsor(b) {
+		return Document{}, false, nil
+	}
+	var document Document
+	if err := decodeStrict(b, &document); err != nil {
+		return Document{}, false, fmt.Errorf("read %s: %w", artifacts.FullDemoPlanKey(id, planID), err)
+	}
+	return document, true, document.Validate()
 }
 
 func LoadCurrentDocument(store storage.Storage, id uuid.UUID) (Document, bool, error) {
@@ -91,18 +99,26 @@ func putJSON(store storage.Storage, key string, value any) error {
 	return nil
 }
 
-func readJSON(store storage.Storage, key string, value any) (bool, error) {
+func readBytes(store storage.Storage, key string) ([]byte, bool, error) {
 	r, err := store.Open(key)
 	if err != nil {
 		if storage.IsNotExist(err) {
-			return false, nil
+			return nil, false, nil
 		}
-		return false, err
+		return nil, false, err
 	}
 	defer r.Close()
 	b, err := io.ReadAll(io.LimitReader(r, (4<<20)+1))
 	if err != nil {
-		return false, fmt.Errorf("read %s: %w", key, err)
+		return nil, false, fmt.Errorf("read %s: %w", key, err)
+	}
+	return b, true, nil
+}
+
+func readJSON(store storage.Storage, key string, value any) (bool, error) {
+	b, found, err := readBytes(store, key)
+	if err != nil || !found {
+		return found, err
 	}
 	if err := decodeStrict(b, value); err != nil {
 		return false, fmt.Errorf("read %s: %w", key, err)

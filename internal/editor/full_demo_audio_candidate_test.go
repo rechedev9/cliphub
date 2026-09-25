@@ -263,8 +263,7 @@ func TestFullDemoAudioOnlyCandidateMuxIsBitExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	attemptTarget := target
-	attemptTarget.TargetTPDBTP -= 0.3
+	attemptTarget := aacHeadroomTarget(target)
 	filter, err := measuredLoudnessFilter(attemptTarget, measurement)
 	if err != nil {
 		t.Fatal(err)

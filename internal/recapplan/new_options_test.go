@@ -13,7 +13,7 @@ import (
 
 func TestDefaultOptionsUseSimplifiedFullDemoDefaults(t *testing.T) {
 	o := DefaultOptions()
-	if o.Audio.Music.Enabled || len(o.Audio.Music.Assets) != 0 || o.Sponsor.Enabled {
+	if o.Audio.Music.Enabled || len(o.Audio.Music.Assets) != 0 || o.HasBumpers() {
 		t.Fatalf("new plan defaults activate optional media: %+v", o)
 	}
 	if o.Capture.HUDProfile != customhud.CaptureProfile || o.Overlays.HUDTheme == "" {
@@ -149,8 +149,7 @@ func TestCurrentPolicyPreservesSupportedChoicesAndEmptyHistoricalSlices(t *testi
 	o.Overlays.HUDTheme = "mono"
 	o.Audio.Voice.Enabled = false
 	o.Transitions.Enabled = false
-	o.Sponsor.PlacementPolicy = "round-boundary"
-	o.Sponsor.AfterRoundID = "round-002"
+	o.Bumpers = &BumperOptions{Sponsor: &BumperSlot{}}
 	o.Editorial.ManualRanges = nil
 	o.Audio.Music.Assets = nil
 	before, err := HashValue(o)

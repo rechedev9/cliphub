@@ -519,7 +519,7 @@ func BuildCoverFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	seek := fmt.Sprintf("%.3f", short.CoverTimeSeconds)
 	if short.FullDemo != nil {
 		// Rounding a frame timestamp up to milliseconds can select the next
-		// frame (the sponsor or a bumper). Keep the approved gameplay frame at microsecond
+		// frame (a bumper). Keep the approved gameplay frame at microsecond
 		// resolution, rounding down so FFmpeg cannot cross that boundary.
 		seek = fmt.Sprintf("%.6f", math.Floor(short.CoverTimeSeconds*1e6)/1e6)
 	}
@@ -547,7 +547,7 @@ func BuildCoverSheetFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	selection := ""
 	if short.FullDemo != nil {
 		for _, item := range short.FullDemo.Effective.Timeline {
-			if item.Role == "sponsor" || item.Role == "bumper" {
+			if item.Role == "bumper" {
 				selection += fmt.Sprintf("select='not(between(n,%d,%d))',", item.StartFrame, item.EndFrame-1)
 			}
 		}

@@ -268,8 +268,9 @@ func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
 	return effects
 }
 
-// fullDemoGameplaySpanSeconds is the program interval that is not a bumper:
-// the whole program when there is no Full Demo evidence or no bumper item.
+// fullDemoGameplaySpanSeconds is the program interval between the leading and
+// trailing bumpers (a one-round program ends with sponsor then outro): the
+// whole program when there is no Full Demo evidence or no bumper item.
 func fullDemoGameplaySpanSeconds(short ShortEdit) (float64, float64) {
 	start, end := 0.0, short.DurationSeconds
 	if short.FullDemo == nil {
@@ -279,11 +280,14 @@ func fullDemoGameplaySpanSeconds(short ShortEdit) (float64, float64) {
 	if len(items) == 0 {
 		return start, end
 	}
-	if first := items[0]; first.Role == "bumper" {
-		start = float64(first.EndFrame) / recapplan.OutputFPS
+	first, last := 0, len(items)-1
+	for first <= last && items[first].Role == "bumper" {
+		start = float64(items[first].EndFrame) / recapplan.OutputFPS
+		first++
 	}
-	if last := items[len(items)-1]; last.Role == "bumper" {
-		end = float64(last.StartFrame) / recapplan.OutputFPS
+	for last >= first && items[last].Role == "bumper" {
+		end = float64(items[last].StartFrame) / recapplan.OutputFPS
+		last--
 	}
 	if end <= start {
 		return 0, 0
