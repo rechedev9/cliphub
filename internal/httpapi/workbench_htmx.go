@@ -685,8 +685,6 @@ func (h *Handlers) workbenchRenderState(id uuid.UUID, variant string) (*renderpl
 	status := renderplan.RenderVariantStatusReady
 	if result.Error != "" {
 		status = renderplan.RenderVariantStatusFailed
-	} else if len(warnings) > 0 {
-		status = renderplan.RenderVariantStatusReview
 	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {

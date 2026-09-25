@@ -102,7 +102,7 @@ test('render ready wins even if job flags failed (a finished reel is ready)', ()
   );
 });
 
-test('render warnings stay terminal but block publication', () => {
+test('a legacy review_required render is ready: QA warnings never block the reel', () => {
   assert.deepEqual(
     view({
       jobStatus: 'failed',
@@ -112,7 +112,7 @@ test('render warnings stay terminal but block publication', () => {
       renderArtifactPrefix: 'jobs/j/renders/v/revisions/r',
     }),
     {
-      status: 'review_required',
+      status: 'ready',
       action: 'none',
       warnings: ['frozen frame at 00:12.400'],
       reviewArtifactPrefix: 'jobs/j/renders/v/revisions/r',
@@ -131,10 +131,9 @@ test('ready without an MP4 name latches failed+unrecoverable after three ticks s
   });
 });
 
-test('reels leave reconciliation only when ready with an MP4 URL; review/failed/active stay so retries are not stuck', () => {
+test('reels leave reconciliation only when ready with an MP4 URL; failed/active stay so retries are not stuck', () => {
   const cases: Array<[Parameters<typeof shouldReconcileVideoStatus>[0], boolean]> = [
     [undefined, true],
-    [{ status: 'review_required' }, true],
     [{ status: 'failed' }, true],
     [{ status: 'recording' }, true],
     // Ready before the artifact names arrived: nothing else would fetch them.

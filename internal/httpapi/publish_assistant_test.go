@@ -113,55 +113,92 @@ func TestGetPublishAssistantReturnsFactualManualPack(t *testing.T) {
 	}
 }
 
-func TestGetPublishAssistantRejectsUnresolvedRenderWarnings(t *testing.T) {
-	h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
-		Player: "reche", Map: "Mirage", KillCount: 5, Hook: "5K TOTAL",
-	})
-	req := assistantRequest(http.MethodGet, url)
-	id, err := uuid.Parse(chi.URLParam(req, "id"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	loadout, err := renderplan.LoadoutForVariant(chi.URLParam(req, "variant"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-		JobID:    id,
-		Loadout:  loadout,
-		Status:   renderplan.RenderVariantStatusReady,
-		Warnings: []string{"freeze at 00:12"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	putAssistantJSON(t, h.storage.(*fakeStorage), state.RenderResultKey, editor.Result{
-		Warnings: []string{"freeze at 00:12"},
-		Shorts:   []editor.ShortResult{{SegmentID: chi.URLParam(req, "name"), Headline: "5K TOTAL"}},
-	})
-	if err := h.writeRenderVariantState(state); err != nil {
-		t.Fatal(err)
-	}
+func TestGetPublishAssistantAcceptsRenderWithWarnings(t *testing.T) {
+	// QA warnings are informational; a legacy review_required state is
+	// publishable too.
+	for _, status := range []string{renderplan.RenderVariantStatusReady, renderplan.RenderVariantStatusReview} {
+		t.Run(status, func(t *testing.T) {
+			h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
+				Player: "reche", Map: "Mirage", KillCount: 5, Hook: "5K TOTAL",
+			})
+			req := assistantRequest(http.MethodGet, url)
+			id, err := uuid.Parse(chi.URLParam(req, "id"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			loadout, err := renderplan.LoadoutForVariant(chi.URLParam(req, "variant"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:    id,
+				Loadout:  loadout,
+				Status:   status,
+				Warnings: []string{"freeze at 00:12"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			putAssistantJSON(t, h.storage.(*fakeStorage), state.RenderResultKey, editor.Result{
+				Warnings: []string{"freeze at 00:12"},
+				Shorts:   []editor.ShortResult{{SegmentID: chi.URLParam(req, "name"), Headline: "5K TOTAL"}},
+			})
+			if err := h.writeRenderVariantState(state); err != nil {
+				t.Fatal(err)
+			}
 
-	rw := httptest.NewRecorder()
-	h.GetPublishAssistant(rw, req)
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+			rw := httptest.NewRecorder()
+			h.GetPublishAssistant(rw, req)
+			if rw.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+			}
+		})
 	}
+}
 
-	state.ReviewResolution = &renderplan.RenderReviewResolution{
-		ArtifactPrefix: state.ArtifactPrefix,
-		Warnings:       []string{"freeze at 00:12"},
-		Note:           "Freeze inspected at the reported interval and intentional.",
-		ReviewedAt:     time.Now().UTC(),
-	}
-	if err := h.writeRenderVariantState(state); err != nil {
-		t.Fatal(err)
-	}
-	rw = httptest.NewRecorder()
-	h.GetPublishAssistant(rw, req)
-	if rw.Code != http.StatusOK {
-		t.Fatalf("reviewed status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+func TestGetPublishAssistantRejectsUnfinishedRenderOverAPreviousResult(t *testing.T) {
+	// Relaxing the warnings gate must not publish a previous successful result
+	// while its state says a new render is queued, running, or failed.
+	for _, status := range []string{
+		renderplan.RenderVariantStatusQueued,
+		renderplan.RenderVariantStatusRendering,
+		renderplan.RenderVariantStatusFailed,
+	} {
+		t.Run(status, func(t *testing.T) {
+			h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
+				Player: "reche", Map: "Mirage", KillCount: 5, Hook: "5K TOTAL",
+			})
+			req := assistantRequest(http.MethodGet, url)
+			id, err := uuid.Parse(chi.URLParam(req, "id"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			loadout, err := renderplan.LoadoutForVariant(chi.URLParam(req, "variant"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:   id,
+				Loadout: loadout,
+				Status:  status,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			putAssistantJSON(t, h.storage.(*fakeStorage), state.RenderResultKey, editor.Result{
+				Warnings: []string{"freeze at 00:12"},
+				Shorts:   []editor.ShortResult{{SegmentID: chi.URLParam(req, "name"), Headline: "5K TOTAL"}},
+			})
+			if err := h.writeRenderVariantState(state); err != nil {
+				t.Fatal(err)
+			}
+
+			rw := httptest.NewRecorder()
+			h.GetPublishAssistant(rw, req)
+			if rw.Code != http.StatusConflict {
+				t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+			}
+		})
 	}
 }
 

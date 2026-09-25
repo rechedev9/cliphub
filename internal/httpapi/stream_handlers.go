@@ -452,7 +452,7 @@ func (h *Handlers) streamRenderedOutputs(j streamclips.Job) ([]streamRenderedOut
 				CoverURL:         coverURL,
 				RenderStatus:     streamclips.StatusRendered,
 				Stale:            stale,
-				ReviewRequired:   stale || len(warnings) > 0,
+				ReviewRequired:   stale,
 				Warnings:         append([]string(nil), warnings...),
 			})
 		}

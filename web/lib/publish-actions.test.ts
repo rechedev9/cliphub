@@ -57,7 +57,7 @@ function assistant() {
 test('failed videos are not waiting for a YouTube draft', () => {
   assert.equal(publishAssistantAvailability('ready'), 'ready');
   assert.equal(publishAssistantAvailability('failed'), 'failed');
-  for (const status of ['queued', 'recording', 'composing', 'review_required'] as const) {
+  for (const status of ['queued', 'recording', 'composing'] as const) {
     assert.equal(publishAssistantAvailability(status), 'waiting', status);
   }
   assert.match(PUBLISH_ASSISTANT_WAITING_COPY, /esté listo/);

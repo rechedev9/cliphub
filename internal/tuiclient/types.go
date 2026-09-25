@@ -40,6 +40,10 @@ const (
 	StatusComposed  = "composed"
 	StatusDone      = "done"
 	StatusFailed    = "failed"
+
+	// StatusReviewRequired is legacy: composition QA warnings no longer hold a
+	// job, but pre-upgrade rows may still carry it and behave like composed.
+	StatusReviewRequired = "review_required"
 )
 
 // Plan is the kill plan (internal/killplan.Plan).

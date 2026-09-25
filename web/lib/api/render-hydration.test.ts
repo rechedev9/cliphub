@@ -288,7 +288,7 @@ test('queued render revisions do not inherit artifact URLs while names are trans
     map: reel.map,
     score: reel.score,
     mode: reel.mode,
-    status: 'review_required',
+    status: 'ready',
     createdAt: reel.createdAt,
     downloadUrl: '/api/demos/job/renders/viral-60-clean/videos/old.mp4',
     thumbnailUrl: '/api/demos/job/renders/viral-60-clean/covers/old.jpg',

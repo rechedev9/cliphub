@@ -73,7 +73,6 @@ test('outputState maps the video pipeline onto the handoff vocabulary', () => {
     ['recording', 'rec'],
     ['composing', 'render'],
     ['ready', 'ready'],
-    ['review_required', 'ready'],
     ['failed', 'failed'],
   ];
   for (const [status, state] of cases) {
@@ -171,9 +170,6 @@ test('toOutput carries progress only while REC or render report one', () => {
   assert.equal(render.rounds, null);
   const queued = toOutput(reel({ id: 'c', status: 'queued', captureProgress: { done: 0, total: 10 } }));
   assert.equal(queued.percent, null);
-  const review = toOutput(reel({ id: 'd', status: 'review_required' }));
-  assert.equal(review.reviewRequired, true);
-  assert.equal(review.state, 'ready');
 });
 
 test('buildHubModel groups reels under their partida and keeps orphans apart', () => {
@@ -256,7 +252,6 @@ test('fullChipLabel follows the latest Full POV state', () => {
 test('outputTagLabel: one uppercase tag per state, with progress when reported', () => {
   const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
     [{ state: 'ready', percent: null, rounds: null }, 'LISTO'],
-    [{ state: 'ready', percent: null, rounds: null, reviewRequired: true }, 'REVISIÓN QA'],
     [{ state: 'render', percent: 41, rounds: null }, 'RENDER 41%'],
     [{ state: 'render', percent: null, rounds: null }, 'RENDER'],
     [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'REC R3/20'],

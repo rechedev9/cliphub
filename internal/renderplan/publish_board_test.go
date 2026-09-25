@@ -48,11 +48,12 @@ func TestNewPublishBoardStatus(t *testing.T) {
 			wantBoard: "failed",
 		},
 		{
-			name:      "warnings require review",
-			warnings:  []string{warning},
-			item:      PublishBoardItem{VideoReady: true, CaptionReady: true},
-			wantBoard: "review_required",
-			wantItem:  "ready",
+			name:            "warnings stay informational",
+			warnings:        []string{warning},
+			item:            PublishBoardItem{VideoReady: true, CaptionReady: true},
+			wantBoard:       "ready",
+			wantItem:        "ready",
+			wantRenderReady: true,
 		},
 		{
 			name:      "missing video surfaces before warnings",
@@ -94,6 +95,9 @@ func TestNewPublishBoardStatus(t *testing.T) {
 			}
 			if board.Items[0].Status != test.wantItem {
 				t.Fatalf("item status = %q, want %q", board.Items[0].Status, test.wantItem)
+			}
+			if len(board.Warnings) != len(test.warnings) {
+				t.Fatalf("warnings = %#v, want %#v preserved", board.Warnings, test.warnings)
 			}
 		})
 	}

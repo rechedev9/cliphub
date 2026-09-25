@@ -1,4 +1,4 @@
-import type { ApiClient, VideoReviewResolution } from './client.ts';
+import type { ApiClient } from './client.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import {
   applyMusicChoice,
@@ -744,78 +744,6 @@ export class RealApiClient implements ApiClient {
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
 
-  async resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video> {
-    const intent = this.intents.get(id);
-    if (!intent) throw this.unknownReel(id);
-    const current = this.reels.get(id);
-    if (!current || current.status !== 'review_required') {
-      throw new Error('El reel ya no está pendiente de revisión.');
-    }
-
-    if (resolution.kind === 'rerender') {
-      if (editConfigsEqual(intent.editConfig, resolution.editConfig)) {
-        throw new Error('Cambia al menos una opción de edición antes de volver a renderizar.');
-      }
-      if (this.driving.has(intent.videoId)) {
-        throw new Error('Ya hay una operación activa para este reel.');
-      }
-      this.driving.add(intent.videoId);
-      try {
-        // Persist the new edit only after the server admits this render.
-        await readJson<unknown>(
-          await this.send((dp) => ({
-            url: dp.renderUrl(intent.jobId, variantOf(intent)),
-            init: {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                music: buildMusicRequest(intent),
-                segment_ids: renderSegmentIdsRequest(intent),
-                edit: buildEditRequest(resolution.editConfig),
-                expected_artifact_prefix: resolution.expectedArtifactPrefix,
-                expected_warnings: resolution.expectedWarnings,
-              }),
-            },
-          })),
-        );
-        this.forgetDriveState(intent.videoId);
-        this.artifactNames.delete(intent.videoId);
-        const previousRevision = this.reels.get(intent.videoId);
-        if (previousRevision) {
-          this.reels.set(intent.videoId, clearVideoArtifactUrls(previousRevision));
-        }
-        intent.editConfig = resolution.editConfig;
-        // New candidates will appear after re-render.
-        delete intent.selectedCoverName;
-        saveReelIntents(Array.from(this.intents.values()));
-        this.applyView(intent, { status: 'queued', action: 'none' });
-      } finally {
-        this.driving.delete(intent.videoId);
-      }
-      await this.reconcileOne(intent);
-      return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
-    }
-
-    const note = resolution.note.trim();
-    if (!note) throw new Error('Documenta por qué los avisos son intencionales.');
-    await readJson<unknown>(
-      await this.send((dp) => ({
-        url: dp.renderReviewUrl(intent.jobId, variantOf(intent)),
-        init: {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            note,
-            expected_artifact_prefix: resolution.expectedArtifactPrefix,
-            expected_warnings: resolution.expectedWarnings,
-          }),
-        },
-      })),
-    );
-    await this.reconcileOne(intent);
-    return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
-  }
-
   /** Re-render a ready reel with a new mix; persist only after POST accepts. */
   async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
     const intent = this.intents.get(id);
@@ -1114,7 +1042,7 @@ export class RealApiClient implements ApiClient {
     if (view.unrecoverable || base.unrecoverable) next.unrecoverable = true;
     // Ready without names yet: keep placeholder URLs until the next tick.
     const names = this.artifactNames.get(intent.videoId);
-    if ((view.status === 'ready' || view.status === 'review_required') && names) {
+    if (view.status === 'ready' && names) {
       // Same-origin proxy URLs the browser can hand straight to <video>/<img>.
       const variant = variantOf(intent);
       const dp = dataPlane();

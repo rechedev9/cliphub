@@ -2,7 +2,6 @@ package renderplan
 
 import (
 	"path"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +14,10 @@ const (
 	RenderVariantStatusQueued    = "queued"
 	RenderVariantStatusRendering = "rendering"
 	RenderVariantStatusReady     = "ready"
-	RenderVariantStatusReview    = "review_required"
+	// RenderVariantStatusReview is legacy: renders with QA warnings used to wait
+	// for a human sign-off. Warnings are now informational; stored states with
+	// this status are promoted to ready when read.
+	RenderVariantStatusReview = "review_required"
 	RenderVariantStatusFailed    = "failed"
 )
 
@@ -36,29 +38,9 @@ type RenderVariantState struct {
 	PublishSummaryKey string                  `json:"publish_summary_key,omitempty"`
 	ArtifactPrefix    string                  `json:"artifact_prefix,omitempty"`
 	Warnings          []string                `json:"warnings,omitempty"`
-	ReviewResolution  *RenderReviewResolution `json:"review_resolution,omitempty"`
 	Error             string                  `json:"error,omitempty"`
 	CreatedAt         time.Time               `json:"created_at"`
 	UpdatedAt         time.Time               `json:"updated_at"`
-}
-
-// RenderReviewResolution is the durable audit trail for warnings a human
-// inspected and accepted as intentional. ArtifactPrefix and Warnings bind the
-// decision to one exact render revision; a later render cannot inherit it.
-type RenderReviewResolution struct {
-	ArtifactPrefix string    `json:"artifact_prefix"`
-	Warnings       []string  `json:"warnings"`
-	Note           string    `json:"note"`
-	ReviewedAt     time.Time `json:"reviewed_at"`
-}
-
-// ReviewResolvedFor reports whether the current render's exact warnings were
-// explicitly reviewed on this artifact revision.
-func (s RenderVariantState) ReviewResolvedFor(warnings []string) bool {
-	resolution := s.ReviewResolution
-	return resolution != nil &&
-		resolution.ArtifactPrefix == s.ArtifactPrefix &&
-		slices.Equal(resolution.Warnings, warnings)
 }
 
 type NewRenderVariantStateOptions struct {
