@@ -111,7 +111,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("faceit follow store: %w", err)
 	}
-	faceitSeeds, err := faceit.NewSeedStore(filepath.Join(cfg.DataDir, "faceit", "top10.json"))
+	faceitSeeds, err := faceit.NewSeedStore(filepath.Join(cfg.DataDir, "faceit", "zones.json"))
 	if err != nil {
 		return fmt.Errorf("faceit seed store: %w", err)
 	}
