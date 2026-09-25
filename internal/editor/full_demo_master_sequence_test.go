@@ -12,7 +12,7 @@ import (
 // sequence to real evidence: fed the decoded AAC measurements of
 // full-demo-loudness.json, the pure retarget helpers must reproduce its
 // master_targets and fallback_masters exactly, in order, and its acceptance
-// decisions. Any change to nextMasterTarget, fullDemoAACRecoveryTarget,
+// decisions. Any change to nextMasterTarget, aacHeadroomTarget,
 // ProgramAACFallbackMaster.corrected or fullDemoDecodedAACAccepted that alters
 // the sequence on a real render fails here without FFmpeg.
 func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
@@ -34,8 +34,7 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 	recovered := []LoudnessMeasurement{measured(-14.86, -3.2), measured(-14.44, -3.35)}
 
 	// Native chain: master_targets[0..2].
-	attemptTarget := target
-	attemptTarget.TargetTPDBTP -= 0.3
+	attemptTarget := aacHeadroomTarget(target)
 	var masterTargets []recapplan.LoudnessOptions
 	for i, decoded := range native {
 		masterTargets = append(masterTargets, attemptTarget)
@@ -55,11 +54,11 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 	}
 
 	// Recovery chain: master_targets[3..4] and fallback_masters[0..1].
-	master := ProgramAACFallbackMaster{Encoder: "aac_mf", GainDB: 3, CeilingDBFS: target.TargetTPDBTP - 3.5}
+	master := initialAACRecoveryMaster(target)
 	var fallbackMasters []ProgramAACFallbackMaster
 	var acceptedAt = -1
 	for i, decoded := range recovered {
-		masterTargets = append(masterTargets, fullDemoAACRecoveryTarget(target))
+		masterTargets = append(masterTargets, aacHeadroomTarget(target))
 		fallbackMasters = append(fallbackMasters, master)
 		accepted, err := fullDemoDecodedAACAccepted(decoded, target, false)
 		if err != nil {

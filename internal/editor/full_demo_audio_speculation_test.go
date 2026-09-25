@@ -194,7 +194,7 @@ func TestFinishFullDemoAACRecoveryPublishesSpeculativeDeliveryInOrder(t *testing
 	if err != nil {
 		t.Fatalf("finish: %v; evidence %+v", err, evidence)
 	}
-	recovered := fullDemoAACRecoveryTarget(target)
+	recovered := aacHeadroomTarget(target)
 	if want := []recapplan.LoudnessOptions{recovered, recovered}; !reflect.DeepEqual(evidence.MasterTargets, want) {
 		t.Fatalf("master targets = %+v, want %+v", evidence.MasterTargets, want)
 	}
