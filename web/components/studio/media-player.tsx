@@ -276,9 +276,7 @@ export function MediaPlayer({
 
   if (item === undefined) return null;
 
-  let reviewLabel: string | null = null;
-  if (item.review === PLAYBACK_REVIEW.pending) reviewLabel = 'Revisión QA pendiente';
-  else if (item.review === PLAYBACK_REVIEW.stale) reviewLabel = 'Render desactualizado';
+  const reviewLabel = item.review === PLAYBACK_REVIEW.stale ? 'Render desactualizado' : null;
   let mediaStatusLabel = '';
   if (mediaStatus === 'loading') mediaStatusLabel = 'Cargando';
   else if (mediaStatus === 'buffering') mediaStatusLabel = 'Buffering';

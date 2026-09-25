@@ -72,17 +72,6 @@ test('mapImportableRenders keeps finished demo and stream videos only', () => {
       want: [{ source: IMPORT_SOURCE.demo, job_id: JOB, variant: VARIANT, name: 'ace', title: 'Ace reel' }],
     },
     {
-      name: 'review_required demo still has a video',
-      videos: [
-        video({
-          title: 'Needs review',
-          status: 'review_required',
-          downloadUrl: `/api/demos/${JOB}/renders/${VARIANT}/videos/hs`,
-        }),
-      ],
-      want: [{ source: IMPORT_SOURCE.demo, job_id: JOB, variant: VARIANT, name: 'hs', title: 'Needs review' }],
-    },
-    {
       name: 'queued demo is skipped',
       videos: [video({ title: 'Queued', status: 'queued', jobId: JOB, downloadUrl: `/api/demos/${JOB}/renders/${VARIANT}/videos/ace` })],
       want: [],

@@ -264,7 +264,6 @@ export type VideoStatus =
   | 'recording'
   | 'composing'
   | 'ready'
-  | 'review_required'
   | 'failed';
 /** Live job progress during capture or editing; percent is 0-100. */
 export type CaptureProgress = { done: number; total: number; percent?: number; stage?: string };
@@ -301,9 +300,9 @@ export type Video = {
   failureReason?: string;
   /** Stable failure class from the orchestrator job when the job itself failed. */
   failureCode?: string;
-  /** Exact render QA warnings; populated only while status is review_required. */
+  /** Informational render QA warnings; they never block the reel. */
   warnings?: string[];
-  /** Immutable render revision; with `warnings` it also forms the review CAS token. */
+  /** Immutable render revision that produced this reel. */
   reviewArtifactPrefix?: string;
   /** Immutable revision used for this Full Demo's MP4, cover and evidence links. */
   artifactRevision?: string;

@@ -81,7 +81,7 @@ func TestNewPublishBoardMarksFailedFromRenderError(t *testing.T) {
 	}
 }
 
-func TestNewPublishBoardRequiresReviewForWarnings(t *testing.T) {
+func TestNewPublishBoardKeepsWarningsInformational(t *testing.T) {
 	board := NewPublishBoard(NewPublishBoardOptions{
 		JobID:    uuid.New(),
 		Variant:  "viral-60-clean",
@@ -93,8 +93,11 @@ func TestNewPublishBoardRequiresReviewForWarnings(t *testing.T) {
 		}},
 	})
 
-	if board.Status != "review_required" || board.RenderReady {
-		t.Fatalf("status/render_ready = %q/%v, want review_required/false", board.Status, board.RenderReady)
+	if board.Status != "ready" || !board.RenderReady {
+		t.Fatalf("status/render_ready = %q/%v, want ready/true", board.Status, board.RenderReady)
+	}
+	if len(board.Warnings) != 1 || board.Warnings[0] != "frozen frame at 00:07" {
+		t.Fatalf("warnings = %#v, want the QA warning preserved", board.Warnings)
 	}
 }
 

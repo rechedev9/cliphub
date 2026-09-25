@@ -1049,59 +1049,52 @@ func (w *ComposeWorker) HandleComposeFinal(ctx context.Context, t *asynq.Task) e
 	}
 	logWorkerTransition(j.ID, tasks.TypeComposeFinal, job.StatusComposing)
 
-	reviewRequired, err := w.compose(ctx, j)
-	if err != nil {
+	if err := w.compose(ctx, j); err != nil {
 		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeComposeFinal, err); statusErr != nil {
 			return errors.Join(err, fmt.Errorf("record compose failure status: %w", statusErr))
 		}
 		return err
 	}
-	finalStatus := compositionCompletionStatus(reviewRequired)
-	if err := w.repo.UpdateStatus(ctx, j.ID, finalStatus, ""); err != nil {
+	// Composition warnings stay in composition-result.json as information;
+	// they never hold the job back for a human sign-off.
+	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusComposed, ""); err != nil {
 		return fmt.Errorf("mark composed: %w", err)
 	}
-	logWorkerTransition(j.ID, tasks.TypeComposeFinal, finalStatus)
+	logWorkerTransition(j.ID, tasks.TypeComposeFinal, job.StatusComposed)
 	return nil
 }
 
-func compositionCompletionStatus(reviewRequired bool) job.Status {
-	if reviewRequired {
-		return job.StatusReviewRequired
-	}
-	return job.StatusComposed
-}
-
-func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
-	ready, reviewRequired, keys, err := compositionOutputsReady(w.storage, j.ID)
+func (w *ComposeWorker) compose(ctx context.Context, j job.Job) error {
+	ready, keys, err := compositionOutputsReady(w.storage, j.ID)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if ready {
 		logWorkerSkip(j.ID, tasks.TypeComposeFinal, keys)
-		return reviewRequired, nil
+		return nil
 	}
 
 	cfg := w.cfg.withDefaults()
 	if err := cfg.validate(); err != nil {
-		return false, err
+		return err
 	}
 
 	workDir, cleanup, err := prepareStageDir(cfg.WorkDir, j.ID, "compose")
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer cleanup()
 
 	recordingResult, err := readStoredRecordingResult(w.storage, j.ID)
 	if err != nil {
-		return false, err
+		return err
 	}
 	localRecordingResult := filepath.Join(workDir, "recording-result.json")
 	if err := localizeSegmentClips(w.storage, j.ID, workDir, &recordingResult); err != nil {
-		return false, err
+		return err
 	}
 	if err := writeJSONFile(localRecordingResult, recordingResult); err != nil {
-		return false, fmt.Errorf("write localized recording result: %w", err)
+		return fmt.Errorf("write localized recording result: %w", err)
 	}
 
 	// The result key is the commit marker for the fixed-key composition pair.
@@ -1109,7 +1102,7 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 	// result upload can never leave an old successful marker pointing at a new
 	// MP4. Put is atomic per key, making this a small two-phase publication.
 	if err := writeCompositionPendingMarker(w.storage, j.ID); err != nil {
-		return false, err
+		return err
 	}
 
 	finalPath := filepath.Join(workDir, "final.mp4")
@@ -1126,7 +1119,7 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 	resultPath := filepath.Join(workDir, "composition-result.json")
 	var result composition.Result
 	if err := readJSONFile(resultPath, &result); err != nil {
-		return false, errors.Join(runErr, fmt.Errorf("read composition result: %w", err))
+		return errors.Join(runErr, fmt.Errorf("read composition result: %w", err))
 	}
 	validationErr := composition.ValidateUploadResult(result)
 	if result.Error != "" {
@@ -1137,27 +1130,27 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 		if uploadErr != nil {
 			uploadErr = fmt.Errorf("upload failed composition result: %w", uploadErr)
 		}
-		return false, errors.Join(runErr, validationErr, uploadErr)
+		return errors.Join(runErr, validationErr, uploadErr)
 	}
 	if runErr != nil {
-		return false, errors.Join(runErr, validationErr)
+		return errors.Join(runErr, validationErr)
 	}
 	if validationErr != nil {
-		return false, validationErr
+		return validationErr
 	}
 	if err := uploadFile(w.storage, composition.FinalArtifactKey(j.ID), finalPath); err != nil {
-		return false, fmt.Errorf("upload final mp4: %w", err)
+		return fmt.Errorf("upload final mp4: %w", err)
 	}
 	// The result is the commit marker and therefore lands after the MP4 it
 	// references. A failed final upload cannot leave a reusable result.
 	if err := uploadFile(w.storage, composition.ResultArtifactKey(j.ID), resultPath); err != nil {
-		return false, fmt.Errorf("upload composition result: %w", err)
+		return fmt.Errorf("upload composition result: %w", err)
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeComposeFinal, []string{
 		composition.ResultArtifactKey(j.ID),
 		composition.FinalArtifactKey(j.ID),
 	})
-	return len(result.Warnings) > 0, nil
+	return nil
 }
 
 func writeCompositionPendingMarker(store storage.Storage, id uuid.UUID) error {
@@ -2008,15 +2001,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return err
 	}
 	if ready {
-		cachedStatus := renderVariantCompletionStatus(editor.Result{Warnings: cachedWarnings})
-		if previousState != nil && previousState.ReviewResolvedFor(cachedWarnings) {
-			cachedStatus = renderplan.RenderVariantStatusReady
-		}
-		if previousState == nil || previousState.Status != cachedStatus || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
+		if previousState == nil || previousState.Status != renderplan.RenderVariantStatusReady || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
 			migratedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 				JobID:    j.ID,
 				Loadout:  loadout,
-				Status:   cachedStatus,
+				Status:   renderplan.RenderVariantStatusReady,
 				Warnings: cachedWarnings,
 				Previous: previousState,
 			})
@@ -2024,9 +2013,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 				return stateErr
 			}
 			preserveRenderArtifactPointer(&migratedState, previousState)
-			if previousState != nil && previousState.ReviewResolvedFor(cachedWarnings) {
-				migratedState.ReviewResolution = previousState.ReviewResolution
-			}
 			if stateErr := w.writeOwnedRenderState(migratedState, edit.FullDemo); stateErr != nil {
 				return fmt.Errorf("write migrated cached render state: %w", stateErr)
 			}
@@ -2236,11 +2222,10 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return err
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeRenderVariant, keys)
-	readyStatus := renderVariantCompletionStatus(result)
 	readyState, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 		JobID:      j.ID,
 		Loadout:    loadout,
-		Status:     readyStatus,
+		Status:     renderplan.RenderVariantStatusReady,
 		Warnings:   result.Warnings,
 		Previous:   currentState,
 		RevisionID: revisionID,
@@ -2256,13 +2241,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	// and open its artifacts afterward. Retain every published revision until
 	// the whole job is deleted; only the deferred uncommitted cleanup is safe.
 	return nil
-}
-
-func renderVariantCompletionStatus(result editor.Result) string {
-	if len(result.Warnings) > 0 {
-		return renderplan.RenderVariantStatusReview
-	}
-	return renderplan.RenderVariantStatusReady
 }
 
 func explicitCoverArgs(loadout renderplan.Loadout, edit renderplan.EditRequest) []string {
@@ -3784,35 +3762,35 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 	return missing, keys, nil
 }
 
-func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, bool, []string, error) {
+func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, []string, error) {
 	resultKey := composition.ResultArtifactKey(id)
 	resultExists, err := store.Exists(resultKey)
 	if err != nil || !resultExists {
-		return false, false, nil, err
+		return false, nil, err
 	}
 
 	rc, err := store.Open(resultKey)
 	if err != nil {
-		return false, false, nil, fmt.Errorf("open composition result: %w", err)
+		return false, nil, fmt.Errorf("open composition result: %w", err)
 	}
 	defer rc.Close()
 	var result composition.Result
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
-		return false, false, nil, fmt.Errorf("decode composition result: %w", err)
+		return false, nil, fmt.Errorf("decode composition result: %w", err)
 	}
 	if result.Error != "" {
-		return false, false, nil, nil
+		return false, nil, nil
 	}
 	readyArtifacts := composition.NewReadyArtifacts(id, result)
 	keys := []string{readyArtifacts.ResultKey}
 	for _, key := range readyArtifacts.RequiredKeys {
 		exists, err := store.Exists(key)
 		if err != nil || !exists {
-			return false, false, nil, err
+			return false, nil, err
 		}
 		keys = append(keys, key)
 	}
-	return true, len(result.Warnings) > 0, keys, nil
+	return true, keys, nil
 }
 
 type renderMusicInput struct {

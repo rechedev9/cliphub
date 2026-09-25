@@ -13,7 +13,7 @@ test('demo playback identity includes its immutable artifact revision', () => {
     score: '13-8',
     mode: 'clean',
     variant: 'viral-60-clean',
-    status: 'review_required',
+    status: 'ready',
     createdAt: 1,
     downloadUrl: '/api/demos/job-1/renders/viral-60-clean/videos/ace.mp4',
     reviewArtifactPrefix: 'jobs/job-1/renders/viral-60-clean/revisions/123e4567-e89b-42d3-a456-426614174000',
@@ -24,7 +24,8 @@ test('demo playback identity includes its immutable artifact revision', () => {
   assert.equal(item?.revision, '123e4567-e89b-42d3-a456-426614174000');
   assert.equal(item?.revision.includes('jobs/'), false);
   assert.equal(item?.playbackUrl, '/api/demos/job-1/renders/viral-60-clean/revisions/123e4567-e89b-42d3-a456-426614174000/videos/ace.mp4');
-  assert.equal(item?.review, PLAYBACK_REVIEW.pending);
+  // QA warnings are informational: they ride along without a pending review.
+  assert.equal(item?.review, PLAYBACK_REVIEW.ready);
   assert.deepEqual(item?.warnings, video.warnings);
 });
 

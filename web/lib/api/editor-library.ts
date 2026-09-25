@@ -16,10 +16,6 @@ export type ImportableRender = {
   title: string;
 };
 
-const DEMO_IMPORTABLE_STATUS = {
-  ready: 'ready',
-  reviewRequired: 'review_required',
-} as const;
 
 const STREAM_IMPORTABLE_STATUS = {
   rendered: 'rendered',
@@ -57,7 +53,7 @@ export function mapImportableRenders(input: {
 }
 
 function isDemoImportable(status: string): boolean {
-  return status === DEMO_IMPORTABLE_STATUS.ready || status === DEMO_IMPORTABLE_STATUS.reviewRequired;
+  return status === 'ready';
 }
 
 function mapDemoVideo(video: DemoLibraryVideo): ImportableRender | null {
