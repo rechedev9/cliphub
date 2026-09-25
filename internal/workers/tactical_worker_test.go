@@ -14,6 +14,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/tactical"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -151,20 +152,38 @@ func TestTacticalArtifactsRequireCanonicalReadyStatus(t *testing.T) {
 	}
 }
 
-func TestTacticalWorkerLeavesTheJobStatusAloneWhileRetriesRemain(t *testing.T) {
-	id := uuid.New()
-	repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/missing.dem"})
-	store := newFakeStorage()
+// The scan is idempotent, so it stays retryable: only the terminal attempt
+// journals the failure, and the job's own status is never written either way.
+func TestTacticalWorkerJournalsOnlyTheTerminalFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		retried     int
+		wantJournal int
+	}{
+		{name: "retries remain", retried: 0, wantJournal: 0},
+		{name: "retries exhausted", retried: 2, wantJournal: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := uuid.New()
+			repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/missing.dem"})
+			store := newFakeStorage()
 
-	// The scan is idempotent, so it stays retryable; either way the job's own
-	// status is never written by this worker.
-	ctx := tasks.WithTaskAttempt(context.Background(), 0, 2)
-	err := NewTacticalWorker(repo, store).ProcessAnalyzeTactical(ctx, id, 0)
-	if err == nil {
-		t.Fatal("ProcessAnalyzeTactical error = nil, want a failure for the missing demo")
-	}
-	if got := repo.jobs[id].Status; got != job.StatusParsed {
-		t.Errorf("Status = %v, want the job left at StatusParsed until retries are exhausted", got)
+			ctx := tasks.WithTaskAttempt(context.Background(), tc.retried, 2)
+			err := NewTacticalWorker(repo, store).ProcessAnalyzeTactical(ctx, id, 0)
+			if err == nil {
+				t.Fatal("ProcessAnalyzeTactical error = nil, want a failure for the missing demo")
+			}
+			if got := repo.jobs[id].Status; got != job.StatusParsed {
+				t.Errorf("Status = %v, want the job left at StatusParsed", got)
+			}
+			events := journalEventsFor(t, obs.Default(), id.String(), tacticalClassDemoUnreadable)
+			if len(events) != tc.wantJournal {
+				t.Fatalf("journal events = %#v, want %d", events, tc.wantJournal)
+			}
+			if tc.wantJournal == 1 && (events[0].Stage != obs.StageTactical || events[0].Task != tasks.TypeAnalyzeTactical) {
+				t.Fatalf("journal event = %+v, want stage %q task %q", events[0], obs.StageTactical, tasks.TypeAnalyzeTactical)
+			}
+		})
 	}
 }
 

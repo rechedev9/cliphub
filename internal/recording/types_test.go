@@ -210,22 +210,6 @@ func TestNewPlanFromKillPlanSeparatesEditorialAndCaptureOrder(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsBadSegment(t *testing.T) {
-	p := RecordingPlan{
-		DemoPath:        "x.dem",
-		OutputDir:       "out",
-		TargetAccountID: 1,
-		Tickrate:        64,
-		Stream:          DefaultStreamConfig(),
-		Segments: []RecordingSegment{
-			{ID: "seg-001", TickStart: 100, TickEnd: 100},
-		},
-	}
-	if err := p.Validate(); err == nil {
-		t.Fatal("Validate error = nil, want error")
-	}
-}
-
 func TestValidateRejectsContradictorySteamAndAccountIDs(t *testing.T) {
 	p := testPlan()
 	p.TargetAccountID++

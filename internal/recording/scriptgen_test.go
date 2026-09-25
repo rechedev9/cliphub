@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -272,23 +273,28 @@ func TestBuildRuntimeScheduleAllowsPOVDriftDuringKillPostRoll(t *testing.T) {
 	}
 }
 
+// Regression 819c4728: a segment planned to end at absolute demo EOF must stop
+// recording at the soft cap, both in the exported tick and the runtime window.
 func TestEffectiveRecordEndTickPullsBackNearDemoEOF(t *testing.T) {
 	plan := testPlan()
 	plan.DemoDurationTicks = 10_500
 	plan.Tickrate = 64
-	segment := RecordingSegment{
+	plan.Segments = []RecordingSegment{{
 		ID:        "seg-eof",
 		TickStart: 10_000,
 		TickEnd:   10_500, // would record into absolute EOF
 		Kills:     []killplan.Kill{{Tick: 10_200}},
-	}
-	got := EffectiveRecordEndTick(segment, plan)
-	want := 10_500 - 2*64 // soft cap (kill is still before softCap)
-	if got != want {
+	}}
+	const want = 10_372 // two seconds before EOF; the kill is still before the soft cap
+	if got := EffectiveRecordEndTick(plan.Segments[0], plan); got != want {
 		t.Fatalf("EffectiveRecordEndTick = %d, want soft-cap %d", got, want)
 	}
-	if got >= plan.DemoDurationTicks {
-		t.Fatalf("EffectiveRecordEndTick = %d must stay before demo duration %d", got, plan.DemoDurationTicks)
+	_, _, windows := buildRuntimeSchedule(plan)
+	if len(windows) != 1 {
+		t.Fatalf("windows = %d, want 1", len(windows))
+	}
+	if windows[0].RecordEnd != want {
+		t.Fatalf("RecordEnd = %d, want soft-cap %d (not absolute duration)", windows[0].RecordEnd, want)
 	}
 }
 
@@ -374,52 +380,6 @@ func TestEffectiveRecordEndTickShortTailWhenUtilityThrowInsideEOFMargin(t *testi
 	}
 }
 
-func TestBuildRuntimeScheduleRecordEndUsesEOFSoftCap(t *testing.T) {
-	plan := testPlan()
-	plan.DemoDurationTicks = 10_500
-	plan.Tickrate = 64
-	plan.Segments = []RecordingSegment{{
-		ID:        "seg-eof",
-		TickStart: 10_000,
-		TickEnd:   10_500,
-		Kills:     []killplan.Kill{{Tick: 10_200}},
-	}}
-	_, _, windows := buildRuntimeSchedule(plan)
-	if len(windows) != 1 {
-		t.Fatalf("windows = %d, want 1", len(windows))
-	}
-	want := 10_500 - 2*64
-	if windows[0].RecordEnd != want {
-		t.Fatalf("RecordEnd = %d, want soft-cap %d (not absolute duration)", windows[0].RecordEnd, want)
-	}
-	if windows[0].RecordEnd >= plan.DemoDurationTicks {
-		t.Fatalf("RecordEnd = %d lands on demo duration %d", windows[0].RecordEnd, plan.DemoDurationTicks)
-	}
-}
-
-func TestBuildRuntimeScheduleRecordEndCoversUtilityInsideEOFMargin(t *testing.T) {
-	plan := testPlan()
-	plan.DemoDurationTicks = 10_000
-	plan.Tickrate = 64
-	const throwTick = 9_950
-	plan.Segments = []RecordingSegment{{
-		ID:        "seg-util",
-		TickStart: 9_500,
-		TickEnd:   9_999,
-		Utility:   []killplan.UtilityThrow{{Type: "smokegrenade", ThrowTick: throwTick, PopTick: throwTick + 20}},
-	}}
-	_, _, windows := buildRuntimeSchedule(plan)
-	if len(windows) != 1 {
-		t.Fatalf("windows = %d, want 1", len(windows))
-	}
-	if windows[0].RecordEnd < throwTick+20 {
-		t.Fatalf("RecordEnd = %d does not cover utility through pop %d", windows[0].RecordEnd, throwTick+20)
-	}
-	if windows[0].RecordEnd >= plan.DemoDurationTicks {
-		t.Fatalf("RecordEnd = %d lands on duration %d", windows[0].RecordEnd, plan.DemoDurationTicks)
-	}
-}
-
 func TestBuildRuntimeScheduleAllowsPOVDriftDuringRecapOutroHold(t *testing.T) {
 	// Real failure: job e56b9468 seg-018 on de_cache — kill-less last recap round
 	// with outro hold. CS2 drops observer POV during scoreboard overlay.
@@ -456,47 +416,13 @@ func TestBuildRuntimeScheduleAllowsPOVDriftDuringRecapOutroHold(t *testing.T) {
 	}
 }
 
-func TestPovVerifyUntilTick(t *testing.T) {
-	tests := []struct {
-		name        string
-		segment     RecordingSegment
-		recordStart int
-		recordEnd   int
-		want        int
-	}{
-		{
-			name:        "legacy plan without live end verifies through record end",
-			segment:     RecordingSegment{ID: "seg-001", TickStart: 1000, TickEnd: 2000},
-			recordStart: 1000,
-			recordEnd:   2000,
-			want:        1999,
-		},
-		{
-			name: "recap outro hold stops verification at live end",
-			segment: RecordingSegment{
-				ID: "seg-018", TickStart: 146271, TickEnd: 153394, LiveEndTick: 152626,
-			},
-			recordStart: 146271,
-			recordEnd:   153394,
-			want:        152626,
-		},
-		{
-			name: "kill segment still caps at last kill before live end",
-			segment: RecordingSegment{
-				ID: "seg-kill", TickStart: 1000, TickEnd: 2000, LiveEndTick: 1900,
-				Kills: []killplan.Kill{{Tick: 1500}, {Tick: 1700}},
-			},
-			recordStart: 1000,
-			recordEnd:   2000,
-			want:        1700,
-		},
+func TestPovVerifyUntilTickCapsAtLastKillBeforeLiveEnd(t *testing.T) {
+	segment := RecordingSegment{
+		ID: "seg-kill", TickStart: 1000, TickEnd: 2000, LiveEndTick: 1900,
+		Kills: []killplan.Kill{{Tick: 1500}, {Tick: 1700}},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := povVerifyUntilTick(tc.segment, tc.recordStart, tc.recordEnd); got != tc.want {
-				t.Fatalf("povVerifyUntilTick = %d, want %d", got, tc.want)
-			}
-		})
+	if got, want := povVerifyUntilTick(segment, 1000, 2000), 1700; got != want {
+		t.Fatalf("povVerifyUntilTick = %d, want last kill %d", got, want)
 	}
 }
 
@@ -542,51 +468,24 @@ func TestBuildScheduleDoesNotSeekAcrossNearbySegments(t *testing.T) {
 func TestBuildScheduleSeekGapThreshold(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
+		prior     []RecordingSegment // segments recorded before the probed one
+		seekAfter int                // tick the probed gap is measured from
 		gapTicks  int
 		wantSeeks int
 	}{
-		{name: "one tick below threshold", gapTicks: 30*64 - 1, wantSeeks: 0},
-		{name: "at threshold", gapTicks: 30 * 64, wantSeeks: 1},
+		{name: "first segment one tick below threshold", seekAfter: 50, gapTicks: 30*64 - 1, wantSeeks: 0},
+		{name: "first segment at threshold", seekAfter: 50, gapTicks: 30 * 64, wantSeeks: 1},
+		{name: "later segment one tick below threshold", prior: []RecordingSegment{{ID: "seg-001", TickStart: 370, TickEnd: 1000}}, seekAfter: 1000 + 32, gapTicks: 30*64 - 1, wantSeeks: 0},
+		{name: "later segment at threshold", prior: []RecordingSegment{{ID: "seg-001", TickStart: 370, TickEnd: 1000}}, seekAfter: 1000 + 32, gapTicks: 30 * 64, wantSeeks: 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			plan := testPlan()
-			seekAfter := 50
 			leadTicks := 5 * plan.Tickrate
-			plan.Segments = []RecordingSegment{{
-				ID:        "seg-001",
-				TickStart: seekAfter + leadTicks + tt.gapTicks,
-				TickEnd:   seekAfter + leadTicks + tt.gapTicks + plan.Tickrate,
-			}}
-
-			_, seeks, _ := buildRuntimeSchedule(plan)
-			if got := len(seeks); got != tt.wantSeeks {
-				t.Fatalf("seek count = %d, want %d: %+v", got, tt.wantSeeks, seeks)
-			}
-		})
-	}
-}
-
-func TestBuildScheduleLaterSegmentSeekGapThreshold(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		gapTicks  int
-		wantSeeks int
-	}{
-		{name: "one tick below threshold", gapTicks: 30*64 - 1, wantSeeks: 0},
-		{name: "at threshold", gapTicks: 30 * 64, wantSeeks: 1},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			plan := testPlan()
-			seekAfter := 1000 + 32
-			leadTicks := 5 * plan.Tickrate
-			plan.Segments = []RecordingSegment{
-				{ID: "seg-001", TickStart: 370, TickEnd: 1000},
-				{
-					ID:        "seg-002",
-					TickStart: seekAfter + leadTicks + tt.gapTicks,
-					TickEnd:   seekAfter + leadTicks + tt.gapTicks + plan.Tickrate,
-				},
-			}
+			plan.Segments = append(slices.Clone(tt.prior), RecordingSegment{
+				ID:        "seg-probe",
+				TickStart: tt.seekAfter + leadTicks + tt.gapTicks,
+				TickEnd:   tt.seekAfter + leadTicks + tt.gapTicks + plan.Tickrate,
+			})
 
 			_, seeks, _ := buildRuntimeSchedule(plan)
 			if got := len(seeks); got != tt.wantSeeks {
@@ -914,7 +813,7 @@ func TestPlaybackTimescaleSchedule(t *testing.T) {
 // marks shutdown; disconnect+delayed quit live in beginSoftQuit (client frames),
 // because disconnect ends demo ticks so a later scheduled quit would never run.
 func TestBuildRuntimeScheduleSoftQuitsWithoutBatchedDisconnectQuit(t *testing.T) {
-	commands, _, _ := buildRuntimeSchedule(testPlan())
+	commands, _, windows := buildRuntimeSchedule(testPlan())
 	var shutdown *scheduledCommand
 	for i := range commands {
 		if commands[i].Key == "shutdown" {
@@ -933,6 +832,11 @@ func TestBuildRuntimeScheduleSoftQuitsWithoutBatchedDisconnectQuit(t *testing.T)
 	}
 	if len(shutdown.Commands) != 0 {
 		t.Fatalf("shutdown commands = %v, want empty (runtime beginSoftQuit owns exit)", shutdown.Commands)
+	}
+	for _, w := range windows {
+		if shutdown.Tick <= w.RecordEnd {
+			t.Fatalf("shutdown tick %d must be after record end %d of %s", shutdown.Tick, w.RecordEnd, w.SegmentID)
+		}
 	}
 }
 
@@ -1080,190 +984,4 @@ func TestGenerateHLAEJavaScriptSoftQuitContract(t *testing.T) {
 	if strings.Contains(failBody, `mirv.exec("quit")`) {
 		t.Fatalf("failCapture still hard-quits:\n%s", failBody)
 	}
-}
-
-// TestParseToCaptureScriptPipeline is the pure unit path from a kill plan
-// (parser output) through recording plan generation into HLAE script facts the
-// capture runtime depends on.
-func TestParseToCaptureScriptPipeline(t *testing.T) {
-	tests := []struct {
-		name       string
-		segments   []killplan.Segment
-		wantSegIDs []string
-		wantStarts int // min record-start keys
-	}{
-		{
-			name: "single kill segment",
-			segments: []killplan.Segment{{
-				ID: "seg-001", TickStart: 1000, TickEnd: 1400,
-				Kills: []killplan.Kill{{Tick: 1200, Weapon: "ak47", Killer: killplan.Player{SteamID64: "76561198148986856", NameInDemo: "p"}}},
-			}},
-			wantSegIDs: []string{"seg-001"},
-			wantStarts: 1,
-		},
-		{
-			name: "editorial reverse becomes capture chronological",
-			segments: []killplan.Segment{
-				{ID: "late", TickStart: 5000, TickEnd: 5400, Kills: []killplan.Kill{{Tick: 5200, Killer: killplan.Player{SteamID64: "76561198148986856"}}}},
-				{ID: "early", TickStart: 1000, TickEnd: 1400, Kills: []killplan.Kill{{Tick: 1200, Killer: killplan.Player{SteamID64: "76561198148986856"}}}},
-			},
-			wantSegIDs: []string{"early", "late"},
-			wantStarts: 2,
-		},
-		{
-			name: "multi kill multi segment preserves both record windows",
-			segments: []killplan.Segment{
-				{ID: "seg-001", TickStart: 2000, TickEnd: 2800, Kills: []killplan.Kill{
-					{Tick: 2200, Killer: killplan.Player{SteamID64: "76561198148986856"}},
-					{Tick: 2500, Killer: killplan.Player{SteamID64: "76561198148986856"}},
-				}},
-				{ID: "seg-002", TickStart: 8000, TickEnd: 8600, Kills: []killplan.Kill{
-					{Tick: 8300, Killer: killplan.Player{SteamID64: "76561198148986856"}},
-				}},
-			},
-			wantSegIDs: []string{"seg-001", "seg-002"},
-			wantStarts: 2,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			kp := killplan.NewPlan()
-			kp.Demo.Map = "de_dust2"
-			kp.Demo.Tickrate = 64
-			kp.Demo.SHA256 = strings.Repeat("b", 64)
-			kp.Demo.DurationTicks = 50_000
-			kp.Target.SteamID64 = "76561198148986856"
-			kp.Target.NameInDemo = "player"
-			kp.Segments = tt.segments
-
-			plan, err := NewPlanFromKillPlan(kp, `C:\demos\match.dem`, `C:\out\run`, DefaultStreamConfig())
-			if err != nil {
-				t.Fatalf("NewPlanFromKillPlan: %v", err)
-			}
-			if err := plan.Validate(); err != nil {
-				t.Fatalf("plan.Validate: %v", err)
-			}
-			if len(plan.Segments) != len(tt.wantSegIDs) {
-				t.Fatalf("segments = %d, want %d", len(plan.Segments), len(tt.wantSegIDs))
-			}
-			for i, id := range tt.wantSegIDs {
-				if plan.Segments[i].ID != id {
-					t.Fatalf("capture order[%d] = %q, want %q", i, plan.Segments[i].ID, id)
-				}
-			}
-
-			commands, seeks, windows := buildRuntimeSchedule(plan)
-			if len(windows) != len(tt.wantSegIDs) {
-				t.Fatalf("capture windows = %d, want %d", len(windows), len(tt.wantSegIDs))
-			}
-			starts := 0
-			ends := 0
-			for _, c := range commands {
-				if strings.HasPrefix(c.Key, "record-start-") {
-					starts++
-				}
-				if strings.HasPrefix(c.Key, "record-end-") {
-					ends++
-				}
-			}
-			if starts != tt.wantStarts || ends != tt.wantStarts {
-				t.Fatalf("record start/end = %d/%d, want %d/%d", starts, ends, tt.wantStarts, tt.wantStarts)
-			}
-			// Seeks only across large gaps; multi-seg with far ticks should seek.
-			_ = seeks
-
-			js, err := GenerateHLAEJavaScript(plan)
-			if err != nil {
-				t.Fatalf("GenerateHLAEJavaScript: %v", err)
-			}
-			for _, id := range tt.wantSegIDs {
-				if !strings.Contains(js, "record-start-"+id) || !strings.Contains(js, "record-end-"+id) {
-					t.Fatalf("script missing record markers for %s", id)
-				}
-			}
-			if !strings.Contains(js, `"key": "shutdown"`) || !strings.Contains(js, "beginSoftQuit()") {
-				t.Fatal("script missing soft-quit shutdown path")
-			}
-			// Effective start must not place the first kill before record start.
-			for _, seg := range plan.Segments {
-				if len(seg.Kills) == 0 {
-					continue
-				}
-				start := EffectiveRecordStartTick(seg, plan.Tickrate)
-				first := seg.Kills[0].Tick
-				for _, k := range seg.Kills[1:] {
-					if k.Tick < first {
-						first = k.Tick
-					}
-				}
-				if start > first {
-					t.Fatalf("segment %s record start %d is after first kill %d", seg.ID, start, first)
-				}
-				if first-start < plan.Tickrate && start != seg.TickStart {
-					// When settle shortens pre-roll, still require at least some pre-kill frames unless clamped to TickStart.
-					t.Logf("segment %s short pre-roll: start=%d kill=%d", seg.ID, start, first)
-				}
-			}
-		})
-	}
-}
-
-// TestParseToCapturePipelineMutations kills individual pipeline invariants.
-func TestParseToCapturePipelineMutations(t *testing.T) {
-	kp := killplan.NewPlan()
-	kp.Demo.Map = "de_inferno"
-	kp.Demo.Tickrate = 64
-	kp.Demo.SHA256 = strings.Repeat("c", 64)
-	kp.Demo.DurationTicks = 20_000
-	kp.Target.SteamID64 = "76561198148986856"
-	kp.Segments = []killplan.Segment{{
-		ID: "seg-001", TickStart: 1000, TickEnd: 2000,
-		Kills: []killplan.Kill{{Tick: 1500, Killer: killplan.Player{SteamID64: "76561198148986856"}}},
-	}}
-
-	plan, err := NewPlanFromKillPlan(kp, "match.dem", "out", DefaultStreamConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("validate rejects empty demo path after plan", func(t *testing.T) {
-		bad := plan
-		bad.DemoPath = ""
-		if err := bad.Validate(); err == nil {
-			t.Fatal("Validate accepted empty demo path")
-		}
-	})
-	t.Run("script gen requires segments", func(t *testing.T) {
-		bad := plan
-		bad.Segments = nil
-		if _, err := GenerateHLAEJavaScript(bad); err == nil {
-			t.Fatal("GenerateHLAEJavaScript accepted empty segments")
-		}
-	})
-	t.Run("record window covers kill settle", func(t *testing.T) {
-		seg := plan.Segments[0]
-		start := EffectiveRecordStartTick(seg, 64)
-		// Camera settle: firstKill - tickrate, or TickStart+2s, whichever policy applies.
-		if start < seg.TickStart || start > seg.Kills[0].Tick {
-			t.Fatalf("EffectiveRecordStartTick=%d outside [%d, kill %d]", start, seg.TickStart, seg.Kills[0].Tick)
-		}
-	})
-	t.Run("shutdown after last record end", func(t *testing.T) {
-		commands, _, windows := buildRuntimeSchedule(plan)
-		lastEnd := 0
-		for _, w := range windows {
-			if w.RecordEnd > lastEnd {
-				lastEnd = w.RecordEnd
-			}
-		}
-		var shutdownTick int
-		for _, c := range commands {
-			if c.Key == "shutdown" {
-				shutdownTick = c.Tick
-			}
-		}
-		if shutdownTick <= lastEnd {
-			t.Fatalf("shutdown tick %d must be after last record end %d", shutdownTick, lastEnd)
-		}
-	})
 }

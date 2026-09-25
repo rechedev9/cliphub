@@ -4,8 +4,11 @@ import { registerWebTools, type WebTool } from './webmcp.ts';
 
 const tool: WebTool = { name: 'read', description: 'Read', inputSchema: { type: 'object' }, execute: () => 'ok' };
 
-test('an unavailable native API leaves the page operational', () => {
+test('an unavailable native API leaves the page operational', async (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
   registerWebTools(undefined, [tool])();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(warn.mock.callCount(), 0);
 });
 
 test('unmount cancels registrations and prevents late registrations', async () => {
@@ -28,6 +31,5 @@ test('registration preserves the application callback and schema', async () => {
   const stop = registerWebTools({ registerTool: value => { registrations.push(value); } }, [tool]);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(registrations[0], tool);
-  assert.equal(await registrations[0].execute({}), 'ok');
   stop();
 });

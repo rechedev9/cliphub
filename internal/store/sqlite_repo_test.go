@@ -29,119 +29,6 @@ func newTestSQLiteRepo(t *testing.T) *SQLiteJobRepository {
 	return repo
 }
 
-func TestSQLiteRepoCreateAndGet(t *testing.T) {
-	repo := newTestSQLiteRepo(t)
-	ctx := context.Background()
-
-	j := &job.Job{Status: job.StatusScanned, DemoPath: "m.dem", DemoSHA256: "abc"}
-	if err := repo.Create(ctx, j); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if j.ID == uuid.Nil {
-		t.Fatal("Create did not assign an id")
-	}
-	if j.CreatedAt.IsZero() || j.UpdatedAt.IsZero() {
-		t.Fatal("Create did not set timestamps")
-	}
-
-	got, err := repo.Get(ctx, j.ID)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if got.ID != j.ID || got.DemoPath != "m.dem" || got.Status != job.StatusScanned {
-		t.Fatalf("Get: got %+v, want id=%s demo=m.dem status=scanned", got, j.ID)
-	}
-
-	if _, err := repo.Get(ctx, uuid.New()); !errors.Is(err, job.ErrNotFound) {
-		t.Fatalf("Get unknown: got %v, want ErrNotFound", err)
-	}
-}
-
-func TestSQLiteRepoGetMetaAndListStripKillPlan(t *testing.T) {
-	repo := newTestSQLiteRepo(t)
-	ctx := context.Background()
-
-	j := &job.Job{Status: job.StatusScanned}
-	if err := repo.Create(ctx, j); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if err := repo.SetKillPlan(ctx, j.ID, killplan.Plan{}); err != nil {
-		t.Fatalf("SetKillPlan: %v", err)
-	}
-
-	full, err := repo.Get(ctx, j.ID)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if full.KillPlan == nil {
-		t.Fatal("Get: want KillPlan set, got nil")
-	}
-
-	meta, err := repo.GetMeta(ctx, j.ID)
-	if err != nil {
-		t.Fatalf("GetMeta: %v", err)
-	}
-	if meta.KillPlan != nil {
-		t.Fatal("GetMeta: want KillPlan nil, got non-nil")
-	}
-
-	list, err := repo.List(ctx, 10)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(list) != 1 {
-		t.Fatalf("List: got %d jobs, want 1", len(list))
-	}
-	if list[0].KillPlan != nil {
-		t.Fatal("List: want KillPlan nil, got non-nil")
-	}
-
-	byStatus, err := repo.ListByStatus(ctx, job.StatusScanned)
-	if err != nil {
-		t.Fatalf("ListByStatus: %v", err)
-	}
-	if len(byStatus) != 1 {
-		t.Fatalf("ListByStatus: got %d jobs, want 1", len(byStatus))
-	}
-	if byStatus[0].KillPlan != nil {
-		t.Fatal("ListByStatus: want KillPlan nil, got non-nil")
-	}
-}
-
-func TestSQLiteRepoGetStatusReturnsOnlyLifecycleSummary(t *testing.T) {
-	repo := newTestSQLiteRepo(t)
-	ctx := context.Background()
-	plan := killplan.NewPlan()
-	plan.Segments = []killplan.Segment{{ID: "s1"}, {ID: "s2"}, {ID: "s3"}}
-	j := &job.Job{Status: job.StatusRecording, KillPlan: &plan}
-	if err := repo.Create(ctx, j); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	status, reason, segments, err := repo.GetStatus(ctx, j.ID)
-	if err != nil {
-		t.Fatalf("GetStatus recording: %v", err)
-	}
-	if status != job.StatusRecording || reason != "" || segments != 3 {
-		t.Fatalf("recording status = %s/%q/%d, want recording/empty/3", status, reason, segments)
-	}
-
-	if err := repo.UpdateStatus(ctx, j.ID, job.StatusFailed, "capture failed"); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
-	status, reason, segments, err = repo.GetStatus(ctx, j.ID)
-	if err != nil {
-		t.Fatalf("GetStatus failed: %v", err)
-	}
-	if status != job.StatusFailed || reason != "capture failed" || segments != 0 {
-		t.Fatalf("failed status = %s/%q/%d, want failed/capture failed/0", status, reason, segments)
-	}
-
-	if _, _, _, err := repo.GetStatus(ctx, uuid.New()); !errors.Is(err, job.ErrNotFound) {
-		t.Fatalf("GetStatus unknown error = %v, want ErrNotFound", err)
-	}
-}
-
 func TestSQLiteRepoLargePlanGetMetaStripsSegmentsGetStatusSkipsPlan(t *testing.T) {
 	repo := newTestSQLiteRepo(t)
 	ctx := context.Background()
@@ -240,96 +127,25 @@ func TestSQLiteRepoListOrdersByUpdatedThenLimits(t *testing.T) {
 	}
 }
 
-func TestSQLiteRepoDelete(t *testing.T) {
+// TestSQLiteRepoDeleteLeavesNoKillPlanRow covers the sibling table; the
+// Get/ListBySeries side of Delete is in TestJobRepositoryContract.
+func TestSQLiteRepoDeleteLeavesNoKillPlanRow(t *testing.T) {
 	repo := newTestSQLiteRepo(t)
 	ctx := context.Background()
-	series := uuid.NewString()
 
-	j := &job.Job{Status: job.StatusDone, SeriesID: series}
+	j := &job.Job{Status: job.StatusDone}
 	if err := repo.Create(ctx, j); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if err := repo.SetKillPlan(ctx, j.ID, killplan.NewPlan()); err != nil {
 		t.Fatalf("SetKillPlan: %v", err)
 	}
-
 	if err := repo.Delete(ctx, j.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
-	}
-	if _, err := repo.Get(ctx, j.ID); !errors.Is(err, job.ErrNotFound) {
-		t.Fatalf("Get after Delete: got %v, want ErrNotFound", err)
 	}
 	var leftover []byte
 	if err := repo.db.QueryRow(`SELECT plan FROM job_kill_plans WHERE job_id = ?`, j.ID.String()).Scan(&leftover); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("job_kill_plans after Delete: got %v/%q, want ErrNoRows", err, leftover)
-	}
-	got, err := repo.ListBySeries(ctx, series)
-	if err != nil {
-		t.Fatalf("ListBySeries: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("ListBySeries after Delete returned %d jobs, want 0", len(got))
-	}
-
-	// Deleting a missing id is a no-op.
-	if err := repo.Delete(ctx, uuid.New()); err != nil {
-		t.Fatalf("Delete missing id: %v", err)
-	}
-}
-
-func TestSQLiteRepoListBySeries(t *testing.T) {
-	repo := newTestSQLiteRepo(t)
-	ctx := context.Background()
-	series := uuid.NewString()
-
-	// An unknown series returns an empty, non-nil slice.
-	got, err := repo.ListBySeries(ctx, series)
-	if err != nil {
-		t.Fatalf("ListBySeries empty: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("ListBySeries empty: got %d jobs, want 0", len(got))
-	}
-
-	// Three jobs in the series, created in order with distinct created_at.
-	var ids []uuid.UUID
-	for range 3 {
-		j := &job.Job{Status: job.StatusQueued, SeriesID: series}
-		if err := repo.Create(ctx, j); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		ids = append(ids, j.ID)
-		time.Sleep(2 * time.Millisecond)
-	}
-	// A different series and a standalone job must be excluded.
-	if err := repo.Create(ctx, &job.Job{Status: job.StatusQueued, SeriesID: uuid.NewString()}); err != nil {
-		t.Fatalf("Create other series: %v", err)
-	}
-	if err := repo.Create(ctx, &job.Job{Status: job.StatusQueued}); err != nil {
-		t.Fatalf("Create standalone: %v", err)
-	}
-	// A kill plan on a series job confirms ListBySeries strips it.
-	if err := repo.SetKillPlan(ctx, ids[0], killplan.NewPlan()); err != nil {
-		t.Fatalf("SetKillPlan: %v", err)
-	}
-
-	got, err = repo.ListBySeries(ctx, series)
-	if err != nil {
-		t.Fatalf("ListBySeries: %v", err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("ListBySeries: got %d jobs, want 3", len(got))
-	}
-	for i, id := range ids {
-		if got[i].ID != id {
-			t.Fatalf("ListBySeries[%d].ID = %s, want %s (upload order)", i, got[i].ID, id)
-		}
-		if got[i].SeriesID != series {
-			t.Fatalf("ListBySeries[%d].SeriesID = %q, want %q", i, got[i].SeriesID, series)
-		}
-		if got[i].KillPlan != nil {
-			t.Fatalf("ListBySeries[%d] carried a kill plan, want stripped", i)
-		}
 	}
 }
 

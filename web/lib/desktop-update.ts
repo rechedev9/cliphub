@@ -1,5 +1,3 @@
-import { parseAppUpdateStatus, type AppUpdateStatus } from './app-update.ts';
-
 export interface DesktopUpdateBridge {
   getStatus(): Promise<unknown>;
   check(): Promise<unknown>;
@@ -10,12 +8,6 @@ export interface DesktopUpdateBridge {
 export function getDesktopUpdateBridge(scope: unknown = globalThis): DesktopUpdateBridge | null {
   if (!isRecord(scope)) return null;
   return isDesktopUpdateBridge(scope.cliphubUpdate) ? scope.cliphubUpdate : null;
-}
-
-export async function readDesktopUpdateStatus(
-  bridge: DesktopUpdateBridge,
-): Promise<AppUpdateStatus | null> {
-  return parseAppUpdateStatus(await bridge.getStatus());
 }
 
 function isDesktopUpdateBridge(value: unknown): value is DesktopUpdateBridge {

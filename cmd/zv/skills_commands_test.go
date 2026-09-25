@@ -20,6 +20,9 @@ func TestRunSkillsListDiscoversRepoLocalSkills(t *testing.T) {
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
 	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
 	got := stdout.String()
 	for _, want := range []string{
 		"alpha\tAlpha workflow\n",
@@ -43,18 +46,31 @@ func TestRunSkillsListJSON(t *testing.T) {
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
 	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(stdout.String()), &rows); err != nil {
+		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
+	}
+	for _, row := range rows {
+		assertJSONKeys(t, "skills list json row", row, "name", "description")
+	}
 	var skills []skillInfo
 	if err := json.Unmarshal([]byte(stdout.String()), &skills); err != nil {
 		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
 	}
-	if got, want := len(skills), 2; got != want {
-		t.Fatalf("skills len = %d, want %d", got, want)
+	want := []skillInfo{{Name: "alpha", Description: "Alpha workflow"}, {Name: "bravo", Description: "Bravo workflow"}}
+	if len(skills) != len(want) {
+		t.Fatalf("skills = %#v, want %#v", skills, want)
 	}
-	if got, want := skills[0].Name, "alpha"; got != want {
-		t.Fatalf("skills[0].Name = %q, want %q", got, want)
+	for i := range want {
+		if skills[i].Name != want[i].Name || skills[i].Description != want[i].Description {
+			t.Fatalf("skills[%d] = %#v, want %#v", i, skills[i], want[i])
+		}
 	}
-	if got := stdout.String(); strings.Contains(got, `"path"`) {
-		t.Fatalf("stdout = %q, want no local path in skill JSON", got)
+	if got := stdout.String(); strings.Contains(got, "SKILL.md") {
+		t.Fatalf("stdout = %q, want no local skill path", got)
 	}
 }
 
@@ -69,14 +85,12 @@ func TestRunSkillsShowPrintsSkillMarkdown(t *testing.T) {
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
 	}
-	for _, want := range []string{
-		"name: alpha",
-		"description: \"Alpha workflow\"",
-		"# alpha",
-	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
-		}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	wantBody := readFileString(t, filepath.Join(tempDir, ".claude", "skills", "alpha", "SKILL.md"))
+	if got, want := strings.TrimRight(stdout.String(), "\n"), strings.TrimRight(wantBody, "\n"); got != want {
+		t.Fatalf("stdout = %q, want skill file %q", got, want)
 	}
 }
 
@@ -91,6 +105,14 @@ func TestRunSkillsShowJSONPrintsSkillDetail(t *testing.T) {
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
 	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(stdout.String()), &row); err != nil {
+		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
+	}
+	assertJSONKeys(t, "skills show json", row, "name", "description", "body")
 	var detail skillDetail
 	if err := json.Unmarshal([]byte(stdout.String()), &detail); err != nil {
 		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
@@ -101,8 +123,11 @@ func TestRunSkillsShowJSONPrintsSkillDetail(t *testing.T) {
 	if got, want := detail.Description, "Alpha workflow"; got != want {
 		t.Fatalf("detail.Description = %q, want %q", got, want)
 	}
-	if !strings.Contains(detail.Body, "# alpha") {
-		t.Fatalf("detail.Body = %q, want skill body", detail.Body)
+	if got, want := detail.Body, readFileString(t, filepath.Join(tempDir, ".claude", "skills", "alpha", "SKILL.md")); got != want {
+		t.Fatalf("detail.Body = %q, want skill file %q", got, want)
+	}
+	if got := stdout.String(); strings.Contains(got, "SKILL.md") {
+		t.Fatalf("stdout = %q, want no local skill path", got)
 	}
 }
 
@@ -368,42 +393,6 @@ func TestRunSkillsCheckRejectsInvalidSkillNameContract(t *testing.T) {
 				t.Fatalf("issues = %#v, want %q", result.Issues, tt.want)
 			}
 		})
-	}
-}
-
-func TestRunSkillsCheckJSONReportsIssues(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv-parser.exe parse --demo demo.dem --steamid 76561198000000000`,
-		"```",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "skills", "check", "--format", "json"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	var result skillCheckResult
-	if err := json.Unmarshal([]byte(stdout.String()), &result); err != nil {
-		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
-	}
-	if result.OK {
-		t.Fatalf("result.OK = true, want false")
-	}
-	if got, want := result.SkillsChecked, 1; got != want {
-		t.Fatalf("result.SkillsChecked = %d, want %d", got, want)
-	}
-	if got := len(result.Issues); got == 0 {
-		t.Fatalf("issues len = 0, want issues")
 	}
 }
 

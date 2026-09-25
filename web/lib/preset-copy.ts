@@ -20,8 +20,3 @@ export const PRESET_DESCRIPTION_ES: Record<string, string> = {
 export function presetDescription(preset: { name: string; description: string }): string {
   return PRESET_DESCRIPTION_ES[preset.name] ?? preset.description;
 }
-
-export function presetHudChip(preset: { name: string; hudMode?: string }): string | undefined {
-  if (preset.name === 'gameplay-pov-60') return NATIVE_HUD_LABEL;
-  return preset.hudMode;
-}

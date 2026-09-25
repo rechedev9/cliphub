@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -12,18 +11,6 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
 )
-
-func parseFFmpegProgressOutTimeUs(content string) (int64, bool) {
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	var outTimeUs int64
-	found := false
-	for scanner.Scan() {
-		if value, ok := parseFFmpegOutTimeLine(scanner.Text()); ok {
-			outTimeUs, found = value, true
-		}
-	}
-	return outTimeUs, found
-}
 
 func parseFFmpegOutTimeLine(line string) (int64, bool) {
 	line = strings.TrimSpace(line)

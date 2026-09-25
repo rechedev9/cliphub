@@ -7,23 +7,21 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 )
 
-func TestRenderVariantFailureMessagePrefersResultError(t *testing.T) {
-	got := RenderVariantFailureMessage(editor.Result{Error: "encoder failed"}, errors.New("process failed"))
-	if got != "encoder failed" {
-		t.Fatalf("RenderVariantFailureMessage = %q, want result error", got)
-	}
-}
-
-func TestRenderVariantFailureMessageFallsBackToProcessError(t *testing.T) {
-	got := RenderVariantFailureMessage(editor.Result{}, errors.New("process failed"))
-	if got != "process failed" {
-		t.Fatalf("RenderVariantFailureMessage = %q, want process error", got)
-	}
-}
-
-func TestRenderVariantFailureMessageAllowsEmptyInput(t *testing.T) {
-	got := RenderVariantFailureMessage(editor.Result{}, nil)
-	if got != "" {
-		t.Fatalf("RenderVariantFailureMessage = %q, want empty", got)
+func TestRenderVariantFailureMessage(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result editor.Result
+		err    error
+		want   string
+	}{
+		{name: "prefers result error", result: editor.Result{Error: "encoder failed"}, err: errors.New("process failed"), want: "encoder failed"},
+		{name: "falls back to process error", err: errors.New("process failed"), want: "process failed"},
+		{name: "allows empty input", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := RenderVariantFailureMessage(tc.result, tc.err); got != tc.want {
+				t.Fatalf("RenderVariantFailureMessage = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

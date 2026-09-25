@@ -6,35 +6,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   provisionRuntimeTools,
-  runtimeToolEnvironment,
   type RuntimeToolName,
   type RuntimeToolProvisioningOptions,
 } from './runtime-tools.ts';
 import { PINNED_HLAE_TOOL } from './hlae-tool.ts';
 
 const HLAE_VERSION = PINNED_HLAE_TOOL.version;
-
-test('maps resolved runtime tools to the orchestrator environment', (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  const ffmpeg = path.join(directory, 'ffmpeg.exe');
-  fs.writeFileSync(path.join(directory, 'ffprobe.exe'), '');
-
-  assert.deepEqual(runtimeToolEnvironment({
-    hlae: 'C:\\tools\\HLAE.exe',
-    ffmpeg,
-    ytdlp: 'C:\\tools\\yt-dlp.exe',
-  }), {
-    ZV_HLAE_PATH: 'C:\\tools\\HLAE.exe',
-    ZV_FFMPEG_PATH: ffmpeg,
-    ZV_FFPROBE_PATH: path.join(directory, 'ffprobe.exe'),
-    ZV_YTDLP_PATH: 'C:\\tools\\yt-dlp.exe',
-  });
-});
-
-test('omits missing and unavailable runtime tools', () => {
-  assert.deepEqual(runtimeToolEnvironment({ hlae: '', ffmpeg: '', ytdlp: '' }), {});
-});
 
 test('skips Windows runtime provisioning on other platforms', async () => {
   const env = await provisionRuntimeTools({

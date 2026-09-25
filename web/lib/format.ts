@@ -1,34 +1,9 @@
 import type { Match, Play } from './api/types';
 
-export function formatKd(n: number): string {
-  return n.toFixed(2);
-}
-
 /** "de_dust2" -> "Dust2", "cs_office" -> "Office"; passes through anything unprefixed. */
 export function prettyMapName(map: string): string {
   const stripped = map.replace(/^(de|cs)_/, '');
   return stripped.charAt(0).toUpperCase() + stripped.slice(1);
-}
-
-/**
- * Text-colour class for an HLTV-1.0 rating, by performance band. The bands read
- * on the semantic tokens, not on Tailwind's own palette: `emerald-400` and
- * `rose-400` are outside the Studio ramp, so a rating sat at a green no other
- * signal in the app uses.
- */
-export function ratingClass(rating: number): string {
-  if (rating >= 1.15) return 'text-success';
-  if (rating >= 0.95) return 'text-fg-1';
-  if (rating >= 0.8) return 'text-warning';
-  return 'text-destructive';
-}
-
-/** Background-colour class for a rating bar fill, matching ratingClass's bands. */
-export function ratingBarClass(rating: number): string {
-  if (rating >= 1.15) return 'bg-success';
-  if (rating >= 0.95) return 'bg-fg-1';
-  if (rating >= 0.8) return 'bg-warning';
-  return 'bg-destructive';
 }
 
 /** 0-100 fill for a rating bar, scaled so a 2.0 rating (an elite pace) fills it. */

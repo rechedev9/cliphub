@@ -66,4 +66,7 @@ func TestRunBatchRejectsUnknownFormat(t *testing.T) {
 	if code != exitInvalidArgs {
 		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
 	}
+	if want := `--format must be "text" or "json"`; !strings.Contains(stderr.String(), want) {
+		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
+	}
 }

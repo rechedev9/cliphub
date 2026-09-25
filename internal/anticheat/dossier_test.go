@@ -128,11 +128,19 @@ func TestDossierFallsBackToTheSteamIDWhenTheNameIsBlank(t *testing.T) {
 }
 
 func TestVerdictLabelsCoverEveryBand(t *testing.T) {
-	for _, v := range []Verdict{
-		VerdictInsufficient, VerdictClean, VerdictInconclusive, VerdictAnomalous, VerdictHighlyAnomalous,
-	} {
-		if VerdictLabel(v) == "" {
-			t.Fatalf("verdict %q has no label", v)
+	tests := []struct {
+		verdict Verdict
+		want    string
+	}{
+		{VerdictInsufficient, "datos insuficientes"},
+		{VerdictClean, "sin anomalías"},
+		{VerdictInconclusive, "no concluyente"},
+		{VerdictAnomalous, "anómalo"},
+		{VerdictHighlyAnomalous, "muy anómalo"},
+	}
+	for _, tc := range tests {
+		if got := VerdictLabel(tc.verdict); got != tc.want {
+			t.Errorf("VerdictLabel(%q) = %q, want %q", tc.verdict, got, tc.want)
 		}
 	}
 }

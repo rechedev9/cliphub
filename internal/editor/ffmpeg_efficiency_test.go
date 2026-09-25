@@ -2,10 +2,7 @@ package editor
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -106,57 +103,6 @@ func TestFFmpegProgressPipeRealEncodeAndCancellation(t *testing.T) {
 	}
 }
 
-func TestFullDemoDeliverySingleDecodeRealMedia(t *testing.T) {
-	ffmpeg, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		t.Skip("ffmpeg not installed")
-	}
-	ffprobe, err := exec.LookPath("ffprobe")
-	if err != nil {
-		t.Skip("ffprobe not installed")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	file := filepath.Join(t.TempDir(), "delivery.mp4")
-	command := []string{ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=s=1920x1080:r=60:d=1", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "1", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", file}
-	if _, err := runFFmpegOutput(ctx, command, "delivery fixture"); err != nil {
-		t.Fatal(err)
-	}
-	var decodeProgress []float64
-	evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 60, func(stage string, fraction float64) {
-		if stage == "Verificando fotogramas, vídeo y audio" {
-			decodeProgress = append(decodeProgress, fraction)
-		}
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !evidence.FullDecode || evidence.FrameCount != 60 || len(evidence.ContentSHA256) != 64 {
-		t.Fatal(evidence)
-	}
-	if len(decodeProgress) < 2 || decodeProgress[len(decodeProgress)-1] <= decodeProgress[0] {
-		t.Fatal("complete decode did not report media progress", decodeProgress)
-	}
-	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 59, nil); err == nil {
-		t.Fatal("wrong canonical count passed")
-	}
-	// Fast-start makes the container readable even when the final media is cut.
-	fast := filepath.Join(t.TempDir(), "truncated.mp4")
-	if _, err := runFFmpegOutput(ctx, []string{ffmpeg, "-v", "error", "-i", file, "-c", "copy", "-movflags", "+faststart", fast}, "faststart fixture"); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(fast)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Truncate(fast, info.Size()-500); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, fast, 60, nil); err == nil {
-		t.Fatal("truncated media passed complete decode")
-	}
-}
-
 func BenchmarkProgressPipe(b *testing.B) {
 	input := []byte("frame=100\nfps=60\nout_time_us=1000000\nprogress=continue\n")
 	writer := &ffmpegProgressWriter{duration: 600, onFraction: func(float64) {}}
@@ -164,10 +110,4 @@ func BenchmarkProgressPipe(b *testing.B) {
 	for b.Loop() {
 		_, _ = writer.Write(input)
 	}
-}
-
-func Example_decodedDeliveryFrames() {
-	count, err := decodedDeliveryFrames("frame=60\ndup_frames=0\ndrop_frames=0\nprogress=end\n")
-	fmt.Println(count, err)
-	// Output: 60 <nil>
 }

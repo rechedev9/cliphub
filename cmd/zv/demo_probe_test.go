@@ -44,13 +44,18 @@ func TestRunDemoProbeMissingFileJSON(t *testing.T) {
 	if code == exitSuccess {
 		t.Fatalf("code = %d, want failure; stdout=%s", code, stdout.String())
 	}
-	if !strings.Contains(stderr.String()+stdout.String(), "stat demo") && !strings.Contains(stderr.String()+stdout.String(), "open demo") {
-		t.Fatalf("output missing file error: stdout=%q stderr=%q", stdout.String(), stderr.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want JSON mode to keep the reason on stdout", stderr.String())
 	}
-	var envelope map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &envelope); err == nil {
-		if envelope["ok"] == true {
-			t.Fatalf("json envelope ok=true on missing file: %s", stdout.String())
-		}
+	var envelope struct {
+		OK       bool   `json:"ok"`
+		Executed bool   `json:"executed"`
+		Error    string `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("stdout is not a JSON envelope: %v\n%s", err, stdout.String())
+	}
+	if envelope.OK || envelope.Executed || !strings.HasPrefix(envelope.Error, "stat demo: ") {
+		t.Fatalf("envelope = %#v, want unexecuted failure with a stat demo reason", envelope)
 	}
 }

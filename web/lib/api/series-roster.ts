@@ -45,10 +45,6 @@ type AggregatedPlayerWithCoverage = AggregatedSeriesPlayer & {
  * appeared in, and name/team come from their first appearance. The result is
  * sorted by total kills descending, then steamId, for a deterministic order.
  */
-export function aggregateSeriesRoster(rosters: DemoPlayer[][]): AggregatedSeriesPlayer[] {
-  return aggregateSeriesRosterWithCoverage(rosters).map(({ hsPctNeedsFallback: _, ...player }) => player);
-}
-
 function aggregateSeriesRosterWithCoverage(
   rosters: readonly (readonly AggregatedPlayerWithCoverage[] | readonly DemoPlayer[])[],
 ): AggregatedPlayerWithCoverage[] {

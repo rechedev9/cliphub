@@ -8,122 +8,71 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 )
 
-func TestNewPublishBoardMarksReadyWhenAllItemsReady(t *testing.T) {
-	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:          uuid.New(),
-		Variant:        "viral-60-clean",
-		CoversRequired: true,
-		Items: []PublishBoardItem{{
-			SegmentID:    "seg-001",
-			VideoReady:   true,
-			CoverReady:   true,
-			CaptionReady: true,
-		}},
-	})
-
-	if board.Status != "ready" || !board.RenderReady {
-		t.Fatalf("status/render_ready = %q/%v, want ready/true", board.Status, board.RenderReady)
-	}
-	if board.Items[0].Status != "ready" {
-		t.Fatalf("item status = %q, want ready", board.Items[0].Status)
-	}
-}
-
-func TestNewPublishBoardSurfacesMissingCoverBeforeCaption(t *testing.T) {
-	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:          uuid.New(),
-		Variant:        "viral-60-clean",
-		CoversRequired: true,
-		Items: []PublishBoardItem{{
-			SegmentID:    "seg-001",
-			VideoReady:   true,
-			CaptionReady: false,
-		}},
-	})
-
-	if board.Status != "needs_cover" {
-		t.Fatalf("status = %q, want needs_cover", board.Status)
-	}
-	if board.Items[0].Status != "needs_cover" {
-		t.Fatalf("item status = %q, want needs_cover", board.Items[0].Status)
-	}
-}
-
-func TestNewPublishBoardMarksNeedsCaption(t *testing.T) {
-	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:   uuid.New(),
-		Variant: "viral-60-clean",
-		Items: []PublishBoardItem{{
-			SegmentID:    "seg-001",
-			VideoReady:   true,
-			CoverReady:   true,
-			CaptionReady: false,
-		}},
-	})
-
-	if board.Status != "needs_caption" {
-		t.Fatalf("status = %q, want needs_caption", board.Status)
-	}
-}
-
-func TestNewPublishBoardMarksFailedFromRenderError(t *testing.T) {
-	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:   uuid.New(),
-		Variant: "viral-60-clean",
-		Error:   "render failed",
-		Items: []PublishBoardItem{{
-			SegmentID: "seg-001",
-		}},
-	})
-
-	if board.Status != "failed" || board.RenderReady {
-		t.Fatalf("status/render_ready = %q/%v, want failed/false", board.Status, board.RenderReady)
-	}
-}
-
-func TestNewPublishBoardKeepsWarningsInformational(t *testing.T) {
-	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:    uuid.New(),
-		Variant:  "viral-60-clean",
-		Warnings: []string{"frozen frame at 00:07"},
-		Items: []PublishBoardItem{{
-			SegmentID:    "seg-001",
-			VideoReady:   true,
-			CaptionReady: true,
-		}},
-	})
-
-	if board.Status != "ready" || !board.RenderReady {
-		t.Fatalf("status/render_ready = %q/%v, want ready/true", board.Status, board.RenderReady)
-	}
-	if len(board.Warnings) != 1 || board.Warnings[0] != "frozen frame at 00:07" {
-		t.Fatalf("warnings = %#v, want the QA warning preserved", board.Warnings)
-	}
-}
-
-func TestNewPublishBoardSurfacesMissingArtifactsBeforeWarnings(t *testing.T) {
+func TestNewPublishBoardStatus(t *testing.T) {
+	const warning = "frozen frame at 00:07"
 	tests := []struct {
-		name           string
-		coversRequired bool
-		item           PublishBoardItem
-		wantBoard      string
-		wantItem       string
+		name            string
+		coversRequired  bool
+		warnings        []string
+		err             string
+		item            PublishBoardItem
+		wantBoard       string
+		wantItem        string // "" when a failed render leaves items ungraded
+		wantRenderReady bool
 	}{
 		{
-			name:      "missing video",
+			name:            "all items ready",
+			coversRequired:  true,
+			item:            PublishBoardItem{VideoReady: true, CoverReady: true, CaptionReady: true},
+			wantBoard:       "ready",
+			wantItem:        "ready",
+			wantRenderReady: true,
+		},
+		{
+			name:           "missing cover surfaces before caption",
+			coversRequired: true,
+			item:           PublishBoardItem{VideoReady: true},
+			wantBoard:      "needs_cover",
+			wantItem:       "needs_cover",
+		},
+		{
+			name:      "needs caption",
+			item:      PublishBoardItem{VideoReady: true, CoverReady: true},
+			wantBoard: "needs_caption",
+			wantItem:  "needs_caption",
+		},
+		{
+			name:      "render error fails the board",
+			err:       "render failed",
+			item:      PublishBoardItem{},
+			wantBoard: "failed",
+		},
+		{
+			name:            "warnings stay informational",
+			warnings:        []string{warning},
+			item:            PublishBoardItem{VideoReady: true, CaptionReady: true},
+			wantBoard:       "ready",
+			wantItem:        "ready",
+			wantRenderReady: true,
+		},
+		{
+			name:      "missing video surfaces before warnings",
+			warnings:  []string{warning},
 			item:      PublishBoardItem{CaptionReady: true},
 			wantBoard: "draft",
 			wantItem:  "missing_video",
 		},
 		{
-			name:           "missing required cover",
+			name:           "missing required cover surfaces before warnings",
 			coversRequired: true,
+			warnings:       []string{warning},
 			item:           PublishBoardItem{VideoReady: true, CaptionReady: true},
 			wantBoard:      "needs_cover",
 			wantItem:       "needs_cover",
 		},
 		{
-			name:      "missing caption",
+			name:      "missing caption surfaces before warnings",
+			warnings:  []string{warning},
 			item:      PublishBoardItem{VideoReady: true, CoverReady: true},
 			wantBoard: "needs_caption",
 			wantItem:  "needs_caption",
@@ -131,18 +80,24 @@ func TestNewPublishBoardSurfacesMissingArtifactsBeforeWarnings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			item := test.item
+			item.SegmentID = "seg-001"
 			board := NewPublishBoard(NewPublishBoardOptions{
 				JobID:          uuid.New(),
 				Variant:        "viral-60-clean",
 				CoversRequired: test.coversRequired,
-				Warnings:       []string{"frozen frame at 00:07"},
-				Items:          []PublishBoardItem{test.item},
+				Warnings:       test.warnings,
+				Error:          test.err,
+				Items:          []PublishBoardItem{item},
 			})
-			if board.Status != test.wantBoard || board.RenderReady {
-				t.Fatalf("status/render_ready = %q/%v, want %q/false", board.Status, board.RenderReady, test.wantBoard)
+			if board.Status != test.wantBoard || board.RenderReady != test.wantRenderReady {
+				t.Fatalf("status/render_ready = %q/%v, want %q/%v", board.Status, board.RenderReady, test.wantBoard, test.wantRenderReady)
 			}
 			if board.Items[0].Status != test.wantItem {
 				t.Fatalf("item status = %q, want %q", board.Items[0].Status, test.wantItem)
+			}
+			if len(board.Warnings) != len(test.warnings) {
+				t.Fatalf("warnings = %#v, want %#v preserved", board.Warnings, test.warnings)
 			}
 		})
 	}

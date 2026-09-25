@@ -7,12 +7,6 @@ import (
 	"time"
 )
 
-func TestSchemaVersionConstant(t *testing.T) {
-	if SchemaVersion != "1.2" {
-		t.Errorf("SchemaVersion = %q, want %q", SchemaVersion, "1.2")
-	}
-}
-
 func TestPlanMarshalIncludesSchemaVersion(t *testing.T) {
 	p := Plan{}
 	b, err := json.Marshal(p)

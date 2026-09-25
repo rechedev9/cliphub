@@ -445,14 +445,18 @@ func (t *track) preShotAim(killTick int, tickRate float64) (peakDegPerSec, settl
 }
 
 // viewAngles returns the player's yaw and pitch in degrees, with pitch
-// normalised to [-180, 180) because the demo reports it as 270..90.
+// normalised by normalisePitch.
 func viewAngles(pl *common.Player) (yaw, pitch float64) {
-	yaw = float64(pl.ViewDirectionX())
-	pitch = float64(pl.ViewDirectionY())
+	return float64(pl.ViewDirectionX()), normalisePitch(float64(pl.ViewDirectionY()))
+}
+
+// normalisePitch maps a demo pitch to [-180, 180) because the demo reports it
+// as 270..90, where 270 means looking straight up.
+func normalisePitch(pitch float64) float64 {
 	if pitch >= 180 {
 		pitch -= 360
 	}
-	return yaw, pitch
+	return pitch
 }
 
 // viewVector converts yaw/pitch in degrees into a unit direction vector in the

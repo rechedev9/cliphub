@@ -46,7 +46,7 @@ func TestFullDemoCaptureCoverageReuseAndOrigins(t *testing.T) {
 			}
 			next, dir, resultPath := fullDemoPublicationFixture(t, "new second round", twoFullDemoFixtureRounds, tc.mutate)
 			requested := []string{"round-001", "round-002"}
-			missing, _, err := recordingOutputsReady(store, id, requested, next.Plan, context.Background())
+			missing, _, err := recordingOutputsReady(context.Background(), store, id, requested, next.Plan)
 			if err != nil || !reflect.DeepEqual(missing, tc.missing) {
 				t.Fatalf("missing = %v, err = %v", missing, err)
 			}
@@ -189,7 +189,7 @@ func TestFullDemoShortFramesRequireOnlyAffectedRoundsToBeRecaptured(t *testing.T
 	if err := putRecordingResult(store, id, stored); err != nil {
 		t.Fatal(err)
 	}
-	missing, _, err := recordingOutputsReady(store, id, []string{"round-001", "round-002"}, result.Plan, context.Background())
+	missing, _, err := recordingOutputsReady(context.Background(), store, id, []string{"round-001", "round-002"}, result.Plan)
 	if err != nil || !slices.Equal(missing, []string{"round-001"}) {
 		t.Fatalf("only the short round should be recaptured: missing=%v, err=%v", missing, err)
 	}
@@ -216,7 +216,7 @@ func TestFullDemoShortFramesRequireOnlyAffectedRoundsToBeRecaptured(t *testing.T
 	if _, err := uploadFullDemoRecordingOutputs(store, id, nextDir, nextPath, next, merged, true); err != nil {
 		t.Fatal(err)
 	}
-	missing, _, err = recordingOutputsReady(store, id, []string{"round-001", "round-002"}, result.Plan, context.Background())
+	missing, _, err = recordingOutputsReady(context.Background(), store, id, []string{"round-001", "round-002"}, result.Plan)
 	if err != nil || len(missing) != 0 {
 		t.Fatalf("repaired capture should be reusable: missing=%v, err=%v", missing, err)
 	}

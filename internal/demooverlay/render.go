@@ -118,7 +118,6 @@ func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 	req := stillRenderRequest{
 		outPath:         outPath,
 		textFilter:      text,
-		chrome:          introChromePNG,
 		transparentBase: !previewGrey,
 		previewGreyBase: previewGrey,
 		avatars:         introAvatarSlots(doc, hasExternalPlate),
@@ -419,8 +418,7 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 			parts = appendFilter(parts, drawtext(fontPath, sub, x+20, y+50, layout.LabelSize+2, palette.MutedText))
 		}
 	}
-	textInset := IntroTextInset(layout, doc.Source, hasPlate)
-	skipMonogram := hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
+	textInset := layout.CardInset
 	for i, card := range cards {
 		var cy, nameY int
 		if useGeo && i < len(geo.RowNameCenterY) {
@@ -436,7 +434,7 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		if useGeo && i < len(geo.RowNameCenterY) {
 			ay = geo.RowNameCenterY[i] - layout.AvatarSize/2
 		}
-		if !skipMonogram && strings.TrimSpace(card.AvatarFile) == "" && strings.TrimSpace(card.AvatarURL) == "" {
+		if strings.TrimSpace(card.AvatarFile) == "" && strings.TrimSpace(card.AvatarURL) == "" {
 			parts = append(parts, monogramFilters(fontPath, ax, ay, layout.AvatarSize, card.Name, true)...)
 		}
 		nameColor := palette.Text

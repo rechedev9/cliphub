@@ -4,7 +4,6 @@ import {
   createBootSecurityCapabilities,
   installProxyCapabilityCookie,
   orchestratorSecurityEnvironment,
-  PROXY_CAPABILITY_COOKIE,
   webSecurityEnvironment,
   type CookieStore,
 } from './boot-security.ts';
@@ -52,7 +51,8 @@ test('installs the proxy capability as an HttpOnly strict loopback cookie', asyn
 
   assert.deepEqual(writes, [{
     httpOnly: true,
-    name: PROXY_CAPABILITY_COOKIE,
+    // Cross-package contract: web/lib/api/local-request-guard.ts reads this name.
+    name: 'cliphub_proxy_capability',
     path: '/',
     sameSite: 'strict',
     secure: false,

@@ -26,6 +26,7 @@ test('estimated duration grows with kills from a fixed base', () => {
     assert.equal(estimatedPlaySeconds({ kills }), want, `${kills} kills`);
   }
   assert.equal(estimatedSelectionSeconds([{ kills: 1 }, { kills: 3 }]), 24);
+  assert.equal(estimatedSelectionSeconds([]), 0);
 });
 
 test('known source lengths drive auto selection and the running order', () => {
@@ -68,11 +69,6 @@ test('formatClock renders m:ss and never emits a minus sign, even at zero', () =
   }
 });
 
-test('an empty selection estimates zero seconds, which formats as 0:00', () => {
-  assert.equal(estimatedSelectionSeconds([]), 0);
-  assert.equal(formatClock(estimatedSelectionSeconds([])), '0:00');
-});
-
 test('auto pick takes the biggest frags first and never exceeds the target', () => {
   const plays = [play('a', 3, 1), play('b', 7, 5), play('c', 12, 3), play('d', 19, 4), play('e', 21, 2)];
   const picked = autoPickBestPlays(plays);
@@ -86,7 +82,6 @@ test('auto pick keeps plan order among equal kill counts', () => {
   const plays = [play('x', 1, 2), play('y', 2, 2), play('z', 3, 2)];
   const picked = autoPickBestPlays(plays, 24);
   assert.deepEqual([...picked], ['x', 'y']);
-  assert.deepEqual([...autoPickBestPlays([], 60)], []);
 });
 
 test('rounds summary lists selected rounds in plan order', () => {

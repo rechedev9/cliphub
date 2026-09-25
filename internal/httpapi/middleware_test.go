@@ -54,16 +54,25 @@ func TestCrossSiteGuardBlocksBrowserCrossSiteMutations(t *testing.T) {
 	}
 }
 
-func TestRequireReadAuthGatesExposedReads(t *testing.T) {
+func TestRequireMutationTokenGatesMutationsAndExposedReads(t *testing.T) {
 	cases := []struct {
 		name        string
 		readAuth    bool
+		noToken     bool // no session capability configured
 		method      string
 		path        string
+		host        string
+		secFetch    string
 		token       string
 		wantStatus  int
 		wantReached bool
 	}{
+		{name: "mutation without token", method: http.MethodPost, path: "/api/jobs", wantStatus: http.StatusUnauthorized},
+		{name: "mutation with wrong token", method: http.MethodPost, path: "/api/jobs", token: "wrong", wantStatus: http.StatusUnauthorized},
+		{name: "mutation with token", method: http.MethodPost, path: "/api/jobs", token: "secret", wantStatus: http.StatusOK, wantReached: true},
+		// A DNS-rebound page is same-origin to the browser, so only the session
+		// capability can stop its mutation.
+		{name: "same-origin DNS rebinding mutation without token", readAuth: true, method: http.MethodPost, path: "/api/jobs", host: "attacker.example:8080", secFetch: "same-origin", wantStatus: http.StatusUnauthorized},
 		{name: "exposed api read without token", readAuth: true, path: "/api/jobs", wantStatus: http.StatusUnauthorized},
 		{name: "exposed api read with token", readAuth: true, path: "/api/jobs", token: "secret", wantStatus: http.StatusOK, wantReached: true},
 		{name: "exposed workbench data without token", readAuth: true, path: "/ui/jobs", wantStatus: http.StatusUnauthorized},
@@ -73,12 +82,12 @@ func TestRequireReadAuthGatesExposedReads(t *testing.T) {
 		{name: "exposed workbench head with token", readAuth: true, method: http.MethodHead, path: "/ui/jobs", token: "secret", wantStatus: http.StatusOK, wantReached: true},
 		{name: "exposed workbench shell stays open", readAuth: true, path: "/", wantStatus: http.StatusOK, wantReached: true},
 		{name: "loopback default api read open", readAuth: false, path: "/api/jobs", wantStatus: http.StatusOK, wantReached: true},
-		{name: "missing configured capability fails closed", readAuth: true, path: "/api/jobs", wantStatus: http.StatusServiceUnavailable},
+		{name: "missing configured capability fails closed", readAuth: true, noToken: true, path: "/api/jobs", wantStatus: http.StatusServiceUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			token := "secret"
-			if tc.name == "missing configured capability fails closed" {
+			if tc.noToken {
 				token = ""
 			}
 			h := &Handlers{mutationToken: token, requireReadAuth: tc.readAuth}
@@ -92,6 +101,12 @@ func TestRequireReadAuthGatesExposedReads(t *testing.T) {
 				method = http.MethodGet
 			}
 			req := httptest.NewRequest(method, tc.path, nil)
+			if tc.host != "" {
+				req.Host = tc.host
+			}
+			if tc.secFetch != "" {
+				req.Header.Set("Sec-Fetch-Site", tc.secFetch)
+			}
 			if tc.token != "" {
 				req.Header.Set("X-ClipHub-Token", tc.token)
 			}
@@ -103,51 +118,6 @@ func TestRequireReadAuthGatesExposedReads(t *testing.T) {
 			}
 			if reached != tc.wantReached {
 				t.Fatalf("handler reached = %v, want %v", reached, tc.wantReached)
-			}
-		})
-	}
-}
-
-func TestSessionCapabilityBlocksSameOriginDNSRebindingRequest(t *testing.T) {
-	h := &Handlers{mutationToken: "unguessable-session-capability", requireReadAuth: true}
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs", nil)
-	req.Host = "attacker.example:8080"
-	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	rec := httptest.NewRecorder()
-	h.requireMutationToken(next).ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusUnauthorized, rec.Body.String())
-	}
-}
-
-func TestRequireMutationTokenUsesConstantTimeCompare(t *testing.T) {
-	cases := []struct {
-		name       string
-		token      string
-		wantStatus int
-	}{
-		{name: "wrong token", token: "wrong", wantStatus: http.StatusUnauthorized},
-		{name: "correct token", token: "secret", wantStatus: http.StatusOK},
-		{name: "missing token", token: "", wantStatus: http.StatusUnauthorized},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h := &Handlers{mutationToken: "secret"}
-			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-			req := httptest.NewRequest(http.MethodPost, "/api/jobs", nil)
-			if tc.token != "" {
-				req.Header.Set("X-ClipHub-Token", tc.token)
-			}
-			rw := httptest.NewRecorder()
-			h.requireMutationToken(next).ServeHTTP(rw, req)
-
-			if rw.Code != tc.wantStatus {
-				t.Fatalf("status = %d, want %d", rw.Code, tc.wantStatus)
 			}
 		})
 	}

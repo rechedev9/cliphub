@@ -1,9 +1,12 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func TestListIndexAt(t *testing.T) {
@@ -31,27 +34,37 @@ func TestListIndexAt(t *testing.T) {
 }
 
 func TestTabAtX(t *testing.T) {
-	// Zones track titleStyle("ClipHub") + gap; compute the same base the
-	// production helper uses so a brand rename does not hard-code widths.
-	base := lipgloss.Width(titleStyle.Render("ClipHub")) + 2
-	demosW := lipgloss.Width(tabInactive.Render("Demos → Reel"))
-	streamsStart := base + demosW + 1
-	tests := []struct {
-		name string
-		x    int
-		want int
-	}{
-		{"title area", max(0, base-2), -1},
-		{"demos tab start", base, 0},
-		{"demos tab end", base + demosW - 1, 0},
-		{"streams tab", streamsStart, 1},
-		{"past tabs", 60, -1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tabAtX(tt.x); got != tt.want {
-				t.Errorf("tabAtX(%d) got %d, want %d (base=%d demosW=%d)", tt.x, got, tt.want, base, demosW)
+	// Derive the click zones from the rendered header, not from the widths
+	// tabAtX computes, so a header layout change that tabAtX misses fails here.
+	cl := tuiclient.New(tuiclient.Config{BaseURL: "http://127.0.0.1:8080"})
+	for _, sc := range []screen{screenDemos, screenStreams} {
+		m := model{cl: cl, screen: sc, width: 120}
+		header := ansi.Strip(m.viewHeader())
+		span := func(label string) (int, int) {
+			t.Helper()
+			idx := strings.Index(header, label)
+			if idx < 0 {
+				t.Fatalf("header %q does not contain %q", header, label)
 			}
-		})
+			start := ansi.StringWidth(header[:idx])
+			return start, start + ansi.StringWidth(label)
+		}
+		zones := []struct {
+			label string
+			want  int
+		}{
+			{label: "ClipHub", want: -1},
+			{label: "Demos → Reel", want: 0},
+			{label: "Stream Clips", want: 1},
+			{label: cl.BaseURL(), want: -1},
+		}
+		for _, zone := range zones {
+			start, end := span(zone.label)
+			for x := start; x < end; x++ {
+				if got := tabAtX(x); got != zone.want {
+					t.Errorf("screen %v: tabAtX(%d) over %q = %d, want %d (header %q)", sc, x, zone.label, got, zone.want, header)
+				}
+			}
+		}
 	}
 }

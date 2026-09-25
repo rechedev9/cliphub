@@ -1,7 +1,6 @@
 package verify
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -116,7 +115,7 @@ func TestDoctorSchemaAndNamedGap(t *testing.T) {
 		}
 	}
 	if runtime.GOOS != "windows" {
-		live := InspectHost()
+		live := InspectHostWith(DoctorOptions{})
 		if live.CanRecertifyCapture() {
 			t.Fatal("this non-windows host must not claim capture recertification")
 		}
@@ -347,12 +346,4 @@ func hasGapID(gaps []Gap, id string) bool {
 		}
 	}
 	return false
-}
-
-func fileSum(path string) [32]byte {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return [32]byte{}
-	}
-	return sha256.Sum256(raw)
 }

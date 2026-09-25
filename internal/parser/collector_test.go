@@ -183,16 +183,29 @@ func TestRecordKillRoundFilter(t *testing.T) {
 	}
 }
 
-func TestBuildPlanFailsWhenTargetNeverSeen(t *testing.T) {
-	c := NewCollector(targetID, defaultTestRules())
-	// no RecordTargetIdentity, no kills
-
-	_, err := c.build(meta(), SegmentModeKills)
-	if err == nil {
-		t.Fatal("Build() error = nil, want error about target not seen")
+func TestCollectorsFailWhenTargetNeverSeen(t *testing.T) {
+	// No RecordTargetIdentity and no events: every collector must report the
+	// missing target instead of an empty plan.
+	tests := []struct {
+		name  string
+		build func() (killplan.Plan, error)
+	}{
+		{"kills", func() (killplan.Plan, error) {
+			return NewCollector(targetID, defaultTestRules()).build(meta(), SegmentModeKills)
+		}},
+		{"smokes", func() (killplan.Plan, error) {
+			return NewSmokeCollector(targetID, defaultTestRules()).Build(meta())
+		}},
+		{"utility", func() (killplan.Plan, error) {
+			return NewUtilityCollector(targetID, defaultTestRules()).Build(meta())
+		}},
 	}
-	if !errors.Is(err, ErrTargetNotFound) {
-		t.Fatalf("Build() error = %v, want errors.Is(ErrTargetNotFound)", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tc.build(); !errors.Is(err, ErrTargetNotFound) {
+				t.Fatalf("Build() error = %v, want errors.Is(ErrTargetNotFound)", err)
+			}
+		})
 	}
 }
 
@@ -287,106 +300,64 @@ func TestRecordTargetIdentityKeepsTheFirstObservedAliasAndTeam(t *testing.T) {
 	}
 }
 
-func TestBuildClampsSegmentEndToDemoDuration(t *testing.T) {
-	c := NewCollector(targetID, defaultTestRules())
-	c.RecordTargetIdentity("Target", "CT")
-	// Kill well before EOF so the soft margin (2s) can trim the full post-roll
-	// without colliding with the last event.
-	const duration = 20_000
-	const killTick = 10_000
-	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
-	if err != nil {
-		t.Fatal(err)
+func TestBuildSegmentEndRespectsDemoEOFMargin(t *testing.T) {
+	// Tickrate 64: post-roll is 5s (320 ticks), the soft EOF margin is 2s
+	// (128 ticks) and the hard headroom keeps TickEnd one tick before EOF.
+	// Landing on DurationTicks used to capture the glitchy last frames and
+	// could miss record-end.
+	tests := []struct {
+		name     string
+		duration int
+		killTick int
+		round    int
+		weapon   string
+		wantEnd  int
+	}{
+		{
+			// Post-roll 10320 is already under the soft cap 19872.
+			name: "post-roll well before EOF is not clipped", duration: 20_000, killTick: 10_000,
+			round: 1, weapon: "ak47", wantEnd: 10_000 + 5*64,
+		},
+		{
+			// Post-roll 10520 overruns EOF; the kill is below soft cap 10372.
+			name: "post-roll past EOF pulls back to the soft cap", duration: 10_500, killTick: 10_200,
+			round: 1, weapon: "ak47", wantEnd: 10_500 - 2*64,
+		},
+		{
+			// Regression guard for a late-match kill: post-roll 50020 > duration.
+			name: "late-match post-roll past EOF stops at the soft cap", duration: 50_000, killTick: 49_700,
+			round: 12, weapon: "awp", wantEnd: 50_000 - 2*64,
+		},
+		{
+			// The soft cap is before the kill, so a short tail (kill+64=10014)
+			// is kept and clamped to the hard headroom duration-1.
+			name: "kill inside the EOF margin keeps a short tail", duration: 10_000, killTick: 9_950,
+			round: 1, weapon: "ak47", wantEnd: 10_000 - 1,
+		},
 	}
-	if len(plan.Segments) != 1 {
-		t.Fatalf("segments = %#v, want 1", plan.Segments)
-	}
-	// Soft margin = 2s * 64 = 128 ticks → softCap 19872. Post-roll would be
-	// 10000+320=10320, already under the soft cap, so end stays post-roll.
-	want := killTick + 5*64
-	if plan.Segments[0].TickEnd != want {
-		t.Fatalf("TickEnd = %d, want post-roll %d", plan.Segments[0].TickEnd, want)
-	}
-}
-
-func TestBuildPullsSegmentEndBackFromDemoEOF(t *testing.T) {
-	c := NewCollector(targetID, defaultTestRules())
-	c.RecordTargetIdentity("Target", "CT")
-	// Post-roll would overrun the demo; soft margin must stop before EOF.
-	const duration = 10_500
-	const killTick = 10_200
-	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Segments) != 1 {
-		t.Fatalf("segments = %#v, want 1", plan.Segments)
-	}
-	// softCap = 10500 - 128 = 10372; last kill 10200 is below softCap so end=10372.
-	wantSoftCap := duration - 2*64
-	if plan.Segments[0].TickEnd != wantSoftCap {
-		t.Fatalf("TickEnd = %d, want soft-cap %d (away from demo EOF)", plan.Segments[0].TickEnd, wantSoftCap)
-	}
-	if plan.Segments[0].TickEnd >= duration {
-		t.Fatalf("TickEnd = %d must stay before demo duration %d", plan.Segments[0].TickEnd, duration)
-	}
-}
-
-func TestBuildNeverLandsSegmentEndOnAbsoluteDurationWhenMarginApplies(t *testing.T) {
-	// Regression guard: post-roll past EOF used to clamp TickEnd == DurationTicks,
-	// which captures the glitchy last frames and can miss record-end.
-	c := NewCollector(targetID, defaultTestRules())
-	c.RecordTargetIdentity("Target", "CT")
-	const (
-		tickrate = 64
-		duration = 50_000
-		killTick = 49_700 // post-roll 49_700+320=50020 > duration
-	)
-	c.RecordKill(RawKill{Tick: killTick, Round: 12, Weapon: "awp"})
-	plan, err := c.build(PlanMeta{Tickrate: tickrate, DurationTicks: duration}, SegmentModeKills)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Segments) != 1 {
-		t.Fatalf("segments = %#v, want 1", plan.Segments)
-	}
-	end := plan.Segments[0].TickEnd
-	if end >= duration {
-		t.Fatalf("TickEnd = %d lands on/after absolute duration %d; want soft margin headroom", end, duration)
-	}
-	softCap := duration - 2*tickrate
-	if end != softCap {
-		t.Fatalf("TickEnd = %d, want soft-cap %d", end, softCap)
-	}
-	if end <= killTick {
-		t.Fatalf("TickEnd = %d must still cover the kill at %d", end, killTick)
-	}
-}
-
-func TestBuildKeepsShortTailWhenKillIsInsideEOFMargin(t *testing.T) {
-	c := NewCollector(targetID, defaultTestRules())
-	c.RecordTargetIdentity("Target", "CT")
-	// Kill inside the last 2s of the demo: soft cap is before the kill, so we
-	// keep a short clean tail and still leave 1 tick of headroom before EOF.
-	const duration = 10_000
-	const killTick = 9_950
-	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Segments) != 1 {
-		t.Fatalf("segments = %#v, want 1", plan.Segments)
-	}
-	// short tail would be kill+64=10014, but hard headroom is duration-1=9999.
-	want := duration - 1
-	if plan.Segments[0].TickEnd != want {
-		t.Fatalf("TickEnd = %d, want EOF headroom %d", plan.Segments[0].TickEnd, want)
-	}
-	if plan.Segments[0].TickEnd <= killTick {
-		t.Fatalf("TickEnd = %d must still cover the kill at %d", plan.Segments[0].TickEnd, killTick)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewCollector(targetID, defaultTestRules())
+			c.RecordTargetIdentity("Target", "CT")
+			c.RecordKill(RawKill{Tick: tc.killTick, Round: tc.round, Weapon: tc.weapon})
+			plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: tc.duration}, SegmentModeKills)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(plan.Segments) != 1 {
+				t.Fatalf("segments = %#v, want 1", plan.Segments)
+			}
+			end := plan.Segments[0].TickEnd
+			if end != tc.wantEnd {
+				t.Fatalf("TickEnd = %d, want %d", end, tc.wantEnd)
+			}
+			if end >= tc.duration {
+				t.Fatalf("TickEnd = %d must stay before demo duration %d", end, tc.duration)
+			}
+			if end <= tc.killTick {
+				t.Fatalf("TickEnd = %d must still cover the kill at %d", end, tc.killTick)
+			}
+		})
 	}
 }
 

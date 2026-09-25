@@ -21,8 +21,9 @@ const (
 // RenderOptions configures optional Full Demo overlay background plates.
 type RenderOptions struct {
 	// OverlayAssetsDir points at a directory containing per-source JPG plates
-	// named {professional|premier|faceit}-{intro|outro}.jpg. Empty or missing
-	// files fall back to the embedded chrome PNG backgrounds.
+	// named {professional|premier}-{intro|outro}.jpg. FACEIT overlays (and the
+	// neon-violet intro) ignore plates and draw generated chrome; empty or
+	// missing files fall back to that generated chrome as well.
 	OverlayAssetsDir string
 	// PreviewGreyBase uses a mid-grey canvas instead of transparency for still
 	// previews so panel-only overlays are easier to review.
@@ -53,25 +54,6 @@ func resolvePlatePath(source, assetsDir, suffix string) string {
 		return ""
 	}
 	return path
-}
-
-// OutroLayoutForSource returns the scoreboard geometry for a source without a plate.
-func OutroLayoutForSource(source string) OutroLayout {
-	_ = NormalizeSource(source)
-	return DefaultLayout().Outro
-}
-
-// IntroTextInset returns the horizontal inset for player row text. FACEIT intro
-// plates reserve avatar circles on the left; indent past the circle zone.
-func IntroTextInset(layout IntroLayout, source string, hasPlate bool) int {
-	inset := layout.CardInset
-	if hasPlate && NormalizeSource(source) == SourceFACEIT {
-		circleRight := layout.AvatarXOff + layout.AvatarSize + 8
-		if circleRight > inset {
-			inset = circleRight
-		}
-	}
-	return inset
 }
 
 // plateScaleCoverCropChain scales input to cover FrameWidth x FrameHeight then center-crops.

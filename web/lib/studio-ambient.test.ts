@@ -2,7 +2,6 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import {
   AMBIENT_FRAME_MS,
-  AMBIENT_RENDER_SCALE,
   ambientBufferSize,
   ambientMode,
   ambientNoise,
@@ -27,14 +26,9 @@ test('each degradation signal on its own freezes the field', () => {
   assert.equal(ambientMode({ ...IDLE, windowActive: false }), 'static');
 });
 
-test('a capture freezes the field even while Studio is focused and unthrottled', () => {
-  // A capture shares the GPU with cs2.exe, so it outranks "the user is here".
-  assert.equal(ambientMode({ ...IDLE, captureActive: true, windowActive: true }), 'static');
-});
-
 test('the drawing buffer is half the CSS box', () => {
   const size = ambientBufferSize(1920, 1080, 1);
-  assert.deepEqual(size, { width: 1920 * AMBIENT_RENDER_SCALE, height: 1080 * AMBIENT_RENDER_SCALE });
+  assert.deepEqual(size, { width: 960, height: 540 });
 });
 
 test('device pixel ratio is clamped to 1 so a scaled 4K panel costs the same', () => {

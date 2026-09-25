@@ -123,7 +123,7 @@ export async function provisionRuntimeTools(
 }
 
 /** Converts resolved executable paths into the orchestrator's tool contract. */
-export function runtimeToolEnvironment(paths: RuntimeToolPaths): RuntimeToolEnvironment {
+function runtimeToolEnvironment(paths: RuntimeToolPaths): RuntimeToolEnvironment {
   const env: RuntimeToolEnvironment = {};
   if (paths.hlae) env.ZV_HLAE_PATH = paths.hlae;
   if (paths.ffmpeg) {

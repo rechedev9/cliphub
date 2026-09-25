@@ -1,6 +1,8 @@
 package voicecomms
 
 import (
+	"bytes"
+	"context"
 	"math"
 	"os"
 	"strconv"
@@ -108,7 +110,7 @@ func TestWriteTracksWithSpillMatchesInMemory(t *testing.T) {
 	}
 
 	spillOutDir := t.TempDir()
-	spillIndex, err := writeTracksWithSpill(spillOutDir, report, packets, sightings, spill)
+	spillIndex, err := writeTracksWithSpillContext(context.Background(), spillOutDir, report, packets, sightings, spill)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +120,22 @@ func TestWriteTracksWithSpillMatchesInMemory(t *testing.T) {
 	if len(spillIndex.Tracks) != len(memIndex.Tracks) {
 		t.Fatalf("spill tracks = %d, mem tracks = %d", len(spillIndex.Tracks), len(memIndex.Tracks))
 	}
-	for _, track := range spillIndex.Tracks {
+	for i, track := range spillIndex.Tracks {
+		memTrack := memIndex.Tracks[i]
+		if track.SteamID64 != memTrack.SteamID64 || track.Packets != memTrack.Packets || track.FirstTick != memTrack.FirstTick || track.LastTick != memTrack.LastTick {
+			t.Fatalf("spill track %+v, mem track %+v", track, memTrack)
+		}
+		spillBytes, err := os.ReadFile(track.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		memBytes, err := os.ReadFile(memTrack.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(spillBytes, memBytes) {
+			t.Fatalf("spill track %s differs from the in-memory track", track.SteamID64)
+		}
 		f, err := os.Open(track.Path)
 		if err != nil {
 			t.Fatalf("open spill track %s: %v", track.SteamID64, err)

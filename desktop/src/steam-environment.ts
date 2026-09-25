@@ -1,5 +1,5 @@
 /** The Steam credentials `internal/steamresolve` reads, in the order it reads them. */
-export const STEAM_ENVIRONMENT_KEYS = [
+const STEAM_ENVIRONMENT_KEYS = [
   'ZV_STEAM_USERNAME',
   'ZV_STEAM_PASSWORD',
   'ZV_STEAM_GUARD',

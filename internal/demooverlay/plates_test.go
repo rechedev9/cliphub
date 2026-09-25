@@ -54,38 +54,6 @@ func TestResolvePlatePath(t *testing.T) {
 	}
 }
 
-func TestOutroLayoutForSourceKeepsDefaultGrid(t *testing.T) {
-	base := DefaultLayout().Outro
-	for _, source := range []string{"", SourcePremier, SourceProfessional, SourceFACEIT} {
-		got := OutroLayoutForSource(source)
-		if got != base {
-			t.Fatalf("source %q layout = %+v, want default %+v", source, got, base)
-		}
-	}
-}
-
-func TestIntroTextInsetIndentsFACEITPlateRows(t *testing.T) {
-	layout := DefaultLayout().Intro
-	tests := []struct {
-		name     string
-		source   string
-		hasPlate bool
-		wantMin  int
-	}{
-		{name: "faceit plate", source: SourceFACEIT, hasPlate: true, wantMin: layout.AvatarXOff + layout.AvatarSize + 8},
-		{name: "faceit chrome", source: SourceFACEIT, hasPlate: false, wantMin: layout.CardInset},
-		{name: "premier plate", source: SourcePremier, hasPlate: true, wantMin: layout.CardInset},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := IntroTextInset(layout, tc.source, tc.hasPlate)
-			if got < tc.wantMin {
-				t.Fatalf("inset = %d, want >= %d", got, tc.wantMin)
-			}
-		})
-	}
-}
-
 func TestIntroPlateFilterClausesUsesPanelGeometry(t *testing.T) {
 	l := DefaultLayout()
 	clauses, next := IntroPlateFilterClauses("[0:v]", 1, l)
@@ -128,13 +96,6 @@ func TestLockedIntroPlateGeometryTables(t *testing.T) {
 				RowNameCenterY: [5]int{293, 452, 603, 753, 908},
 			},
 		},
-		{
-			source: SourceFACEIT,
-			want: IntroPlateGeometry{
-				TeamNameY: 78, TeamNameXOff: 120, TeamNameSize: 28, SubtitleY: 104,
-				RowNameCenterY: [5]int{276, 437, 598, 764, 929},
-			},
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.source, func(t *testing.T) {
@@ -172,8 +133,8 @@ func TestIntroPlateTeamHeaderInFilter(t *testing.T) {
 	}
 	font := "/fonts/Montserrat-ExtraBold.ttf"
 	tests := []struct {
-		source string
-		wantY  int
+		source  string
+		wantY   int
 		wantPOV bool
 	}{
 		{source: SourceProfessional, wantY: 126, wantPOV: true},
@@ -194,21 +155,6 @@ func TestIntroPlateTeamHeaderInFilter(t *testing.T) {
 				t.Fatalf("missing POV x=%d in filter", tagX)
 			}
 		})
-	}
-}
-
-func TestFaceitIntroRow0CircleCenter(t *testing.T) {
-	geo, ok := IntroPlateGeo(SourceFACEIT, true)
-	if !ok {
-		t.Fatal("expected geometry")
-	}
-	row0 := geo.RowNameCenterY[0]
-	if row0 < 268 || row0 > 284 {
-		t.Fatalf("FACEIT row0 center=%d, want ~276 from avatar ring measure", row0)
-	}
-	pitch := geo.RowNameCenterY[1] - geo.RowNameCenterY[0]
-	if pitch < 155 || pitch > 168 {
-		t.Fatalf("FACEIT row pitch=%d, want ~161", pitch)
 	}
 }
 
@@ -235,16 +181,6 @@ func TestLockedOutroPlateGeometryTables(t *testing.T) {
 				RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 651},
 			},
 		},
-		{
-			source: SourceFACEIT,
-			want: OutroPlateGeometry{
-				HeaderY:         108,
-				ColLabelY:       252,
-				PlateCropTop:    59,
-				PlateCropBottom: 680,
-				RowNameCenterY:  [outroPlateMaxRows]int{316, 397, 477, 558, 637},
-			},
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.source, func(t *testing.T) {
@@ -256,47 +192,6 @@ func TestLockedOutroPlateGeometryTables(t *testing.T) {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestOutroPlateRowYPacking(t *testing.T) {
-	geo, ok := OutroPlateGeo(SourceProfessional, true)
-	if !ok {
-		t.Fatal("expected geometry")
-	}
-	nameY := geo.rowNameY(0)
-	statY := geo.rowStatY(4)
-	if nameY < geo.mappedHeaderY()+20 {
-		t.Fatalf("row 0 nameY=%d too close to header y=%d", nameY, geo.mappedHeaderY())
-	}
-	if statY <= nameY {
-		t.Fatalf("row 4 statY=%d must sit below row 0 nameY=%d", statY, nameY)
-	}
-	if statY+outroStatSize > FrameHeight-geo.verticalPadTop()/2 {
-		t.Fatalf("row 4 stats extend past frame: statY=%d padTop=%d", statY, geo.verticalPadTop())
-	}
-	if geo.rowCount() != outroPlateMaxRows {
-		t.Fatalf("rowCount=%d, want %d", geo.rowCount(), outroPlateMaxRows)
-	}
-}
-
-func TestOutroPlateFrameYMapping(t *testing.T) {
-	geo, ok := OutroPlateGeo(SourceProfessional, true)
-	if !ok {
-		t.Fatal("expected geometry")
-	}
-	padTop := geo.verticalPadTop()
-	if padTop <= 0 {
-		t.Fatalf("padTop=%d, want vertical centering padding", padTop)
-	}
-	if got := geo.mappedHeaderY(); got != geo.HeaderY-geo.PlateCropTop+padTop {
-		t.Fatalf("mapped header y=%d, want %d", got, geo.HeaderY-geo.PlateCropTop+padTop)
-	}
-	if got := geo.mappedColLabelY(); got <= geo.mappedHeaderY() {
-		t.Fatalf("col labels y=%d must sit below header y=%d", got, geo.mappedHeaderY())
-	}
-	if bottom := geo.mapFrameY(geo.PlateCropBottom); bottom > FrameHeight-padTop/2 {
-		t.Fatalf("mapped crop bottom=%d exceeds frame with pad", bottom)
 	}
 }
 
@@ -364,16 +259,18 @@ func TestOutroPlateBackdropClausesUsesHighOpacity(t *testing.T) {
 }
 
 func TestOutroPlateGeometryFitsAllSources(t *testing.T) {
-	const statSize = 21
-	for _, source := range []string{SourceProfessional, SourcePremier, SourceFACEIT} {
+	for _, source := range []string{SourceProfessional, SourcePremier} {
 		t.Run(source, func(t *testing.T) {
 			geo, ok := OutroPlateGeo(source, true)
 			if !ok {
 				t.Fatal("expected geometry")
 			}
+			if geo.rowCount() != outroPlateMaxRows {
+				t.Fatalf("rowCount=%d, want %d", geo.rowCount(), outroPlateMaxRows)
+			}
 			padTop := geo.verticalPadTop()
 			if padTop <= 0 {
-				t.Fatalf("padTop=%d", padTop)
+				t.Fatalf("padTop=%d, want vertical centering padding", padTop)
 			}
 			if geo.mappedHeaderY() < padTop/2 {
 				t.Fatalf("header y=%d leaves no top margin", geo.mappedHeaderY())
@@ -381,22 +278,21 @@ func TestOutroPlateGeometryFitsAllSources(t *testing.T) {
 			if geo.mappedColLabelY() <= geo.mappedHeaderY()+20 {
 				t.Fatalf("col labels y=%d too close to header y=%d", geo.mappedColLabelY(), geo.mappedHeaderY())
 			}
+			firstNameY := geo.rowNameY(0)
+			if firstNameY < geo.mappedHeaderY()+20 {
+				t.Fatalf("row 0 nameY=%d too close to header y=%d", firstNameY, geo.mappedHeaderY())
+			}
 			lastStatY := geo.rowStatY(geo.rowCount() - 1)
-			if lastStatY+statSize > FrameHeight-padTop/2 {
+			if lastStatY <= firstNameY {
+				t.Fatalf("last row statY=%d must sit below row 0 nameY=%d", lastStatY, firstNameY)
+			}
+			if lastStatY+outroStatSize > FrameHeight-padTop/2 {
 				t.Fatalf("last row stats y=%d overflow frame %d", lastStatY, FrameHeight)
 			}
+			if bottom := geo.mapFrameY(geo.PlateCropBottom); bottom > FrameHeight-padTop/2 {
+				t.Fatalf("mapped crop bottom=%d exceeds frame with pad", bottom)
+			}
 		})
-	}
-}
-
-func TestFaceitOutroColLabelsSitBelowHeader(t *testing.T) {
-	geo, ok := OutroPlateGeo(SourceFACEIT, true)
-	if !ok {
-		t.Fatal("expected geometry")
-	}
-	gap := geo.mappedColLabelY() - geo.mappedHeaderY()
-	if gap > 170 {
-		t.Fatalf("FACEIT header-to-label gap=%d too large", gap)
 	}
 }
 
@@ -430,20 +326,16 @@ func TestStillFilterGraphCompositesIntroPlate(t *testing.T) {
 	}
 }
 
-func TestIntroFilterSkipsFACEITMonogramWhenPlatePresent(t *testing.T) {
+func TestIntroFilterDrawsFACEITMonogramWithoutAvatar(t *testing.T) {
 	doc := BuildForSource(Roster{
 		TargetSteamID64: "1",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "ZywOo", Team: "CT", Kills: 20, Deaths: 10},
 		},
 	}, SourceFACEIT, map[string]Enrichment{"1": {Nickname: "ZywOo", ELO: 3500, SkillLevel: 10}})
-	withPlate := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", true)
-	withoutPlate := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	if strings.Contains(withPlate, "text='Z'") {
-		t.Fatalf("FACEIT plate intro should not draw monogram:\n%s", withPlate)
-	}
-	if !strings.Contains(withoutPlate, "text='Z'") {
-		t.Fatalf("FACEIT chrome intro should keep monogram:\n%s", withoutPlate)
+	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
+	if !strings.Contains(got, "text='Z'") {
+		t.Fatalf("FACEIT chrome intro should keep monogram:\n%s", got)
 	}
 }
 

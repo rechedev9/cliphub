@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { recordRendererError, recordRendererSpan } from './desktop-telemetry.ts';
 
-test('sends fixed renderer events through the desktop bridge', async (t) => {
+function installBridge(t: TestContext): unknown[] {
   const values: unknown[] = [];
   Object.defineProperty(globalThis, 'cliphubTelemetry', {
     configurable: true,
@@ -12,6 +12,11 @@ test('sends fixed renderer events through the desktop bridge', async (t) => {
     },
   });
   t.after(() => { Reflect.deleteProperty(globalThis, 'cliphubTelemetry'); });
+  return values;
+}
+
+test('sends fixed renderer events through the desktop bridge', async (t) => {
+  const values = installBridge(t);
 
   const error = new TypeError('broken', { cause: new Error('underlying renderer failure') });
   recordRendererError('route.error', error);
@@ -28,7 +33,19 @@ test('sends fixed renderer events through the desktop bridge', async (t) => {
   assert.deepEqual(values[1], { kind: 'span', name: 'navigation.load', durationMS: 125 });
 });
 
-test('is a no-op outside Electron', () => {
-  recordRendererError('route.error', new Error('broken'));
-  recordRendererSpan('navigation.load', Number.NaN);
+test('drops non-finite and negative spans before they reach the bridge', async (t) => {
+  const values = installBridge(t);
+
+  recordRendererSpan('x', Number.NaN);
+  recordRendererSpan('x', -1);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(values, []);
+});
+
+test('does not throw in a browser without the desktop bridge', () => {
+  assert.doesNotThrow(() => {
+    recordRendererError('route.error', new Error('broken'));
+    recordRendererSpan('navigation.load', 125);
+  });
 });

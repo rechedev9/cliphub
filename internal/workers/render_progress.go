@@ -20,7 +20,6 @@ type renderProgressReporter struct {
 	store        storage.Storage
 	jobID        uuid.UUID
 	progressPath string
-	now          func() time.Time
 	lastBody     []byte
 }
 
@@ -29,7 +28,6 @@ func newRenderProgressReporter(store storage.Storage, jobID uuid.UUID, progressP
 		store:        store,
 		jobID:        jobID,
 		progressPath: progressPath,
-		now:          time.Now,
 	}
 }
 

@@ -123,70 +123,41 @@ test('compareReports accepts only documented raw-process wins', () => {
   }
 });
 
-test('runCompareCli reads Windows PowerShell UTF-8 BOM reports', (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'cliphub-compare-efficiency-bom-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const baselinePath = join(directory, 'baseline.json');
-  const candidatePath = join(directory, 'candidate.json');
-  writeFileSync(baselinePath, `\uFEFF${JSON.stringify(report())}`);
-  writeFileSync(candidatePath, `\uFEFF${JSON.stringify(report({
-    summary: { cpu_p95_percent: 10, working_set_peak_bytes: 300_000_000 },
-  }))}`);
-
-  let stdout = '';
-  const code = runCompareCli(
-    ['--baseline', baselinePath, '--candidate', candidatePath],
-    {
-      readFile: readFileSync,
-      write: (text) => { stdout += text; },
-      writeError: () => {},
-    },
-  );
-  const parsed = JSON.parse(stdout);
-  assert.equal(code, 0);
-  assert.equal(parsed.verdict, 'improve');
-});
-
-test('runCompareCli drives the shipped compare entry on two report files', (t) => {
+test('runCompareCli compares two report files with and without a PowerShell UTF-8 BOM', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'cliphub-compare-efficiency-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const baselinePath = join(directory, 'baseline.json');
-  const candidatePath = join(directory, 'candidate.json');
-  writeFileSync(baselinePath, JSON.stringify(report()));
-  writeFileSync(candidatePath, JSON.stringify(report({
+  const candidate = report({
     summary: { cpu_p95_percent: 10, working_set_peak_bytes: 300_000_000 },
-  })));
+  });
 
-  let stdout = '';
-  const code = runCompareCli(
-    ['--baseline', baselinePath, '--candidate', candidatePath],
-    {
-      readFile: readFileSync,
-      write: (text) => { stdout += text; },
-      writeError: () => {},
-    },
-  );
-  const parsed = JSON.parse(stdout);
-  assert.equal(code, 0);
-  assert.equal(parsed.accept, true);
-  assert.equal(parsed.verdict, 'improve');
+  for (const [name, prefix] of [['bom', '\uFEFF'], ['noBom', '']]) {
+    const baselinePath = join(directory, `${name}-baseline.json`);
+    const candidatePath = join(directory, `${name}-candidate.json`);
+    writeFileSync(baselinePath, `${prefix}${JSON.stringify(report())}`);
+    writeFileSync(candidatePath, `${prefix}${JSON.stringify(candidate)}`);
+
+    let stdout = '';
+    const code = runCompareCli(
+      ['--baseline', baselinePath, '--candidate', candidatePath],
+      {
+        readFile: readFileSync,
+        write: (text) => { stdout += text; },
+        writeError: () => {},
+      },
+    );
+    const parsed = JSON.parse(stdout);
+    assert.equal(code, 0, name);
+    assert.equal(parsed.accept, true, name);
+    assert.equal(parsed.verdict, 'improve', name);
+  }
 });
 
-test('workflow encodes the four scenarios and the measure-iterate loop', () => {
+test('efficiency workflow accepts exactly the shipped comparison scenarios', () => {
   const workflow = readFileSync(
     join(repoRoot, '.grok', 'workflows', 'desktop-efficiency.rhai'),
     'utf8',
   );
-  for (const scenario of SCENARIOS) {
-    assert.match(workflow, new RegExp(scenario));
-  }
-  assert.match(workflow, /measure-desktop-efficiency\.ps1/);
-  assert.match(workflow, /compare-efficiency\.mjs/);
-  assert.match(workflow, /persist a baseline|persist baseline/i);
-  assert.match(workflow, /remasure|remeasure/i);
-  assert.match(workflow, /same scenario/);
-  assert.match(workflow, /same(?: requested)? duration|same duration/i);
-  assert.match(workflow, /accept only/i);
-  assert.match(workflow, /HLAE/);
-  assert.match(workflow, /CS2/);
+  const declaration = workflow.match(/^let scenarios = (\[[^\]\r\n]*\]);/m);
+  assert.notEqual(declaration, null, 'desktop-efficiency.rhai must declare its scenarios');
+  assert.deepEqual(JSON.parse(declaration[1]), [...SCENARIOS]);
 });

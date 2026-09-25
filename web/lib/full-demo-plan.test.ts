@@ -192,6 +192,7 @@ for (const [name, mutate] of [
   ['range with unchanged round ID', (o: FullDemoOptions): void => { o.editorial.freeze_seconds = 5; }],
   ['game volume zero', (o: FullDemoOptions): void => { o.audio.game.gain = 0; }],
   ['cover', (o: FullDemoOptions): void => { o.outputs.cover_policy = 'generated-gameplay'; }],
+  ['transitions disabled', (o: FullDemoOptions): void => { o.transitions = { ...fullDemoTransitionPreset(), enabled: false }; }],
 ] satisfies [string, (options: FullDemoOptions) => void][]) {
   test(`changing ${name} invalidates approval`, () => {
     const { document } = fixture();

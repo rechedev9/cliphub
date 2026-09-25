@@ -594,9 +594,13 @@ func TestRunShortRenderFailureWritesLog(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		RenderJobs:          4,
 	})
 	if err == nil {
 		t.Fatal("Run error = nil, want short render failure")
+	}
+	if result.Error == "" {
+		t.Fatalf("result.Error empty, want render failure recorded: %#v", result)
 	}
 	// A real render that failed must not claim it executed, and the persisted
 	// artifact must record executed:false.

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
-import { FULL_DEMO_EDIT, fullDemoEdit } from '../full-demo.ts';
+import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import { reelContractMatches, reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
 import { OVERLAY_THEME } from './types.ts';
 
@@ -91,14 +91,14 @@ test('in-flight Full Demo reuses the reel when overlay theme changes', () => {
     videoId: `${JOB}__full-demo`,
     segmentIds: [],
     variant: 'gameplay-pov-60',
-    editConfig: fullDemoEdit(OVERLAY_THEME.faceitOrange),
+    editConfig: { ...FULL_DEMO_EDIT, overlayTheme: OVERLAY_THEME.faceitOrange },
   });
   const violetInput = {
     matchId: JOB,
     playIds: [] as string[],
     mode: 'clean' as const,
     variant: 'gameplay-pov-60',
-    editConfig: fullDemoEdit(OVERLAY_THEME.neonViolet),
+    editConfig: { ...FULL_DEMO_EDIT, overlayTheme: OVERLAY_THEME.neonViolet },
   };
   assert.equal(reelContractMatches(orange, violetInput), false);
   assert.equal(shouldReuseReelIntent({ status: 'recording' }, orange, violetInput), true);

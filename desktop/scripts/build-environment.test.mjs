@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  environmentWithoutCodeSigningCredentials,
   environmentWithoutXAIAPIKey,
   faceitAPIKeyFromEnvironment,
   goRuntimeBuildEnvironment,
@@ -26,26 +25,6 @@ test('removes every casing of XAI_API_KEY without mutating the build environment
 
   assert.deepEqual(sanitized, { KEEP_ME: 'yes' });
   assert.equal(original[credentialName], 'uppercase');
-});
-
-test('disables code-signing discovery and strips every signing credential casing', () => {
-  const certificateName = ['CSC', 'LINK'].join('_');
-  const passwordName = ['CSC', 'KEY', 'PASSWORD'].join('_');
-  const windowsCertificateName = ['WIN', 'CSC', 'LINK'].join('_');
-  const windowsPasswordName = ['WIN', 'CSC', 'KEY', 'PASSWORD'].join('_');
-  const original = {
-    [certificateName]: 'certificate-input',
-    KEEP_ME: 'yes',
-    [passwordName.toLowerCase()]: 'password-input',
-    [windowsCertificateName]: 'windows-certificate-input',
-    [windowsPasswordName.toLowerCase()]: 'windows-password-input',
-  };
-
-  assert.deepEqual(environmentWithoutCodeSigningCredentials(original), {
-    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
-    KEEP_ME: 'yes',
-  });
-  assert.equal(original[certificateName], 'certificate-input');
 });
 
 test('desktop manifest exposes one credential-free distribution path', () => {
@@ -73,6 +52,9 @@ test('release build environment is an allowlist, not a credential denylist', () 
     SystemRoot: 'C:\\Windows',
     TEMP: 'C:\\temp',
     ELECTRON_CACHE: 'C:\\cache\\electron',
+    [['CSC', 'LINK'].join('_')]: 'certificate-input',
+    [['WIN', 'CSC', 'KEY', 'PASSWORD'].join('_').toLowerCase()]: 'windows-password-input',
+    CSC_IDENTITY_AUTO_DISCOVERY: 'true',
     FIRECRAWL_API_KEY: 'fixture',
     CLIPHUB_PROXY_MUTATION_CAPABILITY: 'fixture',
     GH_TOKEN: 'fixture',

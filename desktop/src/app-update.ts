@@ -1,9 +1,10 @@
+import { spawn, type SpawnOptions } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { downloadFile, fetchText, type DownloadOptions } from './http-download.ts';
 
-export const GITHUB_LATEST_RELEASE_URL =
+const GITHUB_LATEST_RELEASE_URL =
   'https://api.github.com/repos/rechedev9/cliphub/releases/latest';
 
 const CHECKSUM_LINE = /^([a-f0-9]{64})  ([^\r\n]+)$/;
@@ -77,7 +78,38 @@ export function installerAssetName(version: string): string {
 }
 
 // Assisted silent NSIS skips the finish-page Run checkbox; `--force-run` starts the app after replace.
-export const INSTALLER_SPAWN_ARGS = ['/S', '--updated', '--force-run'] as const;
+const INSTALLER_SPAWN_ARGS = ['/S', '--updated', '--force-run'] as const;
+
+interface InstallerProcess {
+  once(event: 'error', listener: (error: Error) => void): unknown;
+  once(event: 'spawn', listener: () => void): unknown;
+  unref(): void;
+}
+
+type SpawnInstallerProcess = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => InstallerProcess;
+
+/** Starts the verified installer detached so it can replace the running app. */
+export function spawnVerifiedInstaller(
+  installerPath: string,
+  spawnProcess: SpawnInstallerProcess = spawn,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawnProcess(installerPath, [...INSTALLER_SPAWN_ARGS], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
 
 export function releaseDownloadUrl(version: string, fileName: string): string {
   const normalized = parseReleaseVersion(version);

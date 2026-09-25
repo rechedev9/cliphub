@@ -105,7 +105,7 @@ func TestProductionFlowsDoNotRequireBriefApproval(t *testing.T) {
 	}
 }
 
-func TestDemoFlowKeepsThumbnailGateWithoutBriefApproval(t *testing.T) {
+func TestDemoFlowKeepsThumbnailGate(t *testing.T) {
 	flow, ok := findProductionFlow("demo")
 	if !ok {
 		t.Fatal("demo flow missing")

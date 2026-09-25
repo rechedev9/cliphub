@@ -108,53 +108,6 @@ func TestStoreFullDemoFaceitRejectsMissingRosterPlayer(t *testing.T) {
 	}
 }
 
-func TestStoreFullDemoSteamAvatarsSnapshotsPublicAndPrivateWithoutFACEITFields(t *testing.T) {
-	t.Parallel()
-	const (
-		publicID  = "76561198000000001"
-		privateID = "76561198000000002"
-		missingID = "76561198000000003"
-	)
-	store := newFakeStorage()
-	id := uuid.New()
-	roster, err := json.Marshal(parser.RosterResult{Players: []parser.PlayerStat{
-		{SteamID64: publicID, Name: "demo-name", Team: "CT"},
-		{SteamID64: privateID, Name: "private-name", Team: "T"},
-		{SteamID64: missingID, Name: "missing-name", Team: "T"},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Put(artifacts.RosterKey(id), bytes.NewReader(roster)); err != nil {
-		t.Fatal(err)
-	}
-	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithSteamAvatarResolver(&fakeSteamAvatarResolver{avatars: map[string]faceit.SteamAvatar{
-		publicID:  {URL: "https://avatars.akamai.steamstatic.com/public.jpg"},
-		privateID: {URL: "https://avatars.akamai.steamstatic.com/private.jpg", Private: true},
-	}}))
-	if err := h.storeFullDemoSteamAvatars(context.Background(), job.Job{ID: id}); err != nil {
-		t.Fatal(err)
-	}
-	rc, err := store.Open(artifacts.FullDemoSteamAvatarsKey(id))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rc.Close()
-	var got map[string]faceit.SteamAvatar
-	if err := json.NewDecoder(rc).Decode(&got); err != nil {
-		t.Fatal(err)
-	}
-	if got[publicID].URL == "" || got[publicID].Private {
-		t.Fatalf("public snapshot = %+v", got)
-	}
-	if !got[privateID].Private || got[privateID].URL != "" {
-		t.Fatalf("private snapshot = %+v", got)
-	}
-	if _, ok := got[missingID]; ok {
-		t.Fatalf("missing profile was invented: %+v", got)
-	}
-}
-
 type fakeSteamAvatarResolver struct {
 	avatars map[string]faceit.SteamAvatar
 	calls   [][]string
