@@ -414,7 +414,6 @@ func analyzeTarget(s source, player parser.PlayerStat, out string) (result targe
 		opts := recapplan.DefaultOptions()
 		opts.Audio.Voice.Enabled = false
 		opts.Audio.Music.Enabled = false
-		opts.Sponsor.Enabled = false
 		opts.Capture.Crosshair.AllowCaptureDefault = allowDefault
 		doc, err := recapplan.Plan(dual.Facts, opts, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
 		if err != nil {
