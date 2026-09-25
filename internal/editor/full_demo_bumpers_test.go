@@ -115,9 +115,9 @@ func TestFullDemoCoverNeverLandsInsideABumper(t *testing.T) {
 func TestFullDemoCoverFallbackSkipsAdjacentNonRoundItems(t *testing.T) {
 	items := []recapplan.TimelineItem{
 		{Role: "bumper", StartFrame: 0, EndFrame: 180},
-		{Role: "sponsor", StartFrame: 180, EndFrame: 420},
+		{Role: "bumper", StartFrame: 180, EndFrame: 420},
 		{Role: "round", StartFrame: 420, EndFrame: 780},
-		{Role: "sponsor", StartFrame: 780, EndFrame: 1020},
+		{Role: "bumper", StartFrame: 780, EndFrame: 1020},
 		{Role: "bumper", StartFrame: 1020, EndFrame: 1260},
 	}
 	for i, want := range map[int]float64{0: 7, 1: 7, 3: 779.0 / 60, 4: 779.0 / 60} {

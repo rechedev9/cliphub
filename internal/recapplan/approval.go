@@ -112,17 +112,9 @@ func (o Options) AssetReferences() []AssetRef {
 	if o.Audio.Music.Enabled {
 		refs = append(refs, o.Audio.Music.Assets...)
 	}
-	if o.Sponsor.Enabled {
-		if o.Sponsor.Video != nil {
-			refs = append(refs, *o.Sponsor.Video)
-		}
-		if o.Sponsor.AudioPolicy == "replace-narration" && o.Sponsor.Narration != nil {
-			refs = append(refs, *o.Sponsor.Narration)
-		}
-	}
-	for _, slot := range []func() (BumperSlot, bool){o.IntroBumper, o.OutroBumper} {
-		if bumper, ok := slot(); ok && bumper.Video != nil {
-			refs = append(refs, *bumper.Video)
+	for _, bumper := range o.BumperSlots() {
+		if bumper.Slot.Video != nil {
+			refs = append(refs, *bumper.Slot.Video)
 		}
 	}
 	unique := []AssetRef{}

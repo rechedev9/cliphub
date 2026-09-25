@@ -12,7 +12,7 @@ export const requiredTests = [
   ['editor', 'TestFullDemoMasterDecodedAAC'],
   ['editor', 'TestFullDemoDecodedGameVoiceMix'],
   ['voicecomms', 'TestDecodedTeamVoiceAfterLongSilenceAndSideChange'],
-  ['editor', 'TestFullDemoSponsorAndAudioMediaCanary'],
+  ['editor', 'TestFullDemoSponsorBumperAndAudioMediaCanary'],
 ].map(([pkg, test]) => `${prefix}${pkg}/${test}`);
 
 // A skipped, renamed or removed canary must not silently turn this lane green.

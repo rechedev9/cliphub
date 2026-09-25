@@ -10,27 +10,39 @@ import styles from './full-demo-bumpers.module.css';
 type Props = { options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void };
 type Slot = keyof FullDemoBumperOptions;
 const EMPTY_BUMPERS: FullDemoBumperOptions = { intro: { enabled: false, video: null }, outro: { enabled: false, video: null } };
+const SLOTS: readonly Slot[] = ['intro', 'sponsor', 'outro'];
+const SLOT_COPY: Record<Slot, { title: string; number: string; placement: string; hint: string }> = {
+  intro: { title: 'Intro', number: '01', placement: 'Antes de la demo', hint: 'Selecciona tu clip de apertura' },
+  // Fixed by the planner: after the second round, or after the only one.
+  sponsor: { title: 'Sponsor', number: '02', placement: 'Tras la ronda 2', hint: 'Selecciona el anuncio del sponsor' },
+  outro: { title: 'Outro', number: '03', placement: 'Después de la demo', hint: 'Selecciona tu clip de cierre' },
+};
 
 export function FullDemoBumpers({ options, document, onChange, onAssetBusy }: Props): ReactNode {
   const bumpers = options.bumpers ?? EMPTY_BUMPERS;
   const headingId = useId();
+  // `bumpers.sponsor` stays absent until a sponsor video is added, like Go's omitempty.
+  const loaded = (slot: Slot): FullDemoAssetRef | null => bumpers[slot]?.enabled ? bumpers[slot].video : null;
   return <section className={`studio-panel ${styles.panel}`} aria-labelledby={headingId}>
     <header className={styles.heading}>
-      <div className={styles.headingTitle}><Film aria-hidden /><h2 id={headingId}>Intro y outro</h2></div>
+      <div className={styles.headingTitle}><Film aria-hidden /><h2 id={headingId}>Intro, sponsor y outro</h2></div>
       <span className={styles.optional}>Opcional</span>
     </header>
-    <p className={styles.description}>Tu marca, al principio y al final.</p>
-    <div className={styles.sequence} role="img" aria-label="Orden del vídeo: intro, transición, demo, transición y outro">
-      <span data-active={bumpers.intro.enabled && !!bumpers.intro.video}>Intro</span>
+    <p className={styles.description}>Tu marca al principio y al final, y tu sponsor tras la ronda 2.</p>
+    <div className={styles.sequence} role="img" aria-label="Orden del vídeo: intro, rondas 1 y 2, sponsor, resto de la demo y outro">
+      <span data-active={!!loaded('intro')}>Intro</span>
       <ChevronRight aria-hidden />
-      <span className={styles.demo}><Film aria-hidden />Demo</span>
+      <span className={styles.demo}><Film aria-hidden />R1–2</span>
       <ChevronRight aria-hidden />
-      <span data-active={bumpers.outro.enabled && !!bumpers.outro.video}>Outro</span>
+      <span data-active={!!loaded('sponsor')}>Sponsor</span>
+      <ChevronRight aria-hidden />
+      <span className={styles.demo}><Film aria-hidden />Resto</span>
+      <ChevronRight aria-hidden />
+      <span data-active={!!loaded('outro')}>Outro</span>
     </div>
     <div className={styles.slots}>
-      {(['intro', 'outro'] as const).map((slot) => <BumperUpload key={slot} slot={slot}
-        asset={bumpers[slot].enabled ? bumpers[slot].video : null}
-        savedName={document?.assets?.find((asset) => asset.ref.id === bumpers[slot].video?.id)?.title}
+      {SLOTS.map((slot) => <BumperUpload key={slot} slot={slot} asset={loaded(slot)}
+        savedName={document?.assets?.find((asset) => asset.ref.id === bumpers[slot]?.video?.id)?.title}
         onBusy={onAssetBusy} onChange={(video) => onChange({ ...options, bumpers: { ...bumpers, [slot]: { enabled: video !== null, video } } })} />)}
     </div>
     <p className={styles.transitionNote}><span aria-hidden />Transiciones automáticas con la demo</p>
@@ -47,7 +59,8 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<{ id: string; name: string } | null>(null);
-  const title = slot === 'intro' ? 'Intro' : 'Outro';
+  const copy = SLOT_COPY[slot];
+  const title = copy.title;
   const actionLabel = asset ? `Cambiar MP4 de ${slot}` : `Subir MP4 de ${slot}`;
   const name = fileName?.id === asset?.id ? fileName?.name : savedName;
   useEffect(() => () => request.current?.abort(), []);
@@ -81,8 +94,8 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
   return <div data-bumper={slot} data-loaded={!!asset} className={styles.card} role="group" aria-labelledby={id}>
     <div className={styles.cardHeader}>
       <div className={styles.cardTitle}>
-        <span className={styles.number} aria-hidden>{slot === 'intro' ? '01' : '02'}</span>
-        <div><h3 id={id}>{title}</h3><p>{slot === 'intro' ? 'Antes de la demo' : 'Después de la demo'}</p></div>
+        <span className={styles.number} aria-hidden>{copy.number}</span>
+        <div><h3 id={id}>{title}</h3><p>{copy.placement}</p></div>
       </div>
       {asset ? <span className={styles.ready}><Check aria-hidden />Listo</span> : null}
     </div>
@@ -106,7 +119,7 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
       }}>
       <span aria-hidden data-bumper-glow className={styles.glow} />
       {asset ? <RefreshCw aria-hidden className={styles.replaceIcon} /> : <span className={styles.uploadIcon}><Upload aria-hidden /></span>}
-      <span className={styles.uploadCopy}>{asset ? 'Cambiar' : 'Subir un MP4'}{!asset ? <span>Selecciona tu clip de {slot === 'intro' ? 'apertura' : 'cierre'}</span> : null}</span>
+      <span className={styles.uploadCopy}>{asset ? 'Cambiar' : 'Subir un MP4'}{!asset ? <span>{copy.hint}</span> : null}</span>
     </Button>
     {asset ? <Button type="button" variant="ghost" size="icon-xs" className={styles.remove} aria-label={`Quitar ${slot}`} title={`Quitar ${slot}`} onClick={() => { setError(null); onChange(null); }}><X aria-hidden /></Button> : null}
     </div>

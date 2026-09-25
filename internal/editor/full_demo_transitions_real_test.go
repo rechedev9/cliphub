@@ -56,7 +56,7 @@ func TestFullDemoTransitionsRealCapturePreview(t *testing.T) {
 	}
 	dir := t.TempDir()
 	options := recapplan.DefaultOptions()
-	options.Audio.Music.Enabled, options.Audio.Voice.Enabled, options.Sponsor.Enabled = false, false, false
+	options.Audio.Music.Enabled, options.Audio.Voice.Enabled = false, false
 	base := recapplan.Document{Clock: recapplan.Clock{TickRate: result.Plan.Tickrate, FPS: 60, SampleRate: 48000}, Options: options}
 	var parts []ShortPart
 	// Show the last four seconds of R1 and the first four seconds of R2.

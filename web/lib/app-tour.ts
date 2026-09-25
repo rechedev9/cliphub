@@ -125,8 +125,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Transiciones entre rondas y rótulos de inicio y final según el origen de la demo: FACEIT, Premier, Profesional o local.',
       },
       {
-        term: 'Intro, outro y sponsor',
-        text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor si tienes sus derechos de uso.',
+        term: 'Intro, sponsor y outro',
+        text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor que se reproduce después de la ronda 2 si tienes sus derechos de uso.',
       },
     ],
   },
