@@ -21,9 +21,6 @@ import type {
 /** A point in native or rendered radar pixels; y grows downward. */
 export type RadarPoint = { x: number; y: number };
 
-/** A point in CS2 world units; y grows north. */
-export type WorldPoint = { x: number; y: number };
-
 /** An axis-aligned rectangle in world units. */
 export type WorldRect = { minX: number; minY: number; maxX: number; maxY: number };
 
@@ -65,19 +62,6 @@ export function worldToPixel(
   };
 }
 
-/** The inverse of `worldToPixel`. */
-export function pixelToWorld(
-  calibration: RadarCalibration,
-  pixelX: number,
-  pixelY: number,
-): WorldPoint {
-  assertUsable(calibration);
-  return {
-    x: pixelX * calibration.scale + calibration.pos_x,
-    y: calibration.pos_y - pixelY * calibration.scale,
-  };
-}
-
 /**
  * Rendered pixels per native radar pixel. A 1024-pixel overview drawn 512 wide
  * scales by 0.5, and every length — dot radius, line width, cell size — must be
@@ -101,17 +85,6 @@ export function worldToRendered(
   return { x: pixel.x * factor, y: pixel.y * factor };
 }
 
-/** Converts rendered radar pixels back to world coordinates. */
-export function renderedToWorld(
-  calibration: RadarCalibration,
-  renderedX: number,
-  renderedY: number,
-  renderedSize: number,
-): WorldPoint {
-  const factor = radarScaleFactor(calibration, renderedSize);
-  return pixelToWorld(calibration, renderedX / factor, renderedY / factor);
-}
-
 /**
  * Reports which vertical section an altitude belongs to. Maps without a lower
  * section always answer `default`, mirroring `radarmap.Calibration.Level`.
@@ -124,14 +97,6 @@ export function levelForAltitude(calibration: RadarCalibration, worldZ: number):
 /** Reports whether the map is drawn as two overview images. */
 export function isMultiLevelMap(calibration: RadarCalibration): boolean {
   return calibration.lower_altitude_max !== undefined;
-}
-
-/** Returns one vertical section's occupancy grid, or undefined when it has none. */
-export function geometryLevel(
-  geometry: TacticalGeometry,
-  level: RadarLevel,
-): TacticalGeometryLevel | undefined {
-  return geometry.levels.find((candidate) => candidate.name === level);
 }
 
 function assertCellSize(geometry: TacticalGeometry): void {
@@ -157,16 +122,6 @@ export function cellWorldRect(
     maxX: (cellX + 1) * size,
     maxY: (cellY + 1) * size,
   };
-}
-
-/** The world centre of a cell, mirroring `MapGeometry.CellCenter`. */
-export function cellWorldCenter(
-  geometry: TacticalGeometry,
-  cellX: number,
-  cellY: number,
-): WorldPoint {
-  assertCellSize(geometry);
-  return { x: (cellX + 0.5) * geometry.cell_size, y: (cellY + 0.5) * geometry.cell_size };
 }
 
 /**

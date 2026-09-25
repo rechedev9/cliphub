@@ -288,7 +288,9 @@ func TestBlobSizeIsTenBytesPerSample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodePositions: %v", err)
 	}
-	want := positionsHeaderSize + positionsFrameHead + 10*positionsSampleSize
+	// 32-byte header + 6-byte frame head (int32 tick, uint16 mask) + 10
+	// samples of 10 bytes (3x int16 axis, uint16 yaw, health, flags).
+	const want = 32 + 6 + 10*10
 	if len(blob.Data) != want {
 		t.Fatalf("blob is %d bytes, want %d", len(blob.Data), want)
 	}

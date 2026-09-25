@@ -48,15 +48,10 @@ type ProveReport struct {
 	Detail        string           `json:"detail"`
 }
 
-// ProveFeature checks one catalog row. Features that need HLAE/CS2 never
-// return OK on a host that cannot recertify them.
-func ProveFeature(root string, host Host, id string) (ProveReport, error) {
-	return Prove(ProveOptions{Root: root, Host: host, Feature: id})
-}
-
-// Prove inspects one mapped feature. --dry-run never writes jobs.db and
-// never enqueues capture (no HTTP). A live prove may GET a read-only API
-// or job status. It never POSTs and never claims a capture Pass.
+// Prove inspects one mapped feature. Features that need HLAE/CS2 never
+// return OK on a host that cannot recertify them. --dry-run never writes
+// jobs.db and never enqueues capture (no HTTP). A live prove may GET a
+// read-only API or job status. It never POSTs and never claims a capture Pass.
 func Prove(opts ProveOptions) (ProveReport, error) {
 	feature, ok := FeatureByID(opts.Feature)
 	if !ok {

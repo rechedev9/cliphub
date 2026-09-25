@@ -68,9 +68,18 @@ func TestLoadBaselineRejectsAnIncompleteDocument(t *testing.T) {
 }
 
 func TestLoadBaselineRejectsUnknownFields(t *testing.T) {
-	_, err := LoadBaseline(strings.NewReader(`{"id":"x","metrics":{},"surprise":1}`))
-	if err == nil {
-		t.Fatal("LoadBaseline() = nil error for an unknown field")
+	// Start from a document that loads, so only the extra field can fail it.
+	var buf bytes.Buffer
+	if err := DefaultBaseline().Encode(&buf); err != nil {
+		t.Fatalf("Encode() = %v", err)
+	}
+	doc, ok := strings.CutPrefix(buf.String(), "{")
+	if !ok {
+		t.Fatalf("encoded baseline does not start with an object: %q", buf.String())
+	}
+	_, err := LoadBaseline(strings.NewReader(`{"surprise":1,` + doc))
+	if err == nil || !strings.Contains(err.Error(), `"surprise"`) {
+		t.Fatalf("LoadBaseline() error = %v, want one naming the unknown field \"surprise\"", err)
 	}
 }
 

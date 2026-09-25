@@ -241,19 +241,6 @@ test('rejects a remote track without a valid sha256 and removes an unverified ca
   assert.deepEqual(logs, ['[music] skip remote: remote track has no valid sha256\n']);
 });
 
-test('the shipped catalog has no remote tracks', () => {
-  const sourceFile = fileURLToPath(import.meta.url);
-  const catalogPath = path.join(path.dirname(sourceFile), '..', '..', 'data', 'music', 'catalog.json');
-  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as { tracks?: unknown[] };
-  const remoteTracks = (catalog.tracks ?? []).filter(
-    (track): track is { id: unknown; downloadUrl: string; sha256?: unknown } =>
-      typeof track === 'object' && track !== null && 'downloadUrl' in track
-      && typeof track.downloadUrl === 'string' && track.downloadUrl !== '',
-  );
-
-  assert.equal(remoteTracks.length, 0);
-});
-
 test('the shipped catalog is the Suno pack only', () => {
   const sourceFile = fileURLToPath(import.meta.url);
   const catalogPath = path.join(path.dirname(sourceFile), '..', '..', 'data', 'music', 'catalog.json');

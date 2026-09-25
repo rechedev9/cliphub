@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from './api/tactical.ts';
 import type { TacticalEvent } from './api/tactical.ts';
 import {
-  DEFAULT_TICKRATE,
   advanceTransport,
   clampToTimeline,
   roundClockSeconds,
@@ -19,7 +18,6 @@ import {
   timelineFraction,
   timelineSeconds,
   timelineTick,
-  visibleTimelineEvents,
 } from './tactical-timeline.ts';
 
 const ROUND = {
@@ -41,8 +39,8 @@ test('roundTimeline: the freeze band leads the bar and the round fills the rest'
 });
 
 test('roundTimeline: an unusable tick rate falls back to the CS2 default', () => {
-  assert.equal(roundTimeline(ROUND, 0).tickrate, DEFAULT_TICKRATE);
-  assert.equal(roundTimeline(ROUND, Number.NaN).tickrate, DEFAULT_TICKRATE);
+  assert.equal(roundTimeline(ROUND, 0).tickrate, 64);
+  assert.equal(roundTimeline(ROUND, Number.NaN).tickrate, 64);
 });
 
 test('roundTimeline: a missing round end falls back to the official end', () => {
@@ -152,24 +150,6 @@ test('timelineEvents: ordered, placed, and clipped to the bar', () => {
   ]);
   assert.deepEqual(placed.map((entry) => entry.seconds), [30, 60]);
   assert.equal(placed[0].fraction, 30 / 80);
-});
-
-test('visibleTimelineEvents: matches a linear filter on a sorted bar', () => {
-  const timeline = roundTimeline(ROUND, 64);
-  const placed = timelineEvents(timeline, [
-    event(ROUND.tick_start + 64 * 10, TACTICAL_EVENT_KINDS.flash),
-    event(ROUND.tick_start + 64 * 10, TACTICAL_EVENT_KINDS.kill),
-    event(ROUND.tick_start + 64 * 40, TACTICAL_EVENT_KINDS.smoke),
-    event(ROUND.tick_start + 64 * 80, TACTICAL_EVENT_KINDS.kill),
-  ]);
-  const none: typeof placed = [];
-  assert.equal(visibleTimelineEvents(none, 10), none);
-  for (const seconds of [-1, 0, 10, 10.5, 40, 80, 100, Number.NaN, Number.POSITIVE_INFINITY]) {
-    const expected = placed.filter((entry) => entry.seconds <= seconds);
-    const got = visibleTimelineEvents(placed, seconds);
-    assert.deepEqual([...got], expected);
-    if (expected.length === placed.length) assert.equal(got, placed);
-  }
 });
 
 test('seekEventSeconds: steps one event at a time and stops at the ends', () => {

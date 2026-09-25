@@ -18,13 +18,11 @@ import {
 import type { TacticalFilter, TacticalRound, TacticalSide } from './api/tactical.ts';
 import {
   filterTacticalRounds,
-  isEmptyTacticalFilter,
   roundMatchesFilter,
   tacticalFilterCount,
   tacticalFilterFromQuery,
   tacticalFilterToQuery,
   tacticalPerspective,
-  teamSideInRound,
 } from './tactical-filter.ts';
 
 const TEAMS = [
@@ -120,8 +118,6 @@ test('filter: a full filter survives a round trip through the query string', () 
 test('filter: an empty filter serializes to an empty query and back', () => {
   assert.equal(tacticalFilterToQuery({}), '');
   assert.deepEqual(tacticalFilterFromQuery(new URLSearchParams('')), {});
-  assert.ok(isEmptyTacticalFilter({}));
-  assert.ok(!isEmptyTacticalFilter({ side: TACTICAL_SIDES.ct }));
 });
 
 test('filter: repeated and comma-separated values both OR', () => {
@@ -167,24 +163,19 @@ test('filter: the constraint count drives the "N filtros" badge', () => {
   );
 });
 
-test('teamSideInRound: odd halves are the starting side, even halves the swap', () => {
-  assert.equal(teamSideInRound(TEAMS, 'home', 1), TACTICAL_SIDES.ct);
-  assert.equal(teamSideInRound(TEAMS, 'home', 2), TACTICAL_SIDES.t);
-  assert.equal(teamSideInRound(TEAMS, 'away', 1), TACTICAL_SIDES.t);
-  assert.equal(teamSideInRound(TEAMS, 'away', 2), TACTICAL_SIDES.ct);
-  assert.equal(teamSideInRound(TEAMS, 'ghost', 1), undefined);
-});
-
 test('perspective: a team key follows the side swap, a side pins it', () => {
-  assert.equal(
-    tacticalPerspective(TEAMS, { team_key: 'home' }, { half: 2 }),
-    TACTICAL_SIDES.t,
-  );
-  assert.equal(
-    tacticalPerspective(TEAMS, { side: TACTICAL_SIDES.ct }, { half: 2 }),
-    TACTICAL_SIDES.ct,
-  );
-  assert.equal(tacticalPerspective(TEAMS, {}, { half: 1 }), undefined);
+  const cases: [string, TacticalFilter, number, TacticalSide | undefined][] = [
+    ['home starts CT', { team_key: 'home' }, 1, TACTICAL_SIDES.ct],
+    ['home swaps to T', { team_key: 'home' }, 2, TACTICAL_SIDES.t],
+    ['away starts T', { team_key: 'away' }, 1, TACTICAL_SIDES.t],
+    ['away swaps to CT', { team_key: 'away' }, 2, TACTICAL_SIDES.ct],
+    ['a team that did not play', { team_key: 'ghost' }, 1, undefined],
+    ['a fixed side ignores the swap', { side: TACTICAL_SIDES.ct }, 2, TACTICAL_SIDES.ct],
+    ['a side-agnostic filter', {}, 1, undefined],
+  ];
+  for (const [name, filter, half, want] of cases) {
+    assert.equal(tacticalPerspective(TEAMS, filter, { half }), want, name);
+  }
 });
 
 test('match: a team filter follows the buy across the side swap', () => {

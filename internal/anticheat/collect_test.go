@@ -149,7 +149,7 @@ func TestPreShotAimHandlesYawWrap(t *testing.T) {
 	}
 }
 
-func TestViewAnglesNormalisePitch(t *testing.T) {
+func TestNormalisePitch(t *testing.T) {
 	// The demo reports pitch as 270..90; 270 means looking straight up.
 	if got := normalisePitch(270); got != -90 {
 		t.Fatalf("pitch 270 normalised to %g, want -90", got)
@@ -157,15 +157,6 @@ func TestViewAnglesNormalisePitch(t *testing.T) {
 	if got := normalisePitch(45); got != 45 {
 		t.Fatalf("pitch 45 normalised to %g, want 45", got)
 	}
-}
-
-// normalisePitch mirrors the conversion viewAngles applies, so the wrap can be
-// tested without a demo-backed player.
-func normalisePitch(pitch float64) float64 {
-	if pitch >= 180 {
-		pitch -= 360
-	}
-	return pitch
 }
 
 // fixtureCollector builds a collector that can fold synthetic ticks: sampleTick

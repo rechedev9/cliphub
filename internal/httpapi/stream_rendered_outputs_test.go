@@ -187,19 +187,43 @@ func TestLegacyStreamRevisionURLExpiresWhenPointerMoves(t *testing.T) {
 func TestStreamRevisionRoutesRejectTraversal(t *testing.T) {
 	repo := newFakeStreamRepo()
 	jobID := uuid.New()
+	variant := streamclips.DefaultVariant().Name
+	revision := uuid.New()
 	repo.jobs[jobID] = streamclips.Job{ID: jobID, Status: streamclips.StatusRendered}
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo))
-	base := "/api/stream-jobs/" + jobID.String() + "/renders/" + streamclips.DefaultVariant().Name + "/revisions/"
-	for _, requestPath := range []string{
-		base + "not-a-revision/videos/clip-one",
-		base + uuid.NewString() + "/videos/%2e%2e%2fsecret",
-		base + uuid.NewString() + "/delivery/%2e%2e%2fedit-plan.json",
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Seed the files a decoded "../edit-plan.json" could reach from the
+	// delivery folder, so a traversal that resolves would serve the sentinel.
+	const sentinel = "traversal-sentinel"
+	revisionPrefix, err := streamclips.RenderRevisionPrefix(jobID, variant, revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{revisionPrefix + "/edit-plan.json", streamclips.EditPlanKey(jobID)} {
+		if err := store.Put(key, strings.NewReader(sentinel)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(repo))
+	base := "/api/stream-jobs/" + jobID.String() + "/renders/" + variant + "/revisions/"
+	for _, tc := range []struct {
+		path       string
+		wantStatus int // 0: any status except 200, as long as nothing is served
+	}{
+		{path: base + "not-a-revision/videos/clip-one", wantStatus: http.StatusBadRequest},
+		{path: base + uuid.NewString() + "/videos/%2e%2e%2fsecret", wantStatus: http.StatusBadRequest},
+		{path: base + revision.String() + "/delivery/%2e%2e%2fedit-plan.json"},
 	} {
-		t.Run(requestPath, func(t *testing.T) {
+		t.Run(tc.path, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			Routes(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, requestPath, nil))
-			if rr.Code == http.StatusOK {
-				t.Fatalf("traversal request unexpectedly succeeded: %s", rr.Body.String())
+			Routes(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, tc.path, nil))
+			if tc.wantStatus != 0 && rr.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rr.Code, tc.wantStatus, rr.Body.String())
+			}
+			if rr.Code == http.StatusOK || strings.Contains(rr.Body.String(), sentinel) {
+				t.Fatalf("traversal request served %d: %s", rr.Code, rr.Body.String())
 			}
 		})
 	}

@@ -461,14 +461,6 @@ func skillListText(skills []skillInfo) string {
 	return b.String()
 }
 
-func skillNames(skills []skillInfo) []string {
-	names := make([]string, 0, len(skills))
-	for _, skill := range skills {
-		names = append(names, skill.Name)
-	}
-	return names
-}
-
 func workflowListText(workflows []workflowInfo) string {
 	var b strings.Builder
 	for _, workflow := range workflows {
@@ -502,70 +494,6 @@ func helpCommandStem(stem string) string {
 		return ""
 	}
 	return strings.Join(fields, " ")
-}
-
-func workflowNames(workflows []workflowInfo) []string {
-	names := make([]string, 0, len(workflows))
-	for _, workflow := range workflows {
-		names = append(names, workflow.Name)
-	}
-	return names
-}
-
-func workflowDirectDocCommandIsComparable(workflow workflowInfo) bool {
-	return workflowDelegatesExternally(workflow) || workflow.Name == "gallery-open"
-}
-
-func assertDiscoveredWorkflowRunMatchesDirect(t *testing.T, exe, root, source string, index int, discovered workflowInfo, catalogWorkflow workflowInfo, galleryPath string) {
-	t.Helper()
-	runArgs := workflowRunCommandArgs(t, discovered)
-	if len(runArgs) < 3 || runArgs[2] != catalogWorkflow.Name {
-		t.Fatalf("%s discovered run_command for %s resolved to args %#v", source, catalogWorkflow.Name, runArgs)
-	}
-	runArgs = append(runArgs, workflowRunSampleForwardedArgs(t, catalogWorkflow, galleryPath)...)
-	directArgs := workflowDirectSampleArgs(t, catalogWorkflow, galleryPath)
-
-	prefix := fmt.Sprintf("%02d-%s-%s", index, source, catalogWorkflow.Name)
-	runSubcommandLog := filepath.Join(root, prefix+"-discovered-run.jsonl")
-	directSubcommandLog := filepath.Join(root, prefix+"-direct.jsonl")
-	runOpenLog := filepath.Join(root, prefix+"-discovered-run-open.txt")
-	directOpenLog := filepath.Join(root, prefix+"-direct-open.txt")
-
-	runOut := runZVBinaryWithEnv(t, exe, root, []string{
-		"ZV_FAKE_SUBCOMMAND=1",
-		"ZV_FAKE_SUBCOMMAND_LOG=" + runSubcommandLog,
-		"ZV_FAKE_OPEN_PATH_LOG=" + runOpenLog,
-	}, runArgs...)
-	directOut := runZVBinaryWithEnv(t, exe, root, []string{
-		"ZV_FAKE_SUBCOMMAND=1",
-		"ZV_FAKE_SUBCOMMAND_LOG=" + directSubcommandLog,
-		"ZV_FAKE_OPEN_PATH_LOG=" + directOpenLog,
-	}, directArgs...)
-
-	if got, want := runOut, directOut; got != want {
-		t.Fatalf("%s discovered run_command output = %q, want direct output %q", source, got, want)
-	}
-	if catalogWorkflow.Name == "gallery-open" {
-		if got, want := strings.Join(readLines(t, runOpenLog), "\n"), strings.Join(readLines(t, directOpenLog), "\n"); got != want {
-			t.Fatalf("%s discovered run_command open path log = %q, want direct log %q", source, got, want)
-		}
-		return
-	}
-
-	runCalls := readFakeSubcommandCalls(t, runSubcommandLog)
-	directCalls := readFakeSubcommandCalls(t, directSubcommandLog)
-	if got, want := len(runCalls), 1; got != want {
-		t.Fatalf("%s discovered run_command calls len = %d, want %d: %#v", source, got, want, runCalls)
-	}
-	if got, want := len(directCalls), 1; got != want {
-		t.Fatalf("%s direct calls len = %d, want %d: %#v", source, got, want, directCalls)
-	}
-	if got, want := runCalls[0].Executable, directCalls[0].Executable; got != want {
-		t.Fatalf("%s discovered run_command executable = %q, want direct executable %q", source, got, want)
-	}
-	if got, want := strings.Join(runCalls[0].Args, "\x00"), strings.Join(directCalls[0].Args, "\x00"); got != want {
-		t.Fatalf("%s discovered run_command args = %#v, want direct args %#v", source, runCalls[0].Args, directCalls[0].Args)
-	}
 }
 
 func workflowDelegatesExternally(workflow workflowInfo) bool {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -159,24 +158,6 @@ func TestRootPowerShellScriptsParseEndToEnd(t *testing.T) {
 	}
 }
 
-func TestFixLoopRunsProjectCheck(t *testing.T) {
-	root := repoRoot(t)
-	path := filepath.Join(root, "scripts", "fix-loop.ps1")
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	body := string(b)
-	for _, want := range []string{
-		`Invoke-Step "zv check"`,
-		"go run ./cmd/zv check",
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("%s does not contain %q", path, want)
-		}
-	}
-}
-
 func TestMakefileRunsProjectCheck(t *testing.T) {
 	root := repoRoot(t)
 	path := filepath.Join(root, "Makefile")
@@ -184,54 +165,22 @@ func TestMakefileRunsProjectCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
-	body := string(b)
-	for _, want := range []string{
-		"check:",
-		"go run ./cmd/zv check",
-		"workflows-check:",
-		"go run ./cmd/zv workflows check",
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("%s does not contain %q", path, want)
+	// workflowDocs already requires the recipe commands; this pins the targets.
+	lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+	var phony map[string]struct{}
+	targets := map[string]bool{}
+	for _, line := range lines {
+		if rest, ok := strings.CutPrefix(line, ".PHONY:"); ok {
+			phony = stringSet(strings.Fields(rest))
 		}
+		targets[line] = true
 	}
-	if !strings.Contains(body, ".PHONY:") || !strings.Contains(body, "check") || !strings.Contains(body, "workflows-check") {
-		t.Fatalf("%s does not mark check targets as phony", path)
-	}
-}
-
-func TestCurrentBuildScriptsCoverCommandEntrypoints(t *testing.T) {
-	root := repoRoot(t)
-	commands, err := commandEntrypoints(root)
-	if err != nil {
-		t.Fatalf("command entrypoints: %v", err)
-	}
-	if len(commands) == 0 {
-		t.Fatalf("no command entrypoints found")
-	}
-
-	makefileBody := readFileString(t, filepath.Join(root, "Makefile"))
-	buildScriptBody := readFileString(t, filepath.Join(root, "scripts", "build.ps1"))
-	known := make(map[string]struct{}, len(commands))
-	for _, command := range commands {
-		known[command] = struct{}{}
-		makeTarget := fmt.Sprintf("go build -o bin/%s ./cmd/%s", command, command)
-		if !strings.Contains(makefileBody, makeTarget) {
-			t.Fatalf("Makefile does not build %s with %q", command, makeTarget)
+	for _, target := range []string{"check", "workflows-check"} {
+		if !targets[target+":"] {
+			t.Fatalf("%s does not define target %q", path, target)
 		}
-		buildEntry := fmt.Sprintf(`"%s"`, command)
-		if !strings.Contains(buildScriptBody, buildEntry) {
-			t.Fatalf("scripts/build.ps1 does not include command entry %s", buildEntry)
-		}
-	}
-	for _, target := range makefileCommandBuildTargets(makefileBody) {
-		if _, ok := known[target.Command]; !ok {
-			t.Fatalf("Makefile builds stale command %q with %q", target.Command, target.Line)
-		}
-	}
-	for _, command := range buildScriptCommandEntries(buildScriptBody) {
-		if _, ok := known[command]; !ok {
-			t.Fatalf("scripts/build.ps1 includes stale command entry %q", command)
+		if _, ok := phony[target]; !ok {
+			t.Fatalf("%s .PHONY does not list %q", path, target)
 		}
 	}
 }

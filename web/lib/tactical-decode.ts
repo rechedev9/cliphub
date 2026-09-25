@@ -57,12 +57,6 @@ export type PositionsHeader = PositionsScale & {
   byteLength: number;
 };
 
-/** A whole-blob decode: the header plus every frame it declares. */
-export type DecodedPositions = {
-  header: PositionsHeader;
-  frames: TacticalFrame[];
-};
-
 export type TacticalDecodeErrorCode =
   | 'short_header'
   | 'unsupported_format'
@@ -177,31 +171,6 @@ export function decodeRoundFrames(
   scale: PositionsScale,
 ): TacticalFrame[] {
   return decodeFrames(buffer, offset.byte_offset, offset.frame_count, scale);
-}
-
-/**
- * Decodes one round from a slice fetched with `Range: bytes=byte_offset-…`, so
- * a viewer can draw a round without ever holding the rest of the blob. The slice
- * must start exactly at the round's `byte_offset`.
- */
-export function decodeRoundFramesFromSlice(
-  slice: ArrayBuffer,
-  offset: TacticalRoundOffset,
-  scale: PositionsScale,
-): TacticalFrame[] {
-  if (slice.byteLength < offset.byte_length) {
-    throw new TacticalDecodeError(
-      'truncated_data',
-      `decode frames: round ${offset.round} slice is ${slice.byteLength} bytes, expected ${offset.byte_length}`,
-    );
-  }
-  return readFrames(slice, 0, offset.frame_count, scale);
-}
-
-/** Decodes a whole blob: the header, then every frame it declares. */
-export function decodePositions(buffer: ArrayBuffer): DecodedPositions {
-  const header = decodePositionsHeader(buffer);
-  return { header, frames: readFrames(buffer, POSITIONS_HEADER_SIZE, header.frameCount, header) };
 }
 
 function readFrames(

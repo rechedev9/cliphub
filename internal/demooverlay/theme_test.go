@@ -8,11 +8,21 @@ import (
 )
 
 func TestUsesProgrammaticIntroChrome(t *testing.T) {
-	if !UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeFaceitOrange}) {
-		t.Fatal("faceit-orange should use live programmatic chrome")
-	}
-	if !UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeNeonViolet}) {
-		t.Fatal("neon-violet should use programmatic intro chrome")
+	for _, tc := range []struct {
+		name string
+		doc  Document
+		want bool
+	}{
+		{name: "faceit orange", doc: Document{Source: SourceFACEIT, Theme: ThemeFaceitOrange}, want: true},
+		{name: "faceit neon violet", doc: Document{Source: SourceFACEIT, Theme: ThemeNeonViolet}, want: true},
+		{name: "premier neon violet", doc: Document{Source: SourcePremier, Theme: ThemeNeonViolet}, want: true},
+		{name: "premier orange keeps plate", doc: Document{Source: SourcePremier, Theme: ThemeFaceitOrange}, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := UsesProgrammaticIntroChrome(tc.doc); got != tc.want {
+				t.Fatalf("UsesProgrammaticIntroChrome = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -33,16 +43,6 @@ func TestResolveTheme(t *testing.T) {
 				t.Fatalf("theme = %q, want %q", got.Name, tc.want)
 			}
 		})
-	}
-}
-
-func TestRenderIntroChromePNG(t *testing.T) {
-	data, err := renderIntroChromePNG(Document{Source: SourceFACEIT, Theme: ThemeNeonViolet})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(data) < 8 || string(data[:8]) != "\x89PNG\r\n\x1a\n" {
-		t.Fatalf("expected PNG header, got %d bytes", len(data))
 	}
 }
 

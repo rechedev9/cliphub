@@ -11,7 +11,6 @@ import {
   stylesForFamily,
 } from './api/types.ts';
 import {
-  affiliatePlatesShareFile,
   persistAffiliateFamily,
   selectAffiliateFamily,
   selectAffiliateOff,
@@ -21,16 +20,8 @@ import {
 test('KEYDROP and CSGOSKINS do not share plates or brief labels', () => {
   assert.equal(affiliatePlateFile(AFFILIATE_FAMILY.keydrop, 'classic'), 'style-classic.png');
   assert.equal(affiliatePlateFile(AFFILIATE_FAMILY.csgoskins, 'classic'), 'csgoskins-classic.png');
-  assert.equal(
-    affiliatePlatesShareFile(AFFILIATE_FAMILY.keydrop, AFFILIATE_FAMILY.csgoskins, 'classic'),
-    false,
-  );
   assert.equal(affiliateFamilyLabel(AFFILIATE_FAMILY.keydrop, 'classic'), 'KeyDrop');
   assert.equal(affiliateFamilyLabel(AFFILIATE_FAMILY.csgoskins, 'classic'), 'CSGOSkins');
-  assert.notEqual(
-    affiliateFamilyLabel(AFFILIATE_FAMILY.keydrop, 'classic'),
-    affiliateFamilyLabel(AFFILIATE_FAMILY.csgoskins, 'classic'),
-  );
 });
 
 test('styles stay scoped to the selected family', () => {

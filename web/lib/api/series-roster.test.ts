@@ -2,7 +2,7 @@
 // Run: node --test series-roster.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateGroupedSeriesRoster, aggregateSeriesRoster } from './series-roster.ts';
+import { aggregateGroupedSeriesRoster } from './series-roster.ts';
 import type { DemoPlayer } from './types.ts';
 
 /** Builds a DemoPlayer with zeroed defaults so each case sets only what it tests. */
@@ -28,9 +28,14 @@ function mk(overrides: Partial<DemoPlayer> & { steamId: string }): DemoPlayer {
   };
 }
 
+/** One scan row per map, as the upload page passes them; no file name, so no HLTV part grouping. */
+function perMap(rosters: DemoPlayer[][]): Array<{ jobId: string; players: DemoPlayer[] }> {
+  return rosters.map((players, index) => ({ jobId: `map-${index + 1}`, players }));
+}
+
 test('empty input yields no players', () => {
-  assert.deepEqual(aggregateSeriesRoster([]), []);
-  assert.deepEqual(aggregateSeriesRoster([[]]), []);
+  assert.deepEqual(aggregateGroupedSeriesRoster(perMap([])), []);
+  assert.deepEqual(aggregateGroupedSeriesRoster(perMap([[]])), []);
 });
 
 test('a single roster passes counts through and weights rates trivially', () => {
@@ -39,7 +44,7 @@ test('a single roster passes counts through and weights rates trivially', () => 
     kills: 10, deaths: 5, assists: 2, headshots: 4, mvps: 1, rounds: 20,
     adr: 80, hsPct: 40, kast: 70, rating: 1.2, rounds2k: 2, rounds3k: 1,
   });
-  const [agg] = aggregateSeriesRoster([[p]]);
+  const [agg] = aggregateGroupedSeriesRoster(perMap([[p]]));
   assert.equal(agg.mapsPresent, 1);
   assert.equal(agg.name, 'a');
   assert.equal(agg.team, 'T');
@@ -60,7 +65,7 @@ test('a single roster passes counts through and weights rates trivially', () => 
 test('unions a player across maps and sums counting stats', () => {
   const map1 = mk({ steamId: '100', kills: 10, deaths: 5, assists: 2, headshots: 4, mvps: 1, rounds: 20, rounds2k: 1, rounds3k: 0, rounds4k: 0, rounds5k: 1 });
   const map2 = mk({ steamId: '100', kills: 6, deaths: 8, assists: 3, headshots: 2, mvps: 0, rounds: 24, rounds2k: 0, rounds3k: 1, rounds4k: 0, rounds5k: 0 });
-  const [agg] = aggregateSeriesRoster([[map1], [map2]]);
+  const [agg] = aggregateGroupedSeriesRoster(perMap([[map1], [map2]]));
   assert.equal(agg.mapsPresent, 2);
   assert.equal(agg.kills, 16);
   assert.equal(agg.deaths, 13);
@@ -76,7 +81,7 @@ test('unions a player across maps and sums counting stats', () => {
 test('weights round-based rate stats and derives headshot percentage from total headshots and kills', () => {
   const map1 = mk({ steamId: '100', kills: 1, headshots: 1, rounds: 20, adr: 80, hsPct: 100, kast: 60, rating: 1.0 });
   const map2 = mk({ steamId: '100', kills: 20, headshots: 0, rounds: 24, adr: 100, hsPct: 0, kast: 80, rating: 1.4 });
-  const [weighted] = aggregateSeriesRoster([[map1], [map2]]);
+  const [weighted] = aggregateGroupedSeriesRoster(perMap([[map1], [map2]]));
   assert.equal(weighted.adr, (80 * 20 + 100 * 24) / 44);
   assert.equal(weighted.hsPct, 100 / 21);
   assert.equal(weighted.kast, (60 * 20 + 80 * 24) / 44);
@@ -85,7 +90,7 @@ test('weights round-based rate stats and derives headshot percentage from total 
   // No rounds anywhere: fall back to a plain per-map average.
   const zero1 = mk({ steamId: '200', rounds: 0, adr: 60, rating: 1.1 });
   const zero2 = mk({ steamId: '200', rounds: 0, adr: 80, rating: 1.3 });
-  const [plain] = aggregateSeriesRoster([[zero1], [zero2]]);
+  const [plain] = aggregateGroupedSeriesRoster(perMap([[zero1], [zero2]]));
   assert.equal(plain.adr, (60 + 80) / 2);
   assert.equal(plain.rating, (1.1 + 1.3) / 2);
 });
@@ -93,12 +98,12 @@ test('weights round-based rate stats and derives headshot percentage from total 
 test('preserves reported headshot percentages when kill counts are unavailable', () => {
   const map1 = mk({ steamId: '200', kills: 0, headshots: 0, rounds: 10, hsPct: 60 });
   const map2 = mk({ steamId: '200', kills: 0, headshots: 0, rounds: 30, hsPct: 40 });
-  const [weighted] = aggregateSeriesRoster([[map1], [map2]]);
+  const [weighted] = aggregateGroupedSeriesRoster(perMap([[map1], [map2]]));
   assert.equal(weighted.hsPct, 45);
 
   const zeroRounds1 = mk({ steamId: '300', kills: 0, headshots: 0, hsPct: 62.5 });
   const zeroRounds2 = mk({ steamId: '300', kills: 0, headshots: 0, hsPct: 37.5 });
-  const [plain] = aggregateSeriesRoster([[zeroRounds1], [zeroRounds2]]);
+  const [plain] = aggregateGroupedSeriesRoster(perMap([[zeroRounds1], [zeroRounds2]]));
   assert.equal(plain.hsPct, 50);
 });
 
@@ -118,7 +123,7 @@ test('preserves every reported percentage when only some maps lack kill counts',
     hsPct: 30,
   });
 
-  const [weighted] = aggregateSeriesRoster([[counted], [percentageOnly]]);
+  const [weighted] = aggregateGroupedSeriesRoster(perMap([[counted], [percentageOnly]]));
 
   assert.equal(weighted.hsPct, 35);
 });
@@ -195,7 +200,7 @@ test('a player missing from a map only aggregates the maps they played', () => {
   const a1 = mk({ steamId: '100', name: 'a', kills: 8, rounds: 20, adr: 90 });
   const b1 = mk({ steamId: '200', name: 'b', kills: 4, rounds: 20, adr: 50 });
   const a2 = mk({ steamId: '100', name: 'a', kills: 5, rounds: 24, adr: 70 });
-  const result = aggregateSeriesRoster([[a1, b1], [a2]]);
+  const result = aggregateGroupedSeriesRoster(perMap([[a1, b1], [a2]]));
   const a = result.find((p) => p.steamId === '100');
   const b = result.find((p) => p.steamId === '200');
   assert.ok(a && b);
@@ -211,6 +216,6 @@ test('sorts by total kills descending, then steamId for determinism', () => {
   const x = mk({ steamId: '200', kills: 5 });
   const y = mk({ steamId: '100', kills: 5 });
   const z = mk({ steamId: '300', kills: 9 });
-  const result = aggregateSeriesRoster([[x, y, z]]);
+  const result = aggregateGroupedSeriesRoster(perMap([[x, y, z]]));
   assert.deepEqual(result.map((p) => p.steamId), ['300', '100', '200']);
 });

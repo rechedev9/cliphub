@@ -47,9 +47,9 @@ func TestRecordShortFailureWritesJournal(t *testing.T) {
 	if rec == nil {
 		t.Fatal("obs.Default returned nil")
 	}
-	events, err := readEvents(rec.JournalPath())
+	events, err := obs.ReadJournal(rec.JournalPath())
 	if err != nil {
-		t.Fatalf("readEvents: %v", err)
+		t.Fatalf("ReadJournal: %v", err)
 	}
 	found := false
 	for _, ev := range events {

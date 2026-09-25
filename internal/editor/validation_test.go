@@ -23,51 +23,47 @@ func TestValidateShortArtifactWarnsWhenTooLongForYouTubeShorts(t *testing.T) {
 	}
 }
 
-func TestValidateShortArtifactAcceptsUploadReadyShort(t *testing.T) {
-	warnings := validateShortArtifact(recording.RecordingArtifact{
-		SegmentID:       "seg-ok",
-		Path:            "short.mp4",
-		SizeBytes:       1,
-		DurationSeconds: 60,
-		Codec:           "h264",
-		Width:           1080,
-		Height:          1920,
-		FrameRate:       "60/1",
-	}, DefaultPreset().FPS, OutputFormatShort9x16)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %#v", warnings)
+func TestValidateShortArtifactAcceptsValidOutputs(t *testing.T) {
+	tests := []struct {
+		name     string
+		artifact recording.RecordingArtifact
+		fps      int
+		format   string
+	}{
+		{
+			name: "upload-ready short",
+			artifact: recording.RecordingArtifact{
+				SegmentID: "seg-ok", Path: "short.mp4", SizeBytes: 1, DurationSeconds: 60,
+				Codec: "h264", Width: 1080, Height: 1920, FrameRate: "60/1",
+			},
+			fps:    DefaultPreset().FPS,
+			format: OutputFormatShort9x16,
+		},
+		{
+			name: "configured fps",
+			artifact: recording.RecordingArtifact{
+				SegmentID: "seg-ok", Path: "short.mp4", SizeBytes: 1, DurationSeconds: 60,
+				Codec: "h264", Width: 1080, Height: 1920, FrameRate: "24/1",
+			},
+			fps:    24,
+			format: OutputFormatShort9x16,
+		},
+		{
+			name: "landscape long-form",
+			artifact: recording.RecordingArtifact{
+				SegmentID: "seg-landscape", Path: "long-form.mp4", SizeBytes: 1, DurationSeconds: 900,
+				Codec: "h264", Width: 1920, Height: 1080, FrameRate: "60/1",
+			},
+			fps:    DefaultPreset().FPS,
+			format: OutputFormatLandscape16x9,
+		},
 	}
-}
-
-func TestValidateShortArtifactAcceptsConfiguredFPS(t *testing.T) {
-	warnings := validateShortArtifact(recording.RecordingArtifact{
-		SegmentID:       "seg-ok",
-		Path:            "short.mp4",
-		SizeBytes:       1,
-		DurationSeconds: 60,
-		Codec:           "h264",
-		Width:           1080,
-		Height:          1920,
-		FrameRate:       "24/1",
-	}, 24, OutputFormatShort9x16)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %#v", warnings)
-	}
-}
-
-func TestValidateShortArtifactAcceptsLandscapeLongForm(t *testing.T) {
-	warnings := validateShortArtifact(recording.RecordingArtifact{
-		SegmentID:       "seg-landscape",
-		Path:            "long-form.mp4",
-		SizeBytes:       1,
-		DurationSeconds: 900,
-		Codec:           "h264",
-		Width:           1920,
-		Height:          1080,
-		FrameRate:       "60/1",
-	}, DefaultPreset().FPS, OutputFormatLandscape16x9)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %#v, want none for valid landscape long-form output", warnings)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if warnings := validateShortArtifact(tt.artifact, tt.fps, tt.format); len(warnings) != 0 {
+				t.Fatalf("warnings = %#v, want none", warnings)
+			}
+		})
 	}
 }
 
@@ -81,22 +77,6 @@ func TestValidateCoverArtifactAcceptsLandscapeGeometry(t *testing.T) {
 	}, OutputFormatLandscape16x9)
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %#v, want none for valid landscape cover", warnings)
-	}
-}
-
-func TestValidateSourceArtifactWarnsWhenSourceFormatIsUnexpected(t *testing.T) {
-	warnings := ValidateSourceArtifact(recording.RecordingArtifact{
-		SegmentID: "seg-source",
-		Path:      "source.mp4",
-		Width:     1280,
-		Height:    720,
-		FrameRate: "30/1",
-	})
-	joined := strings.Join(warnings, "\n")
-	for _, want := range []string{"want 1920x1080", "want 60fps"} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("warnings missing %q: %#v", want, warnings)
-		}
 	}
 }
 

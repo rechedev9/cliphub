@@ -71,7 +71,7 @@ function bookendLabel(enabled: boolean, text: string | undefined, generatedFallb
   return text?.trim() ? `Sí · “${text.trim()}”` : `Sí · ${generatedFallback}`;
 }
 
-export function musicBriefValue(music: MusicBrief): string {
+function musicBriefValue(music: MusicBrief): string {
   if (music.status === 'pending') return 'Pendiente de decisión';
   if (music.status === 'none') return 'Sin música';
   return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;

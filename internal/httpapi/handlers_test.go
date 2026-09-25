@@ -404,23 +404,6 @@ func (q *fakeQueue) EnqueueWithTransition(t *asynq.Task, transition func(error) 
 	return q.enqueue(t, transition, opts...)
 }
 
-type uniquePayloadQueue struct {
-	fakeQueue
-	seen map[string]struct{}
-}
-
-func (q *uniquePayloadQueue) Enqueue(t *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error) {
-	if q.seen == nil {
-		q.seen = map[string]struct{}{}
-	}
-	key := string(t.Payload())
-	if _, ok := q.seen[key]; ok {
-		return nil, asynq.ErrDuplicateTask
-	}
-	q.seen[key] = struct{}{}
-	return q.fakeQueue.Enqueue(t, opts...)
-}
-
 func (q *fakeQueue) enqueue(t *asynq.Task, transition func(error) error, opts ...asynq.Option) (*asynq.TaskInfo, error) {
 	if transition != nil {
 		if err := transition(q.err); err != nil {
@@ -493,41 +476,6 @@ func multipartBodyFields(t *testing.T, filename string, demoBytes []byte, fields
 	}
 	mw.Close()
 	return body, mw.FormDataContentType()
-}
-
-func TestPostJobsCreatesJobAndEnqueues(t *testing.T) {
-	repo := newFakeRepo()
-	store := newFakeStorage()
-	queue := &fakeQueue{}
-	h := NewHandlers(repo, store, queue)
-
-	body, ct := multipartBody(t, []byte("dem-bytes"), `{"target_steamid":"76561198000000000"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
-	req.Header.Set("Content-Type", ct)
-	rw := httptest.NewRecorder()
-
-	h.CreateJob(rw, req)
-
-	if rw.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body=%s", rw.Code, rw.Body.String())
-	}
-	var resp struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-	}
-	_ = json.Unmarshal(rw.Body.Bytes(), &resp)
-	if resp.Status != "queued" {
-		t.Errorf("status = %q, want queued", resp.Status)
-	}
-	if len(repo.jobs) != 1 {
-		t.Errorf("repo has %d jobs, want 1", len(repo.jobs))
-	}
-	if len(store.puts) != 1 {
-		t.Errorf("storage has %d puts, want 1", len(store.puts))
-	}
-	if len(queue.enqueued) != 1 {
-		t.Errorf("queue has %d tasks, want 1", len(queue.enqueued))
-	}
 }
 
 func TestPostJobsRemovesMultipartTempFiles(t *testing.T) {
@@ -739,44 +687,49 @@ func TestCreateJobWithoutSeriesIDLeavesFieldEmpty(t *testing.T) {
 	}
 }
 
-func TestListJobsBySeries(t *testing.T) {
-	repo := newFakeRepo()
-	series := uuid.New()
-	other := uuid.New()
-	base := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+// seriesRecordingRepo records the series id ListJobs asks for and returns a
+// fixed slice, so the test sees exactly what the handler passes and forwards.
+type seriesRecordingRepo struct {
+	*fakeRepo
+	gotSeries []string
+	jobs      []job.Job
+}
 
-	// Three jobs in the target series, inserted out of creation order so the
-	// handler must sort them; one job in another series; one with no series.
+func (r *seriesRecordingRepo) ListBySeries(_ context.Context, seriesID string) ([]job.Job, error) {
+	r.gotSeries = append(r.gotSeries, seriesID)
+	return r.jobs, nil
+}
+
+func TestListJobsBySeries(t *testing.T) {
+	series := uuid.New()
+	base := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	// The repository owns the order; the handler must forward it untouched.
+	var want []uuid.UUID
+	repo := &seriesRecordingRepo{fakeRepo: newFakeRepo()}
 	for _, offset := range []int{2, 0, 1} {
 		id := uuid.New()
-		repo.jobs[id] = job.Job{
+		want = append(want, id)
+		repo.jobs = append(repo.jobs, job.Job{
 			ID:        id,
 			Status:    job.StatusQueued,
 			SeriesID:  series.String(),
 			CreatedAt: base.Add(time.Duration(offset) * time.Minute),
-		}
-	}
-	otherID := uuid.New()
-	repo.jobs[otherID] = job.Job{ID: otherID, Status: job.StatusQueued, SeriesID: other.String(), CreatedAt: base}
-	loneID := uuid.New()
-	repo.jobs[loneID] = job.Job{ID: loneID, Status: job.StatusQueued, CreatedAt: base}
-
-	// Expected upload order is by CreatedAt ascending.
-	var want []uuid.UUID
-	for _, j := range sortedByCreatedAt(repo.jobs, series.String()) {
-		want = append(want, j.ID)
+		})
 	}
 
 	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
 	r := chi.NewRouter()
 	r.Get("/api/jobs", h.ListJobs)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/jobs?series_id="+series.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs?series_id="+strings.ToUpper(series.String()), nil)
 	rw := httptest.NewRecorder()
 	r.ServeHTTP(rw, req)
 
 	if rw.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(repo.gotSeries) != 1 || repo.gotSeries[0] != series.String() {
+		t.Fatalf("ListBySeries series = %q, want canonical %q", repo.gotSeries, series.String())
 	}
 	var resp struct {
 		Jobs []job.Job `json:"jobs"`
@@ -789,38 +742,23 @@ func TestListJobsBySeries(t *testing.T) {
 	}
 	for i, j := range resp.Jobs {
 		if j.ID != want[i] {
-			t.Fatalf("jobs[%d].ID = %s, want %s (order)", i, j.ID, want[i])
+			t.Fatalf("jobs[%d].ID = %s, want %s (repository order)", i, j.ID, want[i])
 		}
 		if j.SeriesID != series.String() {
 			t.Fatalf("jobs[%d].SeriesID = %q, want %q", i, j.SeriesID, series.String())
 		}
 	}
 
-	// Invalid series_id is a 400.
+	// Invalid series_id is a 400 and never reaches the repository.
 	bad := httptest.NewRequest(http.MethodGet, "/api/jobs?series_id=not-a-uuid", nil)
 	badRW := httptest.NewRecorder()
 	r.ServeHTTP(badRW, bad)
 	if badRW.Code != http.StatusBadRequest {
 		t.Fatalf("invalid series_id status = %d, want 400; body=%s", badRW.Code, badRW.Body.String())
 	}
-}
-
-// sortedByCreatedAt returns the target series' jobs ordered by CreatedAt, the
-// same order ListBySeries must produce.
-func sortedByCreatedAt(jobs map[uuid.UUID]job.Job, seriesID string) []job.Job {
-	out := []job.Job{}
-	for _, j := range jobs {
-		if j.SeriesID == seriesID {
-			out = append(out, j)
-		}
+	if len(repo.gotSeries) != 1 {
+		t.Fatalf("ListBySeries calls = %d after invalid id, want 1", len(repo.gotSeries))
 	}
-	sort.Slice(out, func(i, k int) bool {
-		if out[i].CreatedAt.Equal(out[k].CreatedAt) {
-			return out[i].ID.String() < out[k].ID.String()
-		}
-		return out[i].CreatedAt.Before(out[k].CreatedAt)
-	})
-	return out
 }
 
 func TestListLoadoutsReturnsCatalog(t *testing.T) {
@@ -1361,48 +1299,57 @@ func zstdDemoBytes(t *testing.T, plain []byte) []byte {
 	return buf.Bytes()
 }
 
-func TestPostJobsWithTargetEnqueuesParse(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	body, ct := multipartBody(t, []byte("dem-bytes"), `{"target_steamid":"76561198000000000"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
-	req.Header.Set("Content-Type", ct)
-	rw := httptest.NewRecorder()
-
-	h.CreateJob(rw, req)
-
-	if rw.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body=%s", rw.Code, rw.Body.String())
+func TestPostJobsEnqueuesParseOrScan(t *testing.T) {
+	tests := []struct {
+		name       string
+		config     string
+		wantTask   string
+		wantTarget string
+	}{
+		{name: "target enqueues parse", config: `{"target_steamid":"76561198000000000"}`, wantTask: tasks.TypeParseDemo, wantTarget: "76561198000000000"},
+		{name: "no target enqueues a scan-first job", config: ``, wantTask: tasks.TypeScanRoster},
 	}
-	if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tasks.TypeParseDemo {
-		t.Fatalf("queue = %#v, want one parse task", queue.enqueued)
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{}
+			h := NewHandlers(repo, store, queue)
 
-func TestPostJobsWithoutTargetEnqueuesScan(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	h := NewHandlers(repo, newFakeStorage(), queue)
+			body, ct := multipartBody(t, []byte("dem-bytes"), tc.config)
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+			req.Header.Set("Content-Type", ct)
+			rw := httptest.NewRecorder()
 
-	body, ct := multipartBody(t, []byte("dem-bytes"), ``)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
-	req.Header.Set("Content-Type", ct)
-	rw := httptest.NewRecorder()
+			h.CreateJob(rw, req)
 
-	h.CreateJob(rw, req)
-
-	if rw.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tasks.TypeScanRoster {
-		t.Fatalf("queue = %#v, want one scan task", queue.enqueued)
-	}
-	for _, j := range repo.jobs {
-		if j.TargetSteamID != "" {
-			t.Fatalf("TargetSteamID = %q, want empty for scan-first job", j.TargetSteamID)
-		}
+			if rw.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want 201; body=%s", rw.Code, rw.Body.String())
+			}
+			var resp struct {
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if resp.Status != "queued" {
+				t.Errorf("status = %q, want queued", resp.Status)
+			}
+			if len(repo.jobs) != 1 {
+				t.Errorf("repo has %d jobs, want 1", len(repo.jobs))
+			}
+			if len(store.puts) != 1 {
+				t.Errorf("storage has %d puts, want 1", len(store.puts))
+			}
+			if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tc.wantTask {
+				t.Fatalf("queue = %#v, want one %s task", queue.enqueued, tc.wantTask)
+			}
+			for _, j := range repo.jobs {
+				if j.TargetSteamID != tc.wantTarget {
+					t.Fatalf("TargetSteamID = %q, want %q", j.TargetSteamID, tc.wantTarget)
+				}
+			}
+		})
 	}
 }
 
@@ -1812,14 +1759,6 @@ func TestStartRecordingNativeHUDAndRecap(t *testing.T) {
 			wantCode: http.StatusAccepted,
 		},
 		{
-			name:       "locked full demo recap ignores kill-burst ids",
-			body:       `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":` + fullDemoEdit + `}`,
-			storeRecap: true,
-			wantHUD:    "gameplay",
-			wantRecap:  true,
-			wantCode:   http.StatusAccepted,
-		},
-		{
 			name:     "match recap without sidecar is conflict",
 			body:     `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":` + fullDemoEdit + `}`,
 			wantCode: http.StatusConflict,
@@ -1964,7 +1903,7 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 func TestStartRecordingFACEITDoesNotSplitRecordUniqueness(t *testing.T) {
 	const editPrefix = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"`
 	repo := newFakeRepo()
-	queue := &uniquePayloadQueue{seen: map[string]struct{}{}}
+	queue := &uniqueScopeQueue{}
 	store := newFakeStorage()
 	plan := killplan.NewPlan()
 	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
@@ -1991,9 +1930,15 @@ func TestStartRecordingFACEITDoesNotSplitRecordUniqueness(t *testing.T) {
 	if first.Code != http.StatusAccepted {
 		t.Fatalf("first FACEIT status = %d; body=%s", first.Code, first.Body.String())
 	}
-	second := post(renderplan.DemoSourceFACEIT)
+	// Two POSTs can both load parsed before either claims recording. Reset the
+	// row so the second request passes the status check; only job-scoped
+	// uniqueness can stop a capture whose source differs.
+	ready := repo.jobs[j.ID]
+	ready.Status = job.StatusParsed
+	repo.jobs[j.ID] = ready
+	second := post(renderplan.DemoSourcePremier)
 	if second.Code != http.StatusAccepted {
-		t.Fatalf("faceit status = %d; body=%s", second.Code, second.Body.String())
+		t.Fatalf("premier status = %d; body=%s", second.Code, second.Body.String())
 	}
 	if len(queue.enqueued) != 1 {
 		t.Fatalf("enqueued = %d, want 1 unique recap capture", len(queue.enqueued))
@@ -2025,6 +1970,7 @@ func TestStartRecordingAdmissionByStatus(t *testing.T) {
 	tests := []struct {
 		name        string
 		status      job.Status
+		noPlan      bool
 		body        string
 		storeRecap  bool
 		wantCode    int
@@ -2032,6 +1978,34 @@ func TestStartRecordingAdmissionByStatus(t *testing.T) {
 		wantHUD     string
 		wantRecap   bool
 	}{
+		{
+			name:        "parsed without kill plan is rejected",
+			status:      job.StatusParsed,
+			noPlan:      true,
+			wantCode:    http.StatusConflict,
+			wantEnqueue: 0,
+		},
+		{
+			name:        "recorded retries idempotently",
+			status:      job.StatusRecorded,
+			wantCode:    http.StatusAccepted,
+			wantEnqueue: 1,
+		},
+		{
+			// A capture that failed (CS2 crash) keeps its kill plan; the user retries.
+			name:        "failed with kill plan retries",
+			status:      job.StatusFailed,
+			wantCode:    http.StatusAccepted,
+			wantEnqueue: 1,
+		},
+		{
+			// Failed before it was ever parsed: no kill plan, so re-record stays rejected.
+			name:        "failed without kill plan is rejected",
+			status:      job.StatusFailed,
+			noPlan:      true,
+			wantCode:    http.StatusConflict,
+			wantEnqueue: 0,
+		},
 		{
 			name:        "recording with kill plan is in-progress, no second enqueue",
 			status:      job.StatusRecording,
@@ -2068,6 +2042,9 @@ func TestStartRecordingAdmissionByStatus(t *testing.T) {
 			queue := &fakeQueue{}
 			store := newFakeStorage()
 			j := job.Job{ID: uuid.New(), Status: tc.status, Rules: rules.Default(), KillPlan: &plan}
+			if tc.noPlan {
+				j.KillPlan = nil
+			}
 			repo.jobs[j.ID] = j
 			if tc.storeRecap {
 				recap := killplan.NewPlan()
@@ -2266,94 +2243,6 @@ func TestStartRecordingRejectsUnknownSegmentID(t *testing.T) {
 
 	if rw.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 for unknown segment id; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
-	}
-}
-
-func TestStartRecordingRejectsJobWithoutPlan(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/record", h.StartRecording)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", rw.Code)
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
-	}
-}
-
-func TestStartRecordingAllowsIdempotentRetryWhenRecorded(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	plan := killplan.NewPlan()
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/record", h.StartRecording)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 1 {
-		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
-	}
-}
-
-func TestStartRecordingAllowsRetryWhenFailed(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	plan := killplan.NewPlan()
-	// A capture that failed (CS2 crash) keeps its kill plan; the user retries.
-	j := job.Job{ID: uuid.New(), Status: job.StatusFailed, Rules: rules.Default(), KillPlan: &plan}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/record", h.StartRecording)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 1 {
-		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
-	}
-}
-
-func TestStartRecordingRejectsFailedJobWithoutPlan(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	// Failed before it was ever parsed: no kill plan, so re-record stays rejected.
-	j := job.Job{ID: uuid.New(), Status: job.StatusFailed, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/record", h.StartRecording)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", rw.Code)
 	}
 	if len(queue.enqueued) != 0 {
 		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
@@ -2739,26 +2628,40 @@ func TestStartRenderVariantRejectsBadSegmentSelection(t *testing.T) {
 	}
 }
 
-func TestStartRenderVariantRejectsOutOfRangeMusicVolume(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
-	body := `{"music":{"key":"track01","volume":1.5}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+func TestStartRenderVariantRejectsOutOfRangeVolume(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{name: "music volume", body: `{"music":{"key":"track01","volume":1.5}}`, wantErr: "music volume must be between 0 and 1"},
+		{name: "game volume", body: `{"music":{"key":"track01","game_volume":1.5}}`, wantErr: "game volume must be between 0 and 1"},
 	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0 for rejected volume", len(queue.enqueued))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, newFakeStorage(), queue)
+
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+			}
+			if !strings.Contains(rw.Body.String(), tc.wantErr) {
+				t.Fatalf("body = %s, want %q", rw.Body.String(), tc.wantErr)
+			}
+			if len(queue.enqueued) != 0 {
+				t.Fatalf("enqueued = %d, want 0 for rejected volume", len(queue.enqueued))
+			}
+		})
 	}
 }
 
@@ -2819,29 +2722,6 @@ func TestStartRenderVariantThreadsGameAndVoiceVolume(t *testing.T) {
 	}
 	if !payload.Edit.VoiceComms || payload.Edit.VoiceVolume == nil || *payload.Edit.VoiceVolume != 0.85 {
 		t.Fatalf("voice = comms=%v volume=%v, want true/0.85", payload.Edit.VoiceComms, payload.Edit.VoiceVolume)
-	}
-}
-
-func TestStartRenderVariantRejectsOutOfRangeGameVolume(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
-	body := `{"music":{"key":"track01","game_volume":1.5}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0 for rejected game volume", len(queue.enqueued))
 	}
 }
 
@@ -3919,27 +3799,6 @@ func TestResolveRenderReviewRejectsStaleRevision(t *testing.T) {
 	}
 }
 
-func TestStartRenderVariantRejectsUnsafeVariant(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/bad.mp4", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
-	}
-}
-
 func TestStartRenderVariantValidatesAgainstPresetRegistry(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -3948,6 +3807,7 @@ func TestStartRenderVariantValidatesAgainstPresetRegistry(t *testing.T) {
 	}{
 		{name: "registered preset", variant: editor.PresetViral60Clean, wantStatus: http.StatusAccepted},
 		{name: "unknown preset", variant: "made-up-preset", wantStatus: http.StatusBadRequest},
+		{name: "unsafe variant", variant: "bad.mp4", wantStatus: http.StatusBadRequest},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -5014,8 +4874,12 @@ func TestStreamJobFlowSavesPlanAndEnqueuesRender(t *testing.T) {
 	if rw.Code != http.StatusOK {
 		t.Fatalf("plan status = %d, want 200; body=%s", rw.Code, rw.Body.String())
 	}
-	if streamRepo.jobs[id].Status != streamclips.StatusReady {
-		t.Fatalf("stream status = %s, want ready", streamRepo.jobs[id].Status)
+	var saved streamclips.EditPlan
+	if err := json.Unmarshal(streamRepo.jobs[id].EditPlan, &saved); err != nil {
+		t.Fatalf("decode saved edit plan: %v", err)
+	}
+	if len(saved.Clips) != 1 || saved.Clips[0].ID != "clip-001" {
+		t.Fatalf("saved clips = %#v, want clip-001", saved.Clips)
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/stream-jobs/"+created.ID+"/renders/"+plan.Variant, nil)

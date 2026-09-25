@@ -133,10 +133,11 @@ func TestBuildRawKillSkipsTargetSuicidesRegardlessOfTeamKillRule(t *testing.T) {
 }
 
 func TestWeaponNameFromEquipmentUsesOriginalString(t *testing.T) {
-	// OriginalString takes precedence: "weapon_m4a1_silencer" → "m4a1_silencer"
-	w := mkEquipment(common.EqM4A1, "weapon_m4a1_silencer")
+	// OriginalString takes precedence over the type fallback: EqM4A4 alone
+	// maps to "m4a1", so only the entity name yields "m4a1_silencer".
+	w := mkEquipment(common.EqM4A4, "weapon_m4a1_silencer")
 	if got := weaponName(w); got != "m4a1_silencer" {
-		t.Errorf("weaponName(weapon_m4a1_silencer) = %q, want %q", got, "m4a1_silencer")
+		t.Errorf("weaponName(EqM4A4, weapon_m4a1_silencer) = %q, want %q", got, "m4a1_silencer")
 	}
 }
 

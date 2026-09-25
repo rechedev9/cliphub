@@ -165,21 +165,3 @@ func TestCurrentPolicyPreservesSupportedChoicesAndEmptyHistoricalSlices(t *testi
 		t.Fatalf("policy check mutated approved options: %s vs %s, %v", before, after, err)
 	}
 }
-
-func TestObservedCrosshairBlockerDoesNotOfferRetiredFallback(t *testing.T) {
-	o := DefaultOptions()
-	o.Audio.Voice.Enabled = false
-	d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, blocker := range d.Blockers {
-		if blocker.Code == ErrPOVContract && strings.Contains(blocker.Message, "mira del jugador") {
-			if strings.Contains(blocker.Message, "provide a code") || strings.Contains(blocker.Message, "capture default") {
-				t.Fatalf("retired fallback leaked into blocker: %q", blocker.Message)
-			}
-			return
-		}
-	}
-	t.Fatalf("missing observed-crosshair blocker: %+v", d.Blockers)
-}

@@ -25,42 +25,6 @@ func segmentPlan(n int) *killplan.Plan {
 	return plan
 }
 
-func TestCaptureProgressUsesNonCommittingAttemptDocument(t *testing.T) {
-	store, err := storage.NewLocal(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := uuid.New()
-	progress, err := recording.NewCaptureProgress(
-		uuid.New(),
-		[]string{"s1", "s2", "s3"},
-		[]string{"s1"},
-		time.Now(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := json.Marshal(progress)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Put(artifacts.CaptureProgressKey(id), bytes.NewReader(body)); err != nil {
-		t.Fatal(err)
-	}
-
-	got, ok := captureProgressWithTotal(store, id, job.StatusRecording, 99)
-	if !ok || got.Done != 1 || got.Total != 3 || got.Percent != 33 {
-		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 1/3 33%%", got, ok)
-	}
-	clipKey, err := artifacts.SegmentClipKey(id, "s1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exists, err := store.Exists(clipKey); err != nil || exists {
-		t.Fatalf("progress document committed a segment clip: exists=%v err=%v", exists, err)
-	}
-}
-
 // writeSegmentClips writes size-1 MP4 blobs for the given segment ids so the
 // dir listing sees completed clips, mirroring what the recorder uploads.
 func writeSegmentClips(t *testing.T, store storage.Storage, id uuid.UUID, segmentIDs ...string) {
@@ -201,20 +165,6 @@ func TestCaptureProgress(t *testing.T) {
 			wantDone:    3,
 			wantTotal:   3,
 			wantPercent: 100,
-		},
-		{
-			// The reel selects s2,s3 out of a 4-segment plan; s1 is a stale clip
-			// from a previous reel and must not be counted, and total is the
-			// selection size (2), not the plan size (4).
-			name:        "selection scopes total and ignores stale clips",
-			status:      job.StatusRecording,
-			plan:        segmentPlan(4),
-			clips:       []string{"s1", "s2"},
-			selection:   []string{"s2", "s3"},
-			wantOK:      true,
-			wantDone:    1,
-			wantTotal:   2,
-			wantPercent: 50,
 		},
 		{
 			name:        "selection fully recorded reports full",

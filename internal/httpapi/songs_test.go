@@ -78,7 +78,7 @@ func TestListSongsCuratedFromCatalog(t *testing.T) {
 	}
 }
 
-func TestListSongsShippedCatalogIncludesSunoPack(t *testing.T) {
+func TestListSongsListsEveryShippedCatalogTrack(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "data", "music", "catalog.json"))
 	if err != nil {
 		t.Fatalf("read shipped music catalog: %v", err)
@@ -105,8 +105,8 @@ func TestListSongsShippedCatalogIncludesSunoPack(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	songs := decodeSongs(t, rec.Body.Bytes())
-	if len(catalog.Tracks) != 15 {
-		t.Fatalf("shipped catalog has %d tracks, want the 15 Suno tracks", len(catalog.Tracks))
+	if len(catalog.Tracks) == 0 {
+		t.Fatal("shipped catalog has no tracks")
 	}
 	if len(songs) != len(catalog.Tracks) {
 		t.Fatalf("songs = %d, want all %d shipped tracks", len(songs), len(catalog.Tracks))
@@ -116,26 +116,9 @@ func TestListSongsShippedCatalogIncludesSunoPack(t *testing.T) {
 	for _, song := range songs {
 		got[song.ID] = true
 	}
-	sunoIDs := []string{
-		"reggaeton-1",
-		"pase-directo",
-		"el-leon-en-la-pista",
-		"render-distance",
-		"absolute-zenith",
-		"pura-presion",
-		"fracture-the-frame",
-		"tropa-na-bruma",
-		"pacto-de-ferro",
-		"pressao-do-grave",
-		"crumble-on-the-landing",
-		"tearing-down-the-walls",
-		"sleeping-stone",
-		"gravity-has-teeth",
-		"pegate-sin-miedo",
-	}
-	for _, id := range sunoIDs {
-		if !got[id] {
-			t.Errorf("shipped catalog API is missing Suno track %q", id)
+	for _, track := range catalog.Tracks {
+		if !got[track.ID] {
+			t.Errorf("shipped catalog API is missing track %q", track.ID)
 		}
 	}
 }

@@ -1,6 +1,5 @@
 import {
   AFFILIATE_FAMILY,
-  affiliatePlateFile,
   effectiveAffiliateFamily,
   isAffiliateStyle,
   isKeyDropStyle,
@@ -45,10 +44,4 @@ export function selectAffiliateStyle(family: string, style: string): AffiliateBa
 export function persistAffiliateFamily(family: string, style: string): AffiliateFamily | '' {
   if (!style.trim()) return '';
   return effectiveAffiliateFamily(family, style);
-}
-
-export function affiliatePlatesShareFile(leftFamily: string, rightFamily: string, style: string): boolean {
-  const left = affiliatePlateFile(leftFamily, style);
-  const right = affiliatePlateFile(rightFamily, style);
-  return left !== '' && left === right;
 }

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 import { isStreamURLValidationError, STREAM_INVALID_URL_MESSAGE, STREAM_OFFLINE_MESSAGE } from './plan.ts';
 import {
@@ -38,19 +39,12 @@ test('provider URLs the orchestrator accepts pass client validation', () => {
 });
 
 test('the host allowlist mirrors vodfetch exactly', () => {
-  assert.deepEqual([...STREAM_SOURCE_HOSTS].sort(), [
-    'clips.twitch.tv',
-    'kick.com',
-    'm.twitch.tv',
-    'm.youtube.com',
-    'music.youtube.com',
-    'twitch.tv',
-    'www.kick.com',
-    'www.twitch.tv',
-    'www.youtube.com',
-    'youtu.be',
-    'youtube.com',
-  ]);
+  const vodfetch = readFileSync(new URL('../../../internal/vodfetch/vodfetch.go', import.meta.url), 'utf8');
+  const block = vodfetch.match(/var allowedProviderHosts = map\[string\]struct\{\}\{([\s\S]*?)\n\}/);
+  assert.ok(block, 'allowedProviderHosts not found in vodfetch.go');
+  const goHosts = [...block[1].matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+  assert.ok(goHosts.length > 0, 'no hosts parsed from allowedProviderHosts');
+  assert.deepEqual([...STREAM_SOURCE_HOSTS].sort(), goHosts.sort());
 });
 
 test('inputs the orchestrator would reject stay in the form with Spanish copy', () => {

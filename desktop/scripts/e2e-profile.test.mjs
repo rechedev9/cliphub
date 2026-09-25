@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
   createE2EProfile,
   E2E_USER_DATA_ENV,
-  profileHasCopiedToolFixture,
 } from './e2e-profile.mjs';
 
 test('allocates independent disposable profiles for concurrent suites', (t) => {
@@ -27,8 +33,14 @@ test('copies a managed tool fixture rather than sharing its mutable directory', 
 
   const profile = createE2EProfile('fixture', { toolFixture: fixture });
   t.after(() => profile.dispose());
-  assert.equal(profileHasCopiedToolFixture(profile.root), true);
-  assert.notEqual(join(profile.root, 'tools'), fixture);
+  const fixtureFile = join(fixture, 'ffmpeg', 'fixture.txt');
+  const copiedFile = join(profile.root, 'tools', 'ffmpeg', 'fixture.txt');
+  assert.equal(readFileSync(copiedFile, 'utf8'), 'verified by runtime on boot');
+
+  writeFileSync(copiedFile, 'mutated by the suite');
+  writeFileSync(join(profile.root, 'tools', 'ffmpeg', 'added.txt'), 'suite output');
+  assert.equal(readFileSync(fixtureFile, 'utf8'), 'verified by runtime on boot');
+  assert.equal(existsSync(join(fixture, 'ffmpeg', 'added.txt')), false);
 });
 
 test('rejects an invalid fixture before allocating a profile root', (t) => {

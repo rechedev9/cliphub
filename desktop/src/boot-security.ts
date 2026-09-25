@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 const CAPABILITY_BYTES = 32;
 const CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 
-export const PROXY_CAPABILITY_COOKIE = 'cliphub_proxy_capability';
+const PROXY_CAPABILITY_COOKIE = 'cliphub_proxy_capability';
 
 export interface BootSecurityCapabilities {
   mutationToken: string;

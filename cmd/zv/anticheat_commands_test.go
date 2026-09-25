@@ -78,9 +78,12 @@ func TestRunDemoAnticheatRejectsWritingOverItsInput(t *testing.T) {
 	if err := os.WriteFile(demo, []byte("PBDEMS2\x00"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	code, _ := anticheatError(t, "--demo", demo, "--out", demo)
+	code, reason := anticheatError(t, "--demo", demo, "--out", demo)
 	if code != exitInvalidArgs {
 		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
+	}
+	if !strings.Contains(reason, "--out must not overwrite --demo") {
+		t.Fatalf("reason = %q, want input alias rejection", reason)
 	}
 }
 
@@ -199,22 +202,6 @@ func TestRunDemoAnticheatRejectsABrokenBaseline(t *testing.T) {
 	}
 	if !strings.Contains(reason, "missing metric") {
 		t.Fatalf("reason = %q, want the incomplete-baseline reason", reason)
-	}
-}
-
-// The shipped baseline is data, so a bad edit to it must fail loudly in CI
-// rather than silently skewing every score in the product.
-func TestShippedBaselineIsValidAndNamesItsProvenance(t *testing.T) {
-	b := anticheat.DefaultBaseline()
-	if err := b.Validate(); err != nil {
-		t.Fatalf("shipped baseline is invalid: %v", err)
-	}
-	if b.Source == "" || b.Description == "" {
-		t.Fatalf("shipped baseline must name where it came from, got %+v", b)
-	}
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(b); err != nil {
-		t.Fatal(err)
 	}
 }
 

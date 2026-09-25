@@ -21,26 +21,21 @@ import (
 // bug: ClipHub Studio runs the orchestrator with ZV_DATABASE_URL=sqlite,
 // and main.go's sqlite branch left streamRepo nil (only the memory and
 // postgres branches assigned it), so POST /api/stream-jobs 500'd for every
-// desktop user. This assembles the same building blocks as that sqlite
-// branch -- a sqlite job repository plus a sqlite stream job repository
-// sharing its *sql.DB -- and drives the real HTTP handler the way the
-// desktop UI does: a multipart upload with a "video" field.
+// desktop user. This opens the repositories through store.OpenSQLite and
+// wires repos.Jobs / repos.Streams exactly as main.go's sqlite branch does,
+// then drives the real HTTP handler the way the desktop UI does: a multipart
+// upload with a "video" field.
 func TestPostStreamJobsUnderSQLiteMode(t *testing.T) {
 	dataDir := t.TempDir()
-	jobRepo, err := store.NewSQLiteJobRepository(filepath.Join(dataDir, "jobs.db"))
+	repos, err := store.OpenSQLite(filepath.Join(dataDir, "jobs.db"))
 	if err != nil {
-		t.Fatalf("store.NewSQLiteJobRepository: %v", err)
+		t.Fatalf("store.OpenSQLite: %v", err)
 	}
-	defer func() { _ = jobRepo.Close() }()
+	defer func() { _ = repos.Close() }()
 
 	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
-	}
-
-	streamRepo, err := store.NewSQLiteStreamJobRepository(jobRepo.DB())
-	if err != nil {
-		t.Fatalf("store.NewSQLiteStreamJobRepository: %v", err)
 	}
 
 	queue := newInlineQueue(map[string]taskHandler{}, 1)
@@ -48,7 +43,7 @@ func TestPostStreamJobsUnderSQLiteMode(t *testing.T) {
 	defer cancel()
 	queue.Start(ctx)
 
-	handlers := httpapi.NewHandlers(jobRepo, files, queue, httpapi.WithStreamRepository(streamRepo))
+	handlers := httpapi.NewHandlers(repos.Jobs, files, queue, httpapi.WithStreamRepository(repos.Streams))
 
 	srv := httptest.NewServer(httpapi.Routes(handlers))
 	defer srv.Close()

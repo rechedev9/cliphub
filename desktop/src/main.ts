@@ -11,7 +11,6 @@ import {
   type IpcMainInvokeEvent,
   type Event as ElectronEvent,
 } from 'electron';
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -55,7 +54,7 @@ import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboar
 import {
   AppUpdateController,
   createDefaultAppUpdateHost,
-  INSTALLER_SPAWN_ARGS,
+  spawnVerifiedInstaller,
 } from './app-update';
 import {
   APP_UPDATE_CHANNEL,
@@ -794,21 +793,6 @@ function registerStudioClipboardIPC(): void {
     } catch {
       return { ok: false, error: 'Solicitud de portapapeles no válida.' };
     }
-  });
-}
-
-function spawnVerifiedInstaller(installerPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(installerPath, [...INSTALLER_SPAWN_ARGS], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
-    });
   });
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -211,7 +210,7 @@ func runErrors(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "error journal cleared")
 		return exitSuccess
 	}
-	events, err := readEvents(rec.JournalPath())
+	events, err := obs.ReadJournal(rec.JournalPath())
 	if err != nil {
 		fmt.Fprintf(stderr, "error: read journal: %v\n", err)
 		return exitUnexpected
@@ -248,33 +247,6 @@ func printErrorSummary(w io.Writer, events []obs.Event) {
 	for _, k := range keys {
 		fmt.Fprintf(w, "  %-30s %d\n", k, counts[k])
 	}
-}
-
-func readEvents(path string) ([]obs.Event, error) {
-	// #nosec G304 -- path is the observation journal explicitly selected by the local CLI user.
-	f, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	defer f.Close()
-	var events []obs.Event
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
-			continue
-		}
-		var ev obs.Event
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			return nil, fmt.Errorf("invalid journal line: %w", err)
-		}
-		events = append(events, ev)
-	}
-	return events, sc.Err()
 }
 
 func quotedSegmentModes() string {

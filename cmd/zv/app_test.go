@@ -43,23 +43,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestRemoveAllTestArtifacts(t *testing.T) {
-	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "artifacts")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir artifacts: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "artifact.txt"), []byte("test"), 0o600); err != nil {
-		t.Fatalf("write artifact: %v", err)
-	}
-	if err := removeAllTestArtifacts(dir); err != nil {
-		t.Fatalf("remove artifacts: %v", err)
-	}
-	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("stat removed artifacts error = %v, want os.ErrNotExist", err)
-	}
-}
-
 func runFakeSubcommand() int {
 	logPath := os.Getenv("ZV_FAKE_SUBCOMMAND_LOG")
 	if logPath == "" {
@@ -202,57 +185,6 @@ func TestRunDelegateReportsRunnerError(t *testing.T) {
 	}
 }
 
-func TestRunCanonicalGroupHelpReturnsSuccess(t *testing.T) {
-	tests := []struct {
-		name string
-		argv []string
-		want string
-	}{
-		{name: "demo", argv: []string{"zv", "demo", "--help"}, want: demoUsage},
-		{name: "utility", argv: []string{"zv", "utility", "--help"}, want: utilityUsage},
-		{name: "compose", argv: []string{"zv", "compose", "--help"}, want: composeUsage},
-		{name: "shorts", argv: []string{"zv", "shorts", "--help"}, want: shortsUsage},
-		{name: "analysis", argv: []string{"zv", "analysis", "--help"}, want: analysisUsage},
-		{name: "gallery", argv: []string{"zv", "gallery", "--help"}, want: galleryUsage},
-		{name: "skills", argv: []string{"zv", "skills", "--help"}, want: skillsUsage},
-		{name: "workflows", argv: []string{"zv", "workflows", "--help"}, want: workflowsUsage},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runner := &fakeRunner{}
-			var stdout, stderr strings.Builder
-
-			code := Run(tt.argv, &stdout, &stderr, nil, runner)
-
-			if got, want := code, exitSuccess; got != want {
-				t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-			}
-			if got, want := stdout.String(), tt.want; got != want {
-				t.Fatalf("stdout = %q, want %q", got, want)
-			}
-			if got := runner.name; got != "" {
-				t.Fatalf("runner.name = %q, want no delegated command", got)
-			}
-		})
-	}
-}
-
-func TestRunHelpDocumentsLegacyPassThroughs(t *testing.T) {
-	var stdout, stderr strings.Builder
-
-	code := Run([]string{"zv", "--help"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitSuccess; got != want {
-		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-	}
-	for _, passThrough := range legacyPassThroughs() {
-		want := legacyPassThroughUsageLine(passThrough)
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("help output = %q, want legacy pass-through %q", stdout.String(), want)
-		}
-	}
-}
-
 func TestRunLegacyPassThroughsDelegate(t *testing.T) {
 	for _, passThrough := range legacyPassThroughs() {
 		t.Run(passThrough.Command, func(t *testing.T) {
@@ -271,22 +203,5 @@ func TestRunLegacyPassThroughsDelegate(t *testing.T) {
 				t.Fatalf("runner.args = %q, want %q", got, want)
 			}
 		})
-	}
-}
-
-func TestFindLegacyPassThroughCoversCatalog(t *testing.T) {
-	for _, passThrough := range legacyPassThroughs() {
-		t.Run(passThrough.Command, func(t *testing.T) {
-			got, ok := findLegacyPassThrough(passThrough.Command)
-			if !ok {
-				t.Fatalf("findLegacyPassThrough(%q) ok = false, want true", passThrough.Command)
-			}
-			if got != passThrough {
-				t.Fatalf("findLegacyPassThrough(%q) = %#v, want %#v", passThrough.Command, got, passThrough)
-			}
-		})
-	}
-	if got, ok := findLegacyPassThrough("missing"); ok {
-		t.Fatalf("findLegacyPassThrough missing = %#v, true; want false", got)
 	}
 }

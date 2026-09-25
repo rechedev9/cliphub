@@ -46,6 +46,99 @@ func TestJobRepositoryContract(t *testing.T) {
 		run  func(t *testing.T, repo JobRepository)
 	}{
 		{
+			name: "Create assigns identity and SetKillPlan is returned by Get",
+			run: func(t *testing.T, repo JobRepository) {
+				j := &job.Job{Status: job.StatusQueued, DemoPath: "m.dem", DemoSHA256: "abc", Rules: rules.Default()}
+				if err := repo.Create(ctx, j); err != nil {
+					t.Fatal(err)
+				}
+				if j.ID == uuid.Nil || j.CreatedAt.IsZero() || j.UpdatedAt.IsZero() {
+					t.Fatalf("Create left id/timestamps unset: %+v", j)
+				}
+				plan := killplan.NewPlan()
+				plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 64, TickEnd: 128}}
+				if err := repo.SetKillPlan(ctx, j.ID, plan); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.UpdateStatus(ctx, j.ID, job.StatusParsed, ""); err != nil {
+					t.Fatal(err)
+				}
+				got, err := repo.Get(ctx, j.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Status != job.StatusParsed || got.DemoPath != "m.dem" || got.KillPlan == nil || len(got.KillPlan.Segments) != 1 || got.KillPlan.Segments[0].ID != "seg-001" {
+					t.Fatalf("Get = %+v, want parsed m.dem with seg-001", got)
+				}
+				status, reason, segments, err := repo.GetStatus(ctx, j.ID)
+				if err != nil || status != job.StatusParsed || reason != "" || segments != 0 {
+					t.Fatalf("GetStatus = %s/%q/%d/%v, want parsed/empty/0 (segments only while recording)", status, reason, segments, err)
+				}
+			},
+		},
+		{
+			name: "ListBySeries returns only the series in upload order without kill plans",
+			run: func(t *testing.T, repo JobRepository) {
+				series := uuid.NewString()
+				if got, err := repo.ListBySeries(ctx, series); err != nil || len(got) != 0 {
+					t.Fatalf("ListBySeries(unknown) = %v, %v; want no jobs", got, err)
+				}
+				var seriesIDs []uuid.UUID
+				for range 3 {
+					j := &job.Job{Status: job.StatusQueued, SeriesID: series}
+					if err := repo.Create(ctx, j); err != nil {
+						t.Fatal(err)
+					}
+					seriesIDs = append(seriesIDs, j.ID)
+					time.Sleep(2 * time.Millisecond)
+				}
+				// A different series and a standalone job must be excluded.
+				if err := repo.Create(ctx, &job.Job{Status: job.StatusQueued, SeriesID: uuid.NewString()}); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.Create(ctx, &job.Job{Status: job.StatusQueued}); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.SetKillPlan(ctx, seriesIDs[0], killplan.NewPlan()); err != nil {
+					t.Fatal(err)
+				}
+				got, err := repo.ListBySeries(ctx, series)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != len(seriesIDs) {
+					t.Fatalf("ListBySeries returned %d jobs, want %d", len(got), len(seriesIDs))
+				}
+				for i, id := range seriesIDs {
+					if got[i].ID != id || got[i].SeriesID != series || got[i].KillPlan != nil {
+						t.Fatalf("ListBySeries[%d] = id %s series %q plan %v, want id %s (upload order), series %q, no plan", i, got[i].ID, got[i].SeriesID, got[i].KillPlan != nil, id, series)
+					}
+				}
+			},
+		},
+		{
+			name: "Delete removes the job from Get and ListBySeries",
+			run: func(t *testing.T, repo JobRepository) {
+				series := uuid.NewString()
+				j := &job.Job{Status: job.StatusDone, SeriesID: series}
+				if err := repo.Create(ctx, j); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.SetKillPlan(ctx, j.ID, killplan.NewPlan()); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.Delete(ctx, j.ID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := repo.Get(ctx, j.ID); !errors.Is(err, job.ErrNotFound) {
+					t.Fatalf("Get after Delete = %v, want ErrNotFound", err)
+				}
+				if got, err := repo.ListBySeries(ctx, series); err != nil || len(got) != 0 {
+					t.Fatalf("ListBySeries after Delete = %v, %v; want no jobs", got, err)
+				}
+			},
+		},
+		{
 			name: "Create refuses an existing id",
 			run: func(t *testing.T, repo JobRepository) {
 				j := contractJob(job.StatusParsed)
@@ -230,7 +323,7 @@ func TestJobRepositoryContract(t *testing.T) {
 			},
 		},
 		{
-			name: "UpdateStatus and Delete report a missing job consistently",
+			name: "UpdateStatus, Delete, Get and GetStatus report a missing job consistently",
 			run: func(t *testing.T, repo JobRepository) {
 				if err := repo.UpdateStatus(ctx, uuid.New(), job.StatusFailed, "x"); !errors.Is(err, job.ErrNotFound) {
 					t.Fatalf("UpdateStatus unknown = %v, want ErrNotFound", err)
@@ -240,6 +333,9 @@ func TestJobRepositoryContract(t *testing.T) {
 				}
 				if _, err := repo.Get(ctx, uuid.New()); !errors.Is(err, job.ErrNotFound) {
 					t.Fatalf("Get unknown = %v, want ErrNotFound", err)
+				}
+				if _, _, _, err := repo.GetStatus(ctx, uuid.New()); !errors.Is(err, job.ErrNotFound) {
+					t.Fatalf("GetStatus unknown = %v, want ErrNotFound", err)
 				}
 			},
 		},

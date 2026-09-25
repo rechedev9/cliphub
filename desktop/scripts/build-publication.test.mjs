@@ -988,16 +988,28 @@ test('build entrypoint delegates publication and never removes the recovery back
   assert.match(buildScript, /install-go-windows\.ps1/);
   assert.match(buildScript, /Install-PinnedWindowsGo/);
   assert.match(buildScript, /Assert-GoToolchainMatchesModule/);
+  const firstGoBuild = buildScript.search(/^\s+& go build\b/m);
+  const installGo = buildScript.search(/^\s+Install-PinnedWindowsGo\s*$/m);
+  const assertGo = buildScript.search(/^\s+Assert-GoToolchainMatchesModule\s*$/m);
+  const recoverPublication = buildScript.search(/^\s+Recover-BuildPublication -BinDir\b/m);
+  for (const [name, index] of Object.entries({
+    firstGoBuild,
+    installGo,
+    assertGo,
+    recoverPublication,
+  })) {
+    assert.notEqual(index, -1, `build.ps1 call site not found: ${name}`);
+  }
   assert.ok(
-    buildScript.indexOf('Install-PinnedWindowsGo') < buildScript.indexOf('& go build'),
+    installGo < firstGoBuild,
     'Go 1.26.6 must be installed before the first compiler invocation',
   );
   assert.ok(
-    buildScript.indexOf('Assert-GoToolchainMatchesModule') < buildScript.indexOf('& go build'),
+    assertGo < firstGoBuild,
     'Go 1.26.6+ must be verified before the first compiler invocation',
   );
   assert.ok(
-    buildScript.indexOf('Recover-BuildPublication') < buildScript.indexOf('& go build'),
+    recoverPublication < firstGoBuild,
     'recovery must run before the first compiler invocation',
   );
   assert.match(buildScript, /-PublicationLock \$publicationLock/);

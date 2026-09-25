@@ -39,6 +39,9 @@ func TestResolveShareCode(t *testing.T) {
 			name:       "valid code without transport decodes",
 			body:       `{"code":"CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK"}`,
 			wantStatus: http.StatusOK,
+			// matchId and outcomeId must stay JSON strings: ~3.2e18 exceeds
+			// JavaScript's 2^53 integer precision, and a number would decode
+			// here as float64 and fail the comparison.
 			want: map[string]any{
 				"status":    "decoded",
 				"matchId":   "3230642215713767580",
@@ -91,37 +94,6 @@ func TestResolveShareCode(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestResolveShareCodeEmitsIDsAsStrings pins the wire format of the 64-bit
-// identifiers: they must round-trip as JSON strings because ~3.2e18 exceeds
-// JavaScript's 2^53 integer precision.
-func TestResolveShareCodeEmitsIDsAsStrings(t *testing.T) {
-	t.Setenv("ZV_STEAM_USERNAME", "")
-	t.Setenv("ZV_STEAM_PASSWORD", "")
-	t.Setenv("ZV_STEAM_GUARD", "")
-
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{})
-	rw := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/steam/sharecode",
-		strings.NewReader(`{"code":"CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK"}`))
-	h.ResolveShareCode(rw, req)
-	if rw.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (body: %s)", rw.Code, rw.Body.String())
-	}
-	var got struct {
-		MatchID   json.RawMessage `json:"matchId"`
-		OutcomeID json.RawMessage `json:"outcomeId"`
-	}
-	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-	if string(got.MatchID) != `"3230642215713767580"` {
-		t.Errorf("matchId raw JSON = %s, want %q", got.MatchID, "3230642215713767580")
-	}
-	if string(got.OutcomeID) != `"3230647599455273103"` {
-		t.Errorf("outcomeId raw JSON = %s, want %q", got.OutcomeID, "3230647599455273103")
 	}
 }
 

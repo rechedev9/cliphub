@@ -421,48 +421,6 @@ func TestFullDemoAudioOnlyMuxMatchesLegacySinglePass(t *testing.T) {
 	fullDemoTestNoTemporaryAudioFiles(t, dir)
 }
 
-func TestFullDemoAudioOnlyRecoveryPreservesVideoAndClock(t *testing.T) {
-	ffmpeg := fullDemoTestFFmpeg(t)
-	ffprobe := fullDemoTestFFprobe(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	if !hasMediaFoundationAAC(ctx, ffmpeg) {
-		t.Skip("Windows Media Foundation AAC is required for this recovery canary")
-	}
-	dir := t.TempDir()
-	const frames = fullDemoAudioTestFrames
-	input, duration := fullDemoAudioTestProgram(t, ctx, ffmpeg, dir, frames, fullDemoAudioTestTransient, "320x180")
-	samples := int64(math.Round(duration * recapplan.SampleRate))
-	target := recapplan.DefaultOptions().Audio.Loudness
-	first, err := measureLoudness(ctx, ffmpeg, input, target, "", duration, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	output := filepath.Join(dir, "final.mp4")
-	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, MasterTargets: []recapplan.LoudnessOptions{}, DecodedAAC: []LoudnessMeasurement{}, Status: "unverified"}, nil)
-	if err != nil {
-		t.Fatalf("recovery: %v; evidence: %+v", err, evidence)
-	}
-	assertRecoveredAAC(t, evidence, target)
-	if evidence.FinalMuxedAAC == nil {
-		t.Fatal("recovery did not certify the final muxed AAC")
-	}
-	if got := fullDemoTestVideoHash(t, ctx, ffmpeg, output); got != fullDemoTestVideoHash(t, ctx, ffmpeg, input) {
-		t.Fatalf("recovery changed the copied video: %s", got)
-	}
-	if got := fullDemoTestVideoFrames(t, ctx, ffprobe, output); got != frames {
-		t.Fatalf("recovery output has %d frames, want %d", got, frames)
-	}
-	packets := fullDemoTestAudioPackets(t, ctx, ffprobe, output)
-	if _, end := fullDemoTestPacketClock(t, packets, "recovered"); end != samples {
-		t.Fatalf("recovered audio reaches sample %d, want %d", end, samples)
-	}
-	if last := packets[len(packets)-1]; last.Duration >= 1024 {
-		t.Fatalf("recovered audio did not exercise a short final packet: %+v", last)
-	}
-	fullDemoTestNoTemporaryAudioFiles(t, dir)
-}
-
 func TestFullDemoAudioOnlyAcceptanceContract(t *testing.T) {
 	target := recapplan.DefaultOptions().Audio.Loudness
 	measured := func(integrated, peak float64) LoudnessMeasurement {

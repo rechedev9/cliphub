@@ -25,8 +25,11 @@ function view(over: Partial<ReconcileInput>) {
   return deriveReelView({ jobStatus: 'parsed', renderStatus: 'none', ...over });
 }
 
-test('parsed + no render → drive record', () => {
-  assert.deepEqual(view({ jobStatus: 'parsed' }), { status: 'queued', action: 'record' });
+test('job status with no render drives record', () => {
+  // parsed has no capture yet; from recorded on, generate validates the cached capture.
+  for (const jobStatus of ['parsed', 'recorded', 'composed', 'done']) {
+    assert.deepEqual(view({ jobStatus }), { status: 'queued', action: 'record' }, jobStatus);
+  }
 });
 
 test('recording → show recording, do not re-drive record', () => {
@@ -38,11 +41,6 @@ test('recording with progress → carries segments done/total to the card', () =
     view({ jobStatus: 'recording', captureProgress: { done: 2, total: 4 } }),
     { status: 'recording', action: 'none', captureProgress: { done: 2, total: 4 } },
   );
-});
-
-test('recording without progress → no captureProgress key (indeterminate bar)', () => {
-  const v = view({ jobStatus: 'recording' });
-  assert.equal('captureProgress' in v, false);
 });
 
 test('composing with progress → carries percent to the card', () => {
@@ -66,10 +64,6 @@ test('progress is ignored when not recording or composing', () => {
   );
 });
 
-test('recorded + no render → let generate validate the cached capture', () => {
-  assert.deepEqual(view({ jobStatus: 'recorded' }), { status: 'queued', action: 'record' });
-});
-
 test('failed job → carries the orchestrator failure code next to the human reason', () => {
   assert.deepEqual(
     view({ jobStatus: 'failed', jobFailureReason: 'HLAE lost the observer target', jobFailureCode: 'capture_flake' }),
@@ -80,14 +74,6 @@ test('failed job → carries the orchestrator failure code next to the human rea
     view({ jobStatus: 'recorded', jobFailureCode: 'stale', renderStatus: 'failed', renderFailureReason: 'ffmpeg exited 1' }),
     { status: 'failed', action: 'none', failureReason: 'ffmpeg exited 1' },
   );
-});
-
-test('composed + no render → let generate validate the cached capture', () => {
-  assert.deepEqual(view({ jobStatus: 'composed' }), { status: 'queued', action: 'record' });
-});
-
-test('done + no render → let generate validate the cached capture', () => {
-  assert.deepEqual(view({ jobStatus: 'done' }), { status: 'queued', action: 'record' });
 });
 
 test('render queued → composing, no action', () => {
@@ -185,25 +171,6 @@ test('render failed → failed with reason', () => {
   );
 });
 
-test('render failed with non-reusable capture → re-record instead of looping render', () => {
-  assert.deepEqual(
-    view({
-      jobStatus: 'recorded',
-      renderStatus: 'failed',
-      renderFailureReason: 'recording result capture_mode must be "real"',
-    }),
-    { status: 'queued', action: 'record' },
-  );
-  assert.deepEqual(
-    view({
-      jobStatus: 'recorded',
-      renderStatus: 'failed',
-      renderFailureReason: 'recording_not_reusable:recording result capture_mode must be "real"',
-    }),
-    { status: 'queued', action: 'record' },
-  );
-});
-
 test('job failed with non-reusable capture → re-record', () => {
   assert.deepEqual(
     view({
@@ -227,18 +194,6 @@ test('requiresRecapture matches prefix and legacy English strings', () => {
   assert.equal(requiresRecapture('recording result publication is pending'), true);
 });
 
-test('ordinary render failure keeps failed + no re-record action (retry re-renders)', () => {
-  const v = view({
-    jobStatus: 'recorded',
-    renderStatus: 'failed',
-    renderFailureReason: 'ffmpeg exited with code 1',
-  });
-  assert.equal(v.status, 'failed');
-  assert.equal(v.action, 'none');
-  assert.equal(v.failureReason, 'ffmpeg exited with code 1');
-  assert.equal(requiresRecapture(v.failureReason), false);
-});
-
 test('all known non-reusable render strings map to re-record', () => {
   const reasons = [
     'recording result capture_mode must be "real"',
@@ -255,8 +210,7 @@ test('all known non-reusable render strings map to re-record', () => {
       renderStatus: 'failed',
       renderFailureReason: reason,
     });
-    assert.equal(v.status, 'queued', `status for ${reason}`);
-    assert.equal(v.action, 'record', `action for ${reason}`);
+    assert.deepEqual(v, { status: 'queued', action: 'record' }, `view for ${reason}`);
     assert.equal(requiresRecapture(reason), true, `requiresRecapture(${reason})`);
   }
 });
@@ -300,31 +254,27 @@ test('viewForJobGone: latches only after consecutive 404 ticks', () => {
   }
 });
 
-test('a normal job failure stays recoverable (retry can re-drive it)', () => {
-  const v = view({ jobStatus: 'failed', jobFailureReason: 'recorder exited with code 1' });
-  assert.equal('unrecoverable' in v, false);
-});
-
-test('a normal render failure stays recoverable (retry can re-drive it)', () => {
-  const v = view({ jobStatus: 'recorded', renderStatus: 'failed', renderFailureReason: 'ffmpeg error' });
-  assert.equal('unrecoverable' in v, false);
-});
-
 test('canHaveRenderState: true only once a render POST can have been driven', () => {
-  for (const s of ['recorded', 'composing', 'composed', 'review_required', 'done']) {
-    assert.equal(canHaveRenderState(s), true, `${s} should allow a render GET`);
-  }
-});
-
-test('canHaveRenderState: includes failed (a render can be ready before the job fails)', () => {
-  // deriveReelView surfaces a finished render as ready even when the job later
-  // flags failed, so the render GET must still fire for a failed job.
-  assert.equal(canHaveRenderState('failed'), true);
-});
-
-test('canHaveRenderState: false for every pre-recorded status (skip the guaranteed 404)', () => {
-  for (const s of ['queued', 'scanning', 'scanned', 'parsing', 'parsed', 'recording', 'wat']) {
-    assert.equal(canHaveRenderState(s), false, `${s} must not issue a render GET`);
+  const cases: Array<[string, boolean]> = [
+    ['recorded', true],
+    ['composing', true],
+    ['composed', true],
+    ['review_required', true],
+    ['done', true],
+    // deriveReelView surfaces a finished render as ready even when the job later
+    // flags failed, so the render GET must still fire for a failed job.
+    ['failed', true],
+    // Every pre-recorded status skips the guaranteed 404.
+    ['queued', false],
+    ['scanning', false],
+    ['scanned', false],
+    ['parsing', false],
+    ['parsed', false],
+    ['recording', false],
+    ['wat', false],
+  ];
+  for (const [status, want] of cases) {
+    assert.equal(canHaveRenderState(status), want, status);
   }
 });
 
@@ -575,56 +525,6 @@ test('explicit Full Demo retries recheck capture coverage even for older generic
   assert.equal(retryReelAction({jobStatus: 'recorded', renderStatus: 'failed', fullDemo: false}), 'render');
 });
 
-test('viewForRecordAdmission treats in-flight capture as progress, not a failed reel', () => {
-  const cases: Array<{
-    name: string;
-    status: number;
-    body: { error?: string; code?: string };
-    wantStatus: string | null;
-    wantAction?: 'record' | 'render' | 'none';
-  }> = [
-    {
-      name: '409 recording is in-progress',
-      status: 409,
-      body: { error: 'job is not ready to record (status=recording)' },
-      wantStatus: 'recording',
-      wantAction: 'none',
-    },
-    {
-      name: '409 active generate stays queued for reconciliation',
-      status: 409,
-      body: { error: 'job already has active generate or render work', code: 'generate_work_active' },
-      wantStatus: null,
-    },
-    {
-      name: '202 accepted leaves polling to reconcile',
-      status: 202,
-      body: {},
-      wantStatus: null,
-    },
-    {
-      name: 'durable capture error stays failed',
-      status: 409,
-      body: { error: 'recap plan not ready' },
-      wantStatus: 'failed',
-      wantAction: 'none',
-    },
-  ];
-  for (const tc of cases) {
-    const got = viewForRecordAdmission(tc.status, tc.body);
-    if (tc.wantStatus === null) {
-      assert.equal(got, null, tc.name);
-      continue;
-    }
-    assert.ok(got, tc.name);
-    assert.equal(got.status, tc.wantStatus, `${tc.name} status`);
-    assert.equal(got.action, tc.wantAction, `${tc.name} action`);
-    if (tc.wantStatus === 'recording') {
-      assert.equal('failureReason' in got, false, `${tc.name} must not carry the 409 as failureReason`);
-    }
-  }
-});
-
 test('decideReelReconcile: a mismatching ready/review render re-drives once per explicit action, then fails', () => {
   const shortsEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG };
   const recapEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', matchRecap: true, nativeHud: true };
@@ -764,12 +664,19 @@ test('POST admission: transient, job-gone, in-flight and durable rejections', ()
     name: string;
     view: ReturnType<typeof viewForRecordAdmission>;
     wantStatus: string | null;
+    wantAction?: ReelAction;
     wantDurable: boolean;
   }> = [
     { name: 'record 202 accepted', view: viewForRecordAdmission(202, {}), wantStatus: null, wantDurable: false },
     { name: 'render 202 accepted', view: viewForRenderAdmission(202, {}), wantStatus: null, wantDurable: false },
     { name: 'record 503 offline', view: viewForRecordAdmission(503, {}), wantStatus: null, wantDurable: false },
     { name: 'render 503 offline', view: viewForRenderAdmission(503, {}), wantStatus: null, wantDurable: false },
+    {
+      name: 'record 409 active generate stays queued for reconciliation',
+      view: viewForRecordAdmission(409, { error: 'job already has active generate or render work', code: 'generate_work_active' }),
+      wantStatus: null,
+      wantDurable: false,
+    },
     {
       name: 'render 409 work active',
       view: viewForRenderAdmission(409, { code: 'generate_work_active' }),
@@ -782,7 +689,15 @@ test('POST admission: transient, job-gone, in-flight and durable rejections', ()
       name: 'record 409 already recording is progress',
       view: viewForRecordAdmission(409, { error: 'job is not ready to record (status=recording)' }),
       wantStatus: 'recording',
+      wantAction: 'none',
       wantDurable: false,
+    },
+    {
+      name: 'record 409 recap plan not ready stays failed',
+      view: viewForRecordAdmission(409, { error: 'recap plan not ready' }),
+      wantStatus: 'failed',
+      wantAction: 'none',
+      wantDurable: true,
     },
     {
       name: 'record 409 capture unconfigured is durable',
@@ -805,8 +720,12 @@ test('POST admission: transient, job-gone, in-flight and durable rejections', ()
   ];
   for (const tc of cases) {
     assert.equal(tc.view?.status ?? null, tc.wantStatus, `${tc.name}: status`);
+    if (tc.wantAction !== undefined) assert.equal(tc.view?.action, tc.wantAction, `${tc.name}: action`);
     assert.equal(isDurableAdmissionFailure(tc.view), tc.wantDurable, `${tc.name}: durable`);
     if (tc.wantDurable) assert.ok(tc.view?.failureReason, `${tc.name}: durable failures carry a reason`);
+    if (tc.wantStatus === 'recording') {
+      assert.equal('failureReason' in (tc.view ?? {}), false, `${tc.name}: must not carry the 409 as failureReason`);
+    }
   }
   assert.deepEqual(viewForRenderAdmission(404, {}), unrecoverableJobGoneView());
 });

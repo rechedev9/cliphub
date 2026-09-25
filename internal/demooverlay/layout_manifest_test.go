@@ -108,14 +108,6 @@ func TestValidateLayoutSpecRejectsInvalidGeometry(t *testing.T) {
 	}
 }
 
-func TestFaceitOutroGridColumnsFollowsManifestOrder(t *testing.T) {
-	want := []string{ColLevel, ColRating, ColMVP}
-	got := faceitOutroGridColumns([]string{ColMVP, ColRating, ColLevel})
-	if !slicesEqualStrings(got, want) {
-		t.Fatalf("columns = %v, want %v", got, want)
-	}
-}
-
 func TestGeneratedIntroChromePreservesGameplayChannel(t *testing.T) {
 	raw, err := renderIntroChromePNG(Document{Source: SourceFACEIT})
 	if err != nil {
@@ -146,16 +138,4 @@ func cloneLayoutSpec(t *testing.T) layoutSpec {
 		t.Fatalf("unmarshal layout clone: %v", err)
 	}
 	return spec
-}
-
-func slicesEqualStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

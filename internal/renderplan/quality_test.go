@@ -32,6 +32,7 @@ func TestNewQualityReportMarksReadyForUploadReadyArtifact(t *testing.T) {
 }
 
 func TestNewQualityReportWarnsForBadArtifactShape(t *testing.T) {
+	// A 9:16 short delivered landscape and past the 180 s Shorts limit.
 	report := NewQualityReport(uuid.New(), "viral-60-clean", editor.Result{
 		Shorts: []editor.ShortResult{{
 			SegmentID: "seg-001",
@@ -39,7 +40,7 @@ func TestNewQualityReportWarnsForBadArtifactShape(t *testing.T) {
 				SizeBytes:       10,
 				Width:           1920,
 				Height:          1080,
-				DurationSeconds: 75,
+				DurationSeconds: 181,
 			},
 		}},
 	})
@@ -47,7 +48,7 @@ func TestNewQualityReportWarnsForBadArtifactShape(t *testing.T) {
 	if report.Status != "warning" {
 		t.Fatalf("status = %q, want warning", report.Status)
 	}
-	for _, want := range []string{"unexpected_output_resolution"} {
+	for _, want := range []string{"unexpected_output_resolution", "too_long_for_shorts"} {
 		if !containsString(report.Items[0].Warnings, want) {
 			t.Fatalf("warnings = %v, missing %q", report.Items[0].Warnings, want)
 		}

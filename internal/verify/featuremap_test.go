@@ -142,7 +142,7 @@ func TestProveFeatureFailsClosedForCapture(t *testing.T) {
 	tests := []string{"demo-completa", "shorts-9x16-wait", "full-demo-16x9-wait"}
 	for _, id := range tests {
 		t.Run(id, func(t *testing.T) {
-			report, err := ProveFeature(root, host, id)
+			report, err := Prove(ProveOptions{Root: root, Host: host, Feature: id})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,54 +157,44 @@ func TestProveFeatureFailsClosedForCapture(t *testing.T) {
 }
 
 func TestProveUnknownFeature(t *testing.T) {
-	_, err := ProveFeature(".", ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "not-a-feature")
+	_, err := Prove(ProveOptions{Root: ".", Host: ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), Feature: "not-a-feature"})
 	if err == nil {
 		t.Fatal("expected unknown feature error")
 	}
 }
 
-func TestProvePublicarVideoLargoCheapProof(t *testing.T) {
+func TestProveCheapProofDoesNotClaimTheUserPath(t *testing.T) {
 	root, err := FindRepoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := ProveFeature(root, ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "publicar-video-largo")
-	if err != nil {
-		t.Fatal(err)
+	host := ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"})
+	tests := []struct {
+		id        string
+		wantRoute string
+		wantNav   string
+	}{
+		{id: "publicar-video-largo", wantRoute: "/clips", wantNav: "Clips y vídeos"},
+		{id: "inicio", wantRoute: "/clips", wantNav: "Clips y vídeos"},
 	}
-	if !report.OK {
-		t.Fatalf("publicar-video-largo cheap proof failed: %#v", report)
-	}
-	if report.Closed {
-		t.Fatal("publicar-video-largo must not close the HLAE gap")
-	}
-	if !strings.Contains(report.Detail, "unproven") {
-		t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
-	}
-	if report.Drive == nil || report.Drive.Route != "/clips" || report.Drive.NavLabel != "Clips y vídeos" {
-		t.Fatalf("drive = %#v, want Clips y vídeos /clips", report.Drive)
-	}
-}
-
-func TestProveInicioCheapProof(t *testing.T) {
-	root, err := FindRepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := ProveFeature(root, ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "inicio")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !report.OK {
-		t.Fatalf("inicio cheap proof failed: %#v", report)
-	}
-	if report.Closed {
-		t.Fatal("inicio must not close the HLAE gap")
-	}
-	if !strings.Contains(report.Detail, "unproven") {
-		t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
-	}
-	if report.Drive == nil || report.Drive.Route != "/clips" || report.Drive.NavLabel != "Clips y vídeos" {
-		t.Fatalf("drive = %#v, want Clips y vídeos /clips", report.Drive)
+	for _, tc := range tests {
+		t.Run(tc.id, func(t *testing.T) {
+			report, err := Prove(ProveOptions{Root: root, Host: host, Feature: tc.id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !report.OK {
+				t.Fatalf("%s cheap proof failed: %#v", tc.id, report)
+			}
+			if report.Closed {
+				t.Fatalf("%s must not close the HLAE gap", tc.id)
+			}
+			if !strings.Contains(report.Detail, "unproven") {
+				t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
+			}
+			if report.Drive == nil || report.Drive.Route != tc.wantRoute || report.Drive.NavLabel != tc.wantNav {
+				t.Fatalf("drive = %#v, want %s %s", report.Drive, tc.wantNav, tc.wantRoute)
+			}
+		})
 	}
 }

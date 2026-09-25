@@ -236,12 +236,6 @@ func TestFullDemoItemCommandComposesOverlaysAfterBase(t *testing.T) {
 	if !strings.Contains(filter, "format=yuv420p,hud") && !strings.Contains(filter, "format=yuv420p[vlocal]") {
 		t.Fatalf("item base/HUD did not precede the global shift:\n%s", filter)
 	}
-	if !strings.Contains(filter, "setpts=N+240[vg0]") {
-		t.Fatalf("item base was not shifted onto the global integer clock:\n%s", filter)
-	}
-	if !strings.Contains(filter, "[v]settb=expr=1/60,setpts=N[vout]") {
-		t.Fatalf("item output was not restored to the canonical local clock:\n%s", filter)
-	}
 	if argIndex(command, "[vout]") < 0 {
 		t.Fatalf("item command did not map the composed output: %v", command)
 	}

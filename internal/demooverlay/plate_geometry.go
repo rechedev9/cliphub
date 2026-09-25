@@ -1,13 +1,13 @@
 package demooverlay
 
 const (
-	outroPlateMaxRows        = 5
-	outroMaxPlayersPerTeam   = 5
-	outroPlateNameYOffset    = 22
-	outroPlateStatYOffset    = 10
-	outroPlatePOVBadgeW      = 36
-	outroPlatePOVBadgeH      = 16
-	outroPlatePOVStatGap     = 10
+	outroPlateMaxRows      = 5
+	outroMaxPlayersPerTeam = 5
+	outroPlateNameYOffset  = 22
+	outroPlateStatYOffset  = 10
+	outroPlatePOVBadgeW    = 36
+	outroPlatePOVBadgeH    = 16
+	outroPlatePOVStatGap   = 10
 )
 
 const (
@@ -30,7 +30,7 @@ type IntroPlateGeometry struct {
 
 // OutroPlateGeometry holds measured scoreboard row bands in frame space.
 type OutroPlateGeometry struct {
-	HeaderY  int
+	HeaderY   int
 	ColLabelY int
 	// PlateCropTop and PlateCropBottom bound the scoreboard artwork after
 	// scale-to-cover: from the outer frame through the bottom of row 5, excluding
@@ -56,14 +56,6 @@ var introPlateGeometryTable = map[string]IntroPlateGeometry{
 		SubtitleY:      198,
 		RowNameCenterY: [5]int{293, 452, 603, 753, 908},
 	},
-	SourceFACEIT: {
-		TeamNameY:      78,
-		TeamNameXOff:   120,
-		TeamNameSize:   28,
-		SubtitleY:      104,
-		// Row 0 from avatar ring detection; rows 1-4 from divider bands.
-		RowNameCenterY: [5]int{276, 437, 598, 764, 929},
-	},
 }
 
 // outroPlateGeometryTable is measured from data/overlay-assets/plates/*-outro.jpg.
@@ -81,13 +73,6 @@ var outroPlateGeometryTable = map[string]OutroPlateGeometry{
 		PlateCropTop:    44,
 		PlateCropBottom: 697,
 		RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 651},
-	},
-	SourceFACEIT: {
-		HeaderY:         108,
-		ColLabelY:       252,
-		PlateCropTop:    59,
-		PlateCropBottom: 680,
-		RowNameCenterY:  [outroPlateMaxRows]int{316, 397, 477, 558, 637},
 	},
 }
 

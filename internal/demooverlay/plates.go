@@ -55,25 +55,6 @@ func resolvePlatePath(source, assetsDir, suffix string) string {
 	return path
 }
 
-// OutroLayoutForSource returns the scoreboard geometry for a source without a plate.
-func OutroLayoutForSource(source string) OutroLayout {
-	_ = NormalizeSource(source)
-	return DefaultLayout().Outro
-}
-
-// IntroTextInset returns the horizontal inset for player row text. FACEIT intro
-// plates reserve avatar circles on the left; indent past the circle zone.
-func IntroTextInset(layout IntroLayout, source string, hasPlate bool) int {
-	inset := layout.CardInset
-	if hasPlate && NormalizeSource(source) == SourceFACEIT {
-		circleRight := layout.AvatarXOff + layout.AvatarSize + 8
-		if circleRight > inset {
-			inset = circleRight
-		}
-	}
-	return inset
-}
-
 // plateScaleCoverCropChain scales input to cover FrameWidth x FrameHeight then center-crops.
 func plateScaleCoverCropChain() string {
 	return fmt.Sprintf(

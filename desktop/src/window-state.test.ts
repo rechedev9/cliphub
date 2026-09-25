@@ -29,29 +29,25 @@ test('drops x/y unless both are finite numbers', () => {
   });
 });
 
-test('falls back when width or height is missing', () => {
-  assert.deepEqual(validateWindowState({ height: 900 }), FALLBACK);
-  assert.deepEqual(validateWindowState({ width: 1280 }), FALLBACK);
-  assert.deepEqual(validateWindowState({}), FALLBACK);
-});
-
-test('falls back on non-finite dimensions', () => {
-  assert.deepEqual(validateWindowState({ width: NaN, height: 900 }), FALLBACK);
-  assert.deepEqual(validateWindowState({ width: 1280, height: Infinity }), FALLBACK);
-  assert.deepEqual(validateWindowState({ width: '1280', height: '900' }), FALLBACK);
-});
-
-test('falls back on implausibly small dimensions', () => {
-  assert.deepEqual(validateWindowState({ width: 799, height: 900 }), FALLBACK);
-  assert.deepEqual(validateWindowState({ width: 1280, height: 599 }), FALLBACK);
-});
-
-test('falls back on corrupt or wrong-shape input', () => {
-  assert.deepEqual(validateWindowState(null), FALLBACK);
-  assert.deepEqual(validateWindowState(undefined), FALLBACK);
-  assert.deepEqual(validateWindowState(42), FALLBACK);
-  assert.deepEqual(validateWindowState('nope'), FALLBACK);
-  assert.deepEqual(validateWindowState([1, 2, 3]), FALLBACK);
+test('falls back on missing, non-finite, implausibly small or corrupt state', () => {
+  const cases: Array<{ name: string; input: unknown }> = [
+    { name: 'missing width', input: { height: 900 } },
+    { name: 'missing height', input: { width: 1280 } },
+    { name: 'empty object', input: {} },
+    { name: 'NaN width', input: { width: NaN, height: 900 } },
+    { name: 'infinite height', input: { width: 1280, height: Infinity } },
+    { name: 'string dimensions', input: { width: '1280', height: '900' } },
+    { name: 'width below minimum', input: { width: 799, height: 900 } },
+    { name: 'height below minimum', input: { width: 1280, height: 599 } },
+    { name: 'null', input: null },
+    { name: 'undefined', input: undefined },
+    { name: 'number', input: 42 },
+    { name: 'string', input: 'nope' },
+    { name: 'array', input: [1, 2, 3] },
+  ];
+  for (const tc of cases) {
+    assert.deepEqual(validateWindowState(tc.input), FALLBACK, tc.name);
+  }
 });
 
 test('coerces a non-boolean isMaximized to false', () => {

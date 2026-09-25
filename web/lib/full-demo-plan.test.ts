@@ -193,6 +193,7 @@ for (const [name, mutate] of [
   ['game volume zero', (o: FullDemoOptions): void => { o.audio.game.gain = 0; }],
   ['sponsor split', (o: FullDemoOptions): void => { o.sponsor.allow_split_round = true; }],
   ['cover', (o: FullDemoOptions): void => { o.outputs.cover_policy = 'generated-gameplay'; }],
+  ['transitions disabled', (o: FullDemoOptions): void => { o.transitions = { ...fullDemoTransitionPreset(), enabled: false }; }],
 ] satisfies [string, (options: FullDemoOptions) => void][]) {
   test(`changing ${name} invalidates approval`, () => {
     const { document } = fixture();

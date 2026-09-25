@@ -54,20 +54,37 @@ func setShortCaptureEnv(t *testing.T) {
 	t.Setenv("ZV_CS2_PATH", "")
 }
 
+// The default preset and an explicit viral-60-clean preset must drive the
+// same chain, including the deathnotices HUD and portrait-safe killfeed.
 func TestRunShortChainsAllStages(t *testing.T) {
 	setShortCaptureEnv(t)
+	for _, tt := range []struct {
+		name       string
+		presetArgs []string
+	}{
+		{name: "default preset"},
+		{name: "explicit clean preset", presetArgs: []string{"--preset", "viral-60-clean"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			testRunShortChainsAllStages(t, tt.presetArgs)
+		})
+	}
+}
+
+func testRunShortChainsAllStages(t *testing.T, presetArgs []string) {
 	runner := &multiRunner{}
 	var stdout, stderr strings.Builder
 	outDir := filepath.Join(t.TempDir(), "run")
 
-	code := Run([]string{
+	argv := []string{
 		"zv", "short", "inferno.dem",
 		"--prompt", "haz un short con todas las kills de martinez",
 		"--target-steamid", "76561198000000000",
 		"--out", outDir,
-		"--hlae", `C:\Tools\HLAE.exe`,
-		"--cs2", `C:\cs2.exe`,
-	}, &stdout, &stderr, nil, runner)
+	}
+	argv = append(argv, presetArgs...)
+	argv = append(argv, "--hlae", `C:\Tools\HLAE.exe`, "--cs2", `C:\cs2.exe`)
+	code := Run(argv, &stdout, &stderr, nil, runner)
 
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
@@ -511,66 +528,6 @@ func TestRunShortBeatSyncPromptAddsRhythmStage(t *testing.T) {
 	}
 	if strings.Contains(renderArgs, "--limit") || strings.Contains(renderArgs, "--rank-moments") {
 		t.Fatalf("fresh best-moment render must consume the pre-capture selected plan: %q", renderArgs)
-	}
-}
-
-func TestRunShortCleanPresetRecordsDeathnoticesHUD(t *testing.T) {
-	setShortCaptureEnv(t)
-	runner := &multiRunner{}
-	var stdout, stderr strings.Builder
-	outDir := filepath.Join(t.TempDir(), "run")
-
-	code := Run([]string{
-		"zv", "short", "inferno.dem",
-		"--prompt", "all kills of 76561198000000000",
-		"--preset", "viral-60-clean",
-		"--out", outDir,
-		"--hlae", "HLAE.exe",
-		"--cs2", "cs2.exe",
-	}, &stdout, &stderr, nil, runner)
-
-	if got, want := code, exitSuccess; got != want {
-		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-	}
-	if got, want := len(runner.calls), 4; got != want {
-		t.Fatalf("calls len = %d, want %d: %#v", got, want, runner.calls)
-	}
-	recorderArgs := strings.Join(runner.calls[2].Args, " ")
-	if !strings.Contains(recorderArgs, "--hud deathnotices") {
-		t.Fatalf("recorder args = %q, missing --hud deathnotices", recorderArgs)
-	}
-	if !strings.Contains(recorderArgs, "--portrait-safe-killfeed") {
-		t.Fatalf("recorder args = %q, missing --portrait-safe-killfeed", recorderArgs)
-	}
-	renderArgs := strings.Join(runner.calls[3].Args, " ")
-	if !strings.Contains(renderArgs, "--preset viral-60-clean") {
-		t.Fatalf("render args = %q, missing --preset viral-60-clean", renderArgs)
-	}
-}
-
-func TestRunShortDefaultPresetRecordsDeathnoticesHUD(t *testing.T) {
-	setShortCaptureEnv(t)
-	runner := &multiRunner{}
-	var stdout, stderr strings.Builder
-	outDir := filepath.Join(t.TempDir(), "run")
-
-	code := Run([]string{
-		"zv", "short", "inferno.dem",
-		"--prompt", "all kills of 76561198000000000",
-		"--out", outDir,
-		"--hlae", "HLAE.exe",
-		"--cs2", "cs2.exe",
-	}, &stdout, &stderr, nil, runner)
-
-	if got, want := code, exitSuccess; got != want {
-		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-	}
-	recorderArgs := strings.Join(runner.calls[2].Args, " ")
-	if !strings.Contains(recorderArgs, "--hud deathnotices") {
-		t.Fatalf("recorder args = %q, missing --hud deathnotices", recorderArgs)
-	}
-	if !strings.Contains(recorderArgs, "--portrait-safe-killfeed") {
-		t.Fatalf("recorder args = %q, missing --portrait-safe-killfeed", recorderArgs)
 	}
 }
 

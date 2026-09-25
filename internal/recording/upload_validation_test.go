@@ -27,13 +27,6 @@ func verifiedTestResult(t *testing.T, result RecordingResult) RecordingResult {
 	return result
 }
 
-func TestValidateRunResultAcceptsSuccessfulResult(t *testing.T) {
-	err := ValidateRunResult(verifiedTestResult(t, RecordingResult{}))
-	if err != nil {
-		t.Fatalf("ValidateRunResult error = %v", err)
-	}
-}
-
 func TestValidateRunResultRejectsNonReusableCaptures(t *testing.T) {
 	// Positive control: a verified real capture remains reusable.
 	if err := ValidateRunResult(verifiedTestResult(t, RecordingResult{})); err != nil {
@@ -214,25 +207,6 @@ func TestValidateRunResultRejectsPendingPublication(t *testing.T) {
 	err := ValidateRunResult(result)
 	if err == nil || !strings.Contains(err.Error(), "publication is pending") {
 		t.Fatalf("ValidateRunResult error = %v, want pending publication rejection", err)
-	}
-}
-
-func TestValidateRunResultRequiresCompletedPOVVerification(t *testing.T) {
-	plan := testPlan()
-	plan.Segments = append([]RecordingSegment(nil), plan.Segments[:1]...)
-	result := RecordingResult{
-		Plan:        plan,
-		CaptureMode: CaptureModeReal,
-	}
-	err := ValidateRunResult(result)
-	if err == nil || !strings.Contains(err.Error(), "lacks completed POV verification") {
-		t.Fatalf("ValidateRunResult error = %v, want missing POV verification", err)
-	}
-
-	result.CaptureVerified = true
-	result.CaptureInputFingerprint, _ = CaptureInputFingerprint(result.Plan)
-	if err := ValidateRunResult(result); err != nil {
-		t.Fatalf("ValidateRunResult verified result error = %v", err)
 	}
 }
 
