@@ -31,9 +31,10 @@ const maxSeedFileBytes = 256 * 1024
 // own follows: the top SeedZoneLimit FACEIT players by ELO for each zone
 // (CIS, LATAM), measured against the live Data API. It lives as data rather
 // than as literals so refreshing it is a file swap
-// (go run ./cmd/zv-faceit-zones) and its provenance (generated_at, regions)
-// travels with the numbers.
+// (FACEIT_API_KEY=... go generate ./internal/faceit) and its provenance
+// (generated_at, regions) travels with the numbers.
 //
+//go:generate go run gen_zones.go
 //go:embed zones_default.json
 var defaultSeedJSON []byte
 

@@ -1,7 +1,9 @@
-// Command zv-faceit-zones regenerates the CIS and LATAM rosters the Players
-// section ships with, from the live FACEIT leaderboards:
+//go:build ignore
+
+// gen_zones regenerates zones_default.json, the CIS and LATAM rosters the
+// Players section ships with, from the live FACEIT leaderboards:
 //
-//	FACEIT_API_KEY=... go run ./cmd/zv-faceit-zones -out internal/faceit/zones_default.json
+//	FACEIT_API_KEY=... go generate ./internal/faceit
 package main
 
 import (
@@ -16,7 +18,7 @@ import (
 )
 
 func main() {
-	out := flag.String("out", "internal/faceit/zones_default.json", "seed document to write")
+	out := flag.String("out", "zones_default.json", "seed document to write")
 	limit := flag.Int("limit", faceit.SeedZoneLimit, "players per zone")
 	flag.Parse()
 
