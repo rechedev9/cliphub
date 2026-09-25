@@ -150,7 +150,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "radar scale restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_radar_scale"}},
 		{name: "safe area unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"safezonex"}},
 		{name: "HUD color restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_color"}},
-		{name: "TrueView keeps CS2 demo prediction", outcome: "verified", trim: true, wantEnd: 892, trueView: true},
+		{name: "TrueView forces CS2 demo prediction", outcome: "verified", trim: true, wantEnd: 892, trueView: true},
 		{name: "TrueView with broadcast HUD", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, trueView: true},
 		{name: "TrueView prediction unavailable", outcome: "failed", trim: true, trueView: true, missing: []string{"cl_demo_predict"}},
 	} {
@@ -251,7 +251,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				wantPredict := "0"
 				if tc.trueView {
-					wantPredict = "1"
+					wantPredict = "2"
 				}
 				for _, applied := range evidence.Applied {
 					if applied.Name == "cl_demo_predict" && string(applied.Value) != wantPredict {

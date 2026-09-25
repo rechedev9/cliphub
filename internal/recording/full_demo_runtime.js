@@ -80,11 +80,13 @@
             for (let i = 0; i < 8192; i++) {
                 try { const cv = new AdvancedfxCVar(i); if (cv.name.startsWith("cl_crosshair")) fullDemoSaveCvar(cv); } catch (_) {}
             }
+            // TrueView needs cl_demo_predict 2: with 1, CS2 disables it as soon
+            // as the client build is newer than the demo's, which is the norm.
             const settings = {
                 voice_modenable: false, snd_voipvolume: 0, tv_listen_voice_indices: 0, tv_listen_voice_indices_h: 0,
                 spec_show_xray: 0, spec_autodirector: false, cl_drawhud: true, cl_draw_only_deathnotices: false,
                 cl_show_observer_crosshair: fullDemoCapture.crosshair.mode === "observed" ? 2 : 0,
-                crosshair: true, cl_demo_predict: fullDemoCapture.trueview ? 1 : 0, cl_trueview_show_status: 0
+                crosshair: true, cl_demo_predict: fullDemoCapture.trueview ? 2 : 0, cl_trueview_show_status: 0
             };
             const broadcastHUD = ["broadcast-clean", "broadcast-clean-v2"].includes(fullDemoCapture.hud_profile);
             if (fullDemoCapture.hud_profile === "native-clean-spectator" || broadcastHUD) Object.assign(settings, {

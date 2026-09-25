@@ -339,8 +339,9 @@ Sampled final frames include both sides of the match and the last round.
 The custom HUD is optional again. The constructor's "HUD" choice selects a
 broadcast design (`broadcast-clean-v2` plus `overlays.hud_theme`) or
 "Original de CS2", which captures `native-clean-spectator` with no theme: the
-observed player's own health, ammunition, radar, killfeed and crosshair, with
-only spectator panels hidden. `CanonicalNewOptions` and
+observed player's health, ammunition, radar, killfeed and crosshair, plus
+CS2's observer team bar (money and utility for both teams). The demo
+controller, scoreboard and other spectator panels are hidden. `CanonicalNewOptions` and
 `currentFullDemoOptions` keep that native choice instead of upgrading it to the
 default design; plain `native` (with spectator panels) is canonicalized to the
 clean profile and a broadcast capture without a theme still gets the default.
@@ -348,12 +349,25 @@ clean profile and a broadcast capture without a theme still gets the default.
 "POV original 1:1 (TrueView)" sets `capture.trueview`. Full Demo captures used
 to force `cl_demo_predict 0`, which disables CS2's TrueView demo playback and
 shows the interpolated server view. With TrueView the runtime applies
-`cl_demo_predict 1` so the client re-runs the recorded player prediction; the
-readback and evidence contract require that value. Valve documents TrueView as
-automatic only when the demo was recorded by the same game version; community
-guides describe `cl_demo_predict 2` as forcing it, which is deliberately not
-used. Older demos therefore fall back to the standard view. No real CS2 capture
-with TrueView has been verified yet. The field is `omitempty`: existing documents keep their wire
+`cl_demo_predict 2` so the client re-runs the recorded player prediction; the
+readback and evidence contract require that value. `1` is not enough: CS2 then
+enables TrueView only when the demo and client builds match, and logs
+`Demo is version 14182, client is version 14184. TrueView is DISABLED as per
+cl_demo_predict=1` for a FACEIT demo recorded the same day as a CS2 update.
+
+Real capture on 2026-09-25 (CS2 1.41.8.4, HLAE 2.192.4, FACEIT de_anubis demo
+of protocol 14182, rounds 3 and 4, native HUD, NVENC 1080p60):
+
+| Capture | CS2 console | Median PSNR vs. TrueView off |
+| --- | --- | --- |
+| Off, second run | - | 35.4-35.6 dB (run-to-run noise) |
+| `cl_demo_predict 1` | TrueView DISABLED (version mismatch) | 38.7-39.4 dB, within noise |
+| `cl_demo_predict 2` | `TrueView active for slot 1` | 21.7-23.3 dB, visibly different aim |
+
+All captures certified, 35-40 Mb/s, no `blackdetect` hits. With `2` the
+console also logs `TrueView target time going in reverse` during the sped-up
+seek before a round; the recorded windows were unaffected. Demos further
+behind the client build than this one have not been captured. The field is `omitempty`: existing documents keep their wire
 format and capture hash, and TrueView changes the capture hash because it
 changes the footage. It is independent of the HUD choice.
 

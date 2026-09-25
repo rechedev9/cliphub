@@ -14,7 +14,7 @@ import { NativeHudArt } from './full-demo-native-hud';
 type HudKind = 'custom' | 'native';
 const HUD_KINDS: readonly { value: HudKind; label: string; detail: string; icon: LucideIcon }[] = [
   { value: 'custom', label: 'Diseño de retransmisión', detail: `${CUSTOM_HUD_THEMES.length} diseños con los datos de la demo`, icon: PanelsTopLeft },
-  { value: 'native', label: 'Original de CS2', detail: 'El HUD que vio el jugador', icon: Crosshair },
+  { value: 'native', label: 'Original de CS2', detail: 'El HUD nativo del juego', icon: Crosshair },
 ];
 
 export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
@@ -118,12 +118,12 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
               {portrait ? <Button type="button" variant="secondary" onClick={removePortrait}>Quitar retrato</Button> : null}
               {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
             </div> : null}
-          </div> : <p className="text-body-sm text-fg-2">Vida, munición, radar, killfeed y la mira del jugador, tal como los vio en la partida. Solo se ocultan los paneles de espectador.</p>}
+          </div> : <p className="text-body-sm text-fg-2">Vida, munición, radar, killfeed y la mira del jugador. Arriba queda la barra de equipos de CS2, con el dinero y la utilidad de ambos equipos.</p>}
         </div>
         <fieldset className="min-w-0 @min-[40rem]/hud:col-start-1 @min-[40rem]/hud:row-start-2">
           <legend className="sr-only">Vista</legend>
           <OptionCard type="checkbox" checked={options.capture.trueview === true} icon={ScanEye} title="POV original 1:1" label="POV original 1:1 (TrueView)"
-            detail="TrueView de CS2 recrea la cámara con los movimientos del propio jugador, como la vio él. En demos de una versión anterior de CS2 se usa la vista estándar."
+            detail="TrueView de CS2 recrea la cámara con los movimientos del propio jugador, como la vio él."
             onChange={chooseTrueView} />
         </fieldset>
       </div>
