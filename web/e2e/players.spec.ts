@@ -7,7 +7,7 @@ const PLAYERS: FaceitFollowedPlayer[] = [
   ['CEMEN_BAKIN', 4187], ['nipl', 4213], ['whuhurt', 4157], ['bluewh1te', 4148], ['73ddd', 4143], ['em0k1d', 4107],
 ].map(([nickname, elo], index) => ({ id: `player-${index}`, nickname: String(nickname), elo: Number(elo),
   skill_level: 10, profile_url: `https://www.faceit.com/en/players/${nickname}`,
-  steam_id64: '76561198386265483', seeded: true }));
+  steam_id64: '76561198386265483', seeded: true, zone: index < 7 ? 'cis' : 'latam' } as const));
 
 const MATCHES: FaceitMatch[] = Array.from({ length: 20 }, (_, index) => ({
   id: `match-${index}`, room_url: `https://www.faceit.com/en/cs2/room/match-${index}`,
@@ -31,7 +31,7 @@ async function stubFaceit(page: Page): Promise<void> {
     }
     if (path.endsWith('/followed')) {
       if (route.request().method() === 'POST') {
-        const player: FaceitFollowedPlayer = { id: 'new-player', nickname: 'ropz', elo: 4900, seeded: true,
+        const player: FaceitFollowedPlayer = { id: 'new-player', nickname: 'ropz', elo: 4900,
           skill_level: 10, profile_url: 'https://www.faceit.com/en/players/ropz' };
         followed = [...followed, player];
         await route.fulfill({ json: { player } }); return;
@@ -46,25 +46,37 @@ async function stubFaceit(page: Page): Promise<void> {
 test('search, ordering, player selection and follow management use the real UI flow', async ({ page }) => {
   await stubFaceit(page);
   await gotoStudio(page, '/players');
-  const rail = page.getByRole('navigation', { name: 'Jugadores seguidos' });
+  // Nobody followed yet, so the page opens on the first zone roster.
+  await expect(page.getByRole('tab', { name: /CIS/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: /LATAM/ })).toContainText('3');
+  const rail = page.getByRole('navigation', { name: 'Jugadores CIS' });
+  await expect(rail.getByRole('button')).toHaveCount(7);
   await expect(rail.getByRole('button').first()).toContainText('donk666');
   await expect(rail.getByRole('button').nth(4)).toContainText('nipl');
-  await page.getByRole('textbox', { name: 'Buscar jugador seguido' }).fill('sypho');
+  await page.getByRole('textbox', { name: 'Buscar jugador en CIS' }).fill('sypho');
   await expect(rail.getByRole('button')).toHaveCount(1);
   await rail.getByRole('button').click();
   await expect(page.getByRole('region', { name: 'Perfil de -SYPHO' })).toBeVisible();
   await expect(page.getByText('Mostrando 1–2 de 2 partidas')).toBeVisible();
-  await page.getByRole('textbox', { name: 'Buscar jugador seguido' }).clear();
+  await page.getByRole('textbox', { name: 'Buscar jugador en CIS' }).clear();
   await page.getByRole('combobox', { name: 'Ordenar jugadores' }).click();
   await page.getByRole('option', { name: 'A–Z', exact: true }).click();
   await expect(rail.getByRole('button').first()).toContainText('-SYPHO');
   await page.getByRole('textbox', { name: 'Nick o URL de FACEIT', exact: true }).fill('ropz');
   await page.getByRole('button', { name: 'Seguir jugador', exact: true }).click();
+  // A new follow lands on the Custom list.
+  await expect(page.getByRole('tab', { name: /Custom/ })).toHaveAttribute('aria-selected', 'true');
+  const custom = page.getByRole('navigation', { name: 'Jugadores Custom' });
+  await expect(custom.getByRole('button', { name: /ropz/ })).toHaveCount(1);
   await expect(page.getByRole('region', { name: 'Perfil de ropz' })).toBeVisible();
   await page.getByRole('button', { name: 'Opciones de ropz' }).click();
   await page.getByRole('menuitem', { name: 'Dejar de seguir a ropz' }).click();
-  await expect(rail.getByRole('button', { name: /ropz/ })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Perfil de donk666' })).toBeVisible();
+  await expect(custom).toContainText('Aún no sigues a nadie');
+  await page.getByRole('tab', { name: /LATAM/ }).click();
+  await expect(page.getByRole('navigation', { name: 'Jugadores LATAM' }).getByRole('button').first()).toContainText('73ddd'); // A–Z is still on.
+  // The profile falls back to the list's top-ELO player, marked in the rail.
+  await expect(page.getByRole('region', { name: 'Perfil de bluewh1te' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Jugadores LATAM' }).getByRole('button', { name: /bluewh1te/ })).toHaveAttribute('aria-current', 'true');
 });
 
 test('match filters reset pagination and keep the room links of the filtered rows', async ({ page }) => {

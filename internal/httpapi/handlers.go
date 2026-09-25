@@ -263,7 +263,7 @@ func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
 }
 
 // WithFaceitSeeds supplies the refreshable default roster. A nil store still
-// projects the embedded top 10: SeedStore.Document degrades to DefaultSeed.
+// projects the embedded zone rosters: SeedStore.Document degrades to DefaultSeed.
 func WithFaceitSeeds(seeds *faceit.SeedStore) Option {
 	return func(h *Handlers) {
 		h.faceitSeeds = seeds

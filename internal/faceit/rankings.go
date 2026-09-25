@@ -27,6 +27,57 @@ const (
 // query that happens to return nothing.
 var rankingRegions = []string{"EU", "NA", "SA", "OCE", "SEA"}
 
+// Zone ids name the curated rosters the Players section groups its seeded
+// rows into.
+const (
+	ZoneCIS   = "cis"
+	ZoneLATAM = "latam"
+)
+
+// rankingZones maps each zone to the FACEIT country codes it covers, in the
+// order the Players section lists them. FACEIT has no zone leaderboard and its
+// country field is whatever the player set on their profile, so a zone is only
+// as accurate as those profiles.
+var rankingZones = []struct {
+	id        string
+	countries []string
+}{
+	{id: ZoneCIS, countries: []string{"ru", "ua", "by", "kz", "uz", "kg", "tj", "tm", "am", "az", "ge", "md"}},
+	{id: ZoneLATAM, countries: []string{"ar", "bo", "br", "cl", "co", "cr", "cu", "do", "ec", "gt", "hn", "mx", "ni", "pa", "pe", "pr", "py", "sv", "uy", "ve"}},
+}
+
+// Zones lists the zone ids in display order.
+func Zones() []string {
+	out := make([]string, 0, len(rankingZones))
+	for _, zone := range rankingZones {
+		out = append(out, zone.id)
+	}
+	return out
+}
+
+func zoneCountries(id string) ([]string, bool) {
+	for _, zone := range rankingZones {
+		if zone.id == id {
+			return zone.countries, true
+		}
+	}
+	return nil, false
+}
+
+// rankingLadder is one leaderboard read: a region, optionally narrowed to one
+// country.
+type rankingLadder struct {
+	region  string
+	country string
+}
+
+func (l rankingLadder) String() string {
+	if l.country == "" {
+		return l.region
+	}
+	return l.region + "/" + l.country
+}
+
 type apiRankingList struct {
 	Items []apiRankedPlayer `json:"items"`
 	Start int               `json:"start"`
@@ -162,15 +213,60 @@ func (c *Client) globalTop(ctx context.Context, limit int) ([]RankedPlayer, []st
 	if c == nil || c.apiKey == "" {
 		return nil, nil, ErrNotConfigured
 	}
+	ladders := make([]rankingLadder, 0, len(rankingRegions))
+	for _, region := range rankingRegions {
+		ladders = append(ladders, rankingLadder{region: region})
+	}
+	players, covered, failed := c.topAcross(ctx, ladders, limit)
+	if len(covered) == 0 {
+		return nil, nil, fmt.Errorf("list FACEIT global rankings: %w", failed)
+	}
+	return players, covered, nil
+}
+
+// ZoneTop returns the highest-ELO CS2 players whose FACEIT country belongs to
+// zone. Players queue on any region regardless of country (measured
+// 2026-09-25: the best Mexican played on EU, not NA), so every zone country is
+// read on every region. GlobalTop's argument holds per ladder: a zone top-N
+// player is inside the top N of their own region+country leaderboard.
+//
+// Unlike GlobalTop this is all or nothing. A missing ladder would silently drop
+// a country from the roster, so any failed read fails the call.
+func (c *Client) ZoneTop(ctx context.Context, zone string, limit int) ([]RankedPlayer, error) {
+	if c == nil || c.apiKey == "" {
+		return nil, ErrNotConfigured
+	}
+	countries, ok := zoneCountries(zone)
+	if !ok {
+		return nil, fmt.Errorf("FACEIT zone %q is not one of %v", zone, Zones())
+	}
+	ladders := make([]rankingLadder, 0, len(countries)*len(rankingRegions))
+	for _, country := range countries {
+		for _, region := range rankingRegions {
+			ladders = append(ladders, rankingLadder{region: region, country: country})
+		}
+	}
+	players, _, failed := c.topAcross(ctx, ladders, limit)
+	if failed != nil {
+		return nil, fmt.Errorf("list FACEIT %s rankings: %w", zone, failed)
+	}
+	return players, nil
+}
+
+// topAcross reads the top `limit` of every ladder and merges them into one
+// ELO ranking. It returns the ladders that answered, in ladder order, and the
+// joined per-ladder failures (nil when every ladder answered); the caller
+// decides how much coverage is enough.
+func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit int) ([]RankedPlayer, []string, error) {
 	limit = clampRankingLimit(limit)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	merged := make([]RankedPlayer, 0, limit*len(rankingRegions))
-	covered := make(map[string]bool, len(rankingRegions))
-	failures := make(map[string]error, len(rankingRegions))
+	merged := make([]RankedPlayer, 0, limit*len(ladders))
+	covered := make(map[rankingLadder]bool, len(ladders))
+	failures := make(map[rankingLadder]error, len(ladders))
 	gate := make(chan struct{}, rankingWorkers)
-	for _, region := range rankingRegions {
+	for _, ladder := range ladders {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -179,35 +275,25 @@ func (c *Client) globalTop(ctx context.Context, limit int) ([]RankedPlayer, []st
 				defer func() { <-gate }()
 			case <-ctx.Done():
 				mu.Lock()
-				failures[region] = ctx.Err()
+				failures[ladder] = ctx.Err()
 				mu.Unlock()
 				return
 			}
-			players, err := c.Rankings(ctx, region, "", 0, limit)
+			players, err := c.Rankings(ctx, ladder.region, ladder.country, 0, limit)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				failures[region] = err
+				failures[ladder] = err
 				return
 			}
-			covered[region] = true
+			covered[ladder] = true
 			merged = append(merged, players...)
 		}()
 	}
 	wg.Wait()
 
-	if len(failures) == len(rankingRegions) {
-		joined := make([]error, 0, len(failures))
-		for _, region := range rankingRegions {
-			if err := failures[region]; err != nil {
-				joined = append(joined, fmt.Errorf("region %s: %w", region, err))
-			}
-		}
-		return nil, nil, fmt.Errorf("list FACEIT global rankings: %w", errors.Join(joined...))
-	}
-
 	merged = dedupeRankedPlayers(merged)
-	// Regions are fetched concurrently, so the merge order is nondeterministic
+	// Ladders are fetched concurrently, so the merge order is nondeterministic
 	// until it is sorted. ELO is the ranking; the player id breaks ties so two
 	// players on the same ELO keep a stable order across refreshes.
 	sort.Slice(merged, func(i, j int) bool {
@@ -220,13 +306,16 @@ func (c *Client) globalTop(ctx context.Context, limit int) ([]RankedPlayer, []st
 		merged = merged[:limit]
 	}
 
-	regions := make([]string, 0, len(covered))
-	for _, region := range rankingRegions {
-		if covered[region] {
-			regions = append(regions, region)
+	answered := make([]string, 0, len(covered))
+	var failed []error
+	for _, ladder := range ladders {
+		if covered[ladder] {
+			answered = append(answered, ladder.String())
+		} else if err := failures[ladder]; err != nil {
+			failed = append(failed, fmt.Errorf("%s: %w", ladder, err))
 		}
 	}
-	return merged, regions, nil
+	return merged, answered, errors.Join(failed...)
 }
 
 // dedupeRankedPlayers keeps the highest-ELO row per player id. A player should

@@ -131,7 +131,7 @@ func TestFaceitLookupAndFollowFlow(t *testing.T) {
 		t.Fatalf("followed = %#v", listBody)
 	}
 	if seededCount(listBody.Players) != len(faceit.DefaultSeed().Players) {
-		t.Fatalf("seeded after follow = %d, want the default top 10 still projected", seededCount(listBody.Players))
+		t.Fatalf("seeded after follow = %d, want the default zone rosters still projected", seededCount(listBody.Players))
 	}
 
 	matches := httptest.NewRecorder()
@@ -320,10 +320,55 @@ func TestUnfollowDismissesSeededPlayer(t *testing.T) {
 	}
 }
 
+// Unfollowing a zone player the user had followed must put them back in the
+// zone list, not dismiss them from it.
+func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
+	t.Parallel()
+	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
+	router := Routes(h)
+
+	first := faceit.DefaultSeed().Players[0]
+	if _, err := follows.Follow(faceit.Player{ID: first.PlayerID, Nickname: first.Nickname}); err != nil {
+		t.Fatal(err)
+	}
+	list := func() []listedFaceitPlayer {
+		rw := httptest.NewRecorder()
+		router.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
+		var body struct {
+			Players []listedFaceitPlayer `json:"players"`
+		}
+		if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		return body.Players
+	}
+	if players := list(); players[0].ID != first.PlayerID || players[0].Seeded || players[0].Zone != first.Zone {
+		t.Fatalf("followed zone player = %#v, want an own follow that keeps zone %q", players[0], first.Zone)
+	}
+
+	rw := httptest.NewRecorder()
+	router.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/faceit/followed/"+first.PlayerID, nil))
+	if rw.Code != http.StatusNoContent {
+		t.Fatalf("unfollow status = %d body=%s", rw.Code, rw.Body.String())
+	}
+	players := list()
+	if len(players) != len(faceit.DefaultSeed().Players) || players[0].ID != first.PlayerID || !players[0].Seeded || players[0].Zone != first.Zone {
+		t.Fatalf("after unfollow = %#v, want the player back as a seeded %s row", players[0], first.Zone)
+	}
+	if dismissed, err := follows.DismissedSeeds(); err != nil || len(dismissed) != 0 {
+		t.Fatalf("dismissed = %v, %v; want none", dismissed, err)
+	}
+}
+
 type listedFaceitPlayer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
 	Seeded   bool   `json:"seeded"`
+	Zone     string `json:"zone"`
 }
 
 func seededCount(players []listedFaceitPlayer) int {

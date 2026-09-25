@@ -193,7 +193,7 @@ func seedFor(generatedAt time.Time, players ...RankedPlayer) SeedDocument {
 		SchemaVersion: SeedSchemaVersion,
 		GeneratedAt:   generatedAt,
 		Regions:       []string{"EU"},
-		Players:       seedPlayers(players),
+		Players:       seedPlayers(ZoneCIS, players),
 	}
 }
 
@@ -240,8 +240,14 @@ func TestFollowStoreRosterPutsFollowsBeforeSeeds(t *testing.T) {
 		}
 	}
 
+	// A follow keeps the zone of its seeded row, so it still shows in that
+	// zone's list; a follow outside every zone has none.
+	if roster[0].Zone != ZoneCIS || roster[1].Zone != "" {
+		t.Fatalf("follow zones = %q, %q; want cis then none", roster[0].Zone, roster[1].Zone)
+	}
+
 	seededRow := roster[2]
-	if !seededRow.Seeded || seededRow.Region != "EU" || seededRow.Position != 1 {
+	if !seededRow.Seeded || seededRow.Zone != ZoneCIS || seededRow.Region != "EU" || seededRow.Position != 1 {
 		t.Fatalf("seeded row = %#v", seededRow)
 	}
 	if !seededRow.FollowedAt.Equal(generatedAt) {

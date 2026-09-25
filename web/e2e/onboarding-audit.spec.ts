@@ -114,7 +114,7 @@ test('disabled FACEIT offers a next step without requesting profiles, matches or
   await gotoStudio(page, '/players');
   await expect(page.getByRole('heading', { name: 'FACEIT no está configurado' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Cargar una demo' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Jugadores seguidos' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Listas de jugadores' })).toHaveCount(0);
   expect(requests).toEqual([]);
 });
 
