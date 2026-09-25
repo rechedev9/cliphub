@@ -83,11 +83,12 @@ type RankedPlayer struct {
 	SkillLevel int    `json:"game_skill_level"`
 }
 
-// SeedDocument is the default roster the Players section starts from: the
-// FACEIT global top N merged out of every regional leaderboard. GeneratedAt
-// and Regions travel with the players so a stale or partially covered refresh
-// is visible to whoever reads it, and GeneratedAt is what a seeded row reports
-// as its FollowedAt so the list does not reshuffle on every restart.
+// SeedDocument is the default roster the Players section shows beside the
+// user's own follows: the FACEIT top N of each zone, merged out of the
+// regional leaderboards. GeneratedAt and Regions travel with the players so a
+// stale refresh is visible to whoever reads it, and GeneratedAt is what a
+// seeded row reports as its FollowedAt so the list does not reshuffle on every
+// restart.
 type SeedDocument struct {
 	SchemaVersion string       `json:"schema_version"`
 	GeneratedAt   time.Time    `json:"generated_at"`
@@ -95,12 +96,14 @@ type SeedDocument struct {
 	Players       []SeedPlayer `json:"players"`
 }
 
-// SeedPlayer is a leaderboard row as the seed document stores it. Rank is the
-// player's place in the merged global order, which Position cannot express
-// because Position counts within one region.
+// SeedPlayer is a leaderboard row as the seed document stores it. Zone is the
+// roster it belongs to and Rank the player's place in that zone's merged
+// order, which Position cannot express because Position counts within one
+// region.
 type SeedPlayer struct {
 	RankedPlayer
-	Rank int `json:"rank,omitempty"`
+	Zone string `json:"zone"`
+	Rank int    `json:"rank,omitempty"`
 }
 
 type RecentMatch struct {

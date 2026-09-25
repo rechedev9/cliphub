@@ -46,7 +46,7 @@ func fullDemoAPIFixture(t *testing.T) (*Handlers, job.Job, *fakeStorage, *fakeQu
 		t.Fatal(err)
 	}
 	o := recapplan.DefaultOptions()
-	o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Audio.Music.Enabled, o.Sponsor.Enabled = false, false, false, false
+	o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Audio.Music.Enabled = false, false, false
 	h := NewHandlers(repo, store, queue)
 	return h, j, store, queue, o
 }
@@ -309,7 +309,7 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 	if len(s.Document.Rounds) != 2 || s.Document.Options.Audio.Game.Gain != recapplan.DefaultOptions().Audio.Game.Gain ||
 		s.Document.Options.Audio.Voice.Enabled || s.Document.Options.Audio.Voice.Gain != recapplan.DefaultOptions().Audio.Voice.Gain ||
 		s.Document.Options.Overlays.HUDTheme != recapplan.DefaultOptions().Overlays.HUDTheme || s.Document.Options.SourceKind != "demo" ||
-		s.Document.Options.Transitions == nil || !s.Document.Options.Transitions.Enabled || s.Document.Options.Sponsor.Enabled {
+		s.Document.Options.Transitions == nil || !s.Document.Options.Transitions.Enabled || s.Document.Options.HasBumpers() {
 		t.Fatal("plan lost zero-kill rounds or negative decisions")
 	}
 	h.capabilities.RecordEnabled = true

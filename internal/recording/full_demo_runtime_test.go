@@ -22,7 +22,7 @@ func fullDemoCaptureFixtureWithDeath(t *testing.T, death int) RecordingPlan {
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198377256168", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
 		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 800, DeathTick: &death, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
-	o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Sponsor.Enabled, o.Editorial.KeepFreezeVoice = false, false, false, false
+	o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Editorial.KeepFreezeVoice = false, false, false
 	o.Capture.Crosshair.AllowCaptureDefault = true
 	d, err := recapplan.Plan(f, o, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
 	if err != nil {

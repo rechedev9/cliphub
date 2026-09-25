@@ -105,9 +105,10 @@ func (d Document) RenderTransitions() *TransitionOptions {
 	return nil
 }
 
+// bumperCut is a cut between gameplay and a bumper clip: intro to round,
+// round to and from the sponsor, and round to outro.
 func bumperCut(a, b TimelineItem) bool {
-	return (a.Role == "bumper" && a.Reason == BumperRoleIntro && b.Role == "round") ||
-		(a.Role == "round" && b.Role == "bumper" && b.Reason == BumperRoleOutro)
+	return (a.Role == "bumper" && b.Role == "round") || (a.Role == "round" && b.Role == "bumper")
 }
 
 // Transitions decorate existing frames. Bumper cuts are always included;

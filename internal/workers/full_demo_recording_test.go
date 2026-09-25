@@ -30,7 +30,7 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 	// renderer, so they deliberately opt out of the current custom-HUD default.
 	o.Overlays.HUDTheme = ""
 	o.Capture.HUDProfile = "native-clean-spectator"
-	o.Audio.Music.Enabled, o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Sponsor.Enabled = false, false, false, false
+	o.Audio.Music.Enabled, o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice = false, false, false
 	for _, mutate := range mutations {
 		mutate(&f, &o)
 	}

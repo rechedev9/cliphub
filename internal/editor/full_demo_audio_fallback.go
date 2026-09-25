@@ -38,10 +38,21 @@ func hasMediaFoundationAAC(ctx context.Context, ffmpeg string) bool {
 	return false
 }
 
+// alimiter accepts a linear limit in [1/16, 1].
+const (
+	alimiterMinLimit = .0625
+	alimiterMaxLimit = 1.0
+)
+
+func initialAACRecoveryMaster(target recapplan.LoudnessOptions) ProgramAACFallbackMaster {
+	return ProgramAACFallbackMaster{Encoder: "aac_mf", GainDB: 3, CeilingDBFS: target.TargetTPDBTP - 3.5}
+}
+
 func (m ProgramAACFallbackMaster) filter(base string) string {
+	limit := max(alimiterMinLimit, min(alimiterMaxLimit, math.Pow(10, m.CeilingDBFS/20)))
 	// Explicit oversampling and disabled automatic level compensation preserve
 	// the peak ceiling; latency compensation preserves the approved timeline.
-	return base + ",aresample=48000,aformat=channel_layouts=stereo,volume=" + decimal(m.GainDB) + "dB,aresample=192000,alimiter=limit=" + decimal(math.Pow(10, m.CeilingDBFS/20)) + ":attack=1:release=5:level=false:latency=true,aresample=48000"
+	return base + ",aresample=48000,aformat=channel_layouts=stereo,volume=" + decimal(m.GainDB) + "dB,aresample=192000,alimiter=limit=" + decimal(limit) + ":attack=1:release=5:level=false:latency=true,aresample=48000"
 }
 
 func (m ProgramAACFallbackMaster) corrected(decoded LoudnessMeasurement, target recapplan.LoudnessOptions) ProgramAACFallbackMaster {
@@ -94,12 +105,12 @@ func runFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir s
 	// Keep the initial normalization fixed. Feeding lossy peak overshoot back
 	// into loudnorm's target TP can lower the whole mix and defeat its LUFS
 	// target. Here gain and the post-normalization limiter are independent.
-	base, err := measuredLoudnessFilter(fullDemoAACRecoveryTarget(target), first)
+	base, err := measuredLoudnessFilter(aacHeadroomTarget(target), first)
 	if err != nil {
 		result.err = err
 		return result
 	}
-	master := ProgramAACFallbackMaster{Encoder: "aac_mf", GainDB: 3, CeilingDBFS: target.TargetTPDBTP - 3.5}
+	master := initialAACRecoveryMaster(target)
 	// Rebuild timestamps from the canonical sample clock as well as bounding
 	// sample count: filter timestamps can otherwise extend the stream duration.
 	// AAC packet padding is checked separately by delivery validation.
@@ -151,11 +162,6 @@ func runFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir s
 	return result
 }
 
-func fullDemoAACRecoveryTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
-	target.TargetTPDBTP -= .3
-	return target
-}
-
 // finishFullDemoAACRecovery folds a recovery result into the evidence exactly
 // as the attempts would have been recorded one by one, then delivers the
 // accepted candidate.
@@ -168,7 +174,7 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e)
 	}
 	for _, attempt := range result.attempts {
-		e.MasterTargets = append(e.MasterTargets, fullDemoAACRecoveryTarget(target))
+		e.MasterTargets = append(e.MasterTargets, aacHeadroomTarget(target))
 		e.FallbackMasters = append(e.FallbackMasters, attempt.master)
 		if attempt.decoded != nil {
 			e.DecodedAAC = append(e.DecodedAAC, *attempt.decoded)

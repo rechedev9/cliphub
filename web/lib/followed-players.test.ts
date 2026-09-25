@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { FaceitFollowedPlayer } from './api/faceit.ts';
-import { followedPlayersReducer, type FollowedPlayersState } from './followed-players.ts';
+import { defaultPlayerTab, followedPlayersReducer, inPlayerTab, type FollowedPlayersState } from './followed-players.ts';
 
 const player = (id: string): FaceitFollowedPlayer => ({ id, nickname: id, profile_url: `https://www.faceit.com/en/players/${id}` });
 
@@ -32,4 +32,33 @@ test('a delayed profile response cannot resurrect an unfollowed player or change
   const initial = { players: [player('old'), player('other')], selectedID: 'old' };
   const removed = followedPlayersReducer(initial, { type: 'unfollowed', id: 'old' });
   assert.deepEqual(followedPlayersReducer(removed, { type: 'profile', player: player('old') }), removed);
+});
+
+test('tabs split own follows from the zone rosters, and a followed zone player shows in both', () => {
+  const own = player('own');
+  const seededCIS = { ...player('cis'), seeded: true, zone: 'cis' } as const;
+  const followedLATAM = { ...player('latam'), zone: 'latam' } as const;
+  const players = [own, seededCIS, followedLATAM];
+  assert.deepEqual(players.filter((entry) => inPlayerTab(entry, 'custom')).map((entry) => entry.id), ['own', 'latam']);
+  assert.deepEqual(players.filter((entry) => inPlayerTab(entry, 'cis')).map((entry) => entry.id), ['cis']);
+  assert.deepEqual(players.filter((entry) => inPlayerTab(entry, 'latam')).map((entry) => entry.id), ['latam']);
+  assert.equal(defaultPlayerTab(players), 'custom');
+  assert.equal(defaultPlayerTab([seededCIS]), 'cis');
+  assert.equal(defaultPlayerTab([]), 'custom');
+});
+
+test('following a zone player keeps the zone, and unfollowing returns them to it', () => {
+  const initial: FollowedPlayersState = { players: [{ ...player('pro'), seeded: true, zone: 'cis' }], selectedID: 'pro' };
+  const followed = followedPlayersReducer(initial, { type: 'followed', player: player('pro') });
+  assert.deepEqual(followed.players, [{ ...player('pro'), zone: 'cis' }]);
+  const unfollowed = followedPlayersReducer(followed, { type: 'unfollowed', id: 'pro' });
+  assert.deepEqual(unfollowed, { players: [{ ...player('pro'), zone: 'cis', seeded: true }], selectedID: 'pro' });
+  // Removing the seeded row itself is a dismissal.
+  assert.deepEqual(followedPlayersReducer(unfollowed, { type: 'unfollowed', id: 'pro' }), { players: [], selectedID: null });
+});
+
+test('a live profile refresh keeps the row in its zone list', () => {
+  const initial: FollowedPlayersState = { players: [{ ...player('pro'), seeded: true, zone: 'cis' }], selectedID: 'pro' };
+  const refreshed = followedPlayersReducer(initial, { type: 'profile', player: { ...player('pro'), elo: 4800 } });
+  assert.deepEqual(refreshed.players, [{ ...player('pro'), elo: 4800, seeded: true, zone: 'cis' }]);
 });

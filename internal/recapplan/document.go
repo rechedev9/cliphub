@@ -33,22 +33,26 @@ type Options struct {
 	Capture     CaptureOptions     `json:"capture"`
 	Editorial   EditorialOptions   `json:"editorial"`
 	Audio       AudioOptions       `json:"audio"`
-	Sponsor     SponsorOptions     `json:"sponsor"`
 	Bumpers     *BumperOptions     `json:"bumpers,omitempty"`
 	Overlays    OverlayOptions     `json:"overlays"`
 	Outputs     OutputOptions      `json:"outputs"`
 	Transitions *TransitionOptions `json:"transitions,omitempty"`
 }
 
-// BumperOptions are the optional channel clips around the program: a pre-roll
-// before the first captured frame and an outro after the last one. Unlike the
-// sponsor they never touch gameplay placement, so they carry no policy. The
-// pointer is omitted from the wire when absent so documents approved before
-// bumpers existed keep their hash.
+// BumperOptions are the optional channel clips of the program: a pre-roll
+// before the first captured frame, a sponsor right after the second gameplay
+// round and an outro after the last one. Their placement is fixed, so they
+// carry no policy. The pointers are omitted from the wire when absent so
+// documents approved before bumpers, or the sponsor slot, existed keep their
+// hash.
 type BumperOptions struct {
-	Intro BumperSlot `json:"intro"`
-	Outro BumperSlot `json:"outro"`
+	Intro   BumperSlot  `json:"intro"`
+	Sponsor *BumperSlot `json:"sponsor,omitempty"`
+	Outro   BumperSlot  `json:"outro"`
 }
+
+// SponsorAfterRounds is how many gameplay rounds play before the sponsor.
+const SponsorAfterRounds = 2
 
 // BumperSlot is one bumper. Its audio is always the clip's own track; a clip
 // without audio plays silent, which is an ordinary outro on YouTube.
@@ -57,12 +61,45 @@ type BumperSlot struct {
 	Video   *AssetRef `json:"video"`
 }
 
-// BumperRoleIntro and BumperRoleOutro are the Reason values of "bumper"
-// timeline items, so the renderer never has to guess which slot an item is.
+// BumperRoleIntro, BumperRoleSponsor and BumperRoleOutro are the Reason values
+// of "bumper" timeline items, so the renderer never has to guess which slot an
+// item is.
 const (
-	BumperRoleIntro = "intro-bumper"
-	BumperRoleOutro = "outro-bumper"
+	BumperRoleIntro   = "intro-bumper"
+	BumperRoleSponsor = "sponsor-bumper"
+	BumperRoleOutro   = "outro-bumper"
 )
+
+// NamedBumper is one requested bumper slot with its label and timeline reason.
+type NamedBumper struct {
+	Name string
+	Role string
+	Slot BumperSlot
+}
+
+// BumperSlots lists the requested bumper slots in program order.
+func (o Options) BumperSlots() []NamedBumper {
+	var slots []NamedBumper
+	for _, s := range []struct {
+		name, role string
+		slot       func() (BumperSlot, bool)
+	}{{"intro", BumperRoleIntro, o.IntroBumper}, {"sponsor", BumperRoleSponsor, o.SponsorBumper}, {"outro", BumperRoleOutro, o.OutroBumper}} {
+		if slot, ok := s.slot(); ok {
+			slots = append(slots, NamedBumper{s.name, s.role, slot})
+		}
+	}
+	return slots
+}
+
+// BumperFor returns the requested slot a bumper timeline reason plays.
+func (o Options) BumperFor(role string) (BumperSlot, bool) {
+	for _, named := range o.BumperSlots() {
+		if named.Role == role {
+			return named.Slot, true
+		}
+	}
+	return BumperSlot{}, false
+}
 
 // IntroBumper returns the enabled intro slot, or false when none is requested.
 func (o Options) IntroBumper() (BumperSlot, bool) {
@@ -70,6 +107,14 @@ func (o Options) IntroBumper() (BumperSlot, bool) {
 		return BumperSlot{}, false
 	}
 	return o.Bumpers.Intro, true
+}
+
+// SponsorBumper returns the enabled sponsor slot, or false when none is requested.
+func (o Options) SponsorBumper() (BumperSlot, bool) {
+	if o.Bumpers == nil || o.Bumpers.Sponsor == nil || !o.Bumpers.Sponsor.Enabled {
+		return BumperSlot{}, false
+	}
+	return *o.Bumpers.Sponsor, true
 }
 
 // OutroBumper returns the enabled outro slot, or false when none is requested.
@@ -82,9 +127,7 @@ func (o Options) OutroBumper() (BumperSlot, bool) {
 
 // HasBumpers reports whether any bumper is requested.
 func (o Options) HasBumpers() bool {
-	_, intro := o.IntroBumper()
-	_, outro := o.OutroBumper()
-	return intro || outro
+	return len(o.BumperSlots()) > 0
 }
 
 // OverlaySource resolves the intro/outro overlay layout for the plan. The demo
@@ -188,21 +231,6 @@ type LoudnessOptions struct {
 	TargetTPDBTP  float64 `json:"target_tp_dbtp"`
 	TargetLRA     float64 `json:"target_lra"`
 	PolicyVersion string  `json:"policy_version"`
-}
-
-type SponsorOptions struct {
-	Enabled              bool      `json:"enabled"`
-	Video                *AssetRef `json:"video"`
-	Narration            *AssetRef `json:"narration"`
-	AudioPolicy          string    `json:"audio_policy"`
-	ShortNarrationPolicy string    `json:"short_narration_policy"`
-	PlacementPolicy      string    `json:"placement_policy"`
-	WindowStartSeconds   float64   `json:"window_start_seconds"`
-	WindowEndSeconds     float64   `json:"window_end_seconds"`
-	AfterRoundID         string    `json:"after_round_id"`
-	ManualStartFrame     *int64    `json:"manual_start_frame"`
-	AllowSplitRound      bool      `json:"allow_split_round"`
-	MusicPolicy          string    `json:"music_policy"`
 }
 
 type OverlayOptions struct {
@@ -328,7 +356,7 @@ type Clock struct {
 }
 
 // TimelineItem uses half-open frame/sample intervals. SourceOffsetFrames is
-// relative to the editorial round, so sponsor splits never requantize ticks.
+// relative to the editorial round, so split rounds never requantize ticks.
 type TimelineItem struct {
 	Role               string `json:"role"`
 	SourceRef          string `json:"source_ref"`
@@ -342,37 +370,24 @@ type TimelineItem struct {
 	Reason             string `json:"reason"`
 }
 
-type SponsorPlacement struct {
-	Boundary       string     `json:"boundary"`
-	StartFrame     int64      `json:"start_frame"`
-	DurationFrames int64      `json:"duration_frames"`
-	Candidates     []Boundary `json:"candidates"`
-}
-
-type Boundary struct {
-	AfterRoundID string `json:"after_round_id"`
-	Frame        int64  `json:"frame"`
-}
-
 // Document is a planned or effective revision. An approved document is never
 // overwritten by the effective copy produced from runtime evidence.
 type Document struct {
-	Crosshairs       []CrosshairSample `json:"crosshairs"`
-	SchemaVersion    string            `json:"schema_version"`
-	PlanID           string            `json:"plan_id"`
-	Revision         int               `json:"revision"`
-	PlanHash         string            `json:"plan_hash"`
-	PlannerVersion   string            `json:"planner_version"`
-	Input            Input             `json:"input"`
-	Clock            Clock             `json:"clock"`
-	Options          Options           `json:"options"`
-	Rounds           []Round           `json:"rounds"`
-	Voice            VoiceEvidence     `json:"voice"`
-	Assets           []AssetEvidence   `json:"assets"`
-	SponsorPlacement SponsorPlacement  `json:"sponsor_placement"`
-	Timeline         []TimelineItem    `json:"timeline"`
-	Warnings         []Notice          `json:"warnings"`
-	Blockers         []Notice          `json:"blockers"`
+	Crosshairs     []CrosshairSample `json:"crosshairs"`
+	SchemaVersion  string            `json:"schema_version"`
+	PlanID         string            `json:"plan_id"`
+	Revision       int               `json:"revision"`
+	PlanHash       string            `json:"plan_hash"`
+	PlannerVersion string            `json:"planner_version"`
+	Input          Input             `json:"input"`
+	Clock          Clock             `json:"clock"`
+	Options        Options           `json:"options"`
+	Rounds         []Round           `json:"rounds"`
+	Voice          VoiceEvidence     `json:"voice"`
+	Assets         []AssetEvidence   `json:"assets"`
+	Timeline       []TimelineItem    `json:"timeline"`
+	Warnings       []Notice          `json:"warnings"`
+	Blockers       []Notice          `json:"blockers"`
 }
 
 type Approval struct {
@@ -400,7 +415,6 @@ func DefaultOptions() Options {
 			Music:    MusicOptions{Enabled: false, Assets: []AssetRef{}, ReferenceLevel: "track-lufs-minus-16-v1", BedGainDB: -21, LoopPolicy: "ordered-loop", Ducking: DuckingOptions{Enabled: true, AttackMS: 20, ReleaseMS: 800, Threshold: 0.025, Ratio: 8}},
 			Loudness: LoudnessOptions{TargetILUFS: -14, TargetTPDBTP: -1.5, TargetLRA: 11, PolicyVersion: "program-aac-v1"},
 		},
-		Sponsor:     SponsorOptions{Enabled: false, AudioPolicy: "embedded", ShortNarrationPolicy: "block", PlacementPolicy: "first-two-rounds", WindowStartSeconds: 90, WindowEndSeconds: 130, MusicPolicy: "pause-resume"},
 		Overlays:    OverlayOptions{HUDTheme: "arena", Roster: true, Scoreboard: true, Theme: "neon-violet", Source: "demo", Mode: "generated"},
 		Outputs:     OutputOptions{MediaProfile: "h264-1080p60-aac48-stereo", CoverPolicy: "no-cover", MetadataPolicy: "factual-v1"},
 		Transitions: &transitions,

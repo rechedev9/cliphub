@@ -31,8 +31,8 @@ existing full-program AAC mastering and decoded-output validation.
 Effects decorate existing frames rather than overlapping clips. Frame/sample
 counts, kills, overlay positions, and fixed two-second freeze
 context remain unchanged. Only adjacent different round items receive a cut
-effect. Sponsor entries/exits, split continuations, and program endpoints are
-excluded. Very short items clamp the effect window without changing coverage.
+effect. Split continuations and program endpoints are excluded; cuts into and
+out of the intro, sponsor and outro bumpers always get the effect. Very short items clamp the effect window without changing coverage.
 
 Event-anchored zooms use existing kill or round-end facts and receive a paired
 whoosh. An event outside the retained piece falls back to the cut. A round-end

@@ -210,8 +210,9 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 	if err := prepareFullDemoCompilation(ctx, &short, nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(short.FullDemo.Transitions) != 2 {
-		t.Fatalf("transitions on ad boundaries: %+v", short.FullDemo.Transitions)
+	// Two round cuts plus the cuts into and out of the sponsor bumper.
+	if len(short.FullDemo.Transitions) != 4 {
+		t.Fatalf("transitions: %+v", short.FullDemo.Transitions)
 	}
 	if _, err := runFFmpegOutput(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "transition concat"); err != nil {
 		t.Fatal(err)
@@ -227,7 +228,7 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 			t.Fatal("comms exceeded approved tail")
 		}
 	}
-	adAudio := fullDemoReadAudio(t, ctx, ffmpeg, programAudio, 242.0/60+.1, .1)
+	adAudio := fullDemoReadAudio(t, ctx, ffmpeg, programAudio, 242.0/60+.4, .1)
 	if fullDemoFrequencyPower(adAudio, 660) < fullDemoFrequencyPower(adAudio, 880)*100 {
 		t.Fatal("comms entered the ad")
 	}
@@ -271,8 +272,8 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 	}
 }
 
-// fullDemoTransitionCanaryShort builds four synthetic rounds with a sponsor on
-// a round boundary, one team-voice track, comms tails and every transition
+// fullDemoTransitionCanaryShort builds four synthetic rounds with the sponsor
+// bumper after round two, one team-voice track, comms tails and every transition
 // effect, so both the video and the audio graph of an item are exercised.
 func fullDemoTransitionCanaryShort(t *testing.T, ctx context.Context, ffmpeg, dir string) (ShortEdit, recapplan.Document, recapplan.Options) {
 	t.Helper()
@@ -298,8 +299,6 @@ func fullDemoTransitionCanaryShort(t *testing.T, ctx context.Context, ffmpeg, di
 	options.Editorial.RoundTailSeconds = 0
 	options.Audio.Voice.Normalization = "none"
 	options.Audio.Music.Enabled = false
-	options.Sponsor.Enabled = true
-	options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "round-boundary", "round-002"
 	transitions := recapplan.DefaultTransitions()
 	transitions.Enabled, transitions.Flash, transitions.RGBSplit = true, true, true
 	transitions.Direction, transitions.GameTailLowpassHz = "follow-motion", 2400
@@ -309,7 +308,7 @@ func fullDemoTransitionCanaryShort(t *testing.T, ctx context.Context, ffmpeg, di
 		t.Fatal(err)
 	}
 	ref := recapplan.AssetRef{ID: uuid.NewString(), SHA256: hash}
-	options.Sponsor.Video = &ref
+	options.Bumpers = &recapplan.BumperOptions{Sponsor: &recapplan.BumperSlot{Enabled: true, Video: &ref}}
 	assets := []recapplan.AssetEvidence{{Ref: ref, DurationFrames: 60, HasVideo: true, HasAudio: true, Title: "Test sponsor", Creator: "ClipHub tests", Permission: "Original synthetic signal", SourceURL: "https://example.invalid/test"}}
 	facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 1280, Complete: true}
 	var parts []ShortPart

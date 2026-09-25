@@ -193,7 +193,7 @@ func seedFor(generatedAt time.Time, players ...RankedPlayer) SeedDocument {
 		SchemaVersion: SeedSchemaVersion,
 		GeneratedAt:   generatedAt,
 		Regions:       []string{"EU"},
-		Players:       seedPlayers(players),
+		Players:       seedPlayers(ZoneCIS, players),
 	}
 }
 
@@ -240,8 +240,14 @@ func TestFollowStoreRosterPutsFollowsBeforeSeeds(t *testing.T) {
 		}
 	}
 
+	// A follow keeps the zone of its seeded row, so it still shows in that
+	// zone's list; a follow outside every zone has none.
+	if roster[0].Zone != ZoneCIS || roster[1].Zone != "" {
+		t.Fatalf("follow zones = %q, %q; want cis then none", roster[0].Zone, roster[1].Zone)
+	}
+
 	seededRow := roster[2]
-	if !seededRow.Seeded || seededRow.Region != "EU" || seededRow.Position != 1 {
+	if !seededRow.Seeded || seededRow.Zone != ZoneCIS || seededRow.Region != "EU" || seededRow.Position != 1 {
 		t.Fatalf("seeded row = %#v", seededRow)
 	}
 	if !seededRow.FollowedAt.Equal(generatedAt) {
@@ -475,4 +481,28 @@ func TestFollowStoreDismissSeedTable(t *testing.T) {
 			t.Fatal("DismissedSeeds error = nil")
 		}
 	})
+}
+
+func TestFollowStoreRosterDismissedSeedLendsNoZone(t *testing.T) {
+	t.Parallel()
+	store, err := NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DismissSeed("seeded-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Follow(Player{ID: "seeded-1", Nickname: "nipl"}); err != nil {
+		t.Fatal(err)
+	}
+	seed := seedFor(time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC),
+		RankedPlayer{PlayerID: "seeded-1", Nickname: "nipl", Country: "ua", Region: "EU", Position: 1, ELO: 4700},
+	)
+	roster, err := store.Roster(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roster) != 1 || roster[0].Seeded || roster[0].Zone != "" {
+		t.Fatalf("roster = %#v, want only the follow, outside the zone the user dismissed it from", roster)
+	}
 }

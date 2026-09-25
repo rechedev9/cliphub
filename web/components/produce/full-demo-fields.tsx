@@ -1,7 +1,6 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function FullDemoGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactNode {
@@ -12,26 +11,10 @@ export function FullDemoGroup({ title, note, children }: { title: string; note?:
   </section>;
 }
 
-/** A required file still missing: a quiet hint while editing, an error once a create attempt was blocked. */
-export function FullDemoMissing({ error, children }: { error: boolean; children: ReactNode }): ReactNode {
-  return <p role={error ? 'alert' : undefined} className={error ? 'text-body-sm text-destructive' : 'text-body-sm text-fg-2'}>{children}</p>;
-}
-
 export function FullDemoToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }): ReactNode {
   return <label className="flex min-h-10 cursor-pointer items-center gap-3 text-body-sm text-fg-1">
     <input type="checkbox" className="size-4 accent-primary" checked={value} onChange={(event) => onChange(event.target.checked)} />{label}
   </label>;
-}
-
-export function FullDemoNumber({ label, value, min = 0, max, step = 1, onChange }: {
-  label: string; value: number; min?: number; max?: number; step?: number; onChange: (value: number) => void;
-}): ReactNode {
-  const id = useId();
-  return <div className="space-y-1.5"><label className="text-body-sm text-fg-2" htmlFor={id}>{label}</label>
-    <Input id={id} type="number" min={min} max={max} step={step} value={value} className="tabular-nums" onChange={(event) => {
-      const next = event.target.valueAsNumber;
-      if (Number.isFinite(next)) onChange(next);
-    }} /></div>;
 }
 
 const SLIDER_CLASS =

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Copy, ExternalLink, MoreHorizontal, UploadCloud, UserMinus } from 'lucide-react';
+import { Copy, ExternalLink, MoreHorizontal, UploadCloud, UserMinus, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FaceitFollowedPlayer } from '@/lib/api/faceit';
 import { NEW_DEMO_HREF } from '@/lib/clips/routes';
@@ -11,10 +11,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { PlayerAvatar } from './player-avatar';
 import { LevelBadge } from './level-badge';
 
-export function PlayerProfile({ player, onUnfollow, unfollowing }: {
+export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
   player: FaceitFollowedPlayer;
   onUnfollow: () => void;
   unfollowing: boolean;
+  /** Present for a seeded zone row: adds the player to the Custom list. */
+  onFollow?: () => void;
 }): ReactNode {
   async function copySteamID(): Promise<void> {
     if (!player.steam_id64) return;
@@ -58,9 +60,15 @@ export function PlayerProfile({ player, onUnfollow, unfollowing }: {
           <DropdownMenuTrigger asChild><Button variant="outline" size="icon-sm" aria-label={`Opciones de ${player.nickname}`} disabled={unfollowing}>
             <MoreHorizontal aria-hidden className="size-4" />
           </Button></DropdownMenuTrigger>
-          <DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" onSelect={onUnfollow}>
-            <UserMinus aria-hidden className="size-4" /> Dejar de seguir a {player.nickname}
-          </DropdownMenuItem></DropdownMenuContent>
+          <DropdownMenuContent align="end">
+            {onFollow ? <DropdownMenuItem onSelect={onFollow}>
+              <UserPlus aria-hidden className="size-4" /> Añadir {player.nickname} a Custom
+            </DropdownMenuItem> : null}
+            <DropdownMenuItem variant="destructive" onSelect={onUnfollow}>
+              <UserMinus aria-hidden className="size-4" />
+              {player.seeded === true ? `Quitar a ${player.nickname} de la lista` : `Dejar de seguir a ${player.nickname}`}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </header>

@@ -35,7 +35,7 @@ func (d Document) Hash() (string, error) {
 }
 
 // CaptureHash covers capture decisions and requested coverage, independently
-// of music, sponsor, overlays and export settings.
+// of music, bumpers, overlays and export settings.
 func (d Document) CaptureHash() (string, error) {
 	type coverage struct {
 		ID         string
@@ -115,9 +115,12 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	// Calibration, team policy, and the voice fallback stay automatic.
 	canonical.Audio.Voice.Gain = options.Audio.Voice.Gain
 	canonical.Audio.Game.Gain = options.Audio.Game.Gain
-	canonical.Sponsor = options.Sponsor
 	if options.Bumpers != nil {
 		bumpers := *options.Bumpers
+		if bumpers.Sponsor != nil {
+			sponsor := *bumpers.Sponsor
+			bumpers.Sponsor = &sponsor
+		}
 		canonical.Bumpers = &bumpers
 	}
 
@@ -231,7 +234,6 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 		Clock:   Clock{SourceKind: ClockIngame, TickRate: f.TickRate, FPS: OutputFPS, SampleRate: SampleRate},
 		Options: options, Voice: voice, Assets: append([]AssetEvidence{}, assets...),
 		Rounds: []Round{}, Timeline: []TimelineItem{}, Warnings: append([]Notice{}, f.Warnings...), Blockers: []Notice{},
-		SponsorPlacement: SponsorPlacement{Candidates: []Boundary{}},
 	}
 	if !f.Complete {
 		d.block(ErrFactsInsufficient, "Source ended without complete round evidence")
@@ -299,45 +301,12 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			}
 		}
 	}
-	if options.Sponsor.Enabled {
-		if options.Sponsor.Video == nil {
-			d.block(ErrAssetMissing, "Select or import a sponsor video, or explicitly disable the sponsor")
-		} else {
-			a, ok := findAsset(assets, *options.Sponsor.Video)
-			if !ok || !a.HasVideo || a.DurationFrames <= 0 {
-				d.block(ErrAssetMissing, "Sponsor video is missing or invalid")
-			} else {
-				d.SponsorPlacement.DurationFrames = a.DurationFrames
-				if options.Sponsor.AudioPolicy == "embedded" && !a.HasAudio {
-					d.block(ErrAssetMissing, "Sponsor video has no embedded narration; select replacement narration")
-				}
-			}
-		}
-		if options.Sponsor.AudioPolicy == "replace-narration" {
-			if options.Sponsor.Narration == nil {
-				d.block(ErrAssetMissing, "Replacement narration is required")
-			} else {
-				a, ok := findAsset(assets, *options.Sponsor.Narration)
-				if !ok || !a.HasAudio {
-					d.block(ErrAssetMissing, "Replacement narration has no verified audio")
-				} else if a.DurationFrames < d.SponsorPlacement.DurationFrames && options.Sponsor.ShortNarrationPolicy == "block" {
-					d.block(ErrAssetMissing, "Narration is shorter than sponsor; explicitly approve silence padding or replace it")
-				}
-			}
-		}
-	}
-	for _, bumper := range []struct {
-		name string
-		slot func() (BumperSlot, bool)
-	}{{"intro", options.IntroBumper}, {"outro", options.OutroBumper}} {
-		slot, ok := bumper.slot()
-		if !ok {
-			continue
-		}
+	for _, bumper := range options.BumperSlots() {
+		slot := bumper.Slot
 		if slot.Video == nil {
-			d.block(ErrAssetMissing, "Select or import an "+bumper.name+" video, or explicitly disable the "+bumper.name)
+			d.block(ErrAssetMissing, "Select or import the "+bumper.Name+" video, or explicitly disable the "+bumper.Name)
 		} else if a, ok := findAsset(assets, *slot.Video); !ok || !a.HasVideo || a.DurationFrames <= 0 {
-			d.block(ErrAssetMissing, "The "+bumper.name+" video is missing or invalid")
+			d.block(ErrAssetMissing, "The "+bumper.Name+" video is missing or invalid")
 		}
 	}
 	if len(options.Overlays.ImageSlots()) > 0 {
