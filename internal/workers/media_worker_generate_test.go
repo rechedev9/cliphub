@@ -722,7 +722,7 @@ func TestRecordWorkerGenerateHandoffCarriesCommittedRenderRevision(t *testing.T)
 	committed, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 		JobID:      id,
 		Loadout:    loadout,
-		Status:     renderplan.RenderVariantStatusReview,
+		Status:     renderplan.RenderVariantStatusReady,
 		Warnings:   []string{"freeze"},
 		RevisionID: uuid.New(),
 	})

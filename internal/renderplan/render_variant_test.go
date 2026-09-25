@@ -91,7 +91,7 @@ func TestPendingReplacementCarriesCommittedRevisionPointer(t *testing.T) {
 	committed, err := NewRenderVariantStateForLoadout(NewRenderVariantStateForLoadoutOptions{
 		JobID:      id,
 		Loadout:    loadout,
-		Status:     RenderVariantStatusReview,
+		Status:     RenderVariantStatusReady,
 		Warnings:   []string{"freeze"},
 		RevisionID: uuid.New(),
 	})
@@ -151,27 +151,5 @@ func TestRenderVariantStateKeyDerivesStatusKey(t *testing.T) {
 	want := "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/status.json"
 	if got != want {
 		t.Fatalf("status key = %q, want %q", got, want)
-	}
-}
-
-func TestRenderVariantReviewResolutionIsBoundToRevisionAndWarnings(t *testing.T) {
-	state := RenderVariantState{
-		ArtifactPrefix: "jobs/id/renders/variant/revisions/a",
-		ReviewResolution: &RenderReviewResolution{
-			ArtifactPrefix: "jobs/id/renders/variant/revisions/a",
-			Warnings:       []string{"freeze at 00:12"},
-			Note:           "Intentional hold for the final beat.",
-		},
-	}
-	if !state.ReviewResolvedFor([]string{"freeze at 00:12"}) {
-		t.Fatal("matching review resolution was not accepted")
-	}
-	state.ArtifactPrefix = "jobs/id/renders/variant/revisions/b"
-	if state.ReviewResolvedFor([]string{"freeze at 00:12"}) {
-		t.Fatal("resolution leaked into a different render revision")
-	}
-	state.ArtifactPrefix = "jobs/id/renders/variant/revisions/a"
-	if state.ReviewResolvedFor([]string{"dead air at 00:20"}) {
-		t.Fatal("resolution accepted a different warning set")
 	}
 }

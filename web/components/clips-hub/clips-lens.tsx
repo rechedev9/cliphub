@@ -286,10 +286,10 @@ function ClipCard({
 }
 
 function StreamClipCard({ item, small, onPlay }: { item: MediaPlaybackItem; small: boolean; onPlay: (button: HTMLElement) => void }): ReactNode {
-  const warning = item.review !== PLAYBACK_REVIEW.ready;
+  const warning = item.review === PLAYBACK_REVIEW.stale;
   const isShort = item.format === '9:16';
   // The meta line already says "Stream"; the corner badge is reserved for a warning so it never covers the facecam for nothing.
-  const reviewLabel = item.review === PLAYBACK_REVIEW.stale ? 'Desactualizado' : 'Revisión QA';
+  const reviewLabel = 'Desactualizado';
   return (
     <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3', warning && 'border-warning/45')}>
       <button

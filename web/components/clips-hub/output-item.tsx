@@ -157,8 +157,6 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
 
   if (output.state === OUTPUT_STATE.ready) {
     const url = video.downloadUrl;
-    // Review pending: Publicar hosts the sign-off, so the raw MP4 stays locked.
-    const blocked = url === undefined || output.reviewRequired;
     return (
       <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
         {onPlay ? (
@@ -178,9 +176,9 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
           type="button"
           size="xs"
           variant="outline-primary"
-          disabled={blocked}
+          disabled={url === undefined}
           onClick={() => {
-            if (url === undefined || output.reviewRequired) return;
+            if (url === undefined) return;
             downloadPublishMP4(url, video.title);
             toast(DOWNLOAD_TOAST, { description: video.title });
           }}

@@ -326,7 +326,7 @@ func TestInvalidateReadyRenderPreservesOtherFormats(t *testing.T) {
 		wantExists bool
 	}{
 		{name: "ready recap is invalidated", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusReady, wantExists: false},
-		{name: "review recap is invalidated", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusReview, wantExists: false},
+		{name: "legacy review recap is invalidated", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusReview, wantExists: false},
 		{name: "failed recap stays", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusFailed, wantExists: true},
 		{name: "ready shorts pack stays", variant: editor.PresetViral60Clean, status: renderplan.RenderVariantStatusReady, wantExists: true},
 	}
@@ -655,7 +655,7 @@ func TestComposeWorkerPersistsStructuredResultWhenRunnerAlsoFails(t *testing.T) 
 	if stored.Error != "ffmpeg failed at frame 42" {
 		t.Fatalf("stored diagnostic error = %q", stored.Error)
 	}
-	ready, _, _, err := compositionOutputsReady(store, id)
+	ready, _, err := compositionOutputsReady(store, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -860,7 +860,7 @@ func TestComposeWorkerInvalidatesOldCommitMarkerBeforeRepair(t *testing.T) {
 	if pending.Error == "" {
 		t.Fatal("failed result commit left a reusable successful marker")
 	}
-	ready, _, _, err := compositionOutputsReady(store, id)
+	ready, _, err := compositionOutputsReady(store, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -874,7 +874,7 @@ func TestComposeWorkerInvalidatesOldCommitMarkerBeforeRepair(t *testing.T) {
 	if runs != 2 {
 		t.Fatalf("composer runs = %d, want 2", runs)
 	}
-	ready, _, _, err = compositionOutputsReady(store, id)
+	ready, _, err = compositionOutputsReady(store, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -883,21 +883,12 @@ func TestComposeWorkerInvalidatesOldCommitMarkerBeforeRepair(t *testing.T) {
 	}
 }
 
-func TestCompositionCompletionStatusRequiresReviewForWarnings(t *testing.T) {
-	if got := compositionCompletionStatus(false); got != job.StatusComposed {
-		t.Fatalf("clean composition status = %s, want composed", got)
-	}
-	if got := compositionCompletionStatus(true); got != job.StatusReviewRequired {
-		t.Fatalf("warning composition status = %s, want review_required", got)
-	}
-}
-
 func TestComposeWorkerSkipsWhenOutputsAlreadyExist(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
 	id := uuid.New()
 	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
-	putJSON(t, store, composition.ResultArtifactKey(id), composition.Result{Output: "final.mp4"})
+	putJSON(t, store, composition.ResultArtifactKey(id), composition.Result{Output: "final.mp4", Warnings: []string{"dead air at 00:20"}})
 	_ = store.Put(composition.FinalArtifactKey(id), bytes.NewReader([]byte("final")))
 
 	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
@@ -1004,6 +995,7 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 			PublishDir:  publishDir,
 			GalleryPath: filepath.Join(publishDir, "index.html"),
 			SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
+			Warnings:    []string{"frozen frame at 00:07"},
 			Shorts: []editor.ShortResult{{
 				SegmentID:     "seg-001",
 				Output:        videoPath,
@@ -1051,6 +1043,11 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 	}
 	if got, want := state.Status, renderplan.RenderVariantStatusReady; got != want {
 		t.Fatalf("render state = %q, want %q", got, want)
+	}
+	// QA warnings are informational: they reach the state but never hold
+	// the render back for a human sign-off.
+	if !slices.Contains(state.Warnings, "frozen frame at 00:07") {
+		t.Fatalf("render warnings = %#v, want the editor warning preserved", state.Warnings)
 	}
 	videoRef, err := renderplan.NewRenderVariantArtifactRefForState(state, renderplan.RenderVariantArtifactVideo, "seg-001")
 	if err != nil {
@@ -1378,15 +1375,6 @@ func TestExplicitCoverArgsCarriesEveryBooleanDecision(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestRenderVariantCompletionStatusRequiresReviewForWarnings(t *testing.T) {
-	if got := renderVariantCompletionStatus(editor.Result{}); got != renderplan.RenderVariantStatusReady {
-		t.Fatalf("clean result status = %q, want ready", got)
-	}
-	if got := renderVariantCompletionStatus(editor.Result{Warnings: []string{"frozen frame"}}); got != renderplan.RenderVariantStatusReview {
-		t.Fatalf("warning result status = %q, want review_required", got)
 	}
 }
 
@@ -1815,7 +1803,7 @@ func TestRenderWorkerSkipsWhenVariantOutputsAlreadyExist(t *testing.T) {
 	}
 }
 
-func TestRenderWorkerMigratesCachedWarningsToReviewRequired(t *testing.T) {
+func TestRenderWorkerMigratesCachedWarningsToReady(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
 	id := uuid.New()
@@ -1850,15 +1838,15 @@ func TestRenderWorkerMigratesCachedWarningsToReviewRequired(t *testing.T) {
 	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Status != renderplan.RenderVariantStatusReview {
-		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReview)
+	if state.Status != renderplan.RenderVariantStatusReady {
+		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReady)
 	}
 	if !slices.Equal(state.Warnings, warnings) {
 		t.Fatalf("warnings = %#v, want %#v", state.Warnings, warnings)
 	}
 }
 
-func TestRenderWorkerMigratesCachedArtifactWarningsToReviewRequired(t *testing.T) {
+func TestRenderWorkerMigratesCachedArtifactWarningsToReady(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
 	id := uuid.New()
@@ -1898,71 +1886,12 @@ func TestRenderWorkerMigratesCachedArtifactWarningsToReviewRequired(t *testing.T
 	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Status != renderplan.RenderVariantStatusReview {
-		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReview)
+	if state.Status != renderplan.RenderVariantStatusReady {
+		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReady)
 	}
 	want := []string{"quality seg-001: missing_or_empty_video"}
 	if !slices.Equal(state.Warnings, want) {
 		t.Fatalf("warnings = %#v, want %#v", state.Warnings, want)
-	}
-}
-
-func TestRenderWorkerPreservesResolvedReviewForSameCachedRevision(t *testing.T) {
-	repo := newFakeRepo()
-	store := newFakeStorage()
-	id := uuid.New()
-	plan := minimalKillPlan()
-	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
-	recordingResult := recordingResultWithSegment("", "C:/stale/seg-001.mp4")
-	recordingResult.CaptureRevision = "capture-1"
-	putJSON(t, store, recording.ResultArtifactKey(id), recordingResult)
-	fingerprint, err := renderInputFingerprint(recordingResult, &plan, editor.PresetViral60Clean, "", "", 0, nil, renderplan.DefaultEditRequest())
-	if err != nil {
-		t.Fatal(err)
-	}
-	warnings := []string{"intentional freeze at 00:07"}
-	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
-		Preset:           editor.PresetViral60Clean,
-		InputFingerprint: fingerprint,
-		Warnings:         warnings,
-		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
-	})
-	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-		JobID:    id,
-		Loadout:  loadout,
-		Status:   renderplan.RenderVariantStatusReady,
-		Warnings: warnings,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	state.ReviewResolution = &renderplan.RenderReviewResolution{
-		ArtifactPrefix: state.ArtifactPrefix,
-		Warnings:       warnings,
-		Note:           "Freeze inspected and intentional.",
-		ReviewedAt:     time.Now().UTC(),
-	}
-	putJSON(t, store, mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean), state)
-
-	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
-		t.Fatal("runner should not be called for the same resolved cached revision")
-		return nil, nil
-	}}
-	worker := NewRenderWorker(repo, store, RenderWorkerConfig{})
-	worker.runner = runner
-	if err := worker.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean)); err != nil {
-		t.Fatalf("HandleRenderVariant error = %v", err)
-	}
-	var stored renderplan.RenderVariantState
-	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &stored); err != nil {
-		t.Fatal(err)
-	}
-	if stored.Status != renderplan.RenderVariantStatusReady || !stored.ReviewResolvedFor(warnings) {
-		t.Fatalf("resolved cached state regressed: %#v", stored)
 	}
 }
 

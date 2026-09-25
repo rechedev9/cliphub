@@ -37,9 +37,7 @@ export function StreamRenderResults({
     .map((output) => {
       const item = streamPlaybackItem(job, output);
       if (item === null) return { clipId: output.clip_id, item };
-      let review = item.review;
-      if (stale) review = PLAYBACK_REVIEW.stale;
-      else if (renderState.warnings?.length && review === PLAYBACK_REVIEW.ready) review = PLAYBACK_REVIEW.pending;
+      const review = stale ? PLAYBACK_REVIEW.stale : item.review;
       return {
         clipId: output.clip_id,
         item: { ...item, review, warnings: Array.from(new Set([...item.warnings, ...(renderState.warnings ?? [])])) },

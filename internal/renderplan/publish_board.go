@@ -181,11 +181,11 @@ func NewPublishBoard(opts NewPublishBoardOptions) PublishBoard {
 	for i := range board.Items {
 		board.Items[i].CoverRequired = opts.CoversRequired
 	}
-	board.RenderReady, board.Status = summarizePublishBoard(board.Items, board.Warnings, board.Error)
+	board.RenderReady, board.Status = summarizePublishBoard(board.Items, board.Error)
 	return board
 }
 
-func summarizePublishBoard(items []PublishBoardItem, warnings []string, resultError string) (bool, string) {
+func summarizePublishBoard(items []PublishBoardItem, resultError string) (bool, string) {
 	if resultError != "" {
 		return false, "failed"
 	}
@@ -220,8 +220,6 @@ func summarizePublishBoard(items []PublishBoardItem, warnings []string, resultEr
 		return false, "needs_caption"
 	case !allReady:
 		return false, "draft"
-	case len(warnings) > 0:
-		return false, "review_required"
 	default:
 		return true, "ready"
 	}

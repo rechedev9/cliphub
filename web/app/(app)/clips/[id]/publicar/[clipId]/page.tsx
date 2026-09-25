@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Download, Music, Play, SearchX, Settings2 } from 'lucide-react';
+import { AlertTriangle, Check, Download, Music, Play, SearchX } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
@@ -22,7 +22,6 @@ import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
-import { ReviewResolutionDialog } from '@/components/videos/review-resolution-dialog';
 import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
 
 const FAST_POLL_MS = 1500;
@@ -46,7 +45,6 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const [match, setMatch] = useState<Match | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
@@ -111,9 +109,8 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const state = outputState(video.status);
   const ready = state === OUTPUT_STATE.ready;
   const isShort = type === OUTPUT_TYPE.short;
-  const reviewRequired = video.status === 'review_required';
   // `outputType` already reads `isLandscapeRecap`: a Short is exactly a non-recap.
-  const canAddMusic = ready && isShort && !reviewRequired && !video.recovered;
+  const canAddMusic = ready && isShort && !video.recovered;
   const map = video.map || match?.map || '';
   const score = (video.score || match?.score || '').trim();
   const player = video.targetName ?? match?.player ?? '';
@@ -161,25 +158,6 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
           <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
             <p className="font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
             <p className="text-body-sm text-fg-2">{description}</p>
-            {reviewRequired && video.warnings && video.warnings.length > 0 ? (
-              <div className="border border-warning/35 bg-warning/10 px-3 py-2.5" role="status">
-                <p className="flex items-center gap-1.5 font-mono text-meta uppercase tracking-wider text-warning">
-                  <AlertTriangle className="size-3.5" aria-hidden /> Revisión pendiente
-                </p>
-                <ul className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-body-sm text-fg-2">
-                  {video.warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-                <Button
-                  variant="warning"
-                  className="mt-2.5 h-10"
-                  onClick={() => setReviewOpen(true)}
-                >
-                  <Settings2 className="size-4" aria-hidden /> Resolver revisión QA
-                </Button>
-              </div>
-            ) : null}
             <div className="mt-auto flex flex-wrap gap-2 pt-1">
               {playback ? (
                 <Button
@@ -216,14 +194,6 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
 
       <FullDemoEvidence video={video} />
 
-      {reviewRequired ? (
-        <ReviewResolutionDialog
-          open={reviewOpen}
-          video={video}
-          onOpenChange={setReviewOpen}
-          onResolved={() => setRefreshKey((key) => key + 1)}
-        />
-      ) : null}
       {canAddMusic ? (
         <LibraryMusicDialog
           open={musicOpen}

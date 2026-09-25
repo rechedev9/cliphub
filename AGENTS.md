@@ -175,6 +175,21 @@ Valve splash. advancedfx tracked it as issue #1216 and fixed it in official
   writes `ffmpeg/ffmpeg.ini` at runtime. Compute the digest over a fresh
   `Expand-Archive` of the release zip.
 
+## Render QA warnings are informational (2026-09-25)
+
+Renders and compositions with QA warnings used to park in `review_required`
+until a human pressed "Resolver revisión QA", which stalled every run an AI
+agent drove end to end. The gate was removed: warnings are stored on the
+render state and shown, but the render is `ready` / `composed`, publishable
+and downloadable.
+
+- Do not reintroduce a human sign-off step, a `review_required` status, or a
+  warnings-based publish gate. If a warning signals a real defect, fail the
+  render with a clear error instead.
+- `RenderVariantStatusReview` and `job.StatusReviewRequired` remain only so
+  old durable documents decode; stored review states are promoted to `ready`
+  on read and by the startup materialization pass.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

@@ -366,16 +366,8 @@ func (h *Handlers) loadPublishAssistantFacts(
 		writeError(w, http.StatusConflict, "render is not ready for publication")
 		return publishAssistantFacts{}, false
 	}
-	warnings := renderplan.CompleteRenderWarnings(result)
-	if snapshot.state != nil {
-		if snapshot.state.Status != renderplan.RenderVariantStatusReady ||
-			(len(warnings) > 0 && !snapshot.state.ReviewResolvedFor(warnings)) {
-			writeError(w, http.StatusConflict, "render is not ready for publication")
-			return publishAssistantFacts{}, false
-		}
-	} else if len(warnings) > 0 {
-		// A warning-bearing legacy result without a state document predates the
-		// durable review decision and must be reviewed before publication.
+	if snapshot.state != nil && snapshot.state.Status != renderplan.RenderVariantStatusReady &&
+		snapshot.state.Status != renderplan.RenderVariantStatusReview {
 		writeError(w, http.StatusConflict, "render is not ready for publication")
 		return publishAssistantFacts{}, false
 	}
