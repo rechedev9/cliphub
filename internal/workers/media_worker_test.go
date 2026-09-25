@@ -597,7 +597,9 @@ func TestComposeWorkerMarksFailedOnResultError(t *testing.T) {
 
 	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		outPath := argValue(args, "--out")
-		result := composition.Result{Output: outPath, Error: "bad compose"}
+		// Informational QA warnings must never turn a failed composition into
+		// a composed job.
+		result := composition.Result{Output: outPath, Error: "bad compose", Warnings: []string{"frozen frame at 00:01"}}
 		if err := writeJSONFile(filepath.Join(filepath.Dir(outPath), "composition-result.json"), result); err != nil {
 			t.Fatal(err)
 		}
@@ -1600,70 +1602,77 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 }
 
 func TestRenderWorkerWritesFailedStateWhenEditorFails(t *testing.T) {
-	repo := newFakeRepo()
-	store := newFakeStorage()
-	id := uuid.New()
-	plan := minimalKillPlan()
-	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
-	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
-	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+	for _, editorWarnings := range [][]string{nil, {"frozen frame at 00:01"}} {
+		t.Run(fmt.Sprintf("warnings=%d", len(editorWarnings)), func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+			putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+			_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
 
-	runner := &fakeRunner{fn: func(_ context.Context, name string, args ...string) ([]byte, error) {
-		if name == "ffprobe" {
-			t.Fatal("failed renders must not probe an unpublished output")
-		}
-		outDir := argValue(args, "--out")
-		publishDir := argValue(args, "--publish-dir")
-		if hasArg(args, "--intro-text") || hasArg(args, "--outro-text") {
-			t.Fatalf("editor args = %#v, want no bookend text flags when unset", args)
-		}
-		if err := os.MkdirAll(publishDir, 0o750); err != nil {
-			t.Fatal(err)
-		}
-		videoPath := filepath.Join(publishDir, "seg-001.mp4")
-		if err := os.WriteFile(videoPath, []byte("mp4"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		result := editor.Result{
-			Preset: editor.PresetViral60Clean,
-			Error:  "encoder failed",
-			Shorts: []editor.ShortResult{{
-				SegmentID:   "seg-001",
-				PublishPath: videoPath,
-				PublishArtifact: recording.RecordingArtifact{
-					Path:      videoPath,
-					SizeBytes: 3,
-				},
-			}},
-		}
-		if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), result); err != nil {
-			t.Fatal(err)
-		}
-		return nil, errors.New("zv-editor failed")
-	}}
-	w := NewRenderWorker(repo, store, RenderWorkerConfig{
-		WorkDir:     t.TempDir(),
-		EditorPath:  "zv-editor",
-		FFprobePath: "ffprobe",
-	})
-	w.runner = runner
+			runner := &fakeRunner{fn: func(_ context.Context, name string, args ...string) ([]byte, error) {
+				if name == "ffprobe" {
+					t.Fatal("failed renders must not probe an unpublished output")
+				}
+				outDir := argValue(args, "--out")
+				publishDir := argValue(args, "--publish-dir")
+				if hasArg(args, "--intro-text") || hasArg(args, "--outro-text") {
+					t.Fatalf("editor args = %#v, want no bookend text flags when unset", args)
+				}
+				if err := os.MkdirAll(publishDir, 0o750); err != nil {
+					t.Fatal(err)
+				}
+				videoPath := filepath.Join(publishDir, "seg-001.mp4")
+				if err := os.WriteFile(videoPath, []byte("mp4"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				result := editor.Result{
+					Preset:   editor.PresetViral60Clean,
+					Error:    "encoder failed",
+					Warnings: editorWarnings,
+					Shorts: []editor.ShortResult{{
+						SegmentID:   "seg-001",
+						PublishPath: videoPath,
+						PublishArtifact: recording.RecordingArtifact{
+							Path:      videoPath,
+							SizeBytes: 3,
+						},
+					}},
+				}
+				if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), result); err != nil {
+					t.Fatal(err)
+				}
+				return nil, errors.New("zv-editor failed")
+			}}
+			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:     t.TempDir(),
+				EditorPath:  "zv-editor",
+				FFprobePath: "ffprobe",
+			})
+			w.runner = runner
 
-	err := w.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean))
-	if err == nil {
-		t.Fatal("HandleRenderVariant error = nil, want failure")
-	}
-	var state renderplan.RenderVariantState
-	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := state.Status, renderplan.RenderVariantStatusFailed; got != want {
-		t.Fatalf("render state = %q, want %q", got, want)
-	}
-	if state.Error != "encoder failed" {
-		t.Fatalf("state error = %q, want encoder failed", state.Error)
-	}
-	if len(state.Warnings) != 0 {
-		t.Fatalf("failed output gained secondary probe warnings: %v", state.Warnings)
+			err := w.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean))
+			if err == nil {
+				t.Fatal("HandleRenderVariant error = nil, want failure")
+			}
+			var state renderplan.RenderVariantState
+			if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+				t.Fatal(err)
+			}
+			if got, want := state.Status, renderplan.RenderVariantStatusFailed; got != want {
+				t.Fatalf("render state = %q, want %q", got, want)
+			}
+			if state.Error != "encoder failed" {
+				t.Fatalf("state error = %q, want encoder failed", state.Error)
+			}
+			for _, warning := range state.Warnings {
+				if strings.HasPrefix(warning, "ffprobe quality metadata") {
+					t.Fatalf("failed output gained secondary probe warnings: %v", state.Warnings)
+				}
+			}
+		})
 	}
 }
 
