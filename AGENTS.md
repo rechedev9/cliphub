@@ -98,6 +98,17 @@ Rules that follow from it:
   for the last successful run of the same path before X shipped. If every
   run in between failed, the regression window is the whole gap, not X.
 
+### Outro scoreboard timing (2026-09-25)
+
+The outro scoreboard starts no earlier than
+`recapplan.ScoreboardAfterLastKillSeconds` after the last kill and ends with
+the gameplay span (`generatedFullDemoOverlayEffects`). With the scoreboard
+enabled, the planner extends the final round's tail to fit that second plus
+`recapplan.ScoreboardSeconds` (`EndReason` `scoreboard-tail`), capped by the
+demo end. It extends only a surviving POV and only when safe tail trim is
+approved, so an uncertified post-match tail is trimmed instead of failing the
+capture. Toggling the scoreboard therefore changes the final capture window.
+
 ## HLAE pin and CS2 updates (`desktop/src/hlae-tool.*`)
 
 ### Incident: every capture failed after a CS2 update (Studio 4.0.1, 2026-09-23)

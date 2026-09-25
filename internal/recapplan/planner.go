@@ -231,8 +231,9 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	if !f.Complete {
 		d.block(ErrFactsInsufficient, "Source ended without complete round evidence")
 	}
-	for _, fact := range f.Rounds {
-		r, notices, err := planRound(f, fact, options.Editorial)
+	for i, fact := range f.Rounds {
+		scoreboardTail := i == len(f.Rounds)-1 && options.Overlays.Scoreboard
+		r, notices, err := planRound(f, fact, options.Editorial, scoreboardTail)
 		if err != nil {
 			return Document{}, err
 		}
@@ -356,7 +357,8 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	return d, err
 }
 
-func planRound(f Facts, source RoundFacts, opts EditorialOptions) (Round, []Notice, error) {
+// scoreboardTail marks the final round of a plan with the outro scoreboard.
+func planRound(f Facts, source RoundFacts, opts EditorialOptions, scoreboardTail bool) (Round, []Notice, error) {
 	notices := []Notice{}
 	r := Round{ID: source.ID, Number: source.Number, LiveStartTick: source.FreezeEndTick, RoundEndTick: source.RoundEndTick, DeathTick: source.DeathTick, BoundsEvidence: source.Evidence, ExcludedIntervals: []TickRange{}, Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}
 	if source.FreezeEndTick < source.StartTick || source.FreezeEndTick == 0 || source.RoundEndTick < source.FreezeEndTick || source.Evidence != "round-events" {
@@ -377,6 +379,21 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions) (Round, []Noti
 		r.EndReason = "death-tail-requires-certified-pov"
 		if *source.DeathTick < source.FreezeEndTick {
 			return r, append(notices, Notice{Code: "pov_dead_in_freeze", Message: "Round excluded: player died before live play", RoundID: source.ID}), nil
+		}
+	} else if scoreboardTail && opts.AllowSafeTailTrim {
+		// The outro scoreboard starts a second after the last kill and must not
+		// be cut short by the two-second round tail. Only a surviving POV is
+		// extended, and only when an uncertified tail may be trimmed instead
+		// of failing the capture.
+		lastKill := 0
+		for _, k := range source.Kills {
+			if k.Tick >= start && k.Tick <= source.RoundEndTick {
+				lastKill = max(lastKill, k.Tick)
+			}
+		}
+		if hold := min(limit, lastKill+secondsTicks(ScoreboardAfterLastKillSeconds+ScoreboardSeconds, f.TickRate)); lastKill > 0 && hold > end {
+			end = hold
+			r.EndReason = "scoreboard-tail"
 		}
 	}
 	// POV acquisition is unrecorded. Never shorten/extend the fixed two

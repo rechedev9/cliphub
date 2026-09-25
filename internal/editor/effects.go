@@ -235,6 +235,13 @@ func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
 	spanStart, spanEnd := fullDemoGameplaySpanSeconds(short)
 	introStart, introEnd, outroStart, outroEnd := demooverlay.OverlayWindows(spanEnd - spanStart)
 	introStart, introEnd, outroStart, outroEnd = introStart+spanStart, introEnd+spanStart, outroStart+spanStart, outroEnd+spanStart
+	// The scoreboard waits until a second after the last kill so it never
+	// covers the final play; it still ends where the gameplay ends.
+	for _, kill := range short.Kills {
+		if kill.TimeSeconds >= spanStart && kill.TimeSeconds < spanEnd {
+			outroStart = max(outroStart, kill.TimeSeconds+demooverlay.OutroAfterLastKillSeconds)
+		}
+	}
 	var effects []Effect
 	if path := strings.TrimSpace(short.FullDemoIntroImagePath); path != "" && introEnd > introStart {
 		effects = append(effects, Effect{
