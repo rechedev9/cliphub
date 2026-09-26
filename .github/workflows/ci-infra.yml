@@ -27,3 +27,6 @@ jobs:
 
       - name: Validate hosted pipelines
         run: bash scripts/ci-infra.sh
+
+      - name: Build and test chperf
+        run: sh tools/chperf/build.sh test

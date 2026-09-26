@@ -1,0 +1,12 @@
+{"executed":true,"shorts":[{"index":0,"segment_id":"full-demo","full_demo":{"plan_id":"p"},
+ "performance":{"render_ms":10000,"probe_ms":50,"quality_check_ms":1500,"output_bytes":1000000,"media_duration_seconds":40,
+  "render_seconds_per_media_second":0.25,
+  "full_demo_timing":{"wall_ms":9000,"process_elapsed_sum_ms":18000,
+   "stages":[{"stage":"delivery","spans":1,"wall_ms":1500,"process_elapsed_sum_ms":1500},
+             {"stage":"items","spans":3,"wall_ms":6000,"process_elapsed_sum_ms":15000},
+             {"stage":"final_mux","spans":1,"wall_ms":1500,"process_elapsed_sum_ms":1500}],
+   "spans":[{"stage":"items","index":0,"attempt":0,"label":"item","start_ms":0,"end_ms":6000,"elapsed_ms":6000,"outcome":"ok"},
+            {"stage":"items","index":1,"attempt":0,"label":"item","start_ms":0,"end_ms":5000,"elapsed_ms":5000,"outcome":"ok"},
+            {"stage":"items","index":2,"attempt":0,"label":"item","start_ms":0,"end_ms":4000,"elapsed_ms":4000,"outcome":"cancelled"},
+            {"stage":"final_mux","index":-1,"attempt":-1,"label":"mux","start_ms":6000,"end_ms":7500,"elapsed_ms":1500,"outcome":"ok"},
+            {"stage":"delivery","index":-1,"attempt":-1,"label":"decode","start_ms":7500,"end_ms":9000,"elapsed_ms":1500,"outcome":"ok"}]}}}]}

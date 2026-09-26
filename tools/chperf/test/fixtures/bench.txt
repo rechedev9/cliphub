@@ -1,0 +1,19 @@
+goos: windows
+goarch: amd64
+pkg: example.com/app/internal/a
+cpu: Test CPU
+BenchmarkFast/slots-1/legacy-16     	 1000000	        100.0 ns/op	      88 B/op	       2 allocs/op
+BenchmarkFast/slots-1/legacy-16     	 1000000	        102.0 ns/op	      88 B/op	       2 allocs/op
+BenchmarkFast/slots-1/legacy-16     	 1000000	        101.0 ns/op	      88 B/op	       2 allocs/op
+BenchmarkNoisy-16                   	    1000	       1000 ns/op	         5.500 frames/op	       0 B/op	       0 allocs/op
+BenchmarkNoisy-16                   	    1000	       2000 ns/op	         5.500 frames/op	       0 B/op	       0 allocs/op
+BenchmarkNoisy-16                   	    1000	       1500 ns/op	         5.500 frames/op	       0 B/op	       0 allocs/op
+BenchmarkInterleaved-16             	2026/09/26 11:04:52 [cliphub-diagnostic] {"event":"tool.started"}
+2026/09/26 11:04:53 [cliphub-diagnostic] {"event":"tool.finished","duration_ms":988}
+       1	1530115500 ns/op	  384264 B/op	     941 allocs/op
+PASS
+ok	example.com/app/internal/a	3.210s
+pkg: example.com/app/internal/b
+BenchmarkFast-16                    	  500000	        300.0 ns/op
+--- FAIL: BenchmarkBroken-16
+FAIL	example.com/app/internal/b	0.500s
