@@ -302,11 +302,7 @@ func (c *Client) LookupPlayer(ctx context.Context, profile string) (Player, erro
 	}
 	raw, err := c.fetchPlayer(ctx, nickname)
 	if err != nil {
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			return Player{}, ErrPlayerNotFound
-		}
-		return Player{}, fmt.Errorf("look up FACEIT player: %w", err)
+		return Player{}, playerLookupError(err)
 	}
 	return c.checkedPlayer(raw)
 }
@@ -322,11 +318,7 @@ func (c *Client) LookupPlayerByID(ctx context.Context, playerID string) (Player,
 	}
 	var raw apiPlayer
 	if err := c.getJSON(ctx, "/players/"+url.PathEscape(playerID), nil, &raw); err != nil {
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			return Player{}, ErrPlayerNotFound
-		}
-		return Player{}, fmt.Errorf("look up FACEIT player: %w", err)
+		return Player{}, playerLookupError(err)
 	}
 	player, err := c.checkedPlayer(raw)
 	if err != nil {
@@ -336,6 +328,14 @@ func (c *Client) LookupPlayerByID(ctx context.Context, playerID string) (Player,
 		return Player{}, ErrInvalidResponse
 	}
 	return player, nil
+}
+
+func playerLookupError(err error) error {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		return ErrPlayerNotFound
+	}
+	return fmt.Errorf("look up FACEIT player: %w", err)
 }
 
 func (c *Client) checkedPlayer(raw apiPlayer) (Player, error) {

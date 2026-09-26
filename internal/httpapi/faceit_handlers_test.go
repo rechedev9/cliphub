@@ -387,8 +387,9 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"items":` + items + `}`))
 		case r.URL.Path == "/players/player-1":
+			// The default FACEIT avatar: the Steam one stored at follow time must survive.
 			_, _ = w.Write([]byte(`{"player_id":"player-1","nickname":"m0NESY-renamed","country":"ru",
-				"avatar":"https://assets.faceit-cdn.net/avatars/m0nesy.png",
+				"avatar":"https://assets.faceit-cdn.net/avatars/3b536dda-e3dd-40cd-baed-7e66ab050c8f.png",
 				"games":{"cs2":{"skill_level":10,"faceit_elo":4123}}}`))
 		default:
 			http.NotFound(w, r)
@@ -396,7 +397,8 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	// Relative to the shipped roster, so regenerating zones_default.json cannot make it look fresh.
+	now := faceit.DefaultSeed().GeneratedAt.Add(time.Hour)
 	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
 		Now: func() time.Time { return now }})
 	if err != nil {
@@ -407,7 +409,8 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := follows.Follow(faceit.Player{ID: "player-1", Nickname: "m0NESY", ELO: 3000}); err != nil {
+	const steamAvatar = "https://avatars.steamstatic.com/m0nesy_full.jpg"
+	if _, err := follows.Follow(faceit.Player{ID: "player-1", Nickname: "m0NESY", ELO: 3000, Avatar: steamAvatar}); err != nil {
 		t.Fatal(err)
 	}
 	seeds, err := faceit.NewSeedStore(filepath.Join(dir, "zones.json"))
@@ -444,7 +447,8 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 	if refreshing || !updatedAt.Equal(now) {
 		t.Fatalf("second list refreshing=%v updated_at=%v, want the fresh roster at %v", refreshing, updatedAt, now)
 	}
-	if len(players) != 2 || players[0].ID != "player-1" || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 {
+	if len(players) != 2 || players[0].ID != "player-1" || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 ||
+		players[0].Avatar != steamAvatar {
 		t.Fatalf("followed row = %#v, want the live profile", players)
 	}
 	if players[1].ID != "cis-1" || !players[1].Seeded || players[1].ELO != 4801 {
@@ -478,6 +482,7 @@ type listedFaceitPlayer struct {
 	Seeded   bool   `json:"seeded"`
 	Zone     string `json:"zone"`
 	ELO      int    `json:"elo"`
+	Avatar   string `json:"avatar"`
 }
 
 func seededCount(players []listedFaceitPlayer) int {

@@ -43,10 +43,14 @@ export default function PlayersPage(): ReactNode {
   const shownID = selected?.id ?? null;
   const playersRef = useRef(players);
   playersRef.current = players;
+  // Bumped by every follow/unfollow; a list read that started before one is older than the rail and is dropped.
+  const followGeneration = useRef(0);
 
   const refresh = useCallback(async (background = false) => {
+    const generation = followGeneration.current;
     try {
       const listed = await listFollowedFaceitPlayers();
+      if (background && generation !== followGeneration.current) return;
       dispatch({ type: 'listed', players: listed.players, updatedAt: listed.updatedAt });
       setRosterRefreshing(listed.refreshing);
       setState(listed.enabled ? 'ready' : 'unconfigured');
@@ -87,7 +91,10 @@ export default function PlayersPage(): ReactNode {
         const live = await lookupFaceitPlayer(player.nickname);
         if (cancelled) return;
         dispatch({ type: 'profile', player: live, at });
-        if (player.seeded !== true) await followFaceitPlayer(live.nickname);
+        if (player.seeded !== true) {
+          await followFaceitPlayer(live.nickname);
+          followGeneration.current += 1;
+        }
       } catch {
         // A failed profile refresh must not hide the saved player or their history.
       }
@@ -100,6 +107,7 @@ export default function PlayersPage(): ReactNode {
     setError(null);
     try {
       const followed = await followFaceitPlayer(nickname);
+      followGeneration.current += 1;
       dispatch({ type: 'followed', player: followed });
       setState('ready');
       return true;
@@ -127,6 +135,7 @@ export default function PlayersPage(): ReactNode {
     setError(null);
     try {
       await unfollowFaceitPlayer(playerID);
+      followGeneration.current += 1;
       dispatch({ type: 'unfollowed', id: playerID });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo dejar de seguir al jugador. Vuelve a intentarlo.');

@@ -78,6 +78,37 @@ func TestFollowStorePersistsAndUnfollows(t *testing.T) {
 	}
 }
 
+func TestFollowStoreRefreshUpdatesOnlyCurrentFollows(t *testing.T) {
+	t.Parallel()
+	followedAt := time.Date(2026, time.August, 17, 12, 0, 0, 0, time.UTC)
+	store, err := NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), func() time.Time { return followedAt })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"player-1", "player-2"} {
+		if _, err := store.Follow(Player{ID: id, Nickname: id, ELO: 3000}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// player-3 was unfollowed while its profile was being fetched.
+	if err := store.Refresh([]Player{
+		{ID: "player-1", Nickname: "renamed", ELO: 3100, SkillLevel: 10},
+		{ID: "player-3", Nickname: "gone", ELO: 4000},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || listed[0].ID != "player-2" || listed[0].ELO != 3000 {
+		t.Fatalf("list = %#v, want the order kept and player-2 untouched", listed)
+	}
+	if got := listed[1]; got.ID != "player-1" || got.Nickname != "renamed" || got.ELO != 3100 || !got.FollowedAt.Equal(followedAt) {
+		t.Fatalf("refreshed = %#v, want the new profile with the original followed_at", got)
+	}
+}
+
 func TestFollowStoreTable(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 17, 12, 0, 0, 0, time.UTC)

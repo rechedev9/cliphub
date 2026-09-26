@@ -45,6 +45,11 @@ func (h *Handlers) refreshFaceitRosterIfStale(generatedAt time.Time) bool {
 	}
 	now := h.faceitCache.clock()
 	last := generatedAt
+	// A roster stamped in the future (the PC clock was ahead when it was
+	// written) would otherwise never age; treat it as stale once.
+	if last.After(now) {
+		last = time.Time{}
+	}
 	if r.attempted.After(last) {
 		last = r.attempted
 	}
@@ -65,11 +70,16 @@ func (h *Handlers) refreshFaceitRosterIfStale(generatedAt time.Time) bool {
 }
 
 func (h *Handlers) refreshFaceitRoster() {
-	ctx, cancel := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
-	defer cancel()
-	if _, err := h.faceitSeeds.Refresh(ctx, h.faceit, faceit.SeedZoneLimit); err != nil {
+	// Each phase gets its own deadline: a zone refresh slowed down by 429
+	// backoff must not leave the followed profiles with an expired context.
+	seedCtx, cancelSeed := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
+	_, err := h.faceitSeeds.Refresh(seedCtx, h.faceit, faceit.SeedZoneLimit)
+	cancelSeed()
+	if err != nil {
 		log.Printf("httpapi: refresh FACEIT zone rosters: %v", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
+	defer cancel()
 	followed, err := h.faceitFollows.List()
 	if err != nil {
 		log.Printf("httpapi: refresh followed FACEIT players: %v", err)

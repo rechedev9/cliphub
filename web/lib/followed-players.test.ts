@@ -73,3 +73,11 @@ test('a polled list keeps a newer live ELO and takes a newer roster ELO', () => 
   const freshList = followedPlayersReducer(staleList, { type: 'listed', players: [{ ...seeded, elo: 4825 }], updatedAt: 3000 });
   assert.deepEqual(freshList.players, [{ ...seeded, elo: 4825 }]);
 });
+
+test('a polled list always takes an own follow\'s stored ELO, whatever the zone roster age', () => {
+  const own = { ...player('mine'), elo: 2100 };
+  const live = followedPlayersReducer({ players: [own], selectedID: 'mine' },
+    { type: 'profile', player: { ...player('mine'), elo: 2000 }, at: 2000 });
+  const listed = followedPlayersReducer(live, { type: 'listed', players: [{ ...own, elo: 2150 }], updatedAt: 1000 });
+  assert.deepEqual(listed.players, [{ ...own, elo: 2150 }]);
+});

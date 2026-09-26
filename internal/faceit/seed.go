@@ -116,8 +116,8 @@ func DecodeSeed(r io.Reader) (SeedDocument, error) {
 
 // SeedStore serves the default roster from a refreshable file, falling back to
 // the embedded document. Refresh is the only thing that talks to FACEIT: a read
-// never reaches the network, so opening the Players section costs nothing and
-// cannot fail because the Data API is down.
+// never reaches the network, so a list read never waits on the Data API and
+// cannot fail because it is down.
 type SeedStore struct {
 	path string
 	mu   sync.Mutex

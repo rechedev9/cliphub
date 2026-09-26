@@ -37,8 +37,11 @@ export function defaultPlayerTab(players: FaceitFollowedPlayer[]): PlayerTab {
 export function followedPlayersReducer(state: FollowedPlayersState, action: Action): FollowedPlayersState {
   switch (action.type) {
     case 'listed': {
-      // The list is polled; a live profile read after the listed roster was fetched is the newer ELO.
+      // The list is polled; a live profile read after the zone roster was fetched is the newer ELO. updatedAt dates
+      // only the zone roster: an own follow's row is the profile the service stored when it was re-followed or
+      // refreshed, so the listed row is already the newest one.
       const players = action.players.map((player): FollowedPlayerRow => {
+        if (player.seeded !== true) return player;
         const live = state.players.find((row) => row.id === player.id);
         if (live?.liveAt === undefined || live.liveAt <= action.updatedAt) return player;
         return { ...player, elo: live.elo, skill_level: live.skill_level, liveAt: live.liveAt };
