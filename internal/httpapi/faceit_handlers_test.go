@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -364,11 +365,119 @@ func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
 	}
 }
 
+// The Players list used to show the ELO zones_default.json shipped with and
+// the ELO a followed player had when followed, forever. A list read on a
+// stale roster must refresh both in the background, once per
+// faceitRosterMaxAge, and a failed refresh must not retry on every poll.
+func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
+	t.Parallel()
+	var rankingHits atomic.Int32
+	var failRankings atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/rankings/games/cs2/regions/"):
+			rankingHits.Add(1)
+			if failRankings.Load() {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			items := `[]`
+			if strings.HasSuffix(r.URL.Path, "/EU") && r.URL.Query().Get("country") == "ua" {
+				items = `[{"player_id":"cis-1","nickname":"nipl","country":"ua","position":1,"faceit_elo":4801,"game_skill_level":10}]`
+			}
+			_, _ = w.Write([]byte(`{"items":` + items + `}`))
+		case r.URL.Path == "/players/player-1":
+			_, _ = w.Write([]byte(`{"player_id":"player-1","nickname":"m0NESY-renamed","country":"ru",
+				"avatar":"https://assets.faceit-cdn.net/avatars/m0nesy.png",
+				"games":{"cs2":{"skill_level":10,"faceit_elo":4123}}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
+		Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	follows, err := faceit.NewFollowStore(filepath.Join(dir, "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := follows.Follow(faceit.Player{ID: "player-1", Nickname: "m0NESY", ELO: 3000}); err != nil {
+		t.Fatal(err)
+	}
+	seeds, err := faceit.NewSeedStore(filepath.Join(dir, "zones.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(client, follows), WithFaceitSeeds(seeds))
+	clock := now
+	h.faceitCache.now = func() time.Time { return clock }
+	router := Routes(h)
+	list := func() (bool, time.Time, []listedFaceitPlayer) {
+		t.Helper()
+		rw := httptest.NewRecorder()
+		router.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
+		var body struct {
+			Refreshing bool                 `json:"refreshing"`
+			UpdatedAt  time.Time            `json:"updated_at"`
+			Players    []listedFaceitPlayer `json:"players"`
+		}
+		if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+			t.Fatalf("list body %s: %v", rw.Body.String(), err)
+		}
+		return body.Refreshing, body.UpdatedAt, body.Players
+	}
+
+	// The embedded roster predates the clock: the read serves it and starts a refresh.
+	refreshing, updatedAt, _ := list()
+	if !refreshing || !updatedAt.Equal(faceit.DefaultSeed().GeneratedAt) {
+		t.Fatalf("first list refreshing=%v updated_at=%v, want a refresh of the embedded roster", refreshing, updatedAt)
+	}
+	h.faceitRoster.wg.Wait()
+
+	refreshing, updatedAt, players := list()
+	if refreshing || !updatedAt.Equal(now) {
+		t.Fatalf("second list refreshing=%v updated_at=%v, want the fresh roster at %v", refreshing, updatedAt, now)
+	}
+	if len(players) != 2 || players[0].ID != "player-1" || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 {
+		t.Fatalf("followed row = %#v, want the live profile", players)
+	}
+	if players[1].ID != "cis-1" || !players[1].Seeded || players[1].ELO != 4801 {
+		t.Fatalf("seeded row = %#v, want the live zone ladder", players[1])
+	}
+
+	// Fresh: no FACEIT traffic until the roster is faceitRosterMaxAge old.
+	hits := rankingHits.Load()
+	clock = now.Add(faceitRosterMaxAge - time.Second)
+	if refreshing, _, _ := list(); refreshing || rankingHits.Load() != hits {
+		t.Fatalf("fresh list refreshing=%v ranking hits %d -> %d, want none", refreshing, hits, rankingHits.Load())
+	}
+
+	// A failed refresh keeps the last roster and waits a full interval.
+	failRankings.Store(true)
+	clock = now.Add(faceitRosterMaxAge)
+	if refreshing, _, _ := list(); !refreshing {
+		t.Fatal("stale list did not refresh")
+	}
+	h.faceitRoster.wg.Wait()
+	hits = rankingHits.Load()
+	clock = clock.Add(faceitRosterMaxAge - time.Second)
+	if refreshing, updatedAt, _ := list(); refreshing || rankingHits.Load() != hits || !updatedAt.Equal(now) {
+		t.Fatalf("after failure refreshing=%v updated_at=%v hits %d -> %d, want the last roster and no retry", refreshing, updatedAt, hits, rankingHits.Load())
+	}
+}
+
 type listedFaceitPlayer struct {
 	ID       string `json:"id"`
 	Nickname string `json:"nickname"`
 	Seeded   bool   `json:"seeded"`
 	Zone     string `json:"zone"`
+	ELO      int    `json:"elo"`
 }
 
 func seededCount(players []listedFaceitPlayer) int {

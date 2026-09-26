@@ -109,7 +109,9 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		writeCodedError(w, http.StatusServiceUnavailable, faceitNotConfigured, "FACEIT follow list is not configured")
 		return
 	}
-	players, err := h.faceitFollows.Roster(h.faceitSeeds.Document())
+	seed := h.faceitSeeds.Document()
+	refreshing := h.refreshFaceitRosterIfStale(seed.GeneratedAt)
+	players, err := h.faceitFollows.Roster(seed)
 	if err != nil {
 		internalError(w, "list followed FACEIT players", err)
 		return
@@ -123,8 +125,10 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.faceitEnabled(),
-		"players": players,
+		"enabled":    h.faceitEnabled(),
+		"players":    players,
+		"refreshing": refreshing,
+		"updated_at": seed.GeneratedAt,
 	})
 }
 

@@ -73,6 +73,10 @@ export type FaceitMatch = {
 export type FaceitFollowedList = {
   enabled: boolean;
   players: FaceitFollowedPlayer[];
+  /** The local service is fetching fresh zone rosters and followed profiles in the background. */
+  refreshing: boolean;
+  /** When the listed ELOs were read from FACEIT, in epoch milliseconds; 0 when unknown. */
+  updatedAt: number;
 };
 
 const PLAYER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -189,9 +193,12 @@ function parseFollowedList(raw: unknown): FaceitFollowedList {
   if (root === null || !Array.isArray(playersRaw)) {
     throw new FaceitServiceError('FACEIT follow list is invalid', FACEIT_CODES.invalidResponse, 502);
   }
+  const updatedAt = typeof root.updated_at === 'string' ? Date.parse(root.updated_at) : Number.NaN;
   return {
     enabled: root.enabled === true,
     players: playersRaw.map((item) => parsePlayer({ player: item }, 'player')),
+    refreshing: root.refreshing === true,
+    updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
   };
 }
 
