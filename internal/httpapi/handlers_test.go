@@ -1161,11 +1161,15 @@ func TestPostJobsValidatesDemoMagicBytes(t *testing.T) {
 		name       string
 		demo       []byte
 		wantStatus int
+		wantCode   string
+		wantError  string
 	}{
 		{name: "cs2 source2 demo", demo: []byte("PBDEMS2\x00rest-of-demo"), wantStatus: http.StatusCreated},
-		{name: "legacy gotv demo", demo: []byte("HL2DEMO\x00rest-of-demo"), wantStatus: http.StatusCreated},
-		{name: "not a demo", demo: []byte("just some bytes"), wantStatus: http.StatusBadRequest},
-		{name: "short non-demo body", demo: []byte("PB2"), wantStatus: http.StatusBadRequest},
+		// demoinfocs v5 cannot parse CS:GO demos, so admitting one would only
+		// queue a scan that always fails behind a generic message.
+		{name: "legacy csgo demo", demo: []byte("HL2DEMO\x00rest-of-demo"), wantStatus: http.StatusBadRequest, wantCode: codeCSGODemo, wantError: "CS:GO demo"},
+		{name: "not a demo", demo: []byte("just some bytes"), wantStatus: http.StatusBadRequest, wantCode: codeNotADemo, wantError: "not a CS2 demo"},
+		{name: "short non-demo body", demo: []byte("PB2"), wantStatus: http.StatusBadRequest, wantCode: codeNotADemo, wantError: "not a CS2 demo"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1185,8 +1189,15 @@ func TestPostJobsValidatesDemoMagicBytes(t *testing.T) {
 				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
 			}
 			if tc.wantStatus == http.StatusBadRequest {
-				if !strings.Contains(rw.Body.String(), "not a CS2 demo") {
-					t.Fatalf("body = %s, want not-a-demo error", rw.Body.String())
+				var body struct {
+					Code  string `json:"code"`
+					Error string `json:"error"`
+				}
+				if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+					t.Fatalf("decode body %q: %v", rw.Body.String(), err)
+				}
+				if body.Code != tc.wantCode || !strings.Contains(body.Error, tc.wantError) {
+					t.Fatalf("body = %+v, want code %q and error containing %q", body, tc.wantCode, tc.wantError)
 				}
 				if len(store.puts) != 0 {
 					t.Fatalf("storage puts = %d, want 0 (must reject before Put)", len(store.puts))

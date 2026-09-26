@@ -24,6 +24,7 @@ import {
 } from '@/lib/clips/routes';
 import {
   DEMO_EMPTY_ROSTER_HINT,
+  DEMO_SCAN_FAIL_HINT,
   DEMO_SERVICE_OFFLINE_HINT,
   demoParseError,
   demoScanError,
@@ -186,7 +187,7 @@ export default function NewDemoPage({
           .catch((err): ScanRow => {
             // One demo's rejection must never sink the others.
             if (isDemoServiceUnavailable(err)) sawOffline = true;
-            return { fileName: file.name, status: 'error' };
+            return { fileName: file.name, status: 'error', reason: demoScanError(err) };
           })
           .then((row) => {
             setScanRows((prev) => {
@@ -203,7 +204,10 @@ export default function NewDemoPage({
       const failed = rows.filter((r) => r.status === 'error');
 
       if (scanned.length === 0) {
-        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.');
+        // One shared cause (every demo is CS:GO, say) is worth more than the generic line.
+        const reasons = new Set(failed.map((r) => ('reason' in r ? r.reason : undefined)));
+        const [shared] = reasons.size === 1 && !reasons.has(DEMO_SCAN_FAIL_HINT) ? [...reasons] : [];
+        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : shared ?? 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.');
         return;
       }
       if (failed.length > 0) {
