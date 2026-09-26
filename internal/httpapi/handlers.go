@@ -152,6 +152,11 @@ type Handlers struct {
 	steamFetcher        *steamresolve.Fetcher
 	steamSessionMu      sync.Mutex
 	steamSessionCache   steamresolve.Session
+	labBundles          LabBundlePreparer
+	labBundleRoot       string
+	// labBundleMu serializes bundle writes: two bundles of one job and variant
+	// share a directory, and each copies gigabytes of clips.
+	labBundleMu sync.Mutex
 }
 
 type Option func(*Handlers)

@@ -402,11 +402,17 @@ func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, sh
 			return err
 		}
 		options := audioShort.FullDemo.Effective.Options
-		silentApproved := options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.HasBumpers() && !audioShort.FullDemo.Effective.HasTransitionSFX()
-		mastered, err := masterFullDemoMeasuredProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, silentApproved, duration, progress.within(.25, 1), assembled)
+		mastered, err := masterFullDemoMeasuredProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, fullDemoSilentApproved(audioShort), duration, progress.within(.25, 1), assembled)
 		evidence = &mastered
 		return err
 	}
 	err := runFullDemoBranches(ctx, video, audio)
 	return evidence, err
+}
+
+// fullDemoSilentApproved reports whether the approved plan mutes every audio
+// source, so a silent program is the intended result rather than a failure.
+func fullDemoSilentApproved(short ShortEdit) bool {
+	options := short.FullDemo.Effective.Options
+	return options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.HasBumpers() && !short.FullDemo.Effective.HasTransitionSFX()
 }
