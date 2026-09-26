@@ -89,7 +89,18 @@ func fullDemoDecodedAACAccepted(decoded LoudnessMeasurement, target recapplan.Lo
 	if decoded.Status != "measured" || decoded.IntegratedLUFS == nil || decoded.TruePeakDBTP == nil {
 		return false, fmt.Errorf("audio_loudness_failed: final AAC is not measurable")
 	}
-	return math.Abs(*decoded.IntegratedLUFS-target.TargetILUFS) <= 0.5 && *decoded.TruePeakDBTP <= target.TargetTPDBTP, nil
+	return fullDemoAACMissDB(decoded, target) == 0, nil
+}
+
+// fullDemoAACToleranceLU is how far the decoded integrated loudness may sit
+// from the target and still be accepted.
+const fullDemoAACToleranceLU = 0.5
+
+// fullDemoAACMissDB is how far, in dB, a measured decoded AAC lies outside the
+// acceptance window: integrated loudness beyond the tolerance plus true peak
+// above the target. Zero means accepted.
+func fullDemoAACMissDB(decoded LoudnessMeasurement, target recapplan.LoudnessOptions) float64 {
+	return max(0, math.Abs(*decoded.IntegratedLUFS-target.TargetILUFS)-fullDemoAACToleranceLU) + max(0, *decoded.TruePeakDBTP-target.TargetTPDBTP)
 }
 
 // publishFullDemoAAC rechecks cancellation immediately before the atomic

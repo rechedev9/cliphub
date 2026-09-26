@@ -232,10 +232,12 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 		if recovery == nil {
 			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, video, output, logDir, target, duration, e.Input)
 		}
-		next, changed := nextMasterTarget(attemptTarget, target, decoded)
-		if !changed {
-			// loudnorm cannot be pushed any further; another native master
-			// would repeat a failed target, so hand over to AAC recovery.
+		var previous *LoudnessMeasurement
+		if attempt > 0 {
+			previous = &e.DecodedAAC[len(e.DecodedAAC)-2]
+		}
+		next, retry := nextNativeMaster(attemptTarget, target, previous, decoded)
+		if !retry {
 			break
 		}
 		attemptTarget = next
@@ -271,6 +273,23 @@ func clampLoudnormTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOpt
 func aacHeadroomTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
 	target.TargetTPDBTP -= .3
 	return clampLoudnormTarget(target)
+}
+
+// nextNativeMaster decides what follows a rejected native master: the next
+// target, or false to hand over to AAC recovery. It hands over when loudnorm
+// cannot be pushed any further (another master would repeat a failed target)
+// and as soon as a retarget did not bring the decoded AAC closer to the
+// acceptance window than the master before it. A program that loudnorm can
+// only normalize in dynamic mode (measured LRA above the target, or not enough
+// true-peak headroom for the linear gain) diverges under retargeting: a lower
+// TP target tightens its limiter and lowers the integrated loudness instead of
+// removing the AAC overshoot, so each further native master only delays
+// recovery. previous is nil after the first master.
+func nextNativeMaster(current, target recapplan.LoudnessOptions, previous *LoudnessMeasurement, decoded LoudnessMeasurement) (recapplan.LoudnessOptions, bool) {
+	if previous != nil && fullDemoAACMissDB(decoded, target) >= fullDemoAACMissDB(*previous, target) {
+		return current, false
+	}
+	return nextMasterTarget(current, target, decoded)
 }
 
 // nextMasterTarget derives the next native master target from the decoded AAC
