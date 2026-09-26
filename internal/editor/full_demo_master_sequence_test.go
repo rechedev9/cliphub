@@ -42,11 +42,7 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 		if err != nil || accepted {
 			t.Fatalf("native master %d: accepted=%v err=%v, want rejected", i, accepted, err)
 		}
-		var previous *LoudnessMeasurement
-		if i > 0 {
-			previous = &native[i-1]
-		}
-		next, retry := nextNativeMaster(attemptTarget, target, previous, decoded)
+		next, retry := nextNativeMaster(attemptTarget, target, native[:i+1])
 		// The second master came closer (2.94 -> 2.84 dB outside the window),
 		// so the third still runs; the third diverged and hands over.
 		if retry != (i < len(native)-1) {
@@ -133,11 +129,7 @@ func TestFullDemoNativeMasterHandsOverWhenRetargetDiverges(t *testing.T) {
 		if accepted, err := fullDemoDecodedAACAccepted(decoded, target, false); err != nil || accepted {
 			t.Fatalf("native master %d: accepted=%v err=%v, want rejected", attempt, accepted, err)
 		}
-		var previous *LoudnessMeasurement
-		if attempt > 0 {
-			previous = &decodedAAC[len(decodedAAC)-2]
-		}
-		next, retry := nextNativeMaster(attemptTarget, target, previous, decoded)
+		next, retry := nextNativeMaster(attemptTarget, target, decodedAAC)
 		if !retry {
 			break
 		}
@@ -146,5 +138,10 @@ func TestFullDemoNativeMasterHandsOverWhenRetargetDiverges(t *testing.T) {
 	want := []recapplan.LoudnessOptions{retarget(-14, -1.8), retarget(-13, -4.25)}
 	if !reflect.DeepEqual(masterTargets, want) {
 		t.Fatalf("native master targets = %+v, want hand-over after %+v", masterTargets, want)
+	}
+	// A retarget that lands exactly as far from the window made no progress.
+	first := decodedByTarget[retarget(-14, -1.8)]
+	if _, retry := nextNativeMaster(want[1], target, []LoudnessMeasurement{first, first}); retry {
+		t.Fatal("a retarget with no progress must hand over")
 	}
 }

@@ -232,11 +232,7 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 		if recovery == nil {
 			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, video, output, logDir, target, duration, e.Input)
 		}
-		var previous *LoudnessMeasurement
-		if attempt > 0 {
-			previous = &e.DecodedAAC[len(e.DecodedAAC)-2]
-		}
-		next, retry := nextNativeMaster(attemptTarget, target, previous, decoded)
+		next, retry := nextNativeMaster(attemptTarget, target, e.DecodedAAC)
 		if !retry {
 			break
 		}
@@ -284,12 +280,13 @@ func aacHeadroomTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptio
 // true-peak headroom for the linear gain) diverges under retargeting: a lower
 // TP target tightens its limiter and lowers the integrated loudness instead of
 // removing the AAC overshoot, so each further native master only delays
-// recovery. previous is nil after the first master.
-func nextNativeMaster(current, target recapplan.LoudnessOptions, previous *LoudnessMeasurement, decoded LoudnessMeasurement) (recapplan.LoudnessOptions, bool) {
-	if previous != nil && fullDemoAACMissDB(decoded, target) >= fullDemoAACMissDB(*previous, target) {
+// recovery. decoded holds the rejected native masters in order, newest last.
+func nextNativeMaster(current, target recapplan.LoudnessOptions, decoded []LoudnessMeasurement) (recapplan.LoudnessOptions, bool) {
+	last := decoded[len(decoded)-1]
+	if len(decoded) > 1 && fullDemoAACMissDB(last, target) >= fullDemoAACMissDB(decoded[len(decoded)-2], target) {
 		return current, false
 	}
-	return nextMasterTarget(current, target, decoded)
+	return nextMasterTarget(current, target, last)
 }
 
 // nextMasterTarget derives the next native master target from the decoded AAC
