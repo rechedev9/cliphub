@@ -44,11 +44,14 @@ type LabOptions struct {
 	Seconds float64
 	// File is the delivered MP4 the delivery mode verifies.
 	File string
+	// Synthetic marks a bundle written by SynthLabBundle; the evidence says so.
+	Synthetic bool
 }
 
 // LabEvidence is the machine-readable outcome of one lab run.
 type LabEvidence struct {
 	Mode      string                      `json:"mode"`
+	Synthetic bool                        `json:"synthetic,omitempty"`
 	WorkDir   string                      `json:"work_dir"`
 	ElapsedMS int64                       `json:"elapsed_ms"`
 	Plan      *LabPlan                    `json:"plan,omitempty"`
@@ -147,7 +150,7 @@ type LabDeliveryEvidence struct {
 // the stored recording instead of probing them again.
 func Lab(ctx context.Context, cfg Config, opts LabOptions) (LabEvidence, error) {
 	started := time.Now()
-	evidence := LabEvidence{Mode: opts.Mode}
+	evidence := LabEvidence{Mode: opts.Mode, Synthetic: opts.Synthetic}
 	fail := func(err error) (LabEvidence, error) {
 		evidence.ElapsedMS = time.Since(started).Milliseconds()
 		evidence.Error = err.Error()

@@ -223,6 +223,26 @@ time first. The lab replays the inputs of a job's last render of a variant:
    - `delivery --file <mp4>`: strict delivery check plus the same
      measurements on any delivered file.
 
+Without a real job (cloud sessions, a fresh checkout),
+`zv-editor lab synth --out <dir> [--rounds N] [--size WxH]` writes a
+synthetic bundle in seconds. It plans a demo of N rounds (default 3) with
+the current planner and default options (native HUD), generates one
+test-pattern H.264/AAC capture per round with the exact `TickFrames` count,
+a team-voice track and a ten-player roster overlay, and writes capture
+evidence from `recording.FullDemoExpectedCaptureCvars`. `--plan` takes an
+approved snapshot instead, if it has the native HUD and no media assets.
+Every mode then runs on it and marks its evidence `synthetic`.
+
+- A synthetic bundle proves timing, commands, overlays and loudness
+  mechanics, not how CS2 footage or real voice looks or sounds. Use a real
+  bundle when the change depends on the footage.
+- The mandatory neon overlays need Studio's Chromium renderer: `synth`
+  records `ZV_OVERLAY_RENDERER_PATH` when it is set, and without a renderer
+  every mode stops at "neon overlay requires the Studio Chromium renderer".
+- `synth` writes the Full Demo editor arguments itself;
+  `TestSyntheticLabBundleArgumentsMatchAFullDemoRender` fails when
+  `RenderWorker.writeEditorInputs` changes them. Update both together.
+
 - Use `item` and `audio` as the runtime evidence for a render change, and
   look at the stills: a decodable file is not proof the game is visible.
 - A change the lab cannot reach (capture, HLAE, publication) still needs a
