@@ -492,4 +492,18 @@ func TestRenderedFullDemoApprovedBeforeSponsorBumperStaysReadable(t *testing.T) 
 	if _, err := h.readRenderVariantDocument(key); !errors.As(err, &stale) || stale.Code != recapplan.ErrPlanStale {
 		t.Fatalf("render document with a foreign approval must stay unreadable, got %v", err)
 	}
+
+	// And a well-formed record: history skips freshness, not integrity.
+	wire["edit"].(map[string]any)["full_demo"].(map[string]any)["approval"].(map[string]any)["approved_plan_hash"] = legacyHash
+	document["plan_id"] = "not-a-plan-id"
+	corrupt, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(corrupt)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.readRenderVariantDocument(key); err == nil || !strings.Contains(err.Error(), "invalid plan id") {
+		t.Fatalf("corrupt render document must stay unreadable, got %v", err)
+	}
 }

@@ -130,20 +130,26 @@ func (r EditRequest) Validate() error {
 			return err
 		}
 	}
-	return r.ValidateRendered()
+	return r.validateFields()
 }
 
 // ValidateRendered checks the edit document of an admitted render (queued,
 // running or finished). Its Full Demo snapshot is history: the planner of its
 // day admitted it and it still decodes under the strict wire contract, so a
 // later planner change (a retired option, a new timeline rule) must not make
-// the render unreadable. Its approval invariants still hold; only admission
+// the render unreadable. Its record and approval still hold; only admission
 // re-checks plan freshness.
 func (r EditRequest) ValidateRendered() error {
 	if r.FullDemo != nil {
 		if err := r.FullDemo.ValidateHistory(); err != nil {
 			return err
 		}
+	}
+	return r.validateFields()
+}
+
+func (r EditRequest) validateFields() error {
+	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
 			!r.MatchRecap || !r.NativeHUD || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CoverFirstFrame ||
