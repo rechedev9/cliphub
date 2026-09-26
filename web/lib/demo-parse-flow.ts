@@ -18,9 +18,10 @@ export const DEMO_SCAN_HINTS = {
     'Ese archivo no es una demo de CS2. Si lo renombraste a .dem o la descarga no terminó, vuelve a descargar la demo.',
   unreadable: 'No se pudo descomprimir la demo. Vuelve a descargarla y cárgala de nuevo.',
   incompatible:
-    'ClipHub no pudo leer esa demo: está dañada o es de una versión de CS2 más nueva que esta versión de ClipHub. Actualiza ClipHub o vuelve a descargar la demo.',
+    'ClipHub no pudo leer esa demo: está dañada o viene de una actualización de CS2 que ClipHub aún no soporta. Vuelve a descargarla; si sigue fallando, escríbenos con tu código de soporte de Ajustes.',
   tooLarge: 'La demo supera el límite de 700 MB.',
-  timeout: 'El escaneo de la demo tardó demasiado. Vuelve a intentarlo.',
+  // The scan keeps running server-side; re-uploading would start a duplicate job.
+  timeout: 'El escaneo está tardando más de lo normal. Espera un minuto y búscala en Demos y vídeos antes de volver a cargarla.',
   session: 'La sesión de ClipHub caducó. Recarga la ventana y vuelve a cargar la demo.',
 } as const;
 
@@ -64,4 +65,16 @@ export function demoScanError(err: unknown): string {
 
 export function demoParseError(err: unknown): string {
   return isDemoServiceUnavailable(err) ? DEMO_SERVICE_OFFLINE_HINT : DEMO_PARSE_FAIL_HINT;
+}
+
+export const DEMO_SERIES_PARSE_FAIL_HINT = 'No se pudo analizar este mapa.';
+
+/**
+ * One series map's parse failure. A failed job's error carries the worker's raw
+ * English failure_reason as its message, so only its code reaches the user.
+ */
+export function demoSeriesParseError(err: unknown): string {
+  if (isDemoServiceUnavailable(err)) return DEMO_SERVICE_OFFLINE_HINT;
+  if (errorField(err, 'code') === 'demo_incompatible') return DEMO_SCAN_HINTS.incompatible;
+  return DEMO_SERIES_PARSE_FAIL_HINT;
 }

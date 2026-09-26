@@ -7,10 +7,12 @@ import {
   DEMO_PARSE_FAIL_HINT,
   DEMO_SCAN_FAIL_HINT,
   DEMO_SCAN_HINTS,
+  DEMO_SERIES_PARSE_FAIL_HINT,
   DEMO_SERVICE_OFFLINE_HINT,
   demoListLoadError,
   demoParseError,
   demoScanError,
+  demoSeriesParseError,
   isDemoServiceUnavailable,
 } from './demo-parse-flow.ts';
 
@@ -67,4 +69,13 @@ test('scan copy names the cause the orchestrator or proxy reported', () => {
   for (const row of cases) {
     assert.equal(demoScanError(row.err), row.want, row.name);
   }
+});
+
+// A failed parse job's error message is the worker's raw English reason; a
+// series map row must show Spanish advice, never that text.
+test('series parse copy never surfaces the raw worker reason', () => {
+  const raw = 'parsing demo: demo_incompatible: parser panicked: proto: cannot parse invalid wire-format data';
+  assert.equal(demoSeriesParseError(Object.assign(new Error(raw), { code: 'demo_incompatible' })), DEMO_SCAN_HINTS.incompatible);
+  assert.equal(demoSeriesParseError(new Error('target steamid 76561198000000000 not found in demo')), DEMO_SERIES_PARSE_FAIL_HINT);
+  assert.equal(demoSeriesParseError(Object.assign(new Error('offline'), { code: SERVICE_UNAVAILABLE_CODE })), DEMO_SERVICE_OFFLINE_HINT);
 });

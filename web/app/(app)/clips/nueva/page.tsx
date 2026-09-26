@@ -28,6 +28,7 @@ import {
   DEMO_SERVICE_OFFLINE_HINT,
   demoParseError,
   demoScanError,
+  demoSeriesParseError,
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -205,9 +206,12 @@ export default function NewDemoPage({
 
       if (scanned.length === 0) {
         // One shared cause (every demo is CS:GO, say) is worth more than the generic line.
-        const reasons = new Set(failed.map((r) => ('reason' in r ? r.reason : undefined)));
-        const [shared] = reasons.size === 1 && !reasons.has(DEMO_SCAN_FAIL_HINT) ? [...reasons] : [];
-        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : shared ?? 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.');
+        const reasons = new Set(failed.map((r) => r.reason));
+        const shared = reasons.size === 1 ? [...reasons][0] : undefined;
+        const allFailed = shared && shared !== DEMO_SCAN_FAIL_HINT
+          ? shared
+          : 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.';
+        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : allFailed);
         return;
       }
       if (failed.length > 0) {
@@ -246,10 +250,7 @@ export default function NewDemoPage({
             await api.parseDemo({ jobId: row.jobId, steamId });
             next = { ...row, status: 'done' };
           } catch (err) {
-            let reason = 'No se pudo analizar este mapa.';
-            if (isDemoServiceUnavailable(err)) reason = DEMO_SERVICE_OFFLINE_HINT;
-            else if (err instanceof Error) reason = err.message;
-            next = { ...row, status: 'error', reason };
+            next = { ...row, status: 'error', reason: demoSeriesParseError(err) };
           }
           setParseRows((prev) => prev.map((item) => item.jobId === row.jobId ? next : item));
           return next;

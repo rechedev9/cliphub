@@ -1170,6 +1170,9 @@ func TestPostJobsValidatesDemoMagicBytes(t *testing.T) {
 		{name: "legacy csgo demo", demo: []byte("HL2DEMO\x00rest-of-demo"), wantStatus: http.StatusBadRequest, wantCode: codeCSGODemo, wantError: "CS:GO demo"},
 		{name: "not a demo", demo: []byte("just some bytes"), wantStatus: http.StatusBadRequest, wantCode: codeNotADemo, wantError: "not a CS2 demo"},
 		{name: "short non-demo body", demo: []byte("PB2"), wantStatus: http.StatusBadRequest, wantCode: codeNotADemo, wantError: "not a CS2 demo"},
+		// A broken .dem.zst only fails once the header is decompressed; it is
+		// the user's file, not an orchestrator fault.
+		{name: "corrupt zstd frame", demo: []byte("\x28\xb5\x2f\xfd\xff\xff\xff\xff corrupt"), wantStatus: http.StatusBadRequest, wantCode: codeUnreadableDemo, wantError: "could not read uploaded demo"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -6240,5 +6243,20 @@ func TestMaterializeRenderVariantStatesGatesOnPostSweepJobStatus(t *testing.T) {
 				t.Fatalf("state status = %q, want %q", state.Status, tc.wantStatus)
 			}
 		})
+	}
+}
+
+// TestAdmitCloudDemoRejectsCSGODemo keeps the bridge in step with CreateJob:
+// a CS:GO demo would only queue a roster scan demoinfocs v5 always fails.
+func TestAdmitCloudDemoRejectsCSGODemo(t *testing.T) {
+	store := newFakeStorage()
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{})
+
+	_, err := h.AdmitCloudDemo(context.Background(), bytes.NewReader([]byte("HL2DEMO\x00rest-of-demo")), "match.dem", "req-1")
+	if err == nil || !strings.Contains(err.Error(), "CS:GO demo") {
+		t.Fatalf("AdmitCloudDemo error = %v, want a CS:GO rejection", err)
+	}
+	if len(store.puts) != 0 {
+		t.Fatalf("storage puts = %d, want 0 (must reject before Put)", len(store.puts))
 	}
 }

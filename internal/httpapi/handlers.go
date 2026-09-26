@@ -411,7 +411,10 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	var header [8]byte
 	n, err := io.ReadFull(demoSrc, header[:])
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-		internalError(w, "read demo header", err)
+		// demozstd.Open only sniffs the magic; a corrupt .dem.zst frame fails
+		// here, on the first decompressed read of the user's own file.
+		log.Printf("httpapi: read uploaded demo header: %v", err)
+		writeCodedError(w, http.StatusBadRequest, codeUnreadableDemo, "could not read uploaded demo")
 		return
 	}
 	if rejectDemoHeader(w, header[:n], "uploaded") {
