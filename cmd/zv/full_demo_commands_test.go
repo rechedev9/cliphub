@@ -74,6 +74,8 @@ func fullDemoSampleArgs(t *testing.T, name string) []string {
 		return []string{"--plan", plan}
 	case "full-demo-execute":
 		return []string{"--job", fullDemoCLIJobID, "--plan", plan, "--approve", snapshot.Document.PlanHash, "--allow-safe-tail-trim=true", "--dry-run"}
+	case "full-demo-lab-bundle":
+		return []string{"--job", fullDemoCLIJobID, "--dry-run"}
 	default:
 		t.Fatalf("unknown Full Demo workflow %s", name)
 		return nil

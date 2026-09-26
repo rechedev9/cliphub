@@ -29,6 +29,7 @@ const fullDemoUsage = `Usage:
   zv full-demo plan --job <uuid> --options <options.json> --out <plan.json> [--url <loopback>] [--dry-run] [--format text|json]
   zv full-demo inspect [--plan <plan.json> | --job <uuid>] [--document plan|status|approved|effective|audio|loudness|delivery] [--out <document.json>] [--url <loopback>] [--format text|json]
   zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true [--url <loopback>] [--dry-run] [--format text|json]
+  zv full-demo lab-bundle --job <uuid> [--variant gameplay-pov-60] [--url <loopback>] [--dry-run] [--format text|json]
 
 The existing local orchestrator must be running for remote operations (zv serve).
 Use ORCHESTRATOR_URL and ZV_MUTATION_TOKEN for its address and session token.
@@ -41,6 +42,8 @@ Execute approves that exact hash and queues the same capture/render flow as Stud
 It requires a reviewed creative brief and a current-run HLAE/CS2 hardware grant.
 Dry-run validates local inputs only; it sends no requests and writes no files.
 It cannot certify server freshness, capture, media QA or Windows/HLAE/CS2 behavior.
+Lab-bundle writes the inputs of the job's last render of the variant under
+<data>/lab for zv-editor lab; it copies the clips and never renders.
 `
 
 func runFullDemo(args []string, stdout, stderr io.Writer) int {
@@ -63,6 +66,7 @@ func runFullDemo(args []string, stdout, stderr io.Writer) int {
 	out, format := fs.String("out", "", "JSON destination"), fs.String("format", "text", "text or json")
 	base, document := fs.String("url", "", "loopback orchestrator URL"), fs.String("document", "plan", "document to inspect")
 	approved := fs.String("approve", "", "approved plan hash")
+	variant := fs.String("variant", "gameplay-pov-60", "render variant to bundle")
 	allowTrim, dry := fs.Bool("allow-safe-tail-trim", false, "approve bounded safety trimming"), fs.Bool("dry-run", false, "validate local inputs without requests or writes")
 	fail := func(err error, code int) int { return writeCommandError(args, stdout, stderr, err, "", code) }
 	if err := fs.Parse(args[1:]); err != nil {
@@ -180,6 +184,10 @@ func runFullDemo(args []string, stdout, stderr io.Writer) int {
 		b, _ := json.Marshal(edit)
 		if !*dry {
 			result, err = client.GenerateFullDemo(ctx, *jobID, b)
+		}
+	case "lab-bundle":
+		if !*dry {
+			result, err = client.PrepareRenderLabBundle(ctx, *jobID, *variant)
 		}
 	}
 	if err != nil {

@@ -85,6 +85,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/renders/{variant}/quality", h.GetRenderQuality)
 	r.Get("/api/jobs/{id}/renders/{variant}/pack", h.GetRenderPack)
 	r.Get("/api/jobs/{id}/renders/{variant}/edit-document", h.GetRenderEditDocument)
+	r.Post("/api/jobs/{id}/renders/{variant}/lab-bundle", h.PrepareRenderLabBundle)
 	r.Get("/api/jobs/{id}/renders/{variant}/gallery", h.GetRenderGallery)
 	r.Get("/api/jobs/{id}/renders/{variant}/videos/{name}", h.GetRenderVideo)
 	r.Delete("/api/jobs/{id}/renders/{variant}/videos/{name}", h.DeleteRenderVideo)

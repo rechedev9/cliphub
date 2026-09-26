@@ -115,7 +115,14 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 	if measured.Status != "measured" || measured.IntegratedLUFS == nil || measured.TruePeakDBTP == nil || measured.LRA == nil || measured.Threshold == nil || measured.Offset == nil {
 		return "", fmt.Errorf("audio_loudness_failed: finite first-pass measurement is required")
 	}
-	return loudnessFilter(target) + ":measured_I=" + decimal(*measured.IntegratedLUFS) + ":measured_TP=" + decimal(*measured.TruePeakDBTP) + ":measured_LRA=" + decimal(*measured.LRA) + ":measured_thresh=" + decimal(*measured.Threshold) + ":offset=" + decimal(*measured.Offset) + ":linear=true:print_format=json", nil
+	return measuredLoudnessFilterText(target, decimal(*measured.IntegratedLUFS), decimal(*measured.TruePeakDBTP), decimal(*measured.LRA), decimal(*measured.Threshold), decimal(*measured.Offset)), nil
+}
+
+// measuredLoudnessFilterText builds the second-pass loudnorm filter from the
+// formatted first-pass values. The render lab passes placeholders for a
+// measurement it has not taken.
+func measuredLoudnessFilterText(target recapplan.LoudnessOptions, integrated, truePeak, lra, threshold, offset string) string {
+	return loudnessFilter(target) + ":measured_I=" + integrated + ":measured_TP=" + truePeak + ":measured_LRA=" + lra + ":measured_thresh=" + threshold + ":offset=" + offset + ":linear=true:print_format=json"
 }
 
 // masterFullDemoProgram always remasters the lossless mixed program, never an

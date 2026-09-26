@@ -52,6 +52,7 @@ func buildWorkflowCatalog() []workflowInfo {
 		{Name: "full-demo-plan", Description: "Persist editorial choices against parsed demo facts and asset bytes without starting CS2.", Command: "zv full-demo plan --job <uuid> --options <options.json> --out <plan.json>", RunArgs: []string{"full-demo", "plan"}},
 		{Name: "full-demo-inspect", Description: "Inspect a local plan or a job's current plan, status and render evidence.", Command: "zv full-demo inspect --plan <plan.json>", RunArgs: []string{"full-demo", "inspect"}},
 		{Name: "full-demo-execute", Description: "Approve a saved plan hash and enqueue the existing Full Demo capture/render flow.", Command: "zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true", RunArgs: []string{"full-demo", "execute"}},
+		{Name: "full-demo-lab-bundle", Description: "Write the inputs of a job's last Full Demo render for zv-editor lab, without rendering.", Command: "zv full-demo lab-bundle --job <uuid>", RunArgs: []string{"full-demo", "lab-bundle"}},
 		{
 			Name:        "capabilities",
 			Description: "Inspect local capture and render tool readiness without starting work.",

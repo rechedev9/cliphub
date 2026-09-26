@@ -87,6 +87,71 @@ func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 	}
 }
 
+// A render lab bundle carrying the worker's Full Demo arguments replays through
+// the real editor binary: the lab plan lists the approved timeline, and the
+// overlay renderer comes from the bundle's environment, as Studio's
+// orchestrator records it.
+func TestFullDemoLabPlanReplaysWorkerArgumentsThroughEditorCLI(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	renderer := localOverlayRendererPath()
+	if renderer == "" {
+		t.Skip("Studio Chromium renderer is required to materialize the mandatory Full Demo overlays")
+	}
+	t.Setenv("ZV_OVERLAY_RENDERER_PATH", "")
+	binary := filepath.Join(t.TempDir(), "zv-editor.exe")
+	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "../../cmd/zv-editor")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build editor CLI: %v\n%s", err, output)
+	}
+	result, dir, recordingPath := currentFullDemoPublicationFixture(t, "synthetic dry-run input")
+	if err := writeJSONFile(recordingPath, result); err != nil {
+		t.Fatal(err)
+	}
+	doc := *result.Plan.FullDemo
+	executionPath := filepath.Join(dir, "full-demo-execution.json")
+	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: recapplan.Snapshot{
+		Document: doc, Approval: recapplan.Approval{PlanHash: doc.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()},
+	}}
+	if err := attachCurrentHUDTelemetry(&execution, dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONFile(executionPath, execution); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--recording-result", recordingPath, "--out", filepath.Join(dir, "out"),
+		"--preset", editor.PresetGameplayPOV60, "--output-format", "landscape-16x9",
+		"--hook=false", "--kill-counter=false", "--covers=false"}
+	args = append(args, fullDemoExecutionArgs(executionPath)...)
+	args = append(args, "--full-demo-overlay", writeCurrentOverlayFixture(t, dir, doc.Input.TargetSteamID64))
+	bundle := LabBundle{SchemaVersion: "1.0", Variant: editor.PresetGameplayPOV60, Dir: dir, Args: args, Env: map[string]string{"ZV_OVERLAY_RENDERER_PATH": renderer}}
+	if err := writeJSONFile(filepath.Join(dir, editor.LabBundleFile), bundle); err != nil {
+		t.Fatal(err)
+	}
+
+	workDir := filepath.Join(t.TempDir(), "lab")
+	output, err := exec.CommandContext(ctx, binary, "lab", "plan", "--bundle", dir, "--work-dir", workDir, "--format", "json").Output()
+	if err != nil {
+		t.Fatalf("lab plan on a worker bundle: %v\n%s", err, output)
+	}
+	var evidence editor.LabEvidence
+	if err := readJSONFile(filepath.Join(workDir, "lab-evidence.json"), &evidence); err != nil {
+		t.Fatal(err)
+	}
+	if evidence.Error != "" || evidence.Plan == nil {
+		t.Fatalf("lab plan evidence = error %q, plan %v", evidence.Error, evidence.Plan)
+	}
+	if got, want := len(evidence.Plan.Items), len(doc.Timeline); got != want {
+		t.Fatalf("lab plan lists %d timeline items, want the approved %d", got, want)
+	}
+	if got, want := evidence.Plan.Frames, doc.Timeline[len(doc.Timeline)-1].EndFrame; got != want {
+		t.Fatalf("lab plan program = %d frames, want %d", got, want)
+	}
+	if len(evidence.Plan.Overlays) == 0 {
+		t.Fatalf("lab plan has no overlay windows; the bundle's renderer was not applied")
+	}
+}
+
 func localOverlayRendererPath() string {
 	if path := os.Getenv("ZV_OVERLAY_RENDERER_PATH"); path != "" {
 		return path

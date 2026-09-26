@@ -17,24 +17,100 @@ import (
 	"github.com/rechedev9/cliphub/internal/rhythm"
 )
 
+// runInputs is everything Run resolves before it writes or renders anything:
+// the manifest built from the recording, the optional Full Demo execution and
+// the resolved tool paths. The render lab reuses it so it inspects exactly the
+// manifest a render would produce.
+type runInputs struct {
+	manifest          Manifest
+	recordingResult   recording.RecordingResult
+	fullDemoExecution *FullDemoExecution
+	outDir            string
+	publishDir        string
+	ffmpegPath        string
+	commandFFmpeg     string
+	ffprobePath       string
+	coversEnabled     bool
+}
+
 func Run(ctx context.Context, cfg Config) (Result, error) {
-	if err := cfg.validate(); err != nil {
+	in, err := prepareRunInputs(ctx, cfg)
+	if err != nil {
 		return Result{}, err
+	}
+	manifest, outDir, publishDir := in.manifest, in.outDir, in.publishDir
+	ffmpegPath, ffprobePath, coversEnabled := in.ffmpegPath, in.ffprobePath, in.coversEnabled
+	if err := attachFullDemoExecution(&manifest, in.recordingResult, in.fullDemoExecution, in.commandFFmpeg); err != nil {
+		return failResult(filepath.Join(outDir, "shorts-result.json"), resultFromManifest(manifest, cfg.DryRun), err)
+	}
+	result := resultFromManifest(manifest, cfg.DryRun)
+
+	resultPath := filepath.Join(outDir, "shorts-result.json")
+	if err := os.MkdirAll(filepath.Join(outDir, "prompts"), 0o750); err != nil {
+		return failResult(resultPath, result, err)
+	}
+	result.Warnings = append(result.Warnings, writePrompts(manifest)...)
+	result.Warnings = append(result.Warnings, writeCaptions(manifest)...)
+	if err := WritePublishSummary(manifest.SummaryPath, manifest); err != nil {
+		return failResult(resultPath, result, err)
+	}
+	if err := WriteManifest(filepath.Join(outDir, "edit-manifest.json"), manifest); err != nil {
+		return failResult(resultPath, result, err)
+	}
+	if err := WriteUnmatchedSmokes(manifest); err != nil {
+		return failResult(resultPath, result, err)
+	}
+
+	packPath := filepath.Join(publishDir, "pack-manifest.json")
+	if cfg.DryRun {
+		if err := writeFullDemoDocuments(outDir, manifest.Shorts); err != nil {
+			return failResult(resultPath, result, err)
+		}
+		if err := WritePackManifest(packPath, PackManifestFromManifest(manifest, result)); err != nil {
+			return failResult(resultPath, result, err)
+		}
+		if err := WritePublishGallery(manifest.GalleryPath, manifest); err != nil {
+			return failResult(resultPath, result, err)
+		}
+		return result, WriteResult(resultPath, result)
+	}
+	if ffmpegPath == "" && mediaWorkRequired(manifest, coversEnabled, cfg.SkipExisting) {
+		return failResult(resultPath, result, errors.New("ffmpeg not found"))
+	}
+	if err := renderShortPack(ctx, &manifest, &result, shortPackOptions{
+		OutputDir:      outDir,
+		ResultPath:     resultPath,
+		PackPath:       packPath,
+		FFprobePath:    ffprobePath,
+		CoversEnabled:  coversEnabled,
+		SkipExisting:   cfg.SkipExisting,
+		ValidateVideos: true,
+		RenderJobs:     cfg.RenderJobs,
+		Progress:       NewProgressTracker(cfg.ProgressOutPath),
+	}); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
+	if err := cfg.validate(); err != nil {
+		return runInputs{}, err
 	}
 	cfg.TailTrimSeconds = rhythm.NormalizeTailTrimSeconds(cfg.TailTrimSeconds)
 
 	recordingResultPath, err := filepath.Abs(cfg.RecordingResultPath)
 	if err != nil {
-		return Result{}, fmt.Errorf("resolve recording result path: %w", err)
+		return runInputs{}, fmt.Errorf("resolve recording result path: %w", err)
 	}
 	outDir, err := filepath.Abs(cfg.OutputDir)
 	if err != nil {
-		return Result{}, fmt.Errorf("resolve output path: %w", err)
+		return runInputs{}, fmt.Errorf("resolve output path: %w", err)
 	}
 
 	recordingResult, err := ReadRecordingResult(recordingResultPath)
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	recordingResult.Plan.Segments = recordingResult.Plan.SegmentsInEditorialOrder()
 	if cfg.RankMoments {
@@ -49,7 +125,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	killPlan, killPlanPath, metadataWarnings, err := resolveKillPlan(recordingResultPath, cfg.KillPlanPath)
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	publishDir := cfg.PublishDir
 	if publishDir == "" {
@@ -57,7 +133,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	} else {
 		publishDir, err = filepath.Abs(publishDir)
 		if err != nil {
-			return Result{}, fmt.Errorf("resolve publish path: %w", err)
+			return runInputs{}, fmt.Errorf("resolve publish path: %w", err)
 		}
 	}
 	preset := cfg.Preset
@@ -66,37 +142,37 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	videoCRF, err := normalizeVideoCRFForPreset(preset, cfg.VideoCRF)
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	videoPreset, err := normalizeVideoPresetForPreset(preset, cfg.VideoPreset)
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	effectsPath := cfg.EffectsPath
 	if effectsPath != "" {
 		effectsPath, err = filepath.Abs(effectsPath)
 		if err != nil {
-			return Result{}, fmt.Errorf("resolve effects script path: %w", err)
+			return runInputs{}, fmt.Errorf("resolve effects script path: %w", err)
 		}
 	}
 	musicPath := cfg.MusicPath
 	if musicPath != "" {
 		musicPath, err = filepath.Abs(musicPath)
 		if err != nil {
-			return Result{}, fmt.Errorf("resolve music path: %w", err)
+			return runInputs{}, fmt.Errorf("resolve music path: %w", err)
 		}
 		if _, err := os.Stat(musicPath); err != nil {
-			return Result{}, fmt.Errorf("music not found: %w", err)
+			return runInputs{}, fmt.Errorf("music not found: %w", err)
 		}
 	}
 	rhythmPath := cfg.RhythmPath
 	if rhythmPath != "" {
 		rhythmPath, err = filepath.Abs(rhythmPath)
 		if err != nil {
-			return Result{}, fmt.Errorf("resolve rhythm path: %w", err)
+			return runInputs{}, fmt.Errorf("resolve rhythm path: %w", err)
 		}
 		if _, err := os.Stat(rhythmPath); err != nil {
-			return Result{}, fmt.Errorf("rhythm json not found: %w", err)
+			return runInputs{}, fmt.Errorf("rhythm json not found: %w", err)
 		}
 	}
 	sourceInputs := []pathguard.Input{{Flag: "recording result", Path: recordingResultPath}}
@@ -121,10 +197,10 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		}
 	}
 	if err := pathguard.RejectInputsWithinDirectory(outDir, sourceInputs...); err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	if err := pathguard.RejectInputsWithinDirectory(publishDir, sourceInputs...); err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 
 	ffmpegPath := cfg.FFmpegPath
@@ -142,17 +218,17 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	coversEnabled := !cfg.DisableCovers
 	fullDemoExecution, err := readFullDemoExecution(ctx, cfg.FullDemoExecutionPath, outDir, publishDir)
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	if fullDemoExecution != nil {
 		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
-			return Result{}, err
+			return runInputs{}, err
 		}
 		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" {
-			return Result{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
+			return runInputs{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
 		}
 		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
-			return Result{}, fmt.Errorf("full demo cover flag differs from approval")
+			return runInputs{}, fmt.Errorf("full demo cover flag differs from approval")
 		}
 	}
 
@@ -166,7 +242,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if path := strings.TrimSpace(cfg.FullDemoOverlayPath); path != "" {
 		doc, err := demooverlay.Load(path)
 		if err != nil {
-			return Result{}, err
+			return runInputs{}, err
 		}
 		fullDemoOverlay = &doc
 	}
@@ -228,60 +304,20 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		FullDemoOverlay:     fullDemoOverlay,
 	})
 	if err != nil {
-		return Result{}, err
+		return runInputs{}, err
 	}
 	manifest.Warnings = append(metadataWarnings, manifest.Warnings...)
-	if err := attachFullDemoExecution(&manifest, recordingResult, fullDemoExecution, commandFFmpeg); err != nil {
-		return failResult(filepath.Join(outDir, "shorts-result.json"), resultFromManifest(manifest, cfg.DryRun), err)
-	}
-	result := resultFromManifest(manifest, cfg.DryRun)
-
-	resultPath := filepath.Join(outDir, "shorts-result.json")
-	if err := os.MkdirAll(filepath.Join(outDir, "prompts"), 0o750); err != nil {
-		return failResult(resultPath, result, err)
-	}
-	result.Warnings = append(result.Warnings, writePrompts(manifest)...)
-	result.Warnings = append(result.Warnings, writeCaptions(manifest)...)
-	if err := WritePublishSummary(manifest.SummaryPath, manifest); err != nil {
-		return failResult(resultPath, result, err)
-	}
-	if err := WriteManifest(filepath.Join(outDir, "edit-manifest.json"), manifest); err != nil {
-		return failResult(resultPath, result, err)
-	}
-	if err := WriteUnmatchedSmokes(manifest); err != nil {
-		return failResult(resultPath, result, err)
-	}
-
-	packPath := filepath.Join(publishDir, "pack-manifest.json")
-	if cfg.DryRun {
-		if err := writeFullDemoDocuments(outDir, manifest.Shorts); err != nil {
-			return failResult(resultPath, result, err)
-		}
-		if err := WritePackManifest(packPath, PackManifestFromManifest(manifest, result)); err != nil {
-			return failResult(resultPath, result, err)
-		}
-		if err := WritePublishGallery(manifest.GalleryPath, manifest); err != nil {
-			return failResult(resultPath, result, err)
-		}
-		return result, WriteResult(resultPath, result)
-	}
-	if ffmpegPath == "" && mediaWorkRequired(manifest, coversEnabled, cfg.SkipExisting) {
-		return failResult(resultPath, result, errors.New("ffmpeg not found"))
-	}
-	if err := renderShortPack(ctx, &manifest, &result, shortPackOptions{
-		OutputDir:      outDir,
-		ResultPath:     resultPath,
-		PackPath:       packPath,
-		FFprobePath:    ffprobePath,
-		CoversEnabled:  coversEnabled,
-		SkipExisting:   cfg.SkipExisting,
-		ValidateVideos: true,
-		RenderJobs:     cfg.RenderJobs,
-		Progress:       NewProgressTracker(cfg.ProgressOutPath),
-	}); err != nil {
-		return result, err
-	}
-	return result, nil
+	return runInputs{
+		manifest:          manifest,
+		recordingResult:   recordingResult,
+		fullDemoExecution: fullDemoExecution,
+		outDir:            outDir,
+		publishDir:        publishDir,
+		ffmpegPath:        ffmpegPath,
+		commandFFmpeg:     commandFFmpeg,
+		ffprobePath:       ffprobePath,
+		coversEnabled:     coversEnabled,
+	}, nil
 }
 
 func defaultPublishDir(outDir string) string {

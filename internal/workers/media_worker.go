@@ -1944,43 +1944,14 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if previousState != nil && !renderplan.SameFullDemoRequest(previousState.FullDemo, edit.FullDemo) {
 		return &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Render payload differs from the current approved plan"}
 	}
-	recordingResult, err := readStoredRecordingResult(w.storage, j.ID)
-	if err != nil {
-		return err
-	}
-	recordingResult, err = selectRenderSegments(recordingResult, segmentIDs)
-	if err != nil {
-		return err
-	}
 	cfg := w.cfg.withDefaults()
-	if isFullDemoNativeMix(loadout.Preset, edit) {
-		musicKey = ""
-		musicVolume = 0
-		gameVolume = nil
+	resolved, err := w.resolveRenderRequest(ctx, cfg, &j, loadout, &edit, musicKey, musicVolume, gameVolume, segmentIDs)
+	if err != nil {
+		return err
 	}
-	if edit.FullDemo != nil {
-		ffmpeg := cfg.FFmpegPath
-		if ffmpeg == "" {
-			ffmpeg = recording.FindFFmpeg()
-		}
-		snapshot, approvalErr := recapplan.ResolveApproval(ctx, w.storage, j.ID, j.DemoPath, j.TargetSteamID, ffmpeg, *edit.FullDemo)
-		if approvalErr != nil {
-			return approvalErr
-		}
-		edit.FullDemo = &snapshot
-		adapted := snapshot.Document.KillPlan(*j.KillPlan)
-		j.KillPlan = &adapted
-	}
-	musicPath := resolveMusicFile(cfg.MusicDir, musicKey)
-	effectiveMusic := &renderplan.MusicSnapshot{}
-	effectiveMusicVolume := 0.0
-	if musicPath != "" {
-		effectiveMusicVolume = musicVolume
-		if effectiveMusicVolume <= 0 {
-			effectiveMusicVolume = 1
-		}
-		effectiveMusic = &renderplan.MusicSnapshot{Key: musicKey, Volume: effectiveMusicVolume, GameVolume: gameVolume}
-	}
+	recordingResult, musicPath := resolved.recordingResult, resolved.musicPath
+	musicKey, gameVolume = resolved.musicKey, resolved.gameVolume
+	effectiveMusic, effectiveMusicVolume := resolved.music, resolved.musicVolume
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
 	if err != nil {
 		if recording.IsNotReusableMessage(err.Error()) {
@@ -2041,116 +2012,21 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	defer cleanup()
 
-	localRecordingResult := filepath.Join(workDir, "recording-result.json")
-	if err := localizeSegmentClips(w.storage, j.ID, workDir, &recordingResult); err != nil {
+	invocation, err := w.writeEditorInputs(ctx, cfg, editorInputs{
+		job:             j,
+		loadout:         loadout,
+		edit:            edit,
+		recordingResult: recordingResult,
+		music:           effectiveMusic,
+		musicKey:        musicKey,
+		musicPath:       musicPath,
+		musicVolume:     effectiveMusicVolume,
+		gameVolume:      gameVolume,
+	}, workDir)
+	if err != nil {
 		return err
 	}
-	if err := writeJSONFile(localRecordingResult, recordingResult); err != nil {
-		return fmt.Errorf("write localized recording result: %w", err)
-	}
-	localKillPlan := filepath.Join(workDir, "killplan.json")
-	if err := writeJSONFile(localKillPlan, j.KillPlan); err != nil {
-		return fmt.Errorf("write kill plan: %w", err)
-	}
-
-	outDir := filepath.Join(workDir, "out")
-	publishDir := filepath.Join(outDir, "shortslistosparasubir")
-	if err := w.writeEditDocument(outDir, j.ID, loadout, recordingResult, edit, effectiveMusic); err != nil {
-		return err
-	}
-	args := []string{
-		"--recording-result", localRecordingResult,
-		"--killplan", localKillPlan,
-		"--out", outDir,
-		"--publish-dir", publishDir,
-		"--preset", loadout.Preset,
-		"--output-format", edit.Format,
-		"--kill-effect", edit.KillEffect,
-		"--transition", edit.Transition,
-		"--hook=" + strconv.FormatBool(edit.HookText),
-		"--kill-counter=" + strconv.FormatBool(edit.KillCounter),
-		"--intro=" + strconv.FormatBool(edit.Intro),
-		"--outro=" + strconv.FormatBool(edit.Outro),
-	}
-	args = append(args, explicitCoverArgs(loadout, edit)...)
-	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(recordingResult))...)
-	if edit.FullDemo != nil {
-		ffmpeg := cfg.FFmpegPath
-		if ffmpeg == "" {
-			ffmpeg = recording.FindFFmpeg()
-		}
-		path, executionErr := w.materializeFullDemoExecution(ctx, j, *edit.FullDemo, workDir, ffmpeg)
-		if executionErr != nil {
-			return executionErr
-		}
-		args = append(args, fullDemoExecutionArgs(path)...)
-	}
-	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
-		return overlayErr
-	} else if overlayPath != "" {
-		args = append(args, "--full-demo-overlay", overlayPath)
-	}
-	if plateDir := overlayAssetsPlatesDir(w.storage); plateDir != "" {
-		args = append(args, "--overlay-assets", plateDir)
-	}
-	if edit.IntroText != "" {
-		args = append(args, "--intro-text", edit.IntroText)
-	}
-	if edit.OutroText != "" {
-		args = append(args, "--outro-text", edit.OutroText)
-	}
-	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
-		if family := strings.TrimSpace(edit.KeyDropFamily); family != "" {
-			args = append(args, "--keydrop-family", family)
-		}
-		args = append(args, "--keydrop-style", style)
-		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
-			args = append(args, "--keydrop-code", code)
-		}
-		if y := edit.KeyDropPositionY; y != nil {
-			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
-		}
-		if s := edit.KeyDropStartSeconds; s != nil {
-			args = append(args, "--keydrop-start", strconv.FormatFloat(*s, 'f', 6, 64))
-		}
-		if e := edit.KeyDropEndSeconds; e != nil {
-			args = append(args, "--keydrop-end", strconv.FormatFloat(*e, 'f', 6, 64))
-		}
-	}
-	if cfg.FFmpegPath != "" {
-		args = append(args, "--ffmpeg", cfg.FFmpegPath)
-	}
-	if encoder := studioRenderVideoEncoder(cfg.FFmpegPath); encoder != "" {
-		args = append(args, "--video-encoder", encoder)
-	}
-	if cfg.FFprobePath != "" {
-		args = append(args, "--ffprobe", cfg.FFprobePath)
-	}
-	if musicPath != "" {
-		args = append(
-			args,
-			"--music", musicPath,
-			"--music-volume", strconv.FormatFloat(effectiveMusicVolume, 'f', -1, 64),
-		)
-		if gameVolume != nil {
-			args = append(args, "--game-volume", strconv.FormatFloat(*gameVolume, 'f', -1, 64))
-		}
-	} else if musicKey != "" {
-		// Requested music is unavailable; render without it rather than fail.
-		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", musicKey, cfg.MusicDir))
-	}
-	if edit.VoiceComms && edit.FullDemo == nil {
-		voiceDir, err := w.prepareVoiceDir(j, workDir)
-		if err != nil {
-			return err
-		}
-		if voiceDir != "" {
-			args = append(args, "--voice-dir", voiceDir)
-			if edit.VoiceVolume != nil {
-				args = append(args, "--voice-volume", strconv.FormatFloat(*edit.VoiceVolume, 'f', -1, 64))
-			}
-		}
-	}
+	args, outDir, publishDir := invocation.args, invocation.outDir, invocation.publishDir
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
@@ -2559,6 +2435,147 @@ func durableRenderGallery(id uuid.UUID, variant string, revisionID uuid.UUID, re
 	}
 	b.WriteString("</body></html>")
 	return b.String()
+}
+
+// editorInputs is what one render hands to zv-editor, resolved from the render
+// request: the approved edit, the selected recording and the effective music.
+type editorInputs struct {
+	job             job.Job
+	loadout         renderplan.Loadout
+	edit            renderplan.EditRequest
+	recordingResult recording.RecordingResult
+	music           *renderplan.MusicSnapshot
+	musicKey        string
+	musicPath       string
+	musicVolume     float64
+	gameVolume      *float64
+}
+
+// editorInvocation is the zv-editor argument list plus the directories it
+// writes, all under the stage work directory.
+type editorInvocation struct {
+	args       []string
+	outDir     string
+	publishDir string
+}
+
+// writeEditorInputs materializes every editor input under workDir (localized
+// clips, recording result, kill plan, edit document, Full Demo execution and
+// overlays) and returns the editor arguments. A render runs them; the render
+// lab bundle stores them so a single stage can be replayed from the same inputs.
+func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerConfig, in editorInputs, workDir string) (editorInvocation, error) {
+	j, loadout, edit := in.job, in.loadout, in.edit
+	localRecordingResult := filepath.Join(workDir, "recording-result.json")
+	if err := localizeSegmentClips(w.storage, j.ID, workDir, &in.recordingResult); err != nil {
+		return editorInvocation{}, err
+	}
+	if err := writeJSONFile(localRecordingResult, in.recordingResult); err != nil {
+		return editorInvocation{}, fmt.Errorf("write localized recording result: %w", err)
+	}
+	localKillPlan := filepath.Join(workDir, "killplan.json")
+	if err := writeJSONFile(localKillPlan, j.KillPlan); err != nil {
+		return editorInvocation{}, fmt.Errorf("write kill plan: %w", err)
+	}
+
+	outDir := filepath.Join(workDir, "out")
+	publishDir := filepath.Join(outDir, "shortslistosparasubir")
+	if err := w.writeEditDocument(outDir, j.ID, loadout, in.recordingResult, edit, in.music); err != nil {
+		return editorInvocation{}, err
+	}
+	args := []string{
+		"--recording-result", localRecordingResult,
+		"--killplan", localKillPlan,
+		"--out", outDir,
+		"--publish-dir", publishDir,
+		"--preset", loadout.Preset,
+		"--output-format", edit.Format,
+		"--kill-effect", edit.KillEffect,
+		"--transition", edit.Transition,
+		"--hook=" + strconv.FormatBool(edit.HookText),
+		"--kill-counter=" + strconv.FormatBool(edit.KillCounter),
+		"--intro=" + strconv.FormatBool(edit.Intro),
+		"--outro=" + strconv.FormatBool(edit.Outro),
+	}
+	args = append(args, explicitCoverArgs(loadout, edit)...)
+	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(in.recordingResult))...)
+	if edit.FullDemo != nil {
+		ffmpeg := cfg.FFmpegPath
+		if ffmpeg == "" {
+			ffmpeg = recording.FindFFmpeg()
+		}
+		path, executionErr := w.materializeFullDemoExecution(ctx, j, *edit.FullDemo, workDir, ffmpeg)
+		if executionErr != nil {
+			return editorInvocation{}, executionErr
+		}
+		args = append(args, fullDemoExecutionArgs(path)...)
+	}
+	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
+		return editorInvocation{}, overlayErr
+	} else if overlayPath != "" {
+		args = append(args, "--full-demo-overlay", overlayPath)
+	}
+	if plateDir := overlayAssetsPlatesDir(w.storage); plateDir != "" {
+		args = append(args, "--overlay-assets", plateDir)
+	}
+	if edit.IntroText != "" {
+		args = append(args, "--intro-text", edit.IntroText)
+	}
+	if edit.OutroText != "" {
+		args = append(args, "--outro-text", edit.OutroText)
+	}
+	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
+		if family := strings.TrimSpace(edit.KeyDropFamily); family != "" {
+			args = append(args, "--keydrop-family", family)
+		}
+		args = append(args, "--keydrop-style", style)
+		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
+			args = append(args, "--keydrop-code", code)
+		}
+		if y := edit.KeyDropPositionY; y != nil {
+			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
+		}
+		if s := edit.KeyDropStartSeconds; s != nil {
+			args = append(args, "--keydrop-start", strconv.FormatFloat(*s, 'f', 6, 64))
+		}
+		if e := edit.KeyDropEndSeconds; e != nil {
+			args = append(args, "--keydrop-end", strconv.FormatFloat(*e, 'f', 6, 64))
+		}
+	}
+	if cfg.FFmpegPath != "" {
+		args = append(args, "--ffmpeg", cfg.FFmpegPath)
+	}
+	if encoder := studioRenderVideoEncoder(cfg.FFmpegPath); encoder != "" {
+		args = append(args, "--video-encoder", encoder)
+	}
+	if cfg.FFprobePath != "" {
+		args = append(args, "--ffprobe", cfg.FFprobePath)
+	}
+	if in.musicPath != "" {
+		args = append(
+			args,
+			"--music", in.musicPath,
+			"--music-volume", strconv.FormatFloat(in.musicVolume, 'f', -1, 64),
+		)
+		if in.gameVolume != nil {
+			args = append(args, "--game-volume", strconv.FormatFloat(*in.gameVolume, 'f', -1, 64))
+		}
+	} else if in.musicKey != "" {
+		// Requested music is unavailable; render without it rather than fail.
+		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", in.musicKey, cfg.MusicDir))
+	}
+	if edit.VoiceComms && edit.FullDemo == nil {
+		voiceDir, err := w.prepareVoiceDir(j, workDir)
+		if err != nil {
+			return editorInvocation{}, err
+		}
+		if voiceDir != "" {
+			args = append(args, "--voice-dir", voiceDir)
+			if edit.VoiceVolume != nil {
+				args = append(args, "--voice-volume", strconv.FormatFloat(*edit.VoiceVolume, 'f', -1, 64))
+			}
+		}
+	}
+	return editorInvocation{args: args, outDir: outDir, publishDir: publishDir}, nil
 }
 
 func (w *RenderWorker) writeEditDocument(outDir string, id uuid.UUID, loadout renderplan.Loadout, result recording.RecordingResult, edit renderplan.EditRequest, music *renderplan.MusicSnapshot) error {

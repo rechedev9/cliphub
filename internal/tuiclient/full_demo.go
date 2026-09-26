@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/google/uuid"
 )
@@ -67,6 +68,18 @@ func (c *Client) GenerateFullDemo(ctx context.Context, id string, edit json.RawM
 		SegmentIDs []string        `json:"segment_ids"`
 		Edit       json.RawMessage `json:"edit"`
 	}{"gameplay-pov-60", []string{}, edit}, &result)
+	return result, err
+}
+
+// PrepareRenderLabBundle asks the orchestrator to write the inputs of the
+// job's last render of variant for zv-editor lab. It renders nothing.
+func (c *Client) PrepareRenderLabBundle(ctx context.Context, id, variant string) (json.RawMessage, error) {
+	root, err := fullDemoJobPath(id)
+	if err != nil {
+		return nil, err
+	}
+	var result json.RawMessage
+	err = c.doJSON(ctx, http.MethodPost, root+"/renders/"+url.PathEscape(variant)+"/lab-bundle", nil, &result)
 	return result, err
 }
 

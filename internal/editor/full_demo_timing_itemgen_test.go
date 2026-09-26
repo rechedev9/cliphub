@@ -399,27 +399,6 @@ func fullDemoTimingSavedEntry(t *testing.T, short ShortEdit, item recapplan.Time
 	return entry
 }
 
-// fullDemoTimingExcerpt bounds an item to a coherent prefix: the global start
-// frame/sample and the source start tick stay exact, so the HUD window, source
-// trim and incoming transition remain the production ones; only the end is
-// shortened and clearly labelled.
-func fullDemoTimingExcerpt(item recapplan.TimelineItem, seconds float64) recapplan.TimelineItem {
-	fps := float64(recapplan.OutputFPS)
-	frames := int64(math.Round(seconds * fps))
-	sourceFrames := item.EndFrame - item.StartFrame
-	if frames <= 0 || frames > sourceFrames {
-		frames = sourceFrames
-	}
-	excerpt := item
-	excerpt.EndFrame = item.StartFrame + frames
-	excerpt.EndSample = item.StartSample + frames*int64(recapplan.SamplesPerFrame)
-	if sourceFrames > 0 {
-		tickSpan := item.SourceEndTick - item.SourceStartTick
-		excerpt.SourceEndTick = item.SourceStartTick + int(math.Round(float64(tickSpan)*float64(frames)/float64(sourceFrames)))
-	}
-	return excerpt
-}
-
 func fullDemoTimingEnvFloat(name string, fallback float64) float64 {
 	value := os.Getenv(name)
 	if value == "" {
