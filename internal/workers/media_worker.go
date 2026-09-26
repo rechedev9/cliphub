@@ -1899,9 +1899,6 @@ func (w *RenderWorker) HandleRenderVariant(ctx context.Context, t *asynq.Task) e
 
 func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest, segmentIDs []string) (err error) {
 	edit = renderplan.NormalizeEditRequest(edit)
-	if err := edit.Validate(); err != nil {
-		return err
-	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
 		return err
@@ -1913,12 +1910,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return fmt.Errorf("read render state: %w", err)
 	}
-	if previousState != nil && !renderplan.SameFullDemoRequest(previousState.FullDemo, edit.FullDemo) {
-		return &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Render payload differs from the current approved plan"}
-	}
 	// The request handler already published Queued and Studio polls that
 	// document for the outcome, so from here every failure must land in the
-	// durable render state or the reel stays queued forever.
+	// durable render state or the reel stays queued forever. That includes a
+	// payload the planner no longer admits, such as a Full Demo queued before
+	// an upgrade; the owned write below never touches another plan's state.
 	currentState := previousState
 	var result editor.Result
 	defer func() {
@@ -1942,6 +1938,12 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
 		}
 	}()
+	if err := edit.Validate(); err != nil {
+		return err
+	}
+	if previousState != nil && !renderplan.SameFullDemoRequest(previousState.FullDemo, edit.FullDemo) {
+		return &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Render payload differs from the current approved plan"}
+	}
 	recordingResult, err := readStoredRecordingResult(w.storage, j.ID)
 	if err != nil {
 		return err
