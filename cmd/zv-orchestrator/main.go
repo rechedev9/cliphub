@@ -301,6 +301,9 @@ func run() error {
 	} else if migrated > 0 {
 		log.Printf("startup: materialized %d legacy render states", migrated)
 	}
+	// The Players ELOs are refreshed from FACEIT once per start, in the
+	// background; list reads never call FACEIT.
+	handlers.StartFaceitRosterRefresh()
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {

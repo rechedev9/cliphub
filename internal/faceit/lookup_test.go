@@ -12,6 +12,42 @@ import (
 	"testing"
 )
 
+func TestLookupPlayerByIDTable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantELO int
+		wantErr error
+	}{
+		{name: "profile", status: http.StatusOK, body: `{"player_id":"player-1","nickname":"m0NESY","games":{"cs2":{"faceit_elo":4100}}}`, wantELO: 4100},
+		{name: "not found", status: http.StatusNotFound, body: `{}`, wantErr: ErrPlayerNotFound},
+		{name: "another player", status: http.StatusOK, body: `{"player_id":"player-2","nickname":"ZywOo"}`, wantErr: ErrInvalidResponse},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/players/player-1" {
+					t.Errorf("path = %q, want the id endpoint", r.URL.Path)
+				}
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+			client, err := New(Options{APIKey: "faceit-lookup-secret", BaseURL: server.URL, HTTPClient: server.Client()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			player, err := client.LookupPlayerByID(context.Background(), "player-1")
+			if !errors.Is(err, tt.wantErr) || player.ELO != tt.wantELO {
+				t.Fatalf("LookupPlayerByID = %#v, %v; want elo %d, err %v", player, err, tt.wantELO, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestLookupPlayerReturnsProfile(t *testing.T) {
 	t.Parallel()
 

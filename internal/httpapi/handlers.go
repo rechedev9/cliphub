@@ -143,6 +143,7 @@ type Handlers struct {
 	faceitFollows       *faceit.FollowStore
 	faceitSeeds         *faceit.SeedStore
 	faceitCache         faceitResponseCache
+	faceitRoster        faceitRosterRefresh
 	steamAvatarResolver steamAvatarResolver
 	steamResolver       *steamresolve.Service
 	steamTransport      steamresolve.Transport

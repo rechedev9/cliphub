@@ -105,17 +105,7 @@ func (s *FollowStore) Follow(player Player) (FollowedPlayer, error) {
 	if err != nil {
 		return FollowedPlayer{}, err
 	}
-	entry := FollowedPlayer{
-		ID:         player.ID,
-		Nickname:   player.Nickname,
-		Avatar:     player.Avatar,
-		ProfileURL: player.ProfileURL,
-		SteamID64:  player.SteamID64,
-		Country:    player.Country,
-		SkillLevel: player.SkillLevel,
-		ELO:        player.ELO,
-		FollowedAt: s.now().UTC(),
-	}
+	entry := followedEntry(player, s.now().UTC())
 	for i, existing := range players {
 		if existing.ID != player.ID {
 			continue
@@ -135,6 +125,58 @@ func (s *FollowStore) Follow(player Player) (FollowedPlayer, error) {
 		return FollowedPlayer{}, err
 	}
 	return entry, nil
+}
+
+// Refresh overwrites the stored profile (nickname, avatar, ELO, level) of
+// players the user still follows, keeping their order and FollowedAt. A
+// profile for someone unfollowed while it was being fetched is dropped, not
+// re-added.
+func (s *FollowStore) Refresh(fresh []Player) error {
+	if s == nil {
+		return errors.New("FACEIT follow store is not configured")
+	}
+	byID := make(map[string]Player, len(fresh))
+	for _, player := range fresh {
+		if ValidPlayerID(player.ID) && player.Nickname != "" {
+			byID[player.ID] = player
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	players, err := s.listLocked()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for i, existing := range players {
+		player, ok := byID[existing.ID]
+		if !ok {
+			continue
+		}
+		entry := followedEntry(player, existing.FollowedAt)
+		if entry != existing {
+			players[i] = entry
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return s.saveLocked(players)
+}
+
+func followedEntry(player Player, followedAt time.Time) FollowedPlayer {
+	return FollowedPlayer{
+		ID:         player.ID,
+		Nickname:   player.Nickname,
+		Avatar:     player.Avatar,
+		ProfileURL: player.ProfileURL,
+		SteamID64:  player.SteamID64,
+		Country:    player.Country,
+		SkillLevel: player.SkillLevel,
+		ELO:        player.ELO,
+		FollowedAt: followedAt,
+	}
 }
 
 func (s *FollowStore) Unfollow(playerID string) error {
