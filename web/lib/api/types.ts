@@ -369,6 +369,8 @@ export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 
 /** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
+/** Client code when a job never reached the awaited status within the poll budget. */
+export const JOB_WAIT_TIMEOUT_CODE = 'job_wait_timeout';
 /** Orchestrator 503 for a feature that is not set up; never the proxy's own code. */
 export const NOT_CONFIGURED_CODE = 'not_configured';
 export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';

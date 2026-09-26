@@ -7,7 +7,7 @@ import {
   type MusicChoice,
 } from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
-import { MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
+import { JOB_WAIT_TIMEOUT_CODE, MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
@@ -232,9 +232,11 @@ async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     const message = body && typeof body.error === 'string' ? body.error : `request failed (${res.status})`;
-    // Carry the backend's stable `code` so callers do not sniff the message.
-    const err = new Error(message) as Error & { code?: string };
+    // Carry the backend's stable `code` so callers do not sniff the message;
+    // `status` covers proxy rejections (403, 413) that answer without one.
+    const err = new Error(message) as Error & { code?: string; status?: number };
     if (body && typeof body.code === 'string') err.code = body.code;
+    err.status = res.status;
     throw err;
   }
   return (await res.json()) as T;
@@ -539,12 +541,18 @@ export class RealApiClient implements ApiClient {
   /** Polls /status until it reaches `want`; throws on `failed` or timeout. */
   private async waitForStatus(jobId: string, want: string, maxAttempts = 240): Promise<void> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const status = await this.fetchStatus(jobId);
-      if (status === want) return;
-      if (status === 'failed') throw new Error(`job ${jobId} failed`);
+      const view = await this.fetchStatusFull(jobId);
+      if (view?.status === want) return;
+      if (view?.status === 'failed') {
+        // Keep the worker's reason and code: the UI tells a CS:GO or corrupt
+        // demo apart from a transient failure only through them.
+        const err = new Error(view.failureReason ?? `job ${jobId} failed`) as Error & { code?: string };
+        if (view.failureCode) err.code = view.failureCode;
+        throw err;
+      }
       await sleep(800);
     }
-    throw new Error(`timed out waiting for ${want}`);
+    throw Object.assign(new Error(`timed out waiting for ${want}`), { code: JOB_WAIT_TIMEOUT_CODE });
   }
 
   /** Register a durable reel intent; reconcile drives record→render. */

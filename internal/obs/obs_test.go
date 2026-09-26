@@ -133,6 +133,18 @@ func TestClassOfTable(t *testing.T) {
 			want:    ClassDemoIncompatible,
 		},
 		{
+			// The roster scan wraps the parser error twice before it becomes
+			// the job's failure reason; the class must survive the wrapping.
+			name:    "demo_incompatible_wrapped",
+			message: "scan roster: parsing demo: demo_incompatible: invalid File-Type",
+			want:    ClassDemoIncompatible,
+		},
+		{
+			name:    "demo_incompatible_word_without_marker",
+			message: "render failed: demo_incompatible_flag unset",
+			want:    "",
+		},
+		{
 			name:    "unplayable_start_prefix",
 			message: "unplayable_start: CS2 crashed rewinding playdemo to tick 0",
 			want:    ClassUnplayableStart,

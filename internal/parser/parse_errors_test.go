@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -27,5 +28,25 @@ func TestParseToEndRecoversCorruptDemoPanic(t *testing.T) {
 	}
 	if !strings.HasPrefix(err.Error(), "demo_incompatible:") {
 		t.Fatalf("parseToEnd error = %q, want it to start with %q", err.Error(), "demo_incompatible:")
+	}
+}
+
+// TestParseToEndTagsParserErrorsAsDemoIncompatible covers the errors
+// demoinfocs returns instead of panicking. A CS:GO demo is the common real
+// case: v5 refuses it with ErrInvalidFileType, and before this tag the scan
+// failed with no failure code, so the user only saw "could not scan".
+func TestParseToEndTagsParserErrorsAsDemoIncompatible(t *testing.T) {
+	p := demoinfocs.NewParser(bytes.NewReader([]byte("HL2DEMO\x00legacy-csgo-demo")))
+	defer p.Close()
+
+	err := parseToEnd(p)
+	if err == nil {
+		t.Fatal("parseToEnd error = nil, want an error for a CS:GO demo")
+	}
+	if !strings.HasPrefix(err.Error(), "demo_incompatible:") {
+		t.Fatalf("parseToEnd error = %q, want it to start with %q", err.Error(), "demo_incompatible:")
+	}
+	if !errors.Is(err, demoinfocs.ErrInvalidFileType) {
+		t.Fatalf("parseToEnd error = %v, want it to wrap ErrInvalidFileType", err)
 	}
 }
