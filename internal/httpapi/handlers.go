@@ -152,6 +152,8 @@ type Handlers struct {
 	steamFetcher        *steamresolve.Fetcher
 	steamSessionMu      sync.Mutex
 	steamSessionCache   steamresolve.Session
+	labBundles          LabBundlePreparer
+	labBundleRoot       string
 }
 
 type Option func(*Handlers)

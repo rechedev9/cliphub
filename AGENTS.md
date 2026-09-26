@@ -199,6 +199,34 @@ Valve splash. advancedfx tracked it as issue #1216 and fixed it in official
   writes `ffmpeg/ffmpeg.ini` at runtime. Compute the digest over a fresh
   `Expand-Archive` of the release zip.
 
+## Full Demo render lab (`zv-editor lab`, 2026-09-26)
+
+A full render takes 20+ minutes, so check a render change one stage at a
+time first. The lab replays the inputs of a job's last render of a variant:
+
+1. With Studio (or `zv serve`) running, `zv full-demo lab-bundle --job <uuid>`
+   writes `<data>/lab/<job>-gameplay-pov-60/` with the localized clips, the
+   Full Demo execution and `editor-args.json`. It copies the clips (about 5 GB
+   for a full match), needs one earlier render of the variant, and never
+   renders or writes render state.
+2. `zv-editor lab <mode> --bundle <dir>` runs one stage through the production
+   code and writes `lab-evidence.json` under `<bundle>/lab-work/`:
+   - `plan`: timeline items, overlay windows, transitions, clamped loudness
+     targets. No FFmpeg.
+   - `commands`: every FFmpeg argv of the program, built but not run.
+   - `item --index N --seconds 8`: renders one item prefix with the
+     production command and measures frames against expected, bitrate,
+     `blackdetect`/`signalstats` luma and loudness, plus three PNG stills.
+   - `audio`: program audio and the real master/AAC recovery loop over a
+     black placeholder video; lists every master target and measurement.
+   - `delivery --file <mp4>`: strict delivery check plus the same
+     measurements on any delivered file.
+
+- Use `item` and `audio` as the runtime evidence for a render change, and
+  look at the stills: a decodable file is not proof the game is visible.
+- A change the lab cannot reach (capture, HLAE, publication) still needs a
+  real render.
+
 ## Render QA warnings are informational (2026-09-25)
 
 Renders and compositions with QA warnings used to park in `review_required`

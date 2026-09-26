@@ -209,8 +209,9 @@ func run() error {
 		taskHandlers[tasks.TypeComposeFinal] = composeWorker.HandleComposeFinal
 		log.Printf("worker: compose enabled")
 	}
+	var labBundles httpapi.LabBundlePreparer
 	if cfg.renderWorkerEnabled() {
-		renderWorker := workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
+		renderWorker :=workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			EditorPath:  cfg.EditorPath,
 			FFmpegPath:  cfg.FFmpegPath,
@@ -221,6 +222,7 @@ func run() error {
 		})
 		renderWorker.UseGenerateIntentStore(generateIntents)
 		taskHandlers[tasks.TypeRenderVariant] = renderWorker.HandleRenderVariant
+		labBundles = renderWorker
 		log.Printf("worker: render enabled")
 	}
 	if cfg.streamRenderWorkerEnabled() && streamRepo != nil {
@@ -282,6 +284,7 @@ func run() error {
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
 		httpapi.WithMusicDir(cfg.MusicDir),
+		httpapi.WithLabBundles(labBundles, filepath.Join(cfg.DataDir, "lab")),
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),

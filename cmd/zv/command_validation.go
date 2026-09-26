@@ -29,8 +29,8 @@ func validateSkillCommand(command []string) string {
 	case "verify":
 		return validateVerifyCommand(command[1:])
 	case "full-demo":
-		if len(command) < 2 || !containsString([]string{"defaults", "import", "asset", "plan", "inspect", "execute"}, command[1]) {
-			return `expected full-demo defaults, import, asset, plan, inspect, or execute`
+		if len(command) < 2 || !containsString([]string{"defaults", "import", "asset", "plan", "inspect", "execute", "lab-bundle"}, command[1]) {
+			return `expected full-demo defaults, import, asset, plan, inspect, execute, or lab-bundle`
 		}
 		if issue := validateRequiredFlags(fmt.Sprintf("%q", "full-demo "+command[1]), command[2:], requiredFlagsForRunArgs("full-demo", command[1])...); issue != "" {
 			return issue
@@ -597,6 +597,8 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--out", "--format")
 	case `"full-demo import"`, `"full-demo asset"`, `"full-demo plan"`, `"full-demo execute"`:
 		flags = append(flags, "--url", "--format")
+	case `"full-demo lab-bundle"`:
+		flags = append(flags, "--variant", "--url", "--format")
 	case `"full-demo inspect"`:
 		flags = append(flags, "--plan", "--job", "--document", "--out", "--url", "--format")
 	case `"demo parse"`:
@@ -713,7 +715,7 @@ func commandValueFlags(commandName string, required []string) []string {
 
 func commandBoolFlags(commandName string) []string {
 	switch commandName {
-	case `"full-demo import"`, `"full-demo asset"`, `"full-demo plan"`:
+	case `"full-demo import"`, `"full-demo asset"`, `"full-demo plan"`, `"full-demo lab-bundle"`:
 		return []string{"--dry-run"}
 	case `"full-demo execute"`:
 		return []string{"--dry-run", "--allow-safe-tail-trim"}

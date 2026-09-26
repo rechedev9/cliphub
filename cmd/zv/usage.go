@@ -29,6 +29,7 @@ Usage:
   zv full-demo plan --job <uuid> --options <options.json> --out <plan.json> [--dry-run] [--format text|json]
   zv full-demo inspect --plan <plan.json> [--format text|json]
   zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true [--dry-run] [--format text|json]
+  zv full-demo lab-bundle --job <uuid> [--variant gameplay-pov-60] [--dry-run] [--format text|json]
   zv utility audit [zv-parser utility-audit flags]
   zv record [zv-recorder flags]
   zv compose final [zv-composer flags]
