@@ -2156,7 +2156,7 @@ func (h *Handlers) readRenderVariantDocument(key string) (*renderplan.EditDocume
 		return nil, err
 	}
 	edit := renderplan.NormalizeEditRequest(document.Edit)
-	if err := edit.Validate(); err != nil {
+	if err := edit.ValidateRendered(); err != nil {
 		return nil, err
 	}
 	document.Edit = edit
