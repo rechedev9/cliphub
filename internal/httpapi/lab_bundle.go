@@ -45,6 +45,11 @@ func (h *Handlers) PrepareRenderLabBundle(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !h.labBundleMu.TryLock() {
+		writeError(w, http.StatusConflict, "another render lab bundle is being written; retry when it finishes")
+		return
+	}
+	defer h.labBundleMu.Unlock()
 	// Copying a Full Demo capture takes longer than the control response
 	// deadline; the request stays bounded by the caller's context.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Minute))

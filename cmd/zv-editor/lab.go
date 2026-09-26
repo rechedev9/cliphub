@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -16,10 +17,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 )
 
-// labBundleFile is written by the orchestrator next to the render inputs it
-// materializes: the exact editor arguments a render of that job would run.
-const labBundleFile = "editor-args.json"
-
+// labBundle is the editor.LabBundleFile the orchestrator writes next to the
+// render inputs it materializes: the exact editor arguments a render of that
+// job would run.
 type labBundle struct {
 	SchemaVersion string            `json:"schema_version"`
 	Args          []string          `json:"args"`
@@ -49,7 +49,7 @@ func runLab(args []string) error {
 	}
 	mode := args[0]
 	fs := flag.NewFlagSet("zv-editor lab "+mode, flag.ExitOnError)
-	bundleDir := fs.String("bundle", "", "render input bundle directory containing "+labBundleFile)
+	bundleDir := fs.String("bundle", "", "render input bundle directory containing "+editor.LabBundleFile)
 	workDir := fs.String("work-dir", "", "directory kept for lab media, logs and lab-evidence.json; defaults to <bundle>/lab-work/<mode>-<time>")
 	index := fs.Int("index", 0, "item mode: timeline item index, as listed by the plan mode")
 	seconds := fs.Float64("seconds", 8, "item mode: render only this many seconds from the item start; 0 renders the whole item")
@@ -82,7 +82,7 @@ func runLab(args []string) error {
 	}
 	parsed, err := parseEditorArgs(bundle.Args, flag.ContinueOnError)
 	if err != nil {
-		return fmt.Errorf("replay %s: %w", labBundleFile, err)
+		return fmt.Errorf("replay %s: %w", editor.LabBundleFile, err)
 	}
 	dir := *workDir
 	if dir == "" {
@@ -93,7 +93,7 @@ func runLab(args []string) error {
 	evidence, labErr := editor.Lab(ctx, parsed.config, editor.LabOptions{Mode: mode, WorkDir: dir, Index: *index, Seconds: *seconds, File: *file})
 	evidencePath := filepath.Join(dir, "lab-evidence.json")
 	if err := writeLabEvidence(evidencePath, evidence); err != nil {
-		return err
+		return errors.Join(labErr, err)
 	}
 	if *format == "json" {
 		encoder := json.NewEncoder(os.Stdout)
@@ -110,7 +110,7 @@ func runLab(args []string) error {
 }
 
 func readLabBundle(dir string) (labBundle, error) {
-	path := filepath.Join(dir, labBundleFile)
+	path := filepath.Join(dir, editor.LabBundleFile)
 	// #nosec G304 -- the bundle directory is an explicit local CLI input.
 	body, err := os.ReadFile(path)
 	if err != nil {

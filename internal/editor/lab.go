@@ -24,6 +24,10 @@ const (
 	LabModeDelivery = "delivery"
 )
 
+// LabBundleFile names the editor arguments inside a render lab bundle: the
+// orchestrator writes it and zv-editor lab replays it.
+const LabBundleFile = "editor-args.json"
+
 // LabModes lists the supported modes in the order the CLI documents them.
 func LabModes() []string {
 	return []string{LabModePlan, LabModeCommands, LabModeItem, LabModeAudio, LabModeDelivery}
@@ -137,8 +141,10 @@ type LabDeliveryEvidence struct {
 	Media   LabMediaEvidence          `json:"media"`
 }
 
-// Lab prepares the render inputs exactly as Run does, attaches the Full Demo
-// execution and runs one stage. It never renders the whole program.
+// Lab prepares the render inputs as a dry-run Run does, attaches the Full Demo
+// execution and runs one stage. It never renders the whole program. Dry run
+// still verifies the clips' content hashes but takes their frame counts from
+// the stored recording instead of probing them again.
 func Lab(ctx context.Context, cfg Config, opts LabOptions) (LabEvidence, error) {
 	started := time.Now()
 	evidence := LabEvidence{Mode: opts.Mode}
@@ -178,42 +184,25 @@ func Lab(ctx context.Context, cfg Config, opts LabOptions) (LabEvidence, error) 
 		return fail(err)
 	}
 	evidence.TailPads = short.FullDemo.CaptureTailPads
+	// Partial stage evidence is kept on failure: it points at the logs.
+	var stageErr error
 	switch opts.Mode {
 	case LabModePlan:
 		plan := labPlan(short)
 		evidence.Plan = &plan
 	case LabModeCommands:
-		commands, err := labCommands(ctx, &short)
-		if err != nil {
-			return fail(err)
-		}
-		evidence.Commands = commands
+		evidence.Commands, stageErr = labCommands(ctx, &short)
 	case LabModeItem:
-		item, err := labItem(ctx, &short, in.ffprobePath, opts)
-		if item != nil {
-			evidence.Item = item
-		}
-		if err != nil {
-			return fail(err)
-		}
+		evidence.Item, stageErr = labItem(ctx, &short, in.ffprobePath, opts)
 	case LabModeAudio:
-		audio, err := labAudio(ctx, &short, workDir)
-		if audio != nil {
-			evidence.Audio = audio
-		}
-		if err != nil {
-			return fail(err)
-		}
+		evidence.Audio, stageErr = labAudio(ctx, &short, workDir)
 	case LabModeDelivery:
-		delivery, err := labDelivery(ctx, short, in.ffprobePath, opts.File, workDir)
-		if delivery != nil {
-			evidence.Delivery = delivery
-		}
-		if err != nil {
-			return fail(err)
-		}
+		evidence.Delivery, stageErr = labDelivery(ctx, short, in.ffprobePath, opts.File, workDir)
 	default:
-		return fail(fmt.Errorf("unknown lab mode %q", opts.Mode))
+		stageErr = fmt.Errorf("unknown lab mode %q", opts.Mode)
+	}
+	if stageErr != nil {
+		return fail(stageErr)
 	}
 	evidence.ElapsedMS = time.Since(started).Milliseconds()
 	return evidence, nil
@@ -295,8 +284,9 @@ func labCommands(ctx context.Context, short *ShortEdit) (*LabCommands, error) {
 	programAudio := fullDemoProgramAudioPath(*short)
 	commands.ProgramAudio = buildFullDemoProgramAudioMeasuredCommand(short.fullDemo.ffmpeg, audioList, programAudio, target)
 	duration := short.DurationSeconds
-	candidate := short.Output + ".candidate.m4a"
-	filter := loudnessFilter(aacHeadroomTarget(target)) + ":measured_I=<program>:measured_TP=<program>:measured_LRA=<program>:measured_thresh=<program>:offset=<program>:linear=true"
+	candidate := filepath.Join(filepath.Dir(short.Output), "full-demo-audio-candidate.m4a")
+	const measured = "<program>"
+	filter := measuredLoudnessFilterText(aacHeadroomTarget(target), measured, measured, measured, measured, measured)
 	commands.FirstMaster = fullDemoNativeCandidateCommand(short.fullDemo.ffmpeg, programAudio, candidate, filter, int64(math.Round(duration*recapplan.SampleRate)), duration)
 	commands.FinalMux = fullDemoFinalMuxCommand(short.fullDemo.ffmpeg, fullDemoProgramPath(*short), candidate, short.Output)
 	return commands, nil

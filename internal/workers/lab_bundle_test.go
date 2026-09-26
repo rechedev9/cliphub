@@ -120,11 +120,11 @@ func TestLabBundleReplaysTheLastRenderInputsWithoutTouchingRenderState(t *testin
 		t.Fatalf("bundle args differ from the render's editor args\n got %q\nwant %q", bundle.Args, want)
 	}
 	var onDisk LabBundle
-	if err := readJSONFile(filepath.Join(dir, LabBundleFile), &onDisk); err != nil {
+	if err := readJSONFile(filepath.Join(dir, editor.LabBundleFile), &onDisk); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(onDisk.Args, bundle.Args) {
-		t.Fatalf("%s args = %q, want %q", LabBundleFile, onDisk.Args, bundle.Args)
+		t.Fatalf("%s args = %q, want %q", editor.LabBundleFile, onDisk.Args, bundle.Args)
 	}
 	var localized recording.RecordingResult
 	if err := readJSONFile(argValue(bundle.Args, "--recording-result"), &localized); err != nil {

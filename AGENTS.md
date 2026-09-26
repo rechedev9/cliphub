@@ -213,7 +213,8 @@ time first. The lab replays the inputs of a job's last render of a variant:
    code and writes `lab-evidence.json` under `<bundle>/lab-work/`:
    - `plan`: timeline items, overlay windows, transitions, clamped loudness
      targets. No FFmpeg.
-   - `commands`: every FFmpeg argv of the program, built but not run.
+   - `commands`: every FFmpeg argv of the program, built but not run; only
+     the transition motion probe runs, as it does before a render.
    - `item --index N --seconds 8`: renders one item prefix with the
      production command and measures frames against expected, bitrate,
      `blackdetect`/`signalstats` luma and loudness, plus three PNG stills.
@@ -226,6 +227,8 @@ time first. The lab replays the inputs of a job's last render of a variant:
   look at the stills: a decodable file is not proof the game is visible.
 - A change the lab cannot reach (capture, HLAE, publication) still needs a
   real render.
+- Nothing deletes `<data>/lab`, not even deleting the job; remove old
+  bundles by hand.
 
 ## Render QA warnings are informational (2026-09-25)
 

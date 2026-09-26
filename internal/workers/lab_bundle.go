@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -67,10 +68,6 @@ func (w *RenderWorker) resolveRenderRequest(ctx context.Context, cfg RenderWorke
 	return resolved, nil
 }
 
-// LabBundleFile names the editor arguments inside a render lab bundle; the
-// zv-editor lab command replays them.
-const LabBundleFile = "editor-args.json"
-
 // LabBundle describes a render input bundle written by PrepareLabBundle.
 type LabBundle struct {
 	SchemaVersion   string    `json:"schema_version"`
@@ -90,8 +87,8 @@ var labBundleEnv = []string{"ZV_OVERLAY_RENDERER_PATH"}
 
 // PrepareLabBundle writes into dir the editor inputs a render of the job's
 // last committed revision of variant would receive, and the editor arguments
-// as LabBundleFile. It replays that revision's edit document, so it needs one
-// earlier render of the variant. It never enqueues, runs or records a render:
+// as editor.LabBundleFile. It replays that revision's edit document, so it
+// needs one earlier render of the variant. It never enqueues, runs or records a render:
 // the render state is only read.
 func (w *RenderWorker) PrepareLabBundle(ctx context.Context, id uuid.UUID, variant, dir string) (LabBundle, error) {
 	loadout, err := renderplan.LoadoutForVariant(variant)
@@ -163,7 +160,7 @@ func (w *RenderWorker) PrepareLabBundle(ctx context.Context, id uuid.UUID, varia
 			bundle.Env[name] = value
 		}
 	}
-	if err := writeJSONFile(filepath.Join(dir, LabBundleFile), bundle); err != nil {
+	if err := writeJSONFile(filepath.Join(dir, editor.LabBundleFile), bundle); err != nil {
 		return LabBundle{}, err
 	}
 	return bundle, nil

@@ -211,7 +211,7 @@ func run() error {
 	}
 	var labBundles httpapi.LabBundlePreparer
 	if cfg.renderWorkerEnabled() {
-		renderWorker :=workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
+		renderWorker := workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			EditorPath:  cfg.EditorPath,
 			FFmpegPath:  cfg.FFmpegPath,
