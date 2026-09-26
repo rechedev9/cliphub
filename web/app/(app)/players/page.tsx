@@ -22,8 +22,7 @@ type LoadState = 'loading' | 'ready' | 'offline' | 'unconfigured';
 
 const FACEIT_UNCONFIGURED_HINT = 'La conexión con FACEIT no está activada en este PC. Puedes cargar una demo descargada desde una sala de FACEIT para empezar a crear.';
 const FACEIT_OFFLINE_HINT = 'Servicio local sin conexión.';
-// The service refreshes stale ELOs in the background on a list read; poll to pick them up while the page is open.
-const ROSTER_POLL_MS = 60_000;
+// The service refreshes the ELOs once when Studio starts; while that runs, re-read the list to pick up the result.
 const ROSTER_REFRESHING_POLL_MS = 5_000;
 const WORKSPACE_GRID = 'grid min-w-0 items-start gap-5 @[64rem]/content:grid-cols-[19rem_minmax(0,1fr)] @[80rem]/content:gap-6';
 
@@ -70,14 +69,9 @@ export default function PlayersPage(): ReactNode {
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (state !== 'ready') return;
-    const poll = (): void => { if (document.visibilityState === 'visible') void refresh(true); };
-    const timer = window.setInterval(poll, rosterRefreshing ? ROSTER_REFRESHING_POLL_MS : ROSTER_POLL_MS);
-    document.addEventListener('visibilitychange', poll);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', poll);
-    };
+    if (state !== 'ready' || !rosterRefreshing) return;
+    const timer = window.setInterval(() => { void refresh(true); }, ROSTER_REFRESHING_POLL_MS);
+    return () => { window.clearInterval(timer); };
   }, [state, rosterRefreshing, refresh]);
 
   useEffect(() => {

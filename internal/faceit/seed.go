@@ -148,8 +148,8 @@ func (s *SeedStore) Document() SeedDocument {
 
 // Refresh replaces the on-disk roster with the live top `limit` of every zone.
 // Document never calls it: it fans out to every zone ladder (about 160
-// requests), so the orchestrator runs it in the background when a Players
-// list read finds the roster stale (httpapi faceitRosterMaxAge).
+// requests), so the orchestrator runs it once in the background at startup
+// (httpapi StartFaceitRosterRefresh).
 func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (SeedDocument, error) {
 	if s == nil {
 		return SeedDocument{}, errors.New("FACEIT seed roster store is not configured")

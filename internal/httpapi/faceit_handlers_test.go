@@ -366,17 +366,19 @@ func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
 }
 
 // The Players list used to show the ELO zones_default.json shipped with and
-// the ELO a followed player had when followed, forever. A list read on a
-// stale roster must refresh both in the background, once per
-// faceitRosterMaxAge, and a failed refresh must not retry on every poll.
-func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
+// the ELO a followed player had when followed, forever. The startup refresh
+// must update both in the background; a list read must never reach FACEIT,
+// and a failed refresh must keep the last good roster.
+func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 	t.Parallel()
-	var rankingHits atomic.Int32
+	var faceitHits atomic.Int32
 	var failRankings atomic.Bool
+	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		faceitHits.Add(1)
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/rankings/games/cs2/regions/"):
-			rankingHits.Add(1)
+			<-release
 			if failRankings.Load() {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -397,7 +399,6 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	// Relative to the shipped roster, so regenerating zones_default.json cannot make it look fresh.
 	now := faceit.DefaultSeed().GeneratedAt.Add(time.Hour)
 	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
 		Now: func() time.Time { return now }})
@@ -418,8 +419,6 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(client, follows), WithFaceitSeeds(seeds))
-	clock := now
-	h.faceitCache.now = func() time.Time { return clock }
 	router := Routes(h)
 	list := func() (bool, time.Time, []listedFaceitPlayer) {
 		t.Helper()
@@ -436,16 +435,21 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 		return body.Refreshing, body.UpdatedAt, body.Players
 	}
 
-	// The embedded roster predates the clock: the read serves it and starts a refresh.
-	refreshing, updatedAt, _ := list()
-	if !refreshing || !updatedAt.Equal(faceit.DefaultSeed().GeneratedAt) {
-		t.Fatalf("first list refreshing=%v updated_at=%v, want a refresh of the embedded roster", refreshing, updatedAt)
+	// A list read alone serves the embedded roster and never calls FACEIT.
+	if refreshing, updatedAt, _ := list(); refreshing || !updatedAt.Equal(faceit.DefaultSeed().GeneratedAt) || faceitHits.Load() != 0 {
+		t.Fatalf("list before startup refresh: refreshing=%v updated_at=%v hits=%d", refreshing, updatedAt, faceitHits.Load())
 	}
+
+	h.StartFaceitRosterRefresh()
+	if refreshing, _, _ := list(); !refreshing {
+		t.Fatal("list during the startup refresh reports refreshing=false")
+	}
+	close(release)
 	h.faceitRoster.wg.Wait()
 
 	refreshing, updatedAt, players := list()
 	if refreshing || !updatedAt.Equal(now) {
-		t.Fatalf("second list refreshing=%v updated_at=%v, want the fresh roster at %v", refreshing, updatedAt, now)
+		t.Fatalf("list after refresh: refreshing=%v updated_at=%v, want the fresh roster at %v", refreshing, updatedAt, now)
 	}
 	if len(players) != 2 || players[0].ID != "player-1" || players[0].Nickname != "m0NESY-renamed" || players[0].ELO != 4123 ||
 		players[0].Avatar != steamAvatar {
@@ -454,25 +458,17 @@ func TestFollowedListRefreshesStaleEloInTheBackground(t *testing.T) {
 	if players[1].ID != "cis-1" || !players[1].Seeded || players[1].ELO != 4801 {
 		t.Fatalf("seeded row = %#v, want the live zone ladder", players[1])
 	}
-
-	// Fresh: no FACEIT traffic until the roster is faceitRosterMaxAge old.
-	hits := rankingHits.Load()
-	clock = now.Add(faceitRosterMaxAge - time.Second)
-	if refreshing, _, _ := list(); refreshing || rankingHits.Load() != hits {
-		t.Fatalf("fresh list refreshing=%v ranking hits %d -> %d, want none", refreshing, hits, rankingHits.Load())
+	hits := faceitHits.Load()
+	if list(); faceitHits.Load() != hits {
+		t.Fatalf("list after refresh reached FACEIT: hits %d -> %d", hits, faceitHits.Load())
 	}
 
-	// A failed refresh keeps the last roster and waits a full interval.
+	// A failed refresh (the next start) keeps the last good roster.
 	failRankings.Store(true)
-	clock = now.Add(faceitRosterMaxAge)
-	if refreshing, _, _ := list(); !refreshing {
-		t.Fatal("stale list did not refresh")
-	}
+	h.StartFaceitRosterRefresh()
 	h.faceitRoster.wg.Wait()
-	hits = rankingHits.Load()
-	clock = clock.Add(faceitRosterMaxAge - time.Second)
-	if refreshing, updatedAt, _ := list(); refreshing || rankingHits.Load() != hits || !updatedAt.Equal(now) {
-		t.Fatalf("after failure refreshing=%v updated_at=%v hits %d -> %d, want the last roster and no retry", refreshing, updatedAt, hits, rankingHits.Load())
+	if _, updatedAt, players := list(); !updatedAt.Equal(now) || players[1].ELO != 4801 {
+		t.Fatalf("after failed refresh updated_at=%v players=%#v, want the last roster", updatedAt, players)
 	}
 }
 

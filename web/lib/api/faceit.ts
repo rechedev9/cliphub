@@ -73,7 +73,7 @@ export type FaceitMatch = {
 export type FaceitFollowedList = {
   enabled: boolean;
   players: FaceitFollowedPlayer[];
-  /** The local service is fetching fresh zone rosters and followed profiles in the background. */
+  /** The local service is running its startup refresh of the zone rosters and followed profiles. */
   refreshing: boolean;
   /** When the listed ELOs were read from FACEIT, in epoch milliseconds; 0 when unknown. */
   updatedAt: number;

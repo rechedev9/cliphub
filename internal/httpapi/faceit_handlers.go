@@ -110,7 +110,6 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	seed := h.faceitSeeds.Document()
-	refreshing := h.refreshFaceitRosterIfStale(seed.GeneratedAt)
 	players, err := h.faceitFollows.Roster(seed)
 	if err != nil {
 		internalError(w, "list followed FACEIT players", err)
@@ -127,7 +126,7 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enabled":    h.faceitEnabled(),
 		"players":    players,
-		"refreshing": refreshing,
+		"refreshing": h.faceitRosterRefreshing(),
 		"updated_at": seed.GeneratedAt,
 	})
 }
