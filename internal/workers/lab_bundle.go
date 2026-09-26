@@ -81,10 +81,6 @@ type LabBundle struct {
 	Env map[string]string `json:"env,omitempty"`
 }
 
-// labBundleEnv lists the environment variables the editor reads during a
-// render that Studio sets on the orchestrator.
-var labBundleEnv = []string{"ZV_OVERLAY_RENDERER_PATH"}
-
 // PrepareLabBundle writes into dir the editor inputs a render of the job's
 // last committed revision of variant would receive, and the editor arguments
 // as editor.LabBundleFile. It replays that revision's edit document, so it
@@ -151,15 +147,7 @@ func (w *RenderWorker) PrepareLabBundle(ctx context.Context, id uuid.UUID, varia
 	if err != nil {
 		return LabBundle{}, err
 	}
-	bundle := LabBundle{SchemaVersion: "1.0", JobID: id, Variant: variant, EditDocumentKey: state.EditDocumentKey, Dir: dir, Args: invocation.args}
-	for _, name := range labBundleEnv {
-		if value := os.Getenv(name); value != "" {
-			if bundle.Env == nil {
-				bundle.Env = map[string]string{}
-			}
-			bundle.Env[name] = value
-		}
-	}
+	bundle := LabBundle{SchemaVersion: "1.0", JobID: id, Variant: variant, EditDocumentKey: state.EditDocumentKey, Dir: dir, Args: invocation.args, Env: editor.LabBundleEnv()}
 	if err := writeJSONFile(filepath.Join(dir, editor.LabBundleFile), bundle); err != nil {
 		return LabBundle{}, err
 	}

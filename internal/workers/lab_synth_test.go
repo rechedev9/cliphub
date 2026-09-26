@@ -56,7 +56,14 @@ func TestSyntheticLabBundleArgumentsMatchAFullDemoRender(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	result, _, _ := fullDemoPublicationFixture(t, "clip")
+	// Two rounds, so the multi-segment compile arguments are compared too.
+	result, _, _ := fullDemoPublicationFixture(t, "clip", func(f *recapplan.Facts, _ *recapplan.Options) {
+		f.Rounds[0].NextStartTick = 1300
+		f.Rounds = append(f.Rounds, recapplan.RoundFacts{ID: "round-002", Number: 2, StartTick: 1300, FreezeEndTick: 1600, RoundEndTick: 1950, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}})
+	})
+	if segments := len(result.Plan.Segments); segments < 2 {
+		t.Fatalf("fixture has %d segments; the multi-segment arguments would go unchecked", segments)
+	}
 	store := newFakeStorage()
 	id := uuid.New()
 	for _, artifact := range result.Artifacts {
@@ -96,7 +103,7 @@ func TestSyntheticLabBundleArgumentsMatchAFullDemoRender(t *testing.T) {
 		t.Fatalf("Full Demo editor inputs: %v", err)
 	}
 
-	synth, err := editor.SynthLabBundle(ctx, editor.LabSynthOptions{Rounds: 1, Dir: filepath.Join(t.TempDir(), "synth"), FFmpeg: ffmpeg, Width: 64, Height: 36})
+	synth, err := editor.SynthLabBundle(ctx, editor.LabSynthOptions{Rounds: 2, Dir: filepath.Join(t.TempDir(), "synth"), FFmpeg: ffmpeg, Width: 64, Height: 36})
 	if err != nil {
 		t.Fatalf("synthetic bundle: %v", err)
 	}

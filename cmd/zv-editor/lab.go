@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,9 +135,13 @@ func runLabSynth(args []string) error {
 	}
 	opts := editor.LabSynthOptions{PlanPath: *plan, Rounds: *rounds, Dir: *out, FFmpeg: *ffmpeg}
 	if *size != "" {
-		if _, err := fmt.Sscanf(strings.ToLower(*size), "%dx%d", &opts.Width, &opts.Height); err != nil {
+		w, h, found := strings.Cut(strings.ToLower(*size), "x")
+		width, widthErr := strconv.Atoi(w)
+		height, heightErr := strconv.Atoi(h)
+		if !found || widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
 			return fmt.Errorf("--size %q must be WxH, e.g. 640x360", *size)
 		}
+		opts.Width, opts.Height = width, height
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

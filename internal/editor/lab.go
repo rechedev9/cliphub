@@ -28,6 +28,25 @@ const (
 // orchestrator writes it and zv-editor lab replays it.
 const LabBundleFile = "editor-args.json"
 
+// labBundleEnvNames lists the environment variables the editor reads during a
+// render that Studio sets on the orchestrator.
+var labBundleEnvNames = []string{"ZV_OVERLAY_RENDERER_PATH"}
+
+// LabBundleEnv returns the set values of the environment variables a render
+// lab bundle records for the editor, or nil when none is set.
+func LabBundleEnv() map[string]string {
+	var env map[string]string
+	for _, name := range labBundleEnvNames {
+		if value := os.Getenv(name); value != "" {
+			if env == nil {
+				env = map[string]string{}
+			}
+			env[name] = value
+		}
+	}
+	return env
+}
+
 // LabModes lists the supported modes in the order the CLI documents them.
 func LabModes() []string {
 	return []string{LabModePlan, LabModeCommands, LabModeItem, LabModeAudio, LabModeDelivery}

@@ -20,6 +20,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
 // LabModeSynth writes a synthetic render input bundle instead of running a
@@ -72,7 +73,7 @@ func SynthLabBundle(ctx context.Context, opts LabSynthOptions) (LabSynthBundle, 
 			rounds = labSynthDefaultRounds
 		}
 		snapshot, err = labSynthSnapshot(rounds)
-		source = fmt.Sprintf("built-in synthetic demo, %d rounds", rounds)
+		source = fmt.Sprintf("built-in synthetic demo (rounds: %d)", rounds)
 	} else {
 		snapshot, err = readLabSynthPlan(opts.PlanPath)
 	}
@@ -85,6 +86,9 @@ func SynthLabBundle(ctx context.Context, opts LabSynthOptions) (LabSynthBundle, 
 	}
 	if refs := d.Options.AssetReferences(); len(refs) > 0 {
 		return LabSynthBundle{}, fmt.Errorf("synthetic bundles cannot supply the plan's %d media assets (music, bumpers or overlay images); use a plan without them or a real bundle", len(refs))
+	}
+	if (d.Options.Overlays.Roster || d.Options.Overlays.Scoreboard) && demooverlay.UsesFACEITEnrichment(d.Options.OverlaySource()) {
+		return LabSynthBundle{}, fmt.Errorf("synthetic bundles cannot supply the FACEIT match data a %q overlay needs; use a plan from a plain demo or a real bundle", d.Options.OverlaySource())
 	}
 	ffmpeg := opts.FFmpeg
 	if ffmpeg == "" {
@@ -105,6 +109,12 @@ func SynthLabBundle(ctx context.Context, opts LabSynthOptions) (LabSynthBundle, 
 	if err := os.MkdirAll(filepath.Join(dir, "segments"), 0o750); err != nil {
 		return LabSynthBundle{}, err
 	}
+	// A bundle rewritten in place is only replayable once it is complete: drop
+	// the previous editor arguments first, so an interrupted run cannot leave
+	// them pointing at half-regenerated captures.
+	if err := os.Remove(filepath.Join(dir, LabBundleFile)); err != nil && !os.IsNotExist(err) {
+		return LabSynthBundle{}, err
+	}
 
 	base := killplan.NewPlan()
 	base.Demo = killplan.Demo{SHA256: d.Input.DemoSHA256, Map: labSynthMap, Tickrate: d.Clock.TickRate}
@@ -120,7 +130,7 @@ func SynthLabBundle(ctx context.Context, opts LabSynthOptions) (LabSynthBundle, 
 	}
 
 	execution := FullDemoExecution{SchemaVersion: "1.0", Approved: snapshot, Assets: []FullDemoLocalMedia{}, VoiceTracks: []FullDemoLocalVoice{}}
-	if d.Options.Audio.Voice.Enabled && d.Voice.Availability == "available" {
+	if d.Options.Audio.Voice.Enabled && d.Voice.Availability == voicecomms.Available {
 		voice, err := synthesizeLabVoice(ctx, ffmpeg, dir, d)
 		if err != nil {
 			return LabSynthBundle{}, err
@@ -168,10 +178,7 @@ func SynthLabBundle(ctx context.Context, opts LabSynthOptions) (LabSynthBundle, 
 		args = append(args, "--full-demo-overlay", overlayPath)
 	}
 	args = append(args, "--ffmpeg", ffmpeg)
-	bundle := LabSynthBundle{SchemaVersion: "1.0", Synthetic: true, SourcePlan: source, PlanHash: d.PlanHash, Dir: dir, Args: args}
-	if renderer := os.Getenv("ZV_OVERLAY_RENDERER_PATH"); renderer != "" {
-		bundle.Env = map[string]string{"ZV_OVERLAY_RENDERER_PATH": renderer}
-	}
+	bundle := LabSynthBundle{SchemaVersion: "1.0", Synthetic: true, SourcePlan: source, PlanHash: d.PlanHash, Dir: dir, Args: args, Env: LabBundleEnv()}
 	if err := writeLabJSON(filepath.Join(dir, LabBundleFile), bundle); err != nil {
 		return LabSynthBundle{}, err
 	}

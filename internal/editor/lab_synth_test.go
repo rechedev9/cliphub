@@ -90,19 +90,32 @@ func TestSynthLabBundleRejectsPlansItCannotSupply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stale := document.Document
+	stale.PlanHash = strings.Repeat("0", 64)
+	// A custom HUD plan with a matching hash reaches the synthetic bundle's own
+	// guard instead of the render's staleness check.
 	withHUD := document.Document
-	withHUD.Options.Overlays.HUDTheme = "arena"
-	for name, write := range map[string]func(string) error{
-		"edited plan": func(path string) error { return writeLabJSON(path, withHUD) },
-		"not a plan":  func(path string) error { return os.WriteFile(path, []byte(`{"document": 3}`), 0o600) },
+	withHUD.Options.Overlays.HUDTheme = recapplan.DefaultOptions().Overlays.HUDTheme
+	withHUD.Options.Capture.HUDProfile = recapplan.DefaultOptions().Capture.HUDProfile
+	if withHUD.PlanHash, err = withHUD.Hash(); err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		write func(string) error
+		want  string
+	}{
+		"edited without re-planning": {func(path string) error { return writeLabJSON(path, stale) }, "not renderable"},
+		"custom HUD":                 {func(path string) error { return writeLabJSON(path, withHUD) }, "cannot draw"},
+		"not a plan":                 {func(path string) error { return os.WriteFile(path, []byte(`{"document": 3}`), 0o600) }, "decode plan"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "plan.json")
-			if err := write(path); err != nil {
+			if err := tc.write(path); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := SynthLabBundle(context.Background(), LabSynthOptions{PlanPath: path, Dir: t.TempDir()}); err == nil {
-				t.Fatal("synthetic bundle accepted a plan it cannot render")
+			_, err := SynthLabBundle(context.Background(), LabSynthOptions{PlanPath: path, Dir: t.TempDir()})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("synthetic bundle error = %v, want it rejected with %q", err, tc.want)
 			}
 		})
 	}

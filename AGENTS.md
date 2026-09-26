@@ -230,7 +230,8 @@ the current planner and default options (native HUD), generates one
 test-pattern H.264/AAC capture per round with the exact `TickFrames` count,
 a team-voice track and a ten-player roster overlay, and writes capture
 evidence from `recording.FullDemoExpectedCaptureCvars`. `--plan` takes an
-approved snapshot instead, if it has the native HUD and no media assets.
+approved snapshot instead, if it has the native HUD, no media assets and no
+FACEIT overlay (their data comes from the job).
 Every mode then runs on it and marks its evidence `synthetic`.
 
 - A synthetic bundle proves timing, commands, overlays and loudness
