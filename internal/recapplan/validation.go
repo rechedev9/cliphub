@@ -395,6 +395,15 @@ func (s Snapshot) Validate() error {
 	if err := s.Document.Validate(); err != nil {
 		return err
 	}
+	return s.ValidateHistory()
+}
+
+// ValidateHistory checks the approval invariants of a snapshot a render already
+// carries: it was admitted without blockers, with publishable rounds, and its
+// approval names its own document. It does not re-check the content hash or
+// re-derive the timeline, so a later planner change does not make render
+// history unreadable; admission runs Validate for plan freshness.
+func (s Snapshot) ValidateHistory() error {
 	if len(s.Document.Blockers) != 0 {
 		b := s.Document.Blockers[0]
 		return &Error{b.Code, b.Message}

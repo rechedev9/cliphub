@@ -479,4 +479,17 @@ func TestRenderedFullDemoApprovedBeforeSponsorBumperStaysReadable(t *testing.T) 
 	if err := got.Edit.Validate(); !errors.As(err, &stale) || stale.Code != recapplan.ErrPlanStale {
 		t.Fatalf("admission must still reject the retired plan, got %v", err)
 	}
+
+	// History still requires the approval to name its own document.
+	wire["edit"].(map[string]any)["full_demo"].(map[string]any)["approval"].(map[string]any)["approved_plan_hash"] = strings.Repeat("cd", 32)
+	mismatched, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(mismatched)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.readRenderVariantDocument(key); !errors.As(err, &stale) || stale.Code != recapplan.ErrPlanStale {
+		t.Fatalf("render document with a foreign approval must stay unreadable, got %v", err)
+	}
 }

@@ -124,21 +124,25 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	return req
 }
 
-func (r EditRequest) Validate() error { return r.validate(true) }
-
-// ValidateRendered checks the edit document of a render that already ran. Its
-// Full Demo snapshot is history: the planner of its day admitted it and it
-// still decodes under the strict wire contract, so a later planner change (a
-// retired option, a new timeline rule) must not make the finished render
-// unreadable. Only admission re-checks plan freshness.
-func (r EditRequest) ValidateRendered() error { return r.validate(false) }
-
-func (r EditRequest) validate(admission bool) error {
+func (r EditRequest) Validate() error {
 	if r.FullDemo != nil {
-		if admission {
-			if err := r.FullDemo.Validate(); err != nil {
-				return err
-			}
+		if err := r.FullDemo.Validate(); err != nil {
+			return err
+		}
+	}
+	return r.ValidateRendered()
+}
+
+// ValidateRendered checks the edit document of an admitted render (queued,
+// running or finished). Its Full Demo snapshot is history: the planner of its
+// day admitted it and it still decodes under the strict wire contract, so a
+// later planner change (a retired option, a new timeline rule) must not make
+// the render unreadable. Its approval invariants still hold; only admission
+// re-checks plan freshness.
+func (r EditRequest) ValidateRendered() error {
+	if r.FullDemo != nil {
+		if err := r.FullDemo.ValidateHistory(); err != nil {
+			return err
 		}
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
