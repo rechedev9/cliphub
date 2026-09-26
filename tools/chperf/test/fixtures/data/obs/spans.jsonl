@@ -1,0 +1,9 @@
+{"time":"2026-09-24T22:04:56Z","stage":"worker","name":"parse:demo","result":"ok","duration_ms":2000}
+{"time":"2026-09-24T22:12:35Z","stage":"worker","name":"record:demo","result":"ok","duration_ms":400000}
+{"time":"2026-09-24T22:17:23Z","stage":"worker","name":"render:variant","result":"ok","duration_ms":300000}
+{"time":"2026-09-25T14:14:02Z","stage":"worker","name":"parse:demo","result":"ok","duration_ms":1600}
+{"time":"2026-09-25T14:24:06Z","stage":"worker","name":"record:demo","result":"ok","duration_ms":420000}
+{"time":"2026-09-25T14:29:26Z","stage":"worker","name":"render:variant","result":"error","duration_ms":5000}
+this line is not json
+{"time":"2026-09-25T18:12:36Z","stage":"worker","name":"parse:demo","result":"ok","duration_ms":2400}
+{"time":"2026-09-25T18:29:38Z","stage":"worker","name":"record:demo","result":"ok","duration_ms":900000}

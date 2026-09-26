@@ -225,6 +225,16 @@ is 8.1.2, where they pass. Treat those as pre-existing when running
 FFmpeg, and do not "fix" them by changing the shipped command unless the
 bundled FFmpeg is upgraded.
 
+## Measuring performance
+
+Use `bin/chperf` (C, `sh tools/chperf/build.sh`) before claiming anything is
+faster or slower: `chperf snapshot` for the current picture, `chperf run` and
+`chperf compare` for before/after (`chperf bench` for Go benchmarks). It
+reads the evidence ClipHub already writes (`obs/spans.jsonl`,
+`render-result.json`, `recording-result.json`) and prints JSON. `chperf
+captures` also flags raw takes whose bitrate matches the black-capture
+incident above. See the `chperf` skill for what each number means.
+
 ## Releases
 
 - Version lives in `desktop/package.json` and `landing/app/page.tsx`

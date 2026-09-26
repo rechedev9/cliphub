@@ -1,0 +1,4 @@
+{"executed":true,"shorts":[
+ {"index":0,"performance":{"render_ms":3000,"short_pack_timing":{"index":0,"wall_ms":3500,"slot":{"held_ms":3500,"encode_ms":3000,"post_encode_ms":500}}}},
+ {"index":1,"performance":{"render_ms":5000,"short_pack_timing":{"index":1,"wall_ms":5800,"slot":{"held_ms":5800,"encode_ms":5000,"post_encode_ms":800}}}},
+ {"index":2,"performance":{"reused":true}}]}

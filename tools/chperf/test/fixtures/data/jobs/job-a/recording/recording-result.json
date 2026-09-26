@@ -1,0 +1,11 @@
+{"capture_mode":"real","capture_verified":true,
+ "plan":{"demo_duration_ticks":6400,"full_demo":{"clock":{"tick_rate":64}}},
+ "performance":{"runs":[{"prepare_ms":1000,"launch_and_capture_ms":20000,"incremental_mux_ms":3000,
+  "artifact_probe_ms":500,"final_mux_ms":500,"validation_ms":0,"before_result_write_ms":22000,
+  "stream":{"encoder":"nvenc-h264","fps":60,"width":1920,"height":1080,"crf":18},
+  "segments":[{"segment_id":"r1","video_duration_seconds":30,"observed_frames_per_second":150},
+              {"segment_id":"r2","video_duration_seconds":10,"observed_frames_per_second":120}]}]},
+ "artifacts":[
+  {"type":"video","role":"raw","segment_id":"r1","size_bytes":150000000,"duration_seconds":30,"frame_count":1800,"width":1920,"height":1080},
+  {"type":"video","role":"raw","segment_id":"r2","size_bytes":3000000,"duration_seconds":10,"frame_count":600,"width":1920,"height":1080},
+  {"type":"video","role":"final","segment_id":"r1","size_bytes":1,"duration_seconds":30}]}
