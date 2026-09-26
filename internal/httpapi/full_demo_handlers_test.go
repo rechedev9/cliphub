@@ -438,3 +438,72 @@ func TestFullDemoSupportedPlanChangeIsNotAnAdmissionDuplicate(t *testing.T) {
 		t.Fatal("rejected request replaced accepted intent")
 	}
 }
+
+// A finished Full Demo stays readable after the planner retires a field its
+// approved document still carries: the render is history, not a new admission.
+func TestRenderedFullDemoApprovedBeforeSponsorBumperStaysReadable(t *testing.T) {
+	h, j, store, _, options := fullDemoAPIFixture(t)
+	snapshot := fullDemoAPIPlan(t, h, j, options)
+	b, err := json.Marshal(renderplan.EditDocument{SchemaVersion: "1.0", JobID: j.ID, Variant: "gameplay-pov-60", Edit: renderplan.FullDemoEditRequest(snapshot)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	document := wire["edit"].(map[string]any)["full_demo"].(map[string]any)["document"].(map[string]any)
+	document["options"].(map[string]any)["sponsor"] = map[string]any{"enabled": false, "video": nil, "placement_policy": "first-two-rounds"}
+	document["sponsor_placement"] = map[string]any{"boundary": "", "start_frame": 0, "duration_frames": 0, "candidates": []any{}}
+	// Its hash was taken over the retired fields, so today's Hash differs.
+	legacyHash := strings.Repeat("ab", 32)
+	document["plan_hash"] = legacyHash
+	wire["edit"].(map[string]any)["full_demo"].(map[string]any)["approval"].(map[string]any)["approved_plan_hash"] = legacyHash
+	legacy, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := artifacts.RenderVariantEditDocumentKey(j.ID, "gameplay-pov-60")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(legacy)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := h.readRenderVariantDocument(key)
+	if err != nil || got == nil || got.Edit.FullDemo == nil || got.Edit.FullDemo.Document.PlanID != snapshot.Document.PlanID {
+		t.Fatalf("legacy render document: got=%v err=%v", got, err)
+	}
+	var stale *recapplan.Error
+	if err := got.Edit.Validate(); !errors.As(err, &stale) || stale.Code != recapplan.ErrPlanStale {
+		t.Fatalf("admission must still reject the retired plan, got %v", err)
+	}
+
+	// History still requires the approval to name its own document.
+	wire["edit"].(map[string]any)["full_demo"].(map[string]any)["approval"].(map[string]any)["approved_plan_hash"] = strings.Repeat("cd", 32)
+	mismatched, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(mismatched)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.readRenderVariantDocument(key); !errors.As(err, &stale) || stale.Code != recapplan.ErrPlanStale {
+		t.Fatalf("render document with a foreign approval must stay unreadable, got %v", err)
+	}
+
+	// And a well-formed record: history skips freshness, not integrity.
+	wire["edit"].(map[string]any)["full_demo"].(map[string]any)["approval"].(map[string]any)["approved_plan_hash"] = legacyHash
+	document["plan_id"] = "not-a-plan-id"
+	corrupt, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(corrupt)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.readRenderVariantDocument(key); err == nil || !strings.Contains(err.Error(), "invalid plan id") {
+		t.Fatalf("corrupt render document must stay unreadable, got %v", err)
+	}
+}

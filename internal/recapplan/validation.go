@@ -395,6 +395,22 @@ func (s Snapshot) Validate() error {
 	if err := s.Document.Validate(); err != nil {
 		return err
 	}
+	return s.validateApproval()
+}
+
+// ValidateHistory checks a snapshot a render already carries: its document is
+// a well-formed record and its approval names that document, with no blockers
+// and publishable rounds. It does not check the planner version, re-hash the
+// content or re-derive the timeline, so a later planner change does not make
+// render history unreadable; admission runs Validate for plan freshness.
+func (s Snapshot) ValidateHistory() error {
+	if err := s.Document.validateRecord(); err != nil {
+		return err
+	}
+	return s.validateApproval()
+}
+
+func (s Snapshot) validateApproval() error {
 	if len(s.Document.Blockers) != 0 {
 		b := s.Document.Blockers[0]
 		return &Error{b.Code, b.Message}
@@ -409,35 +425,14 @@ func (s Snapshot) Validate() error {
 }
 
 func (d Document) Validate() error {
-	if d.SchemaVersion != DocumentVersion || (d.PlannerVersion != PlannerVersion && d.PlannerVersion != LegacyPlannerVersion) || d.Revision < 1 {
+	if d.PlannerVersion != PlannerVersion && d.PlannerVersion != LegacyPlannerVersion {
 		return fmt.Errorf("unsupported full demo document version")
 	}
-	if _, err := uuid.Parse(d.PlanID); err != nil {
-		return fmt.Errorf("invalid plan id: %w", err)
+	if err := d.validateRecord(); err != nil {
+		return err
 	}
 	if err := d.Options.Validate(); err != nil {
 		return err
-	}
-	if d.Clock.SourceKind != ClockIngame || d.Clock.TickRate < 1 || d.Clock.TickRate > 1024 || d.Clock.FPS != OutputFPS || d.Clock.SampleRate != SampleRate {
-		return fmt.Errorf("unsupported full demo clock")
-	}
-	if !ValidHash(d.Input.DemoSHA256) || !ValidHash(d.Input.FactsHash) || !steamIDPattern.MatchString(d.Input.TargetSteamID64) {
-		return fmt.Errorf("invalid full demo input identity")
-	}
-	if len(d.Rounds) > 200 || len(d.Assets) > 100 || len(d.Voice.Activity) > 10000 || len(d.Warnings) > 1000 || len(d.Blockers) > 1000 {
-		return fmt.Errorf("full demo document exceeds resource bounds")
-	}
-	if err := validateCrosshairSamples(d.Crosshairs, d.Clock.TickRate*43200); err != nil {
-		return err
-	}
-	seen := map[string]bool{}
-	previousEnd := 0
-	for _, round := range d.Rounds {
-		if round.ID == "" || len(round.ID) > 96 || seen[round.ID] || round.Number < 1 || round.Number > 1000 || round.CaptureStartTick < 0 || round.RequestedStartTick < round.CaptureStartTick || round.RequestedStartTick < previousEnd || round.RequestedEndTick <= round.RequestedStartTick || round.RequestedEndTick > round.CaptureEndTick || round.EffectiveEndTick > round.RequestedEndTick || round.EffectiveEndTick <= round.RequestedStartTick || int64(round.CaptureEndTick) > int64(d.Clock.TickRate)*43200 || round.LiveEndTick < round.RequestedStartTick || round.LiveEndTick > round.RequestedEndTick || round.EffectiveEndTick < min(round.LiveEndTick+1, round.RequestedEndTick) || len(round.Kills) > 1000 || len(round.Utility) > 1000 {
-			return fmt.Errorf("invalid Full Demo round coverage: %s", round.ID)
-		}
-		seen[round.ID] = true
-		previousEnd = round.EffectiveEndTick
 	}
 	hash, err := d.Hash()
 	if err != nil {
@@ -464,6 +459,39 @@ func (d Document) Validate() error {
 	}
 	if gotTimeline != wantTimeline {
 		return fmt.Errorf("full demo timeline does not derive from its round and bumper document")
+	}
+	return nil
+}
+
+// validateRecord checks what a stored document must hold whatever planner wrote
+// it: its identity, clock, input, resource bounds and round coverage.
+func (d Document) validateRecord() error {
+	if d.SchemaVersion != DocumentVersion || d.Revision < 1 {
+		return fmt.Errorf("unsupported full demo document version")
+	}
+	if _, err := uuid.Parse(d.PlanID); err != nil {
+		return fmt.Errorf("invalid plan id: %w", err)
+	}
+	if d.Clock.SourceKind != ClockIngame || d.Clock.TickRate < 1 || d.Clock.TickRate > 1024 || d.Clock.FPS != OutputFPS || d.Clock.SampleRate != SampleRate {
+		return fmt.Errorf("unsupported full demo clock")
+	}
+	if !ValidHash(d.Input.DemoSHA256) || !ValidHash(d.Input.FactsHash) || !steamIDPattern.MatchString(d.Input.TargetSteamID64) {
+		return fmt.Errorf("invalid full demo input identity")
+	}
+	if len(d.Rounds) > 200 || len(d.Assets) > 100 || len(d.Voice.Activity) > 10000 || len(d.Warnings) > 1000 || len(d.Blockers) > 1000 {
+		return fmt.Errorf("full demo document exceeds resource bounds")
+	}
+	if err := validateCrosshairSamples(d.Crosshairs, d.Clock.TickRate*43200); err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	previousEnd := 0
+	for _, round := range d.Rounds {
+		if round.ID == "" || len(round.ID) > 96 || seen[round.ID] || round.Number < 1 || round.Number > 1000 || round.CaptureStartTick < 0 || round.RequestedStartTick < round.CaptureStartTick || round.RequestedStartTick < previousEnd || round.RequestedEndTick <= round.RequestedStartTick || round.RequestedEndTick > round.CaptureEndTick || round.EffectiveEndTick > round.RequestedEndTick || round.EffectiveEndTick <= round.RequestedStartTick || int64(round.CaptureEndTick) > int64(d.Clock.TickRate)*43200 || round.LiveEndTick < round.RequestedStartTick || round.LiveEndTick > round.RequestedEndTick || round.EffectiveEndTick < min(round.LiveEndTick+1, round.RequestedEndTick) || len(round.Kills) > 1000 || len(round.Utility) > 1000 {
+			return fmt.Errorf("invalid Full Demo round coverage: %s", round.ID)
+		}
+		seen[round.ID] = true
+		previousEnd = round.EffectiveEndTick
 	}
 	return nil
 }
