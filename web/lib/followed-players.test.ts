@@ -31,7 +31,7 @@ test('unfollowing the selection chooses a remaining player or clears the last se
 test('a delayed profile response cannot resurrect an unfollowed player or change the selection', () => {
   const initial = { players: [player('old'), player('other')], selectedID: 'old' };
   const removed = followedPlayersReducer(initial, { type: 'unfollowed', id: 'old' });
-  assert.deepEqual(followedPlayersReducer(removed, { type: 'profile', player: player('old') }), removed);
+  assert.deepEqual(followedPlayersReducer(removed, { type: 'profile', player: player('old'), at: 1 }), removed);
 });
 
 test('tabs split own follows from the zone rosters, and a followed zone player shows in both', () => {
@@ -59,6 +59,25 @@ test('following a zone player keeps the zone, and unfollowing returns them to it
 
 test('a live profile refresh keeps the row in its zone list', () => {
   const initial: FollowedPlayersState = { players: [{ ...player('pro'), seeded: true, zone: 'cis' }], selectedID: 'pro' };
-  const refreshed = followedPlayersReducer(initial, { type: 'profile', player: { ...player('pro'), elo: 4800 } });
-  assert.deepEqual(refreshed.players, [{ ...player('pro'), elo: 4800, seeded: true, zone: 'cis' }]);
+  const refreshed = followedPlayersReducer(initial, { type: 'profile', player: { ...player('pro'), elo: 4800 }, at: 1000 });
+  assert.deepEqual(refreshed.players, [{ ...player('pro'), elo: 4800, seeded: true, zone: 'cis', liveAt: 1000 }]);
+});
+
+test('a polled list keeps a newer live ELO and takes a newer roster ELO', () => {
+  const seeded = { ...player('pro'), seeded: true, zone: 'cis', elo: 4700 } as const;
+  const live = followedPlayersReducer({ players: [seeded], selectedID: 'pro' },
+    { type: 'profile', player: { ...player('pro'), elo: 4800, skill_level: 10 }, at: 2000 });
+  const staleList = followedPlayersReducer(live, { type: 'listed', players: [seeded], updatedAt: 1000 });
+  assert.equal(staleList.players[0]?.elo, 4800);
+  assert.equal(staleList.players[0]?.seeded, true);
+  const freshList = followedPlayersReducer(staleList, { type: 'listed', players: [{ ...seeded, elo: 4825 }], updatedAt: 3000 });
+  assert.deepEqual(freshList.players, [{ ...seeded, elo: 4825 }]);
+});
+
+test('a polled list always takes an own follow\'s stored ELO, whatever the zone roster age', () => {
+  const own = { ...player('mine'), elo: 2100 };
+  const live = followedPlayersReducer({ players: [own], selectedID: 'mine' },
+    { type: 'profile', player: { ...player('mine'), elo: 2000 }, at: 2000 });
+  const listed = followedPlayersReducer(live, { type: 'listed', players: [{ ...own, elo: 2150 }], updatedAt: 1000 });
+  assert.deepEqual(listed.players, [{ ...own, elo: 2150 }]);
 });

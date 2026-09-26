@@ -66,6 +66,8 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
     if (call.url === '/api/faceit/followed' && call.init?.method === undefined) {
       return json({
         enabled: true,
+        refreshing: true,
+        updated_at: '2026-09-25T14:43:55Z',
         players: [
           player,
           { ...player, id: 'seed-1', nickname: 'donk666', seeded: true, zone: 'cis', region: 'EU', position: 1 },
@@ -84,6 +86,8 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
   try {
     const listed = await listFollowedFaceitPlayers();
     assert.equal(listed.enabled, true);
+    assert.equal(listed.refreshing, true);
+    assert.equal(listed.updatedAt, Date.UTC(2026, 8, 25, 14, 43, 55));
     assert.equal(listed.players[0]?.id, 'player-1');
     assert.equal(listed.players[1]?.seeded, true);
     assert.equal(listed.players[1]?.zone, 'cis');

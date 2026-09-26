@@ -116,8 +116,8 @@ func DecodeSeed(r io.Reader) (SeedDocument, error) {
 
 // SeedStore serves the default roster from a refreshable file, falling back to
 // the embedded document. Refresh is the only thing that talks to FACEIT: a read
-// never reaches the network, so opening the Players section costs nothing and
-// cannot fail because the Data API is down.
+// never reaches the network, so a list read never waits on the Data API and
+// cannot fail because it is down.
 type SeedStore struct {
 	path string
 	mu   sync.Mutex
@@ -147,9 +147,9 @@ func (s *SeedStore) Document() SeedDocument {
 }
 
 // Refresh replaces the on-disk roster with the live top `limit` of every zone.
-// It is explicit only: nothing calls it on startup or on a read, so the seeded
-// list is a deliberate refresh rather than a request that silently fans out to
-// a few hundred leaderboards.
+// Document never calls it: it fans out to every zone ladder (about 160
+// requests), so the orchestrator runs it once in the background at startup
+// (httpapi StartFaceitRosterRefresh).
 func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (SeedDocument, error) {
 	if s == nil {
 		return SeedDocument{}, errors.New("FACEIT seed roster store is not configured")

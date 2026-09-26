@@ -1,16 +1,19 @@
 import type { FaceitFollowedPlayer, FaceitPlayer } from './api/faceit.ts';
 
+/** A rail row; liveAt is when its profile was last read live from FACEIT (epoch ms), client-side only. */
+export type FollowedPlayerRow = FaceitFollowedPlayer & { liveAt?: number };
+
 export type FollowedPlayersState = {
-  players: FaceitFollowedPlayer[];
+  players: FollowedPlayerRow[];
   selectedID: string | null;
 };
 
 type Action =
-  | { type: 'listed'; players: FaceitFollowedPlayer[] }
+  | { type: 'listed'; players: FaceitFollowedPlayer[]; updatedAt: number }
   | { type: 'selected'; id: string }
   | { type: 'followed'; player: FaceitFollowedPlayer }
   | { type: 'unfollowed'; id: string }
-  | { type: 'profile'; player: FaceitPlayer };
+  | { type: 'profile'; player: FaceitPlayer; at: number };
 
 /** The Players rail lists: the user's own follows, then one tab per seeded zone roster. */
 export const PLAYER_TABS = [
@@ -33,9 +36,19 @@ export function defaultPlayerTab(players: FaceitFollowedPlayer[]): PlayerTab {
 
 export function followedPlayersReducer(state: FollowedPlayersState, action: Action): FollowedPlayersState {
   switch (action.type) {
-    case 'listed':
-      return { players: action.players, selectedID: action.players.some((player) => player.id === state.selectedID)
-        ? state.selectedID : action.players[0]?.id ?? null };
+    case 'listed': {
+      // The list is polled; a live profile read after the zone roster was fetched is the newer ELO. updatedAt dates
+      // only the zone roster: an own follow's row is the profile the service stored when it was re-followed or
+      // refreshed, so the listed row is already the newest one.
+      const players = action.players.map((player): FollowedPlayerRow => {
+        if (player.seeded !== true) return player;
+        const live = state.players.find((row) => row.id === player.id);
+        if (live?.liveAt === undefined || live.liveAt <= action.updatedAt) return player;
+        return { ...player, elo: live.elo, skill_level: live.skill_level, liveAt: live.liveAt };
+      });
+      return { players, selectedID: players.some((player) => player.id === state.selectedID)
+        ? state.selectedID : players[0]?.id ?? null };
+    }
     case 'selected':
       return state.players.some((player) => player.id === action.id) ? { ...state, selectedID: action.id } : state;
     case 'followed': {
@@ -56,6 +69,6 @@ export function followedPlayersReducer(state: FollowedPlayersState, action: Acti
     case 'profile':
       // A live profile knows nothing about the roster, so it must not clear the row's list membership.
       return { ...state, players: state.players.map((player) => player.id === action.player.id
-        ? { ...player, ...action.player, seeded: player.seeded, zone: player.zone } : player) };
+        ? { ...player, ...action.player, seeded: player.seeded, zone: player.zone, liveAt: action.at } : player) };
   }
 }
