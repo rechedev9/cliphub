@@ -24,9 +24,11 @@ import {
 } from '@/lib/clips/routes';
 import {
   DEMO_EMPTY_ROSTER_HINT,
+  DEMO_SCAN_FAIL_HINT,
   DEMO_SERVICE_OFFLINE_HINT,
   demoParseError,
   demoScanError,
+  demoSeriesParseError,
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -186,7 +188,7 @@ export default function NewDemoPage({
           .catch((err): ScanRow => {
             // One demo's rejection must never sink the others.
             if (isDemoServiceUnavailable(err)) sawOffline = true;
-            return { fileName: file.name, status: 'error' };
+            return { fileName: file.name, status: 'error', reason: demoScanError(err) };
           })
           .then((row) => {
             setScanRows((prev) => {
@@ -203,7 +205,13 @@ export default function NewDemoPage({
       const failed = rows.filter((r) => r.status === 'error');
 
       if (scanned.length === 0) {
-        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.');
+        // One shared cause (every demo is CS:GO, say) is worth more than the generic line.
+        const reasons = new Set(failed.map((r) => r.reason));
+        const shared = reasons.size === 1 ? [...reasons][0] : undefined;
+        const allFailed = shared && shared !== DEMO_SCAN_FAIL_HINT
+          ? shared
+          : 'No se pudo escanear ninguna de las demos. Prueba con otros archivos .dem.';
+        reset(sawOffline ? DEMO_SERVICE_OFFLINE_HINT : allFailed);
         return;
       }
       if (failed.length > 0) {
@@ -242,10 +250,7 @@ export default function NewDemoPage({
             await api.parseDemo({ jobId: row.jobId, steamId });
             next = { ...row, status: 'done' };
           } catch (err) {
-            let reason = 'No se pudo analizar este mapa.';
-            if (isDemoServiceUnavailable(err)) reason = DEMO_SERVICE_OFFLINE_HINT;
-            else if (err instanceof Error) reason = err.message;
-            next = { ...row, status: 'error', reason };
+            next = { ...row, status: 'error', reason: demoSeriesParseError(err) };
           }
           setParseRows((prev) => prev.map((item) => item.jobId === row.jobId ? next : item));
           return next;

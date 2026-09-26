@@ -7,8 +7,8 @@ test("accepts a CS2 (Source 2) demo header", () => {
   assert.equal(isDemoHeader(Buffer.from("PBDEMS2\x00rest-of-demo")), true);
 });
 
-test("accepts a legacy GOTV (Source 1) demo header", () => {
-  assert.equal(isDemoHeader(Buffer.from("HL2DEMO\x00rest-of-demo")), true);
+test("rejects a legacy CS:GO (Source 1) demo header the parser cannot read", () => {
+  assert.equal(isDemoHeader(Buffer.from("HL2DEMO\x00rest-of-demo")), false);
 });
 
 test("rejects an unrelated file", () => {

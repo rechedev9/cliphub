@@ -254,7 +254,7 @@ func (h *Handlers) ImportShareCode(w http.ResponseWriter, r *http.Request) {
 
 	opened, fileName, err := demozstd.Open(body, fileName, maxDemoBytes)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "could not read downloaded demo")
+		writeCodedError(w, http.StatusBadRequest, codeUnreadableDemo, "could not read downloaded demo")
 		return
 	}
 	defer opened.Close()
@@ -265,8 +265,7 @@ func (h *Handlers) ImportShareCode(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "read downloaded demo header", err)
 		return
 	}
-	if !isDemoHeader(header[:n]) {
-		writeError(w, http.StatusBadRequest, "downloaded file is not a CS2 demo")
+	if rejectDemoHeader(w, header[:n], "downloaded") {
 		return
 	}
 	demo := io.MultiReader(bytes.NewReader(header[:n]), opened)

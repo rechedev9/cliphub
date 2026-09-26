@@ -214,6 +214,27 @@ and downloadable.
   old durable documents decode; stored review states are promoted to `ready`
   on read and by the startup materialization pass.
 
+## Demo scan failures reach the user with their cause (2026-09-26)
+
+A user reported that a `.dem` "was not read": the upload page only ever said
+"No se pudo escanear esa demo. Prueba con otro archivo .dem.". Every cause
+collapsed into that line: `waitForStatus` threw a bare `job <id> failed`, the
+roster scan's reason (`scan roster: parsing demo: demo_incompatible: ...`) got
+no `failure_code` because `obs.ClassOf` only matched the marker as a prefix,
+and CS:GO (`HL2DEMO`) demos were admitted although demoinfocs v5 always
+refuses them.
+
+- Upload rejections carry a code (`csgo_demo`, `not_a_demo`,
+  `unreadable_demo`); `parseToEnd` tags every non-cancel parser error
+  `demo_incompatible:`; `waitForStatus` rethrows the job's
+  `failure_reason`/`failure_code`. `web/lib/demo-parse-flow.ts`
+  `demoScanError` maps each code to its own advice.
+- A new admission or scan failure needs a code and a line in
+  `SCAN_FAILURE_HINTS`, not another generic message.
+- A `demo_incompatible` scan on a fresh CS2 demo usually means a CS2 update
+  changed the demo format before demoinfocs caught up: check its releases
+  before touching our parser code.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

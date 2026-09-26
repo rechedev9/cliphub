@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
+import { DEMO_SCAN_HINTS } from '../lib/demo-parse-flow.ts';
 import { FULL_DEMO_EMPTY } from '../lib/full-demo.ts';
 import { PRODUCE_MATCH_MISSING } from '../lib/produce/copy.ts';
 
@@ -289,6 +290,34 @@ test.describe('scan failure states', () => {
     });
 
     await expect(page.locator('[role="alert"]').first()).toBeVisible();
+  });
+
+  // A user's demo failed with the generic "prueba con otro archivo .dem" while
+  // the worker knew the parser could not read it; the alert must say so.
+  test('a scan the parser cannot read says why', async ({ page }) => {
+    await stubRosterScan(page);
+    await page.route('**/api/demos/*/status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'failed',
+          failure_reason: 'scan roster: parsing demo: demo_incompatible: parser panicked',
+          failure_code: 'demo_incompatible',
+        }),
+      });
+    });
+    await gotoStudio(page, '/clips/nueva');
+
+    await expect(page.locator('input[type="file"]')).toBeEnabled();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'unreadable.dem',
+      mimeType: 'application/octet-stream',
+      buffer: Buffer.from('PBDEMS2\0unreadable'),
+    });
+
+    await expect(page.locator('main [role="alert"]')).toContainText(DEMO_SCAN_HINTS.incompatible);
+    await expect(page.locator('[data-testid="player-avatar"]')).toHaveCount(0);
   });
 });
 

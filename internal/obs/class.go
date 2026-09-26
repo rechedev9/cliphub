@@ -29,7 +29,10 @@ const (
 // a parallel taxonomy.
 func ClassOf(message string) string {
 	switch {
-	case strings.HasPrefix(message, prefixDemoIncompatible):
+	// Parser failures reach the job wrapped by each caller ("scan roster:
+	// parsing demo: demo_incompatible: ..."), so the marker may follow a
+	// wrap separator instead of opening the message.
+	case strings.HasPrefix(message, prefixDemoIncompatible) || strings.Contains(message, ": "+prefixDemoIncompatible):
 		return ClassDemoIncompatible
 	case strings.HasPrefix(message, prefixUnplayableStart):
 		return ClassUnplayableStart

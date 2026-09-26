@@ -19,13 +19,16 @@ import (
 // for a demo they uploaded themselves.
 func (h *Handlers) AdmitCloudDemo(ctx context.Context, demo io.Reader, fileName, cloudRequestID string) (*job.Job, error) {
 	// Re-validate the magic bytes here too: the portal already rejects
-	// anything that isn't a raw CS2/GOTV demo at upload time, but the bridge
+	// anything that isn't a raw CS2 demo at upload time, but the bridge
 	// crosses a network boundary to fetch it, and CreateJob applies this same
 	// check to every other admission path.
 	var header [8]byte
 	n, err := io.ReadFull(demo, header[:])
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		return nil, fmt.Errorf("read demo header: %w", err)
+	}
+	if isCSGODemoHeader(header[:n]) {
+		return nil, fmt.Errorf("cloud demo %s is a CS:GO demo; only CS2 demos are supported", cloudRequestID)
 	}
 	if !isDemoHeader(header[:n]) {
 		return nil, fmt.Errorf("cloud demo %s is not a CS2 demo", cloudRequestID)

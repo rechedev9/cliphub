@@ -340,10 +340,39 @@ func sanitizeDemoFileName(name string) string {
 	return cleaned
 }
 
-// isDemoHeader reports whether the leading bytes look like a CS2 (Source 2) or
-// legacy GOTV (Source 1) demo.
+// Stable codes for a demo rejected at admission, so the web client can tell
+// the user why instead of a generic "could not scan" message.
+const (
+	codeCSGODemo       = "csgo_demo"
+	codeNotADemo       = "not_a_demo"
+	codeUnreadableDemo = "unreadable_demo"
+)
+
+// isDemoHeader reports whether the leading bytes look like a CS2 (Source 2)
+// demo, the only format the parser (demoinfocs v5) can read.
 func isDemoHeader(header []byte) bool {
-	return bytes.HasPrefix(header, []byte("PBDEMS2")) || bytes.HasPrefix(header, []byte("HL2DEMO"))
+	return bytes.HasPrefix(header, []byte("PBDEMS2"))
+}
+
+// isCSGODemoHeader reports whether the leading bytes belong to a legacy CS:GO
+// (Source 1) demo. demoinfocs v5 refuses those, so admitting one only queues a
+// scan that is certain to fail.
+func isCSGODemoHeader(header []byte) bool {
+	return bytes.HasPrefix(header, []byte("HL2DEMO"))
+}
+
+// rejectDemoHeader writes a coded 400 and returns true when header is not a
+// CS2 demo. subject names the file in the message ("uploaded", "downloaded").
+func rejectDemoHeader(w http.ResponseWriter, header []byte, subject string) bool {
+	switch {
+	case isDemoHeader(header):
+		return false
+	case isCSGODemoHeader(header):
+		writeCodedError(w, http.StatusBadRequest, codeCSGODemo, subject+" file is a CS:GO demo; only CS2 demos are supported")
+	default:
+		writeCodedError(w, http.StatusBadRequest, codeNotADemo, subject+" file is not a CS2 demo")
+	}
+	return true
 }
 
 // CreateJob handles POST /api/jobs.
@@ -372,7 +401,7 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 	demoSrc, demoFileName, err := demozstd.Open(file, demoFileName, maxDemoBytes)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "could not read uploaded demo")
+		writeCodedError(w, http.StatusBadRequest, codeUnreadableDemo, "could not read uploaded demo")
 		return
 	}
 	defer demoSrc.Close()
@@ -382,11 +411,13 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	var header [8]byte
 	n, err := io.ReadFull(demoSrc, header[:])
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-		internalError(w, "read demo header", err)
+		// demozstd.Open only sniffs the magic; a corrupt .dem.zst frame fails
+		// here, on the first decompressed read of the user's own file.
+		log.Printf("httpapi: read uploaded demo header: %v", err)
+		writeCodedError(w, http.StatusBadRequest, codeUnreadableDemo, "could not read uploaded demo")
 		return
 	}
-	if !isDemoHeader(header[:n]) {
-		writeError(w, http.StatusBadRequest, "uploaded file is not a CS2 demo")
+	if rejectDemoHeader(w, header[:n], "uploaded") {
 		return
 	}
 	// Stitch the peeked bytes back ahead of the remaining stream so the upload is
