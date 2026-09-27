@@ -28,6 +28,25 @@ const (
 // orchestrator writes it and zv-editor lab replays it.
 const LabBundleFile = "editor-args.json"
 
+// labBundleEnvNames lists the environment variables the editor reads during a
+// render that Studio sets on the orchestrator.
+var labBundleEnvNames = []string{"ZV_OVERLAY_RENDERER_PATH"}
+
+// LabBundleEnv returns the set values of the environment variables a render
+// lab bundle records for the editor, or nil when none is set.
+func LabBundleEnv() map[string]string {
+	var env map[string]string
+	for _, name := range labBundleEnvNames {
+		if value := os.Getenv(name); value != "" {
+			if env == nil {
+				env = map[string]string{}
+			}
+			env[name] = value
+		}
+	}
+	return env
+}
+
 // LabModes lists the supported modes in the order the CLI documents them.
 func LabModes() []string {
 	return []string{LabModePlan, LabModeCommands, LabModeItem, LabModeAudio, LabModeDelivery}
@@ -44,11 +63,14 @@ type LabOptions struct {
 	Seconds float64
 	// File is the delivered MP4 the delivery mode verifies.
 	File string
+	// Synthetic marks a bundle written by SynthLabBundle; the evidence says so.
+	Synthetic bool
 }
 
 // LabEvidence is the machine-readable outcome of one lab run.
 type LabEvidence struct {
 	Mode      string                      `json:"mode"`
+	Synthetic bool                        `json:"synthetic,omitempty"`
 	WorkDir   string                      `json:"work_dir"`
 	ElapsedMS int64                       `json:"elapsed_ms"`
 	Plan      *LabPlan                    `json:"plan,omitempty"`
@@ -147,7 +169,7 @@ type LabDeliveryEvidence struct {
 // the stored recording instead of probing them again.
 func Lab(ctx context.Context, cfg Config, opts LabOptions) (LabEvidence, error) {
 	started := time.Now()
-	evidence := LabEvidence{Mode: opts.Mode}
+	evidence := LabEvidence{Mode: opts.Mode, Synthetic: opts.Synthetic}
 	fail := func(err error) (LabEvidence, error) {
 		evidence.ElapsedMS = time.Since(started).Milliseconds()
 		evidence.Error = err.Error()

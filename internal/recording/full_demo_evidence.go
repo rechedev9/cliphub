@@ -145,48 +145,17 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 			return failed("Applied cvar lacks original value: " + name)
 		}
 	}
-	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector"} {
+	for _, name := range fullDemoDisabledCaptureCvars {
 		if !slices.Contains([]string{"0", "false"}, string(applied[name])) {
 			return failed("Required capture cvar was not disabled: " + name)
 		}
 	}
-	wantCrosshair := "2"
-	if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
-		wantCrosshair = "0"
-	}
-	if string(applied["cl_show_observer_crosshair"]) != wantCrosshair {
+	if string(applied["cl_show_observer_crosshair"]) != fullDemoObserverCrosshair(plan) {
 		return failed("Crosshair source readback differs")
 	}
-	required := map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0}
-	if plan.FullDemo.Options.Capture.TrueView {
-		required["cl_demo_predict"] = 2
-	}
-	if plan.FullDemo.Options.Capture.HUDProfile == recapplan.NativeHUDProfile || customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
-		for name, value := range map[string]float64{"cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0} {
-			required[name] = value
-		}
-	}
-	if customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
-		required["cl_draw_only_deathnotices"] = 1
-		required["cl_drawhud_force_radar"] = 1
-		required["cl_drawhud_force_deathnotices"] = 1
-	}
-	if plan.FullDemo.Options.Capture.HUDProfile == customhud.CaptureProfile {
-		for name, value := range map[string]float64{
-			"cl_hud_radar_background_alpha": .35, "cl_hud_radar_map_additive": 0, "cl_hud_radar_scale": .85,
-			"cl_hud_color": 0, "safezonex": .97, "safezoney": .95,
-		} {
-			required[name] = value
-		}
-	}
-	if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
-		values, err := sharecode.CrosshairCvars(plan.FullDemo.Options.Capture.Crosshair.Code)
-		if err != nil {
-			return failed(err.Error())
-		}
-		for name, value := range values {
-			required[name] = value
-		}
+	required, err := fullDemoRequiredCaptureCvars(plan)
+	if err != nil {
+		return failed(err.Error())
 	}
 	for name, want := range required {
 		var actual any
@@ -218,6 +187,82 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 		}
 	}
 	return nil
+}
+
+// fullDemoDisabledCaptureCvars must read back as disabled after a Full Demo
+// capture applied its settings.
+var fullDemoDisabledCaptureCvars = []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector"}
+
+// fullDemoObserverCrosshair is the cl_show_observer_crosshair readback the
+// approved crosshair source requires.
+func fullDemoObserverCrosshair(plan RecordingPlan) string {
+	if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
+		return "0"
+	}
+	return "2"
+}
+
+// fullDemoRequiredCaptureCvars lists the numeric HUD and crosshair readbacks
+// the approved capture profile requires.
+func fullDemoRequiredCaptureCvars(plan RecordingPlan) (map[string]float64, error) {
+	required := map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0}
+	if plan.FullDemo.Options.Capture.TrueView {
+		required["cl_demo_predict"] = 2
+	}
+	if plan.FullDemo.Options.Capture.HUDProfile == recapplan.NativeHUDProfile || customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
+		for name, value := range map[string]float64{"cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0} {
+			required[name] = value
+		}
+	}
+	if customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
+		required["cl_draw_only_deathnotices"] = 1
+		required["cl_drawhud_force_radar"] = 1
+		required["cl_drawhud_force_deathnotices"] = 1
+	}
+	if plan.FullDemo.Options.Capture.HUDProfile == customhud.CaptureProfile {
+		for name, value := range map[string]float64{
+			"cl_hud_radar_background_alpha": .35, "cl_hud_radar_map_additive": 0, "cl_hud_radar_scale": .85,
+			"cl_hud_color": 0, "safezonex": .97, "safezoney": .95,
+		} {
+			required[name] = value
+		}
+	}
+	if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
+		values, err := sharecode.CrosshairCvars(plan.FullDemo.Options.Capture.Crosshair.Code)
+		if err != nil {
+			return nil, err
+		}
+		for name, value := range values {
+			required[name] = value
+		}
+	}
+	return required, nil
+}
+
+// FullDemoExpectedCaptureCvars returns every applied cvar value the capture
+// evidence of a Full Demo plan must read back. Only the render lab's
+// synthetic bundle writes evidence from it; a real capture reads the values
+// back from CS2.
+func FullDemoExpectedCaptureCvars(plan RecordingPlan) (map[string]json.RawMessage, error) {
+	if plan.FullDemo == nil {
+		return nil, fmt.Errorf("plan is not a Full Demo capture")
+	}
+	required, err := fullDemoRequiredCaptureCvars(plan)
+	if err != nil {
+		return nil, err
+	}
+	expected := map[string]json.RawMessage{"cl_show_observer_crosshair": json.RawMessage(fullDemoObserverCrosshair(plan))}
+	for _, name := range fullDemoDisabledCaptureCvars {
+		expected[name] = json.RawMessage("0")
+	}
+	for name, value := range required {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		expected[name] = encoded
+	}
+	return expected, nil
 }
 
 // CertifiedPlan is a measurement view, not a replacement of the immutable
