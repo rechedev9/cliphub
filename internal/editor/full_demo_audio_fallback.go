@@ -171,7 +171,7 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 		if result.err != nil {
 			return e, result.err
 		}
-		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e)
+		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after the native masters", e)
 	}
 	for _, attempt := range result.attempts {
 		e.MasterTargets = append(e.MasterTargets, aacHeadroomTarget(target))
@@ -184,7 +184,7 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 		return e, result.err
 	}
 	if result.candidate == "" {
-		return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)
+		return e, fullDemoAACFailure("approved targets remain unmet after the native masters and three recovery attempts", e)
 	}
 	if result.deliveryErr != nil {
 		return e, result.deliveryErr

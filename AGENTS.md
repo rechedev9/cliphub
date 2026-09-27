@@ -43,6 +43,19 @@ Rules that follow from it:
   `TestFullDemoFilterBuildersClampOutOfRangeTargets` and
   `TestFullDemoRetargetStaysInRangeAndExhaustsForAnyMeasurement` guard both;
   add any new computed filter option to `computedFilterRanges`.
+- A retarget must also make progress. `nextNativeMaster` hands over to
+  recovery as soon as a native master lands no closer to the acceptance window
+  (`fullDemoAACMissDB`) than the one before it. loudnorm only runs `linear`
+  when the measured LRA fits the target and `measured_TP + gain` stays under
+  the TP target; otherwise every pass logs `normalization_type: dynamic`, and
+  a lower TP target just tightens its limiter. Job b7c0c77e (2026-09-26, input
+  -32.59 LUFS / LRA 19.2) went -15.6 -> -20.5 -> -25.4 LUFS over three native
+  masters before recovery delivered -14.4. Before tuning the retarget, check
+  `normalization_type` of the master pass itself (the `measured_*:linear=true`
+  filter; `program-master-N.txt` is only kept when FFmpeg fails, so rerun that
+  filter to `-f null`). The measurement logs (`decoded-aac-*.txt`,
+  `program-*-input.txt`) always say `dynamic` because they run without
+  `measured_*`. `TestFullDemoNativeMasterHandsOverWhenRetargetDiverges` pins it.
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
   installer can bundle. It is present on all standard Windows editions and
   the shipped FFmpeg exposes it; only "N/KN" editions lack it. Do not

@@ -232,10 +232,8 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 		if recovery == nil {
 			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, video, output, logDir, target, duration, e.Input)
 		}
-		next, changed := nextMasterTarget(attemptTarget, target, decoded)
-		if !changed {
-			// loudnorm cannot be pushed any further; another native master
-			// would repeat a failed target, so hand over to AAC recovery.
+		next, retry := nextNativeMaster(attemptTarget, target, e.DecodedAAC)
+		if !retry {
 			break
 		}
 		attemptTarget = next
@@ -271,6 +269,24 @@ func clampLoudnormTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOpt
 func aacHeadroomTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
 	target.TargetTPDBTP -= .3
 	return clampLoudnormTarget(target)
+}
+
+// nextNativeMaster decides what follows a rejected native master: the next
+// target, or false to hand over to AAC recovery. It hands over when loudnorm
+// cannot be pushed any further (another master would repeat a failed target)
+// and as soon as a retarget did not bring the decoded AAC closer to the
+// acceptance window than the master before it. A program that loudnorm can
+// only normalize in dynamic mode (measured LRA above the target, or not enough
+// true-peak headroom for the linear gain) diverges under retargeting: a lower
+// TP target tightens its limiter and lowers the integrated loudness instead of
+// removing the AAC overshoot, so each further native master only delays
+// recovery. decoded holds the rejected native masters in order, newest last.
+func nextNativeMaster(current, target recapplan.LoudnessOptions, decoded []LoudnessMeasurement) (recapplan.LoudnessOptions, bool) {
+	last := decoded[len(decoded)-1]
+	if len(decoded) > 1 && fullDemoAACMissDB(last, target) >= fullDemoAACMissDB(decoded[len(decoded)-2], target) {
+		return current, false
+	}
+	return nextMasterTarget(current, target, last)
 }
 
 // nextMasterTarget derives the next native master target from the decoded AAC
