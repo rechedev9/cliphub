@@ -102,12 +102,13 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
-            {/* Each part stays whole so a date never splits across lines; only the separators wrap. */}
+            {/* Each part moves as a whole so a date never splits across lines; only a part wider
+                than the column (an unbroken player name) breaks inside itself. */}
             <span className="text-body-sm text-fg-2">
               {matchMetaParts(match, matchDateLabel(match)).map((part, index) => (
                 <span key={index}>
                   {index > 0 ? ' · ' : null}
-                  <span className="whitespace-nowrap">{part}</span>
+                  <span className="inline-block max-w-full wrap-anywhere">{part}</span>
                 </span>
               ))}
             </span>

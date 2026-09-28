@@ -9,7 +9,7 @@ import { buildEditRequest } from '../lib/api/edit-request.ts';
 const JOBS = [1, 2, 3].map((n) => `${n}1111111-1111-4111-8111-111111111111`);
 const FULL_VARIANT = 'gameplay-pov-60';
 const SHORT_VARIANT = 'viral-60-clean';
-const LONG_VIDEO = `${JOBS[2]}__demo-compilation`;
+const LONG_VIDEO = `${JOBS[2]}__full-demo`;
 
 // Fixture API exercises the real hub's exclusive accordion and column markup.
 // This is a regression test for the driver, not evidence of a live render.
