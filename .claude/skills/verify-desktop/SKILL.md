@@ -1,6 +1,8 @@
 ---
 name: verify-desktop
 description: Verify a ClipHub change in the real Studio desktop app (Electron) in the background, on a disposable copy of the user's Studio data. Use for every change with a runtime surface (web/, desktop/, or Go that reaches the API or UI) before calling it done or opening a PR, and for QA passes after merges.
+metadata:
+  zv-catalog: "false"
 ---
 
 # Verify in the desktop app
@@ -9,7 +11,7 @@ Studio desktop is the product. A standalone `next start` or a browser tab is not
 
 ## Run it
 
-From the repo root (any worktree):
+From the root of the checkout you are verifying. Run one verify at a time per machine: every worktree shares the profile, and a new run stops the previous run's app.
 
 ```sh
 node .claude/skills/verify-desktop/verify-desktop.mjs all --check <scratchpad>/check.mjs
@@ -63,7 +65,7 @@ A thrown error is reported as CRASHED, with a screenshot.
 
 Prefer measuring over looking: bounding boxes, text, API responses and `report.json`. Look at a screenshot only to confirm what the numbers say.
 
-Real data rarely contains the edge case. Edit the copy: `C:\temp\cliphub-verify\profile\data\jobs\<id>\*.json` holds names, plans and rosters. Delivered MP4s under `renders/**/videos/` are hardlinks: never edit them in place. Restore the copy with `--fresh-data` afterwards.
+Real data rarely contains the edge case. Edit the copy: `C:\temp\cliphub-verify\profile\data\jobs\<id>\*.json` holds names, plans and rosters. Delivered MP4s under `renders/**/videos/` and demos over 100 MB under `demos/` are hardlinks: never edit them in place. Restore the copy with `--fresh-data` afterwards.
 
 ## Before and after, for UI PRs
 
@@ -83,9 +85,10 @@ Attach the PNGs with `gh pr create --attach`, as `pr-create` describes.
 
 ## Safety
 
-- Non-GET API calls are blocked (answered 204 and listed as `blocked`) unless you pass `--allow-writes`. With writes allowed, every write lands in the copy. A capture would still launch CS2 through the profile's real HLAE, so allow writes only for a flow that needs them, and never start a recording without the user's go-ahead.
+- Non-GET API calls made by the app's windows are blocked: they get a 204 and are listed as `blocked`, unless you pass `--allow-writes`. Calls from the Electron main process, from Next server code and from the orchestrator's own workers are not intercepted. The script therefore also strips every `ZV_*` variable from the app's environment, so the copy never polls the real Portal bridge. With writes allowed, every write lands in the copy. A capture would still launch CS2 through the profile's real HLAE, so allow writes only for a flow that needs them, and never start a recording without the user's go-ahead.
 - The dev layout is unpackaged, so it sends no telemetry.
-- `zv-orchestrator` embeds `FACEIT_API_KEY` from the environment, as `scripts/build.ps1` does. Errors redact it; never print it yourself.
+- `zv-orchestrator` embeds `FACEIT_API_KEY` from the environment with the same ldflag as `scripts/build.ps1`. It uses the `go` on PATH, not the pinned toolchain, and does not assert that the key was embedded. Errors redact the key; never print it yourself.
+- Only the three binaries `assemble.mjs` ships are built, and the web build runs without `XAI_API_KEY`, as in the installer. HLAE is not staged: the profile reuses the real Studio's installed, hash-verified tools. If the branch changes the HLAE pin, the app provisions the new pin into the profile on boot; that path is not the installer's.
 - Deleting a job in the copy removes only the hardlink, never the user's video.
 
 ## What this does not cover
@@ -101,5 +104,5 @@ Attach the PNGs with `gh pr create --attach`, as `pr-create` describes.
 - `tsc` fails on `.next/types` for a deleted route: remove `web/.next`. This does not affect this script.
 - Web Playwright e2e run locally, never in CI (the user's call): `pnpm --dir web run build`, then `E2E_SKIP_BUILD=1 npx playwright test` from `web/`. The full suite (312 tests) took 2.7 min with 2 workers on a loaded machine.
 - Go: `internal/editor` needs `go test -timeout 30m` (it takes about 11 min). `desktop` `smoke-launch-contract` fails in a fresh worktree until `bin/zv` exists.
-- The first boot of a new profile copies about 260 MB of tools and the data under 100 MB, which takes seconds. The profile persists between runs. Delete `C:\temp\cliphub-verify\profile` to start clean.
+- The first boot of a new profile copies about 260 MB of tools and the data under 100 MB, which takes seconds. The profile persists between runs; `.tools-ready` and `.data-ready` mark a finished copy, so an interrupted one is redone. Delete `C:\temp\cliphub-verify\profile` to start clean. `CLIPHUB_VERIFY_HOME` must stay on the same volume as `%APPDATA%` for the hardlinks.
 - Known benign API states are listed in `KNOWN` in the script, each with a reason (for example, 409 on `/anticheat` means the analysis has not started). Add to it only with a reason, never to silence a real failure.

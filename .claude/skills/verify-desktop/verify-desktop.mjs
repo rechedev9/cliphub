@@ -37,6 +37,15 @@ const HOME = process.env.CLIPHUB_VERIFY_HOME ?? 'C:\\temp\\cliphub-verify';
 const profile = path.join(HOME, 'profile');
 const realStudio = path.join(process.env.APPDATA ?? '', 'cliphub-studio');
 const BIG_FILE = 100 * 1024 * 1024;
+// --fresh-data deletes <HOME>/profile/data: HOME must never overlap the real Studio.
+if (process.env.APPDATA && path.resolve(HOME).toLowerCase().startsWith(path.resolve(process.env.APPDATA).toLowerCase())) {
+  throw new Error(`CLIPHUB_VERIFY_HOME must not live under %APPDATA% (${HOME})`);
+}
+
+// Drops matching variables; Windows environment names are case-insensitive.
+function without(environment, pattern) {
+  return Object.fromEntries(Object.entries(environment).filter(([name]) => !pattern.test(name)));
+}
 
 const argv = process.argv.slice(2);
 const mode = ['prepare', 'run', 'all'].includes(argv[0]) ? argv.shift() : 'all';
@@ -67,25 +76,30 @@ function sh(command, args, options = {}) {
     : spawnSync(command, args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20, ...options });
   const ok = options.okCodes ? options.okCodes.includes(result.status) : result.status === 0;
   if (!ok) {
-    process.stdout.write('\n' + redact((result.stdout ?? '').slice(-4000) + (result.stderr ?? '').slice(-4000)));
+    // Redact before slicing so a key cut by the slice boundary is never printed.
+    process.stdout.write('\n' + redact(result.stdout ?? '').slice(-4000) + redact(result.stderr ?? '').slice(-4000));
     throw new Error(redact(`${command} ${args.join(' ')} exited ${result.status ?? result.error}`));
   }
   return result.stdout;
 }
 
 // A previous run's app keeps build-resources/web/server.js open (EBUSY on rebuild).
+// The PID file can be stale (run killed before cleanup) and Windows reuses PIDs,
+// so kill the tree only while that PID still belongs to an electron.exe.
 function stopPreviousApp() {
   const pidFile = path.join(HOME, 'app.pid');
   if (!existsSync(pidFile)) return;
   const pid = readFileSync(pidFile, 'utf8').trim();
-  spawnSync('taskkill', ['/PID', pid, '/T', '/F'], { encoding: 'utf8' });
+  if (/^\d+$/.test(pid)) {
+    const list = spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/FI', 'IMAGENAME eq electron.exe', '/NH'], { encoding: 'utf8' });
+    if (/electron\.exe/i.test(list.stdout ?? '')) spawnSync('taskkill', ['/PID', pid, '/T', '/F'], { encoding: 'utf8' });
+  }
   rmSync(pidFile, { force: true });
 }
 
-const GO_COMMANDS = [
-  'zv', 'zv-parser', 'zv-demo-players', 'zv-orchestrator', 'zv-recorder', 'zv-composer', 'zv-editor',
-  'zv-stream', 'zv-rhythm', 'zv-analysis-viewer', 'zv-tactical-data', 'zv-hud-designs',
-];
+// Exactly the binaries desktop/scripts/assemble.mjs ships in the installer, so
+// sibling detection (e.g. zv-composer) behaves as in the user's Studio.
+const GO_COMMANDS = ['zv-orchestrator', 'zv-editor', 'zv-recorder'];
 
 function prepare() {
   stopPreviousApp();
@@ -95,6 +109,8 @@ function prepare() {
     step('desktop dist', () => sh('pnpm', ['--dir', 'desktop', 'run', 'build']));
   }
   if (!flag('skip-go')) {
+    // Start clean so binaries from an older, wider build do not linger as siblings.
+    rmSync(path.join(resources, 'bin'), { recursive: true, force: true });
     mkdirSync(path.join(resources, 'bin'), { recursive: true });
     // Same key embedding as scripts/build.ps1, so Jugadores works as in the installer.
     const key = (process.env.FACEIT_API_KEY ?? '').trim();
@@ -106,7 +122,8 @@ function prepare() {
   }
   if (!flag('skip-web')) {
     if (!existsSync(path.join(web, 'node_modules'))) step('web install', () => sh('pnpm', ['--dir', 'web', 'install', '--frozen-lockfile']));
-    step('web build', () => sh('pnpm', ['--dir', 'web', 'run', 'build']));
+    // Like assemble.mjs: the xAI key never reaches the bundled web build.
+    step('web build', () => sh('pnpm', ['--dir', 'web', 'run', 'build'], { env: without(process.env, /^xai_api_key$/i) }));
     step('stage web', () => {
       const out = path.join(resources, 'web');
       rmSync(out, { recursive: true, force: true });
@@ -119,52 +136,89 @@ function prepare() {
   // carries the installed, hash-verified tools of the real Studio instead.
   const musicSrc = path.join(repo, 'data', 'music');
   const musicOut = path.join(resources, 'music');
-  if (!existsSync(path.join(musicOut, 'catalog.json')) && existsSync(path.join(musicSrc, 'catalog.json'))) {
-    mkdirSync(musicOut, { recursive: true });
-    cpSync(path.join(musicSrc, 'catalog.json'), path.join(musicOut, 'catalog.json'));
-    const catalog = JSON.parse(readFileSync(path.join(musicSrc, 'catalog.json'), 'utf8'));
-    for (const t of catalog.tracks ?? []) {
-      const file = path.join(musicSrc, `${t.id}.${t.ext}`);
-      if (!t.downloadUrl && t.id && t.ext && existsSync(file)) cpSync(file, path.join(musicOut, `${t.id}.${t.ext}`));
-    }
+  rmSync(musicOut, { recursive: true, force: true });
+  mkdirSync(musicOut, { recursive: true });
+  cpSync(path.join(musicSrc, 'catalog.json'), path.join(musicOut, 'catalog.json'));
+  const catalog = JSON.parse(readFileSync(path.join(musicSrc, 'catalog.json'), 'utf8'));
+  const mainCheckout = path.dirname(path.resolve(repo, sh('git', ['rev-parse', '--git-common-dir']).trim()));
+  const missing = [];
+  for (const t of catalog.tracks ?? []) {
+    if (t.downloadUrl || !t.id || !t.ext) continue;
+    const file = path.join(musicSrc, `${t.id}.${t.ext}`);
+    // Local-only audio is gitignored, so a fresh worktree lacks it: fall back to
+    // the main checkout, and warn (not fail) when neither has the file.
+    const source = [file, path.join(mainCheckout, 'data', 'music', `${t.id}.${t.ext}`)].find((f) => existsSync(f));
+    if (source) cpSync(source, path.join(musicOut, `${t.id}.${t.ext}`));
+    else missing.push(`${t.id}.${t.ext}`);
   }
+  if (missing.length) console.log(`[verify-desktop] WARNING: ${missing.length} local-only music track(s) missing, music for them will not play: ${missing.join(', ')}`);
 }
 
-// Delivered MP4s are hardlinked (same volume, no copy, originals untouched by
-// a delete in the copy); raw recordings and render-lab bundles are left out.
-function linkDeliveredVideos(from, to) {
+// Files over 100 MB are hardlinked instead of copied (same volume, no copy,
+// originals untouched by a delete in the copy): delivered MP4s under videos/
+// and the job demos. Raw recordings and render-lab bundles are left out.
+function linkBigFiles(from, to) {
   let linked = 0;
+  const link = (source) => {
+    const target = path.join(to, path.relative(from, source));
+    if (existsSync(target)) return;
+    mkdirSync(path.dirname(target), { recursive: true });
+    try {
+      linkSync(source, target);
+    } catch (error) {
+      if (error?.code === 'EXDEV') throw new Error(`CLIPHUB_VERIFY_HOME (${HOME}) must be on the same volume as ${realStudio} to hardlink big files`);
+      throw error;
+    }
+    linked += 1;
+  };
   const walk = (dir) => {
+    if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const source = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === 'recording' || entry.name === 'segments') continue;
         walk(source);
       } else if (entry.name.endsWith('.mp4') && /[\\/]videos[\\/]/.test(source) && statSync(source).size > BIG_FILE) {
-        const target = path.join(to, path.relative(from, source));
-        if (existsSync(target)) continue;
-        mkdirSync(path.dirname(target), { recursive: true });
-        linkSync(source, target);
-        linked += 1;
+        link(source);
       }
     }
   };
   walk(path.join(from, 'jobs'));
+  const demos = path.join(from, 'demos');
+  if (existsSync(demos)) {
+    for (const entry of readdirSync(demos, { withFileTypes: true })) {
+      const source = path.join(demos, entry.name);
+      if (entry.isFile() && entry.name.endsWith('.dem') && statSync(source).size > BIG_FILE) link(source);
+    }
+  }
   return linked;
 }
 
+// robocopy: /R:1 /W:1 so a file the running Studio holds open cannot stall the
+// copy (default is a million retries 30 s apart); exit codes below 8 are success.
+const ROBOCOPY_QUIET = ['/R:1', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP'];
+const ROBOCOPY_OK = [0, 1, 2, 3, 4, 5, 6, 7];
+
+// Each copy writes a marker only after it completes, so an interrupted or
+// failed copy is redone on the next run instead of being reused half-done.
 function ensureProfile() {
   if (!existsSync(realStudio)) throw new Error(`no real Studio data at ${realStudio}`);
   mkdirSync(profile, { recursive: true });
-  if (!existsSync(path.join(profile, 'tools'))) {
-    step('copy tools (ffmpeg, HLAE, yt-dlp)', () => sh('robocopy', [path.join(realStudio, 'tools'), path.join(profile, 'tools'), '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP'], { okCodes: [0, 1, 2, 3] }));
+  const tools = path.join(profile, 'tools');
+  const toolsReady = path.join(profile, '.tools-ready');
+  if (!existsSync(toolsReady)) {
+    step('copy tools (ffmpeg, HLAE, yt-dlp)', () => sh('robocopy', [path.join(realStudio, 'tools'), tools, '/E', ...ROBOCOPY_QUIET], { okCodes: ROBOCOPY_OK }));
+    writeFileSync(toolsReady, new Date().toISOString());
   }
   const data = path.join(profile, 'data');
-  if (flag('fresh-data') && existsSync(data)) step('drop old data copy', () => rmSync(data, { recursive: true, force: true }));
-  if (!existsSync(data)) {
-    step('copy data (<=100 MB files, no lab)', () => sh('robocopy', [path.join(realStudio, 'data'), data, '/E', `/MAX:${BIG_FILE}`, '/XD', 'lab', '/NFL', '/NDL', '/NJH', '/NJS', '/NP'], { okCodes: [0, 1, 2, 3] }));
-    const linked = step('hardlink delivered videos', () => linkDeliveredVideos(path.join(realStudio, 'data'), data));
-    console.log(`[verify-desktop] ${linked} delivered video(s) linked`);
+  const dataReady = path.join(profile, '.data-ready');
+  if (flag('fresh-data')) rmSync(dataReady, { force: true });
+  if (!existsSync(dataReady)) {
+    if (existsSync(data)) step('drop old data copy', () => rmSync(data, { recursive: true, force: true }));
+    step('copy data (<=100 MB files, no lab)', () => sh('robocopy', [path.join(realStudio, 'data'), data, '/E', `/MAX:${BIG_FILE}`, '/XD', 'lab', ...ROBOCOPY_QUIET], { okCodes: ROBOCOPY_OK }));
+    const linked = step('hardlink delivered videos and demos', () => linkBigFiles(path.join(realStudio, 'data'), data));
+    console.log(`[verify-desktop] ${linked} big file(s) linked`);
+    writeFileSync(dataReady, new Date().toISOString());
   }
 }
 
@@ -179,6 +233,8 @@ async function run() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const out = path.join(HOME, 'runs', stamp);
   mkdirSync(path.join(out, 'shots'), { recursive: true });
+  const runs = readdirSync(path.join(HOME, 'runs')).sort();
+  for (const old of runs.slice(0, Math.max(0, runs.length - 10))) rmSync(path.join(HOME, 'runs', old), { recursive: true, force: true });
   const report = { repo, head: sh('git', ['rev-parse', '--short', 'HEAD']).trim(), out, boot_ms: 0, blocked: [], pages: [], check: null };
 
   const bootStart = Date.now();
@@ -186,24 +242,29 @@ async function run() {
     executablePath: require('electron'),
     args: [path.join(desktop, 'e2e', 'isolated-userdata.cjs')],
     cwd: desktop,
-    env: { ...process.env, CLIPHUB_E2E_USER_DATA: profile },
+    // No ZV_* from the shell: ZV_BRIDGE_* would let the copy claim real Portal
+    // requests, and other overrides would diverge from the installed Studio.
+    env: { ...without(process.env, /^(zv_|xai_api_key$)/i), CLIPHUB_E2E_USER_DATA: profile },
   });
   writeFileSync(path.join(HOME, 'app.pid'), String(app.process().pid));
   try {
+    // Block writes on the whole context before the first window loads, so boot
+    // requests and any later window or popup are covered too.
+    if (!flag('allow-writes')) {
+      await app.context().route('**/api/**', (route) => {
+        const request = route.request();
+        const pathname = new URL(request.url()).pathname;
+        if (request.method() === 'GET' || pathname.startsWith('/api/session/')) return route.continue();
+        report.blocked.push(`${request.method()} ${pathname}`);
+        return route.fulfill({ status: 204, body: '' });
+      });
+    }
     const page = await app.firstWindow();
     const errors = [];
     const failed = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${String(e).slice(0, 400)}`));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 400)); });
     page.on('response', (r) => { if (r.status() >= 400 && r.url().includes('/api/')) failed.push(`${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`); });
-    if (!flag('allow-writes')) {
-      await page.route('**/api/**', (route) => {
-        const request = route.request();
-        if (request.method() === 'GET' || request.url().includes('/api/session')) return route.continue();
-        report.blocked.push(`${request.method()} ${new URL(request.url()).pathname}`);
-        return route.fulfill({ status: 204, body: '' });
-      });
-    }
     await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/clips(\?.*)?$/, { timeout: 420_000 });
     report.boot_ms = Date.now() - bootStart;
     const origin = new URL(page.url()).origin;
@@ -280,7 +341,8 @@ async function run() {
 
     if (flag('keep-open')) {
       console.log(`[verify-desktop] app left open at ${origin} (Ctrl+C to stop)`);
-      await new Promise(() => {});
+      // Ctrl+C resumes here, so the report, app shutdown and summary still run.
+      await new Promise((resolve) => process.once('SIGINT', resolve));
     }
   } finally {
     writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
