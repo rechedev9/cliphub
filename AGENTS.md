@@ -212,6 +212,18 @@ Valve splash. advancedfx tracked it as issue #1216 and fixed it in official
   writes `ffmpeg/ffmpeg.ini` at runtime. Compute the digest over a fresh
   `Expand-Archive` of the release zip.
 
+### Incident: a release shipped on a pin CS2 had already broken (Studio 5.4.1, 2026-09-28)
+
+CS2 1.41.8.5 (2026-09-25) broke 2.192.4 again (`record:demo` exit 6,
+`Error - AfxHookSource2`). advancedfx fixed it in 2.192.5 the next day, but
+Studio 5.4.0 and 5.4.1 still shipped 2.192.4, and the first real render
+after 5.4.1 failed. Studio 5.4.2 pins official 2.192.6.
+
+- Before cutting any Studio release, compare the dev PC's CS2
+  `PatchVersion` with the pinned AfxHookSource2 changelog and check
+  `gh release list --repo advancedfx/advancedfx` for a newer build. A
+  release is not done until one real capture has run with its pin.
+
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
 A full render takes 20+ minutes, so check a render change one stage at a
