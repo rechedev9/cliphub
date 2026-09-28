@@ -103,12 +103,16 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
             {/* Each part moves as a whole so a date never splits across lines; only a part wider
-                than the column (an unbroken player name) breaks inside itself. */}
+                than the column (an unbroken player name) breaks inside itself. The separator is
+                glued to the part before it, so a wrapped line never starts with a dot. */}
             <span className="text-body-sm text-fg-2">
-              {matchMetaParts(match, matchDateLabel(match)).map((part, index) => (
+              {matchMetaParts(match, matchDateLabel(match)).map((part, index, parts) => (
                 <span key={index}>
-                  {index > 0 ? ' · ' : null}
-                  <span className="inline-block max-w-full wrap-anywhere">{part}</span>
+                  {index > 0 ? ' ' : null}
+                  <span className="inline-block max-w-full wrap-anywhere">
+                    {part}
+                    {index < parts.length - 1 ? '\u00a0·' : null}
+                  </span>
                 </span>
               ))}
             </span>
