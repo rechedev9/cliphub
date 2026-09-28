@@ -40,6 +40,7 @@ import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
+import { fetchLatestHLAERelease } from './hlae-latest';
 import { ProcessSession, type LaunchedProcess } from './process-session';
 import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
@@ -526,6 +527,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     {
       toolsDir: path.join(app.getPath('userData'), 'tools'),
       bundledHLAEArchive: resourcePath('hlae', PINNED_HLAE_TOOL.archiveName),
+      resolveLatestHLAE: fetchLatestHLAERelease,
       logLine,
       signal: attempt.controller.signal,
     },
