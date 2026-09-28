@@ -405,6 +405,193 @@ test('restores an install interrupted during atomic publication', async (t) => {
   assert.equal(fs.existsSync(previousDir), false);
 });
 
+const LATEST_HLAE = {
+  version: '2.999.0',
+  archiveName: 'hlae_2_999_0.zip',
+  url: 'https://github.com/advancedfx/advancedfx/releases/download/v2.999.0/hlae_2_999_0.zip',
+  sha256: 'a'.repeat(64),
+};
+
+// Seeds cached ffmpeg and yt-dlp so HLAE is the only tool a test provisions.
+function seedOtherTools(toolsDir: string): void {
+  seedCompleteFFmpeg(toolsDir);
+  seedCompleteYtdlp(toolsDir);
+}
+
+function latestDownload(downloads: string[], digest = LATEST_HLAE.sha256): RuntimeToolProvisioningOptions['download'] {
+  return async (url, destination) => {
+    downloads.push(url);
+    fs.writeFileSync(destination, 'latest archive');
+    return digest;
+  };
+}
+
+async function extractLatestHLAE(_archive: string, destination: string): Promise<void> {
+  fs.writeFileSync(path.join(destination, 'HLAE.exe'), 'latest hlae');
+  fs.mkdirSync(path.join(destination, 'x64'), { recursive: true });
+  fs.writeFileSync(path.join(destination, 'x64', 'AfxHookSource2.dll'), 'latest hook');
+}
+
+test('installs the latest official HLAE when it is newer than the bundled pin', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  seedCompleteHLAE(toolsDir);
+  const downloads: string[] = [];
+  const options = (download: RuntimeToolProvisioningOptions['download']) => withFixtureTrust({
+    toolsDir,
+    logLine: () => {},
+    platform: 'win32',
+    resolveLatestHLAE: async () => LATEST_HLAE,
+    download,
+    extractArchive: extractLatestHLAE,
+  });
+
+  const env = await provisionRuntimeTools(options(latestDownload(downloads)));
+
+  const latestDir = path.join(toolsDir, 'hlae', LATEST_HLAE.version);
+  assert.equal(env.ZV_HLAE_PATH, path.join(latestDir, 'HLAE.exe'));
+  assert.deepEqual(downloads, [LATEST_HLAE.url]);
+  const marker = JSON.parse(fs.readFileSync(path.join(latestDir, '.cliphub-install.json'), 'utf8'));
+  assert.equal(marker.sourceSha256, LATEST_HLAE.sha256);
+  assert.equal(marker.treeSha256, fixtureTreeDigest({ 'HLAE.exe': 'latest hlae', 'x64/AfxHookSource2.dll': 'latest hook' }));
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', HLAE_VERSION)), false, 'the older pin is removed');
+
+  // The next boot reuses the verified install, even after a capture wrote ffmpeg.ini.
+  fs.mkdirSync(path.join(latestDir, 'ffmpeg'), { recursive: true });
+  fs.writeFileSync(path.join(latestDir, 'ffmpeg', 'ffmpeg.ini'), '[Ffmpeg]\n');
+  const again = await provisionRuntimeTools(options(async () => {
+    throw new Error('a verified latest install must not download again');
+  }));
+  assert.equal(again.ZV_HLAE_PATH, path.join(latestDir, 'HLAE.exe'));
+});
+
+test('keeps the newest verified HLAE when the latest lookup is offline', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: () => {},
+    platform: 'win32',
+    resolveLatestHLAE: async () => LATEST_HLAE,
+    download: latestDownload([]),
+    extractArchive: extractLatestHLAE,
+  }));
+  const logs: string[] = [];
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: (line) => logs.push(line),
+    platform: 'win32',
+    resolveLatestHLAE: async () => {
+      throw new Error('getaddrinfo ENOTFOUND api.github.com');
+    },
+    download: async () => {
+      throw new Error('offline');
+    },
+  }));
+
+  assert.equal(env.ZV_HLAE_PATH, path.join(toolsDir, 'hlae', LATEST_HLAE.version, 'HLAE.exe'));
+  assert.match(logs.join(''), /latest HLAE lookup failed/);
+});
+
+test('refuses a tampered offline HLAE and falls back to the bundled pin', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: () => {},
+    platform: 'win32',
+    resolveLatestHLAE: async () => LATEST_HLAE,
+    download: latestDownload([]),
+    extractArchive: extractLatestHLAE,
+  }));
+  fs.writeFileSync(path.join(toolsDir, 'hlae', LATEST_HLAE.version, 'x64', 'AfxHookSource2.dll'), 'tampered');
+  const bundledHLAEArchive = path.join(toolsDir, 'bundled', PINNED_HLAE_TOOL.archiveName);
+  fs.mkdirSync(path.dirname(bundledHLAEArchive), { recursive: true });
+  fs.writeFileSync(bundledHLAEArchive, 'bundled pin');
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    bundledHLAEArchive,
+    logLine: () => {},
+    platform: 'win32',
+    resolveLatestHLAE: async () => null,
+    sha256File: () => PINNED_HLAE_TOOL.sha256,
+    extractArchive: async (_archive, destination) => {
+      fs.writeFileSync(path.join(destination, 'HLAE.exe'), 'bundled hlae');
+    },
+  }, { hlae: fixtureTreeDigest({ 'HLAE.exe': 'bundled hlae' }) }));
+
+  assert.equal(env.ZV_HLAE_PATH, path.join(toolsDir, 'hlae', HLAE_VERSION, 'HLAE.exe'));
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', LATEST_HLAE.version)), false);
+});
+
+test('falls back to the bundled pin when the latest archive does not match its digest', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  seedCompleteHLAE(toolsDir);
+  const logs: string[] = [];
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: (line) => logs.push(line),
+    platform: 'win32',
+    resolveLatestHLAE: async () => LATEST_HLAE,
+    download: latestDownload([], 'b'.repeat(64)),
+    extractArchive: extractLatestHLAE,
+  }));
+
+  assert.equal(env.ZV_HLAE_PATH, path.join(toolsDir, 'hlae', HLAE_VERSION, 'HLAE.exe'));
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', LATEST_HLAE.version)), false);
+  assert.match(logs.join(''), /sha256 mismatch/);
+  assert.match(logs.join(''), new RegExp(`HLAE ${LATEST_HLAE.version.replaceAll('.', '\\.')} unavailable; using bundled`));
+});
+
+test('keeps the bundled pin when it is already the latest HLAE', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  seedCompleteHLAE(toolsDir);
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: () => {},
+    platform: 'win32',
+    resolveLatestHLAE: async () => ({ ...LATEST_HLAE, version: HLAE_VERSION }),
+    download: async () => {
+      throw new Error('the pin is current; nothing to download');
+    },
+  }));
+
+  assert.equal(env.ZV_HLAE_PATH, path.join(toolsDir, 'hlae', HLAE_VERSION, 'HLAE.exe'));
+});
+
+test('a capture writing ffmpeg.ini does not invalidate the cached pinned HLAE', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedOtherTools(toolsDir);
+  seedCompleteHLAE(toolsDir);
+  const trusted = fixtureTreeSha256(toolsDir);
+  const installDir = path.join(toolsDir, 'hlae', HLAE_VERSION);
+  fs.mkdirSync(path.join(installDir, 'ffmpeg'), { recursive: true });
+  fs.writeFileSync(path.join(installDir, 'ffmpeg', 'ffmpeg.ini'), '[Ffmpeg]\n');
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: () => {},
+    platform: 'win32',
+    download: async () => {
+      throw new Error('ffmpeg.ini must not force a reinstall');
+    },
+  }, trusted));
+
+  assert.equal(env.ZV_HLAE_PATH, path.join(installDir, 'HLAE.exe'));
+});
+
 function digestFor(url: string): string {
   if (url.includes('advancedfx')) {
     return PINNED_HLAE_TOOL.sha256;

@@ -156,10 +156,11 @@ Rules that follow from it:
 - Exit code 6 / `capture_incompatible` means HLAE vs CS2 build, not a ClipHub
   regression. Check the advancedfx issues and releases and the CS2 update time
   against the user's last successful capture before bisecting our commits.
-- Studio passes `ZV_HLAE_PATH` for the pinned version and reinstalls the pin
-  when its cache digest does not match, so users cannot work around an
-  incompatible pin by installing a newer HLAE themselves. The fix always ships
-  as a new pin plus a Studio release.
+- Studio passes `ZV_HLAE_PATH` for the HLAE it provisioned and reinstalls it
+  when its cache digest does not match, so users cannot work around a broken
+  HLAE by installing one themselves. Since Studio 5.4.3 that HLAE is the
+  latest official release (see the 5.4.1 incident below); the pin is only the
+  bundled fallback.
 - When advancedfx has no fixed release yet: build `AfxHookSource2` from the
   fix (`cmake --preset x64-release`, then
   `cmake --build build/x64-release --config Release --target AfxHookSource2`),
@@ -219,10 +220,26 @@ CS2 1.41.8.5 (2026-09-25) broke 2.192.4 again (`record:demo` exit 6,
 Studio 5.4.0 and 5.4.1 still shipped 2.192.4, and the first real render
 after 5.4.1 failed. Studio 5.4.2 pins official 2.192.6.
 
-- Before cutting any Studio release, compare the dev PC's CS2
-  `PatchVersion` with the pinned AfxHookSource2 changelog and check
-  `gh release list --repo advancedfx/advancedfx` for a newer build. A
-  release is not done until one real capture has run with its pin.
+Studio now always runs the latest official HLAE:
+
+- At boot, `provisionHLAE` (`desktop/src/runtime-tools.ts`) reads
+  advancedfx's `releases/latest` (`hlae-latest.ts`). When it is newer than
+  the bundled pin, Studio downloads its `hlae_X_Y_Z.zip`. The archive must
+  match the sha256 GitHub publishes for that asset (`digest`), and the
+  extracted tree digest is recorded in the install marker and checked on
+  every later boot. advancedfx signs releases with different PGP keys, so
+  the GitHub digest over HTTPS is the trust anchor, not a pinned key.
+- Offline, Studio reuses the newest install whose files still match its
+  marker. If the download or its verification fails, it falls back to the
+  bundled pin. A failed lookup never blocks capture.
+- `ffmpeg/ffmpeg.ini`, which zv-recorder writes into the HLAE folder on
+  every capture, is excluded from the tree digest, so a capture no longer
+  forces a reinstall on the next boot.
+- `desktop-release.yml` runs `desktop/scripts/check-hlae-latest.mjs`, which
+  fails the release unless `hlae-tool.json` is advancedfx's latest release.
+  Bump the pin (and prove it with a real capture) before tagging.
+- If CS2 updates while Studio is open, restarting Studio picks up a fixed
+  HLAE. The lookup runs only at boot.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
