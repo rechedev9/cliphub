@@ -217,7 +217,6 @@ const documentShape = object({
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
 }, ['sponsor_placement']);
 export type FullDemoDocument = Guarded<typeof documentShape>;
-export type FullDemoRound = Guarded<typeof round>;
 const snapshotShape = object({ document: documentShape, approval: object({ approved_plan_hash: hash, allow_safe_tail_trim: boolean, timestamp: string }) });
 export type FullDemoSnapshot = Guarded<typeof snapshotShape>;
 

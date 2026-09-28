@@ -548,56 +548,6 @@ html[data-capture-active="true"] {
     background-image: repeating-linear-gradient(180deg, oklch(1 0 0 / 0.035) 0 1px, transparent 1px 3px);
   }
 
-  /* ── Pointer-parallax tilt ───────────────────────────────────────────────
-   * The host writes --tilt-x/--tilt-y NORMALISED to -1..1 and --px/--py as
-   * 0..100; the ceiling lives in --tilt-max/--sheen-opacity, so the depth gate
-   * flattens both to a no-op without a single duplicated media query. */
-  .studio-tilt {
-    perspective: var(--perspective);
-    perspective-origin: center;
-  }
-
-  .studio-tilt-plane {
-    position: relative;
-    transform-style: preserve-3d;
-    transform: rotateX(calc(var(--tilt-x, 0) * var(--tilt-max))) rotateY(calc(var(--tilt-y, 0) * var(--tilt-max)));
-    transition: transform var(--dur-base) var(--ease-standard);
-    backface-visibility: hidden;
-  }
-
-  /* Fast while tracking, slow on release; will-change only while engaged, so a
-   * 40-card library never promotes more than one layer at a time. */
-  .studio-tilt:hover .studio-tilt-plane,
-  .studio-tilt:focus-within .studio-tilt-plane {
-    transition-duration: var(--dur-instant);
-    will-change: transform;
-  }
-
-  .studio-tilt-sheen::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    opacity: calc(var(--tilt-sheen, 0) * var(--sheen-opacity));
-    transition: opacity var(--dur-base) var(--ease-standard);
-    mix-blend-mode: screen;
-    background: radial-gradient(
-      420px circle at calc(var(--px, 50) * 1%) calc(var(--py, 50) * 1%),
-      color-mix(in oklch, var(--primary) 55%, transparent),
-      transparent 62%
-    );
-  }
-
-  @media (hover: none) {
-    .studio-tilt-plane {
-      transform: none;
-    }
-
-    .studio-tilt-sheen::after {
-      display: none;
-    }
-  }
-
   /* ── Canvas ──────────────────────────────────────────────────────────────
    * One fixed, static, aria-hidden plane: horizon wash + two-level lattice +
    * a CSS-3D floor receding to the horizon + scanlines + vignette. Fixed (not
@@ -1215,14 +1165,9 @@ html[data-capture-active="true"] .animate-spin {
     box-shadow: none;
   }
 
-  .studio-tilt-plane {
-    transform: none;
-  }
-
   /* Decorative colour under forced colours is a defect, not a degradation. */
   .shell-canvas,
   .studio-scanline::after,
-  .studio-tilt-sheen::after,
   .ff-ambient-layer,
   .ff-ambient,
   .ff-ambient-fallback {
