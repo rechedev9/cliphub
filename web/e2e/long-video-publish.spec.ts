@@ -4,7 +4,7 @@ import { FULL_DEMO_EDIT } from '../lib/full-demo.ts';
 import { buildEditRequest } from '../lib/api/edit-request.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
-const VIDEO = `${JOB}__demo-compilation`;
+const VIDEO = `${JOB}__full-demo`;
 const VARIANT = 'gameplay-pov-60';
 const titles = [
   ['Bajas destacadas', 'donk Drops 34 KILLS on FACEIT! POV with COMMS (Mirage)'],
