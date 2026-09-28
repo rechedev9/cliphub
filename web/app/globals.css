@@ -188,8 +188,6 @@
    * (the static pipeline arrangement) deliberately does NOT read it. */
   --shell-depth: 1;
   --perspective: 900px;
-  --tilt-max: calc(var(--shell-depth) * 6deg);
-  --sheen-opacity: calc(var(--shell-depth) * 0.1);
 
   /* Canvas texture, shared by .shell-canvas and the WebGL fallback. */
   --lattice-fine: color-mix(in oklch, var(--primary) 6%, transparent);
