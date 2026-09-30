@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
+import { MUTATION_CAPABILITY_ERROR } from '../api/local-request-guard.ts';
 import {
   type NormalizedRect,
   type StreamClipEdit,
@@ -85,6 +86,8 @@ export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
     'El plan necesita actualizarse tras la aprobación. Guárdalo y revísalo antes de renderizar.',
   'facecam crop requires explicit review before rendering':
     'Confirma manualmente el recorte de facecam antes de renderizar.',
+  [MUTATION_CAPABILITY_ERROR]:
+    'La sesión de ClipHub caducó y no se puede guardar ni exportar. Cierra y vuelve a abrir Studio; tu borrador local se conserva.',
 };
 
 /** Localized message for a failed API call, preferring the offline hint. */
