@@ -74,8 +74,9 @@ export function isServiceUnavailable(err: unknown): boolean {
 
 /**
  * The Go handlers return these exact English bodies with no `code` field
- * (`internal/httpapi/stream_handlers.go`); map each to its Spanish copy so the
- * editor never surfaces raw backend text.
+ * (`internal/httpapi/stream_handlers.go`), and the Next guard answers a lost
+ * local session with `MUTATION_CAPABILITY_ERROR`; map each to its Spanish copy
+ * so the editor never surfaces raw backend text.
  */
 export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   'stream edit plan cannot change while a render is running':

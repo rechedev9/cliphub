@@ -315,8 +315,7 @@ function createWindow(): BrowserWindow {
   win.on('focus', () => {
     if (activeWebOrigin === null || activeProxyCapability === null) return;
     installProxyCapabilityCookie(win.webContents.session.cookies, activeWebOrigin, activeProxyCapability)
-      .catch((err: unknown) => logLine(`[session] could not re-seed the proxy capability: ${String(err)}
-`));
+      .catch((err: unknown) => logLine(`[session] could not re-seed the proxy capability: ${String(err)}\n`));
   });
   // Clear the ref so aliveWindow() fails closed if boot() is still awaiting.
   win.on('closed', () => {
@@ -666,6 +665,7 @@ function stopActiveBootAttempt(): boolean {
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
+  activeProxyCapability = null;
   if (attempt === null) return true;
   attempt.controller.abort();
   const stopped = attempt.processes.stop();

@@ -83,10 +83,14 @@ test('an offline code wins over the generic fallback message', () => {
   assert.equal(errorMessage('weird', 'fallback'), 'fallback');
 });
 
-test('the known 409 bodies from the stream handlers are translated instead of shown raw', () => {
+test('the known error bodies from the stream handlers and the local guard are translated instead of shown raw', () => {
   for (const [raw, spanish] of Object.entries(KNOWN_STREAM_ERROR_MESSAGES)) {
     assert.equal(errorMessage(new Error(raw), 'fallback'), spanish);
   }
+  assert.match(
+    errorMessage(new Error('local API mutation capability required'), 'fallback'),
+    /^La sesión de ClipHub caducó.*Cierra y vuelve a abrir Studio/,
+  );
   assert.equal(
     errorMessage(new Error('stream edit plan cannot change while a render is running'), 'fallback'),
     'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
