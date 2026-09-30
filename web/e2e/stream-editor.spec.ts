@@ -11,6 +11,7 @@ import { gotoStudio } from './contract.ts';
 const JOB_ID = '5c1d7e2a-3b4f-4c6d-9e8f-0a1b2c3d4e5f';
 const FACECAM_VARIANT = 'streamer-vertical-stack-40-60';
 const OVERLAY_REQUIRED_ERROR = 'clip clip-1 text overlay text is required';
+const SESSION_CAPABILITY_ERROR = 'local API mutation capability required';
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
 type Overlay = { text: string; position_y: number };
@@ -42,14 +43,15 @@ function json(body: unknown, status = 200): { status: number; contentType: strin
 type StreamStub = {
   /** Every edit-plan PUT body, in order. */
   puts: Plan[];
-  /** Make the next PUTs fail with this 400 body, or pass null to accept them again. */
-  rejectPuts(error: string | null): void;
+  /** Make the next PUTs fail with this body (400 unless `status` says otherwise), or pass null to accept them again. */
+  rejectPuts(error: string | null, status?: number): void;
   renderResult(mode: 'clips' | 'empty' | 'omitted'): void;
 };
 
 async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = false): Promise<StreamStub> {
   const puts: Plan[] = [];
   let putError: string | null = null;
+  let putStatus = 400;
   let plan = editPlan(faceCropReviewed);
   if (empty) plan.clips = [];
   let exported = false;
@@ -72,7 +74,7 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
     if (route.request().method() !== 'PUT') return route.fulfill(json(plan));
     const body = route.request().postDataJSON() as Plan;
     puts.push(body);
-    if (putError !== null) return route.fulfill(json({ error: putError }, 400));
+    if (putError !== null) return route.fulfill(json({ error: putError }, putStatus));
     plan = { ...body, updated_at: new Date().toISOString() };
     return route.fulfill(json(plan));
   });
@@ -107,8 +109,9 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
   await page.route('**/api/songs', (route) => route.fulfill(json({ songs: [] })));
   return {
     puts,
-    rejectPuts(error) {
+    rejectPuts(error, status = 400) {
       putError = error;
+      putStatus = status;
     },
     renderResult(mode) {
       renderResult = mode;
@@ -340,6 +343,23 @@ test.describe('stream editor', () => {
     await page.getByLabel('Título del corte 01').fill('Clutch 1v3 final ronda 30');
     await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
     await expect(page.getByRole('alert').filter({ hasText: OVERLAY_REQUIRED_ERROR })).toHaveCount(0);
+  });
+
+  test('a save refused for a lost local session explains it in Spanish instead of the raw guard string', async ({
+    page,
+  }) => {
+    const stub = await stubStreamJob(page, true);
+    stub.rejectPuts(SESSION_CAPABILITY_ERROR, 403);
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+
+    await page.getByLabel('Título del corte 01').fill('Clutch 1v3 final');
+    await expect(autosaveStatus(page)).toHaveText('Borrador local · guardado pendiente');
+    const alert = page.getByRole('alert').filter({ hasText: 'La sesión de ClipHub caducó' });
+    await expect(alert).toContainText('Cierra y vuelve a abrir Studio');
+    await expect(page.getByText(SESSION_CAPABILITY_ERROR)).toHaveCount(0);
+    if (process.env.STREAM_EDITOR_SHOTS) {
+      await page.screenshot({ path: `${process.env.STREAM_EDITOR_SHOTS}/session-lost-${page.viewportSize()!.width}.png` });
+    }
   });
 });
 

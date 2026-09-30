@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localAPIBootstrapError, localAPIOrigin, localAPIRequestError } from './local-request-guard.ts';
+import { localAPIBootstrapError, localAPIOrigin, localAPIRequestError, mutationCapabilityProblem } from './local-request-guard.ts';
 
 function requestHeaders(values: Record<string, string>): Headers {
   return new Headers(values);
@@ -126,6 +126,26 @@ test('rejects an ambiguous duplicated mutation capability cookie', async () => {
       cookie: 'cliphub_proxy_capability=one-launch-secret; cliphub_proxy_capability=wrong-secret',
     }), 'PATCH');
     assert.equal(error, 'local API mutation capability required');
+  } finally {
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;
+  }
+});
+
+test('reports why a mutation capability was refused, never its value', async () => {
+  const previous = process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+  const headers = (cookie?: string): Headers => requestHeaders(cookie === undefined ? { host: '127.0.0.1:3000' } : { host: '127.0.0.1:3000', cookie });
+  try {
+    delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    assert.equal(await mutationCapabilityProblem(headers()), 'unconfigured');
+    process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = 'one-launch-secret';
+    assert.equal(await mutationCapabilityProblem(headers()), 'cookie_missing');
+    assert.equal(await mutationCapabilityProblem(headers('cliphub_proxy_capability=old')), 'cookie_mismatch');
+    assert.equal(
+      await mutationCapabilityProblem(headers('cliphub_proxy_capability=one-launch-secret; cliphub_proxy_capability=old')),
+      'cookie_duplicate',
+    );
+    assert.equal(await mutationCapabilityProblem(headers('cliphub_proxy_capability=one-launch-secret')), undefined);
   } finally {
     if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
     else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;

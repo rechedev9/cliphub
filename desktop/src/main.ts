@@ -208,6 +208,8 @@ function logTail(maxLines = 40): string {
 
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
+// Same per-launch capability the web child holds; re-seeded whenever the window regains focus.
+let activeProxyCapability: string | null = null;
 let appUpdate: AppUpdateController | null = null;
 let appUpdateCheckTimer: NodeJS.Timeout | null = null;
 let appUpdateIntervalTimer: NodeJS.Timeout | null = null;
@@ -306,6 +308,15 @@ function createWindow(): BrowserWindow {
   win.removeMenu();
   if (isMaximized) win.maximize();
   win.on('close', saveWindowBounds);
+  // A Studio left open for hours can lose the HttpOnly capability cookie while
+  // the web child still holds the capability, and every save and export then
+  // fails with "local API mutation capability required". Same value, same
+  // session: re-seeding it on focus weakens nothing.
+  win.on('focus', () => {
+    if (activeWebOrigin === null || activeProxyCapability === null) return;
+    installProxyCapabilityCookie(win.webContents.session.cookies, activeWebOrigin, activeProxyCapability)
+      .catch((err: unknown) => logLine(`[session] could not re-seed the proxy capability: ${String(err)}\n`));
+  });
   // Clear the ref so aliveWindow() fails closed if boot() is still awaiting.
   win.on('closed', () => {
     mainWindow = null;
@@ -430,6 +441,7 @@ async function loadStudio(webPort: number, proxyMutationCapability: string): Pro
   const win = aliveWindow();
   if (win === null) throw new Error('main window is unavailable');
   const webOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
+  activeProxyCapability = proxyMutationCapability;
   await installProxyCapabilityCookie(
     win.webContents.session.cookies,
     webOrigin,
@@ -630,6 +642,7 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
+  activeProxyCapability = null;
   logLine(`[boot] ${details.logLabel ?? 'failed'}: ${String(err)}\n`);
   telemetryClient.recordError({
     component: 'electron',
@@ -652,6 +665,7 @@ function stopActiveBootAttempt(): boolean {
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
+  activeProxyCapability = null;
   if (attempt === null) return true;
   attempt.controller.abort();
   const stopped = attempt.processes.stop();
