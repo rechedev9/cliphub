@@ -3,13 +3,9 @@
 name: CI frontend
 
 on:
-  pull_request:
-    paths:
-      - 'web/**'
-      - 'desktop/**'
-      - 'portal/**'
-      - '.github/workflows/ci-frontend.yml'
   push:
+    tags:
+      - 'v*.*.*'
     branches:
       - main
     paths:
@@ -17,6 +13,9 @@ on:
       - 'desktop/**'
       - 'portal/**'
       - '.github/workflows/ci-frontend.yml'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
