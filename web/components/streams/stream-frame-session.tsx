@@ -6,7 +6,7 @@ import { browserWindowActivity } from '@/lib/window-activity';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { PlaybackSession, PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
 import { StreamAudioMixer } from '@/lib/stream-audio';
-import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
+import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, streamPlaybackStartIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
 
 const MAX_CANVAS_WIDTH = 1440;
 type StreamFrameState = {
@@ -62,6 +62,9 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     let playGeneration = 0;
     let playPending = false;
     let clipIndex = -1;
+    // Set when playback ran out of cuts. The last cut stays applied so the clock
+    // keeps the full duration; the next play restarts a finished sequence.
+    let playbackEnded = false;
     let playbackClipId: string | null = null;
     let videoPlaying = false;
     let rangeKey = '';
@@ -95,8 +98,10 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           session.play();
           return;
         }
-        clipIndex = nextStreamPlaybackIndex(current.clips, clipIndex, current.mode, current.loop);
-        if (clipIndex < 0) { runtime.pause(); latest.current.onPlayingChange(false); return; }
+        const next = nextStreamPlaybackIndex(current.clips, clipIndex, current.mode, current.loop);
+        playbackEnded = next < 0;
+        if (playbackEnded) { runtime.pause(); latest.current.onPlayingChange(false); return; }
+        clipIndex = next;
         applyClip();
         const clip = current.clips[clipIndex];
         if (clip) session.seek(clip.start_seconds);
@@ -113,6 +118,18 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       latest.current.onClipChange(clip?.id ?? null);
     }
 
+    function restartEndedSequence(): void {
+      const current = latest.current;
+      const start = streamPlaybackStartIndex({ clips: current.clips, current: clipIndex, mode: current.mode, ended: playbackEnded });
+      const clip = current.clips[start];
+      playbackEnded = false;
+      if (!clip || start === clipIndex) return;
+      clipIndex = start;
+      // The cut and its start go out in one tick so the clock never shows the new cut at the old position.
+      applyClip();
+      runtime.seek(clip.start_seconds);
+    }
+
     const runtime: StreamRuntime = {
       configure: () => {
         const current = latest.current;
@@ -120,6 +137,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         const requestedId = current.mode === STREAM_PLAYBACK_MODE.selected || nextSelection !== selectionKey
           ? current.selectedClipId : playbackClipId;
         clipIndex = streamPlaybackIndex(current.clips, requestedId);
+        if (nextSelection !== selectionKey) playbackEnded = false;
         selectionKey = nextSelection;
         const clip = current.mode === STREAM_PLAYBACK_MODE.source ? undefined : current.clips[clipIndex];
         const nextRange = JSON.stringify([current.mode, clip?.id, streamClipRange(clip)]);
@@ -136,6 +154,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         if (!alive || !browserWindowActivity.isActive()) { latest.current.onPlayingChange(false); return; }
         const generation = ++playGeneration;
         playPending = true;
+        restartEndedSequence();
         releaseOwner = claimMediaPlayback(session, () => { runtime.pause(); latest.current.onPlayingChange(false); });
         void mixer.resume().then(() => {
           if (!alive || generation !== playGeneration) return;
@@ -155,7 +174,13 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         mixer.pause();
         releaseOwner();
       },
-      seek: (seconds) => { session.seek(seconds); mixer.sync(seconds, false); },
+      seek: (seconds) => {
+        // Only a scrub inside the finished cut resumes it; from anywhere else play still restarts the sequence.
+        const range = streamClipRange(latest.current.clips[clipIndex]);
+        if (range && seconds >= range.start && seconds < range.end) playbackEnded = false;
+        session.seek(seconds);
+        mixer.sync(seconds, false);
+      },
     };
     runtimeRef.current = runtime;
     const unsubscribeFrames = session.subscribeFrames((next) => mixer.sync(next.seconds, videoPlaying && session.playRequested && !video.paused));

@@ -8,6 +8,7 @@ import {
   streamClipRange,
   streamFadeEnvelope,
   streamPlaybackIndex,
+  streamPlaybackStartIndex,
   streamPreviewFade,
   STREAM_PLAYBACK_MODE,
 } from './stream-playback.ts';
@@ -25,6 +26,24 @@ test('clip identity selects overlapping and reordered cuts without time-based am
   assert.equal(nextStreamPlaybackIndex(clips, 2, STREAM_PLAYBACK_MODE.sequence, false), -1);
   assert.equal(nextStreamPlaybackIndex(clips, 2, STREAM_PLAYBACK_MODE.sequence, true), 0);
   assert.equal(nextStreamPlaybackIndex(clips, 2, STREAM_PLAYBACK_MODE.selected, true), 2);
+});
+
+test('a finished sequence replays every cut in order instead of leading with the last one', () => {
+  const sequence = STREAM_PLAYBACK_MODE.sequence;
+  const playFrom = (start: number): number[] => {
+    const played: number[] = [];
+    for (let index = start; index >= 0; index = nextStreamPlaybackIndex(clips, index, sequence, false)) played.push(index);
+    return played;
+  };
+  const last = playFrom(streamPlaybackIndex(clips, 'later')).at(-1) ?? -1;
+  assert.equal(last, 2);
+  assert.deepEqual(playFrom(streamPlaybackStartIndex({ clips, current: last, mode: sequence, ended: true })), [0, 1, 2]);
+  // A paused sequence and a finished single cut resume the cut they are on.
+  assert.equal(streamPlaybackStartIndex({ clips, current: 1, mode: sequence, ended: false }), 1);
+  assert.equal(streamPlaybackStartIndex({ clips, current: 2, mode: STREAM_PLAYBACK_MODE.selected, ended: true }), 2);
+  const unusable = [{ id: 'bad', start_seconds: 5, end_seconds: 2 }, ...clips];
+  assert.equal(streamPlaybackStartIndex({ clips: unusable, current: 3, mode: sequence, ended: true }), 1);
+  assert.equal(streamPlaybackStartIndex({ clips: [], current: 0, mode: sequence, ended: true }), -1);
 });
 
 test('invalid or removed cuts are skipped rather than replaying an excluded range', () => {

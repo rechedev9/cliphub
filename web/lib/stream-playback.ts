@@ -26,6 +26,18 @@ export function nextStreamPlaybackIndex(clips: readonly StreamClipRange[], curre
   return loop && streamClipRange(clips[current]) !== null ? current : -1;
 }
 
+/** Cut a play request starts on: a finished sequence replays from its first valid cut. */
+export function streamPlaybackStartIndex(options: {
+  clips: readonly StreamClipRange[];
+  current: number;
+  mode: StreamPlaybackMode;
+  ended: boolean;
+}): number {
+  return options.ended && options.mode === STREAM_PLAYBACK_MODE.sequence
+    ? streamPlaybackIndex(options.clips, null)
+    : options.current;
+}
+
 export function streamPreviewFade(clip: StreamClipRange | undefined, sourceSeconds: number): number {
   const range = streamClipRange(clip);
   if (!clip || !range) return 1;

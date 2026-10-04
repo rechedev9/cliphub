@@ -92,7 +92,9 @@ export class PlaybackSession {
   play(): void {
     if (this.#disposed || this.#wanted) return;
     this.#wanted = true;
-    if (this.#range && (this.#video.currentTime < this.#range.start || this.#video.currentTime >= this.#range.end)) {
+    // A scrub queued behind an in-flight seek is not in currentTime yet.
+    const position = this.#requestedSeconds ?? this.#video.currentTime;
+    if (this.#range && (position < this.#range.start || position >= this.#range.end)) {
       this.seek(this.#range.start);
     }
     this.#tryPlay();
