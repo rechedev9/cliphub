@@ -186,6 +186,24 @@ test('buffering stays paused for consumers until playback actually resumes', asy
   session.dispose();
 });
 
+test('play keeps a scrub still queued behind an earlier seek and only rewinds one outside the range', async () => {
+  for (const [queued, resumed] of [[3.5, 3.5], [9, 2]]) {
+    const video = new TestVideo();
+    const session = new PlaybackSession(video, { onState: () => {} });
+    session.setRange({ start: 2, end: 5, rate: 1 });
+    session.seek(0.5);
+    session.seek(queued);
+    assert.deepEqual(video.seeks, [0.5]);
+    session.play();
+    video.settle();
+    assert.deepEqual(video.seeks, [0.5, resumed]);
+    video.settle();
+    await Promise.resolve();
+    assert.equal(video.paused, false);
+    session.dispose();
+  }
+});
+
 test('scrubbing during playback stays inside the selected range and separates request from presented time', async () => {
   const video = new TestVideo();
   const states: PlaybackState[] = [];

@@ -270,6 +270,39 @@ test.describe('real Chromium media playback', () => {
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(1.6);
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(2.8);
     await expect(page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true })).toBeVisible();
+    const clock = page.getByLabel('Tiempo de reproducción');
+    await expect(clock).toHaveText('0:03 / 0:03');
+
+    // A finished sequence used to replay its last Short first (B, A, B).
+    await clock.evaluate((element) => {
+      const texts: string[] = [];
+      new MutationObserver(() => {
+        const text = element.textContent ?? '';
+        if (texts.at(-1) === text) return;
+        texts.push(text);
+        element.dataset.clockTexts = JSON.stringify(texts);
+      }).observe(element, { childList: true, characterData: true, subtree: true });
+    });
+    await decoder.evaluate((element) => {
+      if (!(element instanceof HTMLVideoElement)) throw new Error('expected a video element');
+      const starts: number[] = [];
+      element.addEventListener('playing', () => {
+        starts.push(element.currentTime);
+        element.dataset.replayStarts = JSON.stringify(starts);
+      });
+    });
+    await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
+    await expect(decoder).toHaveAttribute('data-replay-starts', /\d/);
+    await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(2.8);
+    await expect(page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true })).toBeVisible();
+    await expect(clock).toHaveText('0:03 / 0:03');
+    const replayStarts: number[] = JSON.parse(await decoder.getAttribute('data-replay-starts') ?? '[]');
+    expect(replayStarts[0]).toBeLessThan(0.5);
+    expect(replayStarts).toEqual([...replayStarts].sort((left, right) => left - right));
+    // The clock restarts at zero in one step and never runs backwards.
+    const clockTexts: string[] = JSON.parse(await clock.getAttribute('data-clock-texts') ?? '[]');
+    expect(clockTexts[0]).toBe('0:00 / 0:03');
+    expect(clockTexts).toEqual([...clockTexts].sort());
     await expect(decoder).toHaveCount(1);
     await expect(canvas.first()).toHaveAttribute('data-frame-seconds', /\d/);
     const metrics = await decoder.evaluate((element) => {
