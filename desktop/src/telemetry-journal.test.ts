@@ -7,6 +7,11 @@ import { TelemetryClient } from './telemetry-client.ts';
 import { TelemetryJournal } from './telemetry-journal.ts';
 import { TelemetrySettingsStore } from './telemetry-settings.ts';
 
+// The client drops queued events older than 31 days, so fixture times follow the clock.
+function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
 test('journal startup stays fail-open when an ineligible cursor cannot persist', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-telemetry-journal-fail-'));
   const errors = path.join(directory, 'obs', 'journal.jsonl');
@@ -15,7 +20,7 @@ test('journal startup stays fail-open when an ineligible cursor cannot persist',
   fs.mkdirSync(path.dirname(errors), { recursive: true });
   fs.mkdirSync(unwritableCursorTarget);
   fs.writeFileSync(errors, `${JSON.stringify({
-    time: '2026-08-29T12:00:00Z', stage: 'render', class: 'render:variant', message: 'local only',
+    time: minutesAgo(9), stage: 'render', class: 'render:variant', message: 'local only',
   })}\n`);
   const settings = new TelemetrySettingsStore(path.join(directory, 'settings.json'));
   const logs: string[] = [];
@@ -49,14 +54,14 @@ test('journal importer discards pre-notice events and filters messages without i
   const queue = path.join(directory, 'queue.json');
   fs.mkdirSync(path.dirname(errors), { recursive: true });
   fs.writeFileSync(spans, `${JSON.stringify({
-    time: '2026-08-29T11:59:00Z',
+    time: minutesAgo(10),
     stage: 'worker',
     name: 'parse:demo',
     result: 'ok',
     duration_ms: 10,
   })}\n`);
   fs.writeFileSync(errors, `${JSON.stringify({
-    time: '2026-08-29T12:00:00Z',
+    time: minutesAgo(9),
     stage: 'render',
     class: 'render:variant',
     message: 'C:\\Users\\Luis\\secret.dem token=abc',
@@ -85,7 +90,7 @@ test('journal importer discards pre-notice events and filters messages without i
   assert.equal(fs.existsSync(queue), false);
   client.update(true);
   fs.appendFileSync(errors, `${JSON.stringify({
-    time: '2026-08-29T12:01:00Z',
+    time: minutesAgo(8),
     stage: 'record',
     class: 'record:demo',
     message: 'C:\\Users\\Luis\\new-secret.dem token=def',
@@ -101,7 +106,7 @@ test('journal importer discards pre-notice events and filters messages without i
 
   fs.renameSync(errors, `${errors}.1`);
   fs.writeFileSync(errors, `${JSON.stringify({
-    time: '2026-08-29T12:02:00Z',
+    time: minutesAgo(7),
     stage: 'parse',
     class: 'parse:demo',
     message: 'parser failed: invalid header',
@@ -113,7 +118,7 @@ test('journal importer discards pre-notice events and filters messages without i
   assert.equal(events[1].message, 'parser failed: invalid header');
 
   fs.appendFileSync(errors, `${JSON.stringify({
-    time: '2026-08-29T12:03:00Z',
+    time: minutesAgo(6),
     stage: 'player123',
     class: 'LuisPlayer',
     message: 'worker subprocess exited',
@@ -127,7 +132,7 @@ test('journal importer discards pre-notice events and filters messages without i
   assert.equal(events[2].message, 'worker subprocess exited');
 
   fs.appendFileSync(spans, `${JSON.stringify({
-    time: '2026-08-29T12:04:00Z',
+    time: minutesAgo(5),
     stage: 'worker',
     name: 'compose:final',
     result: 'ok',
@@ -135,7 +140,7 @@ test('journal importer discards pre-notice events and filters messages without i
   })}\n`);
   fs.renameSync(spans, `${spans}.1`);
   fs.writeFileSync(spans, `${JSON.stringify({
-    time: '2026-08-29T12:05:00Z',
+    time: minutesAgo(4),
     stage: 'worker',
     name: 'render:variant',
     result: 'ok',
@@ -144,7 +149,7 @@ test('journal importer discards pre-notice events and filters messages without i
   fs.renameSync(`${spans}.1`, `${spans}.2`);
   fs.renameSync(spans, `${spans}.1`);
   fs.writeFileSync(spans, `${JSON.stringify({
-    time: '2026-08-29T12:06:00Z',
+    time: minutesAgo(3),
     stage: 'worker',
     name: 'record:demo',
     result: 'ok',

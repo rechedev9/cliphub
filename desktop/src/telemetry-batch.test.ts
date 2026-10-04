@@ -29,8 +29,10 @@ function fixture(t: test.TestContext) {
   return { client, journal, queue, errors, spans, cursor };
 }
 
-const errorLine = `${JSON.stringify({ time: '2026-09-06T12:00:00Z', stage: 'parse', class: 'parse:demo', message: 'parse failed token=private', job_id: '8a46e7a4-d86a-4512-bc41-dc270a296461' })}\n`;
-const spanLine = `${JSON.stringify({ time: '2026-09-06T12:00:00Z', stage: 'worker', name: 'parse:demo', result: 'ok', duration_ms: 123 })}\n`;
+// The client drops queued events older than 31 days, so the fixture time follows the clock.
+const occurredAt = new Date(Date.now() - 60_000).toISOString();
+const errorLine = `${JSON.stringify({ time: occurredAt, stage: 'parse', class: 'parse:demo', message: 'parse failed token=private', job_id: '8a46e7a4-d86a-4512-bc41-dc270a296461' })}\n`;
+const spanLine = `${JSON.stringify({ time: occurredAt, stage: 'worker', name: 'parse:demo', result: 'ok', duration_ms: 123 })}\n`;
 
 test('one poll publishes errors and spans once; idle polls do not rewrite the queue', (t) => {
   const f = fixture(t);
