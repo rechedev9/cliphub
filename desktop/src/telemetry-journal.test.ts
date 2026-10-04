@@ -7,7 +7,7 @@ import { TelemetryClient } from './telemetry-client.ts';
 import { TelemetryJournal } from './telemetry-journal.ts';
 import { TelemetrySettingsStore } from './telemetry-settings.ts';
 
-// The client drops queued events older than 31 days, so fixture times follow the clock.
+// The client drops queued events outside its age window, so fixture times follow the clock.
 function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
