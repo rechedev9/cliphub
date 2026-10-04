@@ -125,6 +125,22 @@ async function openedBefore(page: Page): Promise<void> {
   await page.addInitScript((key) => window.localStorage.setItem(key, '1'), `cliphub.stream-opened.${JOB_ID}`);
 }
 
+/** Replaces the stub job's document, for a plan or a status the default stub does not serve. */
+async function routeJob(page: Page, overrides: Record<string, unknown>): Promise<void> {
+  await page.route(`**/api/streams/${JOB_ID}`, (route) =>
+    route.fulfill(
+      json({
+        id: JOB_ID,
+        status: 'ready',
+        title: 'Clutch en Mirage',
+        probe: { width: 1920, height: 1080, duration_seconds: 30 },
+        created_at: '2026-09-01T10:00:00Z',
+        ...overrides,
+      }),
+    ),
+  );
+}
+
 const stepTitle = (page: Page, name: string) => page.getByRole('heading', { level: 2, name });
 
 test('loads paused preview pixels, shows the project name and allows a larger monitor', async ({ page }) => {
@@ -400,29 +416,127 @@ test.describe('stream editor', () => {
     await railStep(page, /Elegir momentos/).click();
     await page.getByRole('button', { name: 'Quitar corte 01' }).click();
     const stripBox = await page.locator('.shell-strip').boundingBox();
+    expect(stripBox).not.toBeNull();
+    const stripBottom = (stripBox?.y ?? 0) + (stripBox?.height ?? 0);
     const toast = page.locator('[data-sonner-toast]').first();
     // The toast slides in from above, so wait for it to settle.
-    await expect.poll(async () => (await toast.boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(stripBox!.y + stripBox!.height);
+    await expect.poll(async () => (await toast.boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(stripBottom);
+  });
+
+  test('scrubbing between Shorts in a sequence follows the playhead', async ({ page }) => {
+    await stubStreamJob(page, true);
+    await routeJob(page, {
+      edit_plan: {
+        ...editPlan(true),
+        clips: [
+          { id: 'clip-1', start_seconds: 2, end_seconds: 8, title: 'Uno' },
+          { id: 'clip-2', start_seconds: 16, end_seconds: 24, title: 'Dos' },
+        ],
+      },
+    });
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await cta(page, 'Todos los Shorts').click();
+    const timeline = page.getByRole('slider', { name: 'Posición en el vídeo original' });
+    await timeline.fill('20');
+    // Still the sequence, now on the second Short: the 6 s of the first plus 4 s into this one.
+    await expect(cta(page, 'Reproducir todos los Shorts')).toBeVisible();
+    await expect(page.getByLabel('Tiempo de reproducción')).toHaveText('0:10 / 0:14');
+    // Between two Shorts there is nothing of the sequence to preview.
+    await timeline.fill('12');
+    await expect(cta(page, 'Reproducir vídeo original')).toBeVisible();
   });
 
   test('a failed download opened from the list says the video could not be fetched', async ({ page }) => {
     await stubStreamJob(page, true);
     // The API always serializes `probe`; it is empty when the download never finished.
+    await routeJob(page, { status: 'failed', probe: {}, failure_reason: 'No encontramos un vídeo en esa URL.' });
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await expect(page.getByText('No se pudo traer el vídeo')).toBeVisible();
+    await expect(page.getByText('No encontramos un vídeo en esa URL.')).toBeVisible();
+    await expect(cta(page, 'Importar otro vídeo')).toBeVisible();
+  });
+
+  test('a job whose render failed reopens in the editor and exports again', async ({ page }) => {
+    const stub = await stubStreamJob(page, true);
+    // The API keeps the job failed until a plan save puts it back to ready.
     await page.route(`**/api/streams/${JOB_ID}`, (route) =>
       route.fulfill(
         json({
           id: JOB_ID,
-          status: 'failed',
-          probe: {},
-          failure_reason: 'No encontramos un vídeo en esa URL.',
+          status: stub.puts.length > 0 ? 'ready' : 'failed',
+          title: 'Clutch en Mirage',
+          probe: { width: 1920, height: 1080, duration_seconds: 30 },
+          failure_reason: 'ffmpeg exited with status 1',
+          edit_plan: editPlan(true),
           created_at: '2026-09-01T10:00:00Z',
         }),
       ),
     );
     await gotoStudio(page, `/streams/${JOB_ID}`);
-    await expect(page.getByText('No se pudo traer el vídeo')).toBeVisible();
-    await expect(page.getByText('No encontramos un vídeo en esa URL.')).toBeVisible();
-    await expect(cta(page, 'Importar otro vídeo')).toBeVisible();
+    await expect(page.getByText('No se pudieron crear los Shorts')).toBeVisible();
+    await page.getByText('Detalle técnico').click();
+    await expect(page.getByText('ffmpeg exited with status 1')).toBeVisible();
+    await cta(page, 'Volver al editor').click();
+    await expect(page.getByLabel('Título del corte 01')).toHaveValue('Clutch 1v3');
+    await cta(page, 'Continuar al aspecto →').click();
+    await cta(page, 'Revisar Shorts →').click();
+    await cta(page, 'Exportar 1 Short →').click();
+    await expect(stepTitle(page, 'Guardar vídeos')).toBeVisible();
+    expect(stub.puts.length).toBeGreaterThan(0);
+  });
+
+  test('a first export that fails returns to the editor with the plan intact', async ({ page }) => {
+    await stubStreamJob(page, true);
+    let failNextRender = true;
+    await page.context().route(`**/api/streams/${JOB_ID}/renders/**`, (route) => {
+      if (route.request().method() !== 'GET' || !failNextRender) return route.fallback();
+      failNextRender = false;
+      return route.fulfill(json({ status: 'failed', videos: [], error: 'ffmpeg exited with status 1' }));
+    });
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await page.getByLabel('Título del corte 01').fill('Clutch final');
+    await cta(page, 'Continuar al aspecto →').click();
+    await cta(page, 'Revisar Shorts →').click();
+    await cta(page, 'Exportar 1 Short →').click();
+    await expect(page.getByText('No se pudieron crear los Shorts')).toBeVisible();
+    await cta(page, 'Volver al editor').click();
+    await expect(page.getByLabel('Título del corte 01')).toHaveValue('Clutch final');
+    await cta(page, 'Continuar al aspecto →').click();
+    await cta(page, 'Revisar Shorts →').click();
+    await cta(page, 'Exportar 1 Short →').click();
+    await expect(stepTitle(page, 'Guardar vídeos')).toBeVisible();
+  });
+
+  test('leaving while the download finishes keeps the automatic moment for the next open', async ({ page }) => {
+    await stubStreamJob(page, true, true);
+    await page.route('**/api/streams', (route) => route.fulfill(json({ jobs: [] })));
+    let jobRequests = 0;
+    let pollAnswered = false;
+    await page.route(`**/api/streams/${JOB_ID}`, async (route) => {
+      jobRequests += 1;
+      const request = jobRequests;
+      // The second request is the poll that sees the download finished; it answers after the user has left.
+      if (request === 2) await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.fulfill(
+        json({
+          id: JOB_ID,
+          status: request === 1 ? 'acquiring' : 'ready',
+          title: 'Clutch en Mirage',
+          probe: request === 1 ? {} : { width: 1920, height: 1080, duration_seconds: 30 },
+          edit_plan: { ...editPlan(true), clips: [] },
+          created_at: '2026-09-01T10:00:00Z',
+        }),
+      );
+      if (request === 2) pollAnswered = true;
+    });
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await expect.poll(() => jobRequests, { intervals: [100] }).toBe(2);
+    await cta(page, 'Mis proyectos').click();
+    await expect(page).toHaveURL(/\/streams$/);
+    await expect.poll(() => pollAnswered).toBe(true);
+    await expect(page.getByLabel('Enlace del vídeo de Twitch, YouTube o Kick')).toBeVisible();
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await expect(page.getByLabel('Título del corte 01')).toHaveValue('Clutch en Mirage');
   });
 
   test('a review without moments points to the missing step', async ({ page }) => {

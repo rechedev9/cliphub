@@ -5,6 +5,7 @@ import {
   streamAffiliateSlide,
   streamAffiliateWindow,
   streamBannerSlide,
+  streamClipIndexAt,
   streamClipRange,
   streamFadeEnvelope,
   streamPlaybackIndex,
@@ -32,6 +33,23 @@ test('invalid or removed cuts are skipped rather than replaying an excluded rang
   assert.equal(streamPlaybackIndex(clips, 'removed'), 0);
   assert.equal(streamClipRange({ id: 'bad', start_seconds: 5, end_seconds: 2 }), null);
   assert.equal(streamClipRange({ id: 'bad', start_seconds: NaN, end_seconds: 2 }), null);
+});
+
+test('a source position resolves to the playable clip under it', () => {
+  const sequence = [
+    { id: 'a', start_seconds: 0, end_seconds: 10 },
+    { id: 'bad', start_seconds: 12, end_seconds: 12 },
+    { id: 'b', start_seconds: 10, end_seconds: 20 },
+    { id: 'c', start_seconds: 25, end_seconds: 30 },
+  ];
+  assert.equal(streamClipIndexAt(sequence, 4), 0);
+  // A shared boundary belongs to the clip that starts there, and an invalid range never matches.
+  assert.equal(streamClipIndexAt(sequence, 10), 2);
+  assert.equal(streamClipIndexAt(sequence, 12), 2);
+  assert.equal(streamClipIndexAt(sequence, 22), -1);
+  // The very end of the last clip still counts as that clip.
+  assert.equal(streamClipIndexAt(sequence, 30), 3);
+  assert.equal(streamClipIndexAt([], 0), -1);
 });
 
 test('visual fades follow output seconds after speed adjustment', () => {

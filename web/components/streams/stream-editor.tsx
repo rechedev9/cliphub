@@ -41,7 +41,7 @@ import {
 } from '@/lib/streams/plan';
 import { streamCreativeBrief } from '@/lib/streams/brief';
 import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
-import { STREAM_PLAYBACK_MODE, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
+import { STREAM_PLAYBACK_MODE, streamClipIndexAt, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
@@ -718,13 +718,16 @@ export function StreamEditor({
                     disabled={busy}
                     onSeek={(seconds) => {
                       // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
-                      const previewed =
-                        playbackMode === STREAM_PLAYBACK_MODE.sequence
-                          ? plan.clips
-                          : plan.clips.filter((clip) => clip.id === selectedClip?.id);
+                      const insideSelected =
+                        playbackMode === STREAM_PLAYBACK_MODE.selected &&
+                        selectedClip !== undefined &&
+                        seconds >= selectedClip.start_seconds &&
+                        seconds <= selectedClip.end_seconds;
+                      // A sequence follows the playhead: the session switches to the Short under it.
                       const insidePreviewed =
-                        playbackMode !== STREAM_PLAYBACK_MODE.source &&
-                        previewed.some((clip) => seconds >= clip.start_seconds && seconds <= clip.end_seconds);
+                        playbackMode === STREAM_PLAYBACK_MODE.sequence
+                          ? streamClipIndexAt(plan.clips, seconds) >= 0
+                          : insideSelected;
                       if (!insidePreviewed) setPlaybackMode(STREAM_PLAYBACK_MODE.source);
                       seek(seconds);
                     }}

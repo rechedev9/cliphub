@@ -145,6 +145,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         if (pollGen.current !== gen) return; // superseded by a reset or unmount
         try {
           const j = await streamsApi.getJob(jobId);
+          if (pollGen.current !== gen) return;
           if (!j) {
             setStage('missing');
             return;
@@ -236,6 +237,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         return;
       }
       if (candidate.status === 'failed') {
+        setPlan(null);
         setFailure({ kind: streamFailureKind(candidate), reason: candidate.failure_reason?.trim() || null });
         setStage('failed');
         return;
@@ -265,6 +267,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     return () => {
       active = false;
       pollGen.current += 1; // stop any in-flight poll loop on unmount
+      // A load still in flight must not claim the first open for a page that is gone.
+      editorLoad.current = nextStreamEditorLoad(editorLoad.current, '');
     };
   }, [id, openAttempt, openJob, fail]);
 
@@ -422,6 +426,15 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
 
   const goBack = useCallback(() => router.push(STREAMS_HREF), [router]);
 
+  // Saving the plan puts a failed job back to ready on the server, so the next export is a normal one.
+  const reopenFailedRender = useCallback(() => {
+    if (!job) return;
+    setFailure(null);
+    setRenderState(null);
+    if (plan !== null) setStage('editing');
+    else void loadEditor(job, 'editing');
+  }, [job, plan, loadEditor]);
+
   if (stage === 'loading') {
     return (
       <p role="status" className="measure-read flex items-center gap-2 text-body text-fg-2">
@@ -499,11 +512,11 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           description={
             renderFailed ? (
               <>
-                <p>El render falló y este proyecto no se puede volver a exportar. Importa el vídeo otra vez para repetirlo.</p>
+                <p>El render falló y no se creó ningún Short. Tu proyecto sigue intacto: vuelve al editor y exporta de nuevo.</p>
                 {failure.reason ? (
                   <details className="mt-4 text-left text-body-sm text-fg-3">
                     <summary className="cursor-pointer">Detalle técnico</summary>
-                    <p className="mt-2 break-words font-mono text-meta">{failure.reason}</p>
+                    <p className="mt-2 max-h-48 overflow-y-auto break-words font-mono text-meta">{failure.reason}</p>
                   </details>
                 ) : null}
               </>
@@ -513,9 +526,20 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           }
           className="border-destructive/45"
           actions={
-            <Button type="button" onClick={goBack}>
-              {renderFailed ? 'Importar de nuevo' : 'Importar otro vídeo'}
-            </Button>
+            renderFailed ? (
+              <>
+                <Button type="button" onClick={reopenFailedRender}>
+                  Volver al editor
+                </Button>
+                <Button type="button" variant="outline" onClick={goBack}>
+                  Mis proyectos
+                </Button>
+              </>
+            ) : (
+              <Button type="button" onClick={goBack}>
+                Importar otro vídeo
+              </Button>
+            )
           }
         />
       </div>

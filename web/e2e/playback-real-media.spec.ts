@@ -263,7 +263,7 @@ test.describe('real Chromium media playback', () => {
     await page.getByRole('button', { name: 'Short seleccionado', exact: true }).click();
     const shortScreenshot = testInfo.outputPath('editor-short.png');
     await page.screenshot({ path: shortScreenshot, fullPage: true });
-    // The timeline is the one scrubber and returns to the original, so rewind before picking the sequence.
+    // The timeline is the only scrubber: rewind with it before playing the sequence.
     await page.getByRole('slider', { name: 'Posición en el vídeo original' }).fill('0');
     await page.getByRole('button', { name: 'Todos los Shorts', exact: true }).click();
     await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
@@ -283,5 +283,13 @@ test.describe('real Chromium media playback', () => {
       };
     });
     await writeFile(testInfo.outputPath('editor-metrics.json'), JSON.stringify(metrics, null, 2));
+
+    // Scrubbing back into the first Short keeps the sequence and moves it there, not to the Short that played last.
+    await page.getByRole('slider', { name: 'Posición en el vídeo original' }).fill('0.4');
+    await expect(page.getByLabel('Tiempo de reproducción')).toHaveText('0:00 / 0:03');
+    await expect.poll(() => videoTime(decoder)).toBeLessThan(0.6);
+    await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
+    await expect.poll(() => videoTime(decoder), { intervals: [50] }).toBeGreaterThan(0.6);
+    expect(await videoTime(decoder)).toBeLessThan(1.5);
   });
 });

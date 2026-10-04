@@ -6,7 +6,7 @@ import { browserWindowActivity } from '@/lib/window-activity';
 import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { PlaybackSession, PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
 import { StreamAudioMixer } from '@/lib/stream-audio';
-import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
+import { nextStreamPlaybackIndex, streamClipIndexAt, streamClipRange, streamPlaybackIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
 
 const MAX_CANVAS_WIDTH = 1440;
 type StreamFrameState = {
@@ -39,6 +39,10 @@ type StreamRuntime = {
   configure: () => void;
 };
 const StreamFrameContext = createContext<StreamFrameState | null>(null);
+
+function clipRangeKey(mode: StreamPlaybackMode, clip: StreamClipRange | undefined): string {
+  return JSON.stringify([mode, clip?.id, streamClipRange(clip)]);
+}
 
 export function StreamFrameSession(props: StreamFrameProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -122,7 +126,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         clipIndex = streamPlaybackIndex(current.clips, requestedId);
         selectionKey = nextSelection;
         const clip = current.mode === STREAM_PLAYBACK_MODE.source ? undefined : current.clips[clipIndex];
-        const nextRange = JSON.stringify([current.mode, clip?.id, streamClipRange(clip)]);
+        const nextRange = clipRangeKey(current.mode, clip);
         const changed = rangeKey !== '' && rangeKey !== nextRange;
         rangeKey = nextRange;
         applyClip();
@@ -155,7 +159,18 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         mixer.pause();
         releaseOwner();
       },
-      seek: (seconds) => { session.seek(seconds); mixer.sync(seconds, false); },
+      seek: (seconds) => {
+        const current = latest.current;
+        // In a sequence the Short under the new position becomes the one playing.
+        const under = current.mode === STREAM_PLAYBACK_MODE.sequence ? streamClipIndexAt(current.clips, seconds) : -1;
+        if (under >= 0 && under !== clipIndex) {
+          clipIndex = under;
+          rangeKey = clipRangeKey(current.mode, current.clips[under]);
+          applyClip();
+        }
+        session.seek(seconds);
+        mixer.sync(seconds, false);
+      },
     };
     runtimeRef.current = runtime;
     const unsubscribeFrames = session.subscribeFrames((next) => mixer.sync(next.seconds, videoPlaying && session.playRequested && !video.paused));
