@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  STREAMER_BANNER_MAX_POSITION,
-  STREAMER_BANNER_MIN_POSITION,
+  affiliateLabelFontSize,
   clampStreamerBannerPosition,
   keyDropPreviewSourceSeconds,
   resolveStreamerBannerPosition,
+  STREAMER_BANNER_MAX_POSITION,
+  STREAMER_BANNER_MIN_POSITION,
 } from './stream-preview.ts';
 
 test('KeyDrop preview seeks into the plate window when the playhead is outside it', () => {
@@ -41,4 +42,11 @@ test('undefined streamer banner position resets to the current layout default', 
   assert.equal(resolveStreamerBannerPosition('streamer-vertical-stack-40-60', undefined), 0.374);
   assert.equal(resolveStreamerBannerPosition('streamer-vertical-stack', undefined), 520 / 1920);
   assert.equal(resolveStreamerBannerPosition('streamer-fullframe-nocam', undefined), 0.2);
+});
+
+test('the affiliate label shrinks with its length and never grows past the short-code size', () => {
+  assert.equal(affiliateLabelFontSize('ZACK'), '4.60cqw');
+  assert.equal(affiliateLabelFontSize('CODE: ZACKCSGO'), '3.68cqw');
+  assert.equal(affiliateLabelFontSize('CODIGO: ZACKCSGO'), '3.22cqw');
+  assert.equal(affiliateLabelFontSize(''), '4.60cqw');
 });

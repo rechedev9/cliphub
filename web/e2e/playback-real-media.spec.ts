@@ -263,8 +263,9 @@ test.describe('real Chromium media playback', () => {
     await page.getByRole('button', { name: 'Short seleccionado', exact: true }).click();
     const shortScreenshot = testInfo.outputPath('editor-short.png');
     await page.screenshot({ path: shortScreenshot, fullPage: true });
+    // The timeline is the only scrubber: rewind with it before playing the sequence.
+    await page.getByRole('slider', { name: 'Posición en el vídeo original' }).fill('0');
     await page.getByRole('button', { name: 'Todos los Shorts', exact: true }).click();
-    await page.getByRole('slider', { name: 'Posición del vídeo original' }).fill('0');
     await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(1.6);
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(2.8);
@@ -302,14 +303,6 @@ test.describe('real Chromium media playback', () => {
     const clockTexts: string[] = JSON.parse(await clock.getAttribute('data-clock-texts') ?? '[]');
     expect(clockTexts[0]).toBe('0:00 / 0:03');
     expect(clockTexts).toEqual([...clockTexts].sort());
-
-    // Scrubbing away from the finished Short must not turn the next play into "last Short only".
-    await page.getByRole('slider', { name: 'Posición del vídeo original' }).fill('0.4');
-    await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
-    const startsAfterScrub = async (): Promise<number[]> => JSON.parse(await decoder.getAttribute('data-replay-starts') ?? '[]');
-    await expect.poll(async () => (await startsAfterScrub()).length).toBeGreaterThan(replayStarts.length);
-    expect((await startsAfterScrub())[replayStarts.length]).toBeLessThan(0.5);
-    await page.getByRole('button', { name: 'Pausar', exact: true }).click();
     await expect(decoder).toHaveCount(1);
     await expect(canvas.first()).toHaveAttribute('data-frame-seconds', /\d/);
     const metrics = await decoder.evaluate((element) => {
@@ -323,5 +316,13 @@ test.describe('real Chromium media playback', () => {
       };
     });
     await writeFile(testInfo.outputPath('editor-metrics.json'), JSON.stringify(metrics, null, 2));
+
+    // Scrubbing back into the first Short keeps the sequence and moves it there, not to the Short that played last.
+    await page.getByRole('slider', { name: 'Posición en el vídeo original' }).fill('0.4');
+    await expect(page.getByLabel('Tiempo de reproducción')).toHaveText('0:00 / 0:03');
+    await expect.poll(() => videoTime(decoder)).toBeLessThan(0.6);
+    await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
+    await expect.poll(() => videoTime(decoder), { intervals: [50] }).toBeGreaterThan(0.6);
+    expect(await videoTime(decoder)).toBeLessThan(1.5);
   });
 });

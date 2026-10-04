@@ -102,7 +102,7 @@ export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): strin
   return (
     plan.clips
       .map((clip, index) => `${String(index + 1).padStart(2, '0')} · ${formatStreamClock(clipOutputDuration(clip))}`)
-      .join(' — ') + (stale ? ' · Cambios sin exportar' : '')
+      .join(', ') + (stale ? ' · Cambios sin exportar' : '')
   );
 }
 export type StreamBlocker = 'cuts' | 'layout';

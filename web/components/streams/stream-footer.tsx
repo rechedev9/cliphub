@@ -1,7 +1,9 @@
 'use client';
 import type { ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 export function StreamFooter({
+  error,
   countLabel,
   summary,
   ctaLabel,
@@ -12,6 +14,7 @@ export function StreamFooter({
   backLabel,
   action,
 }: {
+  error: string | null;
   countLabel: string;
   summary: string;
   ctaLabel: string;
@@ -24,6 +27,12 @@ export function StreamFooter({
 }): ReactNode {
   return (
     <footer className="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center gap-3 border-t border-border bg-surface-1 px-4 py-3">
+      {error ? (
+        <p role="alert" className="flex basis-full items-start gap-2 text-body-sm text-destructive">
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+          {error}
+        </p>
+      ) : null}
       {/* A floor on the summary pushes the buttons to their own row on phones
           instead of squeezing "1 Short · 01 · 0:12" into four lines. */}
       <div className="min-w-[12rem] flex-1">

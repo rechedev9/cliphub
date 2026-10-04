@@ -7,6 +7,7 @@ import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
 import { streamAffiliateSlide, streamAffiliateWindow, streamBannerSlide, streamPreviewFade } from '@/lib/stream-playback';
 import {
+  affiliateLabelFontSize,
   clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
   KEYDROP_BANNER_MAX_POSITION,
@@ -325,7 +326,7 @@ export function StreamPreview({
                 <Twitch className="h-[62%] w-[62%]" strokeWidth={2.6} aria-hidden />
               )}
             </span>
-            <span className="truncate px-[3%] font-[family-name:var(--font-display)] text-[clamp(7px,3.2vw,12px)] font-black leading-none tracking-[0.02em]">
+            <span className="truncate px-[3%] font-[family-name:var(--font-display)] text-[5cqw] font-black leading-none tracking-[0.02em]">
               {streamerNick}
             </span>
           </div>
@@ -363,7 +364,8 @@ export function StreamPreview({
               <span aria-hidden className={`pointer-events-none absolute ${keyDropPlate.textClass} ${keyDropPlate.coverClass}`} />
             ) : null}
             <span
-              className={`pointer-events-none absolute flex items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] ${keyDropPlate?.textClass ?? 'left-[28%] right-[10%] top-[44%] h-[15%]'}`}
+              className={`pointer-events-none absolute flex items-center justify-center truncate text-center font-[family-name:var(--font-display)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] ${keyDropPlate?.textClass ?? 'left-[28%] right-[10%] top-[44%] h-[15%]'}`}
+              style={{ fontSize: affiliateLabelFontSize(keyDropLabel) }}
               aria-hidden
             >
               {keyDropLabel}

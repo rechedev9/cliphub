@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Clapperboard } from 'lucide-react';
-import { toast } from 'sonner';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
@@ -22,7 +21,7 @@ import { WorkflowProgress } from '@/components/studio/workflow-progress';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { StreamListRow } from '@/components/streams/stream-list-row';
-import { StreamSourcePanel } from '@/components/streams/stream-source-panel';
+import { StreamSourcePanel, type StreamImportError } from '@/components/streams/stream-source-panel';
 
 const POLL_FAST_MS = 1500;
 const POLL_IDLE_MS = 10000;
@@ -37,7 +36,7 @@ export default function StreamsPage(): ReactNode {
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StreamImportError | null>(null);
 
   useEffect(() => {
     const stop = startPollLoop({
@@ -60,21 +59,13 @@ export default function StreamsPage(): ReactNode {
     return stop;
   }, [pollGeneration]);
 
-  const open = useCallback(
-    (job: StreamJob) => {
-      if (job.status === 'acquiring') {
-        toast('Trayendo clip…', { description: 'Descargando el vídeo de origen en este PC' });
-      }
-      router.push(`/streams/${job.id}`);
-    },
-    [router],
-  );
+  const open = useCallback((job: StreamJob) => router.push(`/streams/${job.id}`), [router]);
 
   const submitUrl = useCallback(async () => {
     const trimmed = sourceUrl.trim();
     const invalid = streamSourceUrlError(trimmed);
     if (invalid) {
-      setError(invalid);
+      setError({ source: 'url', message: invalid });
       return;
     }
     setError(null);
@@ -82,7 +73,7 @@ export default function StreamsPage(): ReactNode {
     try {
       open(await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined }));
     } catch (err) {
-      setError(streamImportErrorMessage(err, 'url'));
+      setError({ source: 'url', message: streamImportErrorMessage(err, 'url') });
       setSubmitting(false);
     }
   }, [sourceUrl, title, open]);
@@ -94,7 +85,7 @@ export default function StreamsPage(): ReactNode {
       try {
         open(await streamsApi.createFromFile(file, title.trim() || undefined));
       } catch (err) {
-        setError(streamImportErrorMessage(err, 'file'));
+        setError({ source: 'file', message: streamImportErrorMessage(err, 'file') });
         setSubmitting(false);
       }
     },
@@ -165,7 +156,7 @@ export default function StreamsPage(): ReactNode {
         error={error}
         onSourceUrlChange={(value) => {
           setSourceUrl(value);
-          if (isStreamURLValidationError(error)) setError(null);
+          if (isStreamURLValidationError(error?.message ?? null)) setError(null);
         }}
         onTitleChange={setTitle}
         onSubmitUrl={() => void submitUrl()}

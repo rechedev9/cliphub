@@ -114,3 +114,16 @@ export function reconcileStreamDraftAfterSave(
     // A blocked browser store must not turn a confirmed server save into an error.
   }
 }
+
+const FIRST_OPEN_PREFIX = 'cliphub.stream-opened.';
+
+/** True only the first time this browser opens the job, so a moment the user removed is never added back. */
+export function claimStreamFirstOpen(storage: Pick<Storage, 'getItem' | 'setItem'>, jobId: string): boolean {
+  try {
+    if (storage.getItem(`${FIRST_OPEN_PREFIX}${jobId}`) !== null) return false;
+    storage.setItem(`${FIRST_OPEN_PREFIX}${jobId}`, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}

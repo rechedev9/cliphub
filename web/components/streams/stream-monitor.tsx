@@ -1,15 +1,20 @@
 'use client';
 
-import { useId, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { Pause, Play, Repeat } from 'lucide-react';
 import type { NormalizedRect } from '@/lib/api/streams';
 import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
 import { STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
 import { formatStreamClock } from '@/lib/streams/plan';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CropPicker } from '@/components/streams/crop-picker';
 import { StreamPreview } from '@/components/streams/stream-preview';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
+
+const DEFAULT_MONITOR_HEIGHT = 460;
+
+type MonitorStyle = CSSProperties & Record<'--monitor-height', string>;
 
 export type StreamCropEditor = { rect: NormalizedRect; disabled: boolean; onChange: (rect: NormalizedRect) => void };
 
@@ -17,8 +22,6 @@ export type StreamCropEditor = { rect: NormalizedRect; disabled: boolean; onChan
 export function StreamMonitor({
   preview,
   cropEditor,
-  frameSeconds,
-  sourceDuration,
   elapsedSeconds,
   playbackDuration,
   playing,
@@ -29,7 +32,6 @@ export function StreamMonitor({
   loop,
   onModeChange,
   onLoopChange,
-  onSeek,
   onTogglePlay,
   onRetry,
   hasSelection,
@@ -37,8 +39,6 @@ export function StreamMonitor({
 }: {
   preview: ComponentProps<typeof StreamPreview>;
   cropEditor?: StreamCropEditor;
-  frameSeconds: number;
-  sourceDuration: number;
   elapsedSeconds: number;
   playbackDuration: number;
   playing: boolean;
@@ -49,7 +49,6 @@ export function StreamMonitor({
   loop: boolean;
   onModeChange: (mode: StreamPlaybackMode) => void;
   onLoopChange: (loop: boolean) => void;
-  onSeek: (seconds: number) => void;
   onTogglePlay: () => void;
   onRetry: () => void;
   hasSelection: boolean;
@@ -57,7 +56,19 @@ export function StreamMonitor({
 }): ReactNode {
   const { hasFrame } = useStreamFrame();
   const sizeId = useId();
-  const [monitorHeight, setMonitorHeight] = useState(460);
+  // Until the user picks a size the views give up height so the transport and the timeline stay on screen.
+  const [monitorHeight, setMonitorHeight] = useState<number | null>(null);
+  const viewsRef = useRef<HTMLDivElement>(null);
+  const [fittedHeight, setFittedHeight] = useState(DEFAULT_MONITOR_HEIGHT);
+  const monitorStyle: MonitorStyle = { '--monitor-height': `${monitorHeight ?? DEFAULT_MONITOR_HEIGHT}px` };
+  // While the size is automatic the slider thumb follows the real height, so its first step moves the right way.
+  useEffect(() => {
+    const views = viewsRef.current;
+    if (views === null || monitorHeight !== null) return;
+    const observer = new ResizeObserver(() => setFittedHeight(views.clientHeight));
+    observer.observe(views);
+    return () => observer.disconnect();
+  }, [monitorHeight]);
   const playLabel = {
     [STREAM_PLAYBACK_MODE.source]: 'Reproducir vídeo original',
     [STREAM_PLAYBACK_MODE.selected]: 'Reproducir este Short',
@@ -71,14 +82,19 @@ export function StreamMonitor({
   const statusLabel = statusLabels[status];
 
   return (
-    <div className="flex shrink-0 flex-col gap-3">
+    // `contents`: the rows are items of the Monitor column, which lets the views shrink.
+    <div className="contents">
       {/* Under 640px the two monitors cannot share a row without the 9:16
           preview clipping past the viewport, so they stack and each takes an
           explicit height (the preview's cq units need one to resolve). */}
       <div
+        ref={viewsRef}
         data-slot="stream-monitor-views"
-        style={{ '--monitor-height': `${monitorHeight}px` } as CSSProperties}
-        className="relative grid shrink-0 items-center gap-4 max-sm:grid-cols-1 sm:h-[min(var(--monitor-height),55dvh)] sm:min-h-[280px] sm:grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)]"
+        style={monitorStyle}
+        className={cn(
+          'relative grid items-center gap-4 max-sm:shrink-0 max-sm:grid-cols-1 sm:min-h-[280px] sm:basis-[min(var(--monitor-height),55dvh)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)]',
+          monitorHeight !== null && 'sm:shrink-0',
+        )}
       >
         <div className="flex min-h-0 min-w-0 flex-col self-stretch max-sm:h-[42dvh]">
           <p className="mb-2 text-label font-semibold text-fg-2">
@@ -107,41 +123,38 @@ export function StreamMonitor({
           </div>
         ) : null}
       </div>
-      <label htmlFor={sizeId} className="flex shrink-0 flex-wrap items-center gap-3 text-body-sm text-fg-2">
-        Tamaño de vista previa
-        <input id={sizeId} type="range" min={280} max={640} step={20} value={monitorHeight} onChange={(event) => setMonitorHeight(Number(event.target.value))} className="w-36 accent-stream" />
-      </label>
-      <div className="flex shrink-0 flex-wrap items-center gap-2" role="group" aria-label="Qué reproducir">
-        <Button variant={mode === STREAM_PLAYBACK_MODE.source ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.source} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.source)}>
-          Vídeo original
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <Button variant="outline" disabled={!canPlay} onClick={onTogglePlay}>
+          {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+          {playing ? 'Pausar' : playLabel}
         </Button>
-        <Button variant={mode === STREAM_PLAYBACK_MODE.selected ? 'secondary' : 'ghost'} size="sm" disabled={!hasSelection} aria-pressed={mode === STREAM_PLAYBACK_MODE.selected} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.selected)}>
-          Short seleccionado
+        <Button variant={loop ? 'secondary' : 'ghost'} size="icon" aria-label="Repetir reproducción" aria-pressed={loop} onClick={() => onLoopChange(!loop)}>
+          <Repeat aria-hidden />
         </Button>
-        {clipCount > 1 ? (
-          <Button variant={mode === STREAM_PLAYBACK_MODE.sequence ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.sequence} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.sequence)}>
-            Todos los Shorts
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué reproducir">
+          <Button variant={mode === STREAM_PLAYBACK_MODE.source ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.source} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.source)}>
+            Vídeo original
           </Button>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={!canPlay} onClick={onTogglePlay}>
-            {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-            {playing ? 'Pausar' : playLabel}
+          <Button variant={mode === STREAM_PLAYBACK_MODE.selected ? 'secondary' : 'ghost'} size="sm" disabled={!hasSelection} aria-pressed={mode === STREAM_PLAYBACK_MODE.selected} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.selected)}>
+            Short seleccionado
           </Button>
-          <Button variant={loop ? 'secondary' : 'ghost'} size="icon" aria-label="Repetir reproducción" aria-pressed={loop} onClick={() => onLoopChange(!loop)}>
-            <Repeat aria-hidden />
-          </Button>
+          {clipCount > 1 ? (
+            <Button variant={mode === STREAM_PLAYBACK_MODE.sequence ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.sequence} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.sequence)}>
+              Todos los Shorts
+            </Button>
+          ) : null}
         </div>
-        <output aria-label="Tiempo de reproducción" className="font-mono text-label tabular-nums text-fg-2">
+        <output aria-label="Tiempo de reproducción" className="ml-auto font-mono text-label tabular-nums text-fg-2">
           {formatStreamClock(elapsedSeconds)} / {formatStreamClock(playbackDuration)}
         </output>
+        <label htmlFor={sizeId} className="flex items-center gap-2 text-label text-fg-3">
+          Tamaño de vista previa
+          <input id={sizeId} type="range" min={280} max={640} step={20} value={monitorHeight ?? fittedHeight} onChange={(event) => setMonitorHeight(Number(event.target.value))} className="w-24 accent-stream" />
+        </label>
       </div>
-      <input type="range" aria-label="Posición del vídeo original" min={0} max={sourceDuration || 1} step={0.01} value={Math.min(sourceDuration, Math.max(0, frameSeconds))} disabled={sourceDuration <= 0} onChange={(event) => onSeek(Number(event.target.value))} className="w-full shrink-0 accent-stream" />
-      {statusLabel ? <p role="status" className="text-label text-fg-3">{statusLabel}</p> : null}
+      {statusLabel ? <p role="status" className="shrink-0 text-label text-fg-3">{statusLabel}</p> : null}
       {previewError ? (
-        <div role="alert" className="text-body-sm text-destructive">
+        <div role="alert" className="shrink-0 text-body-sm text-destructive">
           <p>{previewError}</p>
           <Button variant="outline" size="sm" onClick={onRetry}>Reintentar</Button>
         </div>

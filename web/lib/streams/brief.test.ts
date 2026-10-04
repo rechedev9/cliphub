@@ -20,19 +20,29 @@ function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
 test('stream creative brief lists every production decision', () => {
   const items = streamCreativeBrief(plan());
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Layout, 'Cámara grande');
-  assert.equal(byLabel.Facecam, 'Recorte confirmado');
-  assert.match(byLabel.Clips, /1 clip/);
-  assert.equal(byLabel.Banner, 'pro_player · Twitch · slide');
+  assert.equal(byLabel.Formato, 'Cámara grande');
+  assert.equal(byLabel['Cámara'], 'Recorte confirmado');
+  assert.match(byLabel.Shorts, /1 Short/);
+  assert.equal(byLabel['Banner del streamer'], 'pro_player · Twitch · deslizante');
   assert.equal(byLabel.Afiliado, 'No');
   assert.equal(byLabel.Música, 'phonk-01 · 25%');
-  assert.equal(byLabel.Grade, 'Sí');
+  assert.equal(byLabel['Realce de color'], 'Sí');
+});
+
+test('the brief names the catalog track and reads the affiliate window without dashes', () => {
+  const items = streamCreativeBrief(
+    plan({ keydrop_banner: { style: 'classic', code: 'zackcsgo', start_seconds: 0, end_seconds: 4 } }),
+    'Night Drive',
+  );
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel['Música'], 'Night Drive · 25%');
+  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · de 0.0 s a 4.0 s');
 });
 
 test('stream creative brief names Kick when the banner platform is kick', () => {
   const items = streamCreativeBrief(plan({ streamer_banner: { nick: 'aimagia', platform: 'kick' } }));
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Banner, 'aimagia · Kick');
+  assert.equal(byLabel['Banner del streamer'], 'aimagia · Kick');
 });
 
 test('stream creative brief lists KeyDrop when enabled', () => {
@@ -42,7 +52,7 @@ test('stream creative brief lists KeyDrop when enabled', () => {
     }),
   );
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · slide');
+  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · deslizante');
 });
 
 test('stream creative brief names Tigerr and Jcorko KeyDrop styles', () => {
@@ -84,16 +94,16 @@ test('stream creative brief marks unreviewed facecam and empty music', () => {
     }),
   );
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Facecam, 'Sin facecam');
+  assert.equal(byLabel['Cámara'], 'Sin cámara');
   assert.equal(byLabel.Música, 'Sin música');
-  assert.equal(byLabel.Grade, 'No');
-  assert.equal(byLabel.Banner, 'Sin nick');
+  assert.equal(byLabel['Realce de color'], 'No');
+  assert.equal(byLabel['Banner del streamer'], 'Sin banner');
 });
 
 
 test('the clip summary reads as a clock, never a unit glued to digits', () => {
   const items = streamCreativeBrief(plan());
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Clips, '1 clip · 0:10 de salida aprox.');
-  assert.doesNotMatch(byLabel.Clips, /\ds salida/);
+  assert.equal(byLabel.Shorts, '1 Short · 0:10 en total');
+  assert.doesNotMatch(byLabel.Shorts, /\ds en total/);
 });
