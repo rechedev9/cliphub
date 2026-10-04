@@ -263,8 +263,9 @@ test.describe('real Chromium media playback', () => {
     await page.getByRole('button', { name: 'Short seleccionado', exact: true }).click();
     const shortScreenshot = testInfo.outputPath('editor-short.png');
     await page.screenshot({ path: shortScreenshot, fullPage: true });
+    // The timeline is the one scrubber and returns to the original, so rewind before picking the sequence.
+    await page.getByRole('slider', { name: 'Posición en el vídeo original' }).fill('0');
     await page.getByRole('button', { name: 'Todos los Shorts', exact: true }).click();
-    await page.getByRole('slider', { name: 'Posición del vídeo original' }).fill('0');
     await page.getByRole('button', { name: 'Reproducir todos los Shorts', exact: true }).click();
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(1.6);
     await expect.poll(() => videoTime(decoder), { timeout: 5_000 }).toBeGreaterThan(2.8);

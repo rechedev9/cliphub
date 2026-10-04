@@ -5,6 +5,7 @@ import {
   type StreamClipRange,
   type StreamEditPlan,
   type StreamerBannerPlatform,
+  type StreamJob,
   type StreamTextOverlay,
 } from '../api/streams.ts';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
@@ -87,18 +88,35 @@ export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
     'Confirma manualmente el recorte de facecam antes de renderizar.',
 };
 
-/** Localized message for a failed API call, preferring the offline hint. */
+/** Server bodies with a variable part (job status, clip id), matched by shape. */
+const STREAM_ERROR_PATTERNS: readonly { pattern: RegExp; message: string }[] = [
+  {
+    pattern: /^stream job is not ready to render/,
+    message: 'Este proyecto todavía no se puede exportar. Espera a que termine la tarea en curso y vuelve a intentarlo.',
+  },
+  {
+    pattern: /text overlay text is required$/,
+    message: 'Hay un texto en pantalla vacío. Escríbelo o quítalo para guardar los cambios.',
+  },
+  { pattern: /has no clips/, message: 'Añade al menos un momento antes de exportar.' },
+  {
+    pattern: /^stream render variant .+ does not match edit plan variant/,
+    message: 'El formato cambió mientras se guardaba. Vuelve a exportar.',
+  },
+];
+
+function errorCode(err: unknown): unknown {
+  return typeof err === 'object' && err !== null && 'code' in err ? err.code : undefined;
+}
+
+/** Spanish copy for a failed API call. Unknown server text falls back; it is never shown raw. */
 export function errorMessage(err: unknown, fallback: string): string {
-  if (isServiceUnavailable(err)) {
-    return STREAM_OFFLINE_MESSAGE;
-  }
-  if ((err as { code?: string } | null)?.code === 'invalid_source_url') {
-    return STREAM_INVALID_URL_MESSAGE;
-  }
-  if (err instanceof Error) {
-    return KNOWN_STREAM_ERROR_MESSAGES[err.message] ?? err.message;
-  }
-  return fallback;
+  if (isServiceUnavailable(err)) return STREAM_OFFLINE_MESSAGE;
+  if (errorCode(err) === 'invalid_source_url') return STREAM_INVALID_URL_MESSAGE;
+  if (!(err instanceof Error)) return fallback;
+  const known = KNOWN_STREAM_ERROR_MESSAGES[err.message];
+  if (known !== undefined) return known;
+  return STREAM_ERROR_PATTERNS.find((entry) => entry.pattern.test(err.message))?.message ?? fallback;
 }
 
 /** Non-video URL extensions rejected before enqueueing a doomed acquire job. */
@@ -164,6 +182,24 @@ let clipSeq = 0;
 export function nextClipId(): string {
   clipSeq += 1;
   return `clip-${Date.now()}-${clipSeq}`;
+}
+
+/** Longest source one Short can cover whole; Twitch and Kick clips stay under it. */
+export const FULL_SOURCE_MOMENT_MAX_SECONDS = 60;
+
+/** A plan without moments over a short source starts with the whole video as its first Short. */
+export function withFullSourceMoment({
+  plan,
+  durationSeconds,
+  title,
+}: {
+  plan: StreamEditPlan;
+  durationSeconds: number;
+  title: string;
+}): StreamEditPlan {
+  const fits = Number.isFinite(durationSeconds) && durationSeconds > 0 && durationSeconds <= FULL_SOURCE_MOMENT_MAX_SECONDS;
+  if (!fits || plan.clips.length > 0) return plan;
+  return { ...plan, clips: [{ id: nextClipId(), start_seconds: 0, end_seconds: durationSeconds, title }] };
 }
 
 /** Upgrade schema and clamp only the legacy 20s endpoint to a shorter source. */
@@ -300,4 +336,11 @@ export function formatStreamClock(seconds: number): string {
 /** Cuts stay in source order so their numbers match the timeline left to right. */
 export function insertClipSorted(clips: readonly StreamClipRange[], clip: StreamClipRange): StreamClipRange[] {
   return [...clips, clip].sort((a, b) => a.start_seconds - b.start_seconds);
+}
+
+export type StreamFailureKind = 'acquire' | 'render';
+
+/** The API always sends `probe`, empty until the download is probed: only a duration proves the source arrived. */
+export function streamFailureKind(job: Pick<StreamJob, 'probe'>): StreamFailureKind {
+  return (job.probe?.duration_seconds ?? 0) > 0 ? 'render' : 'acquire';
 }

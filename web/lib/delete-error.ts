@@ -9,6 +9,13 @@ export const DELETE_OFFLINE_MESSAGE = 'Servicio de análisis local desconectado.
 /** Fallback when the error carries no usable message (unexpected transport failure). */
 export const DELETE_GENERIC_MESSAGE = 'No se pudo borrar. Inténtalo de nuevo.';
 
+/** A stream project cannot be deleted while it downloads or renders (409 from DeleteStreamJob). */
+export const DELETE_STREAM_BUSY_MESSAGE = 'Espera a que termine la descarga o el render para borrar este proyecto.';
+
+const STREAM_BUSY_RE = /^stream (job|render \S+) is \w+; wait for it to settle before deleting$/;
+/** The API clients' placeholder for an error response without a body. */
+const BODYLESS_ERROR_RE = /^request failed \(\d+\)$/;
+
 /**
  * Maps a delete failure to the Spanish message the row should surface. An
  * offline (service_unavailable) error gets the "start your orchestrator" hint;
@@ -20,6 +27,8 @@ export const DELETE_GENERIC_MESSAGE = 'No se pudo borrar. Inténtalo de nuevo.';
 export function deleteErrorMessage(err: unknown): string {
   const e = err as { code?: unknown; message?: unknown } | null;
   if (e?.code === SERVICE_UNAVAILABLE_CODE) return DELETE_OFFLINE_MESSAGE;
-  if (typeof e?.message === 'string' && e.message.trim() !== '') return e.message;
-  return DELETE_GENERIC_MESSAGE;
+  if (typeof e?.message !== 'string' || e.message.trim() === '') return DELETE_GENERIC_MESSAGE;
+  if (STREAM_BUSY_RE.test(e.message)) return DELETE_STREAM_BUSY_MESSAGE;
+  if (BODYLESS_ERROR_RE.test(e.message)) return DELETE_GENERIC_MESSAGE;
+  return e.message;
 }

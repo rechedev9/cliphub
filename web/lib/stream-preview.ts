@@ -80,3 +80,15 @@ export function keyDropPreviewSourceSeconds(
   const first = clips.find(playableClip);
   return first ? seekInClip(first) : sourceSeconds;
 }
+
+/** Narrowest code box across the affiliate plates: 62% of a plate that spans 55% of the Short. */
+const AFFILIATE_LABEL_BOX_CQW = 34;
+const AFFILIATE_LABEL_MAX_CQW = 4.6;
+/** Advance of one display-font capital in em, tracking included. */
+const AFFILIATE_GLYPH_EM = 0.66;
+
+/** Font size, in units of the Short width, that keeps the whole affiliate label inside its plate. */
+export function affiliateLabelFontSize(label: string): string {
+  const fit = AFFILIATE_LABEL_BOX_CQW / (Math.max(label.length, 1) * AFFILIATE_GLYPH_EM);
+  return `${Math.min(AFFILIATE_LABEL_MAX_CQW, fit).toFixed(2)}cqw`;
+}

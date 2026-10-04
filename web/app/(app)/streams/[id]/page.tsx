@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/streams';
 import { clipEditIssue, streamRangesIssue } from '@/lib/clip-edit';
 import {
+  claimStreamFirstOpen,
   loadStreamDraft,
   reconcileStreamDraftAfterSave,
   saveStreamDraft,
@@ -31,9 +32,11 @@ import {
   fitPlanToSourceDuration,
   isServiceUnavailable,
   sleep,
+  streamFailureKind,
   withDefaultStreamTitle,
+  withFullSourceMoment,
+  type StreamFailureKind,
 } from '@/lib/streams/plan';
-import { shortsWord, streamVariantLabel } from '@/lib/streams/editor';
 import { affiliateFamilyLabel, isAffiliateStyle, stylesForFamily } from '@/lib/api/types';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { LongOperation } from '@/components/studio/long-operation';
@@ -47,6 +50,15 @@ import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 const STREAMS_HREF = '/streams';
 
 type Stage = 'loading' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed' | 'missing' | 'error';
+
+/** What stopped the job. An acquire reason is Spanish copy; a render reason is raw worker text. */
+type StreamFailure = { kind: StreamFailureKind; reason: string | null };
+
+const AUTOSAVE_FAIL_MESSAGE =
+  'No se pudieron guardar los cambios. Siguen a salvo en este PC y se reintentará con tu próximo cambio.';
+const RENDER_RETRY_PUBLISHED_MESSAGE =
+  'El nuevo render falló. La última versión sigue disponible; revisa los cambios y vuelve a exportar.';
+const RENDER_RETRY_SUPERSEDED_MESSAGE = 'El plan cambió antes de terminar el render. Revísalo y vuelve a exportar.';
 
 /** /streams/[id]: the stage machine for one job; UI lives in components/streams. */
 export default function StreamEditorPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
@@ -64,7 +76,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   /** The exact plan the shown render used; drives URLs and staleness. */
   const [renderedPlan, setRenderedPlan] = useState<StreamEditPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [failureReason, setFailureReason] = useState<string | null>(null);
+  const [failure, setFailure] = useState<StreamFailure | null>(null);
   const [saving, setSaving] = useState(false);
   const [autosave, setAutosave] = useState<StreamAutosaveState>('saved');
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,7 +100,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     setPlan(null);
     setRenderState(null);
     setRenderedPlan(null);
-    setFailureReason(null);
+    setFailure(null);
     serverPlanFingerprint.current = null;
   }, []);
 
@@ -108,11 +120,13 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       // bound to the persisted server revision and variant.
       const selectedPlan =
         nextStage === 'rendering' ? serverPlan : (selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan);
-      const editorPlan = withDefaultStreamTitle(
-        fitPlanToSourceDuration(selectedPlan, duration),
-        j.title,
-        nextStage === 'editing',
-      );
+      const fittedPlan = fitPlanToSourceDuration(selectedPlan, duration);
+      // A clip that fits in one Short opens with that Short ready, once per job.
+      const firstOpen = nextStage === 'editing' && claimStreamFirstOpen(window.localStorage, j.id);
+      const startingPlan = firstOpen
+        ? withFullSourceMoment({ plan: fittedPlan, durationSeconds: duration, title: streamTitle(j) })
+        : fittedPlan;
+      const editorPlan = withDefaultStreamTitle(startingPlan, j.title, nextStage === 'editing');
       setPlan(editorPlan);
       setStage(nextStage);
       return editorPlan;
@@ -137,7 +151,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           }
           if (j.status === 'failed') {
             setJob(j);
-            setFailureReason(j.failure_reason || 'no se pudo obtener el vídeo de origen');
+            setFailure({ kind: 'acquire', reason: j.failure_reason?.trim() || null });
             setStage('failed');
             return;
           }
@@ -177,9 +191,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
             if (announce) {
               const videoCount = state.videos?.length ?? 0;
               if (videoCount > 0) {
-                toast(`${shortsWord(videoCount)} listos`, {
+                toast.success(videoCount === 1 ? '1 Short listo' : `${videoCount} Shorts listos`, {
                   position: 'top-right',
-                  description: 'Revísalos y guárdalos en Guardar vídeos',
                 });
               } else {
                 toast.error('No se generó ningún vídeo', {
@@ -193,16 +206,11 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           if (state.status === 'failed') {
             if (streamRenderCanRetry(state)) {
               setStage('editing');
-              setError(
-                state.error ||
-                  (state.published
-                    ? 'El nuevo render falló. La última versión publicada sigue disponible; revisa el plan y vuelve a intentarlo.'
-                    : 'El plan cambió antes de publicar el render. Revísalo y vuelve a crear los Shorts.'),
-              );
+              setError(state.published ? RENDER_RETRY_PUBLISHED_MESSAGE : RENDER_RETRY_SUPERSEDED_MESSAGE);
               return;
             }
             setStage('failed');
-            setFailureReason(state.error || 'el render falló');
+            setFailure({ kind: 'render', reason: state.error?.trim() || null });
             return;
           }
         } catch (err) {
@@ -228,7 +236,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         return;
       }
       if (candidate.status === 'failed') {
-        setFailureReason(candidate.failure_reason || 'no se pudo obtener el vídeo de origen');
+        setFailure({ kind: streamFailureKind(candidate), reason: candidate.failure_reason?.trim() || null });
         setStage('failed');
         return;
       }
@@ -288,7 +296,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     }
     const keyDropCode = fittedPlan.keydrop_banner?.code?.trim() ?? '';
     if (keyDropCode !== '' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(keyDropCode)) {
-      setError('El código de afiliado debe tener 1–16 letras, números, guiones o guiones bajos.');
+      setError('El código de afiliado debe tener entre 1 y 16 letras, números, guiones o guiones bajos.');
       return;
     }
     const editIssue = clipEditIssue(fittedPlan.clips);
@@ -320,7 +328,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       setPlan(saved);
       setAutosave('saved');
       if (!saved.updated_at) {
-        throw new Error('El plan guardado no incluye una revisión verificable.');
+        setError('El plan guardado no incluye una revisión verificable. Vuelve a exportar.');
+        return;
       }
       setStage('rendering');
       setRenderState((previous) => {
@@ -331,10 +340,6 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           : { status: 'queued', videos: [] };
       });
       await streamsApi.startRender(job.id, saved.variant, saved.updated_at);
-      toast(`${shortsWord(saved.clips.length)} en render`, {
-        position: 'top-right',
-        description: `FFmpeg · ${streamVariantLabel(saved)} · 1080×1920`,
-      });
       void pollRender(job.id, saved.variant, saved, true);
     } catch (err) {
       setStage('editing');
@@ -401,7 +406,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           if (autosaveGeneration.current !== generation) return;
           // The local draft above still protects navigation/restart recovery;
           // surface the rejected save instead of silently claiming it landed.
-          const message = errorMessage(err, 'No se pudo guardar el plan automáticamente.');
+          const message = errorMessage(err, AUTOSAVE_FAIL_MESSAGE);
           autosaveError.current = message;
           setAutosave('failed');
           setError(message);
@@ -474,27 +479,42 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           {job?.title?.trim() || 'Clip de stream'}
         </h1>
         <p className="text-body text-fg-2">
-          Descargando y analizando el vídeo de origen en este PC. En cuanto termine se abre el editor con el plan guardado.
+          Descargando el vídeo en este PC. El editor se abre solo en cuanto termine; puedes esperar aquí o volver más tarde.
         </p>
-        <LongOperation stage="Descarga + probe" detail="Sin cortes todavía" elapsedSec={acquiringElapsed} tone="stream" />
+        <LongOperation stage="Descargando" detail="El editor se abre al terminar" elapsedSec={acquiringElapsed} tone="stream" />
         <Button type="button" variant="outline" size="sm" onClick={goBack} className="self-start">
-          Volver
+          Mis proyectos
         </Button>
       </section>
     );
   }
   if (stage === 'failed') {
+    const renderFailed = failure?.kind === 'render';
     return (
       <div role="alert">
         <StudioEmptyState
           icon={AlertTriangle}
           accent="magenta"
-          title="Ese trabajo falló"
-          description={failureReason ?? 'Algo salió mal.'}
+          title={renderFailed ? 'No se pudieron crear los Shorts' : 'No se pudo traer el vídeo'}
+          description={
+            renderFailed ? (
+              <>
+                <p>El render falló y este proyecto no se puede volver a exportar. Importa el vídeo otra vez para repetirlo.</p>
+                {failure.reason ? (
+                  <details className="mt-4 text-left text-body-sm text-fg-3">
+                    <summary className="cursor-pointer">Detalle técnico</summary>
+                    <p className="mt-2 break-words font-mono text-meta">{failure.reason}</p>
+                  </details>
+                ) : null}
+              </>
+            ) : (
+              (failure?.reason ?? 'No se pudo obtener el vídeo de origen. Revisa el enlace y vuelve a importarlo.')
+            )
+          }
           className="border-destructive/45"
           actions={
             <Button type="button" onClick={goBack}>
-              Empezar de nuevo
+              {renderFailed ? 'Importar de nuevo' : 'Importar otro vídeo'}
             </Button>
           }
         />

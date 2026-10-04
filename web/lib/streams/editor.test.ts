@@ -98,7 +98,7 @@ test('actions describe the next step and do not re-export an unchanged result', 
   assert.equal(streamCtaLabel({ ...base, rendering: true }), 'Creando vídeos…');
 });
 test('the summary shows output durations, including speed, and unsaved exports', () => {
-  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17 — 02 · 0:19');
+  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17, 02 · 0:19');
   assert.match(streamOutputSummary(plan(), true), /Cambios sin exportar/);
   assert.match(streamOutputSummary(plan({ clips: [] }), false), /Marca el inicio y el final/);
 });

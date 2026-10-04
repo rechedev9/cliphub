@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import { CircleCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 /**
  * Right column content: the active step's title over its content. The surface
@@ -18,37 +17,32 @@ export function StreamStepPanel({ title, children }: { title: string; children: 
   );
 }
 
-/** Aspect step: the crop is edited on the monitor; this is the explanation and the confirmation. */
+/** Aspect step: the crop is edited on the monitor and confirmed with the footer action; this explains it. */
 export function StreamLayoutStep({
   needsFaceCrop,
   faceCropReviewed,
-  busy,
-  onConfirmFaceCrop,
 }: {
   needsFaceCrop: boolean;
   faceCropReviewed: boolean;
-  busy: boolean;
-  onConfirmFaceCrop: () => void;
 }): ReactNode {
   if (!needsFaceCrop) {
-    return <p className="text-body-sm text-fg-2">Gameplay a pantalla completa, sin recorte de facecam.</p>;
+    return <p className="text-body-sm text-fg-2">Gameplay a pantalla completa, sin cámara.</p>;
   }
   return (
     <>
       <p className="text-body-sm text-fg-2">
         Ajusta el marco sobre la cámara del streamer. La vista del Short muestra cómo quedará el vídeo.
       </p>
-      <Button
-        type="button"
-        size="sm"
-        variant={faceCropReviewed ? 'outline' : 'stream'}
-        disabled={busy}
-        onClick={onConfirmFaceCrop}
-        className={`self-start font-display uppercase tracking-wide ${faceCropReviewed ? 'border-success/45 text-success' : ''}`}
-      >
-        <CircleCheck aria-hidden />
-        {faceCropReviewed ? 'Cámara confirmada · continuar' : 'Confirmar cámara y continuar'}
-      </Button>
+      {faceCropReviewed ? (
+        <p role="status" className="flex items-center gap-2 text-body-sm text-success">
+          <CircleCheck aria-hidden className="size-4" />
+          Cámara confirmada
+        </p>
+      ) : (
+        <p role="status" className="text-body-sm text-fg-3">
+          Cuando el marco encaje, confirma la cámara con el botón de abajo.
+        </p>
+      )}
     </>
   );
 }

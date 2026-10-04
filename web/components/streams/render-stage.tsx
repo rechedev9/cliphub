@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Film } from 'lucide-react';
 import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
+import { shortsWord } from '@/lib/streams/editor';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -34,12 +35,12 @@ export function StreamRenderStage({
 }): ReactNode {
   const elapsed = useElapsedSeconds(true);
   const queued = renderState === null || renderState.status === 'queued';
-  const stage = queued ? 'EN COLA' : 'RENDERIZANDO';
+  const stage = queued ? 'EN COLA' : 'CREANDO VÍDEOS';
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionEyebrow label="RENDER" accent="magenta" />
+        <SectionEyebrow label="EXPORTACIÓN" accent="magenta" />
         <StatusTag tone="stream" dot>
           {stage}
         </StatusTag>
@@ -47,7 +48,7 @@ export function StreamRenderStage({
 
       <LongOperation
         stage={stage}
-        detail={`${clips.length} ${clips.length === 1 ? 'CLIP' : 'CLIPS'} · ${variantLabel} · 1080×1920`}
+        detail={`${shortsWord(clips.length)} · ${variantLabel} · 1080×1920`}
         elapsedSec={elapsed}
         tone="stream"
       />
@@ -55,7 +56,7 @@ export function StreamRenderStage({
       <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
-            {/* The header above already says RENDERIZANDO three ways; a magenta
+            {/* The header above already says CREANDO VÍDEOS three ways; a magenta
                 edge, badge, wash and glyph on every pending tile spends the
                 accent N more times and says nothing new. */}
             <MediaFrame
@@ -69,7 +70,7 @@ export function StreamRenderStage({
                 </span>
               }
             />
-            <p className="truncate text-body-sm text-fg-2">{clip.title?.trim() || `Clip ${index + 1}`}</p>
+            <p className="truncate text-body-sm text-fg-2">{clip.title?.trim() || `Short ${index + 1}`}</p>
             <p className="font-mono text-meta tabular-nums text-fg-3">
               {formatStreamClock(clipOutputDuration(clip))}
             </p>

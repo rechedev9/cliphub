@@ -28,6 +28,8 @@ const TOASTER_STYLE: ToasterStyle = {
   fontFamily: "var(--font-sans)",
 }
 
+const TOP_OFFSET = { top: "calc(var(--shell-strip-height, 3.5rem) + 0.5rem)" }
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
@@ -43,6 +45,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
       style={TOASTER_STYLE}
+      // Top toasts open under the command strip instead of covering it.
+      offset={TOP_OFFSET}
+      mobileOffset={TOP_OFFSET}
       toastOptions={{
         // Per-type accents layer on top of the shared night-navy skin by
         // overriding the --normal-* custom properties the injected stylesheet
@@ -52,6 +57,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // A toast floats highest in the shell, so it carries --elev-5.
         classNames: {
           toast: "shadow-[var(--elev-5)]",
+          description: "text-fg-2!",
           actionButton: "bg-primary! text-primary-foreground! font-mono uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-ring",
           success:
             "[--normal-border:var(--success)] [--normal-text:var(--success)]",

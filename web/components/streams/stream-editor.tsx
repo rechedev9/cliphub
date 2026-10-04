@@ -3,7 +3,6 @@
 import { streamTitle } from '@/lib/streams/title';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   STREAM_VARIANTS,
@@ -29,6 +28,7 @@ import {
   DEFAULT_KEYDROP_CODE,
   DEFAULT_KEYDROP_END_SECONDS,
   DEFAULT_KEYDROP_START_SECONDS,
+  FULL_SOURCE_MOMENT_MAX_SECONDS,
   STREAMER_NICK_RE,
   formatStreamClock,
   clipOutputDuration,
@@ -115,7 +115,10 @@ export function StreamEditor({
   const probedDuration = job.probe?.duration_seconds ?? 0;
   const sourceDuration = Number.isFinite(probedDuration) && probedDuration > 0 ? probedDuration : 0;
 
-  const [activeStep, setActiveStep] = useState<StreamStep>(hasRender ? STREAM_STEP.results : STREAM_STEP.cuts);
+  const [requestedStep, setActiveStep] = useState<StreamStep>(hasRender ? STREAM_STEP.results : STREAM_STEP.cuts);
+  // A rejected or failed export leaves nothing to save, so that step falls back to the one that can retry.
+  const activeStep =
+    requestedStep === STREAM_STEP.results && stage === 'editing' && !hasRender ? STREAM_STEP.review : requestedStep;
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
   const resultVideos = renderState?.videos ?? [];
   const resultIndex = Math.max(
@@ -143,7 +146,6 @@ export function StreamEditor({
   const [playbackClipId, setPlaybackClipId] = useState(selectedClipId);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReload, setPreviewReload] = useState(0);
-  const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
   const playbackClock = useMemo(() => {
     if (playbackMode === STREAM_PLAYBACK_MODE.source) return { elapsed: previewSeconds, duration: sourceDuration };
     const activeIndex = streamPlaybackIndex(plan.clips, playbackClipId ?? selectedClipId);
@@ -380,6 +382,7 @@ export function StreamEditor({
 
   const musicKey = plan.music?.key ?? '';
   const musicLabel = songs?.find((song) => song.id === musicKey)?.title ?? musicKey;
+  const briefItems = useMemo(() => streamCreativeBrief(plan, musicLabel), [plan, musicLabel]);
   const steps = streamEditorSteps({ plan, musicLabel, renderState, stale, rendering: stage === 'rendering' });
   const activeClip =
     plan.clips.find((c) => previewSeconds >= c.start_seconds && previewSeconds < c.end_seconds) ??
@@ -388,7 +391,8 @@ export function StreamEditor({
     activeClip && activeClip.end_seconds > activeClip.start_seconds
       ? ((previewSeconds - activeClip.start_seconds) / (activeClip.end_seconds - activeClip.start_seconds)) * 100
       : 0;
-  const rangesIssue = streamRangesIssue(plan.clips, sourceDuration);
+  // An empty plan is a missing step, not a broken range: the blocker below names it.
+  const rangesIssue = plan.clips.length > 0 ? streamRangesIssue(plan.clips, sourceDuration) : null;
   const ctaLabel =
     rangesIssue && activeStep === 'review'
       ? 'Corregir momentos →'
@@ -417,8 +421,6 @@ export function StreamEditor({
         <StreamLayoutStep
           needsFaceCrop={variantMeta.needsFaceCrop}
           faceCropReviewed={plan.face_crop_reviewed === true}
-          busy={busy}
-          onConfirmFaceCrop={confirmFaceCrop}
         />
         <details className="rounded-md border border-border-subtle p-3">
           <summary className="cursor-pointer font-semibold text-body-sm">Banners · opcional</summary>
@@ -504,7 +506,7 @@ export function StreamEditor({
             <Button variant="stream" disabled={busy || draftIssue !== null} onClick={() => addMoment()}>
               Añadir este momento
             </Button>
-            {!plan.clips.length && sourceDuration > 0 && sourceDuration <= 60 ? (
+            {!plan.clips.length && sourceDuration > 0 && sourceDuration <= FULL_SOURCE_MOMENT_MAX_SECONDS ? (
               <Button
                 variant="outline"
                 disabled={busy}
@@ -586,7 +588,7 @@ export function StreamEditor({
     );
   } else if (stage === 'rendering') {
     stepContent = (
-      <StreamRenderStage clips={plan.clips} renderState={renderState} variantLabel={variantMeta.label.toUpperCase()} />
+      <StreamRenderStage clips={plan.clips} renderState={renderState} variantLabel={variantMeta.label} />
     );
   } else if (renderedPlan && hasRender) {
     stepContent = (
@@ -600,7 +602,7 @@ export function StreamEditor({
       />
     );
   } else {
-    stepContent = <p className="text-body-sm text-fg-3">Todavía no hay un render de este stream.</p>;
+    stepContent = <p className="text-body-sm text-fg-3">Todavía no hay vídeos exportados.</p>;
   }
 
   return (
@@ -682,8 +684,6 @@ export function StreamEditor({
                     playheadPercent: clipProgress,
                     className: 'h-full w-auto min-h-[120px]',
                   }}
-                  frameSeconds={previewSeconds}
-                  sourceDuration={sourceDuration}
                   elapsedSeconds={playbackClock.elapsed}
                   playbackDuration={playbackClock.duration}
                   playing={previewPlaying}
@@ -699,7 +699,6 @@ export function StreamEditor({
                   }}
                   loop={playbackLoop}
                   onLoopChange={setPlaybackLoop}
-                  onSeek={seek}
                   previewError={previewError}
                   onTogglePlay={() => {
                     setPreviewError(null);
@@ -710,7 +709,7 @@ export function StreamEditor({
                     setPreviewReload((current) => current + 1);
                   }}
                 />
-                <div className="pb-3">
+                <div className="shrink-0 pb-3">
                   <StreamSourceTimeline
                     clips={plan.clips}
                     sourceDuration={sourceDuration}
@@ -718,7 +717,15 @@ export function StreamEditor({
                     playheadSeconds={previewSeconds}
                     disabled={busy}
                     onSeek={(seconds) => {
-                      setPlaybackMode(STREAM_PLAYBACK_MODE.source);
+                      // Scrubbing inside a Short being previewed keeps that mode; anywhere else is the original.
+                      const previewed =
+                        playbackMode === STREAM_PLAYBACK_MODE.sequence
+                          ? plan.clips
+                          : plan.clips.filter((clip) => clip.id === selectedClip?.id);
+                      const insidePreviewed =
+                        playbackMode !== STREAM_PLAYBACK_MODE.source &&
+                        previewed.some((clip) => seconds >= clip.start_seconds && seconds <= clip.end_seconds);
+                      if (!insidePreviewed) setPlaybackMode(STREAM_PLAYBACK_MODE.source);
                       seek(seconds);
                     }}
                     onSelect={selectClip}
@@ -735,17 +742,8 @@ export function StreamEditor({
           </div>
         </div>
 
-        {error ? (
-          <p
-            role="alert"
-            className="mx-(--shell-gutter) mb-2 flex items-start gap-2 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
-          >
-            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {error}
-          </p>
-        ) : null}
-
         <StreamFooter
+          error={error}
           countLabel={shortsWord(plan.clips.length)}
           summary={streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
