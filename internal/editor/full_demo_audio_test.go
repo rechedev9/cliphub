@@ -275,8 +275,8 @@ func TestFullDemoAACRecoverySavedProgram(t *testing.T) {
 		t.Fatalf("master: %v; evidence: %+v", err, evidence)
 	}
 	assertRecoveredAAC(t, evidence, target)
-	if len(evidence.DecodedAAC) <= 3 {
-		t.Fatal("regression did not reproduce the three native master failures")
+	if len(evidence.MasterTargets) == len(evidence.FallbackMasters) {
+		t.Fatal("regression did not reproduce a native master failure")
 	}
 	var videoHash string
 	for i, path := range []string{input, output} {

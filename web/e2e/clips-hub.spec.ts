@@ -242,6 +242,10 @@ test.describe('clips hub', () => {
           && box.y < other.y + other.height - 1 && other.y < box.y + box.height - 1;
         expect(overlaps, `metadata overlaps ${label} at ${width}px`).toBe(false);
       }
+      // Only the unbroken name may break inside itself: the date stays on one line.
+      const dateLines = await row.getByText(/^importada el /).evaluate((element) =>
+        element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight));
+      expect(dateLines, `date lines at ${width}px`).toBeLessThan(1.5);
     }
   });
 

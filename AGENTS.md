@@ -43,6 +43,19 @@ Rules that follow from it:
   `TestFullDemoFilterBuildersClampOutOfRangeTargets` and
   `TestFullDemoRetargetStaysInRangeAndExhaustsForAnyMeasurement` guard both;
   add any new computed filter option to `computedFilterRanges`.
+- A retarget must also make progress. `nextNativeMaster` hands over to
+  recovery as soon as a native master lands no closer to the acceptance window
+  (`fullDemoAACMissDB`) than the one before it. loudnorm only runs `linear`
+  when the measured LRA fits the target and `measured_TP + gain` stays under
+  the TP target; otherwise every pass logs `normalization_type: dynamic`, and
+  a lower TP target just tightens its limiter. Job b7c0c77e (2026-09-26, input
+  -32.59 LUFS / LRA 19.2) went -15.6 -> -20.5 -> -25.4 LUFS over three native
+  masters before recovery delivered -14.4. Before tuning the retarget, check
+  `normalization_type` of the master pass itself (the `measured_*:linear=true`
+  filter; `program-master-N.txt` is only kept when FFmpeg fails, so rerun that
+  filter to `-f null`). The measurement logs (`decoded-aac-*.txt`,
+  `program-*-input.txt`) always say `dynamic` because they run without
+  `measured_*`. `TestFullDemoNativeMasterHandsOverWhenRetargetDiverges` pins it.
 - Media Foundation (`aac_mf`) is a Windows OS component, not something the
   installer can bundle. It is present on all standard Windows editions and
   the shipped FFmpeg exposes it; only "N/KN" editions lack it. Do not
@@ -143,10 +156,11 @@ Rules that follow from it:
 - Exit code 6 / `capture_incompatible` means HLAE vs CS2 build, not a ClipHub
   regression. Check the advancedfx issues and releases and the CS2 update time
   against the user's last successful capture before bisecting our commits.
-- Studio passes `ZV_HLAE_PATH` for the pinned version and reinstalls the pin
-  when its cache digest does not match, so users cannot work around an
-  incompatible pin by installing a newer HLAE themselves. The fix always ships
-  as a new pin plus a Studio release.
+- Studio passes `ZV_HLAE_PATH` for the HLAE it provisioned and reinstalls it
+  when its cache digest does not match, so users cannot work around a broken
+  HLAE by installing one themselves. Since Studio 5.4.3 that HLAE is the
+  latest official release (see the 5.4.1 incident below); the pin is only the
+  bundled fallback.
 - When advancedfx has no fixed release yet: build `AfxHookSource2` from the
   fix (`cmake --preset x64-release`, then
   `cmake --build build/x64-release --config Release --target AfxHookSource2`),
@@ -199,6 +213,34 @@ Valve splash. advancedfx tracked it as issue #1216 and fixed it in official
   writes `ffmpeg/ffmpeg.ini` at runtime. Compute the digest over a fresh
   `Expand-Archive` of the release zip.
 
+### Incident: a release shipped on a pin CS2 had already broken (Studio 5.4.1, 2026-09-28)
+
+CS2 1.41.8.5 (2026-09-25) broke 2.192.4 again (`record:demo` exit 6,
+`Error - AfxHookSource2`). advancedfx fixed it in 2.192.5 the next day, but
+Studio 5.4.0 and 5.4.1 still shipped 2.192.4, and the first real render
+after 5.4.1 failed. Studio 5.4.2 pins official 2.192.6.
+
+Studio now always runs the latest official HLAE:
+
+- At boot, `provisionHLAE` (`desktop/src/runtime-tools.ts`) reads
+  advancedfx's `releases/latest` (`hlae-latest.ts`). When it is newer than
+  the bundled pin, Studio downloads its `hlae_X_Y_Z.zip`. The archive must
+  match the sha256 GitHub publishes for that asset (`digest`), and the
+  extracted tree digest is recorded in the install marker and checked on
+  every later boot. advancedfx signs releases with different PGP keys, so
+  the GitHub digest over HTTPS is the trust anchor, not a pinned key.
+- Offline, Studio reuses the newest install whose files still match its
+  marker. If the download or its verification fails, it falls back to the
+  bundled pin. A failed lookup never blocks capture.
+- `ffmpeg/ffmpeg.ini`, which zv-recorder writes into the HLAE folder on
+  every capture, is excluded from the tree digest, so a capture no longer
+  forces a reinstall on the next boot.
+- `desktop-release.yml` runs `desktop/scripts/check-hlae-latest.mjs`, which
+  fails the release unless `hlae-tool.json` is advancedfx's latest release.
+  Bump the pin (and prove it with a real capture) before tagging.
+- If CS2 updates while Studio is open, restarting Studio picks up a fixed
+  HLAE. The lookup runs only at boot.
+
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 
 A full render takes 20+ minutes, so check a render change one stage at a
@@ -222,6 +264,27 @@ time first. The lab replays the inputs of a job's last render of a variant:
      black placeholder video; lists every master target and measurement.
    - `delivery --file <mp4>`: strict delivery check plus the same
      measurements on any delivered file.
+
+Without a real job (cloud sessions, a fresh checkout),
+`zv-editor lab synth --out <dir> [--rounds N] [--size WxH]` writes a
+synthetic bundle in seconds. It plans a demo of N rounds (default 3) with
+the current planner and default options (native HUD), generates one
+test-pattern H.264/AAC capture per round with the exact `TickFrames` count,
+a team-voice track and a ten-player roster overlay, and writes capture
+evidence from `recording.FullDemoExpectedCaptureCvars`. `--plan` takes an
+approved snapshot instead, if it has the native HUD, no media assets and no
+FACEIT overlay (their data comes from the job).
+Every mode then runs on it and marks its evidence `synthetic`.
+
+- A synthetic bundle proves timing, commands, overlays and loudness
+  mechanics, not how CS2 footage or real voice looks or sounds. Use a real
+  bundle when the change depends on the footage.
+- The mandatory neon overlays need Studio's Chromium renderer: `synth`
+  records `ZV_OVERLAY_RENDERER_PATH` when it is set, and without a renderer
+  every mode stops at "neon overlay requires the Studio Chromium renderer".
+- `synth` writes the Full Demo editor arguments itself;
+  `TestSyntheticLabBundleArgumentsMatchAFullDemoRender` fails when
+  `RenderWorker.writeEditorInputs` changes them. Update both together.
 
 - Use `item` and `audio` as the runtime evidence for a render change, and
   look at the stills: a decodable file is not proof the game is visible.

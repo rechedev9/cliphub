@@ -317,7 +317,7 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	if last.Status == "silent" && e.ProgramLoudness.Status == "silent-approved" && a.Game.Gain == 0 && (!a.Voice.Enabled || a.Voice.Gain == 0) && !a.Music.Enabled && !e.Effective.Options.HasBumpers() && !e.Effective.HasTransitionSFX() {
 		return nil
 	}
-	if e.ProgramLoudness.Status != "verified-decoded-aac" || last.Status != "measured" || last.IntegratedLUFS == nil || last.TruePeakDBTP == nil || math.IsNaN(*last.IntegratedLUFS) || math.IsNaN(*last.TruePeakDBTP) || math.IsInf(*last.IntegratedLUFS, 0) || math.IsInf(*last.TruePeakDBTP, 0) || math.Abs(*last.IntegratedLUFS-a.Loudness.TargetILUFS) > .5 || *last.TruePeakDBTP > a.Loudness.TargetTPDBTP {
+	if e.ProgramLoudness.Status != "verified-decoded-aac" || last.Status != "measured" || last.IntegratedLUFS == nil || last.TruePeakDBTP == nil || math.IsNaN(*last.IntegratedLUFS) || math.IsNaN(*last.TruePeakDBTP) || math.IsInf(*last.IntegratedLUFS, 0) || math.IsInf(*last.TruePeakDBTP, 0) || fullDemoAACMissDB(last, a.Loudness) > 0 {
 		return fmt.Errorf("audio_loudness_failed: final decoded AAC misses its approved targets")
 	}
 	return nil

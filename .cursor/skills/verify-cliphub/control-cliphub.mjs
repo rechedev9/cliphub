@@ -855,7 +855,7 @@ async function cmdScreenshot(repo, flags) {
 }
 
 const PUBLISH_MISSING_JOB = '11111111-1111-4111-8111-111111111111';
-const PUBLISH_MISSING_PATH = `/clips/${PUBLISH_MISSING_JOB}/publicar/${encodeURIComponent(`${PUBLISH_MISSING_JOB}__demo-compilation`)}`;
+const PUBLISH_MISSING_PATH = `/clips/${PUBLISH_MISSING_JOB}/publicar/${encodeURIComponent(`${PUBLISH_MISSING_JOB}__full-demo`)}`;
 
 async function driveInicio(page, origin, evidenceDir) {
   const steps = [];

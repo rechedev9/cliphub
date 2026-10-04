@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,12 +25,16 @@ type labBundle struct {
 	SchemaVersion string            `json:"schema_version"`
 	Args          []string          `json:"args"`
 	Env           map[string]string `json:"env"`
+	Synthetic     bool              `json:"synthetic"`
 }
 
 const labUsage = `usage: zv-editor lab <mode> --bundle <dir> [options]
+       zv-editor lab synth --out <dir> [--rounds N | --plan <plan.json>] [--size WxH]
 
 Runs one stage of a Full Demo render from a render input bundle
 (zv full-demo lab-bundle) without rendering the whole program.
+synth writes a synthetic bundle instead: the approved plan with generated
+test-pattern captures, so the lab runs without a real job or CS2.
 
 modes:
   plan       timeline, overlays, transitions and loudness targets; no FFmpeg
@@ -40,6 +45,9 @@ modes:
 `
 
 func runLab(args []string) error {
+	if len(args) > 0 && args[0] == editor.LabModeSynth {
+		return runLabSynth(args[1:])
+	}
 	if len(args) == 0 || !slices.Contains(editor.LabModes(), args[0]) {
 		fmt.Fprint(os.Stderr, labUsage)
 		if len(args) == 0 {
@@ -90,7 +98,7 @@ func runLab(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	evidence, labErr := editor.Lab(ctx, parsed.config, editor.LabOptions{Mode: mode, WorkDir: dir, Index: *index, Seconds: *seconds, File: *file})
+	evidence, labErr := editor.Lab(ctx, parsed.config, editor.LabOptions{Mode: mode, WorkDir: dir, Index: *index, Seconds: *seconds, File: *file, Synthetic: bundle.Synthetic})
 	evidencePath := filepath.Join(dir, "lab-evidence.json")
 	if err := writeLabEvidence(evidencePath, evidence); err != nil {
 		return errors.Join(labErr, err)
@@ -107,6 +115,44 @@ func runLab(args []string) error {
 		fmt.Fprintf(os.Stdout, "evidence\t%s\n", evidencePath)
 	}
 	return labErr
+}
+
+func runLabSynth(args []string) error {
+	fs := flag.NewFlagSet("zv-editor lab synth", flag.ExitOnError)
+	plan := fs.String("plan", "", "approved Full Demo plan snapshot or plan document with the native HUD and no media assets; defaults to a built-in synthetic demo")
+	rounds := fs.Int("rounds", 0, "rounds of the built-in synthetic demo (default 3); not used with --plan")
+	out := fs.String("out", "", "directory the synthetic bundle is written to")
+	size := fs.String("size", "", "generated capture size WxH; defaults to the capture stream size (1920x1080)")
+	ffmpeg := fs.String("ffmpeg", "", "FFmpeg binary; defaults to the one a render finds")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *out == "" {
+		return fmt.Errorf("synth needs --out")
+	}
+	if *plan != "" && *rounds != 0 {
+		return fmt.Errorf("--rounds shapes the built-in synthetic demo; it cannot be combined with --plan")
+	}
+	opts := editor.LabSynthOptions{PlanPath: *plan, Rounds: *rounds, Dir: *out, FFmpeg: *ffmpeg}
+	if *size != "" {
+		w, h, found := strings.Cut(strings.ToLower(*size), "x")
+		width, widthErr := strconv.Atoi(w)
+		height, heightErr := strconv.Atoi(h)
+		if !found || widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+			return fmt.Errorf("--size %q must be WxH, e.g. 640x360", *size)
+		}
+		opts.Width, opts.Height = width, height
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	started := time.Now()
+	bundle, err := editor.SynthLabBundle(ctx, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "synthetic bundle\t%s\nplan_hash\t%s\nelapsed\t%.1fs\n", bundle.Dir, bundle.PlanHash, time.Since(started).Seconds())
+	fmt.Fprintf(os.Stdout, "next\tzv-editor lab plan --bundle %s\n", bundle.Dir)
+	return nil
 }
 
 func readLabBundle(dir string) (labBundle, error) {
@@ -139,6 +185,9 @@ func writeLabEvidence(path string, evidence editor.LabEvidence) error {
 
 func writeLabSummary(w io.Writer, e editor.LabEvidence) {
 	fmt.Fprintf(w, "mode\t%s\nelapsed\t%.1fs\n", e.Mode, float64(e.ElapsedMS)/1000)
+	if e.Synthetic {
+		fmt.Fprintln(w, "bundle\tsynthetic: generated captures, not CS2 footage")
+	}
 	if e.Error != "" {
 		fmt.Fprintf(w, "error\t%s\n", e.Error)
 	}

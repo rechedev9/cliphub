@@ -12,7 +12,7 @@ import (
 // sequence to real evidence: fed the decoded AAC measurements of
 // full-demo-loudness.json, the pure retarget helpers must reproduce its
 // master_targets and fallback_masters exactly, in order, and its acceptance
-// decisions. Any change to nextMasterTarget, aacHeadroomTarget,
+// decisions. Any change to nextNativeMaster, nextMasterTarget, aacHeadroomTarget,
 // ProgramAACFallbackMaster.corrected or fullDemoDecodedAACAccepted that alters
 // the sequence on a real render fails here without FFmpeg.
 func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
@@ -42,9 +42,11 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 		if err != nil || accepted {
 			t.Fatalf("native master %d: accepted=%v err=%v, want rejected", i, accepted, err)
 		}
-		next, changed := nextMasterTarget(attemptTarget, target, decoded)
-		if !changed {
-			t.Fatalf("native master %d: retargeting reported exhausted headroom", i)
+		next, retry := nextNativeMaster(attemptTarget, target, native[:i+1])
+		// The second master came closer (2.94 -> 2.84 dB outside the window),
+		// so the third still runs; the third diverged and hands over.
+		if retry != (i < len(native)-1) {
+			t.Fatalf("native master %d: retry=%v", i, retry)
 		}
 		attemptTarget = next
 	}
@@ -83,5 +85,63 @@ func TestFullDemoMasterSequenceMatchesSavedReplay(t *testing.T) {
 	}
 	if !reflect.DeepEqual(fallbackMasters, wantFallback) {
 		t.Fatalf("fallback masters = %+v, want %+v", fallbackMasters, wantFallback)
+	}
+}
+
+// Lab replay of job b7c0c77e (19-round FACEIT Mirage, 18:50 program measured
+// at -32.59 LUFS / -5.32 dBTP / LRA 19.2): loudnorm could only run in dynamic
+// mode, so lowering the TP target tightened its limiter and the second native
+// master came out further from the window (-20.54 LUFS / +3.70 dBTP) than the
+// first (-15.64 / +0.75). The loop must hand over to AAC recovery right there
+// instead of spending a third master at TP -9 that measured -25.36 / -2.00.
+func TestFullDemoNativeMasterHandsOverWhenRetargetDiverges(t *testing.T) {
+	target := recapplan.DefaultOptions().Audio.Loudness
+	if target.TargetILUFS != -14 || target.TargetTPDBTP != -1.5 {
+		t.Skipf("lab replay was mastered against -14 LUFS / -1.5 dBTP, not %+v", target)
+	}
+	measured := func(integrated, peak float64) LoudnessMeasurement {
+		return LoudnessMeasurement{Status: "measured", IntegratedLUFS: &integrated, TruePeakDBTP: &peak}
+	}
+	decodedByTarget := map[recapplan.LoudnessOptions]LoudnessMeasurement{}
+	retarget := func(integrated, peak float64) recapplan.LoudnessOptions {
+		next := target
+		next.TargetILUFS, next.TargetTPDBTP = integrated, peak
+		return next
+	}
+	decodedByTarget[retarget(-14, -1.8)] = measured(-15.64, 0.75)
+	decodedByTarget[retarget(-13, -4.25)] = measured(-20.54, 3.70)
+	decodedByTarget[retarget(-12, -9)] = measured(-25.36, -2.00)
+
+	// Mirrors the native loop of masterFullDemoMeasuredProgram.
+	attemptTarget := aacHeadroomTarget(target)
+	var masterTargets []recapplan.LoudnessOptions
+	var decodedAAC []LoudnessMeasurement
+	for attempt := 0; attempt < 3; attempt++ {
+		if clampLoudnormTarget(attemptTarget) != attemptTarget {
+			t.Fatalf("native master %d left loudnorm's range: %+v", attempt, attemptTarget)
+		}
+		masterTargets = append(masterTargets, attemptTarget)
+		decoded, ok := decodedByTarget[attemptTarget]
+		if !ok {
+			t.Fatalf("native master %d used a target the lab never measured: %+v", attempt, attemptTarget)
+		}
+		decodedAAC = append(decodedAAC, decoded)
+		if accepted, err := fullDemoDecodedAACAccepted(decoded, target, false); err != nil || accepted {
+			t.Fatalf("native master %d: accepted=%v err=%v, want rejected", attempt, accepted, err)
+		}
+		next, retry := nextNativeMaster(attemptTarget, target, decodedAAC)
+		if !retry {
+			break
+		}
+		attemptTarget = next
+	}
+	want := []recapplan.LoudnessOptions{retarget(-14, -1.8), retarget(-13, -4.25)}
+	if !reflect.DeepEqual(masterTargets, want) {
+		t.Fatalf("native master targets = %+v, want hand-over after %+v", masterTargets, want)
+	}
+	// A retarget that lands exactly as far from the window made no progress.
+	first := decodedByTarget[retarget(-14, -1.8)]
+	if _, retry := nextNativeMaster(want[1], target, []LoudnessMeasurement{first, first}); retry {
+		t.Fatal("a retarget with no progress must hand over")
 	}
 }

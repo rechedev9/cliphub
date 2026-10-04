@@ -6,6 +6,7 @@ import { downloadFile } from './http-download.ts';
 import { copyAndHash } from './copy-and-hash.ts';
 import { psQuote } from './escaping.ts';
 import { PINNED_HLAE_TOOL } from './hlae-tool.ts';
+import { compareHLAEVersions, type HLAERelease } from './hlae-latest.ts';
 
 export type RuntimeToolName = 'hlae' | 'ffmpeg' | 'ytdlp';
 
@@ -18,6 +19,8 @@ export interface RuntimeToolProvisioningOptions {
   signal?: AbortSignal;
   maxInstallTimeMs?: number;
   bundledHLAEArchive?: string;
+  /** Latest official HLAE; Studio installs it when newer than the bundled pin. */
+  resolveLatestHLAE?: (signal?: AbortSignal) => Promise<HLAERelease | null>;
   sha256File?: (filePath: string) => string;
   testOnlyTreeSha256?: Partial<Record<RuntimeToolName, string>>;
   download?: typeof downloadFile;
@@ -41,10 +44,14 @@ interface RuntimeToolSpec {
   version: string;
   url: string;
   sha256: string;
-  treeSha256: string;
+  // Absent for a latest HLAE release: its archive digest comes from GitHub and
+  // the extracted tree digest is recorded in the install marker.
+  treeSha256?: string;
   kind: 'zip' | 'exe';
   exeRel: string;
   requiredRel: readonly string[];
+  // Files the tool writes into its own folder at runtime; not part of the tree.
+  runtimeWrittenRel?: readonly string[];
   timeoutMs: number;
 }
 
@@ -57,6 +64,7 @@ interface RuntimeToolInstallMarker {
   files: readonly RuntimeToolFileDigest[];
   schemaVersion: 2;
   sourceSha256: string;
+  treeSha256?: string;
   version: string;
 }
 
@@ -64,11 +72,15 @@ const FFMPEG_RELEASE_DIR = 'ffmpeg-n8.1-latest-win64-gpl-shared-8.1';
 const FFMPEG_EXE = path.join(FFMPEG_RELEASE_DIR, 'bin', 'ffmpeg.exe');
 const FFPROBE_EXE = path.join(FFMPEG_RELEASE_DIR, 'bin', 'ffprobe.exe');
 
+// zv-recorder writes HLAE's ffmpeg.ini on every capture.
+const HLAE_RUNTIME_WRITTEN_REL = ['ffmpeg/ffmpeg.ini'] as const;
+
 // Pinned under userData. HLAE comes from the installer bundle when present.
 const RUNTIME_TOOLS: Record<RuntimeToolName, RuntimeToolSpec> = {
   hlae: {
     ...PINNED_HLAE_TOOL,
     requiredRel: [PINNED_HLAE_TOOL.exeRel],
+    runtimeWrittenRel: HLAE_RUNTIME_WRITTEN_REL,
   },
   ffmpeg: {
     version: 'n8.1.2-30-g45f1910444-20260723',
@@ -113,12 +125,12 @@ export async function provisionRuntimeTools(
   throwIfProvisioningAborted(options.signal);
 
   const [hlae, ffmpeg, ytdlp] = await Promise.all([
-    provisionRuntimeTool(options, 'hlae', onStatus),
+    provisionHLAE(options, onStatus),
     provisionRuntimeTool(options, 'ffmpeg', onStatus),
     provisionRuntimeTool(options, 'ytdlp', onStatus),
   ]);
   throwIfProvisioningAborted(options.signal);
-  if (hlae) cleanupObsoleteHLAEVersions(options.toolsDir, options.logLine);
+  if (hlae) cleanupObsoleteHLAEVersions(options.toolsDir, path.basename(path.dirname(hlae)), options.logLine);
   return runtimeToolEnvironment({ hlae, ffmpeg, ytdlp });
 }
 
@@ -135,12 +147,74 @@ function runtimeToolEnvironment(paths: RuntimeToolPaths): RuntimeToolEnvironment
   return env;
 }
 
+/**
+ * Runs the latest official HLAE when it is newer than the bundled pin. Offline,
+ * the newest verified install from an earlier boot stands in for the lookup;
+ * the bundled pin is the last resort, so a failed lookup never blocks capture.
+ */
+async function provisionHLAE(
+  options: RuntimeToolProvisioningOptions,
+  onStatus?: RuntimeToolStatusReporter,
+): Promise<string> {
+  const pinned = RUNTIME_TOOLS.hlae;
+  let candidate: RuntimeToolSpec | null = null;
+  if (options.resolveLatestHLAE) {
+    try {
+      const latest = await options.resolveLatestHLAE(options.signal);
+      if (latest) candidate = { ...pinned, ...latest, treeSha256: undefined };
+      else options.logLine('[tools] latest HLAE release is unusable; keeping the installed HLAE\n');
+    } catch (err) {
+      throwIfProvisioningAborted(options.signal);
+      options.logLine(`[tools] latest HLAE lookup failed: ${String(err)}\n`);
+    }
+    candidate ??= await newestInstalledHLAE(options.toolsDir);
+  }
+  throwIfProvisioningAborted(options.signal);
+  if (candidate && compareHLAEVersions(candidate.version, pinned.version) > 0) {
+    const executable = await provisionRuntimeTool(options, 'hlae', onStatus, candidate);
+    if (executable) return executable;
+    options.logLine(`[tools] HLAE ${candidate.version} unavailable; using bundled ${pinned.version}\n`);
+  }
+  return provisionRuntimeTool(options, 'hlae', onStatus, pinned);
+}
+
+/** The newest HLAE install whose files still match the marker it was installed with. */
+async function newestInstalledHLAE(toolsDir: string): Promise<RuntimeToolSpec | null> {
+  const parent = path.join(toolsDir, 'hlae');
+  let versions: string[];
+  try {
+    versions = fs.readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && compareHLAEVersions(entry.name, entry.name) === 0)
+      .map((entry) => entry.name)
+      .sort((left, right) => compareHLAEVersions(right, left));
+  } catch {
+    return null;
+  }
+  for (const version of versions) {
+    try {
+      const marker: unknown = JSON.parse(fs.readFileSync(path.join(parent, version, INSTALL_MARKER), 'utf8'));
+      if (!isRecord(marker) || typeof marker.sourceSha256 !== 'string') continue;
+      const spec: RuntimeToolSpec = {
+        ...RUNTIME_TOOLS.hlae,
+        version,
+        url: '',
+        sha256: marker.sourceSha256,
+        treeSha256: undefined,
+      };
+      if (await completeInstall(path.join(parent, version), spec, null)) return spec;
+    } catch {
+      // An unreadable marker is not a usable install.
+    }
+  }
+  return null;
+}
+
 async function provisionRuntimeTool(
   options: RuntimeToolProvisioningOptions,
   name: RuntimeToolName,
   onStatus?: RuntimeToolStatusReporter,
+  tool: RuntimeToolSpec = RUNTIME_TOOLS[name],
 ): Promise<string> {
-  const tool = RUNTIME_TOOLS[name];
   const installDir = path.join(options.toolsDir, name, tool.version);
   const executable = path.join(installDir, tool.exeRel);
   throwIfProvisioningAborted(options.signal);
@@ -241,7 +315,9 @@ async function installRuntimeTool(
   const archive = path.join(stagingDir, 'download.zip');
 
   try {
-    const bundledArchive = name === 'hlae' ? options.bundledHLAEArchive : undefined;
+    const bundledArchive = name === 'hlae' && tool.version === PINNED_HLAE_TOOL.version
+      ? options.bundledHLAEArchive
+      : undefined;
     let digest: string;
     if (bundledArchive && fs.existsSync(bundledArchive)) {
       options.logLine(`[tools] installing ${name} ${tool.version} from bundled archive...\n`);
@@ -256,6 +332,7 @@ async function installRuntimeTool(
       if (bundledArchive) {
         options.logLine(`[tools] bundled ${name} archive missing; falling back to verified download\n`);
       }
+      if (tool.url === '') throw new Error(`no download source for ${name} ${tool.version}`);
       options.logLine(`[tools] downloading ${name} ${tool.version}...\n`);
       digest = await (options.download ?? downloadFile)(tool.url, partialDownload, { signal, onProgress });
     }
@@ -276,16 +353,16 @@ async function installRuntimeTool(
     if (!requiredFilesExist(stagingDir, tool)) {
       throw new Error(`installation is missing required files in ${stagingDir}`);
     }
-    const installedTree = await sha256InstallTree(stagingDir);
+    const installedTree = await sha256InstallTree(stagingDir, collectInstallFiles(stagingDir, tool));
     const expectedTreeSha256 = trustedTreeSha256(options, name, tool);
-    if (installedTree.sha256 !== expectedTreeSha256) {
+    if (expectedTreeSha256 !== null && installedTree.sha256 !== expectedTreeSha256) {
       throw new Error(
         `installed file tree sha256 mismatch: got ${installedTree.sha256}, want ${expectedTreeSha256}`,
       );
     }
     // The marker describes the very bytes checked against the pinned tree.
     // Re-reading the entire install here only duplicates disk I/O and hashing.
-    writeInstallMarker(stagingDir, tool, installedTree.files);
+    writeInstallMarker(stagingDir, tool, installedTree);
     promoteInstall(stagingDir, installDir, options.logLine);
 
     const executable = path.join(installDir, tool.exeRel);
@@ -311,7 +388,7 @@ async function copyBundledArchive(
   return digestFile ? digestFile(destination) : digest;
 }
 
-function cleanupObsoleteHLAEVersions(toolsDir: string, logLine: (text: string) => void): void {
+function cleanupObsoleteHLAEVersions(toolsDir: string, active: string, logLine: (text: string) => void): void {
   const parent = path.join(toolsDir, 'hlae');
   let entries: fs.Dirent[];
   try {
@@ -321,9 +398,8 @@ function cleanupObsoleteHLAEVersions(toolsDir: string, logLine: (text: string) =
     return;
   }
 
-  const pinned = PINNED_HLAE_TOOL.version;
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === pinned || entry.name.startsWith(`${pinned}.`)) continue;
+    if (!entry.isDirectory() || entry.name === active || entry.name.startsWith(`${active}.`)) continue;
     // Suffixed builds count too: a leftover 2.192.2-cliphub.1 would otherwise
     // be the HLAE the orchestrator autodetects whenever the pin fails to install.
     if (!OBSOLETE_HLAE_VERSION_DIR.test(entry.name)) continue;
@@ -341,10 +417,12 @@ function requiredFilesExist(installDir: string, tool: RuntimeToolSpec): boolean 
   return tool.requiredRel.every((relativePath) => fs.existsSync(path.join(installDir, relativePath)));
 }
 
+// A null expected digest trusts the tree recorded in the marker, which was
+// taken from an archive that matched the release's published sha256.
 async function completeInstall(
   installDir: string,
   tool: RuntimeToolSpec,
-  expectedTreeSha256: string,
+  expectedTreeSha256: string | null,
 ): Promise<boolean> {
   if (!requiredFilesExist(installDir, tool)) return false;
   try {
@@ -353,21 +431,27 @@ async function completeInstall(
     if (!markerInfo.isFile() || markerInfo.isSymbolicLink()) return false;
     const value: unknown = JSON.parse(fs.readFileSync(path.join(installDir, INSTALL_MARKER), 'utf8'));
     if (!isInstallMarker(value, tool)) return false;
-    const files = collectInstallFiles(installDir);
+    const files = collectInstallFiles(installDir, tool);
     if (files.length !== value.files.length) return false;
     const declared = new Map(value.files.map((file) => [file.path, file.sha256]));
     if (declared.size !== value.files.length || files.some((file) => !declared.has(file))) return false;
-    return (await sha256InstallTree(installDir, files)).sha256 === expectedTreeSha256;
+    const expected = expectedTreeSha256 ?? value.treeSha256;
+    return expected !== undefined && (await sha256InstallTree(installDir, files)).sha256 === expected;
   } catch {
     return false;
   }
 }
 
-function writeInstallMarker(installDir: string, tool: RuntimeToolSpec, files: RuntimeToolFileDigest[]): void {
+function writeInstallMarker(
+  installDir: string,
+  tool: RuntimeToolSpec,
+  tree: { sha256: string; files: RuntimeToolFileDigest[] },
+): void {
   const marker: RuntimeToolInstallMarker = {
-    files,
+    files: tree.files,
     schemaVersion: INSTALL_MARKER_SCHEMA_VERSION,
     sourceSha256: tool.sha256,
+    treeSha256: tree.sha256,
     version: tool.version,
   };
   fs.writeFileSync(
@@ -385,6 +469,8 @@ function isInstallMarker(value: unknown, tool: RuntimeToolSpec): value is Runtim
     || value.schemaVersion !== INSTALL_MARKER_SCHEMA_VERSION
     || value.version !== tool.version
     || value.sourceSha256 !== tool.sha256
+    || (value.treeSha256 !== undefined
+      && (typeof value.treeSha256 !== 'string' || !SHA256_PATTERN.test(value.treeSha256)))
     || !Array.isArray(value.files)) return false;
   return value.files.every((file): file is RuntimeToolFileDigest =>
     isRecord(file)
@@ -401,14 +487,15 @@ function isSafeManifestPath(value: string): boolean {
     && value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
 }
 
-function collectInstallFiles(installDir: string): string[] {
+function collectInstallFiles(installDir: string, tool: RuntimeToolSpec): string[] {
+  const runtimeWritten = new Set(tool.runtimeWrittenRel ?? []);
   const files: string[] = [];
   const visit = (directory: string, relativeDirectory: string): void => {
     const entries = fs.readdirSync(directory, { withFileTypes: true })
       .sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
       const relativePath = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
-      if (relativePath === INSTALL_MARKER) continue;
+      if (relativePath === INSTALL_MARKER || runtimeWritten.has(relativePath)) continue;
       if (entry.isSymbolicLink()) throw new Error(`runtime tool cache contains a link: ${relativePath}`);
       if (entry.isDirectory()) {
         visit(path.join(directory, entry.name), relativePath);
@@ -431,7 +518,7 @@ async function sha256InstallFile(filePath: string): Promise<string> {
 
 async function sha256InstallTree(
   installDir: string,
-  files: string[] = collectInstallFiles(installDir),
+  files: string[],
 ): Promise<{ sha256: string; files: RuntimeToolFileDigest[] }> {
   const tree = createHash('sha256');
   const digests: RuntimeToolFileDigest[] = [];
@@ -450,7 +537,8 @@ function trustedTreeSha256(
   options: RuntimeToolProvisioningOptions,
   name: RuntimeToolName,
   tool: RuntimeToolSpec,
-): string {
+): string | null {
+  if (tool.treeSha256 === undefined) return null;
   const expected = options.testOnlyTreeSha256?.[name] ?? tool.treeSha256;
   if (!SHA256_PATTERN.test(expected)) {
     throw new Error(`invalid trusted file tree sha256 for ${name}`);
