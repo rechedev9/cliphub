@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadStreamDraft, reconcileStreamDraftAfterSave, saveStreamDraft, selectStreamDraftPlan, streamEditPlanFingerprint } from './stream-draft.ts';
+import { claimStreamFirstOpen, loadStreamDraft, reconcileStreamDraftAfterSave, saveStreamDraft, selectStreamDraftPlan, streamEditPlanFingerprint } from './stream-draft.ts';
 import type { StreamEditPlan } from './api/streams.ts';
 
 test('stream drafts round-trip through durable browser storage', () => {
@@ -116,4 +116,20 @@ test('stream draft storage failures do not break the editor', () => {
   const plan: StreamEditPlan = { schema_version: '1.1', variant: 'streamer-fullframe-nocam', clips: [] };
   assert.doesNotThrow(() => saveStreamDraft({ setItem: () => { throw new Error('quota'); } }, 'job-1', plan));
   assert.equal(loadStreamDraft({ getItem: () => { throw new Error('blocked'); } }, 'job-1'), null);
+});
+
+test('a job is claimed as first-opened once per browser, and never when storage is blocked', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+  };
+  assert.equal(claimStreamFirstOpen(storage, 'job-1'), true);
+  assert.equal(claimStreamFirstOpen(storage, 'job-1'), false);
+  assert.equal(claimStreamFirstOpen(storage, 'job-2'), true);
+  const blocked = {
+    getItem: () => null,
+    setItem: () => { throw new Error('quota'); },
+  };
+  assert.equal(claimStreamFirstOpen(blocked, 'job-3'), false);
 });

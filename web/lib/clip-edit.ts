@@ -42,7 +42,7 @@ function findOverlap(clips: readonly StreamClipRange[]): [number, number] | null
 }
 
 export function streamRangesIssue(clips: StreamClipRange[], durationSeconds: number): string | null {
-  if (clips.length === 0) return 'Añade al menos un rango de clip.';
+  if (clips.length === 0) return 'Añade al menos un momento.';
   for (const [index, clip] of clips.entries()) {
     const issue = streamRangeIssue(clip, durationSeconds, index);
     if (issue !== null) return issue;

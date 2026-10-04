@@ -16,6 +16,15 @@ export function streamPlaybackIndex(clips: readonly StreamClipRange[], selectedI
   return selected >= 0 ? selected : clips.findIndex((clip) => streamClipRange(clip) !== null);
 }
 
+/** The playable clip under a source position; a shared boundary belongs to the clip that starts there. */
+export function streamClipIndexAt(clips: readonly StreamClipRange[], seconds: number): number {
+  const inside = clips.findIndex((clip) => {
+    const range = streamClipRange(clip);
+    return range !== null && seconds >= range.start && seconds < range.end;
+  });
+  return inside >= 0 ? inside : clips.findIndex((clip) => streamClipRange(clip)?.end === seconds);
+}
+
 export function nextStreamPlaybackIndex(clips: readonly StreamClipRange[], current: number, mode: StreamPlaybackMode, loop: boolean): number {
   if (mode === STREAM_PLAYBACK_MODE.source) return -1;
   if (mode === STREAM_PLAYBACK_MODE.sequence) {
