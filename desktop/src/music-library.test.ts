@@ -261,6 +261,70 @@ test('the shipped catalog is the Suno pack only', () => {
   }
 });
 
+test('a catalog id that escapes the library does not delete files outside it', async (t) => {
+  const paths = temporaryLibrary(t);
+  const outside = path.join(path.dirname(paths.musicDir), 'secret.txt');
+  fs.writeFileSync(outside, 'do not delete');
+  fs.mkdirSync(paths.bundledMusicDir, { recursive: true });
+  fs.writeFileSync(path.join(paths.bundledMusicDir, 'ok-track.mp3'), 'bundled audio');
+  fs.writeFileSync(path.join(paths.bundledMusicDir, 'catalog.json'), JSON.stringify({
+    tracks: [
+      { id: 'foo/../../secret', ext: 'txt', downloadUrl: 'https://example.test/evil', sha256: 'not-a-hash' },
+      { id: '../secret', ext: 'txt', downloadUrl: 'https://example.test/evil', sha256: 'zz' },
+      { id: '..', ext: 'txt' },
+      { id: 'ok-track', ext: 'mp3' },
+    ],
+  }));
+  const downloads: string[] = [];
+
+  await provisionMusicLibrary({
+    ...paths,
+    signal: new AbortController().signal,
+    logLine: () => {},
+    download: async (url) => {
+      downloads.push(url);
+      return sha256('should not run');
+    },
+  });
+
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'do not delete');
+  assert.deepEqual(downloads, []);
+  assert.equal(fs.readFileSync(path.join(paths.musicDir, 'ok-track.mp3'), 'utf8'), 'bundled audio');
+});
+
+test('hostile catalog ids are skipped and a valid track in the same catalog is still copied', async (t) => {
+  const paths = temporaryLibrary(t);
+  fs.mkdirSync(paths.bundledMusicDir, { recursive: true });
+  fs.mkdirSync(paths.musicDir, { recursive: true });
+  fs.writeFileSync(path.join(paths.bundledMusicDir, 'ok-track.mp3'), 'bundled audio');
+  const parentBefore = fs.readdirSync(path.dirname(paths.musicDir)).sort();
+  fs.writeFileSync(path.join(paths.bundledMusicDir, 'catalog.json'), JSON.stringify({
+    tracks: [
+      { id: 'track:name', ext: 'mp3', downloadUrl: 'https://example.test/evil' },
+      { id: 'música', ext: 'mp3', downloadUrl: 'https://example.test/evil' },
+      { id: 'a'.repeat(500), ext: 'mp3', downloadUrl: 'https://example.test/evil' },
+      { id: 'nul\u0000track', ext: 'mp3', downloadUrl: 'https://example.test/evil' },
+      { id: 'slash\\id', ext: 'mp3', downloadUrl: 'https://example.test/evil' },
+      { id: 'ok/nested', ext: 'mp3' },
+      { id: 'ok-track', ext: '../mp3' },
+      { id: 'ok-track', ext: 'mp3' },
+    ],
+  }));
+
+  await provisionMusicLibrary({
+    ...paths,
+    signal: new AbortController().signal,
+    logLine: () => {},
+    download: async () => {
+      throw new Error('hostile id must not be downloaded');
+    },
+  });
+
+  assert.deepEqual(fs.readdirSync(path.dirname(paths.musicDir)).sort(), parentBefore);
+  assert.equal(fs.readFileSync(path.join(paths.musicDir, 'ok-track.mp3'), 'utf8'), 'bundled audio');
+  assert.deepEqual(fs.readdirSync(paths.musicDir).sort(), ['catalog.json', 'ok-track.mp3']);
+});
+
 test('logs an invalid catalog without blocking startup', async (t) => {
   const paths = temporaryLibrary(t);
   fs.mkdirSync(paths.bundledMusicDir, { recursive: true });
