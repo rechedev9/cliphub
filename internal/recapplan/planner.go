@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
 func HashValue(value any) (string, error) {
@@ -204,8 +205,16 @@ func (d Document) UsesFixedFreeze() bool {
 	return true
 }
 
+// noPacketsVoiceWarning is shown when the demo has no voice data and the
+// video is made without team voices. Approval replans from the saved
+// document, whose voice toggle is already off, so the notice is keyed on
+// the evidence rather than on the incoming request.
+const noPacketsVoiceWarning = "Esta demo no tiene datos de voz. El vídeo se hace sin las voces del equipo."
+
 // Plan derives editorial windows from independent facts and verified assets.
 // Missing media yields actionable blockers while retaining enabled decisions.
+// A demo with no voice packets is the exception: the plan continues without
+// team voices and says so.
 func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence, factsRef string) (Document, error) {
 	if err := f.Validate(); err != nil {
 		return Document{}, err
@@ -291,7 +300,12 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			return Document{}, fmt.Errorf("manual range references unavailable round %q", manual.RoundID)
 		}
 	}
-	if options.Audio.Voice.Enabled && voice.Availability != "available" {
+	// no_packets is an empty demo, not a failed extract. no_team_packets still
+	// has voice data (none of it from this team) and keeps the block below.
+	if voice.Availability == voicecomms.NoPackets {
+		d.Options.Audio.Voice.Enabled = false
+		d.Warnings = append(d.Warnings, Notice{Code: ErrVoiceUnavailable, Message: noPacketsVoiceWarning})
+	} else if options.Audio.Voice.Enabled && voice.Availability != "available" {
 		if voice.Availability == "failed" || voice.Availability == "invalid_timeline" || voice.Availability == "unsupported_codec" {
 			d.block(ErrVoiceDecode, "Team voice extraction is incompatible or failed: "+voice.Availability)
 		} else if options.Audio.Voice.ApprovedFallback != "without-voice" {

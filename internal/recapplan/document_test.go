@@ -229,8 +229,47 @@ func TestCertifiedEndsKeepTheApprovedDocument(t *testing.T) {
 	}
 }
 
+func TestNoPacketsDropsRequestedVoicesWithoutBlocking(t *testing.T) {
+	o := fixtureOptions()
+	o.Audio.Voice.Enabled = true
+	voice := VoiceEvidence{Availability: "no_packets"}
+	d, err := Plan(fixtureFacts(), o, voice, nil, "facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Blockers) != 0 {
+		t.Fatalf("no_packets blocked the plan: %+v", d.Blockers)
+	}
+	if d.Options.Audio.Voice.Enabled {
+		t.Fatal("requested team voices were kept")
+	}
+	if !o.Audio.Voice.Enabled {
+		t.Fatal("planner mutated the caller's voice choice")
+	}
+	if noPacketsVoiceWarning != "Esta demo no tiene datos de voz. El vídeo se hace sin las voces del equipo." {
+		t.Fatalf("warning text = %q", noPacketsVoiceWarning)
+	}
+	found := false
+	for _, n := range d.Warnings {
+		if n.Code == ErrVoiceUnavailable && n.Message == noPacketsVoiceWarning {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing voice warning: %+v", d.Warnings)
+	}
+	again, err := Plan(fixtureFacts(), d.Options, d.Voice, nil, "facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.PlanHash != d.PlanHash || again.Options.Audio.Voice.Enabled {
+		t.Fatalf("approval replan drifted: enabled=%v hash %s vs %s", again.Options.Audio.Voice.Enabled, again.PlanHash, d.PlanHash)
+	}
+}
+
 func TestUnavailableAssetsAndVoiceRemainEnabled(t *testing.T) {
-	for _, availability := range []string{"no_packets", "no_team_packets", "silent", "unsupported_codec", "invalid_timeline", "failed"} {
+	// no_packets continues without voices; see TestNoPacketsDropsRequestedVoicesWithoutBlocking.
+	for _, availability := range []string{"no_team_packets", "silent", "unsupported_codec", "invalid_timeline", "failed"} {
 		t.Run(availability, func(t *testing.T) {
 			o := fixtureOptions()
 			o.Audio.Voice.Enabled = true
