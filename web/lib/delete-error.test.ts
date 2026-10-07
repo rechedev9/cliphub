@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
   deleteErrorMessage,
+  deleteFeedbackTone,
   DELETE_GENERIC_MESSAGE,
   DELETE_JOB_BUSY_MESSAGE,
   DELETE_OFFLINE_MESSAGE,
@@ -80,6 +81,19 @@ test('a busy stream project and a body-less error never surface English text', (
     assert.equal(deleteErrorMessage(new Error(raw)), DELETE_STREAM_BUSY_MESSAGE, raw);
   }
   assert.equal(deleteErrorMessage(new Error('request failed (500)')), DELETE_GENERIC_MESSAGE);
+});
+
+test('a busy-demo wait sentence is a notice, and a real failure stays an error', () => {
+  assert.equal(deleteFeedbackTone(DELETE_JOB_BUSY_MESSAGE), 'notice');
+  assert.equal(deleteFeedbackTone(DELETE_RENDER_BUSY_MESSAGE), 'notice');
+  assert.equal(deleteFeedbackTone(DELETE_STREAM_BUSY_MESSAGE), 'notice');
+  assert.equal(
+    deleteFeedbackTone(deleteErrorMessage(new Error('job is recording; wait for it to settle before deleting'))),
+    'notice',
+  );
+  assert.equal(deleteFeedbackTone(DELETE_OFFLINE_MESSAGE), 'error');
+  assert.equal(deleteFeedbackTone(DELETE_GENERIC_MESSAGE), 'error');
+  assert.equal(deleteFeedbackTone('job not found'), 'error');
 });
 
 test('missing or blank message falls back to the generic retry line', () => {

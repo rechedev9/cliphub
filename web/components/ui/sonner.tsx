@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -8,7 +9,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { toast, Toaster as Sonner, type ToasterProps } from "sonner"
 
 /**
  * sonner's own injected stylesheet hardcodes a system sans stack and reads its
@@ -30,13 +31,26 @@ const TOASTER_STYLE: ToasterStyle = {
 
 const TOP_OFFSET = { top: "calc(var(--shell-strip-height, 3.5rem) + 0.5rem)" }
 
+/** Sonner only collapses an expanded list on Escape, and only when that list is focused. */
+function useDismissToastsOnEscape(): void {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      toast.dismiss()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [])
+}
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
+  useDismissToastsOnEscape()
 
   return (
     <Sonner
+      {...props}
       theme={theme as ToasterProps["theme"]}
-      className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -49,6 +63,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       offset={TOP_OFFSET}
       mobileOffset={TOP_OFFSET}
       toastOptions={{
+        closeButtonAriaLabel: "Cerrar aviso",
         // Per-type accents layer on top of the shared night-navy skin by
         // overriding the --normal-* custom properties the injected stylesheet
         // already reads border/text colour from, instead of adding Tailwind
@@ -56,7 +71,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // higher-specificity, unlayered `border`/`color` declarations).
         // A toast floats highest in the shell, so it carries --elev-5.
         classNames: {
-          toast: "shadow-[var(--elev-5)]",
+          toast: "pointer-events-auto shadow-[var(--elev-5)]",
+          closeButton: "pointer-events-auto",
           description: "text-fg-2!",
           actionButton: "bg-primary! text-primary-foreground! font-mono uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-ring",
           success:
@@ -68,7 +84,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "[--normal-border:var(--destructive)] [--normal-text:var(--destructive)]",
         },
       }}
-      {...props}
+      // Clear of the sticky «Crear vídeo largo» bar. The offset above clears the command strip.
+      position="top-right"
+      closeButton
+      // The list is wider than the card (full width under 600px). Clicks on
+      // the empty list fall through; the card and its close button stay live.
+      className="toaster group pointer-events-none"
     />
   )
 }

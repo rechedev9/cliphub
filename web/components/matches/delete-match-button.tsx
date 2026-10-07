@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { deleteErrorMessage } from '@/lib/delete-error';
+import { deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 
 /** How long the armed "¿BORRAR?" state waits before reverting on its own. */
 const REVERT_MS = 8000;
@@ -102,7 +102,7 @@ export function DeleteMatchButton({
         </Button>
       )}
       {error ? (
-        <p role="status" className="max-w-[13rem] text-right font-mono text-meta leading-tight text-destructive">
+        <p role="status" className={`max-w-[13rem] text-right font-mono text-meta leading-tight ${deleteFeedbackTone(error) === 'notice' ? 'text-fg-2' : 'text-destructive'}`}>
           {error}
         </p>
       ) : null}

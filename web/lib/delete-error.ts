@@ -47,3 +47,14 @@ export function deleteErrorMessage(err: unknown): string {
   if (BODYLESS_ERROR_RE.test(e.message)) return DELETE_GENERIC_MESSAGE;
   return e.message;
 }
+
+/** Wait copy is a notice. Anything else under the row is a failed delete. */
+const DELETE_NOTICE_MESSAGES = new Set<string>([
+  DELETE_JOB_BUSY_MESSAGE,
+  DELETE_RENDER_BUSY_MESSAGE,
+  DELETE_STREAM_BUSY_MESSAGE,
+]);
+
+export function deleteFeedbackTone(message: string): 'notice' | 'error' {
+  return DELETE_NOTICE_MESSAGES.has(message) ? 'notice' : 'error';
+}
