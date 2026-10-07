@@ -6,6 +6,7 @@ import { AlertTriangle, Clapperboard } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
+import { readIfCurrent } from '@/lib/streams/list-poll';
 import {
   STREAM_LIST_FAIL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
@@ -39,24 +40,31 @@ export default function StreamsPage(): ReactNode {
   const [error, setError] = useState<StreamImportError | null>(null);
 
   useEffect(() => {
+    let current = true;
     const stop = startPollLoop({
       fastMs: POLL_FAST_MS,
       idleMs: POLL_IDLE_MS,
       tick: async () => {
         try {
-          const next = sortStreamJobs(await streamsApi.listJobs());
+          const loaded = await readIfCurrent(() => streamsApi.listJobs(), () => current);
+          if (!current || loaded === null) return 'idle';
+          const next = sortStreamJobs(loaded);
           setJobs(next);
           setOffline(false);
           setListError(null);
           return streamListCadence(next);
         } catch (err) {
+          if (!current) return 'idle';
           setOffline(isServiceUnavailable(err));
           setListError(errorMessage(err, STREAM_LIST_FAIL_MESSAGE));
           return 'idle';
         }
       },
     });
-    return stop;
+    return () => {
+      current = false;
+      stop();
+    };
   }, [pollGeneration]);
 
   const open = useCallback((job: StreamJob) => router.push(`/streams/${job.id}`), [router]);
