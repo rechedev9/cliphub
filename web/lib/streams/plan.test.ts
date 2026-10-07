@@ -6,6 +6,9 @@ import {
   clipTimelineGeometry,
   errorMessage,
   fitPlanToSourceDuration,
+  FULL_SOURCE_MOMENT_MAX_SECONDS,
+  streamFailureKind,
+  withFullSourceMoment,
   withDefaultStreamTitle,
   formatStreamClock,
   insertClipSorted,
@@ -79,18 +82,49 @@ test('an offline code wins over the generic fallback message', () => {
   assert.equal(isServiceUnavailable(offline), true);
   assert.equal(errorMessage(offline, 'fallback'), STREAM_OFFLINE_MESSAGE);
   assert.equal(errorMessage({ code: 'invalid_source_url' }, 'fallback'), STREAM_INVALID_URL_MESSAGE);
-  assert.equal(errorMessage(new Error('boom'), 'fallback'), 'boom');
+  assert.equal(errorMessage(new Error('boom'), 'fallback'), 'fallback');
+  assert.equal(errorMessage(new Error('request failed (500)'), 'fallback'), 'fallback');
   assert.equal(errorMessage('weird', 'fallback'), 'fallback');
 });
 
-test('the known 409 bodies from the stream handlers are translated instead of shown raw', () => {
+test('the known error bodies from the stream handlers and the local guard are translated instead of shown raw', () => {
   for (const [raw, spanish] of Object.entries(KNOWN_STREAM_ERROR_MESSAGES)) {
     assert.equal(errorMessage(new Error(raw), 'fallback'), spanish);
   }
+  assert.match(
+    errorMessage(new Error('local API mutation capability required'), 'fallback'),
+    /^La sesión de ClipHub caducó.*Cierra y vuelve a abrir Studio/,
+  );
   assert.equal(
     errorMessage(new Error('stream edit plan cannot change while a render is running'), 'fallback'),
     'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
   );
+});
+
+test('server bodies with a variable part are translated by shape, never shown raw', () => {
+  const cases: [string, RegExp][] = [
+    ['stream job is not ready to render (status=acquiring)', /todavía no se puede exportar/],
+    ['clip clip-1 text overlay text is required', /texto en pantalla vacío/],
+    ['edit plan has no clips', /al menos un momento/],
+    ['stream render variant "a" does not match edit plan variant "b"; save the requested variant before rendering', /formato cambió/],
+  ];
+  for (const [raw, spanish] of cases) {
+    assert.match(errorMessage(new Error(raw), 'fallback'), spanish);
+  }
+});
+
+test('a short source without moments starts with the whole video as one Short', () => {
+  const empty: StreamEditPlan = { schema_version: '1.1', variant: 'streamer-vertical-stack-40-60', clips: [] };
+  const filled = withFullSourceMoment({ plan: empty, durationSeconds: 48, title: 'Clutch' });
+  assert.equal(filled.clips.length, 1);
+  assert.deepEqual(
+    { start: filled.clips[0].start_seconds, end: filled.clips[0].end_seconds, title: filled.clips[0].title },
+    { start: 0, end: 48, title: 'Clutch' },
+  );
+  for (const durationSeconds of [0, Number.NaN, FULL_SOURCE_MOMENT_MAX_SECONDS + 0.1]) {
+    assert.equal(withFullSourceMoment({ plan: empty, durationSeconds, title: 'Clutch' }), empty);
+  }
+  assert.equal(withFullSourceMoment({ plan: filled, durationSeconds: 48, title: 'Otro' }), filled);
 });
 
 test('clip ids are unique so a new range never collides with an existing one', () => {
@@ -230,4 +264,12 @@ test('inserted cuts keep source order so numbering follows the timeline', () => 
   const next = insertClipSorted(clips, { id: 'a', start_seconds: 10, end_seconds: 20 });
   assert.deepEqual(next.map((clip) => clip.id), ['a', 'b']);
   assert.equal(clips.length, 1);
+});
+
+test('a failed job is a render failure only when its source was probed', () => {
+  assert.equal(streamFailureKind({}), 'acquire');
+  // The API serializes an empty probe for a job whose download never finished.
+  assert.equal(streamFailureKind({ probe: {} }), 'acquire');
+  assert.equal(streamFailureKind({ probe: { width: 1920, height: 1080 } }), 'acquire');
+  assert.equal(streamFailureKind({ probe: { width: 1920, height: 1080, duration_seconds: 48 } }), 'render');
 });

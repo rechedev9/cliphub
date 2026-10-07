@@ -177,8 +177,6 @@ export const TACTICAL_STATES = {
 } as const;
 export type TacticalState = (typeof TACTICAL_STATES)[keyof typeof TACTICAL_STATES];
 
-/** Position sampling rate the scan uses when the start request names none (`tactical.DefaultSampleHZ`). */
-export const TACTICAL_DEFAULT_SAMPLE_HZ = 8;
 /** Highest sampling rate the scan accepts (`tactical.MaxSampleHZ`); higher rates multiply the blob. */
 export const TACTICAL_MAX_SAMPLE_HZ = 64;
 /** Body field of the start request that selects the sampling rate. */

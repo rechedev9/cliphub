@@ -5,10 +5,11 @@ import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from 
 
 type StreamJobStatus = 'acquiring' | 'uploaded' | 'ready' | 'rendering' | 'rendered' | 'failed';
 
+/** The API omits zero values, so a job whose source was never probed carries an empty probe. */
 type StreamProbe = {
-  width: number;
-  height: number;
-  duration_seconds: number;
+  width?: number;
+  height?: number;
+  duration_seconds?: number;
   audio_codec?: string;
 };
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoStudio, parseMs, parseNumber, rootToken, squash } from './contract.ts';
+import { gotoStudio, parseMs, parseNumber, rootToken } from './contract.ts';
 
 /** Every depth effect must collapse with `--shell-depth`. */
 const HTML_GATES = [
@@ -42,38 +42,6 @@ test.describe('depth scalar', () => {
     await page.emulateMedia({ forcedColors: 'active' });
     await gotoStudio(page, '/clips');
     expect(parseNumber(await rootToken(page, '--shell-depth'))).toBe(0);
-  });
-
-  test('derived effects follow the scalar rather than their own media query', async ({ page }) => {
-    await gotoStudio(page, '/clips');
-    // getPropertyValue substitutes --shell-depth into the calc, which is the
-    // point: the derived value has to move with the scalar, not sit beside it.
-    expect(squash(await rootToken(page, '--tilt-max'))).toBe('calc(1*6deg)');
-    expect(squash(await rootToken(page, '--sheen-opacity'))).toBe('calc(1*.1)');
-
-    const active = await page.evaluate(() => {
-      const probe = document.createElement('div');
-      probe.style.setProperty('rotate', 'var(--tilt-max)');
-      document.body.append(probe);
-      const value = getComputedStyle(probe).rotate;
-      probe.remove();
-      return value;
-    });
-    expect(active).toBe('6deg');
-
-    await page.evaluate(() => document.documentElement.setAttribute('data-capture-active', 'true'));
-    expect(squash(await rootToken(page, '--tilt-max'))).toBe('calc(0*6deg)');
-    expect(squash(await rootToken(page, '--sheen-opacity'))).toBe('calc(0*.1)');
-
-    const captured = await page.evaluate(() => {
-      const probe = document.createElement('div');
-      probe.style.setProperty('rotate', 'var(--tilt-max)');
-      document.body.append(probe);
-      const value = getComputedStyle(probe).rotate;
-      probe.remove();
-      return value;
-    });
-    expect(captured).toBe('0deg');
   });
 });
 

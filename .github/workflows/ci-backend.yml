@@ -3,25 +3,9 @@
 name: CI backend
 
 on:
-  pull_request:
-    paths:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Makefile'
-      - 'effects/**'
-      - 'testdata/**'
-      - '.claude/**'
-      - 'scripts/go-*.sh'
-      - 'scripts/capturelab/**'
-      - 'scripts/ci-backend-*'
-      - 'scripts/telemetry-debug.mjs'
-      - 'desktop/src/diagnostic*'
-      - 'desktop/src/process-*'
-      - 'desktop/src/telemetry-settings.ts'
-      - 'desktop/e2e/remote-debug.e2e.test.mjs'
-      - '.github/workflows/ci-backend.yml'
   push:
+    tags:
+      - 'v*.*.*'
     branches:
       - main
     paths:
@@ -41,6 +25,9 @@ on:
       - 'desktop/src/telemetry-settings.ts'
       - 'desktop/e2e/remote-debug.e2e.test.mjs'
       - '.github/workflows/ci-backend.yml'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read

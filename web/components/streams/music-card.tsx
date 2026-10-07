@@ -184,8 +184,13 @@ export function StreamMusicCard({
             className="w-full [&>*]:flex-1"
           >
             {MUSIC_VOLUMES.map((v) => (
-              <ToggleGroupItem key={v.value} value={String(v.value)} className="font-mono uppercase tracking-wider">
-                {v.label} · {Math.round(v.value * 100)}%
+              <ToggleGroupItem
+                key={v.value}
+                value={String(v.value)}
+                aria-label={`${v.label}, ${Math.round(v.value * 100)}%`}
+                className="font-mono uppercase tracking-wider"
+              >
+                {v.label}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -193,11 +198,11 @@ export function StreamMusicCard({
       ) : null}
 
       <StreamStepCard
-        title="Efecto grade"
-        control={<StreamSwitch label="Efecto grade" checked={grade} disabled={busy} onChange={onGrade} />}
+        title="Realce de color"
+        control={<StreamSwitch label="Realce de color" checked={grade} disabled={busy} onChange={onGrade} />}
       >
         <p className="font-display text-body-sm font-semibold uppercase text-fg-1">
-          {grade ? 'Contraste y saturación viral' : 'Desactivado'}
+          {grade ? 'Activado' : 'Desactivado'}
         </p>
         <p className="text-body-sm text-fg-3">Ligero realce de contraste y saturación en cada Short.</p>
       </StreamStepCard>

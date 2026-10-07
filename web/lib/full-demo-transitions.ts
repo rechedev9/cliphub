@@ -12,7 +12,3 @@ export function fullDemoTransitionPreset(): FullDemoTransitionOptions {
   const base = { ...DEFAULT_FULL_DEMO_TRANSITIONS, enabled: true };
   return { ...base, direction: 'follow-motion', flash: true, rgb_split: true };
 }
-
-export function fullDemoTransitionSummary(value: FullDemoTransitionOptions | null | undefined): string {
-  return value?.enabled ? 'Dinámico' : 'Corte limpio';
-}

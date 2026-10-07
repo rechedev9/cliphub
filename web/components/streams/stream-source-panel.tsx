@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
+/** A failed import, tagged with the control that caused it so the message sits beside it. */
+export type StreamImportError = { source: 'url' | 'file'; message: string };
+
 /** Both source choices share the optional title. Keep #stream-url stable for integrations. */
 export function StreamSourcePanel({
   sourceUrl,
@@ -22,7 +25,7 @@ export function StreamSourcePanel({
   sourceUrl: string;
   title: string;
   submitting: boolean;
-  error: string | null;
+  error: StreamImportError | null;
   onSourceUrlChange: (value: string) => void;
   onTitleChange: (value: string) => void;
   onSubmitUrl: () => void;
@@ -30,7 +33,8 @@ export function StreamSourcePanel({
 }): ReactNode {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const urlError = isStreamURLValidationError(error) ? error : null;
+  const urlError = error !== null && isStreamURLValidationError(error.message) ? error.message : null;
+  const importError = error !== null && urlError === null ? error : null;
 
   const handleDrop = (event: DragEvent<HTMLButtonElement>): void => {
     event.preventDefault();
@@ -111,6 +115,9 @@ export function StreamSourcePanel({
             >
               Importar vídeo<ArrowRight aria-hidden className="size-5" />
             </Button>
+            {importError?.source === 'url' ? (
+              <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
+            ) : null}
           </div>
         </form>
 
@@ -120,32 +127,37 @@ export function StreamSourcePanel({
           <span className="h-px flex-1 bg-border @[48rem]/content:h-auto @[48rem]/content:w-px" />
         </div>
 
-        <button
-          type="button"
-          aria-label="Seleccionar archivo MP4"
-          aria-describedby="stream-source-hint"
-          disabled={submitting}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (!submitting) setDragging(true);
-          }}
-          onDragLeave={(event) => {
-            if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false);
-          }}
-          onDrop={handleDrop}
-          className={cn(
-            'group/upload flex min-h-60 w-full flex-col items-center justify-center rounded-lg border border-dashed bg-surface-2 px-5 py-8 text-center transition-colors duration-(--dur-fast) ease-standard',
-            'hover:border-primary hover:bg-surface-4 disabled:pointer-events-none disabled:opacity-50',
-            FOCUS_RING,
-            dragging ? 'border-primary bg-surface-4' : 'border-border-strong',
-          )}
-        >
-          <UploadCloud aria-hidden className="mb-5 size-10 text-fg-3 group-hover/upload:text-primary" strokeWidth={1.5} />
-          <span className="font-display text-body-lg font-semibold text-fg-1">{dragging ? 'Suelta tu vídeo aquí' : 'Arrastra tu vídeo aquí'}</span>
-          <span className="mt-1.5 text-body-sm text-fg-2">Archivo MP4</span>
-          <span className={buttonVariants({ variant: 'outline', className: 'mt-5 bg-surface-2' })}>Seleccionar archivo</span>
-        </button>
+        <div className="flex min-w-0 flex-col gap-2">
+          <button
+            type="button"
+            aria-label="Seleccionar archivo MP4"
+            aria-describedby="stream-source-hint"
+            disabled={submitting}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!submitting) setDragging(true);
+            }}
+            onDragLeave={(event) => {
+              if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false);
+            }}
+            onDrop={handleDrop}
+            className={cn(
+              'group/upload flex min-h-60 w-full flex-1 flex-col items-center justify-center rounded-lg border border-dashed bg-surface-2 px-5 py-8 text-center transition-colors duration-(--dur-fast) ease-standard',
+              'hover:border-primary hover:bg-surface-4 disabled:pointer-events-none disabled:opacity-50',
+              FOCUS_RING,
+              dragging ? 'border-primary bg-surface-4' : 'border-border-strong',
+            )}
+          >
+            <UploadCloud aria-hidden className="mb-5 size-10 text-fg-3 group-hover/upload:text-primary" strokeWidth={1.5} />
+            <span className="font-display text-body-lg font-semibold text-fg-1">{dragging ? 'Suelta tu vídeo aquí' : 'Arrastra tu vídeo aquí'}</span>
+            <span className="mt-1.5 text-body-sm text-fg-2">Archivo MP4</span>
+            <span className={buttonVariants({ variant: 'outline', className: 'mt-5 bg-surface-2' })}>Seleccionar archivo</span>
+          </button>
+          {importError?.source === 'file' ? (
+            <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
+          ) : null}
+        </div>
       </div>
 
       <input
@@ -165,12 +177,6 @@ export function StreamSourcePanel({
         <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>Después podrás elegir los cortes. Cada corte se exporta como un Short independiente.</span>
       </p>
-
-      {error && !urlError ? (
-        <p role="alert" className="text-body-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
     </section>
   );
 }

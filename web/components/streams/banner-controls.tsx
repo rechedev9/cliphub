@@ -107,7 +107,7 @@ export function StreamBannerControls({
               onClick={() => onSlideChange(!slideEnabled)}
               className={`min-h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${slideEnabled ? 'text-stream-text' : 'text-fg-3 hover:text-fg-2'}`}
             >
-              Deslizamiento: {slideEnabled ? 'on' : 'off'}
+              Deslizamiento: {slideEnabled ? 'sí' : 'no'}
             </button>
           </div>
           <input

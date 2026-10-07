@@ -52,12 +52,27 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
 
   if (!MUTATION_METHODS.has(method.toUpperCase())) return undefined;
 
+  const problem = await mutationCapabilityProblem(headers);
+  if (problem === undefined) return undefined;
+  console.warn(`[local-api] ${method.toUpperCase()} refused: ${problem}`);
+  return MUTATION_CAPABILITY_ERROR;
+}
+
+export type MutationCapabilityProblem = 'unconfigured' | 'cookie_missing' | 'cookie_duplicate' | 'cookie_mismatch';
+
+/**
+ * Why a mutation was refused, without any capability value. The wire error
+ * stays one string on purpose; this is what the server log needs to tell a
+ * stale renderer session (`cookie_missing`, `cookie_mismatch`) from a broken
+ * launch (`unconfigured`) or an ambiguous cookie jar (`cookie_duplicate`).
+ */
+export async function mutationCapabilityProblem(headers: Headers): Promise<MutationCapabilityProblem | undefined> {
   const expected = process.env[PROXY_MUTATION_CAPABILITY_ENV];
-  const supplied = cookieValue(headers, PROXY_MUTATION_CAPABILITY_COOKIE);
-  if (!expected || !supplied || !(await capabilityMatches(supplied, expected))) {
-    return MUTATION_CAPABILITY_ERROR;
-  }
-  return undefined;
+  if (!expected) return 'unconfigured';
+  const supplied = cookieValues(headers, PROXY_MUTATION_CAPABILITY_COOKIE);
+  if (supplied.length === 0) return 'cookie_missing';
+  if (supplied.length > 1) return 'cookie_duplicate';
+  return (await capabilityMatches(supplied[0] ?? '', expected)) ? undefined : 'cookie_mismatch';
 }
 
 /**
@@ -107,21 +122,20 @@ async function capabilityMatches(supplied: string, expected: string): Promise<bo
   return difference === 0;
 }
 
-function cookieValue(headers: Headers, name: string): string | undefined {
+function cookieValues(headers: Headers, name: string): string[] {
   const cookie = headers.get('cookie');
-  if (!cookie) return undefined;
+  if (!cookie) return [];
 
-  let value: string | undefined;
+  // Duplicate cookie names are ambiguous. Callers reject them rather than
+  // depending on parsing order across browser and proxy implementations.
+  const values: string[] = [];
   for (const entry of cookie.split(';')) {
     const trimmed = entry.trim();
     const separator = trimmed.indexOf('=');
     if (separator < 1 || trimmed.slice(0, separator) !== name) continue;
-    // Duplicate cookie names are ambiguous. Reject rather than depending on
-    // parsing order across browser and proxy implementations.
-    if (value !== undefined) return undefined;
-    value = trimmed.slice(separator + 1);
+    values.push(trimmed.slice(separator + 1));
   }
-  return value;
+  return values;
 }
 
 function isLoopbackHostWithPort(host: string): boolean {
