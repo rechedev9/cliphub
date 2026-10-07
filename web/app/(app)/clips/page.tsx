@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { createCoalescedCall } from '@/lib/coalesced-call';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
@@ -118,7 +119,9 @@ function ClipsHub(): ReactNode {
   /** Last accepted poll; a rejected source falls back to it. */
   const snapshotRef = useRef<HubSnapshot | null>(null);
   const scrolledTo = useRef<string | null>(null);
-  const inFlight = useRef(false);
+  // One poll at a time. A delete (or any other refresh) during that poll must
+  // not be dropped, and the poll must not publish the list it started with.
+  const loadSnapshot = useRef(createCoalescedCall(() => fetchSnapshot(snapshotRef.current)));
 
   const openResult = useCallback((destination: HubDestination) => {
     if ('matchId' in destination) {
@@ -151,15 +154,11 @@ function ClipsHub(): ReactNode {
   }, [openResult]);
 
   const refresh = useCallback(async (): Promise<HubModel | null> => {
-    if (inFlight.current) return null;
-    inFlight.current = true;
     try {
-      return accept(await fetchSnapshot(snapshotRef.current));
+      return accept(await loadSnapshot.current());
     } catch (err) {
       setLoadError({ offline: isDemoServiceUnavailable(err) });
       return null;
-    } finally {
-      inFlight.current = false;
     }
   }, [accept]);
 
