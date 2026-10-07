@@ -12,6 +12,7 @@ import {
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions,
 } from '@/lib/full-demo-plan';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
+import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
@@ -136,7 +137,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       if (controller.signal.aborted) return;
       await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
-      toast('Vídeo largo en cola', { description: recBusy ? 'Empezará cuando quede libre CS2.' : 'Sigue el progreso en Demos y vídeos.' });
+      toast('Vídeo largo en cola', fullDemoQueueToast(recBusy, planned.warnings));
       router.push(returnHref);
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
