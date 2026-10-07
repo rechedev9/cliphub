@@ -6,7 +6,9 @@ import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
   deleteErrorMessage,
   DELETE_GENERIC_MESSAGE,
+  DELETE_JOB_BUSY_MESSAGE,
   DELETE_OFFLINE_MESSAGE,
+  DELETE_RENDER_BUSY_MESSAGE,
   DELETE_STREAM_BUSY_MESSAGE,
 } from './delete-error.ts';
 
@@ -23,6 +25,50 @@ test('a non-offline error surfaces its message verbatim', () => {
   for (const { name, err } of cases) {
     assert.equal(deleteErrorMessage(err), err.message, name);
   }
+});
+
+test('a busy demo never surfaces the English wait sentence', () => {
+  const statuses = ['queued', 'scanning', 'parsing', 'recording', 'composing'];
+  for (const status of statuses) {
+    const raw = `job is ${status}; wait for it to settle before deleting`;
+    const err = Object.assign(new Error(raw), { code: 'conflict' });
+    const got = deleteErrorMessage(err);
+    assert.equal(got, DELETE_JOB_BUSY_MESSAGE, raw);
+    assert.doesNotMatch(got, /job is|wait for it/i, raw);
+  }
+  const rendering = Object.assign(
+    new Error('job has an active render or generate run; wait for it to settle before deleting'),
+    { code: 'generate_work_active' },
+  );
+  assert.equal(deleteErrorMessage(rendering), DELETE_RENDER_BUSY_MESSAGE);
+  assert.doesNotMatch(deleteErrorMessage(rendering), /job has an active|wait for it/i);
+});
+
+test('odd delete failures stay non-empty strings and do not throw', () => {
+  const inputs: unknown[] = [
+    null,
+    undefined,
+    0,
+    false,
+    '',
+    '   ',
+    'ñ'.repeat(4000),
+    'partida «Ñoño» / 玩家',
+    '<script>alert(1)</script>',
+    'job is ',
+    'job is recording; wait for it to settle before deleting ',
+    { message: 12 },
+    { code: 'conflict', message: 'Espera a que termine la captura para borrar' },
+  ];
+  for (const input of inputs) {
+    const got = deleteErrorMessage(input);
+    assert.equal(typeof got, 'string');
+    assert.ok(got.trim().length > 0, `empty message for ${JSON.stringify(input)}`);
+  }
+  assert.equal(
+    deleteErrorMessage({ code: 'conflict', message: 'Espera a que termine la captura para borrar' }),
+    'Espera a que termine la captura para borrar',
+  );
 });
 
 test('a busy stream project and a body-less error never surface English text', () => {

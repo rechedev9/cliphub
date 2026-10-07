@@ -4,6 +4,19 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { downloadFile } from './http-download.ts';
 
 const SHA256_RE = /^[a-f0-9]{64}$/i;
+const TRACK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$/;
+const TRACK_EXT_RE = /^[A-Za-z0-9]{1,8}$/;
+
+/** A track file stays inside rootDir. Anything else is not a catalog path. */
+function trackFile(rootDir: string, id: string, ext: string): string | null {
+  if (!TRACK_ID_RE.test(id) || !TRACK_EXT_RE.test(ext)) return null;
+  const root = path.resolve(rootDir);
+  const destination = path.resolve(root, `${id}.${ext}`);
+  const relative = path.relative(root, destination);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  if (relative.includes('/') || relative.includes('\\')) return null;
+  return destination;
+}
 
 export interface MusicLibraryOptions {
   bundledMusicDir: string;
@@ -53,11 +66,19 @@ export async function provisionMusicLibrary({
 
     const { id, ext, downloadUrl, sha256 } = track;
     if (typeof id !== 'string' || !id || typeof ext !== 'string' || !ext) continue;
+    const destination = trackFile(musicDir, id, ext);
+    if (destination === null) {
+      logLine(`[music] skip ${id}: unsafe track id or ext\n`);
+      continue;
+    }
 
-    const destination = path.join(musicDir, `${id}.${ext}`);
     if (typeof downloadUrl !== 'string' || !downloadUrl) {
       if (fs.existsSync(destination)) continue;
-      const bundledAudio = path.join(bundledMusicDir, `${id}.${ext}`);
+      const bundledAudio = trackFile(bundledMusicDir, id, ext);
+      if (bundledAudio === null) {
+        logLine(`[music] skip ${id}: unsafe track id or ext\n`);
+        continue;
+      }
       if (fs.existsSync(bundledAudio)) {
         fs.copyFileSync(bundledAudio, destination);
         logLine(`[music] copied bundled ${id}.${ext}\n`);
