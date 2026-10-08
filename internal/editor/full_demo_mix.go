@@ -40,7 +40,7 @@ func fullDemoItemJobs() int {
 // three-worker repeat (median 3.169 s versus 4.492 s), while six workers saved
 // only a further ~0.8 s and ran six processes against the concurrent video
 // encodes. The whole stage is a few seconds of a multi-minute render, so the
-// ceiling stays small (see docs/full-demo-render-performance-audit.md).
+// ceiling stays small.
 const fullDemoAudioItemJobsMax = 4
 
 // fullDemoAudioItemJobs bounds the audio-only item pool, which runs no encoder:
@@ -119,8 +119,7 @@ func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStart
 // five real tracks, under a concurrent video item load, the stage took
 // 105.8/132.8 s with three workers and 73.4/72.8 s with five. Five is also a
 // full CS2 team's voice tracks, the ceiling the team-voice policy can select,
-// so a wider pool would never be used (see
-// docs/full-demo-render-performance-audit.md).
+// so a wider pool would never be used.
 const fullDemoVoiceJobsMax = 5
 
 // fullDemoVoiceJobs bounds independent voice pipelines with its own small,

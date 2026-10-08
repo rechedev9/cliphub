@@ -119,8 +119,7 @@ go vet ./...
 pnpm --dir desktop run typecheck
 pnpm --dir desktop run lint
 pnpm --dir desktop run test:unit
-pnpm --dir desktop run test:e2e:diagnostics
-pnpm --dir desktop run test:e2e:diagnostics-ui
+node --no-warnings --test desktop/src/remote-debug.test.mjs
 pnpm --dir web run lint
 pnpm --dir web run test:unit
 pnpm --dir web run build
@@ -133,16 +132,6 @@ and reconstructs the cause solely from collector queries. It writes
 `.local/remote-debug-validation/collector-only-canary.json`. Separate actual
 FFmpeg tests prove causal stderr and exit codes in both buffered and progress
 paths without changing the original returned output.
-
-The Electron UI suite needs built desktop resources (`build` and `assemble`)
-and optionally `CLIPHUB_E2E_TOOL_FIXTURE` pointing at a verified tools fixture.
-It runs the real app in a disposable profile with a test-only receipt transport;
-it does not send UI fixtures to production. It verifies the diagnostic choice,
-renderer cause, credential filtering, receipt status, revocation and layouts at
-390x844, 1366x768 and 1920x1080. Screenshots are in
-`desktop/e2e/artifacts/diagnostics/`. UI receipt fixtures and the real collector
-integration are separate evidence; neither proves an installed production
-version has been updated.
 
 Validated on 2026-09-12 against Studio base 3.0.2 in an isolated checkout:
 the complete editor suite passed in 375.899 seconds after live FFmpeg tracing;

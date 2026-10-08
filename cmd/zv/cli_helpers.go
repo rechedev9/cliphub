@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -58,6 +59,10 @@ func isHelp(arg string) bool {
 
 func isSingleHelp(args []string) bool {
 	return len(args) == 1 && isHelp(args[0])
+}
+
+func containsString(values []string, want string) bool {
+	return slices.Contains(values, want)
 }
 
 // writeJSONArtifact writes an indented JSON document through the local storage

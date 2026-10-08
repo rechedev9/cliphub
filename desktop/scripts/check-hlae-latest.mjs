@@ -19,7 +19,7 @@ async function main() {
   if (!latest) return 'the latest advancedfx release has no verifiable portable zip';
   if (latest.version !== pinned.version || latest.sha256 !== pinned.sha256) {
     return `bundled HLAE ${pinned.version} is not the latest release ${latest.version}. `
-      + 'Pin it in desktop/src/hlae-tool.json and hlae-tool.ts (see AGENTS.md, HLAE pin), prove it with a real capture, then release.';
+      + 'Pin it in desktop/src/hlae-tool.json and hlae-tool.ts (see docs/incidents.md, HLAE pin and CS2 updates), prove it with a real capture, then release.';
   }
   console.log(`[hlae] bundled HLAE ${pinned.version} is the latest advancedfx release`);
   return null;

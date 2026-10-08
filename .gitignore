@@ -20,7 +20,6 @@
 # Generated media and overlay renders
 *.dem
 *.mp4
-!web/e2e/fixtures/stream-source.mp4
 *.mov
 *.webm
 *.avi
@@ -61,18 +60,10 @@ overlays/**/out/
 
 # Local git worktrees
 /.worktrees/
-/.claude/worktrees/
 
 # Logs
 *.log
 logs/
-
-# Playwright agent CLI session artifacts (snapshots, console/network logs)
-/.playwright-cli/
-
-# Playwright test runner output
-web/test-results/
-web/playwright-report/
 
 # Next.js build output (also covered per-package, kept here as a safety net)
 **/.next/

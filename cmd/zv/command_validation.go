@@ -26,8 +26,6 @@ func validateSkillCommand(command []string) string {
 		if issue := validateFormattedCommand("capabilities", command[1:]); issue != "" {
 			return issue
 		}
-	case "verify":
-		return validateVerifyCommand(command[1:])
 	case "full-demo":
 		if len(command) < 2 || !containsString([]string{"defaults", "import", "asset", "plan", "inspect", "execute", "lab-bundle"}, command[1]) {
 			return `expected full-demo defaults, import, asset, plan, inspect, execute, or lab-bundle`
@@ -134,20 +132,6 @@ func validateSkillCommand(command []string) string {
 			return `uses non-standard zv command "gallery"; expected "gallery open"`
 		}
 		return validateRequiredFlags(`"gallery open"`, command[2:], requiredFlagsForRunArgs("gallery", "open")...)
-	case "skills":
-		if len(command) < 2 || (command[1] != "list" && command[1] != "show" && command[1] != "check") {
-			return `uses non-standard zv command "skills"; expected "skills list", "skills show", or "skills check"`
-		}
-		switch command[1] {
-		case "list", "check":
-			if issue := validateFormattedCommand(strings.Join(command[:2], " "), command[2:]); issue != "" {
-				return issue
-			}
-		case "show":
-			if issue := validateSkillShowCommand(command[2:]); issue != "" {
-				return issue
-			}
-		}
 	case "record":
 		return validateRequiredFlags(`"record"`, command[1:], requiredFlagsForRunArgs("record")...)
 	case "serve":
@@ -374,20 +358,6 @@ func validateFormattedCommand(commandName string, args []string) string {
 
 func validateWorkflowListCommand(args []string) string {
 	return validateFormattedCommand("workflows list", args)
-}
-
-func validateSkillShowCommand(args []string) string {
-	if isSingleHelp(args) {
-		return ""
-	}
-	if _, rest, err := parseFormatArgs(args); err != nil {
-		return err.Error()
-	} else if len(rest) == 0 {
-		return `missing skill name for "skills show"`
-	} else if len(rest) > 1 {
-		return `unexpected extra args for "skills show"`
-	}
-	return ""
 }
 
 func validateWorkflowShowCommand(args []string) string {

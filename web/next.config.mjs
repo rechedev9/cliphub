@@ -21,6 +21,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 export default {
+  // Do not recreate web/AGENTS.md and web/CLAUDE.md on `next dev`.
+  agentRules: false,
   poweredByHeader: false,
   // Emit the self-contained server bundle assembled into the desktop installer.
   output: 'standalone',

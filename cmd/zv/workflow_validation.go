@@ -5,41 +5,27 @@ import (
 	"strings"
 )
 
-func checkWorkflows() ([]skillInfo, []workflowInfo, []workflowDoc, []skillIssue, error) {
-	skills, issues, err := checkSkills()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+func checkWorkflows() ([]workflowInfo, []skillIssue, error) {
 	workflows := workflowCatalog()
+	var issues []skillIssue
 	issues = append(issues, validateWorkflowCatalog(workflows)...)
 	issues = append(issues, validateInternalCheckWorkflows(workflows)...)
 	issues = append(issues, validateWorkflowDelegationCoverage(workflows)...)
 	issues = append(issues, validateProductionFlows(productionFlows())...)
-	issues = append(issues, validateSkillWorkflowRequirementCatalog(workflows, skillWorkflowRequirementMap())...)
 	issues = append(issues, validateUsageCoverage(workflows, usage)...)
 	issues = append(issues, validateGroupUsageCoverage(workflows, groupUsageTexts())...)
 	issues = append(issues, validateLegacyPassThroughUsage(usage)...)
-	docs, docIssues, err := checkWorkflowDocs()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	issues = append(issues, docIssues...)
 	buildIssues, err := checkCommandBuildTargets()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	issues = append(issues, buildIssues...)
 	commandCoverageIssues, err := checkCommandEntrypointCoverage(workflows)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	issues = append(issues, commandCoverageIssues...)
-	claudeSettingsIssues, err := checkClaudeSettings()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	issues = append(issues, claudeSettingsIssues...)
-	return skills, workflows, docs, issues, nil
+	return workflows, issues, nil
 }
 
 func validateWorkflowCatalog(workflows []workflowInfo) []skillIssue {
@@ -171,10 +157,6 @@ func validateWorkflowValueConstraintMetadata(workflow workflowInfo) []string {
 
 func validateInternalCheckWorkflows(workflows []workflowInfo) []skillIssue {
 	expected := map[string]workflowInfo{
-		"skills-check": {
-			Command: "zv skills check",
-			RunArgs: []string{"skills", "check"},
-		},
 		"workflows-check": {
 			Command: "zv workflows check",
 			RunArgs: []string{"workflows", "check"},
@@ -222,73 +204,6 @@ func validateWorkflowDelegationCoverage(workflows []workflowInfo) []skillIssue {
 			Path:    path,
 			Message: fmt.Sprintf("workflow run args %q are not mapped to a delegated command", strings.Join(workflow.RunArgs, " ")),
 		})
-	}
-	return issues
-}
-
-func validateSkillWorkflowRequirementSkills(skills []skillInfo, requirements map[string][]string) []skillIssue {
-	installed := make(map[string]struct{}, len(skills))
-	hasKnownRequiredSkill := false
-	for _, skill := range skills {
-		name := strings.TrimSpace(skill.Name)
-		if name == "" {
-			continue
-		}
-		installed[name] = struct{}{}
-		if _, ok := requirements[name]; ok {
-			hasKnownRequiredSkill = true
-		}
-	}
-	if !hasKnownRequiredSkill {
-		return nil
-	}
-	var issues []skillIssue
-	for skillName := range installed {
-		if !strings.HasPrefix(skillName, "zackvideo-") {
-			continue
-		}
-		if _, ok := requirements[skillName]; ok {
-			continue
-		}
-		issues = append(issues, skillIssue{
-			Path:    "skill:" + skillName,
-			Message: "missing workflow requirements for repo skill",
-		})
-	}
-	for skillName := range requirements {
-		if _, ok := installed[skillName]; ok {
-			continue
-		}
-		issues = append(issues, skillIssue{
-			Path:    "skill:" + skillName,
-			Message: "workflow requirements reference missing repo skill",
-		})
-	}
-	return issues
-}
-
-func validateSkillWorkflowRequirementCatalog(workflows []workflowInfo, requirements map[string][]string) []skillIssue {
-	cataloged := make(map[string]struct{}, len(workflows))
-	for _, workflow := range workflows {
-		if workflow.Name == "" {
-			continue
-		}
-		cataloged[workflow.Name] = struct{}{}
-	}
-	var issues []skillIssue
-	for skillName, requiredWorkflows := range requirements {
-		if !isWorkflowSlug(skillName) {
-			issues = append(issues, skillIssue{Path: "skill:" + skillName, Message: "skill workflow requirement name must be a lowercase slug"})
-		}
-		for _, workflowName := range requiredWorkflows {
-			if _, ok := cataloged[workflowName]; ok {
-				continue
-			}
-			issues = append(issues, skillIssue{
-				Path:    "skill:" + skillName,
-				Message: fmt.Sprintf("required workflow %q is not cataloged", workflowName),
-			})
-		}
 	}
 	return issues
 }

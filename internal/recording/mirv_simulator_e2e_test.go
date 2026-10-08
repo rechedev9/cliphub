@@ -82,6 +82,9 @@ func captureLabPlan(segments ...RecordingSegment) RecordingPlan {
 func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("node is required for the exact-script Capture Lab integration")
+		}
 		t.Skip("node is required for the exact-script Capture Lab integration")
 	}
 	_, currentFile, _, ok := runtime.Caller(0)

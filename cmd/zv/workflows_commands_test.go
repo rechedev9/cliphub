@@ -41,7 +41,7 @@ func TestProjectChecksWorkWithoutSkillsOrMarkdown(t *testing.T) {
 			t.Fatalf("%v failed: %s %s", args, stdout.String(), stderr.String())
 		}
 		result := decodeWorkflowCheckResult(t, stdout.String())
-		if !result.OK || result.SkillsChecked != 0 || result.WorkflowsChecked == 0 {
+		if !result.OK || result.WorkflowsChecked == 0 {
 			t.Fatalf("%v = %#v", args, result)
 		}
 	}
@@ -49,33 +49,20 @@ func TestProjectChecksWorkWithoutSkillsOrMarkdown(t *testing.T) {
 
 func TestRunChecksAcceptStandardRepoContracts(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	withWorkingDir(t, tempDir)
 
-	workflowsText := fmt.Sprintf("OK: 1 skills, %d workflows, and %d workflow docs checked\n", len(workflowCatalog()), len(workflowDocs()))
+	workflowsText := fmt.Sprintf("OK: %d workflows checked\n", len(workflowCatalog()))
 	commands := []struct {
 		name          string
 		argv          []string
 		wantText      string
 		wantWorkflows int
-		wantDocs      int
 	}{
-		{name: "check", argv: []string{"zv", "check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog()), wantDocs: len(workflowDocs())},
-		{name: "workflows check", argv: []string{"zv", "workflows", "check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog()), wantDocs: len(workflowDocs())},
-		{name: "run skills-check", argv: []string{"zv", "workflows", "run", "skills-check"}, wantText: "OK: 1 skills checked\n"},
-		{name: "run workflows-check", argv: []string{"zv", "workflows", "run", "workflows-check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog()), wantDocs: len(workflowDocs())},
-		{name: "run project-check", argv: []string{"zv", "workflows", "run", "project-check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog()), wantDocs: len(workflowDocs())},
+		{name: "check", argv: []string{"zv", "check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog())},
+		{name: "workflows check", argv: []string{"zv", "workflows", "check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog())},
+		{name: "run workflows-check", argv: []string{"zv", "workflows", "run", "workflows-check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog())},
+		{name: "run project-check", argv: []string{"zv", "workflows", "run", "project-check"}, wantText: workflowsText, wantWorkflows: len(workflowCatalog())},
 	}
 	for _, command := range commands {
 		for _, format := range []string{"text", "json"} {
@@ -100,8 +87,8 @@ func TestRunChecksAcceptStandardRepoContracts(t *testing.T) {
 					return
 				}
 				got := decodeWorkflowCheckResult(t, stdout.String())
-				want := workflowCheckResult{OK: true, SkillsChecked: 1, WorkflowsChecked: command.wantWorkflows, WorkflowDocsChecked: command.wantDocs}
-				if got.OK != want.OK || got.SkillsChecked != want.SkillsChecked || got.WorkflowsChecked != want.WorkflowsChecked || got.WorkflowDocsChecked != want.WorkflowDocsChecked || len(got.Issues) != 0 {
+				want := workflowCheckResult{OK: true, WorkflowsChecked: command.wantWorkflows}
+				if got.OK != want.OK || got.WorkflowsChecked != want.WorkflowsChecked || len(got.Issues) != 0 {
 					t.Fatalf("result = %#v, want %#v", got, want)
 				}
 			})
@@ -109,302 +96,8 @@ func TestRunChecksAcceptStandardRepoContracts(t *testing.T) {
 	}
 }
 
-func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
-	tests := []struct {
-		name    string
-		command string
-		want    string
-	}{
-		{
-			name:    "parser",
-			command: "./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000",
-			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-parser",
-		},
-		{
-			name:    "demo players",
-			command: "./bin/zv-demo-players --demo demo.dem",
-			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-demo-players",
-		},
-		{
-			name:    "analysis viewer",
-			command: "./bin/zv-analysis-viewer --input data/analysis.json",
-			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-analysis-viewer",
-		},
-		{
-			name:    "windows bin path",
-			command: `bin\zv-recorder --killplan plan.json --demo demo.dem --out recording`,
-			want:    `scripts/smoke-real.ps1: documents legacy direct command bin\zv-recorder`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir := t.TempDir()
-			writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-				"---",
-				"name: alpha",
-				`description: "Alpha workflow"`,
-				"---",
-				"",
-				"```powershell",
-				`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-				"```",
-				"",
-			}, "\n"))
-			writeWorkflowDocs(t, tempDir)
-			appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), "\n"+tt.command+"\n")
-			withWorkingDir(t, tempDir)
-
-			var stdout, stderr strings.Builder
-			code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-			if got, want := code, exitInvalidArgs; got != want {
-				t.Fatalf("code = %d, want %d", got, want)
-			}
-			if !strings.Contains(stderr.String(), tt.want) {
-				t.Fatalf("stderr = %q, want %q", stderr.String(), tt.want)
-			}
-		})
-	}
-}
-
-func TestRunWorkflowsCheckRejectsDiscoveredLegacyCommandEntrypoint(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "cmd", "zv-new-flow", "main.go"), "package main\n\nfunc main() {}\n")
-	writeFile(t, filepath.Join(tempDir, "Makefile"), strings.Join([]string{
-		"build:",
-		"\tgo build -o bin/zv ./cmd/zv",
-		"\tgo build -o bin/zv-new-flow ./cmd/zv-new-flow",
-		"",
-		"test:",
-		"\tgo run ./cmd/zv check",
-		"\tgo run ./cmd/zv workflows check",
-		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(tempDir, "scripts", "build.ps1"), strings.Join([]string{
-		`$commands = @(`,
-		`    "zv",`,
-		`    "zv-new-flow"`,
-		`)`,
-		`foreach ($name in $commands) {`,
-		`    $out = Join-Path $binDir "$name.exe"`,
-		`    $pkg = "./cmd/$name"`,
-		`    & go build -o $out $pkg`,
-		`}`,
-		"",
-	}, "\n"))
-	appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), "\n./bin/zv-new-flow --demo demo.dem\n")
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if want := "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-new-flow"; !strings.Contains(stderr.String(), want) {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-	}
-}
-
-func TestRunWorkflowsCheckRejectsNonCanonicalWorkflowDocCommands(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), strings.Join([]string{
-		"",
-		"```bash",
-		"./bin/zv parser parse --demo demo.dem --steamid 76561198000000000",
-		"```",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if !strings.Contains(stderr.String(), `scripts/smoke-real.ps1: uses non-standard zv command "parser"`) {
-		t.Fatalf("stderr = %q, want noncanonical doc command error", stderr.String())
-	}
-}
-
-func TestRunWorkflowsCheckRejectsLegacySmokeRealScript(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), `Fail "Start bin\zv-orchestrator first"`)
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if !strings.Contains(stderr.String(), `scripts/smoke-real.ps1: documents legacy direct command bin\zv-orchestrator`) {
-		t.Fatalf("stderr = %q, want smoke-real legacy command error", stderr.String())
-	}
-	if !strings.Contains(stderr.String(), `scripts/smoke-real.ps1: missing canonical workflow command bin\zv serve`) {
-		t.Fatalf("stderr = %q, want smoke-real missing canonical command error", stderr.String())
-	}
-}
-
-func TestRunWorkflowsCheckRejectsNonCanonicalWindowsBinZVScript(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), `bin\zv serve --unexpected`)
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if !strings.Contains(stderr.String(), `scripts/smoke-real.ps1: unexpected extra args for "serve" in "bin\\zv serve --unexpected"`) {
-		t.Fatalf("stderr = %q, want bin\\zv canonical validation error", stderr.String())
-	}
-}
-
-func TestRunWorkflowsCheckRejectsBrokenParserSmokeScript(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "scripts", "smoke.sh"), strings.Join([]string{
-		"#!/usr/bin/env bash",
-		"set -euo pipefail",
-		`BASE="${ZV_BASE_URL:-http://localhost:8080}"`,
-		`curl -fsS "$BASE/api/jobs"`,
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	for _, want := range []string{
-		`scripts/smoke.sh: missing canonical workflow command /api/jobs/$ID`,
-		`scripts/smoke.sh: missing canonical workflow command /api/jobs/$ID/plan`,
-	} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-		}
-	}
-}
-
-func TestRunWorkflowsCheckRejectsBuildLoopWithoutUnifiedCLI(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe demo parse --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "Makefile"), strings.Join([]string{
-		"build:",
-		"\tgo build -o bin/zv-parser ./cmd/zv-parser",
-		"",
-		"test:",
-		"\tgo test ./... -count=1",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	for _, want := range []string{
-		"Makefile: missing canonical workflow command go build -o bin/zv ./cmd/zv",
-		"Makefile: missing canonical workflow command go run ./cmd/zv check",
-		"Makefile: missing canonical workflow command go run ./cmd/zv workflows check",
-	} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-		}
-	}
-}
-
 func TestRunWorkflowsCheckRejectsMissingCommandBuildTarget(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	writeFile(t, filepath.Join(tempDir, "cmd", "zv", "main.go"), "package main\n\nfunc main() {}\n")
 	writeFile(t, filepath.Join(tempDir, "cmd", "zv-analysis-viewer", "main.go"), "package main\n\nfunc main() {}\n")
@@ -450,17 +143,6 @@ func TestRunWorkflowsCheckRejectsMissingCommandBuildTarget(t *testing.T) {
 
 func TestRunWorkflowsCheckRejectsStaleCommandBuildTarget(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	writeFile(t, filepath.Join(tempDir, "cmd", "zv", "main.go"), "package main\n\nfunc main() {}\n")
 	writeFile(t, filepath.Join(tempDir, "Makefile"), strings.Join([]string{
@@ -507,17 +189,6 @@ func TestRunWorkflowsCheckRejectsStaleCommandBuildTarget(t *testing.T) {
 
 func TestRunWorkflowsCheckRejectsUncoveredCommandEntrypoint(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	writeFile(t, filepath.Join(tempDir, "cmd", "zv", "main.go"), "package main\n\nfunc main() {}\n")
 	writeFile(t, filepath.Join(tempDir, "cmd", "zv-new-flow", "main.go"), "package main\n\nfunc main() {}\n")
@@ -558,90 +229,6 @@ func TestRunWorkflowsCheckRejectsUncoveredCommandEntrypoint(t *testing.T) {
 	}
 }
 
-func TestRunWorkflowsCheckRejectsPromptingClaudeSettings(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, ".claude", "settings.json"), strings.Join([]string{
-		"{",
-		`  "permissions": {`,
-		`    "allow": [`,
-		`      "Read",`,
-		`      "Edit",`,
-		`      "Write",`,
-		`      "Bash(git status*)",`,
-		`      "Bash(git diff*)",`,
-		`      "Bash(go test*)",`,
-		`      "Bash(go vet*)",`,
-		`      "Bash(gofmt*)",`,
-		`      "Bash(scripts/go-format-changed.sh*)",`,
-		`      "Bash(scripts/go-gate.sh*)",`,
-		`      "Bash(scripts/go-tools-check.sh*)",`,
-		`      "Bash(docker*)"`,
-		`    ],`,
-		`    "ask": [`,
-		`      "Bash(ffmpeg*)"`,
-		`    ]`,
-		`  }`,
-		"}",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	for _, want := range []string{
-		`.claude/settings.json: missing allow permission "Bash(*)"`,
-		`.claude/settings.json: permissions.ask must be empty: the harness runs without permission prompts`,
-		`.claude/settings.json: permissions.defaultMode = "", want "bypassPermissions"`,
-	} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-		}
-	}
-}
-
-func TestRunWorkflowsCheckIncludesSkillsContract(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv-parser.exe parse --demo demo.dem --steamid 76561198000000000`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if !strings.Contains(stderr.String(), "does not document the unified zv CLI") {
-		t.Fatalf("stderr = %q, want skill contract error", stderr.String())
-	}
-}
-
 func TestRunWorkflowsListShowsCanonicalCatalog(t *testing.T) {
 	var stdout, stderr strings.Builder
 	code := Run([]string{"zv", "workflows", "list"}, &stdout, &stderr, nil, &fakeRunner{})
@@ -655,7 +242,7 @@ func TestRunWorkflowsListShowsCanonicalCatalog(t *testing.T) {
 		"shorts-render\tRender vertical or landscape videos",
 		"analysis-tactical-data\tExport sampled tactical data",
 		"analysis-viewer\tServe a local analysis review UI.",
-		"workflows-check\tValidate optional skills, the workflow catalog, and executable scripts.",
+		"workflows-check\tValidate the workflow catalog and command build scripts.",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
@@ -1388,9 +975,9 @@ func TestValidateWorkflowCatalogRejectsNonCanonicalCommands(t *testing.T) {
 func TestValidateInternalCheckWorkflowsRejectsDrift(t *testing.T) {
 	workflows := []workflowInfo{
 		{
-			Name:    "skills-check",
-			Command: "zv workflows check",
-			RunArgs: []string{"workflows", "check"},
+			Name:    "workflows-check",
+			Command: "zv check",
+			RunArgs: []string{"check"},
 		},
 		{
 			Name:    "project-check",
@@ -1402,9 +989,8 @@ func TestValidateInternalCheckWorkflowsRejectsDrift(t *testing.T) {
 	issues := validateInternalCheckWorkflows(workflows)
 
 	for _, want := range []string{
-		`workflow:skills-check: internal check workflow command must be "zv skills check"`,
-		`workflow:skills-check: internal check workflow run args must be "skills check"`,
-		"workflow:workflows-check: missing internal check workflow",
+		`workflow:workflows-check: internal check workflow command must be "zv workflows check"`,
+		`workflow:workflows-check: internal check workflow run args must be "workflows check"`,
 	} {
 		if !hasIssue(issues, want) {
 			t.Fatalf("issues = %#v, want %q", issues, want)
@@ -1425,18 +1011,6 @@ func TestValidateWorkflowDelegationCoverageRejectsUnmappedWorkflow(t *testing.T)
 
 	if !hasIssue(issues, `workflow:new-flow: workflow run args "new flow" are not mapped to a delegated command`) {
 		t.Fatalf("issues = %#v, want unmapped delegation", issues)
-	}
-}
-
-func TestValidateSkillWorkflowRequirementCatalogRejectsUnknownWorkflow(t *testing.T) {
-	requirements := map[string][]string{
-		"zackvideo-cs2-utility-shorts": {"demo-parse", "missing-workflow"},
-	}
-
-	issues := validateSkillWorkflowRequirementCatalog(workflowCatalog(), requirements)
-
-	if !hasIssue(issues, `skill:zackvideo-cs2-utility-shorts: required workflow "missing-workflow" is not cataloged`) {
-		t.Fatalf("issues = %#v, want missing workflow requirement", issues)
 	}
 }
 

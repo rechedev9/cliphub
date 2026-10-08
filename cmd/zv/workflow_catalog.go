@@ -204,20 +204,14 @@ func buildWorkflowCatalog() []workflowInfo {
 			RunArgs:     []string{"serve"},
 		},
 		{
-			Name:        "skills-check",
-			Description: "Validate repo-local skills.",
-			Command:     "zv skills check",
-			RunArgs:     []string{"skills", "check"},
-		},
-		{
 			Name:        "workflows-check",
-			Description: "Validate optional skills, the workflow catalog, and executable scripts.",
+			Description: "Validate the workflow catalog and command build scripts.",
 			Command:     "zv workflows check",
 			RunArgs:     []string{"workflows", "check"},
 		},
 		{
 			Name:        "project-check",
-			Description: "Validate the ClipHub CLI, compiled workflows, build scripts, and optional skills.",
+			Description: "Validate the ClipHub CLI, compiled workflows, and build scripts.",
 			Command:     "zv check",
 			RunArgs:     []string{"check"},
 		},
@@ -243,7 +237,7 @@ func workflowArgumentMetadata(workflow workflowInfo) workflowArguments {
 	required := workflowRequiredFlags(workflow)
 	commandName := fmt.Sprintf("%q", strings.Join(workflow.RunArgs, " "))
 	valueFlags := commandValueFlags(commandName, required)
-	if workflow.Name == "capabilities" || workflow.Name == "stream-variants" || workflow.Name == "skills-check" || workflow.Name == "workflows-check" || workflow.Name == "project-check" {
+	if workflow.Name == "capabilities" || workflow.Name == "stream-variants" || workflow.Name == "workflows-check" || workflow.Name == "project-check" {
 		valueFlags = append(valueFlags, "--format")
 	}
 
@@ -366,7 +360,7 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),
 		}
-	case "capabilities", "skills-check", "workflows-check", "project-check":
+	case "capabilities", "workflows-check", "project-check":
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),
 		}
@@ -521,7 +515,7 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 		contract.LiveBehavior = "whole-flow execution remains dry-run only through this command contract"
 	case "serve":
 		contract.ProducedArtifactKeys = []string{"local-http-api", "worker-queue"}
-	case "skills-check", "workflows-check", "project-check":
+	case "workflows-check", "project-check":
 		contract.ProducedArtifactKeys = []string{"contract-check-report"}
 	}
 	if strings.HasPrefix(workflow.Name, "full-demo-") && workflow.Safety.SupportsDryRun {
@@ -533,7 +527,7 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) workflowSafety {
 	readOnly := false
 	switch workflow.Name {
-	case "capabilities", "stream-variants", "analysis-viewer", "gallery-open", "skills-check", "workflows-check", "project-check",
+	case "capabilities", "stream-variants", "analysis-viewer", "gallery-open", "workflows-check", "project-check",
 		"analysis-rounds", "analysis-tendencies":
 		// analysis-rounds and analysis-tendencies only read a tactical document
 		// and print; analysis-tactical is not here because it writes artifacts.

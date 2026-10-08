@@ -1,6 +1,6 @@
 # Incident notes
 
-The full account of each incident behind the rules in `AGENTS.md`: what the user saw, the cause, the fix and the measurements.
+Domain rules and the incidents they come from: what the user saw, the cause, the fix and the measurements.
 
 ## Full Demo audio mastering (`internal/editor/full_demo_audio*.go`)
 
@@ -348,7 +348,10 @@ faster or slower: `chperf snapshot` for the current picture, `chperf run` and
 reads the evidence ClipHub already writes (`obs/spans.jsonl`,
 `render-result.json`, `recording-result.json`) and prints JSON. `chperf
 captures` also flags raw takes whose bitrate matches the black-capture
-incident above. See the `chperf` skill for what each number means.
+incident above. `chperf --help` lists the commands, their units, and the stats conventions.
+Do not start `procs` or `run` workloads while a capture is recording to see the load: sampling is cheap, but extra work you launch competes with HLAE/CS2 and can drop frames.
+Do not present stage `wall_ms` values as additive or as CPU time.
+Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) and the delta is larger than the run-to-run spread.
 
 ## Releases
 

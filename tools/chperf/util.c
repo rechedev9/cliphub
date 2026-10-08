@@ -226,7 +226,7 @@ static int cmp_double(const void *a, const void *b)
 	return (x > y) - (x < y);
 }
 
-/* Nearest-rank percentile, the same definition the repo's efficiency script uses. */
+/* Nearest-rank percentile. */
 double percentile_sorted(const double *sorted, size_t n, double pct)
 {
 	if (n == 0)
