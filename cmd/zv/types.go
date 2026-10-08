@@ -1,45 +1,14 @@
 package main
 
-type skillInfo struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Path        string `json:"-"`
-	Body        string `json:"-"`
-	// Uncataloged marks a Claude Code skill (frontmatter metadata
-	// zv-catalog: "false") that the zv skill contract does not validate.
-	Uncataloged bool `json:"-"`
-}
-
-type skillDetail struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Body        string `json:"body"`
-}
-
 type skillIssue struct {
 	Path    string `json:"path"`
 	Message string `json:"message"`
 }
 
-type skillCheckResult struct {
-	OK            bool         `json:"ok"`
-	SkillsChecked int          `json:"skills_checked"`
-	Issues        []skillIssue `json:"issues"`
-}
-
-type workflowDoc struct {
-	Path     string
-	Required []string
-	Body     string
-}
-
 type workflowCheckResult struct {
-	OK               bool `json:"ok"`
-	SkillsChecked    int  `json:"skills_checked"`
-	WorkflowsChecked int  `json:"workflows_checked"`
-	// The legacy JSON key counts executable workflow source files, not Markdown.
-	WorkflowDocsChecked int          `json:"workflow_docs_checked"`
-	Issues              []skillIssue `json:"issues"`
+	OK               bool         `json:"ok"`
+	WorkflowsChecked int          `json:"workflows_checked"`
+	Issues           []skillIssue `json:"issues"`
 }
 
 type workflowInfo struct {

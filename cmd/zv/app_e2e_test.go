@@ -24,9 +24,7 @@ func TestZVBinaryCanonicalGroupHelpEndToEnd(t *testing.T) {
 		{name: "analysis", args: []string{"analysis", "--help"}, want: analysisUsage},
 		{name: "gallery", args: []string{"gallery", "--help"}, want: galleryUsage},
 		{name: "capabilities", args: []string{"capabilities", "--help"}, want: capabilitiesUsage},
-		{name: "verify", args: []string{"verify", "--help"}, want: verifyUsage},
 		{name: "check", args: []string{"check", "--help"}, want: checkUsage},
-		{name: "skills", args: []string{"skills", "--help"}, want: skillsUsage},
 		{name: "workflows", args: []string{"workflows", "--help"}, want: workflowsUsage},
 		{name: "serve", args: []string{"serve", "--help"}, want: serveUsage},
 	}
@@ -58,11 +56,6 @@ func TestZVBinaryCanonicalHelpAliasesEndToEnd(t *testing.T) {
 		{name: "demo word", args: []string{"demo", "help"}, want: demoUsage},
 		{name: "capabilities short", args: []string{"capabilities", "-h"}, want: capabilitiesUsage},
 		{name: "capabilities word", args: []string{"capabilities", "help"}, want: capabilitiesUsage},
-		{name: "verify short", args: []string{"verify", "-h"}, want: verifyUsage},
-		{name: "verify word", args: []string{"verify", "help"}, want: verifyUsage},
-		{name: "verify doctor short", args: []string{"verify", "doctor", "-h"}, want: verifyDoctorUsage},
-		{name: "skills list short", args: []string{"skills", "list", "-h"}, want: skillsListUsage},
-		{name: "skills list word", args: []string{"skills", "list", "help"}, want: skillsListUsage},
 		{name: "workflows show short", args: []string{"workflows", "show", "-h"}, want: workflowsShowUsage},
 		{name: "workflows show word", args: []string{"workflows", "show", "help"}, want: workflowsShowUsage},
 		{name: "workflows validate short", args: []string{"workflows", "validate", "-h"}, want: workflowsValidateUsage},
@@ -135,15 +128,11 @@ func TestZVBinaryCanonicalSubcommandHelpUsesStdoutOnlyEndToEnd(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "skills list", args: []string{"skills", "list", "--help"}, want: skillsListUsage},
-		{name: "skills show", args: []string{"skills", "show", "--help"}, want: skillsShowUsage},
-		{name: "skills check", args: []string{"skills", "check", "--help"}, want: skillsCheckUsage},
 		{name: "gallery open", args: []string{"gallery", "open", "--help"}, want: galleryUsage},
 		{name: "workflows list", args: []string{"workflows", "list", "--help"}, want: workflowsListUsage},
 		{name: "workflows show", args: []string{"workflows", "show", "--help"}, want: workflowsShowUsage},
 		{name: "workflows validate", args: []string{"workflows", "validate", "--help"}, want: workflowsValidateUsage},
 		{name: "workflows check", args: []string{"workflows", "check", "--help"}, want: workflowsCheckUsage},
-		{name: "run skills check", args: []string{"workflows", "run", "skills-check", "--", "--help"}, want: skillsCheckUsage},
 		{name: "run workflows check", args: []string{"workflows", "run", "workflows-check", "--", "--help"}, want: workflowsCheckUsage},
 		{name: "run project check", args: []string{"workflows", "run", "project-check", "--", "--help"}, want: checkUsage},
 	}
@@ -185,17 +174,6 @@ func TestZVBinaryWorkflowRunForwardsDelegatedHelpEndToEnd(t *testing.T) {
 
 func TestZVBinaryEveryWorkflowHelpEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	exe := buildZVBinary(t, tempDir)
 	installFakeDelegatedSubcommands(t, filepath.Dir(exe))
@@ -240,9 +218,6 @@ func TestZVBinaryCanonicalSubcommandUsageErrorsEndToEnd(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "skills list", args: []string{"skills", "list", "extra"}, want: "error: unexpected extra args for \"skills list\"\n" + skillsListUsage},
-		{name: "skills show", args: []string{"skills", "show"}, want: "error: missing skill name for \"skills show\"\n" + skillsShowUsage},
-		{name: "skills check", args: []string{"skills", "check", "extra"}, want: "error: unexpected extra args for \"skills check\"\n" + skillsCheckUsage},
 		{name: "workflows list", args: []string{"workflows", "list", "extra"}, want: "error: unexpected extra args for \"workflows list\"\n" + workflowsListUsage},
 		{name: "workflows show", args: []string{"workflows", "show"}, want: "error: missing workflow name for \"workflows show\"\n" + workflowsShowUsage},
 		{name: "workflows run", args: []string{"workflows", "run"}, want: workflowsRunUsage},
@@ -278,7 +253,6 @@ func TestZVBinaryIncompleteCommandsUseStderrOnlyEndToEnd(t *testing.T) {
 		{name: "shorts", args: []string{"shorts"}, want: shortsUsage},
 		{name: "analysis", args: []string{"analysis"}, want: analysisUsage},
 		{name: "gallery", args: []string{"gallery"}, want: galleryUsage},
-		{name: "skills", args: []string{"skills"}, want: skillsUsage},
 		{name: "workflows", args: []string{"workflows"}, want: workflowsUsage},
 		{name: "workflows run", args: []string{"workflows", "run"}, want: workflowsRunUsage},
 		{name: "workflows validate", args: []string{"workflows", "validate"}, want: "error: missing workflow name for \"workflows validate\"\n" + workflowsValidateUsage},
@@ -416,7 +390,6 @@ func TestZVBinaryUnknownGroupCommandsShowUsageEndToEnd(t *testing.T) {
 		{name: "shorts", args: []string{"shorts", "wat"}, want: "unknown shorts command \"wat\"\n" + shortsUsage},
 		{name: "analysis", args: []string{"analysis", "wat"}, want: "unknown analysis command \"wat\"\n" + analysisUsage},
 		{name: "gallery", args: []string{"gallery", "wat"}, want: "unknown gallery command \"wat\"\n" + galleryUsage},
-		{name: "skills", args: []string{"skills", "wat"}, want: "unknown skills command \"wat\"\n" + skillsUsage},
 		{name: "workflows", args: []string{"workflows", "wat"}, want: "unknown workflows command \"wat\"\n" + workflowsUsage},
 	}
 	for _, tt := range tests {
@@ -453,75 +426,29 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	exe := buildZVBinary(t, tempDir)
 
-	t.Run("skills check", func(t *testing.T) {
-		root := filepath.Join(tempDir, "skills-failure")
-		writeSkillBody(t, root, "alpha", strings.Join([]string{
-			"---",
-			"name: alpha",
-			`description: "Alpha workflow"`,
-			"---",
-			"",
-			"```powershell",
-			`.\bin\zv-parser.exe parse --demo demo.dem --steamid 76561198000000000`,
-			"```",
-			"",
-		}, "\n"))
-
-		tests := []struct {
-			name string
-			args []string
-		}{
-			{name: "direct", args: []string{"skills", "check", "--format", "json"}},
-			{name: "workflow run", args: []string{"workflows", "run", "skills-check", "--", "--format", "json"}},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				stdout, stderr, code := runZVBinaryFailureSplit(t, exe, root, tt.args...)
-
-				if got, want := code, exitInvalidArgs; got != want {
-					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
-				}
-				if stderr != "" {
-					t.Fatalf("stderr = %q, want empty", stderr)
-				}
-				var result skillCheckResult
-				if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-					t.Fatalf("unmarshal skills check failure json: %v\n%s", err, stdout)
-				}
-				if result.OK {
-					t.Fatalf("result.OK = true, want false")
-				}
-				if got, want := result.SkillsChecked, 1; got != want {
-					t.Fatalf("result.SkillsChecked = %d, want %d", got, want)
-				}
-				if got := len(result.Issues); got == 0 {
-					t.Fatalf("issues len = 0, want issues")
-				}
-				var row map[string]json.RawMessage
-				if err := json.Unmarshal([]byte(stdout), &row); err != nil {
-					t.Fatalf("unmarshal skills check failure json schema: %v\n%s", err, stdout)
-				}
-				assertJSONKeys(t, "skills check failure json", row, "ok", "skills_checked", "issues")
-				assertIssueJSONKeys(t, "skills check failure json issues", row["issues"])
-			})
-		}
-	})
-
 	t.Run("workflow checks", func(t *testing.T) {
 		root := filepath.Join(tempDir, "workflow-failure")
-		writeSkillBody(t, root, "alpha", strings.Join([]string{
-			"---",
-			"name: alpha",
-			`description: "Alpha workflow"`,
-			"---",
-			"",
-			"```powershell",
-			`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-			"```",
+		writeWorkflowDocs(t, root)
+		writeFile(t, filepath.Join(root, "cmd", "zv", "main.go"), "package main\n\nfunc main() {}\n")
+		writeFile(t, filepath.Join(root, "cmd", "zv-new-flow", "main.go"), "package main\n\nfunc main() {}\n")
+		writeFile(t, filepath.Join(root, "Makefile"), strings.Join([]string{
+			"build:",
+			"\tgo build -o bin/zv ./cmd/zv",
+			"\tgo build -o bin/zv-new-flow ./cmd/zv-new-flow",
 			"",
 		}, "\n"))
-		writeWorkflowDocs(t, root)
-		appendFile(t, filepath.Join(root, "scripts", "smoke-real.ps1"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
+		writeFile(t, filepath.Join(root, "scripts", "build.ps1"), strings.Join([]string{
+			`$commands = @(`,
+			`    "zv",`,
+			`    "zv-new-flow"`,
+			`)`,
+			`foreach ($name in $commands) {`,
+			`    $out = Join-Path $binDir "$name.exe"`,
+			`    $pkg = "./cmd/$name"`,
+			`    & go build -o $out $pkg`,
+			`}`,
+			"",
+		}, "\n"))
 
 		tests := []struct {
 			name string
@@ -549,14 +476,8 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 				if result.OK {
 					t.Fatalf("result.OK = true, want false")
 				}
-				if got, want := result.SkillsChecked, 1; got != want {
-					t.Fatalf("result.SkillsChecked = %d, want %d", got, want)
-				}
 				if got, want := result.WorkflowsChecked, len(workflowCatalog()); got != want {
 					t.Fatalf("result.WorkflowsChecked = %d, want %d", got, want)
-				}
-				if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
-					t.Fatalf("result.WorkflowDocsChecked = %d, want %d", got, want)
 				}
 				if got := len(result.Issues); got == 0 {
 					t.Fatalf("issues len = 0, want issues")
@@ -565,7 +486,7 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 				if err := json.Unmarshal([]byte(stdout), &row); err != nil {
 					t.Fatalf("unmarshal %s failure json schema: %v\n%s", tt.name, err, stdout)
 				}
-				assertJSONKeys(t, tt.name+" failure json", row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "issues")
+				assertJSONKeys(t, tt.name+" failure json", row, "ok", "workflows_checked", "issues")
 				assertIssueJSONKeys(t, tt.name+" failure json issues", row["issues"])
 			})
 		}
@@ -574,17 +495,6 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 
 func TestZVBinaryJSONSuccessUsesStdoutOnlyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	exe := buildZVBinary(t, tempDir)
 
@@ -592,14 +502,10 @@ func TestZVBinaryJSONSuccessUsesStdoutOnlyEndToEnd(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "skills list", args: []string{"skills", "list"}},
-		{name: "skills show", args: []string{"skills", "show", "alpha"}},
-		{name: "skills check", args: []string{"skills", "check"}},
 		{name: "workflows list", args: []string{"workflows", "list"}},
 		{name: "workflows show", args: []string{"workflows", "show", "demo-parse"}},
 		{name: "workflows check", args: []string{"workflows", "check"}},
 		{name: "project check", args: []string{"check"}},
-		{name: "workflow run skills check", args: []string{"workflows", "run", "skills-check", "--"}},
 		{name: "workflow run workflows check", args: []string{"workflows", "run", "workflows-check", "--"}},
 		{name: "workflow run project check", args: []string{"workflows", "run", "project-check", "--"}},
 	}
@@ -625,17 +531,6 @@ func TestZVBinaryJSONSuccessUsesStdoutOnlyEndToEnd(t *testing.T) {
 
 func TestZVBinaryFormattedCommandsRejectExtraArgsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	exe := buildZVBinary(t, tempDir)
 
@@ -645,14 +540,10 @@ func TestZVBinaryFormattedCommandsRejectExtraArgsEndToEnd(t *testing.T) {
 		wantStderr string
 		wantUsage  string
 	}{
-		{name: "skills list", args: []string{"skills", "list", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "skills list"` + "\n", wantUsage: skillsListUsage},
-		{name: "skills show", args: []string{"skills", "show", "alpha", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "skills show"` + "\n", wantUsage: skillsShowUsage},
-		{name: "skills check", args: []string{"skills", "check", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "skills check"` + "\n", wantUsage: skillsCheckUsage},
 		{name: "workflows list", args: []string{"workflows", "list", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "workflows list"` + "\n", wantUsage: workflowsListUsage},
 		{name: "workflows show", args: []string{"workflows", "show", "demo-parse", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "workflows show"` + "\n", wantUsage: workflowsShowUsage},
 		{name: "workflows check", args: []string{"workflows", "check", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "workflows check"` + "\n", wantUsage: workflowsCheckUsage},
 		{name: "project check", args: []string{"check", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "check"` + "\n", wantUsage: checkUsage},
-		{name: "workflow run skills check", args: []string{"workflows", "run", "skills-check", "--", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "skills check"` + "\n", wantUsage: workflowsRunUsage},
 		{name: "workflow run workflows check", args: []string{"workflows", "run", "workflows-check", "--", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "workflows check"` + "\n", wantUsage: workflowsRunUsage},
 		{name: "workflow run project check", args: []string{"workflows", "run", "project-check", "--", "--format=json", "extra"}, wantStderr: `error: unexpected extra args for "check"` + "\n", wantUsage: workflowsRunUsage},
 	}
@@ -675,17 +566,6 @@ func TestZVBinaryFormattedCommandsRejectExtraArgsEndToEnd(t *testing.T) {
 
 func TestZVBinaryFormattedCommandsRejectInvalidFormatEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	exe := buildZVBinary(t, tempDir)
 
@@ -694,16 +574,12 @@ func TestZVBinaryFormattedCommandsRejectInvalidFormatEndToEnd(t *testing.T) {
 		args      []string
 		wantUsage string
 	}{
-		{name: "skills list", args: []string{"skills", "list"}},
-		{name: "skills show", args: []string{"skills", "show", "alpha"}},
-		{name: "skills check", args: []string{"skills", "check"}},
 		{name: "workflows list", args: []string{"workflows", "list"}},
 		{name: "workflows show", args: []string{"workflows", "show", "demo-parse"}},
 		{name: "workflows validate", args: []string{"workflows", "validate", "demo-parse"}, wantUsage: workflowsValidateUsage},
 		{name: "capabilities", args: []string{"capabilities"}, wantUsage: capabilitiesUsage},
 		{name: "workflows check", args: []string{"workflows", "check"}},
 		{name: "project check", args: []string{"check"}},
-		{name: "workflow run skills check", args: []string{"workflows", "run", "skills-check", "--"}, wantUsage: workflowsRunUsage},
 		{name: "workflow run workflows check", args: []string{"workflows", "run", "workflows-check", "--"}, wantUsage: workflowsRunUsage},
 		{name: "workflow run project check", args: []string{"workflows", "run", "project-check", "--"}, wantUsage: workflowsRunUsage},
 	}
@@ -739,17 +615,6 @@ func TestZVBinaryFormattedCommandsRejectInvalidFormatEndToEnd(t *testing.T) {
 
 func TestZVBinaryDiscoveryCommandsRejectUnknownNamesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	exe := buildZVBinary(t, tempDir)
 
 	tests := []struct {
@@ -758,8 +623,6 @@ func TestZVBinaryDiscoveryCommandsRejectUnknownNamesEndToEnd(t *testing.T) {
 		wantExactStderr string
 		wantJSONError   string
 	}{
-		{name: "skills show text", args: []string{"skills", "show", "missing"}, wantExactStderr: "error: skill not found: missing\n"},
-		{name: "skills show json", args: []string{"skills", "show", "missing", "--format=json"}, wantJSONError: "skill not found: missing"},
 		{name: "workflows show text", args: []string{"workflows", "show", "missing"}, wantExactStderr: "error: workflow not found: missing\n"},
 		{name: "workflows show json", args: []string{"workflows", "show", "missing", "--format=json"}, wantJSONError: "workflow not found: missing"},
 		{name: "workflows run", args: []string{"workflows", "run", "missing"}, wantExactStderr: "error: workflow not found: missing\n"},
@@ -801,17 +664,6 @@ func TestZVBinaryDiscoveryCommandsRejectUnknownNamesEndToEnd(t *testing.T) {
 
 func TestZVBinaryTextFailuresUseStderrOnlyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv-parser.exe parse --demo demo.dem --steamid 76561198000000000`,
-		"```",
-		"",
-	}, "\n"))
 	exe := buildZVBinary(t, tempDir)
 
 	tests := []struct {
@@ -819,11 +671,8 @@ func TestZVBinaryTextFailuresUseStderrOnlyEndToEnd(t *testing.T) {
 		args []string
 	}{
 		{name: "root unknown", args: []string{"wat"}},
-		{name: "group unknown", args: []string{"skills", "wat"}},
-		{name: "usage error", args: []string{"skills", "show"}},
 		{name: "missing workflow", args: []string{"workflows", "show", "missing"}},
 		{name: "missing workflow run flags", args: []string{"workflows", "run", "demo-parse"}},
-		{name: "skills check issue", args: []string{"skills", "check"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -844,22 +693,11 @@ func TestZVBinaryTextFailuresUseStderrOnlyEndToEnd(t *testing.T) {
 
 func TestZVBinaryWorkflowsCheckEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 
 	exe := buildZVBinary(t, tempDir)
 	out := runZVBinary(t, exe, tempDir, "workflows", "check")
-	want := fmt.Sprintf("OK: 1 skills, %d workflows, and %d workflow docs checked", len(workflowCatalog()), len(workflowDocs()))
+	want := fmt.Sprintf("OK: %d workflows checked", len(workflowCatalog()))
 	if !strings.Contains(out, want) {
 		t.Fatalf("output = %q, want workflow OK count", out)
 	}
@@ -878,9 +716,6 @@ func TestZVBinaryWorkflowsCheckEndToEnd(t *testing.T) {
 	}
 	if got, want := result.WorkflowsChecked, len(workflowCatalog()); got != want {
 		t.Fatalf("result.WorkflowsChecked = %d, want %d", got, want)
-	}
-	if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
-		t.Fatalf("result.WorkflowDocsChecked = %d, want %d", got, want)
 	}
 
 	runJSONOut := runZVBinary(t, exe, tempDir, "workflows", "run", "workflows-check", "--", "--format", "json")
@@ -909,8 +744,7 @@ func TestZVBinaryCurrentRepoWorkflowChecksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	exe := buildZVBinary(t, tempDir)
 	root := repoRoot(t)
-	wantSkills := currentRepoSkills(t, root)
-	wantText := fmt.Sprintf("OK: %d skills, %d workflows, and %d workflow docs checked\n", len(wantSkills), len(workflowCatalog()), len(workflowDocs()))
+	wantText := fmt.Sprintf("OK: %d workflows checked\n", len(workflowCatalog()))
 
 	workflowText, workflowTextStderr := runZVBinarySplit(t, exe, root, "workflows", "check")
 	if workflowTextStderr != "" {
@@ -952,14 +786,8 @@ func TestZVBinaryCurrentRepoWorkflowChecksEndToEnd(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("workflows check json ok = false: %#v", result)
 	}
-	if got, want := result.SkillsChecked, len(wantSkills); got != want {
-		t.Fatalf("SkillsChecked = %d, want %d", got, want)
-	}
 	if got, want := result.WorkflowsChecked, len(workflowCatalog()); got != want {
 		t.Fatalf("WorkflowsChecked = %d, want %d", got, want)
-	}
-	if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
-		t.Fatalf("WorkflowDocsChecked = %d, want %d", got, want)
 	}
 	if got := len(result.Issues); got != 0 {
 		t.Fatalf("issues len = %d, want 0: %#v", got, result.Issues)
@@ -1032,24 +860,6 @@ func TestZVBinaryCurrentRepoPublicJSONSchemasEndToEnd(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "skills check json", args: []string{"skills", "check", "--format", "json"}},
-		{name: "workflow run skills check json", args: []string{"workflows", "run", "skills-check", "--", "--format", "json"}},
-	} {
-		stdout, stderr := runZVBinarySplit(t, exe, root, tt.args...)
-		if stderr != "" {
-			t.Fatalf("%s stderr = %q, want empty", tt.name, stderr)
-		}
-		var row map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(stdout), &row); err != nil {
-			t.Fatalf("unmarshal %s schema: %v\n%s", tt.name, err, stdout)
-		}
-		assertJSONKeys(t, tt.name, row, "ok", "skills_checked", "issues")
-	}
-
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
 		{name: "workflows check json", args: []string{"workflows", "check", "--format", "json"}},
 		{name: "project check json", args: []string{"check", "--format", "json"}},
 		{name: "workflow run workflows check json", args: []string{"workflows", "run", "workflows-check", "--", "--format", "json"}},
@@ -1063,7 +873,7 @@ func TestZVBinaryCurrentRepoPublicJSONSchemasEndToEnd(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &row); err != nil {
 			t.Fatalf("unmarshal %s schema: %v\n%s", tt.name, err, stdout)
 		}
-		assertJSONKeys(t, tt.name, row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "issues")
+		assertJSONKeys(t, tt.name, row, "ok", "workflows_checked", "issues")
 	}
 }
 
@@ -1071,26 +881,6 @@ func TestZVBinaryCurrentRepoDiscoveryTextUsesStdoutOnlyEndToEnd(t *testing.T) {
 	root := repoRoot(t)
 	tempDir := t.TempDir()
 	exe := buildZVBinary(t, tempDir)
-	wantSkills := currentRepoSkills(t, root)
-
-	skillsList, skillsListStderr := runZVBinarySplit(t, exe, root, "skills", "list")
-	if skillsListStderr != "" {
-		t.Fatalf("skills list stderr = %q, want empty", skillsListStderr)
-	}
-	if got, want := skillsList, skillListText(wantSkills); got != want {
-		t.Fatalf("skills list stdout = %q, want %q", got, want)
-	}
-
-	for _, skill := range wantSkills {
-		showText, showStderr := runZVBinarySplit(t, exe, root, "skills", "show", skill.Name)
-		if showStderr != "" {
-			t.Fatalf("skills show %s stderr = %q, want empty", skill.Name, showStderr)
-		}
-		wantBody := readFileString(t, skill.Path)
-		if strings.TrimRight(showText, "\n") != strings.TrimRight(wantBody, "\n") {
-			t.Fatalf("skills show %s stdout did not match %s", skill.Name, skill.Path)
-		}
-	}
 
 	workflowsList, workflowsListStderr := runZVBinarySplit(t, exe, root, "workflows", "list")
 	if workflowsListStderr != "" {
@@ -1111,69 +901,8 @@ func TestZVBinaryCurrentRepoDiscoveryTextUsesStdoutOnlyEndToEnd(t *testing.T) {
 	}
 }
 
-func TestZVBinaryCurrentRepoSkillsCheckEndToEnd(t *testing.T) {
-	root := repoRoot(t)
-	tempDir := t.TempDir()
-	exe := buildZVBinary(t, tempDir)
-	wantSkills := currentRepoSkills(t, root)
-
-	wantText := fmt.Sprintf("OK: %d skills checked\n", len(wantSkills))
-	directText, directTextStderr := runZVBinarySplit(t, exe, root, "skills", "check")
-	if directTextStderr != "" {
-		t.Fatalf("skills check stderr = %q, want empty", directTextStderr)
-	}
-	if got, want := directText, wantText; got != want {
-		t.Fatalf("skills check text = %q, want %q", got, want)
-	}
-
-	runText, runTextStderr := runZVBinarySplit(t, exe, root, "workflows", "run", "skills-check")
-	if runTextStderr != "" {
-		t.Fatalf("workflows run skills-check stderr = %q, want empty", runTextStderr)
-	}
-	if got, want := runText, directText; got != want {
-		t.Fatalf("workflow run skills-check text = %q, want direct output %q", got, want)
-	}
-
-	directJSON, directJSONStderr := runZVBinarySplit(t, exe, root, "skills", "check", "--format", "json")
-	if directJSONStderr != "" {
-		t.Fatalf("skills check json stderr = %q, want empty", directJSONStderr)
-	}
-	var directResult skillCheckResult
-	if err := json.Unmarshal([]byte(directJSON), &directResult); err != nil {
-		t.Fatalf("unmarshal skills check json: %v\n%s", err, directJSON)
-	}
-	if !directResult.OK {
-		t.Fatalf("skills check json ok = false: %#v", directResult)
-	}
-	if got, want := directResult.SkillsChecked, len(wantSkills); got != want {
-		t.Fatalf("skills checked = %d, want %d", got, want)
-	}
-	if got := len(directResult.Issues); got != 0 {
-		t.Fatalf("skills check issues len = %d, want 0: %#v", got, directResult.Issues)
-	}
-
-	runJSON, runJSONStderr := runZVBinarySplit(t, exe, root, "workflows", "run", "skills-check", "--", "--format", "json")
-	if runJSONStderr != "" {
-		t.Fatalf("workflows run skills-check json stderr = %q, want empty", runJSONStderr)
-	}
-	if got, want := runJSON, directJSON; got != want {
-		t.Fatalf("workflow run skills-check json = %q, want direct output %q", got, want)
-	}
-}
-
 func TestZVBinaryWorkflowRunsMatchInternalCommandsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	exe := buildZVBinary(t, tempDir)
 
@@ -1189,11 +918,6 @@ func TestZVBinaryWorkflowRunsMatchInternalCommandsEndToEnd(t *testing.T) {
 			name:       "gallery-open",
 			directArgs: []string{"gallery", "open", "--path", galleryPath},
 			runArgs:    []string{"workflows", "run", "gallery-open", "--", "--path", galleryPath},
-		},
-		{
-			name:       "skills-check",
-			directArgs: []string{"skills", "check", "--format", "json"},
-			runArgs:    []string{"workflows", "run", "skills-check", "--", "--format", "json"},
 		},
 		{
 			name:       "workflows-check",

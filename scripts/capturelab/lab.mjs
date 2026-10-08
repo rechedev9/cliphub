@@ -304,24 +304,13 @@ async function appPhase(context) {
 
 async function studioPhase(context) {
   const { evidenceDir, options, steps } = context;
-  let execution = await execute('live-studio-orchestrator-journey', 'node', [
+  const execution = await execute('live-studio-orchestrator-journey', 'node', [
     'scripts/capturelab/live-studio.mjs',
     '--seed', join(evidenceDir, 'capturelab-studio-seed.json'),
     '--evidence-dir', join(evidenceDir, 'live-studio'),
     '--timeout-seconds', String(Math.ceil(options.timeoutMS / 1000)),
   ], {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
-  });
-  steps.push(execution.record);
-  // Use the Windows shim through cmd with fixed, repository-owned arguments.
-  const playwrightArgs = ['--dir', 'web', 'exec', 'playwright', 'test', 'e2e/full-demo.spec.ts', 'e2e/library.spec.ts', '--reporter=line'];
-  execution = await execute('studio-playwright-journeys', process.platform === 'win32' ? 'cmd.exe' : 'pnpm',
-    process.platform === 'win32' ? ['/d', '/s', '/c', `pnpm ${playwrightArgs.join(' ')}`] : playwrightArgs, {
-    evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
-    env: {
-      PLAYWRIGHT_OUTPUT_DIR: join(evidenceDir, 'playwright-results'),
-      PLAYWRIGHT_HTML_OUTPUT_DIR: join(evidenceDir, 'playwright-report'),
-    },
   });
   steps.push(execution.record);
 }
@@ -341,7 +330,7 @@ async function writeSummary(context, error) {
     hlae_cs2_recertified: false,
     compatibility_statement: 'HLAE/CS2 was not launched; external compatibility is not recertified.',
     application_scope: ['App', 'Studio', 'Full'].includes(context.options.mode)
-      ? 'Application stages are composed evidence: HTTP queue/render tests plus a build-tagged, in-memory ready-result seed served through the real orchestrator, same-origin proxy, and Studio. This is not one continuous production worker lifecycle.'
+      ? 'Application stages are composed evidence: HTTP queue/render tests plus a build-tagged, in-memory ready-result seed served through the real orchestrator. This is not one continuous production worker lifecycle.'
       : 'Application/service boundaries were not requested in this mode.',
     limitations: [
       'Synthetic and fake captures remain ineligible for production reuse or upload-ready status.',

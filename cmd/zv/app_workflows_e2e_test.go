@@ -11,17 +11,6 @@ import (
 
 func TestZVBinaryEveryWorkflowRunCommandEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	if err := os.MkdirAll(filepath.Join(tempDir, "gallery"), 0o755); err != nil {
 		t.Fatalf("mkdir gallery: %v", err)
@@ -107,17 +96,6 @@ func TestZVBinaryEveryWorkflowValidateCommandIsSideEffectFreeEndToEnd(t *testing
 
 func TestZVBinaryEveryWorkflowRunAcceptsEqualsRequiredFlagsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
 	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")
@@ -912,17 +890,6 @@ func TestZVBinaryCanonicalWorkflowBooleanFlagsRejectSeparateValuesEndToEnd(t *te
 
 func TestZVBinaryEveryDirectWorkflowAcceptsEqualsRequiredFlagsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
 	galleryPath := filepath.Join(tempDir, "gallery", "index.html")
 	writeFile(t, galleryPath, "<!doctype html><title>gallery</title>\n")

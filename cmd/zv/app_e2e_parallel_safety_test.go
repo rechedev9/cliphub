@@ -11,7 +11,6 @@ func TestBinaryE2EParallelSafety(t *testing.T) {
 	t.Parallel()
 	files := []string{
 		"app_e2e_test.go",
-		"app_skills_e2e_test.go",
 		"app_workflows_e2e_test.go",
 	}
 	const serialTest = "TestRunCanonicalSkillWorkflowDelegatesThroughLocalBinEndToEnd"

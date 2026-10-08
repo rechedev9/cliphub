@@ -1,29 +1,5 @@
 package main
 
-// claudeRequiredAllowPermissions is the harness contract for
-// .claude/settings.json: the operator wants zero permission prompts, so the
-// blanket tool allows must be present and no ask/deny lists are required.
-func claudeRequiredAllowPermissions() []string {
-	return []string{
-		"Bash(*)",
-		"Read(*)",
-		"Edit(*)",
-		"Write(*)",
-	}
-}
-
-func skillWorkflowRequirementMap() map[string][]string {
-	return map[string][]string{
-		"zackvideo-cheater-pov-reels":      {"demo-players", "record", "shorts-render"},
-		"zackvideo-cs2-utility-shorts":     {"demo-parse", "utility-audit", "record", "shorts-render", "gallery-open"},
-		"zackvideo-lineup-audit":           {"utility-audit"},
-		"zackvideo-music-scripted-shorts":  {"demo-parse", "demo-players", "record", "music-analyze", "shorts-render", "gallery-open"},
-		"zackvideo-shorts-production":      {"demo-parse", "demo-players", "demo-moments", "demo-select", "utility-audit", "record", "shorts-render", "gallery-open"},
-		"zackvideo-stream-clips":           {"stream-fetch", "stream-variants", "stream-plan", "stream-render"},
-		"zackvideo-youtube-shorts-publish": {"gallery-open"},
-	}
-}
-
 func groupUsageTexts() map[string]string {
 	return map[string]string{
 		"faceit":    faceitUsage,
@@ -35,7 +11,6 @@ func groupUsageTexts() map[string]string {
 		"analysis":  analysisUsage,
 		"gallery":   galleryUsage,
 		"check":     checkUsage,
-		"skills":    skillsUsage,
 		"workflows": workflowsUsage,
 	}
 }

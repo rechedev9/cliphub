@@ -81,7 +81,6 @@ cd web
 pnpm run typecheck
 pnpm run lint
 pnpm exec node --test lib/full-demo-plan.test.ts lib/full-demo-transitions.test.ts
-pnpm exec playwright test full-demo.spec.ts
 ```
 
 To regenerate the optional real review loops (requires local NVENC and FFmpeg):

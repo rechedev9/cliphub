@@ -1,11 +1,8 @@
-// E2e bootstrap: redirect userData before the app boots, then hand over to the
-// real compiled main process.
+// Launch the compiled main process with a throwaway userData directory.
 //
-// Why: main.ts takes app.requestSingleInstanceLock() and quits immediately when
-// another instance holds it. The lock is scoped per userData path, so every
-// suite receives a unique disposable profile from scripts/e2e-profile.mjs.
-// Any verified tool fixture is copied there before launch; suites never share
-// mutable SQLite, cookies, ports, window state, or a live tool directory.
+// main.ts takes app.requestSingleInstanceLock() and quits when another
+// instance holds it. The lock is scoped per userData path, so a disposable
+// profile (CLIPHUB_E2E_USER_DATA) never touches %APPDATA%\cliphub-studio.
 //
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron loads this
    file as a CommonJS bootstrap before the app boots, so `require` is the only

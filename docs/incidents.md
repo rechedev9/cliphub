@@ -1,6 +1,6 @@
 # Incident notes
 
-The full account of each incident behind the rules in `AGENTS.md`: what the user saw, the cause, the fix and the measurements.
+Domain rules and the incidents they come from: what the user saw, the cause, the fix and the measurements.
 
 ## Full Demo audio mastering (`internal/editor/full_demo_audio*.go`)
 
@@ -348,7 +348,7 @@ faster or slower: `chperf snapshot` for the current picture, `chperf run` and
 reads the evidence ClipHub already writes (`obs/spans.jsonl`,
 `render-result.json`, `recording-result.json`) and prints JSON. `chperf
 captures` also flags raw takes whose bitrate matches the black-capture
-incident above. See the `chperf` skill for what each number means.
+incident above. `chperf --help` lists what each number means.
 
 ## Releases
 

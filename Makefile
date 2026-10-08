@@ -1,4 +1,4 @@
-.PHONY: build test check skills-check workflows-check fmt vet
+.PHONY: build test check workflows-check fmt vet
 
 build:
 	go build -o bin/zv ./cmd/zv
@@ -21,9 +21,6 @@ test:
 
 check:
 	go run ./cmd/zv check
-
-skills-check:
-	go run ./cmd/zv skills check
 
 workflows-check:
 	go run ./cmd/zv workflows check

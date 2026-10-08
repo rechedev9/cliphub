@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
@@ -101,10 +101,8 @@ async function stopProcess(child) {
 
 const options = parseArgs(process.argv.slice(2));
 await mkdir(options.evidenceDir, { recursive: true });
-const seed = JSON.parse(await readFile(options.seed, 'utf8'));
-const sourcePlan = JSON.parse(await readFile(seed.killplan_path, 'utf8'));
 const token = randomBytes(32).toString('hex');
-const [apiPort, webPort] = await Promise.all([freePort(), freePort()]);
+const apiPort = await freePort();
 const apiURL = `http://127.0.0.1:${apiPort}`;
 const executable = join(options.evidenceDir, process.platform === 'win32' ? 'zv-orchestrator.exe' : 'zv-orchestrator');
 const build = await command('go', ['build', '-tags', 'capturelab', '-o', executable, './cmd/zv-orchestrator'], { timeoutMS: options.timeoutMS });
@@ -130,32 +128,6 @@ try {
   orchestrator.stdout.pipe(orchestratorLog, { end: false });
   orchestrator.stderr.pipe(orchestratorLog, { end: false });
   await waitForAPI(apiURL, token, 30_000);
-  const expectedVideo = seed.expected_video_path;
-  if (!expectedVideo) throw new Error('seed.expected_video_path is required for the browser download oracle');
-  // Windows package-manager shims require cmd; this command is entirely
-  // repository-owned and contains no seed paths, tokens or user arguments.
-  const playwrightArgs = ['--dir', 'web', 'exec', 'playwright', 'test', 'e2e/capture-lab-live.spec.ts', '--reporter=line'];
-  const playwrightExecutable = process.platform === 'win32' ? 'cmd.exe' : 'pnpm';
-  const playwrightCommand = process.platform === 'win32'
-    ? ['/d', '/s', '/c', `pnpm ${playwrightArgs.join(' ')}`]
-    : playwrightArgs;
-  const playwright = await command(playwrightExecutable, playwrightCommand, {
-    timeoutMS: options.timeoutMS,
-    env: {
-      ORCHESTRATOR_URL: apiURL,
-      ORCHESTRATOR_TOKEN: token,
-      E2E_PORT: String(webPort),
-      CAPTURE_LAB_LIVE: '1',
-      CAPTURE_LAB_JOB_ID: seed.job_id,
-      CAPTURE_LAB_VARIANT: seed.variant,
-      CAPTURE_LAB_SEGMENT_IDS: JSON.stringify(sourcePlan.segments.map((segment) => segment.id)),
-      CAPTURE_LAB_EXPECTED_VIDEO: expectedVideo,
-      PLAYWRIGHT_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-results'),
-      PLAYWRIGHT_HTML_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-report'),
-    },
-  });
-  await writeFile(join(options.evidenceDir, 'live-playwright.log'), `${playwright.stdout}${playwright.stderr}`, 'utf8');
-  process.stdout.write(playwright.stdout);
 } finally {
   await stopProcess(orchestrator);
   await new Promise((accept) => orchestratorLog.end(accept));

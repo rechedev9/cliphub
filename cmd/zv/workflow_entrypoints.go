@@ -174,7 +174,7 @@ func workflowDelegatedCommand(args []string) string {
 		if len(args) >= 2 && args[1] == "run" {
 			return "zv"
 		}
-	case "capabilities", "faceit", "gallery", "skills", "workflows", "check":
+	case "capabilities", "faceit", "gallery", "workflows", "check":
 		return "zv"
 	}
 	return ""

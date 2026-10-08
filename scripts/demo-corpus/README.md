@@ -39,8 +39,8 @@ last tracked event. The adapter retains that shorter duration, so recording
 plan validation rejects a valid post-round tail before capture starts. For
 example, `bestia-vs-gremio-m1-inferno.dem` has facts ending at tick 222261, a
 legacy duration of 221876 and an approved last-round capture ending at 222004.
-This is separate from the editor CLI default failure. The adapter correction
-is described in [Full Demo duration boundary](../../docs/full-demo-duration-boundary-fix.md).
+This is separate from the editor CLI default failure. The adapter keeps the
+facts duration so recording plan validation accepts a valid post-round tail.
 The corpus itself does not silently extend or clamp either plan.
 
 Twenty blockers are the incomplete first part of the split

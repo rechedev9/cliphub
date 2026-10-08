@@ -4,7 +4,7 @@ const sleep = (milliseconds) => new Promise((accept) => setTimeout(accept, milli
 
 export function processTreeSpawnOptions() {
   // A dedicated POSIX process group lets timeouts kill grandchildren (go run,
-  // pnpm, Playwright, Next, browsers, FFmpeg) without touching the agent.
+  // pnpm, Next, browsers, FFmpeg) without touching the agent.
   return process.platform === 'win32' ? {} : { detached: true };
 }
 

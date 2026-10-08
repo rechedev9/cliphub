@@ -15,15 +15,13 @@ on:
       - 'Makefile'
       - 'effects/**'
       - 'testdata/**'
-      - '.claude/**'
       - 'scripts/go-*.sh'
       - 'scripts/capturelab/**'
-      - 'scripts/ci-backend-*'
       - 'scripts/telemetry-debug.mjs'
       - 'desktop/src/diagnostic*'
       - 'desktop/src/process-*'
       - 'desktop/src/telemetry-settings.ts'
-      - 'desktop/e2e/remote-debug.e2e.test.mjs'
+      - 'desktop/src/remote-debug.test.mjs'
       - '.github/workflows/ci-backend.yml'
   schedule:
     - cron: '0 3 * * *'
@@ -66,21 +64,16 @@ jobs:
           ffprobe -version
 
       - name: Capture simulator contracts
-        run: node --test scripts/capturelab/*.test.mjs scripts/ci-backend-evidence.test.mjs
+        run: node --test scripts/capturelab/*.test.mjs
 
       - name: go vet
         run: go vet ./...
 
       - name: go test
-        shell: bash
-        run: go test ./... -count=1 -timeout 8m -json | tee "$RUNNER_TEMP/backend-tests.jsonl"
-
-      - name: Require critical flow evidence
-        if: ${{ !cancelled() }}
-        run: node scripts/ci-backend-evidence.mjs "$RUNNER_TEMP/backend-tests.jsonl"
+        run: go test ./... -count=1 -timeout 8m
 
       - name: zv check
         run: go run ./cmd/zv check
 
       - name: Remote diagnostic delivery contract
-        run: node --no-warnings --test desktop/e2e/remote-debug.e2e.test.mjs desktop/scripts/telemetry-debug.test.mjs
+        run: node --no-warnings --test desktop/src/remote-debug.test.mjs desktop/scripts/telemetry-debug.test.mjs

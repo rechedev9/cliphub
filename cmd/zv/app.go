@@ -13,7 +13,7 @@ const (
 
 // Run executes the unified ClipHub CLI. It is intentionally thin: current
 // feature binaries remain the behavioral owners while zv provides one stable
-// command surface for humans, scripts, and agent skills.
+// command surface for humans and scripts.
 func Run(argv []string, stdout, stderr io.Writer, stdin io.Reader, runner commandRunner) int {
 	if len(argv) < 2 {
 		fmt.Fprint(stderr, usage)
@@ -36,8 +36,6 @@ func Run(argv []string, stdout, stderr io.Writer, stdin io.Reader, runner comman
 		return runPresets(args[1:], stdout, stderr)
 	case "capabilities":
 		return runCapabilities(args[1:], stdout, stderr)
-	case "verify":
-		return runVerify(args[1:], stdout, stderr)
 	case "faceit":
 		return runFaceit(args[1:], stdout, stderr)
 	case "demo":
@@ -62,8 +60,6 @@ func Run(argv []string, stdout, stderr io.Writer, stdin io.Reader, runner comman
 		return runGallery(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
-	case "skills":
-		return runSkills(args[1:], stdout, stderr)
 	case "workflows":
 		return runWorkflows(args[1:], stdout, stderr, stdin, runner)
 	case "flows":

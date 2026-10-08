@@ -143,43 +143,6 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-func currentRepoSkills(t *testing.T, root string) []skillInfo {
-	t.Helper()
-	skillsDir := filepath.Join(root, ".claude", "skills")
-	entries, err := os.ReadDir(skillsDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return []skillInfo{}
-	}
-	if err != nil {
-		t.Fatalf("read skills dir: %v", err)
-	}
-	skills := []skillInfo{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		path := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
-		if _, err := os.Stat(path); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			t.Fatalf("stat skill %s: %v", entry.Name(), err)
-		}
-		skill, err := parseSkill(path)
-		if err != nil {
-			t.Fatalf("parse skill %s: %v", path, err)
-		}
-		if skill.Uncataloged {
-			continue
-		}
-		if skill.Name == "" {
-			skill.Name = entry.Name()
-		}
-		skills = append(skills, skill)
-	}
-	return skills
-}
-
 func workflowRunCommandArgs(t *testing.T, workflow workflowInfo) []string {
 	t.Helper()
 	fields, ok := splitCommandFields(workflow.RunCommand)
@@ -271,7 +234,7 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 			"--run-dir", filepath.Join(baseDir, "flowdry"),
 			"--dry-run",
 		}
-	case "capabilities", "skills-check", "workflows-check", "project-check", "serve":
+	case "capabilities", "workflows-check", "project-check", "serve":
 		return nil
 	default:
 		t.Fatalf("missing sample forwarded args for workflow %q", workflow.Name)
@@ -302,7 +265,7 @@ func workflowRunSampleArgsWithoutSeparator(t *testing.T, workflow workflowInfo, 
 		return append([]string(nil), forwarded[1:]...)
 	}
 	switch workflow.Name {
-	case "capabilities", "stream-variants", "skills-check", "workflows-check", "project-check":
+	case "capabilities", "stream-variants", "workflows-check", "project-check":
 		return []string{"--format", "json"}
 	case "serve":
 		return []string{"--help"}
@@ -449,18 +412,6 @@ func emptySeparateRequiredFlag(t *testing.T, args []string, flag string) []strin
 	return nil
 }
 
-func skillListText(skills []skillInfo) string {
-	var b strings.Builder
-	for _, skill := range skills {
-		if skill.Description == "" {
-			fmt.Fprintln(&b, skill.Name)
-			continue
-		}
-		fmt.Fprintf(&b, "%s\t%s\n", skill.Name, skill.Description)
-	}
-	return b.String()
-}
-
 func workflowListText(workflows []workflowInfo) string {
 	var b strings.Builder
 	for _, workflow := range workflows {
@@ -511,7 +462,7 @@ func workflowDelegatesExternally(workflow workflowInfo) bool {
 		return false
 	}
 	switch workflow.RunArgs[0] {
-	case "capabilities", "check", "faceit", "gallery", "short", "skills", "workflows", "flows", "full-demo":
+	case "capabilities", "check", "faceit", "gallery", "short", "workflows", "flows", "full-demo":
 		return false
 	default:
 		return true
@@ -525,48 +476,9 @@ func workflowHelpDelegatesExternally(workflow workflowInfo) bool {
 	return workflowDelegatesExternally(workflow)
 }
 
-func writeSkill(t *testing.T, root, name, description string) {
-	t.Helper()
-	writeSkillBody(t, root, name, strings.Join([]string{
-		"---",
-		"name: " + name,
-		`description: "` + description + `"`,
-		"---",
-		"",
-		"# " + name,
-		"",
-		"Workflow details.",
-		"",
-	}, "\n"))
-}
-
-func writeSkillBody(t *testing.T, root, name, body string) {
-	t.Helper()
-	dir := filepath.Join(root, ".claude", "skills", name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir skill dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o600); err != nil {
-		t.Fatalf("write skill: %v", err)
-	}
-}
-
 func writeWorkflowDocs(t *testing.T, root string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/test\n")
-	writeFile(t, filepath.Join(root, "scripts", "smoke-real.ps1"), strings.Join([]string{
-		`Fail "Orchestrator is not reachable. Start bin\zv serve with the current environment and run migrations first."`,
-		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "smoke.sh"), strings.Join([]string{
-		"#!/usr/bin/env bash",
-		"set -euo pipefail",
-		`BASE="${ZV_BASE_URL:-http://localhost:8080}"`,
-		`curl -fsS "$BASE/api/jobs"`,
-		`curl -fsS "$BASE/api/jobs/$ID"`,
-		`curl -fsS "$BASE/api/jobs/$ID/plan"`,
-		"",
-	}, "\n"))
 	writeFile(t, filepath.Join(root, "Makefile"), strings.Join([]string{
 		"build:",
 		"\tgo build -o bin/zv ./cmd/zv",
@@ -588,56 +500,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		`}`,
 		"",
 	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "go-gate.sh"), strings.Join([]string{
-		`echo "== zv check =="`,
-		"go run ./cmd/zv check",
-		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "fix-loop.ps1"), strings.Join([]string{
-		`Invoke-Step "zv check" {`,
-		"    & go run ./cmd/zv check",
-		"}",
-		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, ".claude", "settings.json"), claudeSettingsFixture())
 }
 
-func claudeSettingsFixture() string {
-	return strings.Join([]string{
-		"{",
-		`  "permissions": {`,
-		`    "allow": [`,
-		`      "Read",`,
-		`      "Edit",`,
-		`      "Write",`,
-		`      "WebSearch",`,
-		`      "WebFetch",`,
-		`      "Bash(git status*)",`,
-		`      "Bash(git diff*)",`,
-		`      "Bash(git log*)",`,
-		`      "Bash(go test*)",`,
-		`      "Bash(go vet*)",`,
-		`      "Bash(gofmt*)",`,
-		`      "Bash(goimports*)",`,
-		`      "Bash(staticcheck*)",`,
-		`      "Bash(govulncheck*)",`,
-		`      "Bash(gosec*)",`,
-		`      "Bash(scripts/go-format-changed.sh*)",`,
-		`      "Bash(scripts/go-gate.sh*)",`,
-		`      "Bash(scripts/go-tools-check.sh*)",`,
-		`      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check-toolchain.ps1*)",`,
-		`      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-toolchain.ps1*)",`,
-		`      "Bash(*)",`,
-		`      "Read(*)",`,
-		`      "Edit(*)",`,
-		`      "Write(*)"`,
-		`    ],`,
-		`    "defaultMode": "bypassPermissions"`,
-		`  }`,
-		"}",
-		"",
-	}, "\n")
-}
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

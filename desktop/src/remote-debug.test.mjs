@@ -1,19 +1,20 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { DiagnosticLogClient } from '../src/diagnostic-log-client.ts';
-import { ProcessSession } from '../src/process-session.ts';
-import { TelemetrySettingsStore } from '../src/telemetry-settings.ts';
+import { DiagnosticLogClient } from './diagnostic-log-client.ts';
+import { ProcessSession } from './process-session.ts';
+import { TelemetrySettingsStore } from './telemetry-settings.ts';
 import { collectDiagnostics } from '../../scripts/telemetry-debug.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const goAvailable = spawnSync('go', ['version'], { stdio: 'ignore' }).status === 0;
 
-test('a real failing subprocess is diagnosable using only collector logs, through the Studio delivery modules', { timeout: 180_000 }, async (t) => {
+test('a real failing subprocess is diagnosable using only collector logs, through the Studio delivery modules', { timeout: 180_000, skip: goAvailable ? false : 'requires the Go toolchain' }, async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-remote-debug-e2e-'));
   const extension = process.platform === 'win32' ? '.exe' : '';
   const collectorPath = path.join(directory, `collector${extension}`);

@@ -29,7 +29,6 @@ func TestRenderPNGsWritesIntroAndOutroStills(t *testing.T) {
 			{SteamID64: "9", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
 	}
-	// Evidence names are what scripts/full-demo-vm-evidence.sh collects.
 	tests := []struct {
 		name   string
 		source string

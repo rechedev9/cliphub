@@ -11,8 +11,6 @@
     ".design-sync/",
     ".next/",
     "node_modules/",
-    "playwright-report/",
-    "test-results/",
     "next-env.d.ts"
   ],
   "rules": {
