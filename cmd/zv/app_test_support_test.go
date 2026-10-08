@@ -483,11 +483,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"build:",
 		"\tgo build -o bin/zv ./cmd/zv",
 		"",
-		"test:",
-		"\tgo test ./... -count=1",
-		"\tgo run ./cmd/zv check",
-		"\tgo run ./cmd/zv workflows check",
-		"",
 	}, "\n"))
 	writeFile(t, filepath.Join(root, "scripts", "build.ps1"), strings.Join([]string{
 		`$commands = @(`,
@@ -512,47 +507,9 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-func readFileString(t *testing.T, path string) string {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(b)
-}
-
-func stringSet(values []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		out[value] = struct{}{}
-	}
-	return out
-}
-
-func appendFile(t *testing.T, path, body string) {
-	t.Helper()
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		t.Fatalf("open append %s: %v", path, err)
-	}
-	defer f.Close()
-	if _, err := f.WriteString(body); err != nil {
-		t.Fatalf("append %s: %v", path, err)
-	}
-}
-
 func hasIssue(issues []skillIssue, want string) bool {
 	for _, issue := range issues {
 		if issue.Path+": "+issue.Message == want {
-			return true
-		}
-	}
-	return false
-}
-
-func hasIssueContaining(issues []skillIssue, want string) bool {
-	for _, issue := range issues {
-		if strings.Contains(issue.Path+": "+issue.Message, want) {
 			return true
 		}
 	}

@@ -176,15 +176,3 @@ func equalArgs(got, want []string) bool {
 	}
 	return true
 }
-
-func hasPrefixArgs(fields, prefix []string) bool {
-	if len(fields) < len(prefix) {
-		return false
-	}
-	for i, want := range prefix {
-		if fields[i] != want {
-			return false
-		}
-	}
-	return true
-}

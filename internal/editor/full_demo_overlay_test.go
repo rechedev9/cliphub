@@ -350,6 +350,9 @@ func requireFFmpeg(t *testing.T) string {
 	t.Helper()
 	path, err := exec.LookPath("ffmpeg")
 	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("ffmpeg not on PATH; fixture capture compositor cannot run")
+		}
 		t.Skip("ffmpeg not on PATH; fixture capture compositor cannot run")
 	}
 	if _, err := mediafont.Materialize(); err != nil {

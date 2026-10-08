@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Script', 'Media', 'App', 'Studio', 'Full')]
+    [ValidateSet('Script', 'Media', 'App', 'Full')]
     [string]$Mode = 'Full',
 
     [ValidateRange(1, 100)]

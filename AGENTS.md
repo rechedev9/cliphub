@@ -10,7 +10,7 @@ ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into ed
 - Node 24, pnpm 11.22.0: `pnpm --dir <web|desktop|portal> install --frozen-lockfile`.
 
 ## Build and check
-- Go: `go vet ./...` and `go test ./...`. A few Full Demo editor tests depend on the FFmpeg
+- Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. A few Full Demo editor tests depend on the FFmpeg
   version; Studio ships FFmpeg 8.1.2.
 - web, desktop, portal: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web/portal.
 - CI runs on pushes to main, tags and nightly, not on PRs. Run the checks for what you touched.

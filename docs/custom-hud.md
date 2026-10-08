@@ -378,4 +378,4 @@ The PR was closed unmerged on 2026-08-26 and the pinned 2.192.4
 `AfxHookSource2.dll` does not register the command (checked 2026-09-25). When
 an official release ships it, it belongs in the "Original de CS2" capture
 profile; do not build it from the unmerged branch (see the HLAE pin rules in
-`AGENTS.md`).
+`docs/incidents.md`, HLAE pin and CS2 updates).

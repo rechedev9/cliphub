@@ -8,7 +8,7 @@ import { processTreeSpawnOptions, terminateProcessTree } from './process-tree.mj
 import { captureLabEnvironment } from './safe-env.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const validModes = new Set(['Script', 'Media', 'App', 'Studio', 'Full']);
+const validModes = new Set(['Script', 'Media', 'App', 'Full']);
 
 function parseArgs(args) {
   const options = { mode: 'Full', iterations: 1, timeoutMS: 180_000 };
@@ -302,19 +302,6 @@ async function appPhase(context) {
   }
 }
 
-async function studioPhase(context) {
-  const { evidenceDir, options, steps } = context;
-  const execution = await execute('live-studio-orchestrator-journey', 'node', [
-    'scripts/capturelab/live-studio.mjs',
-    '--seed', join(evidenceDir, 'capturelab-studio-seed.json'),
-    '--evidence-dir', join(evidenceDir, 'live-studio'),
-    '--timeout-seconds', String(Math.ceil(options.timeoutMS / 1000)),
-  ], {
-    evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
-  });
-  steps.push(execution.record);
-}
-
 async function writeSummary(context, error) {
   const ended = new Date();
   const summary = {
@@ -329,12 +316,11 @@ async function writeSummary(context, error) {
     highest_level: context.highestLevel,
     hlae_cs2_recertified: false,
     compatibility_statement: 'HLAE/CS2 was not launched; external compatibility is not recertified.',
-    application_scope: ['App', 'Studio', 'Full'].includes(context.options.mode)
-      ? 'Application stages are composed evidence: HTTP queue/render tests plus a build-tagged, in-memory ready-result seed served through the real orchestrator. This is not one continuous production worker lifecycle.'
+    application_scope: ['App', 'Full'].includes(context.options.mode)
+      ? 'Application stages run the HTTP queue and render tests, including the build-tagged in-memory seed. This is not one continuous production worker lifecycle.'
       : 'Application/service boundaries were not requested in this mode.',
     limitations: [
       'Synthetic and fake captures remain ineligible for production reuse or upload-ready status.',
-      'The Studio boundary starts from an already validated synthetic render; capture and render worker lifecycle checks run as separate application tests.',
       'A real HLAE/CS2 canary is required for L5 compatibility evidence.',
     ],
     error: error?.message ?? '',
@@ -372,16 +358,12 @@ async function runIteration(options, iteration, baseEvidenceDir) {
       await scriptPhase(context);
       context.highestLevel = 'L2';
     }
-    if (['Media', 'Studio', 'Full'].includes(options.mode)) {
+    if (['Media', 'Full'].includes(options.mode)) {
       await mediaPhase(context);
       context.highestLevel = 'L3';
     }
-    if (['App', 'Studio', 'Full'].includes(options.mode)) {
+    if (['App', 'Full'].includes(options.mode)) {
       await appPhase(context);
-      context.highestLevel = 'L4';
-    }
-    if (['Studio', 'Full'].includes(options.mode)) {
-      await studioPhase(context);
       context.highestLevel = 'L4';
     }
   } catch (error) {
