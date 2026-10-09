@@ -241,6 +241,24 @@ Studio now always runs the latest official HLAE:
 - If CS2 updates while Studio is open, restarting Studio picks up a fixed
   HLAE. The lookup runs only at boot.
 
+### Known issue: picture frozen after a round end (HLAE 2.192.7, 2026-10-09)
+
+A real capture with official 2.192.7 (AfxHookSource2 0.41.7) on CS2
+1.41.9.0 (build 25815307) loaded the hook and recorded every planned frame.
+In the one segment captured (a round 1 ace), the picture froze about one
+second after the round-ending kill while the audio kept playing. It matches
+advancedfx issue #1236, fixed on their `main` (`ebbcd883`) and not in any
+release yet. Studio installs 2.192.7 at boot, so the pin does not change
+what users run.
+
+- A release bundled with 2.192.7 ships this defect. After the next
+  advancedfx release, bump the pin and capture a segment that crosses a
+  round end.
+- `zv record` reported `capture_verified: true` and the canary issued its
+  certificate: frame counts cannot see a frozen picture. The check in the
+  next section now reports it, so the canary refuses a certificate for
+  2.192.7 on this CS2 build.
+
 ### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
 
 A canary with official HLAE 2.192.7 on CS2 1.41.9.0 (build 25815307) produced

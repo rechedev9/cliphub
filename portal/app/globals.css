@@ -1,552 +1,364 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
 /*
- * ClipHub Portal — the public face of the same product as ClipHub Studio, so
- * it wears the Studio's "NEON HUD" skin rather than inventing a second look:
- * night-blue canvas at hue 264, cyan #22d9ee as the single action colour,
- * magenta #ff2d78 reserved for the recording motif, Chakra Petch over Share
- * Tech Mono. The surface ramp is opaque and monotonic in lightness — depth
- * comes from a surface step plus a 1px bevel plus a shadow, never from alpha,
- * which is what keeps panels legible on a canvas this dark.
+ * ClipHub Portal wears the Studio's "NEON HUD" skin. The tokens below are the
+ * subset of web/app/globals.css this app uses; keep the values in sync with it.
  */
 
-:root {
+:root,
+.dark {
   color-scheme: dark;
   --radius: 0.625rem;
 
+  /* @theme inline does not emit these, and body reads them directly. */
   --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
+  --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
 
-  /* Surfaces */
+  /* Surfaces: opaque and monotonic in lightness, never faked with alpha. */
   --surface-0: oklch(0.128 0.02 264);
   --surface-1: oklch(0.152 0.024 264);
   --surface-2: oklch(0.188 0.028 264);
   --surface-3: oklch(0.224 0.032 264);
   --surface-4: oklch(0.262 0.036 264);
+  --surface-5: oklch(0.302 0.038 264);
 
-  /* Foregrounds. --fg-3 is the AA floor for text on these surfaces. */
+  --background: var(--surface-1);
+  --card: var(--surface-2);
+  --popover: var(--surface-4);
+  --muted: var(--surface-3);
+  --secondary: var(--surface-4);
+
+  /* Foregrounds. --fg-3 is the AA floor for text; --fg-4 is glyphs only. */
   --fg-1: oklch(0.97 0.012 226);
   --fg-2: oklch(0.795 0.03 250);
   --fg-3: oklch(0.672 0.028 250);
+  --fg-4: oklch(0.545 0.024 250);
 
-  /* Edges */
+  --foreground: var(--fg-1);
+  --card-foreground: var(--fg-1);
+  --popover-foreground: var(--fg-1);
+  --secondary-foreground: var(--fg-1);
+  --accent-foreground: var(--fg-1);
+  --muted-foreground: var(--fg-2);
+
+  /* Edges. --border-strong is the boundary for anything interactive. */
   --border-subtle: oklch(0.42 0.024 264 / 0.5);
   --border: oklch(0.52 0.028 264 / 0.62);
   --border-strong: oklch(0.62 0.035 264 / 0.85);
+  --border-accent: oklch(0.811 0.135 207.6 / 0.45);
+  --input: var(--border-strong);
   --edge-light: oklch(0.98 0.01 226 / 0.075);
   --edge-shade: oklch(0.05 0.02 264 / 0.55);
+  --light-angle: 200deg;
 
-  /* Elevation: one global light direction, bevel first then shadow. */
-  --elev-bevel: inset 0 1px 0 0 var(--edge-light), inset 0 -1px 0 0 var(--edge-shade);
-  --elev-1: var(--elev-bevel), 0 1px 2px -1px oklch(0.03 0.02 264 / 0.7);
-  --elev-3: var(--elev-bevel), 0 4px 8px -3px oklch(0.03 0.02 264 / 0.75);
-
-  /* Semantic */
+  /* Semantic. Magenta is the recording colour, not decoration. */
   --primary: oklch(0.811 0.135 207.6);
   --primary-foreground: oklch(0.173 0.027 233.6);
-  --stream: oklch(0.657 0.241 6.9);
-  --success: oklch(0.82 0.135 166);
-  --warning: oklch(0.82 0.16 78);
+  --accent: oklch(0.27 0.052 262);
   --destructive: oklch(0.68 0.205 22);
+  --destructive-solid: oklch(0.485 0.195 22);
+  --destructive-foreground: oklch(0.16 0.035 22);
+  --stream: oklch(0.657 0.241 6.9);
+  --stream-text: oklch(0.72 0.22 6.9);
+  --stream-foreground: oklch(0.17 0.035 6.9);
+  --success: oklch(0.82 0.135 166);
+  --success-foreground: oklch(0.17 0.04 166);
+  --warning: oklch(0.82 0.16 78);
+  --warning-foreground: oklch(0.18 0.045 78);
+  --ring: oklch(0.811 0.135 207.6);
+
+  /* Elevation: one light direction, bevel first then shadow. */
+  --elev-bevel: inset 0 1px 0 0 var(--edge-light), inset 0 -1px 0 0 var(--edge-shade);
+  --elev-0: var(--elev-bevel);
+  --elev-1: var(--elev-bevel), 0 1px 2px -1px oklch(0.03 0.02 264 / 0.7),
+    0 3px 8px -2px oklch(0.03 0.02 264 / 0.45);
+  --elev-2: var(--elev-bevel), 0 2px 4px -2px oklch(0.03 0.02 264 / 0.7),
+    0 8px 20px -4px oklch(0.03 0.02 264 / 0.5);
+  --elev-3: var(--elev-bevel), 0 4px 8px -3px oklch(0.03 0.02 264 / 0.75),
+    0 16px 36px -8px oklch(0.03 0.02 264 / 0.55);
+  --elev-4: var(--elev-bevel), 0 8px 16px -6px oklch(0.02 0.02 264 / 0.8),
+    0 28px 60px -12px oklch(0.02 0.02 264 / 0.62);
+  --elev-5: var(--elev-bevel), 0 16px 28px -10px oklch(0.02 0.02 264 / 0.85),
+    0 48px 96px -20px oklch(0.02 0.02 264 / 0.7);
+
+  --glow-primary-sm: 0 0 12px oklch(0.811 0.135 207.6 / 0.18);
+  --glow-primary-md: 0 0 26px oklch(0.811 0.135 207.6 / 0.26), 0 0 2px oklch(0.811 0.135 207.6 / 0.55);
+  --glow-primary-lg: 0 0 48px oklch(0.811 0.135 207.6 / 0.32), 0 0 3px oklch(0.811 0.135 207.6 / 0.7);
+  --glow-stream-md: 0 0 26px oklch(0.657 0.241 6.9 / 0.3), 0 0 2px oklch(0.657 0.241 6.9 / 0.6);
+
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
 }
 
-* {
-  box-sizing: border-box;
+/* static forces emission: plain CSS reads these with var(). */
+@theme static {
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.25;
+  --text-meta--letter-spacing: 0.14em;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.3;
+  --text-label--letter-spacing: 0.08em;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.45;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.6;
+  --text-body-lg: 1.0625rem;
+  --text-body-lg--line-height: 1.5;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.01em;
+  --text-section: 1.5rem;
+  --text-section--line-height: 1.15;
+  --text-section--letter-spacing: -0.015em;
+  --text-display-sm: 1.875rem;
+  --text-display-sm--line-height: 1.08;
+  --text-display-sm--letter-spacing: -0.02em;
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.025em;
+  --text-hero: 3.5rem;
+  --text-hero--line-height: 0.98;
+  --text-hero--letter-spacing: -0.03em;
+  --text-stat: 1.75rem;
+  --text-stat--line-height: 1;
+  --text-stat--letter-spacing: 0.01em;
+
+  --tracking-tight: -0.025em;
+  --tracking-wide: 0.06em;
+  --tracking-wider: 0.12em;
+  --tracking-widest: 0.2em;
+  --tracking-ultra: 0.3em;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-pop: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-html {
-  background: var(--surface-1);
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-solid: var(--destructive-solid);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-stream: var(--stream);
+  --color-stream-text: var(--stream-text);
+  --color-stream-foreground: var(--stream-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-surface-5: var(--surface-5);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-border-accent: var(--border-accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* shadow-* maps onto the elevation scale, so shadow-<color> is inert here. */
+  --shadow-2xs: var(--elev-0);
+  --shadow-xs: var(--elev-0);
+  --shadow-sm: var(--elev-1);
+  --shadow: var(--elev-1);
+  --shadow-md: var(--elev-2);
+  --shadow-lg: var(--elev-3);
+  --shadow-xl: var(--elev-4);
+  --shadow-2xl: var(--elev-5);
+
+  --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
+  --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
 }
 
-body {
-  margin: 0;
-  background: var(--surface-1);
-  color: var(--fg-1);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  /* A single wash of cyan behind the canvas, so the page reads as a lit room
-     rather than a flat rectangle. */
-  background-image: radial-gradient(
-    72rem 40rem at 50% -12rem,
-    oklch(0.811 0.135 207.6 / 0.09),
-    transparent 70%
-  );
-  background-repeat: no-repeat;
-}
+/* Landing motion. The readout loop walks its three stages in 9s, then resets. */
+@theme {
+  --animate-rise: rise 700ms var(--ease-entrance) both;
+  --animate-readout-1: readout-1 9s linear infinite both;
+  --animate-readout-2: readout-2 9s linear infinite both;
+  --animate-readout-3: readout-3 9s linear infinite both;
+  --animate-readout-bar: readout-bar 9s linear infinite both;
+  --animate-rec-pulse: rec-pulse 1.6s ease-in-out infinite;
 
-main {
-  max-width: 60rem;
-  margin: 0 auto;
-  padding: 3rem 1.5rem 4rem;
-}
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+  }
 
-main.narrow {
-  max-width: 42rem;
-}
+  @keyframes readout-1 {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    4%,
+    92% {
+      opacity: 1;
+    }
+  }
 
-h1,
-h2,
-h3 {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-}
+  @keyframes readout-2 {
+    0%,
+    28%,
+    100% {
+      opacity: 0.35;
+    }
+    32%,
+    92% {
+      opacity: 1;
+    }
+  }
 
-a {
-  color: var(--primary);
-  text-decoration-color: oklch(0.811 0.135 207.6 / 0.35);
-  text-underline-offset: 0.2em;
-}
+  @keyframes readout-3 {
+    0%,
+    66%,
+    100% {
+      opacity: 0.35;
+    }
+    70%,
+    92% {
+      opacity: 1;
+    }
+  }
 
-a:hover {
-  text-decoration-color: currentColor;
-}
+  @keyframes readout-bar {
+    0%,
+    30% {
+      transform: scaleX(0);
+    }
+    66%,
+    92% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
 
-/* ── HUD label ──────────────────────────────────────────────────────────── */
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  margin: 0 0 1.25rem;
-}
-
-/* Magenta is the product's recording colour; this is the one place the portal
-   borrows it, as a live-capture cue rather than decoration. */
-.rec-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--stream);
-  box-shadow: 0 0 0 3px oklch(0.657 0.241 6.9 / 0.18);
-}
-
-/* ── Hero ───────────────────────────────────────────────────────────────── */
-
-.hero {
-  padding: 2rem 0 3.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* Two columns on desktop so the headline is not left stranded beside half a
-   screen of empty canvas; one column as soon as the readout would squeeze. */
-.hero-split {
-  display: grid;
-  gap: 3rem;
-  align-items: center;
-}
-
-@media (min-width: 60rem) {
-  .hero-split {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  @keyframes rec-pulse {
+    50% {
+      opacity: 0.35;
+    }
   }
 }
 
-.hero h1 {
-  font-size: clamp(2.25rem, 5vw, 3.25rem);
-  margin: 0 0 1.15rem;
-  /* The grid column already sets the measure; a ch cap on top of it only
-     forces extra line breaks. */
-  max-width: 20ch;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-4) transparent;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Tailwind's reset leaves buttons with the arrow cursor. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* One wash of cyan, so the page reads as a lit room, not a flat rectangle. */
+    background-image: radial-gradient(
+      72rem 40rem at 50% -12rem,
+      color-mix(in oklch, var(--primary) 9%, transparent),
+      transparent 70%
+    );
+    background-repeat: no-repeat;
+  }
 }
 
-.hero-split h1 {
-  max-width: none;
+@layer components {
+  /* The Studio panel: opaque --surface-2 plus bevel plus elevation. */
+  .studio-panel {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--surface-2);
+    background-image: linear-gradient(
+      var(--light-angle),
+      color-mix(in oklch, var(--primary) 3%, transparent),
+      transparent 46%
+    );
+    box-shadow: var(--elev-1);
+  }
 }
 
-/* A HUD readout of the pipeline: what the product does, in the product's own
-   visual language, filling the space the headline leaves. Decorative. */
-.readout {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--elev-3);
-  padding: 1.1rem 1.25rem;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+/* HUD lattice behind the landing hero, masked so it fades before the edges. */
+@utility hud-grid {
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 3.5rem 3.5rem;
+  mask-image: radial-gradient(ellipse 65% 70% at 62% 45%, black, transparent 78%);
 }
 
-.readout-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--fg-3);
-  font-size: 0.6875rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  padding-bottom: 0.85rem;
-  margin-bottom: 0.85rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
+/* Tailwind, Radix and tw-animate-css ship no reduced-motion block of their own. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  .dark {
+    --dur-instant: 1ms;
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+  }
 
-.readout-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.3rem 0;
-  color: var(--fg-2);
-}
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 
-.readout-row .value {
-  color: var(--fg-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.readout-row.is-done {
-  color: var(--fg-1);
-}
-
-.readout-row.is-done .value {
-  color: var(--success);
-}
-
-.readout-arrow {
-  color: var(--primary);
-  padding: 0.15rem 0;
-}
-
-.hero h1 .accent {
-  color: var(--primary);
-}
-
-.lede {
-  color: var(--fg-2);
-  font-size: 1.125rem;
-  line-height: 1.6;
-  max-width: 46ch;
-  margin: 0 0 2rem;
-}
-
-.cta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-}
-
-.cta-note {
-  color: var(--fg-3);
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-/* ── Steps ──────────────────────────────────────────────────────────────── */
-
-.section-title {
-  font-size: 0.8125rem;
-  font-family: var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  margin: 3rem 0 1.25rem;
-}
-
-.steps {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 1rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.step {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--elev-1);
-  padding: 1.25rem;
-}
-
-.step-number {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--primary);
-  letter-spacing: 0.12em;
-  display: block;
-  margin-bottom: 0.6rem;
-}
-
-.step h3 {
-  font-size: 1rem;
-  margin: 0 0 0.4rem;
-}
-
-.step p {
-  color: var(--fg-2);
-  font-size: 0.9375rem;
-  line-height: 1.55;
-  margin: 0;
-}
-
-/* ── Cards & app chrome ─────────────────────────────────────────────────── */
-
-.card {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--elev-1);
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.card h2 {
-  font-size: 1rem;
-  margin: 0 0 0.75rem;
-}
-
-.card p {
-  margin: 0 0 0.75rem;
-  line-height: 1.6;
-  /* Prose in a full-width card would otherwise run past a comfortable
-     measure on desktop. */
-  max-width: 68ch;
-}
-
-.card p:last-child,
-.card ul:last-child,
-.card ol:last-child {
-  margin-bottom: 0;
-}
-
-.card ul,
-.card ol {
-  margin: 0 0 0.75rem;
-  padding-left: 1.15rem;
-  line-height: 1.6;
-}
-
-.card li {
-  margin-bottom: 0.45rem;
-}
-
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-header h1 {
-  font-size: 1.125rem;
-  margin: 0;
-  letter-spacing: 0.01em;
-}
-
-/* ── Controls ───────────────────────────────────────────────────────────── */
-
-button,
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font: inherit;
-  font-weight: 600;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius) - 0.125rem);
-  padding: 0.6rem 1.1rem;
-  cursor: pointer;
-  text-decoration: none;
-  transition: filter 120ms ease;
-}
-
-button:hover:not(:disabled),
-.button:hover {
-  filter: brightness(1.08);
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-button.secondary,
-.button.secondary {
-  background: var(--surface-3);
-  color: var(--fg-1);
-  border-color: var(--border-strong);
-}
-
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--fg-2);
-  margin-bottom: 0.35rem;
-}
-
-input[type="file"],
-textarea {
-  display: block;
-  width: 100%;
-  margin: 0 0 1rem;
-  font: inherit;
-  color: var(--fg-1);
-  background: var(--surface-3);
-  border: 1px solid var(--border-strong);
-  border-radius: calc(var(--radius) - 0.125rem);
-  padding: 0.6rem;
-}
-
-textarea {
-  min-height: 5rem;
-  resize: vertical;
-}
-
-input[type="file"]::file-selector-button {
-  font: inherit;
-  margin-right: 0.75rem;
-  background: var(--surface-4);
-  color: var(--fg-1);
-  border: 1px solid var(--border-strong);
-  border-radius: 0.35rem;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-}
-
-/* ── Requests ───────────────────────────────────────────────────────────── */
-
-ul.requests {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.request-note {
-  color: var(--fg-2);
-  font-size: 0.9375rem;
-  line-height: 1.55;
-}
-
-.error-text {
-  color: var(--destructive);
-  font-size: 0.9375rem;
-}
-
-.pill {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  color: var(--fg-2);
-  margin-bottom: 0.6rem;
-}
-
-.pill-done {
-  color: var(--success);
-  border-color: oklch(0.82 0.135 166 / 0.55);
-}
-
-.pill-failed {
-  color: var(--destructive);
-  border-color: oklch(0.68 0.205 22 / 0.55);
-}
-
-.pill-active {
-  color: var(--warning);
-  border-color: oklch(0.82 0.16 78 / 0.5);
-}
-
-code {
-  font-family: var(--font-mono);
-  background: var(--surface-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: 0.05rem 0.35rem;
-  font-size: 0.9em;
-}
-
-video {
-  width: 100%;
-  border-radius: calc(var(--radius) - 0.125rem);
-  border: 1px solid var(--border);
-  background: var(--surface-0);
-  margin-bottom: 0.75rem;
-}
-
-/* ── Documents (privacy, terms) ─────────────────────────────────────────── */
-
-.doc h1 {
-  font-size: 2rem;
-  margin: 0 0 0.35rem;
-}
-
-.doc h2 {
-  font-size: 1.0625rem;
-  margin: 2.25rem 0 0.75rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.doc p,
-.doc li {
-  color: var(--fg-2);
-  line-height: 1.7;
-}
-
-.doc p {
-  margin: 0 0 0.9rem;
-}
-
-.doc ul {
-  padding-left: 1.15rem;
-  margin: 0 0 0.9rem;
-}
-
-.doc li {
-  margin-bottom: 0.55rem;
-}
-
-.doc strong {
-  color: var(--fg-1);
-  font-weight: 600;
-}
-
-.updated {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  margin: 0 0 2rem;
-}
-
-/* ── Footer ─────────────────────────────────────────────────────────────── */
-
-.site-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 3.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border-subtle);
-  color: var(--fg-3);
-  font-size: 0.8125rem;
-}
-
-.site-footer a {
-  color: var(--fg-2);
-  text-decoration: none;
-}
-
-.site-footer a:hover {
-  color: var(--primary);
+  /* A frozen spinner reads as a hung page: keep one slow rotation. */
+  .animate-spin {
+    animation-duration: 1.8s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

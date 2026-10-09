@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SiteFooter } from "../site-footer";
+import { DocPage } from "@/components/doc-page";
 
 export const metadata: Metadata = {
   title: "Política de Privacidad",
@@ -10,9 +10,7 @@ const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "rsnoverwatch@gmail.com";
 
 export default function PrivacyPage() {
   return (
-    <main className="narrow doc">
-      <h1>Política de Privacidad</h1>
-      <p className="updated">Última actualización: 7 de septiembre de 2026</p>
+    <DocPage title="Política de Privacidad" updated="Última actualización: 7 de septiembre de 2026">
 
       <h2>Quién trata tus datos</h2>
       <p>
@@ -88,8 +86,6 @@ export default function PrivacyPage() {
         Si esta política cambia, la versión actualizada se publicará en esta
         misma página con su nueva fecha.
       </p>
-
-      <SiteFooter />
-    </main>
+    </DocPage>
   );
 }
