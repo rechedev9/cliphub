@@ -188,7 +188,7 @@ async function issue(options) {
       sha256: demoHash,
     },
     artifacts,
-    validation: 'recording.ValidateRecordingAttempt+ValidateUploadResult',
+    validation: 'recording.ValidateRecordingAttempt+ValidateUploadResult+FrozenPictureWarnings',
     boundary,
     limitations: [
       'This certificate is local evidence, not a validation override.',
