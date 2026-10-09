@@ -1,21 +1,17 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   AlignRightIcon,
   ArrowRightIcon,
   CrosshairIcon,
   DownloadIcon,
+  PlusIcon,
   UserCheckIcon,
 } from "lucide-react";
 
 import { auth } from "@/auth";
 import { Eyebrow, RecDot } from "@/components/hud";
 import { PageShell } from "@/components/page-shell";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { loadRequestLimits } from "@/lib/request-limits";
@@ -25,6 +21,29 @@ import { cn } from "@/lib/utils";
 import { ReelPlayer } from "./reel-player";
 import { Reveal } from "./reveal";
 import { SiteFooter } from "./site-footer";
+
+const SITE_TITLE = "ClipHub · Tus mejores rondas de CS2, montadas a mano";
+const SITE_DESCRIPTION =
+  "Envía la demo de tu partida de CS2 y recibe un vídeo editado con tus mejores jugadas, grabado dentro del juego. Gratis.";
+
+// Set here, not in the root layout, so other pages do not inherit the landing's card.
+export const metadata: Metadata = {
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    siteName: "ClipHub",
+    locale: "es_ES",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+};
 
 const MEBIBYTE = 1024 * 1024;
 
@@ -406,16 +425,21 @@ export default async function Home() {
               .
             </p>
           </div>
-          <Accordion type="multiple" className="border-t border-border-subtle">
+          {/* Native details: the answers are in the HTML, with or without script. */}
+          <div className="border-t border-border-subtle">
             {QUESTIONS.map(({ question, answer }) => (
-              <AccordionItem key={question} value={question}>
-                <AccordionTrigger>{question}</AccordionTrigger>
-                <AccordionContent className="max-w-[60ch] text-base leading-[1.65]">
-                  {answer}
-                </AccordionContent>
-              </AccordionItem>
+              <details key={question} className="group border-b border-border-subtle">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 rounded-sm py-4.5 text-body-lg font-semibold text-fg-1 transition-colors duration-(--dur-fast) hover:text-primary [&::-webkit-details-marker]:hidden">
+                  {question}
+                  <PlusIcon
+                    aria-hidden
+                    className="size-4 shrink-0 text-primary transition-transform duration-(--dur-base) ease-entrance group-open:rotate-45"
+                  />
+                </summary>
+                <p className="max-w-[60ch] pb-5 text-base leading-[1.65] text-fg-2">{answer}</p>
+              </details>
             ))}
-          </Accordion>
+          </div>
         </Reveal>
       </section>
 

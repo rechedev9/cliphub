@@ -16,28 +16,12 @@ const shareTechMono = Share_Tech_Mono({
   variable: "--font-share-tech-mono",
 });
 
-const SITE_TITLE = "ClipHub · Tus mejores rondas de CS2, montadas a mano";
-const SITE_DESCRIPTION =
-  "Envía la demo de tu partida de CS2 y recibe un vídeo editado con tus mejores jugadas, grabado dentro del juego. Gratis.";
-
 export const metadata: Metadata = {
-  // AUTH_URL is the public origin in production; link previews need it absolute.
+  // Link previews need an absolute origin; AUTH_URL is the public one at run time.
   metadataBase: new URL(process.env.AUTH_URL || "https://cliphub.gravityroom.app"),
-  title: { default: SITE_TITLE, template: "%s · ClipHub" },
-  description: SITE_DESCRIPTION,
-  openGraph: {
-    type: "website",
-    siteName: "ClipHub",
-    locale: "es_ES",
-    title: SITE_TITLE,
-    description: SITE_DESCRIPTION,
-    url: "/",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: SITE_TITLE,
-    description: SITE_DESCRIPTION,
-  },
+  title: { default: "ClipHub", template: "%s · ClipHub" },
+  description:
+    "Envía la demo de tu partida de CS2 y recibe un vídeo editado con tus mejores jugadas.",
 };
 
 export default function RootLayout({

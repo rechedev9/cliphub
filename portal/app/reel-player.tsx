@@ -22,7 +22,8 @@ export function ReelPlayer() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
+        const entry = entries.at(-1);
         if (!entry) return;
         if (entry.isIntersecting && !pausedByUser.current) {
           void video.play().catch(() => undefined);

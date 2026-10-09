@@ -24,8 +24,9 @@ export function Reveal({
 
     setHidden(true);
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
+      (entries) => {
+        // A batch can hold an older record for the same block: any hit reveals.
+        if (!entries.some((entry) => entry.isIntersecting)) return;
         setHidden(false);
         observer.disconnect();
       },
@@ -41,7 +42,7 @@ export function Reveal({
       className={cn(
         // Hiding is instant and happens off screen; only the entrance animates.
         hidden
-          ? "translate-y-4 opacity-0"
+          ? "translate-y-4 opacity-0 print:translate-y-0 print:opacity-100"
           : "transition-[opacity,translate] duration-600 ease-entrance",
         className,
       )}
