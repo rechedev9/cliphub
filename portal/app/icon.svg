@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ClipHub">
+  <defs>
+    <linearGradient id="clipHubPlay" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <path fill="#12151c" stroke="#2a2f3a" stroke-width="2" stroke-linejoin="round" d="M20 5h24l16 27-16 27H20L4 32 20 5Z"/>
+  <path fill="none" stroke="#f7f9fc" stroke-width="5.5" stroke-linecap="butt" d="M31.4 23.9A8.5 8.5 0 1 0 31.4 36.1"/>
+  <path fill="none" stroke="#f7f9fc" stroke-width="5.5" stroke-linecap="butt" d="M39 21v15M48.5 21v15M39 28.5h9.5"/>
+  <path fill="url(#clipHubPlay)" d="M34 37.5 48.5 45 34 52.5V37.5Z"/>
+</svg>

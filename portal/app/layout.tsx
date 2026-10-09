@@ -17,6 +17,8 @@ const shareTechMono = Share_Tech_Mono({
 });
 
 export const metadata: Metadata = {
+  // Link previews need an absolute origin; AUTH_URL is the public one at run time.
+  metadataBase: new URL(process.env.AUTH_URL || "https://cliphub.gravityroom.app"),
   title: { default: "ClipHub", template: "%s · ClipHub" },
   description:
     "Envía la demo de tu partida de CS2 y recibe un vídeo editado con tus mejores jugadas.",
@@ -28,7 +30,10 @@ export default function RootLayout({
   // The next/font variables must sit on <html> so the composed --font-sans and
   // --font-mono tokens in globals.css resolve at :root.
   return (
-    <html lang="es" className={`${chakraPetch.variable} ${shareTechMono.variable}`}>
+    <html
+      lang="es"
+      className={`dark motion-safe:scroll-smooth ${chakraPetch.variable} ${shareTechMono.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

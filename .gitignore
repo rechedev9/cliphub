@@ -33,6 +33,8 @@
 # Landing assets are shipped source, not pipeline output: Vercel serves them
 # straight from the repo, so an ignored file never reaches production.
 !landing/public/video/*.webm
+# Same for the portal's sample reel, which the Docker image copies from public/.
+!portal/public/media/*.mp4
 *.y4m
 *.yuv
 frames/

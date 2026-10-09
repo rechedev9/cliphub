@@ -3,6 +3,12 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
 type Phase = "idle" | "uploading" | "error";
 
 export function NewRequestForm() {
@@ -57,32 +63,45 @@ export function NewRequestForm() {
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit}>
-      <label htmlFor="demo-file">Archivo .dem</label>
-      <input
-        id="demo-file"
-        ref={fileInputRef}
-        type="file"
-        accept=".dem"
-        disabled={phase === "uploading"}
-      />
-      <label htmlFor="demo-note">Nota opcional</label>
-      <textarea
-        id="demo-note"
-        placeholder="p.ej. soy el AWPer en el lado CT"
-        maxLength={2000}
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        disabled={phase === "uploading"}
-      />
-      <button type="submit" disabled={phase === "uploading"}>
-        {phase === "uploading" ? "Subiendo…" : "Enviar demo"}
-      </button>
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
-        </p>
-      )}
+    <form onSubmit={handleSubmit}>
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="demo-file">Archivo .dem</Label>
+            <Input
+              id="demo-file"
+              ref={fileInputRef}
+              type="file"
+              accept=".dem"
+              disabled={phase === "uploading"}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="demo-note">Nota opcional</Label>
+            <Textarea
+              id="demo-note"
+              placeholder="p.ej. soy el AWPer en el lado CT"
+              maxLength={2000}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              disabled={phase === "uploading"}
+            />
+          </div>
+          <Button
+            type="submit"
+            className="self-start"
+            loading={phase === "uploading"}
+            loadingText="Subiendo…"
+          >
+            Enviar demo
+          </Button>
+          {error && (
+            <p className="text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </form>
   );
 }

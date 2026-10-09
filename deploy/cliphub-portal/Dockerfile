@@ -20,6 +20,7 @@ ENV HOSTNAME=0.0.0.0
 # the TypeScript schema, so it cannot run here).
 COPY --from=builder /build/.next/standalone ./
 COPY --from=builder /build/.next/static ./.next/static
+COPY --from=builder /build/public ./public
 COPY --from=builder /build/db/migrations ./db/migrations
 
 # libsql resolves its platform-specific native binding through a runtime
