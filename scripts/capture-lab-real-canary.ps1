@@ -74,7 +74,7 @@ try {
 
     # zv record rejects an output directory that already holds other files,
     # so the argv record is written only after the capture.
-    $argvPath = Join-Path $OutDir 'capture-canary-argv.json'
+    $argvPath = Join-Path (Resolve-Path -LiteralPath $OutDir).Path 'capture-canary-argv.json'
     $exactArgv = @($ZV) + $recordArgs
     [System.IO.File]::WriteAllText(
         $argvPath,
