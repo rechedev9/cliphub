@@ -68,17 +68,19 @@ try {
         if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
     }
     $exactCommand = $displayCommand -join ' '
-    $argvPath = Join-Path $OutDir 'capture-canary-argv.json'
+    Write-Host "REAL CAPTURE CANARY: $exactCommand"
+    & $ZV @recordArgs
+    if ($LASTEXITCODE -ne 0) { throw "real capture failed with exit code $LASTEXITCODE" }
+
+    # zv record rejects an output directory that already holds other files,
+    # so the argv record is written only after the capture.
+    $argvPath = Join-Path (Resolve-Path -LiteralPath $OutDir).Path 'capture-canary-argv.json'
     $exactArgv = @($ZV) + $recordArgs
-    [System.IO.Directory]::CreateDirectory($OutDir) | Out-Null
     [System.IO.File]::WriteAllText(
         $argvPath,
         ($exactArgv | ConvertTo-Json -Depth 3),
         [System.Text.UTF8Encoding]::new($false)
     )
-    Write-Host "REAL CAPTURE CANARY: $exactCommand"
-    & $ZV @recordArgs
-    if ($LASTEXITCODE -ne 0) { throw "real capture failed with exit code $LASTEXITCODE" }
 
     $result = Join-Path $OutDir 'recording-result.json'
     $certificate = Join-Path $OutDir 'capture-compatibility-certificate.json'
