@@ -1,11 +1,16 @@
 import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
+import { PageHeader, PageShell } from "@/components/page-shell";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/db/client";
 import { requestArtifacts, requests, users } from "@/db/schema";
 
 import { StatusPill } from "../../../dashboard/status-pill";
 import { DeliverButton, FailButton } from "./artifact-actions";
+
+const ITEM = "flex flex-col items-start gap-3";
 
 function formatSize(bytes: number): string {
   const mb = bytes / (1024 * 1024);
@@ -45,68 +50,73 @@ export default async function AdminRequestPage({
     .orderBy(asc(requestArtifacts.uploadedAt));
 
   return (
-    <main>
-      <header>
-        <h1>Petición</h1>
-        <a className="button secondary" href="/admin">
-          Volver
-        </a>
-      </header>
+    <PageShell>
+      <PageHeader title="Petición">
+        <Button asChild variant="outline" size="sm">
+          <a href="/admin">Volver</a>
+        </Button>
+      </PageHeader>
 
-      <div className="card">
-        <StatusPill status={request.status} />
-        <p>
-          <strong>{request.userName ?? request.userEmail}</strong>
-          {" — "}
-          {request.demoOriginalName ?? "demo.dem"}
-        </p>
-        {request.note && <p className="request-note">“{request.note}”</p>}
-        <p className="request-note">
-          {new Date(request.createdAt).toLocaleString("es-ES")}
-          {request.localJobId && ` · job local ${request.localJobId}`}
-        </p>
-        {request.failureReason && (
-          <p className="error-text">{request.failureReason}</p>
-        )}
-      </div>
+      <Card>
+        <CardContent className={ITEM}>
+          <StatusPill status={request.status} />
+          <p>
+            <strong className="font-semibold">{request.userName ?? request.userEmail}</strong>
+            {" · "}
+            {request.demoOriginalName ?? "demo.dem"}
+          </p>
+          {request.note && <p className="text-fg-2">“{request.note}”</p>}
+          <p className="text-fg-2">
+            {new Date(request.createdAt).toLocaleString("es-ES")}
+            {request.localJobId && ` · job local ${request.localJobId}`}
+          </p>
+          {request.failureReason && (
+            <p className="text-destructive">{request.failureReason}</p>
+          )}
+        </CardContent>
+      </Card>
 
-      <h2 style={{ fontSize: "1rem" }}>
+      <h2 className="mt-8 mb-3 text-body-lg font-semibold">
         Vídeos candidatos ({artifacts.length})
       </h2>
-      {artifacts.length === 0 && (
-        <p className="card request-note">
-          Todavía no ha llegado ningún render desde tu PC. Aparecerán aquí
-          automáticamente cuando termines un render en el Studio.
-        </p>
-      )}
+      <div className="flex flex-col gap-4">
+        {artifacts.length === 0 && (
+          <Card>
+            <CardContent className="max-w-[68ch] text-fg-2">
+              Todavía no ha llegado ningún render desde tu PC. Aparecerán aquí
+              automáticamente cuando termines un render en el Studio.
+            </CardContent>
+          </Card>
+        )}
 
-      {artifacts.map((artifact) => {
-        const isCurrent = request.finalVideoPath === artifact.path;
-        return (
-          <div key={artifact.id} className="card">
-            <p>
-              <strong>{artifact.variant}</strong> · {artifact.name}{" "}
-              <span className="request-note">
-                ({formatSize(artifact.sizeBytes)})
-              </span>
-              {isCurrent && " · entregado"}
-            </p>
-            <video
-              controls
-              preload="metadata"
-              style={{ width: "100%", borderRadius: "8px", marginBottom: "0.75rem" }}
-              src={`/api/admin/requests/${id}/artifacts/${artifact.id}`}
-            />
-            <DeliverButton
-              requestId={id}
-              artifactId={artifact.id}
-              isCurrent={isCurrent}
-            />
-          </div>
-        );
-      })}
+        {artifacts.map((artifact) => {
+          const isCurrent = request.finalVideoPath === artifact.path;
+          return (
+            <Card key={artifact.id}>
+              <CardContent className={ITEM}>
+                <p>
+                  <strong className="font-semibold">{artifact.variant}</strong> · {artifact.name}{" "}
+                  <span className="text-fg-2">({formatSize(artifact.sizeBytes)})</span>
+                  {isCurrent && " · entregado"}
+                </p>
+                <video
+                  className="w-full rounded-md border border-border bg-surface-0"
+                  controls
+                  preload="metadata"
+                  src={`/api/admin/requests/${id}/artifacts/${artifact.id}`}
+                />
+                <DeliverButton
+                  requestId={id}
+                  artifactId={artifact.id}
+                  isCurrent={isCurrent}
+                />
+              </CardContent>
+            </Card>
+          );
+        })}
 
-      <FailButton requestId={id} />
-    </main>
+        <FailButton requestId={id} />
+      </div>
+    </PageShell>
   );
 }

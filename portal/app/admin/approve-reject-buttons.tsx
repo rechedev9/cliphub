@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+
 export function ApproveRejectButtons({ requestId }: { requestId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,20 +29,21 @@ export function ApproveRejectButtons({ requestId }: { requestId: string }) {
   }
 
   return (
-    <div>
-      <button type="button" disabled={busy} onClick={() => act("approve")}>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button type="button" size="sm" disabled={busy} onClick={() => act("approve")}>
         Aprobar
-      </button>{" "}
-      <button
+      </Button>
+      <Button
         type="button"
-        className="secondary"
+        variant="outline"
+        size="sm"
         disabled={busy}
         onClick={() => act("reject")}
       >
         Rechazar
-      </button>
+      </Button>
       {error && (
-        <p className="error-text" role="alert">
+        <p className="basis-full text-destructive" role="alert">
           {error}
         </p>
       )}

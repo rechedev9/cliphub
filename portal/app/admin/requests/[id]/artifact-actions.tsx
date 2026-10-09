@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
 export function DeliverButton({
   requestId,
   artifactId,
@@ -39,11 +44,11 @@ export function DeliverButton({
 
   return (
     <>
-      <button type="button" disabled={busy} onClick={deliver}>
+      <Button type="button" disabled={busy} onClick={deliver}>
         {isCurrent ? "Volver a entregar este" : "Entregar este vídeo"}
-      </button>
+      </Button>
       {error && (
-        <p className="error-text" role="alert">
+        <p className="text-destructive" role="alert">
           {error}
         </p>
       )}
@@ -79,23 +84,31 @@ export function FailButton({ requestId }: { requestId: string }) {
   }
 
   return (
-    <div className="card">
-      <label htmlFor="fail-reason">Marcar como fallida</label>
-      <textarea
-        id="fail-reason"
-        placeholder="Motivo que verá el usuario (opcional)"
-        maxLength={500}
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-      />
-      <button type="button" className="secondary" disabled={busy} onClick={fail}>
-        Marcar como fallida
-      </button>
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+    <Card>
+      <CardContent className="flex flex-col gap-3">
+        <Label htmlFor="fail-reason">Marcar como fallida</Label>
+        <Textarea
+          id="fail-reason"
+          placeholder="Motivo que verá el usuario (opcional)"
+          maxLength={500}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          disabled={busy}
+          onClick={fail}
+        >
+          Marcar como fallida
+        </Button>
+        {error && (
+          <p className="text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

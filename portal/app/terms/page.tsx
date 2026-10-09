@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SiteFooter } from "../site-footer";
+import { DocPage } from "@/components/doc-page";
 
 export const metadata: Metadata = {
   title: "Condiciones del Servicio",
@@ -10,9 +10,7 @@ const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "rsnoverwatch@gmail.com";
 
 export default function TermsPage() {
   return (
-    <main className="narrow doc">
-      <h1>Condiciones del Servicio</h1>
-      <p className="updated">Última actualización: 7 de septiembre de 2026</p>
+    <DocPage title="Condiciones del Servicio" updated="Última actualización: 7 de septiembre de 2026">
 
       <h2>Qué es esto</h2>
       <p>
@@ -60,8 +58,6 @@ export default function TermsPage() {
         Para cualquier duda sobre estas condiciones:{" "}
         <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
       </p>
-
-      <SiteFooter />
-    </main>
+    </DocPage>
   );
 }
