@@ -78,33 +78,35 @@ async function frameSignature(ffmpeg, path, seconds) {
   return createHash('sha256').update(raw).digest('hex');
 }
 
-// Same measure and thresholds as internal/recording/frozen_picture.go: a frame
-// repeats the one before it when no luma pixel changes by more than 8.
+// Same frame measure and thresholds as internal/recording/frozen_picture.go: a
+// frame repeats the one before it when no luma pixel changes by more than 8.
 const frozenPictureMinSeconds = 0.25;
 
 async function frozenRuns(ffmpeg, path) {
+  // settb=AVTB makes pts a count of microseconds on every FFmpeg version.
   const raw = await run(ffmpeg, [
     '-v', 'error', '-i', path, '-map', '0:v:0', '-vf',
-    'extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=9,metadata=mode=print:key=lavfi.blackframe.pblack:file=-',
+    'extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=9,settb=AVTB,metadata=mode=print:key=lavfi.blackframe.pblack:file=-',
     '-f', 'null', '-',
   ]);
   const runs = [];
   let current = null;
   const close = () => {
-    if (current && current.frames > 1) {
-      const seconds = (current.last - current.start) / (current.frames - 1) * current.frames;
-      if (seconds + 0.001 >= frozenPictureMinSeconds) runs.push({ start: current.start, seconds });
+    const frames = current ? current.lastIndex - current.firstIndex + 1 : 0;
+    if (frames > 1) {
+      const seconds = (current.lastMicros - current.firstMicros) / 1e6 / (frames - 1) * frames;
+      if (seconds + 0.001 >= frozenPictureMinSeconds) runs.push({ start: current.firstMicros / 1e6, seconds });
     }
     current = null;
   };
-  for (const match of raw.matchAll(/^frame:(\d+)\s+pts:\S+\s+pts_time:(\S+)/gm)) {
+  // A keyframe can split one freeze into two runs here; any run fails the oracle.
+  for (const match of raw.matchAll(/^frame:(\d+)\s+pts:(-?\d+)\s/gm)) {
     const index = Number(match[1]);
-    const time = Number(match[2]);
-    if (current && index !== current.index + 1) close();
-    current ??= { start: time, frames: 0 };
-    current.index = index;
-    current.last = time;
-    current.frames++;
+    const micros = Number(match[2]);
+    if (current && index !== current.lastIndex + 1) close();
+    current ??= { firstIndex: index, firstMicros: micros };
+    current.lastIndex = index;
+    current.lastMicros = micros;
   }
   close();
   return runs;

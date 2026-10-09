@@ -1,14 +1,13 @@
 package recording
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -19,9 +18,13 @@ const (
 	// Largest per-pixel luma change the encoder leaves between two frames of one
 	// unchanged picture; real low-motion gameplay always exceeds it somewhere.
 	frozenPictureLumaTolerance = 8
-	// pts_time is printed with six significant digits, so allow one millisecond.
+	// Frame times are whole microseconds, so an exact run can read a hair short.
 	frozenPictureRoundingSeconds = 0.001
 )
+
+// blackframe logs one line per marked frame; last_keyframe is the index of the
+// latest keyframe it saw, marked or not.
+var blackframeLine = regexp.MustCompile(`frame:(\d+) pblack:\d+ pts:\S+ t:(-?[\d.]+) type:\S+ last_keyframe:(-?\d+)`)
 
 // FrozenRun is a stretch of video whose frames repeat the picture before them.
 type FrozenRun struct {
@@ -35,60 +38,51 @@ type FrozenRun struct {
 func DetectFrozenRuns(ctx context.Context, ffmpegPath, path string) ([]FrozenRun, error) {
 	// blackframe marks a difference frame only when every luma pixel is within
 	// the tolerance, so one small moving element keeps a frame out of a run.
-	filter := fmt.Sprintf(
-		"extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=%d,metadata=mode=print:key=lavfi.blackframe.pblack:file=-",
-		frozenPictureLumaTolerance+1,
-	)
+	filter := fmt.Sprintf("extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=%d", frozenPictureLumaTolerance+1)
 	// #nosec G204 -- ffmpegPath is configured locally and path is passed as an argument.
-	cmd := exec.CommandContext(ctx, ffmpegPath, "-v", "error", "-nostdin", "-i", path, "-map", "0:v:0", "-vf", filter, "-f", "null", "-")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("ffmpeg frame difference: %w: %s", err, strings.TrimSpace(stderr.String()))
+	cmd := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-nostats", "-nostdin", "-v", "info",
+		"-i", path, "-map", "0:v:0", "-vf", filter, "-f", "null", "-")
+	var log bytes.Buffer
+	cmd.Stderr = &log
+	if err := cmd.Run(); err != nil {
+		lines := bytes.Split(bytes.TrimSpace(log.Bytes()), []byte("\n"))
+		return nil, fmt.Errorf("ffmpeg frame difference: %w: %s", err, bytes.TrimSpace(lines[len(lines)-1]))
 	}
-	return frozenRuns(out)
+	return frozenRuns(log.Bytes())
 }
 
-// frozenRuns groups the consecutive frame indexes that the metadata filter printed.
-func frozenRuns(output []byte) ([]FrozenRun, error) {
+// frozenRuns groups the marked frames into runs. A keyframe re-encodes a still
+// picture past the tolerance, so a single unmarked keyframe does not end a run.
+func frozenRuns(log []byte) ([]FrozenRun, error) {
 	var runs []FrozenRun
+	var firstIndex, lastIndex int64
 	var first, last float64
-	frames, previous := 0, int64(-1)
+	open := false
 	flush := func() {
-		if frames > 1 {
+		frames := lastIndex - firstIndex + 1
+		if open && frames > 1 {
 			seconds := (last - first) / float64(frames-1) * float64(frames)
 			if seconds+frozenPictureRoundingSeconds >= FrozenPictureMinSeconds {
-				runs = append(runs, FrozenRun{StartSeconds: first, Seconds: seconds, Frames: frames})
+				runs = append(runs, FrozenRun{StartSeconds: first, Seconds: seconds, Frames: int(frames)})
 			}
 		}
-		frames = 0
+		open = false
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) != 3 || !strings.HasPrefix(fields[0], "frame:") || !strings.HasPrefix(fields[2], "pts_time:") {
-			continue
+	for _, match := range blackframeLine.FindAllSubmatch(log, -1) {
+		index, indexErr := strconv.ParseInt(string(match[1]), 10, 64)
+		seconds, secondsErr := strconv.ParseFloat(string(match[2]), 64)
+		keyframe, keyframeErr := strconv.ParseInt(string(match[3]), 10, 64)
+		if indexErr != nil || secondsErr != nil || keyframeErr != nil {
+			return nil, fmt.Errorf("parse frame difference output %q", match[0])
 		}
-		index, err := strconv.ParseInt(strings.TrimPrefix(fields[0], "frame:"), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("parse frame difference output %q: %w", scanner.Text(), err)
-		}
-		seconds, err := strconv.ParseFloat(strings.TrimPrefix(fields[2], "pts_time:"), 64)
-		if err != nil {
-			return nil, fmt.Errorf("parse frame difference output %q: %w", scanner.Text(), err)
-		}
-		if frames > 0 && index != previous+1 {
+		acrossKeyframe := index == lastIndex+2 && keyframe == lastIndex+1
+		if open && index != lastIndex+1 && !acrossKeyframe {
 			flush()
 		}
-		if frames == 0 {
-			first = seconds
+		if !open {
+			firstIndex, first, open = index, seconds, true
 		}
-		last, previous = seconds, index
-		frames++
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
+		lastIndex, last = index, seconds
 	}
 	flush()
 	return runs, nil

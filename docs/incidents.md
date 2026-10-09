@@ -263,8 +263,14 @@ the same measure on fake captures (`source:<id>:frozen-picture`).
   (`tblend` difference, then `blackframe=amount=100:threshold=9`). Do not
   replace this with `freezedetect` or any mean difference: a held angle
   changes a few hundred pixels per frame, which a mean cannot tell from
-  encoder noise, and `framemd5` cannot see a freeze at all because x264 keeps
-  refining a still picture for about 10 frames.
+  encoder noise. `framemd5` cannot see a freeze at all: x264 keeps refining a
+  still picture by 1 to 3 levels until the run ends, so every hash differs.
+  Changes above the tolerance stop after about 10 frames.
+- A keyframe re-encodes the still picture and exceeds the tolerance for one
+  frame, so a single unmarked keyframe does not end a run (`last_keyframe` in
+  the `blackframe` log). Without that, a 10 s freeze at the default 250 frame
+  interval reads as three shorter runs. Do not join across any other unmarked
+  frame: a tiny moving element makes marked and unmarked frames alternate.
 - Calibration: 76 real segment clips captured before the bug (60 minutes at
   60 fps, three full matches plus kill segments) contain no run of 4 or more
   repeated frames. The incident clip has 49 (0.817 s from 8.467 s; the

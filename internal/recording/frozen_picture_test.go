@@ -39,6 +39,8 @@ func TestFrozenPictureDetection(t *testing.T) {
 		// Upstream shape: frozen after the round ends, moving again at the respawn.
 		"frozen-then-resumes": encode("frozen-then-resumes", moving+",loop=loop=45:size=1:start=90"),
 		"short-hitch":         encode("short-hitch", moving+",loop=loop=6:size=1:start=90"),
+		// Six frozen seconds always contain a keyframe at the default 250 frame interval.
+		"frozen-across-keyframe": encode("frozen-across-keyframe", "testsrc2=size=320x180:rate=60:duration=2,tpad=stop_mode=clone:stop_duration=6"),
 		// A held angle: nothing moves except a 4x4 pixel marker.
 		"low-motion": encode("low-motion", "color=c=gray:size=320x180:rate=60:duration=3[bg];color=c=white:size=4x4:rate=60:duration=3[dot];[bg][dot]overlay=x='mod(n,60)':y=20"),
 	}
@@ -52,6 +54,7 @@ func TestFrozenPictureDetection(t *testing.T) {
 		{clip: "short-hitch"},
 		{clip: "frozen-tail", wantStart: 2.0, wantSeconds: 1.0},
 		{clip: "frozen-then-resumes", wantStart: 1.5, wantSeconds: 0.75},
+		{clip: "frozen-across-keyframe", wantStart: 2.0, wantSeconds: 6.0},
 	} {
 		t.Run(tc.clip, func(t *testing.T) {
 			runs, err := DetectFrozenRuns(ctx, ffmpeg, clips[tc.clip])
