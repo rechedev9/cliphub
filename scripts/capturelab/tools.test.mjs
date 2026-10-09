@@ -97,17 +97,14 @@ test('capture boundary fingerprint is deterministic and names its inputs', async
   assert.ok(first.boundary.files.some((file) => file.path === 'internal/recording/scriptgen.go'));
 });
 
-test('media oracle rejects frozen and silent synthetic evidence', async (t) => {
-  if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
-    t.skip('ffmpeg is required for the corruption oracle test');
-    return;
-  }
+// Encodes one synthetic 64x64 segment clip and returns the oracle's failures for it.
+async function oracleFailures({ id, videoSource, audioSource, seconds }) {
   const dir = await mkdtemp(join(tmpdir(), 'cliphub-capturelab-tools-'));
-  const video = join(dir, 'frozen.mp4');
+  const video = join(dir, `${id}.mp4`);
   let result = spawnSync('ffmpeg', [
-    '-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=black:size=64x64:rate=30:duration=2',
-    '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '2',
-    '-metadata', 'comment=cliphub-capturelab:seg-static',
+    '-y', '-v', 'error', '-f', 'lavfi', '-i', videoSource,
+    '-f', 'lavfi', '-i', audioSource, '-t', String(seconds),
+    '-metadata', `comment=cliphub-capturelab:${id}`,
     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', video,
   ], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
@@ -116,20 +113,20 @@ test('media oracle rejects frozen and silent synthetic evidence', async (t) => {
   await writeFile(recordingResult, JSON.stringify({
     capture_mode: 'fake', capture_verified: false,
     plan: {
-      editorial_segment_ids: ['seg-static'],
-      segments: [{ id: 'seg-static', tick_start: 0, tick_end: 100, kills: [] }],
+      editorial_segment_ids: [id],
+      segments: [{ id, tick_start: 0, tick_end: 100, kills: [] }],
       stream: { width: 64, height: 64, fps: 30 },
     },
     artifacts: [{
-      segment_id: 'seg-static', role: 'segment', type: 'video', path: video,
-      width: 64, height: 64, frame_rate: '30/1', duration_seconds: 2,
+      segment_id: id, role: 'segment', type: 'video', path: video,
+      width: 64, height: 64, frame_rate: '30/1', duration_seconds: seconds,
     }],
   }));
   await writeFile(instrumentation, JSON.stringify({
     schema_version: 1, capture_mode: 'fake',
     segments: [{
-      id: 'seg-static', path: video, color_rgb: '000000', tone_hz: 440,
-      duration_seconds: 2, event_offsets: [],
+      id, path: video, color_rgb: '000000', tone_hz: 440,
+      duration_seconds: seconds, event_offsets: [],
     }],
   }));
   // Invoke by a relative path exactly as lab.mjs does. The entry-point check
@@ -139,9 +136,35 @@ test('media oracle rejects frozen and silent synthetic evidence', async (t) => {
     '--recording-result', recordingResult, '--instrumentation', instrumentation,
   ], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 2, result.stderr || result.stdout);
-  const report = JSON.parse(result.stdout);
-  assert.ok(report.failures.some((failure) => failure.includes(':motion:')));
-  assert.ok(report.failures.some((failure) => failure.includes(':audio-level:')));
+  return JSON.parse(result.stdout).failures;
+}
+
+test('media oracle rejects frozen and silent synthetic evidence', async (t) => {
+  if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
+    t.skip('ffmpeg is required for the corruption oracle test');
+    return;
+  }
+  const failures = await oracleFailures({
+    id: 'seg-static', seconds: 2,
+    videoSource: 'color=black:size=64x64:rate=30:duration=2', audioSource: 'anullsrc=r=48000:cl=mono',
+  });
+  assert.ok(failures.some((failure) => failure.includes(':motion:')));
+  assert.ok(failures.some((failure) => failure.includes(':audio-level:')));
+});
+
+test('media oracle rejects a picture that freezes after its two motion samples', async (t) => {
+  if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
+    t.skip('ffmpeg is required for the corruption oracle test');
+    return;
+  }
+  // Moving for two seconds, then one repeated frame while the audio keeps playing.
+  const failures = await oracleFailures({
+    id: 'seg-tail', seconds: 3,
+    videoSource: 'testsrc2=size=64x64:rate=30:duration=2,tpad=stop_mode=clone:stop_duration=1',
+    audioSource: 'sine=frequency=440:sample_rate=48000',
+  });
+  assert.ok(failures.some((failure) => failure.includes(':frozen-picture:')), failures.join('\n'));
+  assert.ok(!failures.some((failure) => failure.includes(':motion:')), 'the 0.5s and 1.5s samples must still differ');
 });
 
 test('certificate check fails closed when mandatory evidence is unavailable', async () => {

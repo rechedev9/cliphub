@@ -78,6 +78,40 @@ async function frameSignature(ffmpeg, path, seconds) {
   return createHash('sha256').update(raw).digest('hex');
 }
 
+// Same frame measure and thresholds as internal/recording/frozen_picture.go: a
+// frame repeats the one before it when no luma pixel changes by more than 8.
+const frozenPictureMinSeconds = 0.25;
+
+async function frozenRuns(ffmpeg, path) {
+  // settb=AVTB makes pts a count of microseconds on every FFmpeg version.
+  const raw = await run(ffmpeg, [
+    '-v', 'error', '-i', path, '-map', '0:v:0', '-vf',
+    'extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=9,settb=AVTB,metadata=mode=print:key=lavfi.blackframe.pblack:file=-',
+    '-f', 'null', '-',
+  ]);
+  const runs = [];
+  let current = null;
+  const close = () => {
+    const frames = current ? current.lastIndex - current.firstIndex + 1 : 0;
+    if (frames > 1) {
+      const seconds = (current.lastMicros - current.firstMicros) / 1e6 / (frames - 1) * frames;
+      if (seconds + 0.001 >= frozenPictureMinSeconds) runs.push({ start: current.firstMicros / 1e6, seconds });
+    }
+    current = null;
+  };
+  // A keyframe can split one freeze into two runs here; any run fails the oracle.
+  for (const match of raw.matchAll(/^frame:(\d+)\s+pts:(-?\d+)\s/gm)) {
+    const index = Number(match[1]);
+    const micros = Number(match[2]);
+    if (current && index !== current.lastIndex + 1) close();
+    current ??= { firstIndex: index, firstMicros: micros };
+    current.lastIndex = index;
+    current.lastMicros = micros;
+  }
+  close();
+  return runs;
+}
+
 async function audioIdentity(ffmpeg, path, seconds) {
   const sampleRate = 48_000;
   const raw = await run(ffmpeg, [
@@ -278,6 +312,10 @@ export async function verifyMedia(options) {
     ]);
     addCheck(report, `source:${segment.id}:motion`, earlyFrame !== laterFrame,
       `frame hashes 0.5s=${earlyFrame} 1.5s=${laterFrame}`);
+    const frozen = await frozenRuns(options.ffmpeg, path);
+    addCheck(report, `source:${segment.id}:frozen-picture`, frozen.length === 0, frozen.length === 0
+      ? `no picture repeated for ${frozenPictureMinSeconds}s or longer`
+      : frozen.map((item) => `frozen for ${item.seconds.toFixed(3)}s from ${item.start.toFixed(3)}s`).join('; '));
     addCheck(report, `source:${segment.id}:audio-level`, audio.rms >= 100,
       `rms=${audio.rms.toFixed(1)}`);
     addCheck(report, `source:${segment.id}:tone`, Math.abs(audio.frequency_hz - segment.tone_hz) <= 6,

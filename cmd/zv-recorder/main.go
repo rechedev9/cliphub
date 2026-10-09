@@ -371,6 +371,8 @@ func run() (retErr error) {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	// Frame counts cannot see a frozen picture: HLAE can repeat one frame while the demo keeps playing.
+	result.Warnings = append(result.Warnings, recording.FrozenPictureWarnings(postCtx, ffmpegPath, result.Artifacts)...)
 	perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
 	finalizePerformance()
 	if plan.FullDemo != nil {

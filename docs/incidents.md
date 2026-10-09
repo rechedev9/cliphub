@@ -255,9 +255,54 @@ what users run.
   advancedfx release, bump the pin and capture a segment that crosses a
   round end.
 - `zv record` reported `capture_verified: true` and the canary issued its
-  certificate: frame counts cannot see a frozen picture. Measure the tail of
-  the segment (`freezedetect`, or a `tblend` difference with `signalstats`).
-  `framemd5` does not detect it after x264.
+  certificate: frame counts cannot see a frozen picture. The check in the
+  next section now reports it, so the canary refuses a certificate for
+  2.192.7 on this CS2 build.
+
+### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
+
+A canary with official HLAE 2.192.7 on CS2 1.41.9.0 (build 25815307) produced
+`seg-001` with the planned 557 frames, but the last 60 repeated one picture
+while the audio kept playing. The freeze began about 1 s after the
+round-ending kill of round 1, with the round-win banner already on screen. In
+the demo the POV was alive, turning and running over those ticks, so the game
+moved and the capture did not (advancedfx issue #1236, fixed on main the same
+day, not yet released). `zv record` reported `ok` with no warnings and
+`certificate.mjs issue` certified it, because every check counted frames or
+compared two timestamps.
+
+`recording.FrozenPictureWarnings` now decodes each segment clip and reports any
+picture repeated for `FrozenPictureMinSeconds` (0.25 s) or longer.
+`zv record` adds the finding to `warnings`; `validate-real-result.go` fails on
+it, so `certificate.mjs issue` refuses the certificate. The media oracle runs
+the same measure on fake captures (`source:<id>:frozen-picture`).
+
+- A frame repeats the one before it when no luma pixel changes by more than 8
+  (`tblend` difference, then `blackframe=amount=100:threshold=9`). Do not
+  replace this with `freezedetect` or any mean difference: a held angle
+  changes a few hundred pixels per frame, which a mean cannot tell from
+  encoder noise. `framemd5` cannot see a freeze at all: x264 keeps refining a
+  still picture by 1 to 3 levels until the run ends, so every hash differs.
+  Changes above the tolerance stop after about 10 frames.
+- A keyframe re-encodes the still picture and exceeds the tolerance for one
+  frame, so a single unmarked keyframe does not end a run (`last_keyframe` in
+  the `blackframe` log). Without that, a 10 s freeze at the default 250 frame
+  interval reads as three shorter runs. Do not join across any other unmarked
+  frame: a tiny moving element makes marked and unmarked frames alternate.
+- Calibration: 76 real segment clips captured before the bug (60 minutes at
+  60 fps, three full matches plus kill segments) contain no run of 4 or more
+  repeated frames. The incident clip has 49 (0.817 s from 8.467 s; the
+  refinement hides the first 11). Tolerance 16 already yields legitimate runs
+  of 7 frames and tolerance 32 runs of 31, so do not raise the tolerance.
+- The recorder only warns: a motionless POV with nothing animated in view
+  could repeat frames legitimately, and that false positive would fail the
+  same demo on every retry. Make it a failure only after measuring such a
+  scene in a real capture.
+- The check costs one decode per segment clip, four clips at a time: the 60
+  minutes of 1080p60 above took 3 minutes. It is counted in `validation_ms`.
+- To confirm a suspected freeze, read the POV's view angles for those ticks
+  from the demo with demoinfocs: if they change while the picture does not,
+  the capture is at fault.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -56,5 +59,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "validate recording artifacts: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println(`{"ok":true,"validator":"recording.ValidateRecordingAttempt+ValidateUploadResult"}`)
+	// A certificate needs proof that the picture moves; a failed check is not proof.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	frozen := recording.FrozenPictureWarnings(ctx, recording.FindFFmpeg(), result.Artifacts)
+	cancel()
+	if len(frozen) > 0 {
+		fmt.Fprintf(os.Stderr, "validate segment pictures: %s\n", strings.Join(frozen, "; "))
+		os.Exit(1)
+	}
+	fmt.Println(`{"ok":true,"validator":"recording.ValidateRecordingAttempt+ValidateUploadResult+FrozenPictureWarnings"}`)
 }
