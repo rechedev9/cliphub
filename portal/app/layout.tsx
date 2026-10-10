@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.AUTH_URL || "https://cliphub.gravityroom.app"),
   title: { default: "ClipHub", template: "%s · ClipHub" },
   description:
-    "Envía la demo de tu partida de CS2 y recibe un vídeo editado con tus mejores jugadas.",
+    "Graba tus vídeos de CS2 en la nube de ClipHub: vincula ClipHub Studio, sigue tus trabajos y descarga los resultados.",
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test, { beforeEach } from 'node:test';
 import type { Video } from './api/types.ts';
+import type { CloudJob } from './cloud/parse.ts';
 import {
   collectShellJobs,
   publishShellJobs,
@@ -185,4 +186,79 @@ test('collectShellJobs merges parsing partidas and stream jobs with reels', () =
   assert.equal(snapshot.jobs[1]?.href, '/clips?partida=m1');
   assert.equal(snapshot.jobs[0]?.href, '/streams/s1');
   assert.equal(snapshot.capturing, false);
+});
+
+function cloudJob(overrides: Partial<CloudJob> & Pick<CloudJob, 'id' | 'status'>): CloudJob {
+  return {
+    localJobId: 'm1',
+    kind: 'short',
+    title: `nube ${overrides.id}`,
+    stage: null,
+    percent: null,
+    queue: null,
+    failure: null,
+    cancelRequested: false,
+    stalled: null,
+    createdAt: 500,
+    finishedAt: null,
+    videos: [],
+    ...overrides,
+  };
+}
+
+test('a cloud capture shows as NUBE work and never marks this PC as capturing', () => {
+  publishShellJobs(
+    collectShellJobs({
+      videos: [],
+      cloud: [
+        cloudJob({ id: 'c1', status: 'running', stage: 'capturing', percent: 62 }),
+        cloudJob({ id: 'c2', status: 'done' }),
+        cloudJob({ id: 'c3', status: 'failed', failure: { code: 'timeout', message: '' } }),
+      ],
+      now: 1000,
+    }),
+    10,
+  );
+  const snapshot = shellActivitySnapshot();
+  assert.deepEqual(snapshot.jobs.map((job) => [job.id, job.kind, job.stage]), [['cloud:c1', 'cloud', 'cloud']]);
+  assert.equal(snapshot.jobs[0]?.detail, 'GRABANDO EN LA NUBE 62 %');
+  assert.equal(snapshot.jobs[0]?.progress?.percent, 62);
+  assert.equal(snapshot.jobs[0]?.href, '/clips?partida=m1');
+  assert.equal(snapshot.capturing, false);
+});
+
+test('a cloud job this PC can no longer follow does not count as work in flight', () => {
+  const cloud = [cloudJob({ id: 'c1', status: 'running', stage: 'capturing', percent: 0 })];
+  publishShellJobs(collectShellJobs({ videos: [], cloud, cloudLinked: false, now: 1000 }), 10);
+  assert.deepEqual(shellActivitySnapshot().jobs, []);
+  publishShellJobs(collectShellJobs({ videos: [], cloud, cloudLinked: true, now: 1000 }), 20);
+  assert.deepEqual(shellActivitySnapshot().jobs.map((job) => job.id), ['cloud:c1']);
+});
+
+test('local work outranks cloud work, and a cloud job is not mistaken for a local recording', () => {
+  publishShellJobs(
+    collectShellJobs({
+      videos: [reel({ id: 'a', status: 'recording' }), reel({ id: 'b', status: 'queued' })],
+      cloud: [cloudJob({ id: 'c1', status: 'queued' })],
+      now: 1000,
+    }),
+    10,
+  );
+  const snapshot = shellActivitySnapshot();
+  assert.deepEqual(snapshot.jobs.map((job) => job.stage), ['recording', 'cloud', 'queued']);
+  assert.equal(snapshot.jobs.filter((job) => job.stage === 'recording').length, 1);
+});
+
+test('a change in the cloud status line reaches subscribers', () => {
+  let notified = 0;
+  const unsubscribe = subscribeToShellActivity(() => {
+    notified += 1;
+  });
+  const push = (percent: number): void =>
+    publishShellJobs(collectShellJobs({ videos: [], cloud: [cloudJob({ id: 'c1', status: 'downloading', percent })], now: 1000 }), 10);
+  push(10);
+  push(10);
+  push(80);
+  unsubscribe();
+  assert.equal(notified, 2);
 });

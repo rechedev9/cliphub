@@ -8,6 +8,9 @@ export function SiteFooter() {
       <a className={LINK} href="/">
         Inicio
       </a>
+      <a className={LINK} href="/link">
+        Vincular Studio
+      </a>
       <a className={LINK} href="/privacy">
         Privacidad
       </a>

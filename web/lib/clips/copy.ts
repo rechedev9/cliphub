@@ -28,5 +28,5 @@ export const FIRST_RUN_GUIDE_DISMISS = 'Ocultar guía';
 export const FIRST_RUN_STEPS = {
   load: { title: 'Carga tu partida', hint: 'Usa una demo de CS2. El archivo se analiza en este PC.' },
   pick: { title: 'Elige al jugador', hint: 'Su vista será la del vídeo. Revisa sus jugadas o todas las rondas.' },
-  produce: { title: 'Crea y descarga', hint: 'Confirma los ajustes, graba y descarga el MP4 desde Demos y vídeos.' },
+  produce: { title: 'Crea y descarga', hint: 'Confirma los ajustes, graba en este PC o en la nube de ClipHub y descarga el MP4 desde Demos y vídeos.' },
 } as const;

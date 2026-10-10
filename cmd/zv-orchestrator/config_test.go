@@ -466,8 +466,112 @@ func clearConfigEnv(t *testing.T) {
 		"ZV_GROQ_API_KEY",
 		"FIRECRAWL_API_KEY",
 		"FACEIT_API_KEY",
+		"ZV_BRIDGE_URL",
+		"ZV_BRIDGE_TOKEN",
+		"ZV_CLOUD_URL",
+		"ZV_CLOUD_WORKER_MIN_FREE_BYTES",
+		"ZV_STUDIO_VERSION",
 	} {
 		t.Setenv(key, "")
 	}
 	t.Setenv(mutationTokenEnvironmentVariable, strings.Repeat("a", 64))
+}
+
+func TestLoadConfigCloudURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    string
+		wantErr string
+	}{
+		{name: "unset means the production portal", want: "https://cliphub.gravityroom.app"},
+		{name: "off disables the cloud client", value: "off", want: ""},
+		{name: "off in any case", value: " OFF ", want: ""},
+		{name: "another https portal", value: "https://portal.example/", want: "https://portal.example"},
+		{name: "a local portal over http", value: "http://127.0.0.1:3000", want: "http://127.0.0.1:3000"},
+		{name: "localhost over http", value: "http://localhost:3000", want: "http://localhost:3000"},
+		{name: "cleartext to another host", value: "http://portal.example", wantErr: "https://"},
+		{name: "another scheme to loopback", value: "ftp://127.0.0.1", wantErr: "https://"},
+		{name: "not a URL", value: "portal", wantErr: "valid absolute URL"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("ZV_DATABASE_URL", "memory")
+			t.Setenv("ZV_CLOUD_URL", tt.value)
+
+			cfg, err := loadConfig()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), "ZV_CLOUD_URL") || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("loadConfig error = %v, want ZV_CLOUD_URL rejected mentioning %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("loadConfig error = %v", err)
+			}
+			if cfg.CloudURL != tt.want {
+				t.Fatalf("CloudURL = %q, want %q", cfg.CloudURL, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfigCloudWorkerSettings(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("ZV_DATABASE_URL", "memory")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error = %v", err)
+	}
+	if cfg.CloudWorkerMinFreeBytes != 32212254720 {
+		t.Fatalf("default CloudWorkerMinFreeBytes = %d, want 30 GiB", cfg.CloudWorkerMinFreeBytes)
+	}
+	if cfg.BridgeURL != "" || cfg.StudioVersion != "" {
+		t.Fatalf("worker mode on by default: bridge=%q studio=%q", cfg.BridgeURL, cfg.StudioVersion)
+	}
+
+	t.Setenv("ZV_BRIDGE_URL", "https://portal.example")
+	t.Setenv("ZV_BRIDGE_TOKEN", strings.Repeat("b", 64))
+	t.Setenv("ZV_CLOUD_WORKER_MIN_FREE_BYTES", "53687091200")
+	t.Setenv("ZV_STUDIO_VERSION", " 5.4.4 ")
+	cfg, err = loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error = %v", err)
+	}
+	if cfg.BridgeURL != "https://portal.example" || cfg.CloudWorkerMinFreeBytes != 53687091200 || cfg.StudioVersion != "5.4.4" {
+		t.Fatalf("config = bridge %q, floor %d, studio %q", cfg.BridgeURL, cfg.CloudWorkerMinFreeBytes, cfg.StudioVersion)
+	}
+
+	for _, invalid := range []string{"30GB", "-1", "1.5"} {
+		t.Setenv("ZV_CLOUD_WORKER_MIN_FREE_BYTES", invalid)
+		if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "ZV_CLOUD_WORKER_MIN_FREE_BYTES") {
+			t.Fatalf("loadConfig with floor %q error = %v, want it rejected by name", invalid, err)
+		}
+	}
+}
+
+func TestLoadConfigRejectsAHalfConfiguredOrCleartextBridge(t *testing.T) {
+	tests := []struct {
+		name  string
+		url   string
+		token string
+	}{
+		{name: "URL without token", url: "https://portal.example"},
+		{name: "token without URL", token: strings.Repeat("b", 64)},
+		{name: "weak token", url: "https://portal.example", token: "secret"},
+		{name: "cleartext to another host", url: "http://portal.example", token: strings.Repeat("b", 64)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("ZV_DATABASE_URL", "memory")
+			t.Setenv("ZV_BRIDGE_URL", tt.url)
+			t.Setenv("ZV_BRIDGE_TOKEN", tt.token)
+			if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "ZV_BRIDGE_") {
+				t.Fatalf("loadConfig error = %v, want the bridge configuration rejected", err)
+			}
+		})
+	}
 }

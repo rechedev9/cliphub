@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/cloudbridge"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -44,6 +45,15 @@ type config struct {
 	// is the default for every existing desktop install.
 	BridgeURL   string
 	BridgeToken string
+	// CloudWorkerMinFreeBytes is the free disk space the cloud worker keeps
+	// before it claims a job.
+	CloudWorkerMinFreeBytes uint64
+	// StudioVersion is the desktop shell's version, reported to the portal.
+	// Empty when the orchestrator runs outside Studio.
+	StudioVersion string
+	// CloudURL is the ClipHub Portal this Studio submits cloud jobs to
+	// (internal/cloudclient). Empty when ZV_CLOUD_URL is "off".
+	CloudURL string
 }
 
 const (
@@ -102,6 +112,7 @@ func loadConfig() (config, error) {
 		FaceitAPIKey:    faceitAPIKeyFromConfigSources(),
 		BridgeURL:       os.Getenv("ZV_BRIDGE_URL"),
 		BridgeToken:     os.Getenv(bridgeTokenEnvironmentVariable),
+		StudioVersion:   strings.TrimSpace(os.Getenv("ZV_STUDIO_VERSION")),
 	}
 	// The music library defaults to <DataDir>/music, where the repo keeps the
 	// catalog and scripts/fetch-music.sh downloads the audio, so an unset
@@ -129,6 +140,19 @@ func loadConfig() (config, error) {
 	}
 	if err := validateBridgeConfig(c.BridgeURL, c.BridgeToken); err != nil {
 		return c, err
+	}
+	cloudURL, err := cloudURLFromEnvironment()
+	if err != nil {
+		return c, err
+	}
+	c.CloudURL = cloudURL
+	c.CloudWorkerMinFreeBytes = cloudbridge.DefaultMinFreeBytes
+	if raw := os.Getenv("ZV_CLOUD_WORKER_MIN_FREE_BYTES"); raw != "" {
+		parsed, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return c, fmt.Errorf("ZV_CLOUD_WORKER_MIN_FREE_BYTES must be a non-negative integer number of bytes, got %q", raw)
+		}
+		c.CloudWorkerMinFreeBytes = parsed
 	}
 
 	concRaw := envOr("ZV_WORKER_CONCURRENCY", "2")
@@ -188,6 +212,31 @@ func validateBridgeConfig(bridgeURL, bridgeToken string) error {
 		return fmt.Errorf("ZV_BRIDGE_URL must use https:// unless it points at loopback, got %q", bridgeURL)
 	}
 	return nil
+}
+
+// defaultCloudURL is the production portal every Studio talks to unless
+// ZV_CLOUD_URL says otherwise.
+const defaultCloudURL = "https://cliphub.gravityroom.app"
+
+// cloudURLFromEnvironment resolves ZV_CLOUD_URL: unset means the production
+// portal, "off" disables the cloud client, and anything else must be https://
+// unless it points at loopback, the same rule as the bridge URL.
+func cloudURLFromEnvironment() (string, error) {
+	raw := strings.TrimSpace(os.Getenv("ZV_CLOUD_URL"))
+	if raw == "" {
+		return defaultCloudURL, nil
+	}
+	if strings.EqualFold(raw, "off") {
+		return "", nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return "", fmt.Errorf("ZV_CLOUD_URL is not a valid absolute URL: %q", raw)
+	}
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && bridgeHostIsLoopback(parsed.Hostname())) {
+		return "", fmt.Errorf("ZV_CLOUD_URL must use https:// unless it points at loopback, got %q", raw)
+	}
+	return strings.TrimRight(raw, "/"), nil
 }
 
 func bridgeHostIsLoopback(host string) bool {

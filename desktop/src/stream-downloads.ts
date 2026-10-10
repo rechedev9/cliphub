@@ -1,3 +1,7 @@
+const STREAM_VIDEO_PATH = /^\/api\/streams\/[0-9a-f-]{36}\/renders\/[a-zA-Z0-9_-]+\/videos\/[a-zA-Z0-9._-]+$/;
+/** A cloud result already downloaded to this PC, served by the same local web origin. */
+const CLOUD_VIDEO_PATH = /^\/api\/cloud\/jobs\/[0-9a-f-]{36}\/videos\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.mp4$/;
+
 /** Only completed downloads initiated by Studio may be revealed. Renderer input is never a path. */
 export class StreamDownloads {
   private readonly paths = new Map<string, string>();
@@ -6,8 +10,7 @@ export class StreamDownloads {
     try {
       const url = new URL(value);
       if (url.origin !== origin || url.username || url.password || url.hash) return null;
-      if (!/^\/api\/streams\/[0-9a-f-]{36}\/renders\/[a-zA-Z0-9_-]+\/videos\/[a-zA-Z0-9._-]+$/.test(url.pathname))
-        return null;
+      if (!STREAM_VIDEO_PATH.test(url.pathname) && !CLOUD_VIDEO_PATH.test(url.pathname)) return null;
       return url.href;
     } catch {
       return null;

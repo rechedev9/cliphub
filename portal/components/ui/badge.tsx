@@ -25,6 +25,7 @@ const badgeVariants = cva(
         warning: "border-warning/40 bg-warning/10 text-warning",
         stream: "border-stream/40 bg-stream/10 text-stream-text",
         danger: "border-destructive/40 bg-destructive/10 text-destructive",
+        info: "border-primary/40 bg-primary/10 text-primary",
         outline: "border-border-strong text-fg-1 [a&]:hover:bg-surface-3",
         ghost: "border-transparent text-fg-2 [a&]:hover:bg-surface-3 [a&]:hover:text-fg-1",
         link: "border-transparent text-primary underline-offset-4 [a&]:hover:underline",

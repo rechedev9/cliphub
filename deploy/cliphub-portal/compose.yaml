@@ -17,16 +17,36 @@ services:
       AUTH_DISCORD_SECRET: ${AUTH_DISCORD_SECRET}
       # Who may reach /admin, as provider:providerAccountId pairs.
       ADMIN_ACCOUNTS: ${ADMIN_ACCOUNTS:?set ADMIN_ACCOUNTS}
-      # Bearer token the local bridge sends; matches the PC's ZV_BRIDGE_TOKEN.
-      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET:?set BRIDGE_SHARED_SECRET}
       DATABASE_URL: file:/data/portal.db
       UPLOAD_DIR: /uploads
       MIGRATIONS_DIR: /app/db/migrations
-      MAX_DEMO_BYTES: ${MAX_DEMO_BYTES:-734003200}
-      MAX_ARTIFACT_BYTES: ${MAX_ARTIFACT_BYTES:-1073741824}
+      # Cloud capture. Worker credentials are created in /admin, not set here.
+      # New accounts wait for an admin to allow them unless this is "allowed".
+      CLOUD_ACCESS_DEFAULT: ${CLOUD_ACCESS_DEFAULT:-pending}
+      CLOUD_KINDS: ${CLOUD_KINDS:-short}
+      # Per-user limits; each can be overridden per user in /admin.
       MAX_ACTIVE_REQUESTS_PER_USER: ${MAX_ACTIVE_REQUESTS_PER_USER:-3}
-      MAX_DAILY_REQUESTS_PER_USER: ${MAX_DAILY_REQUESTS_PER_USER:-5}
+      MAX_DAILY_SECONDS_PER_USER: ${MAX_DAILY_SECONDS_PER_USER:-5400}
+      MAX_QUEUED_JOBS: ${MAX_QUEUED_JOBS:-80}
+      # File sizes. Results arrive in parts, so no request is larger than one part.
+      MAX_DEMO_BYTES: ${MAX_DEMO_BYTES:-734003200}
+      # Distinct demos one user may have stored at a time.
+      MAX_DEMO_BYTES_PER_USER: ${MAX_DEMO_BYTES_PER_USER:-3221225472}
+      MAX_ARTIFACT_BYTES: ${MAX_ARTIFACT_BYTES:-1073741824}
+      MAX_FULL_DEMO_ARTIFACT_BYTES: ${MAX_FULL_DEMO_ARTIFACT_BYTES:-8589934592}
+      ARTIFACT_PART_BYTES: ${ARTIFACT_PART_BYTES:-33554432}
+      # Below this much free space on /uploads the portal refuses new jobs and demo
+      # uploads. Claims stop only under the lower floor, so the queue keeps draining.
+      MIN_FREE_BYTES: ${MIN_FREE_BYTES:-10737418240}
+      MIN_FREE_BYTES_CLAIM: ${MIN_FREE_BYTES_CLAIM:-2147483648}
+      # Retention. RETENTION_DAYS only covers videos of the old manual flow.
+      ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-7}
+      FAILED_DEMO_RETENTION_HOURS: ${FAILED_DEMO_RETENTION_HOURS:-48}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      # A job goes back to the queue when its worker is silent for this long.
+      LEASE_SECONDS: ${LEASE_SECONDS:-90}
+      # A worker with this many uploads pending gets no new job until one ends.
+      MAX_UPLOAD_BACKLOG: ${MAX_UPLOAD_BACKLOG:-3}
     ports:
       # Loopback only; Caddy on the host terminates TLS and proxies here.
       - 127.0.0.1:8092:3000

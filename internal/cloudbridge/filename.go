@@ -3,7 +3,12 @@ package cloudbridge
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
+
+// maxOriginalNameRunes keeps the whole handle under the 128 runes the local
+// pipeline stores, so its own cap never cuts the name mid-way.
+const maxOriginalNameRunes = 72
 
 // cloudFileName builds the DemoFileName Studio displays for a bridge-admitted
 // job. web/'s Studio UI shows only DemoFileName, and the submitter's note
@@ -19,10 +24,33 @@ func cloudFileName(requestID, submitterLabel, originalName string) string {
 	if submitter == "" {
 		submitter = "unknown"
 	}
+	originalName = sanitizeOriginalName(originalName)
 	if originalName == "" {
 		originalName = "demo.dem"
 	}
 	return fmt.Sprintf("cloud-%s-%s-%s", shortID, submitter, originalName)
+}
+
+// sanitizeOriginalName reduces the name a stranger gave their demo to a
+// display name: no directory part, no control characters and no invisible
+// format characters (RTL overrides, zero-width runes) that could spoof what
+// an operator reads. A manual upload gets the same treatment at admission.
+func sanitizeOriginalName(name string) string {
+	if i := strings.LastIndexAny(name, `/\`); i >= 0 {
+		name = name[i+1:]
+	}
+	var b strings.Builder
+	for _, r := range name {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	cleaned := strings.TrimSpace(b.String())
+	if runes := []rune(cleaned); len(runes) > maxOriginalNameRunes {
+		cleaned = strings.TrimSpace(string(runes[:maxOriginalNameRunes]))
+	}
+	return cleaned
 }
 
 // sanitizeHandleComponent keeps a filename segment filesystem- and

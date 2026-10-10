@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/allowproto"
 	"github.com/rechedev9/cliphub/internal/cloudbridge"
+	"github.com/rechedev9/cliphub/internal/cloudclient"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
@@ -271,6 +273,25 @@ func run() error {
 		recordWorker.UseGenerateIntentStore(generateIntents)
 		recordWorker.UseEnqueuer(queue)
 	}
+	// The cloud client is optional: Studio must start without it, so a store
+	// that cannot be read only turns the cloud routes off.
+	cloudOption := httpapi.WithCloud(nil)
+	var cloudService *cloudclient.Service
+	if cfg.CloudURL != "" {
+		cloudService, err = cloudclient.NewService(cloudclient.Config{
+			PortalURL:     cfg.CloudURL,
+			DataDir:       cfg.DataDir,
+			Jobs:          repo,
+			Files:         files,
+			StudioVersion: cfg.StudioVersion,
+		})
+		if err != nil {
+			log.Printf("cloud client: disabled: %v", err)
+			cloudService = nil
+		} else {
+			cloudOption = httpapi.WithCloud(cloudService)
+		}
+	}
 	handlers := httpapi.NewHandlers(repo, files, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
@@ -293,6 +314,7 @@ func run() error {
 		httpapi.WithSteamResolver(steamResolver),
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
+		cloudOption,
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
@@ -317,17 +339,22 @@ func run() error {
 	// already failed to bind.
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-	inline.Start(workerCtx)
+	// A cloud worker comes back unattended after a crash: what the previous
+	// run left working would compete with the first capture of this one.
 	if cfg.BridgeURL != "" {
-		bridgeState, err := cloudbridge.LoadState(filepath.Join(cfg.DataDir, "cloudbridge", "state.json"))
+		endCloudWorkerLeftovers(cfg)
+	}
+	inline.Start(workerCtx)
+	if cloudService != nil {
+		cloudService.Start(workerCtx)
+		log.Printf("cloud client: enabled for %s", cfg.CloudURL)
+	}
+	var bridgeState *cloudbridge.State
+	if cfg.BridgeURL != "" {
+		bridgeState, err = cloudbridge.LoadState(filepath.Join(cfg.DataDir, "cloudbridge", "state.json"))
 		if err != nil {
 			return fmt.Errorf("cloudbridge: %w", err)
 		}
-		poller := cloudbridge.NewPoller(cfg.BridgeURL, cfg.BridgeToken, handlers, bridgeState)
-		go poller.Run(workerCtx)
-		watcher := cloudbridge.NewWatcher(cfg.BridgeURL, cfg.BridgeToken, repo, files, bridgeState)
-		go watcher.Run(workerCtx)
-		log.Printf("cloudbridge: bridge enabled, polling %s", cfg.BridgeURL)
 	}
 	if err := recoverStreamAcquisitions(
 		ctx,
@@ -342,6 +369,33 @@ func run() error {
 	log.Printf("queue: inline mode enabled (concurrency=%d)", cfg.WorkerConcurrency)
 	httpRuntime.Start()
 	log.Printf("http: listening on %s", httpRuntime.Addr())
+	// The cloud worker drives this orchestrator through its own loopback API,
+	// so it starts only once that API is served.
+	if bridgeState != nil {
+		worker := cloudbridge.NewWorker(cloudbridge.Config{
+			BaseURL:  cfg.BridgeURL,
+			Token:    cfg.BridgeToken,
+			DataDir:  cfg.DataDir,
+			State:    bridgeState,
+			Admitter: bridgeAdmitter{handlers: handlers},
+			Local:    cloudbridge.NewLoopbackPipeline(httpRuntime.Addr().String(), cfg.MutationToken),
+			Canceler: inline,
+			Files:    files,
+			Machine: cloudbridge.NewSystemMachine(cloudbridge.MachineConfig{
+				DataDir:       cfg.DataDir,
+				CS2Path:       cfg.CS2Path,
+				HLAEPath:      cfg.HLAEPath,
+				StudioVersion: cfg.StudioVersion,
+				// A worker that can capture but not render cannot finish a job.
+				RecordEnabled: cfg.recordWorkerEnabled() && cfg.renderWorkerEnabled(),
+				Kinds:         cloudWorkerKinds,
+			}),
+			Kinds:        cloudWorkerKinds,
+			MinFreeBytes: cfg.CloudWorkerMinFreeBytes,
+		})
+		go worker.Run(workerCtx)
+		log.Printf("cloudbridge: worker enabled, taking jobs from %s", cfg.BridgeURL)
+	}
 
 	serveErr := waitAndCancelOnHTTPFailure(ctx, stop, httpRuntime)
 	if serveErr != nil {
@@ -370,6 +424,54 @@ func run() error {
 		return fmt.Errorf("http: %w", serveErr)
 	}
 	return nil
+}
+
+// endCloudWorkerLeftovers ends the recorder and editor an orchestrator that
+// died left running, with the CS2 and ffmpeg they hold, and removes the
+// stage directories it never cleaned up. Only a cloud worker does this: its
+// machine runs a single Studio, so every such process and directory is its
+// own. It runs before any task and before the worker's first preflight.
+func endCloudWorkerLeftovers(cfg config) {
+	ended, err := workers.EndLeftoverTools(cfg.RecorderPath, cfg.EditorPath)
+	if err != nil {
+		log.Printf("cloudbridge: ending processes of a previous run: %v", err)
+	}
+	if ended > 0 {
+		log.Printf("cloudbridge: ended %d processes a previous run left behind", ended)
+	}
+	removed, err := workers.SweepStageDirs()
+	if err != nil {
+		log.Printf("cloudbridge: removing stage directories of a previous run: %v", err)
+	}
+	if removed > 0 {
+		log.Printf("cloudbridge: removed %d stage directories a previous run left behind", removed)
+	}
+}
+
+// cloudWorkerKinds are the cloud job kinds this build can produce unattended.
+var cloudWorkerKinds = []string{"short"}
+
+// bridgeAdmitter lets the cloud worker admit a demo through the HTTP
+// handlers without the bridge importing the HTTP layer.
+type bridgeAdmitter struct {
+	handlers *httpapi.Handlers
+}
+
+func (a bridgeAdmitter) AdmitCloudDemo(ctx context.Context, in cloudbridge.DemoAdmission) (string, error) {
+	created, err := a.handlers.AdmitCloudDemo(ctx, httpapi.CloudDemoAdmission{
+		Demo:           in.Demo,
+		FileName:       in.FileName,
+		CloudRequestID: in.CloudRequestID,
+		TargetSteamID:  in.TargetSteamID,
+		Rules:          in.Rules,
+	})
+	if errors.Is(err, httpapi.ErrCloudDemoRejected) {
+		return "", fmt.Errorf("%w: %v", cloudbridge.ErrDemoRejected, err)
+	}
+	if err != nil {
+		return "", err
+	}
+	return created.ID.String(), nil
 }
 
 func recoverStreamAcquisitions(
