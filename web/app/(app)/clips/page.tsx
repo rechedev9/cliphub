@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { cloudApi } from '@/lib/api/cloud';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamPlaybackItem } from '@/lib/api/playback';
 import { HUB_ORPHANS_HINT, HUB_ORPHANS_TITLE } from '@/lib/clips/copy';
@@ -18,19 +19,26 @@ import {
   HUB_ROW_STAGE,
   hubTransitions,
   isWorking,
+  sameHubProps,
   hubPollClearsLoadError,
   hubPollUnchanged,
   settleHubSnapshot,
   type HubModel,
   type HubSnapshot,
 } from '@/lib/clips/hub';
+import { cloudAccountSnapshot } from '@/lib/cloud/account-store';
+import { cloudDeviceLinked } from '@/lib/cloud/account-view';
+import type { CloudJob } from '@/lib/cloud/parse';
+import { anyCloudJobActive, cloudJobsByMatch, cloudJobsNewlyReady, type CloudDevice } from '@/lib/cloud/view';
 import { HUB_LENS, HUB_QUERY, hubHref, isHubLens, ORPHAN_MATCH_SEGMENT, publishHref, type HubLens } from '@/lib/clips/routes';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
+import { useCloudAccount } from '@/hooks/use-cloud-account';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
+import { CloudOutputItem } from '@/components/clips-hub/cloud-output-item';
 import { FirstRunGuide } from '@/components/clips-hub/first-run-guide';
 import { CreationPaths } from '@/components/studio/creation-paths';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
@@ -46,11 +54,23 @@ const IDLE_POLL_MS = 10000;
 
 type LoadError = { offline: boolean };
 
+const NO_CLOUD_JOBS: readonly CloudJob[] = [];
+const CLOUD_SECTION_TITLE = 'En la nube';
+
 async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
   return settleHubSnapshot(
     await Promise.allSettled([api.listMatches(), api.listVideos(), streamsApi.listJobs()]),
     prev,
   );
+}
+
+/** This PC as cloud jobs see it, read at call time because the polls outlive a render. */
+function cloudDevice(): CloudDevice {
+  return { now: Date.now(), linked: cloudDeviceLinked(cloudAccountSnapshot()) };
+}
+
+function cloudShell(cloud: readonly CloudJob[]): { cloud: readonly CloudJob[]; cloudLinked: boolean } {
+  return { cloud, cloudLinked: cloudDevice().linked };
 }
 
 function anyoneWorking(model: HubModel): boolean {
@@ -114,6 +134,10 @@ function ClipsHub(): ReactNode {
 
   const [model, setModel] = useState<HubModel | null>(null);
   const [streams, setStreams] = useState<StreamJob[]>([]);
+  const [cloudJobs, setCloudJobs] = useState<readonly CloudJob[]>(NO_CLOUD_JOBS);
+  const cloudLinked = cloudDeviceLinked(useCloudAccount());
+  /** Last cloud poll, for the shell push and the "listo" toast. */
+  const cloudRef = useRef<readonly CloudJob[]>(NO_CLOUD_JOBS);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   const modelRef = useRef<HubModel | null>(null);
   /** Last accepted poll; a rejected source falls back to it. */
@@ -137,7 +161,7 @@ function ClipsHub(): ReactNode {
     const next = buildHubModel(snapshot.matches, snapshot.videos);
     if (hubPollUnchanged(snapshotRef.current, modelRef.current, next, snapshot)) {
       if (hubPollClearsLoadError(snapshot)) {
-        publishShellJobs(collectShellJobs(snapshot), Date.now());
+        publishShellJobs(collectShellJobs({ ...snapshot, ...cloudShell(cloudRef.current) }), Date.now());
         setLoadError(null);
       }
       return modelRef.current ?? next;
@@ -149,7 +173,7 @@ function ClipsHub(): ReactNode {
     setStreams(snapshot.streams);
     setLoadError(snapshot.failure === null ? null : { offline: isDemoServiceUnavailable(snapshot.failure) });
     // A partial poll carries stale sources; the shell monitor fetches for itself instead.
-    if (snapshot.failure === null) publishShellJobs(collectShellJobs(snapshot), Date.now());
+    if (snapshot.failure === null) publishShellJobs(collectShellJobs({ ...snapshot, ...cloudShell(cloudRef.current) }), Date.now());
     return next;
   }, [openResult]);
 
@@ -178,6 +202,45 @@ function ClipsHub(): ReactNode {
       stop();
     };
   }, [refresh]);
+
+  // Cloud jobs stay out of the hub model and the reel store: their own poll, their own cadence.
+  const refreshCloud = useCallback(async (): Promise<readonly CloudJob[]> => {
+    const next = await cloudApi.jobs();
+    for (const job of cloudJobsNewlyReady(cloudRef.current, next)) {
+      toast(`${job.title} listo`, {
+        description: 'Grabado en la nube y descargado en este PC',
+        action: job.localJobId === '' ? undefined : { label: 'Abrir', onClick: () => openResult({ matchId: job.localJobId }) },
+      });
+    }
+    cloudRef.current = next;
+    // The cloud beat is the faster one while a cloud job moves: keep the transport pill in step with it.
+    const snapshot = snapshotRef.current;
+    if (snapshot !== null && snapshot.failure === null) {
+      publishShellJobs(collectShellJobs({ ...snapshot, ...cloudShell(next) }), Date.now());
+    }
+    setCloudJobs((prev) => (sameHubProps(prev, next) ? prev : next));
+    return next;
+  }, [openResult]);
+
+  useEffect(() => {
+    let active = true;
+    const stop = startPollLoop({
+      tick: async () => {
+        const next = await refreshCloud();
+        return active && anyCloudJobActive(next, cloudDevice()) ? 'fast' : 'idle';
+      },
+      fastMs: FAST_POLL_MS,
+      idleMs: IDLE_POLL_MS,
+    });
+    return () => {
+      active = false;
+      stop();
+    };
+  }, [refreshCloud]);
+
+  const onCloudChange = useCallback(() => {
+    void refreshCloud().catch(() => {});
+  }, [refreshCloud]);
 
   useEffect(() => {
     if (open === null || model === null || scrolledTo.current === open) return;
@@ -227,7 +290,7 @@ function ClipsHub(): ReactNode {
     );
   }
 
-  if (model.rows.length === 0 && model.clips.length === 0 && streamLibraryCount(streams) === 0) {
+  if (model.rows.length === 0 && model.clips.length === 0 && streamLibraryCount(streams) === 0 && cloudJobs.length === 0) {
     return (
       <div className="measure-list flex flex-col gap-6">
         <HubEmpty banner={loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null} />
@@ -236,7 +299,12 @@ function ClipsHub(): ReactNode {
   }
 
   const counts: Record<HubLens, number> = { partidas: model.rows.length, clips: model.clips.length + streamLibraryCount(streams) };
-  const jobs = activeJobCount(model, streams);
+  const device: CloudDevice = { now: Date.now(), linked: cloudLinked };
+  const jobs = activeJobCount(model, streams) + cloudJobs.filter((job) => anyCloudJobActive([job], device)).length;
+  const cloudByMatch = cloudJobsByMatch(cloudJobs);
+  const rowIds = new Set(model.rows.map((row) => row.match.id));
+  // A cloud job outlives its partida: it still has to be followed, played and removed.
+  const looseCloudJobs = cloudJobs.filter((job) => !rowIds.has(job.localJobId));
   const progress = firstRunProgress(model);
 
   return (
@@ -277,9 +345,23 @@ function ClipsHub(): ReactNode {
                 open={open === row.match.id}
                 onToggle={onToggle}
                 onChange={onChange}
+                cloud={cloudByMatch.get(row.match.id) ?? NO_CLOUD_JOBS}
+                onCloudChange={onCloudChange}
               />
             ))}
           </div>
+          {looseCloudJobs.length > 0 ? (
+            <section aria-label={CLOUD_SECTION_TITLE} className="flex flex-col gap-2">
+              <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+                {CLOUD_SECTION_TITLE} · {looseCloudJobs.length}
+              </h2>
+              <div className="flex flex-col gap-2">
+                {looseCloudJobs.map((job) => (
+                  <CloudOutputItem key={job.id} job={job} onChange={onCloudChange} />
+                ))}
+              </div>
+            </section>
+          ) : null}
           {/* No row and a source down: "no partida" may only mean the jobs index never listed. */}
           {model.orphans.length > 0 && (model.rows.length > 0 || loadError === null) ? (
             <section aria-label={HUB_ORPHANS_TITLE} className="flex flex-col gap-2">

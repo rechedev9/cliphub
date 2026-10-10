@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
+import { cloudApi } from '@/lib/api/cloud';
 import { streamsApi } from '@/lib/api/streams';
+import { cloudAccountSnapshot } from '@/lib/cloud/account-store';
+import { cloudDeviceLinked } from '@/lib/cloud/account-view';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
   CAPTURE_ACTIVE_ATTRIBUTE,
@@ -46,10 +49,11 @@ export function ShellActivityMonitor(): null {
     const stop = startPollLoop({
       tick: async () => {
         if (shellActivityIsStale(Date.now())) {
-          const [videos, matches, streams] = await Promise.allSettled([
+          const [videos, matches, streams, cloud] = await Promise.allSettled([
             api.listVideos(),
             api.listMatches(),
             streamsApi.listJobs(),
+            cloudApi.jobs(),
           ]);
           // All three down is an orchestrator blip, not "nothing is running":
           // publishing here would clear REC and the capture-active gate
@@ -66,6 +70,8 @@ export function ShellActivityMonitor(): null {
               videos: settled(videos),
               matches: settled(matches),
               streams: settled(streams),
+              cloud: settled(cloud),
+              cloudLinked: cloudDeviceLinked(cloudAccountSnapshot()),
             }),
             Date.now(),
           );

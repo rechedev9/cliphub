@@ -44,3 +44,26 @@ export async function isAdminUser(userId: string): Promise<boolean> {
     ),
   );
 }
+
+// Every user id with an allowlisted account, for views that list many users.
+export async function adminUserIds(): Promise<Set<string>> {
+  const allow = parseAdminAccounts(process.env.ADMIN_ACCOUNTS);
+  if (allow.length === 0) return new Set();
+
+  const linked = await db
+    .select({
+      userId: accounts.userId,
+      provider: accounts.provider,
+      providerAccountId: accounts.providerAccountId,
+    })
+    .from(accounts);
+
+  const admins = linked.filter((account) =>
+    allow.some(
+      (ref) =>
+        ref.provider === account.provider &&
+        ref.providerAccountId === account.providerAccountId,
+    ),
+  );
+  return new Set(admins.map((account) => account.userId));
+}

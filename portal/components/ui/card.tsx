@@ -23,6 +23,7 @@ const cardVariants = cva(
         neutral: "",
         accent: "border-border-accent",
         danger: "border-destructive/45",
+        warning: "border-warning/45",
         stream: "border-stream/45",
       },
     },

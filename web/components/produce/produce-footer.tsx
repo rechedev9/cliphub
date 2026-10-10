@@ -26,6 +26,8 @@ export type ProduceFooterProps = {
   busy: boolean;
   backHref: string;
   error: string | null;
+  /** A control that belongs directly above the action row (where the capture runs). */
+  target?: ReactNode;
   cta: ReactNode;
 };
 
@@ -42,6 +44,7 @@ export function ProduceFooter({
   busy,
   backHref,
   error,
+  target,
   cta,
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
@@ -79,6 +82,7 @@ export function ProduceFooter({
               {error}
             </p>
           ) : null}
+          {target}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
             <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">

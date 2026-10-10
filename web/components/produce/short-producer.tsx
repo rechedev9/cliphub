@@ -1,13 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
+import { cloudApi, CloudApiError } from '@/lib/api/cloud';
+import type { CaptureStatus, EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
+import { refreshCloudAccount } from '@/lib/cloud/account-store';
+import {
+  CAPTURE_TARGET,
+  loadCaptureTarget,
+  resolveCaptureTarget,
+  saveCaptureTarget,
+  type CaptureTarget,
+} from '@/lib/cloud/capture-target';
+import { buildCloudShortSubmit } from '@/lib/cloud/submit';
+import { cloudSubmitErrorMessage } from '@/lib/cloud/view';
+import { playsSelectionLabel } from '@/lib/format';
 import { forgeHint } from '@/lib/forge-hint';
 import { PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
@@ -24,12 +36,16 @@ import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief }
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
+import { serverShellActivitySnapshot, shellActivitySnapshot, subscribeToShellActivity } from '@/lib/shell-activity';
+import { useCloudAccount } from '@/hooks/use-cloud-account';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EditOptions } from '@/components/clips/edit-options';
 import { PlayList } from '@/components/clips/play-list';
 import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
+import { CloudLinkDialog } from '@/components/cloud/cloud-link-dialog';
+import { CaptureTargetControl } from './capture-target';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
 import { ShortStoryboard } from './short-storyboard';
@@ -55,10 +71,12 @@ export type ShortProducerProps = {
   plays: Play[];
   /** From a series map card: a finished render returns to the series. */
   seriesId: string | null;
+  /** Target the hub asked for (retry in the cloud, or record on this PC). */
+  initialTarget?: CaptureTarget | null;
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays, seriesId, initialTarget = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
@@ -70,6 +88,45 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const busy = creating || !loaded;
+  const account = useCloudAccount();
+  const activity = useSyncExternalStore(subscribeToShellActivity, shellActivitySnapshot, serverShellActivitySnapshot);
+  const [localStatus, setLocalStatus] = useState<CaptureStatus | null>(null);
+  const [pickedTarget, setPickedTarget] = useState<CaptureTarget | null>(initialTarget);
+  const [rememberedTarget, setRememberedTarget] = useState<CaptureTarget | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const targetView = resolveCaptureTarget({
+    picked: pickedTarget,
+    remembered: rememberedTarget,
+    localStatus,
+    localBusy: activity.jobs.some((job) => job.stage === 'recording'),
+    account,
+  });
+  const toCloud = targetView.target === CAPTURE_TARGET.cloud;
+
+  // A rejection shown while the target was blocked is settled once it can submit again.
+  const couldSubmit = useRef(targetView.canSubmit);
+  useEffect(() => {
+    if (targetView.canSubmit && !couldSubmit.current) setCreateError(null);
+    couldSubmit.current = targetView.canSubmit;
+  }, [targetView.canSubmit]);
+
+  useEffect(() => {
+    let active = true;
+    setRememberedTarget(loadCaptureTarget(browserStorage()));
+    void api.getCaptureReadiness().then((readiness) => {
+      if (active) setLocalStatus(readiness.status);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function pickTarget(next: CaptureTarget): void {
+    if (busy) return;
+    setPickedTarget(next);
+    setCreateError(null);
+    saveCaptureTarget(browserStorage(), next);
+  }
 
   useEffect(() => {
     let active = true;
@@ -145,8 +202,46 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
     setSongOpen(false);
   }
 
+  async function onCreateInCloud(preset: Preset): Promise<void> {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const job = await cloudApi.submit(
+        buildCloudShortSubmit({
+          matchId,
+          segmentIds: selectedPlays.map((play) => play.id),
+          selectionLabel: playsSelectionLabel(selectedPlays) ?? 'Highlight',
+          preset: preset.name,
+          presetLabel: preset.label,
+          songId,
+          // Same rule as the local path: only a reduced volume travels.
+          musicVolume: musicVolume < MUSIC_VOLUME.max ? musicVolume / 100 : undefined,
+          gameVolume: gameVolume / 100,
+          editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT }),
+        }),
+      );
+      void refreshCloudAccount();
+      // The draft stays: "Reintentar en la nube" in the hub returns here with the same selection.
+      if (job.status === 'uploading_demo') {
+        toast('Subiendo la demo a la nube', { description: 'No cierres Studio hasta que termine la subida. Síguela en Clips y vídeos.' });
+      } else {
+        toast('Short en cola en la nube. Puedes cerrar Studio', { description: 'Sigue su puesto en Clips y vídeos.' });
+      }
+      router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
+    } catch (err) {
+      // A fetch that never got an answer means the local Studio service is down.
+      setCreateError(cloudSubmitErrorMessage(err instanceof CloudApiError ? err : { code: 'service_unavailable' }));
+      void refreshCloudAccount();
+      setCreating(false);
+    }
+  }
+
   async function onCreate(): Promise<void> {
     if (!ready) return;
+    if (toCloud) {
+      if (targetView.canSubmit && selectedPreset !== null) await onCreateInCloud(selectedPreset);
+      return;
+    }
     setCreating(true);
     setCreateError(null);
     try {
@@ -304,22 +399,26 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             : forgeHint(roundsSummary(selectedPlays), presetLabel)
         }
         briefItems={briefItems}
+        readyHint={toCloud ? 'Todo preparado. Al crear, ClipHub grabará en la nube; el vídeo se descargará en Demos y vídeos.' : undefined}
         backHref={seriesId ? seriesHref(seriesId) : hubHref({ open: matchId })}
         error={createError}
+        target={<CaptureTargetControl view={targetView} onPick={pickTarget} onLink={() => setLinkOpen(true)} disabled={creating} />}
         cta={
           <Button
             variant="hero"
             size="sm"
-            disabled={!ready}
+            disabled={!ready || !targetView.canSubmit}
             loading={creating}
-            loadingText="Preparando grabación…"
+            loadingText={toCloud ? 'Enviando a la nube…' : 'Preparando grabación…'}
             onClick={() => void onCreate()}
             className="neon-notch shrink-0 focus-visible:-outline-offset-4"
           >
-            Crear Short
+            {toCloud ? 'Crear Short en la nube' : 'Crear Short'}
           </Button>
         }
       />
+
+      <CloudLinkDialog open={linkOpen} onOpenChange={setLinkOpen} />
 
       <SongPickerDialog open={songOpen} onOpenChange={setSongOpen} onChoose={onChooseSong} selectedSongId={songId} />
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
@@ -342,6 +441,15 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
       </DialogContent>
     </Dialog>
   );
+}
+
+/** localStorage may throw in privacy mode; the choice then lasts only for this screen. */
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent: number, gameVolumePercent: number): MusicBrief {

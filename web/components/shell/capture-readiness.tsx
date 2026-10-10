@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { cloudCoversLocalGap } from '@/lib/cloud/capture-target';
+import { useCloudAccount } from '@/hooks/use-cloud-account';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -119,8 +121,11 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
   let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
   if (recording !== undefined) settingsTag = { text: pillText, tone: 'stream' };
+  // Mounted only for a PC that cannot record, so a ready PC never polls the cloud account from the shell.
+  const cloudHint = data !== null && status === 'unconfigured' ? <CloudFallbackLine status={status} variant={variant} /> : null;
 
   return (
+    <>
     <Dialog>
       <DialogTrigger asChild>
         {variant === 'settings' ? (
@@ -131,6 +136,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
               <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
               <span className="font-semibold text-primary">Revisar requisitos →</span>
             </span>
+            {cloudHint}
           </button>
         ) : (
         <button
@@ -213,6 +219,25 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
         </div>
       </DialogContent>
     </Dialog>
+    {variant === 'sidebar' ? cloudHint : null}
+    </>
+  );
+}
+
+/** One line under a PC that cannot record, shown only when the linked account may use the cloud. */
+function CloudFallbackLine({ status, variant }: { status: CaptureStatus; variant: 'sidebar' | 'settings' }): ReactElement | null {
+  const account = useCloudAccount();
+  if (!cloudCoversLocalGap(status, account)) return null;
+  return (
+    <span
+      className={
+        variant === 'sidebar'
+          ? 'mx-4 block font-[family-name:var(--font-mono)] text-meta tracking-wider text-primary uppercase group-data-[collapsible=icon]:hidden'
+          : 'text-body-sm text-primary'
+      }
+    >
+      Puedes grabar en la nube
+    </span>
   );
 }
 

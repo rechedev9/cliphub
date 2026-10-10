@@ -245,8 +245,8 @@ async function readJson<T>(res: Response): Promise<T> {
 
 
 /** Bare song key at full default mix; object when music or game gain is set. */
-function buildMusicRequest(
-  intent: ReelIntent,
+export function buildMusicRequest(
+  intent: Pick<ReelIntent, 'mode' | 'songId' | 'musicVolume' | 'gameVolume'>,
 ): string | { key: string; volume?: number; game_volume?: number } | undefined {
   if (intent.mode !== 'music' || !intent.songId) return undefined;
   const volume = intent.musicVolume !== undefined && intent.musicVolume < 1 ? intent.musicVolume : undefined;

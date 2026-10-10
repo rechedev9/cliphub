@@ -6252,7 +6252,12 @@ func TestAdmitCloudDemoRejectsCSGODemo(t *testing.T) {
 	store := newFakeStorage()
 	h := NewHandlers(newFakeRepo(), store, &fakeQueue{})
 
-	_, err := h.AdmitCloudDemo(context.Background(), bytes.NewReader([]byte("HL2DEMO\x00rest-of-demo")), "match.dem", "req-1")
+	_, err := h.AdmitCloudDemo(context.Background(), CloudDemoAdmission{
+		Demo:           bytes.NewReader([]byte("HL2DEMO\x00rest-of-demo")),
+		FileName:       "match.dem",
+		CloudRequestID: "req-1",
+		Rules:          rules.Default(),
+	})
 	if err == nil || !strings.Contains(err.Error(), "CS:GO demo") {
 		t.Fatalf("AdmitCloudDemo error = %v, want a CS:GO rejection", err)
 	}

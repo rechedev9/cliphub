@@ -189,6 +189,9 @@ func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([
 	// #nosec G204 -- media workers execute configured local binaries with argument slices, not shell strings.
 	cmd := exec.CommandContext(ctx, exe, args...)
 	tool := filepath.Base(exe)
+	// Ending the tool alone would leave what it started (ffmpeg, the overlay
+	// renderer, CS2) working against whatever this machine does next.
+	cmd.Cancel = func() error { return killProcessTree(cmd.Process, tool) }
 	started := time.Now()
 	obs.EmitTrace(ctx, obs.TraceEntry{Event: "process.started", Message: tool + " started"})
 	var output commandOutputBuffer
@@ -2748,7 +2751,7 @@ func prepareStageDir(root string, id uuid.UUID, stage string) (string, func(), e
 		return "", nil, err
 	}
 	if root == "" {
-		cleanup = func() { _ = os.RemoveAll(dir) }
+		cleanup = func() { removeStageDir(dir) }
 	}
 	return dir, cleanup, nil
 }

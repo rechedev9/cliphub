@@ -20,6 +20,7 @@ const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string
   parsing: { tag: 'PARSEO', sub: 'Parseando la demo', tone: 'text-primary' },
   acquiring: { tag: 'DESCARGA', sub: 'Descargando el vídeo de origen', tone: 'text-primary' },
   queued: { tag: 'EN COLA', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
+  cloud: { tag: 'NUBE', sub: 'En la nube de ClipHub · este PC queda libre', tone: 'text-primary' },
 };
 
 const PILL_CLASS =
@@ -155,10 +156,16 @@ function JobRow({ job, onNavigate }: { job: ShellJob; onNavigate: () => void }):
         <BarFill stage={job.stage} percent={percent} />
       </span>
       <span className="font-[family-name:var(--font-mono)] text-meta tracking-wider text-fg-3 uppercase">
-        {job.stage === 'composing' ? job.progress?.stage ?? meta.sub : meta.sub}
+        {jobSubtitle(job)}
       </span>
     </Link>
   );
+}
+
+function jobSubtitle(job: ShellJob): string {
+  const { sub } = STAGE_META[job.stage];
+  if (job.stage === 'cloud') return job.detail ?? sub;
+  return job.stage === 'composing' ? job.progress?.stage ?? sub : sub;
 }
 
 function BarFill({ stage, percent }: { stage: ShellJobStage; percent: number | null }): ReactElement {
@@ -182,5 +189,6 @@ function pillTag(job: ShellJob): string {
   if (job.progress === null) return tag;
   if (job.stage === 'recording') return `${tag} R${job.progress.done}/${job.progress.total}`;
   if (job.stage === 'composing' && job.kind === 'reel') return `${tag} ${captureProgressPercent(job.progress)}%`;
+  if (job.stage === 'cloud') return `${tag} ${captureProgressPercent(job.progress)}%`;
   return tag;
 }

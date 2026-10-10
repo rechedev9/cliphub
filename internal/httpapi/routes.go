@@ -129,6 +129,14 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/editor/projects/{id}/render", h.GetEditorRender)
 	r.Get("/api/editor/projects/{id}/render/video", h.GetEditorRenderVideo)
 	r.Get("/api/editor/projects/{id}/render/cover", h.GetEditorRenderCover)
+	r.Get("/api/cloud/account", h.GetCloudAccount)
+	r.Post("/api/cloud/link", h.StartCloudLink)
+	r.Delete("/api/cloud/link", h.DeleteCloudLink)
+	r.Post("/api/cloud/jobs", h.CreateCloudJob)
+	r.Get("/api/cloud/jobs", h.ListCloudJobs)
+	r.Post("/api/cloud/jobs/{id}/cancel", h.CancelCloudJob)
+	r.Delete("/api/cloud/jobs/{id}", h.DeleteCloudJob)
+	r.Get("/api/cloud/jobs/{id}/videos/{name}", h.GetCloudJobVideo)
 	return r
 }
 

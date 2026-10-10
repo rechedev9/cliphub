@@ -55,6 +55,9 @@ const buttonVariants = cva(
           "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-primary/60 hover:bg-surface-4 hover:text-fg-1 active:shadow-none disabled:bg-surface-2 disabled:text-fg-3",
         "outline-primary":
           "border border-primary/50 bg-surface-2 text-primary shadow-[var(--elev-0),var(--glow-primary-sm)] hover:border-primary hover:bg-primary/12 hover:shadow-[var(--elev-1),var(--glow-primary-md)] active:shadow-[var(--elev-0)] disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
+        // The resting state of a destructive action: red only as text and edge.
+        "outline-destructive":
+          "border border-destructive/50 bg-surface-2 text-destructive shadow-[var(--elev-0)] hover:border-destructive hover:bg-destructive/12 active:shadow-none focus-visible:outline-destructive disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
         secondary:
           "bg-secondary text-secondary-foreground shadow-[var(--elev-0)] hover:bg-surface-5 active:shadow-none",
         ghost: "text-fg-2 hover:bg-surface-3 hover:text-fg-1",

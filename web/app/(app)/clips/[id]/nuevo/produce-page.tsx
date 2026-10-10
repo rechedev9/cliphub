@@ -18,6 +18,7 @@ import {
   seriesHref,
   type ProduceFormat,
 } from '@/lib/clips/routes';
+import { CAPTURE_TARGET_QUERY, captureTargetParam } from '@/lib/cloud/capture-target';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   MATCH_PLAYS_ANALYZING_DESCRIPTION,
@@ -234,7 +235,8 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
           {shortContent}
           {shortPlanJobId === id ? (
             <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-              <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} />
+              <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId}
+                initialTarget={captureTargetParam(query[CAPTURE_TARGET_QUERY])} />
             </div>
           ) : null}
         </div>

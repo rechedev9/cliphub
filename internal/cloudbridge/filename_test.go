@@ -1,6 +1,9 @@
 package cloudbridge
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCloudFileName(t *testing.T) {
 	cases := []struct {
@@ -37,6 +40,34 @@ func TestCloudFileName(t *testing.T) {
 			submitterLabel: "carol",
 			originalName:   "",
 			want:           "cloud-5fa7627c-carol-demo.dem",
+		},
+		{
+			name:           "a path in the original name keeps only its last element",
+			requestID:      "5fa7627c-a94f-4855-9bbe-6af9997e6f3e",
+			submitterLabel: "mallory",
+			originalName:   `..\..\Windows/System32/evil.dem`,
+			want:           "cloud-5fa7627c-mallory-evil.dem",
+		},
+		{
+			name:           "control and invisible format characters are dropped",
+			requestID:      "5fa7627c-a94f-4855-9bbe-6af9997e6f3e",
+			submitterLabel: "mallory",
+			originalName:   "ma\u202etch\u200b\x00\n.dem",
+			want:           "cloud-5fa7627c-mallory-match.dem",
+		},
+		{
+			name:           "a name that is only separators falls back to demo.dem",
+			requestID:      "5fa7627c-a94f-4855-9bbe-6af9997e6f3e",
+			submitterLabel: "mallory",
+			originalName:   "../",
+			want:           "cloud-5fa7627c-mallory-demo.dem",
+		},
+		{
+			name:           "a very long original name is capped",
+			requestID:      "5fa7627c-a94f-4855-9bbe-6af9997e6f3e",
+			submitterLabel: "mallory",
+			originalName:   strings.Repeat("\u00f1", 200),
+			want:           "cloud-5fa7627c-mallory-" + strings.Repeat("\u00f1", maxOriginalNameRunes),
 		},
 	}
 	for _, tc := range cases {

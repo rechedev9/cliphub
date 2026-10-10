@@ -28,6 +28,7 @@ import {
   type HubMatch,
 } from '@/lib/clips/hub';
 import { newDemoHref, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import type { CloudJob } from '@/lib/cloud/parse';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ import { parseScore } from '@/components/matches/match-score';
 import { CoverImage } from '@/components/studio/cover-image';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
+import { CloudOutputItem } from '@/components/clips-hub/cloud-output-item';
 import { OutputItem } from '@/components/clips-hub/output-item';
 
 export function matchRowId(matchId: string): string {
@@ -48,10 +50,15 @@ export type MatchRowProps = {
   open: boolean;
   onToggle: (matchId: string) => void;
   onChange: () => void;
+  /** Cloud jobs created from this partida; they live outside the hub model. */
+  cloud?: readonly CloudJob[];
+  onCloudChange?: () => void;
 };
 
+const NO_CLOUD_JOBS: readonly CloudJob[] = [];
+
 /** One partida: collapsed scoreboard header, expanded Shorts + Full POV columns. */
-function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNode {
+function MatchRowCard({ row, open, onToggle, onChange, cloud = NO_CLOUD_JOBS, onCloudChange = onChange }: MatchRowProps): ReactNode {
   const { match, stage, shorts, fulls } = row;
   const { ours, theirs } = parseScore(match.score);
   const hasScore = ours !== null && theirs !== null;
@@ -70,7 +77,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
   if (stage === HUB_ROW_STAGE.parsing) headerBlock = <ParsingBlock player={player} />;
   else if (stage === HUB_ROW_STAGE.unpicked) headerBlock = <UnpickedBlock />;
   else if (stage === HUB_ROW_STAGE.failed) headerBlock = <FailedBlock reason={match.failureReason} shorts={shorts} fulls={fulls} />;
-  else headerBlock = <ReadyHeaderBlock hasScore={hasScore} ours={ours} theirs={theirs} win={win} loss={loss} shorts={shorts} fulls={fulls} />;
+  else headerBlock = <ReadyHeaderBlock hasScore={hasScore} ours={ours} theirs={theirs} win={win} loss={loss} shorts={shorts} fulls={fulls} cloudCount={cloud.length} />;
 
   return (
     <article
@@ -152,7 +159,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
       {expanded ? (
         <div className="grid grid-cols-1 border-t border-border-subtle @[44rem]/content:grid-cols-2">
-          <ShortsColumn row={row} onChange={onChange} />
+          <ShortsColumn row={row} onChange={onChange} cloud={cloud} onCloudChange={onCloudChange} />
           <FullColumn row={row} onChange={onChange} />
         </div>
       ) : null}
@@ -213,6 +220,7 @@ function ReadyHeaderBlock({
   loss,
   shorts,
   fulls,
+  cloudCount,
 }: {
   hasScore: boolean;
   ours: number | null;
@@ -221,6 +229,7 @@ function ReadyHeaderBlock({
   loss: boolean;
   shorts: HubMatch['shorts'];
   fulls: HubMatch['fulls'];
+  cloudCount: number;
 }): ReactNode {
   return (
     <span className="row-state flex-row flex-wrap items-center justify-start gap-3">
@@ -236,9 +245,10 @@ function ReadyHeaderBlock({
         </span>
       ) : null}
       {/* An empty chip says nothing; the row's CTA carries "nothing yet". */}
-      {shorts.length > 0 || fulls[0] !== undefined ? (
+      {shorts.length > 0 || fulls[0] !== undefined || cloudCount > 0 ? (
         <span className="flex items-center gap-2">
           {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}
+          {cloudCount > 0 ? <StatusTag tone="primary">Nube · {cloudCount}</StatusTag> : null}
           {fulls[0] !== undefined ? (
             <StatusTag tone={OUTPUT_TONE[fulls[0].state]}>
               {fulls[0].state === OUTPUT_STATE.rec ? (
@@ -271,18 +281,31 @@ function ColumnHead({ label, accent, trailing }: { label: string; accent?: boole
   );
 }
 
-function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }): ReactNode {
+function ShortsColumn({
+  row,
+  onChange,
+  cloud,
+  onCloudChange,
+}: {
+  row: HubMatch;
+  onChange: () => void;
+  cloud: readonly CloudJob[];
+  onCloudChange: () => void;
+}): ReactNode {
   return (
     <div className="flex flex-col gap-2 border-border-subtle px-4 py-3 @[44rem]/content:border-r">
-      <ColumnHead label="Shorts" accent trailing={pluralShorts(row.shorts.length)} />
+      <ColumnHead label="Shorts" accent trailing={pluralShorts(row.shorts.length + cloud.length)} />
       {row.shorts.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
+      ))}
+      {cloud.map((job) => (
+        <CloudOutputItem key={job.id} job={job} onChange={onCloudChange} />
       ))}
       {hubRowCanProduce(row) ? (
         <Button asChild variant="outline-primary" size="sm" className="border-dashed">
           <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
             <Plus aria-hidden />
-            {row.shorts.length === 0 ? 'Crear Short' : 'Crear otro Short'}
+            {row.shorts.length + cloud.length === 0 ? 'Crear Short' : 'Crear otro Short'}
           </Link>
         </Button>
       ) : null}
