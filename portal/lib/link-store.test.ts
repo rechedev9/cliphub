@@ -17,7 +17,7 @@ import {
 } from "./link-store.ts";
 import { createRateLimiter } from "./rate-limit.ts";
 
-const ORIGIN = "https://cliphub.gravityroom.app";
+const ORIGIN = "https://cliphub.rechedev.cloud";
 // Studio and the browser that confirms normally share one public address.
 const HOME = "203.0.113.7";
 const ELSEWHERE = "198.51.100.20";

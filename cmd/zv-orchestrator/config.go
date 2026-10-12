@@ -216,7 +216,7 @@ func validateBridgeConfig(bridgeURL, bridgeToken string) error {
 
 // defaultCloudURL is the production portal every Studio talks to unless
 // ZV_CLOUD_URL says otherwise.
-const defaultCloudURL = "https://cliphub.gravityroom.app"
+const defaultCloudURL = "https://cliphub.rechedev.cloud"
 
 // cloudURLFromEnvironment resolves ZV_CLOUD_URL: unset means the production
 // portal, "off" disables the cloud client, and anything else must be https://

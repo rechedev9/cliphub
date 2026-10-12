@@ -17,7 +17,8 @@ HTTPS only. No inbound connection is ever made to that machine.
 
 ## Deploy
 
-1. Point `cliphub.gravityroom.app` A/AAAA records at the VPS.
+1. Point `cliphub.rechedev.cloud` A/AAAA records at the VPS (the `*.rechedev.cloud`
+   wildcard already does).
 2. Copy this directory and `portal/` to the VPS (the build context is
    `../../portal`, so keep them side by side).
 3. `cp .env.example .env` and fill in every value.
@@ -39,7 +40,7 @@ Worker credentials live in the database, not in `.env`.
    its hash is stored.
 2. On the capture machine, set two user environment
    variables for the Windows account that runs Studio:
-   `ZV_BRIDGE_URL=https://cliphub.gravityroom.app` and `ZV_BRIDGE_TOKEN=<token>`.
+   `ZV_BRIDGE_URL=https://cliphub.rechedev.cloud` and `ZV_BRIDGE_TOKEN=<token>`.
 3. Restart Studio. Within 15 seconds the worker shows as online in `/admin`.
 
 The rest of the machine setup (auto-logon, Steam and Studio at startup, what
@@ -56,6 +57,15 @@ Studio but cannot create jobs until an admin allows it in `/admin` under
 Usuarios. Set it to `allowed` to open the cloud to every account. Admins are
 always allowed. Limits (3 active jobs and 90 minutes of machine time per 24
 hours) come from the environment and can be overridden per user in the panel.
+
+## Approving each capture
+
+`CLOUD_APPROVAL=required` (the default) holds every job as a request: it shows
+under Solicitudes at the top of `/admin` and no worker takes it until an admin
+approves it. Rejecting one ends it with the reason the admin wrote, which the
+user reads in Studio and in the portal. An admin's own jobs skip the step, and
+so do those of a user marked "sin revisión" under Usuarios. Set it to `off` to
+send every job straight to the queue.
 
 ## Upgrading from the manual bridge
 

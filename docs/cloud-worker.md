@@ -28,7 +28,7 @@ portal.
 
    | Variable | Value |
    |---|---|
-   | `ZV_BRIDGE_URL` | `https://cliphub.gravityroom.app` |
+   | `ZV_BRIDGE_URL` | `https://cliphub.rechedev.cloud` |
    | `ZV_BRIDGE_TOKEN` | the worker token (64 hex characters) |
    | `ZV_RECORD_TIMEOUT` | `45m` (default 20m; bounds one whole CS2 run) |
    | `ZV_RENDER_TIMEOUT` | `60m` (default 20m) |

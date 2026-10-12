@@ -18,7 +18,7 @@ const shareTechMono = Share_Tech_Mono({
 
 export const metadata: Metadata = {
   // Link previews need an absolute origin; AUTH_URL is the public one at run time.
-  metadataBase: new URL(process.env.AUTH_URL || "https://cliphub.gravityroom.app"),
+  metadataBase: new URL(process.env.AUTH_URL || "https://cliphub.rechedev.cloud"),
   title: { default: "ClipHub", template: "%s · ClipHub" },
   description:
     "Graba tus vídeos de CS2 en la nube de ClipHub: vincula ClipHub Studio, sigue tus trabajos y descarga los resultados.",

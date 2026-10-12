@@ -194,7 +194,7 @@ export default async function OpengraphImage() {
             <span>•</span>
             <span>NO ACCOUNT</span>
             <span>•</span>
-            <span style={{ color: BRAND }}>CLIPHUB.GRAVITYROOM.APP</span>
+            <span style={{ color: BRAND }}>CLIPHUB.RECHEDEV.CLOUD</span>
             <span
               style={{
                 marginLeft: 8,

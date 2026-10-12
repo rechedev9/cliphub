@@ -484,7 +484,7 @@ func TestLoadConfigCloudURL(t *testing.T) {
 		want    string
 		wantErr string
 	}{
-		{name: "unset means the production portal", want: "https://cliphub.gravityroom.app"},
+		{name: "unset means the production portal", want: "https://cliphub.rechedev.cloud"},
 		{name: "off disables the cloud client", value: "off", want: ""},
 		{name: "off in any case", value: " OFF ", want: ""},
 		{name: "another https portal", value: "https://portal.example/", want: "https://portal.example"},
