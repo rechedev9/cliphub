@@ -87,6 +87,10 @@ test('auto pick keeps plan order among equal kill counts', () => {
 test('rounds summary lists selected rounds in plan order', () => {
   assert.equal(roundsSummary([play('a', 7, 1), play('b', 12, 2), play('c', 19, 1)]), 'R7 · R12 · R19');
   assert.equal(roundsSummary([]), '');
+  assert.equal(
+    roundsSummary([play('a', 9, 1), play('b', 12, 1), play('c', 12, 2), play('d', 16, 1), play('e', 16, 1), play('f', 16, 1), play('g', 18, 1)]),
+    'R9 · R12 ×2 · R16 ×3 · R18',
+  );
 });
 
 test('auto pick always keeps the top-ranked play when nothing fits the target', () => {

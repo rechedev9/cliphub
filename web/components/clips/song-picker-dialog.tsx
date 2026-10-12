@@ -140,7 +140,7 @@ export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogPro
 export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId }: SongPickerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-[family-name:var(--font-display)] tracking-tight">Elige un tema</DialogTitle>
           <DialogDescription>Cortamos la acción al ritmo del beat. Pulsa play para escucharlo.</DialogDescription>
@@ -187,7 +187,7 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
         <p className="truncate text-body-sm font-semibold text-fg-1">{song.title}</p>
         {/* Only the artist truncates, so genre and length always stay readable. */}
         <p className="flex min-w-0 font-mono text-meta tracking-wider text-fg-3">
-          <span className="min-w-0 truncate">{song.artist}</span>
+          <span className="min-w-[4ch] truncate">{song.artist}</span>
           {meta ? <span className="shrink-0 whitespace-nowrap">&nbsp;· {meta}</span> : null}
         </p>
       </div>

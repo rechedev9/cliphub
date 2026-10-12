@@ -31,3 +31,7 @@ export const PRODUCE_MATCH_NO_POV = {
   description: 'La demo ya está cargada. Elige un jugador para analizar sus jugadas y preparar el vídeo.',
 } as const;
 export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
+
+/** Creating a Short failed in transport or on the server; domain errors keep their own text. */
+export const PRODUCE_SHORT_CREATE_OFFLINE = 'El servicio local no responde. Comprueba que ClipHub sigue abierto y vuelve a intentarlo.';
+export const PRODUCE_SHORT_CREATE_ERROR = 'No se pudo crear el Short. Vuelve a intentarlo.';
