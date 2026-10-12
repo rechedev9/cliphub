@@ -87,6 +87,16 @@ test('every status shows the line the design names', () => {
     { name: 'rendering', job: job({ status: 'running', stage: 'rendering', percent: 40 }), line: 'RENDER EN LA NUBE 40 %' },
     { name: 'downloading to this PC', job: job({ status: 'downloading', percent: 80 }), line: 'DESCARGANDO 80 %' },
     { name: 'canceled', job: job({ status: 'canceled' }), line: 'CANCELADO' },
+    {
+      name: 'waiting for approval',
+      job: job({ status: 'pending_approval' }),
+      line: 'ESPERANDO APROBACIÓN · un administrador revisa tu solicitud',
+    },
+    {
+      name: 'rejected',
+      job: job({ status: 'canceled', failure: { code: 'rejected', message: 'La demo no es tuya' } }),
+      line: 'No hemos aprobado esta solicitud: La demo no es tuya',
+    },
   ];
   for (const testCase of cases) {
     assert.equal(cloudJobView(testCase.job, NOW).line, testCase.line, testCase.name);

@@ -6,7 +6,7 @@ const JOB_ID = '11111111-1111-4111-8111-111111111111';
 const MATCH_ID = '22222222-2222-4222-8222-222222222222';
 
 const LINKED_ACCOUNT = {
-  portal_url: 'https://cliphub.gravityroom.app',
+  portal_url: 'https://cliphub.rechedev.cloud',
   linked: true,
   link: null,
   user: { name: 'Luis', email: 'luis@example.com' },
@@ -15,6 +15,7 @@ const LINKED_ACCOUNT = {
   usage: { active: 1, seconds_last_24h: 1200, seconds_committed: 480 },
   kinds: ['short'],
   queue: { state: 'online', queued: 4, wait_seconds: { short: 1500 } },
+  needs_approval: true,
   error: null,
 };
 
@@ -37,7 +38,7 @@ const QUEUED_JOB = {
 
 test('a linked account document is read field by field', () => {
   assert.deepEqual(parseCloudAccount(LINKED_ACCOUNT), {
-    portalUrl: 'https://cliphub.gravityroom.app',
+    portalUrl: 'https://cliphub.rechedev.cloud',
     linked: true,
     link: null,
     user: { name: 'Luis', email: 'luis@example.com' },
@@ -46,15 +47,16 @@ test('a linked account document is read field by field', () => {
     usage: { active: 1, secondsLast24h: 1200, secondsCommitted: 480 },
     kinds: ['short'],
     queue: { state: 'online', queued: 4, waitSeconds: { short: 1500 } },
+    needsApproval: true,
     error: null,
   });
 });
 
 test('an unlinked account keeps the pending link and nothing that belongs to a user', () => {
   const account = parseCloudAccount({
-    portal_url: 'https://cliphub.gravityroom.app',
+    portal_url: 'https://cliphub.rechedev.cloud',
     linked: false,
-    link: { status: 'pending', user_code: 'K7QM-2XHD', verify_url: 'https://cliphub.gravityroom.app/link?code=K7QM-2XHD', expires_at: '2026-10-09T10:10:00Z' },
+    link: { status: 'pending', user_code: 'K7QM-2XHD', verify_url: 'https://cliphub.rechedev.cloud/link?code=K7QM-2XHD', expires_at: '2026-10-09T10:10:00Z' },
     user: { name: 'stale', email: 'stale@example.com' },
     access: 'allowed',
     limits: null,
@@ -87,6 +89,8 @@ test('unknown account values degrade to a state that cannot submit or promise a 
   assert.equal(account?.queue?.state, 'offline');
   assert.equal(account?.queue?.waitSeconds.short, null);
   assert.equal(account?.error, 'portal_unreachable');
+  // A portal from before the approval step says nothing, which reads as no approval.
+  assert.equal(parseCloudAccount({ ...LINKED_ACCOUNT, needs_approval: undefined })?.needsApproval, false);
 });
 
 test('the account response tells an old Studio, a disabled client and a dead local service apart', () => {
@@ -119,6 +123,14 @@ test('a paused queue never carries an estimate, even if the document has one', (
   assert.equal(job?.queue?.state, 'paused');
   assert.equal(job?.queue?.estimatedStartAt, null);
   assert.equal(job?.queue?.position, 3);
+});
+
+test('a request waits for approval, and only a rejected cancel keeps its reason', () => {
+  assert.equal(parseCloudJob({ ...QUEUED_JOB, status: 'pending_approval' })?.status, 'pending_approval');
+  const rejected = parseCloudJob({ ...QUEUED_JOB, status: 'canceled', failure: { code: 'rejected', message: 'No' } });
+  assert.deepEqual(rejected?.failure, { code: 'rejected', message: 'No' });
+  const canceled = parseCloudJob({ ...QUEUED_JOB, status: 'canceled', failure: { code: 'canceled', message: 'x' } });
+  assert.equal(canceled?.failure, null);
 });
 
 test('an unknown status is kept as unknown, with no stage, queue or failure invented', () => {

@@ -70,7 +70,9 @@ type PortalQueue struct {
 type Me struct {
 	User   PortalUser `json:"user"`
 	Access string     `json:"access"`
-	Limits struct {
+	// NeedsApproval: an operator reviews each new job before it is queued.
+	NeedsApproval bool `json:"needsApproval"`
+	Limits        struct {
 		MaxActive    int   `json:"maxActive"`
 		DailySeconds int   `json:"dailySeconds"`
 		MaxDemoBytes int64 `json:"maxDemoBytes"`
@@ -177,7 +179,7 @@ type Portal struct {
 }
 
 // NewPortal targets one portal deployment, for example
-// https://cliphub.gravityroom.app.
+// https://cliphub.rechedev.cloud.
 func NewPortal(baseURL string) *Portal {
 	// No client-wide timeout: a 700 MiB demo upload and a status poll need
 	// very different budgets, so each call carries its own.

@@ -312,7 +312,7 @@ func TestCloudRoutesSpeakTheLocalContract(t *testing.T) {
 	stalled := cloudclient.StalledPortal
 	cloud := &fakeCloud{
 		account: cloudclient.Account{
-			PortalURL: "https://cliphub.gravityroom.app",
+			PortalURL: "https://cliphub.rechedev.cloud",
 			Linked:    true,
 			User:      &cloudclient.StoredUser{Name: "Luis", Email: "luis@example.com"},
 			Access:    &access,
@@ -331,7 +331,7 @@ func TestCloudRoutesSpeakTheLocalContract(t *testing.T) {
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithMutationToken(cloudTestToken), WithRequireReadAuth(true), WithCloud(cloud))
 
 	account := cloudRequest(t, h, http.MethodGet, "/api/cloud/account", "", nil)
-	const wantAccount = `{"portal_url":"https://cliphub.gravityroom.app","linked":true,"link":null,"user":{"name":"Luis","email":"luis@example.com"},"access":"allowed","limits":{"max_active":3,"daily_seconds":5400},"usage":{"active":1,"seconds_last_24h":1200,"seconds_committed":480},"kinds":["short"],"queue":{"state":"online","queued":4,"wait_seconds":{"short":62}},"error":null}`
+	const wantAccount = `{"portal_url":"https://cliphub.rechedev.cloud","linked":true,"link":null,"user":{"name":"Luis","email":"luis@example.com"},"access":"allowed","limits":{"max_active":3,"daily_seconds":5400},"usage":{"active":1,"seconds_last_24h":1200,"seconds_committed":480},"kinds":["short"],"queue":{"state":"online","queued":4,"wait_seconds":{"short":62}},"needs_approval":false,"error":null}`
 	if account.Code != http.StatusOK || strings.TrimSpace(account.Body.String()) != wantAccount {
 		t.Fatalf("GET account = %d %s\nwant %s", account.Code, account.Body.String(), wantAccount)
 	}

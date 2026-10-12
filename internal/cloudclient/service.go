@@ -380,7 +380,9 @@ type Account struct {
 	Usage     *AccountUsage  `json:"usage"`
 	Kinds     []string       `json:"kinds"`
 	Queue     *AccountQueue  `json:"queue"`
-	Error     *string        `json:"error"`
+	// NeedsApproval: a new job waits for an operator before it is queued.
+	NeedsApproval bool    `json:"needs_approval"`
+	Error         *string `json:"error"`
 }
 
 // Account returns the account document, refreshing the portal's part when
@@ -464,6 +466,7 @@ func (s *Service) accountView() Account {
 	access := s.me.Access
 	view.User = &StoredUser{Name: s.me.User.Name, Email: s.me.User.Email}
 	view.Access = &access
+	view.NeedsApproval = s.me.NeedsApproval
 	view.Limits = &AccountLimits{MaxActive: s.me.Limits.MaxActive, DailySeconds: s.me.Limits.DailySeconds}
 	view.Usage = &AccountUsage{
 		Active:           s.me.Usage.Active,
@@ -1146,6 +1149,8 @@ func (s *Service) localJob(submission Submission) LocalJob {
 	case portal != nil && portal.Status == portalCanceled:
 		// A cancel wins over a demo upload that was still running.
 		view.Status = portalCanceled
+		// Set only when an operator turned the request down, with their reason.
+		view.Failure = portal.Failure
 	case !submission.DemoUploaded || portal == nil || portal.Status == portalAwaitingDemo:
 		view.Status = StatusUploadingDemo
 		percent := submission.UploadPercent

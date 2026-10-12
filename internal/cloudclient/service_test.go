@@ -97,6 +97,7 @@ func newUserPortal(t *testing.T) *userPortal {
 	}
 	p.me.User = PortalUser{ID: "user-1", Name: "Luis", Email: "luis@example.com"}
 	p.me.Access = "allowed"
+	p.me.NeedsApproval = true
 	p.me.Limits.MaxActive, p.me.Limits.DailySeconds, p.me.Limits.MaxDemoBytes = 3, 5400, 734003200
 	p.me.Usage.Active, p.me.Usage.SecondsLast24h, p.me.Usage.SecondsCommitted = 1, 1200, 480
 	p.me.Kinds = []string{"short"}
@@ -527,8 +528,8 @@ func TestLinkFlowStoresTheDeviceTokenAndExposesTheAccount(t *testing.T) {
 	if account.Link != nil || account.Error != nil || account.PortalURL != f.portal.server.URL {
 		t.Fatalf("linked account = %+v, want no link and no error", account)
 	}
-	if account.User == nil || account.User.Name != "Luis" || *account.Access != "allowed" {
-		t.Fatalf("linked account user=%+v access=%v", account.User, account.Access)
+	if account.User == nil || account.User.Name != "Luis" || *account.Access != "allowed" || !account.NeedsApproval {
+		t.Fatalf("linked account user=%+v access=%v needsApproval=%v", account.User, account.Access, account.NeedsApproval)
 	}
 	if *account.Limits != (AccountLimits{MaxActive: 3, DailySeconds: 5400}) || *account.Usage != (AccountUsage{Active: 1, SecondsLast24h: 1200, SecondsCommitted: 480}) {
 		t.Fatalf("limits=%+v usage=%+v", account.Limits, account.Usage)
@@ -1284,6 +1285,26 @@ func TestCancelAsksThePortalAndOnlyWorksOnActiveJobs(t *testing.T) {
 	}
 	if _, err := f.service.Cancel(ctx, uuid.NewString()); cloudError(err).Status != http.StatusNotFound {
 		t.Fatalf("Cancel of an unknown job error = %v, want 404", err)
+	}
+}
+
+func TestARequestWaitsForApprovalAndARejectionKeepsItsReason(t *testing.T) {
+	f := newFixture(t, true)
+	created, err := f.submit(nil)
+	if err != nil {
+		t.Fatalf("Submit error = %v", err)
+	}
+	f.portal.with(func() { f.portal.jobs[0].Status = "pending_approval" })
+	eventually(t, "the job to wait for approval", func() bool { return f.job(created.ID).Status == "pending_approval" })
+
+	f.portal.with(func() {
+		rejected := f.portal.jobs[0]
+		rejected.Status = portalCanceled
+		rejected.Failure = &PortalFailure{Code: "rejected", Message: "La demo no es tuya"}
+	})
+	eventually(t, "the rejection to land", func() bool { return f.job(created.ID).Status == portalCanceled })
+	if failure := f.job(created.ID).Failure; failure == nil || failure.Code != "rejected" || failure.Message != "La demo no es tuya" {
+		t.Fatalf("failure of a rejected job = %+v, want the operator's reason", failure)
 	}
 }
 

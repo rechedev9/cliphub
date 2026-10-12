@@ -17,7 +17,7 @@ function account(overrides: Partial<CloudAccount> = {}): CloudAccountState {
   return {
     kind: 'ready',
     account: {
-      portalUrl: 'https://cliphub.gravityroom.app',
+      portalUrl: 'https://cliphub.rechedev.cloud',
       linked: true,
       link: null,
       user: { name: 'Luis', email: 'luis@example.com' },
@@ -26,6 +26,7 @@ function account(overrides: Partial<CloudAccount> = {}): CloudAccountState {
       usage: { active: 1, secondsLast24h: 1200, secondsCommitted: 480 },
       kinds: ['short'],
       queue: { state: 'online', queued: 3, waitSeconds: { short: 1200 } },
+      needsApproval: false,
       error: null,
       ...overrides,
     },
@@ -90,6 +91,12 @@ test('the cloud line reports queue, wait and remaining minutes when ready', () =
   assert.equal(view.status.text, '3 en cola · empieza en unos 20 a 30 min · te quedan 62 min hoy');
 });
 
+test('an account whose videos are reviewed is told so instead of a start time', () => {
+  const view = cloud(account({ needsApproval: true }));
+  assert.equal(view.canSubmit, true);
+  assert.equal(view.status.text, 'Un administrador aprueba cada vídeo antes de grabarlo · te quedan 62 min hoy');
+});
+
 test('an empty queue reads as no queue', () => {
   const view = cloud(account({ queue: { state: 'online', queued: 0, waitSeconds: { short: 0 } } }));
   assert.equal(view.status.text, 'Sin cola · empieza en menos de 5 min · te quedan 62 min hoy');
@@ -104,7 +111,7 @@ test('not linked asks for the account and offers the link button', () => {
 
 test('a link in progress shows the code to confirm', () => {
   const view = cloud(
-    account({ ...UNLINKED, link: { status: 'pending', userCode: 'K7QM-2XHD', verifyUrl: 'https://cliphub.gravityroom.app/link', expiresAt: null } }),
+    account({ ...UNLINKED, link: { status: 'pending', userCode: 'K7QM-2XHD', verifyUrl: 'https://cliphub.rechedev.cloud/link', expiresAt: null } }),
   );
   assert.match(view.status.text, /K7QM-2XHD/);
   assert.equal(view.offerLink, true);

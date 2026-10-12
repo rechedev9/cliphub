@@ -1,3 +1,4 @@
+import { CLOUD_REJECTED_CODE } from './parse.ts';
 import type { CloudJob, CloudJobQueue } from './parse.ts';
 
 /** Everything the UI says about a cloud job, decided here so it can be tested without a browser. */
@@ -245,6 +246,7 @@ function readyNames(job: CloudJob): string[] {
 
 const CANCEL_WARNING = {
   uploading_demo: 'La demo que ya se ha subido se descarta y el vídeo no se creará.',
+  pending_approval: 'Se retira la solicitud y el vídeo no se creará.',
   queued: 'Perderás tu puesto en la cola. Si lo creas otra vez, empezará desde el final.',
   working: 'La nube ya está trabajando en este vídeo. Si cancelas, se pierde lo que lleva hecho.',
 } as const;
@@ -260,7 +262,7 @@ function removeWarning(playable: number): string | null {
 const STUCK_DOWNLOAD_REMOVE_WARNING =
   'El vídeo no se guardará en este PC. Mientras siga disponible podrás descargarlo desde la web de ClipHub.';
 
-type MovingStatus = 'uploading_demo' | 'queued' | 'running' | 'uploading';
+type MovingStatus = 'uploading_demo' | 'pending_approval' | 'queued' | 'running' | 'uploading';
 
 type MovingJob = { job: CloudJob; status: MovingStatus; now: number };
 
@@ -273,6 +275,8 @@ function movingLook({ job, status, now }: MovingJob, stale: boolean): MovingLook
       return job.stalled === 'demo_upload'
         ? { tone: 'working', line: 'SUBIENDO DEMO · la subida se cortó y se reintenta sola', bar: true, percent: null, cancelWarning: CANCEL_WARNING.uploading_demo }
         : { tone: 'working', line: withPercent('SUBIENDO DEMO', job.percent), bar: true, percent: job.percent, cancelWarning: CANCEL_WARNING.uploading_demo };
+    case 'pending_approval':
+      return { tone: 'queue', line: 'ESPERANDO APROBACIÓN · un administrador revisa tu solicitud', bar: false, percent: null, cancelWarning: CANCEL_WARNING.pending_approval };
     case 'queued': {
       // An estimate from before an outage is not repeated as if it still held.
       const queue = stale && job.queue !== null ? { ...job.queue, estimatedStartAt: null } : job.queue;
@@ -303,6 +307,7 @@ function movingView(moving: MovingJob): CloudJobView {
 export function cloudJobView(job: CloudJob, now: number): CloudJobView {
   switch (job.status) {
     case 'uploading_demo':
+    case 'pending_approval':
     case 'queued':
     case 'running':
     case 'uploading':
@@ -329,8 +334,13 @@ export function cloudJobView(job: CloudJob, now: number): CloudJobView {
       const failure = cloudFailureView(job.failure ?? { code: '', message: '' });
       return { ...SETTLED, tone: 'failed', line: failure.message, failure };
     }
-    case 'canceled':
-      return { ...SETTLED, tone: 'neutral', line: 'CANCELADO' };
+    case 'canceled': {
+      if (job.failure?.code !== CLOUD_REJECTED_CODE) return { ...SETTLED, tone: 'neutral', line: 'CANCELADO' };
+      const reason = job.failure.message.trim();
+      const message = reason === '' ? 'No hemos aprobado esta solicitud.' : `No hemos aprobado esta solicitud: ${reason}`;
+      // Asking the cloud again would only wait for the same answer.
+      return { ...SETTLED, tone: 'failed', line: message, failure: { message, retryCloud: false, recordLocal: true } };
+    }
     case 'unknown':
       return { ...SETTLED, tone: 'neutral', line: 'Estado desconocido. Actualiza Studio para seguir este vídeo', canRemove: false };
   }

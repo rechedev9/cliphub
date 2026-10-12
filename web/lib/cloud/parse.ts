@@ -16,6 +16,7 @@ export type CloudAccountError = (typeof CLOUD_ACCOUNT_ERRORS)[number];
 
 export const CLOUD_JOB_STATUSES = [
   'uploading_demo',
+  'pending_approval',
   'queued',
   'running',
   'uploading',
@@ -26,6 +27,9 @@ export const CLOUD_JOB_STATUSES = [
 ] as const;
 /** `unknown` is a status this Studio does not know: shown as such, never guessed. */
 export type CloudJobStatus = (typeof CLOUD_JOB_STATUSES)[number] | 'unknown';
+
+/** The failure code of a job an operator turned down; such a job reads as canceled. */
+export const CLOUD_REJECTED_CODE = 'rejected';
 
 export const CLOUD_STAGES = ['downloading', 'parsing', 'capturing', 'rendering'] as const;
 export type CloudStage = (typeof CLOUD_STAGES)[number];
@@ -60,6 +64,8 @@ export type CloudAccount = {
   usage: { active: number; secondsLast24h: number; secondsCommitted: number } | null;
   kinds: string[];
   queue: CloudQueueSummary | null;
+  /** An operator reviews each new job of this account before it is queued. */
+  needsApproval: boolean;
   error: CloudAccountError | null;
 };
 
@@ -183,6 +189,7 @@ export function parseCloudAccount(body: unknown): CloudAccount | null {
     usage: linked ? usage : null,
     kinds: Array.isArray(body.kinds) ? body.kinds.filter((kind): kind is string => typeof kind === 'string') : [],
     queue: linked ? parseQueueSummary(body.queue) : null,
+    needsApproval: linked && body.needs_approval === true,
     error,
   };
 }
@@ -229,6 +236,13 @@ function parseVideos(value: unknown): CloudVideo[] {
 }
 
 /** Parses one `LocalCloudJob`; null when it has no usable identity. */
+function jobFailure(status: CloudJobStatus, failure: CloudJob['failure']): CloudJob['failure'] {
+  // A failed job with no failure object still needs a line to show.
+  if (status === 'failed') return failure ?? { code: '', message: '' };
+  // A canceled job only carries a failure when an operator turned it down.
+  return status === 'canceled' && failure?.code === CLOUD_REJECTED_CODE ? failure : null;
+}
+
 export function parseCloudJob(body: unknown): CloudJob | null {
   if (!isRecord(body) || typeof body.id !== 'string' || body.id === '') return null;
   const status: CloudJobStatus = oneOf(CLOUD_JOB_STATUSES, body.status) ?? 'unknown';
@@ -244,8 +258,7 @@ export function parseCloudJob(body: unknown): CloudJob | null {
     stage: status === 'running' ? oneOf(CLOUD_STAGES, body.stage) : null,
     percent: percent(body.percent),
     queue: status === 'queued' ? parseJobQueue(body.queue) : null,
-    // A failed job with no failure object still needs a line to show.
-    failure: status === 'failed' ? (failure ?? { code: '', message: '' }) : null,
+    failure: jobFailure(status, failure),
     cancelRequested: body.cancel_requested === true,
     stalled: oneOf(CLOUD_STALLS, body.stalled),
     createdAt: time(body.created_at) ?? 0,

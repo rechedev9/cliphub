@@ -16,7 +16,7 @@ function unlinked(link: CloudLink | null, error: CloudAccount['error'] = null): 
   return {
     kind: 'ready',
     account: {
-      portalUrl: 'https://cliphub.gravityroom.app',
+      portalUrl: 'https://cliphub.rechedev.cloud',
       linked: false,
       link,
       user: null,
@@ -25,6 +25,7 @@ function unlinked(link: CloudLink | null, error: CloudAccount['error'] = null): 
       usage: null,
       kinds: [],
       queue: null,
+      needsApproval: false,
       error,
     },
   };
@@ -32,7 +33,7 @@ function unlinked(link: CloudLink | null, error: CloudAccount['error'] = null): 
 
 function linked(overrides: Partial<CloudAccount> = {}): CloudAccount {
   return {
-    portalUrl: 'https://cliphub.gravityroom.app',
+    portalUrl: 'https://cliphub.rechedev.cloud',
     linked: true,
     link: null,
     user: { name: 'Luis', email: 'luis@example.com' },
@@ -41,6 +42,7 @@ function linked(overrides: Partial<CloudAccount> = {}): CloudAccount {
     usage: { active: 1, secondsLast24h: 1200, secondsCommitted: 480 },
     kinds: ['short'],
     queue: null,
+    needsApproval: false,
     error: null,
     ...overrides,
   };
@@ -49,7 +51,7 @@ function linked(overrides: Partial<CloudAccount> = {}): CloudAccount {
 const PENDING: CloudLink = {
   status: 'pending',
   userCode: 'K7QM-2XHD',
-  verifyUrl: 'https://cliphub.gravityroom.app/link?code=K7QM-2XHD',
+  verifyUrl: 'https://cliphub.rechedev.cloud/link?code=K7QM-2XHD',
   expiresAt: NOW + 600_000,
 };
 
@@ -57,7 +59,7 @@ test('a pending link shows its code and the page to open', () => {
   assert.deepEqual(cloudLinkPhase({ account: unlinked(PENDING), startError: null, now: NOW }), {
     kind: 'pending',
     userCode: 'K7QM-2XHD',
-    verifyUrl: 'https://cliphub.gravityroom.app/link?code=K7QM-2XHD',
+    verifyUrl: 'https://cliphub.rechedev.cloud/link?code=K7QM-2XHD',
   });
 });
 
@@ -91,10 +93,10 @@ test('an unreachable portal with no link is a failure, not an endless spinner', 
 });
 
 test('only an https page or a loopback development portal may be opened', () => {
-  assert.equal(safeVerifyUrl('https://cliphub.gravityroom.app/link?code=K7QM-2XHD'), 'https://cliphub.gravityroom.app/link?code=K7QM-2XHD');
+  assert.equal(safeVerifyUrl('https://cliphub.rechedev.cloud/link?code=K7QM-2XHD'), 'https://cliphub.rechedev.cloud/link?code=K7QM-2XHD');
   assert.equal(safeVerifyUrl('http://127.0.0.1:3000/link?code=A'), 'http://127.0.0.1:3000/link?code=A');
   assert.equal(safeVerifyUrl('http://localhost:3000/link'), 'http://localhost:3000/link');
-  for (const bad of ['http://cliphub.gravityroom.app/link', 'javascript:alert(1)', 'file:///C:/x', 'https://user:pw@evil.test/', 'not a url', '']) {
+  for (const bad of ['http://cliphub.rechedev.cloud/link', 'javascript:alert(1)', 'file:///C:/x', 'https://user:pw@evil.test/', 'not a url', '']) {
     assert.equal(safeVerifyUrl(bad), null, bad);
   }
   const phase = cloudLinkPhase({ account: unlinked({ ...PENDING, verifyUrl: 'javascript:alert(1)' }), startError: null, now: NOW });

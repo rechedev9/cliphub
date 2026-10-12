@@ -111,7 +111,10 @@ function minutesLeft(account: CloudAccount): number | null {
 function readyLine(account: CloudAccount, kind: string, left: number | null): string {
   const queue = account.queue;
   const parts: string[] = [];
-  if (queue !== null) {
+  if (account.needsApproval) {
+    // The queue estimate would promise a start that the review comes before.
+    parts.push('Un administrador aprueba cada vídeo antes de grabarlo');
+  } else if (queue !== null) {
     parts.push(queue.queued === 0 ? 'Sin cola' : `${queue.queued} en cola`);
     const wait = Object.hasOwn(queue.waitSeconds, kind) ? queue.waitSeconds[kind] : null;
     if (wait !== null && wait !== undefined) parts.push(`empieza en ${estimateRange(wait)}`);
