@@ -1,5 +1,7 @@
 import {
+  isApprovalMode,
   isCloudAccess,
+  type ApprovalMode,
   type CloudAccess,
   type CloudKind,
 } from "./job-types.ts";
@@ -58,14 +60,31 @@ export function resolveAccess(input: AccessInput): CloudAccess {
   return isCloudAccess(input.stored) ? input.stored : input.accessDefault;
 }
 
+export function loadApprovalMode(
+  env: Record<string, string | undefined> = process.env,
+): ApprovalMode {
+  return isApprovalMode(env.CLOUD_APPROVAL) ? env.CLOUD_APPROVAL : "required";
+}
+
+export interface ApprovalInput {
+  mode: ApprovalMode;
+  isAdmin: boolean;
+  autoApprove: boolean;
+}
+
+// An operator's own jobs and a trusted user's jobs go straight to the queue.
+export function needsApproval(input: ApprovalInput): boolean {
+  return input.mode === "required" && !input.isAdmin && !input.autoApprove;
+}
+
 export interface CreateLimitInput {
   limits: UserLimits;
   kind: CloudKind;
-  // Jobs of the user in awaiting_demo, queued, running or uploading.
+  // Jobs of the user that have not finished, waiting for approval included.
   active: number;
   activeFullDemo: number;
   usedSeconds: number;
-  // Estimates of the user's queued and awaiting_demo jobs.
+  // Estimates of the user's jobs no worker holds yet.
   committedSeconds: number;
   estimatedSeconds: number;
 }

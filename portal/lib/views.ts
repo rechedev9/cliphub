@@ -18,6 +18,7 @@ import { userCloudState, userUsage } from "./job-store.ts";
 import {
   ACTIVE_STATUSES,
   LEASED_STATUSES,
+  REJECTED_CODE,
   isArtifactKind,
   isFailureCode,
   isLeasedStatus,
@@ -48,6 +49,7 @@ import { storageStats } from "./storage-guard.ts";
 import {
   effectiveLimits,
   loadAccessDefault,
+  loadApprovalMode,
   loadUserLimits,
   resolveAccess,
   type LimitOverrides,
@@ -94,7 +96,7 @@ export interface StudioJob {
     estimatedDoneAt: number | null;
     state: QueueState;
   } | null;
-  failure: { code: FailureCode; message: string } | null;
+  failure: { code: FailureCode | typeof REJECTED_CODE; message: string } | null;
   artifacts: StudioArtifact[];
 }
 
@@ -138,6 +140,8 @@ export interface AdminUser {
   image: string | null;
   access: CloudAccess;
   isAdmin: boolean;
+  // True when this user's jobs skip the operator's approval.
+  autoApprove: boolean;
   limits: UserLimits;
   overrides: LimitOverrides;
   usage: { active: number; secondsLast24h: number; jobs7d: number; failed7d: number };
@@ -172,11 +176,22 @@ interface JobViewContext {
   retentionDays: number;
 }
 
+function jobFailure(job: JobRow): StudioJob["failure"] {
+  // A request the operator turned down reads as a cancel that carries its reason.
+  if (job.status === "canceled" && job.failureCode === REJECTED_CODE) {
+    return { code: REJECTED_CODE, message: job.failureReason ?? "" };
+  }
+  if (job.status !== "failed" && job.status !== "rejected") return null;
+  return {
+    code: isFailureCode(job.failureCode) ? job.failureCode : "job_failed",
+    message: job.failureReason ?? "",
+  };
+}
+
 function studioJob(job: JobRow, context: JobViewContext): StudioJob {
   const { snapshot } = context;
   const placement = snapshot.placements.get(job.id);
   const inProgress = job.status === "running" || job.status === "uploading";
-  const failed = job.status === "failed" || job.status === "rejected";
   return {
     id: job.id,
     kind: job.kind,
@@ -200,12 +215,7 @@ function studioJob(job: JobRow, context: JobViewContext): StudioJob {
             state: snapshot.state,
           }
         : null,
-    failure: failed
-      ? {
-          code: isFailureCode(job.failureCode) ? job.failureCode : "job_failed",
-          message: job.failureReason ?? "",
-        }
-      : null,
+    failure: jobFailure(job),
     artifacts: (context.artifacts.get(job.id) ?? [])
       .filter((artifact) => artifact.status === "ready")
       .map((artifact) => studioArtifact(artifact, context.retentionDays)),
@@ -240,6 +250,10 @@ export async function studioJobs(jobs: JobRow[], now: number): Promise<StudioJob
 }
 
 function waitedSeconds(job: JobRow, now: number): number {
+  // A request has no place in the queue yet: it waits since it was sent.
+  if (job.status === "pending_approval") {
+    return Math.max(0, Math.round((now - job.createdAt.getTime()) / 1000));
+  }
   if (job.enqueuedAt === null) return 0;
   const until = job.status === "queued" ? now : (job.claimedAt?.getTime() ?? job.enqueuedAt);
   return Math.max(0, Math.round((until - job.enqueuedAt) / 1000));
@@ -365,12 +379,24 @@ async function countPendingUsers(): Promise<number> {
   ).length;
 }
 
+// The two inboxes of the panel, for the badges of its navigation.
+export async function adminCounts() {
+  const waiting = await db
+    .select({ id: requests.id })
+    .from(requests)
+    .where(eq(requests.status, "pending_approval"));
+  return {
+    requests: loadApprovalMode() === "required" ? waiting.length : 0,
+    pendingUsers: await countPendingUsers(),
+  };
+}
+
 export async function adminOverview(now: number) {
   const snapshot = await queueSnapshot(now);
   const active = await db
     .select()
     .from(requests)
-    .where(inArray(requests.status, ["queued", ...LEASED_STATUSES]));
+    .where(inArray(requests.status, ["pending_approval", "queued", ...LEASED_STATUSES]));
   const jobs = await adminJobs(active, now);
   const position = (job: AdminJob) => job.queue?.position ?? 0;
 
@@ -392,6 +418,11 @@ export async function adminOverview(now: number) {
   return {
     now,
     workers: (await adminWorkers(now)).filter((worker) => !worker.revoked),
+    approval: loadApprovalMode(),
+    // Oldest first: the one that has waited longest is answered first.
+    requests: jobs
+      .filter((job) => job.status === "pending_approval")
+      .sort((a, b) => a.createdAt - b.createdAt),
     running: jobs.filter((job) => job.status === "running"),
     uploading: jobs.filter((job) => job.status === "uploading"),
     queue: jobs
@@ -484,6 +515,7 @@ export async function adminUsers(filter: AdminUserFilter): Promise<AdminUser[]> 
         accessDefault,
       }),
       isAdmin: admins.has(user.id),
+      autoApprove: cloud?.autoApprove ?? false,
       limits: effectiveLimits(defaults, overrides),
       overrides,
       usage: {
@@ -596,6 +628,8 @@ export async function studioMe(userId: string, now: number) {
   return {
     user,
     access: state.access,
+    // A new job of this user waits for the operator before it enters the queue.
+    needsApproval: state.needsApproval,
     limits: { ...state.limits, maxDemoBytes: config.maxDemoBytes },
     usage: {
       active: usage.active,

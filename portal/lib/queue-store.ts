@@ -12,8 +12,10 @@ import { classOf, decideFailure } from "./failure-policy.ts";
 import { readStoredSpec } from "./job-spec.ts";
 import {
   LEASED_STATUSES,
+  REJECTED_CODE,
   isCloudKind,
   isLegacyStatus,
+  isWaitingStatus,
   type CancelActor,
   type CloudKind,
   type FailureCode,
@@ -877,7 +879,7 @@ export async function cancelJob(input: CancelInput): Promise<CancelResult> {
     }
 
     const legacy = by === "admin" && isLegacyStatus(job.status) && job.status !== "rejected";
-    if (job.status !== "awaiting_demo" && job.status !== "queued" && !legacy) {
+    if (!isWaitingStatus(job.status) && !legacy) {
       return { result: "invalid_state", removed: [], releasedDemo: null };
     }
     await tx
@@ -970,6 +972,83 @@ export async function retryJob(
       );
       return "ok";
     });
+  });
+  invalidateQueueSnapshot();
+  return result;
+}
+
+// pending_approval to queued: from here a worker may take the job.
+export async function approveJob(
+  input: AdminJobInput,
+): Promise<"ok" | "not_found" | "invalid_state" | "demo_gone"> {
+  const { jobId, now } = input;
+  const result = await withDemoLock(async () => {
+    const [job] = await db.select().from(requests).where(eq(requests.id, jobId));
+    if (!job) return "not_found";
+    if (job.status !== "pending_approval") return "invalid_state";
+    if (!job.demoPath || (await demoFileSize(job.demoPath)) === null) return "demo_gone";
+
+    return transact(async (tx) => {
+      const updated = await tx
+        .update(requests)
+        .set({ status: "queued", enqueuedAt: now, updatedAt: new Date(now) })
+        .where(and(eq(requests.id, jobId), eq(requests.status, "pending_approval")))
+        .returning({ id: requests.id });
+      if (updated.length === 0) return "invalid_state";
+      const event = {
+        actor: `admin:${input.adminUserId}`,
+        at: now,
+        requestId: jobId,
+        subjectUserId: job.userId,
+      };
+      await recordEvent({ ...event, type: "approved" }, tx);
+      await recordEvent({ ...event, type: "queued" }, tx);
+      return "ok";
+    });
+  });
+  invalidateQueueSnapshot();
+  return result;
+}
+
+const MAX_REJECT_REASON_CHARS = 300;
+
+export interface RejectInput extends AdminJobInput {
+  // What the user reads in Studio; empty when the operator gave none.
+  reason: string;
+}
+
+// Turns a request down before it ran. The demo stays, so the operator can still retry it.
+export async function rejectJob(input: RejectInput): Promise<"ok" | "not_found" | "invalid_state"> {
+  const { jobId, now } = input;
+  const reason = input.reason.trim().slice(0, MAX_REJECT_REASON_CHARS);
+  const result = await transact(async (tx) => {
+    const [job] = await tx.select().from(requests).where(eq(requests.id, jobId));
+    if (!job) return "not_found";
+    const updated = await tx
+      .update(requests)
+      .set({
+        status: "canceled",
+        finishedAt: now,
+        canceledBy: "admin",
+        failureCode: REJECTED_CODE,
+        failureReason: reason === "" ? null : reason,
+        updatedAt: new Date(now),
+      })
+      .where(and(eq(requests.id, jobId), eq(requests.status, "pending_approval")))
+      .returning({ id: requests.id });
+    if (updated.length === 0) return "invalid_state";
+    await recordEvent(
+      {
+        type: "rejected",
+        actor: `admin:${input.adminUserId}`,
+        at: now,
+        requestId: jobId,
+        subjectUserId: job.userId,
+        detail: reason === "" ? null : reason,
+      },
+      tx,
+    );
+    return "ok";
   });
   invalidateQueueSnapshot();
   return result;

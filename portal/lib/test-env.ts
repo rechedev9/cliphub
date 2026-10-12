@@ -12,6 +12,8 @@ process.env.UPLOAD_DIR = join(dir, "uploads");
 process.env.MIGRATIONS_DIR = fileURLToPath(new URL("../db/migrations", import.meta.url));
 process.env.CLOUD_ACCESS_DEFAULT = "allowed";
 process.env.CLOUD_KINDS = "short";
+// Most store tests are about the queue itself; the approval gate has its own.
+process.env.CLOUD_APPROVAL = "off";
 process.env.ADMIN_ACCOUNTS = "";
 // The temp volume of a developer machine can be nearly full; the guard has its own test.
 process.env.MIN_FREE_BYTES = "1";

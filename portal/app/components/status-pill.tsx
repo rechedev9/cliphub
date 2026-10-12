@@ -5,6 +5,7 @@ import { STAGE_WORDS, STATUS_LABELS } from "./labels";
 
 const VARIANTS = {
   awaiting_demo: "outline",
+  pending_approval: "warning",
   queued: "info",
   running: "stream",
   uploading: "warning",

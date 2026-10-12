@@ -12,6 +12,8 @@ test("event details the portal writes as English keys read in Spanish", () => {
   assert.equal(eventDetailText("phase_uploading", "412 s"), "7 min de máquina");
   assert.equal(eventDetailText("boosted", "front"), "subido al frente");
   assert.equal(eventDetailText("user_access_changed", "blocked"), "Bloqueado");
+  assert.equal(eventDetailText("user_trust_changed", "trusted"), "sus trabajos entran en la cola sin revisión");
+  assert.equal(eventDetailText("rejected", "La demo no es tuya"), "La demo no es tuya");
   assert.equal(
     eventDetailText("user_limits_changed", "maxActive 1, dailySeconds 1200"),
     "1 activo a la vez, 20 min de máquina al día",
@@ -69,5 +71,5 @@ test("a server failure reads as the portal's fault, with its status", () => {
   assert.equal(loadErrorText("http_500"), "El portal ha fallado al responder (error 500).");
   assert.match(actionErrorText("http_502"), /error 502\)\. No se ha hecho la acción/);
   assert.equal(loadErrorText("http_418"), "El portal respondió con un error (http_418).");
-  assert.equal(actionErrorText("demo_gone"), "La demo ya no está en el portal, no se puede reintentar.");
+  assert.equal(actionErrorText("demo_gone"), "La demo ya no está en el portal, así que este trabajo no se puede grabar.");
 });

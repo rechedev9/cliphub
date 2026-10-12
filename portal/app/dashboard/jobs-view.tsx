@@ -16,7 +16,13 @@ import { useAction } from "../components/use-action";
 import type { ActionRunner } from "../components/use-action";
 import { usePoll } from "../components/use-poll";
 
-const ACTIVE = new Set<StudioJob["status"]>(["awaiting_demo", "queued", "running", "uploading"]);
+const ACTIVE = new Set<StudioJob["status"]>([
+  "awaiting_demo",
+  "pending_approval",
+  "queued",
+  "running",
+  "uploading",
+]);
 const MUTED = "text-body-sm text-fg-2";
 
 function queueText(job: StudioJob, now: number): string {
@@ -84,6 +90,13 @@ function JobCard({ job, now, actions }: JobCardProps) {
           <p className="text-fg-2">ClipHub Studio está subiendo la demo. Déjalo abierto hasta que termine.</p>
         )}
 
+        {job.status === "pending_approval" && (
+          <p className="text-fg-2">
+            Hemos recibido tu solicitud. Un administrador la revisa antes de grabarla; cuando la apruebe entra en la
+            cola.
+          </p>
+        )}
+
         {job.status === "queued" && (
           <div className="flex flex-col gap-1">
             <p>{queueText(job, now)}</p>
@@ -138,7 +151,14 @@ function JobCard({ job, now, actions }: JobCardProps) {
               : job.failure.message}
           </p>
         )}
-        {job.status === "canceled" && <p className="text-fg-2">Este trabajo se canceló.</p>}
+        {job.status === "canceled" && job.failure?.code !== "rejected" && (
+          <p className="text-fg-2">Este trabajo se canceló.</p>
+        )}
+        {job.status === "canceled" && job.failure?.code === "rejected" && (
+          <p className="text-destructive">
+            No hemos aprobado esta solicitud{job.failure.message === "" ? "." : `: ${job.failure.message}`}
+          </p>
+        )}
 
         {ACTIVE.has(job.status) && (
           <div className="flex flex-wrap items-center gap-2">

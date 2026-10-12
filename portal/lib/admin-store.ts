@@ -108,6 +108,7 @@ export interface UserCloudPatch {
   maxActive?: number | null;
   dailySeconds?: number | null;
   note?: string | null;
+  autoApprove?: boolean;
 }
 
 function parseOverride(value: unknown, max: number): number | null | undefined {
@@ -136,6 +137,10 @@ export function parseUserCloudPatch(input: unknown): UserCloudPatch | null {
     if (value === undefined) return null;
     patch.dailySeconds = value;
   }
+  if ("autoApprove" in input) {
+    if (typeof input.autoApprove !== "boolean") return null;
+    patch.autoApprove = input.autoApprove;
+  }
   if ("note" in input) {
     if (input.note !== null && typeof input.note !== "string") return null;
     patch.note = input.note === null ? null : input.note.slice(0, MAX_NOTE_CHARS);
@@ -150,7 +155,7 @@ export interface UpdateUserCloudInput {
   now: number;
 }
 
-// Sets a user's access, limit overrides and note. False when the user does not exist.
+// Sets a user's access, trust, limit overrides and note. False when the user does not exist.
 export async function updateUserCloud(input: UpdateUserCloudInput): Promise<boolean> {
   const { userId, patch, now } = input;
   const updated = await transact(async (tx) => {
@@ -163,6 +168,7 @@ export async function updateUserCloud(input: UpdateUserCloudInput): Promise<bool
       dailySeconds:
         patch.dailySeconds === undefined ? (current?.dailySeconds ?? null) : patch.dailySeconds,
       note: patch.note === undefined ? (current?.note ?? null) : patch.note,
+      autoApprove: patch.autoApprove ?? current?.autoApprove ?? false,
       updatedAt: now,
     };
     await tx
@@ -173,6 +179,12 @@ export async function updateUserCloud(input: UpdateUserCloudInput): Promise<bool
     const event = { actor: `admin:${input.adminUserId}`, at: now, subjectUserId: userId };
     if (patch.access !== undefined && patch.access !== current?.access) {
       await recordEvent({ ...event, type: "user_access_changed", detail: next.access }, tx);
+    }
+    if (next.autoApprove !== (current?.autoApprove ?? false)) {
+      await recordEvent(
+        { ...event, type: "user_trust_changed", detail: next.autoApprove ? "trusted" : "review" },
+        tx,
+      );
     }
     const limitsChanged =
       next.maxActive !== (current?.maxActive ?? null) ||

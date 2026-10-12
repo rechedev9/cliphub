@@ -1,5 +1,5 @@
-import { QueueView } from "./queue-view";
+import { OverviewView } from "./overview/overview-view";
 
-export default function AdminQueuePage() {
-  return <QueueView />;
+export default function AdminOverviewPage() {
+  return <OverviewView />;
 }

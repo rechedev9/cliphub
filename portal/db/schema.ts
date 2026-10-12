@@ -119,6 +119,8 @@ export const userCloud = sqliteTable("user_cloud", {
   maxActive: integer("maxActive"),
   dailySeconds: integer("dailySeconds"),
   note: text("note"),
+  // A trusted user's jobs skip the operator's approval.
+  autoApprove: integer("autoApprove", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updatedAt").notNull(),
 });
 

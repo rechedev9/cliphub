@@ -25,6 +25,7 @@ import { parseJobSpec } from "./job-spec.ts";
 import {
   ACTIVE_STATUSES,
   LEASED_STATUSES,
+  WAITING_STATUSES,
   isCloudKind,
   isRecord,
   type CloudAccess,
@@ -44,7 +45,9 @@ import {
   checkCreateLimits,
   effectiveLimits,
   loadAccessDefault,
+  loadApprovalMode,
   loadUserLimits,
+  needsApproval,
   resolveAccess,
   type UserLimits,
 } from "./user-limits.ts";
@@ -60,18 +63,26 @@ const MAX_FILE_NAME_CHARS = 200;
 export interface UserCloudState {
   access: CloudAccess;
   limits: UserLimits;
+  // True when an operator has to start each of this user's jobs.
+  needsApproval: boolean;
 }
 
 // The user's cloud access and effective limits: env defaults plus their user_cloud row.
 export async function userCloudState(userId: string): Promise<UserCloudState> {
   const [row] = await db.select().from(userCloud).where(eq(userCloud.userId, userId));
+  const isAdmin = await isAdminUser(userId);
   return {
     access: resolveAccess({
       stored: row?.access ?? null,
-      isAdmin: await isAdminUser(userId),
+      isAdmin,
       accessDefault: loadAccessDefault(),
     }),
     limits: effectiveLimits(loadUserLimits(), row ?? null),
+    needsApproval: needsApproval({
+      mode: loadApprovalMode(),
+      isAdmin,
+      autoApprove: row?.autoApprove ?? false,
+    }),
   };
 }
 
@@ -79,7 +90,7 @@ export interface UserUsage {
   active: number;
   activeFullDemo: number;
   secondsLast24h: number;
-  // Estimates of the jobs still waiting (queued and awaiting_demo).
+  // Estimates of the jobs no worker holds yet.
   secondsCommitted: number;
 }
 
@@ -146,7 +157,7 @@ export type CreateJobResult =
   | {
       ok: true;
       id: string;
-      status: "queued" | "awaiting_demo";
+      status: "queued" | "pending_approval" | "awaiting_demo";
       demoUpload: "present" | "required";
     }
   | ApiFailure;
@@ -256,11 +267,12 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
         .select({ id: requests.id })
         .from(requests)
         .where(
-          and(inArray(requests.status, ["queued", "awaiting_demo"]), ne(requests.kind, "manual")),
+          and(inArray(requests.status, [...WAITING_STATUSES]), ne(requests.kind, "manual")),
         );
       if (waiting.length >= config.maxQueuedJobs) return apiFailure(503, "cloud_queue_full");
 
-      const status = present ? "queued" : "awaiting_demo";
+      const ready = state.needsApproval ? "pending_approval" : "queued";
+      const status = present ? ready : "awaiting_demo";
       const [created] = await tx
         .insert(requests)
         .values({
@@ -277,7 +289,7 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
           demoPath: present ? storedPath : null,
           estCaptureSeconds: Math.round(parsed.captureSeconds),
           estimatedSeconds,
-          enqueuedAt: present ? now : null,
+          enqueuedAt: status === "queued" ? now : null,
           createdAt: new Date(now),
           updatedAt: new Date(now),
         })
@@ -291,7 +303,9 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
         subjectUserId: user.userId,
       };
       await recordEvent({ ...event, type: "created", detail: `${kind}, ${estimatedSeconds} s` }, tx);
-      if (present) await recordEvent({ ...event, type: "queued", detail: "demo already stored" }, tx);
+      if (status === "queued") {
+        await recordEvent({ ...event, type: "queued", detail: "demo already stored" }, tx);
+      }
       return {
         ok: true,
         id: created.id,
@@ -310,7 +324,7 @@ export interface AttachDemoInput {
   request: Request;
 }
 
-// Receives the demo of an awaiting_demo job and puts the job in the queue.
+// Receives the demo of an awaiting_demo job; the job then waits for approval or enters the queue.
 export async function attachDemo(
   input: AttachDemoInput,
 ): Promise<{ ok: true } | ApiFailure> {
@@ -385,6 +399,7 @@ async function receiveDemo(input: ReceiveDemoInput): Promise<{ ok: true } | ApiF
   // The upload can take minutes; the job enters the queue when it ends, not when it began.
   const now = Date.now();
   const finalPath = demoPath(user.userId, job.demoSha256);
+  const gated = (await userCloudState(user.userId)).needsApproval;
   const queued = await withDemoLock(async () => {
     await adoptDemo(tempPath, finalPath);
     return transact(async (tx) => {
@@ -392,10 +407,10 @@ async function receiveDemo(input: ReceiveDemoInput): Promise<{ ok: true } | ApiF
       const updated = await tx
         .update(requests)
         .set({
-          status: "queued",
+          status: gated ? "pending_approval" : "queued",
           demoPath: finalPath,
           demoSizeBytes: upload.bytesWritten,
-          enqueuedAt: now,
+          enqueuedAt: gated ? null : now,
           updatedAt: new Date(now),
         })
         .where(and(eq(requests.id, job.id), eq(requests.status, "awaiting_demo")))
@@ -408,7 +423,7 @@ async function receiveDemo(input: ReceiveDemoInput): Promise<{ ok: true } | ApiF
         subjectUserId: user.userId,
       };
       await recordEvent({ ...event, type: "demo_uploaded", detail: `${upload.bytesWritten} bytes` }, tx);
-      await recordEvent({ ...event, type: "queued" }, tx);
+      if (!gated) await recordEvent({ ...event, type: "queued" }, tx);
       return true;
     });
   });

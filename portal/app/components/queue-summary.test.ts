@@ -71,6 +71,8 @@ function overview(patch: Partial<AdminOverview>): AdminOverview {
   return {
     now: NOW,
     workers: [worker({})],
+    approval: "required",
+    requests: [],
     running: [],
     uploading: [],
     queue: [],
@@ -203,4 +205,21 @@ test("an idle report right after a claim is not a lost job, a lasting one is", (
   assert.equal(forgotItsJob(idle, old, NOW), true);
   assert.equal(forgotItsJob(worker({ state: "busy" }), old, NOW), false);
   assert.equal(forgotItsJob(idle, null, NOW), false);
+});
+
+test("requests waiting for approval lead the waiting cell to the inbox", () => {
+  const requests = [
+    job({ id: "r1", status: "pending_approval", waitedSeconds: 1500 }),
+    job({ id: "r2", status: "pending_approval", waitedSeconds: 60 }),
+  ];
+  const alone = cells(overview({ requests })).waiting;
+  assert.equal(alone?.value, "2 solicitudes por aprobar");
+  assert.equal(alone?.detail, "la más antigua espera 25 min");
+  assert.equal(alone?.tone, "warn");
+  assert.equal(alone?.href, "#solicitudes");
+
+  const mixed = cells(overview({ requests: requests.slice(0, 1), queue: [job({ id: "a", waitedSeconds: 120 })] })).waiting;
+  assert.equal(mixed?.value, "1 trabajo");
+  assert.equal(mixed?.detail, "de 1 persona · el más antiguo espera 2 min · 1 solicitud por aprobar");
+  assert.equal(mixed?.href, "#solicitudes");
 });

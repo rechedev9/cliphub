@@ -23,6 +23,8 @@ services:
       # Cloud capture. Worker credentials are created in /admin, not set here.
       # New accounts wait for an admin to allow them unless this is "allowed".
       CLOUD_ACCESS_DEFAULT: ${CLOUD_ACCESS_DEFAULT:-pending}
+      # Every job waits for an admin's go-ahead in /admin unless this is "off".
+      CLOUD_APPROVAL: ${CLOUD_APPROVAL:-required}
       CLOUD_KINDS: ${CLOUD_KINDS:-short}
       # Per-user limits; each can be overridden per user in /admin.
       MAX_ACTIVE_REQUESTS_PER_USER: ${MAX_ACTIVE_REQUESTS_PER_USER:-3}

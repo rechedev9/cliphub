@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { AdminJob } from "../components/api-types";
 import { ConfirmButton } from "../components/confirm-button";
 import type { ActionRunner } from "../components/use-action";
+import { RequestActions } from "./request-actions";
 
 const CANCELABLE = new Set<AdminJob["status"]>([
   "awaiting_demo",
@@ -31,7 +32,7 @@ export function retryBlocker(job: AdminJob): string | null {
 
 // False when JobActions would render nothing, so a row can leave the space out.
 export function hasJobActions(job: AdminJob): boolean {
-  return CANCELABLE.has(job.status) || retryBlocker(job) === null;
+  return job.status === "pending_approval" || CANCELABLE.has(job.status) || retryBlocker(job) === null;
 }
 
 export interface JobActionsProps {
@@ -47,6 +48,11 @@ export function JobActions({ job, actions, className }: JobActionsProps) {
   const retryable = retryBlocker(job) === null;
   // A boosted job that is already first gains nothing from another push.
   const alreadyFirst = job.priorityBoost > 0 && job.queue?.position === 1;
+
+  // A request is answered, not cancelled: rejecting it is what tells the user why.
+  if (job.status === "pending_approval") {
+    return <RequestActions job={job} actions={actions} className={className} />;
+  }
 
   return (
     <span className={cn("inline-flex flex-wrap items-center gap-2", className)}>

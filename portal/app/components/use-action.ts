@@ -6,6 +6,9 @@ import { actionErrorText } from "./labels";
 import { postAction } from "./post-action";
 import type { ActionRequest, ActionResult } from "./post-action";
 
+// Fired after every action, so anything outside the view that ran it can refresh too.
+export const ACTION_SETTLED_EVENT = "cliphub:action-settled";
+
 export interface ActionRunner {
   // The key of the action in flight, so its button can show it and the others disable.
   busyKey: string | null;
@@ -27,6 +30,7 @@ export function useAction(onSettled: () => void): ActionRunner {
       if (!result.ok) setError(actionErrorText(result.code));
       setBusyKey(null);
       onSettled();
+      window.dispatchEvent(new Event(ACTION_SETTLED_EVENT));
       return result;
     },
     [onSettled],

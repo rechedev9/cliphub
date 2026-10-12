@@ -13,7 +13,9 @@ export function FailureSummary({ failure }: { failure: JobFailure }) {
         </Badge>
         <strong className="font-semibold">{FAILURE_LABELS[failure.code]}</strong>
       </p>
-      <p className="text-body-sm text-fg-2">Lo que ve el usuario: {failure.message}</p>
+      <p className="text-body-sm text-fg-2">
+        {failure.message === "" ? "El usuario no ve ningún motivo." : `Lo que ve el usuario: ${failure.message}`}
+      </p>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { formatBytes, formatClock, formatDuration } from "./format.ts";
 
 export const STATUS_LABELS: Record<JobStatus, string> = {
   awaiting_demo: "Esperando demo",
+  pending_approval: "Esperando aprobación",
   queued: "En cola",
   running: "En curso",
   uploading: "Subiendo resultados",
@@ -64,6 +65,7 @@ export const FAILURE_LABELS: Record<FailureCode, string> = {
   disk_full: "Disco lleno",
   tools_missing: "Faltan herramientas de captura",
   canceled: "Cancelado",
+  rejected: "Solicitud rechazada",
 };
 
 const REASON_LABELS: Record<string, string> = {
@@ -114,6 +116,8 @@ const EVENT_LABELS: Record<string, string> = {
   created: "Trabajo creado",
   demo_uploaded: "Demo subida",
   queued: "Puesto en cola",
+  approved: "Solicitud aprobada",
+  rejected: "Solicitud rechazada",
   claimed: "Tomado por el worker",
   stage: "Cambio de fase",
   phase_uploading: "Empieza la subida de resultados",
@@ -132,6 +136,7 @@ const EVENT_LABELS: Record<string, string> = {
   worker_revoked: "Worker revocado",
   user_access_changed: "Acceso de usuario cambiado",
   user_limits_changed: "Límites de usuario cambiados",
+  user_trust_changed: "Revisión de usuario cambiada",
   device_linked: "Dispositivo vinculado",
   device_revoked: "Dispositivo revocado",
 };
@@ -207,6 +212,10 @@ export function eventDetailText(type: string, detail: string | null): string | n
     return access === undefined ? detail : ACCESS_LABELS[access];
   }
   if (type === "user_limits_changed") return limitsText(detail);
+  if (type === "user_trust_changed") {
+    if (detail === "trusted") return "sus trabajos entran en la cola sin revisión";
+    return detail === "review" ? "sus trabajos vuelven a esperar aprobación" : detail;
+  }
   if (type === "requeued" || type === "failed" || type === "canceled" || type === "worker_auto_paused") {
     return causeText(detail);
   }
@@ -223,7 +232,7 @@ export function actorLabel(actor: string): string {
 
 const ACTION_ERRORS: Record<string, string> = {
   invalid_state: "El estado ya había cambiado. La vista se ha actualizado.",
-  demo_gone: "La demo ya no está en el portal, no se puede reintentar.",
+  demo_gone: "La demo ya no está en el portal, así que este trabajo no se puede grabar.",
   unauthorized: "Tu sesión ha caducado. Vuelve a entrar.",
   forbidden: "No tienes permiso para esta acción.",
   not_found: "Ya no existe.",

@@ -1,4 +1,5 @@
 import {
+  APPROVAL_MODES,
   ARTIFACT_KINDS,
   CANCELED_BY,
   CLOUD_ACCESS,
@@ -12,6 +13,7 @@ import {
 } from "./api-types.ts";
 import type {
   AdminActivityEvent,
+  AdminCounts,
   AdminEvent,
   AdminEventsResponse,
   AdminJob,
@@ -292,6 +294,7 @@ const adminUser: Decoder<AdminUser> = (value, path) => {
     image: r.get("image", nullable(str)),
     access: r.get("access", oneOf(CLOUD_ACCESS)),
     isAdmin: r.get("isAdmin", bool),
+    autoApprove: r.get("autoApprove", bool),
     limits: { maxActive: limits.get("maxActive", num), dailySeconds: limits.get("dailySeconds", num) },
     overrides: {
       maxActive: overrides.get("maxActive", nullable(num)),
@@ -326,6 +329,8 @@ export function parseOverview(value: unknown): AdminOverview {
   return {
     now: r.get("now", num),
     workers: r.get("workers", list(adminWorker)),
+    approval: r.get("approval", oneOf(APPROVAL_MODES)),
+    requests: r.get("requests", list(adminJob)),
     running: r.get("running", list(adminJob)),
     uploading: r.get("uploading", list(adminJob)),
     queue: r.get("queue", list(adminJob)),
@@ -345,6 +350,11 @@ export function parseOverview(value: unknown): AdminOverview {
     },
     pendingUsers: r.get("pendingUsers", num),
   };
+}
+
+export function parseAdminCounts(value: unknown): AdminCounts {
+  const r = reader(value, "counts");
+  return { requests: r.get("requests", num), pendingUsers: r.get("pendingUsers", num) };
 }
 
 export function parseAdminJobs(value: unknown): AdminJobsResponse {

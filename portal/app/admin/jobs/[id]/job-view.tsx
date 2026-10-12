@@ -35,7 +35,7 @@ function Summary({ job, workers }: { job: AdminJob; workers: AdminWorker[] }) {
       value: job.estimatedSeconds === null ? "Sin datos" : formatDuration(job.estimatedSeconds),
     },
     { label: "Tiempo de máquina", value: formatDuration(job.machineSeconds) },
-    { label: "Esperó en cola", value: job.waitedSeconds === null ? "Sin datos" : formatDuration(job.waitedSeconds) },
+    { label: "Tiempo de espera", value: job.waitedSeconds === null ? "Sin datos" : formatDuration(job.waitedSeconds) },
     { label: "Prioridad", value: job.priorityBoost > 0 ? `Subido al frente (${job.priorityBoost})` : "Normal" },
     { label: "Job local en el worker", value: job.localJobId ?? "Ninguno" },
     { label: "Worker", value: worker?.name ?? job.workerId ?? "Ninguno" },
@@ -155,6 +155,14 @@ export function JobView({ id }: { id: string }) {
           </div>
         )}
 
+        {job.status === "pending_approval" && (
+          <p>
+            Espera tu aprobación
+            {job.waitedSeconds === null ? "" : ` desde hace ${formatDuration(job.waitedSeconds)}`}. No se graba hasta
+            que la apruebes.
+          </p>
+        )}
+
         {job.status === "queued" && job.queue !== null && (
           <p>
             Puesto {job.queue.position} en la cola
@@ -166,7 +174,7 @@ export function JobView({ id }: { id: string }) {
 
         {job.failure !== null && <FailureSummary failure={job.failure} />}
         {job.failureDetail !== null && <RawCause detail={job.failureDetail} open={job.status === "failed"} />}
-        {job.status === "canceled" && job.canceledBy !== null && (
+        {job.status === "canceled" && job.canceledBy !== null && job.failure?.code !== "rejected" && (
           <p className={MUTED}>Cancelado por {job.canceledBy === "admin" ? "un operador" : "el usuario"}.</p>
         )}
 

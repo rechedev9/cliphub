@@ -159,19 +159,36 @@ function nowCell(overview: AdminOverview): SummaryCell {
   };
 }
 
+function longestWait(jobs: AdminJob[]): string {
+  return formatDuration(Math.max(...jobs.map((job) => job.waitedSeconds ?? 0)));
+}
+
 function waitingCell(overview: AdminOverview): SummaryCell {
-  const { queue } = overview;
+  const { queue, requests } = overview;
   const cell = { key: "waiting", label: "En espera", href: null } as const;
-  if (queue.length === 0) return { ...cell, value: "Nadie espera", detail: null, tone: "plain" };
+  const asking = requests.length === 1 ? "1 solicitud por aprobar" : `${requests.length} solicitudes por aprobar`;
+  if (queue.length === 0) {
+    if (requests.length === 0) return { ...cell, value: "Nadie espera", detail: null, tone: "plain" };
+    // Nothing moves until the operator answers, so the cell leads there.
+    return {
+      ...cell,
+      value: asking,
+      detail: `la más antigua espera ${longestWait(requests)}`,
+      tone: "warn",
+      href: "#solicitudes",
+    };
+  }
   const people = new Set(queue.map((job) => job.user.id)).size;
-  const oldest = Math.max(...queue.map((job) => job.waitedSeconds ?? 0));
   const stuck = !overview.workers.some(canTakeWork);
-  const detail = `de ${people} ${people === 1 ? "persona" : "personas"} · el más antiguo espera ${formatDuration(oldest)}`;
+  const parts = [`de ${people} ${people === 1 ? "persona" : "personas"}`, `el más antiguo espera ${longestWait(queue)}`];
+  if (stuck) parts.push("ahora nadie los puede grabar");
+  if (requests.length > 0) parts.push(asking);
   return {
     ...cell,
     value: queue.length === 1 ? "1 trabajo" : `${queue.length} trabajos`,
-    detail: stuck ? `${detail} · ahora nadie los puede grabar` : detail,
-    tone: stuck ? "warn" : "plain",
+    detail: parts.join(" · "),
+    tone: stuck || requests.length > 0 ? "warn" : "plain",
+    href: requests.length > 0 ? "#solicitudes" : null,
   };
 }
 

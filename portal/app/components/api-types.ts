@@ -5,6 +5,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
 
 export const JOB_STATUSES = [
   "awaiting_demo",
+  "pending_approval",
   "queued",
   "running",
   "uploading",
@@ -42,6 +43,8 @@ export const FAILURE_CODES = [
   "disk_full",
   "tools_missing",
   "canceled",
+  // Not a failure of the capture: an operator turned the request down.
+  "rejected",
 ] as const;
 export type FailureCode = (typeof FAILURE_CODES)[number];
 
@@ -59,6 +62,9 @@ export type QueueState = (typeof QUEUE_STATES)[number];
 
 export const ARTIFACT_KINDS = ["video", "cover"] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
+
+export const APPROVAL_MODES = ["required", "off"] as const;
+export type ApprovalMode = (typeof APPROVAL_MODES)[number];
 
 export const CANCELED_BY = ["user", "admin"] as const;
 export type CanceledBy = (typeof CANCELED_BY)[number];
@@ -195,10 +201,19 @@ export interface AdminStats {
 export interface AdminOverview {
   now: number;
   workers: AdminWorker[];
+  approval: ApprovalMode;
+  // Jobs waiting for the operator's go-ahead, oldest first.
+  requests: AdminJob[];
   running: AdminJob[];
   uploading: AdminJob[];
   queue: AdminJob[];
   stats: AdminStats;
+  pendingUsers: number;
+}
+
+// What the navigation flags as waiting for a decision.
+export interface AdminCounts {
+  requests: number;
   pendingUsers: number;
 }
 
@@ -257,6 +272,8 @@ export interface AdminUser {
   image: string | null;
   access: CloudAccess;
   isAdmin: boolean;
+  // True when this user's jobs skip the operator's approval.
+  autoApprove: boolean;
   limits: { maxActive: number; dailySeconds: number };
   overrides: { maxActive: number | null; dailySeconds: number | null };
   usage: { active: number; secondsLast24h: number; jobs7d: number; failed7d: number };

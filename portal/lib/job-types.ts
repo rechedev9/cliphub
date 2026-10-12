@@ -6,6 +6,7 @@ export type CloudKind = (typeof CLOUD_KINDS)[number];
 
 export const JOB_STATUSES = [
   "awaiting_demo",
+  "pending_approval",
   "queued",
   "running",
   "uploading",
@@ -26,6 +27,7 @@ export type LegacyStatus = (typeof LEGACY_STATUSES)[number];
 
 export const ACTIVE_STATUSES = [
   "awaiting_demo",
+  "pending_approval",
   "queued",
   "running",
   "uploading",
@@ -42,6 +44,10 @@ export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 
 export const LEASED_STATUSES = ["running", "uploading"] as const;
 export type LeasedStatus = (typeof LEASED_STATUSES)[number];
+
+// Statuses of a job no worker holds yet.
+export const WAITING_STATUSES = ["awaiting_demo", "pending_approval", "queued"] as const;
+export type WaitingStatus = (typeof WAITING_STATUSES)[number];
 
 export const STAGES = [
   "downloading",
@@ -76,6 +82,8 @@ export const MACHINE_CODES = [
   "tools_missing",
 ] as const;
 export const CANCEL_CODES = ["canceled"] as const;
+// Stored on a request the operator turned down. No worker may report it.
+export const REJECTED_CODE = "rejected";
 
 export const FAILURE_CODES = [
   ...RETRY_CODES,
@@ -110,6 +118,10 @@ export type PauseSource = (typeof PAUSE_SOURCES)[number];
 export const CLOUD_ACCESS = ["pending", "allowed", "blocked"] as const;
 export type CloudAccess = (typeof CLOUD_ACCESS)[number];
 
+// "required": an operator starts every job by hand. "off": jobs go straight to the queue.
+export const APPROVAL_MODES = ["required", "off"] as const;
+export type ApprovalMode = (typeof APPROVAL_MODES)[number];
+
 export const QUEUE_STATES = ["online", "paused", "offline"] as const;
 export type QueueState = (typeof QUEUE_STATES)[number];
 
@@ -134,6 +146,8 @@ export const EVENT_TYPES = [
   "created",
   "demo_uploaded",
   "queued",
+  "approved",
+  "rejected",
   "claimed",
   "stage",
   "phase_uploading",
@@ -152,6 +166,7 @@ export const EVENT_TYPES = [
   "worker_revoked",
   "user_access_changed",
   "user_limits_changed",
+  "user_trust_changed",
   "device_linked",
   "device_revoked",
 ] as const;
@@ -171,6 +186,7 @@ export const isLegacyStatus = oneOf(LEGACY_STATUSES);
 export const isActiveStatus = oneOf(ACTIVE_STATUSES);
 export const isTerminalStatus = oneOf(TERMINAL_STATUSES);
 export const isLeasedStatus = oneOf(LEASED_STATUSES);
+export const isWaitingStatus = oneOf(WAITING_STATUSES);
 export const isStage = oneOf(STAGES);
 export const isFailureCode = oneOf(FAILURE_CODES);
 export const isRetryCode = oneOf(RETRY_CODES);
@@ -180,6 +196,7 @@ export const isWorkerState = oneOf(WORKER_STATES);
 export const isWorkerBlockCode = oneOf(WORKER_BLOCK_CODES);
 export const isPauseSource = oneOf(PAUSE_SOURCES);
 export const isCloudAccess = oneOf(CLOUD_ACCESS);
+export const isApprovalMode = oneOf(APPROVAL_MODES);
 export const isArtifactKind = oneOf(ARTIFACT_KINDS);
 export const isArtifactStatus = oneOf(ARTIFACT_STATUSES);
 export const isLinkStatus = oneOf(LINK_STATUSES);

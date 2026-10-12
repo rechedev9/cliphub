@@ -148,6 +148,8 @@ function UserRow({ user, now, actions }: UserRowProps) {
   const busy = actions.busyKey !== null;
   const setAccess = (access: CloudAccess) =>
     void actions.run(`access:${user.id}`, { url: `/api/admin/users/${user.id}`, body: { access } });
+  const setTrust = (autoApprove: boolean) =>
+    void actions.run(`trust:${user.id}`, { url: `/api/admin/users/${user.id}`, body: { autoApprove } });
   const overridden = user.overrides.maxActive !== null || user.overrides.dailySeconds !== null;
 
   return (
@@ -165,6 +167,11 @@ function UserRow({ user, now, actions }: UserRowProps) {
           {user.isAdmin && (
             <Badge variant="outline" className="font-mono uppercase">
               Admin
+            </Badge>
+          )}
+          {user.autoApprove && !user.isAdmin && (
+            <Badge variant="info" className="font-mono uppercase">
+              Sin revisión
             </Badge>
           )}
         </div>
@@ -211,6 +218,18 @@ function UserRow({ user, now, actions }: UserRowProps) {
                     onClick={() => setAccess("blocked")}
                   >
                     Bloquear
+                  </Button>
+                )}
+                {/* Trust only matters to someone who can send jobs. */}
+                {user.access === "allowed" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={busy}
+                    onClick={() => setTrust(!user.autoApprove)}
+                  >
+                    {user.autoApprove ? "Revisar sus trabajos" : "Aprobar sus trabajos sin revisión"}
                   </Button>
                 )}
               </>

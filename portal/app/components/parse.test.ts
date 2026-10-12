@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { splitPauseReason } from "./labels.ts";
 import {
+  parseAdminCounts,
   parseAdminJobDetail,
   parseAdminJobs,
   parseAdminWorkers,
@@ -250,4 +251,19 @@ test("an operator's free-text pause reason is shown as written, colon included",
     job: null,
   });
   assert.equal(splitPauseReason(null).label, "Sin motivo indicado");
+});
+
+test("a request waiting for approval and a rejected one both parse", () => {
+  const waiting = { ...ADMIN_JOB, status: "pending_approval", enqueuedAt: null, queue: null };
+  const rejected = {
+    ...ADMIN_JOB,
+    status: "canceled",
+    canceledBy: "admin",
+    failure: { code: "rejected", message: "La demo no es tuya" },
+  };
+  const [first, second] = parseAdminJobs({ jobs: [waiting, rejected], nextBefore: null }).jobs;
+  assert.equal(first?.status, "pending_approval");
+  assert.deepEqual(second?.failure, { code: "rejected", message: "La demo no es tuya" });
+  assert.deepEqual(parseAdminCounts({ requests: 2, pendingUsers: 1 }), { requests: 2, pendingUsers: 1 });
+  assert.throws(() => parseAdminCounts({ requests: 2 }), /counts\.pendingUsers/);
 });
