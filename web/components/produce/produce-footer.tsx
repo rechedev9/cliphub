@@ -17,6 +17,8 @@ export type ProduceFooterProps = {
   /** Selection and settings summary; null shows `hint` instead. */
   summary: ReactNode | null;
   hint: string;
+  /** Turns the blocking hint into a button that takes the user to the missing decision. */
+  onHintAction?: () => void;
   briefItems: ReadonlyArray<CreativeBriefItem>;
   /** Extra brief content below the items (e.g. the FACEIT note). */
   briefNote?: ReactNode;
@@ -35,6 +37,7 @@ export function ProduceFooter({
   eyebrow,
   summary,
   hint,
+  onHintAction,
   briefItems,
   briefNote,
   readyHint,
@@ -48,6 +51,15 @@ export function ProduceFooter({
   const nextStep = ready
     ? readyHint ?? 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.'
     : hint;
+  const nextStepContent: ReactNode = !ready && onHintAction ? (
+    <button
+      type="button"
+      onClick={onHintAction}
+      className="rounded-sm text-left text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      {nextStep}
+    </button>
+  ) : nextStep;
   return (
     <>
       <details className={cn("group/brief border-t border-border-subtle py-1", tone === 'short' ? 'mt-3 @[80rem]/content:mt-5' : 'mt-1')}>
@@ -88,7 +100,7 @@ export function ProduceFooter({
               ) : (
                 <p className="mt-0.5 break-words text-body-sm text-fg-2">{hint}</p>
               )}
-              {!busy && (summary !== null || ready) ? <p role="status" className={tone === 'full' || ready ? 'sr-only' : 'mt-0.5 text-body-sm text-fg-2'}>{nextStep}</p> : null}
+              {!busy && (summary !== null || ready) ? <p role="status" className={tone === 'full' || ready ? 'sr-only' : 'mt-0.5 text-body-sm text-fg-2'}>{nextStepContent}</p> : null}
             </div>
             <Button variant="outline" size="sm" asChild>
               <Link href={backHref}>Volver</Link>

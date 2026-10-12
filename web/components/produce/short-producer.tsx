@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import { forgeHint } from '@/lib/forge-hint';
+import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { useShortDraft } from '@/hooks/use-short-draft';
@@ -33,6 +34,7 @@ import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
 import { ShortStoryboard } from './short-storyboard';
+import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { PresetPreview } from './preset-preview';
 
 const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
@@ -70,6 +72,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const busy = creating || !loaded;
+  const musicPickerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -127,6 +130,14 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
     updateSettings({ variant: selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant });
   }
 
+  function focusMusicDecision(): void {
+    const target = musicPickerRef.current;
+    if (!target) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    target.focus({ preventScroll: true });
+  }
+
   function onChooseSong(chosenId: string, chosenTitle: string): void {
     if (busy) return;
     updateSettings({ songId: chosenId, songTitle: chosenTitle, musicDecided: true });
@@ -165,7 +176,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
       toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Clips y vídeos.' });
       router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'No se pudo crear el short.');
+      setCreateError(shortCreateErrorMessage(err));
       setCreating(false);
     }
   }
@@ -221,7 +232,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           />
         </section>
 
-        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} />
+        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} ordinals={roundOrdinals(plays)} />
         <aside className="flex min-w-0 flex-col gap-4 @[80rem]/content:gap-5">
           <div className="studio-panel flex min-w-0 items-start gap-4 p-4 @[80rem]/content:p-5">
             {selectedPreset ? <PresetPreview preset={selectedPreset} className="w-14 shrink-0 @[80rem]/content:w-16" /> : null}
@@ -266,6 +277,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             musicVolume={musicVolume}
             gameVolume={gameVolume}
             busy={busy}
+            pickerRef={musicPickerRef}
             onOpenPicker={() => setSongOpen(true)}
             onChooseNone={() => resetMusic(true)}
             onClear={() => resetMusic(false)}
@@ -303,6 +315,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             ? PRODUCE_SHORT_EMPTY_HINT
             : forgeHint(roundsSummary(selectedPlays), presetLabel)
         }
+        onHintAction={!musicDecided && selectedPlays.length > 0 && selectedPreset !== null ? focusMusicDecision : undefined}
         briefItems={briefItems}
         backHref={seriesId ? seriesHref(seriesId) : hubHref({ open: matchId })}
         error={createError}

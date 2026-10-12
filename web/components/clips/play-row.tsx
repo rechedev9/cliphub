@@ -6,6 +6,7 @@ import { PlayThumbnail } from './play-thumbnail';
 import { playDescription, playSourceRange } from '@/lib/produce/play-details';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
+import { roundTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
 import { SelectionMark } from './selection-mark';
 
 export type PlayRowProps = {
@@ -13,6 +14,8 @@ export type PlayRowProps = {
   selected: boolean;
   /** 1-based position of this play in the reel, or null when it is not picked. */
   reelPosition: number | null;
+  /** Set when the round has several plays, so repeated rows stay distinguishable. */
+  ordinal?: RoundOrdinal;
   onToggle: () => void;
 };
 
@@ -27,7 +30,7 @@ function killBadge(kills: number): { label: string; tone: StatusTagTone } {
 }
 
 /** Compact highlight selector; each selected row shows its output position. */
-export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps) {
+export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: PlayRowProps) {
   const badge = killBadge(play.kills);
 
   return (
@@ -53,7 +56,7 @@ export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps
             selected ? 'text-fg-1' : 'text-fg-2',
           )}
         >
-          Ronda {play.round}
+          {roundTitle(play.round, ordinal)}
         </span>
         <span className="text-body-sm text-fg-2">
           {playDescription(play)}
