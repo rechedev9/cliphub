@@ -84,8 +84,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "[--normal-border:var(--destructive)] [--normal-text:var(--destructive)]",
         },
       }}
-      // Clear of the sticky «Crear vídeo largo» bar. The offset above clears the command strip.
-      position="top-right"
+      // Top keeps clear of the sticky footer CTA; centre keeps clear of the right-aligned page actions («Cargar demo»).
+      position="top-center"
       closeButton
       // The list is wider than the card (full width under 600px). Clicks on
       // the empty list fall through; the card and its close button stay live.

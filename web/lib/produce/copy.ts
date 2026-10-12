@@ -4,9 +4,6 @@ export const PRODUCE_MATCH_MISSING = {
   description: 'Esta partida ya no está en este PC. Puede que se haya borrado con sus artefactos.',
 } as const;
 
-/** `failed` partida: the orchestrator gave up on the demo; nothing can be produced from it. */
-export const PRODUCE_MATCH_FAILED_TITLE = 'La demo no se pudo procesar';
-
 /** Browser titles of the producer route, one per format. */
 export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nuevo vídeo largo' } as const;
 
@@ -34,3 +31,7 @@ export const PRODUCE_MATCH_NO_POV = {
   description: 'La demo ya está cargada. Elige un jugador para analizar sus jugadas y preparar el vídeo.',
 } as const;
 export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
+
+/** Creating a Short failed in transport or on the server; domain errors keep their own text. */
+export const PRODUCE_SHORT_CREATE_OFFLINE = 'El servicio local no responde. Comprueba que ClipHub sigue abierto y vuelve a intentarlo.';
+export const PRODUCE_SHORT_CREATE_ERROR = 'No se pudo crear el Short. Vuelve a intentarlo.';

@@ -56,9 +56,11 @@ export function autoPickBestPlays(plays: readonly Play[], targetSeconds = SHORT_
   return picked;
 }
 
-/** `R7 · R12 · R19` in plan order; rounds repeat when two highlights share one. */
+/** `R7 · R12 ×2 · R19` in plan order; a round with several highlights shows its count. */
 export function roundsSummary(plays: ReadonlyArray<Pick<Play, 'round'>>): string {
-  return plays.map((play) => `R${play.round}`).join(' · ');
+  const counts = new Map<number, number>();
+  for (const play of plays) counts.set(play.round, (counts.get(play.round) ?? 0) + 1);
+  return [...counts].map(([round, count]) => (count > 1 ? `R${round} ×${count}` : `R${round}`)).join(' · ');
 }
 
 export type SelectionCue = {

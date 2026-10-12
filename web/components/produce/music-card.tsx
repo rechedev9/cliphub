@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +19,8 @@ export type MusicCardProps = {
   musicVolume: number;
   gameVolume: number;
   busy: boolean;
+  /** Lets the footer move focus to the first action while the decision is pending. */
+  pickerRef?: Ref<HTMLButtonElement>;
   onOpenPicker: () => void;
   onChooseNone: () => void;
   onClear: () => void;
@@ -42,6 +44,7 @@ function MusicDecision({
   musicVolume,
   gameVolume,
   busy,
+  pickerRef,
   onOpenPicker,
   onChooseNone,
   onClear,
@@ -121,6 +124,7 @@ function MusicDecision({
       <p className="text-body-sm text-fg-2">Elige un tema o confirma que va sin música.</p>
       <div className="flex flex-wrap gap-2">
         <Button
+          ref={pickerRef}
           type="button"
           variant="outline"
           size="sm"

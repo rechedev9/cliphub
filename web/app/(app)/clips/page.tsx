@@ -20,6 +20,7 @@ import {
   hubTransitions,
   isWorking,
   sameHubProps,
+  OUTPUT_STATE,
   hubPollClearsLoadError,
   hubPollUnchanged,
   settleHubSnapshot,
@@ -76,6 +77,16 @@ function cloudShell(cloud: readonly CloudJob[]): { cloud: readonly CloudJob[]; c
 function anyoneWorking(model: HubModel): boolean {
   if (model.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing)) return true;
   return model.clips.some((clip) => isWorking(clip.state));
+}
+
+function queuedOutputCount(model: HubModel): number {
+  const outputs = [...model.rows.flatMap((row) => [...row.shorts, ...row.fulls]), ...model.orphans];
+  return outputs.filter((output) => output.state === OUTPUT_STATE.queue).length;
+}
+
+function jobsLabel(jobs: number, queued: number): string {
+  if (jobs > 0) return `${jobs} ${jobs === 1 ? 'trabajo en marcha' : 'trabajos en marcha'}`;
+  return queued > 0 ? `${queued} en cola` : 'Nada en marcha';
 }
 
 function browserStorage(): Storage | null {
@@ -321,7 +332,7 @@ function ClipsHub(): ReactNode {
         <LensToggle lens={lens} counts={counts} />
         {/* The lens already counts partidas; this line only reports work in flight. */}
         <span role="status" className="font-mono text-meta uppercase tracking-wider text-fg-3">
-          {jobs === 0 ? 'Nada en marcha' : `${jobs} ${jobs === 1 ? 'trabajo en marcha' : 'trabajos en marcha'}`}
+          {jobsLabel(jobs, queuedOutputCount(model))}
         </span>
       </div>
 

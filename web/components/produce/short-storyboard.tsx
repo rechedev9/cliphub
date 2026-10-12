@@ -3,6 +3,7 @@ import { Crosshair } from 'lucide-react';
 import { formatClock, SHORT_TARGET_SECONDS, type SelectionCue } from '@/lib/produce/short-selection';
 import { cn } from '@/lib/utils';
 import { playClock, playDescription } from '@/lib/produce/play-details';
+import { roundTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
 
 const STORYBOARD_TITLE = 'Guion del Short';
 const EMPTY_HINT = 'Los highlights elegidos aparecen aquí en el orden en que saldrán.';
@@ -11,9 +12,12 @@ const EMPTY_HINT = 'Los highlights elegidos aparecen aquí en el orden en que sa
 export function ShortStoryboard({
   cues,
   totalSeconds,
+  ordinals,
 }: {
   cues: SelectionCue[];
   totalSeconds: number;
+  /** Ordinals computed over every play of the match, so they match the play list. */
+  ordinals: ReadonlyMap<string, RoundOrdinal>;
 }): ReactNode {
   const over = totalSeconds > SHORT_TARGET_SECONDS;
   const fill = Math.min(100, (totalSeconds / SHORT_TARGET_SECONDS) * 100);
@@ -39,7 +43,7 @@ export function ShortStoryboard({
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
                 <span title={playDescription(cue.play)} className="font-display text-label font-bold text-fg-1">
-                  <span className="whitespace-nowrap">Ronda {cue.play.round}</span>
+                  <span className="whitespace-nowrap">{roundTitle(cue.play.round, ordinals.get(cue.play.id))}</span>
                   {cue.play.startSeconds !== undefined ? <> · <span className="whitespace-nowrap">{playClock(cue.play.startSeconds)}</span></> : null}
                 </span>
                 {/* Numbers keep their units: the line may break at the separator, never inside "6.8 s". */}

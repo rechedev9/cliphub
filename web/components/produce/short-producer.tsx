@@ -21,6 +21,7 @@ import { buildCloudShortSubmit } from '@/lib/cloud/submit';
 import { cloudSubmitErrorMessage } from '@/lib/cloud/view';
 import { playsSelectionLabel } from '@/lib/format';
 import { forgeHint } from '@/lib/forge-hint';
+import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { useShortDraft } from '@/hooks/use-short-draft';
@@ -49,6 +50,7 @@ import { CaptureTargetControl } from './capture-target';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
 import { ShortStoryboard } from './short-storyboard';
+import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { PresetPreview } from './preset-preview';
 
 const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
@@ -127,6 +129,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
     setCreateError(null);
     saveCaptureTarget(browserStorage(), next);
   }
+  const musicPickerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -182,6 +185,14 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
     // A landscape preset is never offered here, so only the variant travels.
     if (busy) return;
     updateSettings({ variant: selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant });
+  }
+
+  function focusMusicDecision(): void {
+    const target = musicPickerRef.current;
+    if (!target) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    target.focus({ preventScroll: true });
   }
 
   function onChooseSong(chosenId: string, chosenTitle: string): void {
@@ -260,7 +271,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
       toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Clips y vídeos.' });
       router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'No se pudo crear el short.');
+      setCreateError(shortCreateErrorMessage(err));
       setCreating(false);
     }
   }
@@ -316,7 +327,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
           />
         </section>
 
-        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} />
+        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} ordinals={roundOrdinals(plays)} />
         <aside className="flex min-w-0 flex-col gap-4 @[80rem]/content:gap-5">
           <div className="studio-panel flex min-w-0 items-start gap-4 p-4 @[80rem]/content:p-5">
             {selectedPreset ? <PresetPreview preset={selectedPreset} className="w-14 shrink-0 @[80rem]/content:w-16" /> : null}
@@ -361,6 +372,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
             musicVolume={musicVolume}
             gameVolume={gameVolume}
             busy={busy}
+            pickerRef={musicPickerRef}
             onOpenPicker={() => setSongOpen(true)}
             onChooseNone={() => resetMusic(true)}
             onClear={() => resetMusic(false)}
@@ -398,6 +410,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
             ? PRODUCE_SHORT_EMPTY_HINT
             : forgeHint(roundsSummary(selectedPlays), presetLabel)
         }
+        onHintAction={!musicDecided && selectedPlays.length > 0 && selectedPreset !== null ? focusMusicDecision : undefined}
         briefItems={briefItems}
         readyHint={toCloud ? 'Todo preparado. Al crear, ClipHub grabará en la nube; el vídeo se descargará en Demos y vídeos.' : undefined}
         backHref={seriesId ? seriesHref(seriesId) : hubHref({ open: matchId })}

@@ -25,8 +25,6 @@ import {
   MATCH_PLAYS_ANALYZING_TITLE,
   MATCH_PLAYS_EMPTY_DESCRIPTION,
   MATCH_PLAYS_EMPTY_TITLE,
-  MATCH_PLAYS_ERROR_DESCRIPTION,
-  MATCH_PLAYS_ERROR_TITLE,
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
@@ -53,6 +51,8 @@ import { FullPovProducer } from '@/components/produce/full-pov-producer';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
+/** The "Diagnósticos" section of Ajustes, where sharing diagnostics is toggled. */
+const DIAGNOSTICS_SETTINGS_HREF = '/settings#telemetry-settings-title';
 
 type RecapFailure = Exclude<FullDemoLoadFailure, null> | null;
 
@@ -67,7 +67,6 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
 
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[]>([]);
-  const [playsError, setPlaysError] = useState(false);
   const [shortPlanJobId, setShortPlanJobId] = useState<string | null>(null);
   const [rounds, setRounds] = useState<Play[]>([]);
   const [recapFailure, setRecapFailure] = useState<RecapFailure>(null);
@@ -113,21 +112,17 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
         setPollError(null);
         if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
           setPlays([]);
-          setPlaysError(false);
           setRounds([]);
           setRecapFailure(null);
           setLoaded(true);
           // `scanned` never advances without a POV pick, so only a real parse polls fast.
           return nextMatch !== null && matchRowStage(nextMatch.status) === HUB_ROW_STAGE.parsing ? 'fast' : 'idle';
         }
-        if (planResult.status === 'fulfilled') {
-          setPlays(planResult.value);
-          if (planResult.value.length > 0) setShortPlanJobId(id);
-          setPlaysError(false);
-        } else {
-          setPlays([]);
-          setPlaysError(true);
-        }
+        // findClips shares getMatch's status and plan reads, so a plan failure
+        // already rejected getMatch above; a rejected plan result cannot reach here.
+        const nextPlays = planResult.status === 'fulfilled' ? planResult.value : [];
+        setPlays(nextPlays);
+        if (nextPlays.length > 0) setShortPlanJobId(id);
         let recapPending = false;
         if (recapResult.status === 'fulfilled') {
           setRounds(recapResult.value);
@@ -199,7 +194,16 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
         title={jobFailureTitle(match.failureReason)}
         description={parseFailureReason(match.failureReason, { job: true }).message}
         compact
-        actions={<Button variant="outline" onClick={() => router.push(backHref)}>Volver</Button>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => router.push(backHref)}>
+              Volver
+            </Button>
+            <Button variant="outline" onClick={() => router.push(DIAGNOSTICS_SETTINGS_HREF)}>
+              Abrir Ajustes
+            </Button>
+          </>
+        }
       />
     );
   } else if (stage === HUB_ROW_STAGE.parsing) {
@@ -215,18 +219,20 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
           </span>
         }
         compact
+        actions={
+          <Button variant="outline" onClick={() => router.push(backHref)}>
+            Volver
+          </Button>
+        }
       />
     );
   } else {
     let shortContent: ReactNode = null;
-    if (playsError) {
-      shortContent = <StudioEmptyState icon={AlertTriangle} title={MATCH_PLAYS_ERROR_TITLE}
-        description={MATCH_PLAYS_ERROR_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
-    } else if (plays.length === 0) {
+    if (plays.length === 0) {
       shortContent = <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
         description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
     }
-    const shortUnavailable = playsError || plays.length === 0;
+    const shortUnavailable = plays.length === 0;
     // Keep each format's choices mounted while switching; their approval and configuration stay independent.
     body = (
       <>
