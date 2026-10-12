@@ -4,9 +4,6 @@ export const PRODUCE_MATCH_MISSING = {
   description: 'Esta partida ya no está en este PC. Puede que se haya borrado con sus artefactos.',
 } as const;
 
-/** `failed` partida: the orchestrator gave up on the demo; nothing can be produced from it. */
-export const PRODUCE_MATCH_FAILED_TITLE = 'La demo no se pudo procesar';
-
 /** Browser titles of the producer route, one per format. */
 export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nuevo vídeo largo' } as const;
 
