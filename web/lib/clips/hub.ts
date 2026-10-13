@@ -277,34 +277,6 @@ export function activeJobCount(model: HubModel, streams: readonly StreamJob[] = 
   return parsing + running + streaming;
 }
 
-/** What a collapsed row asks of the user next; `none` means the row is self-explanatory. */
-export const HUB_NEXT_STEP = { wait: 'wait', pick: 'pick', firstClip: 'firstClip', none: 'none' } as const;
-export type HubNextStep = (typeof HUB_NEXT_STEP)[keyof typeof HUB_NEXT_STEP];
-
-export function hubNextStep(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): HubNextStep {
-  if (row.stage === HUB_ROW_STAGE.parsing) return HUB_NEXT_STEP.wait;
-  if (row.stage === HUB_ROW_STAGE.unpicked) return HUB_NEXT_STEP.pick;
-  // Failed: nothing new to produce; existing clips stay on the expandable row.
-  if (row.stage === HUB_ROW_STAGE.failed) return HUB_NEXT_STEP.none;
-  if (row.shorts.length === 0 && row.fulls.length === 0) return HUB_NEXT_STEP.firstClip;
-  return HUB_NEXT_STEP.none;
-}
-
-function rowHasClips(row: Pick<HubMatch, 'shorts' | 'fulls'>): boolean {
-  return row.shorts.length > 0 || row.fulls.length > 0;
-}
-
-/** Ready rows always open. Failed rows open only when clips already exist, so they stay visible. */
-export function hubRowExpandable(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): boolean {
-  if (row.stage === HUB_ROW_STAGE.ready) return true;
-  return row.stage === HUB_ROW_STAGE.failed && rowHasClips(row);
-}
-
-/** Produce CTAs belong on a plan-ready row. A failed job can still show existing clips. */
-export function hubRowCanProduce(row: Pick<HubMatch, 'stage'>): boolean {
-  return row.stage === HUB_ROW_STAGE.ready;
-}
-
 /** Row subtitle: the facts that tell five same-map partidas apart. `dateLabel` is already formatted. */
 export function matchMetaParts(match: Match, dateLabel: string): string[] {
   const parts: string[] = [];
@@ -316,50 +288,8 @@ export function matchMetaParts(match: Match, dateLabel: string): string[] {
   return parts;
 }
 
-/** First-run guide steps, in order. Each flips to done from real hub data, never from a click. */
-export const FIRST_RUN_STEP = { load: 'load', pick: 'pick', produce: 'produce' } as const;
-export type FirstRunStep = (typeof FIRST_RUN_STEP)[keyof typeof FIRST_RUN_STEP];
-export type FirstRunProgress = Record<FirstRunStep, boolean>;
-
-export function firstRunProgress(model: Pick<HubModel, 'rows' | 'clips'>): FirstRunProgress {
-  return {
-    load: model.rows.length > 0,
-    // A parsing row already carries the chosen player: the pick happened, the parse is what waits.
-    pick: model.rows.some((row) => row.stage === HUB_ROW_STAGE.ready || (row.match.player ?? '') !== ''),
-    produce: model.clips.length > 0,
-  };
-}
-
-export function firstRunComplete(progress: FirstRunProgress): boolean {
-  return Object.values(FIRST_RUN_STEP).every((step) => progress[step]);
-}
-
-/** localStorage key for "Ocultar guía" on the populated hub. */
-export const FIRST_RUN_GUIDE_DISMISSED_KEY = 'cliphub.first-run-guide.dismissed.v1';
-
-type GuideStorage = Pick<Storage, 'getItem' | 'setItem'>;
-
-/** Unreadable storage counts as dismissed: a guide that cannot be hidden must not nag. */
-export function firstRunGuideDismissed(storage: GuideStorage | null): boolean {
-  if (storage === null) return true;
-  try {
-    return storage.getItem(FIRST_RUN_GUIDE_DISMISSED_KEY) !== null;
-  } catch {
-    return true;
-  }
-}
-
-export function dismissFirstRunGuide(storage: GuideStorage | null): void {
-  if (storage === null) return;
-  try {
-    storage.setItem(FIRST_RUN_GUIDE_DISMISSED_KEY, '1');
-  } catch {
-    // Hidden for this visit only; the in-memory state still hides it.
-  }
-}
-
-/** State of the latest Full POV, as the column head shows it. */
-export function fullStateLabel(fulls: readonly MatchOutput[]): string {
+/** State of the latest Full POV, as a demo row words it. */
+function fullStateLabel(fulls: readonly MatchOutput[]): string {
   const latest = fulls[0];
   if (latest === undefined) return 'sin generar';
   switch (latest.state) {
@@ -379,11 +309,6 @@ export function fullStateLabel(fulls: readonly MatchOutput[]): string {
 /** Full POV chip label for a collapsed row. */
 export function fullChipLabel(fulls: readonly MatchOutput[]): string {
   return `Vídeo largo · ${fullStateLabel(fulls)}`;
-}
-
-/** Shorts-column count, worded as "shorts" so it never reads as the Clips lens total. */
-export function pluralShorts(count: number): string {
-  return `${count} ${count === 1 ? 'short' : 'shorts'}`;
 }
 
 /** Tone vocabulary for an output's tag; mirrors `StatusTagTone` by name. */
@@ -418,14 +343,6 @@ export function outputTagLabel(
 export function shortsChipTone(shorts: readonly MatchOutput[]): OutputTone {
   if (shorts.some((output) => isWorking(output.state))) return OUTPUT_TONE.render;
   return shorts.length > 0 ? OUTPUT_TONE.ready : OUTPUT_TONE.queue;
-}
-
-/** Round count from an `x-y` score; null when either side is not a number. */
-export function roundsFromScore(score: string): number | null {
-  const [left, right] = score.split('-', 2);
-  const ours = Number.parseInt(left ?? '', 10);
-  const theirs = Number.parseInt(right ?? '', 10);
-  return Number.isNaN(ours) || Number.isNaN(theirs) ? null : ours + theirs;
 }
 
 export type HubTransitions = {

@@ -198,11 +198,10 @@ test('the choice persists under its key and survives broken storage', () => {
   assert.equal(loadCaptureTarget(null), null);
 });
 
-test('the hub links back to the Short producer with the target preselected', () => {
+test('Resultados links back to the Short producer with the target preselected', () => {
   const href = produceShortHref(MATCH_ID, 'cloud');
   const url = new URL(href, 'http://127.0.0.1');
-  assert.equal(url.pathname, `/clips/${MATCH_ID}/nuevo`);
-  assert.equal(url.searchParams.get('formato'), 'short');
+  assert.equal(url.pathname, `/shorts/${MATCH_ID}`);
   assert.equal(captureTargetParam(url.searchParams.get('destino')), 'cloud');
   assert.equal(captureTargetParam(new URL(produceShortHref(MATCH_ID, 'local'), 'http://127.0.0.1').searchParams.get('destino')), 'local');
   assert.equal(captureTargetParam('luna'), null);

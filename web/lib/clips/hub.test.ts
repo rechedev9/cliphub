@@ -7,15 +7,7 @@ import {
   activeJobCount,
   buildHubModel,
   clipFilterCounts,
-  dismissFirstRunGuide,
-  FIRST_RUN_GUIDE_DISMISSED_KEY,
-  firstRunComplete,
-  firstRunGuideDismissed,
-  firstRunProgress,
   fullChipLabel,
-  hubNextStep,
-  hubRowCanProduce,
-  hubRowExpandable,
   matchMetaParts,
   HUB_ROW_STAGE,
   hubTransitions,
@@ -25,7 +17,6 @@ import {
   outputTagLabel,
   outputType,
   recBusy,
-  roundsFromScore,
   hubPollClearsLoadError,
   hubPollUnchanged,
   sameHubProps,
@@ -270,16 +261,6 @@ test('shortsChipTone: working > existing > none', () => {
   assert.equal(shortsChipTone([ready, working]), 'primary');
 });
 
-test('roundsFromScore: sums both halves, null when unparseable', () => {
-  const cases: Array<[string, number | null]> = [
-    ['13-9', 22],
-    ['16 - 14', 30],
-    ['', null],
-    ['13', null],
-  ];
-  for (const [score, want] of cases) assert.equal(roundsFromScore(score), want);
-});
-
 test('hubTransitions: reports rows that finished parsing and outputs that became ready', () => {
   const prev = buildHubModel([match('m1', 'parsing'), match('m2'), match('m3', 'parsing'), match('m4', 'scanned')], [
     reel({ id: 'v1', jobId: 'm2', status: 'composing' }),
@@ -297,23 +278,7 @@ test('hubTransitions: reports rows that finished parsing and outputs that became
   assert.deepEqual(got.ready.map((clip) => clip.id), ['v1']);
 });
 
-test('hubNextStep: parsing waits, scanned picks, an empty ready row asks for its first clip', () => {
-  const row = (status: string | undefined, videos: Video[] = []) => buildHubModel([match('m1', status)], videos).rows[0];
-  assert.equal(hubNextStep(row('parsing')), 'wait');
-  assert.equal(hubNextStep(row('scanned')), 'pick');
-  assert.equal(hubNextStep(row('parsed')), 'firstClip');
-  assert.equal(hubNextStep(row('parsed', [reel({ id: 'v1', status: 'queued', jobId: 'm1' })])), 'none');
-  assert.equal(
-    hubNextStep(row('parsed', [reel({ id: 'v1', status: 'ready', jobId: 'm1', editConfig: FULL_DEMO_EDIT })])),
-    'none',
-  );
-  assert.equal(hubRowExpandable(row('parsed')), true);
-  assert.equal(hubRowCanProduce(row('parsed')), true);
-  assert.equal(hubRowExpandable(row('parsing')), false);
-  assert.equal(hubRowExpandable(row('scanned')), false);
-});
-
-test('a failed partida keeps its clips on the row and opens so they stay visible', () => {
+test('a failed partida keeps its clips on the row', () => {
   const model = buildHubModel(
     [match('m1', 'failed')],
     [reel({ id: 'v1', status: 'ready', jobId: 'm1', createdAt: 2 }), reel({ id: 'v2', status: 'ready', createdAt: 1 })],
@@ -322,10 +287,6 @@ test('a failed partida keeps its clips on the row and opens so they stay visible
   assert.equal(row.stage, HUB_ROW_STAGE.failed);
   assert.deepEqual(row.shorts.map((output) => output.id), ['v1']);
   assert.deepEqual(model.orphans.map((output) => output.id), ['v2']);
-  assert.equal(hubNextStep(row), 'none');
-  assert.equal(hubRowExpandable(row), true);
-  assert.equal(hubRowCanProduce(row), false);
-  assert.equal(hubRowExpandable({ stage: HUB_ROW_STAGE.failed, shorts: [], fulls: [] }), false);
 });
 
 test('matchMetaParts keeps player, K/D and highlights, and always ends with the date', () => {
@@ -341,44 +302,6 @@ test('matchMetaParts keeps player, K/D and highlights, and always ends with the 
     decentPlays: 0,
   };
   assert.deepEqual(matchMetaParts(bare, 'importada el 1 sept 2026'), ['importada el 1 sept 2026']);
-});
-
-test('firstRunProgress flips each step from hub data and completes only with a clip', () => {
-  assert.deepEqual(firstRunProgress(buildHubModel([], [])), { load: false, pick: false, produce: false });
-  assert.deepEqual(firstRunProgress(buildHubModel([match('m1', 'scanned')], [])), {
-    load: true,
-    pick: false,
-    produce: false,
-  });
-  // A parse in flight already names the POV: the pick is done, only the parse waits.
-  const parsing = buildHubModel([{ ...match('m1', 'parsing'), player: 'donk' }], []);
-  assert.deepEqual(firstRunProgress(parsing), { load: true, pick: true, produce: false });
-  const parsed = buildHubModel([match('m1', 'parsed')], []);
-  assert.deepEqual(firstRunProgress(parsed), { load: true, pick: true, produce: false });
-  assert.equal(firstRunComplete(firstRunProgress(parsed)), false);
-  const produced = buildHubModel([match('m1', 'parsed')], [reel({ id: 'v1', status: 'queued', jobId: 'm1' })]);
-  assert.equal(firstRunComplete(firstRunProgress(produced)), true);
-});
-
-test('first-run guide dismissal persists, and unreadable storage never nags', () => {
-  const map = new Map<string, string>();
-  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => void map.set(key, value) };
-  assert.equal(firstRunGuideDismissed(storage), false);
-  dismissFirstRunGuide(storage);
-  assert.equal(firstRunGuideDismissed(storage), true);
-  assert.equal(map.has(FIRST_RUN_GUIDE_DISMISSED_KEY), true);
-
-  const broken = {
-    getItem: () => {
-      throw new Error('SecurityError');
-    },
-    setItem: () => {
-      throw new Error('QuotaExceededError');
-    },
-  };
-  assert.equal(firstRunGuideDismissed(null), true);
-  assert.equal(firstRunGuideDismissed(broken), true);
-  assert.doesNotThrow(() => dismissFirstRunGuide(broken));
 });
 
 test('sameHubProps compares every own key and falls back to identity elsewhere', () => {

@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cloudAccessTag,
+  cloudConnectionTag,
   cloudDeviceLinked,
+  cloudLinkIdle,
   cloudLinkPhase,
+  cloudQueueLine,
   cloudUnlinkWarning,
   cloudUsageLines,
   safeVerifyUrl,
@@ -140,4 +143,34 @@ test('unlinking warns only while videos are in flight, and says what happens to 
   const two = cloudUnlinkWarning(linked({ usage: { active: 2, secondsLast24h: 0, secondsCommitted: 0 } }));
   assert.match(two ?? '', /^Tienes 2 vídeos en marcha en la nube\. Seguirán allí/);
   assert.match(two ?? '', /hasta que conectes la misma cuenta otra vez/);
+});
+
+test('the connection tag says whether this PC is connected', () => {
+  assert.equal(cloudConnectionTag({ kind: 'loading' }), null);
+  assert.deepEqual(cloudConnectionTag({ kind: 'unavailable' }), { text: 'No disponible', tone: 'neutral' });
+  assert.deepEqual(cloudConnectionTag(unlinked(null)), { text: 'Sin conectar', tone: 'neutral' });
+  assert.deepEqual(cloudConnectionTag(unlinked(PENDING)), { text: 'Sin conectar', tone: 'neutral' });
+  assert.deepEqual(cloudConnectionTag(unlinked(null, 'portal_unreachable')), { text: 'Sin conexión', tone: 'warning' });
+  assert.deepEqual(cloudConnectionTag({ kind: 'ready', account: linked() }), { text: 'Conectada', tone: 'success' });
+  assert.deepEqual(cloudConnectionTag({ kind: 'ready', account: linked({ access: 'pending' }) }), {
+    text: 'Pendiente de aprobación',
+    tone: 'warning',
+  });
+});
+
+test('the cloud page asks for a code only after the user clicks', () => {
+  assert.equal(cloudLinkIdle(unlinked(null)), true);
+  assert.equal(cloudLinkIdle(unlinked(null, 'unauthorized')), true);
+  assert.equal(cloudLinkIdle(unlinked(null, 'portal_unreachable')), false);
+  assert.equal(cloudLinkIdle(unlinked(PENDING)), false);
+  assert.equal(cloudLinkIdle({ kind: 'ready', account: linked() }), false);
+  assert.equal(cloudLinkIdle({ kind: 'loading' }), false);
+});
+
+test('the queue line says how busy the cloud is', () => {
+  assert.equal(cloudQueueLine(linked()), null);
+  assert.equal(cloudQueueLine(linked({ queue: { state: 'online', queued: 0, waitSeconds: {} } })), 'Cola de la nube: sin vídeos en espera.');
+  assert.equal(cloudQueueLine(linked({ queue: { state: 'online', queued: 1, waitSeconds: {} } })), 'Cola de la nube: 1 vídeo en espera.');
+  assert.match(cloudQueueLine(linked({ queue: { state: 'paused', queued: 4, waitSeconds: {} } })) ?? '', /en pausa/);
+  assert.match(cloudQueueLine(linked({ queue: { state: 'offline', queued: 0, waitSeconds: {} } })) ?? '', /no está conectado/);
 });

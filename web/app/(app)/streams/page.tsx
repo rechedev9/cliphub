@@ -17,7 +17,7 @@ import {
 import { streamImportErrorMessage, streamSourceUrlError } from '@/lib/streams/import';
 import { STREAM_WORKFLOW_STEPS } from '@/lib/streams/editor';
 import Link from 'next/link';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { SHORTS_HREF } from '@/lib/clips/routes';
 import { WorkflowProgress } from '@/components/studio/workflow-progress';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
@@ -133,7 +133,7 @@ export default function StreamsPage(): ReactNode {
         title="Clips de stream"
         actions={(
           <Button asChild variant="outline" className="bg-surface-1">
-            <Link href={CLIPS_HREF}><Clapperboard aria-hidden />Crear desde una demo</Link>
+            <Link href={SHORTS_HREF}><Clapperboard aria-hidden />Crear desde una demo</Link>
           </Button>
         )}
         description="Convierte tus mejores momentos en Shorts verticales."

@@ -106,3 +106,40 @@ export function cloudUsageLines(account: CloudAccount): string[] {
   lines.push(`Vídeos en la nube ahora: ${account.usage.active} de ${account.limits.maxActive}`);
   return lines;
 }
+
+/** Whether this PC is connected to the cloud, as one tag for the rail, the flow homes and the cloud page. */
+export function cloudConnectionTag(state: CloudAccountState): CloudAccessTag | null {
+  switch (state.kind) {
+    case 'loading':
+      return null;
+    case 'offline':
+      return { text: 'Sin datos', tone: 'warning' };
+    case 'unavailable':
+      return { text: 'No disponible', tone: 'neutral' };
+    case 'ready': {
+      if (!state.account.linked) {
+        return state.account.error === 'portal_unreachable'
+          ? { text: 'Sin conexión', tone: 'warning' }
+          : { text: 'Sin conectar', tone: 'neutral' };
+      }
+      const access = cloudAccessTag(state.account);
+      return access.tone === 'success' ? { text: 'Conectada', tone: 'success' } : access;
+    }
+  }
+}
+
+/** True while this PC has no account and no code was requested: the cloud page waits for the user's click. */
+export function cloudLinkIdle(state: CloudAccountState): boolean {
+  if (state.kind !== 'ready' || state.account.linked) return false;
+  return state.account.link === null && state.account.error !== 'portal_unreachable';
+}
+
+/** The recording queue in one line, or null when the portal did not report it. */
+export function cloudQueueLine(account: CloudAccount): string | null {
+  const queue = account.queue;
+  if (queue === null) return null;
+  if (queue.state === 'paused') return 'La nube está en pausa: los vídeos esperan en cola hasta que vuelva.';
+  if (queue.state === 'offline') return 'El servidor de grabación no está conectado ahora: los vídeos esperan en cola.';
+  if (queue.queued === 0) return 'Cola de la nube: sin vídeos en espera.';
+  return `Cola de la nube: ${queue.queued} ${queue.queued === 1 ? 'vídeo en espera' : 'vídeos en espera'}.`;
+}

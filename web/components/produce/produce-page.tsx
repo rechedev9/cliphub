@@ -4,20 +4,10 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
-import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
-import {
-  hubHref,
-  newDemoHref,
-  PRODUCE_FORMAT,
-  PRODUCE_QUERY,
-  produceFormatParam,
-  produceHref,
-  seriesHref,
-  type ProduceFormat,
-} from '@/lib/clips/routes';
+import { flowHref, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
 import { CAPTURE_TARGET_QUERY, captureTargetParam } from '@/lib/cloud/capture-target';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import {
@@ -28,6 +18,8 @@ import {
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
+  FLOW_STEPS,
+  FLOW_TITLE,
   PRODUCE_MATCH_MISSING,
   PRODUCE_MATCH_NO_POV,
   PRODUCE_PICK_POV_CTA,
@@ -45,7 +37,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { WorkflowProgress } from '@/components/studio/workflow-progress';
-import { ProduceFormatBar } from '@/components/produce/format-bar';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
 
@@ -58,10 +49,9 @@ type RecapFailure = Exclude<FullDemoLoadFailure, null> | null;
 
 export type ProducePageQuery = Record<string, string | string[] | undefined>;
 
-/** Client body of `/clips/[id]/nuevo`; the server `page.tsx` resolves the route and names the tab. */
-export function ProducePage({ id, query }: { id: string; query: ProducePageQuery }): ReactNode {
+/** Client body of one flow's producer; the server `page.tsx` fixes the format and names the tab. */
+export function ProducePage({ id, format, query }: { id: string; format: ProduceFormat; query: ProducePageQuery }): ReactNode {
   const series = query[PRODUCE_QUERY.series];
-  const format: ProduceFormat = produceFormatParam(query[PRODUCE_QUERY.format]);
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
   const router = useRouter();
 
@@ -74,9 +64,6 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
   /** Last tick failed while a partida is already on screen: a banner, not an empty state. */
   const [pollError, setPollError] = useState<FullDemoLoadFailure>(null);
-  // The poll cadence depends on the current format without restarting the loop.
-  const formatRef = useRef(format);
-  formatRef.current = format;
   /** The last partida the API confirmed; a failing tick must keep it on screen. */
   const matchRef = useRef<Match | null>(null);
 
@@ -133,7 +120,7 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
           setRecapFailure(classifyFullDemoLoadFailure(recapResult.reason));
         }
         setLoaded(true);
-        return recapPending && formatRef.current === PRODUCE_FORMAT.full ? 'fast' : 'idle';
+        return recapPending && format === PRODUCE_FORMAT.full ? 'fast' : 'idle';
       },
       fastMs: FAST_POLL_MS,
       idleMs: IDLE_POLL_MS,
@@ -142,22 +129,18 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
       active = false;
       stop();
     };
-  }, [id]);
-
-  function changeFormat(next: ProduceFormat): void {
-    if (next === format) return;
-    router.replace(produceHref(id, next, seriesId ?? undefined));
-  }
+  }, [id, format]);
 
   if (!loaded) return <LoadingState />;
 
-  const backHref = seriesId ? seriesHref(seriesId) : hubHref({ open: id });
+  const backHref = seriesId ? seriesHref(seriesId) : flowHref(format);
+  const backLabel = seriesId ? 'Serie' : FLOW_TITLE[format];
 
   if (!match) {
     const empty = matchEmptyState(loadFailure);
     return (
       <div className="measure-work flex flex-col gap-8">
-        <StudioBackLink href={backHref}>{seriesId ? 'Serie' : 'Clips y vídeos'}</StudioBackLink>
+        <StudioBackLink href={backHref}>{backLabel}</StudioBackLink>
         <StudioEmptyState
           icon={empty.icon}
           title={empty.title}
@@ -179,7 +162,7 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
         compact
         actions={
           <>
-            <Button onClick={() => router.push(newDemoHref({ job: id, format }))}>{PRODUCE_PICK_POV_CTA}</Button>
+            <Button onClick={() => router.push(flowHref(format, { job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
             <Button variant="outline" onClick={() => router.push(backHref)}>
               Volver
             </Button>
@@ -226,48 +209,40 @@ export function ProducePage({ id, query }: { id: string; query: ProducePageQuery
         }
       />
     );
+  } else if (format === PRODUCE_FORMAT.full) {
+    body = (
+      <FullPovProducer active matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
+        recBusy={recBusy} seriesId={seriesId} />
+    );
   } else {
-    let shortContent: ReactNode = null;
-    if (plays.length === 0) {
-      shortContent = <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
-        description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
-    }
     const shortUnavailable = plays.length === 0;
-    // Keep each format's choices mounted while switching; their approval and configuration stay independent.
     body = (
       <>
-        <div hidden={format !== PRODUCE_FORMAT.short}
-          className={format === PRODUCE_FORMAT.short ? 'flex flex-1 flex-col' : 'hidden'}>
-          {shortContent}
-          {shortPlanJobId === id ? (
-            <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-              <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId}
-                initialTarget={captureTargetParam(query[CAPTURE_TARGET_QUERY])} />
-            </div>
-          ) : null}
-        </div>
-        <div hidden={format !== PRODUCE_FORMAT.full}
-          className={format === PRODUCE_FORMAT.full ? 'flex flex-1 flex-col' : 'hidden'}>
-          <FullPovProducer active={format === PRODUCE_FORMAT.full} matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
-            recBusy={recBusy} seriesId={seriesId} />
-        </div>
+        {shortUnavailable ? (
+          <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
+            description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />
+        ) : null}
+        {/* Mounted through an empty poll so a blip never drops the user's selection. */}
+        {shortPlanJobId === id ? (
+          <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId}
+              initialTarget={captureTargetParam(query[CAPTURE_TARGET_QUERY])} />
+          </div>
+        ) : null}
       </>
     );
   }
 
-  // A failed demo has nothing left to prepare: no stepper claiming a step, no format to pick.
+  // A failed demo has nothing left to prepare: no stepper claiming a step.
   const producible = stage !== HUB_ROW_STAGE.failed;
   return (
     <div data-produce-workspace="" data-full-demo-workspace={format === PRODUCE_FORMAT.full ? '' : undefined}
       className="flex min-h-[calc(100dvh-7rem)] w-full flex-col">
+      <StudioBackLink href={backHref}>{backLabel}</StudioBackLink>
       {producible ? (
-        <>
-          <div className="mb-2">
-            <WorkflowProgress steps={DEMO_CREATION_STEPS}
-              current={workflowStep(stage)} />
-          </div>
-          <ProduceFormatBar value={format} onChange={changeFormat} />
-        </>
+        <div className="mb-2">
+          <WorkflowProgress steps={FLOW_STEPS[format]} current={workflowStep(stage)} />
+        </div>
       ) : null}
       <div className="flex flex-1 flex-col gap-3 pt-2">
         {pollError !== null ? (

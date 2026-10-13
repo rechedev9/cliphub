@@ -24,7 +24,7 @@ import {
   type SteamAccountFieldErrors,
 } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
-import { CLIPS_HREF, NEW_DEMO_HREF } from '@/lib/clips/routes';
+import { SHORTS_HREF } from '@/lib/clips/routes';
 
 const STEAM_AUTH_CODE_URL = 'https://help.steampowered.com/en/wizard/HelpWithGameIssue/?appid=730&issueid=128';
 const STEAM_API_KEY_URL = 'https://steamcommunity.com/dev/apikey';
@@ -146,7 +146,7 @@ export function SteamAccount(): ReactNode {
     const result = await importShareCode(code);
     setPending(null);
     if (result.kind === 'queued') {
-      router.push(CLIPS_HREF);
+      router.push(SHORTS_HREF);
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -327,8 +327,8 @@ export function SteamAccount(): ReactNode {
           ? 'La sesión de descarga ya está lista en este PC. ClipHub solo la abre cuando pulsas Descargar.'
           : 'La primera descarga te pedirá usuario, contraseña y Steam Guard. No se escriben a disco.'}{' '}
         Si estás jugando, Steam te echará de la partida. Sigue el flujo en{' '}
-        <Link href={NEW_DEMO_HREF} className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
-          Cargar demo
+        <Link href={SHORTS_HREF} className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
+          Shorts
         </Link>
         .
       </p>
@@ -337,7 +337,7 @@ export function SteamAccount(): ReactNode {
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={() => { router.push(CLIPS_HREF); }}
+        onQueued={() => { router.push(SHORTS_HREF); }}
       />
     </section>
   );

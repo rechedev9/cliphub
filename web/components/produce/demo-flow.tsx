@@ -1,26 +1,22 @@
 'use client';
 
-import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { getFaceitScoreboard, type FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
-import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
 import {
-  CLIPS_HREF,
+  FLOW_QUERY,
+  flowHref,
   isJobIdParam,
-  PRODUCE_QUERY,
-  newDemoHref,
-  NEW_DEMO_QUERY,
   PRODUCE_FORMAT,
-  produceFormatParam,
   produceHref,
   seriesHref,
+  type ProduceFormat,
 } from '@/lib/clips/routes';
 import {
   DEMO_EMPTY_ROSTER_HINT,
@@ -35,7 +31,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
-import { PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
+import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_STEPS, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
 import { MapCover } from '@/components/brand/map-cover';
@@ -47,7 +43,8 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { WorkflowProgress } from '@/components/studio/workflow-progress';
-import { ProduceFormatBar } from '@/components/produce/format-bar';
+import { CaptureWhereNote } from '@/components/produce/capture-where-note';
+import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { Button } from '@/components/ui/button';
@@ -79,19 +76,16 @@ function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
   return row.match ? prettyMapName(row.match.map) : row.fileName;
 }
 
+export type DemoFlowQuery = Record<string, string | string[] | undefined>;
+
 /**
- * Cargar demo → escanear → elegir POV → parsear; series bo3/bo5 walk the same page.
+ * Home of one creation flow: cargar demo → escanear → elegir POV → parsear; series bo3/bo5 walk the same page.
  * `?job=` skips the upload and resumes a `scanned` job at the same picker.
  */
-export default function NewDemoPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): ReactNode {
+export function DemoFlow({ format, query }: { format: ProduceFormat; query: DemoFlowQuery }): ReactNode {
   const router = useRouter();
-  const query = use(searchParams);
-  const jobParam = query[NEW_DEMO_QUERY.job];
-  const format = produceFormatParam(query[PRODUCE_QUERY.format]);
+  const jobParam = query[FLOW_QUERY.job];
+  const homeHref = flowHref(format);
   const resuming = jobParam !== undefined;
   const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
 
@@ -285,12 +279,6 @@ export default function NewDemoPage({
     return () => controller.abort();
   }, [stage, seriesMode, jobId]);
 
-  // The hub's empty-state dropzone parks its files here; `take` empties the store, so re-runs are no-ops.
-  useEffect(() => {
-    const handed = takePendingDemoFiles();
-    if (handed.length > 0) onFiles(handed);
-  }, [onFiles]);
-
   // Imported jobs can still be queued; wait for a roster before offering the player picker.
   useEffect(() => {
     if (resumeJobId === null) return;
@@ -341,9 +329,15 @@ export default function NewDemoPage({
     };
   }, [resumeJobId, router, format]);
 
+  /** A resumed job leaves through the URL; an upload in progress only has local state to drop. */
+  const leave = useCallback(() => {
+    if (resuming) router.push(homeHref);
+    else reset(null);
+  }, [resuming, router, homeHref, reset]);
+
   const mapCount = logicalMapGroups.length;
-  let title = format === PRODUCE_FORMAT.full ? 'Crea un vídeo largo' : 'Crea un Short';
-  let description = 'Carga una demo de CS2 y elige el jugador. Después revisarás el contenido y los ajustes antes de grabar.';
+  let title: string = FLOW_HOME_TITLE[format];
+  let description: string = FLOW_HOME_DESCRIPTION[format];
   if (resuming) {
     title = 'Elige el jugador';
     if (resumeFailure !== null) description = 'No pudimos recuperar los jugadores de esta partida.';
@@ -383,12 +377,12 @@ export default function NewDemoPage({
         title={empty.title}
         description={empty.description}
         compact
-        actions={<Button onClick={() => router.push(CLIPS_HREF)}>Volver</Button>}
+        actions={<Button onClick={() => router.push(homeHref)}>Volver</Button>}
       />
     );
   } else if (stage === 'idle') {
     body = (
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-8">
         <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
           <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
             <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
@@ -404,6 +398,7 @@ export default function NewDemoPage({
             <RecentSteamMatches format={format} />
           </TabsContent>
         </Tabs>
+        <DemoList format={format} />
       </div>
     );
   } else if (seriesMode && stage === 'scanning') {
@@ -426,7 +421,7 @@ export default function NewDemoPage({
   } else if (seriesMode) {
     body = (
       <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-        <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} cancelHref={CLIPS_HREF} />
+        <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} />
       </Card>
     );
   } else if (stage === 'scanning') {
@@ -439,20 +434,19 @@ export default function NewDemoPage({
         <ScannedDemoRow fileName={fileName} match={match} />
         {error ? <ErrorBanner message={error} /> : null}
         <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} cancelHref={CLIPS_HREF} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
+          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
         </Card>
       </div>
     );
   }
 
+  const atHome = stage === 'idle' && !resuming;
   return (
     <div className="measure-list flex flex-col gap-5">
-      <StudioBackLink href={CLIPS_HREF}>Demos y vídeos</StudioBackLink>
+      {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
-      <WorkflowProgress steps={DEMO_CREATION_STEPS} current={progressStep} />
-      {stage === 'idle' && !resuming ? (
-        <ProduceFormatBar value={format} onChange={(next) => router.replace(newDemoHref({ format: next }), { scroll: false })} />
-      ) : null}
+      <WorkflowProgress steps={FLOW_STEPS[format]} current={progressStep} />
+      {atHome ? <CaptureWhereNote format={format} /> : null}
       {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, Radar, UploadCloud } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match } from '@/lib/api/types';
-import { NEW_DEMO_HREF } from '@/lib/clips/routes';
+import { SHORTS_HREF } from '@/lib/clips/routes';
 import {
   TACTICAL_STATES,
   fetchTacticalStatus,
@@ -75,7 +75,7 @@ export function TacticalDemoPicker(): ReactNode {
         compact
         actions={
           <Button asChild className="font-display tracking-wide">
-            <Link href={NEW_DEMO_HREF}>
+            <Link href={SHORTS_HREF}>
               <UploadCloud aria-hidden />
               SUBIR UNA DEMO
             </Link>

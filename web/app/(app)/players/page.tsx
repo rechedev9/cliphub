@@ -146,7 +146,7 @@ export default function PlayersPage(): ReactNode {
     </div>;
   } else if (state === 'unconfigured') {
     body = <StudioEmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
-      actions={<Button asChild><Link href="/clips/nueva">Cargar una demo</Link></Button>}
+      actions={<Button asChild><Link href="/shorts">Cargar una demo</Link></Button>}
       note={<details className="text-left normal-case tracking-normal">
         <summary className="min-h-10 cursor-pointer py-2">Configuración avanzada de FACEIT</summary>
         <p className="break-words text-body-sm">Configura FACEIT_API_KEY en el servicio local y reinicia ClipHub para consultar perfiles e historial.</p>

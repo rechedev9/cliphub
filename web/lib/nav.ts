@@ -1,10 +1,13 @@
 /** Studio nav in rail order. */
 export const NAV_SECTIONS = [
-  { label: 'Clips y vídeos', href: '/clips' },
+  { label: 'Shorts', href: '/shorts' },
+  { label: 'Vídeos largos', href: '/videos-largos' },
   { label: 'Clips de stream', href: '/streams' },
+  { label: 'Resultados', href: '/resultados' },
   { label: 'Jugadores', href: '/players' },
   { label: 'Táctica', href: '/tactical' },
   { label: 'Anti-cheat', href: '/cheaters' },
+  { label: 'Nube', href: '/nube' },
   { label: 'Ajustes', href: '/settings' },
 ] as const;
 
@@ -12,15 +15,16 @@ export type NavSection = (typeof NAV_SECTIONS)[number];
 export type NavHref = NavSection['href'];
 
 /**
- * Retired sections and where they landed. The demo pipeline collapsed into
- * `/clips` (partida = source of truth), so every old door redirects there.
+ * Retired sections and where they landed. The single hub split into one flow
+ * per format plus the results area, so every old door redirects to one of them.
  */
 export const RETIRED_ROUTES = {
-  '/onboarding': '/clips',
-  '/matches': '/clips',
-  '/upload': '/clips/nueva',
-  '/full-demo': '/clips',
-  '/editor': '/clips',
-  '/videos': '/clips?vista=clips',
-  '/feed': '/clips?vista=clips',
+  '/clips': '/resultados',
+  '/onboarding': '/resultados',
+  '/matches': '/shorts',
+  '/upload': '/videos-largos',
+  '/full-demo': '/videos-largos',
+  '/editor': '/resultados',
+  '/videos': '/resultados',
+  '/feed': '/resultados',
 } as const;

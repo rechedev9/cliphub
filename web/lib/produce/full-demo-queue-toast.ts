@@ -1,5 +1,5 @@
 /** Copy for the toast shown after a long video is queued. */
-const QUEUE_HINT = 'Sigue el progreso en Demos y vídeos.';
+const QUEUE_HINT = 'Se graba en este PC. Sigue el progreso en Resultados.';
 const QUEUE_BUSY = 'Empezará cuando quede libre CS2.';
 
 /**

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import Link from 'next/link';
 import { Users } from 'lucide-react';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import type { FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
@@ -27,8 +26,8 @@ export type PlayerPickerProps = {
   seriesMapCount?: number;
   /** Full-demo selects a continuous POV, while highlights optimizes for clip-worthy rounds. */
   purpose?: 'highlights' | 'full-demo';
-  /** Where "Cancelar" leads; omitted when the host owns the way back. */
-  cancelHref?: string;
+  /** "Cancelar" hands the way back to the host; omitted when there is none. */
+  onCancel?: () => void;
   allowDestinationSwitch?: boolean;
   /** FACEIT room scoreboard of this demo; replaces the demo's own tables so the numbers match the room. */
   faceit?: FaceitScoreboard | null;
@@ -175,7 +174,7 @@ export function PlayerPicker({
   seriesMapCount,
   purpose = 'highlights',
   allowDestinationSwitch = true,
-  cancelHref,
+  onCancel,
   faceit,
 }: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
@@ -391,9 +390,9 @@ export function PlayerPicker({
             )}
           </p>
         </div>
-        {cancelHref !== undefined ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={cancelHref}>Cancelar</Link>
+        {onCancel !== undefined ? (
+          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+            Cancelar
           </Button>
         ) : null}
         {allowDestinationSwitch && purpose === 'highlights' && !isSeries ? (

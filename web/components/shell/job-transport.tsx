@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { captureProgressPercent } from '@/lib/capture-progress';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -15,11 +15,11 @@ import {
 import { cn } from '@/lib/utils';
 
 const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string }> = {
-  recording: { tag: 'REC', sub: 'CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
-  composing: { tag: 'RENDER', sub: 'Edición · FFmpeg', tone: 'text-primary' },
-  parsing: { tag: 'PARSEO', sub: 'Parseando la demo', tone: 'text-primary' },
+  recording: { tag: 'REC', sub: 'En este PC · CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
+  composing: { tag: 'RENDER', sub: 'En este PC · Edición · FFmpeg', tone: 'text-primary' },
+  parsing: { tag: 'PARSEO', sub: 'En este PC · Parseando la demo', tone: 'text-primary' },
   acquiring: { tag: 'DESCARGA', sub: 'Descargando el vídeo de origen', tone: 'text-primary' },
-  queued: { tag: 'EN COLA', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
+  queued: { tag: 'EN COLA', sub: 'En este PC · Empieza al acabar el REC actual', tone: 'text-fg-3' },
   cloud: { tag: 'NUBE', sub: 'En la nube de ClipHub · este PC queda libre', tone: 'text-primary' },
 };
 
@@ -55,7 +55,7 @@ export function JobTransport(): ReactElement | null {
   }, [open]);
 
   const [top] = activity.jobs;
-  if (top === undefined && pathname !== CLIPS_HREF) return null;
+  if (top === undefined && pathname !== RESULTS_HREF) return null;
 
   const active = activity.jobs.filter((job) => job.stage !== 'queued').length;
   const queued = activity.jobs.length - active;
@@ -110,11 +110,11 @@ export function JobTransport(): ReactElement | null {
               Trabajos · {activity.jobs.length === 0 ? 'nada en marcha' : `${active} activos · ${queued} en cola`}
             </span>
             <Link
-              href={CLIPS_HREF}
+              href={RESULTS_HREF}
               onClick={() => setOpen(false)}
               className="inline-flex min-h-10 items-center text-primary hover:text-fg-1"
             >
-              Ver en Clips y vídeos →
+              Ver en Resultados →
             </Link>
           </div>
           {activity.jobs.length === 0 ? (

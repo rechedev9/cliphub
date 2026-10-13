@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Video } from '@/lib/api/types';
 import { pinRenderRevision } from '@/lib/api/render-revision';
+import { PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { bumperSummary } from '@/lib/full-demo-plan';
 
 export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
@@ -14,7 +15,7 @@ export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
     <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · vídeos añadidos: {bumperSummary(options).toLowerCase()}.</p>
     <p className="font-mono text-meta text-fg-3">Plan aprobado: {snapshot.approval.approved_plan_hash.slice(0, 12)}</p>
     <div className="flex flex-wrap gap-x-4 gap-y-2 text-body-sm text-primary">
-      <Link href={`/clips/${video.jobId}/nuevo?formato=full`} className="underline">Revisar ajustes y crear otra revisión</Link>
+      <Link href={produceHref(video.jobId, PRODUCE_FORMAT.full)} className="underline">Revisar ajustes y crear otra revisión</Link>
       {complete ? ['approved', 'effective', 'audio', 'loudness', 'delivery'].map((document, index) => <a key={document}
         href={pinRenderRevision(`/api/demos/${video.jobId}/renders/${video.variant ?? 'gameplay-pov-60'}/full-demo/${document}`, video.artifactRevision)} target="_blank" rel="noreferrer" className="underline">
         {['Plan aprobado', 'Plan efectivo', 'Mezcla de audio', 'Loudness medido', 'Verificación del MP4'][index]}

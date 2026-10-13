@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
 import { demoPlaybackItem } from '@/lib/api/playback';
-import { HUB_LENS, hubHref, ORPHAN_MATCH_SEGMENT } from '@/lib/clips/routes';
+import { ORPHAN_MATCH_SEGMENT, RESULTS_HREF } from '@/lib/clips/routes';
 import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
 import { timeAgo } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -39,7 +39,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const { id, clipId } = use(params);
   const router = useRouter();
   const orphan = id === ORPHAN_MATCH_SEGMENT;
-  const backHref = orphan ? hubHref({ lens: HUB_LENS.clips }) : hubHref({ open: id });
+  const backHref = RESULTS_HREF;
 
   const [video, setVideo] = useState<Video | null>(null);
   const [match, setMatch] = useState<Match | null>(null);

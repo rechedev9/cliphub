@@ -8,10 +8,11 @@ import { api } from '@/lib/api';
 import { cloudApi, CloudApiError } from '@/lib/api/cloud';
 import type { CaptureStatus, EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
-import { hubHref, seriesHref } from '@/lib/clips/routes';
+import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import { refreshCloudAccount } from '@/lib/cloud/account-store';
 import {
   CAPTURE_TARGET,
+  CAPTURE_TARGET_READY_HINT,
   loadCaptureTarget,
   resolveCaptureTarget,
   saveCaptureTarget,
@@ -232,13 +233,13 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         }),
       );
       void refreshCloudAccount();
-      // The draft stays: "Reintentar en la nube" in the hub returns here with the same selection.
+      // The draft stays: "Reintentar en la nube" in Resultados returns here with the same selection.
       if (job.status === 'uploading_demo') {
-        toast('Subiendo la demo a la nube', { description: 'No cierres Studio hasta que termine la subida. Síguela en Clips y vídeos.' });
+        toast('Subiendo la demo a la nube', { description: 'No cierres Studio hasta que termine la subida. Síguela en Resultados.' });
       } else {
-        toast('Short en cola en la nube. Puedes cerrar Studio', { description: 'Sigue su puesto en Clips y vídeos.' });
+        toast('Short en cola en la nube. Puedes cerrar Studio', { description: 'Sigue su puesto en Resultados.' });
       }
-      router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
+      router.push(doneHref);
     } catch (err) {
       // A fetch that never got an answer means the local Studio service is down.
       setCreateError(cloudSubmitErrorMessage(err instanceof CloudApiError ? err : { code: 'service_unavailable' }));
@@ -268,8 +269,8 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT }),
       });
       discardDraft();
-      toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Clips y vídeos.' });
-      router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
+      toast('Short en preparación en este PC', { description: 'Sigue la grabación y el montaje en Resultados.' });
+      router.push(doneHref);
     } catch (err) {
       setCreateError(shortCreateErrorMessage(err));
       setCreating(false);
@@ -277,6 +278,8 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
   }
 
   const musicSummary = songTitle ? `♪ ${songTitle}` : 'Sin música';
+  // A created Short lands in Resultados; from a series map card it returns to the series.
+  const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
   const summary = selectedPlays.length > 0 ? (
     <>
       {roundsSummary(selectedPlays)}
@@ -412,8 +415,8 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         }
         onHintAction={!musicDecided && selectedPlays.length > 0 && selectedPreset !== null ? focusMusicDecision : undefined}
         briefItems={briefItems}
-        readyHint={toCloud ? 'Todo preparado. Al crear, ClipHub grabará en la nube; el vídeo se descargará en Demos y vídeos.' : undefined}
-        backHref={seriesId ? seriesHref(seriesId) : hubHref({ open: matchId })}
+        readyHint={CAPTURE_TARGET_READY_HINT[targetView.target]}
+        backHref={seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.short)}
         error={createError}
         target={<CaptureTargetControl view={targetView} onPick={pickTarget} onLink={() => setLinkOpen(true)} disabled={creating} />}
         cta={
@@ -426,7 +429,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
             onClick={() => void onCreate()}
             className="neon-notch shrink-0 focus-visible:-outline-offset-4"
           >
-            {toCloud ? 'Crear Short en la nube' : 'Crear Short'}
+            {toCloud ? 'Crear Short en la nube' : 'Crear Short en este PC'}
           </Button>
         }
       />

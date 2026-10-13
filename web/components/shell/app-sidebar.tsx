@@ -5,10 +5,13 @@ import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
   Clapperboard,
+  Cloud,
   Film,
+  MonitorPlay,
   Radar,
   Settings,
   ShieldAlert,
+  Smartphone,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -26,36 +29,48 @@ import {
 } from '@/components/ui/sidebar';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
+import { cloudConnectionTag, type CloudAccessTag } from '@/lib/cloud/account-view';
 import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+import { useCloudAccount } from '@/hooks/use-cloud-account';
 
-const ANALYSIS_GROUP_LABEL = 'Análisis';
+type NavGroup = 'create' | 'results' | 'analysis' | 'chrome';
+type NavTrailingKind = 'stream' | 'faceit' | 'cloud';
 
-type NavGroup = 'entry' | 'analysis' | 'chrome';
+/** One heading per job the user came to do; `chrome` docks to the footer without one. */
+const GROUP_LABEL = {
+  create: 'Crear',
+  results: 'Tus vídeos',
+  analysis: 'Análisis',
+} as const satisfies Record<Exclude<NavGroup, 'chrome'>, string>;
 
-/** `entry` has no heading, `analysis` is the one labelled group, `chrome` docks to the footer. */
-const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: 'stream' | 'faceit' }> = {
-  '/clips': { icon: Film, group: 'entry' },
-  '/streams': { icon: Clapperboard, group: 'entry', trailing: 'stream' },
-  '/players': { icon: Users, group: 'entry', trailing: 'faceit' },
+const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: NavTrailingKind }> = {
+  '/shorts': { icon: Smartphone, group: 'create' },
+  '/videos-largos': { icon: MonitorPlay, group: 'create' },
+  '/streams': { icon: Clapperboard, group: 'create', trailing: 'stream' },
+  '/resultados': { icon: Film, group: 'results' },
+  '/players': { icon: Users, group: 'analysis', trailing: 'faceit' },
   '/tactical': { icon: Radar, group: 'analysis' },
   '/cheaters': { icon: ShieldAlert, group: 'analysis' },
+  '/nube': { icon: Cloud, group: 'chrome', trailing: 'cloud' },
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
-const ENTRY_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'entry');
-const ANALYSIS_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'analysis');
-const CHROME_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'chrome');
+const LABELLED_GROUPS = ['create', 'results', 'analysis'] as const;
+
+function sectionsOf(group: NavGroup): NavSection[] {
+  return NAV_SECTIONS.filter((section) => NAV_META[section.href].group === group);
+}
 
 /** A nav href is active for its exact page and any nested route under it. */
 function isActiveHref(pathname: string, href: string): boolean {
-  // A series is part of the demo journey, so it keeps Clips y vídeos lit.
-  if (href === CLIPS_HREF && pathname.startsWith('/series/')) return true;
+  // A series produces one Short per map, so it keeps Shorts lit.
+  if (href === SHORTS_HREF && pathname.startsWith('/series/')) return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Brand lockup, nav, Análisis group, settings + capture pill footer. */
+/** Brand lockup, one nav group per job, then cloud + settings + capture pill in the footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
 
@@ -65,8 +80,8 @@ export function AppSidebar(): ReactElement {
           breadcrumb share one baseline across the shell. */}
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-4 group-data-[collapsible=icon]:px-2">
         <Link
-          href={CLIPS_HREF}
-          aria-label="Ir a Clips y vídeos"
+          href={RESULTS_HREF}
+          aria-label="Ir a Resultados"
           className="inline-flex min-h-10 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
@@ -75,31 +90,25 @@ export function AppSidebar(): ReactElement {
       </SidebarHeader>
 
       <SidebarContent className="gap-0 pt-5">
-        <SidebarGroup className="gap-1.5 p-0 pb-4">
-          <SidebarMenu className="gap-0.5">
-            {ENTRY_SECTIONS.map((section) => (
-              <NavRow key={section.href} section={section} pathname={pathname} />
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarGroup className="gap-1.5 p-0 pb-4">
-          {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
-              unknown `text-*` under text-colour (see .shell-nav-key). */}
-          <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
-            {ANALYSIS_GROUP_LABEL}
-          </SidebarGroupLabel>
-          <SidebarMenu className="gap-0.5">
-            {ANALYSIS_SECTIONS.map((section) => (
-              <NavRow key={section.href} section={section} pathname={pathname} />
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        {LABELLED_GROUPS.map((group) => (
+          <SidebarGroup key={group} className="gap-1.5 p-0 pb-4">
+            {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
+                unknown `text-*` under text-colour (see .shell-nav-key). */}
+            <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
+              {GROUP_LABEL[group]}
+            </SidebarGroupLabel>
+            <SidebarMenu className="gap-0.5">
+              {sectionsOf(group).map((section) => (
+                <NavRow key={section.href} section={section} pathname={pathname} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 pt-2 pb-4">
         <SidebarMenu className="gap-0.5">
-          {CHROME_SECTIONS.map((section) => (
+          {sectionsOf('chrome').map((section) => (
             <NavRow key={section.href} section={section} pathname={pathname} />
           ))}
         </SidebarMenu>
@@ -145,7 +154,29 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
   );
 }
 
-function NavTrailing({ kind }: { kind: 'stream' | 'faceit' | undefined }): ReactElement | null {
+const TRAILING_TEXT_CLASS =
+  'shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider group-data-[collapsible=icon]:hidden';
+
+const CLOUD_TONE_CLASS: Record<CloudAccessTag['tone'], string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-destructive',
+  neutral: 'text-fg-3',
+};
+
+/** Whether this PC is connected to the cloud, read at a glance from the rail. */
+function CloudNavStatus(): ReactElement | null {
+  const tag = cloudConnectionTag(useCloudAccount());
+  if (tag === null) return null;
+  return (
+    <span title={tag.text} className={cn(TRAILING_TEXT_CLASS, 'max-w-24 truncate', CLOUD_TONE_CLASS[tag.tone])}>
+      {tag.text}
+    </span>
+  );
+}
+
+function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElement | null {
+  if (kind === 'cloud') return <CloudNavStatus />;
   if (kind === 'stream') {
     return (
       <span
@@ -155,11 +186,7 @@ function NavTrailing({ kind }: { kind: 'stream' | 'faceit' | undefined }): React
     );
   }
   if (kind === 'faceit') {
-    return (
-      <span className="shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider text-fg-3 group-data-[collapsible=icon]:hidden">
-        FACEIT
-      </span>
-    );
+    return <span className={cn(TRAILING_TEXT_CLASS, 'text-fg-3')}>FACEIT</span>;
   }
   return null;
 }
