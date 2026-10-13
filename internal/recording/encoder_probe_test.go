@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -113,4 +114,41 @@ func TestCheckEncoderSupported(t *testing.T) {
 			}
 		}
 	})
+}
+
+// fakeEncoderFFmpeg lists h264_nvenc and ends every other run with exitCode.
+func fakeEncoderFFmpeg(t *testing.T, exitCode string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ffmpeg")
+	body := "#!/bin/sh\nif [ \"$2\" = \"-encoders\" ]; then echo ' V....D h264_nvenc'; exit 0; fi\n" +
+		"echo 'Driver does not support the required nvenc API version' >&2\nexit " + exitCode + "\n"
+	if runtime.GOOS == "windows" {
+		path = filepath.Join(dir, "ffmpeg.cmd")
+		body = "@echo off\r\nif \"%~2\"==\"-encoders\" (\r\necho  V....D h264_nvenc\r\nexit /b 0\r\n)\r\n" +
+			"echo Driver does not support the required nvenc API version 1>&2\r\nexit /b " + exitCode + "\r\n"
+	}
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// A build lists NVENC on any machine; an old GPU driver only refuses it when
+// the encoder opens, which used to fail every render after a good capture.
+func TestCheckEncoderUsableNeedsTheEncoderToOpen(t *testing.T) {
+	if err := CheckEncoderUsable(fakeEncoderFFmpeg(t, "0"), EncoderNVENC); err != nil {
+		t.Fatalf("an encoder that opens = %v, want nil", err)
+	}
+	refused := fakeEncoderFFmpeg(t, "1")
+	if err := CheckEncoderSupported(refused, EncoderNVENC); err != nil {
+		t.Fatalf("the listing check = %v, want nil", err)
+	}
+	err := CheckEncoderUsable(refused, EncoderNVENC)
+	if err == nil || !strings.Contains(err.Error(), "nvenc API version") {
+		t.Fatalf("an encoder the driver refuses = %v, want the driver's reason", err)
+	}
+	if err := CheckEncoderUsable("", EncoderLibx264); err != nil {
+		t.Fatalf("software encoding = %v, want nil", err)
+	}
 }

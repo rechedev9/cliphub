@@ -33,6 +33,17 @@ test('targets the same-origin /api/demos proxy with no auth header', () => {
   assert.equal(dp.capabilitiesUrl, '/api/capabilities');
 });
 
+test('cloud calls stay on the same-origin proxy, never on the portal', () => {
+  const dp = dataPlane();
+  assert.equal(dp.cloudAccountUrl, '/api/cloud/account');
+  assert.equal(dp.cloudLinkUrl, '/api/cloud/link');
+  assert.equal(dp.cloudJobsUrl, '/api/cloud/jobs');
+  assert.equal(dp.cloudJobUrl(JOB), `/api/cloud/jobs/${JOB}`);
+  assert.equal(dp.cloudJobCancelUrl(JOB), `/api/cloud/jobs/${JOB}/cancel`);
+  assert.equal(dp.cloudVideoUrl(JOB, 'short-01.mp4'), `/api/cloud/jobs/${JOB}/videos/short-01.mp4`);
+  assert.equal(dp.cloudVideoUrl(JOB, '../x y'), `/api/cloud/jobs/${JOB}/videos/..%2Fx%20y`);
+});
+
 test('reads the proxy scan response key and posts { steamId }', () => {
   const dp = dataPlane();
   assert.equal(dp.scanJobId({ jobId: JOB }), JOB);

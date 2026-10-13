@@ -6,25 +6,35 @@ import { PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
+import { safeCallbackPath } from "../components/format";
 import { SiteFooter } from "../site-footer";
 
 const INLINE_LINK =
   "text-primary underline decoration-primary/35 underline-offset-[0.2em] hover:decoration-current";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { callbackUrl } = await searchParams;
+  // Only a same-site path is honoured, so a crafted link cannot send a signed-in user elsewhere.
+  const redirectTo = safeCallbackPath(typeof callbackUrl === "string" ? callbackUrl : undefined) ?? "/dashboard";
+  const linking = redirectTo.startsWith("/link");
+
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  if (session?.user) redirect(redirectTo);
 
   return (
     <PageShell width="read">
       <section className="pt-8 pb-6">
         <Eyebrow>ClipHub</Eyebrow>
         <h1 className="mb-4.5 max-w-[20ch] text-[clamp(1.75rem,4vw,2.25rem)] leading-[1.15] font-semibold tracking-[-0.01em]">
-          Entra para enviar tu demo
+          {linking ? "Entra para vincular ClipHub Studio" : "Entra en ClipHub"}
         </h1>
         <p className="max-w-[46ch] text-[1.125rem] leading-[1.6] text-fg-2">
-          Usamos tu cuenta solo para identificarte y enseñarte tus propias
-          peticiones.
+          Usamos tu cuenta solo para identificarte y enseñarte tus propios
+          trabajos.
         </p>
       </section>
 
@@ -33,7 +43,7 @@ export default async function LoginPage() {
           <form
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/dashboard" });
+              await signIn("google", { redirectTo });
             }}
           >
             <Button type="submit" className="w-full">
@@ -43,7 +53,7 @@ export default async function LoginPage() {
           <form
             action={async () => {
               "use server";
-              await signIn("discord", { redirectTo: "/dashboard" });
+              await signIn("discord", { redirectTo });
             }}
           >
             <Button type="submit" variant="outline" className="w-full">

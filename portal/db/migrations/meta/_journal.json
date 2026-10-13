@@ -22,6 +22,27 @@
       "when": 1788801581822,
       "tag": "0002_past_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791569117572,
+      "tag": "0003_kind_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791580325167,
+      "tag": "0004_glamorous_chimera",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791824743161,
+      "tag": "0005_nice_marvel_zombies",
+      "breakpoints": true
     }
   ]
 }

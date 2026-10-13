@@ -7,7 +7,7 @@
 # That file is bind-mounted into the Caddy container; there is no auto-include,
 # so this snippet is a source of truth for the block, not something Caddy reads.
 
-cliphub.gravityroom.app {
+(cliphub_portal) {
 	# Demos are capped at 700 MiB by the app; give the proxy headroom above it
 	# or large uploads are rejected at the edge before the route ever sees them.
 	request_body {
@@ -20,5 +20,25 @@ cliphub.gravityroom.app {
 			read_timeout 30m
 			write_timeout 30m
 		}
+	}
+}
+
+cliphub.rechedev.cloud {
+	import cliphub_portal
+}
+
+# The address the portal had before. A worker or Studio still configured with
+# it keeps reaching the API; a redirect would turn its POSTs into GETs. Pages
+# and sign-in move to the new address. Remove once nothing points here.
+cliphub.gravityroom.app {
+	@machines {
+		path /api/*
+		not path /api/auth/*
+	}
+	handle @machines {
+		import cliphub_portal
+	}
+	handle {
+		redir https://cliphub.rechedev.cloud{uri} permanent
 	}
 }

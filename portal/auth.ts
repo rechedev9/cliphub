@@ -14,7 +14,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     verificationTokensTable: verificationTokens,
   }),
   session: { strategy: "database" },
-  providers: [Google, Discord],
+  // Discord returns an `iss` parameter; without its issuer here Auth.js rejects the callback.
+  providers: [Google, Discord({ issuer: "https://discord.com" })],
   pages: {
     signIn: "/login",
   },

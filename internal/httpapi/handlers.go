@@ -155,6 +155,7 @@ type Handlers struct {
 	steamSessionCache   steamresolve.Session
 	labBundles          LabBundlePreparer
 	labBundleRoot       string
+	cloud               CloudService
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex
@@ -501,6 +502,9 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
 
 	if err := h.repo.Create(ctx, j); err != nil {
+		// No job will ever point at the stored demo, so nothing else can
+		// find it to delete it.
+		h.discardStoredDemo(key)
 		return nil, fmt.Errorf("create job: %w", err)
 	}
 
@@ -520,6 +524,18 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 		return nil, fmt.Errorf("enqueue %s task: %w", taskKind, err)
 	}
 	return j, nil
+}
+
+// discardStoredDemo removes a demo that was stored for a job that never came
+// to exist, for example because the request was canceled in between.
+func (h *Handlers) discardStoredDemo(key string) {
+	deleter, ok := h.storage.(jobArtifactDeleter)
+	if !ok {
+		return
+	}
+	if err := deleter.Delete(key); err != nil {
+		log.Printf("httpapi: remove the demo of a job that was not created (%s): %v", key, err)
+	}
 }
 
 // ListJobs handles GET /api/jobs. With ?series_id=<uuid> it returns only that

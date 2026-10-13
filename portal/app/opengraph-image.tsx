@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { ImageResponse } from "next/og";
 
-export const alt = "ClipHub: tus mejores rondas de CS2, montadas a mano";
+export const alt = "ClipHub: tus jugadas de CS2 en vídeo, grabadas en tu PC o en la nube";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -68,7 +68,7 @@ export default async function OpengraphImage() {
             }}
           >
             <div style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: MAGENTA }} />
-            <span>CS2 · DE LA DEMO AL VÍDEO</span>
+            <span>CS2 · CAPTURA EN LA NUBE</span>
           </div>
 
           <div
@@ -76,19 +76,19 @@ export default async function OpengraphImage() {
               display: "flex",
               flexDirection: "column",
               marginTop: 24,
-              fontSize: 70,
+              fontSize: 64,
               lineHeight: 1.08,
               letterSpacing: "-0.03em",
               whiteSpace: "nowrap",
             }}
           >
-            <span>Tus mejores rondas,</span>
-            <span style={{ color: CYAN }}>montadas a mano.</span>
+            <span>Tus jugadas en vídeo,</span>
+            <span style={{ color: CYAN }}>en tu PC o en la nube.</span>
           </div>
 
           <div style={{ display: "flex", marginTop: 30, color: MUTED, fontSize: 28, lineHeight: 1.4 }}>
-            Envía la demo de tu partida y recibe un vídeo editado con tus
-            jugadas. Gratis.
+            Crea el vídeo en ClipHub Studio y elige dónde se graba: en tu
+            PC o en la nube de ClipHub.
           </div>
         </div>
 

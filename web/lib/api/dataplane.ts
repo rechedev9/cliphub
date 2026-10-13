@@ -32,6 +32,14 @@ export type DataPlane = {
   publishAssistantUrl(jobId: string, variant: string, name: string, days?: number): string;
   coverUrl(jobId: string, variant: string, name: string): string;
   capabilitiesUrl: string;
+  /** ClipHub cloud: account and device link, served by the local orchestrator. */
+  cloudAccountUrl: string;
+  cloudLinkUrl: string;
+  cloudJobsUrl: string;
+  cloudJobUrl(id: string): string;
+  cloudJobCancelUrl(id: string): string;
+  /** A finished cloud video, read from this PC's disk. */
+  cloudVideoUrl(id: string, name: string): string;
 };
 
 function str(body: unknown, key: string): string {
@@ -66,5 +74,11 @@ export function dataPlane(): DataPlane {
       `/api/demos/${jobId}/renders/${variant}/videos/${name}/publish-assistant?days=${days}`,
     coverUrl: (jobId, variant, name) => `/api/demos/${jobId}/renders/${variant}/covers/${name}`,
     capabilitiesUrl: '/api/capabilities',
+    cloudAccountUrl: '/api/cloud/account',
+    cloudLinkUrl: '/api/cloud/link',
+    cloudJobsUrl: '/api/cloud/jobs',
+    cloudJobUrl: (id) => `/api/cloud/jobs/${encodeURIComponent(id)}`,
+    cloudJobCancelUrl: (id) => `/api/cloud/jobs/${encodeURIComponent(id)}/cancel`,
+    cloudVideoUrl: (id, name) => `/api/cloud/jobs/${encodeURIComponent(id)}/videos/${encodeURIComponent(name)}`,
   };
 }

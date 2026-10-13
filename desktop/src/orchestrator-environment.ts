@@ -11,6 +11,8 @@ export interface OrchestratorEnvironmentOptions {
   steamEnvironment?: object;
   /** ClipHub Portal bridge settings; absent when the bridge is not configured. */
   bridgeEnvironment?: object;
+  /** ClipHub cloud client settings: the Studio version and an optional portal override. */
+  cloudEnvironment?: object;
 }
 
 /** Bundled orchestrator env. Recorder path wins over a stale developer override. */
@@ -28,6 +30,7 @@ export function createOrchestratorEnvironment(
     // Credentials before the recorder pin: only the user can supply them.
     ...(options.steamEnvironment ?? {}),
     ...(options.bridgeEnvironment ?? {}),
+    ...(options.cloudEnvironment ?? {}),
     ZV_RECORDER_PATH: options.recorderPath,
     ...(options.overlayRendererPath ? { ZV_OVERLAY_RENDERER_PATH: options.overlayRendererPath } : {}),
     ...(options.overlayRendererApp ? { ZV_OVERLAY_RENDERER_APP: options.overlayRendererApp } : {}),

@@ -18,6 +18,19 @@ test('reveal keys accept only local Studio stream downloads, never paths or exte
     assert.equal(downloads.key(invalid, origin), null);
   assert.equal(downloads.key(url, null), null);
 });
+test('reveal keys also accept cloud videos saved from the hub, and nothing else under /api/cloud', () => {
+  const downloads = new StreamDownloads();
+  const cloud = origin + '/api/cloud/jobs/f96beeb7-4829-4117-836f-13d3d8502430/videos/short-01.mp4';
+  assert.equal(downloads.key(cloud, origin), cloud);
+  for (const invalid of [
+    origin + '/api/cloud/account',
+    origin + '/api/cloud/jobs/f96beeb7-4829-4117-836f-13d3d8502430',
+    origin + '/api/cloud/jobs/f96beeb7-4829-4117-836f-13d3d8502430/videos/..%2Fsecret.mp4',
+    origin + '/api/cloud/jobs/not-a-job/videos/short-01.mp4',
+    cloud.replace(origin, 'https://evil.test'),
+  ])
+    assert.equal(downloads.key(invalid, origin), null);
+});
 test('only recorded completed files can be revealed and new revisions are independent', () => {
   const downloads = new StreamDownloads();
   assert.equal(downloads.savedPath(url), undefined);

@@ -39,7 +39,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'Todo en tu PC',
-        text: 'Las demos se analizan, graban y editan en este equipo. No necesitas cuenta de ClipHub y tus archivos no se suben a ningún sitio.',
+        text: 'Las demos se analizan, graban y editan en este equipo. No necesitas cuenta de ClipHub y tus archivos no se suben a ningún sitio, salvo que elijas grabar un Short en la nube de ClipHub.',
       },
       {
         term: 'Grabación real',

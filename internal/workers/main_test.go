@@ -11,6 +11,12 @@ import (
 // test result depends on the host machine's ffmpeg/GPU; tests that need NVENC
 // opt in through setStudioCaptureEncoderForTest.
 func TestMain(m *testing.M) {
+	// The process tree tests start this binary again as a tool that starts
+	// further copies of itself.
+	if dir := os.Getenv(treeHelperDirEnv); dir != "" {
+		runTreeHelper(dir)
+		return
+	}
 	studioEncoders.captureProbed = true
 	studioEncoders.renderProbed = true
 	obsDir, _ := os.MkdirTemp("", "zv-workers-test-obs-")

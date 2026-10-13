@@ -12,6 +12,7 @@ const (
 	ClassRecordingNotReusable   = "recording_not_reusable"
 	ClassInterrupted            = "interrupted"
 	ClassTargetNotFound         = "target_not_found"
+	ClassCaptureIncompatible    = "capture_incompatible"
 	prefixDemoIncompatible      = "demo_incompatible:"
 	prefixUnplayableStart       = "unplayable_start:"
 	prefixRecordingNotReusable  = "recording_not_reusable:"
@@ -22,6 +23,7 @@ const (
 	phraseDoesNotMatch          = "does not match"
 	phraseTargetNotFound        = "not found in demo"
 	phraseOrchestratorRestarted = "orchestrator restarted"
+	phraseHLAEHook              = "AfxHookSource2"
 )
 
 // ClassOf maps a failure message onto a stable class. Unknown text returns
@@ -40,6 +42,9 @@ func ClassOf(message string) string {
 		return ClassRecordingNotReusable
 	case strings.HasPrefix(message, prefixInterrupted) || strings.Contains(message, phraseOrchestratorRestarted):
 		return ClassInterrupted
+	// The recorder names the HLAE hook module when a CS2 update breaks it.
+	case strings.Contains(message, phraseHLAEHook):
+		return ClassCaptureIncompatible
 	case strings.Contains(message, phrasePlateMissing):
 		return ClassMissingPlate
 	case isCaptureFlake(message):

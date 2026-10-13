@@ -10,7 +10,7 @@ ClipHub Studio is a Windows desktop app for Counter-Strike 2 players and creator
 
 ![ClipHub site](docs/assets/cliphub.webp)
 
-Live site: [cliphub.gravityroom.app](https://cliphub.gravityroom.app/)
+Live site: [cliphub.rechedev.cloud](https://cliphub.rechedev.cloud/)
 
 ## Install
 

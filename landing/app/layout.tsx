@@ -23,7 +23,7 @@ const SITE_DESCRIPTION =
   "Turn CS2 demos and stream moments into polished vertical Shorts with local capture and ready-to-post edits.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://cliphub.gravityroom.app"),
+  metadataBase: new URL("https://cliphub.rechedev.cloud"),
   title: SOCIAL_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: "ClipHub Studio",

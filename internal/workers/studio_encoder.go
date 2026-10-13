@@ -21,7 +21,7 @@ var studioEncoders = struct {
 
 // studioCaptureEncoder decides the HLAE stream encoder for recorder launches.
 // It probes the ffmpeg HLAE will actually invoke for the configured HLAE.exe
-// and returns EncoderNVENC only when that binary advertises h264_nvenc;
+// and returns EncoderNVENC only when that binary can open h264_nvenc here;
 // otherwise capture stays on the default software encoder.
 func studioCaptureEncoder(hlaePath string) string {
 	studioEncoders.mu.Lock()
@@ -29,7 +29,7 @@ func studioCaptureEncoder(hlaePath string) string {
 	if !studioEncoders.captureProbed {
 		studioEncoders.captureProbed = true
 		ffmpegPath := recording.HLAEStreamFFmpeg(hlaePath)
-		if err := recording.CheckEncoderSupported(ffmpegPath, recording.EncoderNVENC); err != nil {
+		if err := recording.CheckEncoderUsable(ffmpegPath, recording.EncoderNVENC); err != nil {
 			log.Printf("workers: studio capture NVENC unavailable: %v", err)
 		} else {
 			studioEncoders.capture = recording.EncoderNVENC
@@ -49,7 +49,7 @@ func studioRenderVideoEncoder(ffmpegPath string) string {
 		if ffmpegPath == "" {
 			ffmpegPath = recording.FindFFmpeg()
 		}
-		if err := recording.CheckEncoderSupported(ffmpegPath, recording.EncoderNVENC); err != nil {
+		if err := recording.CheckEncoderUsable(ffmpegPath, recording.EncoderNVENC); err != nil {
 			log.Printf("workers: studio render NVENC unavailable: %v", err)
 		} else {
 			studioEncoders.render = recording.EncoderNVENC

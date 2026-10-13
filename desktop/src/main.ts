@@ -36,12 +36,14 @@ import {
 } from './window-state';
 import { lastLines } from './log-tail';
 import { bridgeEnvironment } from './bridge-environment';
+import { cloudEnvironment } from './cloud-environment';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
 import { fetchLatestHLAERelease } from './hlae-latest';
 import { ProcessSession, type LaunchedProcess } from './process-session';
+import { isCloudWorkerMode, WorkerRestartScheduler } from './worker-restart';
 import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
 import { allocateStableServicePorts } from './stable-ports';
@@ -435,6 +437,13 @@ interface BootFailureDetails {
 
 let activeBootAttempt: BootAttempt | null = null;
 
+// Nobody sits in front of the cloud worker, so it restarts its own backend.
+const workerRestarts = new WorkerRestartScheduler({
+  enabled: isCloudWorkerMode(process.env),
+  restart: startBootAgain,
+  logLine,
+});
+
 /** 01 Clips y vídeos is the single door: the hub owns the first-run drop. */
 async function loadStudio(webPort: number, proxyMutationCapability: string): Promise<void> {
   loadingScreenShowing = false;
@@ -579,6 +588,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       toolEnvironment: toolEnv,
       steamEnvironment: steamEnvironment(process.env),
       bridgeEnvironment: bridgeEnvironment(process.env),
+      cloudEnvironment: cloudEnvironment(process.env, app.getVersion()),
     }),
   );
 
@@ -619,6 +629,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   };
   watchPostBoot(orch);
   watchPostBoot(web);
+  workerRestarts.backendBooted();
 
   setLoadingStatus('Abriendo la interfaz…');
   allowedInternalUrls.clear();
@@ -651,7 +662,9 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
     class: 'boot_failed',
     message: err,
   });
-  if (!quitting) showErrorScreen(err, details.title, details.hint);
+  if (quitting) return;
+  // An ordinary Studio waits for its user; a cloud worker comes back by itself.
+  showErrorScreen(err, details.title, workerRestarts.backendStopped() ?? details.hint);
 }
 
 function assertBootAttemptActive(attempt: BootAttempt): void {
@@ -686,13 +699,21 @@ function runBoot(): void {
     });
 }
 
-function retryBoot(): void {
-  if (booting || quitting) return;
+/** Stops what is left of the last attempt and boots again; false when that had to be deferred. */
+function startBootAgain(): boolean {
+  if (booting || quitting) return false;
   if (!stopActiveBootAttempt()) {
     logLine('[boot] retry deferred because an existing process tree could not be stopped\n');
-    return;
+    return false;
   }
   runBoot();
+  return true;
+}
+
+/** The Reintentar button: a person is here, so the automatic restart count starts over. */
+function retryBoot(): void {
+  workerRestarts.manualRetry();
+  startBootAgain();
 }
 
 function trustedSettingsSender(event: IpcMainInvokeEvent): boolean {
@@ -959,6 +980,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   quitting = true;
+  workerRestarts.dispose();
   telemetryJournal.stop();
   telemetryClient.stop();
   diagnosticLogs?.record({ event: 'desktop.stopping', message: 'Studio shutdown requested' });

@@ -1530,3 +1530,219 @@ func TestInlineQueueDiscardsPendingCaptureTasksOnShutdown(t *testing.T) {
 		t.Fatalf("pending capture transition decisions = %v, want [nil errInlineQueueDiscarded]", got)
 	}
 }
+
+func jobTaskPayload(t *testing.T, jobID uuid.UUID) []byte {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"job_id": jobID.String()})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return payload
+}
+
+func TestInlineQueueCancelJobStopsOnlyThatJob(t *testing.T) {
+	canceledJob := uuid.New()
+	otherJob := uuid.New()
+	started := make(chan string, 4)
+	finished := make(chan error, 4)
+	releaseOther := make(chan struct{})
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo: func(ctx context.Context, task *asynq.Task) error {
+			jobID := obs.TaskJobID(task.Payload())
+			started <- jobID
+			if jobID == otherJob.String() {
+				<-releaseOther
+				finished <- nil
+				return nil
+			}
+			<-ctx.Done()
+			finished <- ctx.Err()
+			return ctx.Err()
+		},
+	}, 1)
+
+	running := asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, canceledJob))
+	if _, err := queue.Enqueue(running, asynq.Unique(time.Hour)); err != nil {
+		t.Fatalf("Enqueue(running) error = %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("capture did not start")
+	}
+	// The capture lane has one worker, so these two wait behind the capture.
+	var pendingDecisions []error
+	pending := asynq.NewTask(tasktypes.TypeRecordDemo, append(jobTaskPayload(t, canceledJob), ' '))
+	if _, err := queue.EnqueueWithTransition(pending, func(decision error) error {
+		pendingDecisions = append(pendingDecisions, decision)
+		return nil
+	}); err != nil {
+		t.Fatalf("Enqueue(pending) error = %v", err)
+	}
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, otherJob))); err != nil {
+		t.Fatalf("Enqueue(other job) error = %v", err)
+	}
+
+	if !queue.CancelJob(canceledJob) {
+		t.Fatal("CancelJob() = false, want true for a job with running and pending work")
+	}
+	select {
+	case err := <-finished:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("running handler ended with %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("running handler was not canceled")
+	}
+	if len(pendingDecisions) != 2 || pendingDecisions[0] != nil || !errors.Is(pendingDecisions[1], errInlineQueueCanceled) {
+		t.Fatalf("pending task decisions = %v, want [nil, %v]", pendingDecisions, errInlineQueueCanceled)
+	}
+
+	// The dropped task was queued ahead of the other job, so it would run first.
+	select {
+	case jobID := <-started:
+		if jobID != otherJob.String() {
+			t.Fatalf("next capture ran for job %s, want the other job %s", jobID, otherJob)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the other job's capture never started")
+	}
+	close(releaseOther)
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatalf("other job ended with %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the other job did not finish")
+	}
+
+	// The lease of the canceled capture is free again, as after any failure.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, canceledJob)), asynq.Unique(time.Hour))
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, asynq.ErrDuplicateTask) || time.Now().After(deadline) {
+			t.Fatalf("re-enqueue after cancel error = %v, want accepted", err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	select {
+	case jobID := <-started:
+		if jobID != canceledJob.String() {
+			t.Fatalf("re-enqueued capture ran for job %s, want %s", jobID, canceledJob)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("re-enqueued capture never started")
+	}
+	if queue.CancelJob(uuid.New()) {
+		t.Fatal("CancelJob() = true for a job the queue never saw")
+	}
+}
+
+func TestInlineQueueCancelJobFailsARetryableAttemptWithoutRetrying(t *testing.T) {
+	jobID := uuid.New()
+	started := make(chan struct{}, 2)
+	var calls atomic.Int32
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeParseDemo: func(ctx context.Context, _ *asynq.Task) error {
+			calls.Add(1)
+			started <- struct{}{}
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}, 1)
+	decisions := make(chan error, 2)
+	if _, err := queue.EnqueueWithTransition(asynq.NewTask(tasktypes.TypeParseDemo, jobTaskPayload(t, jobID)), func(decision error) error {
+		decisions <- decision
+		return nil
+	}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	if decision := <-decisions; decision != nil {
+		t.Fatalf("admission decision = %v, want nil", decision)
+	}
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parse did not start")
+	}
+
+	if !queue.CancelJob(jobID) {
+		t.Fatal("CancelJob() = false, want true")
+	}
+	// The handler skips its own failure write on a non-final attempt, so the
+	// queue has to tell the owner that the job will not be parsed.
+	select {
+	case decision := <-decisions:
+		if !errors.Is(decision, errInlineQueueCanceled) {
+			t.Fatalf("compensation decision = %v, want %v", decision, errInlineQueueCanceled)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("canceled parse was never compensated")
+	}
+	select {
+	case <-started:
+		t.Fatal("canceled parse was retried")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("handler calls = %d, want 1", got)
+	}
+}
+
+// The cloud worker deletes a local job only after CancelJob says nothing of
+// it is in flight, and a canceled handler returns only once the processes it
+// started are gone. So the answer must stay true until the handler returns.
+func TestInlineQueueCancelJobReportsWorkUntilTheCanceledHandlerReturns(t *testing.T) {
+	jobID := uuid.New()
+	started := make(chan struct{})
+	canceled := make(chan struct{})
+	treeGone := make(chan struct{})
+	returned := make(chan struct{})
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo: func(ctx context.Context, _ *asynq.Task) error {
+			close(started)
+			<-ctx.Done()
+			close(canceled)
+			// The recorder and CS2 are still going down.
+			<-treeGone
+			close(returned)
+			return ctx.Err()
+		},
+	}, 1)
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, jobID))); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("capture did not start")
+	}
+
+	if !queue.CancelJob(jobID) {
+		t.Fatal("CancelJob() = false, want true for a running capture")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("running handler was not canceled")
+	}
+	for range 3 {
+		if !queue.CancelJob(jobID) {
+			t.Fatal("CancelJob() = false while the canceled handler is still stopping its processes")
+		}
+	}
+
+	close(treeGone)
+	<-returned
+	deadline := time.Now().Add(5 * time.Second)
+	for queue.CancelJob(jobID) {
+		if time.Now().After(deadline) {
+			t.Fatal("CancelJob() still reports work after the handler returned")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}

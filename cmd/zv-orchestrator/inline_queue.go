@@ -32,6 +32,7 @@ const inlineDiscardCompensationTimeout = 10 * time.Second
 var (
 	errInlineQueueFull      = errors.New("inline queue is full")
 	errInlineQueueDiscarded = errors.New("inline queue task discarded during shutdown")
+	errInlineQueueCanceled  = errors.New("inline queue task canceled")
 )
 
 type inlineTask struct {
@@ -152,6 +153,30 @@ func (q *inlineTaskQueue) pop() (inlineTask, bool) {
 	return task, true
 }
 
+// remove takes every pending task that matches out of the FIFO, keeping the
+// order of the rest.
+func (q *inlineTaskQueue) remove(matches func(inlineTask) bool) []inlineTask {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	var removed []inlineTask
+	kept := q.tasks[:0]
+	for _, task := range q.tasks {
+		if matches(task) {
+			removed = append(removed, task)
+			continue
+		}
+		kept = append(kept, task)
+	}
+	for i := len(kept); i < len(q.tasks); i++ {
+		q.tasks[i] = inlineTask{}
+	}
+	q.tasks = kept
+	if len(q.tasks) == 0 {
+		q.tasks = nil
+	}
+	return removed
+}
+
 func (q *inlineTaskQueue) close() []inlineTask {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -185,6 +210,16 @@ type inlineQueue struct {
 	uniqueMu    sync.Mutex
 	uniqueLocks map[inlineUniqueKey]inlineUniqueLock
 	now         func() time.Time
+
+	// running maps a job id to its attempts in flight, so CancelJob can stop
+	// one job without touching the others.
+	runningMu sync.Mutex
+	running   map[string]map[*inlineRunningAttempt]struct{}
+}
+
+type inlineRunningAttempt struct {
+	cancel   context.CancelFunc
+	canceled bool
 }
 
 func newInlineQueue(handlers map[string]taskHandler, concurrency int) *inlineQueue {
@@ -203,6 +238,7 @@ func newInlineQueue(handlers map[string]taskHandler, concurrency int) *inlineQue
 		closeDone:    make(chan struct{}),
 		uniqueLocks:  make(map[inlineUniqueKey]inlineUniqueLock),
 		now:          time.Now,
+		running:      make(map[string]map[*inlineRunningAttempt]struct{}),
 	}
 }
 
@@ -284,6 +320,65 @@ func (q *inlineQueue) enqueue(task *asynq.Task, transition func(error) error, op
 		Timeout:   policy.attemptTimeout,
 		Retention: 0,
 	}, nil
+}
+
+// CancelJob drops the pending tasks of one job and cancels its attempts in
+// flight. A dropped task is compensated like a shutdown discard, and a
+// canceled attempt fails through its handler's own terminal path. It reports
+// whether there was anything to stop. A task between the FIFO and its first
+// attempt is missed, so a caller that must be sure calls again.
+func (q *inlineQueue) CancelJob(jobID uuid.UUID) bool {
+	id := jobID.String()
+	matches := func(task inlineTask) bool {
+		return task.task != nil && obs.TaskJobID(task.task.Payload()) == id
+	}
+	// Same order as closing: take the tasks under the unique lock, then
+	// compensate outside it with each lease still installed.
+	q.uniqueMu.Lock()
+	pending := q.tasks.remove(matches)
+	pending = append(pending, q.captureTasks.remove(matches)...)
+	q.uniqueMu.Unlock()
+	for _, task := range pending {
+		if err := applyInlineDiscardTransition(task, errInlineQueueCanceled); err != nil {
+			log.Printf("inline queue: %v", err)
+		}
+		q.releaseUnique(task)
+	}
+
+	q.runningMu.Lock()
+	attempts := q.running[id]
+	for attempt := range attempts {
+		attempt.canceled = true
+		attempt.cancel()
+	}
+	stopped := len(attempts)
+	q.runningMu.Unlock()
+	return len(pending) > 0 || stopped > 0
+}
+
+func (q *inlineQueue) trackAttempt(jobID string, cancel context.CancelFunc) *inlineRunningAttempt {
+	attempt := &inlineRunningAttempt{cancel: cancel}
+	if jobID == "" {
+		return attempt
+	}
+	q.runningMu.Lock()
+	defer q.runningMu.Unlock()
+	if q.running[jobID] == nil {
+		q.running[jobID] = make(map[*inlineRunningAttempt]struct{})
+	}
+	q.running[jobID][attempt] = struct{}{}
+	return attempt
+}
+
+// untrackAttempt reports whether CancelJob canceled the attempt.
+func (q *inlineQueue) untrackAttempt(jobID string, attempt *inlineRunningAttempt) bool {
+	q.runningMu.Lock()
+	defer q.runningMu.Unlock()
+	delete(q.running[jobID], attempt)
+	if len(q.running[jobID]) == 0 {
+		delete(q.running, jobID)
+	}
+	return attempt.canceled
 }
 
 func (q *inlineQueue) Shutdown(ctx context.Context) error {
@@ -426,26 +521,41 @@ func (q *inlineQueue) process(ctx context.Context, queued inlineTask, handler ta
 func (q *inlineQueue) handle(ctx context.Context, queued inlineTask, handler taskHandler) (error, bool) {
 	var err error
 	handlerStarted := false
+	jobID := obs.TaskJobID(queued.task.Payload())
 	for attempt := 0; attempt <= queued.policy.maxRetries; attempt++ {
 		if parentErr := ctx.Err(); parentErr != nil {
 			return parentErr, handlerStarted
 		}
 
 		attemptCtx := tasks.WithTaskAttempt(ctx, attempt, queued.policy.maxRetries)
-		attemptCtx = obs.WithTrace(attemptCtx, obs.TraceContext{JobID: obs.TaskJobID(queued.task.Payload()), AttemptID: uuid.NewString(), Operation: queued.task.Type(), Attempt: attempt + 1})
-		cancel := func() {}
+		attemptCtx = obs.WithTrace(attemptCtx, obs.TraceContext{JobID: jobID, AttemptID: uuid.NewString(), Operation: queued.task.Type(), Attempt: attempt + 1})
+		attemptCtx, cancel := context.WithCancel(attemptCtx)
+		cancelTimeout := func() {}
 		if queued.policy.attemptTimeout > 0 {
-			attemptCtx, cancel = context.WithTimeout(attemptCtx, queued.policy.attemptTimeout)
+			attemptCtx, cancelTimeout = context.WithTimeout(attemptCtx, queued.policy.attemptTimeout)
 		}
+		running := q.trackAttempt(jobID, cancel)
 		handlerStarted = true
 		startedAt := time.Now()
 		err = executeTracedTask(attemptCtx, queued.task, handler)
+		canceledByJob := q.untrackAttempt(jobID, running)
+		cancelTimeout()
 		cancel()
 		q.recordAttemptSpan(queued.task.Type(), err, time.Since(startedAt))
 		if err == nil {
 			return nil, handlerStarted
 		}
 		if ctx.Err() != nil {
+			return err, handlerStarted
+		}
+		if canceledByJob {
+			// A handler leaves the durable state active on a non-final
+			// attempt, expecting a retry that a canceled job never gets.
+			if attempt < queued.policy.maxRetries {
+				if compensateErr := applyInlineDiscardTransition(queued, errInlineQueueCanceled); compensateErr != nil {
+					log.Printf("inline queue: %v", compensateErr)
+				}
+			}
 			return err, handlerStarted
 		}
 		if attempt == queued.policy.maxRetries {
@@ -522,18 +632,18 @@ func executeTracedTask(ctx context.Context, task *asynq.Task, handler taskHandle
 }
 
 func (q *inlineQueue) compensateDiscarded(task inlineTask) {
-	if err := applyInlineDiscardTransition(task); err != nil {
+	if err := applyInlineDiscardTransition(task, errInlineQueueDiscarded); err != nil {
 		log.Printf("inline queue: %v", err)
 	}
 }
 
 func (q *inlineQueue) compensateDiscardedWithin(ctx context.Context, task inlineTask) error {
 	if task.transition == nil {
-		return applyInlineDiscardTransition(task)
+		return applyInlineDiscardTransition(task, errInlineQueueDiscarded)
 	}
 	done := make(chan error, 1)
 	go func() {
-		done <- applyInlineDiscardTransition(task)
+		done <- applyInlineDiscardTransition(task, errInlineQueueDiscarded)
 	}()
 	select {
 	case err := <-done:
@@ -543,14 +653,20 @@ func (q *inlineQueue) compensateDiscardedWithin(ctx context.Context, task inline
 	}
 }
 
-func applyInlineDiscardTransition(task inlineTask) error {
+// applyInlineDiscardTransition tells the task's owner that accepted work will
+// not run. reason is errInlineQueueDiscarded or errInlineQueueCanceled.
+func applyInlineDiscardTransition(task inlineTask, reason error) error {
 	if task.task != nil {
-		obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.task.Payload()), Operation: task.task.Type()}), obs.TraceEntry{Event: "task.discarded", Level: "warn", Message: "Queued task discarded during shutdown", Outcome: "interrupted"})
+		entry := obs.TraceEntry{Event: "task.discarded", Level: "warn", Message: "Queued task discarded during shutdown", Outcome: "interrupted"}
+		if errors.Is(reason, errInlineQueueCanceled) {
+			entry.Message, entry.Outcome = "Task canceled with its job", "cancelled"
+		}
+		obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.task.Payload()), Operation: task.task.Type()}), entry)
 	}
 	if task.transition == nil {
 		return nil
 	}
-	if err := task.transition(errInlineQueueDiscarded); err != nil {
+	if err := task.transition(reason); err != nil {
 		return fmt.Errorf("compensate discarded task %s: %w", task.id, err)
 	}
 	return nil
