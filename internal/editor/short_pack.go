@@ -241,7 +241,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				}
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
 				var outcome *fullDemoDeliveryOutcome
-				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.FullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
+				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
 				if err == nil {
 					short.FullDemo.Delivery = outcome.Evidence
 					if diagnostics != nil {
