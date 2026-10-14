@@ -7,7 +7,10 @@ import { requestArtifacts, requests, userCloud, users, workers } from "../db/sch
 import { adminUserIds } from "./admin.ts";
 import { loadCloudConfig } from "./cloud-config.ts";
 import { demoFileSize, releaseDemo, withDemoLock } from "./demo-store.ts";
+import type { Actor } from "./actor.ts";
 import { recordEvent } from "./events.ts";
+import { encodeLeaseLoss, type LeaseLoss } from "./lease.ts";
+import { encodePause } from "./pause.ts";
 import { classOf, decideFailure } from "./failure-policy.ts";
 import { readStoredSpec } from "./job-spec.ts";
 import {
@@ -304,25 +307,25 @@ async function applyFailure(
     .where(eq(requestArtifacts.requestId, job.id))
     .returning({ path: requestArtifacts.path });
 
-  const actor = worker ? `worker:${worker.id}` : "system";
+  const actor: Actor = worker ? { kind: "worker", id: worker.id } : { kind: "system" };
   const base = { at: now, actor, requestId: job.id, workerId: job.workerId, subjectUserId: job.userId };
   if (!worker) await recordEvent({ ...base, type: "lease_expired" }, tx);
   await recordEvent({ ...base, type: decision.outcome, detail: `${code}: ${input.detail}` }, tx);
 
   if (worker) {
-    const paused = decision.pauseReason !== null;
+    const pause = decision.pauseReason;
     await tx
       .update(workers)
       .set({
         consecutiveFailures: decision.consecutiveFailures,
-        ...(paused
-          ? { paused: true, pausedBy: "auto", pauseReason: decision.pauseReason }
+        ...(pause !== null
+          ? { paused: true, pausedBy: "auto" as const, pauseReason: encodePause(pause) }
           : {}),
       })
       .where(eq(workers.id, worker.id));
-    if (paused) {
+    if (pause !== null) {
       await recordEvent(
-        { ...base, type: "worker_auto_paused", actor: "system", detail: decision.pauseReason },
+        { ...base, type: "worker_auto_paused", actor: { kind: "system" }, detail: encodePause(pause) },
         tx,
       );
     }
@@ -341,19 +344,18 @@ function leaseExpired(job: JobRow, now: number): boolean {
   return job.status === "uploading" && job.leaseExpiresAt + UPLOAD_GRACE_MS < now;
 }
 
-// Why the portal gives up on a leased job, or null while its worker may keep it.
-function lostCause(job: JobRow, now: number): string | null {
+function lostCause(job: JobRow, now: number): LeaseLoss | null {
   if (leaseExpired(job, now)) {
-    return `lease expired at ${new Date(job.leaseExpiresAt ?? now).toISOString()}`;
+    return { kind: "expired", at: new Date(job.leaseExpiresAt ?? now).toISOString() };
   }
   if (job.status === "running" && job.claimedAt !== null) {
     const limitSeconds = maxRuntimeSeconds(job.estimatedSeconds ?? 0);
     const overdue = now - job.claimedAt.getTime() > limitSeconds * 1000 + RUNTIME_MARGIN_MS;
-    return overdue ? `running past its limit of ${limitSeconds} s` : null;
+    return overdue ? { kind: "over_limit", phase: "running", limitSeconds } : null;
   }
   if (job.status === "uploading") {
     const since = job.uploadingAt ?? job.updatedAt.getTime();
-    return now - since > UPLOAD_LIMIT_MS ? "uploading past its limit of 23400 s" : null;
+    return now - since > UPLOAD_LIMIT_MS ? { kind: "over_limit", phase: "uploading", limitSeconds: 23400 } : null;
   }
   return null;
 }
@@ -385,8 +387,9 @@ export async function sweepLeases(now: number, options: SweepOptions = {}): Prom
     const removedPaths = await transact(async (tx) => {
       const [job] = await tx.select().from(requests).where(eq(requests.id, candidate.id));
       if (!job || job.workerId === exceptWorkerId) return null;
-      const detail = lostCause(job, now);
-      if (detail === null) return null;
+      const loss = lostCause(job, now);
+      if (loss === null) return null;
+      const detail = encodeLeaseLoss(loss);
       const result = await applyFailure(tx, {
         job,
         worker: null,
@@ -495,7 +498,7 @@ export async function claimNext(input: ClaimInput): Promise<ClaimResult> {
       await recordEvent(
         {
           type: "claimed",
-          actor: `worker:${worker.id}`,
+          actor: { kind: "worker", id: worker.id },
           at: now,
           requestId: claimed.id,
           workerId: worker.id,
@@ -603,7 +606,7 @@ export async function recordHeartbeat(input: HeartbeatInput): Promise<HeartbeatR
         await recordEvent(
           {
             type: "stage",
-            actor: `worker:${worker.id}`,
+            actor: { kind: "worker", id: worker.id },
             at: now,
             requestId: job.id,
             workerId: worker.id,
@@ -692,7 +695,7 @@ export async function enterUploading(input: PhaseInput): Promise<boolean> {
     await recordEvent(
       {
         type: "phase_uploading",
-        actor: `worker:${worker.id}`,
+        actor: { kind: "worker", id: worker.id },
         at: now,
         requestId: jobId,
         workerId: worker.id,
@@ -772,7 +775,7 @@ export async function completeJob(
     await recordEvent(
       {
         type: "done",
-        actor: `worker:${worker.id}`,
+        actor: { kind: "worker", id: worker.id },
         at: now,
         requestId: jobId,
         workerId: worker.id,
@@ -849,7 +852,7 @@ interface CancelOutcome {
 // Cancels at once when no worker holds the job; otherwise asks the worker to stop.
 export async function cancelJob(input: CancelInput): Promise<CancelResult> {
   const { jobId, by, now } = input;
-  const actor = `${by}:${input.actorUserId}`;
+  const actor: Actor = { kind: by, id: input.actorUserId };
 
   const result = await transact(async (tx): Promise<CancelOutcome> => {
     const [job] = await tx.select().from(requests).where(eq(requests.id, jobId));
@@ -963,7 +966,7 @@ export async function retryJob(
       await recordEvent(
         {
           type: "retried",
-          actor: `admin:${input.adminUserId}`,
+          actor: { kind: "admin", id: input.adminUserId },
           at: now,
           requestId: jobId,
           subjectUserId: job.userId,
@@ -995,8 +998,9 @@ export async function approveJob(
         .where(and(eq(requests.id, jobId), eq(requests.status, "pending_approval")))
         .returning({ id: requests.id });
       if (updated.length === 0) return "invalid_state";
+      const actor: Actor = { kind: "admin", id: input.adminUserId };
       const event = {
-        actor: `admin:${input.adminUserId}`,
+        actor,
         at: now,
         requestId: jobId,
         subjectUserId: job.userId,
@@ -1040,7 +1044,7 @@ export async function rejectJob(input: RejectInput): Promise<"ok" | "not_found" 
     await recordEvent(
       {
         type: "rejected",
-        actor: `admin:${input.adminUserId}`,
+        actor: { kind: "admin", id: input.adminUserId },
         at: now,
         requestId: jobId,
         subjectUserId: job.userId,
@@ -1079,7 +1083,7 @@ export async function setPriority(
     await recordEvent(
       {
         type: "boosted",
-        actor: `admin:${input.adminUserId}`,
+        actor: { kind: "admin", id: input.adminUserId },
         at: now,
         requestId: jobId,
         subjectUserId: job.userId,
