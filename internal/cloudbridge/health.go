@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -149,7 +151,7 @@ func cs2PatchVersion(cs2Path string) string {
 var patchVersionPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+){1,4}$`)
 
 func patchVersionFromFile(path string) string {
-	file, err := os.Open(path) //nolint:gosec // path derives from the configured CS2 install
+	file, err := rooted.Open(path)
 	if err != nil {
 		return ""
 	}
@@ -178,7 +180,7 @@ func hlaeVersion(hlaePath string) string {
 		return ""
 	}
 	dir := filepath.Dir(hlaePath)
-	if raw, err := os.ReadFile(filepath.Join(dir, ".cliphub-install.json")); err == nil { //nolint:gosec // fixed marker name next to the configured HLAE
+	if raw, err := rooted.ReadFile(filepath.Join(dir, ".cliphub-install.json")); err == nil {
 		var marker struct {
 			Version string `json:"version"`
 		}
