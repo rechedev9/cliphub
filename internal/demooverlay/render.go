@@ -46,3 +46,44 @@ func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, 
 	}
 	return introStart, introEnd, outroStart, durationSeconds
 }
+
+// RenderPNGs writes the intro (transparent sides) and outro (full-frame)
+// overlay stills. ffmpegPath and fontPath must already be resolved.
+func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath string, opts RenderOptions) error {
+	if doc.Screenshots != nil {
+		for _, item := range []struct {
+			outro bool
+			path  string
+		}{{false, introPath}, {true, outroPath}} {
+			html, err := ScreenshotHTML(*doc.Screenshots, item.outro, opts.PreviewGreyBase)
+			if err != nil {
+				return err
+			}
+			if err := renderHTMLStill(html, item.path); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if strings.TrimSpace(ffmpegPath) == "" {
+		return fmt.Errorf("render full-demo overlay: ffmpeg path is required")
+	}
+	if strings.TrimSpace(fontPath) == "" {
+		return fmt.Errorf("render full-demo overlay: font path is required")
+	}
+	introPlate := IntroPlatePath(doc.Source, opts.OverlayAssetsDir)
+	if UsesProgrammaticIntroChrome(doc) {
+		introPlate = ""
+	}
+	outroPlate := OutroPlatePath(doc.Source, opts.OverlayAssetsDir)
+	if NormalizeSource(doc.Source) == SourceFACEIT {
+		outroPlate = ""
+	}
+	if err := renderIntroStill(ffmpegPath, fontPath, doc, introPath, introPlate, opts.PreviewGreyBase); err != nil {
+		return fmt.Errorf("render intro overlay: %w", err)
+	}
+	if err := renderOutroStill(ffmpegPath, fontPath, doc, outroPath, outroPlate, opts.PreviewGreyBase); err != nil {
+		return fmt.Errorf("render outro overlay: %w", err)
+	}
+	return nil
+}
