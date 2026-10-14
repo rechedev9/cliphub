@@ -3,10 +3,11 @@ package editor
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -1150,7 +1151,7 @@ func loadVoiceTracks(dir string) ([]string, int) {
 	if strings.TrimSpace(dir) == "" {
 		return nil, 0
 	}
-	body, err := os.ReadFile(filepath.Join(dir, "voice-index.json")) // #nosec G304 -- fixed filename inside the run directory
+	body, err := rooted.ReadFile(filepath.Join(dir, "voice-index.json"))
 	if err != nil {
 		return nil, 0
 	}
