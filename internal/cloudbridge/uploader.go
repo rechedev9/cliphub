@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -343,7 +344,7 @@ func (u *uploader) sendArtifact(ctx context.Context, in sendArtifactInput) (stri
 // order, and asks the portal to verify the whole.
 func (u *uploader) uploadPass(ctx context.Context, in sendArtifactInput) (string, error) {
 	artifact := in.artifact
-	file, err := os.Open(artifact.Path) //nolint:gosec // the path was resolved inside the local storage root
+	file, err := rooted.Open(artifact.Path)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", errLocalFile, err)
 	}
