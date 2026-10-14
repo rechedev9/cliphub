@@ -17,7 +17,7 @@ import {
   type ClipSize,
   type HubModel,
 } from '@/lib/clips/hub';
-import { ORPHAN_MATCH_SEGMENT } from '@/lib/clips/routes';
+import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
@@ -48,20 +48,18 @@ const GRID_COLUMNS = {
 const CHIP_CLASS =
   'inline-flex h-10 items-center border px-3 font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
-const CLIPS_EMPTY_COPY = 'Ningún vídeo con ese filtro. Cambia el filtro o crea un clip desde una partida o un stream.';
+const CLIPS_EMPTY_COPY = 'Ningún vídeo con ese filtro.';
 
-const OPEN_MATCH_LABEL = 'Partida';
-const OPEN_MATCH_ARIA = 'Abrir la partida';
+const MAKE_ANOTHER_LABEL = 'Crear otro';
 
 export type ClipsLensProps = {
   clips: HubModel['clips'];
   streams: readonly StreamJob[];
-  onOpenMatch: (matchId: string) => void;
   onChange: () => void;
 };
 
-/** The Clips lens: every output as a card, filtered and sized locally. */
-export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensProps): ReactNode {
+/** Every video recorded on this PC as a card, filtered and sized locally. */
+export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNode {
   const [filter, setFilter] = useState<ClipFilter>(CLIP_FILTER.all);
   const [size, setSize] = useState<ClipSize>(CLIP_SIZE.m);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -156,7 +154,6 @@ export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensPr
               key={clip.id}
               clip={clip}
               small={small}
-              onOpenMatch={onOpenMatch}
               onChange={onChange}
               onPlay={(item, button) => {
                 setActiveId(item.id);
@@ -194,13 +191,11 @@ export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensPr
 function ClipCard({
   clip,
   small,
-  onOpenMatch,
   onChange,
   onPlay,
 }: {
   clip: HubClip;
   small: boolean;
-  onOpenMatch: (matchId: string) => void;
   onChange: () => void;
   onPlay: (item: MediaPlaybackItem, button: HTMLElement) => void;
 }): ReactNode {
@@ -258,7 +253,7 @@ function ClipCard({
           opposite of what the density step was asked for. */}
       {small ? null : (
         <span className="flex flex-col gap-1.5">
-          {/* The match link gets its own row on every card, so a ready card
+          {/* The "another one" link gets its own row on every card, so a ready card
               (three buttons) and a rendering one (delete only) share the same
               row count and the grid reads as one line of equal cards. */}
           <OutputActions
@@ -269,15 +264,14 @@ function ClipCard({
             onPlay={playback === null ? undefined : (button) => onPlay(playback, button)}
           />
           {matchId !== null ? (
-            <button
-              type="button"
-              aria-label={OPEN_MATCH_ARIA}
-              onClick={() => onOpenMatch(matchId)}
+            <Link
+              href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
+              aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otro vídeo largo de esta demo'}
               className="inline-flex h-10 items-center gap-1 self-end px-2 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              {OPEN_MATCH_LABEL}
+              {MAKE_ANOTHER_LABEL}
               <ArrowRight aria-hidden className="size-3" />
-            </button>
+            </Link>
           ) : null}
         </span>
       )}

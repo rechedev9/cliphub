@@ -183,7 +183,7 @@ test('collectShellJobs merges parsing partidas and stream jobs with reels', () =
     ],
   );
   assert.equal(snapshot.jobs[1]?.title, 'de_nuke · parseo POV ropz');
-  assert.equal(snapshot.jobs[1]?.href, '/clips?partida=m1');
+  assert.equal(snapshot.jobs[1]?.href, '/shorts');
   assert.equal(snapshot.jobs[0]?.href, '/streams/s1');
   assert.equal(snapshot.capturing, false);
 });
@@ -223,7 +223,7 @@ test('a cloud capture shows as NUBE work and never marks this PC as capturing', 
   assert.deepEqual(snapshot.jobs.map((job) => [job.id, job.kind, job.stage]), [['cloud:c1', 'cloud', 'cloud']]);
   assert.equal(snapshot.jobs[0]?.detail, 'GRABANDO EN LA NUBE 62 %');
   assert.equal(snapshot.jobs[0]?.progress?.percent, 62);
-  assert.equal(snapshot.jobs[0]?.href, '/clips?partida=m1');
+  assert.equal(snapshot.jobs[0]?.href, '/resultados');
   assert.equal(snapshot.capturing, false);
 });
 

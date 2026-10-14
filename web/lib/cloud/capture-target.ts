@@ -9,7 +9,7 @@ export type CaptureTarget = (typeof CAPTURE_TARGET)[keyof typeof CAPTURE_TARGET]
 
 export const CAPTURE_TARGET_STORAGE_KEY = 'cliphub.capture-target.v1';
 
-/** `?destino=` preselects the target when the hub sends the user back to the producer. */
+/** `?destino=` preselects the target when Resultados sends the user back to the producer. */
 export const CAPTURE_TARGET_QUERY = 'destino';
 const CAPTURE_TARGET_PARAM = { local: 'pc', cloud: 'nube' } as const satisfies Record<CaptureTarget, string>;
 
@@ -20,10 +20,25 @@ export function captureTargetParam(value: string | string[] | null | undefined):
 
 /** The Short producer of a match with one target preselected. */
 export function produceShortHref(matchId: string, target: CaptureTarget): string {
-  return `${produceHref(matchId, PRODUCE_FORMAT.short)}&${CAPTURE_TARGET_QUERY}=${CAPTURE_TARGET_PARAM[target]}`;
+  return `${produceHref(matchId, PRODUCE_FORMAT.short)}?${CAPTURE_TARGET_QUERY}=${CAPTURE_TARGET_PARAM[target]}`;
 }
 
 export const CAPTURE_TARGET_LABEL = { local: 'Este PC', cloud: 'Nube ClipHub' } as const satisfies Record<CaptureTarget, string>;
+
+/** What picking a target means for the user's PC, in one line under its name. */
+export const CAPTURE_TARGET_HINT = {
+  local: 'CS2 se abre y graba en este ordenador. No lo uses hasta que termine.',
+  cloud: 'Graba un servidor de ClipHub. Tu PC queda libre y el vídeo se descarga aquí.',
+} as const satisfies Record<CaptureTarget, string>;
+
+/** The line a valid producer shows before creating: where it records, where the result lands. */
+export const CAPTURE_TARGET_READY_HINT = {
+  local: 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Resultados.',
+  cloud: 'Todo preparado. Al crear, ClipHub grabará en la nube; el vídeo se descargará en Resultados.',
+} as const satisfies Record<CaptureTarget, string>;
+
+/** Why the long-video producer has no target choice. */
+export const CAPTURE_LOCAL_ONLY_HINT = 'La nube todavía no admite vídeos largos.';
 
 export type CaptureTargetTone = 'neutral' | 'ok' | 'warning' | 'danger';
 

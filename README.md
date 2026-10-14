@@ -28,22 +28,25 @@ The app updates itself from the latest GitHub Release.
 
 ## Quick start
 
-1. In **Clips y vídeos**, press **Cargar demo** and pick a format: **Vídeo largo 16:9** or **Short 9:16**.
+1. Open the section for the format you want: **Shorts** (9:16) or **Vídeos largos** (16:9).
 2. Add the match. Drop a `.dem`, `.dem.zst`, `.zip` or `.rar` file (up to 10 demos at once), or paste a `CSGO-` share code and download the demo from Steam.
 3. Pick the player. ClipHub reads the demo and lists the ten players with rating, ADR, KAST and HS %.
 4. For a Short, work through four steps: plays, style, music, text and graphics. **Auto: mejores 60 s** picks the best minute for you.
-5. Create the video. Studio opens CS2, records the plays through HLAE and edits them together.
-6. Open the finished video in the library. The publish assistant prepares title, description and tags, and lets you download the MP4 and open YouTube Studio to upload it yourself.
+5. Create the video. Studio opens CS2, records the plays through HLAE and edits them together. A Short can be recorded on a ClipHub server instead, once the PC is connected in **Nube**.
+6. Open the finished video in **Resultados**. The publish assistant prepares title, description and tags, and lets you download the MP4 and open YouTube Studio to upload it yourself.
 
 ## What you can do
 
 | Section in the app | What it does |
 | --- | --- |
-| Clips y vídeos | Make Shorts and long videos from a demo. Several demos of one best-of are grouped as a series. |
+| Shorts | Make vertical Shorts from a demo, recorded on this PC or in the ClipHub cloud. |
+| Vídeos largos | Make a full-match video from a demo. Several demos of one best-of are grouped as a series. |
+| Resultados | Every video you made, split by where it was recorded, with download and the publish assistant. |
 | Clips de stream | Cut moments from a Twitch, YouTube or Kick link or an MP4 into vertical Shorts, with facecam framing. |
 | Jugadores | Follow FACEIT players and turn their matches into clips. |
 | Táctica | Round classification, a 2D replay and tendencies, all derived from the demo. |
 | Anti-cheat | CheaterDetect compares each player's aim, information and reaction times with a measured baseline. It flags what to review by hand and gives no verdict. |
+| Nube | Connect this PC to a ClipHub account to record Shorts on a ClipHub server. |
 | Ajustes | Get this PC ready to record and manage optional connections such as Steam and diagnostics. |
 
 Long videos cover every round from one player's view, with a HUD, team voices, round transitions and optional intro, sponsor and outro clips. Shorts add beat-synced cuts, kill effects and transitions.

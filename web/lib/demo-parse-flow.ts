@@ -21,7 +21,7 @@ export const DEMO_SCAN_HINTS = {
     'ClipHub no pudo leer esa demo: está dañada o viene de una actualización de CS2 que ClipHub aún no soporta. Vuelve a descargarla; si sigue fallando, escríbenos con tu código de soporte de Ajustes.',
   tooLarge: 'La demo supera el límite de 700 MB.',
   // The scan keeps running server-side; re-uploading would start a duplicate job.
-  timeout: 'El escaneo está tardando más de lo normal. Espera un minuto y búscala en Demos y vídeos antes de volver a cargarla.',
+  timeout: 'El escaneo está tardando más de lo normal. Espera un minuto y búscala en la lista de demos cargadas antes de volver a cargarla.',
   session: 'La sesión de ClipHub caducó. Recarga la ventana y vuelve a cargar la demo.',
 } as const;
 

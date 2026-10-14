@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
-import { hubHref, seriesHref } from '@/lib/clips/routes';
+import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
+import { CAPTURE_TARGET, CAPTURE_TARGET_READY_HINT } from '@/lib/cloud/capture-target';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
@@ -16,6 +17,7 @@ import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
+import { LocalOnlyTarget } from './capture-target';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoGroup } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
@@ -34,7 +36,8 @@ export type FullPovProducerProps = {
 
 export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: FullPovProducerProps): ReactNode {
   const router = useRouter();
-  const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
+  const backHref = seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.full);
+  const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
   /** What "Empezar de cero" goes back to: the saved plan's options, else the defaults. */
@@ -138,7 +141,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
       toast('Vídeo largo en cola', fullDemoQueueToast(recBusy, planned.warnings));
-      router.push(returnHref);
+      router.push(doneHref);
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
     } finally {
@@ -199,8 +202,9 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     </div>
     <ProduceFooter tone="full" eyebrow="Vídeo largo · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
       hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
-      readyHint={dirty ? 'Se preparará al crear.' : undefined}
-      ready={ready} backHref={returnHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
+      readyHint={dirty ? 'Se preparará al crear.' : CAPTURE_TARGET_READY_HINT[CAPTURE_TARGET.local]}
+      target={<LocalOnlyTarget />}
+      ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
       cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
         className="neon-notch shrink-0 focus-visible:-outline-offset-4">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
   </>;

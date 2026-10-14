@@ -6,15 +6,15 @@ import type { ReactElement, ReactNode } from 'react';
 /**
  * The shell's one route entrance.
  *
- * Before this, `.studio-enter` was pasted per page and per item: Clips y vídeos
+ * Before this, `.studio-enter` was pasted per page and per item: the video hub
  * and Stream clips faded in, Táctica / Anti-cheat / Players / Ajustes snapped,
  * and on the hub the page container, the banner, the lens and every match row
  * each ran their own copy — four overlapping reveals for one navigation. Two
  * different feels on one sidebar reads as unfinished; four stacked reveals read
  * as generated. The shell owns the moment now, and it owns it once.
  *
- * Keyed by pathname, not by the full URL: `?vista=clips` and `?abierta=<id>` on
- * the hub are the same destination, and replaying the reveal on a filter change
+ * Keyed by pathname, not by the full URL: `?origen=` on Resultados and `?job=` on
+ * a flow home are the same destination, and replaying the reveal on a filter change
  * would be motion with nothing to say. The existing guards in globals.css cover
  * the rest — reduced motion collapses the duration, an inactive window skips the
  * animation outright rather than pausing it on an invisible first frame.

@@ -1,14 +1,28 @@
 /**
- * Hrefs of the 01 Clips y vídeos section. One builder per screen so a route
- * rename is a single edit, and query keys are named constants rather than
- * strings repeated across pages.
+ * Hrefs of the creation flows and the results area. One builder per screen so
+ * a route rename is a single edit, and query keys are named constants rather
+ * than strings repeated across pages.
  */
 
-export const CLIPS_HREF = '/clips' as const;
-export const NEW_DEMO_HREF = '/clips/nueva' as const;
+export const SHORTS_HREF = '/shorts' as const;
+export const LONG_VIDEOS_HREF = '/videos-largos' as const;
+export const RESULTS_HREF = '/resultados' as const;
+export const CLOUD_HREF = '/nube' as const;
+
+export const PRODUCE_FORMAT = {
+  short: 'short',
+  full: 'full',
+} as const;
+export type ProduceFormat = (typeof PRODUCE_FORMAT)[keyof typeof PRODUCE_FORMAT];
+
+/** Each format owns a flow: its home loads the demo, `<home>/<id>` prepares the video. */
+export const FLOW_HREF = {
+  [PRODUCE_FORMAT.short]: SHORTS_HREF,
+  [PRODUCE_FORMAT.full]: LONG_VIDEOS_HREF,
+} as const satisfies Record<ProduceFormat, string>;
 
 /** `?job=` resumes a `scanned` job's POV pick instead of uploading. */
-export const NEW_DEMO_QUERY = { job: 'job' } as const;
+export const FLOW_QUERY = { job: 'job' } as const;
 
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -17,66 +31,42 @@ export function isJobIdParam(value: string | string[] | null | undefined): value
   return typeof value === 'string' && JOB_ID_RE.test(value);
 }
 
-export function newDemoHref(opts: { job?: string; format?: ProduceFormat } = {}): string {
-  const params = new URLSearchParams();
-  if (opts.job !== undefined) params.set(NEW_DEMO_QUERY.job, opts.job);
-  if (opts.format !== undefined) params.set(PRODUCE_QUERY.format, opts.format);
-  const query = params.toString();
-  return query === '' ? NEW_DEMO_HREF : `${NEW_DEMO_HREF}?${query}`;
+/** Home of one flow; with `job` it resumes that demo's player pick. */
+export function flowHref(format: ProduceFormat, opts: { job?: string } = {}): string {
+  const base = FLOW_HREF[format];
+  if (opts.job === undefined) return base;
+  const params = new URLSearchParams({ [FLOW_QUERY.job]: opts.job });
+  return `${base}?${params.toString()}`;
 }
 
-/** `?vista=` picks the hub lens; `?partida=` opens one row. */
-export const HUB_QUERY = {
-  lens: 'vista',
-  open: 'partida',
+/** `?series=` returns to the bo3/bo5 series after producing. */
+export const PRODUCE_QUERY = { series: 'series' } as const;
+
+export function produceHref(matchId: string, format: ProduceFormat, seriesId?: string): string {
+  const base = `${FLOW_HREF[format]}/${encodeURIComponent(matchId)}`;
+  if (seriesId === undefined || seriesId === '') return base;
+  const params = new URLSearchParams({ [PRODUCE_QUERY.series]: seriesId });
+  return `${base}?${params.toString()}`;
+}
+
+/** `?origen=` narrows the results to what one place recorded. */
+export const RESULTS_QUERY = { origin: 'origen' } as const;
+
+export const RESULTS_ORIGIN = {
+  local: 'pc',
+  cloud: 'nube',
 } as const;
+export type ResultsOrigin = (typeof RESULTS_ORIGIN)[keyof typeof RESULTS_ORIGIN];
 
-export const HUB_LENS = {
-  matches: 'partidas',
-  clips: 'clips',
-} as const;
-export type HubLens = (typeof HUB_LENS)[keyof typeof HUB_LENS];
-
-export function isHubLens(value: string | null): value is HubLens {
-  return value === HUB_LENS.matches || value === HUB_LENS.clips;
+/** Resolves `?origen=`; a missing, repeated or unknown value shows every result. */
+export function resultsOriginParam(value: string | string[] | null | undefined): ResultsOrigin | null {
+  return value === RESULTS_ORIGIN.local || value === RESULTS_ORIGIN.cloud ? value : null;
 }
 
-/** `?formato=` picks the output; `?series=` returns to the bo3/bo5 series after producing. */
-export const PRODUCE_QUERY = { format: 'formato', series: 'series' } as const;
-
-export const PRODUCE_FORMAT = {
-  short: 'short',
-  full: 'full',
-} as const;
-export type ProduceFormat = (typeof PRODUCE_FORMAT)[keyof typeof PRODUCE_FORMAT];
-
-/** The long video is what creators make most, so a link without `?formato=` opens it. */
-export const DEFAULT_PRODUCE_FORMAT: ProduceFormat = PRODUCE_FORMAT.full;
-
-/** Resolves `?formato=`; a missing, repeated or unknown value falls back to the default format. */
-export function produceFormatParam(value: string | string[] | null | undefined): ProduceFormat {
-  return value === PRODUCE_FORMAT.short || value === PRODUCE_FORMAT.full ? value : DEFAULT_PRODUCE_FORMAT;
-}
-
-export function hubHref(opts: { lens?: HubLens; open?: string } = {}): string {
-  const params = new URLSearchParams();
-  if (opts.lens !== undefined && opts.lens !== HUB_LENS.matches) params.set(HUB_QUERY.lens, opts.lens);
-  if (opts.open !== undefined) params.set(HUB_QUERY.open, opts.open);
-  const query = params.toString();
-  return query === '' ? CLIPS_HREF : `${CLIPS_HREF}?${query}`;
-}
-
-export function produceHref(
-  matchId: string,
-  format: ProduceFormat = DEFAULT_PRODUCE_FORMAT,
-  seriesId?: string,
-): string {
-  const params = new URLSearchParams();
-  if (format !== DEFAULT_PRODUCE_FORMAT) params.set(PRODUCE_QUERY.format, format);
-  if (seriesId !== undefined && seriesId !== '') params.set(PRODUCE_QUERY.series, seriesId);
-  const base = `${CLIPS_HREF}/${encodeURIComponent(matchId)}/nuevo`;
-  const query = params.toString();
-  return query === '' ? base : `${base}?${query}`;
+export function resultsHref(opts: { origin?: ResultsOrigin } = {}): string {
+  if (opts.origin === undefined) return RESULTS_HREF;
+  const params = new URLSearchParams({ [RESULTS_QUERY.origin]: opts.origin });
+  return `${RESULTS_HREF}?${params.toString()}`;
 }
 
 export function seriesHref(seriesId: string): string {
@@ -84,7 +74,7 @@ export function seriesHref(seriesId: string): string {
 }
 
 export function publishHref(matchId: string, clipId: string): string {
-  return `${CLIPS_HREF}/${encodeURIComponent(matchId)}/publicar/${encodeURIComponent(clipId)}`;
+  return `${RESULTS_HREF}/${encodeURIComponent(matchId)}/publicar/${encodeURIComponent(clipId)}`;
 }
 
 /** Orphan reels (no `jobId`) still publish; the segment is a placeholder. */

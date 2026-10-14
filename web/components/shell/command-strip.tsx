@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,18 +14,17 @@ import {
   shellActivitySnapshot,
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
-import { CLIPS_HREF, NEW_DEMO_HREF, PRODUCE_FORMAT, PRODUCE_QUERY, produceFormatParam } from '@/lib/clips/routes';
+import { LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
-  newMatch: 'cargar demo',
   newShort: 'nuevo short',
   newFull: 'vídeo largo',
   publish: 'publicar',
   series: 'serie',
 } as const;
 
-/** Series belong to the demo journey but live outside /clips. */
+/** Series belong to the Shorts journey but live outside /shorts. */
 const SERIES_PREFIX = '/series/';
 
 /** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
@@ -34,10 +33,9 @@ const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 // Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const section = sectionForPath(pathname);
   const routeTitle = useCurrentRouteTitle();
-  const trail = routeTitle ?? trailForPath(pathname, section, searchParams.get(PRODUCE_QUERY.format));
+  const trail = routeTitle ?? trailForPath(pathname, section);
   const activity = useSyncExternalStore(
     subscribeToShellActivity,
     shellActivitySnapshot,
@@ -110,26 +108,24 @@ function CapturePip(): ReactElement {
 }
 
 function sectionForPath(pathname: string): NavSection | null {
-  if (pathname.startsWith(SERIES_PREFIX)) return NAV_SECTIONS.find((section) => section.href === CLIPS_HREF) ?? null;
+  if (pathname.startsWith(SERIES_PREFIX)) return NAV_SECTIONS.find((section) => section.href === SHORTS_HREF) ?? null;
   for (const section of NAV_SECTIONS) {
     if (pathname === section.href || pathname.startsWith(`${section.href}/`)) return section;
   }
   return null;
 }
 
-// Screen names for Clips y vídeos; other sections show a readable nested segment.
-function trailForPath(pathname: string, section: NavSection | null, format: string | null): string | null {
+// Screen names for the creation flows and Resultados; other sections show a readable nested segment.
+function trailForPath(pathname: string, section: NavSection | null): string | null {
   if (section === null) return null;
   if (pathname.startsWith(SERIES_PREFIX)) return TRAIL.series;
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');
   if (rest === '') return null;
   const segments = rest.split('/');
   if (section.href === '/streams') return 'Editar stream';
-  if (section.href === CLIPS_HREF) {
-    if (pathname === NEW_DEMO_HREF) return TRAIL.newMatch;
-    if (segments[1] === 'nuevo') return produceFormatParam(format) === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;
-    if (segments[1] === 'publicar') return TRAIL.publish;
-  }
+  if (section.href === SHORTS_HREF) return TRAIL.newShort;
+  if (section.href === LONG_VIDEOS_HREF) return TRAIL.newFull;
+  if (section.href === RESULTS_HREF && segments[1] === 'publicar') return TRAIL.publish;
   const segment = decodeURIComponent(segments[0] ?? '');
   return OPAQUE_ID.test(segment) ? null : segment;
 }

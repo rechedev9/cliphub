@@ -30,7 +30,7 @@ export default function NotFound(): ReactElement {
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         <Button asChild size="lg">
-          <Link href="/clips">Ir a Clips y vídeos</Link>
+          <Link href="/resultados">Ir a Resultados</Link>
         </Button>
       </div>
     </main>

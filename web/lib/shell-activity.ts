@@ -1,5 +1,6 @@
 import type { StreamJob } from './api/streams.ts';
 import type { Match, Video } from './api/types.ts';
+import { RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
 import type { CloudJob } from './cloud/parse.ts';
 import { cloudJobViewOn, type CloudDevice } from './cloud/view.ts';
 
@@ -143,8 +144,7 @@ function reelJob(video: Video): ShellJob[] {
       progress = { ...progress, stage: capture.stage };
     }
   }
-  const href = video.jobId === undefined ? '/clips?vista=clips' : `/clips?partida=${encodeURIComponent(video.jobId)}`;
-  return [{ id: video.id, kind: 'reel', title: video.title, stage, startedAt: video.createdAt, progress, href }];
+  return [{ id: video.id, kind: 'reel', title: video.title, stage, startedAt: video.createdAt, progress, href: RESULTS_HREF }];
 }
 
 function reelStage(status: Video['status']): ShellJobStage | null {
@@ -164,7 +164,8 @@ function parseJob(match: Match): ShellJob[] {
       stage: 'parsing',
       startedAt: Number.isNaN(startedAt) ? 0 : startedAt,
       progress: null,
-      href: `/clips?partida=${encodeURIComponent(match.id)}`,
+      // A demo being parsed is listed on every flow home; Shorts is the first one.
+      href: SHORTS_HREF,
     },
   ];
 }
@@ -200,7 +201,7 @@ function cloudShellJob(job: CloudJob, device: CloudDevice): ShellJob[] {
       stage: 'cloud',
       startedAt: job.createdAt,
       progress: view.percent === null ? null : { done: view.percent, total: 100, percent: view.percent },
-      href: job.localJobId === '' ? '/clips' : `/clips?partida=${encodeURIComponent(job.localJobId)}`,
+      href: RESULTS_HREF,
       detail: view.line,
     },
   ];

@@ -1,30 +1,4 @@
-/** Hub copy shared with the E2E contract; a plain module so specs can import it. */
-export const HUB_EMPTY_TITLE = '¿Qué quieres crear?';
-export const DEMO_CREATION_STEPS = ['Cargar demo', 'Elegir jugador', 'Preparar vídeo', 'Crear y descargar'] as const;
-
-/** `unpicked` row: roster scanned, nobody chose a POV. The CTA resumes the pick on `/clips/nueva?job=`. */
+/** `unpicked` demo row: roster scanned, nobody chose a POV. The CTA resumes the pick on the flow's `?job=`. */
 export const MATCH_ROW_UNPICKED_TITLE = 'Elige un jugador';
-export const MATCH_ROW_UNPICKED_HINT = 'Demo cargada · elige de quién será el vídeo';
+export const MATCH_ROW_UNPICKED_HINT = 'Demo cargada · falta el jugador';
 export const MATCH_ROW_UNPICKED_CTA = 'Elegir jugador';
-
-/** Partidas lens section for reels whose job is no longer listed. */
-export const HUB_ORPHANS_TITLE = 'Otros clips';
-export const HUB_ORPHANS_HINT = 'Su partida ya no está en la lista: la demo se borró o el trabajo falló.';
-
-/** Hub header once at least one partida exists; the empty state keeps its own title. */
-export const HUB_TITLE = 'Tus demos y vídeos';
-export const HUB_DESCRIPTION =
-  'Continúa con una partida, descarga tus vídeos o empieza una nueva creación.';
-export const HUB_LOAD_DEMO_CTA = 'Cargar demo';
-
-/** `ready` row with nothing produced yet: the next step is the first Short. */
-export const MATCH_ROW_FIRST_CLIP_CTA = 'Crear Short';
-
-/** Three-step first-run guide, shown until every step is done or the user hides it. */
-export const FIRST_RUN_GUIDE_TITLE = 'De la demo a tu vídeo';
-export const FIRST_RUN_GUIDE_DISMISS = 'Ocultar guía';
-export const FIRST_RUN_STEPS = {
-  load: { title: 'Carga tu partida', hint: 'Usa una demo de CS2. El archivo se analiza en este PC.' },
-  pick: { title: 'Elige al jugador', hint: 'Su vista será la del vídeo. Revisa sus jugadas o todas las rondas.' },
-  produce: { title: 'Crea y descarga', hint: 'Confirma los ajustes, graba en este PC o en la nube de ClipHub y descarga el MP4 desde Demos y vídeos.' },
-} as const;

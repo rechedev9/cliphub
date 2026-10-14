@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 
-/** Local Studio has no marketing root: open Clips y vídeos. */
+/** Local Studio has no marketing root: open Resultados, which offers the creation flows when empty. */
 export default function RootPage(): never {
-  redirect(CLIPS_HREF);
+  redirect(RESULTS_HREF);
 }

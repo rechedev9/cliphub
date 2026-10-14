@@ -19,7 +19,7 @@ import {
   seriesTitle,
   type SeriesStatusTone,
 } from '@/lib/series-status';
-import { NEW_DEMO_HREF, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, produceHref, SHORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -140,7 +140,7 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * Series view (/series/[id]) — the demos uploaded together as one bo3/bo5. It
  * lists every map with its map/score and live status, links each ready map into
  * its highlight picker, and polls the local orchestrator until every map has
- * settled. Reached from the /clips/nueva series flow after the picked player is
+ * settled. Reached from a creation flow's series upload after the picked player is
  * parsed on each map.
  */
 export default function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -221,7 +221,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         description="Ese enlace de serie no es válido. Carga varias demos a la vez para empezar una serie nueva."
         actions={
           <Button asChild variant="hero">
-            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
+            <Link href={SHORTS_HREF}>Cargar demos</Link>
           </Button>
         }
       />
@@ -246,7 +246,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
-            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
+            <Link href={SHORTS_HREF}>Cargar demos</Link>
           </Button>
         }
       />
@@ -262,7 +262,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         description="Puede que sus demos se hayan borrado o que el enlace sea de una sola partida. Carga las demos de tu bo3/bo5 para crear una serie."
         actions={
           <Button asChild variant="hero">
-            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
+            <Link href={SHORTS_HREF}>Cargar demos</Link>
           </Button>
         }
       />

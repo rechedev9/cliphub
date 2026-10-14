@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { resolveShareCode, type ShareCodeResolution } from '@/lib/api/share-code-resolve';
 import { importShareCode } from '@/lib/api/steam-import';
-import { newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
+import { flowHref, type ProduceFormat } from '@/lib/clips/routes';
 import { checkShareCode } from '@/lib/sharecode';
 
 const STEPS = [
@@ -57,7 +57,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
     const result = await importShareCode(code);
     setDownloading(false);
     if (result.kind === 'queued') {
-      router.push(newDemoHref({ job: result.id, format }));
+      router.push(flowHref(format, { job: result.id }));
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -137,7 +137,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={(jobId) => { router.push(newDemoHref({ job: jobId, format })); }}
+        onQueued={(jobId) => { router.push(flowHref(format, { job: jobId })); }}
       />
 
       <p className="text-body-sm text-fg-3">

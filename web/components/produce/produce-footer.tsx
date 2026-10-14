@@ -22,8 +22,8 @@ export type ProduceFooterProps = {
   briefItems: ReadonlyArray<CreativeBriefItem>;
   /** Extra brief content below the items (e.g. the FACEIT note). */
   briefNote?: ReactNode;
-  /** Context-specific message when a valid form still needs automatic preparation. */
-  readyHint?: ReactNode;
+  /** What creating does once the form is valid: where it records and where the result lands. */
+  readyHint: ReactNode;
   ready: boolean;
   busy: boolean;
   backHref: string;
@@ -51,9 +51,7 @@ export function ProduceFooter({
   cta,
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
-  const nextStep = ready
-    ? readyHint ?? 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.'
-    : hint;
+  const nextStep = ready ? readyHint : hint;
   const nextStepContent: ReactNode = !ready && onHintAction ? (
     <button
       type="button"

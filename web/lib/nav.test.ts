@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import { NAV_SECTIONS, RETIRED_ROUTES } from './nav.ts';
 
 const RAIL = [
-  ['Clips y vídeos', '/clips'],
+  ['Shorts', '/shorts'],
+  ['Vídeos largos', '/videos-largos'],
   ['Clips de stream', '/streams'],
+  ['Resultados', '/resultados'],
   ['Jugadores', '/players'],
   ['Táctica', '/tactical'],
   ['Anti-cheat', '/cheaters'],
+  ['Nube', '/nube'],
   ['Ajustes', '/settings'],
 ] as const;
 

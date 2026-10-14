@@ -6,7 +6,7 @@
  * app-tour.test.ts): a section added to the rail without a chapter here would
  * leave the tour describing an app that no longer exists.
  */
-import { CLIPS_HREF, NEW_DEMO_HREF } from './clips/routes.ts';
+import { CLOUD_HREF, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
 
 export const TOUR_TITLE = 'Guía de ClipHub Studio';
 
@@ -53,11 +53,11 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'load',
-    kicker: 'Clips y vídeos',
-    label: 'Cargar una partida',
-    title: 'Todo empieza con una partida',
+    kicker: 'Crear',
+    label: 'Cargar una demo',
+    title: 'Todo empieza con una demo',
     lead:
-      'Una partida es una demo cargada en ClipHub más el jugador desde cuya vista se grabará el vídeo. Pulsa «Cargar demo» y elige primero el formato: «Vídeo largo 16:9» o «Short 9:16».',
+      'Cada formato tiene su sección en la barra lateral: «Shorts» y «Vídeos largos». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
     points: [
       {
         term: 'Archivo en mi PC',
@@ -75,12 +75,15 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         term: 'Series',
         text: 'Si cargas varias demos de un mismo bo3 o bo5, se agrupan en una serie: eliges al jugador una vez y creas un vídeo por mapa.',
       },
+      {
+        term: 'Demos cargadas',
+        text: 'Las demos que ya analizaste quedan en la lista de cada sección, para crear otro vídeo sin volver a cargarlas.',
+      },
     ],
-    link: { href: NEW_DEMO_HREF, label: 'Cargar una demo' },
   },
   {
     id: 'short',
-    kicker: 'Clips y vídeos',
+    kicker: 'Shorts',
     label: 'Crear un Short',
     title: 'Un Short vertical con las mejores jugadas',
     lead:
@@ -102,15 +105,20 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         term: 'Textos y gráficos',
         text: 'Efecto de kill, transiciones, título automático, contador de kills, texto de apertura y cierre, y portada.',
       },
+      {
+        term: 'Dónde se graba',
+        text: 'Antes de crear eliges «Este PC» o «Nube ClipHub». El botón de crear dice siempre dónde se va a grabar.',
+      },
     ],
+    link: { href: SHORTS_HREF, label: 'Ir a Shorts' },
   },
   {
     id: 'full',
-    kicker: 'Clips y vídeos',
+    kicker: 'Vídeos largos',
     label: 'Vídeo largo',
     title: 'La partida entera desde un jugador',
     lead:
-      'El vídeo largo 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo.',
+      'El vídeo largo 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo. Se graba siempre en este PC.',
     points: [
       {
         term: 'HUD de la partida',
@@ -129,14 +137,15 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor que se reproduce después de la ronda 2 si tienes sus derechos de uso.',
       },
     ],
+    link: { href: LONG_VIDEOS_HREF, label: 'Ir a Vídeos largos' },
   },
   {
     id: 'deliver',
-    kicker: 'Clips y vídeos',
+    kicker: 'Resultados',
     label: 'Descargar y publicar',
     title: 'Tus vídeos, listos para subir',
     lead:
-      'Todo lo que creas aparece en «Clips y vídeos». Cambia entre la vista «Partidas» y la vista «Clips» para ver cada vídeo con su estado: en cola, grabando, en edición, listo o fallido.',
+      'Todo lo que creas aparece en «Resultados», separado por dónde se grabó: en este PC o en la nube. Cada vídeo muestra su estado: en cola, grabando, en edición, listo o fallido.',
     points: [
       {
         term: 'Reproducir y descargar',
@@ -151,7 +160,30 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'En un Short puedes añadir o cambiar la canción sin volver a grabar.',
       },
     ],
-    link: { href: `${CLIPS_HREF}?vista=clips`, label: 'Ver mis vídeos' },
+    link: { href: RESULTS_HREF, label: 'Ver mis vídeos' },
+  },
+  {
+    id: 'cloud',
+    kicker: 'Nube',
+    label: 'Grabar en la nube',
+    title: 'Graba un Short sin usar este PC',
+    lead:
+      'Con una cuenta de ClipHub conectada, un Short puede grabarse en un servidor de ClipHub: tu PC queda libre y el vídeo se descarga aquí cuando termina.',
+    points: [
+      {
+        term: 'Conectar la cuenta',
+        text: 'En «Nube» pides un código, lo confirmas en la web de ClipHub desde tu navegador y este PC queda conectado. Tu contraseña nunca se escribe en Studio.',
+      },
+      {
+        term: 'Elegir en cada Short',
+        text: 'Conectar la cuenta no cambia nada por sí solo: sigues eligiendo «Este PC» o «Nube ClipHub» cada vez que creas un Short.',
+      },
+      {
+        term: 'Uso y cola',
+        text: 'La sección muestra tu tiempo de nube disponible y cuántos vídeos esperan en la cola.',
+      },
+    ],
+    link: { href: CLOUD_HREF, label: 'Ir a Nube' },
   },
   {
     id: 'streams',

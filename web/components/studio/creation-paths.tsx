@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Clapperboard, MonitorPlay, Smartphone } from 'lucide-react';
-import { newDemoHref, PRODUCE_FORMAT } from '@/lib/clips/routes';
+import { flowHref, PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { FOCUS_RING } from '@/components/ui/button';
 import { IconTile } from '@/components/studio/icon-tile';
 import { cn } from '@/lib/utils';
 
 const PATHS = [
-  { title: 'Crear vídeo largo', format: 'Horizontal · 16:9', source: 'Desde una demo de CS2',
-    description: 'Todas las rondas desde la vista de un jugador, con HUD y voces del equipo.',
-    href: newDemoHref({ format: PRODUCE_FORMAT.full }), icon: MonitorPlay, tone: 'primary' },
   { title: 'Crear Short', format: 'Vertical · 9:16', source: 'Desde una demo de CS2',
     description: 'Elige jugadas y únelas en un vídeo con tu estilo y música.',
-    href: newDemoHref({ format: PRODUCE_FORMAT.short }), icon: Smartphone, tone: 'primary' },
+    href: flowHref(PRODUCE_FORMAT.short), icon: Smartphone, tone: 'primary' },
+  { title: 'Crear vídeo largo', format: 'Horizontal · 16:9', source: 'Desde una demo de CS2',
+    description: 'Todas las rondas desde la vista de un jugador, con HUD y voces del equipo.',
+    href: flowHref(PRODUCE_FORMAT.full), icon: MonitorPlay, tone: 'primary' },
   { title: 'Recortar un stream', format: 'Un Short por corte · 9:16', source: 'Desde un enlace o MP4',
     description: 'Marca los cortes, ajusta el encuadre y añade facecam si la necesitas.',
     href: '/streams', icon: Clapperboard, tone: 'stream' },

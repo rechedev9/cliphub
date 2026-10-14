@@ -444,7 +444,7 @@ const workerRestarts = new WorkerRestartScheduler({
   logLine,
 });
 
-/** 01 Clips y vídeos is the single door: the hub owns the first-run drop. */
+/** Resultados is the door: it lists the videos, or offers the creation flows when there are none. */
 async function loadStudio(webPort: number, proxyMutationCapability: string): Promise<void> {
   loadingScreenShowing = false;
   const win = aliveWindow();
@@ -456,7 +456,7 @@ async function loadStudio(webPort: number, proxyMutationCapability: string): Pro
     webOrigin,
     proxyMutationCapability,
   );
-  const requestedURL = `${webOrigin}/clips`;
+  const requestedURL = `${webOrigin}/resultados`;
   let observedReplacement: SuccessfulNavigationEvidence | null = null;
   let resolveReplacement: ((evidence: SuccessfulNavigationEvidence) => void) | undefined;
   const replacementCompleted = new Promise<SuccessfulNavigationEvidence>((resolve) => {

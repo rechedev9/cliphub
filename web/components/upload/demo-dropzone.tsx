@@ -11,7 +11,7 @@ export type DemoDropzoneProps = {
   onFiles: (files: File[]) => void;
   compact?: boolean;
   disabled?: boolean;
-  /** Tailwind min-height for the full layout; the spec sets 240px on the hub and 260px on /clips/nueva. */
+  /** Tailwind min-height for the full layout; the flow homes set 200px. */
   minHeightClass?: string;
 };
 
