@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -139,7 +141,7 @@ func detectHLAE() string {
 }
 
 func hlaeSearchGlobs() []string {
-	globs := []string{`C:\HLAE-*\HLAE.exe`}
+	globs := []string{`C:\\HLAE-*\\HLAE.exe`}
 	if appData := os.Getenv("APPDATA"); appData != "" {
 		globs = append(globs, filepath.Join(appData, `cliphub-studio`, "tools", "hlae", "*", "HLAE.exe"))
 	}
@@ -168,7 +170,7 @@ func selectHLAE(matches []string) string {
 }
 
 func hlaeVersion(path string) ([]int, bool) {
-	normalized := strings.TrimRight(strings.ReplaceAll(path, `\`, "/"), "/")
+	normalized := strings.TrimRight(strings.ReplaceAll(path, `\\`, "/"), "/")
 	separator := strings.LastIndexByte(normalized, '/')
 	if separator < 0 {
 		return nil, false
@@ -247,7 +249,7 @@ func detectCS2() string {
 	if runtime.GOOS != "windows" {
 		return ""
 	}
-	const relativePath = `steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe`
+	const relativePath = `steamapps\\common\\Counter-Strike Global Offensive\\game\\bin\\win64\\cs2.exe`
 	seen := map[string]bool{}
 	var roots []string
 	addRoot := func(steam string) {
@@ -256,10 +258,10 @@ func detectCS2() string {
 		}
 		seen[steam] = true
 		roots = append(roots, steam)
-		roots = append(roots, steamLibraryPaths(filepath.Join(steam, `steamapps\libraryfolders.vdf`))...)
+		roots = append(roots, steamLibraryPaths(filepath.Join(steam, `steamapps\\libraryfolders.vdf`))...)
 	}
 	addRoot(steamRootFromRegistry())
-	addRoot(`C:\Program Files (x86)\Steam`)
+	addRoot(`C:\\Program Files (x86)\\Steam`)
 	if programFiles := os.Getenv("ProgramFiles(x86)"); programFiles != "" {
 		addRoot(filepath.Join(programFiles, "Steam"))
 	}
@@ -275,7 +277,7 @@ func steamRootFromRegistry() string {
 	if runtime.GOOS != "windows" {
 		return ""
 	}
-	out, err := exec.Command("reg", "query", `HKCU\Software\Valve\Steam`, "/v", "SteamPath").Output()
+	out, err := exec.Command("reg", "query", `HKCU\\Software\\Valve\\Steam`, "/v", "SteamPath").Output()
 	if err != nil {
 		return ""
 	}
@@ -283,7 +285,7 @@ func steamRootFromRegistry() string {
 }
 
 func steamPathFromRegOutput(out string) string {
-	for _, line := range strings.Split(out, "\n") {
+	for _, line := range strings.Split(out, "\\n") {
 		if !strings.Contains(line, "SteamPath") {
 			continue
 		}
@@ -296,13 +298,12 @@ func steamPathFromRegOutput(out string) string {
 }
 
 func steamLibraryPaths(vdf string) []string {
-	// #nosec G304 G703 -- vdf is the fixed Steam library manifest found beneath a detected install root.
-	data, err := os.ReadFile(vdf)
+	data, err := rooted.ReadFile(vdf)
 	if err != nil {
 		return nil
 	}
 	var paths []string
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, line := range strings.Split(string(data), "\\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, `"path"`) {
 			continue
@@ -314,7 +315,7 @@ func steamLibraryPaths(vdf string) []string {
 		}
 		rest = rest[open+1:]
 		if end := strings.Index(rest, `"`); end >= 0 {
-			paths = append(paths, strings.ReplaceAll(rest[:end], `\\`, `\`))
+			paths = append(paths, strings.ReplaceAll(rest[:end], `\\\\`, `\\`))
 		}
 	}
 	return paths
