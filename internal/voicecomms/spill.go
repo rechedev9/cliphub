@@ -7,6 +7,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 type packetSpill struct {
@@ -94,8 +96,7 @@ func (s *packetSpill) payload(index int) ([]byte, []uint32, error) {
 		return nil, rec.offsets, nil
 	}
 	path := filepath.Join(s.dir, fmt.Sprintf("%d.dat", rec.xuid))
-	// #nosec G304 -- path is spill dir + numeric xuid.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open spill for packet %d: %w", index, err)
 	}
@@ -131,8 +132,7 @@ func (s *packetSpill) file(xuid uint64) (*spillFile, error) {
 		return nil, fmt.Errorf("voice spill exceeds speaker limit")
 	}
 	path := filepath.Join(s.dir, fmt.Sprintf("%d.dat", xuid))
-	// #nosec G304 -- path is spill dir + numeric xuid.
-	raw, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	raw, err := rooted.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open spill file for xuid %d: %w", xuid, err)
 	}

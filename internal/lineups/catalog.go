@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -56,8 +58,7 @@ func LoadDir(dir string) (Catalog, error) {
 }
 
 func (c *Catalog) loadFile(path string) error {
-	// #nosec G304 -- lineup catalog files are loaded from a configured local catalog directory.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read lineup file %s: %w", path, err)
 	}
