@@ -21,6 +21,8 @@ type workflowInfo struct {
 	Safety          workflowSafety    `json:"safety"`
 	Contract        workflowContract  `json:"contract"`
 	RunArgs         []string          `json:"-"`
+	ReadOnly        bool              `json:"-"`
+	LongRunning     bool              `json:"-"`
 }
 
 type workflowArguments struct {

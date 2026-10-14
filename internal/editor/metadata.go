@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -44,8 +46,7 @@ func discoverKillPlanPath(recordingResultPath string) (string, error) {
 	recordingDir := filepath.Dir(recordingResultPath)
 	runDir := filepath.Dir(recordingDir)
 	pipelinePath := filepath.Join(runDir, "pipeline-result.json")
-	// #nosec G304 -- pipelinePath is derived from the recording result's local run directory.
-	if b, err := os.ReadFile(pipelinePath); err == nil {
+	if b, err := rooted.ReadFile(pipelinePath); err == nil {
 		var ref pipelineResultRef
 		if err := json.Unmarshal(b, &ref); err != nil {
 			return "", fmt.Errorf("parse %s: %v", pipelinePath, err)
@@ -70,8 +71,7 @@ func discoverKillPlanPath(recordingResultPath string) (string, error) {
 }
 
 func readKillPlan(path string) (killplan.Plan, error) {
-	// #nosec G304 -- kill plan path is an explicit local CLI/config input.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return killplan.Plan{}, err
 	}

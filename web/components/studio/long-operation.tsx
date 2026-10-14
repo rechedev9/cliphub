@@ -13,7 +13,6 @@ const TONE_FILL_CLASS = {
   stream: 'bg-stream',
 } as const satisfies Record<LongOperationTone, string>;
 
-/** Elapsed clock (01:30). */
 function formatElapsed(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
@@ -35,7 +34,6 @@ export type LongOperationProps = {
   className?: string;
 };
 
-/** Shared capture/render/stream progress: stage, bar, elapsed. `aria-live="polite"`. */
 export function LongOperation({
   stage,
   detail,
@@ -56,9 +54,7 @@ export function LongOperation({
       className={cn('flex flex-col gap-2', className)}
     >
       <div className="flex items-baseline justify-between gap-3">
-        {/* Template literal, not cn(): tailwind-merge reads a custom `--text-*`
-            key as a colour and would drop `text-meta` behind the tone class. */}
-        <span className={`flex min-w-0 items-center gap-2 font-mono text-meta uppercase ${TONE_TEXT_CLASS[tone]}`}>
+        <span className={cn('flex min-w-0 items-center gap-2 font-mono text-meta uppercase', TONE_TEXT_CLASS[tone])}>
           {complete ? (
             <svg viewBox="0 0 16 16" className="size-3 shrink-0" aria-hidden>
               <path className="studio-op-check-path" d="M3.5 8.5 6.5 11.5 12.5 4.5" />
