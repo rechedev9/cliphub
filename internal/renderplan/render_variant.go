@@ -14,33 +14,38 @@ const (
 	RenderVariantStatusQueued    = "queued"
 	RenderVariantStatusRendering = "rendering"
 	RenderVariantStatusReady     = "ready"
-	// RenderVariantStatusReview is legacy: renders with QA warnings used to wait
-	// for a human sign-off. Warnings are now informational; stored states with
-	// this status are promoted to ready when read.
-	RenderVariantStatusReview = "review_required"
 	RenderVariantStatusFailed    = "failed"
+	legacyReviewStatus           = "review_required"
 )
+
+func IsLegacyReviewStatus(status string) bool {
+	return status == legacyReviewStatus
+}
+
+func IsReadyStatus(status string) bool {
+	return status == RenderVariantStatusReady || status == legacyReviewStatus
+}
 
 // RenderVariantState is the durable product-level state for one materialized
 // output variant. It intentionally stores artifact keys, not local paths.
 type RenderVariantState struct {
-	FullDemo          *recapplan.Snapshot     `json:"full_demo,omitempty"`
-	SchemaVersion     string                  `json:"schema_version"`
-	JobID             uuid.UUID               `json:"job_id"`
-	Variant           string                  `json:"variant"`
-	Status            string                  `json:"status"`
-	Preset            string                  `json:"preset,omitempty"`
-	EditDocumentKey   string                  `json:"edit_document_key,omitempty"`
-	EditManifestKey   string                  `json:"edit_manifest_key,omitempty"`
-	RenderResultKey   string                  `json:"render_result_key,omitempty"`
-	PackManifestKey   string                  `json:"pack_manifest_key,omitempty"`
-	GalleryKey        string                  `json:"gallery_key,omitempty"`
-	PublishSummaryKey string                  `json:"publish_summary_key,omitempty"`
-	ArtifactPrefix    string                  `json:"artifact_prefix,omitempty"`
-	Warnings          []string                `json:"warnings,omitempty"`
-	Error             string                  `json:"error,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	UpdatedAt         time.Time               `json:"updated_at"`
+	FullDemo          *recapplan.Snapshot `json:"full_demo,omitempty"`
+	SchemaVersion     string              `json:"schema_version"`
+	JobID             uuid.UUID           `json:"job_id"`
+	Variant           string              `json:"variant"`
+	Status            string              `json:"status"`
+	Preset            string              `json:"preset,omitempty"`
+	EditDocumentKey   string              `json:"edit_document_key,omitempty"`
+	EditManifestKey   string              `json:"edit_manifest_key,omitempty"`
+	RenderResultKey   string              `json:"render_result_key,omitempty"`
+	PackManifestKey   string              `json:"pack_manifest_key,omitempty"`
+	GalleryKey        string              `json:"gallery_key,omitempty"`
+	PublishSummaryKey string              `json:"publish_summary_key,omitempty"`
+	ArtifactPrefix    string              `json:"artifact_prefix,omitempty"`
+	Warnings          []string            `json:"warnings,omitempty"`
+	Error             string              `json:"error,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
 }
 
 type NewRenderVariantStateOptions struct {
