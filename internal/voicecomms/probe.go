@@ -58,7 +58,7 @@ func collectContext(ctx context.Context, p demoinfocs.Parser, target, demoPath s
 		collectionErr  error
 		collectedBytes int64
 		lastPacketTick int
-)
+	)
 	lastSeen := map[string]Sighting{}
 	recordSighting := func(s Sighting) {
 		previous, ok := lastSeen[s.SteamID64]

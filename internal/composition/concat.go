@@ -171,7 +171,7 @@ func parseFrameRate(raw string) (float64, bool) {
 // Unix hosts. filepath.ToSlash only rewrites the host separator, which left
 // Windows-style paths unconverted when this runs on Linux/WSL.
 func ConcatFileLine(path string) string {
-	return "file '" + escapeConcatPath(strings.ReplaceAll(path, `\\`, "/")) + "'\\n"
+	return "file '" + escapeConcatPath(strings.ReplaceAll(path, `\`, "/")) + "'\n"
 }
 
 func ConcatList(clips []recording.SegmentClip) string {
