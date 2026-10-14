@@ -28,6 +28,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recordexit"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -41,17 +42,17 @@ func main() {
 	var hookErr *hookIncompatibleError
 	if errors.As(err, &hookErr) {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(exitHookIncompatible)
+		os.Exit(recordexit.HookIncompatible)
 	}
 	var demoErr *demoParseError
 	if errors.As(err, &demoErr) {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(exitDemoIncompatible)
+		os.Exit(recordexit.DemoIncompatible)
 	}
 	var startErr *unplayableStartError
 	if errors.As(err, &startErr) {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(exitUnplayableStart)
+		os.Exit(recordexit.UnplayableStart)
 	}
 	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(1)
@@ -1499,26 +1500,6 @@ func processRunning(image string) (bool, error) {
 	text := strings.TrimSpace(string(out))
 	return strings.Contains(strings.ToLower(text), strings.ToLower(image)), nil
 }
-
-// exitHookIncompatible is the process exit code used when HLAE's injected
-// hook crashes with a native "Error - Afx*" dialog instead of capturing.
-// Keep this in sync with the zv-recorder case in cmd/zv/obs_record.go's
-// shortStageClass, which maps this code to the "capture_incompatible"
-// observability class.
-const exitHookIncompatible = 6
-
-// exitDemoIncompatible is the process exit code used when CS2 cannot replay the
-// demo — playback disconnects with NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR,
-// which almost always means the demo was recorded on an older game build.
-// Keep this in sync with the zv-recorder case in cmd/zv/obs_record.go's
-// shortStageClass, which maps this code to the "demo_incompatible"
-// observability class.
-const exitDemoIncompatible = 7
-
-// exitUnplayableStart is used when CS2 crashes on the playdemo rewind to
-// demo tick 0 (armed@0, no seek-landed, ResetBreakpadAppId). Keep in sync
-// with cmd/zv/obs_record.go shortStageClass.
-const exitUnplayableStart = 8
 
 // hookErrorWindowTitlePattern matches the native MessageBox titles
 // advancedfx's hook modules (AfxHookSource2, AfxHookSource, ...) use when a
