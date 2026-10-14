@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 type Prober interface {
@@ -38,8 +39,7 @@ func (p FFprobeProber) Probe(ctx context.Context, filePath string) (SourceProbe,
 	if p.Path == "" {
 		return SourceProbe{Warnings: []string{"ffprobe not configured"}}, nil
 	}
-	// #nosec G204 -- ffprobe path is local config and args are not shell-expanded.
-	cmd := exec.CommandContext(ctx, p.Path,
+	cmd := argv.CommandContext(ctx, p.Path,
 		"-v", "error",
 		"-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,start_time,duration:format=duration,start_time",
 		"-of", "json",

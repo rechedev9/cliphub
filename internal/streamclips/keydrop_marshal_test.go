@@ -9,10 +9,10 @@ func TestKeyDropBannerMarshalIncludesCustomCode(t *testing.T) {
 	start, end := 0.0, 4.0
 	plan := DefaultEditPlan()
 	plan.KeyDropBanner = KeyDropBannerPlan{
-		Style: "classic",
-		Code:  "CUSTOM123",
+		Style:        "classic",
+		Code:         "CUSTOM123",
 		StartSeconds: &start,
-		EndSeconds: &end,
+		EndSeconds:   &end,
 	}
 	b, err := json.Marshal(NormalizeEditPlan(plan))
 	if err != nil {
