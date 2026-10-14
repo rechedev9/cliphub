@@ -13,9 +13,10 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"strconv"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -79,8 +80,7 @@ func ScanFile(ctx context.Context, path string, opts Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	// #nosec G304 -- the demo path is an explicit local input from the CLI or a job payload.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return Result{}, fmt.Errorf("open demo %q: %w", path, err)
 	}
@@ -409,7 +409,7 @@ func (s *scanner) slotFor(p *common.Player) (uint8, bool) {
 
 func (s *scanner) recordTeamMember(p *common.Player, side tacticalplan.Side) {
 	// A team is identified by the side it started on, because that is the only
-	// identity that survives the half-time swap. Clan names, when the demo has
+// identity that survives the half-time swap. Clan names, when the demo has
 	// them, become the display name.
 	key := teamKeyForStartSide(side, s.half)
 	team, ok := s.teams[key]
