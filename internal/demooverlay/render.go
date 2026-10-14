@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 const mutedColor = "0xA1A1AA"
@@ -302,8 +303,7 @@ func renderStill(ffmpegPath string, req stillRenderRequest) error {
 	}
 	args = append([]string{"-y", "-hide_banner", "-loglevel", "error"}, args...)
 	args = append(args, "-filter_complex_script", scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", req.outPath)
-	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config.
-	cmd := exec.Command(ffmpegPath, args...) //nolint:gosec
+	cmd := argv.Command(ffmpegPath, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
