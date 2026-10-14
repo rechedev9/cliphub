@@ -2025,7 +2025,7 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 			case err == nil:
 				warnings = decoded
 			case renderplan.IsLegacyReviewStatus(stored.Status):
-				warnings = stored.Warnings
+				return stored, true, false, nil
 			default:
 				return nil, false, false, err
 			}
