@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -20,6 +19,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/argv"
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -186,8 +188,7 @@ type commandRunner interface {
 type execCommandRunner struct{}
 
 func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([]byte, error) {
-	// #nosec G204 -- media workers execute configured local binaries with argument slices, not shell strings.
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := argv.CommandContext(ctx, exe, args...)
 	tool := filepath.Base(exe)
 	// Ending the tool alone would leave what it started (ffmpeg, the overlay
 	// renderer, CS2) working against whatever this machine does next.
@@ -695,7 +696,7 @@ func (w *RecordWorker) invalidateReadyRender(id uuid.UUID, variant string) error
 	if err != nil {
 		return fmt.Errorf("read render state %q: %w", variant, err)
 	}
-	if !exists || (state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
+	if !exists || !renderplan.IsReadyStatus(state.Status) {
 		return nil
 	}
 	key, err := renderplan.RenderVariantStateKey(id, variant)
@@ -2131,7 +2132,7 @@ func preserveRenderArtifactPointer(state *renderplan.RenderVariantState, previou
 	if state == nil || previous == nil {
 		return
 	}
-	if previous.Status != renderplan.RenderVariantStatusReady && previous.Status != renderplan.RenderVariantStatusReview {
+	if !renderplan.IsReadyStatus(previous.Status) {
 		return
 	}
 	state.EditDocumentKey = previous.EditDocumentKey
@@ -2766,8 +2767,7 @@ func copyStorageToFile(store storage.Storage, key, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	// #nosec G304 -- path is constructed under the worker stage directory.
-	f, err := os.Create(path)
+	f, err := rooted.Create(path)
 	if err != nil {
 		return err
 	}
@@ -2845,8 +2845,7 @@ func materializeStorageFile(store storage.Storage, key, path string) error {
 }
 
 func uploadFile(store storage.Storage, key, path string) error {
-	// #nosec G304 -- path is produced by recorder/composer stage outputs before upload.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return err
 	}
@@ -3829,8 +3828,7 @@ func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Pla
 	}
 	music := renderMusicInput{Key: musicKey, Available: musicPath != "", Volume: effectiveMusicVolume, GameVolume: gameVolume}
 	if musicPath != "" {
-		// #nosec G304 -- musicPath is the worker-local materialization of a validated durable music artifact.
-		f, err := os.Open(musicPath)
+		f, err := rooted.Open(musicPath)
 		if err != nil {
 			return "", fmt.Errorf("open music: %w", err)
 		}
@@ -3884,7 +3882,7 @@ func renderVariantOutputsReadyContext(ctx context.Context, store storage.Storage
 		}
 		state = &legacy
 	}
-	if state == nil || (state.FullDemo == nil && state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
+	if state == nil || (state.FullDemo == nil && !renderplan.IsReadyStatus(state.Status)) {
 		return false, nil, nil, nil
 	}
 	resultKey := state.RenderResultKey
@@ -4057,8 +4055,7 @@ func localizeSegmentClips(store storage.Storage, id uuid.UUID, workDir string, r
 }
 
 func readJSONFile(path string, dst any) error {
-	// #nosec G304 -- worker JSON paths are generated inside the stage work directory.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return err
 	}
