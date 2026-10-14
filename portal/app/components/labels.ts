@@ -1,3 +1,6 @@
+import { parseActor } from "../../lib/actor.ts";
+import { decodeLeaseLoss, type LeaseLoss } from "../../lib/lease.ts";
+import { decodePause, type StoredPause } from "../../lib/pause.ts";
 import { CLOUD_ACCESS, FAILURE_CODES, JOB_KINDS, STAGES } from "./api-types.ts";
 import type { CloudAccess, FailureCode, JobKind, JobStatus, Stage } from "./api-types.ts";
 import { formatBytes, formatClock, formatDuration } from "./format.ts";
@@ -84,7 +87,6 @@ export function reasonLabel(code: string): string {
 export interface PauseReason {
   label: string;
   detail: string | null;
-  // The job whose failure paused the worker, when the portal named it.
   job: { id: string; title: string } | null;
 }
 
@@ -93,7 +95,6 @@ interface NamedJob {
   rest: string;
 }
 
-// The portal writes an automatic cause as: job <id> "<title>": <raw cause>.
 function namedJob(detail: string): NamedJob {
   const match = /^job (\S+) "([^"]*)":\s*([\s\S]*)$/.exec(detail);
   if (match === null) return { job: null, rest: detail };
@@ -101,15 +102,13 @@ function namedJob(detail: string): NamedJob {
   return { job: { id, title }, rest };
 }
 
-// A pause reason is "<code>: <detail>" when automatic, free text when an operator wrote it.
 export function splitPauseReason(reason: string | null): PauseReason {
-  if (reason === null || reason.trim() === "") return { label: "Sin motivo indicado", detail: null, job: null };
-  const separator = reason.indexOf(":");
-  const code = separator === -1 ? reason.trim() : reason.slice(0, separator).trim();
-  const known = REASON_LABELS[code];
-  if (known === undefined) return { label: reason, detail: null, job: null };
-  const { job, rest } = namedJob(separator === -1 ? "" : reason.slice(separator + 1).trim());
-  return { label: known, detail: rest === "" ? null : rest, job };
+  const pause = decodePause(reason);
+  if (pause === null) return { label: "Sin motivo indicado", detail: null, job: null };
+  if (pause.kind === "note") return { label: pause.text, detail: null, job: null };
+  const known = REASON_LABELS[pause.code];
+  if (known === undefined) return { label: reason ?? pause.code, detail: null, job: null };
+  return { label: known, detail: pause.detail === "" ? null : pause.detail, job: pause.job };
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -150,8 +149,18 @@ function codeLabel(code: string): string {
   return failure === undefined ? reasonLabel(code) : FAILURE_LABELS[failure];
 }
 
-// Why the portal took a job away from its worker, as lostCause writes it in queue-store.
+function leasePhrase(loss: LeaseLoss): string {
+  if (loss.kind === "expired") {
+    const at = Date.parse(loss.at);
+    return Number.isNaN(at) ? loss.at : `su reserva caducó a las ${formatClock(at)}`;
+  }
+  const doing = loss.phase === "running" ? "en curso" : "subiendo resultados";
+  return `seguía ${doing} pasado su límite de ${formatDuration(loss.limitSeconds)}`;
+}
+
 function leaseText(detail: string): string {
+  const loss = decodeLeaseLoss(detail);
+  if (loss !== null) return leasePhrase(loss);
   const limit = /^(running|uploading) past its limit of (\d+) s$/.exec(detail);
   if (limit !== null) {
     const doing = limit[1] === "running" ? "en curso" : "subiendo resultados";
@@ -162,8 +171,21 @@ function leaseText(detail: string): string {
   return Number.isNaN(at) ? detail : `su reserva caducó a las ${formatClock(at)}`;
 }
 
-// "<code>: <raw cause>" with the code translated; free text passes through untouched.
+function formatAutoPause(pause: Extract<StoredPause, { kind: "auto" }>): string {
+  const label = codeLabel(pause.code);
+  if (pause.job !== null) {
+    return pause.detail === "" ? `${label}: en "${pause.job.title}"` : `${label}: en "${pause.job.title}": ${pause.detail}`;
+  }
+  return pause.detail === "" ? label : `${label}: ${leaseText(pause.detail)}`;
+}
+
 function causeText(detail: string): string {
+  const trimmed = detail.trim();
+  if (trimmed.startsWith("{")) {
+    const pause = decodePause(trimmed);
+    if (pause?.kind === "note") return pause.text;
+    if (pause?.kind === "auto") return formatAutoPause(pause);
+  }
   const separator = detail.indexOf(": ");
   if (separator === -1) return codeLabel(detail);
   const { job, rest } = namedJob(detail.slice(separator + 2));
@@ -223,10 +245,11 @@ export function eventDetailText(type: string, detail: string | null): string | n
 }
 
 export function actorLabel(actor: string): string {
-  if (actor === "system") return "Sistema";
-  if (actor.startsWith("worker:")) return "Worker";
-  if (actor.startsWith("admin:")) return "Operador";
-  if (actor.startsWith("user:")) return "Usuario";
+  const parsed = parseActor(actor);
+  if (parsed?.kind === "system") return "Sistema";
+  if (parsed?.kind === "worker") return "Worker";
+  if (parsed?.kind === "admin") return "Operador";
+  if (parsed?.kind === "user") return "Usuario";
   return actor;
 }
 
