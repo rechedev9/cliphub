@@ -38,8 +38,8 @@ const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
 ];
 
 const transitionItems: Array<{ value: EditConfig['transition']; label: string }> = [
-  { value: 'flash', label: 'Destello' },
   { value: 'cut', label: 'Corte' },
+  { value: 'flash', label: 'Destello' },
   { value: 'whip', label: 'Barrido' },
   { value: 'dip', label: 'Fundido' },
   { value: 'glitch', label: 'Glitch' },
@@ -410,9 +410,7 @@ function BookendTextField({
           {near ? (
             <span
               className={cn(
-                // [font-size:…] not `text-meta`: tailwind-merge files an unknown
-                // `text-*` under text-COLOUR, so the step would lose to text-fg-3.
-                'font-mono [font-size:var(--text-meta)] tabular-nums text-fg-3',
+                'font-mono text-meta tabular-nums text-fg-3',
                 value.length >= BOOKEND_TEXT_MAX_LENGTH && 'text-destructive',
               )}
             >
