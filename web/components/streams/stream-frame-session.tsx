@@ -55,7 +55,6 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     const host = hostRef.current;
     if (!host) return;
     const video = document.createElement('video');
-    // A paused editor still needs decoded pixels, not just duration and dimensions.
     video.preload = 'auto';
     video.playsInline = true;
     video.width = 1;
@@ -66,8 +65,6 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     let playGeneration = 0;
     let playPending = false;
     let clipIndex = -1;
-    // Set when playback ran out of cuts. The last cut stays applied so the clock
-    // keeps the full duration; the next play restarts a finished sequence.
     let playbackEnded = false;
     let playbackClipId: string | null = null;
     let videoPlaying = false;
@@ -130,7 +127,6 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       if (!clip || start === clipIndex) return;
       clipIndex = start;
       rangeKey = clipRangeKey(current.mode, clip);
-      // The cut and its start go out in one tick so the clock never shows the new cut at the old position.
       applyClip();
       session.seek(clip.start_seconds);
       mixer.sync(clip.start_seconds, false);
@@ -182,9 +178,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       },
       seek: (seconds) => {
         const current = latest.current;
-        // In a sequence the Short under the new position becomes the one playing.
         const under = current.mode === STREAM_PLAYBACK_MODE.sequence ? streamClipIndexAt(current.clips, seconds) : -1;
-        // A scrub onto a Short resumes there; off every Short, play still restarts a finished sequence.
         if (under >= 0) playbackEnded = false;
         if (under >= 0 && under !== clipIndex) {
           clipIndex = under;

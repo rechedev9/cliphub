@@ -10,11 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
 
-/**
- * Background music and the viral grade. The music bed is mixed under the
- * streamer's own audio at render time, so the gain presets here are the same
- * three the plan stores — the slider-free choice is deliberate.
- */
 export function StreamMusicCard({
   songs,
   musicKey,

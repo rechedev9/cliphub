@@ -18,7 +18,6 @@ const ICON_CLASS = {
   lg: 'size-6',
 } as const satisfies Record<IconTileSize, string>;
 
-/** The tone colours the edge and the glyph only; depth owns the fill. */
 const TONE_CLASS = {
   neutral: 'border-border-strong text-fg-2',
   primary: 'border-primary/45 text-primary',
@@ -28,12 +27,6 @@ const TONE_CLASS = {
   stream: 'border-stream/45 text-stream-text',
 } as const satisfies Record<IconTileTone, string>;
 
-/**
- * Depth comes from the surface ramp, not from a shadow. `shadow-inner` on a
- * near-black tile produced no pixels at all (audit B3); a step *down* the ramp
- * to the well surface reads as recessed on its own, and survives the efficiency
- * profile because it is a colour, not a blur.
- */
 const DEPTH_CLASS = {
   raised: 'bg-surface-3 shadow-sm',
   inset: 'bg-surface-0',
@@ -49,7 +42,6 @@ export type IconTileProps = {
   className?: string;
 };
 
-/** Square glyph plate: the shared shape behind every "this is what this is" icon. */
 export function IconTile({
   icon: Icon,
   size = 'md',

@@ -9,13 +9,6 @@ const ASPECT_CLASS = {
   '1:1': 'aspect-square',
 } as const satisfies Record<MediaFrameAspect, string>;
 
-/**
- * Grid cap for a portrait frame. At a 260px library column a true 9:16 frame is
- * 462px tall and the card lands past 750px — taller than half the workspace, and
- * it strands the row's shorter siblings in dead space. Capping the height keeps
- * the frame unambiguously portrait (still ~1.35:1) while the format badge states
- * the exact shape, so nothing is misrepresented.
- */
 const CAPPED_ASPECT_CLASS = {
   '16:9': 'aspect-video',
   '9:16': 'aspect-[9/16] max-h-[22rem]',
@@ -44,20 +37,11 @@ export type MediaFrameProps = {
   footer?: ReactNode;
   /** Actions revealed on hover — always keyboard-reachable, always on for touch. */
   actions?: ReactNode;
-  /** Bottom-up gradient so overlaid text keeps its contrast against the media. */
   scrim?: boolean;
-  /** Fine CRT pitch overlay. */
   scanline?: boolean;
   className?: string;
 };
 
-/**
- * The shared media box: aspect, cover fallback, corner slots, scrim and a hover
- * action layer. The action layer fades with opacity rather than unmounting, so
- * the buttons stay in the tab order and `group-focus-within` reveals them for
- * keyboard users; `(hover: none)` pins them visible because a touch device has
- * no hover to reveal them with.
- */
 export function MediaFrame({
   aspect = '16:9',
   capHeight = false,

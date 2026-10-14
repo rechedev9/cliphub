@@ -17,7 +17,6 @@ const OPTIONS = [
   { value: CAPTURE_TARGET.cloud, icon: Cloud },
 ] as const;
 
-/** Same selected and idle recipe as the format bar, so both choices read as one family. */
 const ITEM_CLASS = {
   selected: 'border-primary bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
   idle: 'border-border-subtle bg-transparent font-medium text-fg-3 hover:border-border-strong hover:bg-surface-3 hover:text-fg-1',
@@ -37,7 +36,6 @@ export type CaptureTargetControlProps = {
   disabled?: boolean;
 };
 
-/** "Dónde grabar": this PC or the ClipHub cloud, with one status line for the selected option. */
 export function CaptureTargetControl({ view, onPick, onLink, disabled = false }: CaptureTargetControlProps): ReactNode {
   return (
     <div data-slot="capture-target" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">

@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- system ---- */
 
 int system_report(ctx_t *ctx, jw_t *w)
 {
@@ -50,7 +49,6 @@ int cmd_system(ctx_t *ctx, int argc, char **argv, jw_t *w)
 	return system_report(ctx, w);
 }
 
-/* ---- procs ---- */
 
 /* Image names (lowercase, no .exe) that belong to ClipHub's runtime. */
 static const struct {
@@ -420,7 +418,6 @@ int cmd_procs(ctx_t *ctx, int argc, char **argv, jw_t *w)
 	return procs_report(ctx, w, seconds, interval, pid, extra, nextra);
 }
 
-/* ---- run ---- */
 
 int cmd_run(ctx_t *ctx, int argc, char **argv, jw_t *w)
 {
@@ -555,7 +552,6 @@ int cmd_run(ctx_t *ctx, int argc, char **argv, jw_t *w)
 	return 0;
 }
 
-/* ---- http ---- */
 
 typedef struct {
 	char host[64];

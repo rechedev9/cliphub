@@ -22,9 +22,6 @@ const TACTICAL_SCHEMA_VERSION = '1.0';
  */
 export const MIN_RELIABLE_SAMPLE = 4;
 
-/* -------------------------------------------------------------------------- */
-/* Closed vocabularies                                                        */
-/* -------------------------------------------------------------------------- */
 
 /** The two playing sides. Spectators never appear in a tactical document. */
 export const TACTICAL_SIDES = { ct: 'CT', t: 'T' } as const;
@@ -182,9 +179,6 @@ export const TACTICAL_MAX_SAMPLE_HZ = 64;
 /** Body field of the start request that selects the sampling rate. */
 export const TACTICAL_SAMPLE_HZ_FIELD = 'sample_hz';
 
-/* -------------------------------------------------------------------------- */
-/* Position blob layout (zvpos1)                                              */
-/* -------------------------------------------------------------------------- */
 
 /** Sidecar blob layout name (`tacticalplan.PositionsFormat`). */
 export const POSITIONS_FORMAT = 'zvpos1';
@@ -222,9 +216,6 @@ export function hasSampleFlags(flags: number, mask: number): boolean {
   return (flags & mask) === mask;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Document                                                                   */
-/* -------------------------------------------------------------------------- */
 
 /** The top-level tactical analysis of one demo (`tacticalplan.Document`). */
 export type TacticalDocument = {
@@ -386,9 +377,6 @@ export type TacticalEvent = {
   opening?: boolean;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Geometry and radar calibration                                             */
-/* -------------------------------------------------------------------------- */
 
 /**
  * The drawable map (`tacticalplan.MapGeometry`), derived from play rather than
@@ -448,9 +436,6 @@ export type RadarBounds = {
   max_y: number;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Positions sidecar                                                          */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Describes the sidecar blob (`tacticalplan.Positions`): how it was sampled,
@@ -503,9 +488,6 @@ export type TacticalFrame = {
   samples: TacticalSample[];
 };
 
-/* -------------------------------------------------------------------------- */
-/* Filter, aggregate, status                                                  */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Selects rounds (`tacticalplan.Filter`). Fields compose with AND; values inside
@@ -693,9 +675,6 @@ export type TacticalStatus = {
   error?: string;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Proxy-route response whitelists                                            */
-/* -------------------------------------------------------------------------- */
 
 /** Top-level keys the tactical document proxy forwards. */
 export const TACTICAL_DOCUMENT_KEYS: readonly string[] = [
@@ -739,9 +718,6 @@ export const TACTICAL_TENDENCIES_KEYS: readonly string[] = [
   'players',
 ];
 
-/* -------------------------------------------------------------------------- */
-/* Same-origin addressing                                                     */
-/* -------------------------------------------------------------------------- */
 
 /** Base path of the demo proxy routes; the orchestrator is never addressed directly. */
 const TACTICAL_API_BASE = '/api/demos';
@@ -793,9 +769,6 @@ export function tacticalFilterParams(filter: TacticalFilter): URLSearchParams {
 /** A byte range of the positions blob, inclusive of both ends, as HTTP Range is. */
 export type TacticalByteRange = { start: number; endInclusive: number };
 
-/* -------------------------------------------------------------------------- */
-/* Typed fetches                                                              */
-/* -------------------------------------------------------------------------- */
 
 /** Throws an Error carrying any upstream `code` for a non-2xx proxy response. */
 async function throwResponseError(res: Response): Promise<never> {

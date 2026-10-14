@@ -28,10 +28,6 @@ function browserStorage(): Storage | null {
   }
 }
 
-/**
- * Studio tour: one layer over the shell that walks every section. Opens by
- * itself once on a fresh install, and again from the command strip's "Guía".
- */
 export function AppTour(): ReactElement {
   const state = useSyncExternalStore(subscribeToAppTour, appTourSnapshot, serverAppTourSnapshot);
   const last = TOUR_CHAPTERS.length - 1;
@@ -48,7 +44,6 @@ export function AppTour(): ReactElement {
   }, [state.telemetryNotice]);
 
   const close = (): void => {
-    // Any exit counts: a tour dismissed on chapter two is still a tour seen.
     markTourSeen(browserStorage(), Date.now());
     closeAppTour();
   };
@@ -115,7 +110,6 @@ function ChapterPanel({
   return (
     <div className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col md:max-h-[min(640px,calc(100dvh-2rem))]">
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-5 md:px-8 md:pt-8">
-        {/* Below md the chapter rail is hidden, so the dialog title moves here. */}
         <p className="mb-3 font-mono text-meta uppercase tracking-widest text-fg-3 md:hidden">{TOUR_TITLE}</p>
         <div aria-live="polite">
           <p className="font-mono text-meta uppercase tracking-widest text-primary">

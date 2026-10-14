@@ -158,7 +158,6 @@ function BoundInput({
   value: number | undefined;
   max: number;
   placeholder: string;
-  /** Which outer corners this cell keeps, so the two bounds read as one plate. */
   edgeClassName: string;
   onChange: (next: number | undefined) => void;
 }): ReactNode {
@@ -255,8 +254,6 @@ export function TacticalFilterBar({
     filter.tags?.length,
     filter.slots?.length,
   ].filter((count) => count !== undefined && count > 0).length;
-  // Opened by a pasted URL that already carries advanced constraints, and left
-  // under the user's control from then on.
   const [advancedOpen, setAdvancedOpen] = useState(advancedCount > 0);
 
   // An undefined value means "no constraint": the serializer skips it, so the
@@ -266,17 +263,11 @@ export function TacticalFilterBar({
   };
 
   return (
-    // shadow-md maps onto --elev-2, so the control rail sits one step above the
-    // --elev-1 content panels it filters. .studio-panel owns the radius.
     <section
       className="studio-panel px-5 py-5 shadow-md sm:px-6 sm:py-6"
       aria-label="Filtros de rondas"
     >
       <div className="flex flex-col gap-5">
-        {/* One wrapping rail, not two nested flex containers: two levels can
-            never share a line, so the counter was always pushed onto a third,
-            otherwise empty band. Flat, every group is a sibling and the rail
-            wraps once. */}
         <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
           {teamOptions.length > 0 ? (
             <SingleChips
@@ -309,23 +300,7 @@ export function TacticalFilterBar({
             onChange={(phase) => patch({ phase })}
           />
 
-          {/* Range, readout and reset are one scope group: how much of the
-              match, and what that left. They stay in ONE flex item so the
-              counter can never be pushed onto a line of its own, and that item
-              GROWS instead of taking an ml-auto: an auto margin would pin the
-              whole group to the right end of its line, leaving the rail's left
-              two thirds empty. Growing plus justify-between spends the same
-              free space between the fields and the actions, so the plate keeps
-              the rail's left edge (under EQUIPO) and the counter stays flush
-              right. items-end bottom-aligns the labelled plate with the counter
-              cluster, which keeps its own items-center so the readout stays
-              centred on LIMPIAR. */}
           <div className="flex grow flex-wrap items-end justify-between gap-x-8 gap-y-4">
-            {/* One plate, not two boxes: 160px of two 80px cells sharing a
-                single hairline (the joined recipe from toggle-group.tsx), each
-                showing the bound it already declares in min/max as a
-                placeholder, so an unset window reads "1 | 19" instead of as two
-                empty voids. */}
             <div className="flex w-40 shrink-0">
               <BoundInput
                 label="Desde"
@@ -353,9 +328,6 @@ export function TacticalFilterBar({
                 variant="outline"
                 onClick={() => onChange({})}
                 disabled={tacticalFilterCount(filter) === 0}
-                // The outline variant already ships a measured disabled recipe
-                // (--surface-2 + --fg-3, the AA floor); the base opacity-50 was
-                // compositing that floor down to ~2:1.
                 className="font-mono text-meta tracking-wider disabled:opacity-100"
               >
                 <FilterX aria-hidden />

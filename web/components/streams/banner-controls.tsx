@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
 
-/** Magenta accent for every range input in the stream editor. */
 export const STREAM_SLIDER_CLASS = 'min-h-10 w-full accent-stream disabled:opacity-50';
 
 /**

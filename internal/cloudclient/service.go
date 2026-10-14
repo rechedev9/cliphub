@@ -341,7 +341,6 @@ func (s *Service) nudge() {
 	}
 }
 
-// ---- account and link ----
 
 // LinkView is a device link in progress, or how the last one ended.
 type LinkView struct {
@@ -628,7 +627,6 @@ func (s *Service) portalError(err error) error {
 	}
 }
 
-// ---- submit ----
 
 // SubmitInput is the body of POST /api/cloud/jobs: the local job plus what
 // the UI would send to the local generate endpoint.
@@ -816,7 +814,6 @@ func objectOrNull(raw json.RawMessage, allowKey bool) (json.RawMessage, error) {
 	}
 }
 
-// ---- demo upload ----
 
 func (s *Service) startDemoUpload(cloudJobID string) {
 	ctx, cancel := context.WithCancel(s.background())
@@ -1062,7 +1059,6 @@ func (s *Service) clearPercent(cloudJobID string) {
 	delete(s.percent, cloudJobID)
 }
 
-// ---- jobs ----
 
 // LocalQueue is where a queued job stands. Times are RFC 3339.
 type LocalQueue struct {
@@ -1333,7 +1329,6 @@ func (s *Service) resultsPath(cloudJobID string) (string, error) {
 	return filepath.Join(s.resultsDir, parsed.String()), nil
 }
 
-// ---- sync ----
 
 var videoNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.mp4$`)
 

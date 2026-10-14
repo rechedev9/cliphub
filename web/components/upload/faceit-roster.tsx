@@ -27,7 +27,6 @@ function levelTone(level: number): string {
   return 'text-fg-2';
 }
 
-/** FACEIT's level gauge: a ring filled to level/10 around the level number. */
 export function FaceitLevel({ level, size = 26 }: { level?: number; size?: number }): ReactNode {
   const r = 10;
   const circumference = 2 * Math.PI * r;
@@ -104,8 +103,6 @@ const GRID_CLASS =
 const HEAD_TIER = ['', 'hidden @[48rem]/content:block', 'hidden @[62rem]/content:block'] as const;
 const CELL_TIER = ['flex', 'hidden @[48rem]/content:flex', 'hidden @[62rem]/content:flex'] as const;
 
-// FACEIT tells the two factions apart by colour; the theme's cyan and green
-// keep that without borrowing FACEIT's palette.
 const TEAM_TINTS = [
   { cell: 'bg-primary/12', bar: 'bg-primary' },
   { cell: 'bg-success/10', bar: 'bg-success' },

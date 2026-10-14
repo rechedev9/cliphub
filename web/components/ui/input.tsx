@@ -9,10 +9,6 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        // --border-strong (4.01:1 on a panel) is the WCAG 1.4.11 boundary for a
-        // control. The --input token it replaces measured 1.44:1, i.e. a field
-        // was a borderless rectangle. --elev-0 adds the 1px bevel so the field
-        // reads as recessed rather than as a flat patch of a lighter navy.
         "h-11 w-full min-w-0 rounded-md border border-border-strong bg-surface-3 px-3.5 py-2 text-base text-fg-1 shadow-[var(--elev-0)] md:text-body",
         "transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard",
         "selection:bg-primary selection:text-primary-foreground placeholder:text-fg-3",

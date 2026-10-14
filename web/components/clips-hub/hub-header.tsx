@@ -6,7 +6,6 @@ import { NEW_DEMO_HREF, type HubLens } from '@/lib/clips/routes';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 
-/** The H1 names what is on screen: the clips lens lists outputs, not partidas. */
 const LENS_COPY = {
   partidas: { title: HUB_TITLE, description: HUB_DESCRIPTION },
   clips: {
@@ -19,7 +18,6 @@ export type HubHeaderProps = {
   lens: HubLens;
 };
 
-/** Hub title block: the one primary door, Cargar demo, lives here rather than in the strip. */
 export function HubHeader({ lens }: HubHeaderProps): ReactNode {
   const copy = LENS_COPY[lens];
   return (

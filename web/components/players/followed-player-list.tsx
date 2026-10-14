@@ -37,7 +37,6 @@ export function FollowedPlayerList({ players, tab, onTabChange, selectedID, onSe
   }
 
   return (
-    // Sticky beside the long history on wide layouts, so switching player never needs a scroll back up.
     <section className="studio-panel min-w-0 self-start overflow-hidden @[64rem]/content:sticky @[64rem]/content:top-[calc(var(--shell-strip-height)+1.5rem)]"
       aria-labelledby="followed-players-heading">
       <Tabs value={tab} onValueChange={(value) => onTabChange(value as PlayerTab)} className="gap-0">
@@ -64,7 +63,6 @@ export function FollowedPlayerList({ players, tab, onTabChange, selectedID, onSe
           </div>
         </div>
         <TabsContent value={tab}>
-          {/* Sticky, the rail must also fit a short window: past 9 rows or the viewport, whichever is lower, the list scrolls. */}
           <nav aria-label={`Jugadores ${label}`} className="max-h-[calc(4*4rem+1px)] overflow-y-auto overscroll-contain border-t border-border @[64rem]/content:max-h-[min(calc(9*4rem+1px),calc(100dvh_-_var(--shell-strip-height)_-_11rem))]">
             {filtered.map((player) => (
               <button key={player.id} type="button" onClick={() => onSelect(player.id)}

@@ -141,7 +141,6 @@ int plat_is_dir(const char *path)
 	return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-/* ---- processes ---- */
 
 int plat_proc_list(proc_entry_t **out, size_t *n)
 {
@@ -214,7 +213,6 @@ int plat_system_cpu(uint64_t *busy, uint64_t *total)
 	return 0;
 }
 
-/* ---- run ---- */
 
 /* Quote one argument by the MSVCRT CommandLineToArgvW rules. */
 static void quote_arg(sb_t *sb, const char *a)
@@ -399,7 +397,6 @@ int plat_run(char **argv, long timeout_s, int keep_full, run_result_t *r)
 	return 0;
 }
 
-/* ---- sockets ---- */
 
 int plat_net_init(void)
 {

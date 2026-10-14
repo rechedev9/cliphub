@@ -79,7 +79,6 @@ func fakeVideo(seed string, size int) []byte {
 	return video[:max(size, 12)]
 }
 
-// ---- portal ----
 
 type portalArtifact struct {
 	id       string
@@ -456,7 +455,6 @@ func (p *fakePortal) jobStatus(id string) string {
 	return ""
 }
 
-// ---- local pipeline ----
 
 type fakeLocalJob struct {
 	id            string
@@ -648,7 +646,6 @@ func (f *fakeLocal) count() int {
 	return len(f.jobs)
 }
 
-// ---- machine ----
 
 type fakeMachine struct {
 	mu     sync.Mutex
@@ -682,7 +679,6 @@ func (m *fakeMachine) CS2Running(context.Context) (bool, error) {
 	return m.cs2, nil
 }
 
-// ---- harness ----
 
 type harness struct {
 	t       *testing.T

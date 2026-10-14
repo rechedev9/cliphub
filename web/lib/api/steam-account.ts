@@ -84,9 +84,6 @@ async function read(res: Response): Promise<AccountResponse> {
   return (await res.json().catch(() => ({}))) as AccountResponse;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Client-side validation                                                      */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Every rule below mirrors what the orchestrator enforces on PUT
@@ -185,9 +182,6 @@ export function validateSteamAccountInput(
   return errors;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Server error copy                                                           */
-/* -------------------------------------------------------------------------- */
 
 export type SteamAccountAction = 'load' | 'save' | 'sync' | 'clear';
 

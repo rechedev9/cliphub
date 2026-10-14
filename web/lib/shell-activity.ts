@@ -3,7 +3,6 @@ import type { Match, Video } from './api/types.ts';
 import type { CloudJob } from './cloud/parse.ts';
 import { cloudJobViewOn, type CloudDevice } from './cloud/view.ts';
 
-/** Live jobs for the command-strip transport and the html capture-active gate. */
 
 /** Mirrors `capturing` onto <html>; the CSS depth/animation gates key off it. */
 export const CAPTURE_ACTIVE_ATTRIBUTE = 'data-capture-active';

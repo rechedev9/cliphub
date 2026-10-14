@@ -14,7 +14,6 @@ export type StudioEmptyStateProps = {
   className?: string;
 };
 
-/** Bounded empty panel: 760px max, centered in the remaining content area. */
 export function StudioEmptyState({
   icon,
   title,

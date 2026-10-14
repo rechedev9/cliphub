@@ -22,7 +22,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type RowAction = 'cancel' | 'remove';
 
-/** The question asked before an action that gives something up; the consequence itself comes from the job view. */
 const CONFIRM_COPY = {
   cancel: { title: '¿Cancelar este vídeo?', confirm: 'Cancelar vídeo', keep: 'Seguir esperando' },
   remove: { title: '¿Quitar este vídeo?', confirm: 'Quitar', keep: 'Conservar' },
@@ -81,7 +80,6 @@ function playbackItem(job: CloudJob, name: string): MediaPlaybackItem {
     jobId: job.id,
     variant,
     artifactName: name,
-    // A cloud job's files are written once, so the job id is a stable revision.
     revision: `cloud:${job.id}`,
     title: job.title,
     format: job.kind === 'full_demo' ? '16:9' : '9:16',
@@ -96,12 +94,10 @@ export type CloudOutputItemProps = {
   onChange: () => void;
 };
 
-/** One cloud job in the hub: where it stands in the cloud and, when done, the video on this PC. */
 function CloudOutputItemCard({ job, onChange }: CloudOutputItemProps): ReactNode {
   const linked = cloudDeviceLinked(useCloudAccount());
   const view = cloudJobViewOn(job, { now: Date.now(), linked });
   const [pending, setPending] = useState<RowAction | null>(null);
-  // The question stays set while the dialog closes, so its text does not change mid-animation.
   const [confirm, setConfirm] = useState<{ action: RowAction; warning: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -133,7 +129,6 @@ function CloudOutputItemCard({ job, onChange }: CloudOutputItemProps): ReactNode
       .finally(settle);
   }
 
-  /** Acts at once when nothing is lost; otherwise asks first, naming what is. */
   function request(action: RowAction, warning: string | null): void {
     if (warning === null) {
       if (action === 'cancel') cancel();
@@ -188,7 +183,6 @@ function CloudOutputItemCard({ job, onChange }: CloudOutputItemProps): ReactNode
           )}
         </span>
 
-        {/* Always its own line: up to three labelled actions would squeeze the title out of a half-width column. */}
         <span className="flex w-full flex-wrap items-center gap-1.5">
           {first !== undefined ? (
             <Button
@@ -246,7 +240,6 @@ function CloudOutputItemCard({ job, onChange }: CloudOutputItemProps): ReactNode
       {first !== undefined ? (
         <MediaPlayer items={items} activeId={first.id} open={playerOpen} onOpenChange={setPlayerOpen} returnFocus={returnFocus} />
       ) : null}
-      {/* Stays mounted while open so the dialog can say the link worked. */}
       {view.needsLink || linkOpen ? <CloudLinkDialog open={linkOpen} onOpenChange={setLinkOpen} /> : null}
       {confirm !== null ? (
         <Dialog
@@ -282,10 +275,8 @@ function CloudOutputItemCard({ job, onChange }: CloudOutputItemProps): ReactNode
   );
 }
 
-/** The hub rebuilds its lists on every poll, so props compare by value, not identity. */
 export const CloudOutputItem = memo(CloudOutputItemCard, sameHubProps);
 
-/** Saves a cloud video through the browser download, then offers the folder once the desktop saw it land. */
 function SaveVideo({ jobId, name, title, labelled }: { jobId: string; name: string; title: string; labelled: boolean }): ReactNode {
   const url = cloudApi.videoUrl(jobId, name);
   const [saved, setSaved] = useState(false);

@@ -57,7 +57,6 @@ export function PlayerMatches({ playerID, enabled }: { playerID: string; enabled
     <div className="flex min-w-0 flex-col gap-5 p-4 sm:p-5">
       {error && matches !== null ? <p role="alert" className="text-body-sm text-destructive">No se pudo actualizar el historial. Vuelve a intentarlo con «Actualizar partidas».</p> : null}
       {body}
-      {/* The page's whole purpose as three scannable steps, instead of a sentence in a raised card under the table. */}
       <aside aria-labelledby="match-to-clip-heading" className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-1 p-4 @[56rem]/content:flex-row @[56rem]/content:items-center @[56rem]/content:gap-6">
         <h3 id="match-to-clip-heading" className="shrink-0 text-body-sm font-semibold text-fg-1">De la partida al clip</h3>
         <ol className="flex min-w-0 flex-col gap-2 @[40rem]/content:flex-row @[40rem]/content:items-center @[40rem]/content:gap-3">

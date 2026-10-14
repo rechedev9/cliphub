@@ -13,23 +13,8 @@ import { browserWindowActivity } from '@/lib/window-activity';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const PROFILE_ATTRIBUTE = 'data-performance-profile';
 const EFFICIENCY_PROFILE = 'efficiency';
-/**
- * How long Studio may sit unfocused before the GL context is handed back. Long
- * enough that alt-tabbing to CS2 and straight back costs nothing, short enough
- * that a window left open behind a capture is not holding VRAM for an hour.
- */
 const CONTEXT_RELEASE_MS = 60_000;
 
-/**
- * The volumetric half of the backdrop: a hand-written WebGL depth field drawn
- * behind everything, with the CSS gradients underneath it as both the SSR paint
- * and the permanent fallback when WebGL is unavailable.
- *
- * The lifecycle is a React 19 ref callback with a cleanup return, so mount and
- * unmount are one function and there is no dependency dance. Everything that
- * decides whether to animate lives in `lib/studio-ambient.ts`; this file only
- * reads the four signals and drives the loop.
- */
 export function StudioAmbient(): ReactElement {
   const attach = useCallback((canvas: HTMLCanvasElement | null): (() => void) | undefined => {
     if (canvas === null) return undefined;
@@ -109,9 +94,6 @@ export function StudioAmbient(): ReactElement {
       if (scene.resize(box.width, box.height, window.devicePixelRatio)) sync();
     };
 
-    // `data-window-activity` is mirrored onto <html> by WindowActivityPolicy,
-    // but the store is the authority and fires first; observing the attribute
-    // as well would just draw the same frame twice.
     const attributes = new MutationObserver(sync);
     attributes.observe(root, { attributeFilter: [PROFILE_ATTRIBUTE, CAPTURE_ACTIVE_ATTRIBUTE] });
     const unsubscribe = browserWindowActivity.subscribe(sync);

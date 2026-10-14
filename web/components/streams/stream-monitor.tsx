@@ -18,7 +18,6 @@ type MonitorStyle = CSSProperties & Record<'--monitor-height', string>;
 
 export type StreamCropEditor = { rect: NormalizedRect; disabled: boolean; onChange: (rect: NormalizedRect) => void };
 
-/** Guided source/output monitor backed by the editor's one shared decoder. */
 export function StreamMonitor({
   preview,
   cropEditor,
@@ -56,12 +55,10 @@ export function StreamMonitor({
 }): ReactNode {
   const { hasFrame } = useStreamFrame();
   const sizeId = useId();
-  // Until the user picks a size the views give up height so the transport and the timeline stay on screen.
   const [monitorHeight, setMonitorHeight] = useState<number | null>(null);
   const viewsRef = useRef<HTMLDivElement>(null);
   const [fittedHeight, setFittedHeight] = useState(DEFAULT_MONITOR_HEIGHT);
   const monitorStyle: MonitorStyle = { '--monitor-height': `${monitorHeight ?? DEFAULT_MONITOR_HEIGHT}px` };
-  // While the size is automatic the slider thumb follows the real height, so its first step moves the right way.
   useEffect(() => {
     const views = viewsRef.current;
     if (views === null || monitorHeight !== null) return;
@@ -82,11 +79,7 @@ export function StreamMonitor({
   const statusLabel = statusLabels[status];
 
   return (
-    // `contents`: the rows are items of the Monitor column, which lets the views shrink.
     <div className="contents">
-      {/* Under 640px the two monitors cannot share a row without the 9:16
-          preview clipping past the viewport, so they stack and each takes an
-          explicit height (the preview's cq units need one to resolve). */}
       <div
         ref={viewsRef}
         data-slot="stream-monitor-views"

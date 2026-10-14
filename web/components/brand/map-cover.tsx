@@ -7,11 +7,6 @@ export type MapCoverProps = {
   className?: string;
 };
 
-/**
- * Tiny map still for the Partidas scoreboard. Real cover photos are rare on
- * uploaded demos, so each known map gets its own palette and silhouette instead
- * of the generic horizon plate that made Ancient and Mirage look identical.
- */
 function MapCoverPlate({ map, className }: MapCoverProps): ReactNode {
   const plate = resolveMapPlate(map);
   const skyId = `mc-sky-${plate.id === 'unknown' ? mapPlateKey(map) || 'x' : plate.id}`;
@@ -37,7 +32,6 @@ function MapCoverPlate({ map, className }: MapCoverProps): ReactNode {
   );
 }
 
-/** Pure over its props and on the Partidas poll path: never redraw the glyph for an unchanged map. */
 export const MapCover = memo(MapCoverPlate);
 
 function MapGlyph({ plate }: { plate: MapPlate }): ReactNode {

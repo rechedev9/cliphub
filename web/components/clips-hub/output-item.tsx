@@ -57,7 +57,6 @@ type OutputActionsProps = OutputItemProps & {
   compact?: boolean;
 };
 
-/** One Short or Full POV inside an open partida row. */
 function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNode {
   const { video } = output;
   const isShort = output.type === OUTPUT_TYPE.short;
@@ -140,7 +139,6 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
   );
 }
 
-/** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const OutputItem = memo(OutputItemCard, sameHubProps);
 
 function FailureLine({ output }: { output: MatchOutput }): ReactNode {
@@ -150,7 +148,6 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   );
 }
 
-/** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
@@ -227,7 +224,6 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
     );
   }
 
-  // Queue/REC/render: still no result, but the intent must stay removable.
   return (
     <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
       <DeleteVideoButton video={video} onDeleted={onChange} />

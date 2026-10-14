@@ -28,7 +28,6 @@ export type MusicCardProps = {
   onGameVolumeChange: (volume: number) => void;
 };
 
-/** The Short music decision: a track with its mix, explicit "sin música", or still pending. */
 export function MusicCard({ eyebrow = 'Música', ...props }: MusicCardProps): ReactNode {
   return (
     <div className="studio-panel flex flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
@@ -107,7 +106,6 @@ function MusicDecision({
   }
 
   if (decided) {
-    // Choosing a track is the only way out of "sin música"; one action, not two lookalikes.
     return (
       <div className="flex flex-col gap-2">
         <p className="font-display text-body-sm font-semibold uppercase text-fg-1">Sin música</p>

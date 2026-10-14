@@ -59,7 +59,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
       style={TOASTER_STYLE}
-      // Top toasts open under the command strip instead of covering it.
       offset={TOP_OFFSET}
       mobileOffset={TOP_OFFSET}
       toastOptions={{
@@ -84,11 +83,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "[--normal-border:var(--destructive)] [--normal-text:var(--destructive)]",
         },
       }}
-      // Top keeps clear of the sticky footer CTA; centre keeps clear of the right-aligned page actions («Cargar demo»).
       position="top-center"
       closeButton
-      // The list is wider than the card (full width under 600px). Clicks on
-      // the empty list fall through; the card and its close button stay live.
       className="toaster group pointer-events-none"
     />
   )

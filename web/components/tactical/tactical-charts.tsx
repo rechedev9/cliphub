@@ -6,14 +6,6 @@ import type { TacticalHistogram, TacticalRate } from '@/lib/api/tactical';
 import { rateLabel } from '@/lib/tactical-labels';
 import { cn } from '@/lib/utils';
 
-/**
- * The small charts of the tendencies panel, in SVG.
- *
- * One rule runs through all of them: a percentage never appears without the
- * count it came from, and a rate the aggregate flagged as unreliable is drawn
- * hatched and labelled as a small sample instead of as a clean number. A
- * scouting report that hides its denominator is how analysts get misled.
- */
 
 /** Marks a rate the aggregate computed from fewer than MIN_RELIABLE_SAMPLE rounds. */
 export function SmallSampleChip({ className }: { className?: string }): ReactNode {
@@ -21,7 +13,6 @@ export function SmallSampleChip({ className }: { className?: string }): ReactNod
     <span
       title={`Menos de ${MIN_RELIABLE_SAMPLE} rondas: no es una tendencia`}
       className={cn(
-        // The house pair for a tinted chip: edge 45%, fill 10%, square.
         'shrink-0 border border-warning/45 bg-warning/10 px-2 py-0.5 font-mono text-meta uppercase tracking-wider text-warning',
         className,
       )}
@@ -82,14 +73,12 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
   );
 }
 
-/** Bar colour by meaning: share is neutral cyan, a win rate is a result. */
 const RATE_TONE = {
   primary: 'text-primary',
   success: 'text-success',
   muted: 'text-fg-3',
 } as const;
 
-/** One labelled rate: bar plus number, the row every distribution is built from. */
 export function RateRow({
   label,
   rate,
@@ -133,8 +122,6 @@ export function HistogramChart({
   const buckets = histogram.buckets;
   const peak = buckets.reduce((max, bucket) => Math.max(max, bucket.count), 0);
   const span = buckets.length;
-  // The axis runs from zero to the end of the last bucket, so a bar's x is its
-  // share of that span and the chart needs no viewBox scaling to fit its box.
   const axisSeconds = span > 0 ? buckets[span - 1].from_seconds + histogram.bucket_seconds : 0;
   const bucketPct = axisSeconds > 0 ? (histogram.bucket_seconds / axisSeconds) * 100 : 0;
   const medianPct = axisSeconds > 0 ? (histogram.median / axisSeconds) * 100 : 0;

@@ -4,7 +4,6 @@ import { STREAM_VARIANTS, type StreamVariant } from '@/lib/api/streams';
 import { LayoutGlyph } from '@/components/streams/layout-glyph';
 import { cn } from '@/lib/utils';
 
-/** Copy lives in STREAM_VARIANTS so the picker, the step detail and the brief agree. */
 export function StreamLayoutBar({
   variant,
   disabled,

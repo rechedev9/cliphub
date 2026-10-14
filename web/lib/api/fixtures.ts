@@ -90,7 +90,6 @@ export const fixtureMatches: Match[] = [
 
 type PlaySeed = Omit<Play, 'id' | 'matchId'>;
 
-/** Highlight plays keyed by match id; each becomes a "decent play" card. */
 const playSeedsByMatch: Record<string, PlaySeed[]> = {
   'm-inferno': [
     { label: '5K - Pistol round', kind: 'highlight', round: 1, kills: 5, weapon: 'USP-S' },
@@ -115,7 +114,6 @@ const playSeedsByMatch: Record<string, PlaySeed[]> = {
   ],
 };
 
-/** Builds the concrete Play list (with ids) for a given match. */
 export function playsForMatch(matchId: string): Play[] {
   const seeds = playSeedsByMatch[matchId] ?? [];
   return seeds.map((seed, i) => ({

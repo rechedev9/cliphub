@@ -365,7 +365,6 @@ func TestAcquireWorkerIsIdempotentWhenSourceAlreadyExists(t *testing.T) {
 	}
 }
 
-// --- StreamRenderWorker render pass ----------------------------------------
 
 // newReadyStreamJob stores a source artifact and returns the job id together
 // with a one-clip edit plan the render tests can mutate.

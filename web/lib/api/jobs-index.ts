@@ -1,4 +1,3 @@
-// Pure Partidas index: /api/demos/jobs → Matches/series. Status filters stay here.
 
 import type { DemoPlayer, Match, MatchStats } from './types.ts';
 import { MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';

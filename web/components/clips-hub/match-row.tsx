@@ -57,7 +57,6 @@ export type MatchRowProps = {
 
 const NO_CLOUD_JOBS: readonly CloudJob[] = [];
 
-/** One partida: collapsed scoreboard header, expanded Shorts + Full POV columns. */
 function MatchRowCard({ row, open, onToggle, onChange, cloud = NO_CLOUD_JOBS, onCloudChange = onChange }: MatchRowProps): ReactNode {
   const { match, stage, shorts, fulls } = row;
   const { ours, theirs } = parseScore(match.score);
@@ -84,7 +83,6 @@ function MatchRowCard({ row, open, onToggle, onChange, cloud = NO_CLOUD_JOBS, on
       id={matchRowId(match.id)}
       className={cn('studio-panel flex flex-col overflow-hidden', expanded && 'studio-panel-raised')}
     >
-      {/* One gate for the whole row, matching .row-state / .row-actions in globals.css: below it the cluster wraps under the header and nothing is reserved. */}
       <div className="flex w-full flex-wrap items-stretch @[44rem]/content:flex-nowrap">
         <button
           type="button"
@@ -109,9 +107,6 @@ function MatchRowCard({ row, open, onToggle, onChange, cloud = NO_CLOUD_JOBS, on
 
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
-            {/* Each part moves as a whole so a date never splits across lines; only a part wider
-                than the column (an unbroken player name) breaks inside itself. The separator is
-                glued to the part before it, so a wrapped line never starts with a dot. */}
             <span className="text-body-sm text-fg-2">
               {matchMetaParts(match, matchDateLabel(match)).map((part, index, parts) => (
                 <span key={index}>
@@ -167,7 +162,6 @@ function MatchRowCard({ row, open, onToggle, onChange, cloud = NO_CLOUD_JOBS, on
   );
 }
 
-/** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const MatchRow = memo(MatchRowCard, sameHubProps);
 
 /** Terminal failure: the reason stays on the row so the user knows what to do before deleting it. */
@@ -244,7 +238,6 @@ function ReadyHeaderBlock({
           <span className="text-fg-1">{theirs}</span>
         </span>
       ) : null}
-      {/* An empty chip says nothing; the row's CTA carries "nothing yet". */}
       {shorts.length > 0 || fulls[0] !== undefined || cloudCount > 0 ? (
         <span className="flex items-center gap-2">
           {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}

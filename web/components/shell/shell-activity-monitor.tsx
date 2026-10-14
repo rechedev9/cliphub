@@ -26,11 +26,6 @@ function settled<T>(result: PromiseSettledResult<T[]>): T[] {
   return result.status === 'fulfilled' ? result.value : [];
 }
 
-/**
- * Keeps the shell's job state alive on every route and mirrors it onto <html>:
- * `data-capture-active` gates the depth/animation ladder while CS2 + HLAE own the GPU.
- * Defers to any page that already pushed fresh activity (see `lib/shell-activity.ts`).
- */
 export function ShellActivityMonitor(): null {
   useEffect(() => {
     const root = document.documentElement;
@@ -55,9 +50,6 @@ export function ShellActivityMonitor(): null {
             streamsApi.listJobs(),
             cloudApi.jobs(),
           ]);
-          // All three down is an orchestrator blip, not "nothing is running":
-          // publishing here would clear REC and the capture-active gate
-          // mid-capture. Keep the previous snapshot and retry on the fast lane.
           if (
             videos.status === 'rejected' &&
             matches.status === 'rejected' &&

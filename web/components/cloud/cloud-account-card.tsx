@@ -16,7 +16,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const NOTE_CLASS = 'border border-dashed border-border-strong bg-surface-1 px-4 py-3 text-body-sm text-fg-2';
 
-/** Settings card for the ClipHub account that the cloud capture option uses. */
 export function CloudAccountCard(): ReactNode {
   const state = useCloudAccount();
   const [linkOpen, setLinkOpen] = useState(false);

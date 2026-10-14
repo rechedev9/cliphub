@@ -11,19 +11,8 @@ export type ReelCoverProps = {
   className?: string;
 };
 
-/** Where the floor starts and the light sits, as a share of the frame height. */
 const HORIZON = '50%';
 
-/**
- * Deterministic 32-bit hash of a seed string — no Math.random, so a cover is
- * identical on every render and every machine.
- *
- * FNV-1a plus a full avalanche step, because the seeds this receives are reel
- * and play ids that differ in one trailing character. The previous `h * 31 + c`
- * hash moved by exactly that delta, so `reel-0001` and `reel-0002` landed one
- * hue apart and on the same light position — two adjacent cards in the library
- * were the same picture.
- */
 function hashSeed(seed: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < seed.length; i += 1) {
@@ -37,26 +26,9 @@ function hashSeed(seed: string): number {
   return h >>> 0;
 }
 
-/**
- * ReelCover — a CSS-only, on-brand placeholder for clip thumbnails, and the
- * fallback art for every reel that has no frame yet. It builds a night CS2
- * horizon out of the shell's own vocabulary: an opaque --surface-1 base, a
- * seeded light on the horizon, a receding perspective floor, a lit horizon
- * line, scanlines and a vignette, with a crosshair standing in for the missing
- * frame. Two axes come off one seed — the hue (constrained to the skin's
- * cyan→violet→magenta band so covers never drift into lime/orange) and the
- * horizontal position of the light — so neighbouring hues still read as
- * different art.
- *
- * The floor's rotation is multiplied by --shell-depth, so it flattens to a
- * plain grid under the efficiency profile, reduced motion and forced colours;
- * the decorative layers drop out entirely under forced colours, leaving the
- * plate and its label.
- */
 export function ReelCover({ seed, label, plain = false, className }: ReelCoverProps) {
   const hash = hashSeed(seed);
   const hue = 190 + (hash % 141);
-  // 26–74%: keeps the light source off-centre without ever hugging an edge.
   const lightX = 26 + ((hash >>> 8) % 49);
 
   const glow = `hsl(${hue} 92% 62% / 0.3)`;
@@ -67,9 +39,6 @@ export function ReelCover({ seed, label, plain = false, className }: ReelCoverPr
 
   return (
     <div aria-hidden className={cn('relative size-full overflow-hidden bg-surface-1', className)}>
-      {/* Ambient: horizon pool, upper-corner wash, and the vignette that frames
-          them. The vignette rides this layer rather than the top one so it
-          shades the wash without swallowing the floor painted over it. */}
       <div
         className="pointer-events-none absolute inset-0 forced-colors:hidden"
         style={{
@@ -117,8 +86,6 @@ export function ReelCover({ seed, label, plain = false, className }: ReelCoverPr
           </div>
           {label ? (
             <>
-              {/* Deliberately short: the label only needs a dark footing, and a
-                  taller scrim would bury the near rows of the floor. */}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(to_top,var(--surface-0),transparent)] forced-colors:hidden" />
               <span className="pointer-events-none absolute inset-x-2.5 bottom-2.5 flex items-center gap-1.5">
                 <span

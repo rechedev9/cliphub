@@ -6,11 +6,6 @@ import { browserWindowActivity, pausePlayingMedia } from '@/lib/window-activity'
 
 const ACTIVITY_ATTRIBUTE = 'data-window-activity';
 
-/**
- * Exposes native window activity to CSS. Effects remain available while the
- * user is working, then freeze as soon as Studio is minimized, covered, or
- * loses focus so they cannot keep the GPU compositor awake in the background.
- */
 export function WindowActivityPolicy() {
   useEffect(() => {
     const root = document.documentElement;

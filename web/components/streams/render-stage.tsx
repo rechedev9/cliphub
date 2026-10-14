@@ -11,19 +11,6 @@ import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
 import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
 
-/**
- * What a multi-minute FFmpeg render looks like while it runs.
- *
- * Before this existed the render stage relabelled the CTA and spun a 16px
- * loader — no real feedback for a multi-minute job. It now uses the same
- * `LongOperation` surface as the demo pipeline and the same
- * 9:16 `MediaFrame` the Library and the results grid use, so both pipelines
- * speak one visual language.
- *
- * The bar is indeterminate because the render reports a status, not a
- * percentage; the frames are the real clips from the plan, labelled with their
- * real output durations. Nothing here is invented to fill the grid.
- */
 export function StreamRenderStage({
   clips,
   renderState,
@@ -56,9 +43,6 @@ export function StreamRenderStage({
       <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
-            {/* The header above already says CREANDO VÍDEOS three ways; a magenta
-                edge, badge, wash and glyph on every pending tile spends the
-                accent N more times and says nothing new. */}
             <MediaFrame
               aspect="9:16"
               scanline

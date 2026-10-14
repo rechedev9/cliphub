@@ -26,10 +26,6 @@ function clampRect(rect: NormalizedRect, minWidth: number, minHeight: number): N
   return { x, y, width, height };
 }
 
-/**
- * The facecam source crop picker. Pointer and keyboard controls both emit a
- * normalized rectangle against the shared session frame.
- */
 export function CropPicker({
   rect,
   onChange,

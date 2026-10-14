@@ -46,7 +46,6 @@ export function ShortStoryboard({
                   <span className="whitespace-nowrap">{roundTitle(cue.play.round, ordinals.get(cue.play.id))}</span>
                   {cue.play.startSeconds !== undefined ? <> · <span className="whitespace-nowrap">{playClock(cue.play.startSeconds)}</span></> : null}
                 </span>
-                {/* Numbers keep their units: the line may break at the separator, never inside "6.8 s". */}
                 <span className="font-mono text-label tabular-nums text-fg-2">
                   <span className="whitespace-nowrap">Short {formatClock(cue.startAt)}</span> · <span className="whitespace-nowrap">{cue.seconds} s</span>
                 </span>

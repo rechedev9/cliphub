@@ -24,7 +24,6 @@ const PART_SUFFIX_RE = /-p(\d+)$/i;
 /** The `m<n>` map-number token, delimited by dashes or the string bounds. */
 const MAP_ORDER_RE = /(?:^|-)m(\d+)(?:-|$)/i;
 
-/** Parse base / map order / part from a series file name. */
 export function parseSeriesFileName(fileName: string): ParsedSeriesFileName {
   const nameNoExt = fileName.replace(DEM_EXTENSION_RE, '');
   const partMatch = PART_SUFFIX_RE.exec(nameNoExt);

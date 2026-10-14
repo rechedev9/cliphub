@@ -8,17 +8,6 @@ export type StudioPageHeaderProps = {
   className?: string;
 };
 
-/**
- * Consistent title block for every Studio destination. The H1 rides the type
- * scale — `text-display-sm` at 30px on mobile and `text-display` at 40px from
- * `sm` up — instead of the two arbitrary sizes
- * this header used to carry.
- *
- * It deliberately does NOT render a section eyebrow. The command strip states
- * the current section persistently a few pixels above, so a second `// 05 —
- * BIBLIOTECA` under it was a literal repetition. Screens outside the app shell
- * (`/upload`, which has no strip) render `SectionEyebrow` themselves.
- */
 export function StudioPageHeader({
   title,
   description,

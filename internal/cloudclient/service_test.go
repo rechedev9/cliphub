@@ -50,7 +50,6 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// ---- fake portal (user API) ----
 
 type userPortal struct {
 	t      *testing.T
@@ -302,7 +301,6 @@ func (p *userPortal) with(inspect func()) {
 	inspect()
 }
 
-// ---- local side ----
 
 type jobMap struct {
 	mu   sync.Mutex
@@ -487,7 +485,6 @@ func cloudError(err error) *Error {
 	return &Error{}
 }
 
-// ---- tests ----
 
 func TestLinkFlowStoresTheDeviceTokenAndExposesTheAccount(t *testing.T) {
 	f := newFixture(t, false)

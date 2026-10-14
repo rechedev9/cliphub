@@ -59,14 +59,6 @@ function CrossCell({
   );
 }
 
-/**
- * The aggregate answer to "what does this team do", over exactly the rounds the
- * filter selected.
- *
- * Every rate on this panel carries its denominator, and anything the aggregate
- * flagged below `MIN_RELIABLE_SAMPLE` rounds is marked as a small sample instead
- * of being presented as a tendency.
- */
 export function TacticalTendenciesPanel({
   tendencies,
   error,
@@ -129,11 +121,6 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
     tendencies.buy_sites.some((bucket) => bucket.site === site && bucket.rounds > 0),
   );
   const winPct = tendencies.round_count > 0 ? (tendencies.wins / tendencies.round_count) * 100 : 0;
-  // Without a perspective the aggregate cannot attribute a buy, a win or a duel
-  // to anybody: every economy bucket collapses into "unknown" and every win rate
-  // is zero by construction. Showing those numbers would be showing zeroes as
-  // findings, so the panel asks for a side instead and keeps only what a
-  // side-agnostic pass can honestly answer.
   const perspective = tendencies.perspective;
 
   const matchup = (buy: TacticalBuyType, opponent: TacticalBuyType) =>

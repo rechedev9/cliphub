@@ -8,7 +8,6 @@ import { IconTile } from '@/components/studio/icon-tile';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** The build facts, in the order an operator reads them. */
 const INFO_ROWS: ReadonlyArray<{ key: keyof StudioAppInfo; label: string }> = [
   { key: 'version', label: 'Versión' },
   { key: 'build', label: 'Build' },
@@ -16,11 +15,6 @@ const INFO_ROWS: ReadonlyArray<{ key: keyof StudioAppInfo; label: string }> = [
   { key: 'chromiumVersion', label: 'Chromium' },
 ];
 
-/**
- * The installed-build spec sheet. Version strings are operational metadata, so
- * they are typeset in the mono face with tabular figures through the shared
- * data row rather than as `text-sm` body copy in a `<dl>`.
- */
 export function StudioInfo(): ReactNode {
   const [info, setInfo] = useState<StudioAppInfo | null>(null);
   const [unavailable, setUnavailable] = useState(false);

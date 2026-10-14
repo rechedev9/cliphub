@@ -7,7 +7,6 @@
 #include <io.h>
 #endif
 
-/* ---- help ---- */
 
 typedef struct {
 	const char *name, *summary;
@@ -86,7 +85,6 @@ static void write_help(jw_t *w)
 	jw_end_obj(w);
 }
 
-/* ---- snapshot ---- */
 
 typedef int (*section_fn)(ctx_t *ctx, jw_t *w, void *arg);
 
@@ -179,7 +177,6 @@ static int cmd_snapshot(ctx_t *ctx, int argc, char **argv, jw_t *w)
 	return 0;
 }
 
-/* ---- main ---- */
 
 typedef int (*cmd_fn)(ctx_t *, int, char **, jw_t *);
 

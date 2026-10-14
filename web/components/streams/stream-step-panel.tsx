@@ -3,11 +3,6 @@
 import type { ReactNode } from 'react';
 import { CircleCheck } from 'lucide-react';
 
-/**
- * Right column content: the active step's title over its content. The surface
- * and divider live on the scrolling column in StreamEditor so they run the
- * full column height however short the step is.
- */
 export function StreamStepPanel({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
     <aside className="flex min-w-0 flex-col gap-4 overflow-x-hidden p-4">
@@ -17,7 +12,6 @@ export function StreamStepPanel({ title, children }: { title: string; children: 
   );
 }
 
-/** Aspect step: the crop is edited on the monitor and confirmed with the footer action; this explains it. */
 export function StreamLayoutStep({
   needsFaceCrop,
   faceCropReviewed,

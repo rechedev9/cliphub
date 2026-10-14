@@ -34,7 +34,6 @@ export function TelemetryNotice(): ReactElement | null {
 
   const showing = status !== null && status.available && !status.noticeAcknowledged;
 
-  // The Studio tour waits for this answer instead of stacking a second modal.
   useEffect(() => {
     if (status !== null) reportTelemetryNotice(showing ? 'open' : 'settled');
   }, [status, showing]);

@@ -11,7 +11,6 @@ import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor'
 import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
 
-/** Extend CSSProperties explicitly so custom properties are type-checked. */
 const SHELL_VARS: CSSProperties & { '--sidebar-width': string } = { '--sidebar-width': '240px' };
 
 /**

@@ -12,7 +12,6 @@ export type HubBannerProps = {
   onRetry: () => void;
 };
 
-/** Error is a banner, never a page: the list below stays visible and inert. */
 export function HubBanner({ offline, onRetry }: HubBannerProps): ReactNode {
   return (
     <div

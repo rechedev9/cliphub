@@ -14,7 +14,6 @@ export type FirstRunGuideProps = {
 
 const STEPS = Object.values(FIRST_RUN_STEP);
 
-/** Three numbered steps that tick from real hub data; the first pending one is the active step. */
 export function FirstRunGuide({ progress, onDismiss }: FirstRunGuideProps): ReactNode {
   const active = STEPS.find((step) => !progress[step]) ?? null;
   return (

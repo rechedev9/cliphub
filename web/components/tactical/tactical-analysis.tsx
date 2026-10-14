@@ -59,14 +59,6 @@ function errorMessage(error: unknown): string {
 
 class UserFacingTacticalError extends Error {}
 
-/**
- * The ready workspace: the round index, the 2D replay and the tendencies of one
- * analysed demo.
- *
- * The position blob is fetched once, in parallel with the document, and every
- * round is decoded out of those same bytes through its recorded offset — so
- * changing round is a seek, never another request.
- */
 export function TacticalAnalysis({
   jobId,
   generatedAt,
@@ -83,8 +75,6 @@ export function TacticalAnalysis({
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
   const [tendenciesError, setTendenciesError] = useState<string | null>(null);
-  // Keep nearby rounds hot without retaining a whole match as JS objects.
-  // Evicted rounds are decoded again from the already verified local blob.
   const frameCache = useRef(new LruCache<number, TacticalFrame[]>(4));
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
@@ -96,7 +86,6 @@ export function TacticalAnalysis({
 
     void (async () => {
       try {
-        // Independent requests: the index and its sidecar always travel together.
         const [doc, blob] = await Promise.all([
           fetchTacticalDocument(jobId),
           fetchTacticalPositions(jobId),
@@ -152,8 +141,6 @@ export function TacticalAnalysis({
     [loaded, filter],
   );
 
-  // Keep the selection inside the visible set: a filter that hides the open
-  // round moves to the first one it kept instead of leaving an orphan replay.
   useEffect(() => {
     if (rounds.length === 0) return;
     setSelectedRound((current) =>
@@ -177,8 +164,6 @@ export function TacticalAnalysis({
       frameCache.current.set(round.number, decoded);
       return decoded;
     } catch {
-      // A truncated or mis-offset round must not take the workspace down; the
-      // replay says it has no positions and the rest of the analysis stands.
       return [];
     }
   }, [loaded, round]);

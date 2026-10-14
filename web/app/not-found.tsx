@@ -6,13 +6,6 @@ import { Wordmark } from '@/components/brand/wordmark';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
 
-/**
- * The 404 for routes outside the app group. Two corrections over v3: the wash
- * and the eyebrow no longer use `--destructive` — red signals
- * "error, failure, delete", and a stale bookmark is none of those, so painting
- * one red makes a mistyped URL look like data loss — and the action is a
- * real `Button` instead of hand-rolled 40px anchors with no focus ring.
- */
 export default function NotFound(): ReactElement {
   return (
     <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 text-center">

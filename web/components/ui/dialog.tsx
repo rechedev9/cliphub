@@ -54,8 +54,6 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        // Entrance lives in globals.css. Surface is --surface-4 so the panel
-        // stays lighter than the canvas behind it.
         className={cn(
           "fixed top-[50%] left-[50%] z-50 grid w-full min-w-0 max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-[var(--elev-5)] outline-none sm:max-w-lg",
           className

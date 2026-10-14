@@ -10,7 +10,6 @@ const FORMAT_ITEMS = [
   { value: PRODUCE_FORMAT.short, label: 'Short 9:16', description: 'Jugadas seleccionadas · un vídeo vertical · estilo y música a tu elección' },
 ] as const;
 
-/** Selected: primary fill and border. Unselected: quiet until hovered, so the choice never reads inverted. */
 const ITEM_CLASS = {
   selected: 'border-primary bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
   idle: 'border-border-subtle bg-transparent font-medium text-fg-3 hover:border-border-strong hover:bg-surface-3 hover:text-fg-1',

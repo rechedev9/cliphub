@@ -35,12 +35,6 @@ function TeamChip({ team }: { team: TacticalTeam }): ReactNode {
   );
 }
 
-/**
- * What the analysis was computed from: the demo's identity, the two rosters and
- * the sampling the replay is drawn at, plus every ambiguity the scan resolved by
- * convention. The warnings are part of the analysis, not decoration, so they are
- * on screen rather than in a log.
- */
 export function TacticalDemoSummary({
   doc,
   generatedAt,

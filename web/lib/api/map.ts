@@ -70,7 +70,6 @@ const WEAPON_LABELS: Record<string, string> = {
   hegrenade: 'HE Grenade',
 };
 
-/** Pretty weapon label for an engine id, falling back to the raw value. */
 function prettifyWeapon(raw: string): string {
   if (!raw) return raw;
   return WEAPON_LABELS[raw.toLowerCase()] ?? raw;
@@ -94,7 +93,6 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
   return best ? prettifyWeapon(best) : undefined;
 }
 
-/** One killplan segment → a UI Play. */
 function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number | undefined): Play {
   const kills = segment.kills?.length ?? 0;
   const { tick_start: start, tick_end: end } = segment;
@@ -114,7 +112,6 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number
   };
 }
 
-/** All of a plan's segments → Plays for the given job. */
 export function planToPlays(jobId: string, plan: KillPlan): Play[] {
   const seen = new Set<string>();
   return (plan.segments ?? []).flatMap((segment) => {

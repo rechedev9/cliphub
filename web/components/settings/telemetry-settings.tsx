@@ -9,7 +9,6 @@ import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** The readouts, in the order an operator reads them; the skeleton reserves the same block. */
 const TELEMETRY_ROWS: ReadonlyArray<{ label: string; value: (status: StudioTelemetryStatus) => string }> = [
   { label: 'Estado', value: (status) => (status.enabled ? 'Activado' : 'Desactivado') },
   { label: 'Código de soporte', value: (status) => status.supportCode },

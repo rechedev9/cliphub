@@ -25,13 +25,11 @@ const TRAIL = {
   series: 'serie',
 } as const;
 
-/** Series belong to the demo journey but live outside /clips. */
 const SERIES_PREFIX = '/series/';
 
 /** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
 const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,8 +52,6 @@ export function CommandStrip(): ReactElement {
         title="Barra lateral · Ctrl/⌘ B"
       />
 
-      {/* 6px inside the label, 14px across the level break, so the breadcrumb
-          reads as two levels. */}
       <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
         <span className="truncate font-[family-name:var(--font-display)] text-label font-semibold tracking-wide text-fg-1 uppercase">
           {section?.label ?? 'ClipHub'}
@@ -94,7 +90,6 @@ export function CommandStrip(): ReactElement {
   );
 }
 
-// Magenta REC pip: visible counterpart of data-capture-active silencing ambient GPU work.
 function CapturePip(): ReactElement {
   return (
     <span
@@ -117,7 +112,6 @@ function sectionForPath(pathname: string): NavSection | null {
   return null;
 }
 
-// Screen names for Clips y vídeos; other sections show a readable nested segment.
 function trailForPath(pathname: string, section: NavSection | null, format: string | null): string | null {
   if (section === null) return null;
   if (pathname.startsWith(SERIES_PREFIX)) return TRAIL.series;

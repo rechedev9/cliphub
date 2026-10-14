@@ -1,4 +1,3 @@
-// Generated with the previews by `go run ./cmd/zv-hud-designs`.
 import catalog from '../public/hud/catalog.json' with { type: 'json' };
 
 export const CUSTOM_HUD_CAPTURE_PROFILE = 'broadcast-clean-v2';

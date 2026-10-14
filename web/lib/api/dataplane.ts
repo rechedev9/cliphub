@@ -4,23 +4,18 @@
 export type DataPlane = {
   headers: Record<string, string>;
   scanUrl: string;
-  /** Multipart field name for the .dem upload. */
   scanField: 'demo';
   /** Multipart field name for the optional bulk-series id carried on a scan. */
   scanSeriesField: 'series_id';
-  /** Reads the job id out of a scan response. */
   scanJobId(body: unknown): string;
   jobStatusUrl(jobId: string): string;
   /** One request for every active reel's job status + render state. */
   batchStatusUrl(items: ReadonlyArray<{ jobId: string; variant: string }>): string;
-  /** DELETE target for removing a demo job (match) and its server-side artifacts. */
   jobDeleteUrl(jobId: string): string;
   rosterUrl(jobId: string): string;
-  /** The recent-jobs listing that Partidas rediscovers uploads/series from. */
   jobsUrl: string;
   seriesUrl(seriesId: string): string;
   parseUrl(jobId: string): string;
-  /** Parse request body. */
   parseBody(steamId: string): Record<string, string>;
   planUrl(jobId: string): string;
   recapPlanUrl(jobId: string): string;
@@ -47,7 +42,6 @@ function str(body: unknown, key: string): string {
   return typeof v === 'string' ? v : '';
 }
 
-/** Same-origin /api/demos/* paths used by RealApiClient. */
 export function dataPlane(): DataPlane {
   return {
     headers: {},

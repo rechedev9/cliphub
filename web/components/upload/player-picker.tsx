@@ -42,7 +42,6 @@ const STAT_TOOLTIPS: Record<string, string> = {
   hs: '% de kills por headshot',
 };
 
-// Token-mapped HLTV 1.0 bands keep the scoreboard aligned with the navy theme.
 const RATING_BANDS = [
   { min: 1.15, text: 'text-success', bar: 'bg-success' },
   { min: 0.95, text: 'text-fg-1', bar: 'bg-fg-2' },
@@ -86,7 +85,6 @@ function pickPovRecommended(players: DemoPlayer[]): DemoPlayer | undefined {
 
 type HighlightChip = { key: string; label: string; tone: StatusTagTone };
 
-/** Nonzero multi-kill chips in ACE -> 4K -> 3K order; ACE gets the strongest (cyan) treatment. */
 function highlightChips(p: DemoPlayer): HighlightChip[] {
   const chips: HighlightChip[] = [];
   if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, tone: 'primary' });
@@ -130,7 +128,6 @@ const TEAM_META = {
   '': { label: 'Otros', text: 'text-fg-2', chip: 'border-border-strong bg-surface-3 text-fg-2' },
 } as const;
 
-/** Compact match summary (map, final score, rounds) shown above the roster tables. */
 function MatchHeader({ match }: { match: RosterMatch }) {
   const tWon = match.scoreT > match.scoreCt;
   const ctWon = match.scoreCt > match.scoreT;
@@ -154,7 +151,6 @@ function MatchHeader({ match }: { match: RosterMatch }) {
   );
 }
 
-// Series has no single score, so its header shows map and roster counts instead.
 function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCount: number }) {
   return (
     <StudioDataRow
@@ -166,8 +162,6 @@ function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCoun
   );
 }
 
-// CS-style roster picker: Highlights recommends multi-kill potential, while
-// Full Demo recommends the strongest match rating for a continuous POV.
 export function PlayerPicker({
   players,
   onPick,
@@ -190,7 +184,6 @@ export function PlayerPicker({
   }, [players, recommended?.steamId]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
   const selectedPlayer = players.find((p) => p.steamId === selected);
-  // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
   const faceitBoard = !isSeries && faceit ? faceit : null;
   const faceitSelected = faceitBoard?.teams.flatMap((t) => t.players).find((p) => p.steamId === selected);
   const selectable = new Set(players.map((p) => p.steamId));
@@ -231,8 +224,6 @@ export function PlayerPicker({
     .map((roster, i) => ({ side: sides[i], roster }))
     .filter((g) => g.roster.length > 0);
 
-  // Series mode shows the combined-stats strip; a single match shows its
-  // score header when the scan reported one; otherwise neither.
   let header: ReactNode = null;
   if (isSeries) header = <SeriesSummary mapCount={seriesMapCount ?? 0} playerCount={players.length} />;
   else if (match) header = <MatchHeader match={match} />;
@@ -284,7 +275,6 @@ export function PlayerPicker({
                 const active = p.steamId === selected;
                 const isRecommended = p.steamId === recommended?.steamId;
                 const chips = highlightChips(p);
-                // In series mode, flag only players missing from at least one map.
                 const showMapsChip =
                   isSeries && typeof p.mapsPresent === 'number' && p.mapsPresent < (seriesMapCount ?? 0);
                 const mapsChip = showMapsChip ? (
@@ -318,7 +308,6 @@ export function PlayerPicker({
                       FOCUS_RING,
                       'focus-visible:-outline-offset-2',
                       gridClass,
-                      // Recommendation stays tinted; the ring marks the current pointer/focus target.
                       isRecommended && 'bg-primary/10 shadow-[inset_3px_0_0_0_var(--primary)]',
                       active
                         ? 'bg-primary/10 ring-1 ring-inset ring-primary/60'
@@ -336,14 +325,8 @@ export function PlayerPicker({
                         >
                           {initials(p.name)}
                         </span>
-                        {/* min-w-0 lets this shrink inside the flex row without evicting the name;
-                            the name never has to share a row with the Recommended badge, which
-                            keeps this row narrow-window-safe like the rest of the scoreboard. */}
                         <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-fg-1">{p.name}</span>
                       </span>
-                      {/* Second line, indented under the name: the Recommended tag and the
-                          Highlights chips. Always rendered (never just for narrow windows) so
-                          it never competes with the player name for horizontal space. */}
                       <span className="flex flex-wrap items-center gap-1.5 pl-[2.375rem]">
                         {isRecommended ? (
                           <Badge shape="square" className="min-h-7 px-2">

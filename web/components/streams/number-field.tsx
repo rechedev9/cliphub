@@ -19,8 +19,6 @@ export function NumberField({
   disabled: boolean;
   onChange: (value: number) => void;
 }): ReactNode {
-  // Local text while focused, so clearing the field to retype does not
-  // immediately commit 0 into the plan; commit only a valid number, on blur.
   const [text, setText] = useState(String(value));
   const [focused, setFocused] = useState(false);
   useEffect(() => {
