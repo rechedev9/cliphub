@@ -11,6 +11,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -240,7 +241,7 @@ func boundaryFades(edit *ClipEdit, outputDuration float64, name string) string {
 func textOverlayFilter(overlay TextOverlay, fontPath, textPath string) string {
 	size := overlay.FontSize
 	if size == 0 {
-		size = defaultOverlayFontSize
+		size = clipLimits.DefaultOverlayFontSize
 	}
 	filter := fmt.Sprintf(
 		"drawtext=fontfile='%s':textfile='%s':expansion=none:fontcolor=white:fontsize=%d:borderw=3:bordercolor=black:"+
@@ -569,8 +570,7 @@ func FindBannerFont() string {
 		}
 	}
 	for _, candidate := range candidates {
-		// #nosec G703 -- candidates are fixed system-font paths beneath the local OS font root.
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		if info, err := rooted.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate
 		}
 	}
