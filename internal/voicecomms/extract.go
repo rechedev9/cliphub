@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 )
 
@@ -22,8 +24,7 @@ func extractFile(ctx context.Context, demoPath, target, dir string, strict bool)
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("resolve demo path: %w", err)
 	}
-	// #nosec G304 -- demo path is an explicit local CLI input.
-	f, err := os.Open(abs)
+	f, err := rooted.Open(abs)
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("open demo: %w", err)
 	}
@@ -119,8 +120,7 @@ func writeTracksWithSpillContext(ctx context.Context, dir string, report Report,
 		sid := strconv.FormatUint(id, 10)
 		rel := sid + ".ogg"
 		abs := filepath.Join(dir, rel)
-		// #nosec G304 -- path is dir + steamid.
-		out, err := os.OpenFile(abs, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		out, err := rooted.OpenFile(abs, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
 			return Index{}, fmt.Errorf("create track %s: %w", rel, err)
 		}

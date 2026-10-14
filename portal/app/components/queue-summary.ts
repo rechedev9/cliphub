@@ -1,4 +1,5 @@
 import type { AdminJob, AdminOverview, AdminWorker } from "./api-types.ts";
+import { decodeLeaseLoss, leaseLossCause } from "../../lib/lease.ts";
 import { formatDuration, formatRelative } from "./format.ts";
 import { FAILURE_LABELS, reasonLabel, splitPauseReason, STAGE_WORDS } from "./labels.ts";
 
@@ -70,7 +71,8 @@ export function recentFailures(jobs: AdminJob[], now: number): AdminJob[] {
 export function causeHeadline(detail: string | null): string | null {
   const first = (detail ?? "").split(/\r?\n/).find((line) => line.trim() !== "");
   if (first === undefined) return null;
-  const line = first.trim();
+  const loss = decodeLeaseLoss(first.trim());
+  const line = loss === null ? first.trim() : leaseLossCause(loss);
   return line.length > 160 ? `${line.slice(0, 159)}…` : line;
 }
 

@@ -5,10 +5,11 @@ package cloudbridge
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 
 	"golang.org/x/sys/windows"
 )
@@ -37,8 +38,7 @@ func diskUsage(path string) (free, total uint64, err error) {
 func processRunning(ctx context.Context, image string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, processListTimeout)
 	defer cancel()
-	// #nosec G204 -- tasklist is fixed and image is a constant process name.
-	out, err := exec.CommandContext(ctx, "tasklist", "/FI", "IMAGENAME eq "+image, "/FO", "CSV", "/NH").Output()
+	out, err := argv.CommandContext(ctx, "tasklist", "/FI", "IMAGENAME eq "+image, "/FO", "CSV", "/NH").Output()
 	if err != nil {
 		return false, fmt.Errorf("list %s processes: %w", image, err)
 	}

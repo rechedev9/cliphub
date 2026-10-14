@@ -192,8 +192,8 @@ func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	plan.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "TESTCODE", StartSeconds: &start, EndSeconds: &end}
 	clip := ClipRange{ID: "c1", StartSeconds: 0, EndSeconds: 4}
 	args, err := BuildFFmpegArgs(FFmpegInputs{
-		SourcePath:       "in.mp4",
-		OutputPath:       "out.mp4",
+		SourcePath: "in.mp4",
+		OutputPath: "out.mp4",
 		// Plate is pre-composited with the live code; filter only scales/overlays it.
 		KeyDropImagePath: "/cache/keydrop-banner.png",
 		SourceHasAudio:   true,

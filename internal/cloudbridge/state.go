@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
@@ -93,7 +95,7 @@ type State struct {
 // as an empty, freshly-initialized state.
 func LoadState(path string) (*State, error) {
 	s := &State{path: path, tracked: map[string]*TrackedRequest{}}
-	data, err := os.ReadFile(path) //nolint:gosec // path is operator-configured, not user input
+	data, err := rooted.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
 	}
