@@ -10,10 +10,12 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -386,8 +388,7 @@ func decodeMonoSamples(ctx context.Context, ffmpegPath, inputPath string, sample
 		"-acodec", "pcm_s16le",
 		"pipe:1",
 	}
-	// #nosec G204 -- ffmpegPath and inputPath are explicit local CLI inputs.
-	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	cmd := argv.CommandContext(ctx, ffmpegPath, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -579,8 +580,7 @@ func strongestOnsets(envelope []float64, sampleRate, hop, maxOnsets int) []Onset
 }
 
 func readKillPlan(path string) (killplan.Plan, error) {
-	// #nosec G304 -- path is an explicit local CLI input.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return killplan.Plan{}, fmt.Errorf("read killplan: %w", err)
 	}
@@ -592,8 +592,7 @@ func readKillPlan(path string) (killplan.Plan, error) {
 }
 
 func readRecordingResult(path string) (recording.RecordingResult, error) {
-	// #nosec G304 -- the local CLI operator explicitly supplies this artifact.
-	body, err := os.ReadFile(path)
+	body, err := rooted.ReadFile(path)
 	if err != nil {
 		return recording.RecordingResult{}, fmt.Errorf("read recording result: %w", err)
 	}
