@@ -3,8 +3,9 @@ package editor
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/rhythm"
@@ -43,8 +44,7 @@ func readRhythmAnalysis(path string) (*rhythm.Analysis, error) {
 	if path == "" {
 		return nil, nil
 	}
-	// #nosec G304 -- rhythm path is an explicit local CLI/config input.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read rhythm json: %w", err)
 	}
