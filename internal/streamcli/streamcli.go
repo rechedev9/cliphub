@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -760,8 +762,7 @@ func parseStreamCrop(value string) (streamclips.CropRect, error) {
 }
 
 func sha256File(filePath string) (string, error) {
-	// #nosec G304 -- filePath is the explicit local stream input selected by the CLI user.
-	f, err := os.Open(filePath)
+	f, err := rooted.Open(filePath)
 	if err != nil {
 		return "", err
 	}
