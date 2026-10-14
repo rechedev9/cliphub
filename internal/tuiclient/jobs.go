@@ -6,9 +6,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 // CreateJobResponse is the body of POST /api/jobs and /parse.
@@ -152,7 +153,7 @@ func (c *Client) Presets(ctx context.Context) (PresetList, error) {
 // "config" JSON field, the shape both POST /api/jobs and POST /api/stream-jobs
 // accept, decoding the JSON response into out.
 func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath, config string, out any) error {
-	f, err := os.Open(filePath) // #nosec G304 -- operator-chosen local upload path
+	f, err := rooted.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", filePath, err)
 	}

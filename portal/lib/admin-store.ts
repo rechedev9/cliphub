@@ -2,7 +2,9 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { transact } from "../db/client.ts";
 import { userCloud, users, workers } from "../db/schema.ts";
+import type { Actor } from "./actor.ts";
 import { recordEvent } from "./events.ts";
+import { encodePause } from "./pause.ts";
 import { isCloudAccess, isRecord, type CloudAccess } from "./job-types.ts";
 import { invalidateQueueSnapshot, type WorkerRow } from "./queue-store.ts";
 import { hashToken, newWorkerToken } from "./tokens.ts";
@@ -44,7 +46,7 @@ export async function createWorker(
     await recordEvent(
       {
         type: "worker_created",
-        actor: `admin:${input.adminUserId}`,
+        actor: { kind: "admin", id: input.adminUserId },
         at: now,
         workerId: worker.id,
         detail: name,
@@ -76,7 +78,7 @@ export async function changeWorker(input: WorkerActionInput): Promise<WorkerChan
   const { workerId, action, now } = input;
   const text = input.text ? input.text.slice(0, MAX_REASON_CHARS) : null;
   const changes = {
-    pause: { paused: true, pausedBy: "admin", pauseReason: text },
+    pause: { paused: true, pausedBy: "admin", pauseReason: text === null ? null : encodePause({ kind: "note", text }) },
     resume: { paused: false, pausedBy: null, pauseReason: null, consecutiveFailures: 0 },
     revoke: { revokedAt: now },
     rename: { name: text ?? "" },
@@ -93,7 +95,7 @@ export async function changeWorker(input: WorkerActionInput): Promise<WorkerChan
     const type = WORKER_EVENTS[action];
     if (type) {
       await recordEvent(
-        { type, actor: `admin:${input.adminUserId}`, at: now, workerId, detail: text },
+        { type, actor: { kind: "admin", id: input.adminUserId }, at: now, workerId, detail: text },
         tx,
       );
     }
@@ -176,7 +178,8 @@ export async function updateUserCloud(input: UpdateUserCloudInput): Promise<bool
       .values({ userId, ...next })
       .onConflictDoUpdate({ target: userCloud.userId, set: next });
 
-    const event = { actor: `admin:${input.adminUserId}`, at: now, subjectUserId: userId };
+    const actor: Actor = { kind: "admin", id: input.adminUserId };
+    const event = { actor, at: now, subjectUserId: userId };
     if (patch.access !== undefined && patch.access !== current?.access) {
       await recordEvent({ ...event, type: "user_access_changed", detail: next.access }, tx);
     }

@@ -158,10 +158,12 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*positionsFrameHead+sampleCount*positionsSampleSize)
 	copy(buf, positionsMagic)
 	binary.LittleEndian.PutUint16(buf[6:], positionsVersion)
-	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
-	binary.LittleEndian.PutUint16(buf[8:], uint16(slotCount))
-	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
-	binary.LittleEndian.PutUint16(buf[10:], uint16(sampleTicks))
+	if err := putUint16At(buf[8:], slotCount); err != nil {
+		return Blob{}, fmt.Errorf("encode positions: %w", err)
+	}
+	if err := putUint16At(buf[10:], sampleTicks); err != nil {
+		return Blob{}, fmt.Errorf("encode positions: %w", err)
+	}
 	binary.LittleEndian.PutUint32(buf[12:], math.Float32bits(float32(quantum)))
 	binary.LittleEndian.PutUint32(buf[16:], math.Float32bits(float32(origin[0])))
 	binary.LittleEndian.PutUint32(buf[20:], math.Float32bits(float32(origin[1])))
@@ -228,8 +230,7 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 		bySlot[s.Slot] = s
 	}
 
-	// #nosec G115 -- the signed tick is range-checked above and its two's-complement bits are the wire format.
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(int32(f.Tick)))
+	buf = appendInt32Wire(buf, int32(f.Tick))
 	buf = binary.LittleEndian.AppendUint16(buf, mask)
 	// Samples are written in ascending slot order so the mask alone tells a
 	// decoder which slot each fixed-size record belongs to.
@@ -386,19 +387,32 @@ func dequantizeAxis(v int16, origin, quantum float64) float64 {
 }
 
 func appendSigned16(buf []byte, value int16) []byte {
-	// #nosec G115 -- converting the signed sample to its two's-complement bits is the wire format.
-	return binary.LittleEndian.AppendUint16(buf, uint16(value))
+	return binary.LittleEndian.AppendUint16(buf, wireUint16(value))
 }
 
 func decodeSigned16(data []byte) int16 {
-	// #nosec G115 -- the wire value is a two's-complement signed coordinate.
-	return int16(binary.LittleEndian.Uint16(data))
+	return wireInt16(binary.LittleEndian.Uint16(data))
 }
 
 func decodeSigned32(data []byte) int32 {
-	// #nosec G115 -- the wire value is a two's-complement signed demo tick.
-	return int32(binary.LittleEndian.Uint32(data))
+	return wireInt32(binary.LittleEndian.Uint32(data))
 }
+
+func putUint16At(dst []byte, v int) error {
+	if v < 0 || v > math.MaxUint16 {
+		return fmt.Errorf("value %d exceeds uint16", v)
+	}
+	binary.LittleEndian.PutUint16(dst, uint16(v))
+	return nil
+}
+
+func appendInt32Wire(buf []byte, v int32) []byte {
+	return binary.LittleEndian.AppendUint32(buf, uint32(v))
+}
+
+func wireUint16(v int16) uint16 { return uint16(v) }
+func wireInt16(v uint16) int16  { return int16(v) }
+func wireInt32(v uint32) int32  { return int32(v) }
 
 // encodeYaw maps degrees onto the full uint16 range, giving ~0.0055° of
 // resolution and making wraparound free.

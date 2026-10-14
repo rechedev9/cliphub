@@ -45,11 +45,12 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Create one upload-ready Short through parse, capture, render, and publish stages.",
 			Command:     "zv short <demo.dem> --prompt <prompt>",
 			RunArgs:     []string{"short"},
+			LongRunning: true,
 		},
 		{Name: "full-demo-defaults", Description: "Inspect complete editorial options; intro, sponsor and outro clips require declared assets before approval.", Command: "zv full-demo defaults", RunArgs: []string{"full-demo", "defaults"}},
-		{Name: "full-demo-import", Description: "Upload a demo to the existing local parser queue.", Command: "zv full-demo import --demo <match.dem> --steamid <SteamID64>", RunArgs: []string{"full-demo", "import"}},
-		{Name: "full-demo-asset", Description: "Import declared intro, sponsor or outro media into the existing asset repository.", Command: "zv full-demo asset --input <media> --provenance <provenance.json>", RunArgs: []string{"full-demo", "asset"}},
-		{Name: "full-demo-plan", Description: "Persist editorial choices against parsed demo facts and asset bytes without starting CS2.", Command: "zv full-demo plan --job <uuid> --options <options.json> --out <plan.json>", RunArgs: []string{"full-demo", "plan"}},
+		{Name: "full-demo-import", Description: "Upload a demo to the existing local parser queue.", Command: "zv full-demo import --demo <match.dem> --steamid <SteamID64>", RunArgs: []string{"full-demo", "import"}, LongRunning: true},
+		{Name: "full-demo-asset", Description: "Import declared intro, sponsor or outro media into the existing asset repository.", Command: "zv full-demo asset --input <media> --provenance <provenance.json>", RunArgs: []string{"full-demo", "asset"}, LongRunning: true},
+		{Name: "full-demo-plan", Description: "Persist editorial choices against parsed demo facts and asset bytes without starting CS2.", Command: "zv full-demo plan --job <uuid> --options <options.json> --out <plan.json>", RunArgs: []string{"full-demo", "plan"}, LongRunning: true},
 		{Name: "full-demo-inspect", Description: "Inspect a local plan or a job's current plan, status and render evidence.", Command: "zv full-demo inspect --plan <plan.json>", RunArgs: []string{"full-demo", "inspect"}},
 		{Name: "full-demo-execute", Description: "Approve a saved plan hash and enqueue the existing Full Demo capture/render flow.", Command: "zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true", RunArgs: []string{"full-demo", "execute"}},
 		{Name: "full-demo-lab-bundle", Description: "Write the inputs of a job's last Full Demo render for zv-editor lab, without rendering.", Command: "zv full-demo lab-bundle --job <uuid>", RunArgs: []string{"full-demo", "lab-bundle"}},
@@ -58,12 +59,14 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Inspect local capture and render tool readiness without starting work.",
 			Command:     "zv capabilities",
 			RunArgs:     []string{"capabilities"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "faceit-index",
 			Description: "Index a FACEIT player's CS2 matches, statistics, demo availability, and manual room links.",
 			Command:     "zv faceit index --profile <url-or-nickname> --out <demo-index.json>",
 			RunArgs:     []string{"faceit", "index"},
+			LongRunning: true,
 		},
 		{
 			Name:        "demo-parse",
@@ -100,6 +103,7 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Probe whether a demo carries voice-comms packets for the POV team.",
 			Command:     "zv demo voice --demo <demo.dem> --steamid <SteamID64> --out <voice-probe.json>",
 			RunArgs:     []string{"demo", "voice"},
+			LongRunning: true,
 		},
 		{
 			Name:        "utility-audit",
@@ -112,36 +116,42 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Record planned demo segments with HLAE/CS2.",
 			Command:     "zv record --killplan <plan.json> --demo <demo.dem> --out <recording-dir>",
 			RunArgs:     []string{"record"},
+			LongRunning: true,
 		},
 		{
 			Name:        "compose-final",
 			Description: "Concatenate recorded segment clips into a final MP4.",
 			Command:     "zv compose final --recording-result <recording-result.json> --out <final.mp4>",
 			RunArgs:     []string{"compose", "final"},
+			LongRunning: true,
 		},
 		{
 			Name:        "music-analyze",
 			Description: "Analyze music beats and build optional kill-to-beat sync suggestions.",
 			Command:     "zv music analyze --input <audio-or-video> --out <rhythm.json>",
 			RunArgs:     []string{"music", "analyze"},
+			LongRunning: true,
 		},
 		{
 			Name:        "shorts-render",
 			Description: "Render vertical or landscape videos; the upload-ready pack defaults to <shorts-dir>/shortslistosparasubir.",
 			Command:     "zv shorts render --recording-result <recording-result.json> --out <shorts-dir>",
 			RunArgs:     []string{"shorts", "render"},
+			LongRunning: true,
 		},
 		{
 			Name:        "stream-fetch",
 			Description: "Download an allowlisted Twitch or YouTube clip/VOD to a local MP4.",
 			Command:     "zv stream fetch --url <https://...> --out <stream.mp4>",
 			RunArgs:     []string{"stream", "fetch"},
+			LongRunning: true,
 		},
 		{
 			Name:        "stream-variants",
 			Description: "List local stream layout variants and default crops.",
 			Command:     "zv stream variants",
 			RunArgs:     []string{"stream", "variants"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "stream-plan",
@@ -154,24 +164,28 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Render stream clips into an upload-ready local pack.",
 			Command:     "zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir>",
 			RunArgs:     []string{"stream", "render"},
+			LongRunning: true,
 		},
 		{
 			Name:        "analysis-tactical",
 			Description: "Scan a demo into the durable tactical document and its position blob.",
 			Command:     "zv analysis tactical --demo <match.dem> --out <tactical.json>",
 			RunArgs:     []string{"analysis", "tactical"},
+			LongRunning: true,
 		},
 		{
 			Name:        "analysis-rounds",
 			Description: "List the rounds a tactical filter selects.",
 			Command:     "zv analysis rounds --tactical <tactical.json>",
 			RunArgs:     []string{"analysis", "rounds"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "analysis-tendencies",
 			Description: "Aggregate filtered rounds into buys, sites, patterns, openings, and players.",
 			Command:     "zv analysis tendencies --tactical <tactical.json>",
 			RunArgs:     []string{"analysis", "tendencies"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "analysis-tactical-data",
@@ -184,36 +198,43 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Serve a local analysis review UI.",
 			Command:     "zv analysis view --json <analysis.json>",
 			RunArgs:     []string{"analysis", "view"},
+			ReadOnly:    true,
+			LongRunning: true,
 		},
 		{
 			Name:        "gallery-open",
 			Description: "Open a generated publish gallery for review.",
 			Command:     "zv gallery open --path <run>/shortslistosparasubir/index.html",
 			RunArgs:     []string{"gallery", "open"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "flows-run",
 			Description: "Chain a whole demo or stream journey in --dry-run mode into a run directory.",
 			Command:     "zv flows run <demo|stream> --run-dir <run-dir> --dry-run",
 			RunArgs:     []string{"flows", "run"},
+			LongRunning: true,
 		},
 		{
 			Name:        "serve",
 			Description: "Start the orchestrator API and workers.",
 			Command:     "zv serve",
 			RunArgs:     []string{"serve"},
+			LongRunning: true,
 		},
 		{
 			Name:        "workflows-check",
 			Description: "Validate the workflow catalog and command build scripts.",
 			Command:     "zv workflows check",
 			RunArgs:     []string{"workflows", "check"},
+			ReadOnly:    true,
 		},
 		{
 			Name:        "project-check",
 			Description: "Validate the ClipHub CLI, compiled workflows, and build scripts.",
 			Command:     "zv check",
 			RunArgs:     []string{"check"},
+			ReadOnly:    true,
 		},
 	})
 }
@@ -525,28 +546,10 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 }
 
 func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) workflowSafety {
-	readOnly := false
-	switch workflow.Name {
-	case "capabilities", "stream-variants", "analysis-viewer", "gallery-open", "workflows-check", "project-check",
-		"analysis-rounds", "analysis-tendencies":
-		// analysis-rounds and analysis-tendencies only read a tactical document
-		// and print; analysis-tactical is not here because it writes artifacts.
-		readOnly = true
-	}
-
-	longRunning := false
-	switch workflow.Name {
-	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-fetch", "stream-render", "analysis-viewer", "serve", "flows-run",
-		"analysis-tactical", "demo-voice", "full-demo-import", "full-demo-asset", "full-demo-plan":
-		// flows-run really parses demos and probes media across a whole journey,
-		// and analysis-tactical parses a whole demo before it writes anything.
-		longRunning = true
-	}
-
 	return workflowSafety{
-		ReadOnly:       readOnly,
+		ReadOnly:       workflow.ReadOnly,
 		SupportsDryRun: containsString(arguments.BooleanFlags, "--dry-run"),
-		LongRunning:    longRunning,
+		LongRunning:    workflow.LongRunning,
 	}
 }
 

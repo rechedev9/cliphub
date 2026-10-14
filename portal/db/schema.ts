@@ -213,8 +213,7 @@ export const requestArtifacts = sqliteTable(
     sha256: text("sha256"),
     status: text("status").notNull().default("ready"),
     partSize: integer("partSize"),
-    // JSON array of the 1-based part numbers already written.
-    receivedParts: text("receivedParts"),
+    receivedParts: text("receivedParts", { mode: "json" }).$type<number[]>(),
     receivedAt: integer("receivedAt"),
   },
   // Re-sending the same file must replace its row, not pile up beside it.
@@ -227,7 +226,7 @@ export const requestArtifacts = sqliteTable(
   ],
 );
 
-// Audit trail and job timeline. actor is "system", "worker:<id>", "admin:<userId>" or "user:<userId>".
+// Audit trail and job timeline.
 export const events = sqliteTable(
   "event",
   {
