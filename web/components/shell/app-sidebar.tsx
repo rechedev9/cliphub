@@ -84,9 +84,7 @@ export function AppSidebar(): ReactElement {
         </SidebarGroup>
 
         <SidebarGroup className="gap-1.5 p-0 pb-4">
-          {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
-              unknown `text-*` under text-colour (see .shell-nav-key). */}
-          <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
+          <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] text-meta tracking-widest text-fg-3 uppercase">
             {ANALYSIS_GROUP_LABEL}
           </SidebarGroupLabel>
           <SidebarMenu className="gap-0.5">
@@ -156,7 +154,7 @@ function NavTrailing({ kind }: { kind: 'stream' | 'faceit' | undefined }): React
   }
   if (kind === 'faceit') {
     return (
-      <span className="shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider text-fg-3 group-data-[collapsible=icon]:hidden">
+      <span className="shrink-0 font-[family-name:var(--font-mono)] text-meta font-normal tracking-wider text-fg-3 group-data-[collapsible=icon]:hidden">
         FACEIT
       </span>
     );
