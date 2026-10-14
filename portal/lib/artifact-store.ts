@@ -91,7 +91,7 @@ export async function initArtifact(input: ArtifactInitInput): Promise<ArtifactIn
       sha256: body.sha256,
       status: "uploading",
       partSize: config.artifactPartBytes,
-      receivedParts: "[]",
+      receivedParts: [],
       receivedAt: null,
       uploadedAt: new Date(now),
     };
@@ -190,7 +190,7 @@ export async function writeArtifactPart(
     const receivedParts = addReceivedPart(current.receivedParts, part);
     await tx
       .update(requestArtifacts)
-      .set({ receivedParts: JSON.stringify(receivedParts) })
+      .set({ receivedParts })
       .where(eq(requestArtifacts.id, artifact.id));
     return { ok: true as const, receivedParts };
   });
@@ -238,7 +238,7 @@ export async function completeArtifact(
   );
   if (problem) {
     // Nothing on disk can be trusted, so the worker starts this file over.
-    await db.update(requestArtifacts).set({ receivedParts: "[]" }).where(unchanged);
+    await db.update(requestArtifacts).set({ receivedParts: [] }).where(unchanged);
     return apiFailure(422, problem);
   }
   const ready = await db
