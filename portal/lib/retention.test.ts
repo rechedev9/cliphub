@@ -242,8 +242,8 @@ test("expired link codes and events older than 90 days are pruned", async () => 
     { ...link, userCode: "AAAAAAAA", expiresAt: NOW - 2 * HOUR },
     { ...link, userCode: "BBBBBBBB", expiresAt: NOW - 30 * MINUTE },
   ]);
-  await recordEvent({ type: "created", actor: "system", at: NOW - 91 * DAY });
-  await recordEvent({ type: "queued", actor: "system", at: NOW - 89 * DAY });
+  await recordEvent({ type: "created", actor: { kind: "system" }, at: NOW - 91 * DAY });
+  await recordEvent({ type: "queued", actor: { kind: "system" }, at: NOW - 89 * DAY });
 
   const result = await sweep();
   assert.equal(result.expiredLinks, 1);
