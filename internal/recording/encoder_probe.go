@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 // encoderTrialTimeout bounds the trial encode of CheckEncoderUsable.
@@ -72,8 +73,7 @@ func CheckEncoderSupported(ffmpegPath, encoder string) error {
 	if want == "libx264" {
 		return nil
 	}
-	// #nosec G204 -- ffmpegPath is a locally resolved tool path and args are fixed.
-	out, err := exec.Command(ffmpegPath, "-hide_banner", "-encoders").Output()
+	out, err := argv.Command(ffmpegPath, "-hide_banner", "-encoders").Output()
 	if err != nil {
 		return fmt.Errorf("query encoders from %q: %w", ffmpegPath, err)
 	}
@@ -99,8 +99,7 @@ func CheckEncoderUsable(ffmpegPath, encoder string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), encoderTrialTimeout)
 	defer cancel()
-	// #nosec G204 -- ffmpegPath is a locally resolved tool path and args are fixed.
-	out, err := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-loglevel", "error",
+	out, err := argv.CommandContext(ctx, ffmpegPath, "-hide_banner", "-loglevel", "error",
 		"-f", "lavfi", "-i", "color=c=black:s=256x256:r=30", "-frames:v", "2", "-c:v", codec, "-f", "null", "-").CombinedOutput()
 	if err != nil {
 		reason, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
