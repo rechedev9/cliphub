@@ -11,7 +11,6 @@ import (
 // are kept as plain strings here (the server marshals its typed enums to the
 // same lowercase names).
 
-// ---- demo -> reel ----------------------------------------------------------
 
 // Job is a demo-to-reel job (internal/job.Job).
 type Job struct {
@@ -100,7 +99,6 @@ type PlanStats struct {
 	DurationSecondsTotal float64 `json:"duration_seconds_total"`
 }
 
-// ---- roster (scanned jobs) -------------------------------------------------
 
 // RosterResult is the roster scan artifact (internal/parser.RosterResult),
 // streamed by GET /api/jobs/{id}/roster.
@@ -132,7 +130,6 @@ type MatchInfo struct {
 	Rounds  int    `json:"rounds"`
 }
 
-// ---- moments ---------------------------------------------------------------
 
 // MomentsDocument is the scored-moments artifact (internal/moments.Document).
 type MomentsDocument struct {
@@ -163,7 +160,6 @@ type MomentEvents struct {
 	Wallbangs int `json:"wallbangs,omitempty"`
 }
 
-// ---- render variants -------------------------------------------------------
 
 // RenderVariantState is the durable state of one rendered reel variant
 // (internal/renderplan.RenderVariantState).
@@ -186,7 +182,6 @@ const (
 	RenderFailed    = "failed"
 )
 
-// ---- capabilities / presets ------------------------------------------------
 
 // Capabilities mirrors GET /api/capabilities (internal/httpapi.GetCapabilities).
 type Capabilities struct {
@@ -233,7 +228,6 @@ type Preset struct {
 	EffectsPreset string `json:"effects_preset,omitempty"`
 }
 
-// ---- stream clips ----------------------------------------------------------
 
 // StreamJob is a streamer-MP4 clip job (internal/streamclips.Job).
 type StreamJob struct {
