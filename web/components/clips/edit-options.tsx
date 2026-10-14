@@ -38,8 +38,8 @@ const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
 ];
 
 const transitionItems: Array<{ value: EditConfig['transition']; label: string }> = [
-  { value: 'cut', label: 'Corte' },
   { value: 'flash', label: 'Destello' },
+  { value: 'cut', label: 'Corte' },
   { value: 'whip', label: 'Barrido' },
   { value: 'dip', label: 'Fundido' },
   { value: 'glitch', label: 'Glitch' },
