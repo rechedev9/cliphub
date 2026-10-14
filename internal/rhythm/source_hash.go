@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 // SourceSHA256 streams a media source into its canonical content fingerprint.
 func SourceSHA256(path string) (string, error) {
-	// #nosec G304 -- path is the explicit local music/video source selected by the caller.
-	file, err := os.Open(path)
+	file, err := rooted.Open(path)
 	if err != nil {
 		return "", err
 	}

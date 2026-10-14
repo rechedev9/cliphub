@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 var replaceFileW = syscall.NewLazyDLL("kernel32.dll").NewProc("ReplaceFileW")
@@ -41,10 +43,10 @@ const (
 // better than failing the poll. Every other error, a missing key above all, is
 // returned on the first attempt, and when the budget is spent the caller still
 // gets the original *os.PathError.
-func openLocalFile(path string) (*os.File, error) {
-	name, err := syscall.UTF16PtrFromString(path)
+func openLocalFile(path rooted.Path) (*os.File, error) {
+	name, err := syscall.UTF16PtrFromString(path.String())
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+		return nil, &os.PathError{Op: "open", Path: path.String(), Err: err}
 	}
 	var handle syscall.Handle
 	deadline := time.Now().Add(openRetryBudget)
@@ -79,12 +81,12 @@ func openLocalFile(path string) (*os.File, error) {
 		}
 	}
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+		return nil, &os.PathError{Op: "open", Path: path.String(), Err: err}
 	}
-	file := os.NewFile(uintptr(handle), path)
+	file := os.NewFile(uintptr(handle), path.String())
 	if file == nil {
 		_ = syscall.CloseHandle(handle)
-		return nil, &os.PathError{Op: "open", Path: path, Err: syscall.EINVAL}
+		return nil, &os.PathError{Op: "open", Path: path.String(), Err: syscall.EINVAL}
 	}
 	return file, nil
 }
