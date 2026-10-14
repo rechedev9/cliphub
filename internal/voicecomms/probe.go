@@ -3,9 +3,10 @@ package voicecomms
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -23,8 +24,7 @@ func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) 
 	if err != nil {
 		return Report{}, nil, nil, fmt.Errorf("resolve demo path: %w", err)
 	}
-	// #nosec G304 -- demo path is an explicit local CLI input.
-	f, err := os.Open(abs)
+	f, err := rooted.Open(abs)
 	if err != nil {
 		return Report{}, nil, nil, fmt.Errorf("open demo: %w", err)
 	}
@@ -58,7 +58,7 @@ func collectContext(ctx context.Context, p demoinfocs.Parser, target, demoPath s
 		collectionErr  error
 		collectedBytes int64
 		lastPacketTick int
-	)
+)
 	lastSeen := map[string]Sighting{}
 	recordSighting := func(s Sighting) {
 		previous, ok := lastSeen[s.SteamID64]
