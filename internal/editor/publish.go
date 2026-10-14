@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -361,14 +363,12 @@ func publishShort(short ShortEdit) error {
 }
 
 func copyFile(src, dst string) error {
-	// #nosec G304 -- src is a generated local render path from the edit manifest.
-	in, err := os.Open(src)
+	in, err := rooted.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	// #nosec G304 -- dst is a generated publish path under the configured output directory.
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	out, err := rooted.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
