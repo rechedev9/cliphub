@@ -66,7 +66,12 @@ test("a machine fault requeues, gives the attempt back and pauses the worker", (
   });
   assert.equal(decision.outcome, "requeued");
   assert.equal(decision.attempt, 0);
-  assert.equal(decision.pauseReason, "capture_incompatible: HLAE hook crashed (AfxHookSource2)");
+  assert.deepEqual(decision.pauseReason, {
+    kind: "auto",
+    code: "capture_incompatible",
+    detail: "HLAE hook crashed (AfxHookSource2)",
+    job: null,
+  });
   assert.equal(decision.consecutiveFailures, 0);
 });
 
@@ -78,7 +83,12 @@ test("a machine fault on the last attempt still requeues instead of failing", ()
 
 test("the pause reason keeps at most 300 characters of detail", () => {
   const decision = decide({ code: "tools_missing", detail: "x".repeat(1000) });
-  assert.equal(decision.pauseReason, `tools_missing: ${"x".repeat(300)}`);
+  assert.deepEqual(decision.pauseReason, {
+    kind: "auto",
+    code: "tools_missing",
+    detail: "x".repeat(300),
+    job: null,
+  });
 });
 
 test("the cancel code is only valid when a cancel was requested", () => {
@@ -112,7 +122,12 @@ test("the breaker pauses the worker at the third consecutive failure and resets"
 
   const third = decide({ code: "job_failed", consecutiveFailures: 2, detail: "cs2 never started" });
   assert.equal(third.consecutiveFailures, 0);
-  assert.equal(third.pauseReason, "consecutive_failures: cs2 never started");
+  assert.deepEqual(third.pauseReason, {
+    kind: "auto",
+    code: "consecutive_failures",
+    detail: "cs2 never started",
+    job: null,
+  });
   assert.equal(third.outcome, "failed");
 });
 
@@ -153,12 +168,16 @@ test("the third machine fault of the same job fails it for good and pauses nobod
 
 test("an automatic pause names the job that caused it", () => {
   const job = { ...FIRST_ATTEMPT, id: "job-1", title: 'R3 "ace"' };
-  assert.equal(
-    decide({ job, code: "disk_full", detail: "2 GB left" }).pauseReason,
-    "disk_full: job job-1 \"R3 'ace'\": 2 GB left",
-  );
-  assert.equal(
-    decide({ job, code: "capture_flake", consecutiveFailures: 2, detail: "cs2 timeout" }).pauseReason,
-    "consecutive_failures: job job-1 \"R3 'ace'\": cs2 timeout",
-  );
+  assert.deepEqual(decide({ job, code: "disk_full", detail: "2 GB left" }).pauseReason, {
+    kind: "auto",
+    code: "disk_full",
+    detail: "2 GB left",
+    job: { id: "job-1", title: "R3 'ace'" },
+  });
+  assert.deepEqual(decide({ job, code: "capture_flake", consecutiveFailures: 2, detail: "cs2 timeout" }).pauseReason, {
+    kind: "auto",
+    code: "consecutive_failures",
+    detail: "cs2 timeout",
+    job: { id: "job-1", title: "R3 'ace'" },
+  });
 });
