@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -239,7 +241,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				}
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
 				var outcome *fullDemoDeliveryOutcome
-				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
+				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.FullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
 				if err == nil {
 					short.FullDemo.Delivery = outcome.Evidence
 					if diagnostics != nil {
@@ -582,8 +584,7 @@ func readReusableResult(resultPath string) *Result {
 	if resultPath == "" {
 		return nil
 	}
-	// #nosec G304 -- resultPath is the editor's own canonical result artifact.
-	body, err := os.ReadFile(resultPath)
+	body, err := rooted.ReadFile(resultPath)
 	if err != nil {
 		return nil
 	}
