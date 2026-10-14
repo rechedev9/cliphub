@@ -1,0 +1,7 @@
+{
+  "maxClipFadeSeconds": 5,
+  "maxTextOverlaysPerClip": 4,
+  "minOverlayFontSize": 24,
+  "maxOverlayFontSize": 120,
+  "defaultOverlayFontSize": 64
+}
