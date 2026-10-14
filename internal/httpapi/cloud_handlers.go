@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/go-chi/chi/v5"
 
@@ -163,7 +164,7 @@ func (h *Handlers) GetCloudJobVideo(w http.ResponseWriter, r *http.Request) {
 		writeCloudError(w, "locate cloud video", err)
 		return
 	}
-	file, err := os.Open(path) //nolint:gosec // path comes from the cloud client's record of its own downloads
+	file, err := rooted.Open(path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "video not found")
 		return

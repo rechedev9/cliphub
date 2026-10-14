@@ -7,7 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 
@@ -21,12 +25,19 @@ const lockStripeCount = 64
 // ErrActiveRun reports that a job already owns guided-generate work.
 var ErrActiveRun = errors.New("generate run is already active")
 
+var errReentrant = errors.New("generate intent store re-entered under the job lock")
+
+type jobSlot struct {
+	mu    sync.Mutex
+	owner atomic.Uint64
+}
+
 // Store serializes read-modify-write operations for a job's generate intent.
 // A single Store is shared by the desktop HTTP and worker runtimes, making a
 // conditional completion atomic with accepting a newer run.
 type Store struct {
 	storage storage.Storage
-	locks   [lockStripeCount]sync.Mutex
+	slots   [lockStripeCount]jobSlot
 }
 
 // New returns a generate-intent store backed by artifacts.
@@ -35,13 +46,14 @@ func New(store storage.Storage) *Store {
 }
 
 // Begin publishes intent only while no prior run owns the job and ready still
-// reports that adjacent render state is idle. ready runs inside the same job
-// lock used by Finish and WhileIdle; it must not call this Store recursively.
+// reports that adjacent render state is idle.
 func (s *Store) Begin(id uuid.UUID, intent renderplan.GenerateIntent, ready func() error) error {
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
+	return s.withJob(id, func() error {
+		return s.begin(id, intent, ready)
+	})
+}
 
+func (s *Store) begin(id uuid.UUID, intent renderplan.GenerateIntent, ready func() error) error {
 	current, ok, err := s.read(id)
 	if err != nil {
 		return err
@@ -59,11 +71,19 @@ func (s *Store) Begin(id uuid.UUID, intent renderplan.GenerateIntent, ready func
 
 // Read returns the latest accepted intent for id, when present.
 func (s *Store) Read(id uuid.UUID) (renderplan.GenerateIntent, bool, error) {
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
-
-	return s.read(id)
+	var (
+		intent renderplan.GenerateIntent
+		ok     bool
+		err    error
+	)
+	lockErr := s.withJob(id, func() error {
+		intent, ok, err = s.read(id)
+		return nil
+	})
+	if lockErr != nil {
+		return renderplan.GenerateIntent{}, false, lockErr
+	}
+	return intent, ok, err
 }
 
 // Complete clears ActiveRunID only when runID still owns the latest intent.
@@ -75,17 +95,26 @@ func (s *Store) Complete(id, runID uuid.UUID) error {
 }
 
 // Finish runs persist and clears ActiveRunID only when runID still owns the
-// latest intent. persist and marker completion share the job lock, preventing
-// a stale run from publishing state over a newer choice. persist must not call
-// this Store recursively.
+// latest intent.
 func (s *Store) Finish(id, runID uuid.UUID, persist func() error) (bool, error) {
 	if runID == uuid.Nil {
 		return false, nil
 	}
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
+	var (
+		owned bool
+		err   error
+	)
+	lockErr := s.withJob(id, func() error {
+		owned, err = s.finish(id, runID, persist)
+		return nil
+	})
+	if lockErr != nil {
+		return false, lockErr
+	}
+	return owned, err
+}
 
+func (s *Store) finish(id, runID uuid.UUID, persist func() error) (bool, error) {
 	intent, ok, err := s.read(id)
 	if err != nil || !ok || intent.ActiveRunID != runID {
 		return false, err
@@ -99,14 +128,14 @@ func (s *Store) Finish(id, runID uuid.UUID, persist func() error) (bool, error) 
 	return true, s.write(id, intent)
 }
 
-// WhileIdle runs persist only when no guided run currently owns id. It closes
-// the admission race between manual render state and Begin. persist must not
-// call this Store recursively.
+// WhileIdle runs persist only when no guided run currently owns id.
 func (s *Store) WhileIdle(id uuid.UUID, persist func() error) error {
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
+	return s.withJob(id, func() error {
+		return s.whileIdle(id, persist)
+	})
+}
 
+func (s *Store) whileIdle(id uuid.UUID, persist func() error) error {
 	intent, ok, err := s.read(id)
 	if err != nil {
 		return err
@@ -117,8 +146,29 @@ func (s *Store) WhileIdle(id uuid.UUID, persist func() error) error {
 	return persist()
 }
 
-func (s *Store) lock(id uuid.UUID) *sync.Mutex {
-	return &s.locks[int(id[0])%len(s.locks)]
+func (s *Store) withJob(id uuid.UUID, fn func() error) error {
+	slot := &s.slots[int(id[0])%len(s.slots)]
+	gid := currentGoroutineID()
+	if slot.owner.Load() == gid {
+		return errReentrant
+	}
+	slot.mu.Lock()
+	slot.owner.Store(gid)
+	defer func() {
+		slot.owner.Store(0)
+		slot.mu.Unlock()
+	}()
+	return fn()
+}
+
+func currentGoroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	text := string(buf[:n])
+	text = strings.TrimPrefix(text, "goroutine ")
+	id, _, _ := strings.Cut(text, " ")
+	parsed, _ := strconv.ParseUint(id, 10, 64)
+	return parsed
 }
 
 func (s *Store) write(id uuid.UUID, intent renderplan.GenerateIntent) error {
