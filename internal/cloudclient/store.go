@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/filecommit"
 )
 
@@ -99,7 +101,7 @@ type Store struct {
 // off at every start. The damaged file is kept beside it.
 func OpenStore(path string) (*Store, error) {
 	s := &Store{path: path}
-	data, err := os.ReadFile(path) //nolint:gosec // path is built from the configured data dir
+	data, err := rooted.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return s, nil
@@ -313,7 +315,7 @@ func (s *Store) saveLocked() error {
 // rename that follows can never publish a file whose content is still only
 // in the page cache.
 func writeFlushed(path string, data []byte) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // path is the attempt file beside the store
+	file, err := rooted.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
