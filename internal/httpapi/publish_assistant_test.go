@@ -116,7 +116,7 @@ func TestGetPublishAssistantReturnsFactualManualPack(t *testing.T) {
 func TestGetPublishAssistantAcceptsRenderWithWarnings(t *testing.T) {
 	// QA warnings are informational; a legacy review_required state is
 	// publishable too.
-	for _, status := range []string{renderplan.RenderVariantStatusReady, renderplan.RenderVariantStatusReview} {
+	for _, status := range []string{renderplan.RenderVariantStatusReady, "review_required"} {
 		t.Run(status, func(t *testing.T) {
 			h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
 				Player: "reche", Map: "Mirage", KillCount: 5, Hook: "5K TOTAL",
