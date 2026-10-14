@@ -11,6 +11,9 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/argv"
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 func TestLocalPutAndOpenRoundTrip(t *testing.T) {
@@ -294,7 +297,11 @@ func TestOpenLocalFileRetriesUntilAnExclusiveHandleIsReleased(t *testing.T) {
 	// the window must wait the lock out instead of failing the read.
 	holdFileExclusively(t, path, 120*time.Millisecond)
 
-	file, err := openLocalFile(path)
+	opened, err := rooted.Local(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := openLocalFile(opened)
 	if err != nil {
 		t.Fatalf("openLocalFile during a transient exclusive lock = %v, want success", err)
 	}
@@ -322,8 +329,12 @@ func TestOpenLocalFileReturnsPathErrorWhenTheLockOutlastsTheBudget(t *testing.T)
 	// The holder outlives any retry budget; test cleanup ends it.
 	holdFileExclusively(t, path, 30*time.Second)
 
+	opened, err := rooted.Local(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	start := time.Now()
-	file, err := openLocalFile(path)
+	file, err := openLocalFile(opened)
 	elapsed := time.Since(start)
 	if err == nil {
 		_ = file.Close()
@@ -333,7 +344,7 @@ func TestOpenLocalFileReturnsPathErrorWhenTheLockOutlastsTheBudget(t *testing.T)
 	if !errors.As(err, &pathErr) {
 		t.Fatalf("openLocalFile error = %v (%T), want *os.PathError", err, err)
 	}
-	if pathErr.Op != "open" || pathErr.Path != path {
+	if pathErr.Op != "open" || pathErr.Path != opened.String() {
 		t.Fatalf("openLocalFile error = %+v, want op \"open\" on %q", pathErr, path)
 	}
 	if elapsed < 100*time.Millisecond {
@@ -360,8 +371,7 @@ func holdFileExclusively(t *testing.T, path string, hold time.Duration) {
 			"Start-Sleep -Milliseconds %d;$f.Close()",
 		path, held, hold.Milliseconds(),
 	)
-	// #nosec G204 -- fixed shell running a fixed script over test-owned temp paths.
-	holder := exec.Command(shell, "-NoProfile", "-NonInteractive", "-Command", script)
+	holder := argv.Command(shell, "-NoProfile", "-NonInteractive", "-Command", script)
 	if err := holder.Start(); err != nil {
 		t.Fatalf("start exclusive holder: %v", err)
 	}
