@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 // Pipeline stage labels used when recording events. They double as the `stage`
@@ -333,8 +335,7 @@ func appendJSONLine(path string, value any) error {
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
 	}
-	// #nosec G304 -- path is derived from the Recorder's application-owned base directory.
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	f, err := rooted.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open journal: %w", err)
 	}

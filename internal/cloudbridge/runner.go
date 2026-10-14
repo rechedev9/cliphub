@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
@@ -293,7 +295,7 @@ func (r *runner) download(ctx context.Context, run *attempt) (string, *jobFailur
 
 func (r *runner) admit(ctx context.Context, run *attempt, demoPath string) (string, *jobFailure) {
 	id := run.job.ID
-	demo, err := os.Open(demoPath) //nolint:gosec // demoPath is built from the data dir and a validated job id
+	demo, err := rooted.Open(demoPath)
 	if err != nil {
 		return "", failureOf(codeInternal, "open downloaded demo: "+err.Error())
 	}

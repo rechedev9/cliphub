@@ -19,6 +19,7 @@ import {
   withDemoLock,
 } from "./demo-store.ts";
 import { isCsgoDemoHeader, isDemoHeader } from "./demo-validate.ts";
+import type { Actor } from "./actor.ts";
 import { recordEvent } from "./events.ts";
 import { apiFailure, contentLength, type ApiFailure } from "./http.ts";
 import { parseJobSpec } from "./job-spec.ts";
@@ -296,8 +297,9 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
         .returning({ id: requests.id });
       if (!created) return apiFailure(500, "internal");
 
+      const actor: Actor = { kind: "user", id: user.userId };
       const event = {
-        actor: `user:${user.userId}`,
+        actor,
         at: now,
         requestId: created.id,
         subjectUserId: user.userId,
@@ -416,8 +418,9 @@ async function receiveDemo(input: ReceiveDemoInput): Promise<{ ok: true } | ApiF
         .where(and(eq(requests.id, job.id), eq(requests.status, "awaiting_demo")))
         .returning({ id: requests.id });
       if (updated.length === 0) return false;
+      const actor: Actor = { kind: "user", id: user.userId };
       const event = {
-        actor: `user:${user.userId}`,
+        actor,
         at: now,
         requestId: job.id,
         subjectUserId: user.userId,

@@ -157,7 +157,7 @@ func TestMaterializeRenderVariantStatesPromotesLegacyReviewOnceAtStartup(t *test
 	legacy, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 		JobID:    j.ID,
 		Loadout:  loadout,
-		Status:   renderplan.RenderVariantStatusReview,
+		Status:   "review_required",
 		Warnings: []string{"freeze at 00:12"},
 	})
 	if err != nil {

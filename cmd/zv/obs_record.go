@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/recordexit"
 )
 
 // recordShortFailure records a failed `zv short` stage to the local obs journal.
@@ -40,21 +41,16 @@ func shortStageClass(binary string, code int) (stage, class string) {
 			return obs.StageParse, "parse_failed"
 		}
 	case "zv-recorder":
-		// Exit code 6 is cmd/zv-recorder's exitHookIncompatible; keep the two
-		// integers in sync (separate `main` packages can't share the constant).
-		if code == 6 {
+		switch code {
+		case recordexit.HookIncompatible:
 			return obs.StageRecord, "capture_incompatible"
-		}
-		// Exit code 7 is cmd/zv-recorder's exitDemoIncompatible; keep the two
-		// integers in sync (separate `main` packages can't share the constant).
-		if code == 7 {
+		case recordexit.DemoIncompatible:
 			return obs.StageRecord, "demo_incompatible"
-		}
-		// Exit code 8 is cmd/zv-recorder's exitUnplayableStart.
-		if code == 8 {
+		case recordexit.UnplayableStart:
 			return obs.StageRecord, "unplayable_start"
+		default:
+			return obs.StageRecord, "record_failed"
 		}
-		return obs.StageRecord, "record_failed"
 	case "zv-rhythm":
 		return obs.StageRender, "rhythm_failed"
 	case "zv-editor":

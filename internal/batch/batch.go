@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
@@ -203,8 +205,7 @@ func safeTopFragger(ctx context.Context, demo string) (id string, err error) {
 
 // parseDemo opens demo and builds a kill plan for target.
 func parseDemo(ctx context.Context, demo, target string, mode parser.SegmentMode) (killplan.Plan, error) {
-	// #nosec G304 -- demo path is an explicit local input from the batch dir.
-	f, err := os.Open(demo)
+	f, err := rooted.Open(demo)
 	if err != nil {
 		return killplan.Plan{}, err
 	}
@@ -228,8 +229,7 @@ func parseDemo(ctx context.Context, demo, target string, mode parser.SegmentMode
 // kills in demo. It mirrors `zv demo players` so batch can pick a sensible
 // target without the operator naming one per demo.
 func topFragger(ctx context.Context, demo string) (string, error) {
-	// #nosec G304 -- demo path is an explicit local input from the batch dir.
-	f, err := os.Open(demo)
+	f, err := rooted.Open(demo)
 	if err != nil {
 		return "", err
 	}

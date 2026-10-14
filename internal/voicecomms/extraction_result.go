@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 const ExtractorVersion = "team-packet-clock-v2"
@@ -70,8 +71,7 @@ func ExtractFileWithContext(ctx context.Context, demoPath, target, dir, ffmpegPa
 var peakPattern = regexp.MustCompile(`Peak level dB:\s+(-?inf|[-+0-9.]+)`)
 
 func decodedTrackPeak(ctx context.Context, ffmpegPath, path string) (float64, error) {
-	// #nosec G204 -- configured local FFmpeg receives a generated local track as an argv value.
-	cmd := exec.CommandContext(ctx, ffmpegPath, "-nostdin", "-nostats", "-hide_banner", "-protocol_whitelist", "file,pipe", "-i", path, "-vn", "-af", "astats=metadata=0:reset=0", "-f", "null", "-")
+	cmd := argv.CommandContext(ctx, ffmpegPath, "-nostdin", "-nostats", "-hide_banner", "-protocol_whitelist", "file,pipe", "-i", path, "-vn", "-af", "astats=metadata=0:reset=0", "-f", "null", "-")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return 0, fmt.Errorf("voice sample analysis: %w", err)

@@ -9,9 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -195,8 +196,7 @@ func (c AcquireWorkerConfig) timeoutDuration() time.Duration {
 
 // sha256File hashes a local file's contents.
 func sha256File(path string) (string, error) {
-	// #nosec G304 -- path is produced by the acquire worker's own stage dir.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return "", err
 	}
