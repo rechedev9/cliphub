@@ -16,6 +16,7 @@ const (
 	RenderVariantStatusReady     = "ready"
 	RenderVariantStatusFailed    = "failed"
 	legacyReviewStatus           = "review_required"
+	RenderVariantStatusReview    = legacyReviewStatus
 )
 
 func IsLegacyReviewStatus(status string) bool {
