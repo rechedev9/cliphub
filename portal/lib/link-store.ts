@@ -103,6 +103,7 @@ export async function startLink(input: StartLinkInput): Promise<StartedLink> {
 }
 
 function sameHash(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
   const left = Buffer.from(a, "utf8");
   const right = Buffer.from(b, "utf8");
   return left.length === right.length && timingSafeEqual(left, right);
@@ -157,7 +158,7 @@ export async function pollLink(input: PollInput): Promise<PollResult> {
     await recordEvent(
       {
         type: "device_linked",
-        actor: `user:${userId}`,
+        actor: { kind: "user", id: userId },
         at: now,
         subjectUserId: userId,
         detail: link.deviceName,
@@ -296,7 +297,7 @@ export async function revokeDevice(input: RevokeDeviceInput): Promise<boolean> {
     await recordEvent(
       {
         type: "device_revoked",
-        actor: `user:${userId}`,
+        actor: { kind: "user", id: userId },
         at: now,
         subjectUserId: userId,
         detail: device.name,
