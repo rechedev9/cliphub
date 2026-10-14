@@ -1,15 +1,11 @@
 import type { StreamClipRange, StreamTextOverlay } from './api/streams';
+import clipLimits from '../../internal/streamclips/clip_limits.json' with { type: 'json' };
 
-/**
- * Client-side mirror of the clip-edit limits in internal/streamclips/types.go
- * (defaultOverlayFontSize, min/maxOverlayFontSize, maxTextOverlaysPerClip,
- * maxClipFadeSeconds). Keep in lockstep with the Go constants.
- */
-export const DEFAULT_OVERLAY_FONT_SIZE = 64;
-export const MIN_OVERLAY_FONT_SIZE = 24;
-export const MAX_OVERLAY_FONT_SIZE = 120;
-export const MAX_TEXT_OVERLAYS = 4;
-const MAX_CLIP_FADE_SECONDS = 5;
+export const DEFAULT_OVERLAY_FONT_SIZE = clipLimits.defaultOverlayFontSize;
+export const MIN_OVERLAY_FONT_SIZE = clipLimits.minOverlayFontSize;
+export const MAX_OVERLAY_FONT_SIZE = clipLimits.maxOverlayFontSize;
+export const MAX_TEXT_OVERLAYS = clipLimits.maxTextOverlaysPerClip;
+const MAX_CLIP_FADE_SECONDS = clipLimits.maxClipFadeSeconds;
 
 /** Playback rates the render's chained atempo filters reproduce faithfully. */
 export const CLIP_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;

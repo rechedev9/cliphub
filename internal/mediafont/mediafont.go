@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -150,8 +152,7 @@ func materializeFile(dir, fileName, wantSHA string, data []byte) error {
 }
 
 func fileMatchesSHA(path, wantSHA string) (bool, error) {
-	// #nosec G304 -- path is constructed from ClipHub's fixed cache root and bundled font filenames.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return false, err
 	}
