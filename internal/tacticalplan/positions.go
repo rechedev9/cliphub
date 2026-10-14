@@ -216,7 +216,7 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 	}
 	var mask uint16
 	// A stack-local slot index avoids scanning every sample again for each
-// wire slot. The input may be unsorted; never reorder the caller's slice.
+	// wire slot. The input may be unsorted; never reorder the caller's slice.
 	var bySlot [maxSlots]*Sample
 	for i := range f.Samples {
 		s := &f.Samples[i]
