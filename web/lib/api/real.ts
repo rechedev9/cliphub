@@ -42,23 +42,7 @@ import { parseCaptureProgress } from '../capture-progress.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 
-/** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
-type RosterPlayer = {
-  steamid64: string;
-  name: string;
-  team: 'CT' | 'T' | '';
-  kills: number;
-  deaths: number;
-  assists: number;
-  headshots?: number;
-  mvps?: number;
-  rounds?: number;
-  adr?: number;
-  hs_pct?: number;
-  kast?: number;
-  rating?: number;
-  rounds_2k?: number;
-  rounds_3k?: number;
-  rounds_4k?: number;
-  rounds_5k?: number;
-};
+function toRosterMatch(m: RosterMatchResponse | undefined): RosterMatch | undefined {
+  if (!m) return undefined;
+  return { map: m.map, scoreCt: m.score_ct, scoreT: m.score_t, rounds: m.rounds };
+}
