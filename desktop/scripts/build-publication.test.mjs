@@ -793,7 +793,7 @@ winTest('legacy journal cannot infer an original from a missing backup', (t) => 
   const result = invokeRecovery(bin);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /original backup is missing\s+after phase 'unknown'/);
+  assert.match(result.stderr, /unsupported build publication journal schema/);
   assert.equal(readFileSync(join(bin, 'a.exe'), 'utf8'), 'ambiguous-a');
   assert.equal(existsSync(journal), true);
 });
@@ -832,19 +832,10 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
   });
 
   assert.notEqual(interrupted.status, 0);
-  assert.equal(readFileSync(target, 'utf8'), 'original-a');
-  assert.equal(existsSync(backup), false);
-  const migrated = JSON.parse(readFileSync(journal, 'utf8'));
-  assert.equal(migrated.SchemaVersion, 2);
-  assert.equal(migrated.Phase, 'publishing');
-  assert.equal(migrated.Items[0].Phase, 'restored');
-
-  const recovered = invokeRecovery(bin);
-
-  assert.equal(recovered.status, 0, recovered.stderr);
-  assert.equal(readFileSync(target, 'utf8'), 'original-a');
-  assert.equal(existsSync(journal), false);
-  assert.equal(existsSync(stage), false);
+  assert.match(interrupted.stderr, /unsupported build publication journal schema/);
+  assert.equal(readFileSync(target, 'utf8'), 'candidate-a');
+  assert.equal(existsSync(backupArtifact), true);
+  assert.equal(existsSync(journal), true);
 });
 
 winTest('recovery retains a no-original candidate when injected removal is a no-op', (t) => {
