@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 // IsNotExist reports whether err means the requested storage key is absent.
@@ -25,20 +27,20 @@ type Storage interface {
 
 // Local implements Storage backed by the local filesystem under a root dir.
 type Local struct {
-	root string
+	root rooted.Dir
 }
 
 // NewLocal returns a Local rooted at the given absolute or relative path.
 // The root directory is created if it does not exist.
 func NewLocal(root string) (*Local, error) {
-	abs, err := filepath.Abs(root)
+	dir, err := rooted.NewDir(root)
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(abs, 0o750); err != nil {
+	if err := os.MkdirAll(dir.Root(), 0o750); err != nil {
 		return nil, err
 	}
-	return &Local{root: abs}, nil
+	return &Local{root: dir}, nil
 }
 
 // Put atomically replaces the file at key with r's contents. Readers see either
@@ -49,11 +51,11 @@ func (l *Local) Put(key string, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
+	dir := filepath.Dir(path.String())
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("storage: create artifact directory: %w", err)
 	}
-	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
+	temp, err := os.CreateTemp(dir, "."+filepath.Base(path.String())+"-*")
 	if err != nil {
 		return fmt.Errorf("storage: create temporary artifact: %w", err)
 	}
@@ -74,7 +76,7 @@ func (l *Local) Put(key string, r io.Reader) error {
 	if err := temp.Close(); err != nil {
 		return fmt.Errorf("storage: close temporary artifact: %w", err)
 	}
-	if err := replaceLocalFile(tempPath, path); err != nil {
+	if err := replaceLocalFile(tempPath, path.String()); err != nil {
 		return fmt.Errorf("storage: replace artifact: %w", err)
 	}
 	keepTemp = false
@@ -97,7 +99,6 @@ func (l *Local) Open(key string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	// #nosec G304 -- path is resolved under Local.root by resolve.
 	return openLocalFile(path)
 }
 
@@ -106,7 +107,11 @@ func (l *Local) Open(key string) (io.ReadCloser, error) {
 // (ffmpeg reading a multi-gigabyte stream source) use it to avoid copying the
 // whole file through Open.
 func (l *Local) ResolvePath(key string) (string, error) {
-	return l.resolve(key)
+	path, err := l.resolve(key)
+	if err != nil {
+		return "", err
+	}
+	return path.String(), nil
 }
 
 // List returns the base file names present directly under the directory at key,
@@ -117,7 +122,7 @@ func (l *Local) List(key string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(dir.String())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -140,7 +145,7 @@ func (l *Local) Delete(key string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(path.String()); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -156,7 +161,7 @@ func (l *Local) DeleteTree(key string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(path); err != nil {
+	if err := os.RemoveAll(path.String()); err != nil {
 		return err
 	}
 	return nil
@@ -168,7 +173,7 @@ func (l *Local) Exists(key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if _, err := os.Stat(path); err != nil {
+	if _, err := os.Stat(path.String()); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
@@ -177,24 +182,16 @@ func (l *Local) Exists(key string) (bool, error) {
 	return true, nil
 }
 
-func (l *Local) resolve(key string) (string, error) {
-	if strings.HasPrefix(key, "/") || strings.HasPrefix(key, `\`) {
-		return "", fmt.Errorf("storage: invalid key %q", key)
+func (l *Local) resolve(key string) (rooted.Path, error) {
+	path, err := l.root.Within(key)
+	if err == nil {
+		return path, nil
 	}
-	clean := filepath.Clean(filepath.FromSlash(key))
-	if clean == "." || filepath.IsAbs(clean) {
-		return "", fmt.Errorf("storage: invalid key %q", key)
+	if strings.HasSuffix(err.Error(), "escapes root") {
+		return rooted.Path{}, errors.New("storage: key escapes root")
 	}
-	if clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("storage: invalid key %q", key)
+	if strings.Contains(err.Error(), "invalid key") {
+		return rooted.Path{}, fmt.Errorf("storage: invalid key %q", key)
 	}
-	abs := filepath.Join(l.root, clean)
-	rel, err := filepath.Rel(l.root, abs)
-	if err != nil {
-		return "", err
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
-		return "", errors.New("storage: key escapes root")
-	}
-	return abs, nil
+	return rooted.Path{}, err
 }

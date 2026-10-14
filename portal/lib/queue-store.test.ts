@@ -438,7 +438,15 @@ test("a machine fault requeues the job at attempt 0 and auto-pauses the worker",
   const paused = await getWorker(worker.id);
   assert.equal(paused.paused, true);
   assert.equal(paused.pausedBy, "auto");
-  assert.equal(paused.pauseReason, `capture_incompatible: job ${jobId} "R3 4k": AfxHookSource2 crashed`);
+  assert.equal(
+    paused.pauseReason,
+    JSON.stringify({
+      kind: "auto",
+      code: "capture_incompatible",
+      detail: "AfxHookSource2 crashed",
+      job: { id: jobId, title: "R3 4k" },
+    }),
+  );
   assert.deepEqual(await claim(worker), { claimed: false, reason: "paused" });
   assert.deepEqual(await eventTypes(jobId), ["claimed", "requeued", "worker_auto_paused"]);
 });
@@ -463,7 +471,15 @@ test("three retryable failures in a row pause the worker", async () => {
     { outcome: "requeued", workerPaused: true },
   ]);
   const paused = await getWorker(worker.id);
-  assert.equal(paused.pauseReason, `consecutive_failures: job ${newer} "R3 4k": cs2 timeout`);
+  assert.equal(
+    paused.pauseReason,
+    JSON.stringify({
+      kind: "auto",
+      code: "consecutive_failures",
+      detail: "cs2 timeout",
+      job: { id: newer, title: "R3 4k" },
+    }),
+  );
   assert.equal(paused.consecutiveFailures, 0);
 });
 

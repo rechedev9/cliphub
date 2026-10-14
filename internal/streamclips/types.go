@@ -2,6 +2,7 @@
 package streamclips
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 )
 
@@ -115,20 +117,36 @@ type ClipRange struct {
 // faithfully; fades and overlay text are bounded so a plan can never produce a
 // degenerate render.
 const (
-	minClipSpeed           = 0.25
-	maxClipSpeed           = 3
-	maxSourceVolume        = 2
-	maxClipFadeSeconds     = 5
-	maxTextOverlaysPerClip = 4
-	maxTextOverlayRunes    = 120
-	minOverlayFontSize     = 24
-	maxOverlayFontSize     = 120
-	defaultOverlayFontSize = 64
+	minClipSpeed        = 0.25
+	maxClipSpeed        = 3
+	maxSourceVolume     = 2
+	maxTextOverlayRunes = 120
 	// Vertical center bounds shared by the streamer banner and text overlays:
 	// the drag-handle margin that keeps either strip fully inside the frame.
 	minVerticalPositionY = 0.025
 	maxVerticalPositionY = 0.975
 )
+
+//go:embed clip_limits.json
+var clipLimitsJSON []byte
+
+type clipLimitSet struct {
+	MaxClipFadeSeconds     float64 `json:"maxClipFadeSeconds"`
+	MaxTextOverlaysPerClip int     `json:"maxTextOverlaysPerClip"`
+	MinOverlayFontSize     int     `json:"minOverlayFontSize"`
+	MaxOverlayFontSize     int     `json:"maxOverlayFontSize"`
+	DefaultOverlayFontSize int     `json:"defaultOverlayFontSize"`
+}
+
+func loadClipLimits() clipLimitSet {
+	var set clipLimitSet
+	if err := json.Unmarshal(clipLimitsJSON, &set); err != nil {
+		panic(err)
+	}
+	return set
+}
+
+var clipLimits = loadClipLimits()
 
 // ClipEdit carries the optional per-clip edit options: playback speed, the
 // original-audio gain, fades, and burned-in text overlays. A nil or zero value
@@ -658,17 +676,17 @@ func (e *ClipEdit) validate(clipID string, sourceDuration float64) error {
 	if v := e.SourceVolume; v != nil && (math.IsNaN(*v) || *v < 0 || *v > maxSourceVolume) {
 		return fmt.Errorf("clip %s source_volume must be between 0 and 2", clipID)
 	}
-	if math.IsNaN(e.FadeInSeconds) || e.FadeInSeconds < 0 || e.FadeInSeconds > maxClipFadeSeconds {
+	if math.IsNaN(e.FadeInSeconds) || e.FadeInSeconds < 0 || e.FadeInSeconds > clipLimits.MaxClipFadeSeconds {
 		return fmt.Errorf("clip %s fade_in_seconds must be between 0 and 5", clipID)
 	}
-	if math.IsNaN(e.FadeOutSeconds) || e.FadeOutSeconds < 0 || e.FadeOutSeconds > maxClipFadeSeconds {
+	if math.IsNaN(e.FadeOutSeconds) || e.FadeOutSeconds < 0 || e.FadeOutSeconds > clipLimits.MaxClipFadeSeconds {
 		return fmt.Errorf("clip %s fade_out_seconds must be between 0 and 5", clipID)
 	}
 	// Fades run in output time, so they must fit the sped-up duration.
 	if e.FadeInSeconds+e.FadeOutSeconds > sourceDuration/e.speed() {
 		return fmt.Errorf("clip %s fades must fit within the clip's output duration", clipID)
 	}
-	if len(e.TextOverlays) > maxTextOverlaysPerClip {
+	if len(e.TextOverlays) > clipLimits.MaxTextOverlaysPerClip {
 		return fmt.Errorf("clip %s has at most 4 text overlays", clipID)
 	}
 	for _, overlay := range e.TextOverlays {
@@ -697,7 +715,7 @@ func (o TextOverlay) validate(clipID string, clipDuration float64) error {
 	if math.IsNaN(o.PositionY) || math.IsInf(o.PositionY, 0) || o.PositionY < minVerticalPositionY || o.PositionY > maxVerticalPositionY {
 		return fmt.Errorf("clip %s text overlay position_y must be finite and between 0.025 and 0.975", clipID)
 	}
-	if o.FontSize != 0 && (o.FontSize < minOverlayFontSize || o.FontSize > maxOverlayFontSize) {
+	if o.FontSize != 0 && (o.FontSize < clipLimits.MinOverlayFontSize || o.FontSize > clipLimits.MaxOverlayFontSize) {
 		return fmt.Errorf("clip %s text overlay font_size must be between 24 and 120", clipID)
 	}
 	if s := o.StartSeconds; s != nil && (math.IsNaN(*s) || *s < 0 || *s >= clipDuration) {

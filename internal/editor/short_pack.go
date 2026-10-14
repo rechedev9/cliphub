@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -582,8 +584,7 @@ func readReusableResult(resultPath string) *Result {
 	if resultPath == "" {
 		return nil
 	}
-	// #nosec G304 -- resultPath is the editor's own canonical result artifact.
-	body, err := os.ReadFile(resultPath)
+	body, err := rooted.ReadFile(resultPath)
 	if err != nil {
 		return nil
 	}

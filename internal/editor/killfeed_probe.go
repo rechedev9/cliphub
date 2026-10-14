@@ -7,9 +7,10 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 const (
@@ -577,8 +578,7 @@ func decodeKillfeedFrameCommand(command []string) (image.Image, error) {
 	if len(command) == 0 || command[0] == "" {
 		return nil, fmt.Errorf("killfeed frame probe command is empty")
 	}
-	// #nosec G204 -- ffmpegPath and input are local pipeline configuration, not untrusted input.
-	cmd := exec.Command(command[0], command[1:]...)
+	cmd := argv.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("open killfeed frame pipe: %w", err)

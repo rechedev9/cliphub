@@ -366,8 +366,7 @@ func (h *Handlers) loadPublishAssistantFacts(
 		writeError(w, http.StatusConflict, "render is not ready for publication")
 		return publishAssistantFacts{}, false
 	}
-	if snapshot.state != nil && snapshot.state.Status != renderplan.RenderVariantStatusReady &&
-		snapshot.state.Status != renderplan.RenderVariantStatusReview {
+	if snapshot.state != nil && !renderplan.IsReadyStatus(snapshot.state.Status) {
 		writeError(w, http.StatusConflict, "render is not ready for publication")
 		return publishAssistantFacts{}, false
 	}

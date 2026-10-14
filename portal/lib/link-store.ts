@@ -157,7 +157,7 @@ export async function pollLink(input: PollInput): Promise<PollResult> {
     await recordEvent(
       {
         type: "device_linked",
-        actor: `user:${userId}`,
+        actor: { kind: "user", id: userId },
         at: now,
         subjectUserId: userId,
         detail: link.deviceName,
@@ -296,7 +296,7 @@ export async function revokeDevice(input: RevokeDeviceInput): Promise<boolean> {
     await recordEvent(
       {
         type: "device_revoked",
-        actor: `user:${userId}`,
+        actor: { kind: "user", id: userId },
         at: now,
         subjectUserId: userId,
         detail: device.name,

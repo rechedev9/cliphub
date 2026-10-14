@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/pathguard"
@@ -407,8 +409,7 @@ func (c Config) validate() error {
 }
 
 func ReadRecordingResult(path string) (recording.RecordingResult, error) {
-	// #nosec G304 -- recording result path is an explicit local CLI/config input.
-	b, err := os.ReadFile(path)
+	b, err := rooted.ReadFile(path)
 	if err != nil {
 		return recording.RecordingResult{}, err
 	}

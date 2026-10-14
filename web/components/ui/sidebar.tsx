@@ -439,12 +439,6 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  // No font-size here or in the size variants. `text-sm` used to fight the
-  // caller's `text-label`: tailwind-merge does not know the project's custom
-  // font-size scale, so it kept both classes and stylesheet order decided the
-  // winner — the nav rendered at 14px instead of 13 and the longest label
-  // ("CLIPS DE STREAM") landed exactly on its truncation edge. The type scale
-  // belongs to the caller.
   "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
@@ -514,15 +508,8 @@ function SidebarMenuButton({
         sideOffset={8}
         hidden={state !== "collapsed" || isMobile}
         {...tooltipProps}
-        // In the collapsed rail the tooltip is the *entire* labelling
-        // mechanism, so it gets the nav's own voice: display caps at the label
-        // step, and --border-strong because it is labelling a control.
-        // [font-size:…] rather than `text-label`: tailwind-merge does not know
-        // this project's font-size scale and files an unknown `text-*` under
-        // text-colour, so a size step and a colour step cannot survive the same
-        // cn() call.
         className={cn(
-          "border-border-strong px-3 py-2 font-[family-name:var(--font-display)] [font-size:var(--text-label)] font-semibold tracking-wide uppercase",
+          "border-border-strong px-3 py-2 font-[family-name:var(--font-display)] text-label font-semibold tracking-wide uppercase",
           tooltipClassName
         )}
       />

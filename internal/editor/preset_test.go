@@ -71,6 +71,9 @@ func TestEveryPresetHasLabel(t *testing.T) {
 		if preset.Label == "" {
 			t.Errorf("preset %q has no Label (the UI picker shows it)", name)
 		}
+		if preset.DescriptionES == "" || preset.DescriptionES == preset.Description {
+			t.Errorf("preset %q DescriptionES = %q", name, preset.DescriptionES)
+		}
 	}
 }
 

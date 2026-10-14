@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -101,8 +102,7 @@ func reencodeConcatArgs(listPath, outputPath string) []string {
 // runConcat executes one ffmpeg concat command line and formats any failure
 // with the ffmpeg stderr detail.
 func runConcat(ctx context.Context, ffmpegPath string, args []string) error {
-	// #nosec G204 -- ffmpegPath is configured locally and args are not shell-interpolated.
-	cmd := exec.CommandContext(ctx, ffmpegPath, append([]string{"-y", "-v", "error"}, args...)...)
+	cmd := argv.CommandContext(ctx, ffmpegPath, append([]string{"-y", "-v", "error"}, args...)...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

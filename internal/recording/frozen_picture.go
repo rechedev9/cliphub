@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 const (
@@ -39,8 +40,7 @@ func DetectFrozenRuns(ctx context.Context, ffmpegPath, path string) ([]FrozenRun
 	// blackframe marks a difference frame only when every luma pixel is within
 	// the tolerance, so one small moving element keeps a frame out of a run.
 	filter := fmt.Sprintf("extractplanes=y,tblend=all_mode=difference,blackframe=amount=100:threshold=%d", frozenPictureLumaTolerance+1)
-	// #nosec G204 -- ffmpegPath is configured locally and path is passed as an argument.
-	cmd := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-nostats", "-nostdin", "-v", "info",
+	cmd := argv.CommandContext(ctx, ffmpegPath, "-hide_banner", "-nostats", "-nostdin", "-v", "info",
 		"-i", path, "-map", "0:v:0", "-vf", filter, "-f", "null", "-")
 	var log bytes.Buffer
 	cmd.Stderr = &log

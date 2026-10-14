@@ -329,7 +329,6 @@ export class RealApiClient implements ApiClient {
   private readonly recoveryProbed = new Map<string, string>();
 
   constructor() {
-    // Rehydrate persisted intents so the Library survives a hard reload.
     for (const intent of loadReelIntents()) {
       this.intents.set(intent.videoId, intent);
       this.reels.set(intent.videoId, videoFromIntent(intent));
@@ -341,7 +340,6 @@ export class RealApiClient implements ApiClient {
     return dataPlane();
   }
 
-  /** One data-plane request; merges transport headers onto the built init. */
   private async send(build: (dp: DataPlane) => { url: string; init?: RequestInit }): Promise<Response> {
     const dp = this.dp();
     const { url, init } = build(dp);
@@ -349,7 +347,6 @@ export class RealApiClient implements ApiClient {
     return fetch(url, { ...init, headers });
   }
 
-  /** Reads a job's roster scan (players + optional match context) from the proxy. */
   private async fetchRoster(jobId: string): Promise<RosterResponse> {
     return readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(jobId) })));
   }
@@ -388,7 +385,6 @@ export class RealApiClient implements ApiClient {
     return this.sharedRead(`status:${jobId}`, () => this.fetchStatusFull(jobId));
   }
 
-  /** This beat's job status string; see `beatStatusView`. */
   private async beatStatus(jobId: string): Promise<string | null> {
     const view = await this.beatStatusView(jobId);
     return view ? view.status : null;
@@ -1031,7 +1027,6 @@ export class RealApiClient implements ApiClient {
     void this.drive(intent, decision.view.action, redriveFrom);
   }
 
-  /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
   private applyView(intent: ReelIntent, view: ReelView): void {
     const base = this.reels.get(intent.videoId) ?? videoFromIntent(intent);
     // captureProgress belongs on recording and composing views.
@@ -1341,6 +1336,7 @@ export class RealApiClient implements ApiClient {
           name: string;
           label?: string;
           description?: string;
+          description_es?: string;
           hud_mode?: string;
           default?: boolean;
           width?: number;
@@ -1351,6 +1347,7 @@ export class RealApiClient implements ApiClient {
         name: p.name,
         label: p.label ?? p.name,
         description: p.description ?? '',
+        descriptionEs: p.description_es,
         hudMode: p.hud_mode,
         default: p.default,
         width: typeof p.width === 'number' && p.width > 0 ? p.width : undefined,

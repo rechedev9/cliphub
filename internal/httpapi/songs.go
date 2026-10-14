@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -169,8 +171,7 @@ func (h *Handlers) GetSongAudio(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "song not found")
 		return
 	}
-	// #nosec G304 -- path comes from resolveSongFile after separator-free ID validation.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "song not found")
 		return

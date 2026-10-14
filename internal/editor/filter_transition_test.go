@@ -15,10 +15,10 @@ func TestTransitionFlashFilters(t *testing.T) {
 		{
 			name: "first clip tail only",
 			short: ShortEdit{
-				Transition:       TransitionFlash,
-				SegmentOrdinal:   1,
-				SegmentTotal:     3,
-				DurationSeconds:  6,
+				Transition:      TransitionFlash,
+				SegmentOrdinal:  1,
+				SegmentTotal:    3,
+				DurationSeconds: 6,
 			},
 			want:      []string{"fade=t=out:st=5.900:d=0.100:color=white"},
 			forbidden: []string{"fade=t=in:"},
@@ -26,10 +26,10 @@ func TestTransitionFlashFilters(t *testing.T) {
 		{
 			name: "middle clip head and tail",
 			short: ShortEdit{
-				Transition:       TransitionFlash,
-				SegmentOrdinal:   2,
-				SegmentTotal:     3,
-				DurationSeconds:  6,
+				Transition:      TransitionFlash,
+				SegmentOrdinal:  2,
+				SegmentTotal:    3,
+				DurationSeconds: 6,
 			},
 			want: []string{
 				"fade=t=in:st=0:d=0.100:color=white",
@@ -39,10 +39,10 @@ func TestTransitionFlashFilters(t *testing.T) {
 		{
 			name: "last clip head only",
 			short: ShortEdit{
-				Transition:       TransitionFlash,
-				SegmentOrdinal:   3,
-				SegmentTotal:     3,
-				DurationSeconds:  6,
+				Transition:      TransitionFlash,
+				SegmentOrdinal:  3,
+				SegmentTotal:    3,
+				DurationSeconds: 6,
 			},
 			want:      []string{"fade=t=in:st=0:d=0.100:color=white"},
 			forbidden: []string{"fade=t=out:"},
@@ -50,20 +50,20 @@ func TestTransitionFlashFilters(t *testing.T) {
 		{
 			name: "single clip no fades",
 			short: ShortEdit{
-				Transition:       TransitionFlash,
-				SegmentOrdinal:   1,
-				SegmentTotal:     1,
-				DurationSeconds:  6,
+				Transition:      TransitionFlash,
+				SegmentOrdinal:  1,
+				SegmentTotal:    1,
+				DurationSeconds: 6,
 			},
 			forbidden: []string{"fade=t=in:", "fade=t=out:"},
 		},
 		{
 			name: "short clip clamps tail start",
 			short: ShortEdit{
-				Transition:       TransitionFlash,
-				SegmentOrdinal:   1,
-				SegmentTotal:     2,
-				DurationSeconds:  0.05,
+				Transition:      TransitionFlash,
+				SegmentOrdinal:  1,
+				SegmentTotal:    2,
+				DurationSeconds: 0.05,
 			},
 			want: []string{"fade=t=out:st=0.000:d=0.050:color=white"},
 		},
@@ -87,13 +87,13 @@ func TestTransitionFlashFilters(t *testing.T) {
 
 func TestVideoFilterTransitionFlashInGraph(t *testing.T) {
 	short := ShortEdit{
-		Preset:           PresetViral60Clean,
-		OutputFormat:     OutputFormatShort9x16,
-		Transition:       TransitionFlash,
-		SegmentOrdinal:   2,
-		SegmentTotal:     3,
-		DurationSeconds:  5,
-		OutputFPS:        60,
+		Preset:          PresetViral60Clean,
+		OutputFormat:    OutputFormatShort9x16,
+		Transition:      TransitionFlash,
+		SegmentOrdinal:  2,
+		SegmentTotal:    3,
+		DurationSeconds: 5,
+		OutputFPS:       60,
 	}
 	got := VideoFilter(short)
 	for _, want := range []string{"fade=t=in:st=0:d=0.100:color=white", "fade=t=out:st=4.900:d=0.100:color=white"} {

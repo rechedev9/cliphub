@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	lua "github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/ast"
 	"github.com/yuin/gopher-lua/parse"
@@ -102,8 +104,7 @@ func loadEffectsSource(path, preset string) (effectsSource, error) {
 		if err != nil {
 			return effectsSource{}, fmt.Errorf("resolve effects script path: %w", err)
 		}
-		// #nosec G304 -- effects script path is an explicit local CLI/config input.
-		f, err := os.Open(abs)
+		f, err := rooted.Open(abs)
 		if err != nil {
 			return effectsSource{}, fmt.Errorf("read effects script: %w", err)
 		}

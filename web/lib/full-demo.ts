@@ -1,5 +1,5 @@
 import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type Preset } from './api/types.ts';
-import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
+import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
@@ -26,7 +26,8 @@ export const FULL_DEMO_EDIT: EditConfig = {
 export const FULL_DEMO_PRESET: Preset = {
   name: FULL_DEMO_VARIANT,
   label: 'POV nativo',
-  description: PRESET_DESCRIPTION_ES['gameplay-pov-60'],
+  description:
+    'POV de YouTube con el HUD nativo de CS2 (radar, vida, munición y killfeed); 1920×1080 a 60fps, sin grade viral.',
   hudMode: 'gameplay',
   width: 1920,
   height: 1080,

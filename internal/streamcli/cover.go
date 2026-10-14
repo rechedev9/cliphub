@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 type streamCoverGenerator interface {
@@ -22,9 +23,7 @@ func (ffmpegStreamCoverGenerator) Generate(ctx context.Context, ffmpeg, videoPat
 		"-ss", strconv.FormatFloat(atSeconds, 'f', 3, 64),
 		"-frames:v", "1", "-q:v", "2", coverPath,
 	}
-	// #nosec G204 -- ffmpeg is a configured local executable and arguments are
-	// passed directly without a shell.
-	cmd := exec.CommandContext(ctx, ffmpeg, args...)
+	cmd := argv.CommandContext(ctx, ffmpeg, args...)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil

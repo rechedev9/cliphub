@@ -18,10 +18,9 @@ import (
 )
 
 func (s *Store) Write(id uuid.UUID, intent renderplan.GenerateIntent) error {
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
-	return s.write(id, intent)
+	return s.withJob(id, func() error {
+		return s.write(id, intent)
+	})
 }
 
 type blockingStorage struct {

@@ -15,7 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -266,8 +269,7 @@ func labSynthOverlay(d recapplan.Document) demooverlay.Document {
 // readLabSynthPlan reads an approved snapshot, or approves a bare document as
 // planned, and validates it the way the render admits it.
 func readLabSynthPlan(path string) (recapplan.Snapshot, error) {
-	// #nosec G304 -- the plan is an explicit local CLI input.
-	body, err := os.ReadFile(path)
+	body, err := rooted.ReadFile(path)
 	if err != nil {
 		return recapplan.Snapshot{}, fmt.Errorf("read plan: %w", err)
 	}
@@ -378,8 +380,7 @@ func synthesizeLabVoice(ctx context.Context, ffmpeg, dir string, d recapplan.Doc
 }
 
 func labFileSHA256(path string) (string, error) {
-	// #nosec G304 -- the path was written by this bundle.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return "", err
 	}

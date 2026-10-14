@@ -585,6 +585,7 @@ type presetSummary struct {
 	Name              string `json:"name"`
 	Label             string `json:"label,omitempty"`
 	Description       string `json:"description"`
+	DescriptionES     string `json:"description_es,omitempty"`
 	Default           bool   `json:"default"`
 	HUDMode           string `json:"hud_mode,omitempty"`
 	FPS               int    `json:"fps"`
@@ -613,6 +614,7 @@ func (h *Handlers) ListPresets(w http.ResponseWriter, r *http.Request) {
 			Name:              preset.Name,
 			Label:             preset.Label,
 			Description:       preset.Description,
+			DescriptionES:     preset.DescriptionES,
 			Default:           preset.Name == defaultName,
 			HUDMode:           preset.HUDMode,
 			FPS:               preset.FPS,
@@ -1931,7 +1933,7 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 // non-ready state, an unreadable result) and when the result carries no
 // warnings at all; the locked path reads them itself in that case.
 func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantState) (bool, []string) {
-	if state.Status == renderplan.RenderVariantStatusReview {
+	if renderplan.IsLegacyReviewStatus(state.Status) {
 		return false, nil
 	}
 	if state.Status != renderplan.RenderVariantStatusReady {
@@ -2013,7 +2015,7 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 		return nil, false, false, err
 	}
 	if ok {
-		if stored.Status != renderplan.RenderVariantStatusReady && stored.Status != renderplan.RenderVariantStatusReview {
+		if !renderplan.IsReadyStatus(stored.Status) {
 			return stored, true, false, nil
 		}
 		warnings := knownWarnings
@@ -2022,11 +2024,7 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 			switch {
 			case err == nil:
 				warnings = decoded
-			case stored.Status == renderplan.RenderVariantStatusReview:
-				// A legacy review state was always served without reading its
-				// result. Keep doing so when the result is unreadable: clients
-				// treat review_required as ready, and failing the read would
-				// break every poll of an old job.
+			case renderplan.IsLegacyReviewStatus(stored.Status):
 				return stored, true, false, nil
 			default:
 				return nil, false, false, err
@@ -2286,7 +2284,7 @@ func mustRenderVariantStatusKey(id uuid.UUID, variant string) string {
 // GetRenderPublishBoard handles GET /api/jobs/{id}/renders/{variant}/publish.
 func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request) {
 	// Metadata only: the board is built from the render state and the render
-	// result artifact, both keyed by job id.
+// result artifact, both keyed by job id.
 	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return

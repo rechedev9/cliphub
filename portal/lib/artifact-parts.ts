@@ -37,23 +37,24 @@ export function missingParts(count: number, received: readonly number[]): number
   return missing;
 }
 
-// Reads the receivedParts column: a JSON array of 1-based part numbers.
-export function parseReceivedParts(raw: string | null): number[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const parts = parsed.filter(
-      (part): part is number =>
-        typeof part === "number" && Number.isInteger(part) && part > 0,
-    );
-    return [...new Set(parts)].sort((a, b) => a - b);
-  } catch {
-    return [];
+export function parseReceivedParts(raw: string | readonly number[] | null): number[] {
+  if (raw == null || raw === "") return [];
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
   }
+  if (!Array.isArray(parsed)) return [];
+  const parts = parsed.filter(
+    (part): part is number => typeof part === "number" && Number.isInteger(part) && part > 0,
+  );
+  return [...new Set(parts)].sort((a, b) => a - b);
 }
 
-export function addReceivedPart(raw: string | null, part: number): number[] {
+export function addReceivedPart(raw: string | readonly number[] | null, part: number): number[] {
   return [...new Set([...parseReceivedParts(raw), part])].sort((a, b) => a - b);
 }
 

@@ -13,9 +13,10 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"strconv"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -79,8 +80,7 @@ func ScanFile(ctx context.Context, path string, opts Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	// #nosec G304 -- the demo path is an explicit local input from the CLI or a job payload.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return Result{}, fmt.Errorf("open demo %q: %w", path, err)
 	}

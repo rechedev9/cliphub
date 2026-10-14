@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -175,7 +177,7 @@ func init() {
 
 func loadPlateFile(name string) []byte {
 	for _, dir := range plateSearchDirs() {
-		b, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- name is a compile-time style constant; dirs are fixed lookup paths
+		b, err := rooted.ReadFile(filepath.Join(dir, name))
 		if err != nil || len(b) < 32 {
 			continue
 		}
@@ -348,8 +350,7 @@ func materializeAt(dir string, style Style) (string, error) {
 }
 
 func fileMatchesSHA(path, wantSHA string) (bool, error) {
-	// #nosec G304 -- path is under ClipHub's fixed cache root and a bundled filename.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return false, err
 	}

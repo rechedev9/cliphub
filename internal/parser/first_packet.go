@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 )
@@ -99,8 +101,7 @@ func ProbeDemo(demoPath string) (PlayabilityReport, error) {
 		return PlayabilityReport{}, fmt.Errorf("hash demo: %w", err)
 	}
 
-	// #nosec G304 -- demo path is an explicit local CLI input.
-	f, err := os.Open(abs)
+	f, err := rooted.Open(abs)
 	if err != nil {
 		return PlayabilityReport{}, fmt.Errorf("open demo: %w", err)
 	}
@@ -154,8 +155,7 @@ func ProbeDemo(demoPath string) (PlayabilityReport, error) {
 }
 
 func fileSHA256(path string) (string, error) {
-	// #nosec G304 -- path is a local demo the caller already opened.
-	f, err := os.Open(path)
+	f, err := rooted.Open(path)
 	if err != nil {
 		return "", err
 	}

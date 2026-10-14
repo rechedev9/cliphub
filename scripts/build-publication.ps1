@@ -339,20 +339,20 @@ function Assert-BuildPublicationJournalItems {
             -not [string]::Equals($backup, $expectedBackup, [StringComparison]::OrdinalIgnoreCase)) {
             throw "build publication journal contains invalid artifact paths"
         }
+        $item.Target = $expectedTarget
+        $item.Backup = $expectedBackup
 
-        if ([int]$Journal.SchemaVersion -eq 2) {
-            $phaseProperty = $item.PSObject.Properties["Phase"]
-            if ($null -eq $phaseProperty -or $phaseProperty.Value -isnot [string]) {
-                throw "build publication journal contains an invalid artifact phase"
-            }
-            $itemPhase = [string]$phaseProperty.Value
-            if ($itemPhase -ne "pending" -and
-                $itemPhase -ne "backup_created" -and
-                $itemPhase -ne "published" -and
-                $itemPhase -ne "restoring" -and
-                $itemPhase -ne "restored") {
-                throw "build publication journal contains an invalid artifact phase"
-            }
+        $phaseProperty = $item.PSObject.Properties["Phase"]
+        if ($null -eq $phaseProperty -or $phaseProperty.Value -isnot [string]) {
+            throw "build publication journal contains an invalid artifact phase"
+        }
+        $itemPhase = [string]$phaseProperty.Value
+        if ($itemPhase -ne "pending" -and
+            $itemPhase -ne "backup_created" -and
+            $itemPhase -ne "published" -and
+            $itemPhase -ne "restoring" -and
+            $itemPhase -ne "restored") {
+            throw "build publication journal contains an invalid artifact phase"
         }
     }
     return $items
@@ -408,7 +408,7 @@ function Set-BuildPublicationItemPhase {
         [Parameter(Mandatory = $true)][string]$JournalPath
     )
     if ([int]$Document.SchemaVersion -ne 2) {
-        return
+        throw "unsupported build publication journal schema"
     }
     $Item.Phase = $Phase
     Write-BuildPublicationJournal -JournalPath $JournalPath -Document $Document
@@ -438,27 +438,9 @@ function Restore-BuildPublicationOriginal {
     )
     $targetExists = Test-Path -LiteralPath $Item.Target
     $backupExists = Test-Path -LiteralPath $Item.Backup -PathType Leaf
-    $itemPhase = if ([int]$Document.SchemaVersion -eq 2) {
-        [string]$Item.Phase
-    } else {
-        "unknown"
-    }
+    $itemPhase = [string]$Item.Phase
 
     if ($backupExists) {
-        if ([int]$Document.SchemaVersion -ne 2) {
-            # Legacy journals have no durable per-item phase. Preserve their
-            # backup until whole-transaction cleanup so an interruption after
-            # the copy remains retryable.
-            if ($targetExists) {
-                Remove-BuildPublicationCandidate -Target $Item.Target -RemoveFile $RemoveFile
-            }
-            [System.IO.File]::Copy($Item.Backup, $Item.Target)
-            if (-not (Test-Path -LiteralPath $Item.Backup -PathType Leaf) -or
-                -not (Test-Path -LiteralPath $Item.Target -PathType Leaf)) {
-                throw "legacy original restore copy did not complete"
-            }
-            return
-        }
         Set-BuildPublicationItemPhase -Document $Document -Item $Item -Phase "restoring" -JournalPath $JournalPath
         if ($targetExists) {
             Remove-BuildPublicationCandidate -Target $Item.Target -RemoveFile $RemoveFile
@@ -527,21 +509,12 @@ function Recover-BuildPublication {
         } catch {
             throw "build publication journal is unreadable; refusing destructive recovery"
         }
-        $phase = "publishing"
-        switch ([int]$journal.SchemaVersion) {
-            1 {
-                # Schema 1 predates the durable committed phase. Its journal
-                # always means publication may have stopped mid-move.
-            }
-            2 {
-                $phase = [string]$journal.Phase
-                if ($phase -ne "publishing" -and $phase -ne "committed") {
-                    throw "build publication journal contains an invalid phase"
-                }
-            }
-            default {
-                throw "unsupported build publication journal schema"
-            }
+        if ([int]$journal.SchemaVersion -ne 2) {
+            throw "unsupported build publication journal schema"
+        }
+        $phase = [string]$journal.Phase
+        if ($phase -ne "publishing" -and $phase -ne "committed") {
+            throw "build publication journal contains an invalid phase"
         }
         $backupDir = Assert-BuildPublicationChildDirectory -BinDir $BinDir -Candidate $journal.BackupDirectory -LeafPattern '^\.backup-[A-Za-z0-9]+$'
         $stagingDir = Assert-BuildPublicationChildDirectory -BinDir $BinDir -Candidate $journal.StagingDirectory -LeafPattern '^\.build-[A-Za-z0-9]+$'
@@ -588,16 +561,7 @@ function Recover-BuildPublication {
             $target = Join-Path $BinDir "$name.exe"
             $backup = Join-Path $backupDir "$name.exe"
             try {
-                # Ignore serialized paths for execution, but keep the validated
-                # transaction paths on the in-memory item used by shared
-                # idempotent restore helpers.
-                $item.Target = $target
-                $item.Backup = $backup
-                $itemPhase = if ([int]$journal.SchemaVersion -eq 2) {
-                    [string]$item.Phase
-                } else {
-                    "unknown"
-                }
+                $itemPhase = [string]$item.Phase
                 if ([bool]$item.HadOriginal) {
                     if ($itemPhase -eq "pending" -and
                         -not (Test-Path -LiteralPath $backup -PathType Leaf) -and
@@ -619,17 +583,6 @@ function Recover-BuildPublication {
         }
         if ($recoveryErrors.Count -gt 0) {
             throw ("build publication recovery was incomplete; journal and recovery artifacts were retained: {0}" -f ($recoveryErrors -join "; "))
-        }
-        if ([int]$journal.SchemaVersion -eq 1) {
-            # Schema 1 cannot represent that every original has been restored.
-            # Upgrade the journal atomically before deleting its backups so an
-            # interruption during cleanup resumes from restart-safe item phases.
-            $journal.SchemaVersion = 2
-            $journal | Add-Member -NotePropertyName Phase -NotePropertyValue "publishing" -Force
-            foreach ($item in $items) {
-                $item | Add-Member -NotePropertyName Phase -NotePropertyValue "restored" -Force
-            }
-            Write-BuildPublicationJournal -JournalPath $journalPath -Document $journal
         }
         foreach ($directory in @($backupDir, $stagingDir)) {
             Remove-BuildPublicationTransactionDirectory `

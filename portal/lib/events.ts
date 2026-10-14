@@ -1,13 +1,13 @@
 import { db, type Executor } from "../db/client.ts";
 import { events } from "../db/schema.ts";
+import { formatActor, type Actor } from "./actor.ts";
 import type { EventType } from "./job-types.ts";
 
 const MAX_DETAIL_CHARS = 4000;
 
 export interface EventInput {
   type: EventType;
-  // "system", "worker:<id>", "admin:<userId>" or "user:<userId>".
-  actor: string;
+  actor: Actor;
   at: number;
   requestId?: string | null;
   workerId?: string | null;
@@ -20,7 +20,7 @@ export async function recordEvent(input: EventInput, executor: Executor = db): P
   await executor.insert(events).values({
     at: input.at,
     type: input.type,
-    actor: input.actor,
+    actor: formatActor(input.actor),
     requestId: input.requestId ?? null,
     workerId: input.workerId ?? null,
     subjectUserId: input.subjectUserId ?? null,

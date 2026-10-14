@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
+import { connection } from 'next/server';
 import { Chakra_Petch, Share_Tech_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup';
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
 
 const fontVars = `${chakraPetch.variable} ${shareTechMono.variable}`;
 
-export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
+export default async function RootLayout({ children }: { children: ReactNode }): Promise<ReactElement> {
+  await connection();
   return (
     // The next/font variable classes live on <html> so the composed
     // --font-sans/--font-mono/--font-display tokens in globals.css resolve at

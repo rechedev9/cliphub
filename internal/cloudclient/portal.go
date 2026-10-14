@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -364,7 +366,7 @@ func (p *Portal) fetchArtifact(ctx context.Context, token string, download Artif
 	default:
 		return responseError(resp)
 	}
-	file, err := os.OpenFile(download.Dest, flags, 0o600) //nolint:gosec // Dest is built by the service from validated names
+	file, err := rooted.OpenFile(download.Dest, flags, 0o600)
 	if err != nil {
 		return fmt.Errorf("open result file: %w", err)
 	}
@@ -499,7 +501,7 @@ func (r *activityReader) Read(p []byte) (int, error) {
 }
 
 func hashFile(path string) (string, int64, error) {
-	file, err := os.Open(path) //nolint:gosec // callers pass paths inside the data dir
+	file, err := rooted.Open(path)
 	if err != nil {
 		return "", 0, err
 	}

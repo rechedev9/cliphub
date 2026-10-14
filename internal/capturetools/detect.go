@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -296,8 +298,7 @@ func steamPathFromRegOutput(out string) string {
 }
 
 func steamLibraryPaths(vdf string) []string {
-	// #nosec G304 G703 -- vdf is the fixed Steam library manifest found beneath a detected install root.
-	data, err := os.ReadFile(vdf)
+	data, err := rooted.ReadFile(vdf)
 	if err != nil {
 		return nil
 	}

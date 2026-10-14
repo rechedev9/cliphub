@@ -2,11 +2,14 @@
 
 package storage
 
-import "os"
+import (
+	"os"
 
-func openLocalFile(path string) (*os.File, error) {
-	// #nosec G304 -- path is resolved under Local.root by the only caller.
-	return os.Open(path)
+	"github.com/rechedev9/cliphub/internal/rooted"
+)
+
+func openLocalFile(path rooted.Path) (*os.File, error) {
+	return path.Open()
 }
 
 func replaceLocalFile(tempPath, destinationPath string) error {

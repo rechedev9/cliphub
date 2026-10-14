@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
+import { decodeLeaseLoss, leaseLossCause } from "../../lib/lease.ts";
 import type { JobFailure } from "../components/api-types";
 import { FAILURE_LABELS } from "../components/labels";
 
@@ -21,13 +22,15 @@ export function FailureSummary({ failure }: { failure: JobFailure }) {
 }
 
 export function RawCause({ detail, open }: { detail: string; open: boolean }) {
+  const loss = decodeLeaseLoss(detail);
+  const text = loss === null ? detail : leaseLossCause(loss);
   return (
     <details open={open}>
       <summary className="cursor-pointer rounded-sm text-body-sm text-fg-2 transition-colors duration-(--dur-fast) hover:text-fg-1">
         Causa real en el worker
       </summary>
       <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-border-subtle bg-surface-0 p-3 font-mono text-[0.8125rem] leading-normal whitespace-pre-wrap wrap-anywhere">
-        {detail}
+        {text}
       </pre>
     </details>
   );

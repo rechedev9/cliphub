@@ -45,10 +45,10 @@ type Target struct {
 
 // Segment is one contiguous recording range covering one or more kills.
 type Segment struct {
-	ID        string         `json:"id"`
-	Round     int            `json:"round"`
-	TickStart int            `json:"tick_start"`
-	TickEnd   int            `json:"tick_end"`
+	ID        string `json:"id"`
+	Round     int    `json:"round"`
+	TickStart int    `json:"tick_start"`
+	TickEnd   int    `json:"tick_end"`
 	// LiveEndTick is the last tick where target POV must stay locked. Recording
 	// may continue through TickEnd for outro overlays or post-kill tails.
 	LiveEndTick int            `json:"live_end_tick,omitempty"`
