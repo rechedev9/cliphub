@@ -254,6 +254,7 @@ export type Preset = {
   name: string;
   label: string;
   description: string;
+  descriptionEs?: string;
   hudMode?: string;
   default?: boolean;
   width?: number;
