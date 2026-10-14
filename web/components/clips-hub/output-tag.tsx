@@ -8,7 +8,6 @@ export type OutputTagProps = {
   className?: string;
 };
 
-/** State tag with its motion cue: check, spinner, REC pulse, hollow queue dot. */
 export function OutputTag({ output, className }: OutputTagProps): ReactNode {
   const label = outputTagLabel(output);
   const tone = OUTPUT_TONE[output.state];

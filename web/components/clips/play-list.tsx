@@ -20,12 +20,6 @@ export type PlayListProps = {
   onClear: () => void;
 };
 
-/**
- * One bordered row per highlight (PlayRow) under a mono header with the
- * selection counter plus Seleccionar todo / Limpiar; no horizontal scroll.
- * The list owns `@container/reel` because PlayRow keys its breakpoints to the
- * list's width, not the viewport's.
- */
 export function PlayList({
   plays,
   selectedIds,

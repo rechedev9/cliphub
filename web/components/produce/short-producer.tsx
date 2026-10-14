@@ -57,14 +57,12 @@ const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
 const CLOCK_TARGET = formatClock(SHORT_TARGET_SECONDS);
 const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
 
-/** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
 const STEP = {
   highlights: '01 · Elige las jugadas',
   preset: '02 · Estilo',
   music: '03 · Música',
   overlays: '04 · Textos y gráficos',
 } as const;
-/** One eyebrow style for every step, matching the play list's "01 · Elige las jugadas". */
 const STEP_LABEL_CLASS = 'text-body-sm font-semibold text-fg-2';
 
 export type ShortProducerProps = {
@@ -77,7 +75,6 @@ export type ShortProducerProps = {
   initialTarget?: CaptureTarget | null;
 };
 
-/** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
 export function ShortProducer({ matchId, match, plays, seriesId, initialTarget = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
@@ -105,7 +102,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
   });
   const toCloud = targetView.target === CAPTURE_TARGET.cloud;
 
-  // A rejection shown while the target was blocked is settled once it can submit again.
   const couldSubmit = useRef(targetView.canSubmit);
   useEffect(() => {
     if (targetView.canSubmit && !couldSubmit.current) setCreateError(null);
@@ -138,7 +134,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         const list = await api.listPresets();
         if (!active) return;
         setPresets(list);
-        // An unavailable catalog must not overwrite a saved preset with null.
         if (list.length > 0) updateSettings((cur) => ({ variant: selectShortsFormat(SHORT_FORMAT, cur.variant, list).variant }), false);
       } catch {
         if (active) setPresets([]);
@@ -182,7 +177,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
   }
 
   function chooseVariant(nextVariant: string): void {
-    // A landscape preset is never offered here, so only the variant travels.
     if (busy) return;
     updateSettings({ variant: selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant });
   }
@@ -232,7 +226,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         }),
       );
       void refreshCloudAccount();
-      // The draft stays: "Reintentar en la nube" in the hub returns here with the same selection.
       if (job.status === 'uploading_demo') {
         toast('Subiendo la demo a la nube', { description: 'No cierres Studio hasta que termine la subida. Síguela en Clips y vídeos.' });
       } else {
@@ -240,7 +233,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
       }
       router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
     } catch (err) {
-      // A fetch that never got an answer means the local Studio service is down.
       setCreateError(cloudSubmitErrorMessage(err instanceof CloudApiError ? err : { code: 'service_unavailable' }));
       void refreshCloudAccount();
       setCreating(false);
@@ -307,7 +299,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
           </p>
         ) : null}
       </div>
-      {/* Two columns (plays | storyboard over the aside) until three fit without wrapping the list toolbar or the cue rows. */}
       <div data-short-workspace="" className="grid min-w-0 items-start gap-5 @[80rem]/content:gap-7 @[40rem]/content:grid-cols-2 @[56rem]/content:grid-cols-[minmax(0,1.3fr)_minmax(300px,1fr)] @[56rem]/content:grid-rows-[auto_1fr] @[85rem]/content:grid-cols-[minmax(0,1.5fr)_minmax(0,0.85fr)_minmax(280px,1fr)] @[85rem]/content:grid-rows-none">
         <section className="min-w-0 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1 @[56rem]/content:row-span-2 @[85rem]/content:row-span-1">
           <PlayList

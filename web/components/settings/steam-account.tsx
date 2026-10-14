@@ -269,11 +269,6 @@ export function SteamAccount(): ReactNode {
             <Button type="submit" loading={pending?.kind === 'save'} loadingText="Guardando…">
               Guardar
             </Button>
-            {/*
-              Outline with a dashed edge when disabled: the secondary fill at 50%
-              opacity read as "muted but clickable". The reason sits under the
-              row rather than in a tooltip, since a disabled button gets no hover.
-            */}
             <Button
               type="button"
               variant="outline"

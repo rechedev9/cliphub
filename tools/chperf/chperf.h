@@ -21,7 +21,6 @@ enum {
 	EXIT_RUNTIME = 3
 };
 
-/* ---- string builder ---- */
 typedef struct {
 	char *p;
 	size_t len, cap;
@@ -32,7 +31,6 @@ void sb_puts(sb_t *sb, const char *s);
 void sb_printf(sb_t *sb, const char *fmt, ...);
 void sb_free(sb_t *sb);
 
-/* ---- JSON writer ---- */
 #define JW_MAX_DEPTH 64
 typedef struct {
 	sb_t *sb;
@@ -55,7 +53,6 @@ void jw_null(jw_t *w, const char *key);
 /* Writes already-serialized JSON as the value of key. */
 void jw_raw(jw_t *w, const char *key, const char *raw, size_t n);
 
-/* ---- JSON parser ---- */
 enum { J_NULL, J_BOOL, J_NUM, J_STR, J_ARR, J_OBJ };
 
 typedef struct jval jval;
@@ -81,7 +78,6 @@ const jval *jpath(const jval *v, const char *dotted);
 /* Serializes a parsed value (used by --pretty). */
 void jw_value(jw_t *w, const char *key, const jval *v);
 
-/* ---- stats ---- */
 typedef struct {
 	size_t n;
 	double min, max, mean, stddev, p50, p90, p95, p99;
@@ -98,12 +94,10 @@ typedef struct {
 void dvec_push(dvec_t *d, double x);
 void dvec_free(dvec_t *d);
 
-/* ---- files ---- */
 char *read_file(const char *path, size_t *len);
 int write_file(const char *path, const char *data, size_t len);
 void path_join(char *out, size_t cap, const char *a, const char *b);
 
-/* ---- findings ---- */
 typedef struct {
 	char level[8]; /* info | warn | error */
 	char code[48];
@@ -127,17 +121,14 @@ void finding(ctx_t *ctx, const char *level, const char *code, const char *fmt, .
 void finding_hint(ctx_t *ctx, const char *hint);
 int fail(ctx_t *ctx, int exit_code, const char *code, const char *fmt, ...);
 
-/* ---- arg helpers ---- */
 /* Returns 1 and sets *val if argv[*i] is --name value or --name=value. */
 int arg_val(int argc, char **argv, int *i, const char *name, const char **val);
 int arg_flag(char **argv, int i, const char *name);
 int parse_int_arg(ctx_t *ctx, const char *name, const char *s, long lo, long hi, long *out);
 
-/* ---- data dir ---- */
 int resolve_data_dir(ctx_t *ctx, const char *flag);
 int orchestrator_port(ctx_t *ctx);
 
-/* ---- commands ---- */
 int cmd_system(ctx_t *ctx, int argc, char **argv, jw_t *w);
 int cmd_pipeline(ctx_t *ctx, int argc, char **argv, jw_t *w);
 int cmd_renders(ctx_t *ctx, int argc, char **argv, jw_t *w);
@@ -179,7 +170,6 @@ void compare_values(const jval *base, const jval *cand, const char *path, int co
 void changes_free(changes_t *c);
 int key_is_cost(const char *key);
 
-/* ---- platform ---- */
 int64_t plat_now_ns(void);
 void plat_utc_iso(char out[40]);
 void plat_unix_to_iso(int64_t unix_s, char out[40]);

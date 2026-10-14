@@ -1,5 +1,3 @@
-// Desktop wrapper: boot the orchestrator and Next server, then show Studio.
-
 import {
   app,
   BrowserWindow,

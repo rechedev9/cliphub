@@ -10,7 +10,6 @@ export function FullDemoAudio({ options, document, onChange }: Props): ReactNode
   const { audio } = options;
   const { voice, game } = audio;
   const change = (patch: Partial<FullDemoOptions['audio']>): void => onChange({ ...options, audio: { ...audio, ...patch } });
-  // The checkbox already says when voices are off; the line only reports what the demo holds.
   const availability = voice.enabled ? voiceStatus(document?.voice.availability ?? null) : null;
   return <FullDemoGroup title="Sonido" note="Audio de partida equilibrado automáticamente, sin música de fondo.">
     <FullDemoToggle label="Incluir voces del equipo" value={voice.enabled} onChange={(enabled) => change({ voice: { ...voice, enabled } })} />

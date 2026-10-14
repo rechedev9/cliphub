@@ -5,11 +5,6 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-/**
- * A menu floats on --surface-4, so its rows highlight with --surface-5 (a
- * control on a popover) and its hairline glyphs stop at --fg-3: --fg-4 only
- * clears the 3:1 graphics floor up to --surface-3.
- */
 const MENU_ITEM_CLASS = [
   "relative flex min-h-9 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm text-popover-foreground outline-hidden select-none",
   "transition-colors duration-(--dur-instant) ease-standard",

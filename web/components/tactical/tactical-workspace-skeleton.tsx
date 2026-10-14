@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/**
- * The workspace's shape while it loads. It reserves the real geometry — header,
- * filter bar, round column, radar plate — so nothing jumps when the document
- * and the position blob land.
- */
 export function TacticalWorkspaceSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-8 sm:gap-10" aria-hidden>

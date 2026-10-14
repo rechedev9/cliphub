@@ -11,12 +11,6 @@ import (
 	"sync"
 )
 
-// minCalibrationSamples is how many player-matches a metric needs before a
-// calibrated baseline will publish a distribution for it. Below this the
-// spread is noise and would make the z-scores meaningless. Fifteen is low
-// because the estimator is a median and a MAD rather than a mean and a
-// standard deviation, and because every consumer of a baseline sees the
-// per-metric sample count and can judge it.
 const minCalibrationSamples = 15
 
 // defaultBaselineJSON is the reference distribution ClipHub ships with. It

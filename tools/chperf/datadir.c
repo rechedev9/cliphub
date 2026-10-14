@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- data dir ---- */
 
 static int has_evidence(const char *dir)
 {

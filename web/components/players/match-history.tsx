@@ -13,13 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const ALL = 'all';
 const UNKNOWN = 'unknown';
 const PAGE_SIZE = 10;
-// The table keys its density to its own width, not to @container/content: the players grid splits into two
-// columns at 64rem/content, so a wider stage can leave the table narrower (≈670px at a 1366px window with the
-// sidebar open). Below 44rem the cells tighten, and below 40rem "Abrir sala" collapses to its icon, so the
-// room link never scrolls out of view.
 const HEAD = 'px-2 py-3 text-body-sm font-medium whitespace-nowrap text-fg-2 @[44rem]/matches:px-3';
 const CELL = 'px-2 py-1 text-body-sm whitespace-nowrap tabular-nums text-fg-2 @[44rem]/matches:px-3';
-// Numbers align on their last digit so a column of K/D or ADR can be scanned; headers follow their cells.
 const COLUMNS = [
   ['Partida', 'text-left'], ['Resultado', 'text-left'],
   ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'],
@@ -123,15 +118,12 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
   return (
     <tr className="group h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
-      {/* Date under the map, as on the mobile card: a column of its own cost ~100px the room link needed. */}
       <td className={CELL}><div className="flex items-center gap-2.5">
         <MapCover map={stats?.map ?? ''} className="h-8 w-11 shrink-0 rounded-sm" />
         <div><p className="font-semibold text-fg-1">{map}</p>
           <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '—'}</p>
         </div>
       </div></td>
-      {/* The score is the result's evidence, so it shares its column; a fixed right-aligned box keeps both the
-          scores and the badges in line whatever their widths. */}
       <td className={CELL}><div className="flex items-center gap-2">
         <span className="min-w-[5ch] text-right font-semibold text-fg-1">{score}</span>
         <ResultBadge result={stats?.result} />
@@ -141,7 +133,6 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
       <td className={cn(CELL, 'text-right', adrTone(stats?.adr))}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
       <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
       <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm"
-        // Ten bright links in a column outshouted the stats; the row that is pointed at lights its own.
         className="min-w-8 justify-end px-0 text-fg-2 group-hover:text-primary group-focus-within:text-primary has-[>svg]:px-0">
         <a href={match.room_url} target="_blank" rel="noreferrer" aria-label={`Abrir sala FACEIT de ${map}`}>
           <span className="hidden @[40rem]/matches:inline">Abrir sala</span>
@@ -152,13 +143,11 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   );
 }
 
-/** K/D reads against 1.0: above it the player out-fragged their deaths, below it they did not. */
 function kdTone(kd: number | undefined): string {
   if (kd === undefined) return '';
   return kd >= 1 ? 'text-success' : 'text-destructive';
 }
 
-/** ADR of 100 or more is a standout game and reads green; below it the value stays plain, since a low ADR is not a loss. */
 function adrTone(adr: number | undefined): string {
   return adr !== undefined && adr >= 100 ? 'text-success' : '';
 }

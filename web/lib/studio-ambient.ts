@@ -1,17 +1,3 @@
-/**
- * The ambient depth field behind the Studio shell: a slow volumetric fog with a
- * perspective floor receding to a horizon, drawn by hand in WebGL1.
- *
- * This module is the pure half — buffer sizing, the degradation decision, the
- * noise texture and the GL wiring. The React lifecycle lives in
- * `components/shell/studio-ambient.tsx`; keeping the two apart is what lets
- * `lib/studio-ambient.test.ts` assert the rules that actually matter (half
- * resolution, DPR clamped to 1, one static frame under every degradation
- * signal) on `node:test`, without a GPU.
- *
- * Budget, from audit-motion §4.4: ~1 MB VRAM, ~0.4 ms GPU per frame at half
- * resolution and 30 fps, one `drawArrays` and two uniform writes of CPU work.
- */
 
 /** Half resolution. The content is low-frequency fog; the CSS upscale hides it. */
 export const AMBIENT_RENDER_SCALE = 0.5;
@@ -299,8 +285,6 @@ function uploadResources(gl: WebGLRenderingContext): AmbientResources | null {
     return null;
   }
 
-  // One full-screen triangle rather than two: no shared edge to rasterise twice
-  // and one vertex fewer to transform.
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   const position = gl.getAttribLocation(program, 'aPos');

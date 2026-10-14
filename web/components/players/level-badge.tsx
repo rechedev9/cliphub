@@ -11,11 +11,6 @@ function levelColor(level: number): string {
   return 'var(--faceit-level-1)';
 }
 
-/**
- * FACEIT-style level gauge: the ring fills level/10 in the tier colour and the
- * number stays in text ink. A solid red disc read as an error next to the red
- * "Derrota" tags, and every followed pro is level 10.
- */
 export function LevelBadge({ level, className }: { level?: number; className?: string }): ReactNode {
   const known = level !== undefined && Number.isFinite(level);
   const fraction = known ? Math.min(Math.max(level, 0), MAX_LEVEL) / MAX_LEVEL : 0;

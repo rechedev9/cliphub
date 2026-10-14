@@ -36,8 +36,6 @@ export function StreamStepsRail({
           {AUTOSAVE_LABEL[autosave]}
         </p>
       </div>
-      {/* Wrap instead of scrolling sideways: a clipped "3 R…" at 390px gives
-          no hint that a third step exists. */}
       <div className="flex flex-wrap gap-2 pb-1">
         {steps.map((step) => (
           <button

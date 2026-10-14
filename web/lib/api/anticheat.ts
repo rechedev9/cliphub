@@ -234,9 +234,6 @@ export async function fetchDossier(jobId: string, steamId: string): Promise<Anti
   return (await res.json()) as AnticheatDossier;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Proxy-route response whitelists                                            */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Top-level keys the analysis-document proxy forwards, mirroring

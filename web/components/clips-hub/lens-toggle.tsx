@@ -13,10 +13,6 @@ export type LensToggleProps = {
   counts: Record<HubLens, number>;
 };
 
-/**
- * Segmented Partidas | Clips switch with a count on each side. Each half is a
- * real link to `?vista=`, so the lens is shareable and middle-clickable.
- */
 export function LensToggle({ lens, counts }: LensToggleProps): ReactNode {
   return (
     <nav aria-label="Vista" className="flex font-mono text-label uppercase tracking-wide">

@@ -61,12 +61,6 @@ const INITIAL_METRICS: CanvasMetrics = {
   offsetY: 0,
 };
 
-/**
- * The plate's height ceiling; its width cap is this times the map's aspect.
- * On maps whose play area fills the overview the crop returns (nearly) the
- * whole square, so the ceiling must stand on its own: lowering it to pocket the
- * crop's savings shrank the radar on exactly those maps.
- */
 const RADAR_MAX_HEIGHT_VH = 74;
 
 /** A round with no frames still needs a timeline for the disabled transport. */
@@ -75,7 +69,6 @@ const EMPTY_TIMELINE = roundTimeline(
   64,
 );
 
-/** Reads the design tokens off the live canvas, so the radar follows the theme. */
 function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
   const computed = getComputedStyle(canvas);
   const token = (name: string, fallback: string): string => {
@@ -83,17 +76,9 @@ function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
     return value === '' ? fallback : value;
   };
   return {
-    // --surface-0 is the ramp's void/well step, so the radar reads as a recess
-    // in the --surface-2 panel instead of being painted in the panel's own
-    // colour. `panel` is also the health-ring backing, which needs a dark ring
-    // under it to separate stacked blips.
     background: token('--surface-0', '#04070f'),
     panel: token('--surface-0', '#04070f'),
-    // Identity chips take the ramp's raised step rather than more alpha over
-    // --surface-0, so a name reads on an opaque plate whatever is behind it.
     plate: token('--surface-3', '#141b2b'),
-    // The occupancy grid is the map, not a signal: it stays neutral so cyan can
-    // keep meaning "CT" on top of it.
     map: token('--fg-3', '#8998a7'),
     callout: token('--fg-3', '#8998a7'),
     ct: token('--primary', '#21d9ee'),
@@ -113,14 +98,6 @@ function shortLabel(name: string): string {
   return name.trim().slice(0, 3).toUpperCase();
 }
 
-/**
- * The 2D replay: the play-derived radar, the round's events and the transport.
- *
- * The canvas is a mirror of the `<input type="range">` below it, never the other
- * way round, and it is `aria-hidden`: the same round is rendered as text in the
- * event list beside it. Playback advances against the wall clock, so a dropped
- * frame costs smoothness and never synchronisation.
- */
 export function TacticalReplay({
   doc,
   round,
@@ -165,12 +142,6 @@ export function TacticalReplay({
     [doc.players],
   );
 
-  /**
-   * The window of the native radar square this demo happened in. It decides the
-   * plate's shape and how much of the square is on screen, never the transform:
-   * the bake and every mark still run through one `size` under one translate, so
-   * a blip lands on exactly the cell it lands on without a crop.
-   */
   const view = useMemo(() => radarViewRect(doc.geometry), [doc.geometry]);
 
   /**
@@ -194,8 +165,6 @@ export function TacticalReplay({
       const cached = backgroundsRef.current.get(key);
       if (cached !== undefined) return cached;
       const baked = renderRadarBackground(doc.geometry, level, size, dpr, style, view);
-      // A handful of sizes and two levels is all a session ever needs; drop the
-      // cache wholesale rather than growing it after a long resize drag.
       if (backgroundsRef.current.size > 8) backgroundsRef.current.clear();
       backgroundsRef.current.set(key, baked);
       return baked;
@@ -203,9 +172,6 @@ export function TacticalReplay({
     [doc.geometry, view],
   );
 
-  // Both the radar transform and the occupancy grid reject unusable numbers, and
-  // they are the only thing standing between a bad calibration and a throwing
-  // animation frame. Checked once here, so the canvas is simply not drawn.
   const drawable =
     isCalibrationUsable(doc.geometry.calibration) && doc.geometry.cell_size > 0;
 
@@ -215,8 +181,6 @@ export function TacticalReplay({
   );
 
   const readSamples = useMemo(() => createInterpolatedSampleReader(frames), [frames]);
-  // Weak event keys and bounded label metrics make one replay-owned cache safe
-  // across rounds. Coordinate entries invalidate themselves on geometry/size.
   const drawCache = useMemo(() => new TacticalDrawCache(), []);
 
   const renderAt = useCallback(
@@ -277,8 +241,6 @@ export function TacticalReplay({
     renderAt(positionRef.current);
   }, [renderAt]);
 
-  // A new round starts at its own beginning; the transport (playing, speed,
-  // loop) deliberately survives the switch.
   useEffect(() => {
     positionRef.current = 0;
     renderRef.current(0);
@@ -304,9 +266,6 @@ export function TacticalReplay({
       // change and repaint straight after.
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
-      // The square is scaled so its window fills the box, then panned so the
-      // window's origin lands on the box's. With a full-square view this is
-      // Math.floor(Math.min(cssWidth, cssHeight)) centred, exactly as before.
       const size = Math.max(1, Math.floor(Math.min(cssWidth / view.width, cssHeight / view.height)));
       metricsRef.current = {
         cssWidth,
@@ -373,7 +332,6 @@ export function TacticalReplay({
   const togglePlay = useCallback(() => {
     setPlaying((current) => {
       if (current) return false;
-      // Pressing play on a finished round restarts it instead of doing nothing.
       if (positionRef.current >= timeline.durationSeconds) seekTo(0);
       return true;
     });
@@ -430,26 +388,13 @@ export function TacticalReplay({
         </p>
       </header>
 
-      {/* The keyboard contract lives on the section so the transport answers
-          wherever focus sits inside the replay. The split is a container query,
-          not a viewport one: the panel's own width is what decides whether the
-          radar can afford a column beside it. 56rem, because inside the app
-          shell (240px sidebar, 1440px content cap, --shell-gutter) this panel
-          tops out around 59rem — a higher threshold can never fire. */}
       <div
         className="grid gap-5 p-4 sm:p-5 @[56rem]:grid-cols-[minmax(0,1fr)_300px]"
         onKeyDown={onKeyDown}
       >
-        {/* One measure for the media and the transport that drives it, so the
-            scrubber stops overhanging the radar on both sides. The measure is
-            the map's own aspect, not a square: --radar-max is the height
-            ceiling times that aspect, so the ceiling still binds on height. */}
         <div className="flex min-w-0 flex-col gap-4" style={radarVars}>
           <div
             ref={containerRef}
-            // The inverted --edge-shade/--edge-light pair reads as a recess
-            // rather than a raised plate. The ratio is the crop window's, so the
-            // box is the map instead of the 1024 square the map sits in.
             className="relative mx-auto w-full max-w-(--radar-max) overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
             style={{ aspectRatio: `${view.width} / ${view.height}` }}
           >

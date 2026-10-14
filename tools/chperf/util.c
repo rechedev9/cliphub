@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- string builder ---- */
 
 void sb_add(sb_t *sb, const char *s, size_t n)
 {
@@ -59,7 +58,6 @@ void sb_free(sb_t *sb)
 	sb->len = sb->cap = 0;
 }
 
-/* ---- JSON writer ---- */
 
 void jw_init(jw_t *w, sb_t *sb, int pretty)
 {
@@ -218,7 +216,6 @@ void jw_value(jw_t *w, const char *key, const jval *v)
 	}
 }
 
-/* ---- stats ---- */
 
 static int cmp_double(const void *a, const void *b)
 {
@@ -309,7 +306,6 @@ void dvec_free(dvec_t *d)
 	memset(d, 0, sizeof *d);
 }
 
-/* ---- files ---- */
 
 char *read_file(const char *path, size_t *len)
 {
@@ -346,7 +342,6 @@ void path_join(char *out, size_t cap, const char *a, const char *b)
 	snprintf(out, cap, "%s%s%s", a, sep ? "/" : "", b);
 }
 
-/* ---- findings and errors ---- */
 
 void finding(ctx_t *ctx, const char *level, const char *code, const char *fmt, ...)
 {
@@ -384,7 +379,6 @@ int fail(ctx_t *ctx, int exit_code, const char *code, const char *fmt, ...)
 	return exit_code;
 }
 
-/* ---- args ---- */
 
 int arg_val(int argc, char **argv, int *i, const char *name, const char **val)
 {

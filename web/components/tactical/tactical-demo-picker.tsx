@@ -22,11 +22,6 @@ import { matchDateLabel, prettyMapName } from '@/lib/format';
 /** One listed demo and the lifecycle of its tactical analysis. */
 type DemoEntry = { match: Match; state: TacticalState };
 
-/**
- * The demos this PC has parsed, each with the state of its tactical analysis.
- * The status endpoint is cheap and every demo's is independent, so they are read
- * in one parallel batch rather than one after another.
- */
 async function loadEntries(): Promise<DemoEntry[]> {
   const matches = await api.listMatches();
   const states = await Promise.all(
@@ -94,7 +89,6 @@ export function TacticalDemoPicker(): ReactNode {
           className="studio-panel studio-panel-interactive flex min-h-[72px] flex-wrap items-center gap-4 px-4 py-4 transition-colors @[44rem]/content:flex-nowrap sm:px-5"
         >
           <div className="flex min-w-0 flex-1 items-center gap-4">
-            {/* The same map plate the Clips hub uses, so a row is recognisable by map at a glance. */}
             <span aria-hidden className="relative h-[47px] w-[84px] shrink-0 overflow-hidden border border-border-strong">
               <MapCover map={match.map} />
             </span>
@@ -115,7 +109,6 @@ export function TacticalDemoPicker(): ReactNode {
   );
 }
 
-/** Fixed-height placeholders so the list does not shift when the states land. */
 function DemoPickerSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-3" aria-hidden>

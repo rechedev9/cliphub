@@ -24,8 +24,6 @@ import { browserWindowActivity } from '@/lib/window-activity';
 import { prettyMapName } from '@/lib/format';
 import { stateLabel } from '@/lib/tactical-labels';
 
-// The scan is a few seconds of work on a queue, so poll it briskly while it runs
-// and let the loop idle once nothing is in flight.
 const FAST_POLL_MS = 1200;
 const IDLE_POLL_MS = 15000;
 
@@ -49,7 +47,6 @@ function useDemoTitle(jobId: string): void {
       .then((next) => {
         if (active) setMatch(next);
       })
-      // The label is a nicety; an unreadable match keeps the default trail.
       .catch(() => undefined);
     return () => {
       active = false;
@@ -73,17 +70,11 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
   const [offline, setOffline] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  // Bumped to restart the poll loop immediately after a start or a manual retry,
-  // instead of waiting out the idle beat the previous state settled into.
   const [pollToken, setPollToken] = useState(0);
 
   const state = status?.state;
   const settled = state === TACTICAL_STATES.ready || state === TACTICAL_STATES.failed;
 
-  // The poll loop suspends itself while the window is unfocused, which is the
-  // right cadence for a refresh and the wrong one for a first paint: a workspace
-  // opened on a second monitor would sit on its skeleton until it was clicked.
-  // So the first read always happens, and the loop only maintains it.
   useEffect(() => {
     if (browserWindowActivity.isActive()) return;
     let active = true;
@@ -114,8 +105,6 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
             ? 'fast'
             : 'idle';
         } catch (error) {
-          // A transient status failure keeps the loop alive at the idle cadence;
-          // only a reachability failure changes what the screen says.
           if (active) setOffline(isServiceUnavailableError(error));
           return 'idle';
         }
@@ -162,7 +151,6 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
         description="Cada ronda clasificada, la repetición en 2D y las tendencias del equipo. Todo sale de los datos de la demo, no del vídeo."
         actions={
           <div className="flex items-center gap-3">
-            {/* Every other state already names itself in the card below; a badge here said it twice. */}
             {status?.state === TACTICAL_STATES.ready ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
             <Button asChild variant="outline" className="font-mono text-meta tracking-wider">
               <Link href="/tactical">

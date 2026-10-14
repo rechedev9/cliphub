@@ -13,7 +13,6 @@ const EMPTY_BUMPERS: FullDemoBumperOptions = { intro: { enabled: false, video: n
 const SLOTS: readonly Slot[] = ['intro', 'sponsor', 'outro'];
 const SLOT_COPY: Record<Slot, { title: string; number: string; placement: string; hint: string }> = {
   intro: { title: 'Intro', number: '01', placement: 'Antes de la demo', hint: 'Selecciona tu clip de apertura' },
-  // Fixed by the planner: after the second round, or after the only one.
   sponsor: { title: 'Sponsor', number: '02', placement: 'Tras la ronda 2', hint: 'Selecciona el anuncio del sponsor' },
   outro: { title: 'Outro', number: '03', placement: 'Después de la demo', hint: 'Selecciona tu clip de cierre' },
 };

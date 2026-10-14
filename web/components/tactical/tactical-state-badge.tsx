@@ -6,11 +6,6 @@ import { stateLabel } from '@/lib/tactical-labels';
 import { cn } from '@/lib/utils';
 
 /** Icon and colour per lifecycle state; state is never communicated by colour alone. */
-/**
- * One pair per tone, the same 45%-edge / 10%-fill contract
- * `components/studio/status-tag.tsx` fixes for the rest of the kit — rather than
- * one shared alpha-faked fill plus three different edge alphas.
- */
 const STATE_STYLE: Record<TacticalState, { icon: typeof Radar; className: string; spin?: boolean }> = {
   [TACTICAL_STATES.none]: {
     icon: CircleDashed,
@@ -35,7 +30,6 @@ const STATE_STYLE: Record<TacticalState, { icon: typeof Radar; className: string
   },
 };
 
-/** Compact lifecycle chip for a demo's tactical analysis. */
 export function TacticalStateBadge({
   state,
   className,
@@ -48,7 +42,6 @@ export function TacticalStateBadge({
   return (
     <span
       className={cn(
-        // Square: panels are rounded, HUD chrome is not.
         'inline-flex h-7 items-center gap-1.5 border px-2.5 font-mono text-meta uppercase tracking-wider',
         style.className,
         className,

@@ -33,15 +33,12 @@ function formatBaseline(metric: AnticheatMetric): string {
   }
 }
 
-/** Bar tone by suspicion: alarm only once a metric clears the pro spread.
- *  `.studio-bar` fills with currentColor, so the tone is a text colour. */
 function suspicionBarClass(suspicion: number): string {
   if (suspicion >= 80) return 'text-destructive';
   if (suspicion >= 50) return 'text-stream';
   return 'text-primary';
 }
 
-/** One metric row: value, reference, and a bar for its 0..100 suspicion. */
 function MetricRow({ metric }: { metric: AnticheatMetric }) {
   return (
     <li className="flex flex-col gap-1.5 border-t border-border-subtle py-3 first:border-t-0">
@@ -77,12 +74,6 @@ export type PlayerDetailProps = {
   dossierPending: boolean;
 };
 
-/**
- * The expanded view of one screened player: every metric against the baseline
- * and the exact ticks a reviewer can seek to. The dossier button appears only
- * for the reviewable bands, so preparing a report is never one click away from
- * a clean scoreboard line.
- */
 export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDetailProps): ReactNode {
   return (
     <div className="flex flex-col gap-5 border-t border-border-subtle bg-surface-1 px-4 py-5 sm:px-5">

@@ -105,11 +105,6 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
   );
 }
 
-/**
- * The manual YouTube publication assistant: factual reel-derived texts, the
- * Madrid schedule, copy-all and the only outbound link (YouTube Studio).
- * Rendered as the /publicar aside and inside `PublishAssistantDialog`.
- */
 export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelProps): ReactElement {
   const [assistant, setAssistant] = useState<PublishAssistant>();
   const [selectedRecommendation, setSelectedRecommendation] = useState<PublishRecommendation>();

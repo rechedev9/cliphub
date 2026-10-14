@@ -14,7 +14,6 @@ import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 
 type FetchCall = { url: string; init?: RequestInit };
 
-/** Installs a fetch stub for one test and restores the original afterwards. */
 function stubFetch(handler: (call: FetchCall) => Response | Promise<Response>): { calls: FetchCall[]; restore: () => void } {
   const original = globalThis.fetch;
   const calls: FetchCall[] = [];

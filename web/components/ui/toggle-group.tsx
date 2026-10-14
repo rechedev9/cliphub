@@ -7,11 +7,6 @@ import { ToggleGroup as ToggleGroupPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { toggleVariants } from "@/components/ui/toggle"
 
-/**
- * `style` only ever carries the gap scalar, so the custom property is part of
- * the declared type instead of being smuggled past the checker with
- * `as React.CSSProperties`.
- */
 type ToggleGroupStyle = React.CSSProperties & {
   "--toggle-group-gap"?: string
 }
@@ -89,8 +84,6 @@ function ToggleGroupItem({
           size: context.size || size,
         }),
         "w-auto min-w-0 shrink-0 focus-visible:z-10",
-        // Joined mode: one continuous plate, so only the outer corners round
-        // and adjacent bordered items share a single hairline.
         "data-[spacing=0]:rounded-none data-[spacing=0]:first:rounded-l-md data-[spacing=0]:last:rounded-r-md data-[spacing=0]:shadow-none",
         "data-[spacing=0]:data-[variant=outline]:border-l-0 data-[spacing=0]:data-[variant=outline]:first:border-l",
         "data-[spacing=0]:data-[variant=filter]:border-l-0 data-[spacing=0]:data-[variant=filter]:first:border-l",

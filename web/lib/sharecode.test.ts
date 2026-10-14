@@ -1,4 +1,3 @@
-// Format-only checks for CS2 share codes. Run: node --test "lib/**/*.test.ts"
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkShareCode } from './sharecode.ts';

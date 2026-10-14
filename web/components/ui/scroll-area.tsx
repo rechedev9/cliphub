@@ -54,8 +54,6 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
-        // A scrollbar thumb is a control, so it takes the 1.4.11 edge token
-        // rather than --border (2.03:1, indistinguishable from a panel seam).
         className="relative flex-1 rounded-full bg-border-strong"
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>

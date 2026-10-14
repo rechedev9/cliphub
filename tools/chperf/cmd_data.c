@@ -9,7 +9,6 @@
 
 #define SPAN_GENERATIONS 4 /* internal/obs spanJournalGenerations */
 
-/* ---- pipeline ---- */
 
 typedef struct {
 	char stage[48], name[80];
@@ -316,7 +315,6 @@ int cmd_pipeline(ctx_t *ctx, int argc, char **argv, jw_t *w)
 	return pipeline_report(ctx, w, since, last);
 }
 
-/* ---- renders ---- */
 
 typedef struct {
 	char path[1400];

@@ -26,7 +26,6 @@ import {
   SAMPLE_REEL_URL,
 } from './fixtures.ts';
 
-/** In-memory session singleton so navigations keep mock progress. */
 const session: Session = {
   user: null,
   slots: { ...fixtureSlots },
@@ -136,7 +135,6 @@ function mockPublishAssistant(video: Video): PublishAssistant {
 /** Set by pairPc so the next getPcStatus reports the PC as paired. */
 let pcPaired = false;
 
-/** Uploaded demos live apart from Steam fixtures but share the render pipeline. */
 const uploadedMatches: Match[] = [];
 const uploadedPlays = new Map<string, Play[]>();
 let uploadSeq = 0;
@@ -212,7 +210,7 @@ function loadSession(): void {
 loadSession();
 
 function delay(): Promise<void> {
-  const ms = 150 + Math.floor(Math.random() * 250); // 150-400ms
+  const ms = 150 + Math.floor(Math.random() * 250);
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

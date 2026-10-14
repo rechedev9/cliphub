@@ -25,7 +25,6 @@ import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoHud } from './full-demo-hud';
 import { customHudLabel } from '@/lib/custom-hud';
 
-/** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
 const OVERLAYS_NOTE = 'Jugadores y marcador con el diseño de ClipHub, independiente del HUD. El origen de la demo decide su formato.';
 
 export type FullPovProducerProps = {
@@ -54,7 +53,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     setBusy('load'); setError(null); setDocument(null); setOptions(null); setBaseline(null); setRestored(false); setShowMissing(false);
     void loadFullDemoPlan(matchId, controller.signal).then(async (loaded) => {
       if (controller.signal.aborted) return;
-      // A demo that was never planned opens with the intro, sponsor and outro chosen last time.
       let remembered: FullDemoBumperOptions | undefined;
       if (!loaded.document) {
         const recalled = recallFullDemoBumpers();
@@ -70,7 +68,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       } catch { }
       // An old draft may still carry the retired sponsor group: normalizing moves its video to the sponsor slot.
       const initial = isFullDemoOptions(draft) ? currentFullDemoOptions(draft) : base;
-      // Saving a plan also stores its options as the draft; only a real divergence is "recovered".
       setRestored(fullDemoOptionsKey(initial) !== fullDemoOptionsKey(base));
       setDocument(loaded.document); setBaseline(base); setOptions(initial); setBusy(null);
     }).catch((failure: unknown) => {
@@ -99,7 +96,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
 
   function change(next: FullDemoOptions): void {
     next = currentFullDemoOptions(next);
-    // Only an actual clip choice updates the memory: editing another option of an older plan without clips must not forget them.
     if (JSON.stringify(next.bumpers ?? null) !== JSON.stringify(options?.bumpers ?? null)) rememberFullDemoBumpers(next.bumpers);
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { }
@@ -172,12 +168,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     </div>
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando la preparación guardada…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
-    {/*
-      The HUD leads full-width. The fixed cards (sound, transitions, overlays) stack in one
-      column; the intro/sponsor/outro uploads, which grow with their previews, fill the rest.
-      2 columns: HUD on top, fixed cards | added videos.
-      3 columns: HUD (2) with the fixed cards beside it, added videos (2) right under the HUD.
-    */}
     {options ? <fieldset disabled={busy !== null} inert={busy !== null}
       className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2 @[64rem]/content:grid-cols-3 @[64rem]/content:grid-rows-[auto_1fr]">
       <div className="min-w-0 @[40rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></div>

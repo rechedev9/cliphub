@@ -8,12 +8,10 @@
  * `playerInitial` otherwise.
  */
 
-/** Whether the player record says there is an avatar the proxy can serve. */
 export function hasFaceitAvatar(player: { avatar?: string }): boolean {
   return typeof player.avatar === 'string' && player.avatar.trim() !== '';
 }
 
-/** The proxied avatar route for one player. */
 export function faceitAvatarSrc(playerID: string): string {
   return `/api/faceit/players/${encodeURIComponent(playerID)}/avatar`;
 }

@@ -43,13 +43,11 @@ function useSeen<T extends Element>(): { ref: React.RefObject<T | null>; seen: b
   return { ref, seen };
 }
 
-/** Keep deletion separate from the project opener and re-fetch after confirmation. */
 export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOpen: () => void; onDeleted: () => void }): ReactNode {
   const tag = streamJobTag(job);
   const acquiring = job.status === 'acquiring';
   const cuts = streamClipCount(job);
   const duration = job.probe?.duration_seconds;
-  // The source only loads for rows on screen: a long list must not range-fetch every MP4 at once.
   const { ref, seen } = useSeen<HTMLLIElement>();
   const title = streamTitle(job);
   const meta = streamSourceLabel(job.source_url) ?? 'Archivo local';

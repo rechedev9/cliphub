@@ -68,8 +68,6 @@ export function StreamRenderResults({
               >
                 {label} · {formatStreamClock(v.duration_seconds ?? 0)}
               </Button>
-              {/* The footer's "Guardar vídeo" saves the selected Short; a second
-                  save button per row duplicated that primary action. */}
               {playback ? (
                 <Button
                   type="button"

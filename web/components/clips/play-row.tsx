@@ -19,17 +19,11 @@ export type PlayRowProps = {
   onToggle: () => void;
 };
 
-/**
- * Kill badge by frag count. ACE (5K) is the cyan chip, 2K-4K neutral, 1K quiet.
- * CLUTCH's magenta chip exists in the mockup only; the plan has no clutch data
- * to drive it, and inventing one would be a fabricated fact.
- */
 function killBadge(kills: number): { label: string; tone: StatusTagTone } {
   if (kills >= 5) return { label: 'ACE', tone: 'primary' };
   return { label: `${kills}K`, tone: 'neutral' };
 }
 
-/** Compact highlight selector; each selected row shows its output position. */
 export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: PlayRowProps) {
   const badge = killBadge(play.kills);
 
@@ -48,7 +42,6 @@ export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: Pla
       <SelectionMark selected={selected} />
       {play.thumbnailUrl ? <PlayThumbnail play={play} compact className="hidden h-9 w-16 @[30rem]/reel:flex" /> : null}
 
-      {/* min-w-0 lets the meta shrink instead of forcing horizontal scroll. */}
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span
           className={cn(

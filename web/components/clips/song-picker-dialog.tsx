@@ -37,10 +37,6 @@ function mmss(totalSec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/**
- * The curated soundtrack list plus one shared preview player. Used by the
- * pre-capture picker and by the Library music rerender dialog.
- */
 export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogProps): ReactNode {
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -131,12 +127,6 @@ export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogPro
   );
 }
 
-/**
- * SongPickerDialog — the soundtrack picker. Lists the orchestrator's curated
- * open-source catalog, plays a real audio preview per row (one shared <audio>),
- * and commits the chosen track to the reel. Music is optional; the reel is
- * created from the page's main CTA.
- */
 export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId }: SongPickerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -185,7 +175,6 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-body-sm font-semibold text-fg-1">{song.title}</p>
-        {/* Only the artist truncates, so genre and length always stay readable. */}
         <p className="flex min-w-0 font-mono text-meta tracking-wider text-fg-3">
           <span className="min-w-[4ch] truncate">{song.artist}</span>
           {meta ? <span className="shrink-0 whitespace-nowrap">&nbsp;· {meta}</span> : null}
@@ -202,10 +191,6 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
   );
 }
 
-/**
- * A decorative equalizer that animates while a preview plays. Keyframes are
- * scoped here (globals.css is foundation-owned) and honor prefers-reduced-motion.
- */
 function Equalizer() {
   return (
     <span aria-hidden className="flex h-4 items-end gap-0.5">

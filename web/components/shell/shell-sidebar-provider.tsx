@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
-/** Below this width the 240px rail squeezes the producers, so the shell starts as icons. */
 const AUTO_COLLAPSE_QUERY = '(max-width: 1199px)';
 
 /**

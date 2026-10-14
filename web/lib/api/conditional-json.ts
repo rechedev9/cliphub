@@ -1,4 +1,3 @@
-/** Conditional GET helpers for hub list polls. */
 
 export type ConditionalJSONCache<T> = {
   etag?: string;

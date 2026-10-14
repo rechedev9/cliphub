@@ -21,7 +21,6 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
   options: FullDemoOptions; map: string; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
 }): ReactNode {
   const theme = customHudTheme(options.overlays.hud_theme);
-  // The design (and Focus portrait) set aside for the CS2 HUD, restored when switching back.
   const [setAside, setSetAside] = useState<{ theme?: string; portrait?: FullDemoAssetRef | null }>({});
   const selected = theme ?? customHudTheme(setAside.theme) ?? CUSTOM_HUD_THEMES[0];
   const kind: HudKind = theme ? 'custom' : 'native';
@@ -45,8 +44,6 @@ export function FullDemoHud({ options, map, onChange, onAssetBusy }: {
     }
   }
 
-  // A pending upload resolves against the options it started with; changing the
-  // HUD first must drop it, or its result would bring the old design back.
   function cancelUpload(): void {
     const pending = request.current;
     if (!pending) return;

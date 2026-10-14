@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils';
 export type StudioDataRowProps = {
   /** The row's identity — file name, map, setting name. */
   label: ReactNode;
-  /** Operational value, typeset as mono with tabular figures. */
   value?: ReactNode;
   /** Right-most state slot: a `StatusTag`, a spinner, a check. */
   status?: ReactNode;
@@ -15,12 +14,6 @@ export type StudioDataRowProps = {
   className?: string;
 };
 
-/**
- * Label / value / status row — the upload scan and parse lists, series parts and
- * the settings readouts, which shipped as four byte-identical hand-rolled class
- * strings. 44px minimum so a row lines up with the control scale even though it
- * is not itself a control.
- */
 export function StudioDataRow({
   label,
   value,

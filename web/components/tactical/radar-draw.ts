@@ -14,20 +14,6 @@ import type { TrailPoint } from '@/lib/tactical-replay';
 import { opponentSide } from '@/lib/tactical-labels';
 import type { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 
-/**
- * Every mark the 2D replay puts on the canvas.
- *
- * This module owns pixels and nothing else: it takes a scene of already-decoded
- * facts and paints it. It never reads the DOM, never fetches, and never decides
- * what is true — which keeps the drawing reviewable next to the transform it
- * mirrors (`internal/radarmap`, via `lib/tactical-transform`).
- *
- * Two passes exist on purpose. The map is play-derived geometry that only
- * changes with the size, the level or the theme, so it is baked into an
- * offscreen bitmap; the round is what changes 60 times a second. Inside the
- * per-frame pass the identity chips are painted last, after every blip: a name
- * composited under the next player's cone and dot is a name nobody can read.
- */
 
 /** Colours and type, resolved once from the design tokens on the live element. */
 export type RadarStyle = {
@@ -70,55 +56,33 @@ export type RadarScene = {
   style: RadarStyle;
 };
 
-/** Occupancy weight is long-tailed, so the ramp is on its square root. */
 const CELL_MIN_ALPHA = 0.07;
 const CELL_ALPHA_RANGE = 0.38;
-/** Levels the player is not on stay legible but recede. */
 const INACTIVE_LEVEL_ALPHA = 0.22;
-/** Callouts below this share of the busiest one would only add noise. */
 const CALLOUT_SAMPLE_SHARE = 0.12;
-/** Below this size a callout label costs more legibility than it adds. */
 const CALLOUT_MIN_SIZE = 380;
-/** An event mark fades to its resting alpha over this many seconds. */
 const EVENT_FRESH_SECONDS = 4;
 
-/*
- * Identity chips. Position, side and facing are scanned every frame; a name is
- * read occasionally and never changes inside a round, so identity buys its
- * legibility from an opaque ramp step instead of from size, and it is painted
- * last. Occlusion reads; compositing does not.
- */
 const TAG_MIN_SIZE = 380;
-/** 12px is the system's hard type floor (--text-meta), not its target. */
 const TAG_FONT_MIN = 12;
-/** Above the callouts' 0.0145 at every size, so map furniture never out-sizes a name. */
 const TAG_FONT_RATIO = 0.016;
 const TAG_PAD_X = 4;
 const TAG_RAIL = 2;
-/**
- * Chip gap in blip radii: clears the health ring (1.6r — radius + lineWidth
- * plus half the stroke), the bomb dot (2.12r) and the defuse ring (2.46r).
- */
 const TAG_GAP = 2.6;
-/** A collided chip steps this far past the last one. */
 const TAG_STACK_GAP = 3;
-/** Outer edge of the health ring, in blip radii — where a leader starts. */
 const TAG_RING_EDGE = 1.6;
-/** A chip that had to move keeps a hairline back to its dot. */
 const TAG_LEADER_ALPHA = 0.5;
 
 function sideColor(style: RadarStyle, side: TacticalSide): string {
   return side === TACTICAL_SIDES.ct ? style.ct : style.t;
 }
 
-/** Which side a sample is on. Read by the trails, the blip and the identity chip. */
 function sampleSide(sample: TacticalSample): TacticalSide {
   return hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT)
     ? TACTICAL_SIDES.t
     : TACTICAL_SIDES.ct;
 }
 
-/** The dot's radius. Shared, so the chip pass cannot drift off the blip. */
 function blipRadius(size: number): number {
   return Math.max(3.5, size * 0.0105);
 }
@@ -137,8 +101,6 @@ function drawLevelCells(
   for (const cell of level.cells) {
     const rect = cellRadarRect(geometry, cell, size);
     ctx.globalAlpha = (CELL_MIN_ALPHA + CELL_ALPHA_RANGE * Math.sqrt(cell[2] / max)) * strength;
-    // Cells tile the world grid exactly; the half-pixel bleed keeps a seam from
-    // showing between two neighbours at fractional scales.
     ctx.fillRect(rect.x, rect.y, rect.width + 0.5, rect.height + 0.5);
   }
   ctx.globalAlpha = 1;
@@ -155,8 +117,6 @@ function drawCallouts(
   const busiest = geometry.callouts.reduce((max, callout) => Math.max(max, callout.samples), 0);
   if (busiest <= 0) return;
 
-  // Static map furniture sits BEHIND the blips, so it is set smaller than the
-  // identity chips (0.016, floored at 12px) rather than larger.
   ctx.font = `${Math.round(size * 0.0145)}px ${style.fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -171,13 +131,6 @@ function drawCallouts(
   ctx.globalAlpha = 1;
 }
 
-/**
- * Bakes the visible window of the play-derived map: every level's occupancy
- * grid, the active one at full strength, plus the callout labels. The bitmap is
- * device-resolution and is exactly the plate's box rather than the whole square,
- * so it does not grow as the crop zooms in. `view` is a window in fractions of
- * the square (see `radarViewRect`), never a change of transform.
- */
 export function renderRadarBackground(
   geometry: TacticalGeometry,
   activeLevel: RadarLevel,
@@ -195,8 +148,6 @@ export function renderRadarBackground(
 
   ctx.fillStyle = style.panel;
   ctx.fillRect(0, 0, view.width * size, view.height * size);
-  // Everything below still draws in the `size` square's coordinates; this is the
-  // only line that makes the bitmap a window onto it.
   ctx.translate(-view.x * size, -view.y * size);
 
   for (const level of geometry.levels) {
@@ -206,8 +157,6 @@ export function renderRadarBackground(
   const active = geometry.levels.find((level) => level.name === activeLevel);
   if (active !== undefined) drawLevelCells(ctx, geometry, active, size, style, 1);
   else {
-    // A demo with no cells on this level still deserves its default grid rather
-    // than an empty square.
     const fallback = geometry.levels.find((level) => level.name === RADAR_LEVELS.default);
     if (fallback !== undefined) drawLevelCells(ctx, geometry, fallback, size, style, 1);
   }
@@ -230,7 +179,6 @@ function drawTrails(ctx: CanvasRenderingContext2D, scene: RadarScene): void {
     for (let i = 1; i < points.length; i += 1) {
       const from = worldToRendered(geometry.calibration, points[i - 1].x, points[i - 1].y, size);
       const to = worldToRendered(geometry.calibration, points[i].x, points[i].y, size);
-      // The tail fades out, so the head of the trail reads as "now".
       ctx.globalAlpha = 0.08 + 0.34 * (i / (points.length - 1));
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
@@ -349,12 +297,9 @@ function drawPlayerBlip(ctx: CanvasRenderingContext2D, scene: RadarScene, sample
     return;
   }
 
-  // View cone: where the player is actually looking, which is most of what a 2D
-  // replay can say about intent.
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
   const half = (26 * Math.PI) / 180;
   const reach = radius * 4.4;
-  // Five cones overlapping at spawn used to composite into one solid mass.
   ctx.globalAlpha = 0.11;
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -363,7 +308,6 @@ function drawPlayerBlip(ctx: CanvasRenderingContext2D, scene: RadarScene, sample
   ctx.closePath();
   ctx.fill();
 
-  // Health ring, drawn clockwise from twelve o'clock.
   const health = Math.max(0, Math.min(100, sample.health));
   ctx.globalAlpha = 0.9;
   ctx.lineWidth = Math.max(1.5, radius * 0.4);
@@ -433,16 +377,6 @@ function overlaps(a: TagRect, b: TagRect): boolean {
 /** One resolved chip slot: where it went, which way it went and whether it moved. */
 type TagSpot = { rect: TagRect; up: boolean; displaced: boolean };
 
-/**
- * Where one chip lands: on its preferred side of the dot, stepped past whatever
- * is already placed, and clamped inside `visible` so a player holding an edge of
- * the map keeps their name instead of being drawn off it.
- *
- * `visible` is the plate's window onto the square, NOT the square: the two were
- * the same box until the plate started cropping, and clamping to the square let
- * a chip land in the padding the crop throws away, where the plate's border
- * sliced it in half.
- */
 function placeTag(
   at: RadarPoint,
   width: number,
@@ -461,13 +395,6 @@ function placeTag(
     return { rect: { x, y, width, height }, up, displaced: step > 0 || x !== rawX || y !== rawY };
   };
 
-  // Two searches, one step per chip already placed, and never a fixed cap. A cap
-  // resolved every surplus chip to the SAME rectangle, so names stacked on one
-  // spawn were painted exactly on top of each other and only the last of them
-  // existed. Stepping alone is not enough either: a stack that reaches the
-  // window's edge saturates against the clamp above, where one more step is
-  // again the same rectangle — so once the preferred side is full the search
-  // turns round and walks back past the dot, which is always empty by then.
   let last = candidate(0, prefersUp);
   for (const up of [prefersUp, !prefersUp]) {
     for (let step = 0; step <= placed.length; step += 1) {
@@ -479,15 +406,6 @@ function placeTag(
   return last;
 }
 
-/**
- * Every alive player's identity, in one pass above every blip.
- *
- * Inside `drawPlayerBlip` a name was painted before the next player's cone, ring
- * backing and dot went down on top of it, which is what left four of five tags
- * half-eaten at spawn. Here the chip is opaque: --fg-1 glyphs on a --surface-3
- * plate read at 15.8:1 however many cones are stacked behind them, and the side
- * colour moves to a rail so the name never joins the cyan it is sitting on.
- */
 function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?: TacticalDrawCache): void {
   const { geometry, size, style, view } = scene;
   if (size < TAG_MIN_SIZE) return;
@@ -496,7 +414,6 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?
   const height = Math.round(font * 1.5);
   const radius = blipRadius(size);
   const ring = radius * TAG_RING_EDGE;
-  // The box a chip has to stay inside is what the plate SHOWS of the square.
   const visible: RadarRect = {
     x: view.x * size,
     y: view.y * size,
@@ -510,8 +427,6 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?
   const placed: TagRect[] = [];
   const chips: TagChip[] = [];
   for (const sample of scene.samples) {
-    // The dead lose their name with their dot, which `drawPlayerBlip` used to
-    // get for free from its own early return.
     if (!hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive)) continue;
     const label = scene.labels.get(sample.slot);
     if (label === undefined) continue;
@@ -521,14 +436,10 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?
     const measured = cache?.labelWidth(ctx.font, label, () => ctx.measureText(label).width)
       ?? ctx.measureText(label).width;
     const width = Math.round(measured) + TAG_RAIL + TAG_PAD_X * 2;
-    // CT above, T below: half the cross-side collisions never happen, and the
-    // offset is a second, redundant read of the side.
     const prefersUp = side === TACTICAL_SIDES.ct;
     const room = prefersUp
       ? at.y - radius * TAG_GAP - height >= visible.y
       : at.y + radius * TAG_GAP + height <= visible.y + visible.height;
-    // `placeTag` may still turn the stack round when that side fills up, so the
-    // side it reports — not the one asked for — is what the leader line follows.
     const spot = placeTag(at, width, height, radius, visible, room ? prefersUp : !prefersUp, placed);
     placed.push(spot.rect);
     chips.push({
@@ -543,7 +454,6 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?
   }
   if (chips.length === 0) return;
 
-  // Leaders first, so a plate always covers the hairline that reaches it.
   ctx.globalAlpha = TAG_LEADER_ALPHA;
   for (const chip of chips) {
     if (!chip.displaced) continue;
@@ -566,11 +476,6 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?
   }
 }
 
-/**
- * Paints one frame over an already-blitted background: the trails, then the
- * events that have happened, then the players, then every identity chip on top
- * of all of them — a name is only worth drawing if nothing lands on it after.
- */
 export function drawTacticalScene(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?: TacticalDrawCache): void {
   drawTrails(ctx, scene);
   drawEvents(ctx, scene, cache);

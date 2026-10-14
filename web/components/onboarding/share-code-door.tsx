@@ -28,7 +28,6 @@ type DoorState =
   | { phase: 'pending' }
   | { phase: 'done'; result: ShareCodeResolution };
 
-/** Paste a CS2 match share code, then enqueue its demo. */
 export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactElement {
   const router = useRouter();
   const [state, setState] = useState<DoorState>({ phase: 'idle' });

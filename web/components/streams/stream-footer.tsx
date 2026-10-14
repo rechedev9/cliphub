@@ -33,8 +33,6 @@ export function StreamFooter({
           {error}
         </p>
       ) : null}
-      {/* A floor on the summary pushes the buttons to their own row on phones
-          instead of squeezing "1 Short · 01 · 0:12" into four lines. */}
       <div className="min-w-[12rem] flex-1">
         <p className="font-semibold text-body">{countLabel}</p>
         <p className="text-label text-fg-3">{summary}</p>

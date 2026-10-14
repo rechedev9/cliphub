@@ -17,8 +17,6 @@ function sideClass(side: TacticalSide): string {
 function sideBarClass(winner: TacticalSide | ''): string {
   if (winner === TACTICAL_SIDES.ct) return 'bg-primary';
   if (winner === TACTICAL_SIDES.t) return 'bg-warning';
-  // --fg-4 is the hairline/graphics token (3.75:1 on --surface-2); --border is an
-  // edge, and an edge token is not a surface fill.
   return 'bg-fg-4';
 }
 
@@ -33,12 +31,6 @@ function BuyLine({ round }: { round: TacticalRound }): ReactNode {
   );
 }
 
-/**
- * One round of the index. The chevron opens the full classification record —
- * the tags the classifier attached, then the rules that produced them: a label
- * an analyst disagrees with has to be traceable, which is the whole point of a
- * deterministic classifier.
- */
 function RoundRow({
   round,
   perspective,
@@ -59,12 +51,6 @@ function RoundRow({
   return (
     <li
       className={cn(
-        // shrink-0 is load-bearing: the list is a flex column with a bounded
-        // height, so without it 35 rounds compress to fit instead of
-        // scrolling, and overflow-hidden then slices the text of every row.
-        // .studio-panel already owns the radius; the selected step keeps the
-        // --border-accent edge the raised recipe sets and adds the sanctioned
-        // selected-tile glow instead of a stronger hue.
         'studio-panel shrink-0 overflow-hidden transition-colors',
         selected
           ? 'studio-panel-raised shadow-[var(--elev-3),var(--glow-primary-sm)]'
@@ -78,11 +64,6 @@ function RoundRow({
           onClick={() => onSelect(round.number)}
           aria-current={selected ? 'true' : undefined}
           className={cn(
-            // Two bands, not one row: the meta footline spans the whole button,
-            // so the tag run gets ~256px instead of the ~180px the middle
-            // column can spare. Both text spans truncate, so nothing grows with
-            // content; min-h-20 is the height whenever the winner column shows
-            // its gana/pierde line, and the floor rows without it sit on.
             'flex min-h-20 min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-2.5 text-left outline-none',
             FOCUS_RING,
           )}
@@ -104,11 +85,6 @@ function RoundRow({
 
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               <BuyLine round={round} />
-              {/* One line, never two: the index column is pinned at 360px
-                  (tactical-analysis.tsx) so this measure never grows, and the
-                  site moved to the footline so the pair fits. The untruncated
-                  string is reprinted in the replay header when the round is
-                  selected. */}
               <span className="block truncate font-display text-label font-semibold uppercase leading-tight text-fg-1">
                 {tPatternLabel(round.class.t_side)}{' '}
                 <span className="text-fg-3">/</span>{' '}
@@ -119,8 +95,6 @@ function RoundRow({
             <span className="flex shrink-0 flex-col items-end gap-1">
               <span
                 className={cn(
-                  // border-current inherits the side's semantic colour, so the
-                  // marker reads as a HUD key without a new token.
                   'inline-flex h-5 items-center justify-center border border-current px-1.5 font-mono text-meta leading-none tracking-wider',
                   round.winner === '' ? 'text-fg-3' : sideClass(round.winner),
                 )}
@@ -136,12 +110,6 @@ function RoundRow({
             </span>
           </span>
 
-          {/* Site first, then the tags, as one `·` run — the house idiom
-              (tactical-event-list.tsx). tracking-normal rather than the
-              mono-meta tracking-wider on purpose: at 0.12em a three-tag round
-              loses nine characters of a ~256px band, and this is a dense data
-              run, not a HUD label. Overflow ellipsises; the full list is in the
-              drawer. */}
           <span className="block truncate font-mono text-meta uppercase tracking-normal text-fg-3">
             <span className="text-fg-2">{siteLabel(round.class.site)}</span>
             {round.class.tags.map((tag) => (
@@ -219,9 +187,6 @@ export function TacticalRoundList({
 
   return (
     <section
-      // The command strip is a 56px opaque ceiling: sticking at 24px from the
-      // viewport parked this header under it, so both the offset and the height
-      // budget start below --shell-strip-height.
       className="studio-panel flex flex-col overflow-hidden xl:sticky xl:top-[calc(var(--shell-strip-height)+1.5rem)] xl:max-h-[calc(100vh-var(--shell-strip-height)-3rem)]"
       aria-label="Rondas"
     >

@@ -50,7 +50,6 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
           </Button> : null}
         </div>
       </div>
-      {/* Full width on phones so the three actions share one row; they still wrap on very narrow screens. */}
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto [&>a]:px-2.5">
         <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none"><a href={player.profile_url} target="_blank" rel="noreferrer">
           Ver perfil FACEIT <ExternalLink aria-hidden className="size-3.5" />

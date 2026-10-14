@@ -7,19 +7,6 @@ export type SelectionMarkProps = {
   className?: string;
 };
 
-/**
- * The one selection glyph on the highlight screen.
- *
- * The screen used to speak three checkbox languages at once: a 20px square in
- * the play row, a differently-bordered 20px square in the preset card, and a
- * native 13px checkbox in the approval gate. All three are this 24px square
- * plate now — square because HUD chrome is square, `--border-strong` because a
- * control boundary has to clear 3:1, and filled cyan when on so selection reads
- * without relying on the border alone.
- *
- * Decorative: it mirrors its host control's `aria-pressed`/`checked` state and
- * is never the accessible name.
- */
 export function SelectionMark({ selected, className }: SelectionMarkProps): ReactNode {
   return (
     <span

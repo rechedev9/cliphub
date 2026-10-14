@@ -26,7 +26,6 @@ const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string
 const PILL_CLASS =
   'flex min-h-10 min-w-0 items-center gap-2.5 rounded-md border border-border-strong bg-surface-2 px-3 font-[family-name:var(--font-mono)] text-meta tracking-wider uppercase';
 
-/** Command-strip job pill plus the 400px dropdown listing every live job. */
 export function JobTransport(): ReactElement | null {
   const pathname = usePathname();
   const activity = useSyncExternalStore(

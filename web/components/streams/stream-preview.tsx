@@ -118,7 +118,6 @@ export function StreamPreview({
   disabled?: boolean;
   /** Sizing override; the default is a 220px-wide column frame. */
   className?: string;
-  /** Progress inside the current cut, drawn as the 3px magenta head at the foot. */
   playheadPercent?: number;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,7 +140,6 @@ export function StreamPreview({
   const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
   const keyDropPlate = stylesForFamily(keyDropFamily ?? '').find((entry) => entry.id === keyDropStyle);
   const keyDropLabel = affiliateDisplayLabel(keyDropFamily ?? '', keyDropStyle ?? '', keyDropCode ?? '');
-  // Clip identity is explicit: overlapping or reordered cuts are distinct Shorts.
   const activeClip = clips.find((clip) => clip.id === activeClipId);
   const activeOverlays = activeClip?.edit?.text_overlays ?? [];
   const clipLen = activeClip ? activeClip.end_seconds - activeClip.start_seconds : 0;

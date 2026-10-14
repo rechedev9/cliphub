@@ -30,7 +30,6 @@ export function ServiceWorkerCleanup(): null {
           registrations.map(async (registration) => {
             const scope = registration.scope;
             const unregistered = await registration.unregister();
-            // One warn per evicted scope so the (unexpected) foreign worker is diagnosable.
             if (unregistered) {
               unregisteredCount += 1;
               console.warn(`Unregistered a foreign service worker (ClipHub registers none): ${scope}`);
@@ -49,7 +48,6 @@ export function ServiceWorkerCleanup(): null {
           window.location.reload();
         }
       } catch {
-        // Never let cleanup break the app; a leftover worker is a nuisance, not fatal.
       }
     })();
   }, []);

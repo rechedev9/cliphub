@@ -48,7 +48,6 @@ const STATUS_META: Record<
   },
   offline: {
     label: 'Sin conexión',
-    // "Servicio local offline" truncated inside the 240px sidebar; the dialog carries the long form.
     text: 'Studio offline',
     tone: 'border-destructive/45 text-destructive',
     dot: 'bg-destructive',
@@ -66,17 +65,12 @@ const SETTINGS_TAG: Record<CaptureStatus, { text: string; tone: StatusTagTone }>
 };
 const REC_TITLE_MAX = 18;
 
-/** The three record tools, with a friendly name and a typical Windows path. */
 const TOOL_GUIDE: Array<{ name: string; label: string; help: string; example: string }> = [
   { name: 'ZV_RECORDER_PATH', label: 'Grabador ClipHub', help: 'Viene incluido en ClipHub Studio para Windows. Si falta, reinstala la aplicación.', example: 'C:\\...\\bin\\zv-recorder.exe' },
   { name: 'ZV_HLAE_PATH', label: 'HLAE', help: 'Es la herramienta que permite a ClipHub grabar CS2. Viene incluida en ClipHub Studio y se prepara en el primer arranque. Si falta, reinstala la aplicación.', example: 'C:\\HLAE-<latest-version>\\HLAE.exe' },
   { name: 'ZV_CS2_PATH', label: 'CS2', help: 'Instala Counter-Strike 2 desde Steam en este PC y vuelve a abrir ClipHub.', example: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\bin\\win64\\cs2.exe' },
 ];
 
-/**
- * Sidebar footer status pill: capture readiness from the local orchestrator,
- * overridden by the live REC job while CS2 + HLAE record. Click opens the setup dialog.
- */
 export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' | 'settings' }): ReactElement {
   const [data, setData] = useState<CaptureReadinessData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -121,7 +115,6 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
   let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
   if (recording !== undefined) settingsTag = { text: pillText, tone: 'stream' };
-  // Mounted only for a PC that cannot record, so a ready PC never polls the cloud account from the shell.
   const cloudHint = data !== null && status === 'unconfigured' ? <CloudFallbackLine status={status} variant={variant} /> : null;
 
   return (
@@ -245,7 +238,6 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** Detected / configured-but-missing / absent, as one of the kit's tag tones. */
 function toolBadge(found: boolean, configured: boolean, fromEnv: boolean): { label: string; tone: StatusTagTone } {
   if (found) return { label: fromEnv ? 'Configurada' : 'Detectada', tone: 'primary' };
   return configured ? { label: 'Falta', tone: 'warning' } : { label: 'No encontrada', tone: 'danger' };

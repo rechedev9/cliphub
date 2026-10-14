@@ -3,12 +3,6 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-/**
- * `.studio-panel` already paints --surface-2 + bevel + --elev-1 and owns the
- * radius. The old `rounded-xl` override made a Card a different shape (14px)
- * from every bare `studio-panel` (10px) in the same view, so it is gone; the
- * elevation is a prop instead of a shadow utility bolted on at the call site.
- */
 const cardVariants = cva(
   "studio-panel flex flex-col gap-6 py-6 text-card-foreground",
   {

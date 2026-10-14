@@ -24,15 +24,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 import { cn } from '@/lib/utils';
 
-/** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
 
 const CHIP_CLASS = 'font-mono uppercase tracking-wider';
 
-/**
- * A compact list selects one moment. Its range stays visible; optional
- * text, speed and audio controls preserve the existing edit-plan contract.
- */
 export function StreamClipEditor({
   clips,
   sourceDuration,
@@ -157,8 +152,6 @@ function ClipCard({
   const fadesOn = fadeIn > 0 || fadeOut > 0;
   const overlays = clip.edit?.text_overlays ?? [];
   const number = String(index + 1).padStart(2, '0');
-  // Starts open when texts exist so clearing the last one to retype it does
-  // not unmount the editor (and its blank row) mid-keystroke.
   const [textOpen, setTextOpen] = useState(overlays.length > 0);
   const showText = textOpen || overlays.length > 0;
   /** Volume the mute chip restores; written only when it mutes. */
@@ -189,7 +182,6 @@ function ClipCard({
           aria-pressed={selected}
           className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {/* The index is an ordinal every card carries; only one card is selected. */}
           <span
             aria-hidden
             className={cn(
@@ -406,7 +398,6 @@ function ClipOverlayEditor({
   const [syncedKey, setSyncedKey] = useState(() => JSON.stringify(overlays));
   const committedKey = JSON.stringify(overlays);
   if (committedKey !== syncedKey && committedKey !== JSON.stringify(committedOverlays(rows))) {
-    // The plan changed underneath the rows (a reload, not an edit here): adopt it.
     setRows(overlayRows(overlays));
     setSyncedKey(committedKey);
   }

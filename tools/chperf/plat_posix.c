@@ -150,7 +150,6 @@ int plat_is_dir(const char *path)
 	return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-/* ---- processes (/proc) ---- */
 
 static int is_pid_dir(const char *name)
 {
@@ -298,7 +297,6 @@ int plat_system_cpu(uint64_t *busy, uint64_t *total)
 	return 0;
 }
 
-/* ---- run ---- */
 
 static double tv_ms(struct timeval tv) { return (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0; }
 
@@ -394,7 +392,6 @@ int plat_run(char **argv, long timeout_s, int keep_full, run_result_t *r)
 	return 0;
 }
 
-/* ---- sockets ---- */
 
 int plat_net_init(void)
 {

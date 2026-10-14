@@ -38,7 +38,6 @@ const FILTER_LABEL = {
   working: 'En marcha',
 } as const satisfies Record<ClipFilter, string>;
 
-/** A floor per density step, never a track count: two clips must not leave half the measure empty. */
 const GRID_COLUMNS = {
   S: 'repeat(auto-fill, minmax(9.5rem, 1fr))',
   M: 'repeat(auto-fill, minmax(14rem, 1fr))',
@@ -60,7 +59,6 @@ export type ClipsLensProps = {
   onChange: () => void;
 };
 
-/** The Clips lens: every output as a card, filtered and sized locally. */
 export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensProps): ReactNode {
   const [filter, setFilter] = useState<ClipFilter>(CLIP_FILTER.all);
   const [size, setSize] = useState<ClipSize>(CLIP_SIZE.m);
@@ -144,10 +142,6 @@ export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensPr
       ) : (
         <section
           aria-label="Clips"
-          /* items-start, not the default stretch: a 9:16 card is ~200px taller
-             than its 16:9 neighbour, and stretching the short one just prints
-             an empty box under its controls. Cards end where their content
-             ends. */
           className={cn('grid items-start', small ? 'gap-2' : 'gap-3')}
           style={gridStyle}
         >
@@ -213,11 +207,6 @@ function ClipCard({
 
   return (
     <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
-      {/* A true 9:16 frame, narrowed rather than capped. `capHeight` pins the
-          height of a full-width box, so the frame stops being 9:16 and
-          object-cover eats a third of the reel — a Shorts tool must not show a
-          reel it did not make (media-frame.tsx). Constraining the width keeps
-          the shape honest and still lands the card near its landscape row. */}
       <button
         type="button"
         disabled={playback === null}
@@ -246,21 +235,13 @@ function ClipCard({
 
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{clip.title}</span>
-        {/* Two lines rather than a truncate: at M the format ("9:16") is the
-            part that got cut, and it is the one bit the title does not say. */}
         <span className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3">
           {video.map} · {player} · {sub}
         </span>
       </span>
 
-      {/* S is the contact sheet: a 152px track cannot hold three controls
-          without wrapping them into more chrome than thumbnail, which is the
-          opposite of what the density step was asked for. */}
       {small ? null : (
         <span className="flex flex-col gap-1.5">
-          {/* The match link gets its own row on every card, so a ready card
-              (three buttons) and a rendering one (delete only) share the same
-              row count and the grid reads as one line of equal cards. */}
           <OutputActions
             compact
             output={clip}
@@ -288,7 +269,6 @@ function ClipCard({
 function StreamClipCard({ item, small, onPlay }: { item: MediaPlaybackItem; small: boolean; onPlay: (button: HTMLElement) => void }): ReactNode {
   const warning = item.review === PLAYBACK_REVIEW.stale;
   const isShort = item.format === '9:16';
-  // The meta line already says "Stream"; the corner badge is reserved for a warning so it never covers the facecam for nothing.
   const reviewLabel = 'Desactualizado';
   return (
     <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3', warning && 'border-warning/45')}>

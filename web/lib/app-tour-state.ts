@@ -107,6 +107,5 @@ export function markTourSeen(storage: TourStorage | null, now: number): void {
   try {
     storage.setItem(TOUR_SEEN_KEY, new Date(now).toISOString());
   } catch {
-    // Nothing to do: the worst case is seeing the tour once more.
   }
 }

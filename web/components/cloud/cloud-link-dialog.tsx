@@ -24,7 +24,6 @@ function openInBrowser(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-/** Links this PC to a ClipHub account: shows the code, opens the portal and waits for the confirmation. */
 export function CloudLinkDialog({ open, onOpenChange }: CloudLinkDialogProps): ReactNode {
   const account = useCloudAccount();
   const [startError, setStartError] = useState<StartError | null>(null);
@@ -51,7 +50,6 @@ export function CloudLinkDialog({ open, onOpenChange }: CloudLinkDialogProps): R
   const pendingCode =
     account.kind === 'ready' && account.account.link?.status === 'pending' ? account.account.link.userCode : null;
 
-  // Opening the dialog starts a link unless one is already waiting for the user.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current && !linked && pendingCode === null) void start();

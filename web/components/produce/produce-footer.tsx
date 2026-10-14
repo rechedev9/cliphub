@@ -71,7 +71,6 @@ export function ProduceFooter({
           className={cn('flex cursor-pointer list-none items-center gap-2 text-body-sm font-semibold text-fg-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden', 'min-h-8')}
         >
           <ChevronRight aria-hidden className="size-4 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
-          {/* A read-only recap of the choices above, not another place to edit them. */}
           Resumen de la configuración
         </summary>
         <section aria-labelledby={briefId} className="studio-panel mt-2 px-4 py-3">
