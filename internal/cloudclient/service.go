@@ -18,6 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/rechedev9/cliphub/internal/rooted"
+
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/job"
@@ -997,7 +999,7 @@ func (s *Service) tryDemoUpload(ctx context.Context, cloudJobID string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %v", errDemoGone, err)
 	}
-	file, err := os.Open(demoPath) //nolint:gosec // the path was resolved inside the local storage root
+	file, err := rooted.Open(demoPath)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errDemoGone, err)
 	}

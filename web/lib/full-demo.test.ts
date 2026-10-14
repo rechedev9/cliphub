@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
   FULL_DEMO_CONTRACT,
@@ -33,6 +34,9 @@ test('full-demo edit is landscape recap with comms and native HUD', () => {
   assert.equal(FULL_DEMO_PRESET.hudMode, 'gameplay');
   assert.equal(FULL_DEMO_PRESET.width, 1920);
   assert.equal(FULL_DEMO_PRESET.height, 1080);
+  const presetGo = readFileSync(new URL('../../internal/editor/preset.go', import.meta.url), 'utf8');
+  const spanish = /Name:\s*PresetGameplayPOV60,[\s\S]*?DescriptionES:\s*"([^"]+)"/.exec(presetGo);
+  assert.equal(FULL_DEMO_PRESET.description, spanish?.[1]);
 });
 
 test('full-demo contract names live rounds, not freeze-to-end dumps', () => {

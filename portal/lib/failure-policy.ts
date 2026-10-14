@@ -5,6 +5,7 @@ import {
   type FailureClass,
   type FailureCode,
 } from "./job-types.ts";
+import type { StoredPause } from "./pause.ts";
 
 const BREAKER_THRESHOLD = 3;
 const PAUSE_DETAIL_CHARS = 300;
@@ -23,7 +24,6 @@ export interface FailureJob {
   maxAttempts: number;
   cancelRequestedAt: number | null;
   machineRequeues?: number;
-  // Named in the pause reason, so the operator sees which job stopped the worker.
   id?: string;
   title?: string | null;
 }
@@ -47,16 +47,14 @@ export type FailureDecision =
       attempt: number;
       machineRequeues: number;
       consecutiveFailures: number;
-      // Not null when the worker must be auto-paused, with this reason.
-      pauseReason: string | null;
+      pauseReason: StoredPause | null;
     };
 
-// "<code>: job <id> "<title>": <detail>"; the panel reads the job back out of it.
-function pauseReasonFor(code: string, input: FailureInput): string {
+function pauseReasonFor(code: string, input: FailureInput): StoredPause {
   const detail = (input.detail ?? "").slice(0, PAUSE_DETAIL_CHARS);
   const { id, title } = input.job;
-  if (!id) return `${code}: ${detail}`;
-  return `${code}: job ${id} "${(title ?? "").replaceAll('"', "'")}": ${detail}`;
+  const job = id ? { id, title: (title ?? "").replaceAll('"', "'") } : null;
+  return { kind: "auto", code, detail, job };
 }
 
 // Decides what a failure does to the job and to the worker (contracts section F).
@@ -66,7 +64,7 @@ export function decideFailure(input: FailureInput): FailureDecision {
   const cancelPending = job.cancelRequestedAt !== null;
   let machineRequeues = job.machineRequeues ?? 0;
   let consecutiveFailures = input.consecutiveFailures ?? 0;
-  let pauseReason: string | null = null;
+  let pauseReason: StoredPause | null = null;
 
   if (failureClass === "cancel") {
     if (!cancelPending) return { ok: false };

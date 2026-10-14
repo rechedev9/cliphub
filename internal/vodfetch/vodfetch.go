@@ -11,12 +11,13 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 // DefaultMaxBytes matches the direct stream-upload ceiling. URL acquisition
@@ -266,8 +267,7 @@ type CommandRunner interface {
 type execCommandRunner struct{}
 
 func (execCommandRunner) Run(ctx context.Context, dir, name string, args ...string) (string, string, error) {
-	// #nosec G204 -- vodfetch executes a configured local yt-dlp binary with an argument slice, not a shell string.
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := argv.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

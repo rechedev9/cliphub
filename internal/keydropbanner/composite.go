@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 // CompositeWithCode writes a PNG of the plate with the baked code covered and
@@ -53,9 +54,7 @@ func CompositeWithCode(ffmpegPath, family, styleID, code, fontPath, outPath stri
 		coverFilter(style, coverX, coverY, coverW, coverH),
 		ffmpegFilterPath(fontPath), ffmpegDrawtextText(label), fontSize, textY,
 	)
-	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config;
-	// plate/font/out paths are local materializations under ClipHub control.
-	cmd := exec.Command(ffmpegPath, //nolint:gosec
+	cmd := argv.Command(ffmpegPath,
 		"-y", "-hide_banner", "-loglevel", "error",
 		"-i", platePath,
 		"-vf", vf,

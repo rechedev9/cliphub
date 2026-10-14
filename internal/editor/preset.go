@@ -31,8 +31,9 @@ const (
 type RenderPreset struct {
 	Name string
 	// Label is the short, user-facing name shown in the UI preset picker.
-	Label       string
-	Description string
+	Label         string
+	Description   string
+	DescriptionES string
 
 	// Default output geometry. An explicit output format may select the proven
 	// 1920x1080 path while keeping the preset's encoder and effects contract.
@@ -80,6 +81,7 @@ var renderPresets = []RenderPreset{
 		Name:           PresetViral60Clean,
 		Label:          "Kill Feed",
 		Description:    "default clean viral edit: HUD-less 60fps POV that keeps the in-game kill feed, with punch-in kills",
+		DescriptionES:  "Edición viral limpia por defecto: POV a 60fps sin HUD que conserva el kill feed del juego, con punch-in en las bajas.",
 		FPS:            60,
 		Width:          1080,
 		Height:         1920,
@@ -97,6 +99,7 @@ var renderPresets = []RenderPreset{
 		Name:           PresetViralAggressive60,
 		Label:          "Viral Aggressive",
 		Description:    "aggressive TikTok edit: HUD-less 60fps POV that keeps the kill feed, with a saturated grade and headshot chroma pulses",
+		DescriptionES:  "Edición TikTok agresiva: POV a 60fps sin HUD que conserva el kill feed, con grade saturado y pulsos de croma en los headshots.",
 		FPS:            60,
 		Width:          1080,
 		Height:         1920,
@@ -114,6 +117,7 @@ var renderPresets = []RenderPreset{
 		Name:           PresetCleanPOV60,
 		Label:          "Clean POV",
 		Description:    "fully HUD-less first-person POV: cinematic punch-in kills, no in-game HUD or kill feed",
+		DescriptionES:  "POV en primera persona totalmente sin HUD: punch-in cinematográfico en las bajas, sin HUD ni kill feed del juego.",
 		FPS:            60,
 		Width:          1080,
 		Height:         1920,
@@ -130,6 +134,7 @@ var renderPresets = []RenderPreset{
 		Name:           PresetFullHUD60,
 		Label:          "Full HUD",
 		Description:    "full in-game HUD POV: keeps the CS2 HUD, health, ammo, and radar visible over the viral edit",
+		DescriptionES:  "POV con el HUD completo del juego: mantiene visibles el HUD de CS2, la vida, la munición y el radar sobre la edición viral.",
 		FPS:            60,
 		Width:          1080,
 		Height:         1920,
@@ -147,6 +152,7 @@ var renderPresets = []RenderPreset{
 		Name:           PresetGameplayPOV60,
 		Label:          "Native POV",
 		Description:    "YouTube POV with native CS2 HUD (radar, health, ammo, killfeed); 1920x1080 at 60fps with no viral grade",
+		DescriptionES:  "POV de YouTube con el HUD nativo de CS2 (radar, vida, munición y killfeed); 1920×1080 a 60fps, sin grade viral.",
 		FPS:            60,
 		Width:          1920,
 		Height:         1080,

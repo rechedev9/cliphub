@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/rechedev9/cliphub/internal/rooted"
 )
 
 const (
@@ -273,7 +275,7 @@ func (c *client) fetchDemo(ctx context.Context, job jobRef, dest string, offset 
 	default:
 		return responseError(resp)
 	}
-	file, err := os.OpenFile(dest, flags, 0o600) //nolint:gosec // dest is built from the data dir and a validated job id
+	file, err := rooted.OpenFile(dest, flags, 0o600)
 	if err != nil {
 		return fmt.Errorf("open incoming demo: %w", err)
 	}
@@ -318,7 +320,7 @@ func verifyDemoFile(path string, want demoRef) error {
 }
 
 func hashFile(path string) (string, int64, error) {
-	file, err := os.Open(path) //nolint:gosec // callers pass paths inside the data dir
+	file, err := rooted.Open(path)
 	if err != nil {
 		return "", 0, err
 	}
