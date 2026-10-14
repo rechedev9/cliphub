@@ -3,9 +3,10 @@ package recording
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 // IncrementalMuxer publishes segments/<id>.mp4 clips while HLAE is still
@@ -139,8 +140,7 @@ func muxPair(ctx context.Context, ffmpegPath, video, audio, out string) error {
 	// discard the last few video frames even when the WAV is only milliseconds
 	// shorter. Render owns the approved video/audio window for both Full Demo
 	// and Shorts; the capture mux must not cut either source stream.
-	// #nosec G204 -- ffmpegPath is configured locally and media paths are passed as arguments.
-	cmd := exec.CommandContext(ctx, ffmpegPath,
+	cmd := argv.CommandContext(ctx, ffmpegPath,
 		"-y",
 		"-v", "error",
 		"-i", video,

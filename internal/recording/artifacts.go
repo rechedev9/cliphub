@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/rechedev9/cliphub/internal/argv"
 )
 
 const maxConcurrentArtifactProbes = 4
@@ -277,8 +279,7 @@ type ffprobeOutput struct {
 }
 
 func probeArtifact(ctx context.Context, ffprobePath string, artifact *RecordingArtifact) {
-	// #nosec G204 -- ffprobePath is configured locally and artifact path is passed as an argument.
-	cmd := exec.CommandContext(ctx, ffprobePath,
+	cmd := argv.CommandContext(ctx, ffprobePath,
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-show_streams",
