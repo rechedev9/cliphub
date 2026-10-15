@@ -53,7 +53,8 @@ type TrackedRequest struct {
 	CloudRequestID string `json:"cloud_request_id"`
 	LocalJobID     string `json:"local_job_id"`
 	// Phase is empty only for entries written by the manual bridge that
-	// preceded the worker. They are kept, and so are their local jobs.
+	// preceded the worker. They are kept with their local jobs until
+	// Completed says the request ended; then the next start removes both.
 	Phase     string    `json:"phase,omitempty"`
 	Attempt   int       `json:"attempt,omitempty"`
 	ClaimedAt time.Time `json:"claimed_at,omitzero"`
@@ -67,8 +68,8 @@ type TrackedRequest struct {
 	PhaseReported   bool      `json:"phase_reported,omitempty"`
 	UploadStartedAt time.Time `json:"upload_started_at,omitzero"`
 
-	// Fields of the manual bridge. Nothing reads them any more; they are
-	// declared so an old state file round-trips without losing them.
+	// Fields of the manual bridge, declared so an old state file round-trips
+	// without losing them. Only Completed is still read.
 	LocalJobReported  bool     `json:"local_job_reported,omitempty"`
 	UploadedArtifacts []string `json:"uploaded_artifacts,omitempty"`
 	Completed         bool     `json:"completed,omitempty"`

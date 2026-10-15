@@ -109,7 +109,7 @@ const PORTAL_USES = [
   },
   {
     label: "Descargar",
-    text: "Cada vídeo terminado tiene su enlace de descarga hasta que caduca. Studio ya los baja por ti; esto es para otro equipo.",
+    text: "Cada vídeo terminado tiene su enlace de descarga en tu panel. Studio ya los baja por ti; esto es para otro equipo.",
   },
 ] as const;
 
@@ -132,7 +132,7 @@ const RULES = [
   },
   {
     label: "Descarga",
-    text: "Los vídeos terminados se borran de aquí pasados unos días.",
+    text: "Los vídeos terminados se quedan en tu panel. De la demo y la grabación no guardamos nada.",
   },
 ] as const;
 
@@ -160,7 +160,7 @@ const QUESTIONS = [
   {
     question: "¿Hasta cuándo puedo descargar un vídeo?",
     answer:
-      "Studio descarga cada vídeo por ti cuando termina. Además queda unos días en tu panel, con la fecha hasta la que está disponible. Después se borra de aquí.",
+      "Studio descarga cada vídeo por ti cuando termina. Además se queda en tu panel, así que puedes volver a bajarlo cuando quieras.",
   },
   {
     question: "¿De dónde saco la demo de mi partida?",

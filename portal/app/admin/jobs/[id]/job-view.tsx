@@ -216,8 +216,10 @@ export function JobView({ id }: { id: string }) {
             <p>
               <strong className="font-semibold wrap-anywhere">{artifact.name}</strong>{" "}
               <span className={MUTED}>
-                {artifact.variant} · {formatBytes(artifact.sizeBytes)} · se borra el{" "}
-                {formatDateTime(artifact.expiresAt)}
+                {artifact.variant} · {formatBytes(artifact.sizeBytes)} ·{" "}
+                {artifact.expiresAt === null
+                  ? "se conserva"
+                  : `se borra el ${formatDateTime(artifact.expiresAt)}`}
               </span>
             </p>
             <video

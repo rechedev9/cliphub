@@ -642,3 +642,35 @@ func TestJanitorRemovesOrphansAndKeepsManualBridgeJobs(t *testing.T) {
 		t.Fatalf("state = %+v, want the manual bridge entry untouched", tracked)
 	}
 }
+
+func TestWorkerRemovesFinishedManualBridgeJobsAtStart(t *testing.T) {
+	h := newHarness(t)
+	openCloud, finishedCloud := uuid.NewString(), uuid.NewString()
+	open := &fakeLocalJob{id: uuid.NewString(), cloudID: openCloud, view: LocalJob{Status: "scanned"}}
+	finished := &fakeLocalJob{id: uuid.NewString(), cloudID: finishedCloud, view: LocalJob{Status: "done"}}
+	h.local.jobs[open.id], h.local.jobs[finished.id] = open, finished
+	// The manual bridge set completed once the portal request ended.
+	oldState := `[{"cloud_request_id":"` + openCloud + `","local_job_id":"` + open.id + `","local_job_reported":true},` +
+		`{"cloud_request_id":"` + finishedCloud + `","local_job_id":"` + finished.id + `","local_job_reported":true,"uploaded_artifacts":["viral-60-clean/final"],"completed":true}]`
+	if err := os.MkdirAll(h.dataDir+"/cloudbridge", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.statePath(), []byte(oldState), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.start()
+
+	eventually(t, "the finished manual job to be deleted", func() bool {
+		h.local.mu.Lock()
+		defer h.local.mu.Unlock()
+		return finished.deleted
+	})
+	eventually(t, "the finished entry to be forgotten", func() bool { return len(h.tracked()) == 1 })
+	h.stop()
+	if open.deleted {
+		t.Fatal("a manual bridge job that has not finished was deleted")
+	}
+	if left := h.persisted(); len(left) != 1 || left[0].CloudRequestID != openCloud {
+		t.Fatalf("state file = %+v, want only the unfinished manual entry", left)
+	}
+}

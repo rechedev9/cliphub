@@ -61,12 +61,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // How long a file Studio already has stays on the portal.
 const RECEIVED_RETENTION_MS = DAY_MS;
 
-// When a result file stops being downloadable: the retention window after its
-// upload, or 24 hours after Studio confirmed it has the file, whichever is first.
-export function artifactExpiresAt(
-  artifact: { uploadedAt: Date; receivedAt: number | null },
-  retentionDays: number,
-): number {
+export interface ArtifactExpiryInput {
+  artifact: { uploadedAt: Date; receivedAt: number | null };
+  jobStatus: string;
+  retentionDays: number;
+}
+
+// When a result file stops being downloadable, or null when it never does. The
+// videos of a done job are the render the user asked for and stay. Any other
+// file goes after the retention window from its upload, or 24 hours after
+// Studio confirmed it has the file, whichever is first.
+export function artifactExpiresAt(input: ArtifactExpiryInput): number | null {
+  const { artifact, jobStatus, retentionDays } = input;
+  if (jobStatus === "done") return null;
   const byAge = artifact.uploadedAt.getTime() + retentionDays * DAY_MS;
   if (artifact.receivedAt === null) return byAge;
   return Math.min(byAge, artifact.receivedAt + RECEIVED_RETENTION_MS);

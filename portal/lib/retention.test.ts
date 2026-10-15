@@ -107,34 +107,53 @@ test("retentionCutoffs subtracts the configured windows from now", () => {
   assert.equal(new Date(cutoffs.eventsBefore).toISOString(), "2026-06-09T12:00:00.000Z");
 });
 
-test("a result Studio confirmed is deleted 24 hours later, an unconfirmed one after 7 days", async () => {
+test("the videos of a done job are never swept, however old or long confirmed", async () => {
   const jobId = await makeQueuedJob({ userId: await makeUser("luis") });
-  await finish(jobId, { status: "done", finishedAt: NOW - 8 * DAY });
+  await finish(jobId, { status: "done", finishedAt: NOW - 400 * DAY });
   const confirmed = await addArtifact({
     jobId,
     name: "confirmed",
-    uploadedAt: NOW - 2 * DAY,
-    receivedAt: NOW - DAY - 1,
+    uploadedAt: NOW - 400 * DAY,
+    receivedAt: NOW - 399 * DAY,
   });
-  const justConfirmed = await addArtifact({
-    jobId,
-    name: "just-confirmed",
-    uploadedAt: NOW - 2 * DAY,
-    receivedAt: NOW - HOUR,
-  });
-  const old = await addArtifact({ jobId, name: "old", uploadedAt: NOW - 7 * DAY - 1 });
-  const recent = await addArtifact({ jobId, name: "recent", uploadedAt: NOW - 6 * DAY });
+  const unconfirmed = await addArtifact({ jobId, name: "unconfirmed", uploadedAt: NOW - 400 * DAY });
 
   const result = await sweep();
-  assert.equal(result.expiredArtifacts, 2);
-  assert.deepEqual(
-    [await exists(confirmed), await exists(justConfirmed), await exists(old), await exists(recent)],
-    [false, true, false, true],
-  );
+  assert.equal(result.expiredArtifacts, 0);
+  assert.equal(result.orphanArtifacts, 0);
+  assert.deepEqual([await exists(confirmed), await exists(unconfirmed)], [true, true]);
   const left = await db.select({ name: requestArtifacts.name }).from(requestArtifacts);
-  assert.deepEqual(left.map((row) => row.name).sort(), ["just-confirmed", "recent"]);
-  assert.equal((await getJob(jobId)).status, "done");
+  assert.deepEqual(left.map((row) => row.name).sort(), ["confirmed", "unconfirmed"]);
 });
+
+for (const status of ["failed", "canceled", "rejected"]) {
+  test(`a result of a ${status} job goes 24 hours after Studio confirmed it, or after 7 days`, async () => {
+    const jobId = await makeQueuedJob({ userId: await makeUser("luis") });
+    await finish(jobId, { status, finishedAt: NOW - 8 * DAY });
+    const confirmed = await addArtifact({
+      jobId,
+      name: "confirmed",
+      uploadedAt: NOW - 2 * DAY,
+      receivedAt: NOW - DAY - 1,
+    });
+    const justConfirmed = await addArtifact({
+      jobId,
+      name: "just-confirmed",
+      uploadedAt: NOW - 2 * DAY,
+      receivedAt: NOW - HOUR,
+    });
+    const old = await addArtifact({ jobId, name: "old", uploadedAt: NOW - 7 * DAY - 1 });
+    const recent = await addArtifact({ jobId, name: "recent", uploadedAt: NOW - 6 * DAY });
+
+    const result = await sweep();
+    assert.equal(result.expiredArtifacts, 2);
+    assert.deepEqual(
+      [await exists(confirmed), await exists(justConfirmed), await exists(old), await exists(recent)],
+      [false, true, false, true],
+    );
+    assert.equal((await getJob(jobId)).status, status);
+  });
+}
 
 test("a half-uploaded file is kept while its job is active and removed once the job is over", async () => {
   const active = await makeQueuedJob({ userId: await makeUser("a") });

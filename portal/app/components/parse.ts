@@ -119,7 +119,7 @@ const jobArtifact: Decoder<JobArtifact> = (value, path) => {
     name: r.get("name", str),
     sizeBytes: r.get("sizeBytes", num),
     sha256: r.get("sha256", str),
-    expiresAt: r.get("expiresAt", num),
+    expiresAt: r.get("expiresAt", nullable(num)),
   };
 };
 

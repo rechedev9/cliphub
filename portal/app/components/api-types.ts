@@ -88,7 +88,8 @@ export interface JobArtifact {
   name: string;
   sizeBytes: number;
   sha256: string;
-  expiresAt: number;
+  // Null for the videos of a done job, which never expire.
+  expiresAt: number | null;
 }
 
 export interface StudioJob {

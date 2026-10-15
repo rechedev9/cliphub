@@ -606,6 +606,12 @@ func (r *runner) recover(ctx context.Context) {
 		id := tracked.CloudRequestID
 		ref := jobRef{ID: id, Attempt: tracked.Attempt}
 		switch {
+		case tracked.Phase == "" && tracked.Completed:
+			// The manual bridge saw this request end on the portal, so its
+			// local job and demo are of no use to anyone any more.
+			log.Printf("cloudbridge: removing the finished manual bridge job %s", id)
+			r.discardLocal(ctx, tracked)
+			r.forget(id)
 		case tracked.Phase == phaseRunning:
 			// The capture died with the process and cannot be resumed.
 			log.Printf("cloudbridge: job %s was interrupted by a restart", id)
