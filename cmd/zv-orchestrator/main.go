@@ -439,7 +439,7 @@ func endCloudWorkerLeftovers(cfg config) {
 	if ended > 0 {
 		log.Printf("cloudbridge: ended %d processes a previous run left behind", ended)
 	}
-	removed, err := workers.SweepStageDirs()
+	removed, err := workers.SweepStageDirs(cfg.MediaWorkDir)
 	if err != nil {
 		log.Printf("cloudbridge: removing stage directories of a previous run: %v", err)
 	}

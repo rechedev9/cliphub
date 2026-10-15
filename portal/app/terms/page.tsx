@@ -48,10 +48,10 @@ export default function TermsPage() {
       <p>
         Tu demo se guarda mientras algún trabajo tuyo la necesite y se borra
         después; si el trabajo falla, se conserva como máximo 48 horas. El
-        vídeo terminado se descarga con Studio o desde tu panel, y se borra de
-        nuestros servidores 24 horas después de que Studio confirme que lo
-        recibió, o a los 7 días de generarse si nunca lo confirmó. Descárgalo
-        dentro de ese plazo: no se conservan copias después.
+        vídeo terminado se descarga con Studio o desde tu panel, y se conserva
+        mientras uses el servicio, hasta que pidas su supresión. Los archivos
+        de un trabajo que falla o se cancela se borran a los 7 días como
+        máximo.
       </p>
 
       <h2>Sin garantía y sin responsabilidad</h2>

@@ -73,7 +73,8 @@ export interface StudioArtifact {
   name: string;
   sizeBytes: number;
   sha256: string;
-  expiresAt: number;
+  // Null for the videos of a done job, which never expire.
+  expiresAt: number | null;
 }
 
 export interface StudioJob {
@@ -158,7 +159,10 @@ export interface AdminEvent {
   detail: string | null;
 }
 
-function studioArtifact(artifact: ArtifactRow, retentionDays: number): StudioArtifact {
+function studioArtifact(
+  artifact: ArtifactRow,
+  expiry: { jobStatus: string; retentionDays: number },
+): StudioArtifact {
   return {
     id: artifact.id,
     kind: isArtifactKind(artifact.kind) ? artifact.kind : "video",
@@ -166,7 +170,7 @@ function studioArtifact(artifact: ArtifactRow, retentionDays: number): StudioArt
     name: artifact.name,
     sizeBytes: artifact.sizeBytes,
     sha256: artifact.sha256 ?? "",
-    expiresAt: artifactExpiresAt(artifact, retentionDays),
+    expiresAt: artifactExpiresAt({ artifact, ...expiry }),
   };
 }
 
@@ -218,7 +222,9 @@ function studioJob(job: JobRow, context: JobViewContext): StudioJob {
     failure: jobFailure(job),
     artifacts: (context.artifacts.get(job.id) ?? [])
       .filter((artifact) => artifact.status === "ready")
-      .map((artifact) => studioArtifact(artifact, context.retentionDays)),
+      .map((artifact) =>
+        studioArtifact(artifact, { jobStatus: job.status, retentionDays: context.retentionDays }),
+      ),
   };
 }
 

@@ -285,6 +285,8 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 			}
 
 			var gotArgs []string
+			var overlayRaw []byte
+			var overlayErr error
 			stop := errors.New("stop after args")
 			rw := NewRenderWorker(repo, store, RenderWorkerConfig{
 				WorkDir:    t.TempDir(),
@@ -293,6 +295,10 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 			rw.voiceExtract = func(string, string, string) (int, error) { return 0, nil }
 			rw.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 				gotArgs = append([]string(nil), args...)
+				// Read while the editor would run: the stage directory goes afterwards.
+				if path := argValue(args, "--full-demo-overlay"); path != "" {
+					overlayRaw, overlayErr = os.ReadFile(path)
+				}
 				return nil, stop
 			}}
 			if err := rw.HandleRenderVariant(context.Background(), enq.tasks[0]); !errors.Is(err, stop) {
@@ -302,12 +308,11 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 			if overlayPath == "" {
 				t.Fatalf("--full-demo-overlay missing: %#v", gotArgs)
 			}
-			raw, err := os.ReadFile(overlayPath)
-			if err != nil {
-				t.Fatalf("read overlay: %v", err)
+			if overlayErr != nil {
+				t.Fatalf("read overlay: %v", overlayErr)
 			}
 			var doc demooverlay.Document
-			if err := json.Unmarshal(raw, &doc); err != nil {
+			if err := json.Unmarshal(overlayRaw, &doc); err != nil {
 				t.Fatalf("decode overlay: %v", err)
 			}
 			if doc.Source != tc.source {

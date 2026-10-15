@@ -13,8 +13,8 @@ func TestSweepStageDirsRemovesOnlyWhatPrepareStageDirCreates(t *testing.T) {
 	base := t.TempDir()
 	var stale []string
 	for _, stage := range []string{"record", "render", "stream-render"} {
-		// With a root the stage directory is kept, like one whose deferred
-		// removal never ran because the process was killed.
+		// The cleanup is never called, like a deferred removal that never ran
+		// because the process was killed.
 		dir, _, err := prepareStageDir(base, uuid.New(), stage)
 		if err != nil {
 			t.Fatal(err)
@@ -39,9 +39,14 @@ func TestSweepStageDirsRemovesOnlyWhatPrepareStageDirCreates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	removed, err := sweepStageDirs(base)
+	// base is ZV_MEDIA_WORK_DIR here; the system temp directory is empty.
+	emptyTemp := t.TempDir()
+	for _, name := range []string{"TMP", "TEMP", "TMPDIR"} {
+		t.Setenv(name, emptyTemp)
+	}
+	removed, err := SweepStageDirs(base)
 	if err != nil || removed != len(stale) {
-		t.Fatalf("sweepStageDirs = %d, %v, want %d removed", removed, err, len(stale))
+		t.Fatalf("SweepStageDirs = %d, %v, want %d removed", removed, err, len(stale))
 	}
 	for _, dir := range stale {
 		if _, err := os.Stat(dir); !os.IsNotExist(err) {

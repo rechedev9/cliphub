@@ -74,7 +74,8 @@ Rules that follow from it:
   `internal/editor/progress.go`; 76-82 % is the loudness/AAC master loop,
   83-86 % is AAC recovery, 87 %+ is delivery verification.
 - Working-directory logs (`out/logs/program-*.txt`) are deleted with the
-  temp workdir on failure unless `ZV_MEDIA_WORK_DIR` is set.
+  stage directory, also when `ZV_MEDIA_WORK_DIR` is set. Read the stderr
+  from telemetry instead.
 
 ### Capture tail shortfall tolerance (2026-09-22)
 

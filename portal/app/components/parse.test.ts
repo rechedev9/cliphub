@@ -77,6 +77,12 @@ test("the contract examples of the user API parse", () => {
   assert.equal(parseStudioMe(CONTRACT_ME).limits.dailySeconds, 5400);
 });
 
+test("a video that never expires comes with a null expiry", () => {
+  const [artifact] = CONTRACT_STUDIO_JOB.artifacts;
+  const job = { ...CONTRACT_STUDIO_JOB, status: "done", artifacts: [{ ...artifact, expiresAt: null }] };
+  assert.equal(parseStudioJobs({ jobs: [job] }).jobs[0]?.artifacts[0]?.expiresAt, null);
+});
+
 test("a bad field is reported with its path instead of reaching the UI", () => {
   const broken = { jobs: [{ ...CONTRACT_STUDIO_JOB, attempt: "0" }] };
   assert.throws(() => parseStudioJobs(broken), /jobs\.jobs\[0\]\.attempt/);

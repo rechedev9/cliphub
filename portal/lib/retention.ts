@@ -23,7 +23,7 @@ const ORPHAN_ARTIFACT_GRACE_MS = HOUR_MS;
 export interface RetentionConfig {
   // How long a video delivered by the old manual flow stays downloadable.
   retentionDays: number;
-  // How long a cloud result stays downloadable when Studio never confirmed it.
+  // How long a result of a job that did not finish stays downloadable.
   artifactRetentionDays: number;
   // How long a job that never received its demo lingers before it stops
   // counting against the submitter's active cap.
@@ -119,7 +119,7 @@ async function sweepLegacyDeliveries(
   }
 }
 
-// Cloud results: gone 24 hours after Studio confirmed them, or after the retention window.
+// Cloud results: a done job keeps its videos; any other file goes once it expires.
 async function sweepCloudArtifacts(
   options: { now: number; retentionDays: number },
   result: SweepResult,
@@ -131,9 +131,14 @@ async function sweepCloudArtifacts(
     .where(ne(requests.kind, "manual"));
 
   for (const { artifact, jobStatus } of rows) {
+    const expiresAt = artifactExpiresAt({
+      artifact,
+      jobStatus,
+      retentionDays: options.retentionDays,
+    });
     const expired =
       artifact.status === "ready"
-        ? artifactExpiresAt(artifact, options.retentionDays) <= options.now
+        ? expiresAt !== null && expiresAt <= options.now
         : TERMINAL_STATUSES.some((status) => status === jobStatus);
     if (!expired) continue;
     await db.delete(requestArtifacts).where(eq(requestArtifacts.id, artifact.id));

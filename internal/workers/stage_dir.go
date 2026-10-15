@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,12 +14,21 @@ import (
 var stageDirPattern = regexp.MustCompile(`^zv-[a-z-]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9]+$`)
 
 // SweepStageDirs removes the stage directories earlier runs left in the temp
-// directory: each is removed by a deferred call, which a killed orchestrator
-// never makes, and a raw capture is several gigabytes. It must only be called
-// before any task runs, and only where this orchestrator is the single one
-// on the machine (the cloud worker), because the temp directory is shared.
-func SweepStageDirs() (removed int, err error) {
-	return sweepStageDirs(os.TempDir())
+// directory and in workDir (ZV_MEDIA_WORK_DIR, empty when unset): each is
+// removed by a deferred call, which a killed orchestrator never makes, and a
+// raw capture is several gigabytes. It must only be called before any task
+// runs, and only where this orchestrator is the single one on the machine
+// (the cloud worker), because the temp directory is shared.
+func SweepStageDirs(workDir string) (removed int, err error) {
+	removed, err = sweepStageDirs(os.TempDir())
+	if workDir == "" {
+		return removed, err
+	}
+	more, workErr := sweepStageDirs(workDir)
+	if workErr != nil && !errors.Is(workErr, os.ErrNotExist) {
+		err = errors.Join(err, workErr)
+	}
+	return removed + more, err
 }
 
 func sweepStageDirs(base string) (removed int, err error) {

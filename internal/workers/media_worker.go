@@ -2739,7 +2739,6 @@ func (c RenderWorkerConfig) timeoutDuration() time.Duration {
 
 func prepareStageDir(root string, id uuid.UUID, stage string) (string, func(), error) {
 	base := root
-	cleanup := func() {}
 	if base == "" {
 		base = os.TempDir()
 	}
@@ -2750,10 +2749,9 @@ func prepareStageDir(root string, id uuid.UUID, stage string) (string, func(), e
 	if err != nil {
 		return "", nil, err
 	}
-	if root == "" {
-		cleanup = func() { removeStageDir(dir) }
-	}
-	return dir, cleanup, nil
+	// An explicit work dir is cleaned too: a stage leaves gigabytes of
+	// captures and intermediate clips, and its results are already in storage.
+	return dir, func() { removeStageDir(dir) }, nil
 }
 
 func copyStorageToFile(store storage.Storage, key, path string) error {

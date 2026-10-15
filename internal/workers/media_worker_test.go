@@ -399,19 +399,20 @@ func TestPrepareStageDirCleansTempWorkDirWhenRootEmpty(t *testing.T) {
 	}
 }
 
-func TestPrepareStageDirKeepsExplicitWorkDir(t *testing.T) {
+// ZV_MEDIA_WORK_DIR only moves the stage directories; it never keeps them.
+func TestPrepareStageDirCleansExplicitWorkDir(t *testing.T) {
 	root := t.TempDir()
 	dir, cleanup, err := prepareStageDir(root, uuid.New(), "record")
 	if err != nil {
 		t.Fatalf("prepareStageDir error = %v", err)
 	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("work dir not created: %v", err)
+	if filepath.Dir(dir) != root {
+		t.Fatalf("work dir %s is not under %s", dir, root)
 	}
 
 	cleanup()
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("explicit work dir removed, err=%v", err)
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("work dir still exists after cleanup, err=%v", err)
 	}
 }
 
@@ -2121,7 +2122,7 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 
 			var extracted bool
 			var gotTarget string
-			var gotDemo string
+			var demoStatErr error
 			var gotArgs []string
 			stop := errors.New("stop after args")
 			cfg := RenderWorkerConfig{
@@ -2137,7 +2138,8 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 			w := NewRenderWorker(repo, store, cfg)
 			w.voiceExtract = func(demoPath, target, dir string) (int, error) {
 				extracted = true
-				gotDemo = demoPath
+				// The stage directory is gone once the handler returns.
+				_, demoStatErr = os.Stat(demoPath)
 				gotTarget = target
 				if tc.extractErr != nil {
 					return 0, tc.extractErr
@@ -2193,8 +2195,8 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 				t.Fatalf("extract called = %v, want %v", extracted, tc.wantExtract)
 			}
 			if tc.wantExtract {
-				if _, statErr := os.Stat(gotDemo); statErr != nil {
-					t.Fatalf("materialized demo = %v", statErr)
+				if demoStatErr != nil {
+					t.Fatalf("materialized demo = %v", demoStatErr)
 				}
 				if gotTarget != tc.steamID {
 					t.Fatalf("extract target = %q, want %q", gotTarget, tc.steamID)
@@ -2340,6 +2342,8 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			}
 
 			var gotArgs []string
+			var overlayRaw []byte
+			var overlayErr error
 			stop := errors.New("stop after args")
 			w := NewRenderWorker(repo, store, RenderWorkerConfig{
 				WorkDir:    t.TempDir(),
@@ -2347,6 +2351,10 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			})
 			w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 				gotArgs = append([]string(nil), args...)
+				// Read while the editor would run: the stage directory goes afterwards.
+				if path := argValue(args, "--full-demo-overlay"); path != "" {
+					overlayRaw, overlayErr = os.ReadFile(path)
+				}
 				return nil, stop
 			}}
 
@@ -2376,12 +2384,11 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 				if path == "" || !strings.HasSuffix(filepath.Clean(path), "full-demo-overlay.json") {
 					t.Fatalf("--full-demo-overlay = %q", path)
 				}
-				raw, err := os.ReadFile(path)
-				if err != nil {
-					t.Fatalf("read overlay: %v", err)
+				if overlayErr != nil {
+					t.Fatalf("read overlay: %v", overlayErr)
 				}
 				var doc demooverlay.Document
-				if err := json.Unmarshal(raw, &doc); err != nil {
+				if err := json.Unmarshal(overlayRaw, &doc); err != nil {
 					t.Fatalf("decode overlay: %v", err)
 				}
 				if tc.wantSource != "" && doc.Source != tc.wantSource {

@@ -137,7 +137,8 @@ function JobCard({ job, now, actions }: JobCardProps) {
                   </a>
                 </Button>
                 <span className={MUTED}>
-                  {formatBytes(artifact.sizeBytes)} · disponible hasta el {formatDate(artifact.expiresAt)}
+                  {formatBytes(artifact.sizeBytes)}
+                  {artifact.expiresAt !== null && ` · disponible hasta el ${formatDate(artifact.expiresAt)}`}
                 </span>
               </li>
             ))}

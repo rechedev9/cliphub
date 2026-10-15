@@ -76,9 +76,10 @@ export default function PrivacyPage() {
           horas.
         </li>
         <li>
-          <strong>El vídeo terminado:</strong> se borra 24 horas después de que
-          Studio confirme que lo recibió, o a los 7 días de generarse si no lo
-          confirmó. Descárgalo antes de ese plazo.
+          <strong>El vídeo terminado:</strong> se conserva mientras uses el
+          servicio, para que puedas descargarlo cuando quieras, hasta que pidas
+          su supresión. Los archivos de un trabajo que falla o se cancela se
+          borran a los 7 días como máximo.
         </li>
         <li>
           <strong>El registro de actividad:</strong> se conserva 90 días.
