@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/google/uuid"
@@ -72,6 +73,7 @@ func (w *ParserWorker) ProcessParseDemo(ctx context.Context, jobID uuid.UUID) er
 		}
 		return parseErr
 	}
+	w.ensureRoster(ctx, j)
 	if err := w.repo.SetKillPlan(ctx, j.ID, plan); err != nil {
 		return fmt.Errorf("save plan: %w", err)
 	}
@@ -153,6 +155,18 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 		return killplan.Plan{}, fmt.Errorf("store full demo facts: %w", err)
 	}
 	return dual.Kills, nil
+}
+
+// ensureRoster scans the roster of a job admitted with its target, such as a cloud job,
+// for the Full Demo overlays and FACEIT data; a failed scan never fails the parse.
+func (w *ParserWorker) ensureRoster(ctx context.Context, j job.Job) {
+	found, err := w.storage.Exists(artifacts.RosterKey(j.ID))
+	if err == nil && !found {
+		_, err = w.scanRoster(ctx, j)
+	}
+	if err != nil {
+		log.Printf("worker: job %s: roster after parse: %v", j.ID, err)
+	}
 }
 
 func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error) {

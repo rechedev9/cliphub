@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildEditRequest } from '../api/edit-request.ts';
 import { DEFAULT_EDIT_CONFIG } from '../api/reel-store.ts';
-import { buildCloudShortSubmit, type CloudShortInput } from './submit.ts';
+import { currentFullDemoOptions, fullDemoPlanEdit, isFullDemoSnapshot, type FullDemoSnapshot } from '../full-demo-plan.ts';
+import { buildCloudFullDemoSubmit, buildCloudShortSubmit, fullDemoCloudBlocker, type CloudShortInput } from './submit.ts';
+import { CLOUD_OWN_FILES_BLOCKER } from './view.ts';
 
 const MATCH_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -52,4 +55,31 @@ test('volumes left over from a removed song never reach the cloud', () => {
 
 test('the title fits the portal limit', () => {
   assert.equal(buildCloudShortSubmit(input({ selectionLabel: 'x'.repeat(300) })).title.length, 120);
+});
+
+function fullDemo(): FullDemoSnapshot {
+  const value: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(value));
+  value.document.options = currentFullDemoOptions(value.document.options);
+  return value;
+}
+
+test('a long video sends its approved plan as the local generate edit, with no segments or music', () => {
+  const snapshot = fullDemo();
+  const body = buildCloudFullDemoSubmit({ matchId: MATCH_ID, title: 'Vídeo largo · de_mirage', snapshot });
+  assert.equal(body.kind, 'full_demo');
+  assert.equal(body.preset, 'gameplay-pov-60');
+  assert.deepEqual(body.segment_ids, []);
+  assert.equal(body.music, undefined);
+  assert.deepEqual(body.edit, buildEditRequest(fullDemoPlanEdit(snapshot)));
+});
+
+test('only the own intro, sponsor or outro videos and the Focus portrait keep a long video out of the cloud', () => {
+  const options = fullDemo().document.options;
+  const clip = { id: '33333333-3333-4333-8333-333333333333', sha256: 'a'.repeat(64) };
+  const off = { enabled: false, video: null };
+  assert.equal(fullDemoCloudBlocker(options), null);
+  assert.equal(fullDemoCloudBlocker({ ...options, bumpers: { intro: { enabled: false, video: clip }, outro: off } }), null);
+  assert.equal(fullDemoCloudBlocker({ ...options, bumpers: { intro: off, outro: { enabled: true, video: clip } } }), CLOUD_OWN_FILES_BLOCKER);
+  assert.equal(fullDemoCloudBlocker({ ...options, overlays: { ...options.overlays, hud_theme: 'focus', hud_portrait: clip } }), CLOUD_OWN_FILES_BLOCKER);
 });

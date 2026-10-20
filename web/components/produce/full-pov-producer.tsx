@@ -4,9 +4,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { cloudApi, CloudApiError } from '@/lib/api/cloud';
 import type { Match, Play } from '@/lib/api/types';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
-import { CAPTURE_TARGET, CAPTURE_TARGET_READY_HINT } from '@/lib/cloud/capture-target';
+import { refreshCloudAccount } from '@/lib/cloud/account-store';
+import { CAPTURE_TARGET_READY_HINT, type CaptureTarget } from '@/lib/cloud/capture-target';
+import { buildCloudFullDemoSubmit, fullDemoCloudBlocker } from '@/lib/cloud/submit';
+import { cloudSubmitErrorMessage } from '@/lib/cloud/view';
+import { useCaptureTarget } from '@/hooks/use-capture-target';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
@@ -17,7 +22,7 @@ import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
-import { LocalOnlyTarget } from './capture-target';
+import { CaptureTargetControl } from './capture-target';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoGroup } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
@@ -50,6 +55,9 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const createRequest = useRef<AbortController | null>(null);
+  const captureTarget = useCaptureTarget({ kind: 'full_demo', localBusy: recBusy, cloudBlocker: options ? fullDemoCloudBlocker(options) : null });
+  const { view: targetView, toCloud } = captureTarget;
+  const matchLabel = `${match.map}${match.player ? ` · ${match.player}` : ''}`;
   const draftKey = `cliphub.full-demo.draft.v1:${matchId}`;
 
   useEffect(() => {
@@ -107,6 +115,10 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { }
   }
+  function pickTarget(next: CaptureTarget): void {
+    if (busy) return;
+    captureTarget.pick(next); setError(null);
+  }
   function startOver(): void {
     if (!baseline || busy) return;
     try { localStorage.removeItem(draftKey); } catch { }
@@ -132,12 +144,17 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       setShowMissing(true);
       return;
     }
+    if (toCloud && !targetView.canSubmit) return;
     const controller = new AbortController();
     createRequest.current = controller;
     setBusy('create'); setError(null);
     try {
       const planned = document && fullDemoApprovalKey(document, options) ? document : await saveCurrentPlan(controller.signal);
       if (controller.signal.aborted) return;
+      if (toCloud) {
+        await submitToCloud(planned, controller.signal);
+        return;
+      }
       await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
       toast('Vídeo largo en cola', fullDemoQueueToast(recBusy, planned.warnings));
@@ -148,6 +165,29 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       if (createRequest.current === controller) createRequest.current = null;
     }
   }
+
+  async function submitToCloud(planned: FullDemoDocument, signal: AbortSignal): Promise<void> {
+    const title = `Vídeo largo · ${matchLabel}`;
+    // Built outside the try: a plan that cannot be approved reports its own message through create().
+    const body = buildCloudFullDemoSubmit({ matchId, title, snapshot: approveFullDemo(planned) });
+    try {
+      const job = await cloudApi.submit(body);
+      void refreshCloudAccount();
+      toast(job.status === 'uploading_demo' ? 'Subiendo la demo a la nube' : 'Vídeo largo en cola en la nube. Puedes cerrar Studio', {
+        description: job.status === 'uploading_demo' ? 'No cierres Studio hasta que termine la subida. Síguela en Resultados.' : 'Sigue su puesto en Resultados.',
+      });
+      // The portal already holds the job; only a user still on this screen is taken to it.
+      if (!signal.aborted) router.push(doneHref);
+    } catch (failure) {
+      // A fetch that never got an answer means the local Studio service is down.
+      setError(cloudSubmitErrorMessage(failure instanceof CloudApiError ? failure : { code: 'service_unavailable' }));
+      void refreshCloudAccount();
+      setBusy(null);
+    }
+  }
+
+  let ctaLabel = recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA;
+  if (toCloud) ctaLabel = 'Crear vídeo largo en la nube';
 
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
@@ -161,7 +201,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
 
   return <>
     <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Nuevo vídeo largo · {matchLabel}</p>
       <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
       <p className="w-full text-body-sm text-fg-2">Todas las rondas con la mira del jugador y el audio de la partida.</p>
       {restored ? (
@@ -202,10 +242,10 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     </div>
     <ProduceFooter tone="full" eyebrow="Vídeo largo · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
       hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
-      readyHint={dirty ? 'Se preparará al crear.' : CAPTURE_TARGET_READY_HINT[CAPTURE_TARGET.local]}
-      target={<LocalOnlyTarget />}
+      readyHint={dirty ? 'Se preparará al crear.' : CAPTURE_TARGET_READY_HINT[targetView.target]}
+      target={<CaptureTargetControl view={targetView} onPick={pickTarget} disabled={busy !== null} />}
       ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
-      cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
-        className="neon-notch shrink-0 focus-visible:-outline-offset-4">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
+      cta={<Button variant="hero" size="sm" disabled={!ready || !targetView.canSubmit} loading={busy === 'create'} loadingText={toCloud ? 'Enviando a la nube…' : 'Preparando vídeo largo…'} onClick={() => void create()}
+        className="neon-notch shrink-0 focus-visible:-outline-offset-4">{ctaLabel}</Button>} />
   </>;
 }

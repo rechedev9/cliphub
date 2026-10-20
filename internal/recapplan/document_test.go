@@ -202,6 +202,23 @@ func TestContentHashesAndCaptureReuse(t *testing.T) {
 	}
 }
 
+func TestPortableHashIgnoresOnlyWhereTheVoiceIndexLives(t *testing.T) {
+	base, _ := fixtureDocument(t).PortableHash()
+	moved := fixtureDocument(t)
+	moved.Voice.IndexRef, moved.Voice.IndexHash = "jobs/another-job/voice/index.json", strings.Repeat("7", 64)
+	if hash, _ := moved.PortableHash(); hash != base {
+		t.Fatal("a voice index under another job id changed the portable hash")
+	}
+	if hash, _ := moved.Hash(); hash == moved.PlanHash {
+		t.Fatal("the local hash ignored the voice index digest")
+	}
+	voiced := fixtureDocument(t)
+	voiced.Voice.Activity = append(voiced.Voice.Activity, TickRange{Start: 1, End: 2})
+	if hash, _ := voiced.PortableHash(); hash == base {
+		t.Fatal("new voice activity kept the portable hash")
+	}
+}
+
 func TestCertifiedEndsKeepTheApprovedDocument(t *testing.T) {
 	d := fixtureDocument(t)
 	snapshot := Snapshot{Document: d, Approval: Approval{d.PlanHash, true, time.Now().UTC()}}

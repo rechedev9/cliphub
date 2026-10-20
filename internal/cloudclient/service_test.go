@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
@@ -652,6 +654,133 @@ func TestSubmitSpellsOutAnEmptySelectionAndABareMusicKey(t *testing.T) {
 			}
 		}
 	})
+}
+
+// approvedFullDemo plans a two-round Full Demo of the fixture's demo and
+// approves it, the way the long-video producer does.
+func (f *fixture) approvedFullDemo() recapplan.Snapshot {
+	f.t.Helper()
+	parsed := f.jobs.jobs[f.parsed.ID]
+	parsed.KillPlan.Demo.SHA256 = parsed.DemoSHA256
+	f.jobs.jobs[f.parsed.ID] = parsed
+	facts := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: parsed.DemoSHA256, TargetSteamID64: testTarget, ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 21000, Complete: true, Warnings: []recapplan.Notice{}, Rounds: []recapplan.RoundFacts{
+		{ID: "round-001", Number: 1, StartTick: 1000, FreezeEndTick: 2500, RoundEndTick: 8500, NextStartTick: 9000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
+		{ID: "round-002", Number: 2, StartTick: 9000, FreezeEndTick: 10500, RoundEndTick: 15000, NextStartTick: 15500, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
+	}}
+	options := recapplan.DefaultOptions()
+	options.Audio.Voice.Enabled = false
+	options.Audio.Music.Enabled = false
+	options.Capture.Crosshair.AllowCaptureDefault = true
+	document, err := recapplan.Plan(facts, options, recapplan.VoiceEvidence{Availability: "not_requested", Activity: []recapplan.TickRange{}}, nil, "jobs/facts.json")
+	if err != nil {
+		f.t.Fatalf("plan: %v", err)
+	}
+	return recapplan.Snapshot{Document: document, Approval: recapplan.Approval{PlanHash: document.PlanHash, AllowSafeTailTrim: document.Options.Editorial.AllowSafeTailTrim, Timestamp: time.Now().UTC()}}
+}
+
+func fullDemoSubmit(t *testing.T, snapshot recapplan.Snapshot) func(*SubmitInput) {
+	t.Helper()
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(in *SubmitInput) {
+		in.Kind, in.Title, in.Preset, in.Music, in.SegmentIDs = "full_demo", "Mirage completo", "gameplay-pov-60", nil, []string{}
+		in.Edit = json.RawMessage(`{"match_recap":true,"demo_source":"premier","full_demo":` + string(raw) + `}`)
+	}
+}
+
+func TestSubmitSendsAFullDemoAsItsRoundsAndPlanHash(t *testing.T) {
+	f := newFixture(t, true)
+	snapshot := f.approvedFullDemo()
+
+	created, err := f.submit(fullDemoSubmit(t, snapshot))
+	if err != nil {
+		t.Fatalf("Submit error = %v", err)
+	}
+	if created.Kind != "full_demo" {
+		t.Fatalf("created job = %+v, want a full_demo", created)
+	}
+	var request CreateJobRequest
+	f.portal.with(func() { request = f.portal.created[0] })
+	var spec struct {
+		Capture struct {
+			Tickrate int          `json:"tickrate"`
+			Windows  []specWindow `json:"windows"`
+		} `json:"capture"`
+		Generate json.RawMessage `json:"generate"`
+		FullDemo struct {
+			Options  recapplan.Options `json:"options"`
+			PlanHash string            `json:"planHash"`
+		} `json:"fullDemo"`
+	}
+	if err := json.Unmarshal(request.Spec, &spec); err != nil {
+		t.Fatalf("spec: %v", err)
+	}
+	portable, err := snapshot.Document.PortableHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Kind != "full_demo" || spec.FullDemo.PlanHash != portable || spec.Capture.Tickrate != 64 {
+		t.Fatalf("request kind %q, spec %+v", request.Kind, spec)
+	}
+	// The worker plans with these options and must reach the same hash.
+	if !reflect.DeepEqual(spec.FullDemo.Options, snapshot.Document.Options) {
+		t.Fatalf("options = %+v, want the approved plan's", spec.FullDemo.Options)
+	}
+	rounds := snapshot.Document.Rounds
+	if len(spec.Capture.Windows) != len(rounds) {
+		t.Fatalf("windows = %+v, want one per round", spec.Capture.Windows)
+	}
+	for i, round := range rounds {
+		if want := (specWindow{ID: round.ID, TickStart: round.CaptureStartTick, TickEnd: round.CaptureEndTick}); spec.Capture.Windows[i] != want {
+			t.Fatalf("window %d = %+v, want %+v", i, spec.Capture.Windows[i], want)
+		}
+	}
+	const wantGenerate = `{"preset":"gameplay-pov-60","music":null,"segment_ids":[],"edit":{"demo_source":"premier","match_recap":true}}`
+	if string(spec.Generate) != wantGenerate {
+		t.Fatalf("generate = %s, want %s", spec.Generate, wantGenerate)
+	}
+}
+
+func TestSubmitRefusesAFullDemoTheCloudCannotReproduce(t *testing.T) {
+	cases := []struct {
+		name     string
+		mutate   func(*testing.T, *fixture, *SubmitInput)
+		wantCode string
+	}{
+		{name: "a plan of another player", mutate: func(t *testing.T, f *fixture, in *SubmitInput) {
+			snapshot := f.approvedFullDemo()
+			parsed := f.jobs.jobs[f.parsed.ID]
+			parsed.TargetSteamID = "76561198000000099"
+			f.jobs.jobs[f.parsed.ID] = parsed
+			fullDemoSubmit(t, snapshot)(in)
+		}, wantCode: "plan_stale"},
+		{name: "an approval of another hash", mutate: func(t *testing.T, f *fixture, in *SubmitInput) {
+			snapshot := f.approvedFullDemo()
+			snapshot.Approval.PlanHash = strings.Repeat("0", 64)
+			fullDemoSubmit(t, snapshot)(in)
+		}, wantCode: "invalid_request"},
+		{name: "no plan", mutate: func(_ *testing.T, _ *fixture, in *SubmitInput) {
+			in.Kind, in.Edit = "full_demo", json.RawMessage(`{"match_recap":true}`)
+		}, wantCode: "invalid_request"},
+		{name: "a kind the cloud does not know", mutate: func(_ *testing.T, _ *fixture, in *SubmitInput) { in.Kind = "manual" }, wantCode: "invalid_request"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, true)
+			_, err := f.submit(func(in *SubmitInput) { tc.mutate(t, f, in) })
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Code != tc.wantCode {
+				t.Fatalf("Submit error = %v, want code %s", err, tc.wantCode)
+			}
+			f.portal.with(func() {
+				if len(f.portal.created) != 0 {
+					t.Fatal("a refused Full Demo reached the portal")
+				}
+			})
+		})
+	}
 }
 
 func TestSubmitUploadsTheDemoWhenThePortalNeedsIt(t *testing.T) {

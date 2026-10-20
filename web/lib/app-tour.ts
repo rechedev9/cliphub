@@ -38,8 +38,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       'ClipHub Studio convierte una demo de CS2 en un Short vertical o en un vídeo largo grabado desde la vista real de un jugador. También recorta tus streams en Shorts y analiza demos.',
     points: [
       {
-        term: 'Todo en tu PC',
-        text: 'Las demos se analizan, graban y editan en este equipo. No necesitas cuenta de ClipHub y tus archivos no se suben a ningún sitio, salvo que elijas grabar un Short en la nube de ClipHub.',
+        term: 'En tu PC o en la nube',
+        text: 'Las demos se analizan, graban y editan en este equipo. Tus archivos no se suben a ningún sitio, salvo que elijas grabar un vídeo en la nube de ClipHub.',
       },
       {
         term: 'Grabación real',
@@ -118,7 +118,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Vídeo largo',
     title: 'La partida entera desde un jugador',
     lead:
-      'El vídeo largo 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo. Se graba siempre en este PC.',
+      'El vídeo largo 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo. Se graba en este PC o en la nube.',
     points: [
       {
         term: 'HUD de la partida',
@@ -166,17 +166,17 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     id: 'cloud',
     kicker: 'Nube',
     label: 'Grabar en la nube',
-    title: 'Graba un Short sin usar este PC',
+    title: 'Graba sin usar este PC',
     lead:
-      'Con una cuenta de ClipHub conectada, un Short puede grabarse en un servidor de ClipHub: tu PC queda libre y el vídeo se descarga aquí cuando termina.',
+      'Un Short o un vídeo largo puede grabarse en un servidor de ClipHub: tu PC queda libre y el vídeo se descarga aquí cuando termina.',
     points: [
       {
-        term: 'Conectar la cuenta',
-        text: 'En «Nube» pides un código, lo confirmas en la web de ClipHub desde tu navegador y este PC queda conectado. Tu contraseña nunca se escribe en Studio.',
+        term: 'Tu cuenta',
+        text: 'Studio usa la cuenta con la que iniciaste sesión en la web de ClipHub. Tu contraseña nunca se escribe en Studio. En «Nube» puedes cerrar la sesión.',
       },
       {
-        term: 'Elegir en cada Short',
-        text: 'Conectar la cuenta no cambia nada por sí solo: sigues eligiendo «Este PC» o «Nube ClipHub» cada vez que creas un Short.',
+        term: 'Elegir en cada vídeo',
+        text: 'Eliges «Este PC» o «Nube ClipHub» cada vez que creas un Short o un vídeo largo.',
       },
       {
         term: 'Uso y cola',

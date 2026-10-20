@@ -35,6 +35,13 @@ func (d Document) Hash() (string, error) {
 	return HashValue(d)
 }
 
+// PortableHash also ignores the voice index digest, which covers local job
+// paths, so the same plan built on another PC reaches the same value.
+func (d Document) PortableHash() (string, error) {
+	d.Voice.IndexHash = ""
+	return d.Hash()
+}
+
 // CaptureHash covers capture decisions and requested coverage, independently
 // of music, bumpers, overlays and export settings. The scoreboard overlay still
 // reaches it through the final round's requested tail.

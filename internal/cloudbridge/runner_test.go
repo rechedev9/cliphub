@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -112,6 +113,99 @@ func TestWorkerDeliversAShortEndToEnd(t *testing.T) {
 	}
 	if left := h.incomingDemos(); len(left) != 0 {
 		t.Fatalf("incoming demos left behind: %v", left)
+	}
+}
+
+func TestWorkerDeliversAFullDemoWithItsOwnPlan(t *testing.T) {
+	h := newHarness(t)
+	h.local.fullDemoPlan = testFullDemoPlan()
+	// The worker's voice index lives under its own job id, unlike Studio's.
+	h.local.fullDemoPlan.Voice.IndexRef = "jobs/worker-job/full-demo/voice/index.json"
+	h.local.fullDemoPlan.Voice.IndexHash = strings.Repeat("7", 64)
+	h.renderOnCapture(map[string][]byte{"full-demo": fakeVideo("long", 64)})
+	id := h.queueJob(func(job *workerJob) { job.Kind, job.Spec = kindFullDemo, testFullDemoSpec() })
+	h.start()
+
+	eventually(t, "the portal to mark the job done", func() bool { return h.portal.jobStatus(id) == "done" })
+	h.settled()
+
+	h.local.mu.Lock()
+	planned := h.local.plannedOptions
+	h.local.mu.Unlock()
+	if len(planned) != 1 || string(planned[0]) != `{"profile_id":"chill"}` {
+		t.Fatalf("planned options = %s, want the spec's options once", planned)
+	}
+	var generate struct {
+		Preset     string   `json:"preset"`
+		SegmentIDs []string `json:"segment_ids"`
+		Edit       struct {
+			MatchRecap bool   `json:"match_recap"`
+			DemoSource string `json:"demo_source"`
+			FullDemo   struct {
+				Document struct {
+					PlanHash string `json:"plan_hash"`
+				} `json:"document"`
+				Approval recapplan.Approval `json:"approval"`
+			} `json:"full_demo"`
+		} `json:"edit"`
+	}
+	if err := json.Unmarshal(h.local.only().generateBody, &generate); err != nil {
+		t.Fatalf("generate body: %v", err)
+	}
+	snapshot := generate.Edit.FullDemo
+	// The spec says "premier"; the edit comes from the worker's plan instead.
+	wantSource := testFullDemoPlan().Options.OverlaySource()
+	if generate.Preset != "gameplay-pov-60" || generate.SegmentIDs == nil || len(generate.SegmentIDs) != 0 || !generate.Edit.MatchRecap || generate.Edit.DemoSource != wantSource {
+		t.Fatalf("generate = %+v, want the spec's preset with the edit of the worker's plan (source %q)", generate, wantSource)
+	}
+	if snapshot.Document.PlanHash != testPlanHash || snapshot.Approval.PlanHash != testPlanHash || !snapshot.Approval.AllowSafeTailTrim || snapshot.Approval.Timestamp.IsZero() {
+		t.Fatalf("full_demo = %+v, want the worker's plan approved under the spec's hash", snapshot.Approval)
+	}
+}
+
+func TestWorkerRefusesAFullDemoPlanItCannotReproduce(t *testing.T) {
+	cases := []struct {
+		name       string
+		plan       func(*recapplan.Document)
+		approved   bool // the spec carries the hash of the edited plan
+		wantDetail string
+	}{
+		{name: "another plan", plan: func(plan *recapplan.Document) { plan.Voice.Activity = []recapplan.TickRange{{Start: 1, End: 2}} }, wantDetail: "the approved plan to " + testSpecPlanHash},
+		{name: "a blocked plan", approved: true, plan: func(plan *recapplan.Document) {
+			plan.Blockers = []recapplan.Notice{{Code: "asset_missing", Message: "Sube la captura de Scoreboard"}}
+		}, wantDetail: "blocked: Sube la captura de Scoreboard"},
+		{name: "a round the spec places elsewhere", approved: true, plan: func(plan *recapplan.Document) { plan.Rounds[1].CaptureEndTick = 17100 }, wantDetail: `window "r02" does not match round "r02"`},
+		{name: "a round the spec does not list", approved: true, plan: func(plan *recapplan.Document) { plan.Rounds = plan.Rounds[:1] }, wantDetail: "2 windows and the plan 1 rounds"},
+		{name: "a demo of another tickrate than the spec charges", approved: true, plan: func(plan *recapplan.Document) { plan.Clock.TickRate = 32 }, wantDetail: "tickrate is 64 in the spec and 32"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.local.fullDemoPlan = testFullDemoPlan()
+			tc.plan(&h.local.fullDemoPlan)
+			spec := testFullDemoSpec()
+			if tc.approved {
+				hash, err := h.local.fullDemoPlan.PortableHash()
+				if err != nil {
+					t.Fatal(err)
+				}
+				spec = json.RawMessage(strings.Replace(string(spec), testSpecPlanHash, hash, 1))
+			}
+			id := h.queueJob(func(job *workerJob) { job.Kind, job.Spec = kindFullDemo, spec })
+			h.start()
+
+			eventually(t, "the portal to mark the job failed", func() bool { return h.portal.jobStatus(id) == "failed" })
+			h.settled()
+			if calls := h.local.only().generateCalls; calls != 0 {
+				t.Fatalf("generate calls = %d, want none", calls)
+			}
+			h.portal.with(func() {
+				fails := h.portal.jobs[id].fails
+				if len(fails) != 1 || fails[0].Code != codeSpecMismatch || !strings.Contains(fails[0].Detail, tc.wantDetail) {
+					t.Fatalf("fail reports = %+v, want one spec_mismatch mentioning %q", fails, tc.wantDetail)
+				}
+			})
+		})
 	}
 }
 

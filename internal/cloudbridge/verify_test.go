@@ -88,6 +88,47 @@ func TestVerifyWindows(t *testing.T) {
 	}
 }
 
+func TestParseJobSpecChecksAFullDemoSpec(t *testing.T) {
+	replace := func(old, replacement string) json.RawMessage {
+		spec := string(testFullDemoSpec())
+		if !strings.Contains(spec, old) {
+			t.Fatalf("test spec does not contain %q", old)
+		}
+		return json.RawMessage(strings.Replace(spec, old, replacement, 1))
+	}
+	cases := []struct {
+		name    string
+		spec    json.RawMessage
+		wantErr string
+	}{
+		{name: "a valid full demo", spec: testFullDemoSpec()},
+		{name: "a selection of segments", spec: replace(`"segment_ids":[]`, `"segment_ids":["r01"]`), wantErr: "empty segment_ids"},
+		{name: "no selection field", spec: replace(`"segment_ids":[],`, ``), wantErr: "empty segment_ids"},
+		{name: "a plan in generate", spec: replace(`"match_recap":true`, `"match_recap":true,"full_demo":{"document":{}}`), wantErr: "no plan in generate"},
+		{name: "no plan hash", spec: replace(`,"planHash":"`+testSpecPlanHash+`"`, ``), wantErr: "fullDemo.planHash"},
+		{name: "a plan hash that is not sha256", spec: replace(testSpecPlanHash, "abc"), wantErr: "fullDemo.planHash"},
+		{name: "options that are not an object", spec: replace(`{"profile_id":"chill"}`, `[]`), wantErr: "fullDemo.options"},
+		{name: "no windows", spec: replace(`"windows":[{"id":"r01","tickStart":1000,"tickEnd":9000},{"id":"r02","tickStart":9500,"tickEnd":17000}]`, `"windows":[]`), wantErr: "no capture windows"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec, _, err := parseJobSpec(kindFullDemo, tc.spec)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("parseJobSpec error = %v, want one mentioning %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseJobSpec error = %v, want nil", err)
+			}
+			if spec.FullDemo == nil || spec.FullDemo.PlanHash != testSpecPlanHash || len(spec.Capture.Windows) != 2 {
+				t.Fatalf("spec = %+v", spec)
+			}
+		})
+	}
+}
+
 func TestParseJobSpecRefusesWhatWouldRecordMoreThanTheWindows(t *testing.T) {
 	replace := func(old, replacement string) json.RawMessage {
 		spec := string(testSpec())
@@ -104,7 +145,7 @@ func TestParseJobSpecRefusesWhatWouldRecordMoreThanTheWindows(t *testing.T) {
 	}{
 		{name: "a valid short", kind: kindShort, spec: testSpec()},
 		{name: "rules left out", kind: kindShort, spec: replace(`"rules":{"weapons":["awp"],"min_kills_in_window":2,"window_seconds":10,"pre_roll_seconds":3,"post_roll_seconds":4,"min_round":1}`, `"rules":{}`)},
-		{name: "a kind this worker does not produce", kind: "full_demo", spec: testSpec(), wantErr: `kind "full_demo"`},
+		{name: "a kind this worker does not produce", kind: "manual", spec: testSpec(), wantErr: `kind "manual"`},
 		{name: "another spec version", kind: kindShort, spec: replace(`"version":1`, `"version":2`), wantErr: "unsupported spec version 2"},
 		{name: "a target that is not a SteamID64", kind: kindShort, spec: replace(testTarget, "1234"), wantErr: "targetSteamId"},
 		{name: "no windows", kind: kindShort, spec: replace(`"windows":[{"id":"seg-003","tickStart":51234,"tickEnd":52010}]`, `"windows":[]`), wantErr: "no capture windows"},

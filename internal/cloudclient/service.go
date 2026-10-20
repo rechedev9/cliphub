@@ -662,7 +662,8 @@ type jobSpec struct {
 		Tickrate int          `json:"tickrate"`
 		Windows  []specWindow `json:"windows"`
 	} `json:"capture"`
-	Generate specGenerate `json:"generate"`
+	Generate specGenerate  `json:"generate"`
+	FullDemo *specFullDemo `json:"fullDemo,omitempty"`
 	Client   struct {
 		StudioVersion string `json:"studioVersion"`
 		PlanSchema    string `json:"planSchema"`
@@ -690,7 +691,19 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (LocalJob, error) 
 	case local.KillPlan == nil:
 		return LocalJob{}, &Error{Status: http.StatusConflict, Code: "job_not_parsed", Message: "Esta partida todavía no está analizada."}
 	}
-	spec, err := buildSpec(local, in, s.studioVersion)
+	kind := in.Kind
+	if kind == "" {
+		kind = kindShort
+	}
+	var spec jobSpec
+	switch kind {
+	case kindShort:
+		spec, err = buildSpec(local, in, s.studioVersion)
+	case kindFullDemo:
+		spec, err = buildFullDemoSpec(local, in, s.studioVersion)
+	default:
+		err = &Error{Status: http.StatusBadRequest, Code: "invalid_request", Message: "kind debe ser short o full_demo."}
+	}
 	if err != nil {
 		return LocalJob{}, err
 	}
@@ -705,10 +718,6 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (LocalJob, error) 
 	demoInfo, err := os.Stat(demoPath)
 	if err != nil {
 		return LocalJob{}, &Error{Status: http.StatusConflict, Code: "job_not_parsed", Message: "La demo de esta partida ya no está en este equipo."}
-	}
-	kind := in.Kind
-	if kind == "" {
-		kind = "short"
 	}
 	fileName := local.DemoFileName
 	if fileName == "" {

@@ -221,15 +221,12 @@ func (r *runner) execute(ctx context.Context, run *attempt) *jobFailure {
 	if failure := r.waitParsed(ctx, run, localID); failure != nil || ctx.Err() != nil {
 		return failure
 	}
-	plan, err := r.local.KillPlan(ctx, localID)
-	if err != nil {
-		return failureOf(codeInternal, "read the worker's kill plan: "+err.Error())
-	}
-	if err := verifyWindows(spec, plan); err != nil {
-		return failureOf(codeSpecMismatch, err.Error())
+	generate, failure := r.verifiedGenerate(ctx, run, localID)
+	if failure != nil || ctx.Err() != nil {
+		return failure
 	}
 
-	result, err := r.local.Generate(ctx, localID, spec.Generate)
+	result, err := r.local.Generate(ctx, localID, generate)
 	switch {
 	case err != nil:
 		return failureOf(codeInternal, "start generate: "+err.Error())
@@ -245,6 +242,37 @@ func (r *runner) execute(ctx context.Context, run *attempt) *jobFailure {
 		return failure
 	}
 	return r.handOver(ctx, run, localID)
+}
+
+// verifiedGenerate checks the spec against this worker's own parse of the
+// demo and returns the generate body to run.
+func (r *runner) verifiedGenerate(ctx context.Context, run *attempt, localID string) (json.RawMessage, *jobFailure) {
+	spec := run.spec
+	if run.job.Kind == kindFullDemo {
+		plan, err := r.local.PlanFullDemo(ctx, localID, spec.FullDemo.Options)
+		switch {
+		case errors.Is(err, ErrFullDemoOptionsRejected):
+			return nil, failureOf(codeInvalidSpec, err.Error())
+		case err != nil:
+			return nil, failureOf(codeInternal, "plan the Full Demo: "+err.Error())
+		}
+		if err := verifyFullDemoPlan(spec, plan); err != nil {
+			return nil, failureOf(codeSpecMismatch, err.Error())
+		}
+		generate, err := fullDemoGenerate(spec.Generate, plan, r.now())
+		if err != nil {
+			return nil, failureOf(codeInvalidSpec, err.Error())
+		}
+		return generate, nil
+	}
+	plan, err := r.local.KillPlan(ctx, localID)
+	if err != nil {
+		return nil, failureOf(codeInternal, "read the worker's kill plan: "+err.Error())
+	}
+	if err := verifyWindows(spec, plan); err != nil {
+		return nil, failureOf(codeSpecMismatch, err.Error())
+	}
+	return spec.Generate, nil
 }
 
 func (r *runner) setStage(job jobRef, stage string) {

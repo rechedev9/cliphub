@@ -15,7 +15,7 @@ export interface JobSpec {
   capture: { tickrate: number; windows: JobWindow[] };
   generate: Record<string, unknown>;
   client?: Record<string, unknown>;
-  fullDemo?: { options: Record<string, unknown> };
+  fullDemo?: { options: Record<string, unknown>; planHash: string };
 }
 
 export type ParsedJobSpec =
@@ -28,7 +28,6 @@ interface SpecLimits {
   maxTotalSeconds: number;
 }
 
-// The full_demo caps are provisional: the kind is rejected until CLOUD_KINDS lists it.
 const SPEC_LIMITS: Record<CloudKind, SpecLimits> = {
   short: { maxWindows: 60, maxWindowSeconds: 180, maxTotalSeconds: 900 },
   full_demo: { maxWindows: 80, maxWindowSeconds: 600, maxTotalSeconds: 7200 },
@@ -36,6 +35,7 @@ const SPEC_LIMITS: Record<CloudKind, SpecLimits> = {
 
 const STEAM_ID = /^[0-9]{17}$/;
 const WINDOW_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const PLAN_HASH = /^[0-9a-f]{64}$/;
 const WINDOW_PADDING_SECONDS = 2;
 
 function fail(error: string): ParsedJobSpec {
@@ -166,7 +166,10 @@ export function parseJobSpec(input: unknown, kind: CloudKind): ParsedJobSpec {
     if (!isRecord(fullDemo) || !isRecord(fullDemo.options)) {
       return fail("fullDemo.options must be an object");
     }
-    spec.fullDemo = { options: fullDemo.options };
+    if (typeof fullDemo.planHash !== "string" || !PLAN_HASH.test(fullDemo.planHash)) {
+      return fail("fullDemo.planHash must be a sha256 hex digest");
+    }
+    spec.fullDemo = { options: fullDemo.options, planHash: fullDemo.planHash };
   }
 
   if (Buffer.byteLength(JSON.stringify(spec), "utf8") > MAX_SPEC_BYTES) {

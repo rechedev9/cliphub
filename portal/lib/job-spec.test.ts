@@ -149,13 +149,20 @@ test("a spec over 64 KB once serialized is rejected", () => {
   expectRejected(spec, /65536/);
 });
 
-test("a full demo spec needs its options and no segment ids", () => {
+test("a full demo spec needs its options, its plan hash and no segment ids", () => {
+  const planHash = "a".repeat(64);
   const spec = {
     ...shortSpec(),
     generate: { preset: "full", segment_ids: [], edit: null },
-    fullDemo: { options: { hud: true } },
+    fullDemo: { options: { hud: true }, planHash, extra: "dropped" },
   };
-  assert.equal(parseJobSpec(spec, "full_demo").ok, true);
+  const parsed = parseJobSpec(spec, "full_demo");
+  assert.ok(parsed.ok);
+  assert.deepEqual(parsed.spec.fullDemo, { options: { hud: true }, planHash });
   assert.equal(parseJobSpec({ ...spec, fullDemo: undefined }, "full_demo").ok, false);
+  for (const bad of [undefined, "A".repeat(64), "a".repeat(63)]) {
+    const fullDemo = { options: { hud: true }, planHash: bad };
+    assert.equal(parseJobSpec({ ...spec, fullDemo }, "full_demo").ok, false);
+  }
   assert.equal(parseJobSpec(shortSpec(), "full_demo").ok, false);
 });

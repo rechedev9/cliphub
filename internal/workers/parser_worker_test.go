@@ -204,6 +204,10 @@ func TestParserWorkerRunsAgainstRealDemo(t *testing.T) {
 		t.Logf("FullDemo round=%d start=%d live=%d end=%d kills=%d evidence=%s", round.Number, round.StartTick, round.FreezeEndTick, round.RoundEndTick, len(round.Kills), round.Evidence)
 	}
 	t.Logf("FullDemo rounds=%d zero_kill_rounds=%d complete=%v crosshair_samples=%d warnings=%v", len(facts.Rounds), zeroKills, facts.Complete, len(facts.Crosshairs), facts.Warnings)
+	// The job arrived with its target, so no roster scan ran before the parse.
+	if _, ok := store.files[artifacts.RosterKey(id)]; !ok {
+		t.Fatal("roster artifact missing after a parse with a preset target")
+	}
 }
 
 func TestParserWorkerScansRosterAgainstRealDemo(t *testing.T) {

@@ -30,7 +30,7 @@ export function CloudLinkDialog({ open, onOpenChange }: CloudLinkDialogProps): R
         <DialogHeader>
           <DialogTitle>Conecta tu cuenta de ClipHub</DialogTitle>
           <DialogDescription>
-            La cuenta solo hace falta para grabar en la nube. Grabar en este PC sigue funcionando sin ella.
+            Inicia sesión en la web de ClipHub, en tu navegador, para volver a grabar en la nube.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">

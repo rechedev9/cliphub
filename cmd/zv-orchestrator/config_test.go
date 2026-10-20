@@ -481,10 +481,13 @@ func TestLoadConfigCloudURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
+		worker  bool
 		want    string
 		wantErr string
 	}{
 		{name: "unset means the production portal", want: "https://cliphub.rechedev.cloud"},
+		{name: "a capture worker has no cloud client", worker: true, want: ""},
+		{name: "a capture worker ignores a named portal", worker: true, value: "http://127.0.0.1:3000", want: ""},
 		{name: "off disables the cloud client", value: "off", want: ""},
 		{name: "off in any case", value: " OFF ", want: ""},
 		{name: "another https portal", value: "https://portal.example/", want: "https://portal.example"},
@@ -499,6 +502,10 @@ func TestLoadConfigCloudURL(t *testing.T) {
 			clearConfigEnv(t)
 			t.Setenv("ZV_DATABASE_URL", "memory")
 			t.Setenv("ZV_CLOUD_URL", tt.value)
+			if tt.worker {
+				t.Setenv("ZV_BRIDGE_URL", "https://portal.example")
+				t.Setenv(bridgeTokenEnvironmentVariable, strings.Repeat("b", 64))
+			}
 
 			cfg, err := loadConfig()
 			if tt.wantErr != "" {

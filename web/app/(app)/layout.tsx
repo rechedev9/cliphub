@@ -10,6 +10,7 @@ import { RouteTitleProvider } from '@/components/shell/route-title';
 import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor';
 import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
+import { LoginGate } from '@/components/cloud/login-gate';
 
 /** Extend CSSProperties explicitly so custom properties are type-checked. */
 const SHELL_VARS: CSSProperties & { '--sidebar-width': string } = { '--sidebar-width': '240px' };
@@ -28,35 +29,37 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
   const sidebarOpen = jar.get(SIDEBAR_COOKIE_NAME)?.value !== 'false';
 
   return (
-    <ShellSidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
-      <ShellActivityMonitor />
-      <TelemetryNotice />
-      <AppTour />
-      <AppSidebar />
-      <SidebarInset>
-        <RouteTitleProvider>
-          <CommandStrip />
-          {/*
-            @container/content is the contract the domain layer keys its
-            breakpoints to. The shell is two columns — a 240px sidebar and this
-            stage — so the content box is wider than it was, but it is still not
-            the viewport: subtract the sidebar, then the 1440px cap once it
-            binds, then two --shell-gutter columns. At 1920 that is 1440 − 2×61.44
-            = 1317px, not 1920. Every `xl:` rule in a card or row evaluated
-            against the viewport instead is what produced horizontal overflow at
-            a 1440px viewport.
+    <LoginGate>
+      <ShellSidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
+        <ShellActivityMonitor />
+        <TelemetryNotice />
+        <AppTour />
+        <AppSidebar />
+        <SidebarInset>
+          <RouteTitleProvider>
+            <CommandStrip />
+            {/*
+              @container/content is the contract the domain layer keys its
+              breakpoints to. The shell is two columns — a 240px sidebar and this
+              stage — so the content box is wider than it was, but it is still not
+              the viewport: subtract the sidebar, then the 1440px cap once it
+              binds, then two --shell-gutter columns. At 1920 that is 1440 − 2×61.44
+              = 1317px, not 1920. Every `xl:` rule in a card or row evaluated
+              against the viewport instead is what produced horizontal overflow at
+              a 1440px viewport.
 
-            mr-auto, not mx-auto: SidebarInset is a flex column, so the auto
-            margin decides the cross-axis position. With `mx-auto` the column
-            re-centres in whatever space is left, so past 1680px the H1's left
-            edge drifts rightward as the window grows. Pinning it to the sidebar
-            edge gives the app one optical spine that survives a resize.
-          */}
-          <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10 [&:has([data-produce-workspace])]:max-w-none [&:has([data-produce-workspace])]:px-6 [&:has([data-produce-workspace])]:py-4">
-            <RouteFrame>{children}</RouteFrame>
-          </main>
-        </RouteTitleProvider>
-      </SidebarInset>
-    </ShellSidebarProvider>
+              mr-auto, not mx-auto: SidebarInset is a flex column, so the auto
+              margin decides the cross-axis position. With `mx-auto` the column
+              re-centres in whatever space is left, so past 1680px the H1's left
+              edge drifts rightward as the window grows. Pinning it to the sidebar
+              edge gives the app one optical spine that survives a resize.
+            */}
+            <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10 [&:has([data-produce-workspace])]:max-w-none [&:has([data-produce-workspace])]:px-6 [&:has([data-produce-workspace])]:py-4">
+              <RouteFrame>{children}</RouteFrame>
+            </main>
+          </RouteTitleProvider>
+        </SidebarInset>
+      </ShellSidebarProvider>
+    </LoginGate>
   );
 }

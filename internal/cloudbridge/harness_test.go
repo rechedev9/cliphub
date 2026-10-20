@@ -24,6 +24,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
@@ -501,6 +502,8 @@ type fakeLocal struct {
 	onAdmit func(*fakeLocalJob)
 	// generate answers a generate call; the default accepts it.
 	generate func(*fakeLocalJob) GenerateResult
+	fullDemoPlan   recapplan.Document
+	plannedOptions []json.RawMessage
 }
 
 func newFakeLocal(t *testing.T) *fakeLocal {
@@ -560,6 +563,13 @@ func (f *fakeLocal) KillPlan(_ context.Context, jobID string) (*killplan.Plan, e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.jobs[jobID].plan, nil
+}
+
+func (f *fakeLocal) PlanFullDemo(_ context.Context, _ string, options json.RawMessage) (recapplan.Document, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.plannedOptions = append(f.plannedOptions, slices.Clone(options))
+	return f.fullDemoPlan, nil
 }
 
 func (f *fakeLocal) VariantView(_ context.Context, jobID, variant string) (LocalVariant, bool, error) {
@@ -780,6 +790,36 @@ func testPlan() *killplan.Plan {
 }
 
 const testGenerate = `{"preset":"viral-60-clean","music":{"key":"track-1","volume":0.4},"segment_ids":["seg-003"],"edit":{"format":"short_9x16","intro":true}}`
+
+const testPlanHash = "4f1c0a7b2d9e8f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a"
+
+// testSpecPlanHash is the portable hash of testFullDemoPlan, as Studio sends it.
+var testSpecPlanHash = func() string {
+	hash, err := testFullDemoPlan().PortableHash()
+	if err != nil {
+		panic(err)
+	}
+	return hash
+}()
+
+// testFullDemoSpec is a Full Demo spec of two rounds, as Studio builds it.
+func testFullDemoSpec() json.RawMessage {
+	return json.RawMessage(`{"version":1,"targetSteamId":"` + testTarget + `","rules":{},` +
+		`"capture":{"tickrate":64,"windows":[{"id":"r01","tickStart":1000,"tickEnd":9000},{"id":"r02","tickStart":9500,"tickEnd":17000}]},` +
+		`"generate":{"preset":"gameplay-pov-60","music":null,"segment_ids":[],"edit":{"match_recap":true,"demo_source":"premier"}},` +
+		`"fullDemo":{"options":{"profile_id":"chill"},"planHash":"` + testSpecPlanHash + `"},"client":{"studioVersion":"5.4.4"}}`)
+}
+
+// testFullDemoPlan is the plan the worker reaches for testFullDemoSpec.
+func testFullDemoPlan() recapplan.Document {
+	plan := recapplan.Document{PlanHash: testPlanHash, Blockers: []recapplan.Notice{}, Clock: recapplan.Clock{TickRate: 64}}
+	plan.Rounds = []recapplan.Round{
+		{ID: "r01", CaptureStartTick: 1000, CaptureEndTick: 9000},
+		{ID: "r02", CaptureStartTick: 9500, CaptureEndTick: 17000},
+	}
+	plan.Options.Editorial.AllowSafeTailTrim = true
+	return plan
+}
 
 func testSpec() json.RawMessage {
 	return json.RawMessage(`{"version":1,"targetSteamId":"` + testTarget + `","rules":{"weapons":["awp"],"min_kills_in_window":2,"window_seconds":10,"pre_roll_seconds":3,"post_roll_seconds":4,"min_round":1},` +

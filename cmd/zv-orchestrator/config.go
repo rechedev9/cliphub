@@ -141,11 +141,14 @@ func loadConfig() (config, error) {
 	if err := validateBridgeConfig(c.BridgeURL, c.BridgeToken); err != nil {
 		return c, err
 	}
-	cloudURL, err := cloudURLFromEnvironment()
-	if err != nil {
-		return c, err
+	// A capture worker only takes jobs: without a cloud client its Studio also skips the login gate.
+	if c.BridgeURL == "" {
+		cloudURL, err := cloudURLFromEnvironment()
+		if err != nil {
+			return c, err
+		}
+		c.CloudURL = cloudURL
 	}
-	c.CloudURL = cloudURL
 	c.CloudWorkerMinFreeBytes = cloudbridge.DefaultMinFreeBytes
 	if raw := os.Getenv("ZV_CLOUD_WORKER_MIN_FREE_BYTES"); raw != "" {
 		parsed, err := strconv.ParseUint(raw, 10, 64)

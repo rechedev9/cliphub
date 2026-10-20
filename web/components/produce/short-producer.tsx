@@ -6,18 +6,11 @@ import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cloudApi, CloudApiError } from '@/lib/api/cloud';
-import type { CaptureStatus, EditConfig, Match, Play, Preset } from '@/lib/api/types';
+import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import { refreshCloudAccount } from '@/lib/cloud/account-store';
-import {
-  CAPTURE_TARGET,
-  CAPTURE_TARGET_READY_HINT,
-  loadCaptureTarget,
-  resolveCaptureTarget,
-  saveCaptureTarget,
-  type CaptureTarget,
-} from '@/lib/cloud/capture-target';
+import { CAPTURE_TARGET_READY_HINT, type CaptureTarget } from '@/lib/cloud/capture-target';
 import { buildCloudShortSubmit } from '@/lib/cloud/submit';
 import { cloudSubmitErrorMessage } from '@/lib/cloud/view';
 import { playsSelectionLabel } from '@/lib/format';
@@ -39,14 +32,13 @@ import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '
 import { cn } from '@/lib/utils';
 import { presetDescription } from '@/lib/preset-copy';
 import { serverShellActivitySnapshot, shellActivitySnapshot, subscribeToShellActivity } from '@/lib/shell-activity';
-import { useCloudAccount } from '@/hooks/use-cloud-account';
+import { useCaptureTarget } from '@/hooks/use-capture-target';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EditOptions } from '@/components/clips/edit-options';
 import { PlayList } from '@/components/clips/play-list';
 import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
-import { CloudLinkDialog } from '@/components/cloud/cloud-link-dialog';
 import { CaptureTargetControl } from './capture-target';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
@@ -91,20 +83,9 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const busy = creating || !loaded;
-  const account = useCloudAccount();
   const activity = useSyncExternalStore(subscribeToShellActivity, shellActivitySnapshot, serverShellActivitySnapshot);
-  const [localStatus, setLocalStatus] = useState<CaptureStatus | null>(null);
-  const [pickedTarget, setPickedTarget] = useState<CaptureTarget | null>(initialTarget);
-  const [rememberedTarget, setRememberedTarget] = useState<CaptureTarget | null>(null);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const targetView = resolveCaptureTarget({
-    picked: pickedTarget,
-    remembered: rememberedTarget,
-    localStatus,
-    localBusy: activity.jobs.some((job) => job.stage === 'recording'),
-    account,
-  });
-  const toCloud = targetView.target === CAPTURE_TARGET.cloud;
+  const captureTarget = useCaptureTarget({ kind: 'short', localBusy: activity.jobs.some((job) => job.stage === 'recording'), initialTarget });
+  const { view: targetView, toCloud } = captureTarget;
 
   // A rejection shown while the target was blocked is settled once it can submit again.
   const couldSubmit = useRef(targetView.canSubmit);
@@ -113,22 +94,10 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
     couldSubmit.current = targetView.canSubmit;
   }, [targetView.canSubmit]);
 
-  useEffect(() => {
-    let active = true;
-    setRememberedTarget(loadCaptureTarget(browserStorage()));
-    void api.getCaptureReadiness().then((readiness) => {
-      if (active) setLocalStatus(readiness.status);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
   function pickTarget(next: CaptureTarget): void {
     if (busy) return;
-    setPickedTarget(next);
+    captureTarget.pick(next);
     setCreateError(null);
-    saveCaptureTarget(browserStorage(), next);
   }
   const musicPickerRef = useRef<HTMLButtonElement>(null);
 
@@ -418,7 +387,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         readyHint={CAPTURE_TARGET_READY_HINT[targetView.target]}
         backHref={seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.short)}
         error={createError}
-        target={<CaptureTargetControl view={targetView} onPick={pickTarget} onLink={() => setLinkOpen(true)} disabled={creating} />}
+        target={<CaptureTargetControl view={targetView} onPick={pickTarget} disabled={creating} />}
         cta={
           <Button
             variant="hero"
@@ -434,7 +403,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
         }
       />
 
-      <CloudLinkDialog open={linkOpen} onOpenChange={setLinkOpen} />
 
       <SongPickerDialog open={songOpen} onOpenChange={setSongOpen} onChoose={onChooseSong} selectedSongId={songId} />
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
@@ -457,15 +425,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, initialTarget =
       </DialogContent>
     </Dialog>
   );
-}
-
-/** localStorage may throw in privacy mode; the choice then lasts only for this screen. */
-function browserStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
 }
 
 function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent: number, gameVolumePercent: number): MusicBrief {

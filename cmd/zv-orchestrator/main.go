@@ -290,6 +290,8 @@ func run() error {
 			cloudService = nil
 		} else {
 			cloudOption = httpapi.WithCloud(cloudService)
+			// Studio's login gate opens on this answer; ask the portal before the UI does.
+			go cloudService.Account(ctx)
 		}
 	}
 	handlers := httpapi.NewHandlers(repo, files, queue,
@@ -449,7 +451,7 @@ func endCloudWorkerLeftovers(cfg config) {
 }
 
 // cloudWorkerKinds are the cloud job kinds this build can produce unattended.
-var cloudWorkerKinds = []string{"short"}
+var cloudWorkerKinds = []string{"short", "full_demo"}
 
 // bridgeAdmitter lets the cloud worker admit a demo through the HTTP
 // handlers without the bridge importing the HTTP layer.

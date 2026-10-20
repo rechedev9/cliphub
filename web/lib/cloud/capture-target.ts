@@ -7,7 +7,10 @@ import { estimateRange } from './view.ts';
 export const CAPTURE_TARGET = { local: 'local', cloud: 'cloud' } as const;
 export type CaptureTarget = (typeof CAPTURE_TARGET)[keyof typeof CAPTURE_TARGET];
 
-export const CAPTURE_TARGET_STORAGE_KEY = 'cliphub.capture-target.v1';
+/** Each format keeps its own choice: a long video spends far more cloud time than a Short. */
+function captureTargetStorageKey(kind: string): string {
+  return kind === 'short' ? 'cliphub.capture-target.v1' : `cliphub.capture-target.${kind}.v1`;
+}
 
 /** `?destino=` preselects the target when Resultados sends the user back to the producer. */
 export const CAPTURE_TARGET_QUERY = 'destino';
@@ -37,9 +40,6 @@ export const CAPTURE_TARGET_READY_HINT = {
   cloud: 'Todo preparado. Al crear, ClipHub grabará en la nube; el vídeo se descargará en Resultados.',
 } as const satisfies Record<CaptureTarget, string>;
 
-/** Why the long-video producer has no target choice. */
-export const CAPTURE_LOCAL_ONLY_HINT = 'La nube todavía no admite vídeos largos.';
-
 export type CaptureTargetTone = 'neutral' | 'ok' | 'warning' | 'danger';
 
 export type CaptureTargetView = {
@@ -49,8 +49,6 @@ export type CaptureTargetView = {
   /** The create button may fire for the selected target. */
   canSubmit: boolean;
   status: { text: string; tone: CaptureTargetTone };
-  /** Show "Conectar cuenta" next to the status line. */
-  offerLink: boolean;
 };
 
 export type ResolveCaptureTargetInput = {
@@ -65,6 +63,8 @@ export type ResolveCaptureTargetInput = {
   account: CloudAccountState;
   /** Portal job kind this producer creates. */
   kind?: string;
+  /** Why this particular video cannot go to the cloud even when the account can, or null. */
+  cloudBlocker?: string | null;
 };
 
 const KIND_PLURAL: Record<string, string> = { short: 'Shorts', full_demo: 'vídeos largos' };
@@ -73,19 +73,34 @@ function isCaptureTarget(value: unknown): value is CaptureTarget {
   return value === CAPTURE_TARGET.local || value === CAPTURE_TARGET.cloud;
 }
 
-/** Reads the remembered target; storage may be unavailable or hold anything. */
-export function loadCaptureTarget(storage: Pick<Storage, 'getItem'> | null): CaptureTarget | null {
+/** localStorage may throw in privacy mode; the choice then lasts only for this screen. */
+export function browserStorage(): Storage | null {
   try {
-    const value = storage?.getItem(CAPTURE_TARGET_STORAGE_KEY);
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the remembered target; storage may be unavailable or hold anything. */
+export function loadCaptureTarget(storage: Pick<Storage, 'getItem'> | null, kind: string): CaptureTarget | null {
+  try {
+    const value = storage?.getItem(captureTargetStorageKey(kind));
     return isCaptureTarget(value) ? value : null;
   } catch {
     return null;
   }
 }
 
-export function saveCaptureTarget(storage: Pick<Storage, 'setItem'> | null, target: CaptureTarget): void {
+type SaveCaptureTargetInput = {
+  storage: Pick<Storage, 'setItem'> | null;
+  kind: string;
+  target: CaptureTarget;
+};
+
+export function saveCaptureTarget({ storage, kind, target }: SaveCaptureTargetInput): void {
   try {
-    storage?.setItem(CAPTURE_TARGET_STORAGE_KEY, target);
+    storage?.setItem(captureTargetStorageKey(kind), target);
   } catch {
     // Quota or privacy mode: the choice still holds for this screen.
   }
@@ -138,24 +153,26 @@ function readyLine(account: CloudAccount, kind: string, left: number | null): st
   return parts.length > 0 ? parts.join(' · ') : 'La nube está lista';
 }
 
-type CloudLine = Pick<CaptureTargetView, 'canSubmit' | 'status' | 'offerLink'>;
+type CloudLine = Pick<CaptureTargetView, 'canSubmit' | 'status'>;
 
-function blocked(text: string, tone: CaptureTargetTone, offerLink = false): CloudLine {
-  return { canSubmit: false, status: { text, tone }, offerLink };
+function blocked(text: string, tone: CaptureTargetTone): CloudLine {
+  return { canSubmit: false, status: { text, tone } };
 }
 
-function cloudLine(account: CloudAccount, kind: string): CloudLine {
+type CloudLineInput = { account: CloudAccount; kind: string; blocker: string | null };
+
+function cloudLine({ account, kind, blocker }: CloudLineInput): CloudLine {
   if (!account.linked) {
     if (account.error === 'portal_unreachable') {
       return blocked('No se puede conectar con la nube ahora. Puedes grabar en este PC', 'danger');
     }
     if (account.error === 'unauthorized') {
-      return blocked('Este PC ya no está conectado a tu cuenta. Conéctala de nuevo', 'warning', true);
+      return blocked('Este PC ya no está conectado a tu cuenta. Conéctala de nuevo', 'warning');
     }
     if (account.link?.status === 'pending') {
-      return blocked(`Confirma el código ${account.link.userCode} en el navegador para terminar`, 'neutral', true);
+      return blocked(`Confirma el código ${account.link.userCode} en el navegador para terminar`, 'neutral');
     }
-    return blocked('Conecta tu cuenta para grabar en la nube', 'neutral', true);
+    return blocked('Conecta tu cuenta para grabar en la nube', 'neutral');
   }
   if (account.error !== null) {
     return blocked('No se puede conectar con la nube ahora. Puedes grabar en este PC', 'danger');
@@ -168,6 +185,7 @@ function cloudLine(account: CloudAccount, kind: string): CloudLine {
   if (!account.kinds.includes(kind)) {
     return blocked(`La nube todavía no admite ${KIND_PLURAL[kind] ?? 'este tipo de vídeo'}`, 'warning');
   }
+  if (blocker !== null) return blocked(blocker, 'warning');
   if (account.limits !== null && account.usage !== null && account.limits.maxActive > 0 && account.usage.active >= account.limits.maxActive) {
     const max = account.limits.maxActive;
     return blocked(`Ya tienes ${max} ${max === 1 ? 'vídeo' : 'vídeos'} en la nube. Espera a que termine uno`, 'warning');
@@ -177,16 +195,15 @@ function cloudLine(account: CloudAccount, kind: string): CloudLine {
     return blocked('Has usado tu tiempo de nube de hoy. Vuelve mañana o graba en este PC', 'warning');
   }
   if (account.queue?.state === 'paused') {
-    return { canSubmit: true, status: { text: 'La nube está en pausa. Puedes ponerte en cola o grabar en este PC', tone: 'warning' }, offerLink: false };
+    return { canSubmit: true, status: { text: 'La nube está en pausa. Puedes ponerte en cola o grabar en este PC', tone: 'warning' } };
   }
   if (account.queue?.state === 'offline') {
     return {
       canSubmit: true,
       status: { text: 'La nube no está conectada ahora. Puedes ponerte en cola o grabar en este PC', tone: 'warning' },
-      offerLink: false,
     };
   }
-  return { canSubmit: true, status: { text: readyLine(account, kind, left), tone: 'ok' }, offerLink: false };
+  return { canSubmit: true, status: { text: readyLine(account, kind, left), tone: 'ok' } };
 }
 
 /** Decides the selected target, what each option allows and the one status line under the control. */
@@ -208,7 +225,7 @@ export function resolveCaptureTarget(input: ResolveCaptureTargetInput): CaptureT
 
   if (target === CAPTURE_TARGET.local) {
     // Local creation is never gated here: it behaves exactly as before this control existed.
-    return { target, cloudSelectable, canSubmit: true, status: localStatusLine(input, cloudSelectable), offerLink: false };
+    return { target, cloudSelectable, canSubmit: true, status: localStatusLine(input, cloudSelectable) };
   }
   switch (input.account.kind) {
     case 'loading':
@@ -218,7 +235,7 @@ export function resolveCaptureTarget(input: ResolveCaptureTargetInput): CaptureT
     case 'unavailable':
       return { target, cloudSelectable, ...blocked('Esta instalación no puede grabar en la nube', 'neutral') };
     case 'ready':
-      return { target, cloudSelectable, ...cloudLine(input.account.account, kind) };
+      return { target, cloudSelectable, ...cloudLine({ account: input.account.account, kind, blocker: input.cloudBlocker ?? null }) };
   }
 }
 

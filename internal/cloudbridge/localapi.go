@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 // Local job and render states the worker reacts to, as the loopback API
@@ -31,6 +32,10 @@ const (
 // ErrLocalJobBusy means the local job still has work in flight, so the
 // pipeline refused to delete it.
 var ErrLocalJobBusy = errors.New("cloudbridge: local job still has work in flight")
+
+// ErrFullDemoOptionsRejected means the local pipeline refused the spec's
+// Full Demo options; planning again on any worker would refuse them too.
+var ErrFullDemoOptionsRejected = errors.New("cloudbridge: the local pipeline rejected the Full Demo options")
 
 // LocalProgress is the percent the local pipeline publishes for the stage it
 // is running (capture or render).
@@ -78,6 +83,9 @@ type LocalPipeline interface {
 	// JobView reports found=false once the job no longer exists.
 	JobView(ctx context.Context, jobID string) (job LocalJob, found bool, err error)
 	KillPlan(ctx context.Context, jobID string) (*killplan.Plan, error)
+	// PlanFullDemo plans the job's Full Demo with the given options and saves
+	// the plan, the way the producer does before a user approves it.
+	PlanFullDemo(ctx context.Context, jobID string, options json.RawMessage) (recapplan.Document, error)
 	// VariantView reports found=false until the render has a state.
 	VariantView(ctx context.Context, jobID, variant string) (state LocalVariant, found bool, err error)
 	// DeleteJob removes the job and its files. A job that is already gone is
@@ -87,7 +95,11 @@ type LocalPipeline interface {
 	CloudJobs(ctx context.Context) ([]LocalJobRef, error)
 }
 
-const localCallTimeout = 30 * time.Second
+const (
+	localCallTimeout = 30 * time.Second
+	// Planning a Full Demo with voices decodes the whole demo's voice data.
+	fullDemoPlanTimeout = 10 * time.Minute
+)
 
 // LoopbackPipeline talks to the orchestrator this worker runs inside, over
 // its loopback listener and with its session token.
@@ -102,7 +114,7 @@ func NewLoopbackPipeline(listenAddr, token string) *LoopbackPipeline {
 	return &LoopbackPipeline{
 		baseURL: "http://" + listenAddr,
 		token:   token,
-		http:    &http.Client{Timeout: localCallTimeout},
+		http:    &http.Client{},
 	}
 }
 
@@ -128,6 +140,19 @@ func (r localResponse) unexpected(action string) error {
 }
 
 func (p *LoopbackPipeline) call(ctx context.Context, method, path string, body []byte) (localResponse, error) {
+	return p.callWith(ctx, request{method: method, path: path, body: body, timeout: localCallTimeout})
+}
+
+type request struct {
+	method, path string
+	body         []byte
+	timeout      time.Duration
+}
+
+func (p *LoopbackPipeline) callWith(ctx context.Context, call request) (localResponse, error) {
+	method, path, body := call.method, call.path, call.body
+	ctx, cancel := context.WithTimeout(ctx, call.timeout)
+	defer cancel()
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -213,6 +238,29 @@ func (p *LoopbackPipeline) KillPlan(ctx context.Context, jobID string) (*killpla
 		return nil, fmt.Errorf("decode kill plan: %w", err)
 	}
 	return &plan, nil
+}
+
+// PlanFullDemo implements LocalPipeline.
+func (p *LoopbackPipeline) PlanFullDemo(ctx context.Context, jobID string, options json.RawMessage) (recapplan.Document, error) {
+	body, err := json.Marshal(map[string]json.RawMessage{"options": options})
+	if err != nil {
+		return recapplan.Document{}, err
+	}
+	resp, err := p.callWith(ctx, request{method: http.MethodPost, path: jobPath(jobID, "/full-demo/plan"), body: body, timeout: fullDemoPlanTimeout})
+	if err != nil {
+		return recapplan.Document{}, err
+	}
+	if resp.status == http.StatusBadRequest {
+		return recapplan.Document{}, fmt.Errorf("%w: %w", ErrFullDemoOptionsRejected, resp.unexpected("plan full demo"))
+	}
+	if resp.status != http.StatusCreated {
+		return recapplan.Document{}, resp.unexpected("plan full demo")
+	}
+	var plan recapplan.Document
+	if err := json.Unmarshal(resp.body, &plan); err != nil {
+		return recapplan.Document{}, fmt.Errorf("decode full demo plan: %w", err)
+	}
+	return plan, nil
 }
 
 // VariantView implements LocalPipeline.

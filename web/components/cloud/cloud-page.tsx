@@ -50,8 +50,8 @@ const COMPARISON = [
     facts: [
       'Graba un servidor de ClipHub: tu PC queda libre.',
       'La demo se sube y el vídeo se descarga aquí al terminar.',
-      'Necesita una cuenta de ClipHub y tiene un tiempo diario.',
-      'Solo Shorts por ahora.',
+      'Tiene un tiempo diario por cuenta.',
+      'Shorts y vídeos largos sin vídeos ni imágenes propias.',
     ],
   },
 ] as const satisfies ReadonlyArray<{ icon: LucideIcon; title: string; facts: readonly string[] }>;
@@ -150,7 +150,7 @@ function ConnectIntro({ unauthorized, onStart }: { unauthorized: boolean; onStar
       ) : null}
       <p className="text-body-sm text-fg-2">
         Studio te dará un código y abrirá la web de ClipHub en tu navegador. Inicia sesión allí y confirma el código: tu
-        contraseña nunca se escribe en Studio. Grabar en este PC sigue funcionando sin cuenta.
+        contraseña nunca se escribe en Studio.
       </p>
       <div className="flex flex-wrap gap-3">
         <Button type="button" onClick={onStart}>
@@ -176,7 +176,7 @@ function LinkedAccount({ account }: { account: CloudAccount }): ReactNode {
     try {
       await cloudApi.unlink();
     } catch {
-      setError('No se pudo desvincular este PC. Vuelve a probar.');
+      setError('No se pudo cerrar la sesión. Vuelve a probar.');
     } finally {
       await refreshCloudAccount();
       setUnlinking(false);
@@ -236,8 +236,8 @@ function LinkedAccount({ account }: { account: CloudAccount }): ReactNode {
         <div className="flex flex-wrap items-center gap-3">
           {confirming && warning !== null ? (
             <>
-              <Button type="button" size="sm" variant="outline" loading={unlinking} loadingText="Desvinculando…" onClick={() => void unlink()}>
-                Desvincular de todos modos
+              <Button type="button" size="sm" variant="outline" loading={unlinking} loadingText="Cerrando sesión…" onClick={() => void unlink()}>
+                Cerrar sesión de todos modos
               </Button>
               <Button type="button" size="sm" variant="ghost" disabled={unlinking} onClick={() => setConfirming(false)}>
                 Seguir conectado
@@ -249,13 +249,13 @@ function LinkedAccount({ account }: { account: CloudAccount }): ReactNode {
               size="sm"
               variant="outline"
               loading={unlinking}
-              loadingText="Desvinculando…"
+              loadingText="Cerrando sesión…"
               onClick={warning === null ? () => void unlink() : () => setConfirming(true)}
             >
-              Desvincular este PC
+              Cerrar sesión
             </Button>
           )}
-          <span className="text-body-sm text-fg-3">Este PC dejará de grabar en la nube; grabar aquí no cambia.</span>
+          <span className="text-body-sm text-fg-3">Studio te pedirá que inicies sesión otra vez.</span>
         </div>
       </div>
     </>

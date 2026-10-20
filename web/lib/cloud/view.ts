@@ -1,6 +1,9 @@
 import { CLOUD_REJECTED_CODE } from './parse.ts';
 import type { CloudJob, CloudJobQueue } from './parse.ts';
 
+/** Why a long video with the user's own files cannot go to the cloud, which only gets the demo. */
+export const CLOUD_OWN_FILES_BLOCKER = 'La nube todavía no admite vídeos o imágenes propias. Quítalos o graba en este PC';
+
 /** Everything the UI says about a cloud job, decided here so it can be tested without a browser. */
 
 export type CloudJobTone = 'queue' | 'working' | 'ready' | 'failed' | 'neutral';
@@ -156,7 +159,7 @@ const FAILURES: Record<string, CloudFailureView> = {
     recordLocal: true,
   },
   invalid_spec: {
-    message: 'La nube no aceptó la configuración de este Short. Actualiza Studio y vuelve a intentarlo.',
+    message: 'La nube no aceptó la configuración de este vídeo. Actualiza Studio y vuelve a intentarlo.',
     retryCloud: true,
     recordLocal: true,
   },
@@ -408,10 +411,12 @@ const SUBMIT_ERRORS: Record<string, string> = {
   job_not_parsed: 'La demo todavía se está analizando. Espera a que termine y vuelve a intentarlo.',
   unknown_segment: 'Alguna jugada elegida ya no existe en esta partida. Vuelve a elegir las jugadas.',
   demo_too_large: 'La demo supera el tamaño máximo que admite la nube. Grábala en este PC.',
-  invalid_spec: 'La nube no aceptó la configuración de este Short. Actualiza Studio y vuelve a intentarlo.',
+  invalid_spec: 'La nube no aceptó la configuración de este vídeo. Actualiza Studio y vuelve a intentarlo.',
+  plan_stale: 'El plan del vídeo largo es de otra demo o de otro jugador. Prepáralo de nuevo.',
+  cloud_assets_unsupported: `${CLOUD_OWN_FILES_BLOCKER}.`,
   kind_unavailable: 'La nube todavía no admite este tipo de vídeo. Grábalo en este PC.',
   service_unavailable: 'El servicio local de ClipHub no responde. Cierra y vuelve a abrir Studio.',
-  not_found: 'Esta partida ya no está en este PC. Carga la demo de nuevo para crear el Short.',
+  not_found: 'Esta partida ya no está en este PC. Carga la demo de nuevo para crear el vídeo.',
   not_configured: 'La nube no está configurada en esta instalación de Studio. Graba en este PC.',
 };
 
@@ -420,5 +425,5 @@ export function cloudSubmitErrorMessage(error: { code?: string; status?: number 
   if (error.code !== undefined && Object.hasOwn(SUBMIT_ERRORS, error.code)) return SUBMIT_ERRORS[error.code];
   if (error.status === 401) return SUBMIT_ERRORS.unauthorized;
   if (error.status === 404) return 'Esta versión de Studio no puede grabar en la nube. Actualiza Studio o graba en este PC.';
-  return 'La nube rechazó este Short por un motivo que Studio no reconoce. Actualiza Studio o graba en este PC.';
+  return 'La nube rechazó este vídeo por un motivo que Studio no reconoce. Actualiza Studio o graba en este PC.';
 }

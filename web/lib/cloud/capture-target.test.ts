@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CAPTURE_TARGET_STORAGE_KEY,
   captureTargetParam,
   cloudCoversLocalGap,
   loadCaptureTarget,
@@ -10,6 +9,7 @@ import {
   saveCaptureTarget,
 } from './capture-target.ts';
 import type { CloudAccount, CloudAccountState } from './parse.ts';
+import { CLOUD_OWN_FILES_BLOCKER } from './view.ts';
 
 const MATCH_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -44,7 +44,6 @@ test('a PC that can record starts on this PC and creation is never gated', () =>
     const view = resolveCaptureTarget({ remembered: null, localStatus: 'ready', account: state });
     assert.equal(view.target, 'local', state.kind);
     assert.equal(view.canSubmit, true, state.kind);
-    assert.equal(view.offerLink, false, state.kind);
     assert.equal(view.status.text, 'CS2 + HLAE listos en este PC', state.kind);
   }
 });
@@ -102,10 +101,9 @@ test('an empty queue reads as no queue', () => {
   assert.equal(view.status.text, 'Sin cola · empieza en menos de 5 min · te quedan 62 min hoy');
 });
 
-test('not linked asks for the account and offers the link button', () => {
+test('not linked asks for the account', () => {
   const view = cloud(account(UNLINKED));
   assert.equal(view.status.text, 'Conecta tu cuenta para grabar en la nube');
-  assert.equal(view.offerLink, true);
   assert.equal(view.canSubmit, false);
 });
 
@@ -114,13 +112,11 @@ test('a link in progress shows the code to confirm', () => {
     account({ ...UNLINKED, link: { status: 'pending', userCode: 'K7QM-2XHD', verifyUrl: 'https://cliphub.rechedev.cloud/link', expiresAt: null } }),
   );
   assert.match(view.status.text, /K7QM-2XHD/);
-  assert.equal(view.offerLink, true);
 });
 
-test('a device revoked in the portal returns to the link button', () => {
+test('a device revoked in the portal asks to connect again', () => {
   const view = cloud(account({ ...UNLINKED, error: 'unauthorized' }));
   assert.match(view.status.text, /ya no está conectado/);
-  assert.equal(view.offerLink, true);
   assert.equal(view.canSubmit, false);
 });
 
@@ -129,7 +125,6 @@ test('an unreachable portal blocks the cloud and points at this PC, linked or no
     const view = cloud(state);
     assert.equal(view.status.text, 'No se puede conectar con la nube ahora. Puedes grabar en este PC');
     assert.equal(view.canSubmit, false);
-    assert.equal(view.offerLink, false);
   }
 });
 
@@ -156,6 +151,16 @@ test('limits block the button with the specific reason', () => {
   assert.match(kind.status.text, /todavía no admite Shorts/);
 });
 
+test('a long video the cloud cannot record blocks the cloud only, with its reason', () => {
+  const state = account({ kinds: ['short', 'full_demo'] });
+  const reason = CLOUD_OWN_FILES_BLOCKER;
+  const blocked = resolveCaptureTarget({ picked: 'cloud', remembered: null, localStatus: 'ready', account: state, kind: 'full_demo', cloudBlocker: reason });
+  assert.equal(blocked.canSubmit, false);
+  assert.equal(blocked.status.text, reason);
+  assert.equal(resolveCaptureTarget({ picked: 'cloud', remembered: null, localStatus: 'ready', account: state, kind: 'full_demo' }).canSubmit, true);
+  assert.equal(resolveCaptureTarget({ picked: 'local', remembered: null, localStatus: 'ready', account: state, kind: 'full_demo', cloudBlocker: reason }).canSubmit, true);
+});
+
 test('a paused or offline cloud still accepts jobs and says so without a time', () => {
   const paused = cloud(account({ queue: { state: 'paused', queued: 5, waitSeconds: { short: null } } }));
   assert.equal(paused.status.text, 'La nube está en pausa. Puedes ponerte en cola o grabar en este PC');
@@ -178,12 +183,17 @@ test('the choice persists under its key and survives broken storage', () => {
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => void store.set(key, value),
   };
-  assert.equal(loadCaptureTarget(storage), null);
-  saveCaptureTarget(storage, 'cloud');
-  assert.equal(store.get(CAPTURE_TARGET_STORAGE_KEY), 'cloud');
-  assert.equal(loadCaptureTarget(storage), 'cloud');
-  store.set(CAPTURE_TARGET_STORAGE_KEY, 'moon');
-  assert.equal(loadCaptureTarget(storage), null);
+  assert.equal(loadCaptureTarget(storage, 'short'), null);
+  saveCaptureTarget({ storage, kind: 'short', target: 'cloud' });
+  assert.equal(store.get('cliphub.capture-target.v1'), 'cloud');
+  assert.equal(loadCaptureTarget(storage, 'short'), 'cloud');
+  // A Short sent to the cloud does not make the cloud the default for long videos.
+  assert.equal(loadCaptureTarget(storage, 'full_demo'), null);
+  saveCaptureTarget({ storage, kind: 'full_demo', target: 'local' });
+  assert.equal(loadCaptureTarget(storage, 'full_demo'), 'local');
+  assert.equal(loadCaptureTarget(storage, 'short'), 'cloud');
+  store.set('cliphub.capture-target.v1', 'moon');
+  assert.equal(loadCaptureTarget(storage, 'short'), null);
 
   const broken = {
     getItem: (): string => {
@@ -193,9 +203,9 @@ test('the choice persists under its key and survives broken storage', () => {
       throw new Error('quota');
     },
   };
-  assert.equal(loadCaptureTarget(broken), null);
-  assert.doesNotThrow(() => saveCaptureTarget(broken, 'local'));
-  assert.equal(loadCaptureTarget(null), null);
+  assert.equal(loadCaptureTarget(broken, 'short'), null);
+  assert.doesNotThrow(() => saveCaptureTarget({ storage: broken, kind: 'short', target: 'local' }));
+  assert.equal(loadCaptureTarget(null, 'short'), null);
 });
 
 test('Resultados links back to the Short producer with the target preselected', () => {
