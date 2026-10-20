@@ -25,10 +25,13 @@ export function produceShortHref(matchId: string, target: CaptureTarget): string
 
 export const CAPTURE_TARGET_LABEL = { local: 'Este PC', cloud: 'Nube ClipHub' } as const satisfies Record<CaptureTarget, string>;
 
+/** How long a cloud video usually takes to reach Studio; a target, not a deadline the portal enforces. */
+export const CLOUD_DELIVERY_ESTIMATE = 'menos de 24 h';
+
 /** What picking a target means for the user's PC, in one line under its name. */
 export const CAPTURE_TARGET_HINT = {
   local: 'CS2 se abre y graba en este ordenador. No lo uses hasta que termine.',
-  cloud: 'Graba un servidor de ClipHub. Tu PC queda libre y el vídeo se descarga aquí.',
+  cloud: `Graba un servidor de ClipHub. Tu PC queda libre y el vídeo suele llegar aquí en ${CLOUD_DELIVERY_ESTIMATE}.`,
 } as const satisfies Record<CaptureTarget, string>;
 
 /** The line a valid producer shows before creating: where it records, where the result lands. */

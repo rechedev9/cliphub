@@ -13,7 +13,7 @@ import {
   cloudUnlinkWarning,
   cloudUsageLines,
 } from '@/lib/cloud/account-view';
-import { CAPTURE_TARGET_LABEL } from '@/lib/cloud/capture-target';
+import { CAPTURE_TARGET_LABEL, CLOUD_DELIVERY_ESTIMATE } from '@/lib/cloud/capture-target';
 import type { CloudAccount } from '@/lib/cloud/parse';
 import { useCloudAccount } from '@/hooks/use-cloud-account';
 import { CloudLinkProgress, useCloudLinkFlow } from '@/components/cloud/cloud-link-flow';
@@ -49,7 +49,7 @@ const COMPARISON = [
     title: CAPTURE_TARGET_LABEL.cloud,
     facts: [
       'Graba un servidor de ClipHub: tu PC queda libre.',
-      'La demo se sube y el vídeo se descarga aquí al terminar.',
+      `La demo se sube y el vídeo suele llegar aquí en ${CLOUD_DELIVERY_ESTIMATE}.`,
       'Necesita una cuenta de ClipHub y tiene un tiempo diario.',
       'Solo Shorts por ahora.',
     ],

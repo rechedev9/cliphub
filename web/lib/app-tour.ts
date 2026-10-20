@@ -7,6 +7,7 @@
  * leave the tour describing an app that no longer exists.
  */
 import { CLOUD_HREF, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
+import { CLOUD_DELIVERY_ESTIMATE } from './cloud/capture-target.ts';
 
 export const TOUR_TITLE = 'Guía de ClipHub Studio';
 
@@ -168,7 +169,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Grabar en la nube',
     title: 'Graba un Short sin usar este PC',
     lead:
-      'Con una cuenta de ClipHub conectada, un Short puede grabarse en un servidor de ClipHub: tu PC queda libre y el vídeo se descarga aquí cuando termina.',
+      `Con una cuenta de ClipHub conectada, un Short puede grabarse en un servidor de ClipHub: tu PC queda libre y el vídeo suele llegar aquí en ${CLOUD_DELIVERY_ESTIMATE}.`,
     points: [
       {
         term: 'Conectar la cuenta',
