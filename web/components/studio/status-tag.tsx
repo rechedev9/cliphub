@@ -12,7 +12,7 @@ type StatusTagSize = 'sm' | 'md';
  * same object in six colours. `neutral` uses the surface ramp rather than a tint
  * because it has no hue to tint with.
  */
-const TONE_CLASS = {
+export const STATUS_TONE_CLASS = {
   neutral: 'border-border-strong bg-surface-3 text-fg-2',
   primary: 'border-primary/45 bg-primary/10 text-primary',
   success: 'border-success/45 bg-success/10 text-success',
@@ -71,7 +71,7 @@ export function StatusTag({
       className={`${SIZE_TYPE_CLASS[size]} ${cn(
         'inline-flex shrink-0 items-center border font-mono uppercase',
         SIZE_CLASS[size],
-        TONE_CLASS[tone],
+        STATUS_TONE_CLASS[tone],
         className,
       )}`}
     >

@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldAlert,
   Smartphone,
+  TrendingUp,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,7 +36,7 @@ import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { useCloudAccount } from '@/hooks/use-cloud-account';
 
-type NavGroup = 'create' | 'results' | 'analysis' | 'chrome';
+type NavGroup = 'create' | 'results' | 'analysis' | 'learn' | 'chrome';
 type NavTrailingKind = 'stream' | 'faceit' | 'cloud';
 
 /** One heading per job the user came to do; `chrome` docks to the footer without one. */
@@ -43,6 +44,7 @@ const GROUP_LABEL = {
   create: 'Crear',
   results: 'Tus vídeos',
   analysis: 'Análisis',
+  learn: 'Aprender',
 } as const satisfies Record<Exclude<NavGroup, 'chrome'>, string>;
 
 const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: NavTrailingKind }> = {
@@ -53,11 +55,12 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: 
   '/players': { icon: Users, group: 'analysis', trailing: 'faceit' },
   '/tactical': { icon: Radar, group: 'analysis' },
   '/cheaters': { icon: ShieldAlert, group: 'analysis' },
+  '/algoritmos': { icon: TrendingUp, group: 'learn' },
   '/nube': { icon: Cloud, group: 'chrome', trailing: 'cloud' },
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
-const LABELLED_GROUPS = ['create', 'results', 'analysis'] as const;
+const LABELLED_GROUPS = ['create', 'results', 'analysis', 'learn'] as const;
 
 function sectionsOf(group: NavGroup): NavSection[] {
   return NAV_SECTIONS.filter((section) => NAV_META[section.href].group === group);

@@ -278,6 +278,29 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/cheaters', label: 'Ir a Anti-cheat' },
   },
   {
+    id: 'algorithms',
+    kicker: 'Algoritmos',
+    label: 'Algoritmos',
+    title: 'Cómo eligen YouTube y Google qué vídeos recomendar',
+    lead:
+      'Una guía para tus Shorts y vídeos largos: qué mide cada plataforma mientras alguien ve tu vídeo, cómo usa esas señales y qué hacer con eso.',
+    points: [
+      {
+        term: 'Con su evidencia',
+        text: 'Cada afirmación indica de dónde sale: tráfico observado, fuente oficial o inferencia de la industria.',
+      },
+      {
+        term: 'Mitos',
+        text: 'Qué ideas populares ha negado YouTube, como que las primeras 24 horas lo decidan todo.',
+      },
+      {
+        term: 'Para CS2',
+        text: 'Consejos concretos de hook, duración, música y contenido reutilizado para clips de CS2.',
+      },
+    ],
+    link: { href: '/algoritmos', label: 'Ir a Algoritmos' },
+  },
+  {
     id: 'settings',
     kicker: 'Ajustes',
     label: 'Ajustes',
