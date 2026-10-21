@@ -34,6 +34,10 @@ const (
 	// StandardVideoCRF is the quality setting for viral-60-clean.
 	StandardVideoCRF = 16
 
+	// LongVideoCRF is the gameplay-pov-60 setting: a Full Demo runs past 15 minutes at
+	// 1080p60, so it trades a small SSIM loss for a much smaller file.
+	LongVideoCRF = 18
+
 	// StandardVideoPreset is the x264 speed/quality setting for viral-60-clean.
 	StandardVideoPreset = "slow"
 

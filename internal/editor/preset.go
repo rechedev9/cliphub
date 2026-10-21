@@ -150,7 +150,7 @@ var renderPresets = []RenderPreset{
 		FPS:            60,
 		Width:          1920,
 		Height:         1080,
-		VideoCRF:       StandardVideoCRF,
+		VideoCRF:       LongVideoCRF,
 		VideoPreset:    StandardVideoPreset,
 		EffectsPreset:  EffectsPresetGameplayNative,
 		HQFilters:      true,

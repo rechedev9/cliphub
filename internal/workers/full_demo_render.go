@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
@@ -121,6 +122,26 @@ func (w *RenderWorker) verifyFullDemoCaptureContent(ctx context.Context, id uuid
 	}
 	wg.Wait()
 	return firstErr
+}
+
+// discardFullDemoCaptures deletes the round clips of every capture attempt of a
+// ready Full Demo, most of a job's disk. The recording result stays, so a new edit recaptures.
+func (w *RenderWorker) discardFullDemoCaptures(id uuid.UUID) {
+	resolver, ok := w.storage.(storagePathResolver)
+	if !ok || w.cfg.KeepFullDemoCaptures {
+		return
+	}
+	dir, err := resolver.ResolvePath(artifacts.FullDemoCaptureRevisionsPrefix(id))
+	var clips []recording.CaptureClip
+	if err == nil {
+		clips, err = recording.FullDemoCaptureClips(dir)
+	}
+	if err == nil {
+		_, err = recording.DeleteCaptureClips(clips)
+	}
+	if err != nil {
+		logWorkerError(id, "discard full demo captures", err)
+	}
 }
 
 func fullDemoRenderFingerprint(result recording.RecordingResult, variant string, snapshot recapplan.Snapshot) (string, error) {

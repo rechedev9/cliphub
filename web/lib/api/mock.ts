@@ -12,6 +12,7 @@ import {
 } from './publish-assistant.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
+import type { StorageUsage } from './storage.ts';
 import {
   fixtureUser,
   fixtureSlots,
@@ -35,6 +36,14 @@ const session: Session = {
 };
 
 const videos: Video[] = seedVideos();
+
+const GIB = 1024 ** 3;
+const mockStorage = fixtureMatches.map((m, index) => ({
+  jobId: m.id,
+  captureBytes: index === 0 ? Math.round(18.4 * GIB) : 0,
+  renderBytes: Math.round(1.2 * GIB),
+  freeable: index === 0,
+}));
 
 function mockPublishAssistant(video: Video): PublishAssistant {
   const now = Date.now();
@@ -518,6 +527,22 @@ export class MockApiClient implements ApiClient {
     uploadedPlays.delete(jobId);
     pendingScans.delete(jobId);
     saveUploads();
+  }
+
+  async getStorage(): Promise<StorageUsage> {
+    await delay();
+    const jobs = mockStorage.map((job) => ({ ...job }));
+    return { jobs, totalBytes: jobs.reduce((sum, job) => sum + job.captureBytes + job.renderBytes, 0) };
+  }
+
+  async deleteJobCaptures(jobId: string): Promise<number> {
+    await delay();
+    const job = mockStorage.find((entry) => entry.jobId === jobId);
+    if (job === undefined) throw Object.assign(new Error('job not found'), { status: 404 });
+    const freed = job.captureBytes;
+    job.captureBytes = 0;
+    job.freeable = false;
+    return freed;
   }
 
   async deleteSeries(seriesId: string): Promise<void> {

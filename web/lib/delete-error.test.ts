@@ -4,6 +4,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
+  CAPTURES_JOB_BUSY_MESSAGE,
+  CAPTURES_JOB_GONE_MESSAGE,
+  CAPTURES_NO_RENDER_MESSAGE,
+  CAPTURES_RENDER_BUSY_MESSAGE,
+  deleteCapturesErrorMessage,
   deleteErrorMessage,
   deleteFeedbackTone,
   DELETE_GENERIC_MESSAGE,
@@ -101,4 +106,23 @@ test('missing or blank message falls back to the generic retry line', () => {
   assert.equal(deleteErrorMessage(new Error('   ')), DELETE_GENERIC_MESSAGE);
   assert.equal(deleteErrorMessage(null), DELETE_GENERIC_MESSAGE);
   assert.equal(deleteErrorMessage({}), DELETE_GENERIC_MESSAGE);
+});
+
+test('a refused captures delete reads in Spanish and the wait copy is a notice', () => {
+  const cases: { err: Error; want: string }[] = [
+    { err: Object.assign(new Error('job is recording'), { code: 'job_busy' }), want: CAPTURES_JOB_BUSY_MESSAGE },
+    { err: Object.assign(new Error('anything'), { code: 'generate_work_active' }), want: CAPTURES_RENDER_BUSY_MESSAGE },
+    { err: Object.assign(new Error('no render'), { code: 'no_full_demo_render' }), want: CAPTURES_NO_RENDER_MESSAGE },
+  ];
+  for (const { err, want } of cases) {
+    assert.equal(deleteCapturesErrorMessage(err), want, err.message);
+    assert.equal(deleteFeedbackTone(want), 'notice', err.message);
+  }
+});
+
+test('a captures delete on an unknown job or offline service gets its own line', () => {
+  assert.equal(deleteCapturesErrorMessage(Object.assign(new Error('job not found'), { status: 404 })), CAPTURES_JOB_GONE_MESSAGE);
+  const offline = Object.assign(new Error('analysis service unavailable'), { code: SERVICE_UNAVAILABLE_CODE });
+  assert.equal(deleteCapturesErrorMessage(offline), DELETE_OFFLINE_MESSAGE);
+  assert.equal(deleteCapturesErrorMessage(new Error('request failed (500)')), DELETE_GENERIC_MESSAGE);
 });
