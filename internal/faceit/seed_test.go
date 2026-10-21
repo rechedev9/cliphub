@@ -286,3 +286,30 @@ func TestSeedStoreRefreshKeepsTheLastDocumentOnFailure(t *testing.T) {
 		t.Fatalf("document = %#v, want the last good roster", doc.Players)
 	}
 }
+
+func TestSeedStoreRefreshIfStaleReusesARecentRoster(t *testing.T) {
+	t.Parallel()
+	store, err := NewSeedStore(filepath.Join(t.TempDir(), "zones.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := leaderboardServer(t, []rankedFixture{{id: "eu-0", region: "EU", country: "ru", elo: 4600}}, nil)
+	if _, err := store.RefreshIfStale(context.Background(), client, 5, time.Hour); err != nil {
+		t.Fatalf("stale embedded roster: %v", err)
+	}
+	refreshedAt := store.Document().GeneratedAt
+	// Every region fails, so any request would surface as an error.
+	broken := leaderboardServer(t, nil, map[string]bool{"EU": true, "NA": true, "SA": true, "OCE": true, "SEA": true})
+	broken.now = func() time.Time { return refreshedAt.Add(59 * time.Minute) }
+	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err != nil {
+		t.Fatalf("recent roster was refetched: %v", err)
+	}
+	broken.now = func() time.Time { return refreshedAt.Add(time.Hour) }
+	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
+		t.Fatal("roster at maxAge was reused, want a refresh")
+	}
+	broken.now = func() time.Time { return refreshedAt.Add(-time.Minute) }
+	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
+		t.Fatal("roster from the future was reused, want a refresh")
+	}
+}

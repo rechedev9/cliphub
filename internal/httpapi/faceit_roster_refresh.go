@@ -13,6 +13,10 @@ import (
 // followed profiles).
 const faceitRosterRefreshTimeout = 3 * time.Minute
 
+// faceitZoneRosterMaxAge is how long a stored zone roster is reused. Its
+// refresh costs about 160 FACEIT requests, too many for every Studio start.
+const faceitZoneRosterMaxAge = 6 * time.Hour
+
 // faceitRosterRefresh tracks the one background refresh of the seeded zone
 // rosters and the followed players' profiles that runs when Studio starts.
 // Before it existed the CIS/LATAM ELOs were whatever zones_default.json
@@ -59,7 +63,7 @@ func (h *Handlers) refreshFaceitRoster() {
 	// Each phase gets its own deadline: a zone refresh slowed down by 429
 	// backoff must not leave the followed profiles with an expired context.
 	seedCtx, cancelSeed := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
-	_, err := h.faceitSeeds.Refresh(seedCtx, h.faceit, faceit.SeedZoneLimit)
+	_, err := h.faceitSeeds.RefreshIfStale(seedCtx, h.faceit, faceit.SeedZoneLimit, faceitZoneRosterMaxAge)
 	cancelSeed()
 	if err != nil {
 		log.Printf("httpapi: refresh FACEIT zone rosters: %v", err)

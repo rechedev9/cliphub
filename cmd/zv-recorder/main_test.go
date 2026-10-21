@@ -516,58 +516,20 @@ func TestIsHookErrorWindowTitle(t *testing.T) {
 	}
 }
 
-func TestParseTasklistVerboseCSV(t *testing.T) {
+func TestJudgedWindowTitlePrefersTheHookCrashDialog(t *testing.T) {
 	tests := []struct {
-		name        string
-		out         string
-		image       string
-		wantRunning bool
-		wantTitle   string
+		name   string
+		titles []string
+		want   string
 	}{
-		{
-			name:        "running with normal title",
-			out:         `"cs2.exe","12345","Console","1","2,345,678 K","Running","DESKTOP\user","0:01:23","Counter-Strike 2"` + "\n",
-			image:       "cs2.exe",
-			wantRunning: true,
-			wantTitle:   "Counter-Strike 2",
-		},
-		{
-			name:        "running with hook-crash dialog title",
-			out:         `"cs2.exe","12345","Console","1","2,345,678 K","Running","DESKTOP\user","0:01:23","Error - AfxHookSource2"` + "\n",
-			image:       "cs2.exe",
-			wantRunning: true,
-			wantTitle:   "Error - AfxHookSource2",
-		},
-		{
-			name:        "no matching tasks line",
-			out:         "INFO: No tasks are running which match the specified criteria.\n",
-			image:       "cs2.exe",
-			wantRunning: false,
-			wantTitle:   "",
-		},
-		{
-			name:        "empty output",
-			out:         "",
-			image:       "cs2.exe",
-			wantRunning: false,
-			wantTitle:   "",
-		},
-		{
-			name:        "case-insensitive image match",
-			out:         `"CS2.EXE","12345","Console","1","2,345,678 K","Running","DESKTOP\user","0:01:23","Counter-Strike 2"` + "\n",
-			image:       "cs2.exe",
-			wantRunning: true,
-			wantTitle:   "Counter-Strike 2",
-		},
+		{"no windows", nil, ""},
+		{"game window only", []string{"Counter-Strike 2"}, ""},
+		{"dialog after the game window", []string{"Counter-Strike 2", "Error - AfxHookSource2"}, "Error - AfxHookSource2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotRunning, gotTitle := parseTasklistVerboseCSV(tt.out, tt.image)
-			if gotRunning != tt.wantRunning {
-				t.Errorf("running = %v, want %v", gotRunning, tt.wantRunning)
-			}
-			if gotTitle != tt.wantTitle {
-				t.Errorf("title = %q, want %q", gotTitle, tt.wantTitle)
+			if got := judgedWindowTitle(tt.titles); got != tt.want {
+				t.Errorf("judgedWindowTitle(%q) = %q, want %q", tt.titles, got, tt.want)
 			}
 		})
 	}
@@ -1293,123 +1255,6 @@ func TestSteamRootFromCS2Path(t *testing.T) {
 	}
 	if got := steamRootFromCS2Path(filepath.FromSlash("C:/tools/cs2.exe")); got != "" {
 		t.Errorf("steamRootFromCS2Path outside steamapps = %q, want empty", got)
-	}
-}
-
-// fakeWindowTitlePollerClock lets tests advance a windowTitlePoller's notion
-// of "now" deterministically instead of sleeping, so the 5s throttling
-// cadence is verifiable in milliseconds.
-type fakeWindowTitlePollerClock struct {
-	current time.Time
-}
-
-func (c *fakeWindowTitlePollerClock) now() time.Time { return c.current }
-
-func (c *fakeWindowTitlePollerClock) advance(d time.Duration) { c.current = c.current.Add(d) }
-
-func TestWindowTitlePollerThrottlesExpensiveTitleLookup(t *testing.T) {
-	clock := &fakeWindowTitlePollerClock{current: time.Unix(0, 0)}
-	var titleCalls, cheapCalls int
-	poller := newWindowTitlePoller(
-		5*time.Second,
-		clock.now,
-		func(string) (bool, string, error) {
-			titleCalls++
-			return true, "cs2", nil
-		},
-		func(string) (bool, error) {
-			cheapCalls++
-			return true, nil
-		},
-	)
-
-	steps := []struct {
-		name           string
-		advance        time.Duration
-		wantTitleCalls int
-		wantCheapCalls int
-	}{
-		{name: "first call always does the slow lookup", advance: 0, wantTitleCalls: 1, wantCheapCalls: 0},
-		{name: "next tick well inside the interval stays cheap", advance: 500 * time.Millisecond, wantTitleCalls: 1, wantCheapCalls: 1},
-		{name: "still inside the interval stays cheap", advance: 4 * time.Second, wantTitleCalls: 1, wantCheapCalls: 2},
-		{name: "crossing the interval re-does the slow lookup", advance: 600 * time.Millisecond, wantTitleCalls: 2, wantCheapCalls: 2},
-		{name: "interval resets after the slow lookup", advance: 500 * time.Millisecond, wantTitleCalls: 2, wantCheapCalls: 3},
-	}
-	for _, step := range steps {
-		t.Run(step.name, func(t *testing.T) {
-			clock.advance(step.advance)
-			if _, _, err := poller.status("cs2.exe"); err != nil {
-				t.Fatalf("status() error = %v", err)
-			}
-			if titleCalls != step.wantTitleCalls {
-				t.Errorf("titleCalls = %d, want %d", titleCalls, step.wantTitleCalls)
-			}
-			if cheapCalls != step.wantCheapCalls {
-				t.Errorf("cheapCalls = %d, want %d", cheapCalls, step.wantCheapCalls)
-			}
-		})
-	}
-}
-
-func TestWindowTitlePollerDetectsHookErrorWithinTitleInterval(t *testing.T) {
-	clock := &fakeWindowTitlePollerClock{current: time.Unix(0, 0)}
-	const titleInterval = 5 * time.Second
-	poller := newWindowTitlePoller(
-		titleInterval,
-		clock.now,
-		func(string) (bool, string, error) { return true, "Error - AfxHookSource2", nil },
-		func(string) (bool, error) { return true, nil },
-	)
-
-	// Simulate the recorder's 500ms poll ticks: the cheap ticks in between
-	// report no title, but the next slow tick at or after titleInterval must
-	// still surface the hook-error dialog title well inside the accepted
-	// <10s detection budget.
-	elapsed := time.Duration(0)
-	var lastTitle string
-	for elapsed <= 2*titleInterval {
-		_, title, err := poller.status("cs2.exe")
-		if err != nil {
-			t.Fatalf("status() error = %v", err)
-		}
-		if title != "" {
-			lastTitle = title
-			break
-		}
-		clock.advance(500 * time.Millisecond)
-		elapsed += 500 * time.Millisecond
-	}
-	if !isHookErrorWindowTitle(lastTitle) {
-		t.Fatalf("hook error title not detected within %s, got %q at elapsed=%s", 2*titleInterval, lastTitle, elapsed)
-	}
-	if elapsed > titleInterval {
-		t.Fatalf("hook error detected after %s, want within titleInterval %s", elapsed, titleInterval)
-	}
-}
-
-func TestWindowTitlePollerPropagatesTitleLookupError(t *testing.T) {
-	wantErr := errors.New("tasklist unavailable")
-	poller := newWindowTitlePoller(
-		5*time.Second,
-		func() time.Time { return time.Unix(0, 0) },
-		func(string) (bool, string, error) { return false, "", wantErr },
-		func(string) (bool, error) {
-			t.Fatal("cheap status should not run when the slow lookup fails")
-			return false, nil
-		},
-	)
-	if _, _, err := poller.status("cs2.exe"); !errors.Is(err, wantErr) {
-		t.Fatalf("status() error = %v, want %v", err, wantErr)
-	}
-}
-
-func TestWindowTitlePollerDefaultsToRealStatusFunctions(t *testing.T) {
-	poller := newWindowTitlePoller(5*time.Second, nil, nil, nil)
-	if poller.now == nil {
-		t.Fatal("now defaults to a non-nil clock")
-	}
-	if poller.titleStatus == nil || poller.cheapStatus == nil {
-		t.Fatal("titleStatus and cheapStatus default to non-nil implementations")
 	}
 }
 

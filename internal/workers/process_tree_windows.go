@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/rechedev9/cliphub/internal/winproc"
 )
 
 const (
@@ -22,35 +23,6 @@ const (
 	// treeMaxRounds bounds the walk; every round ends one more generation.
 	treeMaxRounds = 32
 )
-
-type listedProcess struct {
-	pid    uint32
-	parent uint32
-	exe    string
-}
-
-func listProcesses() ([]listedProcess, error) {
-	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return nil, fmt.Errorf("list processes: %w", err)
-	}
-	defer windows.CloseHandle(snapshot)
-	var entry windows.ProcessEntry32
-	// #nosec G103 G115 -- Process32First needs the size of its own struct.
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	var listed []listedProcess
-	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
-		listed = append(listed, listedProcess{
-			pid:    entry.ProcessID,
-			parent: entry.ParentProcessID,
-			exe:    windows.UTF16ToString(entry.ExeFile[:]),
-		})
-	}
-	if !errors.Is(err, windows.ERROR_NO_MORE_FILES) {
-		return nil, fmt.Errorf("list processes: %w", err)
-	}
-	return listed, nil
-}
 
 // treeMember is a process that is being ended, held open so its pid cannot
 // be given to another process before the walk is over.
@@ -84,7 +56,7 @@ func endDescendants(members map[uint32]treeMember) (ended int, err error) {
 		}
 	}()
 	for range treeMaxRounds {
-		listed, listErr := listProcesses()
+		listed, listErr := winproc.List()
 		if listErr != nil {
 			err = listErr
 			break
@@ -93,11 +65,11 @@ func endDescendants(members map[uint32]treeMember) (ended int, err error) {
 		windows.GetSystemTimePreciseAsFileTime(&listedAt)
 		found := 0
 		for _, process := range listed {
-			parent, hasParent := members[process.parent]
-			if _, known := members[process.pid]; known || !hasParent {
+			parent, hasParent := members[process.ParentPID]
+			if _, known := members[process.PID]; known || !hasParent {
 				continue
 			}
-			member, openErr := openTreeMember(process.pid)
+			member, openErr := openTreeMember(process.PID)
 			if openErr != nil {
 				// Already gone, or a process this user may not end.
 				continue
@@ -109,7 +81,7 @@ func endDescendants(members map[uint32]treeMember) (ended int, err error) {
 				continue
 			}
 			_ = windows.TerminateProcess(member.handle, 1)
-			members[process.pid] = member
+			members[process.PID] = member
 			found++
 		}
 		ended += found
@@ -176,7 +148,7 @@ func endProcessesOf(executables []string) (int, error) {
 	if len(wanted) == 0 {
 		return 0, nil
 	}
-	listed, err := listProcesses()
+	listed, err := winproc.List()
 	if err != nil {
 		return 0, err
 	}
@@ -184,10 +156,10 @@ func endProcessesOf(executables []string) (int, error) {
 	self := uint32(os.Getpid())
 	roots := map[uint32]treeMember{}
 	for _, process := range listed {
-		if process.pid == self || !names[strings.ToLower(process.exe)] {
+		if process.PID == self || !names[strings.ToLower(process.Exe)] {
 			continue
 		}
-		member, err := openTreeMember(process.pid)
+		member, err := openTreeMember(process.PID)
 		if err != nil {
 			continue
 		}
@@ -197,7 +169,7 @@ func endProcessesOf(executables []string) (int, error) {
 			continue
 		}
 		_ = windows.TerminateProcess(member.handle, 1)
-		roots[process.pid] = member
+		roots[process.PID] = member
 	}
 	if len(roots) == 0 {
 		return 0, nil
