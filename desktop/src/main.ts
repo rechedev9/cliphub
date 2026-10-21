@@ -543,21 +543,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     if (!attempt.controller.signal.aborted) logLine(`[music] provision failed: ${String(err)}\n`);
   });
 
-  setLoadingStatus('Preparando herramientas (solo el primer arranque)…');
-  const toolEnv = await provisionRuntimeTools(
-    {
-      toolsDir: path.join(app.getPath('userData'), 'tools'),
-      bundledHLAEArchive: resourcePath('hlae', PINNED_HLAE_TOOL.archiveName),
-      resolveLatestHLAE: fetchLatestHLAERelease,
-      logLine,
-      signal: attempt.controller.signal,
-    },
-    (name, detail) =>
-      setLoadingStatus(`Preparando ${RUNTIME_TOOL_LABELS[name]}${detail ? ` (${detail})` : ''}…`),
-  );
-  assertBootAttemptActive(attempt);
-
-  // Probe ports after provisioning; first boot can take minutes.
   setLoadingStatus('Eligiendo puertos libres…');
   const security = createBootSecurityCapabilities();
   const { orchestrator: orchPort, web: webPort } = await allocateStableServicePorts({
@@ -571,6 +556,35 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   activeWebOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
   allowedOrigins.add(`http://${LOOPBACK_HOST}:${orchPort}`);
   allowedOrigins.add(activeWebOrigin);
+
+  // The web server needs no tools, so its startup overlaps provisioning.
+  // If the orchestrator port is taken meanwhile, the boot fails and the next attempt picks a new one.
+  const web = attempt.processes.launch('web', process.execPath, [nextServer], {
+    ELECTRON_RUN_AS_NODE: '1',
+    NODE_ENV: 'production',
+    PORT: String(webPort),
+    HOSTNAME: LOOPBACK_HOST,
+    ORCHESTRATOR_URL: orchestratorUrl,
+    NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
+    ...webSecurityEnvironment(security),
+    // Orchestrator unsets this itself; the Next child would inherit it.
+    XAI_API_KEY: undefined,
+  });
+
+  setLoadingStatus('Preparando herramientas (solo el primer arranque)…');
+  // A web crash meanwhile surfaces through childExited once provisioning ends.
+  const toolEnv = await provisionRuntimeTools(
+    {
+      toolsDir: path.join(app.getPath('userData'), 'tools'),
+      bundledHLAEArchive: resourcePath('hlae', PINNED_HLAE_TOOL.archiveName),
+      resolveLatestHLAE: fetchLatestHLAERelease,
+      logLine,
+      signal: attempt.controller.signal,
+    },
+    (name, detail) =>
+      setLoadingStatus(`Preparando ${RUNTIME_TOOL_LABELS[name]}${detail ? ` (${detail})` : ''}…`),
+  );
+  assertBootAttemptActive(attempt);
 
   setLoadingStatus('Iniciando el orquestador…');
   const orch = attempt.processes.launch(
@@ -591,19 +605,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       cloudEnvironment: cloudEnvironment(process.env, app.getVersion()),
     }),
   );
-
-  setLoadingStatus('Iniciando el servidor web…');
-  const web = attempt.processes.launch('web', process.execPath, [nextServer], {
-    ELECTRON_RUN_AS_NODE: '1',
-    NODE_ENV: 'production',
-    PORT: String(webPort),
-    HOSTNAME: LOOPBACK_HOST,
-    ORCHESTRATOR_URL: orchestratorUrl,
-    NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
-    ...webSecurityEnvironment(security),
-    // Orchestrator unsets this itself; the Next child would inherit it.
-    XAI_API_KEY: undefined,
-  });
 
   // Either child dying is terminal during either health wait. Cancelling the
   // attempt also tears down whichever HTTP poll loses the race.
