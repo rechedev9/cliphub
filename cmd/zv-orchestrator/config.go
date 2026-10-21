@@ -33,6 +33,7 @@ type config struct {
 	FFmpegPath        string
 	FFprobePath       string
 	MusicDir          string
+	KeepDemoCaptures  bool
 	RecordTimeout     string
 	ComposeTimeout    string
 	RenderTimeout     string
@@ -108,11 +109,12 @@ func loadConfig() (config, error) {
 		YtdlpPath:     os.Getenv("ZV_YTDLP_PATH"),
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
-		FirecrawlAPIKey: os.Getenv(firecrawlAPIKeyEnvironmentVariable),
-		FaceitAPIKey:    faceitAPIKeyFromConfigSources(),
-		BridgeURL:       os.Getenv("ZV_BRIDGE_URL"),
-		BridgeToken:     os.Getenv(bridgeTokenEnvironmentVariable),
-		StudioVersion:   strings.TrimSpace(os.Getenv("ZV_STUDIO_VERSION")),
+		FirecrawlAPIKey:  os.Getenv(firecrawlAPIKeyEnvironmentVariable),
+		FaceitAPIKey:     faceitAPIKeyFromConfigSources(),
+		BridgeURL:        os.Getenv("ZV_BRIDGE_URL"),
+		BridgeToken:      os.Getenv(bridgeTokenEnvironmentVariable),
+		StudioVersion:    strings.TrimSpace(os.Getenv("ZV_STUDIO_VERSION")),
+		KeepDemoCaptures: os.Getenv("ZV_KEEP_FULL_DEMO_CAPTURES") == "1",
 	}
 	// The music library defaults to <DataDir>/music, where the repo keeps the
 	// catalog and scripts/fetch-music.sh downloads the audio, so an unset

@@ -221,6 +221,8 @@ func run() error {
 			Timeout:     cfg.RenderTimeout,
 			MusicDir:    cfg.MusicDir,
 			Faceit:      faceitClient,
+
+			KeepFullDemoCaptures: cfg.KeepDemoCaptures,
 		})
 		renderWorker.UseGenerateIntentStore(generateIntents)
 		taskHandlers[tasks.TypeRenderVariant] = renderWorker.HandleRenderVariant

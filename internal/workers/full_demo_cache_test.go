@@ -5,16 +5,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/storage"
 )
 
 // Model only the storage contract. These bytes and receipts never enter the
@@ -215,5 +220,49 @@ func TestFullDemoCommittedCaptureChecksContent(t *testing.T) {
 				t.Fatalf("ready = %v, err = %v", ready, err)
 			}
 		})
+	}
+}
+
+func TestFullDemoDiscardedCapturesAskForARecapture(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	result, dir, resultPath := fullDemoPublicationFixture(t, "original clip")
+	if _, err := uploadFullDemoRecordingOutputs(store, id, dir, resultPath, result, result, false); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := decodeStoredRecordingResult(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := stored.SegmentClipKey(id, "round-001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	superseded := path.Join(artifacts.FullDemoCapturePrefix(id, uuid.New()), "segments", "round-001.mp4")
+	if err := store.Put(superseded, strings.NewReader("older attempt")); err != nil {
+		t.Fatal(err)
+	}
+	NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{KeepFullDemoCaptures: true}).discardFullDemoCaptures(id)
+	if exists, err := store.Exists(key); err != nil || !exists {
+		t.Fatalf("%s with KeepFullDemoCaptures: exists = %v, err = %v", key, exists, err)
+	}
+	w := NewRenderWorker(newFakeRepo(), store, RenderWorkerConfig{})
+	w.discardFullDemoCaptures(id)
+	for _, clip := range []string{key, superseded} {
+		if exists, err := store.Exists(clip); err != nil || exists {
+			t.Fatalf("%s survived a ready render: exists = %v, err = %v", clip, exists, err)
+		}
+	}
+	if _, err := decodeStoredRecordingResult(store, id); err != nil {
+		t.Fatalf("recording result must stay: %v", err)
+	}
+	if ready, err := recordingCommitReady(store, id, stored, context.Background()); ready || err != nil {
+		t.Fatalf("recordingCommitReady = %v, %v; want a recapture", ready, err)
+	}
+	if err := w.verifyFullDemoCaptureContent(context.Background(), id, stored); !recording.IsNotReusableMessage(fmt.Sprint(err)) {
+		t.Fatalf("a new render error = %v, want recording_not_reusable", err)
 	}
 }

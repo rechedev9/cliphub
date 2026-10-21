@@ -48,11 +48,35 @@ export function deleteErrorMessage(err: unknown): string {
   return e.message;
 }
 
+export const CAPTURES_JOB_BUSY_MESSAGE = 'Espera a que termine el análisis o la captura para borrar las capturas.';
+export const CAPTURES_RENDER_BUSY_MESSAGE = 'Espera a que termine el render para borrar las capturas.';
+export const CAPTURES_NO_RENDER_MESSAGE = 'Este vídeo largo aún no tiene el render final. Sus capturas siguen haciendo falta.';
+export const CAPTURES_JOB_GONE_MESSAGE = 'Este vídeo ya no está en Studio.';
+
+const CAPTURES_ERROR_MESSAGES: Record<string, string> = {
+  [GENERATE_WORK_ACTIVE_CODE]: CAPTURES_RENDER_BUSY_MESSAGE,
+  job_busy: CAPTURES_JOB_BUSY_MESSAGE,
+  no_full_demo_render: CAPTURES_NO_RENDER_MESSAGE,
+};
+
+/** Like deleteErrorMessage, for "Borrar capturas" in Ajustes, Almacenamiento. */
+export function deleteCapturesErrorMessage(err: unknown): string {
+  const field = (key: string): unknown => (typeof err === 'object' && err !== null ? Reflect.get(err, key) : undefined);
+  const code = field('code');
+  const known = typeof code === 'string' && Object.hasOwn(CAPTURES_ERROR_MESSAGES, code) ? CAPTURES_ERROR_MESSAGES[code] : undefined;
+  if (known !== undefined) return known;
+  if (field('status') === 404) return CAPTURES_JOB_GONE_MESSAGE;
+  return deleteErrorMessage(err);
+}
+
 /** Wait copy is a notice. Anything else under the row is a failed delete. */
 const DELETE_NOTICE_MESSAGES = new Set<string>([
   DELETE_JOB_BUSY_MESSAGE,
   DELETE_RENDER_BUSY_MESSAGE,
   DELETE_STREAM_BUSY_MESSAGE,
+  CAPTURES_JOB_BUSY_MESSAGE,
+  CAPTURES_RENDER_BUSY_MESSAGE,
+  CAPTURES_NO_RENDER_MESSAGE,
 ]);
 
 export function deleteFeedbackTone(message: string): 'notice' | 'error' {

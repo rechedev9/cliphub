@@ -97,8 +97,13 @@ func FullDemoVoicePrefix(id uuid.UUID, contentHash string) (string, error) {
 	return path.Join(JobPrefix(id), "full-demo", "voice", contentHash), nil
 }
 
+// FullDemoCaptureRevisionsPrefix holds one dir per Full Demo capture attempt.
+func FullDemoCaptureRevisionsPrefix(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "recording", "revisions")
+}
+
 func FullDemoCapturePrefix(id, attemptID uuid.UUID) string {
-	return path.Join(JobPrefix(id), "recording", "revisions", attemptID.String())
+	return path.Join(FullDemoCaptureRevisionsPrefix(id), attemptID.String())
 }
 
 func MediaAssetProvenanceKey(id uuid.UUID) string {

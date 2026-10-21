@@ -14,6 +14,7 @@ import {
   TACTICAL_TENDENCIES_KEYS,
 } from '@/lib/api/tactical';
 import { parseCaptureProgress } from '@/lib/capture-progress';
+import { projectFreedBytes, projectStorageUsage } from '@/lib/api/storage';
 import {
   orchestratorUrl,
   forwardError,
@@ -104,6 +105,27 @@ export async function localDeleteJob(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
   return new Response(null, { status: 204 });
+}
+
+/** GET /api/demos/storage: disk use per job folder, camelCased and whitelisted. */
+export async function localStorageUsage(): Promise<Response> {
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/storage`, { cache: 'no-store' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  const body: unknown = await res.json();
+  return NextResponse.json(projectStorageUsage(body), { headers: { 'cache-control': 'no-store' } });
+}
+
+/** DELETE /api/demos/{jobId}/captures: 200 with the freed bytes, or the orchestrator's 409/404. */
+export async function localDeleteJobCaptures(jobId: string): Promise<Response> {
+  const url = jobUrl(jobId, '/captures');
+  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
+
+  const res = await callOrchestrator(url, { method: 'DELETE' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  const body: unknown = await res.json();
+  return NextResponse.json(projectFreedBytes(body));
 }
 
 /** GET /api/demos/{jobId}/roster — pass through players and optional match. */

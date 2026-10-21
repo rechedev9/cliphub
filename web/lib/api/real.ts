@@ -38,6 +38,7 @@ import {
 import { reconcileReels } from './reconcile-batch.ts';
 import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
+import type { StorageUsage } from './storage.ts';
 import { parseCaptureProgress } from '../capture-progress.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
@@ -874,6 +875,16 @@ export class RealApiClient implements ApiClient {
     // 404 is already-gone success; any other non-2xx throws with the body.
     if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
     this.pruneJob(jobId);
+  }
+
+  async getStorage(): Promise<StorageUsage> {
+    return readJson<StorageUsage>(await this.send((dp) => ({ url: dp.storageUrl, init: { cache: 'no-store' } })));
+  }
+
+  async deleteJobCaptures(jobId: string): Promise<number> {
+    const res = await this.send((dp) => ({ url: dp.jobCapturesUrl(jobId), init: { method: 'DELETE' } }));
+    const body = await readJson<{ freedBytes: number }>(res);
+    return body.freedBytes;
   }
 
   /** Delete every demo in the series; a busy member surfaces as 409. */

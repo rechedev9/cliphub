@@ -15,6 +15,10 @@ export type DataPlane = {
   batchStatusUrl(items: ReadonlyArray<{ jobId: string; variant: string }>): string;
   /** DELETE target for removing a demo job (match) and its server-side artifacts. */
   jobDeleteUrl(jobId: string): string;
+  /** DELETE target for freeing a job's Full Demo round captures. */
+  jobCapturesUrl(jobId: string): string;
+  /** Disk use of every job folder (Ajustes, Almacenamiento). */
+  storageUrl: string;
   rosterUrl(jobId: string): string;
   /** The recent-jobs listing that Partidas rediscovers uploads/series from. */
   jobsUrl: string;
@@ -59,6 +63,8 @@ export function dataPlane(): DataPlane {
     batchStatusUrl: (items) =>
       `/api/demos/batch-status?items=${encodeURIComponent(items.map((item) => `${item.jobId}:${item.variant}`).join(','))}`,
     jobDeleteUrl: (jobId) => `/api/demos/${jobId}`,
+    jobCapturesUrl: (jobId) => `/api/demos/${jobId}/captures`,
+    storageUrl: '/api/demos/storage',
     rosterUrl: (jobId) => `/api/demos/${jobId}/roster`,
     jobsUrl: '/api/demos/jobs',
     seriesUrl: (seriesId) => `/api/demos/series/${seriesId}`,

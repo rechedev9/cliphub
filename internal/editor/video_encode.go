@@ -14,6 +14,10 @@ func validateVideoEncoder(encoder string) error {
 	}
 }
 
+// nvencCQOffset maps an x264 CRF to the NVENC CQ of the same SSIM on CS2
+// captures. At CQ 16 to 18 NVENC spends about 35 Mbps for no visible gain.
+const nvencCQOffset = 4
+
 func appendVideoEncodeArgs(command []string, short ShortEdit) []string {
 	crf := videoCRFForCommand(short.VideoCRF)
 	switch strings.TrimSpace(short.VideoEncoder) {
@@ -23,7 +27,7 @@ func appendVideoEncodeArgs(command []string, short ShortEdit) []string {
 			"-preset", "p5",
 			"-rc", "vbr",
 			"-b:v", "0",
-			"-cq", fmt.Sprintf("%d", crf),
+			"-cq", fmt.Sprintf("%d", min(crf+nvencCQOffset, 51)),
 			"-pix_fmt", "yuv420p",
 		)
 	default:

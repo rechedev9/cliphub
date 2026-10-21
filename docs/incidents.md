@@ -314,7 +314,9 @@ time first. The lab replays the inputs of a job's last render of a variant:
    writes `<data>/lab/<job>-gameplay-pov-60/` with the localized clips, the
    Full Demo execution and `editor-args.json`. It copies the clips (about 5 GB
    for a full match), needs one earlier render of the variant, and never
-   renders or writes render state.
+   renders or writes render state. Studio deletes the clips when a Full Demo
+   render is ready, so start Studio with `ZV_KEEP_FULL_DEMO_CAPTURES=1`
+   before that render to keep them for the lab.
 2. `zv-editor lab <mode> --bundle <dir>` runs one stage through the production
    code and writes `lab-evidence.json` under `<bundle>/lab-work/`:
    - `plan`: timeline items, overlay windows, transitions, clamped loudness

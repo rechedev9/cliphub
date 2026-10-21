@@ -277,6 +277,8 @@ type RenderWorkerConfig struct {
 	// AvatarFetch is an optional bounded downloader for the already-approved
 	// avatar URL snapshot. Tests use it to avoid network access.
 	AvatarFetch func(context.Context, string) ([]byte, error)
+	// KeepFullDemoCaptures keeps round clips after a render, for `zv full-demo lab-bundle`.
+	KeepFullDemoCaptures bool
 }
 
 // resolveMusicFile returns the first existing track file for key in dir, or ""
@@ -1962,14 +1964,16 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		}
 		return fmt.Errorf("fingerprint render inputs: %w", err)
 	}
-	if edit.FullDemo != nil {
-		if err := w.verifyFullDemoCaptureContent(ctx, j.ID, recordingResult); err != nil {
-			return err
-		}
-	}
 	ready, cachedWarnings, keys, err := renderVariantOutputsReadyContext(ctx, w.storage, j.ID, variant, inputFingerprint, previousState)
 	if err != nil {
 		return err
+	}
+	// The fingerprint already pins every clip digest, so a cached render needs
+	// no clip on disk: a ready Full Demo has deleted its captures.
+	if !ready && edit.FullDemo != nil {
+		if err := w.verifyFullDemoCaptureContent(ctx, j.ID, recordingResult); err != nil {
+			return err
+		}
 	}
 	if ready {
 		if previousState == nil || previousState.Status != renderplan.RenderVariantStatusReady || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
@@ -2113,6 +2117,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return fmt.Errorf("write ready render state: %w", err)
 	}
 	revisionCommitted = true
+	if edit.FullDemo != nil {
+		w.discardFullDemoCaptures(j.ID)
+	}
 	// A request may have resolved the previous state before this pointer swap
 	// and open its artifacts afterward. Retain every published revision until
 	// the whole job is deleted; only the deferred uncommitted cleanup is safe.

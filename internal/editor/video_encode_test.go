@@ -8,13 +8,16 @@ import (
 func TestAppendVideoEncodeArgsNVENC(t *testing.T) {
 	args := appendVideoEncodeArgs(nil, ShortEdit{VideoEncoder: VideoEncoderNVENC, VideoCRF: 16})
 	got := strings.Join(args, " ")
-	for _, want := range []string{"-c:v h264_nvenc", "-preset p5", "-rc vbr", "-cq 16", "-pix_fmt yuv420p"} {
+	for _, want := range []string{"-c:v h264_nvenc", "-preset p5", "-rc vbr", "-cq 20", "-pix_fmt yuv420p"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("appendVideoEncodeArgs() = %q, missing %q", got, want)
 		}
 	}
 	if strings.Contains(got, "libx264") {
 		t.Fatalf("appendVideoEncodeArgs() = %q, must not contain libx264", got)
+	}
+	if got := strings.Join(appendVideoEncodeArgs(nil, ShortEdit{VideoEncoder: VideoEncoderNVENC, VideoCRF: 50}), " "); !strings.Contains(got, "-cq 51 ") {
+		t.Fatalf("appendVideoEncodeArgs(crf 50) = %q, want the CQ capped at 51", got)
 	}
 }
 

@@ -2,6 +2,7 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
+import type { StorageUsage } from './storage.ts';
 
 export interface ApiClient {
   getCaptureReadiness(): Promise<CaptureReadiness>;
@@ -31,5 +32,8 @@ export interface ApiClient {
   /** 404 is success; 409/503 throw. */
   deleteMatch(jobId: string): Promise<void>;
   deleteSeries(seriesId: string): Promise<void>;
+  getStorage(): Promise<StorageUsage>;
+  /** Frees a job's Full Demo round captures; resolves to the bytes freed. 404/409/503 throw. */
+  deleteJobCaptures(jobId: string): Promise<number>;
   listFeed(): Promise<FeedItem[]>;
 }
