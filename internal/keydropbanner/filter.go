@@ -144,23 +144,3 @@ func resolveVisibleWindow(start, end, duration float64) (float64, float64) {
 func floatArg(v float64) string {
 	return strconv.FormatFloat(v, 'f', 6, 64)
 }
-
-// ffmpegFilterPath escapes a filesystem path for embedding in an ffmpeg
-// filtergraph (drawtext fontfile). Always uses forward slashes.
-func ffmpegFilterPath(path string) string {
-	path = strings.ReplaceAll(path, `\`, `/`)
-	path = strings.ReplaceAll(path, `'`, `\'`)
-	path = strings.ReplaceAll(path, `:`, `\:`)
-	path = strings.ReplaceAll(path, `[`, `\[`)
-	path = strings.ReplaceAll(path, `]`, `\]`)
-	return path
-}
-
-// ffmpegDrawtextText escapes user text for drawtext's text= option.
-func ffmpegDrawtextText(text string) string {
-	text = strings.ReplaceAll(text, `\`, `\\`)
-	text = strings.ReplaceAll(text, `'`, `\'`)
-	text = strings.ReplaceAll(text, `:`, `\:`)
-	text = strings.ReplaceAll(text, `%`, `%%`)
-	return text
-}

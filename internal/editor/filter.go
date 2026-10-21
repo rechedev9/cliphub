@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/rechedev9/cliphub/internal/demooverlay"
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
@@ -852,7 +853,7 @@ func drawTextEffect(effect Effect) string {
 		}
 	}
 	if fontFile != "" {
-		fontOption = fmt.Sprintf(":fontfile='%s'", escapeDrawtextOption(filepath.ToSlash(fontFile)))
+		fontOption = ":fontfile=" + ffmpegfilter.Path(fontFile)
 	}
 	boxOption := "box=0"
 	if effect.BoxColor != "none" {
@@ -875,8 +876,8 @@ func drawTextEffect(effect Effect) string {
 		alphaOption = fmt.Sprintf(":alpha='%s'", alpha)
 	}
 	return fmt.Sprintf(
-		"drawtext=text='%s'%s:x=%s:y=%s:fontsize=%d:fontcolor=%s:%s%s%s%s:enable='%s'",
-		escapeDrawtextText(effect.Value),
+		"drawtext=text=%s:expansion=none%s:x=%s:y=%s:fontsize=%d:fontcolor=%s:%s%s%s%s:enable='%s'",
+		ffmpegfilter.Value(effect.Value),
 		fontOption,
 		effect.X,
 		effect.Y,
@@ -993,23 +994,6 @@ func betweenExpression(start, end float64) string {
 		end = start
 	}
 	return fmt.Sprintf("between(t\\,%.3f\\,%.3f)", start, end)
-}
-
-func escapeDrawtextText(text string) string {
-	return escapeDrawtextOption(text)
-}
-
-func escapeDrawtextOption(text string) string {
-	replacer := strings.NewReplacer(
-		`\`, `\\`,
-		`'`, `\'`,
-		`:`, `\:`,
-		`,`, `\,`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`%`, `\%`,
-	)
-	return replacer.Replace(text)
 }
 
 func outputDimensions(short ShortEdit) (int, int) {

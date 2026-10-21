@@ -151,26 +151,3 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 		}
 	}
 }
-
-func TestFfmpegDrawtextTextEscaping(t *testing.T) {
-	// Every drawtext clause sets expansion=none, so % must stay single:
-	// doubling it painted "79%%" on intro/outro HS cells.
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "percent stays literal", in: "79%", want: "79%"},
-		{name: "label percent stays literal", in: "HS%", want: "HS%"},
-		{name: "colon escaped", in: "K:D", want: `K\:D`},
-		{name: "quote escaped", in: "pl'yer", want: `pl\'yer`},
-		{name: "backslash escaped", in: `a\b`, want: `a\\b`},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := ffmpegDrawtextText(tc.in); got != tc.want {
-				t.Fatalf("ffmpegDrawtextText(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
-}
