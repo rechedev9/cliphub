@@ -121,13 +121,16 @@ try {
     foreach ($name in $commands) {
         $out = Join-Path $stagingDir "$name.exe"
         $pkg = "./cmd/$name"
+        # -s -w drops the symbol table and DWARF (about a quarter of each binary);
+        # panic stack traces still resolve through the runtime pclntab.
+        $ldflags = "-s -w"
+        $shownFlags = $ldflags
         if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
-            Write-Host "go build -ldflags [faceit-embed] -o $out $pkg"
-            & go build -ldflags "-X main.embeddedFaceitAPIKey=$faceitEmbedKey" -o $out $pkg
-        } else {
-            Write-Host "go build -o $out $pkg"
-            & go build -o $out $pkg
+            $ldflags += " -X main.embeddedFaceitAPIKey=$faceitEmbedKey"
+            $shownFlags += " faceit-embed"
         }
+        Write-Host "go build -ldflags [$shownFlags] -o $out $pkg"
+        & go build -ldflags $ldflags -o $out $pkg
         if ($LASTEXITCODE -ne 0) {
             throw "go build failed for $pkg"
         }
