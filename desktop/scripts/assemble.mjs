@@ -14,7 +14,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { environmentWithoutXAIAPIKey } from './build-environment.mjs';
 import { stageBundledHLAE } from './hlae-bundle.mjs';
-import { pruneSharpPlatforms } from './standalone-runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
@@ -87,7 +86,6 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, 'bin'), { recursive: true });
 
 cpSync(standalone, join(out, 'web'), { recursive: true });
-pruneSharpPlatforms(join(out, 'web', 'node_modules'));
 cpSync(join(web, '.next', 'static'), join(out, 'web', '.next', 'static'), { recursive: true });
 const publicDir = join(web, 'public');
 if (existsSync(publicDir)) cpSync(publicDir, join(out, 'web', 'public'), { recursive: true });

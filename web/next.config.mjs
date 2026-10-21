@@ -33,6 +33,10 @@ export default {
   // server.js. Desktop packaging relies on the flat layout, so make it
   // deterministic regardless of where the repo is checked out.
   outputFileTracingRoot: here,
+  // No next/image optimization: /_next/image returns 404 and Sharp never loads,
+  // so the standalone trace leaves out Sharp and its ~19 MB native runtime.
+  images: { unoptimized: true },
+  outputFileTracingExcludes: { 'next-server': ['**/node_modules/sharp/**', '**/node_modules/@img/**'] },
   webpack(config) {
     // The algorithms guide is Markdown bundled as text, so no runtime file read.
     config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
