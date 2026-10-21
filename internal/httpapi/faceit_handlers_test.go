@@ -399,7 +399,7 @@ func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	now := faceit.DefaultSeed().GeneratedAt.Add(time.Hour)
+	now := faceit.DefaultSeed().GeneratedAt.Add(faceitZoneRosterMaxAge)
 	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
 		Now: func() time.Time { return now }})
 	if err != nil {
@@ -463,11 +463,21 @@ func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 		t.Fatalf("list after refresh reached FACEIT: hits %d -> %d", hits, faceitHits.Load())
 	}
 
-	// A failed refresh (the next start) keeps the last good roster.
+	// A restart inside the reuse window refreshes only the followed profiles.
+	hits = faceitHits.Load()
+	h.StartFaceitRosterRefresh()
+	h.faceitRoster.wg.Wait()
+	if got := faceitHits.Load() - hits; got != 1 {
+		t.Fatalf("restart inside the window made %d FACEIT requests, want only the followed profile", got)
+	}
+
+	// A failed refresh (a later start) keeps the last good roster.
+	refreshedAt := now
+	now = now.Add(faceitZoneRosterMaxAge)
 	failRankings.Store(true)
 	h.StartFaceitRosterRefresh()
 	h.faceitRoster.wg.Wait()
-	if _, updatedAt, players := list(); !updatedAt.Equal(now) || players[1].ELO != 4801 {
+	if _, updatedAt, players := list(); !updatedAt.Equal(refreshedAt) || players[1].ELO != 4801 {
 		t.Fatalf("after failed refresh updated_at=%v players=%#v, want the last roster", updatedAt, players)
 	}
 }

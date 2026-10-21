@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,13 +13,13 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/winproc"
 )
 
 const (
 	steamImage = "steam.exe"
 	cs2Image   = "cs2.exe"
-	// Process checks shell out, so while a capture records they are reused
-	// for a while instead of competing with CS2 on every heartbeat.
+	// A Steam check is reused for a while, longer while a capture records.
 	steamCheckIdleTTL = 10 * time.Second
 	steamCheckBusyTTL = 60 * time.Second
 )
@@ -113,6 +114,16 @@ func (m *SystemMachine) steam(ctx context.Context, capturing bool) bool {
 	m.steamRunning = err == nil && running
 	m.steamChecked = m.now()
 	return m.steamRunning
+}
+
+// processRunning uses the same in-process check as zv-recorder. Off Windows it
+// answers no, so a worker there stays blocked instead of claiming jobs.
+func processRunning(_ context.Context, image string) (bool, error) {
+	running, err := winproc.Running(image)
+	if err != nil {
+		return false, fmt.Errorf("list %s processes: %w", image, err)
+	}
+	return running, nil
 }
 
 // CS2Running reports whether a cs2.exe is alive. The recorder refuses to

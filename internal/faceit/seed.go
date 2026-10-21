@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
 )
@@ -179,6 +180,19 @@ func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (See
 		return SeedDocument{}, err
 	}
 	return doc, nil
+}
+
+// RefreshIfStale refreshes only when the stored roster is at least maxAge old
+// by the client's clock, so restarting Studio does not refetch every ladder.
+func (s *SeedStore) RefreshIfStale(ctx context.Context, client *Client, limit int, maxAge time.Duration) (SeedDocument, error) {
+	if s != nil && client != nil {
+		// A negative age means the clock went back: refresh rather than trust it.
+		doc := s.Document()
+		if age := client.now().Sub(doc.GeneratedAt); age >= 0 && age < maxAge {
+			return doc, nil
+		}
+	}
+	return s.Refresh(ctx, client, limit)
 }
 
 // seedPlayers stamps the zone and the merged zone order onto the rows.

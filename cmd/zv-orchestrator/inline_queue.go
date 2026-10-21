@@ -476,6 +476,13 @@ func (q *inlineQueue) finishClosePending(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+var demoReadingTasks = map[string]bool{
+	tasks.TypeParseDemo:        true,
+	tasks.TypeScanRoster:       true,
+	tasks.TypeAnalyzeAnticheat: true,
+	tasks.TypeAnalyzeTactical:  true,
+}
+
 func (q *inlineQueue) run(ctx context.Context, lane *inlineTaskQueue) {
 	defer q.wg.Done()
 	for {
@@ -495,6 +502,11 @@ func (q *inlineQueue) run(ctx context.Context, lane *inlineTaskQueue) {
 		err := q.process(ctx, queued, handler)
 		if err != nil {
 			log.Printf("inline queue: %s failed: %v", task.Type(), err)
+		}
+		// Hand the heap back to Windows now: Go would keep the ~80 MB a demo
+		// parse leaves for minutes, while CS2 starts its capture.
+		if demoReadingTasks[task.Type()] {
+			debug.FreeOSMemory()
 		}
 	}
 }

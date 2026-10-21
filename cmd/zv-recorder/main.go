@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -29,6 +28,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/winproc"
 )
 
 func main() {
@@ -1246,17 +1246,7 @@ func locateHookDLL(hlaeExe string) (string, error) {
 // until the recorder's global timeout fires.
 const captureCloseGracePeriod = 15 * time.Second
 
-// windowTitlePollInterval bounds how often waitForWindowsProcessRunAndExit
-// shells out to the expensive `tasklist /V` window-title lookup. The cheap
-// `tasklist` (no /V) liveness check still runs on every pollInterval tick;
-// only the verbose title lookup used to detect the "Error - Afx*" hook-crash
-// dialog is throttled, since `/V` enumerates every windowed process on the
-// system and otherwise runs ~2000 times per capture in contention with the
-// single cs2.exe process and the encoder.
-const windowTitlePollInterval = 5 * time.Second
-
 func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleLog *cs2ConsoleLogMonitor) error {
-	titlePoller := newWindowTitlePoller(windowTitlePollInterval, nil, nil, nil)
 	return waitForWindowsProcessRunAndExitWith(
 		ctx,
 		image,
@@ -1265,7 +1255,7 @@ func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleL
 		captureCloseGracePeriod,
 		func() bool { return consoleLog != nil && consoleLog.captureVerified },
 		func(image string) (bool, string, error) {
-			running, title, err := titlePoller.status(image)
+			running, title, err := processWindowTitle(image)
 			if err != nil {
 				return running, title, err
 			}
@@ -1278,62 +1268,6 @@ func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleL
 		},
 		terminateWindowsProcess,
 	)
-}
-
-// windowTitlePoller throttles tasklistWindowTitle's `/V` window-title lookup
-// to titleInterval, falling back to the cheap processRunning liveness check
-// (no `/V`, no title) on the ticks in between. status() reports an empty
-// title on the cheap ticks, so a hook-crash dialog is detected on the next
-// slow tick rather than immediately; that trades up to titleInterval of
-// detection latency for far fewer `tasklist /V` invocations per capture.
-type windowTitlePoller struct {
-	titleInterval time.Duration
-	now           func() time.Time
-	titleStatus   func(string) (bool, string, error)
-	cheapStatus   func(string) (bool, error)
-	lastChecked   time.Time
-	haveChecked   bool
-}
-
-// newWindowTitlePoller builds a windowTitlePoller. titleStatus and
-// cheapStatus default to tasklistWindowTitle and processRunning respectively
-// when nil, and now defaults to time.Now; tests inject fakes for all three so
-// the throttling cadence is verifiable without shelling out or sleeping.
-func newWindowTitlePoller(
-	titleInterval time.Duration,
-	now func() time.Time,
-	titleStatus func(string) (bool, string, error),
-	cheapStatus func(string) (bool, error),
-) *windowTitlePoller {
-	if now == nil {
-		now = time.Now
-	}
-	if titleStatus == nil {
-		titleStatus = tasklistWindowTitle
-	}
-	if cheapStatus == nil {
-		cheapStatus = processRunning
-	}
-	return &windowTitlePoller{
-		titleInterval: titleInterval,
-		now:           now,
-		titleStatus:   titleStatus,
-		cheapStatus:   cheapStatus,
-	}
-}
-
-func (p *windowTitlePoller) status(image string) (running bool, title string, err error) {
-	if !p.haveChecked || p.now().Sub(p.lastChecked) >= p.titleInterval {
-		running, title, err = p.titleStatus(image)
-		if err != nil {
-			return running, title, err
-		}
-		p.haveChecked = true
-		p.lastChecked = p.now()
-		return running, title, nil
-	}
-	running, err = p.cheapStatus(image)
-	return running, "", err
 }
 
 func waitForWindowsProcessRunAndExitWith(
@@ -1452,7 +1386,7 @@ func launcherFailure(waitErr error) error {
 func shouldTerminateAfterStatusFailure(err error, processSeen bool) bool {
 	var parseErr *demoParseError
 	// The console marker can only come from the CS2 instance launched for this
-	// capture. It is therefore ownership evidence even when tasklist polling
+	// capture. It is therefore ownership evidence even when process polling
 	// has not successfully observed the process yet.
 	return processSeen || errors.As(err, &parseErr)
 }
@@ -1488,16 +1422,7 @@ func terminateWindowsProcess(image string) error {
 }
 
 func processRunning(image string) (bool, error) {
-	if runtime.GOOS != "windows" {
-		return false, nil
-	}
-	// #nosec G204 -- tasklist executable is fixed and image is derived from a local executable path.
-	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+image, "/FO", "CSV", "/NH").Output()
-	if err != nil {
-		return false, err
-	}
-	text := strings.TrimSpace(string(out))
-	return strings.Contains(strings.ToLower(text), strings.ToLower(image)), nil
+	return winproc.Running(image)
 }
 
 // exitHookIncompatible is the process exit code used when HLAE's injected
@@ -1551,42 +1476,22 @@ func (e *hookIncompatibleError) Error() string {
 	)
 }
 
-// tasklistWindowTitle reports whether image is currently running and its
-// current main window title (which is the dialog title when a modal error
-// box has replaced the game window), by shelling out to `tasklist /V`. It
-// mirrors processRunning's contract but also extracts the "Window Title"
-// verbose column.
-func tasklistWindowTitle(image string) (running bool, title string, err error) {
-	// #nosec G204 -- tasklist executable is fixed and image is derived from a local executable path.
-	out, err := exec.Command("tasklist", "/V", "/FI", "IMAGENAME eq "+image, "/FO", "CSV", "/NH").Output()
+func processWindowTitle(image string) (running bool, title string, err error) {
+	running, titles, err := winproc.WindowTitles(image)
 	if err != nil {
-		return false, "", err
+		return running, "", err
 	}
-	running, title = parseTasklistVerboseCSV(string(out), image)
-	return running, title, nil
+	return running, judgedWindowTitle(titles), nil
 }
 
-// parseTasklistVerboseCSV extracts the running state and window title for
-// image from `tasklist /V /FO CSV /NH` output. Isolated from the exec call so
-// it is testable against captured sample output. tasklist prints an
-// "INFO: No tasks..." line (not valid multi-field CSV) when nothing matches;
-// that line simply fails the image-name comparison and is skipped.
-func parseTasklistVerboseCSV(out, image string) (running bool, title string) {
-	r := csv.NewReader(strings.NewReader(out))
-	for {
-		record, err := r.Read()
-		if err != nil {
-			return running, title
+// judgedWindowTitle returns the hook-crash dialog title when one is open.
+func judgedWindowTitle(titles []string) string {
+	for _, candidate := range titles {
+		if isHookErrorWindowTitle(candidate) {
+			return candidate
 		}
-		if len(record) == 0 || !strings.EqualFold(record[0], image) {
-			continue
-		}
-		running = true
-		if len(record) >= 9 {
-			title = record[8]
-		}
-		return running, title
 	}
+	return ""
 }
 
 // finalizeFullDemoCaptureEvidence persists every evidence failure before the

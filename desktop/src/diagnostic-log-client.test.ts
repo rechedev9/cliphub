@@ -263,3 +263,25 @@ test('missing consent metadata never replays an unproven old spool', async (t) =
   assert.ok(f.sent.flat().some((r) => r.message === 'current authorized diagnostic'));
   assert.ok(f.sent.flat().every((r) => r.message !== 'old spool with lost consent metadata'));
 });
+
+test('an idle client resends unchanged delivery health every 15 minutes, a change at once', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'], now: Date.now() });
+  const f = fixture(t);
+  const healthRecords = async (): Promise<DiagnosticLogRecord[]> => {
+    await drain(f.client);
+    return f.sent.flat().filter((record) => record.event === 'delivery.health');
+  };
+  f.client.start();
+  t.mock.timers.tick(5_000);
+  assert.equal((await healthRecords()).length, 1);
+  for (let minute = 1; minute < 15; minute++) t.mock.timers.tick(60_000);
+  assert.equal((await healthRecords()).length, 1, 'unchanged health must not be uploaded every minute');
+  t.mock.timers.tick(60_000);
+  assert.equal((await healthRecords()).length, 2);
+  fs.writeFileSync(path.join(f.options.directory, '000000000099-00000000-0000-4000-8000-000000000000.jsonl'), 'not json\n');
+  await drain(f.client);
+  t.mock.timers.tick(60_000);
+  const records = await healthRecords();
+  assert.equal(records.length, 3, 'a dropped record changes delivery health and is reported at the next check');
+  assert.match(records.at(-1)?.message ?? '', /dropped_records=1/);
+});

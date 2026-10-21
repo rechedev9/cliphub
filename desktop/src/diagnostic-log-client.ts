@@ -14,6 +14,10 @@ const MAX_SPOOL_BYTES = 64 * 1024 * 1024;
 const MAX_BATCH_BYTES = 240 * 1024;
 const SEGMENT_NAME = /^\d{12}-[0-9a-f-]{36}\.jsonl$/;
 const FLUSH_MS = 5_000;
+const HEALTH_CHECK_MS = 60_000;
+// An unchanged health record is resent only this often, so an idle Studio does
+// not write and upload one every minute.
+const HEALTH_REPEAT_MS = 15 * 60_000;
 
 interface SpoolState {
   version: 1;
@@ -77,7 +81,9 @@ export class DiagnosticLogClient {
   private batchLimit = 64;
   private stopped = false;
   private revoked = false;
-  private lastHealth = 0;
+  private lastHealthCheck = 0;
+  private lastHealthSent = 0;
+  private lastHealthKey: string | null = null;
   private generation = 0;
 
   constructor(options: DiagnosticLogClientOptions) {
@@ -97,12 +103,7 @@ export class DiagnosticLogClient {
     this.stopped = false;
     this.record({ source: 'telemetry', event: 'delivery.started', message: 'Durable diagnostic log delivery started' });
     this.timer = setInterval(() => {
-      if (Date.now() - this.lastHealth >= 60_000) {
-        this.lastHealth = Date.now();
-        const status = this.status();
-        this.record({ source: 'telemetry', event: 'delivery.health', level: status.lastError ? 'warn' : 'info',
-          message: `pending_bytes=${status.pendingBytes} dropped_records=${status.droppedRecords} rejected_records=${status.rejectedRecords} last_ack=${status.lastAcknowledgedAt ?? 'none'} error=${status.lastError ?? 'none'}` });
-      }
+      this.reportHealth();
       void this.flush();
     }, FLUSH_MS);
     this.timer.unref();
@@ -124,6 +125,7 @@ export class DiagnosticLogClient {
     this.activeFile = null;
     this.retryAt = 0;
     this.failures = 0;
+    this.lastHealthKey = null;
     this.state = this.emptyState();
     try {
       this.clearOwnedFiles();
@@ -174,6 +176,21 @@ export class DiagnosticLogClient {
     if (this.flushPromise !== null) return this.flushPromise;
     this.flushPromise = this.flushOne().finally(() => { this.flushPromise = null; });
     return this.flushPromise;
+  }
+
+  private reportHealth(): void {
+    const now = Date.now();
+    if (now - this.lastHealthCheck < HEALTH_CHECK_MS) return;
+    this.lastHealthCheck = now;
+    // record() drops the entry without consent, so it must not count as sent.
+    if (!this.canRecord()) return;
+    const key = `${this.state.droppedRecords}|${this.state.rejectedRecords}|${this.state.lastError ?? ''}`;
+    if (key === this.lastHealthKey && now - this.lastHealthSent < HEALTH_REPEAT_MS) return;
+    this.lastHealthKey = key;
+    this.lastHealthSent = now;
+    const status = this.status();
+    this.record({ source: 'telemetry', event: 'delivery.health', level: status.lastError ? 'warn' : 'info',
+      message: `pending_bytes=${status.pendingBytes} dropped_records=${status.droppedRecords} rejected_records=${status.rejectedRecords} last_ack=${status.lastAcknowledgedAt ?? 'none'} error=${status.lastError ?? 'none'}` });
   }
 
   private canRecord(): boolean {
