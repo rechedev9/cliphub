@@ -6,7 +6,7 @@ export interface HttpWaitOptions {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 2000;
-const DEFAULT_POLL_INTERVAL_MS = 400;
+const DEFAULT_POLL_INTERVAL_MS = 50;
 
 /** Polls an HTTP URL until it answers 2xx/3xx, times out, or is cancelled. */
 export function waitForHttp(
