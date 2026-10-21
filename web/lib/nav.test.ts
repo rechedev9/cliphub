@@ -10,6 +10,7 @@ const RAIL = [
   ['Jugadores', '/players'],
   ['Táctica', '/tactical'],
   ['Anti-cheat', '/cheaters'],
+  ['Algoritmos', '/algoritmos'],
   ['Nube', '/nube'],
   ['Ajustes', '/settings'],
 ] as const;

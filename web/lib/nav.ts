@@ -7,6 +7,7 @@ export const NAV_SECTIONS = [
   { label: 'Jugadores', href: '/players' },
   { label: 'Táctica', href: '/tactical' },
   { label: 'Anti-cheat', href: '/cheaters' },
+  { label: 'Algoritmos', href: '/algoritmos' },
   { label: 'Nube', href: '/nube' },
   { label: 'Ajustes', href: '/settings' },
 ] as const;

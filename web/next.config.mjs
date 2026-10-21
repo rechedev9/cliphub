@@ -33,6 +33,11 @@ export default {
   // server.js. Desktop packaging relies on the flat layout, so make it
   // deterministic regardless of where the repo is checked out.
   outputFileTracingRoot: here,
+  webpack(config) {
+    // The algorithms guide is Markdown bundled as text, so no runtime file read.
+    config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
+    return config;
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
