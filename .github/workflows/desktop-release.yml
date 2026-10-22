@@ -1,5 +1,5 @@
 # The only hosted ClipHub release pipeline: unsigned Windows Studio installer.
-# PR quality checks are ci-frontend / ci-backend / ci-infra. Do not add a second release job.
+# Quality checks are ci-frontend / ci-backend / ci-infra. Do not add a second release workflow.
 name: Desktop release
 
 on:
@@ -13,11 +13,9 @@ on:
     tags:
       - 'v*.*.*'
 
-# Creating the GitHub Release and uploading assets needs contents: write.
-# A 403 on asset upload means this permission is missing for GITHUB_TOKEN
-# (repo Settings → Actions → General → Workflow permissions).
-permissions:
-  contents: write
+# Each job asks for its own token scope. Only publish can write, so the build (third-party
+# packages and scripts) never holds a token that can change releases.
+permissions: {}
 
 concurrency:
   group: desktop-release
@@ -25,29 +23,48 @@ concurrency:
 
 jobs:
   windows-installer:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       GOTOOLCHAIN: local
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
+      - name: Read and check the Studio version
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "invalid desktop version: $version"
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "tag $($env:GITHUB_REF_NAME) does not match desktop/package.json $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11.22.0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -66,7 +83,7 @@ jobs:
         run: node --no-warnings desktop/scripts/check-hlae-latest.mjs
 
       - name: Cache bundled Suno music
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: data/music/*.mp3
           key: studio-suno-music-${{ hashFiles('data/music/catalog.json') }}
@@ -82,44 +99,77 @@ jobs:
       - name: Verify release checksums
         run: pnpm --dir desktop run verify:dist-integrity
 
+      - name: Keep the release assets for publish
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: studio-installer
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            desktop/dist-installer/ClipHub.Studio.Setup.${{ steps.version.outputs.version }}.exe
+            desktop/dist-installer/ClipHub.Studio.Setup.${{ steps.version.outputs.version }}.exe.blockmap
+            desktop/dist-installer/SHA256SUMS.txt
+
+  publish:
+    needs: windows-installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The release environment only accepts main and v* tags (repo Settings → Environments).
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Download the release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studio-installer
+          path: dist
+
+      - name: Check the downloaded assets against SHA256SUMS.txt
+        working-directory: dist
+        run: sha256sum --check --strict SHA256SUMS.txt
+
       - name: Publish GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_NOTES: ${{ github.event.inputs.notes || '' }}
+          VERSION: ${{ needs.windows-installer.outputs.version }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "invalid desktop version: $version"
-          }
-          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
-            throw "tag $($env:GITHUB_REF_NAME) does not match desktop/package.json $version"
-          }
-
-          $exe = "desktop/dist-installer/ClipHub.Studio.Setup.$version.exe"
-          $blockmap = "$exe.blockmap"
-          $sums = 'desktop/dist-installer/SHA256SUMS.txt'
-          foreach ($path in @($exe, $blockmap, $sums)) {
-            if (-not (Test-Path -LiteralPath $path)) { throw "missing release asset: $path" }
-            if ((Get-Item -LiteralPath $path).Length -le 0) { throw "empty release asset: $path" }
-          }
+          $PSNativeCommandUseErrorActionPreference = $false
+          $version = $env:VERSION
+          $tag = "v$version"
+          $exe = "dist/ClipHub.Studio.Setup.$version.exe"
+          $assets = @($exe, "$exe.blockmap", 'dist/SHA256SUMS.txt')
 
           $notes = $env:RELEASE_NOTES
           if ([string]::IsNullOrWhiteSpace($notes)) {
             $notes = "Studio $version is the unsigned Windows installer built by this repository's windows-latest job.`n`nUnsigned by policy; verify SHA256SUMS.txt."
           }
 
-          $tag = "v$version"
-          $assets = @($exe, $blockmap, $sums)
-          $PSNativeCommandUseErrorActionPreference = $false
-          gh release view $tag --json tagName >$null 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag @assets --clobber
-            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit $LASTEXITCODE" }
-            gh release edit $tag --title "ClipHub Studio $version" --notes $notes --latest --draft=false --prerelease=false
-            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit $LASTEXITCODE" }
-          } else {
-            gh release create $tag @assets --title "ClipHub Studio $version" --notes $notes --latest --target $env:GITHUB_SHA
+          # A new release stays a draft until every asset is uploaded, so a partial run is never public.
+          $release = gh release view $tag --json assets 2>$null | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --draft --title "ClipHub Studio $version" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit $LASTEXITCODE" }
+            $release = @{ assets = @() }
           }
+
+          # Published assets are never replaced: a re-run skips the ones already there with the
+          # same digest and fails on any other copy.
+          $missing = @(foreach ($path in $assets) {
+            $name = Split-Path -Leaf $path
+            $published = $release.assets | Where-Object name -eq $name
+            if (-not $published) { $path; continue }
+            $digest = 'sha256:' + (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+            if ($published.digest -ne $digest) { throw "$name is already published with a different digest" }
+          })
+          if ($missing.Count -gt 0) {
+            gh release upload $tag @missing
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit $LASTEXITCODE" }
+          }
+          gh release edit $tag --title "ClipHub Studio $version" --notes $notes --latest --draft=false --prerelease=false
+          if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit $LASTEXITCODE" }
