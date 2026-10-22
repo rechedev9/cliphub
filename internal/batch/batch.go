@@ -25,6 +25,7 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -163,26 +164,10 @@ func processDemo(ctx context.Context, opts Options, rec *obs.Recorder, demo stri
 	return res
 }
 
-// errParsePanic marks a demo whose parsing panicked. A malformed demo must not
-// crash the batch; it is recorded like any other failure.
-var errParsePanic = errors.New("parser panicked")
-
-// recoverParse runs fn and converts a panic into an errParsePanic error. It
-// must execute on the same goroutine that calls the parser, since recover only
-// catches panics from its own goroutine.
-func recoverParse(fn func() error) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%w: %v", errParsePanic, r)
-		}
-	}()
-	return fn()
-}
-
 // safeParseDemo is parseDemo with panic recovery so one bad demo cannot abort
 // the whole run.
 func safeParseDemo(ctx context.Context, demo, target string, mode parser.SegmentMode) (plan killplan.Plan, err error) {
-	err = recoverParse(func() error {
+	err = demosafe.Recover(func() error {
 		var perr error
 		plan, perr = parseDemo(ctx, demo, target, mode)
 		return perr
@@ -193,7 +178,7 @@ func safeParseDemo(ctx context.Context, demo, target string, mode parser.Segment
 // safeTopFragger is topFragger with panic recovery for any panic on the calling
 // goroutine; the parse goroutine inside topFragger recovers its own.
 func safeTopFragger(ctx context.Context, demo string) (id string, err error) {
-	err = recoverParse(func() error {
+	err = demosafe.Recover(func() error {
 		var terr error
 		id, terr = topFragger(ctx, demo)
 		return terr
@@ -254,7 +239,7 @@ func topFragger(ctx context.Context, demo string) (string, error) {
 	// be recovered HERE; a recover in the calling goroutine (safeTopFragger)
 	// cannot catch a panic raised on this one.
 	done := make(chan error, 1)
-	go func() { done <- recoverParse(p.ParseToEnd) }()
+	go func() { done <- demosafe.ParseToEnd(p) }()
 	select {
 	case <-ctx.Done():
 		p.Cancel()
@@ -293,7 +278,7 @@ var errNoTarget = errors.New("no killer found in demo to auto-select a target")
 // classify maps a parse error to a stable obs class label and message.
 func classify(err error) (class, message string) {
 	switch {
-	case errors.Is(err, errParsePanic):
+	case errors.Is(err, demosafe.ErrPanicked):
 		return "panic", err.Error()
 	case errors.Is(err, errNoTarget):
 		return "no_target", err.Error()

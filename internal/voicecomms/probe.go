@@ -11,6 +11,8 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
+
+	"github.com/rechedev9/cliphub/internal/demosafe"
 )
 
 func ProbeFile(demoPath, target string) (Report, error) {
@@ -149,7 +151,7 @@ func collectContext(ctx context.Context, p demoinfocs.Parser, target, demoPath s
 		packets = append(packets, pkt)
 	})
 
-	parseErr := p.ParseToEnd()
+	parseErr := demosafe.ParseToEnd(p)
 	if collectionErr != nil {
 		return Report{}, nil, nil, collectionErr
 	}

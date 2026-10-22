@@ -76,6 +76,10 @@ func (c *HistoryClient) NextShareCode(ctx context.Context, acc Account, known st
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
+		// A *url.Error prints the request URL, which carries the API key and auth code.
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
+			err = urlErr.Err
+		}
 		return "", fmt.Errorf("steam history request: %w", err)
 	}
 	defer res.Body.Close()

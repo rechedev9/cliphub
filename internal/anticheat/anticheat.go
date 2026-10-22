@@ -20,6 +20,8 @@ import (
 	"sync"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
+
+	"github.com/rechedev9/cliphub/internal/demosafe"
 )
 
 // SchemaVersion is the version of the Report JSON shape. Bump it whenever a
@@ -129,7 +131,7 @@ func Analyze(p demoinfocs.Parser, opts Options) (Report, error) {
 
 	c := newCollector(p)
 	c.register(p)
-	if err := p.ParseToEnd(); err != nil {
+	if err := demosafe.ParseToEnd(p); err != nil {
 		return Report{}, fmt.Errorf("parse demo: %w", err)
 	}
 
