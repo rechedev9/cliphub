@@ -509,3 +509,21 @@ func containsPlayer(players []listedFaceitPlayer, id string) bool {
 	}
 	return false
 }
+
+func TestProxyFaceitAvatarOnlyFetchesAllowedAvatarHosts(t *testing.T) {
+	t.Parallel()
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte("<html>internal admin page</html>"))
+	}))
+	t.Cleanup(server.Close)
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{})
+	h.faceitCache.storeAvatar("player-1", server.URL+"/avatar.png")
+
+	res := httptest.NewRecorder()
+	Routes(h).ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/faceit/players/player-1/avatar", nil))
+	if res.Code != http.StatusNotFound || hits.Load() != 0 {
+		t.Fatalf("status=%d upstream hits=%d, want 404 and no request", res.Code, hits.Load())
+	}
+}

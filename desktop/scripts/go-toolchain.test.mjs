@@ -17,7 +17,7 @@ function goModPatchVersion(source) {
   return match[1];
 }
 
-test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
+test('Windows installer rebuild pin agrees with go.mod 1.26.10', () => {
   const goMod = readRepo('go.mod');
   const version = goModPatchVersion(goMod);
   const pin = JSON.parse(readRepo('scripts/go-windows.json'));
@@ -71,7 +71,7 @@ test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
     },
   ];
 
-  assert.equal(version, '1.26.6');
+  assert.equal(version, '1.26.10');
   assert.equal(pin.version, version);
   assert.equal(pin.filename, `go${version}.windows-amd64.msi`);
   assert.equal(pin.url, `https://go.dev/dl/go${version}.windows-amd64.msi`);
@@ -79,8 +79,8 @@ test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
   assert.equal(pin.archiveUrl, `https://go.dev/dl/go${version}.windows-amd64.zip`);
   assert.match(pin.sha256, /^[a-f0-9]{64}$/);
   assert.match(pin.archiveSha256, /^[a-f0-9]{64}$/);
-  assert.equal(pin.sha256, '7c1390d3ab814753c3176bc0e0648ff70d3c2b4c3b22cced9c347f40dc920168');
-  assert.equal(pin.archiveSha256, '5b6c5b556525810463b5c897b50dc7a82d6a3dc0bfaf55d990a7e9f31d6b2318');
+  assert.equal(pin.sha256, 'baf134644006fc229c7a119ca6248eaccab8472f10d718bdde71ad1de2fb0109');
+  assert.equal(pin.archiveSha256, '7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b');
 
   for (const spec of cases) {
     for (const needle of spec.must ?? []) {

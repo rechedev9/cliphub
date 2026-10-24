@@ -147,3 +147,18 @@ func validHistoryAccount() Account {
 		APIKey:   "0123456789ABCDEF",
 	}
 }
+
+func TestHistoryClientKeepsCredentialsOutOfNetworkErrors(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+	client := NewHistoryClient(server.Client())
+	client.baseURL = server.URL + "/"
+	acc := validHistoryAccount()
+	_, err := client.NextShareCode(context.Background(), acc, goodCode)
+	if err == nil {
+		t.Fatal("want a network error from a closed server")
+	}
+	if strings.Contains(err.Error(), acc.APIKey) || strings.Contains(err.Error(), acc.AuthCode) {
+		t.Fatalf("error leaks credentials: %v", err)
+	}
+}

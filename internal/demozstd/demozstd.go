@@ -12,6 +12,10 @@ import (
 
 var magic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 
+// maxWindow covers zstd --long=27 and --ultra -22; a frame asking for more fails before
+// the decoder allocates its window.
+const maxWindow = 128 << 20
+
 type reader struct {
 	src    io.Reader
 	closer io.Closer
@@ -41,7 +45,8 @@ func Open(src io.Reader, fileName string, maxBytes int64) (io.ReadCloser, string
 	if !bytes.Equal(head, magic) {
 		return &reader{src: io.LimitReader(buffered, maxBytes+1)}, name, nil
 	}
-	dec, err := zstd.NewReader(buffered, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(uint64(maxBytes)+1<<20))
+	dec, err := zstd.NewReader(buffered, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(uint64(maxBytes)+1<<20),
+		zstd.WithDecoderMaxWindow(maxWindow), zstd.WithDecoderLowmem(true))
 	if err != nil {
 		return nil, "", fmt.Errorf("open zstd demo: %w", err)
 	}

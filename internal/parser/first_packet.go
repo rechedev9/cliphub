@@ -12,6 +12,8 @@ import (
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
+
+	"github.com/rechedev9/cliphub/internal/demosafe"
 )
 
 // PlayabilitySchemaVersion is the JSON schema id of playability.json.
@@ -122,7 +124,7 @@ func ProbeDemo(demoPath string) (PlayabilityReport, error) {
 		}
 	})
 
-	parseErr := p.ParseToEnd()
+	parseErr := demosafe.ParseToEnd(p)
 	tick, seen := watch.Snapshot()
 	watch.mu.Lock()
 	netTick := watch.netTick

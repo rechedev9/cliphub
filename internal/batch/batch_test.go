@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
 )
@@ -70,7 +71,7 @@ func TestClassify(t *testing.T) {
 		err  error
 		want string
 	}{
-		{"panic", errParsePanic, "panic"},
+		{"panic", demosafe.ErrPanicked, "panic"},
 		{"no_target", errNoTarget, "no_target"},
 		{"target_not_found", parser.ErrTargetNotFound, "target_not_found"},
 		{"canceled", context.Canceled, "canceled"},
@@ -144,27 +145,11 @@ func TestDefaultJobsAtLeastOne(t *testing.T) {
 	}
 }
 
-func TestRecoverParse(t *testing.T) {
-	t.Run("panic becomes errParsePanic", func(t *testing.T) {
-		err := recoverParse(func() error { panic("boom") })
-		if !errors.Is(err, errParsePanic) {
-			t.Fatalf("got %v, want errParsePanic", err)
-		}
-		if class, _ := classify(err); class != "panic" {
-			t.Errorf("classify: got %q want panic", class)
-		}
-	})
-	t.Run("normal error passes through", func(t *testing.T) {
-		want := errors.New("plain")
-		if got := recoverParse(func() error { return want }); got != want {
-			t.Errorf("got %v want %v", got, want)
-		}
-	})
-	t.Run("nil stays nil", func(t *testing.T) {
-		if got := recoverParse(func() error { return nil }); got != nil {
-			t.Errorf("got %v want nil", got)
-		}
-	})
+func TestRecoveredPanicClassifiesAsPanic(t *testing.T) {
+	err := demosafe.Recover(func() error { panic("boom") })
+	if class, _ := classify(err); class != "panic" {
+		t.Errorf("classify: got %q want panic", class)
+	}
 }
 
 // TestRunAutoTargetRecordsBadDemo drives the default auto-target path (empty

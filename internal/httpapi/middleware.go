@@ -237,7 +237,7 @@ func isMultipartUpload(r *http.Request) bool {
 		return false
 	}
 	if r.Method == http.MethodPost &&
-		(r.URL.Path == "/api/jobs" || r.URL.Path == "/api/stream-jobs" || r.URL.Path == "/ui/jobs" || r.URL.Path == "/api/full-demo/overlay-images") {
+		(r.URL.Path == "/api/jobs" || r.URL.Path == "/api/stream-jobs" || r.URL.Path == "/ui/jobs" || r.URL.Path == "/api/full-demo/overlay-images" || r.URL.Path == "/api/editor/assets") {
 		return true
 	}
 	return r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/voice-profiles/")
@@ -249,6 +249,7 @@ func isMediaResponse(method, requestPath string) bool {
 	}
 	return strings.HasSuffix(requestPath, "/audio") ||
 		strings.HasSuffix(requestPath, "/source") ||
+		strings.HasSuffix(requestPath, "/media") ||
 		strings.Contains(requestPath, "/videos/") ||
 		strings.Contains(requestPath, "/covers/") ||
 		strings.Contains(requestPath, "/captions/") ||

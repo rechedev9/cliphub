@@ -1002,11 +1002,11 @@ test('build entrypoint delegates publication and never removes the recovery back
   }
   assert.ok(
     installGo < firstGoBuild,
-    'Go 1.26.6 must be installed before the first compiler invocation',
+    'Go 1.26.10 must be installed before the first compiler invocation',
   );
   assert.ok(
     assertGo < firstGoBuild,
-    'Go 1.26.6+ must be verified before the first compiler invocation',
+    'Go 1.26.10+ must be verified before the first compiler invocation',
   );
   assert.ok(
     recoverPublication < firstGoBuild,

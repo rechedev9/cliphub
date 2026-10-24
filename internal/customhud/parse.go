@@ -20,9 +20,14 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 	st "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/sendtables"
+
+	"github.com/rechedev9/cliphub/internal/demosafe"
 )
 
 const MaxTelemetryBytes = 128 << 20
+
+// maxIdentities bounds the distinct players seen in one demo; a real match has 10 plus substitutes.
+const maxIdentities = 64
 
 // Extract consumes the whole immutable demo, checking its digest as it goes.
 // It does not launch CS2 and never substitutes example values for missing data.
@@ -193,6 +198,11 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 				}
 			}
 			identities[player.SteamID] = Player{SteamID: player.SteamID, Name: player.Name, Side: player.Side, Inactive: true, Ammo: -1, Reserve: -1}
+			if len(identities) > maxIdentities {
+				failure = fmt.Errorf("custom HUD telemetry has more than %d players", maxIdentities)
+				p.Cancel()
+				return
+			}
 			s.Players = append(s.Players, player)
 		}
 		// Preserve observed identity, never stale stats or an active roster
@@ -217,7 +227,7 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		}
 		d.Snapshots = append(d.Snapshots, s)
 	})
-	if err := p.ParseToEnd(); err != nil {
+	if err := demosafe.ParseToEnd(p); err != nil {
 		if ctx.Err() != nil {
 			return d, ctx.Err()
 		}

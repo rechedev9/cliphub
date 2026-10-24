@@ -3,7 +3,7 @@
 ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into edited videos.
 
 ## Layout
-- `cmd/`, `internal/`: Go backend (orchestrator, parser, recorder, editor). Go 1.26.6 from `go.mod`.
+- `cmd/`, `internal/`: Go backend (orchestrator, parser, recorder, editor). Go 1.26.10 from `go.mod`.
 - `web/`: Studio UI (Next.js, standalone build). `desktop/`: Electron shell that bundles the Go
   binaries, the web build and HLAE into the Windows installer.
 - `landing/`: separate Next.js site. `deploy/`: telemetry deploy files.

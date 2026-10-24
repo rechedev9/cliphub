@@ -274,6 +274,7 @@ func TestMultipartUploadRoutesIncludeWorkbench(t *testing.T) {
 		{method: http.MethodPost, path: "/api/stream-jobs"},
 		{method: http.MethodPost, path: "/ui/jobs"},
 		{method: http.MethodPut, path: "/api/voice-profiles/default"},
+		{method: http.MethodPost, path: "/api/editor/assets"},
 	}
 	for _, tt := range tests {
 		req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -292,6 +293,7 @@ func TestMediaResponsesRemainWriteDeadlineFree(t *testing.T) {
 		{path: "/api/stream-jobs/id/source", want: true},
 		{path: "/api/jobs/id/renders/v/videos/reel.mp4", want: true},
 		{path: "/api/stream-jobs/id/renders/v/delivery/clip.mp4", want: true},
+		{path: "/api/editor/assets/id/media", want: true},
 		{path: "/api/jobs", want: false},
 	}
 	for _, tt := range tests {

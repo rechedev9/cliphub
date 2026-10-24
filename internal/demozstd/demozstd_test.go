@@ -3,6 +3,7 @@ package demozstd
 import (
 	"bytes"
 	"io"
+	"math/bits"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -80,6 +81,33 @@ func TestOpenCapsDecompressedSize(t *testing.T) {
 	}
 	if int64(len(got)) > 33 {
 		t.Fatalf("read %d bytes, want capped at 33", len(got))
+	}
+}
+
+func TestOpenRejectsFramesWithAHugeWindow(t *testing.T) {
+	t.Parallel()
+	plain := []byte("PBDEMS2\x00rest-of-demo")
+	for _, test := range []struct {
+		window int
+		ok     bool
+	}{{window: maxWindow, ok: true}, {window: maxWindow * 2, ok: false}} {
+		// A hand-built frame: window descriptor 2^(10+exponent), then one raw last block.
+		exponent := byte(bits.Len(uint(test.window)) - 11)
+		blockHeader := len(plain)<<3 | 1
+		frame := append([]byte{0x28, 0xb5, 0x2f, 0xfd, 0x00, exponent << 3,
+			byte(blockHeader), byte(blockHeader >> 8), byte(blockHeader >> 16)}, plain...)
+		rc, _, err := Open(bytes.NewReader(frame), "w.dem.zst", 1<<30)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if test.ok && (err != nil || !bytes.Equal(got, plain)) {
+			t.Errorf("window %d: got %q, %v; want the demo", test.window, got, err)
+		}
+		if !test.ok && err == nil {
+			t.Errorf("window %d: decoded %d bytes, want an error", test.window, len(got))
+		}
 	}
 }
 

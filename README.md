@@ -72,7 +72,7 @@ Run `.\bin\zv.exe --help` for the other commands, or `zv workflows list` through
 
 ## Run from source
 
-Requirements: Go 1.26.6 (from `go.mod`), Node 24, pnpm 11.22.0, and Steam with CS2 for capture.
+Requirements: Go 1.26.10 (from `go.mod`), Node 24, pnpm 11.22.0, and Steam with CS2 for capture.
 
 ```powershell
 .\scripts\build.ps1                                   # Go binaries into bin\

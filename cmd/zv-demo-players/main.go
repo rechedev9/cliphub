@@ -18,6 +18,7 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 
+	"github.com/rechedev9/cliphub/internal/demosafe"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
@@ -132,7 +133,7 @@ func scanDemo(demoPath, contains string) (rosterResult, error) {
 			ensurePlayer(players, e.Victim).Deaths++
 		}
 	})
-	if err := p.ParseToEnd(); err != nil && !errors.Is(err, demoinfocs.ErrUnexpectedEndOfDemo) {
+	if err := demosafe.ParseToEnd(p); err != nil && !errors.Is(err, demoinfocs.ErrUnexpectedEndOfDemo) {
 		return rosterResult{}, fmt.Errorf("parse demo: %w", err)
 	}
 	for _, player := range p.GameState().Participants().All() {

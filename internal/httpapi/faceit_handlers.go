@@ -211,27 +211,20 @@ func (h *Handlers) ProxyFaceitAvatar(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, avatarURL, nil)
-	if err != nil {
+	body, err := faceit.FetchAvatar(r.Context(), http.DefaultClient, avatarURL)
+	if err != nil || len(body) == 0 {
 		http.NotFound(w, r)
 		return
 	}
-	res, err := http.DefaultClient.Do(req)
-	if err != nil || res.StatusCode != http.StatusOK {
-		if res != nil {
-			_ = res.Body.Close()
-		}
+	contentType := http.DetectContentType(body)
+	if !strings.HasPrefix(contentType, "image/") {
 		http.NotFound(w, r)
 		return
 	}
-	defer res.Body.Close()
-	ct := res.Header.Get("Content-Type")
-	if ct == "" {
-		ct = "image/jpeg"
-	}
-	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	_, _ = io.Copy(w, io.LimitReader(res.Body, 2<<20))
+	_, _ = w.Write(body)
 }
 
 func enrichAvatar(ctx context.Context, player *faceit.Player) {

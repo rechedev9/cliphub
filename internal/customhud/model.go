@@ -69,7 +69,7 @@ func (d Timeline) Validate() error {
 	}
 	last := -1
 	for _, s := range d.Snapshots {
-		if s.Tick <= last || s.Tick > d.EndTick || s.Round < 0 || s.TimeRemaining < -1 || s.TimeRemaining > 86400 || s.CTScore < 0 || s.TScore < 0 || len(s.Players) > 64 {
+		if s.Tick <= last || s.Tick > d.EndTick || s.Round < 0 || s.TimeRemaining < -1 || s.TimeRemaining > 86400 || s.CTScore < 0 || s.TScore < 0 || len(s.Players) > maxIdentities {
 			return fmt.Errorf("invalid custom HUD state at tick %d", s.Tick)
 		}
 		last = s.Tick
