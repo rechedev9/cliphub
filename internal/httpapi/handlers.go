@@ -1203,7 +1203,13 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	// can be generated again in place. Failed is also retryable when parsing had
 	// already produced the kill plan.
 	if !canGenerateFromStatus(j.Status) || j.KillPlan == nil {
-		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to generate (status=%s)", j.Status))
+		msg := fmt.Sprintf("job is not ready to generate (status=%s)", j.Status)
+		if j.Status.CaptureActive() {
+			// A re-drive racing the worker's own transition is in-flight work, not a rejection.
+			writeCodedError(w, http.StatusConflict, generateWorkActive, msg)
+		} else {
+			writeError(w, http.StatusConflict, msg)
+		}
 		return
 	}
 	if !h.requireRecordEnabled(w) {

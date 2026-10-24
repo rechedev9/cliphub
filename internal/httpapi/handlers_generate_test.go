@@ -279,6 +279,31 @@ func TestStartGenerateRejectsOverlappingCaptureBeforeItCanReplaceIntent(t *testi
 	}
 }
 
+func TestStartGenerateWhileCapturingAnswersWorkActive(t *testing.T) {
+	for _, status := range []job.Status{job.StatusRecording, job.StatusComposing} {
+		repo := newFakeRepo()
+		queue := &fakeQueue{}
+		plan := killplan.NewPlan()
+		j := job.Job{ID: uuid.New(), Status: status, Rules: rules.Default(), KillPlan: &plan}
+		repo.jobs[j.ID] = j
+		h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+		rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
+		var response struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(rw.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if rw.Code != http.StatusConflict || response.Code != generateWorkActive {
+			t.Fatalf("%s: status = %d code = %q, want 409 %q", status, rw.Code, response.Code, generateWorkActive)
+		}
+		if len(queue.enqueued) != 0 {
+			t.Fatalf("%s: enqueued = %d, want 0", status, len(queue.enqueued))
+		}
+	}
+}
+
 func TestStartGenerateRejectsWhileRenderStateIsActive(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()

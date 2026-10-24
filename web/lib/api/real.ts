@@ -12,7 +12,7 @@ import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { customHudTheme } from '../custom-hud.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
@@ -310,8 +310,8 @@ export class RealApiClient implements ApiClient {
   private readonly jobGoneTicks = new Map<string, number>();
   /** Consecutive ready-without-MP4 render polls per reel, feeding the unrecoverable latch. */
   private readonly readyWithoutVideoTicks = new Map<string, number>();
-  /** POST /record accepted; job may still read failed until the worker dequeues. */
-  private readonly pendingCapture = new Set<string>();
+  /** When POST /generate was accepted; the job may still read its old status until the worker dequeues. */
+  private readonly pendingCapture = new Map<string, number>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[]; revision?: string }>();
   /** Cached per-job series match (map/score); immutable once a job has one. */
@@ -904,6 +904,7 @@ export class RealApiClient implements ApiClient {
       this.artifactNames.delete(videoId);
       this.jobGoneTicks.delete(videoId);
       this.readyWithoutVideoTicks.delete(videoId);
+      this.pendingCapture.delete(videoId);
       this.forgetDriveState(videoId);
     }
     for (const [videoId, entry] of this.recovered) {
@@ -997,7 +998,8 @@ export class RealApiClient implements ApiClient {
     } else {
       this.readyWithoutVideoTicks.delete(intent.videoId);
     }
-    if (job.status !== 'failed') {
+    const admittedAt = this.pendingCapture.get(intent.videoId);
+    if (admittedAt !== undefined && !recordAdmissionPending({ jobStatus: job.status, admittedAt, now: Date.now() })) {
       this.pendingCapture.delete(intent.videoId);
     }
     const decision = decideReelReconcile({
@@ -1137,7 +1139,7 @@ export class RealApiClient implements ApiClient {
             }));
       if (res.ok) {
         if (redriveFrom) this.redrivenRevisions.set(intent.videoId, redriveFrom);
-        if (action === 'record') this.pendingCapture.add(intent.videoId);
+        if (action === 'record') this.pendingCapture.set(intent.videoId, Date.now());
         this.applyView(intent, { status: action === 'record' ? 'recording' : 'composing', action: 'none' });
         return;
       }
