@@ -241,6 +241,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 			return "", err
 		}
 		sb.WriteString(fmt.Sprintf("    const fullDemoCrosshairCvars = %s;\n", crosshairJSON))
+		proJSON, err := json.Marshal(plan.FullDemo.Options.Capture.ProSettings.Cvars())
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(fmt.Sprintf("    const fullDemoProCvars = %s;\n", proJSON))
 		sb.WriteString(fmt.Sprintf("    const fullDemoCapture = %s;\n    const fullDemoAllowTailTrim = %t;\n    const fullDemoToken = %q;\n", captureJSON, plan.FullDemo.Options.Editorial.AllowSafeTailTrim, attestationToken))
 		sb.WriteString(fmt.Sprintf("    const fullDemoAcquireLeadTicks = %d;\n", plan.Tickrate))
 		sb.WriteString(fullDemoRuntime)

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -120,61 +118,4 @@ func killProcessTree(process *os.Process, tool string) error {
 	ended, err := endDescendants(map[uint32]treeMember{pid: root})
 	logProcessTree(tool, ended, err)
 	return nil
-}
-
-func imagePath(handle windows.Handle) (string, error) {
-	buffer := make([]uint16, windows.MAX_LONG_PATH)
-	size := uint32(len(buffer))
-	if err := windows.QueryFullProcessImageName(handle, 0, &buffer[0], &size); err != nil {
-		return "", err
-	}
-	return windows.UTF16ToString(buffer[:size]), nil
-}
-
-// endProcessesOf terminates every running process whose executable is one of
-// the given files, with everything those processes started, and waits for
-// them. It returns how many processes it ended.
-func endProcessesOf(executables []string) (int, error) {
-	wanted := map[string]bool{}
-	names := map[string]bool{}
-	for _, executable := range executables {
-		absolute, err := filepath.Abs(executable)
-		if executable == "" || err != nil {
-			continue
-		}
-		wanted[strings.ToLower(filepath.Clean(absolute))] = true
-		names[strings.ToLower(filepath.Base(absolute))] = true
-	}
-	if len(wanted) == 0 {
-		return 0, nil
-	}
-	listed, err := winproc.List()
-	if err != nil {
-		return 0, err
-	}
-	// #nosec G115 -- a pid is positive.
-	self := uint32(os.Getpid())
-	roots := map[uint32]treeMember{}
-	for _, process := range listed {
-		if process.PID == self || !names[strings.ToLower(process.Exe)] {
-			continue
-		}
-		member, err := openTreeMember(process.PID)
-		if err != nil {
-			continue
-		}
-		path, err := imagePath(member.handle)
-		if err != nil || !wanted[strings.ToLower(filepath.Clean(path))] {
-			_ = windows.CloseHandle(member.handle)
-			continue
-		}
-		_ = windows.TerminateProcess(member.handle, 1)
-		roots[process.PID] = member
-	}
-	if len(roots) == 0 {
-		return 0, nil
-	}
-	found := len(roots)
-	ended, err := endDescendants(roots)
-	return found + ended, err
 }

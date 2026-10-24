@@ -10,7 +10,7 @@ import (
 )
 
 // TestParseToEndRecoversCorruptDemoPanic reproduces a real incident: a
-// header-valid but otherwise garbage payload (e.g. a cloud portal submission
+// header-valid but otherwise garbage payload (a file
 // that isn't truly a CS2 demo despite passing the magic-byte check) made
 // demoinfocs.Parser.ParseToEnd panic with invalid protobuf wire-format data,
 // which — unrecovered — crashed the whole orchestrator process instead of

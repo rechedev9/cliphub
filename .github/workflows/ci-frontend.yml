@@ -11,7 +11,6 @@ on:
     paths:
       - 'web/**'
       - 'desktop/**'
-      - 'portal/**'
       - '.github/workflows/ci-frontend.yml'
   schedule:
     - cron: '0 3 * * *'
@@ -32,30 +31,28 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11.22.0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: |
             web/pnpm-lock.yaml
             desktop/pnpm-lock.yaml
-            portal/pnpm-lock.yaml
 
-      - name: Install web, desktop and portal dependencies
+      - name: Install web and desktop dependencies
         run: |
           pnpm --dir web install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
-          pnpm --dir portal install --frozen-lockfile
 
       - name: Web typecheck, lint, unit
         run: |
@@ -69,9 +66,3 @@ jobs:
           pnpm --dir desktop run lint
           pnpm --dir desktop run test:unit
 
-      - name: Portal typecheck, lint, unit and build
-        run: |
-          pnpm --dir portal run typecheck
-          pnpm --dir portal run lint
-          pnpm --dir portal run test:unit
-          pnpm --dir portal run build

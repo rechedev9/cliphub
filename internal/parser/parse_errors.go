@@ -12,10 +12,8 @@ import (
 // parseToEnd is the single choke point every parse path (kills, smokes,
 // roster, utility) runs a demo through; demosafe turns a parser panic into an error.
 //
-// Every parse failure other than a cancellation is tagged "demo_incompatible: "
-// so obs.ClassOf gives the job the demo-format FailureCode and the web client
-// can tell the user the demo itself is unreadable, whether demoinfocs panicked
-// or returned an error (an unsupported file type, a message it cannot decode).
+// Every failure but a cancellation is tagged "demo_incompatible: " so obs.ClassOf
+// gives the job the demo-format FailureCode, panic or not.
 func parseToEnd(p demoinfocs.Parser) error {
 	parseErr := demosafe.ParseToEnd(p)
 	switch {

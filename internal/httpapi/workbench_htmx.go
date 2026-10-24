@@ -426,7 +426,7 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 	ready := renderState != nil && renderState.Status == renderplan.RenderVariantStatusReady
 	failed := j.Status == job.StatusFailed || (renderState != nil && renderState.Status == renderplan.RenderVariantStatusFailed)
 	renderActive := renderState != nil && (renderState.Status == renderplan.RenderVariantStatusQueued || renderState.Status == renderplan.RenderVariantStatusRendering)
-	captureActive := j.Status == job.StatusRecording || j.Status == job.StatusComposing
+	captureActive := j.Status.CaptureActive()
 	// Between clicking Generate and the worker flipping to recording (and during
 	// the record->render handoff) the job sits in parsed/recorded with no render
 	// state yet; an existing intent marks that window as "generating".

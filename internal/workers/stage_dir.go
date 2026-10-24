@@ -1,53 +1,10 @@
 package workers
 
 import (
-	"errors"
 	"log"
 	"os"
-	"path/filepath"
-	"regexp"
 	"time"
 )
-
-// stageDirPattern matches what prepareStageDir creates in the temp directory:
-// zv-<stage>-<job uuid>-<random>.
-var stageDirPattern = regexp.MustCompile(`^zv-[a-z-]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9]+$`)
-
-// SweepStageDirs removes the stage directories earlier runs left in the temp
-// directory and in workDir (ZV_MEDIA_WORK_DIR, empty when unset): each is
-// removed by a deferred call, which a killed orchestrator never makes, and a
-// raw capture is several gigabytes. It must only be called before any task
-// runs, and only where this orchestrator is the single one on the machine
-// (the cloud worker), because the temp directory is shared.
-func SweepStageDirs(workDir string) (removed int, err error) {
-	removed, err = sweepStageDirs(os.TempDir())
-	if workDir == "" {
-		return removed, err
-	}
-	more, workErr := sweepStageDirs(workDir)
-	if workErr != nil && !errors.Is(workErr, os.ErrNotExist) {
-		err = errors.Join(err, workErr)
-	}
-	return removed + more, err
-}
-
-func sweepStageDirs(base string) (removed int, err error) {
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		return 0, err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !stageDirPattern.MatchString(entry.Name()) {
-			continue
-		}
-		if removeErr := os.RemoveAll(filepath.Join(base, entry.Name())); removeErr != nil {
-			err = removeErr
-			continue
-		}
-		removed++
-	}
-	return removed, err
-}
 
 const (
 	stageDirRemoveTimeout = 15 * time.Second

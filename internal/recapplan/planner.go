@@ -136,6 +136,12 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
 	canonical.Capture.TrueView = options.Capture.TrueView
+	// Only the player id is the user's choice; the values always come from the catalog.
+	proSettings, err := ResolveProSettings(options.Capture.ProSettings.PlayerID)
+	if err != nil {
+		return Options{}, err
+	}
+	canonical.Capture.ProSettings = proSettings
 	if canonical.Overlays.HUDTheme == "focus" {
 		canonical.Overlays.HUDPortrait = options.Overlays.HUDPortrait
 	}
@@ -163,6 +169,9 @@ func (o Options) ValidateCurrentFullDemoPolicy() error {
 	canonical, err := CanonicalNewOptions(o)
 	if err != nil {
 		return err
+	}
+	if o.Capture.ProSettings != canonical.Capture.ProSettings {
+		return fmt.Errorf("the pro settings catalog changed for %s; prepare the video again", o.Capture.ProSettings.Name)
 	}
 	if o.Capture != canonical.Capture {
 		return fmt.Errorf("observed player crosshair and a current HUD capture profile are required")

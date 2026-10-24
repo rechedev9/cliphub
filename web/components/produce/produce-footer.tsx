@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { PRODUCE_READY_HINT } from '@/lib/produce/copy';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
@@ -22,14 +23,12 @@ export type ProduceFooterProps = {
   briefItems: ReadonlyArray<CreativeBriefItem>;
   /** Extra brief content below the items (e.g. the FACEIT note). */
   briefNote?: ReactNode;
-  /** What creating does once the form is valid: where it records and where the result lands. */
-  readyHint: ReactNode;
+  /** What creating does once the form is valid; defaults to where it records and where the result lands. */
+  readyHint?: ReactNode;
   ready: boolean;
   busy: boolean;
   backHref: string;
   error: string | null;
-  /** A control that belongs directly above the action row (where the capture runs). */
-  target?: ReactNode;
   cta: ReactNode;
 };
 
@@ -42,12 +41,11 @@ export function ProduceFooter({
   onHintAction,
   briefItems,
   briefNote,
-  readyHint,
+  readyHint = PRODUCE_READY_HINT,
   ready,
   busy,
   backHref,
   error,
-  target,
   cta,
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
@@ -92,7 +90,6 @@ export function ProduceFooter({
               {error}
             </p>
           ) : null}
-          {target}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
             <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">

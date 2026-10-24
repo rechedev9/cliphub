@@ -9,57 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSweepStageDirsRemovesOnlyWhatPrepareStageDirCreates(t *testing.T) {
-	base := t.TempDir()
-	var stale []string
-	for _, stage := range []string{"record", "render", "stream-render"} {
-		// The cleanup is never called, like a deferred removal that never ran
-		// because the process was killed.
-		dir, _, err := prepareStageDir(base, uuid.New(), stage)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "take0000.mp4"), []byte("raw capture"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		stale = append(stale, dir)
-	}
-	keep := []string{
-		filepath.Join(base, "zv-workers-test-obs-123"),
-		filepath.Join(base, "zv-record-not-a-job-123"),
-		filepath.Join(base, "someone-elses-temp"),
-	}
-	for _, dir := range keep {
-		if err := os.Mkdir(dir, 0o750); err != nil {
-			t.Fatal(err)
-		}
-	}
-	fileWithStageName := filepath.Join(base, "zv-record-"+uuid.NewString()+"-1")
-	if err := os.WriteFile(fileWithStageName, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// base is ZV_MEDIA_WORK_DIR here; the system temp directory is empty.
-	emptyTemp := t.TempDir()
-	for _, name := range []string{"TMP", "TEMP", "TMPDIR"} {
-		t.Setenv(name, emptyTemp)
-	}
-	removed, err := SweepStageDirs(base)
-	if err != nil || removed != len(stale) {
-		t.Fatalf("SweepStageDirs = %d, %v, want %d removed", removed, err, len(stale))
-	}
-	for _, dir := range stale {
-		if _, err := os.Stat(dir); !os.IsNotExist(err) {
-			t.Fatalf("stale stage directory %s is still there", dir)
-		}
-	}
-	for _, path := range append(keep, fileWithStageName) {
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("%s was removed, but no stage created it: %v", path, err)
-		}
-	}
-}
-
 // A capture that was just stopped can hold a file open for a moment. The
 // stage directory is several gigabytes, so its removal must outlast that.
 func TestStageDirCleanupOutlastsAFileThatIsStillOpen(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/parser"
 )
 
@@ -148,7 +149,7 @@ func TestIntroFilterIncludesMonogramWithoutAvatar(t *testing.T) {
 		},
 	}, SourceProfessional, nil)
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	if !strings.Contains(got, "text='S'") {
+	if !strings.Contains(got, "text="+ffmpegfilter.Value("S")) {
 		t.Fatalf("monogram initial missing:\n%s", got)
 	}
 }
@@ -219,7 +220,7 @@ func TestIntroFilterUsesDenseFACEITStats(t *testing.T) {
 		}},
 	})
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "LAST 20 FACEIT MATCHES", "MATCHES", "WINS", "K/D/A", "K/D", "K/R", "ADR", "1,66", "0,93", "POV"} {
+	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "LAST 20 FACEIT MATCHES", "MATCHES", "WINS", "K/D/A", "K/D", "K/R", "ADR", ffmpegfilter.Value("1,66"), ffmpegfilter.Value("0,93"), "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("intro missing %q:\n%s", want, got)
 		}
@@ -337,10 +338,10 @@ func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
 			if !strings.Contains(got, "LAST 20 FACEIT MATCHES") || !strings.Contains(got, "ADR") {
 				t.Fatalf("missing Last 20 ADR column:\n%s", got)
 			}
-			if tt.wantADR != "" && !strings.Contains(got, tt.wantADR) {
+			if tt.wantADR != "" && !strings.Contains(got, ffmpegfilter.Value(tt.wantADR)) {
 				t.Fatalf("missing Last 20 ADR %q:\n%s", tt.wantADR, got)
 			}
-			if tt.forbidADR != "" && strings.Contains(got, tt.forbidADR) {
+			if tt.forbidADR != "" && strings.Contains(got, ffmpegfilter.Value(tt.forbidADR)) {
 				t.Fatalf("match ADR leaked into Last 20 grid:\n%s", got)
 			}
 			_, value := introADRHS(doc.Intro.Left[0])
@@ -449,7 +450,7 @@ func TestOutroFilterDrawsScoreboardColumns(t *testing.T) {
 	}, SourceProfessional, nil)
 	outroLayout := DefaultLayout().Outro
 	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", outroLayout, false)
-	for _, want := range []string{"Vitality", "G2", "RATING", "K/D/A", "ADR", "HS%", "23/14/4", "1,35", "POV"} {
+	for _, want := range []string{"Vitality", "G2", "RATING", "K/D/A", "ADR", "HS%", "23/14/4", ffmpegfilter.Value("1,35"), "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("outro missing %q:\n%s", want, got)
 		}
@@ -479,7 +480,7 @@ func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 	}, nil)
 	outroLayout := DefaultLayout().Outro
 	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", outroLayout, false)
-	for _, header := range []string{"text='Counter-Terrorists  13'", "text='Terrorists  8'"} {
+	for _, header := range []string{"text=" + ffmpegfilter.Value("Counter-Terrorists  13"), "text=" + ffmpegfilter.Value("Terrorists  8")} {
 		if !strings.Contains(got, header) {
 			t.Fatalf("outro missing team header %s:\n%s", header, got)
 		}

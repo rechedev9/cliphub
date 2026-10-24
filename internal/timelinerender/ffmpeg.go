@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
 
@@ -285,9 +286,9 @@ func drawtextFilter(overlay timelineplan.TextOverlay, fontPath, textPath string,
 	}
 	y := fmt.Sprintf("h*%s-th/2", floatArg(overlay.PositionY))
 	return fmt.Sprintf(
-		"drawtext=fontfile='%s':textfile='%s':expansion=none:fontsize=%d:fontcolor=white:borderw=4:bordercolor=black:x=(w-tw)/2:y=%s:enable='between(t\\,%s\\,%s)'",
-		ffmpegFilterPath(fontPath),
-		ffmpegFilterPath(textPath),
+		"drawtext=fontfile=%s:textfile=%s:expansion=none:fontsize=%d:fontcolor=white:borderw=4:bordercolor=black:x=(w-tw)/2:y=%s:enable='between(t\\,%s\\,%s)'",
+		ffmpegfilter.Path(fontPath),
+		ffmpegfilter.Path(textPath),
 		size,
 		y,
 		secondsArg(overlay.StartSeconds),
@@ -304,12 +305,6 @@ func atempoChain(speed float64) string {
 	default:
 		return "atempo=" + floatArg(speed)
 	}
-}
-
-func ffmpegFilterPath(value string) string {
-	value = strings.ReplaceAll(value, `\`, "/")
-	value = strings.ReplaceAll(value, ":", `\:`)
-	return strings.ReplaceAll(value, "'", `\'`)
 }
 
 func secondsArg(v float64) string {

@@ -84,7 +84,7 @@ export function serviceUnavailable(): Response {
   );
 }
 
-const UUID_RE = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 /** Query param the orchestrator filters jobs by for a bulk series listing. */
 const SERIES_ID_PARAM = 'series_id';

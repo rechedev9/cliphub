@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
   Clapperboard,
-  Cloud,
   Film,
   MonitorPlay,
   Radar,
@@ -31,13 +30,11 @@ import {
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
-import { cloudConnectionTag, type CloudAccessTag } from '@/lib/cloud/account-view';
 import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
-import { useCloudAccount } from '@/hooks/use-cloud-account';
 
 type NavGroup = 'create' | 'results' | 'analysis' | 'learn' | 'chrome';
-type NavTrailingKind = 'stream' | 'faceit' | 'cloud';
+type NavTrailingKind = 'stream' | 'faceit';
 
 /** One heading per job the user came to do; `chrome` docks to the footer without one. */
 const GROUP_LABEL = {
@@ -56,7 +53,6 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: 
   '/tactical': { icon: Radar, group: 'analysis' },
   '/cheaters': { icon: ShieldAlert, group: 'analysis' },
   '/algoritmos': { icon: TrendingUp, group: 'learn' },
-  '/nube': { icon: Cloud, group: 'chrome', trailing: 'cloud' },
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
@@ -73,7 +69,7 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Brand lockup, one nav group per job, then cloud + settings + capture pill in the footer. */
+/** Brand lockup, one nav group per job, then settings + capture pill in the footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
 
@@ -160,26 +156,7 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
 const TRAILING_TEXT_CLASS =
   'shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider group-data-[collapsible=icon]:hidden';
 
-const CLOUD_TONE_CLASS: Record<CloudAccessTag['tone'], string> = {
-  success: 'text-success',
-  warning: 'text-warning',
-  danger: 'text-destructive',
-  neutral: 'text-fg-3',
-};
-
-/** Whether this PC is connected to the cloud, read at a glance from the rail. */
-function CloudNavStatus(): ReactElement | null {
-  const tag = cloudConnectionTag(useCloudAccount());
-  if (tag === null) return null;
-  return (
-    <span title={tag.text} className={cn(TRAILING_TEXT_CLASS, 'max-w-24 truncate', CLOUD_TONE_CLASS[tag.tone])}>
-      {tag.text}
-    </span>
-  );
-}
-
 function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElement | null {
-  if (kind === 'cloud') return <CloudNavStatus />;
   if (kind === 'stream') {
     return (
       <span

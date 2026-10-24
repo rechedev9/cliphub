@@ -45,9 +45,10 @@ func (p RecordingPlan) validateFullDemo() error {
 		}
 		sources = append(sources, source)
 	}
+	width, height := d.Options.Capture.CaptureSize()
 	if p.Stream.FullDemoProfile != recapplan.ProfileChill || p.Stream.FullDemoCapture != d.Options.Capture ||
 		p.DemoSHA256 != d.Input.DemoSHA256 || p.TargetSteamID64 != d.Input.TargetSteamID64 || p.Tickrate != d.Clock.TickRate ||
-		p.Stream.FPS != 60 || p.Stream.Width != 1920 || p.Stream.Height != 1080 || p.Stream.HUDMode != HUDModeGameplay || p.Stream.PortraitSafeKillfeed {
+		p.Stream.FPS != 60 || p.Stream.Width != width || p.Stream.Height != height || p.Stream.HUDMode != HUDModeGameplay || p.Stream.PortraitSafeKillfeed {
 		return &recapplan.Error{Code: recapplan.ErrPOVContract, Detail: "Capture profile contradicts the approved Full Demo document"}
 	}
 	for _, s := range p.Segments {

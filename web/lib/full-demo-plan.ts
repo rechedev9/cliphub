@@ -71,6 +71,20 @@ export type FullDemoBumperOptions = Guarded<typeof bumperOptions>;
 export function isFullDemoBumperOptions(value: unknown): value is FullDemoBumperOptions {
   return bumperOptions(value);
 }
+// Mirrors recapplan.ProSettings: the server resolves it from its catalog, so
+// the limits are CS2's viewmodel ranges and the 1080p capture height.
+const proSettings = object({
+  player_id: string, name: string, width: integerRange(640, 3840), height: integerRange(480, 2160), scaling: oneOf('stretched', 'black-bars', 'native'),
+  capture_width: integerRange(1080, 1920), capture_height: integerRange(1080, 1080),
+  viewmodel_fov: number(54, 68), viewmodel_offset_x: number(-2.5, 2.5), viewmodel_offset_y: number(-2, 2), viewmodel_offset_z: number(-2, 2),
+});
+export type FullDemoProSettings = Guarded<typeof proSettings>;
+// The catalog entry as the server sends it: `settings` is what a plan stores for that pro.
+const proPlayer = object({
+  id: string, name: string, team: string, aliases: array(string, 20), width: integer, height: integer, scaling: string,
+  viewmodel: record, source: string, updated: string, settings: proSettings,
+}, ['aliases']);
+export type FullDemoProPlayer = Guarded<typeof proPlayer>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
@@ -79,7 +93,8 @@ const optionsShape = object({
     crosshair: object({ mode: oneOf('observed', 'provided-code'), code: string, allow_capture_default: boolean }),
     // Go omits it when off, so only a present key can mean TrueView.
     trueview: boolean,
-  }, ['trueview']),
+    pro_settings: proSettings,
+  }, ['trueview', 'pro_settings']),
   editorial: object({
     freeze_seconds: number(0, 20), keep_freeze_voice: boolean, voice_context_seconds: number(0, 3), max_freeze_seconds: number(0, 60),
     death_tail_seconds: number(0, 3), round_tail_seconds: number(0, 2), allow_safe_tail_trim: boolean,
@@ -125,7 +140,7 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
   // the player's own CS2 HUD; any other missing theme gets the default one.
   const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
   const hudTheme = nativeHud ? undefined : fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
-  const { trueview, ...capture } = fixed.capture;
+  const { trueview, pro_settings: proSettings, ...capture } = fixed.capture;
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
@@ -138,6 +153,8 @@ export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOption
       hud_profile: nativeHud ? NATIVE_HUD_CAPTURE_PROFILE : CUSTOM_HUD_CAPTURE_PROFILE,
       crosshair: { ...fixed.capture.crosshair, mode: 'observed', code: '', allow_capture_default: false },
       ...(trueview ? { trueview: true } : {}),
+      // Go omits it when no pro is chosen; an empty id never goes on the wire.
+      ...(proSettings?.player_id ? { pro_settings: proSettings } : {}),
     },
     editorial: { ...fixed.editorial, death_tail_seconds: 3, round_tail_seconds: 2, allow_safe_tail_trim: true, manual_ranges: [] },
     audio: {
@@ -299,7 +316,7 @@ async function responseJSON(response: Response): Promise<unknown> {
   if (!response.ok) throw new Error(record(value) && typeof value.error === 'string' ? value.error : `Solicitud fallida (${response.status}).`);
   return value;
 }
-const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1') });
+const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1') }, ['pro_players']);
 export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<Guarded<typeof envelopeShape>> {
   const value = await responseJSON(await fetch(planURL(jobId), { cache: 'no-store', signal }));
   if (!envelopeShape(value)) throw new Error('El servidor devolvió un plan de vídeo largo incompatible.');

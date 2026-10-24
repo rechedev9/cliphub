@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
@@ -173,8 +174,8 @@ func TestBuildFFmpegArgsOldStreamerBannerPlanUsesCurrentLayoutDefault(t *testing
 		"vstack=inputs=2[content]",
 		"color=c=0x9146ff:s=1080x96:r=60:d=5.000",
 		"drawbox=x=0:y=0:w=116:h=96:color=0x5b1ba9:t=fill",
-		`fontfile='C\:/Windows/Fonts/arialbd.ttf'`,
-		"text='zacketizorcs2'",
+		"fontfile=" + ffmpegfilter.Path(`C:\Windows\Fonts\arialbd.ttf`),
+		"text=" + ffmpegfilter.Value("zacketizorcs2"),
 		"fontsize=52",
 		"overlay=x='0':y=670:eval=frame:eof_action=pass:shortest=0",
 		"fps=60",
@@ -283,7 +284,7 @@ func TestBuildFFmpegArgsLandscapeUsesCompactLowerThird(t *testing.T) {
 	for _, want := range []string{
 		"scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd+full_chroma_int,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black[content]",
 		"color=c=0x111319:s=520x64:r=60:d=5.000",
-		"text='@zacketizorcs2'",
+		"text=" + ffmpegfilter.Value("@zacketizorcs2"),
 		"overlay=x='32':y=983:eval=frame",
 	} {
 		if !strings.Contains(joined, want) {
@@ -292,24 +293,6 @@ func TestBuildFFmpegArgsLandscapeUsesCompactLowerThird(t *testing.T) {
 	}
 	if unwanted := "color=c=0x9146ff:s=1920x96"; strings.Contains(joined, unwanted) {
 		t.Fatalf("landscape args contain the vertical full-width banner %q: %s", unwanted, joined)
-	}
-}
-
-func TestFFmpegDrawtextTextEscapesFilterMetacharacters(t *testing.T) {
-	tests := []struct {
-		name  string
-		value string
-		want  string
-	}{
-		{name: "option delimiters", value: "o'clock:50%,[x]", want: `o\'clock\:50\%\,\[x\]`},
-		{name: "backslash", value: `a\b`, want: `a\\b`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ffmpegDrawtextText(tt.value); got != tt.want {
-				t.Fatalf("ffmpegDrawtextText(%q) = %q, want %q", tt.value, got, tt.want)
-			}
-		})
 	}
 }
 
@@ -664,7 +647,7 @@ func TestBuildFFmpegArgsUsesKickBannerPalette(t *testing.T) {
 		"drawbox=x=26:y=44:w=48:h=8:color=0x53fc18:t=fill",
 		"drawbox=x=66:y=76:w=24:h=8:color=0x53fc18:t=fill",
 		"fontcolor=black",
-		"text='aimagia'",
+		"text=" + ffmpegfilter.Value("aimagia"),
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("args missing %q: %s", want, joined)

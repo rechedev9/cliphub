@@ -1,4 +1,4 @@
-import { GENERATE_WORK_ACTIVE_CODE, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
+import { GENERATE_WORK_ACTIVE_CODE, PLAN_READY_STATUSES, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
@@ -105,8 +105,6 @@ function failed(reason?: string, code?: string): ReelView {
   return view;
 }
 
-const IN_FLIGHT_RECORD_CONFLICT = /^job is not ready to record \(status=recording\)$/;
-
 type AdmissionBody = { error?: string; code?: string };
 
 /** Shared POST admission mapping. Null keeps the current poll (202/503/work active). */
@@ -120,9 +118,6 @@ function viewForAdmission(httpStatus: number, body: AdmissionBody, fallbackReaso
 
 /** HTTP POST /record (generate) result → reel view. */
 export function viewForRecordAdmission(httpStatus: number, body: AdmissionBody = {}): ReelView | null {
-  if (httpStatus === 409 && IN_FLIGHT_RECORD_CONFLICT.test(body.error ?? '')) {
-    return { status: 'recording', action: 'none' };
-  }
   return viewForAdmission(httpStatus, body, 'failed to start recording');
 }
 
@@ -136,6 +131,22 @@ export function isDurableAdmissionFailure(
   view: ReelView | null,
 ): view is ReelView & { status: 'failed'; failureReason: string } {
   return view !== null && view.status === 'failed' && view.unrecoverable !== true && view.failureReason !== undefined;
+}
+
+/** How long an accepted /generate holds off re-POSTs while the worker has not picked it up yet. */
+export const RECORD_ADMISSION_GRACE_MS = 30_000;
+
+const PRE_CAPTURE_STATUSES: ReadonlySet<string> = new Set(
+  [...PLAN_READY_STATUSES].filter((status) => status !== 'recording' && status !== 'composing'),
+);
+
+/**
+ * True while an accepted /generate should still count as admitted: the job may
+ * read failed (or its pre-capture status) until the worker dequeues the task.
+ */
+export function recordAdmissionPending(input: { jobStatus: string; admittedAt: number; now: number }): boolean {
+  if (input.jobStatus === 'failed') return true;
+  return PRE_CAPTURE_STATUSES.has(input.jobStatus) && input.now - input.admittedAt < RECORD_ADMISSION_GRACE_MS;
 }
 
 /** Retry drive: never re-POST record while capture is already running. */
@@ -281,10 +292,11 @@ export function deriveReelView(input: ReconcileInput): ReelView {
       ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
     };
   }
+  // The caller drops recordAdmitted once the job moved on or the grace ran out.
+  if (recordAdmitted && renderStatus !== 'queued' && renderStatus !== 'rendering') {
+    return { status: 'recording', action: 'none' };
+  }
   if (jobStatus === 'failed') {
-    if (recordAdmitted) {
-      return { status: 'recording', action: 'none' };
-    }
     // Non-reusable capture: re-drive record instead of staying failed.
     if (requiresRecapture(jobFailureReason)) {
       return { status: 'queued', action: 'record' };

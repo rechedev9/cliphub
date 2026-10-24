@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -481,7 +482,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 	}
 	var clauses []string
 	if withVideo {
-		video := fmt.Sprintf("[0:v]fps=60,%strim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", fullDemoTailPadFilter(tailPad), trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
+		video := fmt.Sprintf("[0:v]fps=60,%strim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,%s,setsar=1,format=yuv420p%s", fullDemoTailPadFilter(tailPad), trimStart, trimStart+frames, fullDemoFrameFilter(options.Capture), fullDemoTransitionVideo(short, item, edges))
 		hudFilter, err := fullDemoHUDFilter(short, item, output)
 		if err != nil {
 			return nil, err
@@ -538,6 +539,16 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 
 // Each item already owns a slot in the three-process video pool and overlaps
 // the audio branch. Bound filter workers independently of encoder threads.
+// fullDemoFrameFilter stretches a stretched pro's capture to 16:9 as their
+// monitor does; any other aspect ratio keeps its proportions with bars.
+func fullDemoFrameFilter(capture recapplan.CaptureOptions) string {
+	w, h := demooverlay.FrameWidth, demooverlay.FrameHeight
+	if capture.StretchToFrame() {
+		return fmt.Sprintf("scale=%d:%d", w, h)
+	}
+	return fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=%d:%d:(ow-iw)/2:(oh-ih)/2", w, h, w, h)
+}
+
 func fullDemoVideoFilterThreads() int {
 	return min(4, max(1, runtime.NumCPU()))
 }

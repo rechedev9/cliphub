@@ -1,8 +1,6 @@
 import type { StreamJob } from './api/streams.ts';
 import type { Match, Video } from './api/types.ts';
 import { RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
-import type { CloudJob } from './cloud/parse.ts';
-import { cloudJobViewOn, type CloudDevice } from './cloud/view.ts';
 
 /** Live jobs for the command-strip transport and the html capture-active gate. */
 
@@ -15,13 +13,12 @@ const SHELL_ACTIVITY_MAX_AGE_MS = 4000;
 /**
  * Non-terminal stages across the three job kinds, in the order the pipeline
  * runs them. `recording` is CS2 + HLAE and always sorts first: it is the one
- * stage that owns the machine. `cloud` is a job on the ClipHub cloud machine:
- * it never touches this PC's GPU.
+ * stage that owns the machine.
  */
-export type ShellJobStage = 'queued' | 'recording' | 'composing' | 'parsing' | 'acquiring' | 'cloud';
+export type ShellJobStage = 'queued' | 'recording' | 'composing' | 'parsing' | 'acquiring';
 
-/** reel = demo output; parse = a partida being parsed; stream = a stream job; cloud = a cloud job. */
-export type ShellJobKind = 'reel' | 'parse' | 'stream' | 'cloud';
+/** reel = demo output; parse = a partida being parsed; stream = a stream job. */
+export type ShellJobKind = 'reel' | 'parse' | 'stream';
 
 export interface ShellJob {
   readonly id: string;
@@ -34,8 +31,6 @@ export interface ShellJob {
   readonly progress: { readonly done: number; readonly total: number; readonly percent?: number; readonly stage?: string } | null;
   /** Where the job lives; the transport's row links there. */
   readonly href: string;
-  /** Status line that replaces the stage's fixed subtitle (cloud jobs). */
-  readonly detail?: string;
 }
 
 export interface ShellActivity {
@@ -54,8 +49,7 @@ const STAGE_RANK: Record<ShellJobStage, number> = {
   composing: 1,
   acquiring: 2,
   parsing: 3,
-  cloud: 4,
-  queued: 5,
+  queued: 4,
 };
 
 /** Orchestrator statuses that mean "the partida is still being parsed". */
@@ -81,23 +75,16 @@ export function publishShellJobs(input: readonly ShellJob[], now: number): void 
   for (const listener of listeners) listener();
 }
 
-/** Every live job from the local sources plus the cloud, unsorted. */
+/** Every live job from the local sources, unsorted. */
 export function collectShellJobs(input: {
   videos: readonly Video[];
   matches?: readonly Match[];
   streams?: readonly StreamJob[];
-  cloud?: readonly CloudJob[];
-  /** False once this PC has no ClipHub account: its cloud jobs cannot be followed. */
-  cloudLinked?: boolean;
-  /** Clock for cloud queue estimates; defaults to the wall clock. */
-  now?: number;
 }): ShellJob[] {
-  const device = { now: input.now ?? Date.now(), linked: input.cloudLinked ?? true };
   return [
     ...input.videos.flatMap(reelJob),
     ...(input.matches ?? []).flatMap(parseJob),
     ...(input.streams ?? []).flatMap(streamJob),
-    ...(input.cloud ?? []).flatMap((job) => cloudShellJob(job, device)),
   ];
 }
 
@@ -189,24 +176,6 @@ function streamJob(job: StreamJob): ShellJob[] {
   ];
 }
 
-/** A cloud job that is still moving. It is never `recording`, so it never gates the local GPU. */
-function cloudShellJob(job: CloudJob, device: CloudDevice): ShellJob[] {
-  const view = cloudJobViewOn(job, device);
-  if (!view.active) return [];
-  return [
-    {
-      id: `cloud:${job.id}`,
-      kind: 'cloud',
-      title: job.title,
-      stage: 'cloud',
-      startedAt: job.createdAt,
-      progress: view.percent === null ? null : { done: view.percent, total: 100, percent: view.percent },
-      href: RESULTS_HREF,
-      detail: view.line,
-    },
-  ];
-}
-
 /** Most advanced stage first, oldest first within a stage. */
 function byPipelineOrder(a: ShellJob, b: ShellJob): number {
   const rank = STAGE_RANK[a.stage] - STAGE_RANK[b.stage];
@@ -220,7 +189,6 @@ function sameJob(job: ShellJob, other: ShellJob | undefined): boolean {
     job.kind === other.kind &&
     job.stage === other.stage &&
     job.title === other.title &&
-    job.detail === other.detail &&
     job.progress?.done === other.progress?.done &&
     job.progress?.total === other.progress?.total &&
     job.progress?.percent === other.progress?.percent &&

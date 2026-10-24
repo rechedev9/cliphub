@@ -12,6 +12,8 @@ import {
   unrecoverableJobGoneView,
   viewForJobGone,
   viewForRecordAdmission,
+  recordAdmissionPending,
+  RECORD_ADMISSION_GRACE_MS,
   viewForRenderAdmission, viewForReadyWithoutVideo, READY_WITHOUT_VIDEO_REASON } from './reel-reconcile.ts';
 import type { DecideReelReconcileInput, MismatchRedrive, ReconcileInput, RedrivenRevision, ReelAction } from './reel-reconcile.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
@@ -154,6 +156,25 @@ test('admitted record keeps a still-failed job in capture instead of latching FA
     }),
     { status: 'recording', action: 'none' },
   );
+});
+
+test('admitted record holds a pre-capture job in capture instead of re-driving generate', () => {
+  for (const jobStatus of ['parsed', 'recorded', 'done']) {
+    assert.deepEqual(view({ jobStatus, recordAdmitted: true }), { status: 'recording', action: 'none' }, jobStatus);
+  }
+  assert.deepEqual(
+    view({ jobStatus: 'done', renderStatus: 'failed', renderFailureReason: 'encoder crashed', recordAdmitted: true }),
+    { status: 'recording', action: 'none' },
+  );
+});
+
+test('record admission stays pending until capture starts or the grace runs out', () => {
+  const admittedAt = 1_000;
+  const pending = (jobStatus: string, now: number) => recordAdmissionPending({ jobStatus, admittedAt, now });
+  assert.equal(pending('done', admittedAt + 1_000), true);
+  assert.equal(pending('done', admittedAt + RECORD_ADMISSION_GRACE_MS), false);
+  assert.equal(pending('recording', admittedAt + 1_000), false);
+  assert.equal(pending('failed', admittedAt + RECORD_ADMISSION_GRACE_MS * 10), true);
 });
 
 test('job failed → failed with reason', () => {
@@ -685,11 +706,16 @@ test('POST admission: transient, job-gone, in-flight and durable rejections', ()
     { name: 'record 404 job gone', view: viewForRecordAdmission(404, {}), wantStatus: 'failed', wantDurable: false },
     { name: 'render 404 job gone', view: viewForRenderAdmission(404, {}), wantStatus: 'failed', wantDurable: false },
     {
-      name: 'record 409 already recording is progress',
-      view: viewForRecordAdmission(409, { error: 'job is not ready to record (status=recording)' }),
-      wantStatus: 'recording',
-      wantAction: 'none',
+      name: 'record 409 generate racing its own capture is not a failure',
+      view: viewForRecordAdmission(409, { error: 'job is not ready to generate (status=recording)', code: 'generate_work_active' }),
+      wantStatus: null,
       wantDurable: false,
+    },
+    {
+      name: 'record 409 generate from an unparsed job is durable',
+      view: viewForRecordAdmission(409, { error: 'job is not ready to generate (status=parsing)', code: 'conflict' }),
+      wantStatus: 'failed',
+      wantDurable: true,
     },
     {
       name: 'record 409 recap plan not ready stays failed',

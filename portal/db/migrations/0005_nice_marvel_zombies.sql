@@ -1,1 +1,0 @@
-ALTER TABLE `user_cloud` ADD `autoApprove` integer DEFAULT false NOT NULL;

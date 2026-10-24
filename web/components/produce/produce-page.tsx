@@ -8,7 +8,6 @@ import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
 import { flowHref, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
-import { CAPTURE_TARGET_QUERY, captureTargetParam } from '@/lib/cloud/capture-target';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   MATCH_PLAYS_ANALYZING_DESCRIPTION,
@@ -225,8 +224,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
         {shortPlanJobId === id ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId}
-              initialTarget={captureTargetParam(query[CAPTURE_TARGET_QUERY])} />
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} />
           </div>
         ) : null}
       </>

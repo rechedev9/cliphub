@@ -6,13 +6,13 @@ ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into ed
 - `cmd/`, `internal/`: Go backend (orchestrator, parser, recorder, editor). Go 1.26.10 from `go.mod`.
 - `web/`: Studio UI (Next.js, standalone build). `desktop/`: Electron shell that bundles the Go
   binaries, the web build and HLAE into the Windows installer.
-- `portal/`, `landing/`: separate Next.js sites. `deploy/`: portal and telemetry deploy files.
-- Node 24, pnpm 11.22.0: `pnpm --dir <web|desktop|portal> install --frozen-lockfile`.
+- `landing/`: separate Next.js site. `deploy/`: telemetry deploy files.
+- Node 24, pnpm 11.22.0: `pnpm --dir <web|desktop> install --frozen-lockfile`.
 
 ## Build and check
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. A few Full Demo editor tests depend on the FFmpeg
   version; Studio ships FFmpeg 8.1.2.
-- web, desktop, portal: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web/portal.
+- web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
 - CI runs on pushes to main, tags and nightly, not on PRs. Run the checks for what you touched.
 
 ## Run Studio from source (Windows)

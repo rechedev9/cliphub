@@ -12,7 +12,7 @@ import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { customHudTheme } from '../custom-hud.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
@@ -37,6 +37,7 @@ import {
 } from './jobs-index.ts';
 import { reconcileReels } from './reconcile-batch.ts';
 import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
+import { importedVideo, importedVideoId, isImportedVideo, parseImportedVideos, type ImportedVideo } from './imported-videos.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 import type { StorageUsage } from './storage.ts';
 import { parseCaptureProgress } from '../capture-progress.ts';
@@ -310,8 +311,8 @@ export class RealApiClient implements ApiClient {
   private readonly jobGoneTicks = new Map<string, number>();
   /** Consecutive ready-without-MP4 render polls per reel, feeding the unrecoverable latch. */
   private readonly readyWithoutVideoTicks = new Map<string, number>();
-  /** POST /record accepted; job may still read failed until the worker dequeues. */
-  private readonly pendingCapture = new Set<string>();
+  /** When POST /generate was accepted; the job may still read its old status until the worker dequeues. */
+  private readonly pendingCapture = new Map<string, number>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[]; revision?: string }>();
   /** Cached per-job series match (map/score); immutable once a job has one. */
@@ -328,6 +329,8 @@ export class RealApiClient implements ApiClient {
   private readonly recovered = new Map<string, RecoveredVideo>();
   /** Job status each job's renders were last read at; a status change re-reads them. */
   private readonly recoveryProbed = new Map<string, string>();
+  /** Shorts kept from the retired cloud; null until read once. The list only ever shrinks, by deletion. */
+  private imported: ImportedVideo[] | null = null;
 
   constructor() {
     // Rehydrate persisted intents so the Library survives a hard reload.
@@ -621,12 +624,14 @@ export class RealApiClient implements ApiClient {
   }
 
   async listVideos(): Promise<Video[]> {
-    await Promise.all([this.reconcile(), this.recoverServerRenders()]);
+    // Started together so the imported Shorts share the jobs read of the recovery pass.
+    const [, , imported] = await Promise.all([this.reconcile(), this.recoverServerRenders(), this.importedVideos()]);
     // The user's own reels, persisted on this PC, plus finished renders whose intent was lost.
     const listed = Array.from(this.reels.values());
     for (const entry of this.recovered.values()) {
       if (!this.reels.has(entry.video.id)) listed.push(entry.video);
     }
+    listed.push(...imported);
     return listed
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((v) => ({ ...v }));
@@ -634,7 +639,23 @@ export class RealApiClient implements ApiClient {
 
   async getVideo(id: string): Promise<Video | null> {
     const reel = this.reels.get(id) ?? this.recovered.get(id)?.video;
-    return reel ? { ...reel } : null;
+    if (reel) return { ...reel };
+    if (!isImportedVideo({ id })) return null;
+    return (await this.importedVideos()).find((video) => video.id === id) ?? null;
+  }
+
+  private async importedVideos(): Promise<Video[]> {
+    if (this.imported === null) {
+      try {
+        this.imported = parseImportedVideos(await readJson<unknown>(await this.send((dp) => ({ url: dp.importedVideosUrl, init: { cache: 'no-store' } }))));
+      } catch {
+        return [];
+      }
+    }
+    if (this.imported.length === 0) return [];
+    const jobs = await this.sharedRead('jobs', () => this.fetchJobs()).catch((): IndexedJob[] => []);
+    const dp = dataPlane();
+    return this.imported.map((video) => importedVideo(video, dp.importedVideoUrl(video.cloudJobId, video.name), jobs));
   }
 
   /**
@@ -692,13 +713,16 @@ export class RealApiClient implements ApiClient {
     if (this.recovered.has(id)) {
       return new Error('Este vídeo se recuperó de un render anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
     }
+    if (this.imported?.some((video) => importedVideoId(video) === id)) {
+      return new Error('Este Short se grabó en la antigua nube de ClipHub: solo se puede ver, descargar o borrar.');
+    }
     return new Error('Reel desconocido.');
   }
 
   async getPublishAssistant(id: string): Promise<PublishAssistant> {
     const intent = this.intents.get(id);
     const recovered = intent ? undefined : this.recovered.get(id);
-    if (!intent && !recovered) throw new Error('Reel desconocido.');
+    if (!intent && !recovered) throw this.unknownReel(id);
     const reel = this.reels.get(id) ?? recovered?.video;
     if (!reel || reel.status !== 'ready') throw new Error('video is not ready for publication');
     const variant = intent ? variantOf(intent) : recovered!.variant;
@@ -843,6 +867,14 @@ export class RealApiClient implements ApiClient {
   }
 
   async deleteVideo(id: string): Promise<void> {
+    const kept = this.imported ?? [];
+    const imported = kept.find((video) => importedVideoId(video) === id);
+    if (imported) {
+      const res = await this.send((dp) => ({ url: dp.importedVideoUrl(imported.cloudJobId, imported.name), init: { method: 'DELETE' } }));
+      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
+      this.imported = kept.filter((video) => video !== imported);
+      return;
+    }
     const intent = this.intents.get(id);
     const recovered = this.recovered.get(id);
     if (!intent && recovered) {
@@ -904,6 +936,7 @@ export class RealApiClient implements ApiClient {
       this.artifactNames.delete(videoId);
       this.jobGoneTicks.delete(videoId);
       this.readyWithoutVideoTicks.delete(videoId);
+      this.pendingCapture.delete(videoId);
       this.forgetDriveState(videoId);
     }
     for (const [videoId, entry] of this.recovered) {
@@ -997,7 +1030,8 @@ export class RealApiClient implements ApiClient {
     } else {
       this.readyWithoutVideoTicks.delete(intent.videoId);
     }
-    if (job.status !== 'failed') {
+    const admittedAt = this.pendingCapture.get(intent.videoId);
+    if (admittedAt !== undefined && !recordAdmissionPending({ jobStatus: job.status, admittedAt, now: Date.now() })) {
       this.pendingCapture.delete(intent.videoId);
     }
     const decision = decideReelReconcile({
@@ -1137,7 +1171,7 @@ export class RealApiClient implements ApiClient {
             }));
       if (res.ok) {
         if (redriveFrom) this.redrivenRevisions.set(intent.videoId, redriveFrom);
-        if (action === 'record') this.pendingCapture.add(intent.videoId);
+        if (action === 'record') this.pendingCapture.set(intent.videoId, Date.now());
         this.applyView(intent, { status: action === 'record' ? 'recording' : 'composing', action: 'none' });
         return;
       }
