@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
-import { CAPTURE_TARGET, CAPTURE_TARGET_READY_HINT } from '@/lib/cloud/capture-target';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
@@ -17,7 +16,6 @@ import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
-import { LocalOnlyTarget } from './capture-target';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoGroup } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
@@ -202,8 +200,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     </div>
     <ProduceFooter tone="full" eyebrow="Vídeo largo · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
       hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
-      readyHint={dirty ? 'Se preparará al crear.' : CAPTURE_TARGET_READY_HINT[CAPTURE_TARGET.local]}
-      target={<LocalOnlyTarget />}
+      readyHint={dirty ? 'Se preparará al crear.' : undefined}
       ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
       cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
         className="neon-notch shrink-0 focus-visible:-outline-offset-4">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
-import { CloudPage } from '@/components/cloud/cloud-page';
+import { redirect } from 'next/navigation';
+import { RETIRED_ROUTES } from '@/lib/nav';
 
-export default function Page(): ReactNode {
-  return <CloudPage />;
+/** Retired door: old links to Nube land on Resultados. */
+export default function RetiredPage(): never {
+  redirect(RETIRED_ROUTES['/nube']);
 }

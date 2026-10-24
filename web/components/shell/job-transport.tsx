@@ -15,12 +15,11 @@ import {
 import { cn } from '@/lib/utils';
 
 const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string }> = {
-  recording: { tag: 'REC', sub: 'En este PC · CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
-  composing: { tag: 'RENDER', sub: 'En este PC · Edición · FFmpeg', tone: 'text-primary' },
-  parsing: { tag: 'PARSEO', sub: 'En este PC · Parseando la demo', tone: 'text-primary' },
+  recording: { tag: 'REC', sub: 'CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
+  composing: { tag: 'RENDER', sub: 'Edición · FFmpeg', tone: 'text-primary' },
+  parsing: { tag: 'PARSEO', sub: 'Parseando la demo', tone: 'text-primary' },
   acquiring: { tag: 'DESCARGA', sub: 'Descargando el vídeo de origen', tone: 'text-primary' },
-  queued: { tag: 'EN COLA', sub: 'En este PC · Empieza al acabar el REC actual', tone: 'text-fg-3' },
-  cloud: { tag: 'NUBE', sub: 'En la nube de ClipHub · este PC queda libre', tone: 'text-primary' },
+  queued: { tag: 'EN COLA', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
 };
 
 const PILL_CLASS =
@@ -164,7 +163,6 @@ function JobRow({ job, onNavigate }: { job: ShellJob; onNavigate: () => void }):
 
 function jobSubtitle(job: ShellJob): string {
   const { sub } = STAGE_META[job.stage];
-  if (job.stage === 'cloud') return job.detail ?? sub;
   return job.stage === 'composing' ? job.progress?.stage ?? sub : sub;
 }
 
@@ -189,6 +187,5 @@ function pillTag(job: ShellJob): string {
   if (job.progress === null) return tag;
   if (job.stage === 'recording') return `${tag} R${job.progress.done}/${job.progress.total}`;
   if (job.stage === 'composing' && job.kind === 'reel') return `${tag} ${captureProgressPercent(job.progress)}%`;
-  if (job.stage === 'cloud') return `${tag} ${captureProgressPercent(job.progress)}%`;
   return tag;
 }

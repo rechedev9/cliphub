@@ -280,6 +280,8 @@ export type Video = {
   id: string;
   /** Delivered render found on disk without a local reel intent: view, download and delete only. */
   recovered?: boolean;
+  /** False when the video has no local job, so no publish assistant can be built for it. */
+  publishable?: false;
   jobId?: string;
   title: string;
   map: string;

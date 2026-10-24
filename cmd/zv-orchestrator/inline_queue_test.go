@@ -1693,8 +1693,8 @@ func TestInlineQueueCancelJobFailsARetryableAttemptWithoutRetrying(t *testing.T)
 	}
 }
 
-// The cloud worker deletes a local job only after CancelJob says nothing of
-// it is in flight, and a canceled handler returns only once the processes it
+// A caller may delete a job only after CancelJob says nothing of it is in
+// flight, and a canceled handler returns only once the processes it
 // started are gone. So the answer must stay true until the handler returns.
 func TestInlineQueueCancelJobReportsWorkUntilTheCanceledHandlerReturns(t *testing.T) {
 	jobID := uuid.New()

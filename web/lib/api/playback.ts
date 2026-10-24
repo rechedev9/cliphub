@@ -65,19 +65,21 @@ function legacyDemoRevision(prefix: string | undefined, video: Video, artifactNa
 }
 
 export function demoPlaybackItem(video: Video): MediaPlaybackItem | null {
-  if (!video.downloadUrl || !video.jobId) return null;
+  if (!video.downloadUrl) return null;
+  // A video without a local job, such as a Short imported from the retired cloud, keys the player by its own id.
+  const jobId = video.jobId ?? video.id;
   const variant = video.variant ?? 'viral-60-clean';
   const artifactName = artifactNameFromUrl(video.downloadUrl);
   if (artifactName === null) return null;
   const artifactRevision = demoArtifactRevision(video.reviewArtifactPrefix);
   const immutableBase = artifactRevision === null
     ? null
-    : `/api/demos/${encodeURIComponent(video.jobId)}/renders/${encodeURIComponent(variant)}/revisions/${artifactRevision}`;
+    : `/api/demos/${encodeURIComponent(jobId)}/renders/${encodeURIComponent(variant)}/revisions/${artifactRevision}`;
   const coverName = video.thumbnailUrl ? artifactNameFromUrl(video.thumbnailUrl) : null;
   return {
     id: `demo:${video.id}`,
     source: PLAYBACK_SOURCE.demo,
-    jobId: video.jobId,
+    jobId,
     variant,
     artifactName,
     revision: artifactRevision ?? legacyDemoRevision(video.reviewArtifactPrefix, video, artifactName),

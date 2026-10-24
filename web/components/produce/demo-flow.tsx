@@ -43,7 +43,6 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { WorkflowProgress } from '@/components/studio/workflow-progress';
-import { CaptureWhereNote } from '@/components/produce/capture-where-note';
 import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -446,7 +445,6 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
       <WorkflowProgress steps={FLOW_STEPS[format]} current={progressStep} />
-      {atHome ? <CaptureWhereNote format={format} /> : null}
       {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div

@@ -186,9 +186,11 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
           <Download aria-hidden />
           MP4
         </Button>
-        <Button asChild size="xs" variant="outline">
-          <Link href={publishHref(matchId, video.id)}>Publicar</Link>
-        </Button>
+        {video.publishable === false ? null : (
+          <Button asChild size="xs" variant="outline">
+            <Link href={publishHref(matchId, video.id)}>Publicar</Link>
+          </Button>
+        )}
       </span>
     );
   }

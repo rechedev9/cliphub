@@ -3,7 +3,7 @@ package obs
 import "testing"
 
 // The reason below is the one the 2026-09-23 incident recorded when a CS2
-// update broke HLAE; the cloud worker pauses itself on this class.
+// update broke HLAE.
 func TestClassOfCaptureIncompatible(t *testing.T) {
 	const incident = `HLAE hook crashed with a native error dialog ("Error - AfxHookSource2")`
 	cases := []struct {

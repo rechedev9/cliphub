@@ -11,7 +11,6 @@ const RAIL = [
   ['Táctica', '/tactical'],
   ['Anti-cheat', '/cheaters'],
   ['Algoritmos', '/algoritmos'],
-  ['Nube', '/nube'],
   ['Ajustes', '/settings'],
 ] as const;
 

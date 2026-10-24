@@ -2,12 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { HubModel } from '@/lib/clips/hub';
-import type { ResultsOrigin } from '@/lib/clips/routes';
 import { previewModelContext, registerWebTools } from '@/lib/webmcp';
 
 type State = {
   model: HubModel | null;
-  origin: ResultsOrigin | null;
   failed: boolean;
 };
 
@@ -16,11 +14,10 @@ export function useWebMCPLibrary(state: State): void {
   useLayoutEffect(() => { current.current = state; });
   useEffect(() => {
     const snapshot = () => {
-      const { model, origin, failed } = current.current;
+      const { model, failed } = current.current;
       let dataStatus = model === null ? 'loading' : 'ready';
       if (failed) dataStatus = 'unavailable_or_partial';
       return {
-        origin_filter: origin ?? 'all',
         data_status: dataStatus,
         matches: model?.rows.slice(0, 100).map(row => ({ id: row.match.id, map: row.match.map, stage: row.stage })) ?? [],
         clips: model?.clips.slice(0, 100).map(clip => ({ id: clip.id, title: clip.title, state: clip.state })) ?? [],
@@ -30,7 +27,7 @@ export function useWebMCPLibrary(state: State): void {
     return registerWebTools(previewModelContext(), [
       {
         name: 'cliphub_get_library',
-        description: 'Read the loaded demos and the videos recorded on this PC, with the loading/failure status. Results can be partial when the local service is unavailable. Stream and cloud outputs are not included.',
+        description: 'Read the loaded demos and the videos recorded on this PC, with the loading/failure status. Results can be partial when the local service is unavailable. Stream outputs are not included.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
         annotations: { readOnlyHint: true },
         execute: () => JSON.stringify(snapshot()),
