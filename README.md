@@ -32,21 +32,20 @@ The app updates itself from the latest GitHub Release.
 2. Add the match. Drop a `.dem`, `.dem.zst`, `.zip` or `.rar` file (up to 10 demos at once), or paste a `CSGO-` share code and download the demo from Steam.
 3. Pick the player. ClipHub reads the demo and lists the ten players with rating, ADR, KAST and HS %.
 4. For a Short, work through four steps: plays, style, music, text and graphics. **Auto: mejores 60 s** picks the best minute for you.
-5. Create the video. Studio opens CS2, records the plays through HLAE and edits them together. A Short can be recorded on a ClipHub server instead, once the PC is connected in **Nube**.
+5. Create the video. Studio opens CS2, records the plays through HLAE and edits them together.
 6. Open the finished video in **Resultados**. The publish assistant prepares title, description and tags, and lets you download the MP4 and open YouTube Studio to upload it yourself.
 
 ## What you can do
 
 | Section in the app | What it does |
 | --- | --- |
-| Shorts | Make vertical Shorts from a demo, recorded on this PC or in the ClipHub cloud. |
+| Shorts | Make vertical Shorts from a demo. |
 | Vídeos largos | Make a full-match video from a demo. Several demos of one best-of are grouped as a series. |
-| Resultados | Every video you made, split by where it was recorded, with download and the publish assistant. |
+| Resultados | Every video you made, with download and the publish assistant. |
 | Clips de stream | Cut moments from a Twitch, YouTube or Kick link or an MP4 into vertical Shorts, with facecam framing. |
 | Jugadores | Follow FACEIT players and turn their matches into clips. |
 | Táctica | Round classification, a 2D replay and tendencies, all derived from the demo. |
 | Anti-cheat | CheaterDetect compares each player's aim, information and reaction times with a measured baseline. It flags what to review by hand and gives no verdict. |
-| Nube | Connect this PC to a ClipHub account to record Shorts on a ClipHub server. |
 | Ajustes | Get this PC ready to record and manage optional connections such as Steam and diagnostics. |
 
 Long videos cover every round from one player's view, with a HUD, team voices, round transitions and optional intro, sponsor and outro clips. Shorts add beat-synced cuts, kill effects and transitions.
@@ -94,8 +93,8 @@ Repository layout:
 | `cmd/`, `internal/` | Go backend: orchestrator, parser, recorder, editor |
 | `web/` | Studio UI (Next.js) |
 | `desktop/` | Electron shell and installer build |
-| `landing/`, `portal/` | Separate Next.js sites |
-| `deploy/` | Portal and telemetry deploy files |
+| `landing/` | Separate Next.js site |
+| `deploy/` | Telemetry deploy files |
 
 ## Checks
 
@@ -107,7 +106,7 @@ pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run te
 pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir desktop run test:unit
 ```
 
-`make test` runs the Go tests and `zv check`; `make build` builds the binaries. For `portal/`, run the same `typecheck`, `lint` and `test:unit` scripts. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. CI runs on pushes to `main`, on version tags and nightly, not on pull requests, so run the checks for what you touched. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
+`make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. CI runs on pushes to `main`, on version tags and nightly, not on pull requests, so run the checks for what you touched. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
 
 ## Releases
 

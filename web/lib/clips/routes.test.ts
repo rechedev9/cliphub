@@ -7,9 +7,6 @@ import {
   PRODUCE_FORMAT,
   produceHref,
   publishHref,
-  RESULTS_ORIGIN,
-  resultsHref,
-  resultsOriginParam,
   SHORTS_HREF,
 } from './routes.ts';
 
@@ -37,26 +34,6 @@ test('produceHref opens the producer of the given flow', () => {
   ];
   for (const { name, href, want } of cases) {
     assert.equal(href, want, name);
-  }
-});
-
-test('resultsHref filters by where the video was recorded', () => {
-  assert.equal(resultsHref(), '/resultados');
-  assert.equal(resultsHref({ origin: RESULTS_ORIGIN.cloud }), '/resultados?origen=nube');
-  assert.equal(resultsHref({ origin: RESULTS_ORIGIN.local }), '/resultados?origen=pc');
-});
-
-test('resultsOriginParam shows everything unless the origin is known', () => {
-  const cases: Array<{ name: string; value: string | string[] | null | undefined; want: string | null }> = [
-    { name: 'missing param', value: undefined, want: null },
-    { name: 'null from URLSearchParams', value: null, want: null },
-    { name: 'unknown value', value: 'servidor', want: null },
-    { name: 'repeated param', value: [RESULTS_ORIGIN.cloud, RESULTS_ORIGIN.cloud], want: null },
-    { name: 'this PC', value: RESULTS_ORIGIN.local, want: RESULTS_ORIGIN.local },
-    { name: 'cloud', value: RESULTS_ORIGIN.cloud, want: RESULTS_ORIGIN.cloud },
-  ];
-  for (const { name, value, want } of cases) {
-    assert.equal(resultsOriginParam(value), want, name);
   }
 });
 

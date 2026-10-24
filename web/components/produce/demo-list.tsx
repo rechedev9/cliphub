@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { cloudApi } from '@/lib/api/cloud';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
 import {
@@ -22,8 +21,6 @@ import {
   type HubModel,
 } from '@/lib/clips/hub';
 import { flowHref, PRODUCE_FORMAT, produceHref, RESULTS_HREF, type ProduceFormat } from '@/lib/clips/routes';
-import type { CloudJob } from '@/lib/cloud/parse';
-import { cloudJobsByMatch } from '@/lib/cloud/view';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -40,39 +37,28 @@ import { Button } from '@/components/ui/button';
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
 
-const NO_CLOUD_JOBS: readonly CloudJob[] = [];
-
 const LIST_TITLE = 'Demos cargadas';
 const LIST_HINT = {
   short: 'Ya están analizadas en este PC: crea otro Short sin volver a cargarlas.',
   full: 'Ya están analizadas en este PC: prepara otro vídeo largo sin volver a cargarlas.',
 } as const satisfies Record<ProduceFormat, string>;
 
-type ListState = { model: HubModel; cloud: readonly CloudJob[] };
-
 /** The demos already on this PC, each with the next step of this flow. */
 export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
   const router = useRouter();
-  const [state, setState] = useState<ListState | null>(null);
+  const [state, setState] = useState<HubModel | null>(null);
   const [offline, setOffline] = useState<boolean | null>(null);
-  const stateRef = useRef<ListState | null>(null);
+  const stateRef = useRef<HubModel | null>(null);
 
-  const refresh = useCallback(async (): Promise<ListState | null> => {
+  const refresh = useCallback(async (): Promise<HubModel | null> => {
     try {
-      const [matches, videos, cloud] = await Promise.all([
-        api.listMatches(),
-        api.listVideos(),
-        // Only Shorts record in the cloud; a failed cloud read keeps the last counts.
-        format === PRODUCE_FORMAT.short
-          ? cloudApi.jobs().catch(() => stateRef.current?.cloud ?? NO_CLOUD_JOBS)
-          : NO_CLOUD_JOBS,
-      ]);
-      const next: ListState = { model: buildHubModel(matches, videos), cloud };
+      const [matches, videos] = await Promise.all([api.listMatches(), api.listVideos()]);
+      const next = buildHubModel(matches, videos);
       const prev = stateRef.current;
       setOffline(null);
       if (prev !== null && sameHubProps(prev, next)) return prev;
       if (prev !== null) {
-        for (const row of hubTransitions(prev.model, next.model).parsed) {
+        for (const row of hubTransitions(prev, next).parsed) {
           toast('Demo analizada', {
             description: `${prettyMapName(row.match.map)} · Jugador: ${row.match.player ?? '—'}`,
             action: {
@@ -97,7 +83,7 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
       tick: async () => {
         const next = await refresh();
         if (!active || next === null) return 'idle';
-        return next.model.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing) ? 'fast' : 'idle';
+        return next.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing) ? 'fast' : 'idle';
       },
       fastMs: FAST_POLL_MS,
       idleMs: IDLE_POLL_MS,
@@ -114,11 +100,10 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
 
   const banner = offline === null ? null : <HubBanner offline={offline} onRetry={onChange} />;
   // The upload above is the empty state: an empty list adds nothing to it.
-  if (state === null || state.model.rows.length === 0) return banner;
+  if (state === null || state.rows.length === 0) return banner;
 
-  const cloudByMatch = cloudJobsByMatch(state.cloud);
-  const rows = state.model.rows.map((row) => ({ row, cloudCount: cloudByMatch.get(row.match.id)?.length ?? 0 }));
-  const anyMade = rows.some(({ row, cloudCount }) => madeCount(row, format, cloudCount) > 0);
+  const rows = state.rows;
+  const anyMade = rows.some((row) => madeCount(row, format) > 0);
 
   return (
     <section aria-labelledby="demo-list-title" className="flex flex-col gap-3">
@@ -140,34 +125,32 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
       </header>
       {banner}
       <div className="flex flex-col gap-3" aria-busy={offline !== null || undefined}>
-        {rows.map(({ row, cloudCount }) => (
-          <DemoRow key={row.match.id} row={row} format={format} cloudCount={cloudCount} onChange={onChange} />
+        {rows.map((row) => (
+          <DemoRow key={row.match.id} row={row} format={format} onChange={onChange} />
         ))}
       </div>
     </section>
   );
 }
 
-/** Videos of this flow's format already made from the demo, cloud Shorts included. */
-function madeCount(row: HubMatch, format: ProduceFormat, cloudCount: number): number {
-  return format === PRODUCE_FORMAT.short ? row.shorts.length + cloudCount : row.fulls.length;
+function madeCount(row: HubMatch, format: ProduceFormat): number {
+  return format === PRODUCE_FORMAT.short ? row.shorts.length : row.fulls.length;
 }
 
 type DemoRowProps = {
   row: HubMatch;
   format: ProduceFormat;
-  cloudCount: number;
   onChange: () => void;
 };
 
-function DemoRow({ row, format, cloudCount, onChange }: DemoRowProps): ReactNode {
+function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
   const { match, stage } = row;
   const { ours, theirs } = parseScore(match.score);
   const hasScore = ours !== null && theirs !== null;
   const win = hasScore && ours > theirs;
   const loss = hasScore && ours < theirs;
   const ready = stage === HUB_ROW_STAGE.ready;
-  const made = madeCount(row, format, cloudCount);
+  const made = madeCount(row, format);
 
   let bar = 'bg-border-strong';
   if (ready && win) bar = 'bg-success';
@@ -187,7 +170,7 @@ function DemoRow({ row, format, cloudCount, onChange }: DemoRowProps): ReactNode
             <span className="text-fg-1">{theirs}</span>
           </span>
         ) : null}
-        <MadeChip row={row} format={format} cloudCount={cloudCount} />
+        <MadeChip row={row} format={format} />
       </span>
     );
   }
@@ -242,17 +225,12 @@ function DemoRow({ row, format, cloudCount, onChange }: DemoRowProps): ReactNode
 }
 
 /** How many videos of this format the demo already has; nothing when there are none. */
-function MadeChip({ row, format, cloudCount }: { row: HubMatch; format: ProduceFormat; cloudCount: number }): ReactNode {
+function MadeChip({ row, format }: { row: HubMatch; format: ProduceFormat }): ReactNode {
   if (format === PRODUCE_FORMAT.full) {
     const [latest] = row.fulls;
     return latest === undefined ? null : <StatusTag tone={OUTPUT_TONE[latest.state]}>{fullChipLabel(row.fulls)}</StatusTag>;
   }
-  return (
-    <>
-      {row.shorts.length > 0 ? <StatusTag tone={shortsChipTone(row.shorts)}>Este PC · {row.shorts.length}</StatusTag> : null}
-      {cloudCount > 0 ? <StatusTag tone="primary">Nube · {cloudCount}</StatusTag> : null}
-    </>
-  );
+  return row.shorts.length > 0 ? <StatusTag tone={shortsChipTone(row.shorts)}>Shorts · {row.shorts.length}</StatusTag> : null;
 }
 
 /** Terminal failure: the reason stays on the row so the user knows what to do before deleting it. */
@@ -276,7 +254,7 @@ function ParsingBlock({ player }: { player?: string }): ReactNode {
       <span className="studio-bar text-primary">
         <span className="studio-indeterminate" />
       </span>
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">En este PC · podrás crear al terminar</span>
+      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">Podrás crear al terminar</span>
     </span>
   );
 }

@@ -8,7 +8,6 @@ export const NAV_SECTIONS = [
   { label: 'Táctica', href: '/tactical' },
   { label: 'Anti-cheat', href: '/cheaters' },
   { label: 'Algoritmos', href: '/algoritmos' },
-  { label: 'Nube', href: '/nube' },
   { label: 'Ajustes', href: '/settings' },
 ] as const;
 
@@ -28,4 +27,5 @@ export const RETIRED_ROUTES = {
   '/editor': '/resultados',
   '/videos': '/resultados',
   '/feed': '/resultados',
+  '/nube': '/resultados',
 } as const;

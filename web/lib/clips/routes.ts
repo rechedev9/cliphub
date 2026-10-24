@@ -7,7 +7,6 @@
 export const SHORTS_HREF = '/shorts' as const;
 export const LONG_VIDEOS_HREF = '/videos-largos' as const;
 export const RESULTS_HREF = '/resultados' as const;
-export const CLOUD_HREF = '/nube' as const;
 
 export const PRODUCE_FORMAT = {
   short: 'short',
@@ -47,26 +46,6 @@ export function produceHref(matchId: string, format: ProduceFormat, seriesId?: s
   if (seriesId === undefined || seriesId === '') return base;
   const params = new URLSearchParams({ [PRODUCE_QUERY.series]: seriesId });
   return `${base}?${params.toString()}`;
-}
-
-/** `?origen=` narrows the results to what one place recorded. */
-export const RESULTS_QUERY = { origin: 'origen' } as const;
-
-export const RESULTS_ORIGIN = {
-  local: 'pc',
-  cloud: 'nube',
-} as const;
-export type ResultsOrigin = (typeof RESULTS_ORIGIN)[keyof typeof RESULTS_ORIGIN];
-
-/** Resolves `?origen=`; a missing, repeated or unknown value shows every result. */
-export function resultsOriginParam(value: string | string[] | null | undefined): ResultsOrigin | null {
-  return value === RESULTS_ORIGIN.local || value === RESULTS_ORIGIN.cloud ? value : null;
-}
-
-export function resultsHref(opts: { origin?: ResultsOrigin } = {}): string {
-  if (opts.origin === undefined) return RESULTS_HREF;
-  const params = new URLSearchParams({ [RESULTS_QUERY.origin]: opts.origin });
-  return `${RESULTS_HREF}?${params.toString()}`;
 }
 
 export function seriesHref(seriesId: string): string {

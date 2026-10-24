@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bridgeEnvironment } from './bridge-environment.ts';
-import { cloudEnvironment } from './cloud-environment.ts';
 import { createOrchestratorEnvironment } from './orchestrator-environment.ts';
 import { steamEnvironment } from './steam-environment.ts';
 
@@ -15,7 +13,7 @@ test('pins the bundled overlay renderer and supplies the dev entry only when nee
   assert.equal('ZV_OVERLAY_RENDERER_APP' in packaged, false);
 });
 
-test('carries Steam credentials and bridge settings without displacing the recorder pin', () => {
+test('carries Steam credentials without displacing the recorder pin', () => {
   const environment = createOrchestratorEnvironment({
     dataDir: 'data',
     httpAddress: '127.0.0.1:8080',
@@ -24,18 +22,12 @@ test('carries Steam credentials and bridge settings without displacing the recor
     securityEnvironment: {},
     toolEnvironment: { ZV_HLAE_PATH: 'tools/HLAE.exe', ZV_RECORDER_PATH: 'stale/zv-recorder.exe' },
     steamEnvironment: steamEnvironment({ ZV_STEAM_USERNAME: 'user', ZV_STEAM_PASSWORD: 'pw' }),
-    bridgeEnvironment: bridgeEnvironment({
-      ZV_BRIDGE_URL: 'https://portal.example',
-      ZV_BRIDGE_TOKEN: 'abc',
-    }),
   });
 
   assert.deepEqual(environment, {
     ZV_DATABASE_URL: 'sqlite',
     ZV_DATA_DIR: 'data',
     GOLANG_PROTOBUF_REGISTRATION_CONFLICT: 'ignore',
-    ZV_BRIDGE_TOKEN: 'abc',
-    ZV_BRIDGE_URL: 'https://portal.example',
     ZV_HLAE_PATH: 'tools/HLAE.exe',
     ZV_HTTP_ADDR: '127.0.0.1:8080',
     ZV_MUSIC_DIR: 'music',
@@ -43,22 +35,6 @@ test('carries Steam credentials and bridge settings without displacing the recor
     ZV_STEAM_PASSWORD: 'pw',
     ZV_STEAM_USERNAME: 'user',
   });
-});
-
-test('carries the cloud client settings next to the bridge settings', () => {
-  const environment = createOrchestratorEnvironment({
-    dataDir: 'data',
-    httpAddress: '127.0.0.1:8080',
-    musicDir: 'music',
-    recorderPath: 'bin/zv-recorder.exe',
-    securityEnvironment: {},
-    toolEnvironment: {},
-    cloudEnvironment: cloudEnvironment({ ZV_CLOUD_URL: 'http://127.0.0.1:3000' }, '5.4.4'),
-  });
-
-  assert.equal(environment.ZV_STUDIO_VERSION, '5.4.4');
-  assert.equal(environment.ZV_CLOUD_URL, 'http://127.0.0.1:3000');
-  assert.equal(environment.ZV_RECORDER_PATH, 'bin/zv-recorder.exe');
 });
 
 test('pins the bundled recorder over stale runtime tool overrides', () => {

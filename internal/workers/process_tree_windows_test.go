@@ -4,10 +4,7 @@ package workers
 
 import (
 	"context"
-	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -108,75 +105,5 @@ func TestACommandThatEndsByItselfLeavesWhatItStartedAlone(t *testing.T) {
 	endHelpers(t, pids)
 	if started := pids[0]; !processAlive(started) {
 		t.Fatalf("the process (pid %d) a finished command left running was ended", started)
-	}
-}
-
-func copyTestBinary(t *testing.T, dest string) {
-	t.Helper()
-	source, err := os.Open(os.Args[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer source.Close()
-	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	target, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o700)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.Copy(target, source); err != nil {
-		t.Fatal(err)
-	}
-	if err := target.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// startLeftover runs a copy of the test binary as a tool nobody waits for,
-// the way a recorder survives the orchestrator that started it.
-func startLeftover(t *testing.T, executable string) []int {
-	t.Helper()
-	dir := t.TempDir()
-	cmd := exec.Command(executable)
-	cmd.Env = append(os.Environ(), treeHelperDirEnv+"="+dir, treeHelperDepthEnv+"=1")
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	go func() { _ = cmd.Wait() }()
-	pids := treeHelperPIDs(t, dir, 2)
-	endHelpers(t, pids)
-	return pids
-}
-
-func TestEndLeftoverToolsEndsTheTreesOfTheGivenExecutablesOnly(t *testing.T) {
-	root := t.TempDir()
-	ours := filepath.Join(root, "studio", "zv-recorder.exe")
-	other := filepath.Join(root, "another-install", "zv-recorder.exe")
-	copyTestBinary(t, ours)
-	copyTestBinary(t, other)
-	oursPIDs := startLeftover(t, ours)
-	otherPIDs := startLeftover(t, other)
-
-	ended, err := EndLeftoverTools(ours, filepath.Join(root, "studio", "zv-editor.exe"), "")
-	if err != nil {
-		t.Fatalf("EndLeftoverTools error = %v", err)
-	}
-	if ended != 2 {
-		t.Fatalf("processes ended = %d, want the recorder and the process it started", ended)
-	}
-	for _, pid := range oursPIDs {
-		if processAlive(pid) {
-			t.Fatalf("leftover process %d is still running", pid)
-		}
-	}
-	for _, pid := range otherPIDs {
-		if !processAlive(pid) {
-			t.Fatalf("process %d of another install with the same file name was ended", pid)
-		}
-	}
-
-	if again, err := EndLeftoverTools(ours); err != nil || again != 0 {
-		t.Fatalf("second EndLeftoverTools = %d, %v, want nothing left to end", again, err)
 	}
 }

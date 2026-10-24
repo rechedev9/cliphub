@@ -9,7 +9,3 @@ import "os"
 func killProcessTree(process *os.Process, _ string) error {
 	return process.Kill()
 }
-
-func endProcessesOf([]string) (int, error) {
-	return 0, nil
-}

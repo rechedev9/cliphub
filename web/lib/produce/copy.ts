@@ -30,11 +30,15 @@ export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos una jugada';
 /** The Short draft lives in sessionStorage; the long-video one in localStorage, so it outlives the session. */
 export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu última visita en esta sesión.';
 export const PRODUCE_SHORT_DRAFT_RESET = PRODUCE_DRAFT_RESET;
+export const PRODUCE_SHORT_CTA = 'Crear Short';
+
+/** Footer line once a producer can create: where it records and where the result lands. */
+export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Resultados.';
 
 /** The long-form flow is "vídeo largo" everywhere the user reads it; "Full Demo" stays internal. */
 export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';
 export const PRODUCE_FULL_DRAFT_RESTORED = 'Configuración recuperada de tu última visita.';
-export const PRODUCE_FULL_CTA = 'Crear vídeo largo en este PC';
+export const PRODUCE_FULL_CTA = 'Crear vídeo largo';
 export const PRODUCE_FULL_QUEUE_CTA = 'Poner vídeo largo en cola';
 
 /** A poll tick failed while the partida is already on screen: warn, keep the content. */

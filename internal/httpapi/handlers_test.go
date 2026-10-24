@@ -6245,23 +6245,3 @@ func TestMaterializeRenderVariantStatesGatesOnPostSweepJobStatus(t *testing.T) {
 		})
 	}
 }
-
-// TestAdmitCloudDemoRejectsCSGODemo keeps the bridge in step with CreateJob:
-// a CS:GO demo would only queue a roster scan demoinfocs v5 always fails.
-func TestAdmitCloudDemoRejectsCSGODemo(t *testing.T) {
-	store := newFakeStorage()
-	h := NewHandlers(newFakeRepo(), store, &fakeQueue{})
-
-	_, err := h.AdmitCloudDemo(context.Background(), CloudDemoAdmission{
-		Demo:           bytes.NewReader([]byte("HL2DEMO\x00rest-of-demo")),
-		FileName:       "match.dem",
-		CloudRequestID: "req-1",
-		Rules:          rules.Default(),
-	})
-	if err == nil || !strings.Contains(err.Error(), "CS:GO demo") {
-		t.Fatalf("AdmitCloudDemo error = %v, want a CS:GO rejection", err)
-	}
-	if len(store.puts) != 0 {
-		t.Fatalf("storage puts = %d, want 0 (must reject before Put)", len(store.puts))
-	}
-}
