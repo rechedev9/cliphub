@@ -106,6 +106,12 @@ func (s Status) CanHaveRenderState() bool {
 	}
 }
 
+// CaptureActive is true while a capture or its edit is running, so a new
+// generate would race the worker instead of starting one.
+func (s Status) CaptureActive() bool {
+	return s == StatusRecording || s == StatusComposing
+}
+
 // Statuses returns every defined Status in declaration order. Exhaustive
 // walks (startup sweeps, contract tests) must range over this instead of a
 // hand-written list, which is how review_required was silently skipped.
