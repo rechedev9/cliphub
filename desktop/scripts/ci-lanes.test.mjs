@@ -34,6 +34,14 @@ test('CI lanes are contents:read and never cut or sign the installer', () => {
   }
 });
 
+test('every action in every workflow is pinned to a full commit SHA', () => {
+  for (const name of readdirSync(workflowsDir).filter((file) => /\.ya?ml$/.test(file))) {
+    for (const [, ref] of readWorkflow(name).matchAll(/uses:\s*(\S+)/g)) {
+      assert.match(ref, /@[0-9a-f]{40}$/, `${name}: ${ref} must be pinned by SHA`);
+    }
+  }
+});
+
 test('only desktop-release.yml may build the unsigned installer', () => {
   const distFiles = readdirSync(workflowsDir)
     .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))

@@ -12,7 +12,14 @@ const workflowPath = join(
   'workflows',
   'desktop-release.yml',
 );
-const workflow = readFileSync(workflowPath, 'utf8');
+const workflow = readFileSync(workflowPath, 'utf8').replaceAll('\r\n', '\n');
+const jobs = Object.fromEntries(
+  workflow
+    .slice(workflow.indexOf('\njobs:\n'))
+    .split(/\n(?= {2}[\w-]+:\n)/)
+    .slice(1)
+    .map((block) => [block.trim().split(':')[0], block]),
+);
 
 test('desktop release workflow is the unsigned windows-latest publisher', () => {
   const required = [
@@ -20,8 +27,6 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['runs-on: windows-latest', 'NSIS packaging only works on Windows'],
     ['workflow_dispatch:', 'next unsigned cut must be triggerable without a local PC'],
     ["- 'v*.*.*'", 'pushing a matching version tag must cut the same release'],
-    ['permissions:', 'GITHUB_TOKEN scope must be explicit'],
-    ['contents: write', 'release asset upload needs contents: write'],
     ['CSC_IDENTITY_AUTO_DISCOVERY: \'false\'', 'CI must stay unsigned'],
     ['go-version-file: go.mod', 'CI must install the go.mod toolchain for the NSIS rebuild'],
     ['GOTOOLCHAIN: local', 'windows-latest must rebuild zv with the installed 1.26.6, not auto-download'],
@@ -44,6 +49,7 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['authenticode', 'must not add Authenticode signing'],
     ['electron-builder --publish', 'must not invent a second publish path'],
     ['vercel', 'Actualizar does not depend on a landing deploy'],
+    ['--clobber', 'a published asset must never be overwritten'],
   ];
   for (const [needle, why] of forbidden) {
     assert.equal(workflow.toLowerCase().includes(needle), false, why);
@@ -56,11 +62,26 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
   );
 });
 
-test('desktop release workflow has one windows installer job', () => {
-  const jobsBlock = workflow.slice(workflow.indexOf('jobs:'));
-  assert.match(jobsBlock, /^\s{2}windows-installer:\s*$/m);
+test('desktop release workflow builds on windows and publishes in a separate job', () => {
+  assert.deepEqual(Object.keys(jobs), ['windows-installer', 'publish']);
+});
+
+test('only the publish job can write releases', () => {
+  assert.match(workflow, /^permissions: \{\}$/m, 'the workflow default token must have no scope');
+
+  const build = jobs['windows-installer'];
+  assert.match(build, /contents: read/, 'the build job runs third-party code with a read-only token');
+  assert.doesNotMatch(build, /contents: write/);
+  assert.doesNotMatch(build, /gh release/, 'the build job must not publish');
+
+  const publish = jobs.publish;
+  assert.match(publish, /needs: windows-installer/);
+  assert.match(publish, /environment: release/, 'publish must run inside the protected release environment');
+  assert.match(publish, /contents: write/);
   assert.deepEqual(
-    [...jobsBlock.matchAll(/^\s{2}[A-Za-z0-9_-]+:\s*$/gm)].map((match) => match[0].trim()),
-    ['windows-installer:'],
+    [...publish.matchAll(/uses:\s*([^@\s]+)@/g)].map((match) => match[1]),
+    ['actions/download-artifact'],
+    'publish must not check out or run project code',
   );
+  assert.doesNotMatch(publish, /^\s*(?:run: )?(?:pnpm|npm|npx|node|bun|go) /m, 'publish must not run project code');
 });
