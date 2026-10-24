@@ -13,7 +13,7 @@
     "next": "^15.5.27",
     "react": "^19",
     "react-dom": "^19",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.2",
