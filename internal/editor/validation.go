@@ -56,13 +56,19 @@ func ValidateCoverArtifact(artifact recording.RecordingArtifact, outputFormat st
 	return warnings
 }
 
-func ValidateSourceArtifact(artifact recording.RecordingArtifact) []string {
+// ValidateSourceArtifact checks a capture against the stream it was planned
+// with: a Full Demo with pro settings records at the pro's aspect ratio.
+func ValidateSourceArtifact(artifact recording.RecordingArtifact, stream recording.StreamConfig) []string {
 	var warnings []string
 	if artifact.ProbeError != "" {
 		return []string{fmt.Sprintf("source %s probe failed: %s", artifact.SegmentID, artifact.ProbeError)}
 	}
-	if artifact.Width != 0 && artifact.Height != 0 && (artifact.Width != 1920 || artifact.Height != 1080) {
-		warnings = append(warnings, fmt.Sprintf("source %s resolution = %dx%d, want 1920x1080", artifact.SegmentID, artifact.Width, artifact.Height))
+	if stream.Width <= 0 || stream.Height <= 0 {
+		stream = recording.DefaultStreamConfig()
+	}
+	width, height := stream.Width, stream.Height
+	if artifact.Width != 0 && artifact.Height != 0 && (artifact.Width != width || artifact.Height != height) {
+		warnings = append(warnings, fmt.Sprintf("source %s resolution = %dx%d, want %dx%d", artifact.SegmentID, artifact.Width, artifact.Height, width, height))
 	}
 	if artifact.FrameRate != "" && !frameRateMatches(artifact.FrameRate, 60) {
 		warnings = append(warnings, fmt.Sprintf("source %s frame_rate = %q, want 60fps", artifact.SegmentID, artifact.FrameRate))

@@ -231,7 +231,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		}
 		if compiled.SegmentID != "" {
 			for _, part := range compiled.Parts {
-				manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(part.SourceArtifact)...)
+				manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(part.SourceArtifact, result.Plan.Stream)...)
 				manifest.Warnings = append(manifest.Warnings, killCueTailMarginWarnings(part.SegmentID, part.Kills, part.DurationSeconds)...)
 			}
 			manifest.Shorts = append(manifest.Shorts, compiled)
@@ -360,7 +360,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			edit.QualityLogPath = filepath.Join(logDir, logBase+"-quality.log")
 		}
 		manifest.Warnings = append(manifest.Warnings, killCueTailMarginWarnings(segment.ID, kills, duration)...)
-		manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(edit.SourceArtifact)...)
+		manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(edit.SourceArtifact, result.Plan.Stream)...)
 		manifest.Shorts = append(manifest.Shorts, edit)
 	}
 	if len(manifest.Shorts) == 0 {

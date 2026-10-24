@@ -104,6 +104,7 @@
                 cl_hud_color: 0, safezonex: .97, safezoney: .95
             });
             Object.assign(settings, fullDemoCrosshairCvars);
+            Object.assign(settings, fullDemoProCvars);
             // Snapshot all values before changing the first one.
             for (const name of Object.keys(settings)) fullDemoSaveCvar(fullDemoFindCvar(name));
             fullDemoEvidence("settings_before", {values: Array.from(fullDemoSavedCvars, ([name, entry]) => ({name, value: entry.value}))});

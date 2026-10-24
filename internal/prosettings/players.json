@@ -1,0 +1,386 @@
+[
+  {
+    "id": "zywoo",
+    "name": "ZywOo",
+    "team": "Team Vitality",
+    "width": 1024,
+    "height": 768,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/zywoo/",
+    "updated": "2026-10-11"
+  },
+  {
+    "id": "donk",
+    "name": "donk",
+    "team": "Team Spirit",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/donk/",
+    "updated": "2026-10-16"
+  },
+  {
+    "id": "m0nesy",
+    "name": "m0NESY",
+    "team": "Falcons Esports",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/m0nesy/",
+    "updated": "2026-10-18"
+  },
+  {
+    "id": "s1mple",
+    "name": "s1mple",
+    "team": "BC.Game",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/s1mple/",
+    "updated": "2026-10-22"
+  },
+  {
+    "id": "niko",
+    "name": "NiKo",
+    "team": "Falcons Esports",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/niko/",
+    "updated": "2026-10-18"
+  },
+  {
+    "id": "ropz",
+    "name": "ropz",
+    "team": "Team Vitality",
+    "width": 1920,
+    "height": 1080,
+    "scaling": "native",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/ropz/",
+    "updated": "2026-10-11"
+  },
+  {
+    "id": "sh1ro",
+    "name": "sh1ro",
+    "team": "Team Spirit",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/sh1ro/",
+    "updated": "2026-10-11"
+  },
+  {
+    "id": "twistzz",
+    "name": "Twistzz",
+    "team": "FaZe Clan",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/twistzz/",
+    "updated": "2026-10-22"
+  },
+  {
+    "id": "broky",
+    "name": "broky",
+    "team": "FaZe Clan",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/broky/",
+    "updated": "2026-06-26"
+  },
+  {
+    "id": "frozen",
+    "name": "Frozen",
+    "team": "FaZe Clan",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/frozen/",
+    "updated": "2026-10-22"
+  },
+  {
+    "id": "jl",
+    "name": "jL",
+    "team": "Team Vitality",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 2.0,
+      "offset_z": -2.0
+    },
+    "source": "https://prosettings.net/players/jl/",
+    "updated": "2026-10-01"
+  },
+  {
+    "id": "b1t",
+    "name": "b1t",
+    "team": "Natus Vincere",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/b1t/",
+    "updated": "2026-10-16"
+  },
+  {
+    "id": "im",
+    "name": "iM",
+    "team": "Natus Vincere",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": -2.0
+    },
+    "source": "https://prosettings.net/players/im/",
+    "updated": "2026-10-08"
+  },
+  {
+    "id": "kscerato",
+    "name": "kscerato",
+    "team": "FURIA",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/kscerato/",
+    "updated": "2026-10-19"
+  },
+  {
+    "id": "yuurih",
+    "name": "yuurih",
+    "team": "FURIA",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/yuurih/",
+    "updated": "2026-10-19"
+  },
+  {
+    "id": "elige",
+    "name": "EliGE",
+    "team": "Team Liquid",
+    "width": 1680,
+    "height": 1050,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 1.0,
+      "offset_y": 2.0,
+      "offset_z": -1.0
+    },
+    "source": "https://prosettings.net/players/elige/",
+    "updated": "2026-10-20"
+  },
+  {
+    "id": "device",
+    "name": "device",
+    "team": "100 Thieves",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.0,
+      "offset_y": 2.0,
+      "offset_z": -1.0
+    },
+    "source": "https://prosettings.net/players/device/",
+    "updated": "2026-10-17"
+  },
+  {
+    "id": "spinx",
+    "name": "Spinx",
+    "team": "MOUZ",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/spinx/",
+    "updated": "2026-10-11"
+  },
+  {
+    "id": "hunter",
+    "name": "huNter",
+    "team": "G2 Esports",
+    "width": 1350,
+    "height": 1080,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 1.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/hunter/",
+    "updated": "2026-10-07"
+  },
+  {
+    "id": "w0nderful",
+    "name": "w0nderful",
+    "team": "Natus Vincere",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/w0nderful/",
+    "updated": "2026-10-08"
+  },
+  {
+    "id": "xantares",
+    "name": "XANTARES",
+    "team": "Aurora",
+    "width": 1024,
+    "height": 768,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 60.0,
+      "offset_x": 1.0,
+      "offset_y": 1.0,
+      "offset_z": -1.0
+    },
+    "source": "https://prosettings.net/players/xantares/",
+    "updated": "2026-10-18"
+  },
+  {
+    "id": "yekindar",
+    "name": "YEKINDAR",
+    "team": "FURIA",
+    "width": 1680,
+    "height": 1050,
+    "scaling": "native",
+    "viewmodel": {
+      "fov": 65.0,
+      "offset_x": -0.5,
+      "offset_y": 1.0,
+      "offset_z": -2.0
+    },
+    "source": "https://prosettings.net/players/yekindar/",
+    "updated": "2026-10-19"
+  },
+  {
+    "id": "magisk",
+    "name": "Magisk",
+    "team": "BC.Game",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 68.0,
+      "offset_x": 2.5,
+      "offset_y": 0.0,
+      "offset_z": -1.5
+    },
+    "source": "https://prosettings.net/players/magisk/",
+    "updated": "2026-10-22"
+  },
+  {
+    "id": "apex",
+    "name": "apEX",
+    "team": "Team Vitality",
+    "width": 1280,
+    "height": 960,
+    "scaling": "stretched",
+    "viewmodel": {
+      "fov": 60.0,
+      "offset_x": 2.0,
+      "offset_y": 2.0,
+      "offset_z": -2.0
+    },
+    "source": "https://prosettings.net/players/apex/",
+    "updated": "2026-10-11"
+  }
+]

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
@@ -227,6 +228,7 @@ func fullDemoRequiredCaptureCvars(plan RecordingPlan) (map[string]float64, error
 			required[name] = value
 		}
 	}
+	maps.Copy(required, plan.FullDemo.Options.Capture.ProSettings.Cvars())
 	if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
 		values, err := sharecode.CrosshairCvars(plan.FullDemo.Options.Capture.Crosshair.Code)
 		if err != nil {
