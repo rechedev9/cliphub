@@ -303,6 +303,7 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	if len(documents) > 0 && documents[0] != nil {
 		fullDemo = documents[0]
 		stream.FullDemoProfile, stream.FullDemoCapture = recapplan.ProfileChill, fullDemo.Options.Capture
+		stream.Width, stream.Height = fullDemo.Options.Capture.CaptureSize()
 	}
 	accountID, err := AccountIDFromSteamID64(plan.Target.SteamID64)
 	if err != nil {

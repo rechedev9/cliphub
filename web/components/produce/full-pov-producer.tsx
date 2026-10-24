@@ -9,8 +9,9 @@ import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
-  FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions,
+  FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoProPlayer,
 } from '@/lib/full-demo-plan';
+import { proSettingsSummary } from '@/lib/produce/full-demo-pro-settings';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
@@ -22,6 +23,7 @@ import { FullDemoAudio } from './full-demo-audio';
 import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
+import { FullDemoProSettings } from './full-demo-pro-settings';
 import { FullDemoHud } from './full-demo-hud';
 import { customHudLabel } from '@/lib/custom-hud';
 
@@ -38,6 +40,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
+  const [proPlayers, setProPlayers] = useState<readonly FullDemoProPlayer[]>([]);
   /** What "Empezar de cero" goes back to: the saved plan's options, else the defaults. */
   const [baseline, setBaseline] = useState<FullDemoOptions | null>(null);
   /** A local draft differing from the baseline was restored on load. */
@@ -73,7 +76,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       const initial = isFullDemoOptions(draft) ? currentFullDemoOptions(draft) : base;
       // Saving a plan also stores its options as the draft; only a real divergence is "recovered".
       setRestored(fullDemoOptionsKey(initial) !== fullDemoOptionsKey(base));
-      setDocument(loaded.document); setBaseline(base); setOptions(initial); setBusy(null);
+      setDocument(loaded.document); setBaseline(base); setOptions(initial); setProPlayers(loaded.pro_players ?? []); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
@@ -151,6 +154,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'HUD', value: customHudLabel(options.overlays.hud_theme) },
     { label: 'POV', value: options.capture.trueview ? 'Original 1:1' : 'Estándar' },
+    { label: 'Settings', value: proSettingsSummary(options.capture.pro_settings) },
     { label: 'Voces', value: options.audio.voice.enabled ? 'Incluidas' : 'Sin voces' },
     { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
     { label: FULL_DEMO_BUMPERS_LABEL, value: bumperSummary(options) },
@@ -185,6 +189,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       <div className="min-w-0 space-y-4 @[64rem]/content:col-start-3 @[64rem]/content:row-span-2 @[64rem]/content:row-start-1">
         <FullDemoAudio options={options} document={document} onChange={change} />
         <FullDemoTransitions options={options} onChange={change} />
+        <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
         <FullDemoGroup title="Overlays" note={OVERLAYS_NOTE}>
           <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
         </FullDemoGroup>

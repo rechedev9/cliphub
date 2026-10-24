@@ -167,6 +167,25 @@ type CaptureOptions struct {
 	// cl_demo_predict 1) instead of the interpolated server view. Omitted when
 	// off so existing documents keep their wire format and capture hash.
 	TrueView bool `json:"trueview,omitempty"`
+	// ProSettings records with a professional player's resolution and
+	// viewmodel. Omitted when off so older documents keep their capture hash.
+	ProSettings ProSettings `json:"pro_settings,omitzero"`
+}
+
+// ProSettings is resolved from the versioned catalog when the plan is made,
+// so the approved document carries the exact values the capture applies.
+type ProSettings struct {
+	PlayerID      string  `json:"player_id"`
+	Name          string  `json:"name"`
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	Scaling       string  `json:"scaling"`
+	CaptureWidth  int     `json:"capture_width"`
+	CaptureHeight int     `json:"capture_height"`
+	ViewmodelFOV  float64 `json:"viewmodel_fov"`
+	OffsetX       float64 `json:"viewmodel_offset_x"`
+	OffsetY       float64 `json:"viewmodel_offset_y"`
+	OffsetZ       float64 `json:"viewmodel_offset_z"`
 }
 
 type CrosshairOptions struct {

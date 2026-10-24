@@ -16,6 +16,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/overlayassets"
+	"github.com/rechedev9/cliphub/internal/prosettings"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -173,11 +174,45 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 		rejectFullDemo(w, err)
 		return
 	}
+	response := map[string]any{"document": d, "defaults": h.fullDemoDefaultOptions(j.ID), "pro_players": fullDemoProPlayers, "compatibility": "editorial-v1"}
 	if !found {
-		writeJSON(w, http.StatusOK, map[string]any{"document": nil, "defaults": h.fullDemoDefaultOptions(j.ID), "compatibility": "legacy-until-planned-and-approved"})
-		return
+		response["document"], response["compatibility"] = nil, "legacy-until-planned-and-approved"
+		response["defaults"] = h.withDetectedProSettings(r.Context(), j.ID, h.fullDemoDefaultOptions(j.ID))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"document": d, "defaults": h.fullDemoDefaultOptions(j.ID), "compatibility": "editorial-v1"})
+	writeJSON(w, http.StatusOK, response)
+}
+
+type fullDemoProPlayer struct {
+	prosettings.Player
+	// Settings is exactly what a plan stores for this pro, so the client never re-derives it.
+	Settings recapplan.ProSettings `json:"settings"`
+}
+
+var fullDemoProPlayers = func() []fullDemoProPlayer {
+	var out []fullDemoProPlayer
+	for _, player := range prosettings.Catalog() {
+		settings, err := recapplan.ResolveProSettings(player.ID)
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, fullDemoProPlayer{Player: player, Settings: settings})
+	}
+	return out
+}()
+
+// withDetectedProSettings preselects the catalog pro whose name the target
+// carries in the demo. Only a first plan gets it; a saved plan keeps its choice.
+func (h *Handlers) withDetectedProSettings(ctx context.Context, id uuid.UUID, options recapplan.Options) recapplan.Options {
+	full, err := h.repo.Get(ctx, id)
+	if err != nil || full.KillPlan == nil {
+		return options
+	}
+	if player, ok := prosettings.Detect(full.KillPlan.Target.NameInDemo); ok {
+		if resolved, err := recapplan.ResolveProSettings(player.ID); err == nil {
+			options.Capture.ProSettings = resolved
+		}
+	}
+	return options
 }
 
 func (h *Handlers) fullDemoFFmpeg() string {

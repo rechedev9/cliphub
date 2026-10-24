@@ -209,7 +209,7 @@ func requireFields(data []byte, typ reflect.Type, field string, depth int) error
 			return err
 		}
 		for name, f := range fields {
-			if !seen[name] && !strings.Contains(f.Tag.Get("json"), ",omitempty") {
+			if tag := f.Tag.Get("json"); !seen[name] && !strings.Contains(tag, ",omitempty") && !strings.Contains(tag, ",omitzero") {
 				return fmt.Errorf("%s.%s is required", field, name)
 			}
 		}
@@ -285,6 +285,9 @@ func (o Options) Validate() error {
 	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")
+	}
+	if err := o.Capture.ProSettings.Validate(); err != nil {
+		return err
 	}
 	if o.Capture.Crosshair.Mode == "provided-code" {
 		if !ValidCrosshairCode(o.Capture.Crosshair.Code) {
