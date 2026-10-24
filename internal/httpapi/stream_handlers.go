@@ -757,7 +757,8 @@ func (h *Handlers) StartStreamRender(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "load previous stream render state", err)
 		return
 	}
-	state, err := streamclips.NewRenderState(j.ID, variant, streamclips.StatusRendering, nil, "", nil)
+	// Queued until the worker claims it: renders wait while a capture runs.
+	state, err := streamclips.NewRenderState(j.ID, variant, streamclips.StatusQueued, nil, "", nil)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

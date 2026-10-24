@@ -716,6 +716,7 @@ func TestSweepInterruptedStreamRenderStatesPreservesArtifactData(t *testing.T) {
 			}{
 				{parentStatus: streamclips.StatusReady, stateStatus: streamclips.StatusRendering, wantFailed: true},
 				{parentStatus: streamclips.StatusRendered, stateStatus: streamclips.StatusRendering, wantFailed: true},
+				{parentStatus: streamclips.StatusReady, stateStatus: streamclips.StatusQueued, wantFailed: true},
 				{parentStatus: streamclips.StatusRendering, stateStatus: streamclips.StatusReady},
 				{parentStatus: streamclips.StatusFailed, stateStatus: streamclips.StatusRendered},
 				{parentStatus: streamclips.StatusUploaded, stateStatus: streamclips.StatusFailed},
@@ -762,7 +763,7 @@ func TestSweepInterruptedStreamRenderStatesPreservesArtifactData(t *testing.T) {
 			if err != nil {
 				t.Fatalf("sweepInterruptedStreamRenderStates: %v", err)
 			}
-			if got, want := swept, 2; got != want {
+			if got, want := swept, 3; got != want {
 				t.Fatalf("swept = %d, want %d", got, want)
 			}
 			for _, f := range fixtures {

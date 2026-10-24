@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Film } from 'lucide-react';
 import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
-import { shortsWord } from '@/lib/streams/editor';
+import { shortsWord, streamRenderQueued } from '@/lib/streams/editor';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -34,8 +34,7 @@ export function StreamRenderStage({
   variantLabel: string;
 }): ReactNode {
   const elapsed = useElapsedSeconds(true);
-  const queued = renderState === null || renderState.status === 'queued';
-  const stage = queued ? 'EN COLA' : 'CREANDO VÍDEOS';
+  const stage = streamRenderQueued(renderState) ? 'EN COLA' : 'CREANDO VÍDEOS';
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">

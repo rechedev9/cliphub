@@ -51,6 +51,7 @@ import {
   streamEditorSteps,
   streamOutputSummary,
   streamPlanBlocker,
+  streamRenderQueued,
   type StreamStep,
 } from '@/lib/streams/editor';
 import {
@@ -396,7 +397,14 @@ export function StreamEditor({
   const ctaLabel =
     rangesIssue && activeStep === 'review'
       ? 'Corregir momentos →'
-      : streamCtaLabel({ plan, rendering: stage === 'rendering', hasRender: hasRenderedVideos, activeStep, stale });
+      : streamCtaLabel({
+          plan,
+          rendering: stage === 'rendering',
+          queued: streamRenderQueued(renderState),
+          hasRender: hasRenderedVideos,
+          activeStep,
+          stale,
+        });
   // While something blocks the render the CTA names it but stays a real link
   // to that step instead of a disabled dead end.
   const blocker = rangesIssue ? STREAM_STEP.cuts : streamPlanBlocker(plan);

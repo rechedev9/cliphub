@@ -23,6 +23,9 @@ const (
 	StatusAcquiring Status = "acquiring"
 	StatusUploaded  Status = "uploaded"
 	StatusReady     Status = "ready"
+	// StatusQueued is a render state admitted to the local queue that no
+	// worker has claimed yet. Job rows never carry it.
+	StatusQueued    Status = "queued"
 	StatusRendering Status = "rendering"
 	StatusRendered  Status = "rendered"
 	StatusFailed    Status = "failed"
@@ -44,7 +47,7 @@ type Status string
 
 func ParseStatus(value string) (Status, error) {
 	switch Status(value) {
-	case StatusAcquiring, StatusUploaded, StatusReady, StatusRendering, StatusRendered, StatusFailed:
+	case StatusAcquiring, StatusUploaded, StatusReady, StatusQueued, StatusRendering, StatusRendered, StatusFailed:
 		return Status(value), nil
 	default:
 		return "", fmt.Errorf("unknown stream job status %q", value)

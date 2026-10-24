@@ -95,10 +95,23 @@ type inlineUniqueLock struct {
 // tasks run on a dedicated serial lane: the recorder launches a single
 // cs2.exe, so two concurrent captures — even for different jobs — collide
 // with "cs2.exe is already running". Every other task type keeps the
-// concurrent worker pool, so parses and renders still progress while a
-// capture is running.
+// concurrent worker pool; see isRenderTaskType for the renders it holds back.
 func isCaptureTaskType(taskType string) bool {
 	return taskType == tasks.TypeRecordDemo
+}
+
+// isRenderTaskType reports whether a task is an FFmpeg render. A render does
+// not start while a capture is queued or running: minutes of FFmpeg next to
+// CS2 and HLAE compete for CPU, memory, disk and NVENC and can cost capture
+// frames. Parses, scans and downloads still run: they are short or
+// network-bound, and the user is waiting on them.
+func isRenderTaskType(taskType string) bool {
+	switch taskType {
+	case tasks.TypeComposeFinal, tasks.TypeRenderVariant, tasks.TypeRenderStreamClip, tasks.TypeRenderTimeline:
+		return true
+	default:
+		return false
+	}
 }
 
 type inlineTaskQueue struct {
@@ -135,22 +148,36 @@ func (q *inlineTaskQueue) push(ctx context.Context, task inlineTask, transition 
 	return nil
 }
 
-func (q *inlineTaskQueue) pop() (inlineTask, bool) {
+// pop waits for the oldest task that runnable accepts (any task when runnable
+// is nil) and takes it out of the FIFO, keeping the order of the rest.
+func (q *inlineTaskQueue) pop(runnable func(inlineTask) bool) (inlineTask, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	for len(q.tasks) == 0 && !q.closed {
+	for !q.closed {
+		for index, task := range q.tasks {
+			if runnable != nil && !runnable(task) {
+				continue
+			}
+			copy(q.tasks[index:], q.tasks[index+1:])
+			q.tasks[len(q.tasks)-1] = inlineTask{}
+			q.tasks = q.tasks[:len(q.tasks)-1]
+			if len(q.tasks) == 0 {
+				q.tasks = nil
+			}
+			return task, true
+		}
 		q.ready.Wait()
 	}
-	if q.closed {
-		return inlineTask{}, false
-	}
-	task := q.tasks[0]
-	q.tasks[0] = inlineTask{}
-	q.tasks = q.tasks[1:]
-	if len(q.tasks) == 0 {
-		q.tasks = nil
-	}
-	return task, true
+	return inlineTask{}, false
+}
+
+// wake makes waiting workers look at the FIFO again after the answer of their
+// runnable filter changed. It takes the lock so a worker cannot miss it
+// between checking the filter and waiting.
+func (q *inlineTaskQueue) wake() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.ready.Broadcast()
 }
 
 // remove takes every pending task that matches out of the FIFO, keeping the
@@ -202,6 +229,10 @@ type inlineQueue struct {
 	stopClose    func() bool
 	nextID       atomic.Uint64
 
+	// captures counts the capture tasks queued or running; renders wait
+	// while it is above zero.
+	captures atomic.Int64
+
 	closeMu      sync.Mutex
 	closeStarted bool
 	closeDone    chan struct{}
@@ -252,11 +283,24 @@ func (q *inlineQueue) Start(ctx context.Context) {
 	q.stopClose = context.AfterFunc(ctx, q.closePending)
 	for i := 0; i < q.concurrency; i++ {
 		q.wg.Add(1)
-		go q.run(ctx, q.tasks)
+		go q.run(ctx, q.tasks, q.poolRunnable)
 	}
 	// The capture lane always has exactly one worker; see isCaptureTaskType.
 	q.wg.Add(1)
-	go q.run(ctx, q.captureTasks)
+	go q.run(ctx, q.captureTasks, nil)
+}
+
+// poolRunnable holds renders back while a capture is queued or running.
+func (q *inlineQueue) poolRunnable(task inlineTask) bool {
+	return task.task == nil || !isRenderTaskType(task.task.Type()) || q.captures.Load() == 0
+}
+
+// releaseCaptures records that n capture tasks left the capture lane and wakes
+// the pool when none remain, so the renders it held back can start.
+func (q *inlineQueue) releaseCaptures(n int) {
+	if n > 0 && q.captures.Add(int64(-n)) == 0 {
+		q.tasks.wake()
+	}
 }
 
 func (q *inlineQueue) Enqueue(task *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error) {
@@ -307,7 +351,11 @@ func (q *inlineQueue) enqueue(task *asynq.Task, transition func(error) error, op
 		obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.Payload()), Operation: task.Type()}), obs.TraceEntry{Event: "task.rejected", Level: "error", Message: err.Error()})
 		return nil, err
 	}
-	obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.Payload()), Operation: task.Type()}), obs.TraceEntry{Event: "task.queued", Message: "Task accepted by the local queue"})
+	queuedMessage := "Task accepted by the local queue"
+	if isRenderTaskType(task.Type()) && q.captures.Load() > 0 {
+		queuedMessage = "Task accepted by the local queue; it starts after the capture"
+	}
+	obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.Payload()), Operation: task.Type()}), obs.TraceEntry{Event: "task.queued", Message: queuedMessage})
 	return &asynq.TaskInfo{
 		ID:        id,
 		Queue:     options.queue,
@@ -336,8 +384,10 @@ func (q *inlineQueue) CancelJob(jobID uuid.UUID) bool {
 	// compensate outside it with each lease still installed.
 	q.uniqueMu.Lock()
 	pending := q.tasks.remove(matches)
-	pending = append(pending, q.captureTasks.remove(matches)...)
+	captures := q.captureTasks.remove(matches)
+	pending = append(pending, captures...)
 	q.uniqueMu.Unlock()
+	q.releaseCaptures(len(captures))
 	for _, task := range pending {
 		if err := applyInlineDiscardTransition(task, errInlineQueueCanceled); err != nil {
 			log.Printf("inline queue: %v", err)
@@ -439,8 +489,10 @@ func (q *inlineQueue) finishClosePending(ctx context.Context) error {
 	// finishes, so a re-drive cannot overtake the state transition.
 	q.uniqueMu.Lock()
 	discarded := q.tasks.close()
-	discarded = append(discarded, q.captureTasks.close()...)
+	captures := q.captureTasks.close()
+	discarded = append(discarded, captures...)
 	q.uniqueMu.Unlock()
+	q.releaseCaptures(len(captures))
 
 	var errs []error
 	for index, task := range discarded {
@@ -483,31 +535,38 @@ var demoReadingTasks = map[string]bool{
 	tasks.TypeAnalyzeTactical:  true,
 }
 
-func (q *inlineQueue) run(ctx context.Context, lane *inlineTaskQueue) {
+func (q *inlineQueue) run(ctx context.Context, lane *inlineTaskQueue, runnable func(inlineTask) bool) {
 	defer q.wg.Done()
 	for {
-		queued, ok := lane.pop()
+		queued, ok := lane.pop(runnable)
 		if !ok {
 			return
 		}
-		task := queued.task
-		if task == nil {
-			continue
+		q.runPopped(ctx, queued)
+		if lane == q.captureTasks {
+			q.releaseCaptures(1)
 		}
-		handler := q.handlers[task.Type()]
-		if handler == nil {
-			log.Printf("inline queue: no handler for %s", task.Type())
-			continue
-		}
-		err := q.process(ctx, queued, handler)
-		if err != nil {
-			log.Printf("inline queue: %s failed: %v", task.Type(), err)
-		}
-		// Hand the heap back to Windows now: Go would keep the ~80 MB a demo
-		// parse leaves for minutes, while CS2 starts its capture.
-		if demoReadingTasks[task.Type()] {
-			debug.FreeOSMemory()
-		}
+	}
+}
+
+func (q *inlineQueue) runPopped(ctx context.Context, queued inlineTask) {
+	task := queued.task
+	if task == nil {
+		return
+	}
+	handler := q.handlers[task.Type()]
+	if handler == nil {
+		log.Printf("inline queue: no handler for %s", task.Type())
+		return
+	}
+	err := q.process(ctx, queued, handler)
+	if err != nil {
+		log.Printf("inline queue: %s failed: %v", task.Type(), err)
+	}
+	// Hand the heap back to Windows now: Go would keep the ~80 MB a demo
+	// parse leaves for minutes, while CS2 starts its capture.
+	if demoReadingTasks[task.Type()] {
+		debug.FreeOSMemory()
 	}
 }
 
@@ -732,10 +791,20 @@ func parseInlineEnqueueOptions(opts []asynq.Option) (inlineEnqueueOptions, error
 }
 
 func (q *inlineQueue) push(task inlineTask, uniqueTTL time.Duration, transition func(error) error) error {
-	lane := q.tasks
-	if isCaptureTaskType(task.task.Type()) {
-		lane = q.captureTasks
+	if !isCaptureTaskType(task.task.Type()) {
+		return q.pushLane(q.tasks, task, uniqueTTL, transition)
 	}
+	// Count the capture before it is visible, so no render starts between its
+	// admission and its first attempt.
+	q.captures.Add(1)
+	err := q.pushLane(q.captureTasks, task, uniqueTTL, transition)
+	if err != nil {
+		q.releaseCaptures(1)
+	}
+	return err
+}
+
+func (q *inlineQueue) pushLane(lane *inlineTaskQueue, task inlineTask, uniqueTTL time.Duration, transition func(error) error) error {
 	if !task.unique {
 		return lane.push(q.ctx, task, transition)
 	}

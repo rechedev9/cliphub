@@ -41,6 +41,13 @@ export function streamVariantLabel(plan: StreamEditPlan): string {
 export function shortsWord(count: number): string {
   return count === 1 ? '1 Short' : `${count} Shorts`;
 }
+/** No worker has claimed the render yet: renders wait while a capture runs. */
+export function streamRenderQueued(renderState: StreamRenderState | null): boolean {
+  return renderState === null || renderState.status === 'queued';
+}
+function streamRenderBusyLabel(queued: boolean): string {
+  return queued ? 'En cola…' : 'Creando vídeos…';
+}
 
 export function streamEditorSteps({
   plan,
@@ -90,7 +97,7 @@ export function streamEditorSteps({
       key: 'results',
       number: workflowNumber('results'),
       label: STREAM_STEP_LABEL.results,
-      detail: rendering ? 'Creando vídeos…' : resultDetail,
+      detail: rendering ? streamRenderBusyLabel(streamRenderQueued(renderState)) : resultDetail,
       done: videoCount > 0 && !rendering && !stale,
       optional: false,
     });
@@ -120,17 +127,19 @@ export function streamBlockerHint(plan: StreamEditPlan): string | null {
 export function streamCtaLabel({
   plan,
   rendering,
+  queued = false,
   hasRender,
   activeStep = 'review',
   stale = false,
 }: {
   plan: StreamEditPlan;
   rendering: boolean;
+  queued?: boolean;
   hasRender: boolean;
   activeStep?: StreamStep;
   stale?: boolean;
 }): string {
-  if (rendering) return 'Creando vídeos…';
+  if (rendering) return streamRenderBusyLabel(queued);
   if (activeStep === 'cuts') return 'Continuar al aspecto →';
   if (activeStep === 'layout')
     return streamVariantNeedsFaceCrop(plan) && !plan.face_crop_reviewed

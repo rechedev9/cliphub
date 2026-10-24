@@ -5404,15 +5404,22 @@ func TestStartStreamRenderMarksAcceptedPendingStateFailedWhenQueueDiscardsIt(t *
 	if rw.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
 	}
+	key, err := streamclips.RenderStateKey(id, variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var admitted streamclips.RenderState
+	if err := json.Unmarshal(store.puts[key], &admitted); err != nil {
+		t.Fatalf("unmarshal admitted render state: %v", err)
+	}
+	if admitted.Status != streamclips.StatusQueued || !strings.Contains(rw.Body.String(), `"status":"queued"`) {
+		t.Fatalf("admitted state = %q, body = %s; want queued until a worker claims it", admitted.Status, rw.Body.String())
+	}
 	if len(queue.transitions) != 1 {
 		t.Fatalf("queue transitions = %d, want 1", len(queue.transitions))
 	}
 	if err := queue.transitions[0](errors.New("inline queue task discarded during shutdown")); err != nil {
 		t.Fatalf("discard transition error = %v", err)
-	}
-	key, err := streamclips.RenderStateKey(id, variant)
-	if err != nil {
-		t.Fatal(err)
 	}
 	var state streamclips.RenderState
 	if err := json.Unmarshal(store.puts[key], &state); err != nil {
