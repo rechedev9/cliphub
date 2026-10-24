@@ -90,3 +90,14 @@ test('legacy demo outputs remain on their mutable route with an explicit legacy 
   assert.match(item?.revision ?? '', /^legacy:/);
   assert.equal(item?.revision.includes('jobs/'), false);
 });
+
+test('a Short imported from the retired cloud plays from its own download route', () => {
+  const video: Video = {
+    id: 'imported__11111111-1111-4111-8111-111111111111__short-01.mp4', title: 'Imported', map: 'Unknown', score: '', mode: 'clean', status: 'ready',
+    createdAt: 1, downloadUrl: '/api/imported-videos/11111111-1111-4111-8111-111111111111/short-01.mp4',
+  };
+  const item = demoPlaybackItem(video);
+  assert.equal(item?.playbackUrl, video.downloadUrl);
+  assert.equal(item?.jobId, video.id);
+  assert.equal(item?.artifactName, 'short-01.mp4');
+});

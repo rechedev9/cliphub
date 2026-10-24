@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
+	"github.com/rechedev9/cliphub/internal/importedvideos"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/steamclient"
@@ -272,6 +273,14 @@ func run() error {
 		recordWorker.UseGenerateIntentStore(generateIntents)
 		recordWorker.UseEnqueuer(queue)
 	}
+	// Shorts older Studios downloaded from the retired cloud stay listed; this
+	// also deletes the cloud client store and its device token.
+	var imported httpapi.ImportedVideos
+	if store, err := importedvideos.Open(cfg.DataDir); err != nil {
+		log.Printf("imported videos: %v", err)
+	} else {
+		imported = store
+	}
 	handlers := httpapi.NewHandlers(repo, files, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
@@ -294,6 +303,7 @@ func run() error {
 		httpapi.WithSteamResolver(steamResolver),
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
+		httpapi.WithImportedVideos(imported),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job

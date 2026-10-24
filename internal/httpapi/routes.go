@@ -131,6 +131,9 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/editor/projects/{id}/render", h.GetEditorRender)
 	r.Get("/api/editor/projects/{id}/render/video", h.GetEditorRenderVideo)
 	r.Get("/api/editor/projects/{id}/render/cover", h.GetEditorRenderCover)
+	r.Get("/api/imported-videos", h.ListImportedVideos)
+	r.Get("/api/imported-videos/{id}/{name}", h.GetImportedVideo)
+	r.Delete("/api/imported-videos/{id}/{name}", h.DeleteImportedVideo)
 	return r
 }
 

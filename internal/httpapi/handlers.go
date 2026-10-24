@@ -155,6 +155,7 @@ type Handlers struct {
 	steamSessionCache   steamresolve.Session
 	labBundles          LabBundlePreparer
 	labBundleRoot       string
+	importedVideos      ImportedVideos
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex

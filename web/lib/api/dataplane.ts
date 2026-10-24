@@ -36,6 +36,9 @@ export type DataPlane = {
   publishAssistantUrl(jobId: string, variant: string, name: string, days?: number): string;
   coverUrl(jobId: string, variant: string, name: string): string;
   capabilitiesUrl: string;
+  /** Shorts an older Studio downloaded from the retired ClipHub cloud. */
+  importedVideosUrl: string;
+  importedVideoUrl(id: string, name: string): string;
 };
 
 function str(body: unknown, key: string): string {
@@ -72,5 +75,7 @@ export function dataPlane(): DataPlane {
       `/api/demos/${jobId}/renders/${variant}/videos/${name}/publish-assistant?days=${days}`,
     coverUrl: (jobId, variant, name) => `/api/demos/${jobId}/renders/${variant}/covers/${name}`,
     capabilitiesUrl: '/api/capabilities',
+    importedVideosUrl: '/api/imported-videos',
+    importedVideoUrl: (id, name) => `/api/imported-videos/${encodeURIComponent(id)}/${encodeURIComponent(name)}`,
   };
 }
