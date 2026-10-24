@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 )
 
 const mutedColor = "0xA1A1AA"
@@ -1179,9 +1181,9 @@ func drawtextExpr(fontPath, text, xExpr, yExpr string, size int, color string) s
 		border = ""
 	}
 	return fmt.Sprintf(
-		"drawtext=fontfile='%s':text='%s':fontsize=%d:fontcolor=%s:x=%s:y=%s:expansion=none%s",
-		ffmpegFilterPath(fontPath),
-		ffmpegDrawtextText(text),
+		"drawtext=fontfile=%s:text=%s:fontsize=%d:fontcolor=%s:x=%s:y=%s:expansion=none%s",
+		ffmpegfilter.Path(fontPath),
+		ffmpegfilter.Value(text),
 		size,
 		color,
 		xExpr,
@@ -1226,23 +1228,4 @@ func formatOptPct(label string, v *float64) string {
 		return fmt.Sprintf("%.0f%%", *v)
 	}
 	return fmt.Sprintf("%s %.0f%%", label, *v)
-}
-
-func ffmpegFilterPath(path string) string {
-	path = strings.ReplaceAll(path, `\`, `/`)
-	path = strings.ReplaceAll(path, `'`, `\'`)
-	path = strings.ReplaceAll(path, `:`, `\:`)
-	path = strings.ReplaceAll(path, `[`, `\[`)
-	path = strings.ReplaceAll(path, `]`, `\]`)
-	return path
-}
-
-// ffmpegDrawtextText escapes a value for drawtext's text option. Every
-// drawtext clause here sets expansion=none, so % is literal and must not be
-// doubled: escaping it as %% painted "79%%" on intro/outro stat cells.
-func ffmpegDrawtextText(text string) string {
-	text = strings.ReplaceAll(text, `\`, `\\`)
-	text = strings.ReplaceAll(text, `'`, `\'`)
-	text = strings.ReplaceAll(text, `:`, `\:`)
-	return text
 }

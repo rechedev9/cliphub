@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
@@ -243,9 +244,9 @@ func textOverlayFilter(overlay TextOverlay, fontPath, textPath string) string {
 		size = defaultOverlayFontSize
 	}
 	filter := fmt.Sprintf(
-		"drawtext=fontfile='%s':textfile='%s':expansion=none:fontcolor=white:fontsize=%d:borderw=3:bordercolor=black:"+
+		"drawtext=fontfile=%s:textfile=%s:expansion=none:fontcolor=white:fontsize=%d:borderw=3:bordercolor=black:"+
 			"shadowcolor=black@0.35:shadowx=2:shadowy=2:x=(w-text_w)/2:y=h*%s-text_h/2",
-		ffmpegFilterPath(fontPath), ffmpegFilterPath(textPath), size, floatArg(overlay.PositionY),
+		ffmpegfilter.Path(fontPath), ffmpegfilter.Path(textPath), size, floatArg(overlay.PositionY),
 	)
 	switch {
 	case overlay.StartSeconds != nil && overlay.EndSeconds != nil:
@@ -416,14 +417,14 @@ func streamerBannerFilter(layout LayoutVariant, banner StreamerBannerPlan, fontP
 			"setpts=PTS-STARTPTS,"+
 			"drawbox=x=0:y=0:w=116:h=%d:color=%s:t=fill,"+
 			"%s"+
-			"drawtext=fontfile='%s':text='%s':fontcolor=%s:fontsize=52:borderw=1:bordercolor=%s:"+
+			"drawtext=fontfile=%s:text=%s:expansion=none:fontcolor=%s:fontsize=52:borderw=1:bordercolor=%s:"+
 			"shadowcolor=black@0.35:shadowx=2:shadowy=2:x=140:y=(%d-text_h)/2[banner];"+
 			"[content]setpts=PTS-STARTPTS[contentpts];"+
 			"[contentpts][banner]overlay=x='%s':y=%d:eval=frame:eof_action=pass:shortest=0[bannered]",
 		look.color, layout.OutputWidth, bannerHeight, outputFPS, secondsArg(duration),
 		bannerHeight, look.accent,
 		look.glyph,
-		ffmpegFilterPath(fontPath), ffmpegDrawtextText(banner.Nick), look.fontColor, look.borderColor, bannerHeight,
+		ffmpegfilter.Path(fontPath), ffmpegfilter.Value(banner.Nick), look.fontColor, look.borderColor, bannerHeight,
 		x, top,
 	)
 }
@@ -453,13 +454,13 @@ func landscapeStreamerBannerFilter(layout LayoutVariant, banner StreamerBannerPl
 		"color=c=0x111319:s=%dx%d:r=%d:d=%s,"+
 			"setpts=PTS-STARTPTS,"+
 			"drawbox=x=0:y=0:w=8:h=%d:color=%s:t=fill,"+
-			"drawtext=fontfile='%s':text='@%s':fontcolor=white:fontsize=32:borderw=1:bordercolor=black@0.55:"+
+			"drawtext=fontfile=%s:text=%s:expansion=none:fontcolor=white:fontsize=32:borderw=1:bordercolor=black@0.55:"+
 			"shadowcolor=black@0.45:shadowx=2:shadowy=2:x=28:y=(%d-text_h)/2[banner];"+
 			"[content]setpts=PTS-STARTPTS[contentpts];"+
 			"[contentpts][banner]overlay=x='%s':y=%d:eval=frame:eof_action=pass:shortest=0[bannered]",
 		landscapeBannerWidth, landscapeBannerHeight, outputFPS, secondsArg(duration),
 		landscapeBannerHeight, look.color,
-		ffmpegFilterPath(fontPath), ffmpegDrawtextText(banner.Nick), landscapeBannerHeight,
+		ffmpegfilter.Path(fontPath), ffmpegfilter.Value("@"+banner.Nick), landscapeBannerHeight,
 		x, top,
 	)
 }
@@ -575,35 +576,6 @@ func FindBannerFont() string {
 		}
 	}
 	return ""
-}
-
-// ffmpegFilterPath escapes a path for embedding in an ffmpeg filtergraph
-// string (e.g. drawtext's fontfile). ffmpeg filtergraph syntax always wants
-// forward slashes and an escaped drive-letter colon, regardless of the OS
-// running this code, so backslashes are normalized unconditionally rather
-// than with filepath.ToSlash: ToSlash only rewrites the host OS's own
-// separator, which is a no-op for a Windows-style path like `C:\Windows\...`
-// on a non-Windows build and left it double-escaped instead of slash-joined.
-func ffmpegFilterPath(value string) string {
-	value = strings.ReplaceAll(value, `\`, "/")
-	value = strings.ReplaceAll(value, ":", `\:`)
-	return strings.ReplaceAll(value, "'", `\'`)
-}
-
-// ffmpegDrawtextText escapes a literal value embedded in drawtext's text
-// option. Streamer handles are validated separately, but keeping this boundary
-// safe prevents future plan formats from turning text into filtergraph syntax.
-func ffmpegDrawtextText(value string) string {
-	replacer := strings.NewReplacer(
-		`\`, `\\`,
-		`'`, `\'`,
-		`:`, `\:`,
-		`,`, `\,`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`%`, `\%`,
-	)
-	return replacer.Replace(value)
 }
 
 func highQualityScaleFilter(width, height int, aspect string) string {

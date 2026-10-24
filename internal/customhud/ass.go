@@ -3,9 +3,10 @@ package customhud
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 )
 
 // Window is a slice of the source demo placed at time zero of one prepared
@@ -141,11 +142,7 @@ func hasTarget(s Snapshot, id string) bool {
 }
 
 func ASSFilter(path, fontDir string, alpha bool) string {
-	quote := func(value string) string {
-		value = strings.ReplaceAll(filepath.ToSlash(value), ":", "\\:")
-		return "'" + strings.ReplaceAll(value, "'", "'\\\\\\''") + "'"
-	}
-	filter := "ass=filename=" + quote(path) + ":fontsdir=" + quote(fontDir)
+	filter := "ass=filename=" + ffmpegfilter.Path(path) + ":fontsdir=" + ffmpegfilter.Path(fontDir)
 	if alpha {
 		filter += ":alpha=1"
 	}

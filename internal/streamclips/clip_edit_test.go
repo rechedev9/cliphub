@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 )
 
 func floatPtr(v float64) *float64 { return &v }
@@ -291,7 +293,7 @@ func TestBuildFFmpegArgsTextOverlayDrawsTextWithEnableWindow(t *testing.T) {
 	for _, want := range []string{
 		// The text lives in a materialized file read with expansion=none, so
 		// arbitrary user text never needs filtergraph escaping.
-		"drawtext=fontfile='font.ttf':textfile='text0.txt':expansion=none",
+		"drawtext=fontfile=" + ffmpegfilter.Path("font.ttf") + ":textfile=" + ffmpegfilter.Path("text0.txt") + ":expansion=none",
 		"fontsize=64",
 		"x=(w-text_w)/2:y=h*0.300000-text_h/2",
 		`enable='between(t\,1.000000\,3.000000)'`,

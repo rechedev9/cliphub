@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rhythm"
@@ -277,7 +278,7 @@ func TestVideoFilterEscapesDrawtextAndBuildsPunchIns(t *testing.T) {
 		"crop=1080:1920:(iw-ow)/2:(ih-oh)/2",
 		"setsar=1",
 		"fps=60",
-		"Martinez\\:Sa\\'s | de_ancient | 100\\%",
+		ffmpegfilter.Value("Martinez:Sa's | de_ancient | 100%"),
 		"AK-47 HS",
 		"format=yuv420p",
 	} {
@@ -403,7 +404,7 @@ func TestVideoFilterFadesLuaText(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"drawtext=text='HEADSHOT'",
+		"drawtext=text=" + ffmpegfilter.Value("HEADSHOT"),
 		"alpha='min(min(1\\,((t-1.000)/0.120))\\,((2.000-t)/0.200))'",
 		"enable='between(t\\,1.000\\,2.000)'",
 	} {
@@ -430,7 +431,7 @@ func TestVideoFilterTextShadowAndBoxNone(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"drawtext=text='HEADSHOT'",
+		"drawtext=text=" + ffmpegfilter.Value("HEADSHOT"),
 		"box=0",
 		"shadowcolor=black@0.55:shadowx=2:shadowy=3",
 	} {

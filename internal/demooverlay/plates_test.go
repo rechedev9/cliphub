@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
@@ -228,7 +229,7 @@ func TestOutroFilterDrawsColumnHeadersForBothTeams(t *testing.T) {
 		t.Fatalf("outro missing right-team column header anchor %q:\n%s", wantRight, got)
 	}
 	for _, label := range []string{"RATING", "K/D/A", "ADR", "HS%"} {
-		if strings.Count(got, "text='"+label+"'") < 2 {
+		if strings.Count(got, "text="+ffmpegfilter.Value(label)) < 2 {
 			t.Fatalf("outro should draw %q above both teams, got:\n%s", label, got)
 		}
 	}
@@ -334,7 +335,7 @@ func TestIntroFilterDrawsFACEITMonogramWithoutAvatar(t *testing.T) {
 		},
 	}, SourceFACEIT, map[string]Enrichment{"1": {Nickname: "ZywOo", ELO: 3500, SkillLevel: 10}})
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	if !strings.Contains(got, "text='Z'") {
+	if !strings.Contains(got, "text="+ffmpegfilter.Value("Z")) {
 		t.Fatalf("FACEIT chrome intro should keep monogram:\n%s", got)
 	}
 }

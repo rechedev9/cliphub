@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 )
 
 func evaluateEffects(source effectsSource, short ShortEdit) ([]Effect, []string, error) {
@@ -931,7 +933,7 @@ func TestGeneratedBookendEffectsEscapeSpecialCharacters(t *testing.T) {
 	}
 	short.Effects = generatedBookendEffects(short)
 	filter := VideoFilter(short)
-	for _, want := range []string{`Zack\'s\: 100\% Ace`, `follow @zack\, now!`} {
+	for _, want := range []string{ffmpegfilter.Value("Zack's: 100% Ace"), ffmpegfilter.Value("follow @zack, now!")} {
 		if !strings.Contains(filter, want) {
 			t.Fatalf("filter missing escaped text %q:\n%s", want, filter)
 		}

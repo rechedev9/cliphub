@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/ffmpegfilter"
 )
 
 // CompositeWithCode writes a PNG of the plate with the baked code covered and
@@ -47,11 +49,11 @@ func CompositeWithCode(ffmpegPath, family, styleID, code, fontPath, outPath stri
 	}
 	vf := fmt.Sprintf(
 		"%s,"+
-			"drawtext=fontfile='%s':text='%s':fontcolor=white:fontsize=%d:"+
+			"drawtext=fontfile=%s:text=%s:expansion=none:fontcolor=white:fontsize=%d:"+
 			"borderw=2:bordercolor=black@0.75:shadowcolor=black@0.45:shadowx=2:shadowy=2:"+
 			"x=(w-text_w)/2:y=%d",
 		coverFilter(style, coverX, coverY, coverW, coverH),
-		ffmpegFilterPath(fontPath), ffmpegDrawtextText(label), fontSize, textY,
+		ffmpegfilter.Path(fontPath), ffmpegfilter.Value(label), fontSize, textY,
 	)
 	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config;
 	// plate/font/out paths are local materializations under ClipHub control.
