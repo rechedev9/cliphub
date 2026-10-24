@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { StreamEditPlan } from '../api/streams.ts';
+import type { StreamEditPlan, StreamRenderState } from '../api/streams.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
 import {
   STREAM_STEP_LABEL,
@@ -96,6 +96,14 @@ test('actions describe the next step and do not re-export an unchanged result', 
   assert.equal(streamCtaLabel({ ...base, hasRender: true }), 'Ver vídeos terminados →');
   assert.equal(streamCtaLabel({ ...base, hasRender: true, stale: true }), 'Exportar 2 Shorts →');
   assert.equal(streamCtaLabel({ ...base, rendering: true }), 'Creando vídeos…');
+  assert.equal(streamCtaLabel({ ...base, rendering: true, queued: true }), 'En cola…');
+});
+test('an export says it is queued until a worker claims the render', () => {
+  const detail = (renderState: StreamRenderState | null) =>
+    streamEditorSteps({ plan: plan(), renderState, stale: false, rendering: true }).at(-1)?.detail;
+  assert.equal(detail(null), 'En cola…');
+  assert.equal(detail({ status: 'queued', videos: [] }), 'En cola…');
+  assert.equal(detail({ status: 'rendering', videos: [] }), 'Creando vídeos…');
 });
 test('the summary shows output durations, including speed, and unsaved exports', () => {
   assert.equal(streamOutputSummary(plan(), false), '01 · 0:17, 02 · 0:19');

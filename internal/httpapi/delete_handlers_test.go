@@ -28,6 +28,7 @@ func TestDeleteStreamJob(t *testing.T) {
 		{name: "acquiring is refused", status: streamclips.StatusAcquiring, wantCode: http.StatusConflict},
 		{name: "rendering is refused", status: streamclips.StatusRendering, wantCode: http.StatusConflict},
 		{name: "ready parent with a rendering variant is refused", status: streamclips.StatusReady, renderState: streamclips.StatusRendering, wantCode: http.StatusConflict},
+		{name: "ready parent with a queued variant is refused", status: streamclips.StatusReady, renderState: streamclips.StatusQueued, wantCode: http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

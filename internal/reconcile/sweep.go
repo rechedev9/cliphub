@@ -404,10 +404,11 @@ func reconcileInterruptedStreamRenderStates(
 						result.completedJobs[j.ID] = struct{}{}
 					}
 					continue
-				case streamclips.StatusRendering:
-					// Close the interrupted attempt below. If it was a rerender,
-					// retain the active completed revision and restore the parent to
-					// Rendered rather than stranding the job in Failed.
+				case streamclips.StatusQueued, streamclips.StatusRendering:
+					// Close the interrupted attempt below: a queued task died with the
+					// in-memory queue. If it was a rerender, retain the active completed
+					// revision and restore the parent to Rendered rather than stranding
+					// the job in Failed.
 					if publishedReady {
 						result.completedJobs[j.ID] = struct{}{}
 					}

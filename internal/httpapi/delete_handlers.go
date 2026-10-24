@@ -36,7 +36,7 @@ func (h *Handlers) DeleteStreamJob(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "read stream render state", err)
 			return
 		}
-		if exists && state.Status == streamclips.StatusRendering {
+		if exists && (state.Status == streamclips.StatusQueued || state.Status == streamclips.StatusRendering) {
 			writeError(w, http.StatusConflict, fmt.Sprintf("stream render %s is %s; wait for it to settle before deleting", variant, state.Status))
 			return
 		}

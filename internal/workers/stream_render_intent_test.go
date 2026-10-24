@@ -282,6 +282,17 @@ func TestBoundStreamRenderRevalidatesAfterFFmpegBeforePublishing(t *testing.T) {
 		done <- w.HandleRenderStreamClip(context.Background(), task)
 	}()
 	<-started
+	stateKey, err := streamclips.RenderStateKey(id, planA.Variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claimed streamclips.RenderState
+	if err := json.Unmarshal(store.files[stateKey], &claimed); err != nil {
+		t.Fatal(err)
+	}
+	if claimed.Status != streamclips.StatusRendering {
+		t.Fatalf("claimed attempt status = %s, want the queued admission flipped to rendering", claimed.Status)
+	}
 	planB := planA
 	planB.Clips = append([]streamclips.ClipRange(nil), planA.Clips...)
 	planB.Clips[0].Title = "changed-during-render"
@@ -371,7 +382,7 @@ func seedBoundStreamRenderAttemptForTest(
 	if err != nil || !ok {
 		t.Fatalf("StreamRenderIntentFromTask = (%#v, %v, %v), want bound intent", intent, ok, err)
 	}
-	state, err := streamclips.NewRenderState(id, variant, streamclips.StatusRendering, nil, "", nil)
+	state, err := streamclips.NewRenderState(id, variant, streamclips.StatusQueued, nil, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
