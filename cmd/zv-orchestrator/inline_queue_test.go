@@ -823,7 +823,7 @@ func TestInlineTaskQueueBoundsPendingWorkWithoutBlocking(t *testing.T) {
 	if err := queue.push(ctx, inlineTask{id: "three"}, nil); !errors.Is(err, errInlineQueueFull) {
 		t.Fatalf("full push() error = %v, want errInlineQueueFull", err)
 	}
-	if task, ok := queue.pop(); !ok || task.id != "one" {
+	if task, ok := queue.pop(nil); !ok || task.id != "one" {
 		t.Fatalf("pop() = (%q, %t), want (one, true)", task.id, ok)
 	}
 	if err := queue.push(ctx, inlineTask{id: "three"}, nil); err != nil {
@@ -1475,6 +1475,191 @@ func TestInlineQueueRunsOtherTasksWhileCaptureIsActive(t *testing.T) {
 	case <-parsed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("parse task did not run while a capture held the serial lane")
+	}
+}
+
+func receiveWithin(t *testing.T, signal <-chan struct{}, failure string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal(failure)
+	}
+}
+
+func TestInlineTaskQueuePopPassesOverHeldTasksInOrder(t *testing.T) {
+	queue := newInlineTaskQueue(4)
+	ctx := context.Background()
+	for _, id := range []string{"render-1", "parse", "render-2"} {
+		if err := queue.push(ctx, inlineTask{id: id}, nil); err != nil {
+			t.Fatalf("push(%s) error = %v", id, err)
+		}
+	}
+	notRender := func(task inlineTask) bool { return !strings.HasPrefix(task.id, "render") }
+	if task, ok := queue.pop(notRender); !ok || task.id != "parse" {
+		t.Fatalf("filtered pop() = (%q, %t), want (parse, true)", task.id, ok)
+	}
+	for _, want := range []string{"render-1", "render-2"} {
+		if task, ok := queue.pop(nil); !ok || task.id != want {
+			t.Fatalf("pop() = (%q, %t), want (%s, true)", task.id, ok, want)
+		}
+	}
+}
+
+func TestInlineQueueHoldsRendersWhileCaptureIsActive(t *testing.T) {
+	captureStarted := make(chan struct{})
+	releaseCapture := make(chan struct{})
+	parsed := make(chan struct{}, 1)
+	rendered := make(chan struct{}, 1)
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo: func(context.Context, *asynq.Task) error {
+			close(captureStarted)
+			<-releaseCapture
+			return nil
+		},
+		tasktypes.TypeParseDemo: func(context.Context, *asynq.Task) error {
+			parsed <- struct{}{}
+			return nil
+		},
+		tasktypes.TypeRenderVariant: func(context.Context, *asynq.Task) error {
+			rendered <- struct{}{}
+			return nil
+		},
+	}, 1)
+
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, nil)); err != nil {
+		t.Fatalf("capture Enqueue() error = %v", err)
+	}
+	receiveWithin(t, captureStarted, "capture task did not start")
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRenderVariant, nil)); err != nil {
+		t.Fatalf("render Enqueue() error = %v", err)
+	}
+	// The only pool worker reaches the parse only by passing over the older render.
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeParseDemo, nil), asynq.MaxRetry(1)); err != nil {
+		t.Fatalf("parse Enqueue() error = %v", err)
+	}
+	receiveWithin(t, parsed, "parse task did not run while a capture was active")
+	select {
+	case <-rendered:
+		t.Fatal("render task ran while a capture was active")
+	default:
+	}
+	close(releaseCapture)
+	receiveWithin(t, rendered, "render task did not run after the capture finished")
+}
+
+func TestInlineQueueHoldsChainedRenderUntilQueuedCapturesFinish(t *testing.T) {
+	first, second := uuid.New(), uuid.New()
+	started := make(chan uuid.UUID, 2)
+	release := map[uuid.UUID]chan struct{}{first: make(chan struct{}), second: make(chan struct{})}
+	renderPayload := jobTaskPayload(t, first)
+	parsed := make(chan struct{}, 1)
+	rendered := make(chan struct{}, 1)
+	var queue *inlineQueue
+	queue = startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo: func(_ context.Context, task *asynq.Task) error {
+			jobID, err := uuid.Parse(obs.TaskJobID(task.Payload()))
+			if err != nil {
+				return err
+			}
+			started <- jobID
+			<-release[jobID]
+			if jobID != first {
+				return nil
+			}
+			// Like chainRender: a capture queues its render before it returns.
+			_, err = queue.Enqueue(asynq.NewTask(tasktypes.TypeRenderVariant, renderPayload))
+			return err
+		},
+		tasktypes.TypeParseDemo: func(context.Context, *asynq.Task) error {
+			parsed <- struct{}{}
+			return nil
+		},
+		tasktypes.TypeRenderVariant: func(context.Context, *asynq.Task) error {
+			rendered <- struct{}{}
+			return nil
+		},
+	}, 1)
+
+	for _, jobID := range []uuid.UUID{first, second} {
+		if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, jobID))); err != nil {
+			t.Fatalf("capture %s Enqueue() error = %v", jobID, err)
+		}
+	}
+	for _, want := range []uuid.UUID{first, second} {
+		select {
+		case got := <-started:
+			if got != want {
+				t.Fatalf("started capture = %s, want %s", got, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("capture %s did not start", want)
+		}
+		if want == first {
+			close(release[first])
+		}
+	}
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeParseDemo, nil), asynq.MaxRetry(1)); err != nil {
+		t.Fatalf("parse Enqueue() error = %v", err)
+	}
+	receiveWithin(t, parsed, "parse task did not run during the second capture")
+	select {
+	case <-rendered:
+		t.Fatal("chained render ran between two queued captures")
+	default:
+	}
+	close(release[second])
+	receiveWithin(t, rendered, "chained render did not run after the last capture")
+}
+
+func TestInlineQueueReleasesRendersAfterRejectedOrCanceledCaptures(t *testing.T) {
+	running, canceled := uuid.New(), uuid.New()
+	started := make(chan string, 2)
+	releaseCapture := make(chan struct{})
+	rendered := make(chan struct{}, 1)
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo: func(_ context.Context, task *asynq.Task) error {
+			started <- obs.TaskJobID(task.Payload())
+			<-releaseCapture
+			return nil
+		},
+		tasktypes.TypeRenderVariant: func(context.Context, *asynq.Task) error {
+			rendered <- struct{}{}
+			return nil
+		},
+	}, 1)
+
+	capture := asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, running))
+	if _, err := queue.Enqueue(capture, asynq.Unique(time.Hour)); err != nil {
+		t.Fatalf("capture Enqueue() error = %v", err)
+	}
+	select {
+	case got := <-started:
+		if got != running.String() {
+			t.Fatalf("started capture = %s, want %s", got, running)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("capture task did not start")
+	}
+	if _, err := queue.Enqueue(capture, asynq.Unique(time.Hour)); !errors.Is(err, asynq.ErrDuplicateTask) {
+		t.Fatalf("duplicate capture Enqueue() error = %v, want ErrDuplicateTask", err)
+	}
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRecordDemo, jobTaskPayload(t, canceled))); err != nil {
+		t.Fatalf("queued capture Enqueue() error = %v", err)
+	}
+	if !queue.CancelJob(canceled) {
+		t.Fatal("CancelJob() = false for a queued capture")
+	}
+	if _, err := queue.Enqueue(asynq.NewTask(tasktypes.TypeRenderVariant, nil)); err != nil {
+		t.Fatalf("render Enqueue() error = %v", err)
+	}
+	close(releaseCapture)
+	// A capture still counted after its rejection or cancellation would hold the render forever.
+	receiveWithin(t, rendered, "render task did not run after the only admitted capture finished")
+	select {
+	case got := <-started:
+		t.Fatalf("canceled capture %s started", got)
+	default:
 	}
 }
 
