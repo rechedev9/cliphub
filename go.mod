@@ -16,8 +16,8 @@ require (
 	github.com/markus-wa/demoinfocs-golang/v5 v5.2.0
 	github.com/markus-wa/godispatch v1.4.1
 	github.com/yuin/gopher-lua v1.1.2
-	golang.org/x/image v0.44.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/image v0.45.0
+	golang.org/x/sys v0.47.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.53.0
 )
@@ -56,7 +56,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	modernc.org/libc v1.73.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
