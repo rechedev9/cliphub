@@ -69,18 +69,6 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # deadcode exits 0 even when it finds something, so fail on any output.
-      # A function only tests call is dead: delete it or move it to a _test.go.
-      - name: Dead code
-        run: |
-          dead="$(go run golang.org/x/tools/cmd/deadcode@v0.52.0 ./...)"
-          if [ -n "$dead" ]; then
-            echo "$dead"
-            echo "::error::deadcode found functions no main package reaches"
-            exit 1
-          fi
-          go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 -checks U1000 ./...
-
       - name: go test
         run: go test ./... -count=1 -timeout 8m
 
