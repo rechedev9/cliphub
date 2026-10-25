@@ -8,7 +8,20 @@ import (
 	"testing"
 )
 
-func TestEditorialSegmentIDsReturnsUniqueNonEmptyPlanIDs(t *testing.T) {
+func TestEditorialSegmentIDsFollowsTheEditorialOrder(t *testing.T) {
+	got := EditorialSegmentIDs(RecordingResult{
+		Plan: RecordingPlan{
+			Segments:            []RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}, {ID: "seg-003"}},
+			EditorialSegmentIDs: []string{"seg-003", "seg-001", "seg-002"},
+		},
+	})
+	want := []string{"seg-003", "seg-001", "seg-002"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("EditorialSegmentIDs = %#v, want %#v", got, want)
+	}
+}
+
+func TestEditorialSegmentIDsFallsBackToUniqueCaptureOrder(t *testing.T) {
 	got := EditorialSegmentIDs(RecordingResult{
 		Plan: RecordingPlan{
 			Segments: []RecordingSegment{

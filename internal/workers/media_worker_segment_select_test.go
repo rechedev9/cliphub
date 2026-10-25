@@ -1168,11 +1168,7 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 // captureSegmentIDs lists the recorded segment IDs in capture order, which
 // these tests assert separately from the editorial order production compiles.
 func captureSegmentIDs(result recording.RecordingResult) []string {
-	var ids []string
-	for _, segment := range result.Plan.Segments {
-		if segment.ID != "" && !slices.Contains(ids, segment.ID) {
-			ids = append(ids, segment.ID)
-		}
-	}
-	return ids
+	// Without an editorial order, EditorialSegmentIDs falls back to capture order.
+	result.Plan.EditorialSegmentIDs = nil
+	return recording.EditorialSegmentIDs(result)
 }
