@@ -25,6 +25,7 @@ import (
 // Full Demo preparation/concat/master stages but does not manufacture an HLAE
 // attestation or pass synthetic capture through the production-real gate.
 func TestFullDemoSponsorBumperAndAudioMediaCanary(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	for _, scenario := range []string{"sponsor-after-round-two", "muxed-bframes", "tail-pad"} {
 		t.Run(scenario, func(t *testing.T) {

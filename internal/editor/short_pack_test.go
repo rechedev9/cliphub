@@ -235,6 +235,7 @@ func TestRunRendersShortsConcurrently(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           sequentialOut,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		RenderJobs:          1,
 	})
 	if err != nil {
@@ -246,6 +247,7 @@ func TestRunRendersShortsConcurrently(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           parallelOut,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		RenderJobs:          4,
 	})
 	if err != nil {
@@ -493,6 +495,7 @@ func TestRunRecordsShortPackStageTimingPerShort(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           filepath.Join(dir, "shorts"),
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		RenderJobs:          2,
 		QualityChecks:       true,
 		CoverSheets:         true,

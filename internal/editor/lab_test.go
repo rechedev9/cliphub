@@ -72,6 +72,7 @@ func labItemIndex(t *testing.T, short ShortEdit, sourceRef string) int {
 }
 
 func TestLabItemRendersOneBoundedItemAndFlagsABlackCapture(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -117,6 +118,7 @@ func TestLabItemRendersOneBoundedItemAndFlagsABlackCapture(t *testing.T) {
 }
 
 func TestLabItemRejectsAnIndexOutsideTheTimeline(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -128,6 +130,7 @@ func TestLabItemRejectsAnIndexOutsideTheTimeline(t *testing.T) {
 }
 
 func TestLabAudioRunsTheMasterLoopToTheLoudnessTarget(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()

@@ -245,6 +245,7 @@ func TestRenderPerformanceOmitsTimingWithoutFullDemo(t *testing.T) {
 // End-to-end proof: a real Full Demo master records every audio stage from the
 // existing diagnostic execution, with the render index and attempt.
 func TestFullDemoTimingAudioStagesRecorded(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

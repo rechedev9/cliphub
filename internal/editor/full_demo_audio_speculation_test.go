@@ -19,6 +19,7 @@ import (
 // discarded speculation must leave no candidate, delivery attempt or log
 // behind, as if recovery had never started.
 func TestFullDemoAACRecoverySpeculationMatchesSerialAndDiscardsCleanly(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

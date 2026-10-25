@@ -1030,6 +1030,7 @@ func TestZVBinaryEveryWorkflowRejectsInvalidRequiredArgsEndToEnd(t *testing.T) {
 					continue
 				}
 				t.Run(workflow.Name+"/"+mode+"/"+mutation.name, func(t *testing.T) {
+					t.Parallel()
 					logPrefix := filepath.Join(tempDir, strings.ReplaceAll(workflow.Name+"-"+mode+"-"+mutation.name, " ", "-"))
 					subcommandLogPath := logPrefix + ".jsonl"
 					openPathLogPath := logPrefix + "-open.txt"
@@ -1337,6 +1338,7 @@ func TestZVBinaryWorkflowHelpMatchesDirectDelegationEndToEnd(t *testing.T) {
 				continue
 			}
 			t.Run(workflow.Name+"/"+alias, func(t *testing.T) {
+				t.Parallel()
 				logPrefix := filepath.Join(tempDir, fmt.Sprintf("%s-alias%d", workflow.Name, i))
 				directLogPath := logPrefix + "-direct-help.jsonl"
 				runLogPath := logPrefix + "-run-help.jsonl"

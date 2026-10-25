@@ -2,21 +2,21 @@ allowBuilds:
   electron-winstaller: true
 overrides:
   # GHSA-rgw5-rvv9-x895 (CVE-2026-69152): 5.0.8's DoS mitigation is
-  # incomplete; 5.0.9 bounds the intermediate arrays too.
-  brace-expansion: 5.0.9
+  # incomplete; 5.0.9 bounds the intermediate arrays too. 5.0.12 closes a later advisory.
+  brace-expansion: 5.0.12
   # GHSA-* (undici): dev-time download/build tooling — pin to patched minors.
-  "@electron/get>undici": 7.29.0
-  "node-gyp>undici": 6.28.0
+  "@electron/get>undici": 7.30.1
+  "node-gyp>undici": 6.29.1
   # GHSA-jqff-g426-hqxp and siblings (fast-uri): dev-time schema tooling (ajv).
-  "ajv>fast-uri": 3.1.6
+  "ajv>fast-uri": 3.1.9
+  # Dependabot high (http-cache-semantics <= 4.2.0): got cache inside @electron/get.
+  http-cache-semantics: 4.3.0
   # GHSA-* (@xmldom/xmldom): plist parsing inside electron-builder packaging.
   "@xmldom/xmldom": 0.8.15
   # GHSA-2883-xcg3-v3hh (js-yaml): electron-builder config parsing.
   "js-yaml@4": 4.3.2
 minimumReleaseAgeExclude:
-  - brace-expansion@1.1.16 || 2.1.2
-  - fast-uri@3.1.4 || 3.1.6
   - "@xmldom/xmldom@0.8.15"
   - js-yaml@4.3.2
 patchedDependencies:
-  brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch
+  brace-expansion@5.0.12: patches/brace-expansion@5.0.12.patch

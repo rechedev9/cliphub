@@ -15,6 +15,7 @@ import (
 // music bed mixer is removed. It also proves that no third input can enter the
 // Full Demo audio graph.
 func TestFullDemoDecodedGameVoiceMix(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()

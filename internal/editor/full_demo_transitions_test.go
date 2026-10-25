@@ -22,6 +22,7 @@ import (
 )
 
 func TestFullDemoTransitionVisualChoices(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -201,6 +202,7 @@ func TestTransitionCommsBoundsAndEventAnchors(t *testing.T) {
 }
 
 func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

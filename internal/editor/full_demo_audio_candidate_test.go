@@ -250,6 +250,7 @@ func TestFullDemoAudioCandidateCommandsExcludeProgramVideo(t *testing.T) {
 }
 
 func TestFullDemoAudioOnlyCandidateMuxIsBitExact(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe := fullDemoTestFFprobe(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -351,6 +352,7 @@ func TestFullDemoAudioOnlyCandidateMuxIsBitExact(t *testing.T) {
 }
 
 func TestFullDemoAudioOnlyMuxMatchesLegacySinglePass(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe := fullDemoTestFFprobe(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -453,6 +455,7 @@ func TestFullDemoAudioOnlyAcceptanceContract(t *testing.T) {
 }
 
 func TestFullDemoAudioOnlyPublicationPreservesPreviousOutput(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

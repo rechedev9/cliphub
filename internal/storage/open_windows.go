@@ -42,13 +42,19 @@ const (
 // returned on the first attempt, and when the budget is spent the caller still
 // gets the original *os.PathError.
 func openLocalFile(path string) (*os.File, error) {
+	return openLocalFileWaiting(path, time.Sleep)
+}
+
+// openLocalFileWaiting is openLocalFile with the backoff wait injected, so a
+// test can end a held lock while the open is retrying instead of racing a timer.
+func openLocalFileWaiting(path string, wait func(time.Duration)) (*os.File, error) {
 	name, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
 	var handle syscall.Handle
 	deadline := time.Now().Add(openRetryBudget)
-	wait := openRetryFirstWait
+	backoff := openRetryFirstWait
 	for {
 		handle, err = syscall.CreateFile(
 			name,
@@ -66,15 +72,15 @@ func openLocalFile(path string) (*os.File, error) {
 		if remaining <= 0 {
 			break
 		}
-		sleep := wait
+		sleep := backoff
 		if sleep > remaining {
 			sleep = remaining
 		}
-		time.Sleep(sleep)
-		if wait < openRetryMaxWait {
-			wait *= 2
-			if wait > openRetryMaxWait {
-				wait = openRetryMaxWait
+		wait(sleep)
+		if backoff < openRetryMaxWait {
+			backoff *= 2
+			if backoff > openRetryMaxWait {
+				backoff = openRetryMaxWait
 			}
 		}
 	}

@@ -14,6 +14,7 @@ import (
 )
 
 func TestFullDemoBumperTransitionsRenderWithRoundEffectsOff(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
