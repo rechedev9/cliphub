@@ -1,8 +1,10 @@
 package editor
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -67,31 +69,34 @@ func TestFullDemoVoiceSeekUsesDocumentFrameClock(t *testing.T) {
 	}
 }
 
-func TestFullDemoVoiceMixManifestDropsEnemyTracks(t *testing.T) {
+func TestFullDemoVoiceMixManifestUsesOnlyIndexedTracks(t *testing.T) {
 	dir := t.TempDir()
 	voiceDir := filepath.Join(dir, "voice")
-	opus := []byte{0xF8, 0xFF, 0xFE}
 	const (
 		pov   = "76561198000000001"
 		mate  = "76561198000000002"
 		enemy = "76561198000000009"
 	)
-	_, err := voicecomms.WriteTracks(voiceDir, voicecomms.Report{
-		Demo:         "match.dem",
-		Tickrate:     64,
-		SampleRateHz: 48000,
-		Target:       voicecomms.PlayerVoice{SteamID64: pov, Name: "pov", Team: "T"},
-		Teammates:    []voicecomms.PlayerVoice{{SteamID64: mate, Name: "mate", Team: "T"}},
-	}, []voicecomms.Packet{
-		{XUID: 76561198000000001, Tick: 64, Format: voicecomms.FormatOpus, Data: opus},
-		{XUID: 76561198000000002, Tick: 128, Format: voicecomms.FormatOpus, Data: opus},
-		{XUID: 76561198000000009, Tick: 192, Format: voicecomms.FormatOpus, Data: opus},
-	}, []voicecomms.Sighting{
-		{SteamID64: pov, Name: "pov", Team: "T", Tick: 0},
-		{SteamID64: mate, Name: "mate", Team: "T", Tick: 0},
-		{SteamID64: enemy, Name: "enemy", Team: "CT", Tick: 0},
-	})
+	// voicecomms drops enemy speakers before it writes the index; the editor
+	// must mix exactly the indexed tracks and nothing else in the folder.
+	if err := os.MkdirAll(voiceDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	index := voicecomms.Index{SchemaVersion: voicecomms.SchemaVersion, Demo: "match.dem", Tickrate: 64, SampleRateHz: 48000}
+	for _, track := range []voicecomms.Track{{SteamID64: pov, Name: "pov", Team: "T"}, {SteamID64: mate, Name: "mate", Team: "T"}} {
+		track.Path = filepath.Join(voiceDir, track.SteamID64+".ogg")
+		index.Tracks = append(index.Tracks, track)
+	}
+	for _, id := range []string{pov, mate, enemy} {
+		if err := os.WriteFile(filepath.Join(voiceDir, id+".ogg"), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := json.Marshal(index)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(voiceDir, "voice-index.json"), body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 

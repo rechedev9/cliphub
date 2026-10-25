@@ -300,36 +300,6 @@ func (s *FollowStore) DismissSeed(playerID string) error {
 	return s.saveDismissedLocked(ids)
 }
 
-// RestoreSeeds clears every dismissal, bringing the default roster back.
-func (s *FollowStore) RestoreSeeds() error {
-	if s == nil {
-		return errors.New("FACEIT follow store is not configured")
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.saveDismissedLocked(nil)
-}
-
-// DismissedSeeds lists the hidden seeded player ids, sorted, so the state is
-// inspectable rather than implied by what the roster stopped showing.
-func (s *FollowStore) DismissedSeeds() ([]string, error) {
-	if s == nil {
-		return nil, errors.New("FACEIT follow store is not configured")
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	dismissed, err := s.dismissedLocked()
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(dismissed))
-	for id := range dismissed {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids, nil
-}
-
 func (s *FollowStore) listLocked() ([]FollowedPlayer, error) {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {

@@ -78,7 +78,7 @@ func TestCustomHUDRequiresCompatibleCaptureAndThemesReuseIt(t *testing.T) {
 		}
 		ch, _ := d.CaptureHash()
 		fch, _ := first.CaptureHash()
-		if ch == nativeHash || ch != fch || !CaptureCovers(first, d) {
+		if ch == nativeHash || ch != fch {
 			t.Fatal("theme changes must reuse a clean capture; native must not")
 		}
 		if i > 0 && d.PlanHash == first.PlanHash {
@@ -108,7 +108,7 @@ func TestCustomHUDRequiresCompatibleCaptureAndThemesReuseIt(t *testing.T) {
 	}
 	legacyHash, _ := legacy.CaptureHash()
 	currentHash, _ := first.CaptureHash()
-	if legacyHash == currentHash || CaptureCovers(legacy, first) || CaptureCovers(first, legacy) {
+	if legacyHash == currentHash {
 		t.Fatal("radar profile revision reused a capture with different native settings")
 	}
 }

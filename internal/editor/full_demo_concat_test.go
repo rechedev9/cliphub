@@ -317,7 +317,7 @@ func TestFullDemoConcatsTwoFixtureRounds(t *testing.T) {
 		{SegmentID: "seg-002", Role: "segment", Type: "video", Path: p2, SizeBytes: 1, DurationSeconds: partDur, Codec: "h264", Width: 1920, Height: 1080, FrameRate: "60/1"},
 	}
 
-	doc := demooverlay.Build(demooverlay.Roster{
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
 		TargetSteamID64: "76561198148986856",
 		Map:             "de_mirage",
 		ScoreCT:         13,
@@ -326,7 +326,7 @@ func TestFullDemoConcatsTwoFixtureRounds(t *testing.T) {
 			{SteamID64: "76561198148986856", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4},
 			{SteamID64: "9", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
-	}, nil)
+	}, "", nil)
 	opts := testManifestOptions(dir, nil)
 	opts.Preset = PresetGameplayPOV60
 	opts.OutputFormat = OutputFormatLandscape16x9

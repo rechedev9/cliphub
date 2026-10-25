@@ -304,7 +304,7 @@ func TestRenderWorkerNarrowsToSelectedSegments(t *testing.T) {
 			// requested segments — never every segment the job has ever recorded.
 			// Capture order stays chronological (the plan contract); the requested
 			// order travels as the editorial order the editor compiles.
-			if got := recording.SegmentIDs(seenRecordingResult); !slices.Equal(got, tc.wantCapture) {
+			if got := captureSegmentIDs(seenRecordingResult); !slices.Equal(got, tc.wantCapture) {
 				t.Fatalf("recording-result handed to editor lists capture segments %v, want %v", got, tc.wantCapture)
 			}
 			if got := recording.EditorialSegmentIDs(seenRecordingResult); !slices.Equal(got, tc.segmentIDs) {
@@ -495,11 +495,11 @@ func TestRecordWorkerRerecordsAndAccumulatesAcrossReels(t *testing.T) {
 	// either clip; without the merge the second run would clobber the first.
 	result := storedRecordingResult(t, store, id)
 	got := map[string]bool{}
-	for _, sid := range recording.SegmentIDs(result) {
+	for _, sid := range captureSegmentIDs(result) {
 		got[sid] = true
 	}
 	if !got["seg-001"] || !got["seg-002"] {
-		t.Fatalf("stored result segments = %v, want both seg-001 and seg-002", recording.SegmentIDs(result))
+		t.Fatalf("stored result segments = %v, want both seg-001 and seg-002", captureSegmentIDs(result))
 	}
 	for _, sid := range []string{"seg-001", "seg-002"} {
 		if _, ok := store.files[mustSegmentClipKey(t, id, sid)]; !ok {
@@ -544,7 +544,7 @@ func TestRecordWorkerCapturesOnlyMissingSegmentsWithinReelSelection(t *testing.T
 	}
 
 	result := storedRecordingResult(t, store, id)
-	if got := recording.SegmentIDs(result); len(got) != 3 || got[0] != "seg-001" || got[1] != "seg-002" || got[2] != "seg-003" {
+	if got := captureSegmentIDs(result); len(got) != 3 || got[0] != "seg-001" || got[1] != "seg-002" || got[2] != "seg-003" {
 		t.Fatalf("stored result segments = %v, want all three merged", got)
 	}
 	if err := result.Plan.Validate(); err != nil {
@@ -603,7 +603,7 @@ func TestRecordWorkerInvalidatesGameplayCaptureWhenPortraitSafetyChanges(t *test
 		t.Fatalf("recorder runs = %d, want 2 after portrait profile changed", len(seen))
 	}
 	result := storedRecordingResult(t, store, id)
-	if got := recording.SegmentIDs(result); len(got) != 1 || got[0] != "seg-002" {
+	if got := captureSegmentIDs(result); len(got) != 1 || got[0] != "seg-002" {
 		t.Fatalf("segments after profile change = %v, want only [seg-002]", got)
 	}
 	if !result.Plan.Stream.PortraitSafeKillfeed {
@@ -625,7 +625,7 @@ func TestRecordWorkerInvalidatesGameplayCaptureWhenPortraitSafetyChanges(t *test
 		t.Fatalf("recorder runs = %d, want 3 after identical retry skips", len(seen))
 	}
 	result = storedRecordingResult(t, store, id)
-	if got := recording.SegmentIDs(result); len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
+	if got := captureSegmentIDs(result); len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
 		t.Fatalf("segments after compatible merge = %v, want [seg-001 seg-002]", got)
 	}
 	if err := result.Plan.Validate(); err != nil {
@@ -680,7 +680,7 @@ func TestRecordWorkerFailedReelPreservesPriorReelResult(t *testing.T) {
 	if result.Error != "" {
 		t.Fatalf("stored result Error = %q, want preserved good result", result.Error)
 	}
-	ids := recording.SegmentIDs(result)
+	ids := captureSegmentIDs(result)
 	if len(ids) != 1 || ids[0] != "seg-001" {
 		t.Fatalf("stored result segments = %v, want [seg-001] preserved", ids)
 	}
@@ -729,7 +729,7 @@ func TestRecordWorkerInvalidSuccessfulAttemptPreservesPriorResult(t *testing.T) 
 	}
 
 	result := storedRecordingResult(t, store, id)
-	if ids := recording.SegmentIDs(result); len(ids) != 1 || ids[0] != "seg-001" {
+	if ids := captureSegmentIDs(result); len(ids) != 1 || ids[0] != "seg-001" {
 		t.Fatalf("stored result segments = %v, want prior [seg-001]", ids)
 	}
 	if _, ok := store.files[mustSegmentClipKey(t, id, "seg-002")]; ok {
@@ -1082,7 +1082,7 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
 	})
 
-	ready, _, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, fingerprint)
+	ready, _, _, err := renderVariantOutputsReadyContext(context.Background(), store, id, editor.PresetViral60Clean, fingerprint)
 	if err != nil || !ready {
 		t.Fatalf("matching inputs ready/error = %v/%v, want true/nil", ready, err)
 	}
@@ -1154,7 +1154,7 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 		"legacy empty":     "",
 	} {
 		t.Run(name, func(t *testing.T) {
-			ready, _, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, candidate)
+			ready, _, _, err := renderVariantOutputsReadyContext(context.Background(), store, id, editor.PresetViral60Clean, candidate)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1163,4 +1163,16 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 			}
 		})
 	}
+}
+
+// captureSegmentIDs lists the recorded segment IDs in capture order, which
+// these tests assert separately from the editorial order production compiles.
+func captureSegmentIDs(result recording.RecordingResult) []string {
+	var ids []string
+	for _, segment := range result.Plan.Segments {
+		if segment.ID != "" && !slices.Contains(ids, segment.ID) {
+			ids = append(ids, segment.ID)
+		}
+	}
+	return ids
 }

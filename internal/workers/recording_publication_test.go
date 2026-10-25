@@ -511,7 +511,7 @@ func TestRecordingPublicationRetryCommitsAndPreservesCompatibleSegments(t *testi
 	if err := recording.ValidateUploadResult(committed); err != nil {
 		t.Fatalf("committed result validation: %v", err)
 	}
-	if got := recording.SegmentIDs(committed); len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
+	if got := captureSegmentIDs(committed); len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
 		t.Fatalf("committed segments = %v, want [seg-001 seg-002]", got)
 	}
 	if got := string(base.files[mustSegmentClipKey(t, id, "seg-001")]); got != "replacement-seg-001" {

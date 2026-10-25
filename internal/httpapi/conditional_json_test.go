@@ -131,3 +131,11 @@ func TestJobListFingerprintChangesWithSummary(t *testing.T) {
 		t.Fatal("fingerprint ignored an inlined roster summary")
 	}
 }
+
+func jobListFingerprintForTest(items []jobListItem) string {
+	var b strings.Builder
+	for i := range items {
+		writeJobListFingerprint(&b, &items[i])
+	}
+	return b.String()
+}

@@ -209,11 +209,6 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 	return deliverFullDemoAACCandidate(ctx, ffmpeg, program, result.candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
 }
 
-func recoverFullDemoAAC(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
-	result := runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, e.Input, progress)
-	return finishFullDemoAACRecovery(ctx, ffmpeg, video, output, logDir, target, duration, e, result, progress)
-}
-
 // fullDemoAACRecoverySpeculation runs the recovery chain, and the delivery of
 // its accepted candidate, while the remaining native masters are still being
 // tried. Native masters keep precedence: the result is only consumed after

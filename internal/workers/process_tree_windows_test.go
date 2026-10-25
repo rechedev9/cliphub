@@ -4,7 +4,10 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -105,5 +108,33 @@ func TestACommandThatEndsByItselfLeavesWhatItStartedAlone(t *testing.T) {
 	endHelpers(t, pids)
 	if started := pids[0]; !processAlive(started) {
 		t.Fatalf("the process (pid %d) a finished command left running was ended", started)
+	}
+}
+
+// treeHelperPIDs waits until every generation of a helper tree has written
+// its pid and returns them, the tool itself last.
+func treeHelperPIDs(t *testing.T, dir string, generations int) []int {
+	t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		pids := []int{}
+		for depth := range generations {
+			raw, err := os.ReadFile(filepath.Join(dir, fmt.Sprintf("generation-%d.pid", depth)))
+			if err != nil {
+				break
+			}
+			pid, err := strconv.Atoi(string(raw))
+			if err != nil {
+				break
+			}
+			pids = append(pids, pid)
+		}
+		if len(pids) == generations {
+			return pids
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the helper tree did not start: %d of %d generations wrote a pid", len(pids), generations)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

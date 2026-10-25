@@ -260,15 +260,6 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	}
 }
 
-// WithSteamAvatarResolver supplies the public-profile lookup used only for
-// local Full Demo roster portraits. It is separate from the authenticated
-// Steam history account and allows deterministic fake-service tests.
-func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
-	return func(h *Handlers) {
-		h.steamAvatarResolver = resolver
-	}
-}
-
 // WithFaceitSeeds supplies the refreshable default roster. A nil store still
 // projects the embedded zone rosters: SeedStore.Document degrades to DefaultSeed.
 func WithFaceitSeeds(seeds *faceit.SeedStore) Option {

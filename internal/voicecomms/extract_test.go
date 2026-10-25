@@ -1,6 +1,7 @@
 package voicecomms
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,13 +89,13 @@ func TestWriteTracksKeepsOnlyTeamOpus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			index, err := WriteTracks(dir, Report{
+			index, err := writeTracksWithSpillContext(context.Background(), dir, Report{
 				Demo:         "match.dem",
 				Tickrate:     64,
 				SampleRateHz: 48000,
 				Target:       PlayerVoice{SteamID64: pov, Name: "pov", Team: "T"},
 				Teammates:    []PlayerVoice{{SteamID64: mate, Name: "mate", Team: "T"}},
-			}, tt.packets, tt.sightings)
+			}, tt.packets, tt.sightings, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

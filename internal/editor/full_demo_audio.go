@@ -125,16 +125,6 @@ func measuredLoudnessFilterText(target recapplan.LoudnessOptions, integrated, tr
 	return loudnessFilter(target) + ":measured_I=" + integrated + ":measured_TP=" + truePeak + ":measured_LRA=" + lra + ":measured_thresh=" + threshold + ":offset=" + offset + ":linear=true:print_format=json"
 }
 
-// masterFullDemoProgram always remasters the lossless mixed program, never an
-// already encoded AAC file. Each native candidate is an audio-only AAC MP4 so a
-// failed master never copies the complete video; only a passing candidate is
-// muxed once with the program video. The decoded AAC measurement owns
-// acceptance, and the original three attempts precede a bounded Windows AAC
-// recovery.
-func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
-	return masterFullDemoSplitProgram(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, logDir, target, silentApproved, duration, progress)
-}
-
 // fullDemoProgramVideo resolves the committed program video for the final mux.
 // Mastering only reads audio, so it may run while the video is still being
 // encoded; it blocks here only once a candidate has already passed.
@@ -144,16 +134,13 @@ func committedFullDemoProgramVideo(path string) fullDemoProgramVideo {
 	return func(context.Context) (string, error) { return path, nil }
 }
 
-// masterFullDemoSplitProgram masters input, the lossless program audio, and
-// muxes the passing candidate with the separately produced program video.
-func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
-	return masterFullDemoMeasuredProgram(ctx, ffmpeg, input, video, output, logDir, target, silentApproved, duration, progress, fullDemoProgramAudio{})
-}
-
-// masterFullDemoMeasuredProgram is masterFullDemoSplitProgram with the program
-// measurement the assembly already produced from the very same samples. The
-// candidate sequence, acceptance rules, evidence and log files are unchanged;
-// only the first full decode of the program audio is skipped.
+// masterFullDemoMeasuredProgram always remasters the lossless mixed program,
+// never an already encoded AAC file. Each native candidate is an audio-only AAC
+// MP4 so a failed master never copies the complete video; only a passing
+// candidate is muxed once with the program video. The decoded AAC measurement
+// owns acceptance, and three native attempts precede a bounded Windows AAC
+// recovery. When the assembly already measured the program from the very same
+// samples, that measurement replaces the first full decode of the program audio.
 func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress, assembled fullDemoProgramAudio) (ProgramLoudnessEvidence, error) {
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)

@@ -52,7 +52,7 @@ func addLongVideoPublishFacts(facts *publishAssistantFacts, short editor.ShortRe
 	}
 }
 
-// Match the source-frame seek and sample window used by fullDemoItemCommand.
+// Match the source-frame seek and sample window used by fullDemoItemStreamCommand.
 // A measured whole-demo WAV does not prove that speech survived the edit.
 func retainedPublishVoice(doc recapplan.Document) bool {
 	for _, item := range doc.Timeline {

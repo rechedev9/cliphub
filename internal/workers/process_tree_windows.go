@@ -5,6 +5,7 @@ package workers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -118,4 +119,13 @@ func killProcessTree(process *os.Process, tool string) error {
 	ended, err := endDescendants(map[uint32]treeMember{pid: root})
 	logProcessTree(tool, ended, err)
 	return nil
+}
+
+func logProcessTree(tool string, ended int, err error) {
+	switch {
+	case err != nil:
+		log.Printf("worker: ended %s and %d processes it started, with problems: %v", tool, ended, err)
+	case ended > 0:
+		log.Printf("worker: ended %s and %d processes it started", tool, ended)
+	}
 }

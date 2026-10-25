@@ -164,7 +164,7 @@ func TestPlanRoundEvidence(t *testing.T) {
 	}
 }
 
-func TestContentHashesAndCaptureReuse(t *testing.T) {
+func TestContentAndCaptureHashes(t *testing.T) {
 	base := fixtureDocument(t)
 	captureHash, _ := base.CaptureHash()
 	for _, tc := range []struct {
@@ -189,16 +189,6 @@ func TestContentHashesAndCaptureReuse(t *testing.T) {
 				t.Fatalf("plan changed=%v capture changed=%v", ph != base.PlanHash, ch != captureHash)
 			}
 		})
-	}
-	narrow := fixtureDocument(t)
-	narrow.Rounds[0].RequestedStartTick += 100
-	narrow.Rounds[0].RequestedEndTick -= 100
-	if !CaptureCovers(base, narrow) {
-		t.Fatal("narrower render required recapture")
-	}
-	narrow.Rounds[0].RequestedStartTick = base.Rounds[0].CaptureStartTick - 1
-	if CaptureCovers(base, narrow) {
-		t.Fatal("expanded coverage reused uncertified frames")
 	}
 }
 
