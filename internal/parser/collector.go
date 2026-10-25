@@ -152,6 +152,11 @@ func (c *Collector) RecordRoundEnd(re RoundEnd) {
 	c.roundEnds = append(c.roundEnds, re)
 }
 
+// BuildPlan assembles the kill plan for mode from the events recorded so far.
+func (c *Collector) BuildPlan(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
+	return c.build(m, mode)
+}
+
 func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	if !c.targetSeen {
 		return killplan.Plan{}, fmt.Errorf("target steamid %q: %w", c.target, ErrTargetNotFound)

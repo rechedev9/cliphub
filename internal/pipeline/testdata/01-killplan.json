@@ -1,0 +1,803 @@
+{
+  "schema_version": "1.2",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "demo": {
+    "path": "match.dem",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+    "map": "de_mirage",
+    "tickrate": 64,
+    "duration_ticks": 127155
+  },
+  "target": {
+    "steamid64": "76561198000000100",
+    "name_in_demo": "target",
+    "team_at_start": "CT"
+  },
+  "rules": {
+    "weapons": [
+      "*"
+    ],
+    "min_kills_in_window": 1,
+    "window_seconds": 8,
+    "pre_roll_seconds": 3,
+    "post_roll_seconds": 5,
+    "include_headshot_only": false,
+    "exclude_team_kills": true,
+    "min_round": 1,
+    "max_round": 0
+  },
+  "segments": [
+    {
+      "id": "seg-001",
+      "round": 2,
+      "tick_start": 11904,
+      "tick_end": 12416,
+      "kills": [
+        {
+          "tick": 12096,
+          "weapon": "mp9",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -812.2,
+            235.3,
+            -172
+          ],
+          "victim_pos": [
+            -664.7,
+            -1327.4,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-002",
+      "round": 3,
+      "tick_start": 17591,
+      "tick_end": 18103,
+      "kills": [
+        {
+          "tick": 17783,
+          "weapon": "mp9",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -1361,
+            -1173.9,
+            -117.1
+          ],
+          "victim_pos": [
+            -1359.5,
+            -975.9,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-003",
+      "round": 4,
+      "tick_start": 21152,
+      "tick_end": 21664,
+      "kills": [
+        {
+          "tick": 21344,
+          "weapon": "ak47",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000003",
+            "name_in_demo": "opponent-3",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -1980.5,
+            750.8,
+            -48
+          ],
+          "victim_pos": [
+            -1319.9,
+            681.3,
+            -80
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-004",
+      "round": 4,
+      "tick_start": 22632,
+      "tick_end": 23215,
+      "kills": [
+        {
+          "tick": 22824,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -817.2,
+            177.6,
+            -173.6
+          ],
+          "victim_pos": [
+            -693.8,
+            -1002.5,
+            -216
+          ]
+        },
+        {
+          "tick": 22895,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -854.3,
+            173.2,
+            -173.1
+          ],
+          "victim_pos": [
+            -563.9,
+            -1025.2,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-005",
+      "round": 5,
+      "tick_start": 27199,
+      "tick_end": 27711,
+      "kills": [
+        {
+          "tick": 27391,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000005",
+            "name_in_demo": "opponent-5",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -1319.7,
+            -968.2,
+            -168
+          ],
+          "victim_pos": [
+            -1022.6,
+            -1489.5,
+            -164.9
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-006",
+      "round": 5,
+      "tick_start": 27800,
+      "tick_end": 28312,
+      "kills": [
+        {
+          "tick": 27992,
+          "weapon": "ak47",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -1179.8,
+            -569.4,
+            -168
+          ],
+          "victim_pos": [
+            -619.4,
+            -845.6,
+            -261.2
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-007",
+      "round": 5,
+      "tick_start": 29303,
+      "tick_end": 29815,
+      "kills": [
+        {
+          "tick": 29495,
+          "weapon": "ak47",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            488.6,
+            -874.5,
+            -160.5
+          ],
+          "victim_pos": [
+            -59.9,
+            -682.4,
+            -209.9
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-008",
+      "round": 6,
+      "tick_start": 34787,
+      "tick_end": 35299,
+      "kills": [
+        {
+          "tick": 34979,
+          "weapon": "awp",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -886,
+            294.6,
+            -167.7
+          ],
+          "victim_pos": [
+            -572.8,
+            -1192.8,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-009",
+      "round": 7,
+      "tick_start": 39915,
+      "tick_end": 40427,
+      "kills": [
+        {
+          "tick": 40107,
+          "weapon": "m4a1_silencer",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            150.1,
+            -1442,
+            -176
+          ],
+          "victim_pos": [
+            -441.9,
+            -1873.6,
+            -178.1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-010",
+      "round": 9,
+      "tick_start": 52031,
+      "tick_end": 52543,
+      "kills": [
+        {
+          "tick": 52223,
+          "weapon": "m4a1_silencer",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -144,
+            -2325.5,
+            -168
+          ],
+          "victim_pos": [
+            -159.5,
+            -2285.2,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-011",
+      "round": 10,
+      "tick_start": 61396,
+      "tick_end": 61828,
+      "kills": [
+        {
+          "tick": 61588,
+          "weapon": "m4a1_silencer",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -360,
+            -1504,
+            -164
+          ],
+          "victim_pos": [
+            -170.2,
+            -1552.4,
+            -54
+          ]
+        },
+        {
+          "tick": 61700,
+          "weapon": "m4a1_silencer",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -266.1,
+            -1619.4,
+            -168
+          ],
+          "victim_pos": [
+            -485.7,
+            -1573.1,
+            -40
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-012",
+      "round": 11,
+      "tick_start": 65011,
+      "tick_end": 65523,
+      "kills": [
+        {
+          "tick": 65203,
+          "weapon": "m4a1_silencer",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -611.2,
+            -1134.3,
+            -168
+          ],
+          "victim_pos": [
+            -604.6,
+            -1416.5,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-013",
+      "round": 11,
+      "tick_start": 65907,
+      "tick_end": 66419,
+      "kills": [
+        {
+          "tick": 66099,
+          "weapon": "m4a1_silencer",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -605.2,
+            -1124.6,
+            -168
+          ],
+          "victim_pos": [
+            -815.3,
+            -1909.8,
+            -125
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-014",
+      "round": 13,
+      "tick_start": 81350,
+      "tick_end": 81862,
+      "kills": [
+        {
+          "tick": 81542,
+          "weapon": "glock",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            -845.8,
+            -2378.3,
+            -169
+          ],
+          "victim_pos": [
+            -1094.8,
+            -2245.3,
+            -169.8
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-015",
+      "round": 14,
+      "tick_start": 87180,
+      "tick_end": 87692,
+      "kills": [
+        {
+          "tick": 87372,
+          "weapon": "mac10",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            288.1,
+            -2375,
+            -40
+          ],
+          "victim_pos": [
+            23.8,
+            -2228.9,
+            -40
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-016",
+      "round": 14,
+      "tick_start": 89844,
+      "tick_end": 90164,
+      "kills": [
+        {
+          "tick": 90036,
+          "weapon": "mac10",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            -581.5,
+            -1389.7,
+            -168
+          ],
+          "victim_pos": [
+            -917.7,
+            -75.1,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-017",
+      "round": 15,
+      "tick_start": 93166,
+      "tick_end": 93678,
+      "kills": [
+        {
+          "tick": 93358,
+          "weapon": "mac10",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            -1787.1,
+            436.4,
+            -165.7
+          ],
+          "victim_pos": [
+            -1441.2,
+            196.7,
+            -167
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-018",
+      "round": 15,
+      "tick_start": 94801,
+      "tick_end": 95313,
+      "kills": [
+        {
+          "tick": 94993,
+          "weapon": "mac10",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000005",
+            "name_in_demo": "opponent-5",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            -836,
+            -358.6,
+            -165.4
+          ],
+          "victim_pos": [
+            -1206.5,
+            -628.9,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-019",
+      "round": 16,
+      "tick_start": 99619,
+      "tick_end": 100131,
+      "kills": [
+        {
+          "tick": 99811,
+          "weapon": "ak47",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            454.4,
+            -451.9,
+            -160
+          ],
+          "victim_pos": [
+            -355.3,
+            -651.7,
+            -269.4
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-020",
+      "round": 19,
+      "tick_start": 124111,
+      "tick_end": 124623,
+      "kills": [
+        {
+          "tick": 124303,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            -568.5,
+            -1342,
+            -168
+          ],
+          "victim_pos": [
+            -734.2,
+            -2109.8,
+            -180
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-021",
+      "round": 19,
+      "tick_start": 126696,
+      "tick_end": 127016,
+      "kills": [
+        {
+          "tick": 126888,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "T"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "CT"
+          },
+          "killer_pos": [
+            337.3,
+            -1599.5,
+            -180.6
+          ],
+          "victim_pos": [
+            -288,
+            -1627,
+            -168
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "total_kills_target": 23,
+    "kills_after_filters": 23,
+    "segments_created": 21,
+    "duration_seconds_total": 161.859375
+  }
+}

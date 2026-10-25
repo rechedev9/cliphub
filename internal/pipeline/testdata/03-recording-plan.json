@@ -1,0 +1,186 @@
+{
+  "capture_contract": "observer-steamid-input-v2",
+  "killplan_schema_version": "1.2",
+  "demo_path": "$WORK/match.dem",
+  "demo_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+  "demo_map": "de_mirage",
+  "demo_duration_ticks": 127155,
+  "output_dir": "$WORK/recording",
+  "target_steamid64": "76561198000000100",
+  "target_name_in_demo": "target",
+  "target_account_id": 39734372,
+  "tickrate": 64,
+  "segments": [
+    {
+      "id": "seg-002",
+      "round": 3,
+      "tick_start": 17591,
+      "tick_end": 18103,
+      "kills": [
+        {
+          "tick": 17783,
+          "weapon": "mp9",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -1361,
+            -1173.9,
+            -117.1
+          ],
+          "victim_pos": [
+            -1359.5,
+            -975.9,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-004",
+      "round": 4,
+      "tick_start": 22632,
+      "tick_end": 23215,
+      "kills": [
+        {
+          "tick": 22824,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000002",
+            "name_in_demo": "opponent-2",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -817.2,
+            177.6,
+            -173.6
+          ],
+          "victim_pos": [
+            -693.8,
+            -1002.5,
+            -216
+          ]
+        },
+        {
+          "tick": 22895,
+          "weapon": "ak47",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -854.3,
+            173.2,
+            -173.1
+          ],
+          "victim_pos": [
+            -563.9,
+            -1025.2,
+            -168
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seg-011",
+      "round": 10,
+      "tick_start": 61396,
+      "tick_end": 61828,
+      "kills": [
+        {
+          "tick": 61588,
+          "weapon": "m4a1_silencer",
+          "headshot": false,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000001",
+            "name_in_demo": "opponent-1",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -360,
+            -1504,
+            -164
+          ],
+          "victim_pos": [
+            -170.2,
+            -1552.4,
+            -54
+          ]
+        },
+        {
+          "tick": 61700,
+          "weapon": "m4a1_silencer",
+          "headshot": true,
+          "wallbang": false,
+          "killer": {
+            "steamid64": "76561198000000100",
+            "name_in_demo": "target",
+            "team_at_kill": "CT"
+          },
+          "victim": {
+            "steamid64": "76561198000000004",
+            "name_in_demo": "opponent-4",
+            "team_at_kill": "T"
+          },
+          "killer_pos": [
+            -266.1,
+            -1619.4,
+            -168
+          ],
+          "victim_pos": [
+            -485.7,
+            -1573.1,
+            -40
+          ]
+        }
+      ]
+    }
+  ],
+  "editorial_segment_ids": [
+    "seg-011",
+    "seg-004",
+    "seg-002"
+  ],
+  "stream": {
+    "mode": "ffmpeg_direct",
+    "hud_mode": "gameplay",
+    "fps": 60,
+    "width": 1920,
+    "height": 1080,
+    "crf": 18
+  },
+  "runtime": {
+    "playback_timescale": 8,
+    "quit_tick_pad": 200
+  }
+}

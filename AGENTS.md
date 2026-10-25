@@ -36,7 +36,11 @@ Verify by hand in the real app:
    (error, cancel or empty state).
 3. Attach screenshots of the relevant states to the PR, with a few lines on what you did and saw.
 Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
-Unit tests are welcome where they test real logic.
+The one exception is the deterministic Short pipeline test in `internal/pipeline`: plain `go test`,
+golden files in its `testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.
+Extend that test instead of adding another. When a change moves its output, run
+`go test ./internal/pipeline -update` and review the golden diff like code; never accept it blindly.
+It does not replace the manual check above. Unit tests are welcome where they test real logic.
 
 ## Releases
 Bump `desktop/package.json` and `landing/app/page.tsx` (`DOWNLOAD_URL`, `RELEASE_VERSION`), commit

@@ -331,7 +331,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		}
 	}
 
-	plan, err := c.build(m, mode)
+	plan, err := c.BuildPlan(m, mode)
 	if err != nil {
 		// Translate the collector's "target not seen" error into the sentinel
 		// so the CLI can map it to its exit code.
@@ -353,7 +353,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	if !alsoRecap || mode == SegmentModeRecap {
 		return plan, killplan.Plan{}, nil
 	}
-	recap, err := c.build(m, SegmentModeRecap)
+	recap, err := c.BuildPlan(m, SegmentModeRecap)
 	if err != nil {
 		if errors.Is(err, ErrTargetNotFound) {
 			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound

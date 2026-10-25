@@ -171,10 +171,11 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 			return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 		}
 	}
-	selected, err := selectDemoSegments(plan, segmentIDs)
+	selected, err := killplan.Select(plan, segmentIDs)
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
+	selected.GeneratedAt = time.Now().UTC()
 	absInput, _ := filepath.Abs(*killPlanPath)
 	absOut, _ := filepath.Abs(*outPath)
 	result := demoSelectionResult{
@@ -259,50 +260,4 @@ func parseOrderedSegmentIDs(value string) ([]string, error) {
 		return nil, fmt.Errorf("--segments did not contain any segment ids")
 	}
 	return ids, nil
-}
-
-func selectDemoSegments(plan killplan.Plan, ids []string) (killplan.Plan, error) {
-	byID := make(map[string]killplan.Segment, len(plan.Segments))
-	for _, segment := range plan.Segments {
-		if strings.TrimSpace(segment.ID) == "" {
-			return killplan.Plan{}, fmt.Errorf("kill plan contains a segment without an id")
-		}
-		if _, exists := byID[segment.ID]; exists {
-			return killplan.Plan{}, fmt.Errorf("kill plan contains duplicate segment id %q", segment.ID)
-		}
-		byID[segment.ID] = segment
-	}
-	selected := plan
-	selected.GeneratedAt = time.Now().UTC()
-	selected.Segments = make([]killplan.Segment, 0, len(ids))
-	var missing []string
-	for _, id := range ids {
-		segment, ok := byID[id]
-		if !ok {
-			missing = append(missing, id)
-			continue
-		}
-		selected.Segments = append(selected.Segments, segment)
-	}
-	if len(missing) > 0 {
-		return killplan.Plan{}, fmt.Errorf("unknown segment ids: %s", strings.Join(missing, ", "))
-	}
-	selected.Stats.KillsAfterFilters = 0
-	selected.Stats.UtilityAfterFilters = 0
-	selected.Stats.SmokesAfterFilters = 0
-	selected.Stats.SegmentsCreated = len(selected.Segments)
-	selected.Stats.DurationSecondsTotal = 0
-	for _, segment := range selected.Segments {
-		selected.Stats.KillsAfterFilters += len(segment.Kills)
-		selected.Stats.UtilityAfterFilters += len(segment.Utility)
-		for _, utility := range segment.Utility {
-			if strings.EqualFold(utility.Type, "smoke") || strings.EqualFold(utility.Type, "smokegrenade") {
-				selected.Stats.SmokesAfterFilters++
-			}
-		}
-		if segment.TickEnd > segment.TickStart {
-			selected.Stats.DurationSecondsTotal += float64(segment.TickEnd-segment.TickStart) / float64(selected.Demo.Tickrate)
-		}
-	}
-	return selected, nil
 }
