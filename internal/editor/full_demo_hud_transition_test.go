@@ -16,6 +16,7 @@ import (
 // Synthetic sources exercise composition only, without claiming a real capture
 // attestation. Camera transitions must not distort the broadcast scoreboard.
 func TestFullDemoHUDRemainsStableDuringRoundTransition(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

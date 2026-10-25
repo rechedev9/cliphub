@@ -284,6 +284,7 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 	})
 	if err != nil {
 		t.Fatalf("Run error = %v", err)
@@ -490,6 +491,7 @@ func TestRunSkipExistingRerendersChangedCompiledProducerContract(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		CompileSegments:     true,
 	})
 	if err != nil {
@@ -504,6 +506,7 @@ func TestRunSkipExistingRerendersChangedCompiledProducerContract(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		CompileSegments:     true,
 		RankMoments:         true,
 		SkipExisting:        true,
@@ -542,6 +545,7 @@ func TestRunNoCoversSkipsCoverOutputs(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		DisableCovers:       true,
 	})
 	if err != nil {
@@ -570,6 +574,7 @@ func TestRunCoverFailureIsWarningOnly(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 	})
 	if err != nil {
 		t.Fatalf("Run error = %v", err)
@@ -594,6 +599,7 @@ func TestRunShortRenderFailureWritesLog(t *testing.T) {
 		RecordingResultPath: recordingResultPath,
 		OutputDir:           outDir,
 		FFmpegPath:          ffmpegPath,
+		FFprobePath:         missingFFprobe(dir),
 		RenderJobs:          4,
 	})
 	if err == nil {
@@ -736,6 +742,12 @@ func TestMain(m *testing.M) {
 		code = 1
 	}
 	os.Exit(code)
+}
+
+// missingFFprobe keeps the fake-FFmpeg Run tests off the real ffprobe: it can
+// only fail on fake media, and each start costs ~0.7 s on Windows.
+func missingFFprobe(dir string) string {
+	return filepath.Join(dir, "missing-ffprobe")
 }
 
 func fakeFFmpeg(t *testing.T, _ string) string {

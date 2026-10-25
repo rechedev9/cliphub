@@ -73,6 +73,7 @@ func filteredFrameHash(t *testing.T, ffmpeg, input, filter string) string {
 // duplicated geometry/fps pass after the concat must not change a single pixel.
 // The temporal-smoothing row is the documented exception — see its comment.
 func TestPostConcatFilterPixelEquivalence(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := ffmpegForEquivalence(t)
 	dir := t.TempDir()
 
@@ -215,6 +216,7 @@ func TestKillfeedCropFilterPixelEquivalence(t *testing.T) {
 }
 
 func TestViralMotionFiltersRenderWithFFmpeg(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := ffmpegForEquivalence(t)
 	source := normalizedSource(t, ffmpeg, t.TempDir(), 1080, 1920, 60)
 	cases := []struct {

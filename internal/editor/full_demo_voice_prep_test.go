@@ -20,6 +20,7 @@ import (
 // same filters, gain policy and materialization have to produce byte-identical
 // WAVs and identical measurements in approved order.
 func TestFullDemoVoicePrepSerialAndParallelProduceIdenticalPCM(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

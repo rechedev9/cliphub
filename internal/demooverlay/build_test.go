@@ -7,7 +7,7 @@ import (
 )
 
 func TestBuildSplitsPOVTeamLeftAndOmitsEmptyFACEITColumns(t *testing.T) {
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		Map:             "de_mirage",
 		ScoreCT:         13,
@@ -56,7 +56,7 @@ func TestBuildMergesFACEITWithoutInventingMissingLast20(t *testing.T) {
 	matches := 20
 	win := 57.0
 	kd := 1.46
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		ScoreCT:         13,
 		ScoreT:          8,
@@ -91,7 +91,7 @@ func TestBuildMergesFACEITWithoutInventingMissingLast20(t *testing.T) {
 }
 
 func TestBuildAverageELORequiresEveryTeammate(t *testing.T) {
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		ScoreCT:         13,
 		ScoreT:          8,
@@ -111,7 +111,7 @@ func TestBuildAverageELORequiresEveryTeammate(t *testing.T) {
 }
 
 func TestBuildZeroFACEITValuesAreOmitted(t *testing.T) {
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		Players:         []RosterPlayer{{SteamID64: "1", Name: "a", Team: "CT"}},
 	}, map[string]Enrichment{"1": {ELO: 0, SkillLevel: 0, Last20: &Last20{}}})
@@ -305,4 +305,14 @@ func TestBuildForSourceHonorsPremierProfessionalAndFACEIT(t *testing.T) {
 			}
 		})
 	}
+}
+
+// build keeps the historical FACEIT-when-enrichment-present behavior these
+// tests were written against. Renders call BuildForSource with the job's source.
+func build(roster Roster, faceit map[string]Enrichment) Document {
+	source := ""
+	if len(faceit) > 0 {
+		source = SourceFACEIT
+	}
+	return BuildForSource(roster, source, faceit)
 }

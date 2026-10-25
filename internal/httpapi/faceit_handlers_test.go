@@ -360,9 +360,6 @@ func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
 	if len(players) != len(faceit.DefaultSeed().Players) || players[0].ID != first.PlayerID || !players[0].Seeded || players[0].Zone != first.Zone {
 		t.Fatalf("after unfollow = %#v, want the player back as a seeded %s row", players[0], first.Zone)
 	}
-	if dismissed, err := follows.DismissedSeeds(); err != nil || len(dismissed) != 0 {
-		t.Fatalf("dismissed = %v, %v; want none", dismissed, err)
-	}
 }
 
 // The Players list used to show the ELO zones_default.json shipped with and

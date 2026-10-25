@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"testing"
 	"time"
 )
 
@@ -42,32 +41,4 @@ func runTreeHelper(dir string) {
 		return
 	}
 	time.Sleep(treeHelperLifetime)
-}
-
-// treeHelperPIDs waits until every generation of a helper tree has written
-// its pid and returns them, the tool itself last.
-func treeHelperPIDs(t *testing.T, dir string, generations int) []int {
-	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		pids := []int{}
-		for depth := range generations {
-			raw, err := os.ReadFile(filepath.Join(dir, fmt.Sprintf("generation-%d.pid", depth)))
-			if err != nil {
-				break
-			}
-			pid, err := strconv.Atoi(string(raw))
-			if err != nil {
-				break
-			}
-			pids = append(pids, pid)
-		}
-		if len(pids) == generations {
-			return pids
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("the helper tree did not start: %d of %d generations wrote a pid", len(pids), generations)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 }

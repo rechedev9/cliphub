@@ -158,11 +158,3 @@ func writeStreamListFingerprint(b *strings.Builder, item *streamJobListItem) {
 	}
 	b.WriteByte('\x1e')
 }
-
-func jobListFingerprintForTest(items []jobListItem) string {
-	var b strings.Builder
-	for i := range items {
-		writeJobListFingerprint(&b, &items[i])
-	}
-	return b.String()
-}

@@ -18,6 +18,7 @@ import (
 )
 
 func TestFullDemoFocusPortraitPreservesAlphaAspectAndFrameCount(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

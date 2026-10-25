@@ -43,14 +43,6 @@ type fullDemoDeliveryOutcome struct {
 	DecodeMS        int64
 }
 
-func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, frames int64, progress fullDemoProgress) (*FullDemoDeliveryEvidence, error) {
-	outcome, err := verifyFullDemoDeliveryWithDiagnostics(ctx, ffmpeg, ffprobe, path, frames, progress, nil)
-	if err != nil {
-		return nil, err
-	}
-	return outcome.Evidence, nil
-}
-
 // verifyFullDemoDeliveryWithDiagnostics runs the mandatory complete decode and,
 // when diagnostics are requested, folds the existing blackdetect/freezedetect
 // filters into that same process instead of paying for a second full-video

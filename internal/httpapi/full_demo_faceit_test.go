@@ -230,3 +230,12 @@ func TestStartGenerateLocalFullDemoAllowsUnavailableSteamAvatars(t *testing.T) {
 		t.Fatalf("unavailable Steam lookup invented avatars: %#v", got)
 	}
 }
+
+// WithSteamAvatarResolver supplies the public-profile lookup used only for
+// local Full Demo roster portraits. It is separate from the authenticated
+// Steam history account and allows deterministic fake-service tests.
+func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
+	return func(h *Handlers) {
+		h.steamAvatarResolver = resolver
+	}
+}

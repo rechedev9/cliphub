@@ -140,7 +140,3 @@ func faceitOutroLayout() OutroLayout {
 		Row0:      spec.RowY,
 	}
 }
-
-func (l Layout) NativeHUDVisible() bool {
-	return l.Intro.CenterGap >= 700
-}

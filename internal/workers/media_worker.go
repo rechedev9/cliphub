@@ -3866,10 +3866,6 @@ func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Pla
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {
-	return renderVariantOutputsReadyContext(context.Background(), store, id, variant, expectedFingerprint, states...)
-}
-
 func renderVariantOutputsReadyContext(ctx context.Context, store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {
 	var state *renderplan.RenderVariantState
 	if len(states) > 0 && states[0] != nil {

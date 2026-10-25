@@ -94,17 +94,6 @@ func UsesFACEITEnrichment(source string) bool {
 	return NormalizeSource(source) == SourceFACEIT
 }
 
-// Build keeps the historical FACEIT-when-enrichment-present behavior for
-// existing tests. Full Demo renders must call BuildForSource so a Premier or
-// professional job cannot inherit FACEIT fields from a leftover map.
-func Build(roster Roster, faceit map[string]Enrichment) Document {
-	source := ""
-	if len(faceit) > 0 {
-		source = SourceFACEIT
-	}
-	return BuildForSource(roster, source, faceit)
-}
-
 func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) Document {
 	source = NormalizeSource(source)
 	if !UsesFACEITEnrichment(source) {

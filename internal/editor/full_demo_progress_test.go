@@ -36,6 +36,7 @@ func TestFullDemoProgressStageChangesBypassThrottle(t *testing.T) {
 }
 
 func TestFFmpegProgressPreservesMeasurementAndErrors(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

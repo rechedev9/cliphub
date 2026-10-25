@@ -13,7 +13,7 @@ A 14-minute 1080p60 Full POV render failed twice at 81 % with:
 Error applying option 'TP' to filter 'loudnorm': Result too large
 ```
 
-The native AAC master loop in `masterFullDemoProgram` re-targeted
+The native AAC master loop (now `masterFullDemoMeasuredProgram`) re-targeted
 `TargetTPDBTP` downward by the decoded true-peak overshoot on every attempt
 without any bound. Large overshoots pushed the third attempt below loudnorm's
 accepted range, ffmpeg refused the filter, and the render aborted before ever
@@ -31,7 +31,8 @@ Rules that follow from it:
   `attemptTarget` inline.
 - **Feedback loops that adjust a parameter from a measurement need a bound
   and an exit condition.** If the clamped next target equals the current one,
-  stop retrying and hand over to the next strategy (`recoverFullDemoAAC`)
+  stop retrying and hand over to the next strategy (the AAC recovery chain,
+  `runFullDemoAACRecovery` then `finishFullDemoAACRecovery`)
   instead of repeating a target that already failed.
 - **Do not add a new fallback stage without proving the earlier stages can
   reach it.** Write a unit test that drives the loop with the measured values

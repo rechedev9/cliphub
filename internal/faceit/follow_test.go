@@ -386,10 +386,6 @@ func TestFollowStoreDismissSeedSurvivesRestart(t *testing.T) {
 	if err := store.DismissSeed("seeded-1"); err != nil {
 		t.Fatalf("second DismissSeed = %v, want it to be idempotent", err)
 	}
-	ids, err := store.DismissedSeeds()
-	if err != nil || len(ids) != 1 || ids[0] != "seeded-1" {
-		t.Fatalf("DismissedSeeds = %v, %v", ids, err)
-	}
 
 	reopened, err := NewFollowStore(path, func() time.Time { return now })
 	if err != nil {
@@ -401,21 +397,6 @@ func TestFollowStoreDismissSeedSurvivesRestart(t *testing.T) {
 	}
 	if len(roster) != 1 || roster[0].ID != "seeded-2" {
 		t.Fatalf("roster after restart = %#v, want the dismissal to persist", roster)
-	}
-
-	if err := reopened.RestoreSeeds(); err != nil {
-		t.Fatal(err)
-	}
-	ids, err = reopened.DismissedSeeds()
-	if err != nil || len(ids) != 0 {
-		t.Fatalf("DismissedSeeds after restore = %v, %v", ids, err)
-	}
-	roster, err = store.Roster(seed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(roster) != 2 {
-		t.Fatalf("roster after restore = %#v, want both seeded rows back", roster)
 	}
 }
 
@@ -463,14 +444,6 @@ func TestFollowStoreDismissSeedTable(t *testing.T) {
 				if err := store.DismissSeed("seeded-1"); err == nil {
 					t.Fatal("DismissSeed error = nil, want the unreadable dismissal file surfaced")
 				}
-				// RestoreSeeds replaces the file without reading it, so it is
-				// the way out of a broken dismissal document.
-				if err := store.RestoreSeeds(); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := store.Roster(seed); err != nil {
-					t.Fatal(err)
-				}
 			})
 		}
 	})
@@ -504,12 +477,6 @@ func TestFollowStoreDismissSeedTable(t *testing.T) {
 		}
 		if err := store.DismissSeed("seeded-1"); err == nil {
 			t.Fatal("DismissSeed error = nil")
-		}
-		if err := store.RestoreSeeds(); err == nil {
-			t.Fatal("RestoreSeeds error = nil")
-		}
-		if _, err := store.DismissedSeeds(); err == nil {
-			t.Fatal("DismissedSeeds error = nil")
 		}
 	})
 }

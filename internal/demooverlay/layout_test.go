@@ -33,9 +33,6 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	if l.Intro.AvatarSize != 64 || l.Intro.HeaderH != 36 || l.Intro.RowHeight != 196 {
 		t.Fatalf("intro card = avatar %d header %d row %d", l.Intro.AvatarSize, l.Intro.HeaderH, l.Intro.RowHeight)
 	}
-	if !l.NativeHUDVisible() {
-		t.Fatal("native HUD channel closed")
-	}
 	if !l.Outro.FullFrame {
 		t.Fatal("outro must be full-frame")
 	}
@@ -155,7 +152,7 @@ func TestIntroFilterIncludesMonogramWithoutAvatar(t *testing.T) {
 }
 
 func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
-	demoOnly := Build(Roster{
+	demoOnly := build(Roster{
 		TargetSteamID64: "1",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 2, Deaths: 1},
@@ -173,7 +170,7 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 	}
 
 	elo := 4370
-	enriched := Build(Roster{
+	enriched := build(Roster{
 		TargetSteamID64: "1",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 2, Deaths: 1},
@@ -208,7 +205,7 @@ func TestIntroFilterUsesDenseFACEITStats(t *testing.T) {
 	kd := 1.66
 	kr := 0.93
 	adr := 96.7
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "ZywOo", Team: "CT", Kills: 23, Deaths: 10, Headshots: 12, HSPct: 52, ADR: 101.6},
@@ -327,7 +324,7 @@ func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := Build(Roster{
+			doc := build(Roster{
 				TargetSteamID64: "1",
 				Players: []RosterPlayer{
 					{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, ADR: tt.matchADR},
@@ -469,7 +466,7 @@ func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 	if a == 0xFFFF {
 		t.Fatal("outro chrome is fully opaque; gameplay cannot show through")
 	}
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "1",
 		ScoreCT:         13,
 		ScoreT:          8,

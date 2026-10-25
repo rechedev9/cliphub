@@ -84,6 +84,10 @@ func childFFmpegPriorityClasses(t *testing.T) []uint32 {
 // video-only item pool starts runs in BELOW_NORMAL, and every process the
 // audio-only pool starts, a link of the audio critical path, keeps NORMAL.
 func TestFullDemoItemPoolsStartTheirProcessesInTheirPriorityClass(t *testing.T) {
+	// Not mediaTest: it reads every child FFmpeg's priority, so it must run alone.
+	if testing.Short() {
+		t.Skip("encodes real media with FFmpeg; runs without -short")
+	}
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

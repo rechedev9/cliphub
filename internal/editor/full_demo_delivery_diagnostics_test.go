@@ -18,6 +18,7 @@ import (
 // strict frame evidence. Positive black AND freeze events are required: clean
 // media alone cannot catch a broken filter graph.
 func TestFullDemoDeliveryCombinedDiagnosticsMatchLegacyChecker(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -67,6 +68,7 @@ func TestFullDemoDeliveryCombinedDiagnosticsMatchLegacyChecker(t *testing.T) {
 // A clean real FFmpeg complete decode must keep the canonical count, stay
 // unmodified, and report no quality events while progress only moves forward.
 func TestFullDemoDeliveryCombinedDiagnosticsCleanMedia(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -111,6 +113,7 @@ func TestFullDemoDeliveryCombinedDiagnosticsCleanMedia(t *testing.T) {
 // evidence; and truncated media must still fail the combined decode, never be
 // rescued by the diagnostic fallback.
 func TestFullDemoDeliveryCombinedDiagnosticsDisabledAndTruncated(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -186,6 +189,7 @@ func TestFullDemoDeliveryCombinedDiagnosticsDisabledAndTruncated(t *testing.T) {
 // optional check into a fatal error: strict delivery still validates and the
 // setup problem becomes a warning.
 func TestFullDemoDeliveryDiagnosticSetupFailureKeepsStrictDelivery(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -217,6 +221,7 @@ func TestFullDemoDeliveryDiagnosticSetupFailureKeepsStrictDelivery(t *testing.T)
 // Malformed audio must be rejected on its own path, separately from corrupted
 // or truncated video.
 func TestFullDemoDeliveryRejectsMalformedAudio(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {
@@ -285,6 +290,7 @@ func TestFullDemoDeliveryDiagnosticSetupErrorClassification(t *testing.T) {
 }
 
 func TestFullDemoDeliveryCombinedDiagnosticsCancellation(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {

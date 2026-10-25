@@ -38,7 +38,7 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	if err := os.WriteFile(outro, []byte("png"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	doc := demooverlay.Build(demooverlay.Roster{
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
 		TargetSteamID64: "76561198148986856",
 		Map:             "de_mirage",
 		ScoreCT:         13,
@@ -47,7 +47,7 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 			{SteamID64: "76561198148986856", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35},
 			{SteamID64: "9", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
-	}, nil)
+	}, "", nil)
 
 	opts := testManifestOptions(dir, nil)
 	opts.Preset = PresetGameplayPOV60
@@ -127,10 +127,10 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 func TestBuildManifestShortsPathIgnoresFullDemoOverlay(t *testing.T) {
 	dir := t.TempDir()
 	result := testRecordingResult(dir)
-	doc := demooverlay.Build(demooverlay.Roster{
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
 		TargetSteamID64: "76561198148986856",
 		Players:         []demooverlay.RosterPlayer{{SteamID64: "76561198148986856", Name: "donk666", Kills: 23, Deaths: 14}},
-	}, nil)
+	}, "", nil)
 	opts := testManifestOptions(dir, nil)
 	opts.FullDemoOverlay = &doc
 	opts.FullDemoIntroImagePath = filepath.Join(dir, "intro.png")
@@ -163,6 +163,7 @@ func TestBuildManifestShortsPathIgnoresFullDemoOverlay(t *testing.T) {
 }
 
 func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	dir := t.TempDir()
 	const duration = 24.0
@@ -190,7 +191,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 		FrameRate:       "60/1",
 	}}
 
-	doc := demooverlay.Build(demooverlay.Roster{
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
 		TargetSteamID64: "76561198148986856",
 		Map:             "de_mirage",
 		ScoreCT:         13,
@@ -199,7 +200,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 			{SteamID64: "76561198148986856", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4},
 			{SteamID64: "9", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
-	}, nil)
+	}, "", nil)
 	opts := testManifestOptions(dir, nil)
 	opts.Preset = PresetGameplayPOV60
 	opts.OutputFormat = OutputFormatLandscape16x9
@@ -259,6 +260,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 }
 
 func TestShortsParsePlanPortraitSeam(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	dir := t.TempDir()
 	segs := parser.Segment(
@@ -317,10 +319,10 @@ func TestShortsParsePlanPortraitSeam(t *testing.T) {
 	opts.VideoPreset = "ultrafast"
 	opts.VideoCRF = 28
 	opts.CoversEnabled = false
-	doc := demooverlay.Build(demooverlay.Roster{
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
 		TargetSteamID64: "76561198148986856",
 		Players:         []demooverlay.RosterPlayer{{SteamID64: "76561198148986856", Name: "donk666", Kills: 2, Deaths: 0}},
-	}, nil)
+	}, "", nil)
 	opts.FullDemoOverlay = &doc
 
 	manifest := mustBuildManifest(t, result, opts)

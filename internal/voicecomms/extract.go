@@ -55,10 +55,6 @@ func extractFile(ctx context.Context, demoPath, target, dir string, strict bool)
 	return result, err
 }
 
-func WriteTracks(dir string, report Report, packets []Packet, sightings []Sighting) (Index, error) {
-	return writeTracksWithSpillContext(context.Background(), dir, report, packets, sightings, nil)
-}
-
 func writeTracksWithSpillContext(ctx context.Context, dir string, report Report, packets []Packet, sightings []Sighting, spill *packetSpill) (Index, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Index{}, fmt.Errorf("create voice dir: %w", err)
