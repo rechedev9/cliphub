@@ -160,6 +160,7 @@ func TestFullDemoDeliveryDocumentRecordsTailPads(t *testing.T) {
 // Real FFmpeg: a clip two frames short of its window renders an item with the
 // canonical frame count, while the same command without the pad comes up short.
 func TestFullDemoItemTailPadRendersCanonicalFrameCount(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

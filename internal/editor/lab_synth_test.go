@@ -18,6 +18,7 @@ import (
 // real capture: the recording result, the approved execution and every clip
 // must pass the editor's own loading and Full Demo checks.
 func TestSynthLabBundlePassesTheRenderInputChecks(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe, err := exec.LookPath("ffprobe")
 	if err != nil {

@@ -12,6 +12,7 @@ ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into ed
 ## Build and check
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. A few Full Demo editor tests depend on the FFmpeg
   version; Studio ships FFmpeg 8.1.2.
+- Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders; CI and pre-PR runs use the full suite.
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
 - CI runs on pushes to main, tags and nightly, not on PRs. Run the checks for what you touched.
 

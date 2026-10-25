@@ -154,6 +154,7 @@ func fullDemoPerItemOverlayArgs(short ShortEdit, base string, item fullDemoMedia
 // slides, dimming, fades, inactive windows, overlapping windows and inclusive
 // endpoints.
 func TestFullDemoItemOverlaysMatchLegacyPreEncodePixels(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
@@ -267,6 +268,7 @@ func TestFullDemoItemOverlaysMatchLegacyPreEncodePixels(t *testing.T) {
 // canonical shift emits first PTS == StartFrame for 123/245/246, and the float
 // shift demonstrably emits StartFrame-1 for the same starts.
 func TestFullDemoItemOverlayFirstPTSUsesIntegerClock(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -325,6 +327,7 @@ func fullDemoFirstVideoPTS(t *testing.T, ctx context.Context, ffmpeg, base, grap
 // concatenate with -c:v copy without duplicating, dropping or retiming frames,
 // and that PCM audio keeps exact samples, content and monotonic timestamps.
 func TestFullDemoItemOverlaysConcatCopiesExactFrames(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -518,6 +521,7 @@ func fullDemoEncodeTopology(t *testing.T, ctx context.Context, ffmpeg, dir, base
 // encode topologies (legacy two-generation vs new one-generation) against a
 // common lossless composited reference at production software CRF16/slow.
 func TestFullDemoItemOverlaysEncodedTopologyMatchesReference(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -583,6 +587,7 @@ func fullDemoPSNR(t *testing.T, ctx context.Context, ffmpeg, reference, candidat
 // and program assembly for a supported overlay plan and proves the delivered
 // program actually carries the intro/outro composition on the copy path.
 func TestFullDemoItemOverlaysPipelineIntegration(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()

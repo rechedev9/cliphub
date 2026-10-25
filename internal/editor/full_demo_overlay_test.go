@@ -163,6 +163,7 @@ func TestBuildManifestShortsPathIgnoresFullDemoOverlay(t *testing.T) {
 }
 
 func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	dir := t.TempDir()
 	const duration = 24.0
@@ -259,6 +260,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 }
 
 func TestShortsParsePlanPortraitSeam(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	dir := t.TempDir()
 	segs := parser.Segment(
