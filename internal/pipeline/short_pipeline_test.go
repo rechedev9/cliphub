@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -350,7 +349,7 @@ func normalizePaths(text, work string) string {
 		strings.Replace(slash, ":", `\\\\:`, 1), workToken,
 		strings.Replace(slash, ":", `\\:`, 1), workToken,
 		slash, workToken,
-	).Replace(strings.ReplaceAll(text, "\r\n", "\n"))
+	).Replace(text)
 	var out strings.Builder
 	for {
 		i := strings.Index(text, workToken)
@@ -435,11 +434,13 @@ func readJSON(t *testing.T, path string, into any) {
 	}
 }
 
+// repoRoot relies on go test running in the package directory, which holds
+// under -trimpath too, unlike runtime.Caller paths.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locate test source")
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("locate repo root: %v", err)
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	return root
 }
