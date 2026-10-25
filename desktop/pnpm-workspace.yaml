@@ -16,8 +16,6 @@ overrides:
   # GHSA-2883-xcg3-v3hh (js-yaml): electron-builder config parsing.
   "js-yaml@4": 4.3.2
 minimumReleaseAgeExclude:
-  - brace-expansion@1.1.16 || 2.1.2
-  - fast-uri@3.1.4 || 3.1.6
   - "@xmldom/xmldom@0.8.15"
   - js-yaml@4.3.2
 patchedDependencies:

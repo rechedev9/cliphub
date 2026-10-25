@@ -37,18 +37,14 @@ index 1d86e5ec52083b00be390eefad66a03f54c1bffa..8d4bc13621590d805a7dfa978e8cf008
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/esm/index.js b/dist/esm/index.js
-index 0e0cc962307eb697dc8139ef4c1f86b82380e5cc..9d27fb01c5068e70a10d60b262e6913b70e08fc8 100644
+index 0e0cc962307eb697dc8139ef4c1f86b82380e5cc..71649659d21de8e55d8534f427f3e7e83cb6a1d4 100644
 --- a/dist/esm/index.js
 +++ b/dist/esm/index.js
-@@ -326,4 +326,10 @@ function expand_(str, max, maxLength, maxDepth, depth, maxRewrites, isTop) {
+@@ -326,4 +326,6 @@ function expand_(str, max, maxLength, maxDepth, depth, maxRewrites, isTop) {
      }
      return acc;
  }
-+// minimatch 3/5 load this package as a callable CommonJS default, minimatch 9
-+// consumes a transpiled default, and minimatch 10 consumes the named export.
-+// Keep all three public shapes while using v5's bounded expansion algorithm.
-+const compatibilityExport = Object.assign(expand, exports);
-+compatibilityExport.default = compatibilityExport;
-+module.exports = compatibilityExport;
++// minimatch 9 consumes a default export; keep it next to the named export.
++export default expand;
  //# sourceMappingURL=index.js.map
 \ No newline at end of file

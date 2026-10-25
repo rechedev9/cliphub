@@ -14,7 +14,7 @@ overrides:
   js-yaml@4: 4.3.2
 
 patchedDependencies:
-  brace-expansion@5.0.12: c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c
+  brace-expansion@5.0.12: 5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8
 
 importers:
 
@@ -1576,7 +1576,7 @@ snapshots:
   boolean@3.2.0:
     optional: true
 
-  brace-expansion@5.0.12(patch_hash=c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c):
+  brace-expansion@5.0.12(patch_hash=5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8):
     dependencies:
       balanced-match: 4.0.4
 
@@ -2097,19 +2097,19 @@ snapshots:
 
   minimatch@10.2.6:
     dependencies:
-      brace-expansion: 5.0.12(patch_hash=c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c)
+      brace-expansion: 5.0.12(patch_hash=5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8)
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.12(patch_hash=c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c)
+      brace-expansion: 5.0.12(patch_hash=5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8)
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 5.0.12(patch_hash=c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c)
+      brace-expansion: 5.0.12(patch_hash=5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8)
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 5.0.12(patch_hash=c5b40b6dd39e7812a41b5ee984ee81a030554cb2e9ff79d2d03265f29216a60c)
+      brace-expansion: 5.0.12(patch_hash=5fdbe40b833cee83600d976cd7cd3d8292efa28423cc6d04811cbf521c9ec5e8)
 
   minimist@1.2.8: {}
 
