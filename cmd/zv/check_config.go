@@ -34,20 +34,3 @@ func legacyPassThroughs() []legacyPassThrough {
 		{Command: "tui", Binary: "zv-tui"},
 	}
 }
-
-func defaultLegacyCommandEntrypointNames() []string {
-	return []string{
-		"zv-parser",
-		"zv-analysis-viewer",
-		"zv-demo-players",
-		"zv-recorder",
-		"zv-editor",
-		"zv-stream",
-		"zv-composer",
-		"zv-orchestrator",
-		"zv-tactical-data",
-		"zv-rhythm",
-		"zv-hud-designs",
-		"zv-tui",
-	}
-}

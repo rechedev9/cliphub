@@ -70,12 +70,6 @@ func sidechainFilter(options recapplan.DuckingOptions) string {
 	return "sidechaincompress=threshold=" + decimal(options.Threshold) + ":ratio=" + decimal(options.Ratio) + ":attack=" + decimal(options.AttackMS) + ":release=" + decimal(options.ReleaseMS) + ":makeup=1:detection=rms:link=maximum"
 }
 
-// fullDemoRoundAudio uses one canonical frame/sample window for every bus.
-// All mixing is unnormalized float audio; the full program owns mastering.
-func fullDemoRoundAudio(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount int) string {
-	return fullDemoRoundAudioWithTransitions(options, gameStartSample, samples, voiceCount, fullDemoTransitionEdges{})
-}
-
 func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount int, edges fullDemoTransitionEdges) string {
 	clauses := []string{sampleWindow("[0:a]", gameStartSample, samples, options.Game.Gain, "graw")}
 	if filter := fullDemoGameTransitionFilter(edges, samples); filter != "" {
@@ -380,18 +374,6 @@ const (
 	fullDemoItemVideoOnly
 	fullDemoItemAudioOnly
 )
-
-func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
-	return fullDemoItemStreamCommand(short, item, output, fullDemoItemMuxed)
-}
-
-func fullDemoItemVideoCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
-	return fullDemoItemStreamCommand(short, item, output, fullDemoItemVideoOnly)
-}
-
-func fullDemoItemAudioCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
-	return fullDemoItemStreamCommand(short, item, output, fullDemoItemAudioOnly)
-}
 
 func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, output string, streams fullDemoItemStreams) ([]string, error) {
 	withVideo, withAudio := streams != fullDemoItemAudioOnly, streams != fullDemoItemVideoOnly

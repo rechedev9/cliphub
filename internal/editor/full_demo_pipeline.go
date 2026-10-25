@@ -13,34 +13,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
-// prepareFullDemoCompilation prepares both halves of the program: the video
-// items with their concat list, and the mixed lossless program audio. The two
-// branches share no data, so they run concurrently; the first error cancels the
-// other. Production additionally masters the audio inside the audio branch (see
-// renderFullDemoProgram); this staged form stops before assembly and mastering.
-func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
-	if short.fullDemo == nil {
-		return nil
-	}
-	if err := prepareFullDemoTransitions(ctx, short); err != nil {
-		return err
-	}
-	branches := newFullDemoBranchProgress(progress)
-	// The audio branch works on its own copy of the short: the video branch
-	// rebuilds short.FFmpegCommand, and both share only the render context and
-	// evidence pointers, where they touch disjoint fields.
-	audioShort := *short
-	return runFullDemoBranches(ctx,
-		func(ctx context.Context) error { return prepareFullDemoVideoItems(ctx, short, branches.video()) },
-		func(ctx context.Context) error {
-			// The staged form stops before mastering, so the program measurement
-			// the assembly produced has no consumer here.
-			_, err := prepareFullDemoProgramAudio(ctx, &audioShort, branches.audio())
-			return err
-		},
-	)
-}
-
 // runFullDemoBranches runs the independent video and audio branches under one
 // cancellation scope and returns the first real failure, not the cancellation it
 // caused in the other branch.
@@ -173,14 +145,6 @@ func prepareFullDemoProgramAudio(ctx context.Context, short *ShortEdit, progress
 		measured.Measured, measured.Measurement, measured.Output = true, measurement, output
 	}
 	return measured, removeFullDemoTemporaryFiles(short.fullDemo.workDir, append(paths, list))
-}
-
-// buildFullDemoProgramAudioCommand joins the prepared item audio into the
-// program audio. PCM remains lossless until the full-program master. It is the
-// assembly without the fused measurement and stays the equivalence reference
-// for the written program audio.
-func buildFullDemoProgramAudioCommand(ffmpeg, list, destination string) []string {
-	return []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-map", "0:a:0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", destination}
 }
 
 // buildFullDemoProgramAudioMeasuredCommand is the assembly command with the
@@ -352,7 +316,7 @@ func runFullDemoItemPoolJobs(ctx context.Context, short ShortEdit, streams fullD
 // video. Video items start immediately instead of waiting for voice
 // preparation, and every loudness pass and AAC candidate overlaps the item
 // encodes instead of following them. The candidate sequence, acceptance rules
-// and evidence are those of masterFullDemoSplitProgram, unchanged. The returned
+// and evidence are those of masterFullDemoMeasuredProgram, unchanged. The returned
 // evidence is nil when the render failed before mastering started.
 func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, short *ShortEdit, duration float64, progress fullDemoProgress) (*ProgramLoudnessEvidence, error) {
 	if err := prepareFullDemoTransitions(ctx, short); err != nil {

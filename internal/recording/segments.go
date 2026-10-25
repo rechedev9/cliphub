@@ -11,12 +11,6 @@ import (
 // can tell a stale capture apart from a malformed selection.
 var ErrSegmentNotRecorded = errors.New("segment not recorded")
 
-// SegmentIDs returns the unique non-empty segment IDs from the recording plan
-// in result order.
-func SegmentIDs(result RecordingResult) []string {
-	return uniqueSegmentIDs(result.Plan.Segments)
-}
-
 // EditorialSegmentIDs returns the unique non-empty segment IDs in the order the
 // editor compiles them: Plan.EditorialSegmentIDs when the plan carries one,
 // otherwise capture order (see RecordingPlan.SegmentsInEditorialOrder).

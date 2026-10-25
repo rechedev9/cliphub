@@ -144,11 +144,6 @@ func fullDemoTimingStage(ctx context.Context, stage string, attempt int) context
 	return fullDemoTimingStageVariant(ctx, stage, attempt, "", "")
 }
 
-// fullDemoTimingStageEncoder is fullDemoTimingStage with an explicit encoder.
-func fullDemoTimingStageEncoder(ctx context.Context, stage string, attempt int, encoder string) context.Context {
-	return fullDemoTimingStageVariant(ctx, stage, attempt, encoder, "")
-}
-
 // fullDemoTimingStageVariant additionally records a fixed strategy name, so a
 // native master ("native") and a Media Foundation recovery attempt ("recovery")
 // of the same stage stay distinguishable without changing the stage vocabulary.

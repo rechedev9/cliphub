@@ -8,8 +8,21 @@ import (
 	"testing"
 )
 
-func TestSegmentIDsReturnsUniqueNonEmptyPlanIDs(t *testing.T) {
-	got := SegmentIDs(RecordingResult{
+func TestEditorialSegmentIDsFollowsTheEditorialOrder(t *testing.T) {
+	got := EditorialSegmentIDs(RecordingResult{
+		Plan: RecordingPlan{
+			Segments:            []RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}, {ID: "seg-003"}},
+			EditorialSegmentIDs: []string{"seg-003", "seg-001", "seg-002"},
+		},
+	})
+	want := []string{"seg-003", "seg-001", "seg-002"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("EditorialSegmentIDs = %#v, want %#v", got, want)
+	}
+}
+
+func TestEditorialSegmentIDsFallsBackToUniqueCaptureOrder(t *testing.T) {
+	got := EditorialSegmentIDs(RecordingResult{
 		Plan: RecordingPlan{
 			Segments: []RecordingSegment{
 				{ID: "seg-001"},
@@ -21,14 +34,14 @@ func TestSegmentIDsReturnsUniqueNonEmptyPlanIDs(t *testing.T) {
 	})
 	want := []string{"seg-001", "seg-002"}
 	if !slices.Equal(got, want) {
-		t.Fatalf("SegmentIDs = %#v, want %#v", got, want)
+		t.Fatalf("EditorialSegmentIDs = %#v, want %#v", got, want)
 	}
 }
 
-func TestSegmentIDsAllowsEmptyResult(t *testing.T) {
-	got := SegmentIDs(RecordingResult{})
+func TestEditorialSegmentIDsAllowsEmptyResult(t *testing.T) {
+	got := EditorialSegmentIDs(RecordingResult{})
 	if len(got) != 0 {
-		t.Fatalf("SegmentIDs = %#v, want empty", got)
+		t.Fatalf("EditorialSegmentIDs = %#v, want empty", got)
 	}
 }
 
@@ -168,7 +181,7 @@ func TestFilterResultSegments(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FilterResultSegments(%v) error = %v", tc.ids, err)
 			}
-			if captureIDs := SegmentIDs(got); !slices.Equal(captureIDs, tc.wantCapture) {
+			if captureIDs := uniqueSegmentIDs(got.Plan.Segments); !slices.Equal(captureIDs, tc.wantCapture) {
 				t.Fatalf("capture segments = %v, want %v", captureIDs, tc.wantCapture)
 			}
 			if !slices.Equal(got.Plan.EditorialSegmentIDs, tc.wantEditorial) {

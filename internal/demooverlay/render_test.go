@@ -96,7 +96,7 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 		"9":  {Nickname: "bananek147", Country: "pl", ELO: 2752, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(60), ADR: f(71.0), KD: f(1.03), KR: f(0.66)}},
 		"10": {Nickname: "Sil3nT189", Country: "es", ELO: 2860, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(40), ADR: f(84.0), KD: f(1.12), KR: f(0.78)}},
 	}
-	doc := Build(Roster{
+	doc := build(Roster{
 		TargetSteamID64: "2",
 		Map:             "de_mirage",
 		ScoreCT:         13,

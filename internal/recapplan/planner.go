@@ -56,26 +56,6 @@ func (d Document) CaptureHash() (string, error) {
 	}{d.Input.DemoSHA256, d.Input.TargetSteamID64, d.Clock, d.Options.Capture, windows, d.Crosshairs})
 }
 
-// CaptureCovers permits narrower edits inside compatible certified coverage.
-func CaptureCovers(captured, requested Document) bool {
-	if captured.Input.DemoSHA256 != requested.Input.DemoSHA256 || captured.Input.TargetSteamID64 != requested.Input.TargetSteamID64 || captured.Clock != requested.Clock || captured.Options.Capture != requested.Options.Capture || !slices.Equal(captured.Crosshairs, requested.Crosshairs) {
-		return false
-	}
-	for _, want := range requested.Rounds {
-		found := false
-		for _, have := range captured.Rounds {
-			if have.ID == want.ID && have.CaptureStartTick <= want.RequestedStartTick && have.EffectiveEndTick >= want.RequestedEndTick {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
-}
-
 // TickFrames rounds a duration exactly once using integer arithmetic.
 func TickFrames(ticks, tickRate int) (int64, error) {
 	if tickRate < 1 || tickRate > 1024 || ticks < 0 || int64(ticks) > int64(tickRate)*43200 {

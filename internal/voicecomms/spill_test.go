@@ -104,7 +104,7 @@ func TestWriteTracksWithSpillMatchesInMemory(t *testing.T) {
 		{XUID: packets[0].XUID, Tick: packets[0].Tick, Format: FormatOpus, Data: append([]byte(nil), opus...), Bytes: len(opus), SampleRate: 48000},
 		{XUID: packets[1].XUID, Tick: packets[1].Tick, Format: FormatOpus, Data: append([]byte(nil), opus...), Bytes: len(opus), SampleRate: 48000},
 	}
-	memIndex, err := WriteTracks(memDir, report, memPackets, sightings)
+	memIndex, err := writeTracksWithSpillContext(context.Background(), memDir, report, memPackets, sightings, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
