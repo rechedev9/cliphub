@@ -1,0 +1,647 @@
+[
+  {
+    "id": "mom-011",
+    "source": "killplan",
+    "segment_id": "seg-011",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 10,
+    "tick_start": 61396,
+    "tick_end": 61828,
+    "time_start_seconds": 959.313,
+    "time_end_seconds": 966.063,
+    "duration_seconds": 6.75,
+    "score": 0.78,
+    "reason_codes": [
+      "headshot",
+      "multi_kill",
+      "rifle"
+    ],
+    "events": {
+      "kills": 2,
+      "headshots": 1,
+      "weapons": [
+        "m4a1_silencer"
+      ]
+    },
+    "weapons": [
+      "m4a1_silencer"
+    ],
+    "victims": [
+      "opponent-1",
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-004",
+    "source": "killplan",
+    "segment_id": "seg-004",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 4,
+    "tick_start": 22632,
+    "tick_end": 23215,
+    "time_start_seconds": 353.625,
+    "time_end_seconds": 362.734,
+    "duration_seconds": 9.109,
+    "score": 0.72,
+    "reason_codes": [
+      "multi_kill",
+      "rifle"
+    ],
+    "events": {
+      "kills": 2,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-2",
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-002",
+    "source": "killplan",
+    "segment_id": "seg-002",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 3,
+    "tick_start": 17591,
+    "tick_end": 18103,
+    "time_start_seconds": 274.859,
+    "time_end_seconds": 282.859,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "mp9"
+      ]
+    },
+    "weapons": [
+      "mp9"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-003",
+    "source": "killplan",
+    "segment_id": "seg-003",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 4,
+    "tick_start": 21152,
+    "tick_end": 21664,
+    "time_start_seconds": 330.5,
+    "time_end_seconds": 338.5,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-3"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-006",
+    "source": "killplan",
+    "segment_id": "seg-006",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 5,
+    "tick_start": 27800,
+    "tick_end": 28312,
+    "time_start_seconds": 434.375,
+    "time_end_seconds": 442.375,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-007",
+    "source": "killplan",
+    "segment_id": "seg-007",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 5,
+    "tick_start": 29303,
+    "tick_end": 29815,
+    "time_start_seconds": 457.859,
+    "time_end_seconds": 465.859,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-1"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-010",
+    "source": "killplan",
+    "segment_id": "seg-010",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 9,
+    "tick_start": 52031,
+    "tick_end": 52543,
+    "time_start_seconds": 812.984,
+    "time_end_seconds": 820.984,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "m4a1_silencer"
+      ]
+    },
+    "weapons": [
+      "m4a1_silencer"
+    ],
+    "victims": [
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-013",
+    "source": "killplan",
+    "segment_id": "seg-013",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 11,
+    "tick_start": 65907,
+    "tick_end": 66419,
+    "time_start_seconds": 1029.797,
+    "time_end_seconds": 1037.797,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "m4a1_silencer"
+      ]
+    },
+    "weapons": [
+      "m4a1_silencer"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-015",
+    "source": "killplan",
+    "segment_id": "seg-015",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 14,
+    "tick_start": 87180,
+    "tick_end": 87692,
+    "time_start_seconds": 1362.188,
+    "time_end_seconds": 1370.188,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "mac10"
+      ]
+    },
+    "weapons": [
+      "mac10"
+    ],
+    "victims": [
+      "opponent-1"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-017",
+    "source": "killplan",
+    "segment_id": "seg-017",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 15,
+    "tick_start": 93166,
+    "tick_end": 93678,
+    "time_start_seconds": 1455.719,
+    "time_end_seconds": 1463.719,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "mac10"
+      ]
+    },
+    "weapons": [
+      "mac10"
+    ],
+    "victims": [
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-019",
+    "source": "killplan",
+    "segment_id": "seg-019",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 16,
+    "tick_start": 99619,
+    "tick_end": 100131,
+    "time_start_seconds": 1556.547,
+    "time_end_seconds": 1564.547,
+    "duration_seconds": 8,
+    "score": 0.56,
+    "reason_codes": [
+      "headshot",
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "headshots": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-001",
+    "source": "killplan",
+    "segment_id": "seg-001",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 2,
+    "tick_start": 11904,
+    "tick_end": 12416,
+    "time_start_seconds": 186,
+    "time_end_seconds": 194,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "mp9"
+      ]
+    },
+    "weapons": [
+      "mp9"
+    ],
+    "victims": [
+      "opponent-1"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-005",
+    "source": "killplan",
+    "segment_id": "seg-005",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 5,
+    "tick_start": 27199,
+    "tick_end": 27711,
+    "time_start_seconds": 424.984,
+    "time_end_seconds": 432.984,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-5"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-008",
+    "source": "killplan",
+    "segment_id": "seg-008",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 6,
+    "tick_start": 34787,
+    "tick_end": 35299,
+    "time_start_seconds": 543.547,
+    "time_end_seconds": 551.547,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "awp"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "awp"
+      ]
+    },
+    "weapons": [
+      "awp"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-009",
+    "source": "killplan",
+    "segment_id": "seg-009",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 7,
+    "tick_start": 39915,
+    "tick_end": 40427,
+    "time_start_seconds": 623.672,
+    "time_end_seconds": 631.672,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "m4a1_silencer"
+      ]
+    },
+    "weapons": [
+      "m4a1_silencer"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-012",
+    "source": "killplan",
+    "segment_id": "seg-012",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 11,
+    "tick_start": 65011,
+    "tick_end": 65523,
+    "time_start_seconds": 1015.797,
+    "time_end_seconds": 1023.797,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "m4a1_silencer"
+      ]
+    },
+    "weapons": [
+      "m4a1_silencer"
+    ],
+    "victims": [
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-014",
+    "source": "killplan",
+    "segment_id": "seg-014",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 13,
+    "tick_start": 81350,
+    "tick_end": 81862,
+    "time_start_seconds": 1271.094,
+    "time_end_seconds": 1279.094,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "pistol"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "glock"
+      ]
+    },
+    "weapons": [
+      "glock"
+    ],
+    "victims": [
+      "opponent-2"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-016",
+    "source": "killplan",
+    "segment_id": "seg-016",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 14,
+    "tick_start": 89844,
+    "tick_end": 90164,
+    "time_start_seconds": 1403.813,
+    "time_end_seconds": 1408.813,
+    "duration_seconds": 5,
+    "score": 0.5,
+    "reason_codes": [],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "mac10"
+      ]
+    },
+    "weapons": [
+      "mac10"
+    ],
+    "victims": [
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-018",
+    "source": "killplan",
+    "segment_id": "seg-018",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 15,
+    "tick_start": 94801,
+    "tick_end": 95313,
+    "time_start_seconds": 1481.266,
+    "time_end_seconds": 1489.266,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "mac10"
+      ]
+    },
+    "weapons": [
+      "mac10"
+    ],
+    "victims": [
+      "opponent-5"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-020",
+    "source": "killplan",
+    "segment_id": "seg-020",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 19,
+    "tick_start": 124111,
+    "tick_end": 124623,
+    "time_start_seconds": 1939.234,
+    "time_end_seconds": 1947.234,
+    "duration_seconds": 8,
+    "score": 0.5,
+    "reason_codes": [
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-1"
+    ],
+    "default_variant": "viral-60-clean"
+  },
+  {
+    "id": "mom-021",
+    "source": "killplan",
+    "segment_id": "seg-021",
+    "player": "target",
+    "map": "de_mirage",
+    "round": 19,
+    "tick_start": 126696,
+    "tick_end": 127016,
+    "time_start_seconds": 1979.625,
+    "time_end_seconds": 1984.625,
+    "duration_seconds": 5,
+    "score": 0.5,
+    "reason_codes": [
+      "rifle"
+    ],
+    "events": {
+      "kills": 1,
+      "weapons": [
+        "ak47"
+      ]
+    },
+    "weapons": [
+      "ak47"
+    ],
+    "victims": [
+      "opponent-4"
+    ],
+    "default_variant": "viral-60-clean"
+  }
+]
