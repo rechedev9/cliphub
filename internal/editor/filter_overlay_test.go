@@ -188,15 +188,18 @@ func TestFullDemoOverlayWindowPixelEquivalence(t *testing.T) {
 	const duration = 8.0
 	const fps = 30
 
-	base := filepath.Join(dir, "base.mp4")
-	writeLavfiCaptureAtFPS(t, ffmpeg, base, 1920, 1080, fps, duration)
-	introPNG := writeSolidPNG(t, ffmpeg, dir, "intro.png", "red", demooverlay.FrameWidth, demooverlay.FrameHeight)
-	outroPNG := writeSolidPNG(t, ffmpeg, dir, "outro.png", "blue", demooverlay.FrameWidth, demooverlay.FrameHeight)
-
 	short := fullDemoOverlayFixtureShort()
-	short.Parts[0].Input = base
-	short.Effects[0].Path = introPNG
-	short.Effects[1].Path = outroPNG
+	short.Parts[0].Input = filepath.Join(dir, "base.mp4")
+	short.Effects[0].Path = filepath.Join(dir, "intro.png")
+	short.Effects[1].Path = filepath.Join(dir, "outro.png")
+	// Both filters swap a package variable, so build them before going parallel.
+	legacyFilter := overlayEquivalenceFilter(short, legacyImageOverlayFilter)
+	optimizedFilter := overlayEquivalenceFilter(short, buildImageOverlayFilter)
+	mediaTest(t)
+
+	writeLavfiCaptureAtFPS(t, ffmpeg, short.Parts[0].Input, 1920, 1080, fps, duration)
+	writeSolidPNG(t, ffmpeg, dir, "intro.png", "red", demooverlay.FrameWidth, demooverlay.FrameHeight)
+	writeSolidPNG(t, ffmpeg, dir, "outro.png", "blue", demooverlay.FrameWidth, demooverlay.FrameHeight)
 
 	regions := []struct {
 		name  string
@@ -209,17 +212,17 @@ func TestFullDemoOverlayWindowPixelEquivalence(t *testing.T) {
 		{name: "outro hold", start: 6.0, end: 6.5},
 	}
 	for _, region := range regions {
-		legacy := overlayCompositeRawHash(t, ffmpeg, short, legacyImageOverlayFilter, region.start, region.end-region.start)
-		optimized := overlayCompositeRawHash(t, ffmpeg, short, buildImageOverlayFilter, region.start, region.end-region.start)
+		legacy := overlayCompositeRawHash(t, ffmpeg, short, legacyFilter, region.start, region.end-region.start)
+		optimized := overlayCompositeRawHash(t, ffmpeg, short, optimizedFilter, region.start, region.end-region.start)
 		if legacy != optimized {
 			t.Fatalf("%s raw hash mismatch\n  legacy    %s\n  optimized %s", region.name, legacy, optimized)
 		}
 	}
 }
 
-func overlayCompositeRawHash(t *testing.T, ffmpeg string, short ShortEdit, overlayFn func(Effect, ShortEdit) string, start, duration float64) string {
+func overlayCompositeRawHash(t *testing.T, ffmpeg string, short ShortEdit, overlayFilter string, start, duration float64) string {
 	t.Helper()
-	filter := overlayEquivalenceFilter(short, overlayFn) +
+	filter := overlayFilter +
 		fmt.Sprintf(";[vfinal]trim=start=%.3f:duration=%.6f,format=yuv420p[vout]", start, duration)
 	var stdout bytes.Buffer
 	var stderr strings.Builder

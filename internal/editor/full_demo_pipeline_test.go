@@ -25,6 +25,7 @@ import (
 // samples of the single muxed process they replace, for rounds with voices,
 // comms tails, transitions and SFX as well as for the sponsor insert.
 func TestFullDemoSplitItemStreamsMatchMuxedItem(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -120,6 +121,7 @@ func TestFullDemoBranchProgressIsMonotonicAndShared(t *testing.T) {
 // wrote and, in the same process, produce the measurement a standalone
 // measureLoudness pass over that written file produces.
 func TestFullDemoProgramAudioAssemblyMeasuresWhatItWrites(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -263,6 +265,7 @@ func TestFullDemoProgramInputLoudnessReuseIsExactOrFallsBack(t *testing.T) {
 // The audio item pool must honour its own worker budget and still return the
 // committed paths in timeline order, whatever order the items finish in.
 func TestFullDemoAudioItemPoolHonoursItsBudgetAndOrder(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

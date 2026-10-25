@@ -53,6 +53,7 @@ func fullDemoTestFFmpeg(t *testing.T) string {
 
 // These short generated files prove FFmpeg mastering, not CS2/HLAE capture.
 func TestFullDemoMasterDecodedAAC(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	for _, tc := range []struct {
 		name, audio               string
@@ -106,6 +107,7 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 }
 
 func TestFullDemoAACRecoveryKeepsDecodedAcceptance(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ffprobe := fullDemoTestFFprobe(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

@@ -22,9 +22,11 @@ import (
 )
 
 func TestFullDemoTransitionVisualChoices(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
+	// Cleanup, not defer: the parallel style subtests run after this body returns.
+	t.Cleanup(cancel)
 	dir := t.TempDir()
 	source := filepath.Join(dir, "source.nut")
 	if _, err := runFFmpegOutput(ctx, []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=60:d=0.5", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=0.5", "-c:v", "libx264", "-preset", "ultrafast", "-bf", "0", "-c:a", "pcm_f32le", source}, "transition visual fixture"); err != nil {
@@ -37,7 +39,7 @@ func TestFullDemoTransitionVisualChoices(t *testing.T) {
 	base.Options.Audio.Music.Enabled = false
 	base.Options.Capture.HUDProfile = "native-clean-spectator"
 	base.Options.Overlays.HUDTheme = ""
-	pixels := func(path string, frame int) []byte {
+	pixels := func(t *testing.T, path string, frame int) []byte {
 		t.Helper()
 		data, err := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-i", path, "-vf", "select=eq(n\\,"+strconv.Itoa(frame)+"),scale=320:180", "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1").Output()
 		if err != nil || len(data) != 320*180*3 {
@@ -55,6 +57,10 @@ func TestFullDemoTransitionVisualChoices(t *testing.T) {
 	var clean8, clean15, clean28, clean29 []byte
 	for _, style := range []string{"off", "left", "right", "up", "down", "zoom-cut", "zoom-event", "flash", "flash-4", "rgb"} {
 		t.Run(style, func(t *testing.T) {
+			// "off" runs first and serially: it records the clean frames the others compare against.
+			if style != "off" {
+				t.Parallel()
+			}
 			o := recapplan.DefaultTransitions()
 			o.Enabled = style != "off"
 			o.Whip = false
@@ -91,7 +97,7 @@ func TestFullDemoTransitionVisualChoices(t *testing.T) {
 			if _, err := runFFmpegOutput(ctx, command, "individual transition"); err != nil {
 				t.Fatal(err)
 			}
-			frame8, frame15, frame28, frame29 := pixels(path, 8), pixels(path, 15), pixels(path, 28), pixels(path, 29)
+			frame8, frame15, frame28, frame29 := pixels(t, path, 8), pixels(t, path, 15), pixels(t, path, 28), pixels(t, path, 29)
 			if style == "off" {
 				clean8, clean15, clean28, clean29 = frame8, frame15, frame28, frame29
 				return
@@ -201,6 +207,7 @@ func TestTransitionCommsBoundsAndEventAnchors(t *testing.T) {
 }
 
 func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

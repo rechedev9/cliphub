@@ -297,6 +297,7 @@ func countDashI(command []string) int {
 }
 
 func TestFullDemoConcatsTwoFixtureRounds(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := requireFFmpeg(t)
 	dir := t.TempDir()
 	const partDur = 12.0
