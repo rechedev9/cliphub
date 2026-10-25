@@ -455,6 +455,7 @@ func TestFullDemoAudioOnlyAcceptanceContract(t *testing.T) {
 }
 
 func TestFullDemoAudioOnlyPublicationPreservesPreviousOutput(t *testing.T) {
+	mediaTest(t)
 	ffmpeg := fullDemoTestFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
