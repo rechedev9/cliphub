@@ -100,7 +100,7 @@ func TestShortPipelineGolden(t *testing.T) {
 	assertGolden(t, "03-recording-plan.json", normalizedJSON(t, work, recPlan))
 	assertGolden(t, "04-recording.js", normalizePaths(script, work))
 
-	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recording.SegmentIDs(recording.RecordingResult{Plan: recPlan}))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, captureOrderSegmentIDs(recPlan))
 	assertGolden(t, "05-capture.json", normalizedJSON(t, work, capture))
 
 	resultPath := writeRecordingResult(t, recPlan)
@@ -233,6 +233,21 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 		t.Fatalf("decode capture summary: %v\n%s", err, output)
 	}
 	return view
+}
+
+// captureOrderSegmentIDs lists the unique segment IDs in capture (tick) order,
+// which is the order the simulator records them, not the editorial order.
+func captureOrderSegmentIDs(plan recording.RecordingPlan) []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, segment := range plan.Segments {
+		if segment.ID == "" || seen[segment.ID] {
+			continue
+		}
+		seen[segment.ID] = true
+		ids = append(ids, segment.ID)
+	}
+	return ids
 }
 
 // writeRecordingResult stands in for the recorder's capture: one artifact per
