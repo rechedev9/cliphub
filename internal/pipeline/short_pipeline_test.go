@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -221,7 +222,11 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 	command.Dir = repoRoot(t)
 	output, err := command.Output()
 	if err != nil {
-		t.Fatalf("capture simulator: %v\n%s", err, output)
+		var stderr []byte
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			stderr = exitErr.Stderr
+		}
+		t.Fatalf("capture simulator: %v\nstdout:\n%s\nstderr:\n%s", err, output, stderr)
 	}
 	var view captureView
 	if err := json.Unmarshal(output, &view); err != nil {
@@ -382,31 +387,53 @@ func normalizePaths(text, work string) string {
 	}
 }
 
-// lineDiff lists the first differing lines with context, enough to read in a
-// terminal without an external diff tool.
+// lineDiff aligns the lines on their longest common subsequence and lists only
+// the removed (-) and added (+) ones, so an inserted line does not shift the
+// rest. Goldens are a few hundred lines, so the quadratic table is cheap.
 func lineDiff(want, got string) string {
-	wantLines := strings.Split(want, "\n")
-	gotLines := strings.Split(got, "\n")
-	var b bytes.Buffer
+	const maxShown = 40
+	a := strings.Split(want, "\n")
+	b := strings.Split(got, "\n")
+	// lcs[i][j] is the common subsequence length of a[i:] and b[j:].
+	lcs := make([][]int, len(a)+1)
+	for i := range lcs {
+		lcs[i] = make([]int, len(b)+1)
+	}
+	for i := len(a) - 1; i >= 0; i-- {
+		for j := len(b) - 1; j >= 0; j-- {
+			if a[i] == b[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else {
+				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
+			}
+		}
+	}
+	var out bytes.Buffer
 	shown := 0
-	for i := 0; i < max(len(wantLines), len(gotLines)) && shown < 20; i++ {
-		var w, g string
-		if i < len(wantLines) {
-			w = wantLines[i]
+	emit := func(sign, source string, line int, text string) {
+		if shown < maxShown {
+			fmt.Fprintf(&out, "  %s %s:%d  %s\n", sign, source, line, text)
 		}
-		if i < len(gotLines) {
-			g = gotLines[i]
-		}
-		if w == g {
-			continue
-		}
-		fmt.Fprintf(&b, "line %d:\n  - %s\n  + %s\n", i+1, w, g)
 		shown++
 	}
-	if len(wantLines) != len(gotLines) {
-		fmt.Fprintf(&b, "line count: golden %d, got %d\n", len(wantLines), len(gotLines))
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		switch {
+		case i < len(a) && j < len(b) && a[i] == b[j]:
+			i++
+			j++
+		case i < len(a) && (j == len(b) || lcs[i+1][j] >= lcs[i][j+1]):
+			emit("-", "golden", i+1, a[i])
+			i++
+		default:
+			emit("+", "got", j+1, b[j])
+			j++
+		}
 	}
-	return b.String()
+	if shown > maxShown {
+		fmt.Fprintf(&out, "  ... %d more changed lines\n", shown-maxShown)
+	}
+	return out.String()
 }
 
 func writeJSON(t *testing.T, path string, value any) {
