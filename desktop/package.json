@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "electron": "^43.5.0",
+    "electron": "^43.8.3",
     "electron-builder": "^26.0.0",
     "oxlint": "^1.72.0",
     "oxlint-tsgolint": "^0.24.0",
