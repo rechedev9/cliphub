@@ -32,9 +32,11 @@ ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into ed
 ## Verify a change
 Verify by hand in the real app:
 1. Build and start Studio from your branch as above, with a fresh throwaway profile.
-2. Do the flow you changed the way a user would, plus one path off the happy path
-   (error, cancel or empty state).
-3. Attach screenshots of the relevant states to the PR, with a few lines on what you did and saw.
+2. Load a demo and follow the flow until the "Prepara tu Short" list shows up, the way a user would.
+   Exercise the flow you changed along the way.
+3. Try one path off the happy path, such as a corrupt `.dem`, and check `studio.log` in the
+   throwaway profile for a clear error instead of a crash or silence.
+4. In the PR, write a few lines on what you did and saw. No screenshots.
 Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
 The one exception is the deterministic Short pipeline test in `internal/pipeline`: plain `go test`,
 golden files in its `testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.
