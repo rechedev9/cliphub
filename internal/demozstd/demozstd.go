@@ -17,11 +17,23 @@ var magic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 const maxWindow = 128 << 20
 
 type reader struct {
-	src    io.Reader
-	closer io.Closer
+	src        io.Reader
+	closer     io.Closer
+	decompress bool
 }
 
-func (r *reader) Read(p []byte) (int, error) {
+func (r *reader) Read(p []byte) (n int, err error) {
+	if !r.decompress {
+		return r.src.Read(p)
+	}
+	// GHSA-fpmh-frq8-7rj8 panics inside the decoder Read. traceHTTP logs the
+	// panic and re-panics, so only this Read can answer the upload with an error.
+	// Plain demos leave decompress false and still panic if their reader does.
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("decompress zstd demo: %v", rec)
+		}
+	}()
 	return r.src.Read(p)
 }
 
@@ -50,7 +62,7 @@ func Open(src io.Reader, fileName string, maxBytes int64) (io.ReadCloser, string
 	if err != nil {
 		return nil, "", fmt.Errorf("open zstd demo: %w", err)
 	}
-	return &reader{src: io.LimitReader(dec, maxBytes+1), closer: closerFunc(dec.Close)}, name, nil
+	return &reader{src: io.LimitReader(dec, maxBytes+1), closer: closerFunc(dec.Close), decompress: true}, name, nil
 }
 
 func DisplayName(fileName string) string {
