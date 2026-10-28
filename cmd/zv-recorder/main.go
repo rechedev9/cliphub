@@ -801,7 +801,11 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if err := waitForWindowsProcessRunAndExit(ctx, "cs2.exe", consoleLog); err != nil {
 		return err
 	}
-	return consoleLog.requireCaptureVerified()
+	if err := consoleLog.requireCaptureVerified(); err != nil {
+		logConsoleTail(consoleLogPath)
+		return err
+	}
+	return nil
 }
 
 func cs2LaunchCommandLine(plan recording.RecordingPlan, scriptPath string) string {
@@ -1087,6 +1091,54 @@ func (m *cs2ConsoleLogMonitor) requireCaptureVerified() error {
 		path:   m.path,
 		reason: "CS2 exited without the completed POV verification marker",
 	}
+}
+
+// consoleTailLines is how much of the CS2 console a capture without an
+// attestation prints to stderr, which Studio forwards to remote diagnostics.
+const consoleTailLines = 30
+
+// consoleTailMarkers keeps classifier markers out of the tail: the worker
+// matches them anywhere in the recorder output, so a copy would relabel the failure.
+var consoleTailMarkers = strings.NewReplacer(
+	"ResetBreakpadAppId", "Reset-Breakpad-AppId",
+	demoParseFailureMarker, "NETWORK-DISCONNECT-MESSAGE-PARSE-ERROR",
+)
+
+func logConsoleTail(path string) {
+	for _, line := range consoleTail(path, consoleTailLines) {
+		log.Printf("cs2 console: %s", line)
+	}
+}
+
+// consoleTail returns the last n non-empty lines of the console log, read from
+// its final 64 KiB, with classifier markers masked.
+func consoleTail(path string, n int) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil
+	}
+	const window = 64 << 10
+	if info.Size() > window {
+		if _, err := file.Seek(info.Size()-window, io.SeekStart); err != nil {
+			return nil
+		}
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil
+	}
+	var lines []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, consoleTailMarkers.Replace(line))
+		}
+	}
+	return lines[max(0, len(lines)-n):]
 }
 
 func (m *cs2ConsoleLogMonitor) consumePlayabilitySignals(chunk string) {

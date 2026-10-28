@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -992,6 +993,27 @@ func TestCS2ConsoleLogMonitorAttestsCompletedPOVVerification(t *testing.T) {
 	}
 	if err := monitor.requireCaptureVerified(); err != nil {
 		t.Fatalf("requireCaptureVerified() error = %v", err)
+	}
+}
+
+func TestConsoleTailKeepsLastLinesAndMasksClassifierMarkers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "console.log")
+	var console strings.Builder
+	for i := range 40 {
+		fmt.Fprintf(&console, "line %02d\n\n", i)
+	}
+	console.WriteString("ResetBreakpadAppId: Universe is 1\r\ndisconnect: " + demoParseFailureMarker + "\n")
+	if err := os.WriteFile(path, []byte(console.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tail := consoleTail(path, 5)
+	want := []string{"line 37", "line 38", "line 39", "Reset-Breakpad-AppId: Universe is 1", "disconnect: NETWORK-DISCONNECT-MESSAGE-PARSE-ERROR"}
+	if !slices.Equal(tail, want) {
+		t.Fatalf("consoleTail() = %q, want %q", tail, want)
+	}
+	if consoleTail(filepath.Join(t.TempDir(), "missing.log"), 5) != nil {
+		t.Fatal("consoleTail(missing) returned lines")
 	}
 }
 
