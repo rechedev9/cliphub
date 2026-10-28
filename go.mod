@@ -12,7 +12,7 @@ require (
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/klauspost/compress v1.18.7
+	github.com/klauspost/compress v1.20.3
 	github.com/markus-wa/demoinfocs-golang/v5 v5.2.0
 	github.com/markus-wa/godispatch v1.4.1
 	github.com/yuin/gopher-lua v1.1.2
