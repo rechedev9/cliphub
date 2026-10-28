@@ -260,6 +260,9 @@ what users run.
   certificate: frame counts cannot see a frozen picture. The check in the
   next section now reports it, so the canary refuses a certificate for
   2.192.7 on this CS2 build.
+- Fixed in official 2.192.8 (AfxHookSource2 0.41.8). Studio 5.5.1 pins
+  2.192.10; four Short captures on CS2 1.41.9.2 with it reported no frozen
+  picture.
 
 ### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
 
