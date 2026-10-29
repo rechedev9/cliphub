@@ -901,6 +901,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		resultPath   string
 		runErr       error
 	)
+	tickZeroCopy := false
 	for attempt := 0; attempt <= maxTransientCaptureRestarts; attempt++ {
 		attemptOutDir := outDir
 		if attempt > 0 {
@@ -914,6 +915,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 
 		attemptArgs := append([]string(nil), recorderArgs...)
 		attemptArgs = append(attemptArgs, "--out", attemptOutDir)
+		if tickZeroCopy {
+			attemptArgs = append(attemptArgs, "--tick0-demo-copy")
+		}
 		progressCtx, stopProgress := context.WithCancel(ctx)
 		progressDone := make(chan struct{})
 		progress := newCaptureProgressReporter(
@@ -952,6 +956,11 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 				attempt+1,
 				maxTransientCaptureRestarts,
 			)
+			continue
+		}
+		if attempt < maxTransientCaptureRestarts && ctx.Err() == nil && !tickZeroCopy && tickZeroCopyCanHelp(runErr, result, demoPath) {
+			log.Printf("worker job=%s task=%s CS2 crashed rewinding the demo to tick 0; relaunching with a tick-0 copy", j.ID, tasks.TypeRecordDemo)
+			tickZeroCopy = true
 			continue
 		}
 		return newRecordFailure(runErr, result, requested)

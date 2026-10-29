@@ -1042,6 +1042,23 @@ func TestCS2ConsoleLogMonitorClassifiesUnplayableStart(t *testing.T) {
 			console:  "[zackvideo] armed at tick 0\nResetBreakpadAppId: Universe is 1\n",
 			verified: true,
 		},
+		{
+			// Lines from a 2026-10-29 Studio 5.5.1 report: the script armed
+			// before the rewind, which CS2 never finished.
+			name: "armed at one crashes inside the rewind",
+			console: "[zackvideo] armed at tick 1\n" +
+				"[Demo] Demo Skipping: skipping to demo tick 0 (game tick 10123) from full packet 1 (10124).  Current playback is 1 (10124)\n" +
+				"[Demo] Demo Skipping flushing last 1 messages, tick 1 start 1 goal 0\n" +
+				"ResetBreakpadAppId: Universe is 1 (k_EUniversePublic)\n",
+			wantUnplay: true,
+		},
+		{
+			name: "crash after a finished rewind stays generic",
+			console: "[zackvideo] armed at tick 0\n" +
+				"[Demo] Demo Skipping: skipping to demo tick 0 (game tick 2735) from full packet 1 (2736).  Current playback is 1 (2736)\n" +
+				"[Demo] Demo Skipping finished at tick 0\n" +
+				"ResetBreakpadAppId: Universe is 1 (k_EUniversePublic)\n",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

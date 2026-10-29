@@ -92,6 +92,11 @@ coverage error.
   HLAE dropped frames, not rounding.
 - Audio needs no pad: every bus is already `apad`/`atrim`-ed to the canonical
   sample count.
+- Bumpers get the same pad (issue #322, 2026-10-29). A bumper's planned length
+  rounds its container duration, which the audio track or a late video start
+  sets, so an uploaded clip can hold one frame less than planned. A 7.000 s
+  intro with 419 frames from 0.016 s and a sponsor with 1182 of 1183 failed a
+  whole Full Demo delivery by 2 frames.
 
 ## Full Demo overlay format (`internal/demooverlay`, `recapplan.Options`)
 
@@ -308,6 +313,28 @@ the same measure on fake captures (`source:<id>:frozen-picture`).
 - To confirm a suspected freeze, read the POV's view angles for those ticks
   from the demo with demoinfocs: if they change while the picture does not,
   the capture is at fault.
+
+### Incident: CS2 crashed in the playdemo rewind to tick 0 (Studio 5.5.1, 2026-10-29)
+
+Every capture of one FACEIT Dust2 demo ended before round 1 with `CS2 exited
+without the completed POV verification marker` (issues #318, #322). The CS2
+console tail in telemetry shows the cause: CS2 logged `Demo Skipping: skipping
+to demo tick 0 ... from full packet 1`, then `ResetBreakpadAppId` (the crash
+handler), and never `Demo Skipping finished at tick 0`. A minidump showed
+0xc0000005 in `engine2.dll`.
+
+- Every CS2 demo opens with signon records without a tick, then a Packet and a
+  FullPacket at demo tick 1, and playback always rewinds to tick 0. Healthy
+  captures log the same skip line and then the finished line, so the layout
+  alone does not predict the crash and no preflight can refuse the demo.
+- The recorder already classified this crash as `unplayable_start`, but only
+  when the HLAE script armed at tick 0. Here it armed at tick 1, so the worker
+  treated it as transient and relaunched the same demo twice. The rewind lines
+  now decide when CS2 logs them.
+- A copy with those two ticks set to 0 captured all 24 rounds. After an
+  `unplayable_start`, the worker relaunches once with `--tick0-demo-copy`:
+  `internal/demostart` writes that copy to a temp folder for CS2 only. The
+  plan, its SHA-256 and the stored demo stay the original.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 

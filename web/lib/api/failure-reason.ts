@@ -99,7 +99,7 @@ const DEMO_PLAYBACK_ENDED_MESSAGE =
   'Reintentar no lo arreglará: usa una demo que llegue al final de las jugadas seleccionadas.';
 
 const UNPLAYABLE_START_MESSAGE =
-  'Esta demo empieza a mitad y CS2 crashea al rebobinar a tick 0. ' +
+  'CS2 se cierra al rebobinar esta demo al tick 0, antes de la primera ronda. ' +
   'No relances CS2: no es un fallo de POV ni de HLAE.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
