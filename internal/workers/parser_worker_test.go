@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -269,9 +270,10 @@ func TestParserWorkerMarksJobFailedOnUnknownTarget(t *testing.T) {
 
 	w := NewParserWorker(repo, store)
 	payload, _ := json.Marshal(tasks.ParseDemoPayload{JobID: id})
-	err := w.HandleParseDemo(context.Background(), asynq.NewTask(tasks.TypeParseDemo, payload))
-	if err == nil {
-		t.Fatal("HandleParseDemo error = nil, want non-nil so Asynq won't retry forever")
+	// A missing target stays missing on a retry, so the first of two attempts ends the job.
+	err := w.HandleParseDemo(tasks.WithTaskAttempt(context.Background(), 0, 1), asynq.NewTask(tasks.TypeParseDemo, payload))
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("HandleParseDemo error = %v, want it to wrap asynq.SkipRetry", err)
 	}
 
 	got := repo.jobs[id]
@@ -297,6 +299,38 @@ func TestProcessScanRoster_BadDemoMarksFailed(t *testing.T) {
 	}
 	if repo.lastStatus() != job.StatusFailed {
 		t.Errorf("got status %v, want %v", repo.lastStatus(), job.StatusFailed)
+	}
+}
+
+// A demo the parser cannot read fails the same way on a retry, so the first
+// attempt already ends the job; a missing file may still appear and keeps its retry.
+func TestProcessScanRosterEndsUnreadableDemoOnFirstAttempt(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	garbage := append([]byte("PBDEMS2\x00"), bytes.Repeat([]byte{0x01}, 4096)...)
+	if err := store.Put("demos/garbage.dem", bytes.NewReader(garbage)); err != nil {
+		t.Fatalf("Put error = %v", err)
+	}
+	firstOfTwo := tasks.WithTaskAttempt(context.Background(), 0, 1)
+
+	unreadable := newFakeJobRepo(job.Job{ID: uuid.New(), Status: job.StatusQueued, DemoPath: "demos/garbage.dem"})
+	err = NewParserWorker(unreadable, store).ProcessScanRoster(firstOfTwo, unreadable.only().ID)
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("unreadable demo error = %v, want it to wrap asynq.SkipRetry", err)
+	}
+	if unreadable.lastStatus() != job.StatusFailed {
+		t.Fatalf("unreadable demo status = %v, want %v", unreadable.lastStatus(), job.StatusFailed)
+	}
+
+	missing := newFakeJobRepo(job.Job{ID: uuid.New(), Status: job.StatusQueued, DemoPath: "demos/missing.dem"})
+	err = NewParserWorker(missing, store).ProcessScanRoster(firstOfTwo, missing.only().ID)
+	if err == nil || errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("missing demo error = %v, want a retryable error", err)
+	}
+	if missing.lastStatus() == job.StatusFailed {
+		t.Fatal("missing demo was marked failed before its last attempt")
 	}
 }
 

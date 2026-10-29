@@ -310,7 +310,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			crosshairs.record(tick, code)
 		})
 	}
-	if err := parseToEnd(p); err != nil {
+	if err := parseCaptureDemo(p); err != nil {
 		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
 	}
 

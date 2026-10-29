@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -766,6 +767,7 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if err != nil {
 		return err
 	}
+	logCS2Build(cs2Exe)
 	consoleLogPath := cs2ConsoleLogPath(cs2Exe)
 	if err := prepareCS2ConsoleLog(consoleLogPath); err != nil {
 		return err
@@ -988,6 +990,35 @@ func steamRootFromCS2Path(cs2Exe string) string {
 		}
 		dir = parent
 	}
+}
+
+// logCS2Build prints the installed CS2 build, so a capture failure in remote
+// diagnostics names the game version it ran on.
+func logCS2Build(cs2Exe string) {
+	gameDir := filepath.Dir(filepath.Dir(filepath.Dir(cs2Exe)))
+	data, err := os.ReadFile(filepath.Join(gameDir, "csgo", "steam.inf"))
+	if err != nil {
+		log.Printf("cs2 build: unknown: %v", err)
+		return
+	}
+	log.Printf("cs2 build: %s", cs2BuildFields(data))
+}
+
+// cs2BuildFields keeps the steam.inf keys that identify a CS2 build.
+// Diagnostics redact a dotted PatchVersion as an address, so ClientVersion and
+// SourceRevision carry the build.
+func cs2BuildFields(steamInf []byte) string {
+	var fields []string
+	for _, line := range strings.Split(string(steamInf), "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if ok && slices.Contains([]string{"ClientVersion", "SourceRevision", "VersionDate"}, key) {
+			fields = append(fields, key+"="+value)
+		}
+	}
+	if len(fields) == 0 {
+		return "unknown"
+	}
+	return strings.Join(fields, " ")
 }
 
 func cs2ConsoleLogPath(cs2Exe string) string {

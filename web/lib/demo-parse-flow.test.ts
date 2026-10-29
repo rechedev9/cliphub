@@ -55,6 +55,7 @@ test('scan copy names the cause the orchestrator or proxy reported', () => {
     { name: 'not a demo', err: coded('not_a_demo', { status: 400 }), want: DEMO_SCAN_HINTS.notDemo },
     { name: 'broken .dem.zst', err: coded('unreadable_demo', { status: 400 }), want: DEMO_SCAN_HINTS.unreadable },
     { name: 'scan job failed parsing', err: coded('demo_incompatible'), want: DEMO_SCAN_HINTS.incompatible },
+    { name: 'scan job refused a POV demo', err: coded('pov_demo'), want: DEMO_SCAN_HINTS.povDemo },
     { name: 'orchestrator 413', err: coded('payload_too_large', { status: 413 }), want: DEMO_SCAN_HINTS.tooLarge },
     { name: 'proxy 413 without code', err: Object.assign(new Error('file too large'), { status: 413 }), want: DEMO_SCAN_HINTS.tooLarge },
     { name: 'scan never finished', err: coded(JOB_WAIT_TIMEOUT_CODE), want: DEMO_SCAN_HINTS.timeout },
@@ -76,6 +77,7 @@ test('scan copy names the cause the orchestrator or proxy reported', () => {
 test('series parse copy never surfaces the raw worker reason', () => {
   const raw = 'parsing demo: demo_incompatible: parser panicked: proto: cannot parse invalid wire-format data';
   assert.equal(demoSeriesParseError(Object.assign(new Error(raw), { code: 'demo_incompatible' })), DEMO_SCAN_HINTS.incompatible);
+  assert.equal(demoSeriesParseError(Object.assign(new Error('parsing demo: pov_demo: client-recorded'), { code: 'pov_demo' })), DEMO_SCAN_HINTS.povDemo);
   assert.equal(demoSeriesParseError(new Error('target steamid 76561198000000000 not found in demo')), DEMO_SERIES_PARSE_FAIL_HINT);
   assert.equal(demoSeriesParseError(Object.assign(new Error('offline'), { code: SERVICE_UNAVAILABLE_CODE })), DEMO_SERVICE_OFFLINE_HINT);
 });

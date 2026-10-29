@@ -21,6 +21,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -67,10 +68,7 @@ func (w *ParserWorker) ProcessParseDemo(ctx context.Context, jobID uuid.UUID) er
 
 	plan, parseErr := w.parse(ctx, j)
 	if parseErr != nil {
-		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeParseDemo, parseErr); statusErr != nil {
-			return errors.Join(parseErr, fmt.Errorf("record parse failure status: %w", statusErr))
-		}
-		return parseErr
+		return w.recordParserFailure(ctx, j.ID, tasks.TypeParseDemo, parseErr)
 	}
 	if err := w.repo.SetKillPlan(ctx, j.ID, plan); err != nil {
 		return fmt.Errorf("save plan: %w", err)
@@ -112,10 +110,7 @@ func (w *ParserWorker) ProcessScanRoster(ctx context.Context, jobID uuid.UUID) e
 
 	rosterKey, scanErr := w.scanRoster(ctx, j)
 	if scanErr != nil {
-		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeScanRoster, scanErr); statusErr != nil {
-			return errors.Join(scanErr, fmt.Errorf("record roster failure status: %w", statusErr))
-		}
-		return scanErr
+		return w.recordParserFailure(ctx, j.ID, tasks.TypeScanRoster, scanErr)
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeScanRoster, []string{rosterKey})
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusScanned, ""); err != nil {
@@ -123,6 +118,24 @@ func (w *ParserWorker) ProcessScanRoster(ctx context.Context, jobID uuid.UUID) e
 	}
 	logWorkerTransition(j.ID, tasks.TypeScanRoster, job.StatusScanned)
 	return nil
+}
+
+// recordParserFailure records a failed scan or parse. A POV demo, a demo the
+// parser cannot read or a target missing from it fails the same way on every
+// attempt, so it ends the task now.
+func (w *ParserWorker) recordParserFailure(ctx context.Context, id uuid.UUID, taskType string, err error) error {
+	class := obs.ClassOf(err.Error())
+	final := class == obs.ClassPOVDemo || class == obs.ClassDemoIncompatible || class == obs.ClassTargetNotFound
+	if final {
+		ctx = tasks.WithTaskAttempt(ctx, 0, 0)
+	}
+	if statusErr := recordTaskFailure(ctx, w.repo, id, taskType, err); statusErr != nil {
+		return errors.Join(err, fmt.Errorf("record %s failure status: %w", taskType, statusErr))
+	}
+	if final {
+		return fmt.Errorf("%w: %w", err, asynq.SkipRetry)
+	}
+	return err
 }
 
 func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, error) {
@@ -134,6 +147,12 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
+	// The roster scan already logged a scanned job's demo facts.
+	if scanned, err := w.storage.Exists(artifacts.RosterKey(j.ID)); err != nil || !scanned {
+		header := parser.TrackDemoHeader(p)
+		first := parser.TrackFirstPacketTick(p)
+		defer func() { logDemoFacts(j.ID, tasks.TypeParseDemo, p, header, first) }()
+	}
 
 	meta := parser.PlanMeta{
 		DemoPath: j.DemoPath,
@@ -164,8 +183,11 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error
 
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
+	header := parser.TrackDemoHeader(p)
+	first := parser.TrackFirstPacketTick(p)
 
 	result, err := parser.RosterScanWithContext(ctx, p)
+	logDemoFacts(j.ID, tasks.TypeScanRoster, p, header, first)
 	if err != nil {
 		return "", fmt.Errorf("scan roster: %w", err)
 	}

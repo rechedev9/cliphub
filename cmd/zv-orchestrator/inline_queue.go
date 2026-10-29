@@ -629,7 +629,8 @@ func (q *inlineQueue) handle(ctx context.Context, queued inlineTask, handler tas
 			}
 			return err, handlerStarted
 		}
-		if attempt == queued.policy.maxRetries {
+		// The handler marks a failure no retry can change, such as a POV demo.
+		if attempt == queued.policy.maxRetries || errors.Is(err, asynq.SkipRetry) {
 			return err, handlerStarted
 		}
 		log.Printf(
