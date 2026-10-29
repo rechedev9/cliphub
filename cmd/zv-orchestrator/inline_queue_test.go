@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"runtime"
@@ -161,6 +162,25 @@ func TestInlineQueueStopsAfterPureTaskRetryIsExhausted(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("handler calls = %d, want 2", calls)
+	}
+}
+
+func TestInlineQueueDoesNotRetryAFailureMarkedSkipRetry(t *testing.T) {
+	queue := newInlineQueue(nil, 1)
+	var calls int
+	queued := inlineTask{
+		task:   asynq.NewTask(tasktypes.TypeScanRoster, nil),
+		policy: inlineTaskPolicy{maxRetries: 1},
+	}
+	err, _ := queue.handle(context.Background(), queued, func(context.Context, *asynq.Task) error {
+		calls++
+		return fmt.Errorf("scan roster: parsing demo: pov_demo: client-recorded: %w", asynq.SkipRetry)
+	})
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("handle() error = %v, want asynq.SkipRetry", err)
+	}
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
 	}
 }
 
