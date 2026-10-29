@@ -12,6 +12,7 @@ import (
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
+	dp "github.com/markus-wa/godispatch"
 
 	"github.com/rechedev9/cliphub/internal/demosafe"
 )
@@ -31,9 +32,12 @@ type FirstPacketWatch struct {
 // TrackFirstPacketTick registers handlers for the first PacketEntities
 // snapshot and the first CNETMsg_Tick. CS2's playdemo "game tick" often
 // lives on the net tick, while IngameTick can start at 0 on remapped clocks.
+// Each handler unregisters itself after its first message, so a full parse
+// does not pay for it on every tick.
 func TrackFirstPacketTick(p demoinfocs.Parser) *FirstPacketWatch {
 	w := &FirstPacketWatch{}
-	p.RegisterNetMessageHandler(func(*msg.CSVCMsg_PacketEntities) {
+	var entities, netTick dp.HandlerIdentifier
+	entities = p.RegisterNetMessageHandler(func(*msg.CSVCMsg_PacketEntities) {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		if w.seen {
@@ -41,8 +45,9 @@ func TrackFirstPacketTick(p demoinfocs.Parser) *FirstPacketWatch {
 		}
 		w.seen = true
 		w.ingame = p.GameState().IngameTick()
+		p.UnregisterNetMessageHandler(entities)
 	})
-	p.RegisterNetMessageHandler(func(tick *msg.CNETMsg_Tick) {
+	netTick = p.RegisterNetMessageHandler(func(tick *msg.CNETMsg_Tick) {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		if w.sawNet {
@@ -50,6 +55,7 @@ func TrackFirstPacketTick(p demoinfocs.Parser) *FirstPacketWatch {
 		}
 		w.sawNet = true
 		w.netTick = int(tick.GetTick())
+		p.UnregisterNetMessageHandler(netTick)
 	})
 	return w
 }
