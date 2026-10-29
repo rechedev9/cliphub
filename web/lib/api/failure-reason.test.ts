@@ -10,6 +10,7 @@ import {
   JOB_GENERIC_FAILURE_MESSAGE,
   JOB_RECAPTURE_FAILURE_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
+  POV_DEMO_MESSAGE,
   UNPLAYABLE_START_PREFIX,
   jobFailureTitle,
   parseFailureReason,
@@ -132,6 +133,16 @@ test('a job-level demo-incompatible reason keeps its classified copy', () => {
   assert.equal(result.kind, 'demo-incompatible');
   assert.equal(result.retryCanHelp, false);
   assert.match(result.message, /versión antigua de CS2/);
+});
+
+// The scan worker wraps the parser's marker, so the failed partida row sees it mid-string.
+test('a client-recorded demo asks for the GOTV demo instead of a generic failure', () => {
+  const reason = "scan roster: parsing demo: pov_demo: the demo was recorded by a player's client, not by GOTV";
+  const result = parseFailureReason(reason, { job: true });
+  assert.equal(result.kind, 'pov-demo');
+  assert.equal(result.retryCanHelp, false);
+  assert.equal(result.message, POV_DEMO_MESSAGE);
+  assert.equal(jobFailureTitle(reason), JOB_FAILED_TITLE);
 });
 
 test('observer-target failure explains how to regenerate without leaking the console path', () => {

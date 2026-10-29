@@ -36,7 +36,7 @@ var (
 		"record:demo", "compose:final", "render:variant", "render:stream-clip",
 		"stream:acquire", "render:timeline", "interrupted", "not_found",
 		"auth_required", "unavailable", "blocked", "too_large", "error",
-		"demo_unreadable", "demo_incompatible", "map_uncalibrated", "write_artifact",
+		"demo_unreadable", "demo_incompatible", "pov_demo", "map_uncalibrated", "write_artifact",
 		"file_error", "corrupt", "target_not_found", "parse_failed",
 		"capture_incompatible", "unplayable_start", "record_failed", "rhythm_failed",
 		"render_failed", "stage_failed", "write_plan", "ffmpeg_failed", "unknown",

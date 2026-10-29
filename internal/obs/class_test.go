@@ -28,6 +28,11 @@ func TestClassOfCaptureIncompatible(t *testing.T) {
 			want:    ClassCaptureFlake,
 		},
 		{name: "unrelated failure", message: "ffmpeg exited with status 1", want: ""},
+		{
+			name:    "POV demo wrapped by the scan worker",
+			message: "scan roster: parsing demo: pov_demo: the demo was recorded by a player's client, not by GOTV",
+			want:    ClassPOVDemo,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

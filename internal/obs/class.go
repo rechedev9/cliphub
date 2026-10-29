@@ -8,12 +8,14 @@ const (
 	ClassMissingPlate           = "missing_plate"
 	ClassCaptureFlake           = "capture_flake"
 	ClassDemoIncompatible       = "demo_incompatible"
+	ClassPOVDemo                = "pov_demo"
 	ClassUnplayableStart        = "unplayable_start"
 	ClassRecordingNotReusable   = "recording_not_reusable"
 	ClassInterrupted            = "interrupted"
 	ClassTargetNotFound         = "target_not_found"
 	ClassCaptureIncompatible    = "capture_incompatible"
 	prefixDemoIncompatible      = "demo_incompatible:"
+	prefixPOVDemo               = "pov_demo:"
 	prefixUnplayableStart       = "unplayable_start:"
 	prefixRecordingNotReusable  = "recording_not_reusable:"
 	prefixInterrupted           = "interrupted:"
@@ -36,6 +38,8 @@ func ClassOf(message string) string {
 	// wrap separator instead of opening the message.
 	case strings.HasPrefix(message, prefixDemoIncompatible) || strings.Contains(message, ": "+prefixDemoIncompatible):
 		return ClassDemoIncompatible
+	case strings.HasPrefix(message, prefixPOVDemo) || strings.Contains(message, ": "+prefixPOVDemo):
+		return ClassPOVDemo
 	case strings.HasPrefix(message, prefixUnplayableStart):
 		return ClassUnplayableStart
 	case strings.HasPrefix(message, prefixRecordingNotReusable):

@@ -4,6 +4,9 @@ export const DEMO_INCOMPATIBLE_PREFIX = 'demo_incompatible:' as const;
 /** Stable prefix when CS2 crashes rewinding playdemo to demo tick 0. */
 export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 
+/** Parser marker for a client-recorded demo; scan and parse failures carry it after a wrap prefix. */
+const POV_DEMO_MARKER = 'pov_demo:' as const;
+
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
 const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
@@ -33,6 +36,7 @@ export type FailureReason = {
   kind:
     | 'demo-incompatible'
     | 'unplayable-start'
+    | 'pov-demo'
     | 'recording-not-reusable'
     | 'pov-verification'
     | 'pov-acquisition'
@@ -102,6 +106,10 @@ const UNPLAYABLE_START_MESSAGE =
   'CS2 se cierra al rebobinar esta demo al tick 0, antes de la primera ronda. ' +
   'No relances CS2: no es un fallo de POV ni de HLAE.';
 
+export const POV_DEMO_MESSAGE =
+  'Esta demo es POV: la grabó un jugador desde su propio juego y CS2 no deja fijar la cámara en ningún jugador. ' +
+  'Usa la demo GOTV de la partida: descárgala desde CS2 (Ver > Tus partidas), FACEIT o HLTV.';
+
 const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de ClipHub. ' +
   'Reintenta: se volverá a grabar la POV con el contrato actual.';
@@ -161,6 +169,10 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
     return { kind: 'unplayable-start', message: UNPLAYABLE_START_MESSAGE, retryCanHelp: false };
+  }
+
+  if (reason.includes(POV_DEMO_MARKER)) {
+    return { kind: 'pov-demo', message: POV_DEMO_MESSAGE, retryCanHelp: false };
   }
 
   // Client-minted and already user-facing Spanish: surface it verbatim.
