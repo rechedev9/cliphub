@@ -1061,6 +1061,18 @@ func TestConsoleTailKeepsLastLinesAndMasksClassifierMarkers(t *testing.T) {
 	}
 }
 
+// The steam.inf below is the one CS2 shipped on 2026-10-28.
+func TestCS2BuildFieldsKeepsTheBuildIdentity(t *testing.T) {
+	steamInf := "ClientVersion=2000938\r\nServerVersion=2000938\r\nPatchVersion=1.41.9.3\r\nProductName=cs2\r\n" +
+		"appID=730\r\nServerAppID=2347773\r\nSourceRevision=11181008\r\nVersionDate=Oct 28 2026\r\nVersionTime=13:49:20\r\n"
+	if got, want := cs2BuildFields([]byte(steamInf)), "ClientVersion=2000938 SourceRevision=11181008 VersionDate=Oct 28 2026"; got != want {
+		t.Fatalf("cs2BuildFields() = %q, want %q", got, want)
+	}
+	if got := cs2BuildFields([]byte("not a steam.inf")); got != "unknown" {
+		t.Fatalf("cs2BuildFields(garbage) = %q, want unknown", got)
+	}
+}
+
 func TestCS2ConsoleLogMonitorClassifiesUnplayableStart(t *testing.T) {
 	cases := []struct {
 		name       string

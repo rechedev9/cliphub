@@ -134,6 +134,9 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
+	header := parser.TrackDemoHeader(p)
+	first := parser.TrackFirstPacketTick(p)
+	defer func() { logDemoFacts(j.ID, tasks.TypeParseDemo, p, header, first) }()
 
 	meta := parser.PlanMeta{
 		DemoPath: j.DemoPath,
@@ -164,8 +167,11 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error
 
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
+	header := parser.TrackDemoHeader(p)
+	first := parser.TrackFirstPacketTick(p)
 
 	result, err := parser.RosterScanWithContext(ctx, p)
+	logDemoFacts(j.ID, tasks.TypeScanRoster, p, header, first)
 	if err != nil {
 		return "", fmt.Errorf("scan roster: %w", err)
 	}
