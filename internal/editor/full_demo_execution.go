@@ -75,12 +75,15 @@ type FullDemoRenderEvidence struct {
 	// CaptureTailPads lists the rounds whose segment clip lacks a bounded number
 	// of trailing frames; each item video clones exactly that shortfall.
 	CaptureTailPads []recording.FullDemoTailPad `json:"capture_tail_pads,omitempty"`
-	SchemaVersion   string                      `json:"schema_version"`
-	Approved        recapplan.Snapshot          `json:"approved"`
-	Effective       recapplan.Document          `json:"effective"`
-	MusicIntervals  []FullDemoMusicInterval     `json:"music_intervals"`
-	TrackLevels     []FullDemoTrackLevel        `json:"track_levels"`
-	ProgramLoudness *ProgramLoudnessEvidence    `json:"program_loudness"`
+	// BumperPads lists the bumpers whose video lacks a bounded number of
+	// trailing frames; each bumper item clones exactly that shortfall.
+	BumperPads      []FullDemoBumperPad      `json:"bumper_pads,omitempty"`
+	SchemaVersion   string                   `json:"schema_version"`
+	Approved        recapplan.Snapshot       `json:"approved"`
+	Effective       recapplan.Document       `json:"effective"`
+	MusicIntervals  []FullDemoMusicInterval  `json:"music_intervals"`
+	TrackLevels     []FullDemoTrackLevel     `json:"track_levels"`
+	ProgramLoudness *ProgramLoudnessEvidence `json:"program_loudness"`
 }
 
 type fullDemoRenderContext struct {

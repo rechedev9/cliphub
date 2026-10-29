@@ -319,6 +319,9 @@ func runFullDemoItemPoolJobs(ctx context.Context, short ShortEdit, streams fullD
 // and evidence are those of masterFullDemoMeasuredProgram, unchanged. The returned
 // evidence is nil when the render failed before mastering started.
 func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, short *ShortEdit, duration float64, progress fullDemoProgress) (*ProgramLoudnessEvidence, error) {
+	if err := measureFullDemoBumpers(ctx, short); err != nil {
+		return nil, err
+	}
 	if err := prepareFullDemoTransitions(ctx, short); err != nil {
 		return nil, err
 	}

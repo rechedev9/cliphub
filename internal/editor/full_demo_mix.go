@@ -454,10 +454,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 			return nil, err
 		}
 		command = append(command, "-i", video)
-		// The planned length rounds the container duration, which the audio or a
-		// late video start can set, so the video may hold a frame or two fewer.
-		// The trim drops unneeded clones; the delivery decode refuses more.
-		tailPad = recording.FullDemoTailPadToleranceFrames
+		tailPad = fullDemoBumperTailPad(short.FullDemo.BumperPads, item.Reason)
 		if evidence.HasAudio {
 			audio = sampleWindow("[0:a]", 0, samples, 1, "a")
 		} else {
