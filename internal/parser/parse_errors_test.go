@@ -37,7 +37,7 @@ func (p *povParser) ParseToEnd() error {
 
 // The library dispatches POVRecordingPlayerDetected when the header's client
 // name matches a user in the demo. Only a real player makes it a POV demo.
-func TestParseToEndRefusesClientRecordedDemos(t *testing.T) {
+func TestParseCaptureDemoRefusesClientRecordedDemos(t *testing.T) {
 	cases := []struct {
 		name     string
 		recorder common.PlayerInfo
@@ -57,11 +57,19 @@ func TestParseToEndRefusesClientRecordedDemos(t *testing.T) {
 				parseErr: tc.parseErr,
 			}
 
-			err := parseToEnd(p)
+			err := parseCaptureDemo(p)
 			if !errors.Is(err, tc.want) {
-				t.Fatalf("parseToEnd error = %v, want %v", err, tc.want)
+				t.Fatalf("parseCaptureDemo error = %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+// Tactical analysis reads positions, not a locked POV, so a POV demo stays readable there.
+func TestParseToEndAcceptsClientRecordedDemos(t *testing.T) {
+	p := &povParser{event: events.POVRecordingPlayerDetected{PlayerInfo: common.PlayerInfo{Name: "player"}}}
+	if err := parseToEnd(p); err != nil {
+		t.Fatalf("parseToEnd error = %v, want nil", err)
 	}
 }
 

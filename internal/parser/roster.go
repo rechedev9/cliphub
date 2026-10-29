@@ -68,7 +68,7 @@ func RosterScan(p demoinfocs.Parser) (RosterResult, error) {
 	acc := newRosterAccumulator()
 	acc.register(p)
 
-	if err := parseToEnd(p); err != nil {
+	if err := parseCaptureDemo(p); err != nil {
 		return RosterResult{}, fmt.Errorf("parsing demo: %w", err)
 	}
 

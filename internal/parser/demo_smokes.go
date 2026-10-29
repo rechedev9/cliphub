@@ -184,7 +184,7 @@ func runSmokes(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (k
 		c.RecordRoundEnd(RoundEnd{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
 	})
 
-	if err := parseToEnd(p); err != nil {
+	if err := parseCaptureDemo(p); err != nil {
 		return killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
 	}
 
