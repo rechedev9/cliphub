@@ -43,6 +43,7 @@ func TestValidateBatch(t *testing.T) {
 			event.Stage = "update"
 			event.Class = "user-specific-phase"
 		}, wantErr: "allowlisted"},
+		{name: "POV demo scan failure", mutate: func(event *Event) { event.Stage = "worker"; event.Class = "pov_demo" }},
 		{name: "invalid job correlation", mutate: func(event *Event) { event.JobID = "player-name" }, wantErr: "job_id"},
 		{name: "span message", mutate: func(event *Event) { event.Kind = KindSpan; event.Class = ""; event.Message = "not a performance field" }, wantErr: "span diagnostics"},
 		{name: "wrong schema", mutate: func(event *Event) { event.SchemaVersion = 2 }, wantErr: "schema_version"},
