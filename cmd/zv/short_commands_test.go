@@ -3,10 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -46,6 +50,67 @@ func (m *multiRunner) Run(_ context.Context, name string, args []string, _ io.Re
 
 func (m *multiRunner) CapturePaths() capturetools.Paths {
 	return m.capturePaths
+}
+
+// rewindCrashRunner fails the first zv-recorder call with the recorder's
+// unplayable_start exit code and runs everything else like multiRunner.
+type rewindCrashRunner struct {
+	multiRunner
+	t       *testing.T
+	crashed bool
+}
+
+func (r *rewindCrashRunner) Run(ctx context.Context, name string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	if strings.Contains(filepath.Base(name), "zv-recorder") && !r.crashed {
+		r.crashed = true
+		r.calls = append(r.calls, fakeSubcommandCall{Executable: name, Args: append([]string(nil), args...)})
+		return exitErrorWithCode(r.t, recorderExitUnplayableStart)
+	}
+	return r.multiRunner.Run(ctx, name, args, stdin, stdout, stderr)
+}
+
+// exitErrorWithCode runs the test binary as a child that only exits with code.
+func exitErrorWithCode(t *testing.T, code int) error {
+	t.Helper()
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = append(os.Environ(), "ZV_TEST_EXIT_CODE="+strconv.Itoa(code))
+	err := cmd.Run()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != code {
+		t.Fatalf("child exit = %v, want code %d", err, code)
+	}
+	return err
+}
+
+func TestRunShortRelaunchesRecorderRewindCrashWithTickZeroCopy(t *testing.T) {
+	setShortCaptureEnv(t)
+	dir := t.TempDir()
+	demo := filepath.Join(dir, "inferno.dem")
+	// Header, a signon record without a tick, then Packet and FullPacket at tick 1.
+	if err := os.WriteFile(demo, []byte("PBDEMS2\x00\x00\x00\x00\x00\x00\x00\x00\x00"+"\x08\xff\xff\xff\xff\x0f\x00"+"\x07\x01\x00"+"\x0d\x01\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := &rewindCrashRunner{t: t}
+	var stdout, stderr strings.Builder
+	code := Run([]string{
+		"zv", "short", demo,
+		"--prompt", "haz un short con todas las kills de martinez",
+		"--target-steamid", "76561198000000000",
+		"--out", filepath.Join(dir, "run"),
+		"--hlae", `C:\Tools\HLAE.exe`, "--cs2", `C:\cs2.exe`,
+	}, &stdout, &stderr, nil, runner)
+	if code != exitSuccess {
+		t.Fatalf("code = %d, want %d; stderr=%s", code, exitSuccess, stderr.String())
+	}
+	var recorderCalls [][]string
+	for _, call := range runner.calls {
+		if strings.Contains(filepath.Base(call.Executable), "zv-recorder") {
+			recorderCalls = append(recorderCalls, call.Args)
+		}
+	}
+	if len(recorderCalls) != 2 || slices.Contains(recorderCalls[0], "--tick0-demo-copy") || !slices.Contains(recorderCalls[1], "--tick0-demo-copy") {
+		t.Fatalf("recorder calls = %q, want a plain launch then one with --tick0-demo-copy", recorderCalls)
+	}
 }
 
 func setShortCaptureEnv(t *testing.T) {

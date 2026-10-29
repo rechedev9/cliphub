@@ -97,6 +97,10 @@ coverage error.
   sets, so an uploaded clip can hold one frame less than planned. A 7.000 s
   intro with 419 frames from 0.016 s and a sponsor with 1182 of 1183 failed a
   whole Full Demo delivery by 2 frames.
+- Before any item encodes, the render decodes each bumper at 60 fps. A
+  shortfall up to the tolerance becomes the exact pad, kept in
+  `bumper_pads` of the render evidence; a larger one fails at once with
+  `full_demo_asset_invalid` and names the clip to re-export.
 
 ## Full Demo overlay format (`internal/demooverlay`, `recapplan.Options`)
 
@@ -330,11 +334,14 @@ handler), and never `Demo Skipping finished at tick 0`. A minidump showed
 - The recorder already classified this crash as `unplayable_start`, but only
   when the HLAE script armed at tick 0. Here it armed at tick 1, so the worker
   treated it as transient and relaunched the same demo twice. The rewind lines
-  now decide when CS2 logs them.
+  now decide when CS2 logs them; a crash after `mirv_streams record start` or
+  after the finished line stays a generic failure.
 - A copy with those two ticks set to 0 captured all 24 rounds. After an
-  `unplayable_start`, the worker relaunches once with `--tick0-demo-copy`:
-  `internal/demostart` writes that copy to a temp folder for CS2 only. The
-  plan, its SHA-256 and the stored demo stay the original.
+  `unplayable_start`, the worker and `zv short` relaunch once with
+  `--tick0-demo-copy`: `internal/demostart` writes that copy to a temp folder
+  for CS2 only. The plan, its SHA-256 and the stored demo stay the original,
+  and the run performance records `tick_zero_demo_copy`. The copy attempt has
+  its own budget, separate from the transient restarts.
 
 ## Full Demo render lab (`zv-editor lab`, 2026-09-26)
 

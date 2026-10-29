@@ -209,12 +209,14 @@ const tickOneDemo = "PBDEMS2\x00\x00\x00\x00\x00\x00\x00\x00\x00" + "\x08\xff\xf
 
 func TestRecordWorkerRelaunchesRewindCrashWithTickZeroCopy(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		demo      string
-		wantCalls int
+		name       string
+		demo       string
+		transients int
+		wantCalls  int
 	}{
 		{name: "tick one demo plays a tick zero copy", demo: tickOneDemo, wantCalls: 2},
 		{name: "other openings fail at once", demo: "demo", wantCalls: 1},
+		{name: "transient relaunches leave the copy its attempt", demo: tickOneDemo, transients: maxTransientCaptureRestarts, wantCalls: maxTransientCaptureRestarts + 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newFakeRepo()
@@ -224,10 +226,15 @@ func TestRecordWorkerRelaunchesRewindCrashWithTickZeroCopy(t *testing.T) {
 			repo.jobs[id] = &job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/test.dem", Rules: rules.Default(), KillPlan: &plan}
 			_ = store.Put("demos/test.dem", strings.NewReader(tc.demo))
 
+			calls := 0
 			runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 				outDir := argValue(args, "--out")
+				calls++
 				if !slices.Contains(args, "--tick0-demo-copy") {
 					failed := recording.RecordingResult{Error: unplayableStartPrefix + " CS2 crashed rewinding playdemo to tick 0"}
+					if calls <= tc.transients {
+						failed.Error = missingCaptureAttestationMarker
+					}
 					_ = os.MkdirAll(outDir, 0o755)
 					_ = writeJSONFile(filepath.Join(outDir, "recording-result.json"), failed)
 					return nil, errors.New(failed.Error)

@@ -10,9 +10,11 @@ package demostart
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 )
 
@@ -41,39 +43,31 @@ func TickOneOffsets(path string) ([2]int64, error) {
 	defer file.Close()
 	r := &recordReader{r: bufio.NewReader(file)}
 	head := make([]byte, headerBytes)
-	if _, err := io.ReadFull(r.r, head); err != nil || string(head[:len(magic)]) != magic {
+	if _, err := io.ReadFull(r, head); err != nil || string(head[:len(magic)]) != magic {
 		return [2]int64{}, fmt.Errorf("%w: not a Source 2 demo", ErrLayout)
 	}
-	r.offset = headerBytes
-	for i := 0; i <= maxSignonCount; i++ {
+	var packet *recordHeader
+	for i := 0; ; i++ {
 		h, err := r.header()
 		if err != nil {
 			return [2]int64{}, fmt.Errorf("%w: %v", ErrLayout, err)
 		}
-		if h.tick == signonTick && h.kind != demPacket && h.kind != demFullPacket {
-			if _, err := r.r.Discard(int(h.size)); err != nil {
-				return [2]int64{}, fmt.Errorf("%w: %v", ErrLayout, err)
-			}
-			r.offset += int64(h.size)
-			continue
-		}
-		if !h.tickOne(demPacket) {
+		switch {
+		case packet != nil && h.tickOne(demFullPacket):
+			return [2]int64{packet.tickOffset, h.tickOffset}, nil
+		case packet != nil:
+			return [2]int64{}, fmt.Errorf("%w: the first Packet is followed by type %d at tick %d", ErrLayout, h.kind, int32(h.tick))
+		case h.tickOne(demPacket):
+			packet = &h
+		case h.tick != signonTick || h.kind == demPacket || h.kind == demFullPacket:
 			return [2]int64{}, fmt.Errorf("%w: record %d is type %d at tick %d", ErrLayout, i, h.kind, int32(h.tick))
+		case i == maxSignonCount:
+			return [2]int64{}, fmt.Errorf("%w: no Packet within the first %d records", ErrLayout, maxSignonCount)
 		}
-		if _, err := r.r.Discard(int(h.size)); err != nil {
+		if err := r.skip(h.size); err != nil {
 			return [2]int64{}, fmt.Errorf("%w: %v", ErrLayout, err)
 		}
-		r.offset += int64(h.size)
-		full, err := r.header()
-		if err != nil {
-			return [2]int64{}, fmt.Errorf("%w: %v", ErrLayout, err)
-		}
-		if !full.tickOne(demFullPacket) {
-			return [2]int64{}, fmt.Errorf("%w: the first Packet is followed by type %d at tick %d", ErrLayout, full.kind, int32(full.tick))
-		}
-		return [2]int64{h.tickOffset, full.tickOffset}, nil
 	}
-	return [2]int64{}, fmt.Errorf("%w: no Packet within the first %d records", ErrLayout, maxSignonCount)
 }
 
 // WriteTickZeroCopy copies src to a new file dst with the first Packet and
@@ -123,9 +117,31 @@ func (h recordHeader) tickOne(kind uint32) bool {
 	return h.kind == kind && h.tick == 1 && h.tickBytes == 1
 }
 
+// recordReader tracks the file offset of everything it reads, so a header can
+// report where its tick field sits.
 type recordReader struct {
 	r      *bufio.Reader
 	offset int64
+}
+
+func (r *recordReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	r.offset += int64(n)
+	return n, err
+}
+
+func (r *recordReader) ReadByte() (byte, error) {
+	b, err := r.r.ReadByte()
+	if err == nil {
+		r.offset++
+	}
+	return b, err
+}
+
+func (r *recordReader) skip(n uint32) error {
+	skipped, err := r.r.Discard(int(n))
+	r.offset += int64(skipped)
+	return err
 }
 
 func (r *recordReader) header() (recordHeader, error) {
@@ -146,17 +162,12 @@ func (r *recordReader) header() (recordHeader, error) {
 
 // varint reads a protobuf varint32, the encoding of every record header field.
 func (r *recordReader) varint() (uint32, error) {
-	var value uint32
-	for shift := 0; shift < 35; shift += 7 {
-		b, err := r.r.ReadByte()
-		if err != nil {
-			return 0, err
-		}
-		r.offset++
-		value |= uint32(b&0x7f) << shift
-		if b&0x80 == 0 {
-			return value, nil
-		}
+	value, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, err
 	}
-	return 0, errors.New("varint32 longer than five bytes")
+	if value > math.MaxUint32 {
+		return 0, errors.New("varint larger than 32 bits")
+	}
+	return uint32(value), nil
 }
