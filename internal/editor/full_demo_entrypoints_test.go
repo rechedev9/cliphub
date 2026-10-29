@@ -15,6 +15,9 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	if short.fullDemo == nil {
 		return nil
 	}
+	if err := measureFullDemoBumpers(ctx, short); err != nil {
+		return err
+	}
 	if err := prepareFullDemoTransitions(ctx, short); err != nil {
 		return err
 	}

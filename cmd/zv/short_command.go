@@ -10,10 +10,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/demostart"
 	"github.com/rechedev9/cliphub/internal/editor"
 )
 
@@ -197,6 +199,12 @@ func runShort(args []string, stdout, stderr io.Writer, stdin io.Reader, runner c
 	for i, stage := range plan.stages {
 		fmt.Fprintf(stdout, "[%d/%d] %s...\n", i+1, len(plan.stages), stage.label)
 		code := runDelegate(stage.binary, stage.args, stdout, stderr, stdin, runner)
+		if stage.binary == "zv-recorder" && code == recorderExitUnplayableStart && tickZeroCopyCanHelp(opts.DemoPath) {
+			// The same demo crashes on every launch; a copy that already starts
+			// at demo tick 0 has no rewind to crash in.
+			fmt.Fprintf(stdout, "[%d/%d] CS2 crashed rewinding the demo to tick 0; relaunching with a tick-0 copy...\n", i+1, len(plan.stages))
+			code = runDelegate(stage.binary, append(slices.Clone(stage.args), "--tick0-demo-copy"), stdout, stderr, stdin, runner)
+		}
 		if code != exitSuccess {
 			fmt.Fprintf(stderr, "error: stage %d/%d (%s) failed; fix the issue and re-run, or pass --from-recording <recording-result.json> to skip parse and record once footage exists\n",
 				i+1, len(plan.stages), stage.label)
@@ -207,6 +215,13 @@ func runShort(args []string, stdout, stderr io.Writer, stdin io.Reader, runner c
 	fmt.Fprintf(stdout, "shorts: %s\n", plan.shortsDir)
 	fmt.Fprintf(stdout, "publish pack: %s\n", plan.publishDir)
 	return exitSuccess
+}
+
+// tickZeroCopyCanHelp reports a demo that opens at demo tick 1, the layout
+// zv-recorder --tick0-demo-copy can move to tick 0.
+func tickZeroCopyCanHelp(demoPath string) bool {
+	_, err := demostart.TickOneOffsets(demoPath)
+	return err == nil
 }
 
 func shortJSONRequested(args []string) bool {

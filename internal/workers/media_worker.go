@@ -901,7 +901,10 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		resultPath   string
 		runErr       error
 	)
-	for attempt := 0; attempt <= maxTransientCaptureRestarts; attempt++ {
+	// Transient relaunches and the one tick-0 copy relaunch have separate
+	// budgets, so transient crashes cannot use up the copy's only attempt.
+	transientRestarts, tickZeroCopy := 0, false
+	for attempt := 0; ; attempt++ {
 		attemptOutDir := outDir
 		if attempt > 0 {
 			attemptOutDir = filepath.Join(workDir, fmt.Sprintf("out-retry-%02d", attempt))
@@ -914,6 +917,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 
 		attemptArgs := append([]string(nil), recorderArgs...)
 		attemptArgs = append(attemptArgs, "--out", attemptOutDir)
+		if tickZeroCopy {
+			attemptArgs = append(attemptArgs, "--tick0-demo-copy")
+		}
 		progressCtx, stopProgress := context.WithCancel(ctx)
 		progressDone := make(chan struct{})
 		progress := newCaptureProgressReporter(
@@ -944,14 +950,20 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 			outDir = attemptOutDir
 			break
 		}
-		if attempt < maxTransientCaptureRestarts && ctx.Err() == nil && retryableCaptureCrash(runErr, result) {
+		if transientRestarts < maxTransientCaptureRestarts && ctx.Err() == nil && retryableCaptureCrash(runErr, result) {
+			transientRestarts++
 			log.Printf(
 				"worker job=%s task=%s transient CS2 capture crash; clean relaunch %d/%d",
 				j.ID,
 				tasks.TypeRecordDemo,
-				attempt+1,
+				transientRestarts,
 				maxTransientCaptureRestarts,
 			)
+			continue
+		}
+		if !tickZeroCopy && ctx.Err() == nil && tickZeroCopyCanHelp(runErr, result, demoPath) {
+			log.Printf("worker job=%s task=%s CS2 crashed rewinding the demo to tick 0; relaunching with a tick-0 copy", j.ID, tasks.TypeRecordDemo)
+			tickZeroCopy = true
 			continue
 		}
 		return newRecordFailure(runErr, result, requested)

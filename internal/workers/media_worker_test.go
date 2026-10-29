@@ -203,6 +203,73 @@ func TestRecordWorkerRestartsTransientCS2CrashWithFreshOutput(t *testing.T) {
 	}
 }
 
+// tickOneDemo is the smallest opening CS2 writes: a signon record without a
+// tick, then a Packet and a FullPacket at demo tick 1.
+const tickOneDemo = "PBDEMS2\x00\x00\x00\x00\x00\x00\x00\x00\x00" + "\x08\xff\xff\xff\xff\x0f\x00" + "\x07\x01\x00" + "\x0d\x01\x00"
+
+func TestRecordWorkerRelaunchesRewindCrashWithTickZeroCopy(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		demo       string
+		transients int
+		wantCalls  int
+	}{
+		{name: "tick one demo plays a tick zero copy", demo: tickOneDemo, wantCalls: 2},
+		{name: "other openings fail at once", demo: "demo", wantCalls: 1},
+		{name: "transient relaunches leave the copy its attempt", demo: tickOneDemo, transients: maxTransientCaptureRestarts, wantCalls: maxTransientCaptureRestarts + 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/test.dem", Rules: rules.Default(), KillPlan: &plan}
+			_ = store.Put("demos/test.dem", strings.NewReader(tc.demo))
+
+			calls := 0
+			runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				outDir := argValue(args, "--out")
+				calls++
+				if !slices.Contains(args, "--tick0-demo-copy") {
+					failed := recording.RecordingResult{Error: unplayableStartPrefix + " CS2 crashed rewinding playdemo to tick 0"}
+					if calls <= tc.transients {
+						failed.Error = missingCaptureAttestationMarker
+					}
+					_ = os.MkdirAll(outDir, 0o755)
+					_ = writeJSONFile(filepath.Join(outDir, "recording-result.json"), failed)
+					return nil, errors.New(failed.Error)
+				}
+				scriptPath := filepath.Join(outDir, "recording.js")
+				segmentPath := filepath.Join(outDir, "segments", "seg-001.mp4")
+				_ = os.MkdirAll(filepath.Dir(segmentPath), 0o755)
+				_ = os.WriteFile(scriptPath, []byte("script"), 0o644)
+				_ = os.WriteFile(segmentPath, []byte("clip"), 0o644)
+				_ = writeJSONFile(filepath.Join(outDir, "recording-result.json"), recordingResultForRunnerArgs(t, args, scriptPath, segmentPath))
+				return []byte("recorded"), nil
+			}}
+			w := NewRecordWorker(repo, store, RecordWorkerConfig{WorkDir: t.TempDir(), RecorderPath: "zv-recorder", HLAEPath: "HLAE.exe", CS2Path: "cs2.exe"})
+			w.runner = runner
+
+			err := w.HandleRecordDemo(context.Background(), recordTask(t, id))
+			if len(runner.calls) != tc.wantCalls {
+				t.Fatalf("recorder calls = %d, want %d", len(runner.calls), tc.wantCalls)
+			}
+			if tc.wantCalls == 1 {
+				if err == nil || !strings.Contains(err.Error(), unplayableStartPrefix) {
+					t.Fatalf("HandleRecordDemo error = %v, want %s", err, unplayableStartPrefix)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("HandleRecordDemo error = %v", err)
+			}
+			if repo.jobs[id].Status != job.StatusRecorded {
+				t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
+			}
+		})
+	}
+}
+
 func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 	cases := []struct {
 		name                 string

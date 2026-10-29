@@ -53,6 +53,50 @@ func TestCS2LaunchCommandLineUsesWindowedMode(t *testing.T) {
 	}
 }
 
+func TestPrepareTickZeroCopyLaunchesTheCopyAndKeepsThePlan(t *testing.T) {
+	dir := t.TempDir()
+	demo := filepath.Join(dir, "demo.dem")
+	// Header, a signon record without a tick, then Packet and FullPacket at tick 1.
+	original := []byte("PBDEMS2\x00\x00\x00\x00\x00\x00\x00\x00\x00" + "\x08\xff\xff\xff\xff\x0f\x00" + "\x07\x01\x00" + "\x0d\x01\x00")
+	if err := os.WriteFile(demo, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan := recording.RecordingPlan{DemoPath: demo, Stream: recording.StreamConfig{Width: 1920, Height: 1080}}
+	launch, remove, err := prepareTickZeroCopy(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.DemoPath != demo || launch.DemoPath == demo || filepath.Dir(filepath.Dir(launch.DemoPath)) != dir {
+		t.Fatalf("plan demo %q, launch demo %q: want the original kept and a copy beside it", plan.DemoPath, launch.DemoPath)
+	}
+	if got := cs2LaunchCommandLine(launch, `C:\runs\recording.js`); !strings.Contains(got, `+playdemo "`+launch.DemoPath+`"`) {
+		t.Fatalf("CS2 does not play the copy: %q", got)
+	}
+	copied, err := os.ReadFile(launch.DemoPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(copied[:24], original[:24]) || copied[24] != 0 || copied[27] != 0 {
+		t.Fatalf("copy = %x, want both opening ticks at 0", copied)
+	}
+	remove()
+	if _, err := os.Stat(filepath.Dir(launch.DemoPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("copy folder survived cleanup: %v", err)
+	}
+
+	if err := os.WriteFile(demo, []byte("HL2DEMO\x00not a source 2 demo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = prepareTickZeroCopy(plan)
+	var startErr *unplayableStartError
+	if !errors.As(err, &startErr) || !strings.HasPrefix(err.Error(), "unplayable_start:") {
+		t.Fatalf("prepareTickZeroCopy(other layout) = %v, want an unplayable_start error", err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Fatalf("a refused copy left %d entries beside the demo", len(entries)-1)
+	}
+}
+
 func TestCS2LaunchCommandLineLeavesFullDemoPredictionToTheRuntime(t *testing.T) {
 	plan := recording.RecordingPlan{DemoPath: `C:\demos\match.dem`, Stream: recording.StreamConfig{Width: 1920, Height: 1080}}
 	if got := cs2LaunchCommandLine(plan, `C:\runs\recording.js`); !strings.Contains(got, "+cl_demo_predict 0") {
@@ -1041,6 +1085,31 @@ func TestCS2ConsoleLogMonitorClassifiesUnplayableStart(t *testing.T) {
 			name:     "verified wins even with breakpad",
 			console:  "[zackvideo] armed at tick 0\nResetBreakpadAppId: Universe is 1\n",
 			verified: true,
+		},
+		{
+			// Lines from a 2026-10-29 Studio 5.5.1 report: the script armed
+			// before the rewind, which CS2 never finished.
+			name: "armed at one crashes inside the rewind",
+			console: "[zackvideo] armed at tick 1\n" +
+				"[Demo] Demo Skipping: skipping to demo tick 0 (game tick 10123) from full packet 1 (10124).  Current playback is 1 (10124)\n" +
+				"[Demo] Demo Skipping flushing last 1 messages, tick 1 start 1 goal 0\n" +
+				"ResetBreakpadAppId: Universe is 1 (k_EUniversePublic)\n",
+			wantUnplay: true,
+		},
+		{
+			// A CS2 build without rewind lines, crashing after the first
+			// segment that needed no seek.
+			name: "crash after recording began stays generic",
+			console: "[zackvideo] armed at tick 0\n" +
+				"[zackvideo] record-start-seg-001: mirv_streams record start\n" +
+				"ResetBreakpadAppId: Universe is 1 (k_EUniversePublic)\n",
+		},
+		{
+			name: "crash after a finished rewind stays generic",
+			console: "[zackvideo] armed at tick 0\n" +
+				"[Demo] Demo Skipping: skipping to demo tick 0 (game tick 2735) from full packet 1 (2736).  Current playback is 1 (2736)\n" +
+				"[Demo] Demo Skipping finished at tick 0\n" +
+				"ResetBreakpadAppId: Universe is 1 (k_EUniversePublic)\n",
 		},
 	}
 	for _, tc := range cases {

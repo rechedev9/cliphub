@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/demostart"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -71,6 +72,17 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 	return !strings.Contains(text, networkDisconnectMarker) &&
 		!strings.Contains(text, playbackEndedMarker) &&
 		!strings.Contains(text, unplayableStartPrefix)
+}
+
+// tickZeroCopyCanHelp reports a CS2 crash in its opening rewind to demo tick 0
+// on a demo that opens at demo tick 1. The same demo crashes on every relaunch,
+// but a copy that already starts at tick 0 has no rewind to crash in.
+func tickZeroCopyCanHelp(runErr error, result recording.RecordingResult, demoPath string) bool {
+	if runErr == nil || !strings.Contains(runErr.Error()+"\n"+result.Error, unplayableStartPrefix) {
+		return false
+	}
+	_, err := demostart.TickOneOffsets(demoPath)
+	return err == nil
 }
 
 // recordFailureReason condenses a noisy recorder run error into a concise

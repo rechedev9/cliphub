@@ -706,7 +706,7 @@ func commandBoolFlags(commandName string) []string {
 	case `"compose final"`:
 		return []string{"--dry-run"}
 	case `"record"`:
-		return []string{"--dry-run", "--fake", "--portrait-safe-killfeed"}
+		return []string{"--dry-run", "--fake", "--portrait-safe-killfeed", "--tick0-demo-copy"}
 	case `"shorts render"`:
 		return []string{
 			"--audio-normalize",

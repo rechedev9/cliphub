@@ -6,6 +6,10 @@ import (
 	"github.com/rechedev9/cliphub/internal/obs"
 )
 
+// recorderExitUnplayableStart is cmd/zv-recorder's exitUnplayableStart: CS2
+// crashed in its playdemo rewind to tick 0. Keep the two integers in sync.
+const recorderExitUnplayableStart = 8
+
 // recordShortFailure records a failed `zv short` stage to the local obs journal.
 // It is best-effort: observability must never block or fail the CLI, so any
 // recorder error is ignored.
@@ -50,8 +54,7 @@ func shortStageClass(binary string, code int) (stage, class string) {
 		if code == 7 {
 			return obs.StageRecord, "demo_incompatible"
 		}
-		// Exit code 8 is cmd/zv-recorder's exitUnplayableStart.
-		if code == 8 {
+		if code == recorderExitUnplayableStart {
 			return obs.StageRecord, "unplayable_start"
 		}
 		return obs.StageRecord, "record_failed"

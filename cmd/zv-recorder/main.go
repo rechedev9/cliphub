@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/demostart"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -75,6 +76,7 @@ func run() (retErr error) {
 		dryRun               = flag.Bool("dry-run", false, "generate plan and script without launching HLAE")
 		format               = flag.String("format", "text", "result summary format: text or json")
 		fake                 = flag.Bool("fake", false, "generate placeholder segment clips instead of launching HLAE/CS2 (e2e/CI)")
+		tick0DemoCopy        = flag.Bool("tick0-demo-copy", false, "play a copy of --demo whose first Packet and FullPacket sit at demo tick 0, for a demo whose playdemo rewind crashes CS2")
 		timeout              = flag.Duration("timeout", 15*time.Minute, "maximum duration to wait for CS2")
 	)
 	flag.Parse()
@@ -250,6 +252,19 @@ func run() (retErr error) {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	launchPlan := plan
+	if *tick0DemoCopy {
+		var removeCopy func()
+		launchPlan, removeCopy, err = prepareTickZeroCopy(plan)
+		if err != nil {
+			result.Error = err.Error()
+			_ = writeResult(plan.OutputDir, result)
+			return err
+		}
+		defer removeCopy()
+		perfRun.TickZeroDemoCopy = true
+		log.Printf("playing a copy of the demo whose first snapshot starts at demo tick 0")
+	}
 
 	// CS2 must record in a real window: the player's own video settings
 	// (fullscreen / borderless) override the -windowed launch flag and turn the
@@ -319,7 +334,7 @@ func run() (retErr error) {
 
 	perfRun.PrepareMS = elapsedMilliseconds(runStarted)
 	captureStarted := time.Now()
-	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken, trace); err != nil {
+	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, launchPlan, scriptPath, attestationToken, trace); err != nil {
 		perfRun.LaunchAndCaptureMS = elapsedMilliseconds(captureStarted)
 		stopIncrementalMux()
 		result.Error = err.Error()
@@ -994,7 +1009,17 @@ type cs2ConsoleLogMonitor struct {
 	armedAtZero      bool
 	sawSeekLanded    bool
 	sawResetBreakpad bool
+	sawRewindStart   bool
+	sawRewindEnd     bool
+	sawRecordStart   bool
 }
+
+// CS2 logs its mandatory playdemo rewind with these lines. A tick never has a
+// leading zero, so "tick 0" cannot match a later seek.
+const (
+	rewindStartMarker = "Demo Skipping: skipping to demo tick 0 "
+	rewindEndMarker   = "Demo Skipping finished at tick 0"
+)
 
 func prepareCS2ConsoleLog(path string) error {
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
@@ -1148,6 +1173,15 @@ func (m *cs2ConsoleLogMonitor) consumePlayabilitySignals(chunk string) {
 	if strings.Contains(chunk, "[zackvideo] seek-landed") {
 		m.sawSeekLanded = true
 	}
+	if strings.Contains(chunk, rewindStartMarker) {
+		m.sawRewindStart = true
+	}
+	if strings.Contains(chunk, rewindEndMarker) {
+		m.sawRewindEnd = true
+	}
+	if strings.Contains(chunk, ": mirv_streams record start") {
+		m.sawRecordStart = true
+	}
 	for _, line := range strings.Split(chunk, "\n") {
 		match := armedMarker.FindStringSubmatch(strings.TrimSpace(line))
 		if match != nil && match[1] == "0" {
@@ -1156,16 +1190,45 @@ func (m *cs2ConsoleLogMonitor) consumePlayabilitySignals(chunk string) {
 	}
 }
 
+// unplayableStart reports a crash during the opening rewind. The HLAE script
+// can arm on either side of that rewind (tick 0 or 1), so the rewind lines
+// CS2 logs decide when present: begun and never finished. A crash after a
+// segment began recording happened later, whatever a CS2 build logs.
 func (m *cs2ConsoleLogMonitor) unplayableStart() bool {
-	return m.armedAtZero && !m.sawSeekLanded && m.sawResetBreakpad
+	inRewind := (m.armedAtZero || m.sawRewindStart) && !m.sawRewindEnd
+	return inRewind && !m.sawSeekLanded && !m.sawRecordStart && m.sawResetBreakpad
 }
 
+// unplayableStartError is a crash in the opening rewind, or a failure to write
+// the tick-0 copy meant to avoid it (copyErr), which leaves the same verdict.
 type unplayableStartError struct {
-	path string
+	path    string
+	copyErr error
 }
 
 func (e *unplayableStartError) Error() string {
+	if e.copyErr != nil {
+		return fmt.Sprintf("unplayable_start: CS2 crashed rewinding playdemo to tick 0 and the tick-0 demo copy could not be written: %v", e.copyErr)
+	}
 	return fmt.Sprintf("unplayable_start: CS2 crashed rewinding playdemo to tick 0; check CS2 console log %q", e.path)
+}
+
+// prepareTickZeroCopy writes the tick-0 copy beside the demo, on the volume
+// that already holds it, and returns the plan CS2 launches with. The returned
+// plan differs only in DemoPath, so the result keeps the SHA-bound original.
+func prepareTickZeroCopy(plan recording.RecordingPlan) (recording.RecordingPlan, func(), error) {
+	dir, err := os.MkdirTemp(filepath.Dir(plan.DemoPath), "zv-demo-tick0-*")
+	if err != nil {
+		return plan, nil, &unplayableStartError{copyErr: err}
+	}
+	remove := func() { _ = os.RemoveAll(dir) }
+	launch := plan
+	launch.DemoPath = filepath.Join(dir, filepath.Base(plan.DemoPath))
+	if err := demostart.WriteTickZeroCopy(plan.DemoPath, launch.DemoPath); err != nil {
+		remove()
+		return plan, nil, &unplayableStartError{copyErr: err}
+	}
+	return launch, remove, nil
 }
 
 type captureVerificationError struct {

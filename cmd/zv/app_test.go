@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,11 @@ type fakeRunner struct {
 }
 
 func TestMain(m *testing.M) {
+	// A child of the test binary that only exits with a code gives tests a
+	// real *exec.ExitError (see exitErrorWithCode).
+	if code, err := strconv.Atoi(os.Getenv("ZV_TEST_EXIT_CODE")); err == nil {
+		os.Exit(code)
+	}
 	if os.Getenv("ZV_FAKE_SUBCOMMAND") == "1" {
 		os.Exit(runFakeSubcommand())
 	}

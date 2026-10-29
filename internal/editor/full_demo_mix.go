@@ -454,6 +454,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 			return nil, err
 		}
 		command = append(command, "-i", video)
+		tailPad = fullDemoBumperTailPad(short.FullDemo.BumperPads, item.Reason)
 		if evidence.HasAudio {
 			audio = sampleWindow("[0:a]", 0, samples, 1, "a")
 		} else {

@@ -244,12 +244,15 @@ type RecordingPerformance struct {
 	Runs    []RecordingRunPerformance `json:"runs"`
 }
 
-// RecordingRunPerformance contains elapsed timings for one recorder process.
-// IncrementalMuxMS can overlap LaunchAndCaptureMS and must not be added to
-// BeforeResultWriteMS.
+// RecordingRunPerformance describes one recorder process: its segments and
+// stream, and elapsed timings. IncrementalMuxMS can overlap LaunchAndCaptureMS
+// and must not be added to BeforeResultWriteMS.
 type RecordingRunPerformance struct {
-	CaptureSegmentIDs   []string                      `json:"capture_segment_ids"`
-	Stream              StreamConfig                  `json:"stream"`
+	CaptureSegmentIDs []string     `json:"capture_segment_ids"`
+	Stream            StreamConfig `json:"stream"`
+	// TickZeroDemoCopy marks a run where CS2 played the demo copy whose first
+	// Packet and FullPacket sit at demo tick 0, not the SHA-bound original.
+	TickZeroDemoCopy    bool                          `json:"tick_zero_demo_copy,omitempty"`
 	PrepareMS           int64                         `json:"prepare_ms,omitempty"`
 	LaunchAndCaptureMS  int64                         `json:"launch_and_capture_ms,omitempty"`
 	IncrementalMuxMS    int64                         `json:"incremental_mux_ms,omitempty"`

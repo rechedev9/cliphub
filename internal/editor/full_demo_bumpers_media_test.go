@@ -3,15 +3,44 @@ package editor
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/recording"
 )
+
+func TestFullDemoBumperTooShortFailsBeforeAnyItemEncodes(t *testing.T) {
+	mediaTest(t)
+	ffmpeg := fullDemoTestFFmpeg(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	short, _, _ := bumperShort(t)
+	short.fullDemo.ffmpeg = ffmpeg
+	for i, frames := range []int{60, 50} {
+		name := filepath.Join(dir, fmt.Sprintf("bumper-%d.mp4", i))
+		command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=navy:s=320x180:r=60:d=1", "-vf", fmt.Sprintf("trim=end_frame=%d", frames), "-c:v", "libx264", "-preset", "ultrafast", name}
+		if _, err := runFFmpegOutput(ctx, command, "bumper source"); err != nil {
+			t.Fatal(err)
+		}
+		short.fullDemo.execution.Assets[i].Path = name
+	}
+	d := &short.FullDemo.Effective
+	for i := range d.Timeline {
+		d.Timeline[i].StartFrame, d.Timeline[i].EndFrame = int64(i*60), int64((i+1)*60)
+	}
+	err := measureFullDemoBumpers(ctx, &short)
+	if err == nil || !strings.Contains(err.Error(), "full_demo_asset_invalid: the outro video has 50 frames at 60 fps but the plan needs 60") {
+		t.Fatalf("measureFullDemoBumpers() = %v, want the outro named with its 10-frame shortfall", err)
+	}
+}
 
 func TestFullDemoBumperTransitionsRenderWithRoundEffectsOff(t *testing.T) {
 	mediaTest(t)
@@ -27,9 +56,12 @@ func TestFullDemoBumperTransitionsRenderWithRoundEffectsOff(t *testing.T) {
 	short.VideoPreset, short.VideoCRF, short.Threads = "ultrafast", 18, 2
 	short.Output, short.DurationSeconds = filepath.Join(dir, "bumpers.mp4"), 3
 	short.fullDemo.ffmpeg, short.fullDemo.workDir = ffmpeg, filepath.Join(dir, "prepared")
+	// Like real uploads, the intro video starts late and both bumper videos end
+	// a frame before the 60 frames their one-second containers plan.
+	videoOffsets, videoFilters := []string{"0.016", "0", "0"}, []string{"trim=end_frame=59", "null", "trim=end_frame=59"}
 	for i, color := range []string{"navy", "maroon", "green"} {
 		name := filepath.Join(dir, color+".mp4")
-		command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=" + color + ":s=320x180:r=60:d=1", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=1", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", name}
+		command := []string{ffmpeg, "-y", "-v", "error", "-itsoffset", videoOffsets[i], "-f", "lavfi", "-i", "color=c=" + color + ":s=320x180:r=60:d=1", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=1", "-vf", videoFilters[i], "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", name}
 		if _, err := runFFmpegOutput(ctx, command, "bumper source"); err != nil {
 			t.Fatal(err)
 		}
@@ -47,6 +79,16 @@ func TestFullDemoBumperTransitionsRenderWithRoundEffectsOff(t *testing.T) {
 		}
 	}
 	if err := prepareFullDemoCompilation(ctx, &short, nil); err != nil {
+		t.Fatal(err)
+	}
+	wantPads := []FullDemoBumperPad{
+		{Reason: d.Timeline[0].Reason, VideoFrames: 59, PlannedFrames: 60, PaddedFrames: 1},
+		{Reason: d.Timeline[2].Reason, VideoFrames: 59, PlannedFrames: 60, PaddedFrames: 1},
+	}
+	if !slices.Equal(short.FullDemo.BumperPads, wantPads) {
+		t.Fatalf("bumper pads = %+v, want %+v", short.FullDemo.BumperPads, wantPads)
+	}
+	if err := validateFullDemoBumperPads(short.FullDemo.BumperPads, *d); err != nil {
 		t.Fatal(err)
 	}
 	if len(short.FullDemo.Transitions) != 2 || short.FullDemo.Transitions[0].Frame != 60 || short.FullDemo.Transitions[1].Frame != 120 {
