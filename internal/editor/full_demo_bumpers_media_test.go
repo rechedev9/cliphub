@@ -27,9 +27,12 @@ func TestFullDemoBumperTransitionsRenderWithRoundEffectsOff(t *testing.T) {
 	short.VideoPreset, short.VideoCRF, short.Threads = "ultrafast", 18, 2
 	short.Output, short.DurationSeconds = filepath.Join(dir, "bumpers.mp4"), 3
 	short.fullDemo.ffmpeg, short.fullDemo.workDir = ffmpeg, filepath.Join(dir, "prepared")
+	// Like real uploads, the intro video starts late and both bumper videos end
+	// a frame before the 60 frames their one-second containers plan.
+	videoOffsets, videoFilters := []string{"0.016", "0", "0"}, []string{"trim=end_frame=59", "null", "trim=end_frame=59"}
 	for i, color := range []string{"navy", "maroon", "green"} {
 		name := filepath.Join(dir, color+".mp4")
-		command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=" + color + ":s=320x180:r=60:d=1", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=1", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", name}
+		command := []string{ffmpeg, "-y", "-v", "error", "-itsoffset", videoOffsets[i], "-f", "lavfi", "-i", "color=c=" + color + ":s=320x180:r=60:d=1", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=1", "-vf", videoFilters[i], "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", name}
 		if _, err := runFFmpegOutput(ctx, command, "bumper source"); err != nil {
 			t.Fatal(err)
 		}
