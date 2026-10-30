@@ -48,5 +48,7 @@ It does not replace the manual check above. Unit tests are welcome where they te
 Bump `desktop/package.json` and `landing/app/page.tsx` (`DOWNLOAD_URL`, `RELEASE_VERSION`), commit
 `chore(release): prepare Studio X.Y.Z`, then push an annotated tag `vX.Y.Z` ("ClipHub Studio X.Y.Z").
 `desktop-release.yml` publishes the GitHub Release as `latest`, which is what the in-app updater reads.
+To prove a release before tagging, run it by hand from `main` (`gh workflow run desktop-release.yml`):
+`dry_run` defaults to true, so it runs the checks and builds the installer without publishing.
 
 Domain rules and incident history (HLAE pin, Full Demo audio, telemetry): `docs/incidents.md`.

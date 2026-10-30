@@ -5,6 +5,10 @@ name: Desktop release
 on:
   workflow_dispatch:
     inputs:
+      dry_run:
+        description: Run the checks and build the installer without publishing
+        type: boolean
+        default: true
       notes:
         description: Optional release notes. Empty uses the unsigned-installer default.
         required: false
@@ -179,6 +183,8 @@ jobs:
 
   publish:
     needs: [checks, windows-installer]
+    # A manual run is a dry run unless dry_run is unticked; a tag push always publishes.
+    if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # The release environment only accepts main and v* tags (repo Settings → Environments).

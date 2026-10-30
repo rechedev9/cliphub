@@ -81,6 +81,15 @@ test('a release publishes only after the checks pass', () => {
   assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 
+test('a manual run is a dry run by default', () => {
+  assert.match(workflow, /dry_run:\n(?: {8}.*\n)*? {8}default: true/, 'dry_run must default to true');
+  assert.match(
+    jobs.publish,
+    /if: github\.event_name == 'push' \|\| inputs\.dry_run == false/,
+    'publish must skip a dry run',
+  );
+});
+
 test('only the publish job can write releases', () => {
   assert.match(workflow, /^permissions: \{\}$/m, 'the workflow default token must have no scope');
 
