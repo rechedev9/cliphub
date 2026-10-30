@@ -62,8 +62,23 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
   );
 });
 
-test('desktop release workflow builds on windows and publishes in a separate job', () => {
-  assert.deepEqual(Object.keys(jobs), ['windows-installer', 'publish']);
+test('desktop release workflow checks, builds on windows and publishes in a separate job', () => {
+  assert.deepEqual(Object.keys(jobs), ['checks', 'windows-installer', 'publish']);
+});
+
+test('a release publishes only after the checks pass', () => {
+  const checks = jobs.checks;
+  assert.match(checks, /contents: read/);
+  assert.doesNotMatch(checks, /contents: write/);
+  for (const command of ['go vet ./...', 'go test -short ./...', 'go run ./cmd/zv check']) {
+    assert.ok(checks.includes(command), `checks must run ${command}`);
+  }
+  for (const pkg of ['web', 'desktop']) {
+    for (const script of ['typecheck', 'lint', 'test:unit']) {
+      assert.ok(checks.includes(`pnpm --dir ${pkg} run ${script}`), `checks must run ${pkg} ${script}`);
+    }
+  }
+  assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 
 test('only the publish job can write releases', () => {
@@ -75,7 +90,6 @@ test('only the publish job can write releases', () => {
   assert.doesNotMatch(build, /gh release/, 'the build job must not publish');
 
   const publish = jobs.publish;
-  assert.match(publish, /needs: windows-installer/);
   assert.match(publish, /environment: release/, 'publish must run inside the protected release environment');
   assert.match(publish, /contents: write/);
   assert.deepEqual(
@@ -84,4 +98,10 @@ test('only the publish job can write releases', () => {
     'publish must not check out or run project code',
   );
   assert.doesNotMatch(publish, /^\s*(?:run: )?(?:pnpm|npm|npx|node|bun|go) /m, 'publish must not run project code');
+});
+
+test('every action in the release workflow is pinned to a full commit SHA', () => {
+  for (const [, ref] of workflow.matchAll(/uses:\s*(\S+)/g)) {
+    assert.match(ref, /@[0-9a-f]{40}$/, `${ref} must be pinned by SHA`);
+  }
 });

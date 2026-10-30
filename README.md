@@ -1,7 +1,5 @@
 # ClipHub 🎬: Counter-Strike 2 demo in, edited video out
 
-[![CI backend](https://img.shields.io/github/actions/workflow/status/rechedev9/cliphub/ci-backend.yml?branch=main&style=flat-square&label=ci%20backend)](https://github.com/rechedev9/cliphub/actions/workflows/ci-backend.yml)
-[![CI frontend](https://img.shields.io/github/actions/workflow/status/rechedev9/cliphub/ci-frontend.yml?branch=main&style=flat-square&label=ci%20frontend)](https://github.com/rechedev9/cliphub/actions/workflows/ci-frontend.yml)
 [![Release](https://img.shields.io/github/v/release/rechedev9/cliphub?style=flat-square)](https://github.com/rechedev9/cliphub/releases/latest)
 [![Go](https://img.shields.io/github/go-mod/go-version/rechedev9/cliphub?style=flat-square)](go.mod)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square)
@@ -106,7 +104,7 @@ pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run te
 pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir desktop run test:unit
 ```
 
-`make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. CI runs on pushes to `main`, on version tags and nightly, not on pull requests, so run the checks for what you touched. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
+`make test` runs the Go tests and `zv check`; `make build` builds the binaries. A few Full Demo editor tests depend on the FFmpeg version, and Studio ships FFmpeg 8.1.2. There is no CI on pushes or pull requests; the release workflow runs the checks before it publishes, so run the checks for what you touched before you push. [AGENTS.md](AGENTS.md) describes how to verify a change by hand in the real app.
 
 ## Releases
 
