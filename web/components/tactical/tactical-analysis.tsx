@@ -13,6 +13,7 @@ import type {
   TacticalDocument,
   TacticalFilter,
   TacticalFrame,
+  TacticalSource,
   TacticalTendencies,
 } from '@/lib/api/tactical';
 import {
@@ -24,6 +25,7 @@ import {
 import type { PositionsScale } from '@/lib/tactical-decode';
 import { LruCache } from '@/lib/lru-cache';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
+import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
@@ -31,6 +33,17 @@ import { TacticalReplay } from '@/components/tactical/tactical-replay';
 import { TacticalRoundList } from '@/components/tactical/tactical-round-list';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
+import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
+
+/** How the filtered rounds are read: one at a time, overlaid, or as heatmaps. */
+type AnalysisMode = 'round' | 'overlay' | 'heatmap';
+
+const MODES: readonly { value: AnalysisMode; label: string }[] = [
+  { value: 'round', label: 'Ronda a ronda' },
+  { value: 'overlay', label: 'Superponer rondas' },
+  { value: 'heatmap', label: 'Mapas de calor' },
+];
 
 /** The document and the position bytes it describes, loaded once per demo. */
 type LoadedAnalysis = { doc: TacticalDocument; blob: ArrayBuffer; scale: PositionsScale };
@@ -59,19 +72,26 @@ function errorMessage(error: unknown): string {
 
 class UserFacingTacticalError extends Error {}
 
+function positiveIntParam(raw: string | null): number | null {
+  if (raw === null || !/^[0-9]{1,9}$/.test(raw)) return null;
+  const value = Number(raw);
+  return value > 0 ? value : null;
+}
+
 /**
  * The ready workspace: the round index, the 2D replay and the tendencies of one
  * analysed demo.
  *
  * The position blob is fetched once, in parallel with the document, and every
  * round is decoded out of those same bytes through its recorded offset — so
- * changing round is a seek, never another request.
+ * changing round is a seek, never another request. `?round=` and `?tick=` open
+ * it on the round and moment a number elsewhere links to.
  */
 export function TacticalAnalysis({
-  jobId,
+  source,
   generatedAt,
 }: {
-  jobId: string;
+  source: TacticalSource;
   generatedAt: string;
 }): ReactNode {
   const router = useRouter();
@@ -83,12 +103,23 @@ export function TacticalAnalysis({
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
   const [tendenciesError, setTendenciesError] = useState<string | null>(null);
+  const [mode, setMode] = useState<AnalysisMode>('round');
   // Keep nearby rounds hot without retaining a whole match as JS objects.
   // Evicted rounds are decoded again from the already verified local blob.
   const frameCache = useRef(new LruCache<number, TacticalFrame[]>(4));
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
   const filterQuery = tacticalFilterToQuery(filter);
+  const linkedRound = positiveIntParam(searchParams.get(TACTICAL_EVIDENCE_QUERY.round));
+  const linkedTick = positiveIntParam(searchParams.get(TACTICAL_EVIDENCE_QUERY.tick));
+  const { kind: sourceKind, id: sourceId } = source;
+
+  useEffect(() => {
+    if (linkedRound === null) return;
+    setSelectedRound(linkedRound);
+    // An evidence link names one round and tick, which only the round replay shows.
+    setMode('round');
+  }, [linkedRound, linkedTick]);
 
   useEffect(() => {
     let active = true;
@@ -97,10 +128,8 @@ export function TacticalAnalysis({
     void (async () => {
       try {
         // Independent requests: the index and its sidecar always travel together.
-        const [doc, blob] = await Promise.all([
-          fetchTacticalDocument(jobId),
-          fetchTacticalPositions(jobId),
-        ]);
+        const from: TacticalSource = { kind: sourceKind, id: sourceId };
+        const [doc, blob] = await Promise.all([fetchTacticalDocument(from), fetchTacticalPositions(from)]);
         if (await positionsAreStale(doc, blob)) {
           throw new UserFacingTacticalError(
             'Las posiciones no coinciden con el índice (SHA-256 distinto): el análisis está desfasado y hay que repetirlo.',
@@ -117,7 +146,7 @@ export function TacticalAnalysis({
     return () => {
       active = false;
     };
-  }, [jobId]);
+  }, [sourceKind, sourceId]);
 
   useEffect(() => {
     let active = true;
@@ -125,7 +154,10 @@ export function TacticalAnalysis({
 
     void (async () => {
       try {
-        const next = await fetchTacticalTendencies(jobId, tacticalFilterFromQuery(new URLSearchParams(filterQuery)));
+        const next = await fetchTacticalTendencies(
+          { kind: sourceKind, id: sourceId },
+          tacticalFilterFromQuery(new URLSearchParams(filterQuery)),
+        );
         if (active) setTendencies(next);
       } catch (error) {
         if (!active) return;
@@ -137,7 +169,7 @@ export function TacticalAnalysis({
     return () => {
       active = false;
     };
-  }, [jobId, filterQuery]);
+  }, [sourceKind, sourceId, filterQuery]);
 
   const applyFilter = useCallback(
     (next: TacticalFilter) => {
@@ -212,16 +244,41 @@ export function TacticalAnalysis({
         total={loaded.doc.rounds.length}
       />
 
-      <div className="grid gap-6 sm:gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:items-start">
-        <TacticalRoundList
-          doc={loaded.doc}
-          rounds={rounds}
-          filter={filter}
-          selected={round?.number ?? null}
-          onSelect={setSelectedRound}
+      {sourceKind === 'library' ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} />
+          {mode === 'round' ? null : (
+            <p className="text-body-sm text-fg-3">
+              {rounds.length} {rounds.length === 1 ? 'ronda filtrada' : 'rondas filtradas'}, sincronizadas desde el final del tiempo de compra.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {sourceKind === 'library' && mode !== 'round' ? (
+        <SpatialWorkspace
+          scope={{ kind: 'match', matchId: sourceId, filter: filterQuery }}
+          view={mode}
+          hideViewSwitch
         />
-        <TacticalReplay doc={loaded.doc} round={round} frames={frames} />
-      </div>
+      ) : (
+        <div className="grid gap-6 sm:gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:items-start">
+          <TacticalRoundList
+            doc={loaded.doc}
+            rounds={rounds}
+            filter={filter}
+            selected={round?.number ?? null}
+            onSelect={setSelectedRound}
+          />
+          <TacticalReplay
+            doc={loaded.doc}
+            round={round}
+            frames={frames}
+            startTick={round !== undefined && round.number === linkedRound ? (linkedTick ?? undefined) : undefined}
+            notesMatchId={sourceKind === 'library' ? sourceId : undefined}
+          />
+        </div>
+      )}
 
       <TacticalTendenciesPanel
         tendencies={tendencies}

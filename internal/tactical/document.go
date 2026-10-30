@@ -83,6 +83,7 @@ func (s *scanner) finish() (Result, error) {
 		RegulationEnded: s.regulationEndRound(),
 	}
 	doc.Warnings = s.warnings
+	doc.UtilityEffects = true
 	return Result{Document: doc, Positions: blob}, nil
 }
 
@@ -152,16 +153,10 @@ func (s *scanner) documentTeams(remap map[uint8]uint8) []tacticalplan.Team {
 func (s *scanner) teamDisplayName(acc *teamAcc) string {
 	// Clan names are read from the side a team was on in the first half, which
 	// is the half the key is defined by.
-	side := acc.startSide
-	for team, name := range s.clanNames {
-		if sideOf(team) == side && name != "" {
-			return name
-		}
+	if name := s.clanNames[acc.startSide]; name != "" {
+		return name
 	}
-	if side == tacticalplan.SideCT {
-		return "CT start"
-	}
-	return "T start"
+	return tacticalplan.FallbackTeamName(acc.startSide)
 }
 
 func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.Round {
@@ -189,9 +184,12 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 	}
 
 	openingSlot, openingDeathSlot, openingTick, openingSide, openingTraded := openingDuel(acc)
+	acc.events = tacticalplan.DropRepeatedUtility(acc.events)
+	attachUtilityEffects(acc.events, acc.utilityHits, s.tickrateOrDefault())
 	for _, ev := range acc.events {
 		ev.ActorSlot = remapSlotPtr(ev.ActorSlot, remap)
 		ev.TargetSlot = remapSlotPtr(ev.TargetSlot, remap)
+		ev.Effect = remapEffect(ev.Effect, remap)
 		if ev.Kind == tacticalplan.EventKill && ev.Tick == openingTick {
 			ev.Opening = true
 		}

@@ -31,7 +31,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
-import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_STEPS, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
+import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
 import { MapCover } from '@/components/brand/map-cover';
@@ -42,7 +42,7 @@ import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioBackLink } from '@/components/studio/back-link';
-import { WorkflowProgress } from '@/components/studio/workflow-progress';
+import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -444,7 +444,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     <div className="measure-list flex flex-col gap-5">
       {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
-      <WorkflowProgress steps={FLOW_STEPS[format]} current={progressStep} />
+      <CreateFlowSteps flow={format} step={progressStep} />
       {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div

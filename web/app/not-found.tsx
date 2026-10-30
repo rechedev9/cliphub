@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
 
@@ -30,7 +31,7 @@ export default function NotFound(): ReactElement {
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         <Button asChild size="lg">
-          <Link href="/resultados">Ir a Resultados</Link>
+          <Link href={RESULTS_HREF}>Ir a Mis vídeos</Link>
         </Button>
       </div>
     </main>

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
@@ -102,5 +103,26 @@ func writeCatalog(t *testing.T, dir, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "de_ancient.smokes.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMatchLandingIgnoresTheThrowAndLoadFSReadsTheRoot(t *testing.T) {
+	fsys := fstest.MapFS{
+		"de_mirage.smokes.json": {Data: []byte(`{"map":"de_mirage","smokes":[{"id":"mirage-ct","destination":"CT","landing":[0,0,0],"landing_radius":50,"throw":[900,900,0],"throw_radius":10}]}`)},
+		"notes.txt":             {Data: []byte("not a catalog")},
+	}
+	catalog, err := LoadFS(fsys)
+	if err != nil {
+		t.Fatalf("LoadFS error = %v", err)
+	}
+	if catalog.MapSize("DE_MIRAGE") != 1 || catalog.MapSize("de_nuke") != 0 {
+		t.Fatalf("MapSize = %d / %d", catalog.MapSize("de_mirage"), catalog.MapSize("de_nuke"))
+	}
+	match, ok := catalog.MatchLanding("de_mirage", [3]float64{25, 0, 0})
+	if !ok || match.ID != "mirage-ct" || match.Confidence != 0.5 {
+		t.Fatalf("MatchLanding = %+v, %v; want the CT smoke at half confidence", match, ok)
+	}
+	if _, ok := catalog.MatchSmoke("de_mirage", killplan.UtilityThrow{Type: "smokegrenade", LandingPos: [3]float64{25, 0, 0}}); ok {
+		t.Fatal("MatchSmoke ok = true with a throw far from the lineup, want false")
 	}
 }

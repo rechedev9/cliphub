@@ -15,10 +15,10 @@ import {
   isStreamURLValidationError,
 } from '@/lib/streams/plan';
 import { streamImportErrorMessage, streamSourceUrlError } from '@/lib/streams/import';
-import { STREAM_WORKFLOW_STEPS } from '@/lib/streams/editor';
+import { CREATE_FLOW } from '@/lib/produce/create-flow';
 import Link from 'next/link';
 import { SHORTS_HREF } from '@/lib/clips/routes';
-import { WorkflowProgress } from '@/components/studio/workflow-progress';
+import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { StreamListRow } from '@/components/streams/stream-list-row';
@@ -128,7 +128,7 @@ export default function StreamsPage(): ReactNode {
   }
 
   return (
-    <div data-streams-home className="measure-work flex flex-col gap-6">
+    <div className="measure-work flex flex-col gap-6">
       <StudioPageHeader
         title="Clips de stream"
         actions={(
@@ -152,11 +152,7 @@ export default function StreamsPage(): ReactNode {
         </div>
       ) : null}
 
-      <WorkflowProgress
-        steps={STREAM_WORKFLOW_STEPS}
-        current={0}
-        variant="connected"
-      />
+      <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} />
       <StreamSourcePanel
         sourceUrl={sourceUrl}
         title={title}

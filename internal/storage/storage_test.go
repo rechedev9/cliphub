@@ -282,3 +282,31 @@ func TestLocalAllowsDotsInsideFileName(t *testing.T) {
 		t.Fatalf("Put with dots in file name error = %v", err)
 	}
 }
+
+func TestLocalLinkKeepsEachKeyIndependent(t *testing.T) {
+	store, err := NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocal error = %v", err)
+	}
+	want := []byte("demo bytes")
+	if err := store.Put("demos/job.dem", bytes.NewReader(want)); err != nil {
+		t.Fatalf("Put error = %v", err)
+	}
+	if err := store.Link("demos/job.dem", "library/demo/demo.dem"); err != nil {
+		t.Fatalf("Link error = %v", err)
+	}
+	if err := store.Delete("demos/job.dem"); err != nil {
+		t.Fatalf("Delete error = %v", err)
+	}
+	rc, err := store.Open("library/demo/demo.dem")
+	if err != nil {
+		t.Fatalf("Open linked key error = %v", err)
+	}
+	defer rc.Close()
+	if got, _ := io.ReadAll(rc); !bytes.Equal(got, want) {
+		t.Fatalf("linked key holds %q, want %q", got, want)
+	}
+	if err := store.Link("demos/missing.dem", "library/other/demo.dem"); err == nil {
+		t.Fatal("Link of a missing key succeeded, want an error")
+	}
+}

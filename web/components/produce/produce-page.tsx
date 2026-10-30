@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
-import { flowHref, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
+import { flowHref, parseRoundsParam, PRODUCE_FORMAT, PRODUCE_QUERY, seriesHref, type ProduceFormat } from '@/lib/clips/routes';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import {
   MATCH_PLAYS_ANALYZING_DESCRIPTION,
@@ -17,7 +17,6 @@ import {
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
-  FLOW_STEPS,
   FLOW_TITLE,
   PRODUCE_MATCH_MISSING,
   PRODUCE_MATCH_NO_POV,
@@ -35,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { WorkflowProgress } from '@/components/studio/workflow-progress';
+import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
 
@@ -52,6 +51,7 @@ export type ProducePageQuery = Record<string, string | string[] | undefined>;
 export function ProducePage({ id, format, query }: { id: string; format: ProduceFormat; query: ProducePageQuery }): ReactNode {
   const series = query[PRODUCE_QUERY.series];
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
+  const focusRounds = parseRoundsParam(query[PRODUCE_QUERY.rounds]);
   const router = useRouter();
 
   const [match, setMatch] = useState<Match | null>(null);
@@ -211,7 +211,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   } else if (format === PRODUCE_FORMAT.full) {
     body = (
       <FullPovProducer active matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
-        recBusy={recBusy} seriesId={seriesId} />
+        recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} />
     );
   } else {
     const shortUnavailable = plays.length === 0;
@@ -224,7 +224,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
         {shortPlanJobId === id ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} />
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} focusRounds={focusRounds} />
           </div>
         ) : null}
       </>
@@ -239,7 +239,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
       <StudioBackLink href={backHref}>{backLabel}</StudioBackLink>
       {producible ? (
         <div className="mb-2">
-          <WorkflowProgress steps={FLOW_STEPS[format]} current={workflowStep(stage)} />
+          <CreateFlowSteps flow={format} step={workflowStep(stage)} />
         </div>
       ) : null}
       <div className="flex flex-1 flex-col gap-3 pt-2">

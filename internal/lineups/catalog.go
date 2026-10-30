@@ -3,9 +3,9 @@ package lineups
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -35,12 +35,18 @@ type SmokeLineup struct {
 }
 
 func LoadDir(dir string) (Catalog, error) {
-	catalog := Catalog{byMap: map[string][]SmokeLineup{}}
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
-		return catalog, nil
+		return Catalog{byMap: map[string][]SmokeLineup{}}, nil
 	}
-	entries, err := os.ReadDir(dir)
+	return LoadFS(os.DirFS(dir))
+}
+
+// LoadFS reads every .json catalog file at the root of fsys, such as the
+// catalog embedded in the orchestrator.
+func LoadFS(fsys fs.FS) (Catalog, error) {
+	catalog := Catalog{byMap: map[string][]SmokeLineup{}}
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return Catalog{}, fmt.Errorf("read lineup catalog: %w", err)
 	}
@@ -48,19 +54,18 @@ func LoadDir(dir string) (Catalog, error) {
 		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
 			continue
 		}
-		if err := catalog.loadFile(filepath.Join(dir, entry.Name())); err != nil {
+		b, err := fs.ReadFile(fsys, entry.Name())
+		if err != nil {
+			return Catalog{}, fmt.Errorf("read lineup file %s: %w", entry.Name(), err)
+		}
+		if err := catalog.loadFile(entry.Name(), b); err != nil {
 			return Catalog{}, err
 		}
 	}
 	return catalog, nil
 }
 
-func (c *Catalog) loadFile(path string) error {
-	// #nosec G304 -- lineup catalog files are loaded from a configured local catalog directory.
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read lineup file %s: %w", path, err)
-	}
+func (c *Catalog) loadFile(path string, b []byte) error {
 	var file catalogFile
 	if err := json.Unmarshal(b, &file); err != nil {
 		return fmt.Errorf("parse lineup file %s: %w", path, err)
@@ -92,6 +97,22 @@ func (c Catalog) MatchSmoke(mapName string, smoke killplan.UtilityThrow) (killpl
 	if smoke.Type != smokeGrenadeType {
 		return killplan.LineupMatch{}, false
 	}
+	return c.match(mapName, smoke.LandingPos, &smoke.ThrowPos)
+}
+
+// MatchLanding matches a smoke by where it landed only, for sources such as the
+// tactical document that do not record the throw position. The throw radius
+// of a lineup is not checked, so the confidence reads the landing alone.
+func (c Catalog) MatchLanding(mapName string, landing [3]float64) (killplan.LineupMatch, bool) {
+	return c.match(mapName, landing, nil)
+}
+
+// MapSize is how many lineups the catalog holds for a map.
+func (c Catalog) MapSize(mapName string) int {
+	return len(c.byMap[normalizeMap(mapName)])
+}
+
+func (c Catalog) match(mapName string, landing [3]float64, throw *[3]float64) (killplan.LineupMatch, bool) {
 	lineups := c.byMap[normalizeMap(mapName)]
 	if len(lineups) == 0 {
 		return killplan.LineupMatch{}, false
@@ -100,13 +121,13 @@ func (c Catalog) MatchSmoke(mapName string, smoke killplan.UtilityThrow) (killpl
 	bestLanding := math.MaxFloat64
 	bestThrow := math.MaxFloat64
 	for _, candidate := range lineups {
-		landingDistance := distance3(smoke.LandingPos, candidate.Landing)
+		landingDistance := distance3(landing, candidate.Landing)
 		if landingDistance > candidate.LandingRadius {
 			continue
 		}
 		throwDistance := 0.0
-		if candidate.ThrowRadius > 0 {
-			throwDistance = distance3(smoke.ThrowPos, candidate.Throw)
+		if throw != nil && candidate.ThrowRadius > 0 {
+			throwDistance = distance3(*throw, candidate.Throw)
 			if throwDistance > candidate.ThrowRadius {
 				continue
 			}
@@ -124,7 +145,7 @@ func (c Catalog) MatchSmoke(mapName string, smoke killplan.UtilityThrow) (killpl
 	if confidence < 0 {
 		confidence = 0
 	}
-	if best.ThrowRadius > 0 {
+	if throw != nil && best.ThrowRadius > 0 {
 		throwConfidence := 1 - bestThrow/best.ThrowRadius
 		if throwConfidence < 0 {
 			throwConfidence = 0

@@ -35,6 +35,7 @@ import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
 import { ShortStoryboard } from './short-storyboard';
 import { roundOrdinals } from '@/lib/produce/round-ordinals';
+import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
 
 const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
@@ -57,14 +58,17 @@ export type ShortProducerProps = {
   plays: Play[];
   /** From a series map card: a finished render returns to the series. */
   seriesId: string | null;
+  /** From the analysis area: the plays of these rounds open selected. */
+  focusRounds?: readonly number[] | null;
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
-  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft(matchId, plays);
+  const focusIds = focusRounds ? playsInRounds(plays, focusRounds) : [];
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft(matchId, plays, focusIds);
   const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume, editConfig } = settings;
   const selectedIds = useMemo(() => new Set(settings.selectedIds), [settings.selectedIds]);
   const [songOpen, setSongOpen] = useState(false);
@@ -173,7 +177,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT }),
       });
       discardDraft();
-      toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Resultados.' });
+      toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
       setCreateError(shortCreateErrorMessage(err));
@@ -182,7 +186,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   }
 
   const musicSummary = songTitle ? `♪ ${songTitle}` : 'Sin música';
-  // A created Short lands in Resultados; from a series map card it returns to the series.
+  // A created Short lands in Mis vídeos; from a series map card it returns to the series.
   const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
   const summary = selectedPlays.length > 0 ? (
     <>
@@ -205,6 +209,13 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         </p>
         <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
         <p className="w-full text-body-sm text-fg-2">Selecciona las jugadas y ajusta el estilo y la música de tu vídeo.</p>
+        {focusRounds && focusRounds.length > 0 ? (
+          <p role="status" className="w-full text-body-sm text-fg-2">
+            {focusIds.length > 0
+              ? `Llegas desde el análisis: van elegidas las jugadas de ${focusRounds.length === 1 ? 'la ronda' : 'las rondas'} ${roundListLabel(focusRounds)}.`
+              : `El jugador no tiene bajas en ${focusRounds.length === 1 ? 'la ronda' : 'las rondas'} ${roundListLabel(focusRounds)}: va la selección automática.`}
+          </p>
+        ) : null}
         {restored ? (
           <p role="status" className="w-full text-body-sm text-fg-3">
             {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
@@ -329,7 +340,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             loading={creating}
             loadingText="Preparando grabación…"
             onClick={() => void onCreate()}
-            className="neon-notch shrink-0 focus-visible:-outline-offset-4"
+            className="shrink-0"
           >
             {PRODUCE_SHORT_CTA}
           </Button>

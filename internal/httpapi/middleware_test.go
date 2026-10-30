@@ -275,6 +275,7 @@ func TestMultipartUploadRoutesIncludeWorkbench(t *testing.T) {
 		{method: http.MethodPost, path: "/ui/jobs"},
 		{method: http.MethodPut, path: "/api/voice-profiles/default"},
 		{method: http.MethodPost, path: "/api/editor/assets"},
+		{method: http.MethodPost, path: "/api/library/demos"},
 	}
 	for _, tt := range tests {
 		req := httptest.NewRequest(tt.method, tt.path, nil)

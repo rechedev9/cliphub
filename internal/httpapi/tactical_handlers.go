@@ -110,19 +110,7 @@ func (h *Handlers) GetTacticalDocument(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rc, err := h.storage.Open(artifacts.TacticalIndexKey(j.ID))
-	if err != nil {
-		if storage.IsNotExist(err) {
-			writeError(w, http.StatusConflict, "tactical analysis is not ready")
-			return
-		}
-		internalError(w, "open tactical document", err)
-		return
-	}
-	defer rc.Close()
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, rc)
+	h.serveTacticalDocument(w, artifacts.TacticalIndexKey(j.ID))
 }
 
 // GetTacticalStatus handles GET /api/jobs/{id}/tactical/status. A job whose
@@ -149,21 +137,61 @@ func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
-// GetTacticalRound handles GET /api/jobs/{id}/tactical/rounds/{round}. It
-// decodes only the requested round's frames out of the position blob, using the
-// byte range the document records for it.
+// GetTacticalRound handles GET /api/jobs/{id}/tactical/rounds/{round}.
 func (h *Handlers) GetTacticalRound(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
+	h.serveTacticalRound(w, r, artifacts.TacticalIndexKey(j.ID), artifacts.TacticalPositionsKey(j.ID))
+}
+
+// GetTacticalPositions handles GET /api/jobs/{id}/tactical/positions.
+func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadJobMeta(w, r)
+	if !ok {
+		return
+	}
+	h.serveTacticalPositions(w, r, artifacts.TacticalPositionsKey(j.ID))
+}
+
+// GetTacticalAggregate handles GET /api/jobs/{id}/tactical/aggregate.
+func (h *Handlers) GetTacticalAggregate(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadJobMeta(w, r)
+	if !ok {
+		return
+	}
+	h.serveTacticalAggregate(w, r, artifacts.TacticalIndexKey(j.ID))
+}
+
+// serveTacticalDocument streams a stored tactical document as the worker
+// wrote it. Jobs and library demos share it, each with its own storage keys.
+func (h *Handlers) serveTacticalDocument(w http.ResponseWriter, indexKey string) {
+	rc, err := h.storage.Open(indexKey)
+	if err != nil {
+		if storage.IsNotExist(err) {
+			writeError(w, http.StatusConflict, "tactical analysis is not ready")
+			return
+		}
+		internalError(w, "open tactical document", err)
+		return
+	}
+	defer rc.Close()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, rc)
+}
+
+// serveTacticalRound decodes only the requested round's frames out of the
+// position blob, using the byte range the document records for it.
+func (h *Handlers) serveTacticalRound(w http.ResponseWriter, r *http.Request, indexKey, positionsKey string) {
 	raw := chi.URLParam(r, "round")
 	number, err := strconv.Atoi(raw)
 	if err != nil || number < 1 {
 		writeError(w, http.StatusBadRequest, "round must be a positive integer")
 		return
 	}
-	doc, exists, err := h.readTacticalDocument(j.ID)
+	doc, exists, err := h.readTacticalDocument(indexKey)
 	if err != nil {
 		internalError(w, "read tactical document", err)
 		return
@@ -177,7 +205,7 @@ func (h *Handlers) GetTacticalRound(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("round %d is not in the tactical document", number))
 		return
 	}
-	frames, err := h.readTacticalRoundFrames(j.ID, doc.Positions, number)
+	frames, err := h.readTacticalRoundFrames(positionsKey, doc.Positions, number)
 	if err != nil {
 		internalError(w, "read tactical round frames", err)
 		return
@@ -185,16 +213,12 @@ func (h *Handlers) GetTacticalRound(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tacticalRoundResponse{Round: round, Frames: frames})
 }
 
-// GetTacticalPositions handles GET /api/jobs/{id}/tactical/positions. The blob
-// is served straight from the storage-resolved artifact: local storage hands
-// out a seekable file, so serveArtifact answers Range requests through
-// http.ServeContent and the orchestrator never buffers the whole stream.
-func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJobMeta(w, r)
-	if !ok {
-		return
-	}
-	rc, err := h.storage.Open(artifacts.TacticalPositionsKey(j.ID))
+// serveTacticalPositions serves the position blob straight from the
+// storage-resolved artifact: local storage hands out a seekable file, so
+// serveArtifact answers Range requests through http.ServeContent and the
+// orchestrator never buffers the whole stream.
+func (h *Handlers) serveTacticalPositions(w http.ResponseWriter, r *http.Request, positionsKey string) {
+	rc, err := h.storage.Open(positionsKey)
 	if err != nil {
 		if storage.IsNotExist(err) {
 			writeError(w, http.StatusConflict, "tactical analysis is not ready")
@@ -206,19 +230,15 @@ func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) 
 	serveArtifact(w, r, "application/octet-stream", rc)
 }
 
-// GetTacticalAggregate handles GET /api/jobs/{id}/tactical/aggregate, computing
-// tendencies over the rounds the query filter selects.
-func (h *Handlers) GetTacticalAggregate(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJobMeta(w, r)
-	if !ok {
-		return
-	}
+// serveTacticalAggregate computes tendencies over the rounds the query filter
+// selects.
+func (h *Handlers) serveTacticalAggregate(w http.ResponseWriter, r *http.Request, indexKey string) {
 	filter, err := tacticalplan.FilterFromValues(r.URL.Query())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	doc, exists, err := h.readTacticalDocument(j.ID)
+	doc, exists, err := h.readTacticalDocument(indexKey)
 	if err != nil {
 		internalError(w, "read tactical document", err)
 		return
@@ -279,8 +299,8 @@ func decodeTacticalSampleHZ(w http.ResponseWriter, r *http.Request) (float64, bo
 	return tactical.DefaultSampleHZ, true
 }
 
-func (h *Handlers) readTacticalDocument(id uuid.UUID) (tacticalplan.Document, bool, error) {
-	rc, err := h.storage.Open(artifacts.TacticalIndexKey(id))
+func (h *Handlers) readTacticalDocument(indexKey string) (tacticalplan.Document, bool, error) {
+	rc, err := h.storage.Open(indexKey)
 	if err != nil {
 		if storage.IsNotExist(err) {
 			return tacticalplan.Document{}, false, nil
@@ -292,6 +312,7 @@ func (h *Handlers) readTacticalDocument(id uuid.UUID) (tacticalplan.Document, bo
 	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
 		return tacticalplan.Document{}, false, err
 	}
+	doc.DropRepeatedUtility()
 	return doc, true, nil
 }
 
@@ -330,14 +351,14 @@ func (h *Handlers) writeTacticalStatus(id uuid.UUID, status artifacts.TacticalSt
 // filesystem backend) is read as the blob header plus that round's byte range;
 // a backend that cannot seek falls back to reading the blob and decoding at the
 // recorded offset.
-func (h *Handlers) readTacticalRoundFrames(id uuid.UUID, desc tacticalplan.Positions, round int) ([]tacticalplan.Frame, error) {
+func (h *Handlers) readTacticalRoundFrames(positionsKey string, desc tacticalplan.Positions, round int) ([]tacticalplan.Frame, error) {
 	offset, ok := desc.Offset(round)
 	if !ok {
 		// A round with no sampled positions is not an error: the index is still
 		// complete, there is simply nothing to draw.
 		return []tacticalplan.Frame{}, nil
 	}
-	rc, err := h.storage.Open(artifacts.TacticalPositionsKey(id))
+	rc, err := h.storage.Open(positionsKey)
 	if err != nil {
 		return nil, fmt.Errorf("open tactical positions: %w", err)
 	}

@@ -28,6 +28,7 @@ import {
   roundTimeline,
   seekEventSeconds,
   timelineEvents,
+  timelineSeconds,
   timelineTick,
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
@@ -36,9 +37,16 @@ import { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import { drawTacticalScene, renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
+import { readRadarStyle } from '@/components/tactical/radar-style';
 import { TacticalEventList } from '@/components/tactical/tactical-event-list';
 import { TacticalTimelineBar } from '@/components/tactical/tactical-timeline';
 import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
+import { noteVisibleAt, radarProjection } from '@/lib/tactical-spatial';
+import type { RadarProjection } from '@/lib/tactical-spatial';
+import { AnnotationPanel, useAnnotations } from '@/components/tactical/spatial/annotation-panel';
+import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
+import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
+import { TelestratorLayer, useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { cn } from '@/lib/utils';
 
 /** Enough of the canvas box to draw one frame without measuring again. */
@@ -69,44 +77,14 @@ const INITIAL_METRICS: CanvasMetrics = {
  */
 const RADAR_MAX_HEIGHT_VH = 74;
 
+/** The notes list and the drawings on screen follow the playhead this many times a second. */
+const NOTE_TICKS_PER_SECOND = 4;
+
 /** A round with no frames still needs a timeline for the disabled transport. */
 const EMPTY_TIMELINE = roundTimeline(
   { tick_start: 0, tick_freeze_end: 0, tick_end: 64, tick_official: 64 },
   64,
 );
-
-/** Reads the design tokens off the live canvas, so the radar follows the theme. */
-function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
-  const computed = getComputedStyle(canvas);
-  const token = (name: string, fallback: string): string => {
-    const value = computed.getPropertyValue(name).trim();
-    return value === '' ? fallback : value;
-  };
-  return {
-    // --surface-0 is the ramp's void/well step, so the radar reads as a recess
-    // in the --surface-2 panel instead of being painted in the panel's own
-    // colour. `panel` is also the health-ring backing, which needs a dark ring
-    // under it to separate stacked blips.
-    background: token('--surface-0', '#04070f'),
-    panel: token('--surface-0', '#04070f'),
-    // Identity chips take the ramp's raised step rather than more alpha over
-    // --surface-0, so a name reads on an opaque plate whatever is behind it.
-    plate: token('--surface-3', '#141b2b'),
-    // The occupancy grid is the map, not a signal: it stays neutral so cyan can
-    // keep meaning "CT" on top of it.
-    map: token('--fg-3', '#8998a7'),
-    callout: token('--fg-3', '#8998a7'),
-    ct: token('--primary', '#21d9ee'),
-    t: token('--warning', '#fcb52c'),
-    bomb: token('--destructive', '#fe545c'),
-    defuse: token('--success', '#5de0b0'),
-    utility: token('--fg-3', '#8998a7'),
-    text: token('--fg-1', '#edf7fb'),
-    // Resolved through the element, so the var() in --font-mono is already
-    // substituted with the family next/font generated.
-    fontFamily: computed.fontFamily || 'ui-monospace, monospace',
-  };
-}
 
 /** The three-letter tag on a player's radar chip; the legend carries the full name. */
 function shortLabel(name: string): string {
@@ -125,10 +103,16 @@ export function TacticalReplay({
   doc,
   round,
   frames,
+  startTick,
+  notesMatchId,
 }: {
   doc: TacticalDocument;
   round: TacticalRound | undefined;
   frames: readonly TacticalFrame[];
+  /** Opens the round at this tick instead of its start, for an evidence link. */
+  startTick?: number;
+  /** The library match the round belongs to; with it the replay takes notes and drawings. */
+  notesMatchId?: string;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -144,6 +128,11 @@ export function TacticalReplay({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
   const [loop, setLoop] = useState(true);
+  const [projection, setProjection] = useState<RadarProjection>({ size: 1, offsetX: 0, offsetY: 0 });
+  const [noteTick, setNoteTick] = useState(0);
+  const draft = useTelestratorDraft();
+  const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
+  const notes = useAnnotations(noteMatchIds, round?.number);
 
   const timeline: RoundTimeline = useMemo(
     () => (round === undefined ? EMPTY_TIMELINE : roundTimeline(round, doc.demo.tickrate)),
@@ -229,6 +218,10 @@ export function TacticalReplay({
         if (scrub.getAttribute('aria-valuetext') !== label) scrub.setAttribute('aria-valuetext', label);
       }
       if (clockRef.current !== null && clockRef.current.textContent !== label) clockRef.current.textContent = label;
+      if (notesMatchId !== undefined) {
+        const step = Math.floor(seconds * NOTE_TICKS_PER_SECOND);
+        setNoteTick((current) => (current === step ? current : step));
+      }
 
       const canvas = canvasRef.current;
       if (canvas === null) return;
@@ -269,7 +262,7 @@ export function TacticalReplay({
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [background, doc.geometry, drawable, drawCache, events, frames, labels, readSamples, readTrails, timeline, view],
+    [background, doc.geometry, drawable, drawCache, events, frames, labels, notesMatchId, readSamples, readTrails, timeline, view],
   );
 
   useEffect(() => {
@@ -277,12 +270,13 @@ export function TacticalReplay({
     renderAt(positionRef.current);
   }, [renderAt]);
 
-  // A new round starts at its own beginning; the transport (playing, speed,
-  // loop) deliberately survives the switch.
+  // A new round starts at its own beginning, or at the tick an evidence link
+  // names; the transport (playing, speed, loop) deliberately survives the switch.
   useEffect(() => {
-    positionRef.current = 0;
-    renderRef.current(0);
-  }, [round?.number]);
+    const start = startTick === undefined ? 0 : clampToTimeline(timeline, timelineSeconds(timeline, startTick));
+    positionRef.current = start;
+    renderRef.current(start);
+  }, [timeline, startTick]);
 
   useEffect(() => {
     backgroundsRef.current.clear();
@@ -307,15 +301,11 @@ export function TacticalReplay({
       // The square is scaled so its window fills the box, then panned so the
       // window's origin lands on the box's. With a full-square view this is
       // Math.floor(Math.min(cssWidth, cssHeight)) centred, exactly as before.
-      const size = Math.max(1, Math.floor(Math.min(cssWidth / view.width, cssHeight / view.height)));
-      metricsRef.current = {
-        cssWidth,
-        cssHeight,
-        dpr,
-        size,
-        offsetX: Math.round((cssWidth - size * view.width) / 2 - size * view.x),
-        offsetY: Math.round((cssHeight - size * view.height) / 2 - size * view.y),
-      };
+      const fit = radarProjection({ width: cssWidth, height: cssHeight }, view);
+      metricsRef.current = { cssWidth, cssHeight, dpr, ...fit };
+      setProjection((current) =>
+        current.size === fit.size && current.offsetX === fit.offsetX && current.offsetY === fit.offsetY ? current : fit,
+      );
       styleRef.current = readRadarStyle(canvas);
       renderRef.current(positionRef.current);
     };
@@ -382,6 +372,8 @@ export function TacticalReplay({
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLElement>) => {
       const onButton = event.target instanceof HTMLElement && event.target.tagName === 'BUTTON';
+      // Typing a note must not drive the transport.
+      if (event.target instanceof HTMLElement && event.target.tagName === 'TEXTAREA') return;
       if (event.key === ' ') {
         if (onButton) return;
         event.preventDefault();
@@ -400,6 +392,33 @@ export function TacticalReplay({
     },
     [events, seekTo, togglePlay],
   );
+
+  const now = noteTick / NOTE_TICKS_PER_SECOND;
+  const noteItems: NoteItem[] = (notes.notes ?? []).map((note) => {
+    const at = timelineSeconds(timeline, note.tick);
+    return {
+      note,
+      label: roundClockLabelFor(timeline, at),
+      active: noteVisibleAt(at, now),
+      onSeek: () => {
+        setPlaying(false);
+        seekTo(at);
+      },
+    };
+  });
+  const shownDrawings = noteItems
+    .filter((item) => item.active && item.note.strokes.length > 0)
+    .map((item) => ({ id: item.note.id, strokes: item.note.strokes }));
+  const saveNote = (text: string): Promise<boolean> => {
+    if (notesMatchId === undefined || round === undefined) return Promise.resolve(false);
+    return notes.create({
+      match_id: notesMatchId,
+      round: round.number,
+      tick: timelineTick(timeline, positionRef.current),
+      text,
+      strokes: draft.strokes,
+    });
+  };
 
   if (round === undefined) {
     return (
@@ -428,6 +447,14 @@ export function TacticalReplay({
           {buyLabel(round.economy.ct_buy)} vs {buyLabel(round.economy.t_buy)} · {tPatternLabel(round.class.t_side)} /{' '}
           {ctPatternLabel(round.class.ct_side)} · {siteLabel(round.class.site)}
         </p>
+        {notesMatchId === undefined ? null : (
+          <RoundPlayActions
+            matchId={notesMatchId}
+            doc={doc}
+            round={round}
+            currentTick={() => timelineTick(timeline, positionRef.current)}
+          />
+        )}
       </header>
 
       {/* The keyboard contract lives on the section so the transport answers
@@ -458,6 +485,9 @@ export function TacticalReplay({
               aria-hidden="true"
               className="block h-full w-full font-mono"
             />
+            {drawable && notesMatchId !== undefined ? (
+              <TelestratorLayer calibration={doc.geometry.calibration} projection={projection} shown={shownDrawings} draft={draft} />
+            ) : null}
             {drawable ? null : (
               <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
                 Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la
@@ -491,13 +521,30 @@ export function TacticalReplay({
           <RoundLegend round={round} names={names} labels={labels} />
         </div>
 
-        <aside className="flex min-w-0 flex-col rounded-lg border border-border-strong bg-surface-1 @[56rem]:max-h-[62vh]">
+        <aside
+          className={cn(
+            'flex min-w-0 flex-col rounded-lg border border-border-strong bg-surface-1',
+            notesMatchId === undefined && '@[56rem]:max-h-[62vh]',
+          )}
+        >
           <h3 className="border-b border-border-subtle px-3 py-2.5 font-mono text-meta uppercase tracking-widest text-fg-3">
             Eventos de la ronda
           </h3>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', notesMatchId !== undefined && 'max-h-[34vh]')}>
             <TacticalEventList timeline={timeline} events={events} names={names} onSeek={seekTo} />
           </div>
+          {notesMatchId === undefined ? null : (
+            <div className="border-t border-border-subtle px-3 py-3">
+              <h3 className="pb-2 font-mono text-meta uppercase tracking-widest text-fg-3">Notas</h3>
+              <AnnotationPanel
+                store={notes}
+                items={noteItems}
+                draft={draft}
+                anchorLabel={`Se ancla a la ronda ${round.number} · ${roundClockLabelFor(timeline, now)}`}
+                onCreate={saveNote}
+              />
+            </div>
+          )}
         </aside>
       </div>
     </section>

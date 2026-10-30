@@ -5,7 +5,7 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { STATUS_TONE_CLASS } from '@/components/studio/status-tag';
 
-const PAGE_TITLE = 'Algoritmos';
+const PAGE_TITLE = 'Ideas';
 const PAGE_DESCRIPTION =
   'Cómo deciden YouTube y Google qué vídeos recomiendan, qué mide cada plataforma mientras ves un vídeo y qué hacer con tus Shorts y vídeos largos de CS2.';
 

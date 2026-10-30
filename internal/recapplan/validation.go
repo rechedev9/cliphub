@@ -345,6 +345,14 @@ func (o Options) Validate() error {
 			}
 		}
 	}
+	if len(o.Rounds) > MaxSelectedRounds {
+		return fmt.Errorf("a full demo selects at most %d rounds", MaxSelectedRounds)
+	}
+	for i, n := range o.Rounds {
+		if n < 1 || n > 999 || (i > 0 && n <= o.Rounds[i-1]) {
+			return fmt.Errorf("selected rounds must be increasing round numbers from 1 to 999")
+		}
+	}
 	seen := map[string]bool{}
 	for _, r := range o.Editorial.ManualRanges {
 		if r.RoundID == "" || seen[r.RoundID] || r.StartTick < 0 || r.EndTick <= r.StartTick {

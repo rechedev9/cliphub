@@ -1,63 +1,48 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
-import { Chakra_Petch, Share_Tech_Mono } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup';
-import { ShellCanvas } from '@/components/shell/shell-canvas';
-import { StudioAmbient } from '@/components/shell/studio-ambient';
+import { StudioThemeProvider } from '@/components/shell/theme-provider';
 import { WindowActivityPolicy } from '@/components/shell/window-activity-policy';
 import { DesktopPerformance } from '@/components/shell/desktop-performance';
 import { DesktopErrors } from '@/components/shell/desktop-errors';
 import { WebMCPNavigation } from '@/components/shell/webmcp-navigation';
 
-const chakraPetch = Chakra_Petch({
+const geistSans = Geist({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-chakra-petch',
+  variable: '--font-geist-sans',
 });
 
-const shareTechMono = Share_Tech_Mono({
+const geistMono = Geist_Mono({
   subsets: ['latin'],
-  weight: '400',
-  variable: '--font-share-tech-mono',
+  variable: '--font-geist-mono',
 });
 
 export const metadata: Metadata = {
-  // Every route shared one browser title before this template; segments set
-  // their own `title` and land as "Biblioteca · ClipHub".
+  // Segments set their own `title` and land as "Partidas · ClipHub".
   title: { default: 'ClipHub', template: '%s · ClipHub' },
-  description: 'Forja tus frags de CS2 en reels destacados - capturados en tu propio equipo.',
+  description: 'Crea vídeos y analiza tus demos de CS2 en tu propio equipo.',
 };
 
-const fontVars = `${chakraPetch.variable} ${shareTechMono.variable}`;
+const fontVars = `${geistSans.variable} ${geistMono.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (
-    // The next/font variable classes live on <html> so the composed
-    // --font-sans/--font-mono/--font-display tokens in globals.css resolve at
-    // :root (declared on <body> they would compute to guaranteed-invalid at
-    // :root and the whole app would silently fall back to system fonts).
-    <html lang="es" className={`dark ${fontVars}`} data-window-activity="active">
+    // The next/font variables live on <html> so the --font-* tokens in globals.css resolve at :root.
+    // next-themes writes the theme class here before paint, hence the hydration opt-out.
+    <html lang="es" className={fontVars} data-window-activity="active" suppressHydrationWarning>
       <body className="bg-background text-foreground antialiased">
-        {/*
-          The two backdrop planes live here, not inside the app group, so
-          /upload, /bootstrap and the 404 get the same room without opting in.
-          Both are `position: fixed; z-index: -1`: they paint above the page
-          background and below every in-flow element on every route, which is
-          what lets them stay viewport-relative on a 3000px page. Order matters
-          — the volumetric field is furthest back, the lattice and floor sit on
-          top of it.
-        */}
-        <StudioAmbient />
-        <ShellCanvas />
-        <ServiceWorkerCleanup />
-        <WindowActivityPolicy />
-        <DesktopPerformance />
-        <DesktopErrors />
-        <WebMCPNavigation />
-        {children}
-        <Toaster />
+        <StudioThemeProvider>
+          <ServiceWorkerCleanup />
+          <WindowActivityPolicy />
+          <DesktopPerformance />
+          <DesktopErrors />
+          <WebMCPNavigation />
+          {children}
+          <Toaster />
+        </StudioThemeProvider>
       </body>
     </html>
   );

@@ -129,7 +129,7 @@ func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.
 
 // analyze scans the demo and publishes both durable artifacts.
 func (w *TacticalWorker) analyze(ctx context.Context, j job.Job, sampleHZ float64, indexKey, positionsKey string) error {
-	demoPath, cleanup, err := w.demoFile(j)
+	demoPath, cleanup, err := localDemoFile(w.storage, j.DemoPath, j.ID, "tactical")
 	if err != nil {
 		return newTacticalFailure(tacticalClassDemoUnreadable, err)
 	}
@@ -213,27 +213,27 @@ func (w *TacticalWorker) writeStatus(id uuid.UUID, sampleHZ float64, state, fail
 	})
 }
 
-// demoFile materializes the job's demo as a local file the scan can open. Local
-// storage resolves the stored demo in place; any other backend is copied to a
-// temporary file, mirroring ParserWorker.openDemo. A resolved path that is not
-// readable falls through to the copy so the caller sees one clear error instead
-// of a backend-specific one. The returned cleanup must be deferred.
-func (w *TacticalWorker) demoFile(j job.Job) (string, func(), error) {
-	if resolver, ok := w.storage.(demoPathResolver); ok {
-		if path, err := resolver.ResolvePath(j.DemoPath); err == nil {
+// localDemoFile materializes a stored demo as a local file the scan can open.
+// Local storage resolves the stored demo in place; any other backend is copied
+// to a temporary file, mirroring ParserWorker.openDemo. A resolved path that is
+// not readable falls through to the copy so the caller sees one clear error
+// instead of a backend-specific one. The returned cleanup must be deferred.
+func localDemoFile(store storage.Storage, key string, id uuid.UUID, stage string) (string, func(), error) {
+	if resolver, ok := store.(demoPathResolver); ok {
+		if path, err := resolver.ResolvePath(key); err == nil {
 			if _, err := os.Stat(path); err == nil {
 				return path, func() {}, nil
 			}
 		}
 	}
-	dir, cleanup, err := prepareStageDir("", j.ID, "tactical")
+	dir, cleanup, err := prepareStageDir("", id, stage)
 	if err != nil {
-		return "", nil, fmt.Errorf("create tactical work dir: %w", err)
+		return "", nil, fmt.Errorf("create %s work dir: %w", stage, err)
 	}
 	local := filepath.Join(dir, "demo.dem")
-	if err := copyStorageToFile(w.storage, j.DemoPath, local); err != nil {
+	if err := copyStorageToFile(store, key, local); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("open demo %q: %w", j.DemoPath, err)
+		return "", nil, fmt.Errorf("open demo %q: %w", key, err)
 	}
 	return local, cleanup, nil
 }

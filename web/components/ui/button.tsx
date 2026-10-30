@@ -40,7 +40,7 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-sm)] hover:bg-primary/90 hover:shadow-[var(--elev-2),var(--glow-primary-md)] active:shadow-[var(--elev-0),var(--glow-primary-sm)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         hero:
-          "bg-primary font-display text-primary-foreground uppercase tracking-wide shadow-[var(--elev-2),var(--glow-primary-md)] hover:bg-primary/92 hover:shadow-[var(--elev-3),var(--glow-primary-lg)] active:shadow-[var(--elev-1),var(--glow-primary-md)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
+          "bg-primary text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-md)] hover:bg-primary/92 hover:shadow-[var(--elev-3),var(--glow-primary-lg)] active:shadow-[var(--elev-1),var(--glow-primary-md)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         stream:
           "bg-stream text-stream-foreground shadow-[var(--elev-1),var(--glow-stream-md)] hover:bg-stream/90 hover:shadow-[var(--elev-2),var(--glow-stream-md)] active:shadow-[var(--elev-0)] focus-visible:outline-stream disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         success:

@@ -1,10 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
-import { api } from '@/lib/api';
-import type { Match } from '@/lib/api/types';
+import { PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
   TACTICAL_STATES,
   fetchTacticalStatus,
@@ -12,16 +9,12 @@ import {
   startTacticalAnalysis,
 } from '@/lib/api/tactical';
 import type { TacticalStatus } from '@/lib/api/tactical';
-import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { StudioPageHeader } from '@/components/studio/page-header';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
-import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
 import { startPollLoop } from '@/lib/poll-loop';
 import { browserWindowActivity } from '@/lib/window-activity';
-import { prettyMapName } from '@/lib/format';
 import { stateLabel } from '@/lib/tactical-labels';
 
 // The scan is a few seconds of work on a queue, so poll it briskly while it runs
@@ -31,34 +24,6 @@ const IDLE_POLL_MS = 15000;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'fallo desconocido';
-}
-
-/**
- * Names the demo in the command strip ("Ancient · Ahogaq" instead of the job
- * UUID) and in the browser tab ("Ancient · Táctica · ClipHub"). The match read
- * is independent of the analysis state, so an unanalysed demo is named too.
- */
-function useDemoTitle(jobId: string): void {
-  const [match, setMatch] = useState<Match | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    setMatch(null);
-    void api
-      .getMatch(jobId)
-      .then((next) => {
-        if (active) setMatch(next);
-      })
-      // The label is a nicety; an unreadable match keeps the default trail.
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [jobId]);
-
-  const map = match?.map ? prettyMapName(match.map) : '';
-  useRouteTitle(map ? [map, match?.player].filter(Boolean).join(' · ') : undefined);
-  useDocumentTitle(map ? `${map} · Táctica · ClipHub` : undefined);
 }
 
 /**
@@ -148,32 +113,13 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
     }
   }, [jobId]);
 
-  useDemoTitle(jobId);
-
   const retryStatus = useCallback(() => {
     setOffline(false);
     setPollToken((token) => token + 1);
   }, []);
 
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
-      <StudioPageHeader
-        title="Análisis táctico"
-        description="Cada ronda clasificada, la repetición en 2D y las tendencias del equipo. Todo sale de los datos de la demo, no del vídeo."
-        actions={
-          <div className="flex items-center gap-3">
-            {/* Every other state already names itself in the card below; a badge here said it twice. */}
-            {status?.state === TACTICAL_STATES.ready ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
-            <Button asChild variant="outline" className="font-mono text-meta tracking-wider">
-              <Link href="/tactical">
-                <ArrowLeft aria-hidden />
-                OTRA DEMO
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-
+    <div className="flex flex-col gap-6">
       <TacticalBody
         jobId={jobId}
         status={status}
@@ -240,7 +186,7 @@ function TacticalBody({
         />
       );
     case TACTICAL_STATES.ready:
-      return <TacticalAnalysis jobId={jobId} generatedAt={status.generated_at} />;
+      return <TacticalAnalysis source={{ kind: 'job', id: jobId }} generatedAt={status.generated_at} />;
   }
 }
 

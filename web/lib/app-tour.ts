@@ -35,7 +35,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Qué es ClipHub',
     title: 'De tus partidas de CS2 a vídeos listos para subir',
     lead:
-      'ClipHub Studio convierte una demo de CS2 en un Short vertical o en un vídeo largo grabado desde la vista real de un jugador. También recorta tus streams en Shorts y analiza demos.',
+      'ClipHub Studio convierte una demo de CS2 en un Short vertical o en un vídeo largo grabado desde la vista real de un jugador. También recorta tus streams en Shorts y analiza demos como un analista de equipo.',
     points: [
       {
         term: 'Todo en tu PC',
@@ -47,7 +47,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Esta guía',
-        text: 'Recorre cada sección de la barra lateral. Puedes volver a abrirla cuando quieras con el botón «Guía» de la barra superior.',
+        text: 'Recorre cada sección de la barra lateral, dividida en dos áreas: Crear y Analizar. Puedes volver a abrirla cuando quieras con el botón «Guía» de la barra superior.',
       },
     ],
   },
@@ -57,7 +57,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Cargar una demo',
     title: 'Todo empieza con una demo',
     lead:
-      'Cada formato tiene su sección en la barra lateral: «Shorts» y «Vídeos largos». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
+      'Cada formato tiene su sección en la barra lateral: «Vídeo largo» y «Short». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
     points: [
       {
         term: 'Archivo en mi PC',
@@ -82,35 +82,8 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     ],
   },
   {
-    id: 'short',
-    kicker: 'Shorts',
-    label: 'Crear un Short',
-    title: 'Un Short vertical con las mejores jugadas',
-    lead:
-      'ClipHub encuentra las jugadas del jugador elegido y te guía en cuatro pasos. Al crear, graba cada jugada en CS2 y la monta en un vídeo 9:16.',
-    points: [
-      {
-        term: 'Elige las jugadas',
-        text: '«Auto: mejores 60 s» selecciona el mejor minuto por ti. Las rondas de cinco kills llevan la etiqueta ACE.',
-      },
-      {
-        term: 'Estilo',
-        text: 'Elige un estilo de montaje y compáralos antes de decidir.',
-      },
-      {
-        term: 'Música',
-        text: 'Los cortes caen al ritmo del beat. También puedes crearlo sin música.',
-      },
-      {
-        term: 'Textos y gráficos',
-        text: 'Efecto de kill, transiciones, título automático, contador de kills, texto de apertura y cierre, y portada.',
-      },
-    ],
-    link: { href: SHORTS_HREF, label: 'Ir a Shorts' },
-  },
-  {
     id: 'full',
-    kicker: 'Vídeos largos',
+    kicker: 'Vídeo largo',
     label: 'Vídeo largo',
     title: 'La partida entera desde un jugador',
     lead:
@@ -133,30 +106,34 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor que se reproduce después de la ronda 2 si tienes sus derechos de uso.',
       },
     ],
-    link: { href: LONG_VIDEOS_HREF, label: 'Ir a Vídeos largos' },
+    link: { href: LONG_VIDEOS_HREF, label: 'Ir a Vídeo largo' },
   },
   {
-    id: 'deliver',
-    kicker: 'Resultados',
-    label: 'Descargar y publicar',
-    title: 'Tus vídeos, listos para subir',
+    id: 'short',
+    kicker: 'Short',
+    label: 'Crear un Short',
+    title: 'Un Short vertical con las mejores jugadas',
     lead:
-      'Todo lo que creas aparece en «Resultados». Cada vídeo muestra su estado: en cola, grabando, en edición, listo o fallido.',
+      'ClipHub encuentra las jugadas del jugador elegido y te guía en cuatro pasos. Al crear, graba cada jugada en CS2 y la monta en un vídeo 9:16.',
     points: [
       {
-        term: 'Reproducir y descargar',
-        text: 'Mira el resultado en la app y descarga el MP4. Si algo falla, puedes reintentarlo o volver a prepararlo.',
+        term: 'Elige las jugadas',
+        text: '«Auto: mejores 60 s» selecciona el mejor minuto por ti. Las rondas de cinco kills llevan la etiqueta ACE.',
       },
       {
-        term: 'Asistente de YouTube',
-        text: '«Publicar» te propone título, descripción, etiquetas y buenas horas para subirlo. Lo copias y lo subes tú desde YouTube Studio: ClipHub no publica por ti.',
+        term: 'Estilo',
+        text: 'Elige un estilo de montaje y compáralos antes de decidir.',
       },
       {
-        term: 'Cambiar la música',
-        text: 'En un Short puedes añadir o cambiar la canción sin volver a grabar.',
+        term: 'Música',
+        text: 'Los cortes caen al ritmo del beat. También puedes crearlo sin música.',
+      },
+      {
+        term: 'Textos y gráficos',
+        text: 'Efecto de kill, transiciones, título automático, contador de kills, texto de apertura y cierre, y portada.',
       },
     ],
-    link: { href: RESULTS_HREF, label: 'Ver mis vídeos' },
+    link: { href: SHORTS_HREF, label: 'Ir a Short' },
   },
   {
     id: 'streams',
@@ -186,74 +163,32 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/streams', label: 'Ir a Clips de stream' },
   },
   {
-    id: 'players',
-    kicker: 'Jugadores',
-    label: 'Jugadores',
-    title: 'Sigue jugadores de FACEIT',
+    id: 'deliver',
+    kicker: 'Mis vídeos',
+    label: 'Descargar y publicar',
+    title: 'Tus vídeos, listos para subir',
     lead:
-      'Busca por nick o URL de FACEIT y añádelo a tu lista Custom, o explora los mejores de CIS y LATAM. Verás su nivel, victorias, K/D, ADR, headshots y su historial de partidas filtrable por mapa y resultado.',
+      'Todo lo que creas aparece en «Mis vídeos». Cada vídeo muestra su estado: en cola, grabando, en edición, listo o fallido.',
     points: [
       {
-        term: 'De la partida al clip',
-        text: 'Abre la sala en FACEIT, descarga la demo y súbela a ClipHub para crear el vídeo.',
+        term: 'Reproducir y descargar',
+        text: 'Mira el resultado en la app y descarga el MP4. Si algo falla, puedes reintentarlo o volver a prepararlo.',
       },
       {
-        term: 'Requiere FACEIT',
-        text: 'Esta sección necesita que el servicio local tenga configurada la conexión con FACEIT. Si no lo está, la página te lo indica.',
+        term: 'Asistente de YouTube',
+        text: '«Publicar» te propone título, descripción, etiquetas y buenas horas para subirlo. Lo copias y lo subes tú desde YouTube Studio: ClipHub no publica por ti.',
+      },
+      {
+        term: 'Cambiar la música',
+        text: 'En un Short puedes añadir o cambiar la canción sin volver a grabar.',
       },
     ],
-    link: { href: '/players', label: 'Ir a Jugadores' },
+    link: { href: RESULTS_HREF, label: 'Ver mis vídeos' },
   },
   {
-    id: 'tactical',
-    kicker: 'Táctica',
-    label: 'Táctica',
-    title: 'Análisis táctico de una partida',
-    lead:
-      'Sobre una demo ya cargada, pulsa «Analizar». El análisis se hace en local, una sola vez, y el resultado queda guardado.',
-    points: [
-      {
-        term: 'Rondas clasificadas',
-        text: 'Cada ronda por tipo de compra (pistola, eco, semi, force, full) y por patrón de ataque o defensa, con etiquetas como ace o post-plant.',
-      },
-      {
-        term: 'Repetición 2D',
-        text: 'Revive cada ronda en un radar con línea de tiempo y lista de eventos.',
-      },
-      {
-        term: 'Tendencias',
-        text: 'Cómo juega cada equipo. Con pocas rondas ClipHub te avisa de que aún no es una tendencia.',
-      },
-    ],
-    link: { href: '/tactical', label: 'Ir a Táctica' },
-  },
-  {
-    id: 'cheaters',
-    kicker: 'Anti-cheat',
-    label: 'Anti-cheat',
-    title: 'Detecta comportamientos anómalos',
-    lead:
-      'Suelta una demo y ClipHub puntúa a los diez jugadores. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto.',
-    points: [
-      {
-        term: 'Niveles',
-        text: 'Muy anómalo, anómalo, no concluyente, sin anomalías o datos insuficientes, con los momentos que merece la pena revisar.',
-      },
-      {
-        term: 'Expediente',
-        text: 'En los casos anómalos puedes preparar un expediente con la evidencia para denunciarlo tú. ClipHub no envía nada.',
-      },
-      {
-        term: 'Sin tocar tus partidas',
-        text: 'El análisis no abre CS2 ni modifica la partida que tengas cargada.',
-      },
-    ],
-    link: { href: '/cheaters', label: 'Ir a Anti-cheat' },
-  },
-  {
-    id: 'algorithms',
-    kicker: 'Algoritmos',
-    label: 'Algoritmos',
+    id: 'ideas',
+    kicker: 'Ideas',
+    label: 'Ideas',
     title: 'Cómo eligen YouTube y Google qué vídeos recomendar',
     lead:
       'Una guía para tus Shorts y vídeos largos: qué mide cada plataforma mientras alguien ve tu vídeo, cómo usa esas señales y qué hacer con eso.',
@@ -271,7 +206,157 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Consejos concretos de hook, duración, música y contenido reutilizado para clips de CS2.',
       },
     ],
-    link: { href: '/algoritmos', label: 'Ir a Algoritmos' },
+    link: { href: '/ideas', label: 'Ir a Ideas' },
+  },
+  {
+    id: 'matches',
+    kicker: 'Partidas',
+    label: 'Partidas',
+    title: 'Tus partidas, analizadas ronda a ronda',
+    lead:
+      'Importa varias demos a la vez o usa las que cargas en Crear: todas forman tu biblioteca. Cada demo se analiza en local una sola vez y queda guardada con sus equipos, jugadores y rondas.',
+    points: [
+      {
+        term: 'Rondas clasificadas',
+        text: 'Cada ronda por tipo de compra (pistola, eco, semi, force, full) y por patrón de ataque o defensa, con etiquetas como ace o post-plant.',
+      },
+      {
+        term: 'Repetición 2D',
+        text: 'Revive cada ronda en un radar con línea de tiempo y lista de eventos.',
+      },
+      {
+        term: 'Tendencias',
+        text: 'Cómo juega cada equipo. Con pocas rondas ClipHub te avisa de que aún no es una tendencia.',
+      },
+      {
+        term: 'Del análisis al vídeo',
+        text: 'Desde una ronda, una jugada o una fila de un informe: graba el POV de un jugador, monta un vídeo de review con varias rondas o envíalas a un Short. El vídeo sale en Mis vídeos y en la ficha de la partida.',
+      },
+      {
+        term: 'Series',
+        text: 'Junta los mapas de un BO3 o un BO5 y apunta su veto, si lo conoces.',
+      },
+    ],
+    link: { href: '/partidas', label: 'Ir a Partidas' },
+  },
+  {
+    id: 'teams',
+    kicker: 'Equipos',
+    label: 'Equipos',
+    title: 'La ficha de cada equipo',
+    lead:
+      'Cada equipo tiene su ficha con su plantilla por fecha, sus partidas y su rendimiento por mapa, la base del scouting de un rival.',
+    points: [
+      {
+        term: 'Desde tus demos',
+        text: 'Los equipos salen del nombre de clan de cada demo. Si uno sale mal, corrígelo en la partida y Studio lo recuerda.',
+      },
+      {
+        term: 'Alias y fusiones',
+        text: 'Un mismo equipo con dos nombres se fusiona en uno, y sus alias resuelven las demos que lleguen después.',
+      },
+      {
+        term: 'Mapas y veto',
+        text: 'El historial por mapa cuenta resultados, rondas por lado, pistolas, picks y bans. El simulador de veto recomienda cada paso de un BO1, BO3 o BO5 contra un rival y explica por qué.',
+      },
+    ],
+    link: { href: '/equipos', label: 'Ir a Equipos' },
+  },
+  {
+    id: 'players',
+    kicker: 'Jugadores',
+    label: 'Jugadores',
+    title: 'La ficha de cada jugador',
+    lead:
+      'Cada jugador de tus demos tiene su ficha por SteamID64: sus nicks, sus equipos por fecha, sus partidas y el rol que se lee de sus rondas.',
+    points: [
+      {
+        term: 'Rol con evidencia',
+        text: 'AWPer, entry o soporte se deciden con umbrales a la vista, y cada cifra enlaza a las rondas de las que sale.',
+      },
+      {
+        term: 'Métricas avanzadas',
+        text: 'WPA, bajas ajustadas por economía, duelos justos e injustos, trades, utilidad y rendimiento por posición. También en la ficha de cada partida y en cada informe.',
+      },
+      {
+        term: 'FACEIT',
+        text: 'Vincula su cuenta de FACEIT o sigue jugadores desde Seguimiento FACEIT. Necesita la conexión con FACEIT del servicio local.',
+      },
+    ],
+    link: { href: '/jugadores', label: 'Ir a Jugadores' },
+  },
+  {
+    id: 'stratbook',
+    kicker: 'Stratbook',
+    label: 'Stratbook',
+    title: 'Las jugadas que quieres recordar',
+    lead:
+      'Guarda una ronda, propia o del rival, como jugada: mapa, lado, granadas, posiciones y notas.',
+    points: [
+      {
+        term: 'Guardar como jugada',
+        text: 'En la repetición 2D de una partida, el botón Guardar como jugada toma las granadas y las posiciones del momento en que estás.',
+      },
+      {
+        term: 'Jugadas repetidas',
+        text: 'Detectar repetidas agrupa las rondas de un equipo con la misma utilidad y las mismas posiciones, con los umbrales a la vista.',
+      },
+      {
+        term: 'Con su evidencia',
+        text: 'Cada jugada enlaza a las rondas de ejemplo de las que sale, y sus humos se comparan con el catálogo de lineups.',
+      },
+      {
+        term: 'Compartir',
+        text: 'Exporta el stratbook como fichero JSON e impórtalo en otro PC con Studio.',
+      },
+    ],
+    link: { href: '/stratbook', label: 'Ir a Stratbook' },
+  },
+  {
+    id: 'reports',
+    kicker: 'Informes',
+    label: 'Informes',
+    title: 'Informes de scouting para el coach',
+    lead:
+      'Elige un rival y las partidas que quieres leer: el informe junta sus pistolas, defaults, setups, ejecuciones, economía, AWP y aperturas.',
+    points: [
+      {
+        term: 'Con evidencia',
+        text: 'Cada fila enlaza a sus rondas de ejemplo, que abren el replay en la ronda y el tick exactos.',
+      },
+      {
+        term: 'Para compartir',
+        text: 'Exporta el informe como HTML o guárdalo en PDF, con las notas del coach al principio.',
+      },
+      {
+        term: 'Sin nube',
+        text: 'El informe se genera en este PC a partir de tus demos.',
+      },
+    ],
+    link: { href: '/informes', label: 'Ir a Informes' },
+  },
+  {
+    id: 'integrity',
+    kicker: 'Integridad',
+    label: 'Integridad',
+    title: 'Detecta comportamientos anómalos',
+    lead:
+      'Suelta una demo y ClipHub puntúa a los diez jugadores. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto.',
+    points: [
+      {
+        term: 'Niveles',
+        text: 'Muy anómalo, anómalo, no concluyente, sin anomalías o datos insuficientes, con los momentos que merece la pena revisar.',
+      },
+      {
+        term: 'Expediente',
+        text: 'En los casos anómalos puedes preparar un expediente con la evidencia para denunciarlo tú. ClipHub no envía nada.',
+      },
+      {
+        term: 'Sin tocar tus partidas',
+        text: 'El análisis no abre CS2 ni modifica la partida que tengas cargada.',
+      },
+    ],
+    link: { href: '/integridad', label: 'Ir a Integridad' },
   },
   {
     id: 'settings',

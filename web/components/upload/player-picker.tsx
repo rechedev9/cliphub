@@ -410,7 +410,6 @@ export function PlayerPicker({
           type="button"
           variant="hero"
           size="lg"
-          className="neon-notch"
           disabled={selected === null}
           onClick={() => selected && onPick(selected, purpose)}
         >

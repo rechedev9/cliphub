@@ -75,6 +75,9 @@ const (
 	TUnknown TPattern = "unknown"  // not enough evidence to classify
 )
 
+// TPatterns lists every T pattern in report order.
+var TPatterns = []TPattern{TExecute, TDefault, TSplit, TFast, TEcoRush, TSave, TUnknown}
+
 // CTPattern is the defending side's round shape.
 type CTPattern string
 
@@ -87,6 +90,9 @@ const (
 	CTSave       CTPattern = "save"       // equipment preserved after losing map control
 	CTUnknown    CTPattern = "unknown"
 )
+
+// CTPatterns lists every CT pattern in report order.
+var CTPatterns = []CTPattern{CTHold, CTRetake, CTAggression, CTStack, CTSave, CTUnknown}
 
 // Site names a bombsite or the neutral middle of the map.
 type Site string
@@ -144,6 +150,9 @@ type Document struct {
 	// Warnings records every ambiguity the scan resolved by convention, so a
 	// surprising number can be traced instead of guessed at.
 	Warnings []string `json:"warnings,omitempty"`
+	// UtilityEffects is true when the scan recorded who each flash blinded and
+	// what each HE and molotov damaged. Older documents lack it.
+	UtilityEffects bool `json:"utility_effects,omitempty"`
 }
 
 // Demo is the source demo's identity and timing.
@@ -171,6 +180,15 @@ type Team struct {
 	StartSide Side     `json:"start_side"`
 	Slots     []uint8  `json:"slots"`
 	SteamIDs  []string `json:"steamids"`
+}
+
+// FallbackTeamName is the name a scan gives a team whose demo carried no clan
+// name, so a reader can tell a real clan name from the placeholder.
+func FallbackTeamName(startSide Side) string {
+	if startSide == SideCT {
+		return "CT start"
+	}
+	return "T start"
 }
 
 // Player is the identity table. Every per-tick sample and every event refers to
@@ -323,6 +341,23 @@ type Event struct {
 	NoScope       bool       `json:"no_scope,omitempty"`
 	Traded        bool       `json:"traded,omitempty"`
 	Opening       bool       `json:"opening,omitempty"`
+	// Effect is what a flash, HE or molotov did to players. It is nil for other
+	// events and for grenades that touched nobody.
+	Effect *UtilityEffect `json:"effect,omitempty"`
+}
+
+// UtilityEffect is the measured outcome of one grenade.
+type UtilityEffect struct {
+	Blinded     []BlindHit `json:"blinded,omitempty"`
+	EnemyDamage int        `json:"enemy_damage,omitempty"`
+	TeamDamage  int        `json:"team_damage,omitempty"`
+}
+
+// BlindHit is one player a flash blinded and for how long.
+type BlindHit struct {
+	Slot    uint8   `json:"slot"`
+	Seconds float64 `json:"seconds"`
+	Enemy   bool    `json:"enemy"`
 }
 
 // MarshalJSON guarantees every emitted document carries the current

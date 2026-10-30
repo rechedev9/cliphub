@@ -13,7 +13,7 @@ import type { ReactElement, ReactNode } from 'react';
  * different feels on one sidebar reads as unfinished; four stacked reveals read
  * as generated. The shell owns the moment now, and it owns it once.
  *
- * Keyed by pathname, not by the full URL: `?origen=` on Resultados and `?job=` on
+ * Keyed by pathname, not by the full URL: `?origen=` on Mis vídeos and `?job=` on
  * a flow home are the same destination, and replaying the reveal on a filter change
  * would be motion with nothing to say. The existing guards in globals.css cover
  * the rest — reduced motion collapses the duration, an inactive window skips the

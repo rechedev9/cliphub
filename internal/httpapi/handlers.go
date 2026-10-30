@@ -35,6 +35,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/obs"
@@ -156,6 +157,8 @@ type Handlers struct {
 	labBundles          LabBundlePreparer
 	labBundleRoot       string
 	importedVideos      ImportedVideos
+	libraryRepo         LibraryRepository
+	lineups             lineups.Catalog
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex
@@ -473,6 +476,18 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 
 // persistAndEnqueueDemo stores a validated demo stream and queues parse or roster scan.
 func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) (*job.Job, error) {
+	j := newDemoJob(fileName, targetSteamID, seriesID, effectiveRules)
+	h256 := sha256.New()
+	tee := io.TeeReader(demo, h256)
+	if err := h.storage.Put(j.DemoPath, tee); err != nil {
+		return nil, fmt.Errorf("store demo: %w", err)
+	}
+	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
+	return h.admitDemoJob(ctx, j)
+}
+
+// newDemoJob is a queued job whose demo will live under demos/<id>.dem.
+func newDemoJob(fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) *job.Job {
 	j := &job.Job{
 		ID:            uuid.New(),
 		Status:        job.StatusQueued,
@@ -481,20 +496,17 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 		TargetSteamID: targetSteamID,
 		Rules:         effectiveRules,
 	}
-	key := fmt.Sprintf("demos/%s.dem", j.ID)
-	j.DemoPath = key
+	j.DemoPath = fmt.Sprintf("demos/%s.dem", j.ID)
+	return j
+}
 
-	h256 := sha256.New()
-	tee := io.TeeReader(demo, h256)
-	if err := h.storage.Put(key, tee); err != nil {
-		return nil, fmt.Errorf("store demo: %w", err)
-	}
-	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
-
+// admitDemoJob creates a job whose demo is already stored and queues its parse
+// (with a target) or roster scan (without one).
+func (h *Handlers) admitDemoJob(ctx context.Context, j *job.Job) (*job.Job, error) {
 	if err := h.repo.Create(ctx, j); err != nil {
 		// No job will ever point at the stored demo, so nothing else can
 		// find it to delete it.
-		h.discardStoredDemo(key)
+		h.discardStoredDemo(j.DemoPath)
 		return nil, fmt.Errorf("create job: %w", err)
 	}
 
@@ -513,6 +525,8 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 	}); err != nil {
 		return nil, fmt.Errorf("enqueue %s task: %w", taskKind, err)
 	}
+	// The job's own task goes first, so the library scan never delays it.
+	h.linkJobToLibrary(ctx, *j)
 	return j, nil
 }
 

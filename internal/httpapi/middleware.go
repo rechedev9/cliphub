@@ -237,7 +237,8 @@ func isMultipartUpload(r *http.Request) bool {
 		return false
 	}
 	if r.Method == http.MethodPost &&
-		(r.URL.Path == "/api/jobs" || r.URL.Path == "/api/stream-jobs" || r.URL.Path == "/ui/jobs" || r.URL.Path == "/api/full-demo/overlay-images" || r.URL.Path == "/api/editor/assets") {
+		(r.URL.Path == "/api/jobs" || r.URL.Path == "/api/stream-jobs" || r.URL.Path == "/ui/jobs" || r.URL.Path == "/api/full-demo/overlay-images" || r.URL.Path == "/api/editor/assets" ||
+			r.URL.Path == "/api/library/demos") {
 		return true
 	}
 	return r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/voice-profiles/")

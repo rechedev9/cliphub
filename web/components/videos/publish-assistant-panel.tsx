@@ -338,7 +338,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
 
       {actions}
 
-      <Button type="button" variant="hero" onClick={openYouTubeStudio} className="neon-notch w-full focus-visible:-outline-offset-4">
+      <Button type="button" variant="hero" onClick={openYouTubeStudio} className="w-full">
         <Youtube className="size-4" /> Abrir YouTube Studio →
       </Button>
       <p className="text-center font-mono text-meta uppercase tracking-wider text-fg-3">Sin cuenta conectada · subes tú el MP4</p>

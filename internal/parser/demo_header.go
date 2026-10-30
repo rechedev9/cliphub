@@ -36,3 +36,25 @@ func (w *DemoHeaderWatch) Summary() string {
 	}
 	return fmt.Sprintf("map=%s patch_version=%d build=%d", w.header.GetMapName(), w.header.GetPatchVersion(), w.header.GetBuildNum())
 }
+
+// DemoHeader is the part of the CS2 demo file header the library keeps or
+// reads to detect where a demo came from.
+type DemoHeader struct {
+	ServerName   string
+	BuildNum     int
+	PatchVersion int
+}
+
+// Header returns the header seen so far, and false before the parser read it.
+func (w *DemoHeaderWatch) Header() (DemoHeader, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.header == nil {
+		return DemoHeader{}, false
+	}
+	return DemoHeader{
+		ServerName:   w.header.GetServerName(),
+		BuildNum:     int(w.header.GetBuildNum()),
+		PatchVersion: int(w.header.GetPatchVersion()),
+	}, true
+}

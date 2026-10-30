@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
 
@@ -32,7 +33,7 @@ export default function AppNotFound(): ReactElement {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild>
-            <Link href="/resultados">Ir a Resultados</Link>
+            <Link href={RESULTS_HREF}>Ir a Mis vídeos</Link>
           </Button>
         </div>
       </section>

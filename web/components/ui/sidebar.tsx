@@ -321,11 +321,8 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-inset"
       className={cn(
-        // Transparent, not bg-background: the fixed .shell-canvas / .ff-ambient
-        // planes paint the room from behind every route, and an opaque inset
-        // would hide them. It also removes the second .neon-grid origin that
-        // made the lattice jump 192px whenever the sidebar collapsed.
-        "relative flex w-full flex-1 flex-col bg-transparent",
+        // Flat canvas: the stage paints the same plain background as <body>.
+        "relative flex w-full flex-1 flex-col bg-background",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}

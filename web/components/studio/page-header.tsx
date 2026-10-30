@@ -9,15 +9,9 @@ export type StudioPageHeaderProps = {
 };
 
 /**
- * Consistent title block for every Studio destination. The H1 rides the type
- * scale — `text-display-sm` at 30px on mobile and `text-display` at 40px from
- * `sm` up — instead of the two arbitrary sizes
- * this header used to carry.
- *
- * It deliberately does NOT render a section eyebrow. The command strip states
- * the current section persistently a few pixels above, so a second `// 05 —
- * BIBLIOTECA` under it was a literal repetition. Screens outside the app shell
- * (`/upload`, which has no strip) render `SectionEyebrow` themselves.
+ * Consistent title block for every Studio destination: a compact H1 on the
+ * type scale and a one-line description, with actions on the right. No section
+ * eyebrow: the command strip already names the section a few pixels above.
  */
 export function StudioPageHeader({
   title,
@@ -27,10 +21,10 @@ export function StudioPageHeader({
 }: StudioPageHeaderProps): ReactNode {
   return (
     <header className={cn('flex flex-col', className)}>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
-          <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">{title}</h1>
-          <div className="measure-read mt-3 text-body text-fg-2">{description}</div>
+          <h1 className="text-section font-semibold text-fg-1">{title}</h1>
+          <div className="measure-read mt-1.5 text-body-sm text-fg-2">{description}</div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>

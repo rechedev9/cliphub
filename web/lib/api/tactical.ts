@@ -651,6 +651,8 @@ type TacticalHistogramBucket = {
 /** One player's contribution across the filtered rounds (`tacticalplan.PlayerSummary`). */
 type TacticalPlayerSummary = {
   slot: number;
+  /** Keys the line across matches in a multi-match aggregate. */
+  steamid64?: string;
   name: string;
   rounds: number;
   kills: number;
@@ -671,6 +673,8 @@ type TacticalPlayerSummary = {
 export type TacticalTendencies = {
   filter: TacticalFilter;
   round_count: number;
+  /** Set when the rounds came from several matches. */
+  match_count?: number;
   /** The side the rates are computed from when the filter fixes one. */
   perspective?: TacticalSide;
   wins: number;
@@ -745,13 +749,26 @@ export const TACTICAL_TENDENCIES_KEYS: readonly string[] = [
 
 /** Base path of the demo proxy routes; the orchestrator is never addressed directly. */
 const TACTICAL_API_BASE = '/api/demos';
+/** Base path of the library match proxy routes. */
+const LIBRARY_MATCHES_API_BASE = '/api/library/matches';
+
+/**
+ * Where a tactical document lives: a Crear job's own analysis, or the scan the
+ * library ran for one of its matches. Both serve the same document shapes.
+ */
+export type TacticalSource = { readonly kind: 'job' | 'library'; readonly id: string };
 
 function jobBase(jobId: string): string {
   return `${TACTICAL_API_BASE}/${encodeURIComponent(jobId)}/tactical`;
 }
 
-/** GET (read) / POST (start) the tactical document of a job. */
-function tacticalDocumentUrl(jobId: string): string {
+function sourceBase(source: TacticalSource): string {
+  if (source.kind === 'job') return jobBase(source.id);
+  return `${LIBRARY_MATCHES_API_BASE}/${encodeURIComponent(source.id)}/tactical`;
+}
+
+/** POST (start) the tactical analysis of a job. */
+function tacticalStartUrl(jobId: string): string {
   return jobBase(jobId);
 }
 
@@ -761,14 +778,14 @@ function tacticalStatusUrl(jobId: string): string {
 }
 
 /** GET the raw zvpos1 blob; Range-capable. */
-function tacticalPositionsUrl(jobId: string): string {
-  return `${jobBase(jobId)}/positions`;
+function tacticalPositionsUrl(source: TacticalSource): string {
+  return `${sourceBase(source)}/positions`;
 }
 
 /** GET the tendencies computed over the rounds a filter selects. */
-function tacticalAggregateUrl(jobId: string, filter: TacticalFilter = {}): string {
+function tacticalAggregateUrl(source: TacticalSource, filter: TacticalFilter = {}): string {
   const query = tacticalFilterParams(filter).toString();
-  return query ? `${jobBase(jobId)}/aggregate?${query}` : `${jobBase(jobId)}/aggregate`;
+  return query ? `${sourceBase(source)}/aggregate?${query}` : `${sourceBase(source)}/aggregate`;
 }
 
 /** Serializes a filter into the query parameters `FilterFromValues` parses. */
@@ -836,7 +853,7 @@ export async function startTacticalAnalysis(jobId: string, sampleHz?: number): P
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ [TACTICAL_SAMPLE_HZ_FIELD]: sampleHz }),
         };
-  return readJson<TacticalStatus>(await fetch(tacticalDocumentUrl(jobId), init));
+  return readJson<TacticalStatus>(await fetch(tacticalStartUrl(jobId), init));
 }
 
 /** GET — the analysis lifecycle state, cheap enough to poll. */
@@ -848,9 +865,9 @@ export async function fetchTacticalStatus(jobId: string): Promise<TacticalStatus
  * GET — the whole tactical document. Rejects a schema version this client does
  * not understand rather than rendering a partial analysis.
  */
-export async function fetchTacticalDocument(jobId: string): Promise<TacticalDocument> {
+export async function fetchTacticalDocument(source: TacticalSource): Promise<TacticalDocument> {
   const doc = await readJson<TacticalDocument>(
-    await fetch(tacticalDocumentUrl(jobId), { cache: 'no-store' }),
+    await fetch(sourceBase(source), { cache: 'no-store' }),
   );
   if (!isSupportedTacticalSchema(doc.schema_version)) {
     throw new Error(
@@ -862,11 +879,11 @@ export async function fetchTacticalDocument(jobId: string): Promise<TacticalDocu
 
 /** GET — tendencies over the rounds the filter selects. */
 export async function fetchTacticalTendencies(
-  jobId: string,
+  source: TacticalSource,
   filter: TacticalFilter = {},
 ): Promise<TacticalTendencies> {
   return readJson<TacticalTendencies>(
-    await fetch(tacticalAggregateUrl(jobId, filter), { cache: 'no-store' }),
+    await fetch(tacticalAggregateUrl(source, filter), { cache: 'no-store' }),
   );
 }
 
@@ -876,12 +893,12 @@ export async function fetchTacticalTendencies(
  * body instead of buffering the whole blob.
  */
 export async function fetchTacticalPositions(
-  jobId: string,
+  source: TacticalSource,
   range?: TacticalByteRange,
 ): Promise<ArrayBuffer> {
   const headers: Record<string, string> = {};
   if (range) headers.Range = `bytes=${range.start}-${range.endInclusive}`;
-  const res = await fetch(tacticalPositionsUrl(jobId), { cache: 'no-store', headers });
+  const res = await fetch(tacticalPositionsUrl(source), { cache: 'no-store', headers });
   if (!res.ok) await throwResponseError(res);
   return res.arrayBuffer();
 }
