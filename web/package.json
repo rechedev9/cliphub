@@ -8,7 +8,7 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "node scripts/start-standalone.mjs",
-    "lint": "oxlint",
+    "lint": "oxlint app components hooks lib scripts types proxy.ts next.config.mjs postcss.config.mjs",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test --test-reporter=dot \"lib/**/*.test.ts\" \"app/**/*.test.ts\""
   },
