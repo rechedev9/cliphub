@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { NAV_AREA_LABEL, NAV_SECTIONS, RETIRED_ROUTES, retiredHref, sectionForPath } from './nav.ts';
 
 const RAIL = [
-  ['create', 'Vídeo largo', '/videos-largos'],
+  ['create', 'Demo completa', '/videos-largos'],
   ['create', 'Short', '/shorts'],
   ['create', 'Clips de stream', '/streams'],
   ['create', 'Mis vídeos', '/mis-videos'],

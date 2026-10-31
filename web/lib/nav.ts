@@ -8,7 +8,7 @@ export const NAV_AREA_LABEL = {
 
 /** Studio nav in rail order. */
 export const NAV_SECTIONS = [
-  { label: 'Vídeo largo', href: '/videos-largos', area: 'create' },
+  { label: 'Demo completa', href: '/videos-largos', area: 'create' },
   { label: 'Short', href: '/shorts', area: 'create' },
   { label: 'Clips de stream', href: '/streams', area: 'create' },
   { label: 'Mis vídeos', href: '/mis-videos', area: 'create' },

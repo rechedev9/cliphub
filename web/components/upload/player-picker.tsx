@@ -197,7 +197,7 @@ export function PlayerPicker({
   let contextLabel = 'Demo';
   if (isSeries) contextLabel = `Serie · ${seriesMapCount} mapas`;
   else if (match) contextLabel = prettyMapName(match.map);
-  let ctaLabel = purpose === 'full-demo' ? 'Continuar al vídeo largo' : 'Continuar al Short';
+  let ctaLabel = purpose === 'full-demo' ? 'Continuar a la demo completa' : 'Continuar al Short';
   if (isSeries) ctaLabel = 'Continuar con la serie';
 
 
@@ -403,7 +403,7 @@ export function PlayerPicker({
             disabled={selected === null}
             onClick={() => selected && onPick(selected, 'full-demo')}
           >
-            Preparar vídeo largo
+            Preparar demo completa
           </Button>
         ) : null}
         <Button

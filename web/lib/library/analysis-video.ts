@@ -18,7 +18,7 @@ export const ANALYSIS_VIDEO_ACTION: Record<
   { readonly label: string; readonly format: ProduceFormat; readonly hint: string }
 > = {
   pov: { label: 'Grabar POV', format: PRODUCE_FORMAT.full, hint: 'Una ronda entera con la mira del jugador, en 16:9.' },
-  review: { label: 'Crear vídeo de review', format: PRODUCE_FORMAT.full, hint: 'Las rondas elegidas, una tras otra, en un vídeo largo.' },
+  review: { label: 'Crear vídeo de review', format: PRODUCE_FORMAT.full, hint: 'Las rondas elegidas, una tras otra, en un vídeo 16:9.' },
   short: { label: 'Enviar a Short', format: PRODUCE_FORMAT.short, hint: 'Las bajas del jugador en esas rondas, en vertical.' },
 };
 

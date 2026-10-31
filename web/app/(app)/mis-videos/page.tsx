@@ -163,7 +163,7 @@ export default function ResultsPage(): ReactNode {
         <EmptyState
           icon={Film}
           title="Aún no hay vídeos"
-          description="Los Shorts, vídeos largos y clips de stream que crees aparecerán aquí, ordenados por fecha."
+          description="Los Shorts, demos completas y clips de stream que crees aparecerán aquí, ordenados por fecha."
         />
       </div>
     );

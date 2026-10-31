@@ -41,7 +41,7 @@ const IDLE_POLL_MS = 10000;
 const LIST_TITLE = 'Demos cargadas';
 const LIST_HINT = {
   short: 'Ya están analizadas en este PC: crea otro Short sin volver a cargarlas.',
-  full: 'Ya están analizadas en este PC: prepara otro vídeo largo sin volver a cargarlas.',
+  full: 'Ya están analizadas en este PC: prepara otro vídeo sin volver a cargarlas.',
 } as const satisfies Record<ProduceFormat, string>;
 
 /** The demos already on this PC, each with the next step of this flow. */

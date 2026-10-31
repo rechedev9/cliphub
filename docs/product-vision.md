@@ -29,7 +29,7 @@ sus jugadores y sus vídeos, igual que en un CRM un cliente tiene su ficha y sus
 
 | Grupo | Secciones |
 |---|---|
-| Crear | Shorts (`/shorts`), Vídeos largos (`/videos-largos`), Clips de stream (`/streams`) |
+| Crear | Shorts (`/shorts`), Demo completa (`/videos-largos`), Clips de stream (`/streams`) |
 | Tus vídeos | Resultados (`/resultados`) |
 | Análisis | Jugadores (`/players`, FACEIT), Táctica (`/tactical`), Anti-cheat (`/cheaters`) |
 | Aprender | Algoritmos (`/algoritmos`, tendencias de YouTube) |
@@ -53,7 +53,7 @@ el lenguaje visual.
   (`modernc.org/sqlite`, `internal/store`).
 
 ### Lo que ya existe para contenido
-- Vídeo largo de demo completa (Full Demo, `docs/full-demo-*.md`).
+- Demo completa (Full Demo, `docs/full-demo-*.md`).
 - Shorts de una demo (pipeline determinista en `internal/pipeline`, lista "Prepara tu Short").
 - Clips de stream de Twitch, Kick y YouTube (`internal/vodfetch`, `internal/streamclips`).
 
@@ -92,7 +92,7 @@ Barra lateral propuesta:
 
 ```
 CREAR
-  Vídeo largo          (demo completa)
+  Demo completa
   Short                (de una demo)
   Clips de stream      (Twitch, Kick, YouTube)
   Mis vídeos           (resultados, antes "Resultados")
@@ -137,7 +137,7 @@ Tres flujos principales, sin cambios de alcance. Lo que cambia es la forma:
 
 | Flujo | Entrada | Salida | Ruta actual |
 |---|---|---|---|
-| Vídeo largo | una demo | vídeo de la partida completa con overlays y transiciones | `/videos-largos` |
+| Demo completa | una demo | vídeo de la partida completa con overlays y transiciones | `/videos-largos` |
 | Short | una demo | Shorts verticales de las mejores jugadas | `/shorts` |
 | Clips de stream | URL o VOD de Twitch, Kick o YouTube | clips editados | `/streams` |
 

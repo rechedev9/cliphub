@@ -149,7 +149,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
       if (controller.signal.aborted) return;
       await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
-      toast('Vídeo largo en cola', fullDemoQueueToast(recBusy, planned.warnings));
+      toast('Demo completa en cola', fullDemoQueueToast(recBusy, planned.warnings));
       router.push(doneHref);
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
@@ -173,7 +173,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
 
   return <>
     <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="wrap-anywhere text-meta text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+      <p className="wrap-anywhere text-meta text-fg-3">Nueva demo completa · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
       <p className="w-full text-body-sm text-fg-2">
         {chosenRounds.length > 0
@@ -226,11 +226,11 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
       {(document?.blockers ?? []).map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{item.message}{item.round_id ? ` (${item.round_id})` : ''}</p>)}
       {!dirty ? (document?.warnings ?? []).map((item, index) => <p key={`${item.code}-${index}`} className="text-body-sm text-fg-2">{item.message}</p>) : null}
     </div>
-    <ProduceFooter tone="full" eyebrow="Vídeo largo · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
+    <ProduceFooter tone="full" eyebrow="Demo completa · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
       hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
       readyHint={dirty ? 'Se preparará al crear.' : undefined}
       ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
-      cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
+      cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando demo completa…" onClick={() => void create()}
         className="shrink-0">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
   </>;
 }

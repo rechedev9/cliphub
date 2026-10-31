@@ -19,7 +19,7 @@ test('picking the player is still the source phase of a demo flow; preparing is 
   assert.equal(picking[0]?.detail, 'Elegir jugador');
   const preparing = createFlowPhases(CREATE_FLOW.full, 2);
   assert.deepEqual(preparing.map((phase) => phase.state), ['done', 'current', 'pending']);
-  assert.equal(preparing[1]?.detail, 'Preparar vídeo largo');
+  assert.equal(preparing[1]?.detail, 'Preparar demo completa');
 });
 
 test('a stream edit spans the settings phase and the export lands in the result phase', () => {
