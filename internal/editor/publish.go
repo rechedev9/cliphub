@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
+	"github.com/rechedev9/cliphub/internal/placename"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -240,38 +242,30 @@ func displayMapName(raw string) string {
 	}
 }
 
+// displayPlaceName title-cases a written place ("B tunnels") and names a CS2
+// place token ("PalaceInterior") the way the Studio UI does.
 func displayPlaceName(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	switch strings.ToLower(raw) {
-	case "ctspawn":
-		return "CT Spawn"
-	case "tspawn":
-		return "T Spawn"
-	case "bombsitea":
-		return "A Site"
-	case "bombsiteb":
-		return "B Site"
-	case "secondmid":
-		return "Second Mid"
-	default:
-		return titleWords(raw)
-	}
-}
-
-func titleWords(raw string) string {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == '_' || r == '-' || unicode.IsSpace(r)
 	})
 	for i, field := range fields {
+		if isPlaceToken(field) {
+			fields[i] = placename.Label(field)
+			continue
+		}
 		fields[i] = titleWord(field)
 	}
 	out := strings.Join(fields, " ")
 	out = strings.ReplaceAll(out, " / ", "/")
 	out = strings.ReplaceAll(out, "/", " / ")
 	return strings.Join(strings.Fields(out), " ")
+}
+
+// isPlaceToken reports a CamelCase CS2 place token: a capital first letter and
+// a lowercase letter somewhere, unlike a plain word ("tunnels") or "CS2".
+func isPlaceToken(field string) bool {
+	first, _ := utf8.DecodeRuneInString(field)
+	return unicode.IsUpper(first) && strings.IndexFunc(field, unicode.IsLower) >= 0
 }
 
 func titleWord(raw string) string {

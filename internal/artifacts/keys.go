@@ -156,6 +156,29 @@ func TacticalStatusKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "tactical", "status.json")
 }
 
+// LibraryDemoPrefix is the storage prefix of one library demo: the demo file
+// and the tactical artifacts scanned from it, removed together.
+func LibraryDemoPrefix(id uuid.UUID) string {
+	return path.Join("library", id.String())
+}
+
+// LibraryDemoKey is the storage key of a library demo file.
+func LibraryDemoKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "demo.dem")
+}
+
+// LibraryTacticalIndexKey is the storage key of a library demo's tactical
+// document, the same format as TacticalIndexKey.
+func LibraryTacticalIndexKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "tactical.json")
+}
+
+// LibraryTacticalPositionsKey is the storage key of the position blob the
+// library demo's tactical document indexes.
+func LibraryTacticalPositionsKey(id uuid.UUID) string {
+	return path.Join(LibraryDemoPrefix(id), "positions.zvpos")
+}
+
 // GenerateIntentKey is the storage key for a job's one-click generate intent:
 // the latest accepted preset, music, and edit shown by the workbench. Record
 // tasks carry their own immutable intent rather than reading this mutable view.

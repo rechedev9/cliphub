@@ -4,71 +4,50 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * ClipHub — piel "NEON HUD" v4 (ClipHub Anime, dirección 1a).
- * Fondo azul noche, primario cian #22d9ee, magenta #ff2d78 reservado para
- * REC/stream/likes y rojo para errores/destructivo.
+ * ClipHub Studio, sober skin: a work tool for analysts and creators.
+ * Neutral grey ramps in a light and a dark theme, Geist with tabular figures.
+ * The chrome is monochrome: `primary` is the ink colour. Colour only carries
+ * meaning: CT blue, T amber, won or lost, live stream magenta, errors red.
  *
- * v4 replaces the flat palette with four measured ramps: surfaces, foregrounds,
- * edges and elevation. Depth now comes from an opaque surface step plus a 1px
- * bevel plus a shadow — never from alpha, because compositing a panel at 94%
- * over the canvas threw away most of the (already tiny) luminance delta.
- *
- * La app va forzada a oscuro (<html class="dark">), así que en v4 la rampa se
- * declara UNA sola vez para `:root, .dark`: ambos selectores apuntan al mismo
- * <html>, así que los tokens resuelven con o sin la clase y no hay que
- * mantener dos copias sincronizadas.
+ * Token names are shared by both themes. `:root` is light; `.dark` (written on
+ * <html> by next-themes, dark by default) overrides it.
  */
 
-:root,
-.dark {
-  color-scheme: dark;
-  --radius: 0.625rem;
+:root {
+  color-scheme: light;
+  --radius: 0.5rem;
 
-  /* Fuentes compuestas en runtime. `@theme inline` (abajo) solo inlina valores
-   * en las utilidades font-* y NO emite estas variables, así que los usos
-   * directos (`font-family: var(--font-sans)` en body y los
-   * `font-[family-name:var(--font-display)]` de los componentes) necesitan
-   * estas definiciones reales. Las variables --font-chakra-petch y
-   * --font-share-tech-mono las define next/font en <html> (app/layout.tsx). */
-  --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
-  --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
+  /* next/font defines --font-geist-sans and --font-geist-mono on <html>. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 
-  /* ── Surface ramp ────────────────────────────────────────────────────────
-   * Monotonic in L, single hue 264, chroma rising with L so higher layers read
-   * as closer to the light. Adjacent steps measure 1.03 → 1.06 → 1.08 → 1.11 →
-   * 1.14; panel-vs-canvas goes from 1.023 (v3, effectively invisible) to 1.06.
-   * Surfaces are OPAQUE: alpha is never used to fake a layer. */
-  --surface-0: oklch(0.128 0.02 264); /* void: sidebar, chrome gutters, wells  */
-  --surface-1: oklch(0.152 0.024 264); /* app canvas                           */
-  --surface-2: oklch(0.188 0.028 264); /* standard panel, card                 */
-  --surface-3: oklch(0.224 0.032 264); /* raised/selected panel, field-on-panel */
-  --surface-4: oklch(0.262 0.036 264); /* popover, dropdown, select, dialog    */
-  --surface-5: oklch(0.302 0.038 264); /* control on a popover, hover of s-4   */
+  /* Surface ramp. 0: sidebar and wells; 1: app canvas; 2: panel and card;
+   * 3: raised or selected row, field on a panel; 4: popover; 5: control on a
+   * popover. Surfaces are opaque. */
+  --surface-0: oklch(0.975 0.002 264);
+  --surface-1: oklch(0.985 0.001 264);
+  --surface-2: oklch(1 0 0);
+  --surface-3: oklch(0.965 0.002 264);
+  --surface-4: oklch(1 0 0);
+  --surface-5: oklch(0.955 0.003 264);
+  --panel-raised: oklch(1 0 0);
 
-  /* Aliases onto the ramp. They exist so the primitive and domain layers keep
-   * compiling while they are migrated to --surface-N in a later commit. */
   --background: var(--surface-1);
   --surface: var(--surface-2);
   --card: var(--surface-2);
   --surface-raised: var(--surface-3);
   --popover: var(--surface-4);
   --muted: var(--surface-3);
-  --secondary: var(--surface-4);
+  --secondary: var(--surface-3);
   --sidebar: var(--surface-0);
 
-  /* ── Foreground ramp ─────────────────────────────────────────────────────
-   * Replaces the ten invented `text-muted-foreground/NN` greys. --fg-3 clears
-   * 4.5:1 on every surface including --surface-5 (4.58:1), so it is the AA
-   * floor for text. --fg-4 may never carry text: hairline glyphs only. */
-  --fg-1: oklch(0.97 0.012 226); /* headings, essential content        */
-  --fg-2: oklch(0.795 0.03 250); /* descriptions, metadata             */
-  --fg-3: oklch(0.672 0.028 250); /* de-emphasized labels — AA floor    */
-  /* --fg-4 is hairline glyphs and separators, never text — and it only clears
-   * the 3:1 graphics floor on --surface-0..3 (3.97 / 3.75 / 3.47). It measures
-   * 3.13 on --surface-4 and 2.75 on --surface-5, so a divider inside a popover
-   * or a control on a popover must use --fg-3, not this. */
-  --fg-4: oklch(0.545 0.024 250);
+  /* Foreground ramp. --fg-3 is the AA floor for text; --fg-4 is for hairline
+   * glyphs and separators, never text. */
+  --fg-1: oklch(0.21 0.006 264);
+  --fg-2: oklch(0.43 0.008 264);
+  --fg-3: oklch(0.53 0.008 264);
+  --fg-4: oklch(0.72 0.006 264);
 
   --foreground: var(--fg-1);
   --card-foreground: var(--fg-1);
@@ -78,148 +57,170 @@
   --muted-foreground: var(--fg-2);
   --sidebar-foreground: var(--fg-2);
 
-  /* ── Borders & edges ─────────────────────────────────────────────────────
-   * Measured against --surface-2: subtle 1.41:1, border 2.03:1 (v3 was 1.22),
-   * strong 4.01:1. --border-strong is the boundary for anything interactive,
-   * which is what WCAG 1.4.11 asks for; --input is now an alias of it because
-   * the old --input measured 1.44:1 on a field surface. */
-  --border-subtle: oklch(0.42 0.024 264 / 0.5);
-  --border: oklch(0.52 0.028 264 / 0.62);
-  --border-strong: oklch(0.62 0.035 264 / 0.85);
-  --border-accent: oklch(0.811 0.135 207.6 / 0.45);
+  --border-subtle: oklch(0.93 0.003 264);
+  --border: oklch(0.9 0.004 264);
+  --border-strong: oklch(0.8 0.006 264);
+  --border-accent: oklch(0.21 0.006 264 / 0.35);
   --input: var(--border-strong);
-  --sidebar-border: var(--border-subtle);
+  --sidebar-border: var(--border);
 
-  /* One global light direction. --edge-light/--edge-shade are the 1px inset
-   * pair that turns a rectangle into a physical plate; they cost no blur. */
-  --edge-light: oklch(0.98 0.01 226 / 0.075);
-  --edge-shade: oklch(0.05 0.02 264 / 0.55);
-  --light-angle: 200deg;
+  --edge-light: oklch(1 0 0 / 0);
+  --edge-shade: oklch(0 0 0 / 0.06);
 
-  /* ── Semantic ────────────────────────────────────────────────────────────
-   * --destructive stays bright for text/borders/icons (5.85:1 on --surface-2);
-   * --destructive-solid is the only red allowed under white text (7.11:1).
-   * --stream fills, --stream-text writes. The *-foreground pairs exist so
-   * filled success/warning chips stop reaching for amber-400/emerald-400. */
-  --primary: oklch(0.811 0.135 207.6); /* cian #22d9ee */
-  --primary-foreground: oklch(0.173 0.027 233.6); /* 11.04:1 on --primary */
-  --accent: oklch(0.27 0.052 262); /* navy cian-tintado #182640 */
-  --destructive: oklch(0.68 0.205 22);
-  --destructive-solid: oklch(0.485 0.195 22);
-  --destructive-foreground: oklch(0.16 0.035 22); /* 6.16:1 on --destructive */
-  --brand-accent: oklch(0.68 0.225 25); /* vermilion wordmark micro-accent */
-  --stream: oklch(0.657 0.241 6.9); /* magenta #ff2d78 */
-  --stream-text: oklch(0.72 0.22 6.9);
+  /* Accent and meaning. --destructive writes, --destructive-solid fills under
+   * white text; the same pair exists for stream, success and warning. */
+  --primary: oklch(0.21 0.006 264);
+  --primary-foreground: oklch(0.985 0.001 264);
+  --accent: oklch(0.955 0.003 264);
+  --destructive: oklch(0.53 0.2 25);
+  --destructive-solid: oklch(0.53 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  --brand-accent: oklch(0.6 0.2 25);
+  --stream: oklch(0.56 0.15 6.9);
+  --stream-text: oklch(0.5 0.14 6.9);
+  --stream-foreground: oklch(1 0 0);
+  --success: oklch(0.52 0.12 160);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.56 0.13 65);
+  --warning-foreground: oklch(1 0 0);
+  --skeleton: oklch(0.93 0.003 264);
+  --ring: oklch(0.43 0.008 264);
+
+  /* Sides and outcomes, the only other colours with a job. */
+  --side-ct: oklch(0.52 0.15 255);
+  --side-t: oklch(0.53 0.12 65); /* 4.5:1 on white for 12px labels */
+  --outcome-win: var(--success);
+  --outcome-loss: var(--destructive);
+
+  --chart-1: oklch(0.48 0.07 250);
+  --chart-2: oklch(0.56 0.15 6.9);
+  --chart-3: oklch(0.5 0.1 292);
+  --chart-4: oklch(0.6 0.01 264);
+  --chart-5: oklch(0.75 0.008 264);
+
+  /* FACEIT skill-level tiers, close to FACEIT's own gauge colours. */
+  --faceit-level-1: oklch(0.55 0.01 250);
+  --faceit-level-2: oklch(0.55 0.17 142);
+  --faceit-level-4: oklch(0.62 0.15 90);
+  --faceit-level-8: oklch(0.6 0.17 48);
+  --faceit-level-10: oklch(0.55 0.21 32);
+
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.935 0.003 264);
+  --sidebar-accent-foreground: var(--fg-1);
+  --sidebar-ring: var(--ring);
+
+  /* Elevation: soft key shadows only. --elev-bevel stays as a token so the
+   * primitives that compose it keep compiling; it draws nothing visible. */
+  --elev-bevel: 0 0 0 0 transparent;
+  --elev-0: var(--elev-bevel);
+  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --elev-2: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.06);
+  --elev-3: 0 4px 10px -2px oklch(0 0 0 / 0.08), 0 2px 4px -2px oklch(0 0 0 / 0.05);
+  --elev-4: 0 10px 24px -6px oklch(0 0 0 / 0.14), 0 2px 6px -2px oklch(0 0 0 / 0.06);
+  --elev-5: 0 20px 40px -12px oklch(0 0 0 / 0.2);
+  --elev-band-up: 0 -6px 16px -12px oklch(0 0 0 / 0.18);
+
+
+  /* Motion durations. Easings live in @theme so they emit `ease-*` utilities. */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-data: 600ms;
+
+  /* One scalar every remaining depth effect multiplies by; the signals below
+   * drive it to 0 so a reduced, captured or inactive window renders flat. */
+  --shell-depth: 1;
+
+  /* Shell geometry, shared by the command strip and the page frame. */
+  --shell-strip-height: 3rem;
+  --shell-gutter: clamp(1rem, 2.4vw, 2.5rem);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface-0: oklch(0.165 0.003 264);
+  --surface-1: oklch(0.185 0.003 264);
+  --surface-2: oklch(0.212 0.004 264);
+  --surface-3: oklch(0.245 0.004 264);
+  --surface-4: oklch(0.255 0.004 264);
+  --surface-5: oklch(0.3 0.005 264);
+  --panel-raised: oklch(0.228 0.004 264);
+  --secondary: var(--surface-4);
+
+  --fg-1: oklch(0.96 0.002 264);
+  --fg-2: oklch(0.79 0.004 264);
+  --fg-3: oklch(0.68 0.005 264);
+  --fg-4: oklch(0.52 0.005 264);
+
+  --border-subtle: oklch(1 0 0 / 0.06);
+  --border: oklch(1 0 0 / 0.1);
+  --border-strong: oklch(1 0 0 / 0.2);
+  --border-accent: oklch(1 0 0 / 0.3);
+
+  --edge-light: oklch(1 0 0 / 0.04);
+  --edge-shade: oklch(0 0 0 / 0.4);
+
+  --primary: oklch(0.96 0.002 264);
+  --primary-foreground: oklch(0.185 0.003 264);
+  --accent: oklch(0.26 0.004 264);
+  --destructive: oklch(0.68 0.16 22);
+  --destructive-solid: oklch(0.5 0.19 22);
+  --destructive-foreground: oklch(0.16 0.035 22);
+  --brand-accent: oklch(0.68 0.21 25);
+  --stream: oklch(0.68 0.15 6.9);
+  --stream-text: oklch(0.76 0.12 6.9);
   --stream-foreground: oklch(0.17 0.035 6.9);
-  --success: oklch(0.82 0.135 166);
-  --success-foreground: oklch(0.17 0.04 166);
-  --warning: oklch(0.82 0.16 78);
+  --success: oklch(0.76 0.11 158);
+  --success-foreground: oklch(0.17 0.04 160);
+  --warning: oklch(0.8 0.12 78);
   --warning-foreground: oklch(0.18 0.045 78);
-  /* Loading affordance. Measured 1.90:1 on --surface-2 and 2.00:1 on
-   * --surface-1 — just under --border (2.03:1), so a skeleton is as legible as
-   * the panel edge without out-shouting it. The V4.7 draft value (L 0.255) sat
-   * between --surface-3 and --surface-4 and measured 1.18:1 on a panel, i.e.
-   * *less* visible than the bg-accent (1.23:1) it was meant to replace. */
-  --skeleton: oklch(0.385 0.034 264);
-  --ring: oklch(0.811 0.135 207.6);
+  --skeleton: oklch(0.3 0.004 264);
+  --ring: oklch(0.79 0.004 264);
 
-  --chart-1: oklch(0.811 0.135 207.6); /* cian #22d9ee */
-  --chart-2: oklch(0.657 0.241 6.9); /* magenta #ff2d78 */
-  --chart-3: oklch(0.61 0.232 292); /* violeta #8c5aff */
-  --chart-4: oklch(0.527 0.037 249.9); /* dim #5b6d80 */
-  --chart-5: oklch(0.39 0.044 250.2); /* dim #33475c */
+  --side-ct: oklch(0.72 0.13 250);
+  --side-t: oklch(0.8 0.14 75);
 
-  /* FACEIT skill-level tiers, close to FACEIT's own gauge colours so a level
-   * reads at a glance. Only the level gauge uses them: level 10 used to borrow
-   * --destructive and a list of top players looked like a list of errors. */
+  --chart-1: oklch(0.74 0.07 250);
+  --chart-2: oklch(0.68 0.15 6.9);
+  --chart-3: oklch(0.68 0.11 292);
+  --chart-4: oklch(0.55 0.008 264);
+  --chart-5: oklch(0.4 0.006 264);
+
   --faceit-level-1: oklch(0.88 0.01 250);
   --faceit-level-2: oklch(0.8 0.21 142);
   --faceit-level-4: oklch(0.86 0.17 90);
   --faceit-level-8: oklch(0.72 0.19 48);
   --faceit-level-10: oklch(0.66 0.23 32);
 
-  --sidebar-primary: oklch(0.811 0.135 207.6);
-  --sidebar-primary-foreground: oklch(0.173 0.027 233.6);
-  --sidebar-accent: oklch(0.214 0.05 265.4); /* #0e1830 */
-  --sidebar-accent-foreground: var(--fg-1);
-  --sidebar-ring: oklch(0.811 0.135 207.6);
+  --sidebar-accent: oklch(0.235 0.004 264);
 
-  /* ── Elevation ───────────────────────────────────────────────────────────
-   * Every level is bevel + key + ambient. The bevel is zero-blur, so it costs
-   * no raster kernel and is the one part of the scale that survives the
-   * efficiency profile intact (see the downgrade block at the end). */
-  --elev-bevel: inset 0 1px 0 0 var(--edge-light), inset 0 -1px 0 0 var(--edge-shade);
-  --elev-0: var(--elev-bevel);
-  --elev-1: var(--elev-bevel), 0 1px 2px -1px oklch(0.03 0.02 264 / 0.7),
-    0 3px 8px -2px oklch(0.03 0.02 264 / 0.45);
-  --elev-2: var(--elev-bevel), 0 2px 4px -2px oklch(0.03 0.02 264 / 0.7),
-    0 8px 20px -4px oklch(0.03 0.02 264 / 0.5);
-  --elev-3: var(--elev-bevel), 0 4px 8px -3px oklch(0.03 0.02 264 / 0.75),
-    0 16px 36px -8px oklch(0.03 0.02 264 / 0.55);
-  --elev-4: var(--elev-bevel), 0 8px 16px -6px oklch(0.02 0.02 264 / 0.8),
-    0 28px 60px -12px oklch(0.02 0.02 264 / 0.62);
-  --elev-5: var(--elev-bevel), 0 16px 28px -10px oklch(0.02 0.02 264 / 0.85),
-    0 48px 96px -20px oklch(0.02 0.02 264 / 0.7);
+  --elev-1: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --elev-2: 0 1px 3px 0 oklch(0 0 0 / 0.35), 0 1px 2px -1px oklch(0 0 0 / 0.3);
+  --elev-3: 0 4px 12px -2px oklch(0 0 0 / 0.4);
+  --elev-4: 0 12px 28px -8px oklch(0 0 0 / 0.55), 0 0 0 1px oklch(1 0 0 / 0.04);
+  --elev-5: 0 24px 48px -16px oklch(0 0 0 / 0.65), 0 0 0 1px oklch(1 0 0 / 0.04);
+  --elev-band-up: 0 -8px 20px -14px oklch(0 0 0 / 0.7);
+}
 
-  /* An upward lift for a sticky band that floats over a scrolled list — the
-   * ceiling's shadow, mirrored. Declared here rather than as a `shadow-[…]`
-   * literal in a component so the efficiency profile can reach it. */
-  --elev-band-up: 0 -12px 28px -18px oklch(0.02 0.02 264 / 0.9);
-
-  --glow-primary-sm: 0 0 12px oklch(0.811 0.135 207.6 / 0.18);
-  --glow-primary-md: 0 0 26px oklch(0.811 0.135 207.6 / 0.26), 0 0 2px oklch(0.811 0.135 207.6 / 0.55);
-  --glow-primary-lg: 0 0 48px oklch(0.811 0.135 207.6 / 0.32), 0 0 3px oklch(0.811 0.135 207.6 / 0.7);
-  --glow-stream-md: 0 0 26px oklch(0.657 0.241 6.9 / 0.3), 0 0 2px oklch(0.657 0.241 6.9 / 0.6);
-
-  /* ── Motion durations ────────────────────────────────────────────────────
-   * Easings live in the @theme block below so they also emit `ease-*`
-   * utilities; durations stay here because Tailwind's namespace is
-   * --duration-* and these are consumed from CSS, not from class strings. */
-  --dur-instant: 80ms; /* hover tint, focus ring                     */
-  --dur-fast: 140ms; /* press, chip toggle, tab switch             */
-  --dur-base: 220ms; /* panel hover elevation, dialog, popover     */
-  --dur-slow: 380ms; /* sheet, route-level reveal                  */
-  --dur-data: 600ms; /* progress/meter fill — data, not decoration */
-
-  /* ── Depth gate ──────────────────────────────────────────────────────────
-   * One scalar every 3D effect multiplies by. Degradation is structural: the
-   * five signals below drive it to 0 once, instead of every new effect having
-   * to remember four media queries. Anything that must survive degradation
-   * (the static pipeline arrangement) deliberately does NOT read it. */
-  --shell-depth: 1;
-  --perspective: 900px;
-
-  /* Canvas texture, shared by .shell-canvas and the WebGL fallback. */
-  --lattice-fine: color-mix(in oklch, var(--primary) 6%, transparent);
-  --lattice-coarse: color-mix(in oklch, var(--primary) 3%, transparent);
-  --lattice-floor: color-mix(in oklch, var(--primary) 4.4%, transparent);
-
-  /* ── Shell geometry ──────────────────────────────────────────────────────
-   * The command strip and the page frame have to agree on these two numbers
-   * without importing each other, so they are tokens rather than literals
-   * inside a className. --shell-gutter replaces the old
-   * `px-4 sm:px-6 md:px-10 lg:px-12` ladder, whose last step was `lg`, so 1024,
-   * 1440 and 1920 all got the same 48px. */
-  --shell-strip-height: 3.5rem;
-  --shell-gutter: clamp(1.5rem, 3.2vw, 4rem);
-
-  /* ── Content measure ─────────────────────────────────────────────────────
-   * The stage is capped at 1440px, but a page is not obliged to fill it, and
-   * before these tokens every route picked its own number: `max-w-[1080px]`
-   * twelve times, `max-w-[1160px]` twice, `max-w-2xl` on Ajustes, and no cap
-   * at all on Táctica / Anti-cheat / Players. At 1920 the right edge of the
-   * content therefore moved on every navigation — 1080, then 1320, then 672 —
-   * which is the single loudest reason the app read as unfinished.
-   *
-   * Three named widths, one per kind of surface. A page picks the one that
-   * matches its job; it never writes a pixel width.
-   *   read — a form or a definition list, held near a comfortable line length
-   *   list — a stack of rows, where the gap between an identity on the left
-   *          and its state on the right is what has to stay scannable
-   *   work — a two-column workspace: subject plus its inspector rail */
-  --measure-read: 42rem; /* 672px */
-  --measure-list: 67.5rem; /* 1080px */
-  --measure-work: 72.5rem; /* 1160px */
+/* Compact density: a 3.5px spacing unit instead of 4px and the type scale one
+ * notch down, so every utility tightens together. --text-meta keeps the 12px floor. */
+:root[data-density="compact"] {
+  --spacing: 0.21875rem;
+  --text-label: 0.78125rem;
+  --text-body-sm: 0.8125rem;
+  --text-body: 0.875rem;
+  --text-body-lg: 1rem;
+  --text-title: 1.125rem;
+  --text-section: 1.3125rem;
+  --text-display-sm: 1.625rem;
+  --text-display: 2.125rem;
+  --text-stat: 1.5rem;
+  --shell-strip-height: 2.625rem;
+  --shell-gutter: clamp(0.875rem, 2vw, 2rem);
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"],
@@ -236,10 +237,10 @@ html[data-capture-active="true"] {
    * 12px is the hard floor; --text-meta is it. Retires 17 arbitrary sizes. */
   --text-meta: 0.75rem;
   --text-meta--line-height: 1.25;
-  --text-meta--letter-spacing: 0.14em;
+  --text-meta--letter-spacing: 0.02em;
   --text-label: 0.8125rem;
   --text-label--line-height: 1.3;
-  --text-label--letter-spacing: 0.08em;
+  --text-label--letter-spacing: 0.01em;
   --text-body-sm: 0.875rem;
   --text-body-sm--line-height: 1.45;
   --text-body: 0.9375rem;
@@ -266,18 +267,161 @@ html[data-capture-active="true"] {
   --text-stat--letter-spacing: 0.01em;
 
   /* Tracking scale. Overrides Tailwind's defaults so `tracking-wider` means
-   * one thing everywhere instead of 0.12 vs 0.13 vs 0.14 per file. */
-  --tracking-tight: -0.025em;
-  --tracking-wide: 0.06em; /* display caps: buttons, nav      */
-  --tracking-wider: 0.12em; /* mono metadata, status tags      */
-  --tracking-widest: 0.2em; /* stat labels                     */
-  --tracking-ultra: 0.3em; /* section eyebrow only            */
+   * one thing everywhere. Kept tight: Geist is drawn for dense UI. */
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.04em;
+  --tracking-widest: 0.06em;
+  --tracking-ultra: 0.08em;
+
+  /* Content measures: `max-w-read` (form), `max-w-list` (rows), `max-w-work`
+   * (subject plus inspector rail). A page picks one; it never writes a pixel width. */
+  --container-read: 42rem;
+  --container-list: 67.5rem;
+  --container-work: 72.5rem;
+
+  /* Motion. Amplitudes multiply --shell-depth, so efficiency, capture, reduced
+   * motion and an inactive window snap to the end state. */
+  --animate-studio-shake: studio-shake var(--dur-base) var(--ease-standard) 1;
+  --animate-studio-reveal: studio-reveal var(--dur-base) var(--ease-entrance) both;
+  --animate-studio-indeterminate: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
+  --animate-studio-enter: studio-enter var(--dur-slow) var(--ease-entrance) both;
+  --animate-studio-spin: studio-spin 0.9s linear infinite;
+  --animate-check-draw: studio-check-draw var(--dur-base) var(--ease-entrance) both;
+  /* Three beats, then static: an infinite opacity loop keeps the compositor busy. */
+  --animate-live-pulse: live-pulse 1.4s steps(2, end) 3;
+  --animate-equalizer: ff-eq 0.9s ease-in-out infinite;
+  --animate-nav-pending: ff-nav-pending 900ms var(--ease-standard) infinite;
+  --animate-dialog-in: ff-dialog-in var(--dur-base) var(--ease-standard);
+  --animate-dialog-out: ff-dialog-out var(--dur-fast) var(--ease-exit);
 
   /* Easings. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-pop: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  @keyframes ff-dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(calc(1 - 0.02 * var(--shell-depth)));
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ff-dialog-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes ff-nav-pending {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes studio-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    20% {
+      transform: translateX(calc(6px * var(--shell-depth)));
+    }
+
+    40% {
+      transform: translateX(calc(-5px * var(--shell-depth)));
+    }
+
+    60% {
+      transform: translateX(calc(4px * var(--shell-depth)));
+    }
+
+    80% {
+      transform: translateX(calc(-2px * var(--shell-depth)));
+    }
+  }
+
+  @keyframes studio-reveal {
+    from {
+      opacity: calc(1 - 0.28 * var(--shell-depth));
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes studio-indeterminate {
+    from {
+      transform: translateX(-120%);
+    }
+
+    to {
+      transform: translateX(280%);
+    }
+  }
+
+  @keyframes studio-enter {
+    from {
+      opacity: 0;
+      transform: translateY(calc(8px * var(--shell-depth)));
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes studio-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes studio-check-draw {
+    from {
+      stroke-dashoffset: calc(24 * var(--shell-depth));
+    }
+
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+
+  @keyframes ff-eq {
+    0%,
+    100% {
+      height: 30%;
+    }
+
+    50% {
+      height: 100%;
+    }
+  }
 }
 
 @theme inline {
@@ -312,6 +456,11 @@ html[data-capture-active="true"] {
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-skeleton: var(--skeleton);
+  --color-panel-raised: var(--panel-raised);
+  --color-side-ct: var(--side-ct);
+  --color-side-t: var(--side-t);
+  --color-outcome-win: var(--outcome-win);
+  --color-outcome-loss: var(--outcome-loss);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-0: var(--surface-0);
@@ -346,22 +495,8 @@ html[data-capture-active="true"] {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* shadow-* maps onto the elevation scale, including -xl/-2xl which v3 left
-   * on Tailwind's light-mode default (rgb(0 0 0 / 0.1) — a no-op on navy, and
-   * the reason the Select popover had zero depth cues). Because these point at
-   * --elev-*, the efficiency downgrade propagates to the utilities too.
-   *
-   * TRADE-OFF, read before adding a `shadow-<color>` class: Tailwind can only
-   * splice `var(--tw-shadow-color, …)` into a shadow value it can parse, and a
-   * bare `var(--elev-N)` is opaque to it. Compiled proof:
-   *   .shadow-sm{--tw-shadow:var(--elev-1)}          <- no colour slot
-   *   .shadow-primary\/15{--tw-shadow-color:…}       <- written, never read
-   * So `shadow-primary/15`, `hover:shadow-primary/20` and `shadow-stream/15`
-   * are inert against these keys. Keeping the indirection is deliberate: the
-   * efficiency profile is unconditional in the packaged app, so propagating the
-   * downgrade is worth more than a tinted shadow. Express brand emphasis with
-   * the --glow-primary-sm/md/lg and --glow-stream-md tokens
-   * instead, and delete the dead shadow-color utilities when primitives land. */
+  /* shadow-* maps onto the elevation scale so the efficiency downgrade reaches
+   * the utilities. A `shadow-<color>` class is inert against these keys. */
   --shadow-2xs: var(--elev-0);
   --shadow-xs: var(--elev-0);
   --shadow-sm: var(--elev-1);
@@ -371,10 +506,10 @@ html[data-capture-active="true"] {
   --shadow-xl: var(--elev-4);
   --shadow-2xl: var(--elev-5);
 
-  /* Fuentes — cableadas en app/layout.tsx vía next/font/google. */
-  --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
-  --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
+  /* Fonts, wired in app/layout.tsx through next/font/google. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -382,9 +517,8 @@ html[data-capture-active="true"] {
     @apply border-border outline-ring/50;
   }
 
-  /* One visible 2px cyan ring with a dark offset, as a real
-   * base rule. Without it the UA `outline: auto` fallback was doing the work
-   * and every primitive that forgot `focus-visible:` had no indicator. */
+  /* One visible 2px accent ring as a real base rule, so every primitive that
+   * forgot `focus-visible:` still has an indicator. */
   *:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
@@ -396,623 +530,126 @@ html[data-capture-active="true"] {
     font-size: var(--text-body);
     line-height: var(--text-body--line-height);
     min-height: 100vh;
+    /* Every figure in Studio lines up in columns: scores, ticks, rounds. */
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Every stat/score/tick is mono with locked-width digits. */
+  /* Kept for call sites that ask for it explicitly. */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  /* ── Content measure ─────────────────────────────────────────────────────
-   * `width: 100%` first so the cap only ever binds on a wide stage; these are
-   * ceilings, not fixed columns. Left-pinned like the stage itself, so the
-   * H1, the rows under it and the sidebar edge share one optical spine. */
-  .measure-read,
-  .measure-list,
-  .measure-work {
-    width: 100%;
-  }
-
+  /* Content measure: ceilings, not fixed columns, left-pinned like the stage. */
   .measure-read {
-    max-width: var(--measure-read);
+    @apply w-full max-w-read;
   }
 
   .measure-list {
-    max-width: var(--measure-list);
+    @apply w-full max-w-list;
   }
 
   .measure-work {
-    max-width: var(--measure-work);
+    @apply w-full max-w-work;
   }
 
-  /* ── Row rail ────────────────────────────────────────────────────────────
-   * A list row is identity on the left, state and actions on the right. When
-   * the trailing slots size to their content, every row parks its controls at
-   * a different x and the column reads as ragged — the defect visible on the
-   * hub, where one row's "Clipear short" sat 60px left of the next one's.
-   * These two reserve the columns instead, and only from `@[44rem]/content`:
-   * below that the cluster wraps and a reserved width would be a hole.
-   *
-   * The reservation is a flex BASIS that may shrink, never a fixed width: a
-   * rail keyed to the content container but used inside a narrower nested
-   * column — a half-width expanded partida, a two-column scoreboard cell —
-   * would otherwise reserve 280px it does not have and push its siblings out
-   * of the card. `flex: 0 1 <basis>` reserves the column wherever it fits and
-   * gives it back where it does not, which is the whole point of asking for a
-   * column instead of a width. */
+  /* Row rail: from 44rem the trailing state and actions reserve a column so
+   * every row parks its controls at the same x. A shrinkable basis, never a
+   * fixed width, so a narrower nested column gets the space back. */
   .row-state {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.375rem;
-    align-self: center;
-    flex: 0 1 auto;
-    min-width: 0;
+    @apply flex min-w-0 flex-[0_1_auto] flex-col justify-center gap-1.5 self-center @min-[44rem]/content:basis-70;
   }
 
-  /* The stages that own a whole wrapped line on a narrow row — a progress
-   * block, a two-line hint — rather than sitting inline beside a score. */
   .row-state-block {
-    width: 100%;
+    @apply w-full @min-[44rem]/content:w-auto;
   }
 
   .row-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    flex: 0 1 auto;
-    /* Never below the controls themselves: the rail aligns a column, it does
-     * not get to clip a button. */
-    min-width: min-content;
+    @apply flex min-w-min flex-[0_1_auto] items-center justify-end gap-2 @min-[44rem]/content:basis-50;
   }
 
-  @container content (min-width: 44rem) {
-    .row-state {
-      flex-basis: 17.5rem; /* 280px */
-    }
-
-    .row-state-block {
-      width: auto;
-    }
-
-    .row-actions {
-      flex-basis: 12.5rem; /* 200px */
-    }
-  }
-
-  /* ── Studio surfaces ─────────────────────────────────────────────────────
-   * Opaque --surface-2 + bevel + elevation. The v3 recipe composited
-   * --surface at 94% over the canvas and landed at 1.023:1; depth now comes
-   * from the ramp and the light model, never from alpha. */
+  /* Flat, opaque panels: a hairline border and a soft shadow. */
   .studio-panel {
-    position: relative;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background-color: var(--surface-2);
-    background-image: linear-gradient(
-      var(--light-angle),
-      color-mix(in oklch, var(--primary) 3%, transparent),
-      transparent 46%
-    );
-    box-shadow: var(--elev-1);
+    @apply relative rounded-lg border border-border bg-surface-2 shadow-sm forced-colors:border-[CanvasText] forced-colors:shadow-none;
   }
 
   .studio-panel-raised {
-    border-color: var(--border-accent);
-    background-color: var(--surface-3);
-    background-image: linear-gradient(
-      var(--light-angle),
-      color-mix(in oklch, var(--primary) 5%, transparent),
-      transparent 50%
-    );
-    box-shadow: var(--elev-3);
+    @apply border-border bg-panel-raised shadow-md forced-colors:border-[CanvasText] forced-colors:shadow-none;
   }
 
   .studio-panel-interactive {
-    transition:
-      border-color var(--dur-fast) var(--ease-standard),
-      background-color var(--dur-fast) var(--ease-standard),
-      box-shadow var(--dur-base) var(--ease-standard),
-      transform var(--dur-base) var(--ease-standard);
+    @apply transition-[border-color,background-color,box-shadow,transform] duration-(--dur-fast) ease-standard hover:border-border-strong hover:bg-surface-3;
   }
 
-  .studio-panel-interactive:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--elev-2);
-    transform: translateY(-1px);
-  }
-
-  /* The bevel on its own, for surfaces that bring their own shadow or none.
-   * Do not combine with a `shadow-*` utility: both write box-shadow. */
-  .studio-rim {
-    box-shadow: var(--elev-bevel);
-  }
-
-  /* Fine CRT pitch for media frames. Owns ::after. */
-  .studio-scanline {
-    position: relative;
-  }
-
-  .studio-scanline::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image: repeating-linear-gradient(180deg, oklch(1 0 0 / 0.035) 0 1px, transparent 1px 3px);
-  }
-
-  /* ── Canvas ──────────────────────────────────────────────────────────────
-   * One fixed, static, aria-hidden plane: horizon wash + two-level lattice +
-   * a CSS-3D floor receding to the horizon + scanlines + vignette. Fixed (not
-   * document-height) so the wash still reaches the viewport on a 3000px page,
-   * and continuous under the sidebar so collapsing it does not jump the grid.
-   *
-   * STACKING, read before changing `z-index`. The draft shipped `z-index: 0`,
-   * which needs every route's content wrapper to opt into `relative z-10` or
-   * the canvas paints on top of it — and `/upload`, `/bootstrap` and the 404
-   * live outside the app group, so that opt-in would have to be repeated in
-   * files the shell does not own. `-1` inverts the contract: as a child of
-   * <body> (which is neither positioned nor filtered, so it is not a
-   * containing block) the plane paints in the root stacking context's
-   * negative-z step — above the propagated page background, below every
-   * in-flow element on every route, with no per-page cooperation. The one
-   * requirement is that the layers above it stop painting opaque backgrounds
-   * over it, which is why SidebarInset is `bg-transparent`.
-   *
-   * Mounting it under SidebarInset would ALSO break it outright: the
-   * `[data-dialog-open]` rule at the end of this file puts `filter`/`transform`
-   * on that element, and either one makes it the containing block for a fixed
-   * descendant — the plane would silently become document-height again, which
-   * is the exact bug (A8) it exists to fix. */
-  .shell-canvas {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    contain: strict;
-    background-image:
-      radial-gradient(900px 560px at 42% -12%, color-mix(in oklch, var(--primary) 7%, transparent), transparent 72%),
-      repeating-linear-gradient(180deg, oklch(1 0 0 / 0.015) 0 1px, transparent 1px 3px),
-      radial-gradient(120% 100% at 50% 38%, transparent 42%, oklch(0.02 0.02 264 / 0.55) 100%);
-  }
-
-  /* Import is a quiet workspace: keep the decorative canvas out of this route. */
-  body:has([data-streams-home]) .shell-canvas,
-  body:has([data-streams-home]) .ff-ambient-layer {
-    display: none;
-  }
-
-  .shell-canvas::before,
-  .shell-canvas::after {
-    content: "";
-    position: absolute;
-    pointer-events: none;
-  }
-
-  /* Two-level lattice: 48px fine over a 192px coarse rule, faded out before
-   * the floor starts so the two textures never cross. */
-  .shell-canvas::before {
-    inset: 0;
-    background-image:
-      linear-gradient(var(--lattice-fine) 1px, transparent 1px),
-      linear-gradient(90deg, var(--lattice-fine) 1px, transparent 1px),
-      linear-gradient(var(--lattice-coarse) 1px, transparent 1px),
-      linear-gradient(90deg, var(--lattice-coarse) 1px, transparent 1px);
-    background-size: 48px 48px, 48px 48px, 192px 192px, 192px 192px;
-    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 60%);
-    mask-image: linear-gradient(to bottom, black 0%, transparent 60%);
-  }
-
-  /* At --shell-depth: 0 the rotateX collapses to 0deg and the mask leaves a
-   * plain faint grid — degradation with no separate rule.
-   *
-   * --lattice-floor, not --lattice-fine: measured in the browser, the floor at
-   * the flat lattice's 6% out-shouted the content on any page with empty space
-   * below it, which is most of them. Perspective already concentrates the lines
-   * near the horizon, so it needs roughly half the ink to read as the same
-   * plane. The mask fades sooner for the same reason. */
-  .shell-canvas::after {
-    inset: auto 0 0 0;
-    height: 46vh;
-    transform: perspective(var(--perspective)) rotateX(calc(72deg * var(--shell-depth)));
-    transform-origin: 50% 100%;
-    background-image:
-      repeating-linear-gradient(0deg, var(--lattice-floor) 0 1px, transparent 1px 56px),
-      repeating-linear-gradient(90deg, var(--lattice-floor) 0 1px, transparent 1px 56px);
-    -webkit-mask-image: linear-gradient(to top, black 0%, transparent 62%);
-    mask-image: linear-gradient(to top, black 0%, transparent 62%);
-  }
-
-  /* The volumetric layer that sits under .shell-canvas. Same negative-z step,
-   * declared first in the DOM so it paints furthest back. */
-  .ff-ambient-layer {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    contain: strict;
-  }
-
-  /* SSR paint under the WebGL ambient canvas, and the permanent fallback when
-   * WebGL is unavailable or the context is lost. */
-  .ff-ambient-fallback {
-    background:
-      radial-gradient(1100px 620px at 46% -14%, color-mix(in oklch, var(--primary) 6%, transparent), transparent 70%),
-      radial-gradient(760px 520px at 92% 8%, color-mix(in oklch, var(--chart-3) 4%, transparent), transparent 72%),
-      radial-gradient(900px 900px at 8% 96%, color-mix(in oklch, var(--primary) 3%, transparent), transparent 74%);
-  }
-
-  /* The canvas itself. It starts transparent and cross-fades in once the first
-   * frame is on screen, so the CSS fallback is never replaced by a flash of
-   * empty canvas. `data-ready` is written by StudioAmbient after draw(). */
-  .ff-ambient {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    transition: opacity var(--dur-slow) var(--ease-standard);
-  }
-
-  .ff-ambient[data-ready="true"] {
-    opacity: 1;
-  }
-
-  /* ── Chrome walls & ceiling ──────────────────────────────────────────────
-   * The sidebar and the command strip are the *near* plane: opaque
-   * --surface-0 with one shared top light, and an outward falloff cast
-   * onto the content plane so a wall physically occludes the canvas instead of
-   * being a differently-tinted region of it. */
+  /* The sidebar and the command strip are opaque bands split by one hairline;
+   * a sticky backdrop blur would re-blur on every scroll frame. */
   .shell-wall {
-    background-color: var(--surface-0);
-    background-image: linear-gradient(180deg, oklch(1 0 0 / 0.045), transparent 22%);
+    @apply bg-surface-0 forced-colors:shadow-none;
   }
 
   .shell-wall-left {
-    box-shadow:
-      inset -1px 0 0 0 var(--border-subtle),
-      calc(24px * var(--shell-depth)) 0 40px -24px oklch(0.02 0.02 264 / 0.85);
+    @apply shadow-[inset_-1px_0_0_0_var(--border)] forced-colors:shadow-none;
   }
 
-  /* The ceiling. Deliberately opaque rather than `backdrop-blur-md`: this is a
-   * full-width sticky strip, and a backdrop-filter re-reads and two-pass blurs
-   * the whole 100vw band on every scroll frame (audit-motion §4.2). On a
-   * --surface-0 canvas the two are visually indistinguishable. */
   .shell-strip {
-    background-color: var(--surface-0);
-    background-image: linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent 46%);
-    box-shadow:
-      inset 0 -1px 0 0 var(--border),
-      0 12px 28px -18px oklch(0.02 0.02 264 / 0.9);
+    @apply bg-surface-1 shadow-[inset_0_-1px_0_0_var(--border)] forced-colors:shadow-none;
   }
 
-  /* ── Sidebar active key ──────────────────────────────────────────────────
-   * The v3 marker was `shadow-[inset_3px_0_0_var(--primary)]` on a rounded row,
-   * and an inset shadow follows the border radius — so the 3px rail pinched to
-   * nothing at both ends and read as a flare. A square pseudo-element cannot.
-   * Top light + bottom shade turn the row into a pressed key rather than a
-   * tinted rectangle. */
-  /* The type step lives here, not in a `text-label` utility on the row.
-   * `cn()` is tailwind-merge, tailwind-merge does not know this project's
-   * font-size scale, and it therefore files `text-label` under text-COLOUR —
-   * so `cn('… text-label … text-fg-1')` resolves to `text-fg-1` alone and the
-   * nav silently rendered at the inherited 15px. Verified with twMerge
-   * directly; see the report for the `extendTailwindMerge` fix in lib/utils.ts
-   * that would retire this workaround. */
+  /* The type step lives here: tailwind-merge files an unknown `text-*` under
+   * text colour, so `cn('text-body-sm text-fg-1')` would drop the size. */
   .shell-nav-key {
-    position: relative;
-    font-size: var(--text-label);
-    line-height: var(--text-label--line-height);
+    @apply relative text-body-sm data-[active=true]:before:absolute data-[active=true]:before:inset-y-1.5 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-[1px] data-[active=true]:before:bg-primary data-[active=true]:before:content-[''] forced-colors:data-[active=true]:before:bg-[Highlight];
   }
 
-  .shell-nav-key[data-active="true"] {
-    background-image: linear-gradient(90deg, color-mix(in oklch, var(--primary) 14%, transparent), transparent 72%);
-    box-shadow:
-      inset 0 1px 0 0 color-mix(in oklch, var(--primary) 20%, transparent),
-      inset 0 -1px 0 0 oklch(0 0 0 / 0.45);
-  }
-
-  .shell-nav-key[data-active="true"]::before {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    left: 0;
-    width: 3px;
-    background-color: var(--primary);
-    box-shadow: var(--glow-primary-sm);
-  }
-
-  /* Route-pending underline, mounted by useLinkStatus only while a navigation
-   * is in flight — so the infinite iteration count is bounded by the navigation
-   * itself, not by the compositor. */
+  /* Route-pending underline, mounted only while a navigation is in flight. */
   .ff-nav-pending {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: 2px;
-    overflow: hidden;
-    background-color: color-mix(in oklch, var(--primary) 18%, transparent);
+    @apply absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-primary/18 after:absolute after:inset-y-0 after:left-0 after:w-[34%] after:animate-nav-pending after:bg-primary after:content-[''];
   }
 
-  .ff-nav-pending::after {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    left: 0;
-    width: 34%;
-    background-color: var(--primary);
-    animation: ff-nav-pending 900ms var(--ease-standard) infinite;
-  }
-
-  /*
-   * .neon-notch — esquina inferior-derecha cortada 10px (el CTA "FORJAR REEL"
-   * del mockup).
-   */
-  .neon-notch {
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-  }
-
-  /* A clipped CTA cannot paint an outer ring beyond its polygon. The two-tone
-   * inset stays visible on both cyan-filled and dark-outline variants. */
-  .neon-notch:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: -4px;
-    box-shadow:
-      inset 0 0 0 2px var(--background),
-      inset 0 0 0 4px var(--ring);
-  }
-
-  /* ── Restyled moments (indexes → product tokens) ─────────────────────────
-   * Amplitude and blur multiply by --shell-depth so efficiency, capture,
-   * reduced-motion and an inactive window snap to the end state. */
+  /* Named so the performance guards below can stop them. */
   .studio-shake {
-    animation: studio-shake var(--dur-base) var(--ease-standard) 1;
+    @apply animate-studio-shake;
   }
 
   .studio-reveal {
-    animation: studio-reveal var(--dur-base) var(--ease-entrance) both;
+    @apply animate-studio-reveal;
   }
 
   .studio-indeterminate {
-    animation: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
+    @apply animate-studio-indeterminate;
   }
 
-  /* Route and list entrance: fade plus an 8px rise. The rise multiplies
-   * --shell-depth, so reduced motion and the efficiency profile keep only the
-   * fade, and the duration token collapses it to 1ms under reduced motion. */
-  /* Same entrance as .studio-reveal at a larger travel amplitude; both stay. */
   .studio-enter {
-    animation: studio-enter var(--dur-slow) var(--ease-entrance) both;
+    @apply animate-studio-enter;
   }
 
-  /* Determinate-less activity ring, 12px by default: cyan for local work,
-   * magenta (via `text-stream`) for CS2 recording. Colour comes from
-   * currentColor so one class serves every tone. */
-  /* 0.9s is the spec's spinner cadence, deliberately off the --dur-* scale. */
+  .live-pulse {
+    @apply animate-live-pulse;
+  }
+
+  .ff-equalizer-bar {
+    @apply animate-equalizer;
+  }
+
+  /* Activity ring; colour comes from currentColor so one class serves every tone. */
   .studio-spinner {
-    display: inline-block;
-    flex: none;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 9999px;
-    border: 2px solid color-mix(in oklch, currentColor 20%, transparent);
-    border-top-color: currentColor;
-    animation: studio-spin 0.9s linear infinite;
+    @apply inline-block size-3 flex-none animate-studio-spin rounded-full border-2 border-current/20 border-t-current;
   }
 
-  /* 3px progress track. Give the fill its width inline; add
-   * `.studio-indeterminate` to the fill when there is no percent to show. */
+  /* 3px progress track. The fill gets its width inline, or `.studio-indeterminate`. */
   .studio-bar {
-    position: relative;
-    display: block;
-    height: 3px;
-    overflow: hidden;
-    background-color: var(--surface-3);
-  }
-
-  .studio-bar > span {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 0;
-    background-color: currentColor;
-    transition: width var(--dur-base) linear;
-  }
-
-  .studio-bar > span.studio-indeterminate {
-    width: 34%;
+    @apply relative block h-[3px] overflow-hidden bg-surface-3 [&>span]:absolute [&>span]:inset-y-0 [&>span]:left-0 [&>span]:w-0 [&>span]:bg-current [&>span]:transition-[width] [&>span]:duration-(--dur-base) [&>span]:ease-linear [&>span.studio-indeterminate]:w-[34%];
   }
 
   .studio-op-check-path {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: square;
-    stroke-linejoin: miter;
-    stroke-dasharray: 24;
-    stroke-dashoffset: 0;
-    animation: studio-check-draw var(--dur-base) var(--ease-entrance) both;
+    @apply animate-check-draw fill-none stroke-current stroke-2 [stroke-dasharray:24] [stroke-linecap:square] [stroke-linejoin:miter];
   }
 }
 
-/* ── Overlay depth ─────────────────────────────────────────────────────────
- * A dialog arrives from behind the plane and the shell recedes to meet it.
- * brightness() on an already-composited layer is ~free; a full-viewport
- * backdrop-filter is the single most expensive thing in CSS and is refused
- * here on purpose. */
-@keyframes ff-dialog-in {
-  from {
-    opacity: 0;
-    transform: perspective(1200px) translateZ(-56px) rotateX(7deg);
-  }
-
-  to {
-    opacity: 1;
-    transform: perspective(1200px) translateZ(0) rotateX(0deg);
-  }
-}
-
-@keyframes ff-dialog-out {
-  to {
-    opacity: 0;
-    transform: perspective(1200px) translateZ(-32px) rotateX(4deg);
-  }
-}
-
-[data-slot="dialog-content"][data-state="open"] {
-  animation: ff-dialog-in var(--dur-base) var(--ease-standard);
-}
-
-[data-slot="dialog-content"][data-state="closed"] {
-  animation: ff-dialog-out var(--dur-fast) var(--ease-exit);
-}
-
-[data-slot="sidebar-inset"][data-dialog-open] {
-  transform: scale(0.988);
-  filter: brightness(0.72);
-  transition:
-    transform var(--dur-base) var(--ease-standard),
-    filter var(--dur-base) var(--ease-standard);
-}
-
-/* The shell layers are siblings of the app tree, not descendants of
- * SidebarInset (see the .shell-canvas stacking note), so the recede above does
- * not reach them. Without this the room dims and the floor under it does not,
- * which reads as the content lifting off a lit backdrop. */
-html:has([data-slot="sidebar-inset"][data-dialog-open]) .shell-canvas,
-html:has([data-slot="sidebar-inset"][data-dialog-open]) .ff-ambient-layer {
-  filter: brightness(0.72);
-  transition: filter var(--dur-base) var(--ease-standard);
-}
-
-@keyframes ff-nav-pending {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(300%);
-  }
-}
-
-@keyframes studio-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-
-  20% {
-    transform: translateX(calc(6px * var(--shell-depth)));
-  }
-
-  40% {
-    transform: translateX(calc(-5px * var(--shell-depth)));
-  }
-
-  60% {
-    transform: translateX(calc(4px * var(--shell-depth)));
-  }
-
-  80% {
-    transform: translateX(calc(-2px * var(--shell-depth)));
-  }
-}
-
-@keyframes studio-reveal {
-  from {
-    opacity: calc(1 - 0.28 * var(--shell-depth));
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes studio-indeterminate {
-  from {
-    transform: translateX(-120%);
-  }
-
-  to {
-    transform: translateX(280%);
-  }
-}
-
-@keyframes studio-enter {
-  from {
-    opacity: 0;
-    transform: translateY(calc(8px * var(--shell-depth)));
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes studio-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes studio-check-draw {
-  from {
-    stroke-dashoffset: calc(24 * var(--shell-depth));
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* .neon-pulse — pulso del punto REC (magenta) y del paso activo del pipeline. */
-@keyframes neon-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.neon-pulse {
-  /*
-   * Draw attention when a live state first appears, then settle to a static
-   * indicator. An infinite opacity animation keeps Chromium's compositor
-   * producing frames at the monitor refresh rate (notably expensive at 240Hz)
-   * even though no useful content changed.
-   */
-  animation: neon-pulse 1.4s steps(2, end) 3;
-}
-
-/* Owned here rather than injected from components/clips/song-picker-dialog.tsx:
- * a <style> element rendered inside a dialog re-parses the same rule on every
- * open, and the .ff-equalizer-bar class that consumes it has always lived in
- * this file — the keyframe and its guards belong together. */
-@keyframes ff-eq {
-  0%,
-  100% {
-    height: 30%;
-  }
-
-  50% {
-    height: 100%;
-  }
-}
-
-.ff-equalizer-bar {
-  animation: ff-eq 0.9s ease-in-out infinite;
-}
-
-/* Thin, dark scrollbars to match the night-navy UI. */
+/* Thin scrollbars on the neutral ramp. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--surface-4) transparent;
@@ -1041,28 +678,18 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] [class*="bac
   backdrop-filter: none !important;
 }
 
-/* Efficiency downgrades depth, it no longer deletes it. Blurred ambient layers
- * are the expensive part; the zero-blur bevel is free, so panels keep a real
- * edge instead of collapsing back to flat black — which is exactly the
- * machine where the flat-black problem was worst. */
+/* Efficiency drops the blurred shadows; the hairline borders carry the depth. */
 html[data-runtime="desktop"][data-performance-profile="efficiency"] {
-  --elev-1: var(--elev-bevel);
-  --elev-2: var(--elev-bevel);
-  --elev-3: var(--elev-bevel);
-  --elev-4: var(--elev-bevel), 0 2px 8px -4px oklch(0.02 0.02 264 / 0.8);
-  --elev-5: var(--elev-bevel), 0 4px 12px -6px oklch(0.02 0.02 264 / 0.85);
-  --elev-band-up: 0 -2px 8px -6px oklch(0.02 0.02 264 / 0.9);
-  --glow-primary-sm: none;
-  --glow-primary-md: none;
-  --glow-primary-lg: none;
-  --glow-stream-md: none;
+  --elev-1: none;
+  --elev-2: none;
+  --elev-3: none;
+  --elev-4: 0 2px 8px -4px oklch(0 0 0 / 0.4);
+  --elev-5: 0 4px 12px -6px oklch(0 0 0 / 0.45);
+  --elev-band-up: none;
 }
 
-html[data-runtime="desktop"][data-performance-profile="efficiency"] .ff-equalizer-bar,
-html[data-runtime="desktop"][data-performance-profile="efficiency"] [data-slot="sidebar-inset"][data-dialog-open] {
+html[data-runtime="desktop"][data-performance-profile="efficiency"] .ff-equalizer-bar {
   animation: none;
-  transition: none;
-  transform: none;
 }
 
 /* The infinite compositor loops. `.ff-equalizer-bar` is this file's own; the two
@@ -1102,8 +729,7 @@ html[data-capture-active="true"] .animate-spin {
 /* The only thing that makes tw-animate-css, Radix, animate-pulse and
  * active:translate-y-px obey: none of them ship a reduced-motion block. */
 @media (prefers-reduced-motion: reduce) {
-  :root,
-  .dark {
+  :root {
     --dur-instant: 1ms;
     --dur-fast: 1ms;
     --dur-base: 1ms;
@@ -1137,66 +763,10 @@ html[data-capture-active="true"] .animate-spin {
       height: 55%;
     }
   }
-
-  [data-slot="sidebar-inset"][data-dialog-open] {
-    transform: none;
-    filter: brightness(0.8);
-  }
 }
 
 @media (forced-colors: active) {
-  :root,
-  .dark {
+  :root {
     --shell-depth: 0;
-  }
-
-  .studio-panel,
-  .studio-panel-raised,
-  .studio-rim {
-    border: 1px solid CanvasText;
-    box-shadow: none;
-  }
-
-  .neon-notch:focus-visible {
-    outline: 2px solid Highlight;
-    outline-offset: -4px;
-    box-shadow: none;
-  }
-
-  /* Decorative colour under forced colours is a defect, not a degradation. */
-  .shell-canvas,
-  .studio-scanline::after,
-  .ff-ambient-layer,
-  .ff-ambient,
-  .ff-ambient-fallback {
-    display: none;
-  }
-
-  .shell-wall,
-  .shell-wall-left,
-  .shell-strip {
-    background-image: none;
-    box-shadow: none;
-    border-color: CanvasText;
-  }
-
-  .shell-nav-key[data-active="true"] {
-    background-image: none;
-    box-shadow: none;
-  }
-
-  .shell-nav-key[data-active="true"]::before {
-    background-color: Highlight;
-    box-shadow: none;
-  }
-
-  [data-slot="sidebar-inset"][data-dialog-open] {
-    transform: none;
-    filter: none;
-  }
-
-  html:has([data-slot="sidebar-inset"][data-dialog-open]) .shell-canvas,
-  html:has([data-slot="sidebar-inset"][data-dialog-open]) .ff-ambient-layer {
-    filter: none;
   }
 }

@@ -102,7 +102,7 @@ const TAG_TONE: Record<SeriesStatusTone, StatusTagTone> = {
  */
 const NODE_TONE_CLASS: Record<SeriesStatusTone, string> = {
   pending: 'border-border-strong text-fg-2',
-  ready: 'border-primary/55 text-primary shadow-[var(--elev-1),var(--glow-primary-sm)]',
+  ready: 'border-primary/55 text-fg-1 shadow-[var(--elev-1)]',
   progress: 'border-warning/55 text-warning shadow-[var(--elev-1)]',
   done: 'border-success/55 text-success shadow-[var(--elev-1)]',
   failed: 'border-destructive/55 text-destructive shadow-[var(--elev-1)]',
@@ -270,7 +270,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
   }
 
   // HLTV-style downloads split one map into several .dem parts; fold them back
-  // into one logical map card so a bo3 reads "SERIE DE 3 MAPAS", not 4.
+  // into one logical map card so a bo3 reads "Serie de 3 mapas", not 4.
   const groups = groupSeriesDemos(list);
   const mapStatuses = groups.map((g) => representativeSeriesStatus(g.demos.map((d) => d.status)));
   // The maps the poll loop is still waiting on, named, so the live region says
@@ -297,7 +297,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         // rather than inventing one. This is also the page's polite live region.
         <LongOperation
           className="studio-panel px-5 py-4"
-          stage={workingTitles.length === 1 ? 'ANALIZANDO 1 MAPA' : `ANALIZANDO ${workingTitles.length} MAPAS`}
+          stage={workingTitles.length === 1 ? 'Analizando 1 mapa' : `Analizando ${workingTitles.length} mapas`}
           detail={workingTitles.join(' · ')}
         />
       ) : null}
@@ -346,7 +346,7 @@ function SeriesSpineItem({
         <span
           aria-hidden
           className={cn(
-            'z-10 grid size-11 place-items-center border bg-surface-0 font-mono text-body tabular-nums',
+            'z-10 grid size-11 place-items-center border bg-surface-0 text-body tabular-nums',
             NODE_TONE_CLASS[tone],
           )}
         >
@@ -391,8 +391,8 @@ function SeriesMapCard({
     <article className="studio-panel studio-panel-interactive flex min-w-0 flex-1 flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-col gap-4 @[42rem]/content:flex-row @[42rem]/content:items-center @[42rem]/content:justify-between @[42rem]/content:gap-6">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{demoTitle(head, index)}</h2>
-          <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
+          <h2 className="truncate font-display text-title font-bold text-fg-1">{demoTitle(head, index)}</h2>
+          <p className="text-meta text-fg-3">
             {split ? `${group.demos.length} partes` : null}
             {split && head.match ? ' · ' : null}
             {head.match ? `${head.match.rounds} rondas` : null}
@@ -494,7 +494,7 @@ function ForgeLink({
   return (
     <Button asChild size="sm" variant={reel ? 'outline' : 'hero'}>
       <Link href={produceHref(demo.jobId, PRODUCE_FORMAT.short, seriesId)}>
-        {reel ? 'OTRO REEL' : 'ELEGIR JUGADAS'}
+        {reel ? 'Otro reel' : 'Elegir jugadas'}
         <ChevronRight className="size-4" />
       </Link>
     </Button>
@@ -516,7 +516,7 @@ function FailureNote({ children, attached = false }: { children: ReactNode; atta
 }
 
 /**
- * The map scoreline, typeset as a scoreboard rather than as body text: mono,
+ * The map scoreline, typeset as a scoreboard rather than as body text:
  * tabular, and the largest number on the card. The winning half stays in --fg-1
  * and the losing half drops to --fg-3, with a hairline rule between them — the
  * literal spaces v3 used rendered as digit-width figure spaces inside a
@@ -527,7 +527,7 @@ function MapScore({ match }: { match: RosterMatch }): ReactNode {
   const ctWon = match.scoreCt > match.scoreT;
   return (
     <span
-      className="inline-flex items-center gap-2.5 font-mono text-title tabular-nums @[34rem]/content:text-stat"
+      className="inline-flex items-center gap-2.5 text-title tabular-nums @[34rem]/content:text-stat"
       aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`}
     >
       <span className={tWon ? 'text-fg-1' : 'text-fg-3'}>{match.scoreT}</span>

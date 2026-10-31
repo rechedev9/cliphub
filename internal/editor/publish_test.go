@@ -51,6 +51,24 @@ func TestPublishSmokeTextLabelsCrouchJumpthrow(t *testing.T) {
 	}
 }
 
+func TestDisplayPlaceNameKeepsTheWordsOfCS2PlaceTokens(t *testing.T) {
+	tests := map[string]string{
+		"PalaceInterior":   "Palace Interior",
+		"TopofMid":         "Top of Mid",
+		"BombsiteA":        "Bombsite A",
+		"CTSpawn":          "CT Spawn",
+		"B tunnels":        "B Tunnels",
+		"CT spawn / ruins": "CT Spawn / Ruins",
+		"cs2":              "CS2",
+		"":                 "",
+	}
+	for raw, want := range tests {
+		if got := displayPlaceName(raw); got != want {
+			t.Errorf("displayPlaceName(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func containsString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

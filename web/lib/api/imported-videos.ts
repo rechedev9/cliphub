@@ -1,4 +1,4 @@
-// Shorts an older Studio downloaded from the retired ClipHub cloud, listed in Resultados as ready local videos.
+// Shorts an older Studio downloaded from the retired ClipHub cloud, listed in Mis vídeos as ready local videos.
 
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 import type { IndexedJob } from './jobs-index.ts';

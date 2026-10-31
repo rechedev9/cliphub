@@ -84,7 +84,7 @@ export function AppUpdateControl(): ReactElement | null {
       }}
     >
       <StatusIcon state={status.state} />
-      <span className="font-[family-name:var(--font-display)] text-meta font-semibold tracking-wider uppercase">
+      <span className="font-[family-name:var(--font-display)] text-meta font-semibold">
         {label}
       </span>
     </Button>

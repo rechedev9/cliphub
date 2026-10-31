@@ -9,6 +9,8 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/placename"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func isSmokeProjectile(projectile *common.GrenadeProjectile) bool {
@@ -214,11 +216,11 @@ func infernoCenter(inferno *common.Inferno) ([3]float64, bool) {
 	return [3]float64{sum[0] / n, sum[1] / n, sum[2] / n}, true
 }
 
-func annotateUtilityDestination(u *RawUtilityThrow, mapName string) {
+func annotateUtilityDestination(u *RawUtilityThrow, mapName string, places tacticalplan.MapGeometry) {
 	if u == nil || u.LineupMatch != nil {
 		return
 	}
-	destination := inferUtilityDestination(mapName, u.Type, u.LandingPos)
+	destination := inferUtilityDestination(mapName, u.Type, u.LandingPos, places)
 	if destination == "" {
 		return
 	}
@@ -230,32 +232,54 @@ func annotateUtilityDestination(u *RawUtilityThrow, mapName string) {
 	}
 }
 
-func inferUtilityDestination(mapName, typ string, pos [3]float64) string {
+// inferUtilityDestination names an Inferno landing by the CS2 place players
+// stood at there, or by area box in a demo without place names.
+func inferUtilityDestination(mapName, typ string, pos [3]float64, places tacticalplan.MapGeometry) string {
 	if strings.TrimSpace(mapName) != "de_inferno" {
 		return ""
 	}
-	x, y := pos[0], pos[1]
-	switch {
-	case x > 500 && y > 1800:
-		return "B site"
-	case x < 350 && y > 1200:
-		return "Banana"
-	case x < 350 && y > 750:
-		return "T ramp"
-	case x > 850 && y > 300 && y <= 1100:
-		return "CT spawn / ruins"
-	case x >= 1700 && y < 350:
-		return "A long / arch"
-	case x >= 900 && y < 350:
-		return "A site / short"
-	case x < -500 && y < -300:
-		return "Apartments"
-	default:
-		if typ == FlashbangType {
-			return "contested area"
-		}
-		return "utility landing"
+	place := tacticalplan.NearestCallout(places, pos)
+	if place == "" {
+		place = infernoArea(pos[0], pos[1])
 	}
+	if place != "" {
+		return placename.Label(place)
+	}
+	if typ == FlashbangType {
+		return "contested area"
+	}
+	return "utility landing"
+}
+
+// infernoAreas are Inferno's places as boxes, checked in order, drawn from real
+// demos; they agree with CS2's place on about 95% of the positions they cover.
+var infernoAreas = []struct {
+	place                  string
+	minX, maxX, minY, maxY float64
+}{
+	{"BombsiteB", -50, 975, 2350, 3450},
+	{"Ruins", 975, 1600, 2600, 3450},
+	{"CTSpawn", 1600, 2550, 1600, 2900},
+	{"Banana", 80, 950, 1080, 2350},
+	{"Library", 2330, 2620, 1100, 1600},
+	{"Arch", 1530, 2290, 1050, 1600},
+	{"Pit", 2150, 2650, -550, -150},
+	{"BombsiteA", 1590, 2420, -40, 1050},
+	{"TopofMid", 1280, 1590, 100, 1220},
+	{"Middle", 80, 1280, 440, 880},
+	{"TRamp", -530, 80, 780, 930},
+	{"LowerMid", -860, -430, -270, 780},
+	{"TSpawn", -1700, -900, -100, 560},
+	{"Apartments", 940, 1590, -660, -100},
+}
+
+func infernoArea(x, y float64) string {
+	for _, a := range infernoAreas {
+		if x >= a.minX && x <= a.maxX && y >= a.minY && y <= a.maxY {
+			return a.place
+		}
+	}
+	return ""
 }
 
 func sanitizeLineupID(raw string) string {

@@ -2,8 +2,10 @@ package tactical
 
 import (
 	"math"
+	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -382,8 +384,45 @@ func TestBuildSiteMapPrefersPlants(t *testing.T) {
 	if center, ok := m.center(tacticalplan.SiteB); !ok || center != [2]float64{5000, 0} {
 		t.Fatalf("B centre = %v (%t), want the callout centroid", center, ok)
 	}
-	if got, _ := m.nearest(210, 190); got != tacticalplan.SiteA {
+	if got, _ := m.nearest(210, 190, 0); got != tacticalplan.SiteA {
 		t.Fatalf("nearest site = %s, want A", got)
+	}
+}
+
+// Nuke stacks A over B: the two sites are about 716 units apart in x/y and
+// 350 apart in height, on two radar levels split at -495.
+func TestSitesOnStackedFloorsNeverMix(t *testing.T) {
+	cal, ok := radarmap.Lookup("de_nuke")
+	if !ok {
+		t.Fatal("de_nuke must be calibrated")
+	}
+	rounds := []*roundAcc{{events: []tacticalplan.Event{
+		{Kind: tacticalplan.EventPlant, Site: tacticalplan.SiteA, Pos: [3]float64{704, -554, -415}},
+		{Kind: tacticalplan.EventPlant, Site: tacticalplan.SiteB, Pos: [3]float64{704, -1270, -767}},
+	}}}
+	sites := buildSiteMap(rounds, tacticalplan.MapGeometry{Calibration: cal})
+
+	// On B's floor, right under A: closer to A in x/y, yet only B can hold it.
+	if got, dist := sites.nearest(704, -800, -767); got != tacticalplan.SiteB || dist > siteRadius {
+		t.Fatalf("nearest under A = %s at %.0f, want B within %v", got, dist, siteRadius)
+	}
+	if got, dist := sites.nearest(704, -1000, -415); got != tacticalplan.SiteA || dist > siteRadius {
+		t.Fatalf("nearest above B = %s at %.0f, want A within %v", got, dist, siteRadius)
+	}
+
+	// Three defenders on the lower floor under A make a B stack, not an A one.
+	round := baseRound()
+	under := func(slot uint8, x, y float64) tacticalplan.Sample {
+		s := alive(slot, x, y)
+		s.Z = -767
+		return s
+	}
+	acc := &roundAcc{frames: []tacticalplan.Frame{
+		frameAt(tick(20), under(0, 704, -800), under(1, 750, -820), under(2, 680, -850)),
+	}}
+	class := classifyRound(classifyInput{round: round, acc: acc, tickrate: testTickrate, sites: sites})
+	if class.CTSide != tacticalplan.CTStack || len(class.Reasons) == 0 || !strings.Contains(class.Reasons[len(class.Reasons)-1], "on B") {
+		t.Fatalf("CT pattern = %s (reasons: %v), want a stack on B", class.CTSide, class.Reasons)
 	}
 }
 

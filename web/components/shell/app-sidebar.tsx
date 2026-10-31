@@ -4,14 +4,17 @@ import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
+  BookMarked,
   Clapperboard,
+  FileText,
   Film,
+  Lightbulb,
   MonitorPlay,
-  Radar,
   Settings,
-  ShieldAlert,
+  ShieldCheck,
+  Shield,
   Smartphone,
-  TrendingUp,
+  Swords,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,58 +32,45 @@ import {
 } from '@/components/ui/sidebar';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
-import { RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
-import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
+import { RESULTS_HREF } from '@/lib/clips/routes';
+import { NAV_AREA_LABEL, NAV_SECTIONS, sectionForPath, type NavArea, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
-type NavGroup = 'create' | 'results' | 'analysis' | 'learn' | 'chrome';
 type NavTrailingKind = 'stream' | 'faceit';
 
-/** One heading per job the user came to do; `chrome` docks to the footer without one. */
-const GROUP_LABEL = {
-  create: 'Crear',
-  results: 'Tus vídeos',
-  analysis: 'Análisis',
-  learn: 'Aprender',
-} as const satisfies Record<Exclude<NavGroup, 'chrome'>, string>;
-
-const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: NavTrailingKind }> = {
-  '/shorts': { icon: Smartphone, group: 'create' },
-  '/videos-largos': { icon: MonitorPlay, group: 'create' },
-  '/streams': { icon: Clapperboard, group: 'create', trailing: 'stream' },
-  '/resultados': { icon: Film, group: 'results' },
-  '/players': { icon: Users, group: 'analysis', trailing: 'faceit' },
-  '/tactical': { icon: Radar, group: 'analysis' },
-  '/cheaters': { icon: ShieldAlert, group: 'analysis' },
-  '/algoritmos': { icon: TrendingUp, group: 'learn' },
-  '/settings': { icon: Settings, group: 'chrome' },
+const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind }> = {
+  '/videos-largos': { icon: MonitorPlay },
+  '/shorts': { icon: Smartphone },
+  '/streams': { icon: Clapperboard, trailing: 'stream' },
+  '/mis-videos': { icon: Film },
+  '/ideas': { icon: Lightbulb },
+  '/partidas': { icon: Swords },
+  '/equipos': { icon: Shield },
+  '/jugadores': { icon: Users, trailing: 'faceit' },
+  '/stratbook': { icon: BookMarked },
+  '/informes': { icon: FileText },
+  '/integridad': { icon: ShieldCheck },
+  '/settings': { icon: Settings },
 };
 
-const LABELLED_GROUPS = ['create', 'results', 'analysis', 'learn'] as const;
+const LABELLED_AREAS = ['create', 'analyze'] as const;
 
-function sectionsOf(group: NavGroup): NavSection[] {
-  return NAV_SECTIONS.filter((section) => NAV_META[section.href].group === group);
+function sectionsOf(area: NavArea): NavSection[] {
+  return NAV_SECTIONS.filter((section) => section.area === area);
 }
 
-/** A nav href is active for its exact page and any nested route under it. */
-function isActiveHref(pathname: string, href: string): boolean {
-  // A series produces one Short per map, so it keeps Shorts lit.
-  if (href === SHORTS_HREF && pathname.startsWith('/series/')) return true;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-/** Brand lockup, one nav group per job, then settings + capture pill in the footer. */
+/** Brand lockup, one group per work area, then settings and the capture pill in the footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
+  const activeHref = sectionForPath(pathname)?.href ?? null;
 
   return (
     <Sidebar collapsible="icon">
-      {/* Same 56px band as the command strip, so the wordmark and the
-          breadcrumb share one baseline across the shell. */}
-      <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-4 group-data-[collapsible=icon]:px-2">
+      {/* Same band as the command strip, so the wordmark and the breadcrumb share one baseline. */}
+      <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-3 group-data-[collapsible=icon]:px-2">
         <Link
           href={RESULTS_HREF}
-          aria-label="Ir a Resultados"
+          aria-label="Ir a Mis vídeos"
           className="inline-flex min-h-10 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
@@ -88,42 +78,39 @@ export function AppSidebar(): ReactElement {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0 pt-5">
-        {LABELLED_GROUPS.map((group) => (
-          <SidebarGroup key={group} className="gap-1.5 p-0 pb-4">
-            {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
-                unknown `text-*` under text-colour (see .shell-nav-key). */}
-            <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
-              {GROUP_LABEL[group]}
+      <SidebarContent className="gap-0 pt-3">
+        {LABELLED_AREAS.map((area) => (
+          <SidebarGroup key={area} className="gap-0.5 px-2 pb-4">
+            {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
+            <SidebarGroupLabel className="h-7 px-2 [font-size:var(--text-meta)] font-semibold text-fg-3">
+              {NAV_AREA_LABEL[area]}
             </SidebarGroupLabel>
-            <SidebarMenu className="gap-0.5">
-              {sectionsOf(group).map((section) => (
-                <NavRow key={section.href} section={section} pathname={pathname} />
+            <SidebarMenu className="gap-px">
+              {sectionsOf(area).map((section) => (
+                <NavRow key={section.href} section={section} active={section.href === activeHref} />
               ))}
             </SidebarMenu>
           </SidebarGroup>
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 pt-2 pb-4">
-        <SidebarMenu className="gap-0.5">
+      <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 px-2 pt-2 pb-3">
+        <SidebarMenu className="gap-px">
           {sectionsOf('chrome').map((section) => (
-            <NavRow key={section.href} section={section} pathname={pathname} />
+            <NavRow key={section.href} section={section} active={section.href === activeHref} />
           ))}
         </SidebarMenu>
         <CaptureReadiness />
       </SidebarFooter>
 
-      {/* Without this the icon rail was reachable only through an undocumented
-          Ctrl/Cmd+B, i.e. it shipped as dead code on desktop. */}
+      {/* Without this the icon rail was reachable only through an undocumented Ctrl/Cmd+B. */}
       <SidebarRail />
     </Sidebar>
   );
 }
 
-function NavRow({ section, pathname }: { section: NavSection; pathname: string }): ReactElement {
+function NavRow({ section, active }: { section: NavSection; active: boolean }): ReactElement {
   const meta = NAV_META[section.href];
-  const active = isActiveHref(pathname, section.href);
   const Icon = meta.icon;
 
   return (
@@ -133,18 +120,19 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
         isActive={active}
         tooltip={section.label}
         className={cn(
-          'shell-nav-key h-12 gap-3 rounded-none px-4 font-[family-name:var(--font-display)] font-semibold tracking-wide text-fg-1 uppercase',
-          'transition-[width,height,padding,background-color,color,box-shadow] duration-(--dur-fast) ease-standard',
+          'shell-nav-key h-8 gap-2.5 rounded-md px-2 font-medium text-fg-2',
+          'transition-colors duration-(--dur-instant) ease-standard',
           'hover:bg-sidebar-accent hover:text-fg-1',
-          'data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-primary',
-          'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:p-0!',
+          'data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-fg-1',
+          'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!',
         )}
       >
         <Link href={section.href} aria-current={active ? 'page' : undefined}>
-          <Icon className="size-4 shrink-0 group-data-[collapsible=icon]:size-[18px]" aria-hidden />
-          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
-            {section.label}
-          </span>
+          <Icon
+            className={cn('size-4 shrink-0', active ? 'text-fg-1' : 'text-fg-3')}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">{section.label}</span>
           <NavTrailing kind={meta.trailing} />
           <NavPending />
         </Link>
@@ -152,9 +140,6 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
     </SidebarMenuItem>
   );
 }
-
-const TRAILING_TEXT_CLASS =
-  'shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider group-data-[collapsible=icon]:hidden';
 
 function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElement | null {
   if (kind === 'stream') {
@@ -166,7 +151,11 @@ function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElem
     );
   }
   if (kind === 'faceit') {
-    return <span className={cn(TRAILING_TEXT_CLASS, 'text-fg-3')}>FACEIT</span>;
+    return (
+      <span className="shrink-0 [font-size:var(--text-meta)] font-normal text-fg-3 group-data-[collapsible=icon]:hidden">
+        FACEIT
+      </span>
+    );
   }
   return null;
 }

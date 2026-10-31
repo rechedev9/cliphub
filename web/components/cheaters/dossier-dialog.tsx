@@ -69,7 +69,7 @@ export function DossierDialog({
           <>
             <DialogHeader className="gap-2 border-b border-border px-6 py-5">
               <div className="flex flex-wrap items-center gap-3">
-                <DialogTitle className="font-display text-title font-bold uppercase text-fg-1">
+                <DialogTitle className="font-display text-title font-bold text-fg-1">
                   Expediente · {dossier.name || dossier.steamid64}
                 </DialogTitle>
                 <VerdictBadge verdict={dossier.verdict} />
@@ -80,7 +80,7 @@ export function DossierDialog({
             <ScrollArea className="max-h-[55vh]">
               <div className="flex flex-col gap-6 px-6 py-5">
                 <section className="flex flex-col gap-2">
-                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+                  <h3 className="text-meta text-fg-3">
                     Antes de denunciar
                   </h3>
                   <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-2">
@@ -92,7 +92,7 @@ export function DossierDialog({
                 </section>
 
                 <section className="flex flex-col gap-3">
-                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+                  <h3 className="text-meta text-fg-3">
                     Dónde denunciar
                   </h3>
                   {dossier.channels.map((channel) => (
@@ -100,7 +100,7 @@ export function DossierDialog({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-body font-semibold text-fg-1">{channel.label}</span>
                         {channel.effective ? (
-                          <StatusTag tone="primary">vía efectiva</StatusTag>
+                          <StatusTag tone="primary">Vía efectiva</StatusTag>
                         ) : null}
                       </div>
                       <p className="text-body-sm text-fg-2">{channel.instructions}</p>
@@ -109,7 +109,7 @@ export function DossierDialog({
                           href={channel.url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="inline-flex w-fit items-center gap-1.5 text-body-sm text-primary underline-offset-4 hover:underline"
+                          className="inline-flex w-fit items-center gap-1.5 text-body-sm text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
                         >
                           {channel.url}
                           <ExternalLink className="size-3.5" aria-hidden />
@@ -120,7 +120,7 @@ export function DossierDialog({
                 </section>
 
                 <section className="flex flex-col gap-2">
-                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+                  <h3 className="text-meta text-fg-3">
                     Evidencia
                   </h3>
                   <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-surface-0 p-4 font-mono text-body-sm text-fg-2">
@@ -138,7 +138,7 @@ export function DossierDialog({
               ) : null}
               <Button variant="outline" onClick={() => void copy()}>
                 {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                {copied ? 'COPIADO' : 'COPIAR EXPEDIENTE'}
+                {copied ? 'Copiado' : 'Copiar expediente'}
               </Button>
             </div>
           </>

@@ -484,7 +484,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   if (stage === 'acquiring') {
     return (
       <section className="studio-panel studio-panel-raised measure-read flex flex-col gap-4 p-5 @[44rem]/content:p-7" aria-label="Trayendo el vídeo">
-        <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-widest text-stream-text">
+        <span className="flex items-center gap-2 text-meta font-medium text-stream-text">
           <span aria-hidden className="studio-spinner" />
           Trayendo el vídeo
         </span>

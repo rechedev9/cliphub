@@ -56,6 +56,7 @@ test('scan copy names the cause the orchestrator or proxy reported', () => {
     { name: 'broken .dem.zst', err: coded('unreadable_demo', { status: 400 }), want: DEMO_SCAN_HINTS.unreadable },
     { name: 'scan job failed parsing', err: coded('demo_incompatible'), want: DEMO_SCAN_HINTS.incompatible },
     { name: 'scan job refused a POV demo', err: coded('pov_demo'), want: DEMO_SCAN_HINTS.povDemo },
+    { name: 'cut copy rejected at upload', err: coded('truncated_demo', { status: 400 }), want: DEMO_SCAN_HINTS.truncated },
     { name: 'orchestrator 413', err: coded('payload_too_large', { status: 413 }), want: DEMO_SCAN_HINTS.tooLarge },
     { name: 'proxy 413 without code', err: Object.assign(new Error('file too large'), { status: 413 }), want: DEMO_SCAN_HINTS.tooLarge },
     { name: 'scan never finished', err: coded(JOB_WAIT_TIMEOUT_CODE), want: DEMO_SCAN_HINTS.timeout },

@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/wordmark';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
 
@@ -20,8 +21,8 @@ export default function NotFound(): ReactElement {
         <Wordmark />
       </Link>
 
-      <p className="font-mono text-meta tracking-ultra text-fg-3 uppercase tabular-nums">404</p>
-      <h1 className="font-display text-display-sm font-bold text-fg-1 uppercase sm:text-display">
+      <p className="text-meta font-medium text-fg-3 tabular-nums">404</p>
+      <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">
         Esta página ha sido fraggeada
       </h1>
       <p className="max-w-md text-body text-fg-2">
@@ -30,7 +31,7 @@ export default function NotFound(): ReactElement {
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         <Button asChild size="lg">
-          <Link href="/resultados">Ir a Resultados</Link>
+          <Link href={RESULTS_HREF}>Ir a Mis vídeos</Link>
         </Button>
       </div>
     </main>

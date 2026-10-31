@@ -48,12 +48,12 @@ export function RecentSteamMatches({ format }: { format: ProduceFormat }): React
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-4 @[34rem]/content:p-6">
-      <SectionEyebrow label="TUS PARTIDAS RECIENTES" />
+      <SectionEyebrow label="Tus partidas recientes" />
       <ol className="flex flex-col gap-2">
         {matches.map((match) => (
           <li key={match.shareCode} className="flex flex-col gap-2 border border-border bg-surface-1 px-3 py-3 @[34rem]/content:flex-row @[34rem]/content:items-center">
             <div className="min-w-0 flex-1">
-              <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {match.matchId}</p>
+              <p className="text-body-sm tabular-nums text-fg-1">Partida {match.matchId}</p>
               <p className="truncate font-mono text-meta text-fg-3">{match.shareCode}</p>
             </div>
             <Button
@@ -63,7 +63,7 @@ export function RecentSteamMatches({ format }: { format: ProduceFormat }): React
               loadingText="Descargando…"
               onClick={() => { void onDownload(match.shareCode); }}
             >
-              DESCARGAR
+              Descargar
             </Button>
           </li>
         ))}

@@ -83,7 +83,7 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
             </span>
           }
           footer={duration !== undefined && duration > 0 ? (
-            <span className="rounded bg-surface-0 px-1.5 py-0.5 font-mono text-meta tabular-nums text-fg-1">
+            <span className="rounded bg-surface-0 px-1.5 py-0.5 text-meta tabular-nums text-fg-1">
               {formatStreamClock(duration)}
             </span>
           ) : undefined}

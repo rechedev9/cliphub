@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -222,6 +223,7 @@ type fakeScanParser struct {
 	serverInfo      func(*msg.CSVCMsg_ServerInfo)
 	clanNameUpdated func(events.TeamClanNameUpdated)
 	script          func(*fakeScanParser)
+	parseErr        error
 }
 
 func (p *fakeScanParser) RegisterEventHandler(h any) dp.HandlerIdentifier {
@@ -481,7 +483,36 @@ func (p *fakeScanParser) Cancel()                         {}
 func (p *fakeScanParser) GameState() demoinfocs.GameState { return p.gs }
 func (p *fakeScanParser) ParseToEnd() error {
 	p.script(p)
-	return nil
+	return p.parseErr
+}
+
+// A demo cut before its first round only holds warmup, while one cut later
+// keeps the rounds it reached and a complete demo is fine with any count.
+func TestRosterScanRefusesDemoCutBeforeTheFirstRound(t *testing.T) {
+	cases := []struct {
+		name     string
+		parseErr error
+		rounds   int
+		want     error
+	}{
+		{name: "cut during warmup", parseErr: demoinfocs.ErrUnexpectedEndOfDemo, want: ErrTruncatedDemo},
+		{name: "cut after a round", parseErr: demoinfocs.ErrUnexpectedEndOfDemo, rounds: 1},
+		{name: "complete without rounds"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &fakeScanParser{gs: &scanGameState{}, parseErr: tc.parseErr}
+			p.script = func(p *fakeScanParser) {
+				for range tc.rounds {
+					p.roundEnd(events.RoundEnd{})
+				}
+			}
+			_, err := RosterScan(p)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("RosterScan error = %v, want %v", err, tc.want)
+			}
+		})
+	}
 }
 
 func TestRosterScanCapturesClanNamesFromEvents(t *testing.T) {

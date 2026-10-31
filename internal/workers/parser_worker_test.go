@@ -189,6 +189,11 @@ func TestParserWorkerRunsAgainstRealDemo(t *testing.T) {
 	if got.KillPlan.Stats.SegmentsCreated == 0 {
 		t.Error("SegmentsCreated = 0, expected > 0 (parser regression)")
 	}
+	// The job skipped the roster scan; the Full Demo render fails without roster.json.
+	var roster parser.RosterResult
+	if err := json.Unmarshal(store.files[artifacts.RosterKey(id)], &roster); err != nil || len(roster.Players) == 0 {
+		t.Fatalf("roster after a targeted parse: players=%d err=%v", len(roster.Players), err)
+	}
 	t.Logf("SegmentsCreated=%d TotalKillsTarget=%d KillsAfterFilters=%d",
 		got.KillPlan.Stats.SegmentsCreated,
 		got.KillPlan.Stats.TotalKillsTarget,

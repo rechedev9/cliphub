@@ -59,7 +59,7 @@ export function StreamSourceTimeline({
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between font-mono text-label text-fg-3">
+      <div className="mt-1 flex justify-between text-label tabular-nums text-fg-3">
         <span>0:00</span>
         <span>{formatStreamClock(sourceDuration)}</span>
       </div>

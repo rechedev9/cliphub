@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 // electron module, but must not depend on local CommonJS modules at runtime.
 const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 const STUDIO_CLIPBOARD_CHANNEL = 'cliphub:clipboard-write';
+const STUDIO_REPORT_PDF_CHANNEL = 'cliphub:report-pdf';
 const STUDIO_UPDATE_CHANNEL = 'cliphub:app-update';
 const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
 const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
@@ -77,5 +78,15 @@ contextBridge.exposeInMainWorld('cliphubClipboard', {
         throw new Error('clipboard write rejected');
       }
     });
+  },
+});
+
+contextBridge.exposeInMainWorld('cliphubReports', {
+  savePdf: (html: unknown, fileName: unknown): Promise<unknown> => {
+    const browserScope = globalThis as unknown as PreloadBrowserScope;
+    if (browserScope.navigator?.userActivation?.isActive !== true) {
+      return Promise.resolve({ ok: false, error: 'El PDF se guarda desde un clic.' });
+    }
+    return ipcRenderer.invoke(STUDIO_REPORT_PDF_CHANNEL, { html, fileName });
   },
 });

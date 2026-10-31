@@ -145,6 +145,14 @@ test('a client-recorded demo asks for the GOTV demo instead of a generic failure
   assert.equal(jobFailureTitle(reason), JOB_FAILED_TITLE);
 });
 
+test('a demo cut before its first round asks for a full download', () => {
+  const reason = 'scan roster: parsing demo: truncated_demo: the demo file is incomplete: the demo stream ends before the first round';
+  const result = parseFailureReason(reason, { job: true });
+  assert.equal(result.kind, 'truncated-demo');
+  assert.equal(result.retryCanHelp, false);
+  assert.match(result.message, /incompleta/);
+});
+
 test('observer-target failure explains how to regenerate without leaking the console path', () => {
   const reason =
     'recorder failed: capture POV verification failed: observer target remained unknown during seg-012; check C:\\cs2\\console.log';

@@ -14,10 +14,10 @@ export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
     <h2 className="font-display text-body-lg font-semibold text-fg-1">Plan y verificación</h2>
     <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · vídeos añadidos: {bumperSummary(options).toLowerCase()}.</p>
     <p className="font-mono text-meta text-fg-3">Plan aprobado: {snapshot.approval.approved_plan_hash.slice(0, 12)}</p>
-    <div className="flex flex-wrap gap-x-4 gap-y-2 text-body-sm text-primary">
-      <Link href={produceHref(video.jobId, PRODUCE_FORMAT.full)} className="underline">Revisar ajustes y crear otra revisión</Link>
+    <div className="flex flex-wrap gap-x-4 gap-y-2 text-body-sm text-fg-1">
+      <Link href={produceHref(video.jobId, PRODUCE_FORMAT.full)} className="underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar ajustes y crear otra revisión</Link>
       {complete ? ['approved', 'effective', 'audio', 'loudness', 'delivery'].map((document, index) => <a key={document}
-        href={pinRenderRevision(`/api/demos/${video.jobId}/renders/${video.variant ?? 'gameplay-pov-60'}/full-demo/${document}`, video.artifactRevision)} target="_blank" rel="noreferrer" className="underline">
+        href={pinRenderRevision(`/api/demos/${video.jobId}/renders/${video.variant ?? 'gameplay-pov-60'}/full-demo/${document}`, video.artifactRevision)} target="_blank" rel="noreferrer" className="underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
         {['Plan aprobado', 'Plan efectivo', 'Mezcla de audio', 'Loudness medido', 'Verificación del MP4'][index]}
       </a>) : null}
     </div>

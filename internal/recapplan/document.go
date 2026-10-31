@@ -1,6 +1,7 @@
 package recapplan
 
 import (
+	"slices"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
@@ -47,6 +48,18 @@ type Options struct {
 	Overlays    OverlayOptions     `json:"overlays"`
 	Outputs     OutputOptions      `json:"outputs"`
 	Transitions *TransitionOptions `json:"transitions,omitempty"`
+	// Rounds limits the video to these source round numbers, as a review made
+	// from the analysis area does. Omitted means every round, so documents
+	// approved before it existed keep their hash.
+	Rounds []int `json:"rounds,omitempty"`
+}
+
+// MaxSelectedRounds caps a round selection; a match never has more rounds.
+const MaxSelectedRounds = 60
+
+// IncludesRound reports whether a source round belongs to the video.
+func (o Options) IncludesRound(number int) bool {
+	return len(o.Rounds) == 0 || slices.Contains(o.Rounds, number)
 }
 
 // BumperOptions are the optional channel clips of the program: a pre-roll

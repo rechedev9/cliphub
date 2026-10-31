@@ -14,11 +14,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/data/lineups"
 	"github.com/rechedev9/cliphub/internal/allowproto"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/importedvideos"
+	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/steamclient"
@@ -186,6 +188,8 @@ func run() error {
 	taskHandlers[tasks.TypeAnalyzeAnticheat] = parserWorker.HandleAnalyzeAnticheat
 	tacticalWorker := workers.NewTacticalWorker(repo, files)
 	taskHandlers[tasks.TypeAnalyzeTactical] = tacticalWorker.HandleAnalyzeTactical
+	libraryWorker := workers.NewLibraryWorker(repos.Library, files)
+	taskHandlers[tasks.TypeAnalyzeLibraryDemo] = libraryWorker.HandleAnalyzeLibraryDemo
 	var recordWorker *workers.RecordWorker
 	if cfg.recordWorkerEnabled() {
 		recordWorker = workers.NewRecordWorker(repo, files, workers.RecordWorkerConfig{
@@ -193,6 +197,7 @@ func run() error {
 			RecorderPath: cfg.RecorderPath,
 			HLAEPath:     cfg.HLAEPath,
 			CS2Path:      cfg.CS2Path,
+			FFmpegPath:   recordFFmpegPath(cfg, captureSource),
 			Timeout:      cfg.RecordTimeout,
 			HUDMode:      cfg.RecordHUD,
 		})
@@ -281,6 +286,11 @@ func run() error {
 	} else {
 		imported = store
 	}
+	// The stratbook compares a round's smokes with the bundled lineup catalog.
+	lineupCatalog, err := lineups.LoadFS(lineupdata.Files)
+	if err != nil {
+		log.Printf("lineup catalog: %v", err)
+	}
 	handlers := httpapi.NewHandlers(repo, files, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
@@ -304,6 +314,8 @@ func run() error {
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
 		httpapi.WithImportedVideos(imported),
+		httpapi.WithLibrary(repos.Library),
+		httpapi.WithLineupCatalog(lineupCatalog),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
@@ -338,6 +350,11 @@ func run() error {
 		observability,
 	); err != nil {
 		return err
+	}
+	if resumed, err := handlers.ResumeLibraryScans(ctx); err != nil {
+		log.Printf("startup: resume library scans (resumed=%d): %v", resumed, err)
+	} else if resumed > 0 {
+		log.Printf("startup: resumed %d library scans", resumed)
 	}
 	log.Printf("queue: inline mode enabled (concurrency=%d)", cfg.WorkerConcurrency)
 	httpRuntime.Start()

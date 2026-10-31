@@ -1337,12 +1337,12 @@ export class RealApiClient implements ApiClient {
 
   /** Job to Match; a missing roster still lists a zeroed filename row. */
   private async jobToMatchEnriched(job: IndexedJob): Promise<Match> {
-    // The list row carries the roster summary inline; the per-job roster
-    // request is only the fallback for a scan still running or an older server.
+    // The list row carries the roster summary inline whenever the roster exists;
+    // the per-job request is only the fallback for a scan or parse still running.
     const inline = enrichmentFromSummary(job);
     if (inline !== null) return jobToMatch(job, inline);
-    // A job that failed before its scan has no roster to fetch; asking on every poll is pure noise.
-    if (job.status === MATCH_STATUS_FAILED) return jobToMatch(job);
+    // Past the parse a missing roster never appears, so asking on every poll only logs 409s.
+    if (job.status !== 'scanned' && !SCAN_PENDING_STATUSES.has(job.status)) return jobToMatch(job);
     try {
       const roster = await this.fetchRoster(job.jobId);
       const enrichment: { map?: string; player?: DemoPlayer } = {};

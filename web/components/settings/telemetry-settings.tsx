@@ -116,8 +116,8 @@ export function TelemetrySettings(): ReactNode {
       <div className="flex items-center gap-4">
         <IconTile icon={Activity} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="PRIVACIDAD" />
-          <h2 id="telemetry-settings-title" className="font-display text-title font-bold uppercase text-fg-1">
+          <SectionEyebrow label="Privacidad" />
+          <h2 id="telemetry-settings-title" className="font-display text-title font-bold text-fg-1">
             Diagnósticos
           </h2>
         </div>

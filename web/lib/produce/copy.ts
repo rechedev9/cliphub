@@ -8,7 +8,7 @@ export const PRODUCE_MATCH_MISSING = {
 export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nuevo vídeo largo' } as const;
 
 /** Each format is its own flow: the section name, its home copy and its steps. */
-export const FLOW_TITLE = { short: 'Shorts', full: 'Vídeos largos' } as const;
+export const FLOW_TITLE = { short: 'Short', full: 'Vídeo largo' } as const;
 export const FLOW_HOME_TITLE = { short: 'Crea un Short', full: 'Crea un vídeo largo' } as const;
 export const FLOW_HOME_DESCRIPTION = {
   short: 'Vídeo vertical 9:16 con las mejores jugadas de un jugador. Carga una demo de CS2, elige el jugador y revisa las jugadas antes de grabar.',
@@ -33,7 +33,7 @@ export const PRODUCE_SHORT_DRAFT_RESET = PRODUCE_DRAFT_RESET;
 export const PRODUCE_SHORT_CTA = 'Crear Short';
 
 /** Footer line once a producer can create: where it records and where the result lands. */
-export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Resultados.';
+export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Mis vídeos.';
 
 /** The long-form flow is "vídeo largo" everywhere the user reads it; "Full Demo" stays internal. */
 export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';

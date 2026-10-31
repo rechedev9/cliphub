@@ -119,7 +119,9 @@ const optionsShape = object({
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
   bumpers: bumperOptions,
-}, ['transitions', 'bumpers', 'sponsor']);
+  // Mirrors recapplan.Options.Rounds: Go omits it when every round is in the video.
+  rounds: array(integerRange(1, 999), 60),
+}, ['transitions', 'bumpers', 'sponsor', 'rounds']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -194,6 +196,16 @@ function legacySponsorBumper(bumpers: FullDemoOptions['bumpers'], sponsor: unkno
   if (bumpers?.sponsor || !record(sponsor) || sponsor.enabled !== true || !assetRef(sponsor.video)) return {};
   const off = { enabled: false, video: null };
   return { bumpers: { intro: bumpers?.intro ?? off, outro: bumpers?.outro ?? off, sponsor: { enabled: true, video: sponsor.video } } };
+}
+
+/**
+ * Limits the video to some source rounds, or back to every round with null or
+ * an empty list. The key is left out for every round, as Go omits it.
+ */
+export function withFullDemoRounds(options: FullDemoOptions, rounds: readonly number[] | null): FullDemoOptions {
+  const { rounds: _previous, ...rest } = options;
+  const sorted = [...new Set(rounds ?? [])].sort((a, b) => a - b);
+  return sorted.length === 0 ? rest : { ...rest, rounds: sorted };
 }
 
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {

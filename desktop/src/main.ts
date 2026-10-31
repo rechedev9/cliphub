@@ -4,6 +4,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   ipcMain,
   screen,
   shell,
@@ -51,6 +52,7 @@ import {
   STUDIO_SETTINGS_CHANNEL,
 } from './studio-settings-ipc';
 import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
+import { parseReportPdfRequest, STUDIO_REPORT_PDF_CHANNEL } from './report-pdf-ipc';
 import {
   AppUpdateController,
   createDefaultAppUpdateHost,
@@ -434,7 +436,7 @@ interface BootFailureDetails {
 
 let activeBootAttempt: BootAttempt | null = null;
 
-/** Resultados is the door: it lists the videos, or offers the creation flows when there are none. */
+/** Mis vídeos is the door: it lists the videos, or offers the creation flows when there are none. */
 async function loadStudio(webPort: number, proxyMutationCapability: string): Promise<void> {
   loadingScreenShowing = false;
   const win = aliveWindow();
@@ -446,7 +448,7 @@ async function loadStudio(webPort: number, proxyMutationCapability: string): Pro
     webOrigin,
     proxyMutationCapability,
   );
-  const requestedURL = `${webOrigin}/resultados`;
+  const requestedURL = `${webOrigin}/mis-videos`;
   let observedReplacement: SuccessfulNavigationEvidence | null = null;
   let resolveReplacement: ((evidence: SuccessfulNavigationEvidence) => void) | undefined;
   const replacementCompleted = new Promise<SuccessfulNavigationEvidence>((resolve) => {
@@ -813,6 +815,70 @@ function registerStudioClipboardIPC(): void {
   });
 }
 
+// The report renders in its own hidden window: no script, no preload, an
+// in-memory session, and no request beyond the report file itself.
+const REPORT_PDF_PARTITION = 'cliphub-report-pdf';
+
+async function renderReportPdf(html: string): Promise<Buffer> {
+  const dir = await fs.promises.mkdtemp(path.join(app.getPath('temp'), 'cliphub-report-'));
+  const file = path.join(dir, 'informe.html');
+  const fileURL = pathToFileURL(file).href;
+  await fs.promises.writeFile(file, html, 'utf8');
+  const printer = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      javascript: false,
+      nodeIntegration: false,
+      partition: REPORT_PDF_PARTITION,
+      sandbox: true,
+    },
+  });
+  try {
+    printer.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+      callback({ cancel: details.url !== fileURL });
+    });
+    printer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    printer.webContents.on('will-navigate', (event) => event.preventDefault());
+    await printer.loadFile(file);
+    return await printer.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+    });
+  } finally {
+    printer.destroy();
+    await fs.promises.rm(dir, { recursive: true, force: true });
+  }
+}
+
+function registerReportPdfIPC(): void {
+  ipcMain.handle(STUDIO_REPORT_PDF_CHANNEL, async (event, value: unknown): Promise<{ ok: boolean; canceled?: boolean; error?: string }> => {
+    if (!trustedSettingsSender(event)) return { ok: false, error: 'Solicitud de PDF rechazada.' };
+    let request;
+    try {
+      request = parseReportPdfRequest(value);
+    } catch {
+      return { ok: false, error: 'Solicitud de PDF no válida.' };
+    }
+    const win = aliveWindow();
+    const options = {
+      defaultPath: path.join(app.getPath('documents'), request.fileName),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    };
+    const target = win === null ? await dialog.showSaveDialog(options) : await dialog.showSaveDialog(win, options);
+    if (target.canceled || !target.filePath) return { ok: false, canceled: true };
+    try {
+      const pdf = await renderReportPdf(request.html);
+      await fs.promises.writeFile(target.filePath, pdf);
+      return { ok: true };
+    } catch (err) {
+      logLine(`[report] could not write the PDF: ${String(err)}\n`);
+      return { ok: false, error: 'No se pudo guardar el PDF.' };
+    }
+  });
+}
+
 function registerAppUpdateIPC(): void {
   const controller = new AppUpdateController(createDefaultAppUpdateHost({
     currentVersion: app.getVersion(),
@@ -949,6 +1015,7 @@ app.whenReady().then(() => {
   registerStudioSettingsIPC();
   registerStudioTelemetryIPC();
   registerStudioClipboardIPC();
+  registerReportPdfIPC();
   registerAppUpdateIPC();
   telemetryClient.start();
   telemetryJournal.start();

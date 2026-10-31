@@ -38,13 +38,13 @@ export function StudioDataRow({
         className,
       )}
     >
-      <span className="flex min-w-0 items-center gap-2 font-display text-body-sm font-bold uppercase tracking-wide text-fg-1">
+      <span className="flex min-w-0 items-center gap-2 font-display text-body-sm font-bold text-fg-1">
         {Icon ? <Icon aria-hidden className="size-4 shrink-0 text-fg-3" /> : null}
         <span className="truncate">{label}</span>
       </span>
       {value !== undefined || status !== undefined ? (
         <span className="flex shrink-0 items-center gap-2.5">
-          {value !== undefined ? <span className="font-mono text-body-sm tabular-nums text-fg-2">{value}</span> : null}
+          {value !== undefined ? <span className="text-body-sm tabular-nums text-fg-2">{value}</span> : null}
           {status}
         </span>
       ) : null}

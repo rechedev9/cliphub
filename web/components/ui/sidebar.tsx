@@ -321,11 +321,8 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-inset"
       className={cn(
-        // Transparent, not bg-background: the fixed .shell-canvas / .ff-ambient
-        // planes paint the room from behind every route, and an opaque inset
-        // would hide them. It also removes the second .neon-grid origin that
-        // made the lattice jump 192px whenever the sidebar collapsed.
-        "relative flex w-full flex-1 flex-col bg-transparent",
+        // Flat canvas: the stage paints the same plain background as <body>.
+        "relative flex w-full flex-1 flex-col bg-background",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}
@@ -515,14 +512,14 @@ function SidebarMenuButton({
         hidden={state !== "collapsed" || isMobile}
         {...tooltipProps}
         // In the collapsed rail the tooltip is the *entire* labelling
-        // mechanism, so it gets the nav's own voice: display caps at the label
-        // step, and --border-strong because it is labelling a control.
+        // mechanism, so it gets the label step and --border-strong because it is
+        // labelling a control.
         // [font-size:…] rather than `text-label`: tailwind-merge does not know
         // this project's font-size scale and files an unknown `text-*` under
         // text-colour, so a size step and a colour step cannot survive the same
         // cn() call.
         className={cn(
-          "border-border-strong px-3 py-2 font-[family-name:var(--font-display)] [font-size:var(--text-label)] font-semibold tracking-wide uppercase",
+          "border-border-strong px-3 py-2 [font-size:var(--text-label)] font-semibold",
           tooltipClassName
         )}
       />

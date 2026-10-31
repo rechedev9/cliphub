@@ -24,7 +24,7 @@ export function HubBanner({ offline, onRetry }: HubBannerProps): ReactNode {
     >
       <IconTile icon={PlugZap} size="sm" tone={offline ? 'danger' : 'warning'} depth="inset" />
       <p className="min-w-0 flex-1 text-body-sm text-fg-2">
-        <span className={cn('font-display font-bold uppercase', offline ? 'text-destructive' : 'text-warning')}>
+        <span className={cn('font-display font-bold', offline ? 'text-destructive' : 'text-warning')}>
           {offline ? OFFLINE_BANNER_TITLE : 'La última actualización falló'}
         </span>
         {' · '}

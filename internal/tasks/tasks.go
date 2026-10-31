@@ -32,6 +32,10 @@ const (
 	// durable tactical document and its position blob.
 	TypeAnalyzeTactical = "analyze:tactical"
 
+	// TypeAnalyzeLibraryDemo is the Asynq task type for scanning an imported
+	// library demo into its match, teams and players.
+	TypeAnalyzeLibraryDemo = "analyze:library-demo"
+
 	// TypeRecordDemo is the Asynq task type for running the Windows recorder.
 	TypeRecordDemo = "record:demo"
 
@@ -131,6 +135,11 @@ type AnalyzeAnticheatPayload struct {
 type AnalyzeTacticalPayload struct {
 	JobID    uuid.UUID `json:"job_id"`
 	SampleHZ float64   `json:"sample_hz,omitempty"`
+}
+
+// AnalyzeLibraryDemoPayload carries the id of an imported library demo.
+type AnalyzeLibraryDemoPayload struct {
+	DemoID uuid.UUID `json:"demo_id"`
 }
 
 // RecordDemoPayload carries the job id for a Windows recording worker.
@@ -245,6 +254,16 @@ func NewAnalyzeTacticalTask(id uuid.UUID, sampleHZ float64) (*asynq.Task, error)
 		return nil, err
 	}
 	return asynq.NewTask(TypeAnalyzeTactical, payload), nil
+}
+
+// NewAnalyzeLibraryDemoTask returns a task for the library scan of one demo.
+// Like the tactical scan it is idempotent and keeps the default retry policy.
+func NewAnalyzeLibraryDemoTask(id uuid.UUID) (*asynq.Task, error) {
+	payload, err := json.Marshal(AnalyzeLibraryDemoPayload{DemoID: id})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeAnalyzeLibraryDemo, payload), nil
 }
 
 // NewRecordDemoTaskWithRecap returns an Asynq task for recording a job with an

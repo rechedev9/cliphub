@@ -23,7 +23,7 @@
     },
     {
       "id": "mirage-ropz-underpass-a-ramp-smoke",
-      "destination": "A ramp",
+      "destination": "Palace",
       "from_area": "Underpass",
       "side": "CT",
       "landing": [6.438, -2320.625, -37.969],
@@ -33,7 +33,7 @@
     },
     {
       "id": "mirage-ropz-palace-connector-smoke",
-      "destination": "Connector",
+      "destination": "Window",
       "from_area": "PalaceInterior",
       "side": "T",
       "landing": [-1248.281, -663.531, -165.969],
@@ -43,7 +43,7 @@
     },
     {
       "id": "mirage-ropz-tspawn-window-smoke",
-      "destination": "Window",
+      "destination": "Catwalk",
       "from_area": "TSpawn",
       "side": "T",
       "landing": [-56.0, -461.406, -164.656],
@@ -53,7 +53,7 @@
     },
     {
       "id": "mirage-ropz-tspawn-connector-smoke",
-      "destination": "Connector",
+      "destination": "Window",
       "from_area": "TSpawn",
       "side": "T",
       "landing": [-1194.344, -633.219, -165.969],

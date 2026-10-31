@@ -182,7 +182,7 @@ func findCommit(in classifyInput, side tacticalplan.Side) (commitInfo, bool) {
 		if !ok {
 			continue
 		}
-		entries := siteEntries(in, sides, side, center)
+		entries := siteEntries(in, sides, side, site, center)
 		if len(entries) < commitPlayers {
 			continue
 		}
@@ -228,7 +228,7 @@ func commitFromPlant(in classifyInput) (commitInfo, bool) {
 	if !ok {
 		return commit, true
 	}
-	entries := siteEntries(in, roundSides(in.round), tacticalplan.SideT, center)
+	entries := siteEntries(in, roundSides(in.round), tacticalplan.SideT, bomb.Site, center)
 	from := bomb.PlantTick - int(plantApproachSeconds*in.tickrate)
 	var bearings []float64
 	for _, e := range entries {
@@ -247,7 +247,7 @@ func commitFromPlant(in classifyInput) (commitInfo, bool) {
 
 // siteEntries lists, in arrival order, the first time each of a side's players
 // was seen alive inside a site.
-func siteEntries(in classifyInput, sides map[uint8]tacticalplan.Side, side tacticalplan.Side, center [2]float64) []siteEntry {
+func siteEntries(in classifyInput, sides map[uint8]tacticalplan.Side, side tacticalplan.Side, site tacticalplan.Site, center [2]float64) []siteEntry {
 	var entries []siteEntry
 	seen := map[uint8]bool{}
 	for _, frame := range in.acc.frames {
@@ -255,7 +255,7 @@ func siteEntries(in classifyInput, sides map[uint8]tacticalplan.Side, side tacti
 			if seen[sample.Slot] || sides[sample.Slot] != side || !sample.Flags.Has(tacticalplan.FlagAlive) {
 				continue
 			}
-			if math.Hypot(sample.X-center[0], sample.Y-center[1]) > in.sites.radius {
+			if math.Hypot(sample.X-center[0], sample.Y-center[1]) > in.sites.radius || !in.sites.sameLevel(site, sample.Z) {
 				continue
 			}
 			seen[sample.Slot] = true
@@ -463,7 +463,7 @@ func nearestSiteOfFirstContact(in classifyInput) (tacticalplan.Site, float64) {
 		if k.teamKill {
 			continue
 		}
-		return in.sites.nearest(k.pos[0], k.pos[1])
+		return in.sites.nearest(k.pos[0], k.pos[1], k.pos[2])
 	}
 	return tacticalplan.SiteNone, math.Inf(1)
 }
@@ -473,7 +473,7 @@ func nearestSiteOfKill(in classifyInput, tick int) (tacticalplan.Site, float64) 
 		if k.tick != tick {
 			continue
 		}
-		return in.sites.nearest(k.pos[0], k.pos[1])
+		return in.sites.nearest(k.pos[0], k.pos[1], k.pos[2])
 	}
 	return tacticalplan.SiteNone, math.Inf(1)
 }
@@ -515,7 +515,7 @@ func findStack(in classifyInput, freezeEnd int) (bool, tacticalplan.Site, int) {
 				if sides[sample.Slot] != tacticalplan.SideCT || !sample.Flags.Has(tacticalplan.FlagAlive) {
 					continue
 				}
-				if math.Hypot(sample.X-center[0], sample.Y-center[1]) <= in.sites.radius {
+				if math.Hypot(sample.X-center[0], sample.Y-center[1]) <= in.sites.radius && in.sites.sameLevel(site, sample.Z) {
 					n++
 				}
 			}

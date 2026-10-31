@@ -72,6 +72,9 @@ func (o Options) sampleHZ() (float64, error) {
 type Result struct {
 	Document  tacticalplan.Document
 	Positions tacticalplan.Blob
+	// Header is the demo file header, when the demo carried one. It is not
+	// part of the document: the server name in it can name a person.
+	Header parser.DemoHeader
 }
 
 // ScanFile opens a demo, scans it, and fills in the demo path and checksum.
@@ -128,11 +131,17 @@ func Scan(p demoinfocs.Parser, opts Options) (Result, error) {
 	}
 	s := newScanner(p, opts, hz)
 	s.register()
+	header := parser.TrackDemoHeader(p)
 
 	if err := parser.ParseToEnd(p); err != nil {
 		return Result{}, fmt.Errorf("parsing demo: %w", err)
 	}
-	return s.finish()
+	result, err := s.finish()
+	if err != nil {
+		return Result{}, err
+	}
+	result.Header, _ = header.Header()
+	return result, nil
 }
 
 type scanner struct {
@@ -148,7 +157,7 @@ type scanner struct {
 	slots     map[uint64]uint8
 	players   []*playerAcc
 	teams     map[string]*teamAcc
-	clanNames map[common.Team]string
+	clanNames map[tacticalplan.Side]string
 
 	rounds       []*roundAcc
 	current      *roundAcc
@@ -194,6 +203,7 @@ type roundAcc struct {
 	frames  []tacticalplan.Frame
 
 	kills          []killRecord
+	utilityHits    []utilityHit
 	stats          map[uint8]*playerRoundAcc
 	sides          map[uint8]tacticalplan.Side
 	economySampled bool
@@ -229,7 +239,7 @@ func newScanner(p demoinfocs.Parser, opts Options, hz float64) *scanner {
 		hz:              hz,
 		slots:           map[uint64]uint8{},
 		teams:           map[string]*teamAcc{},
-		clanNames:       map[common.Team]string{},
+		clanNames:       map[tacticalplan.Side]string{},
 		half:            1,
 		lastEmittedTick: math.MinInt32,
 	}
@@ -265,9 +275,22 @@ func (s *scanner) register() {
 		if e.TeamState == nil {
 			return
 		}
-		if name := e.TeamState.ClanName(); name != "" {
-			s.clanNames[e.TeamState.Team()] = name
+		// Clan names follow the teams when sides swap at half time, so a name
+		// is stored under the start side of the team holding it. After the
+		// first half the first name per start side wins.
+		name := e.TeamState.ClanName()
+		side := sideOf(e.TeamState.Team())
+		if name == "" || side == "" {
+			return
 		}
+		half := max(s.half, 1)
+		if half%2 == 0 {
+			side = side.Opponent()
+		}
+		if _, seen := s.clanNames[side]; seen && half > 1 {
+			return
+		}
+		s.clanNames[side] = name
 	})
 
 	p.RegisterEventHandler(func(events.RoundStart) {
@@ -276,8 +299,14 @@ func (s *scanner) register() {
 			return
 		}
 		s.closeCurrent(s.tick())
+		// The game's own count, the number Crear gives its plays, so a round
+		// picked here is the round a Short or review video records.
+		number := gs.TotalRoundsPlayed() + 1
+		if dropped := s.dropReplayedRounds(number); dropped > 0 {
+			s.warn("dropped %d rounds replayed from round %d (backup restore)", dropped, number)
+		}
 		s.current = &roundAcc{
-			number:    len(s.rounds) + 1,
+			number:    number,
 			tickStart: s.tick(),
 			scoreCT:   gs.TeamCounterTerrorists().Score(),
 			scoreT:    gs.TeamTerrorists().Score(),
@@ -314,6 +343,7 @@ func (s *scanner) register() {
 
 	p.RegisterEventHandler(func(e events.Kill) { s.onKill(e) })
 	p.RegisterEventHandler(func(e events.PlayerHurt) { s.onHurt(e) })
+	p.RegisterEventHandler(func(e events.PlayerFlashed) { s.onFlashed(e) })
 	p.RegisterEventHandler(func(e events.BombPlanted) { s.onPlant(e) })
 	p.RegisterEventHandler(func(e events.BombDefused) { s.onDefuse(e) })
 	p.RegisterEventHandler(func(e events.BombExplode) { s.onExplode(e) })
@@ -360,6 +390,18 @@ func (s *scanner) warn(format string, args ...any) {
 	s.warnings = append(s.warnings, fmt.Sprintf(format, args...))
 }
 
+// dropReplayedRounds removes the rounds a backup restore or a restarted round
+// plays again from number on: the replay is the round the match kept.
+func (s *scanner) dropReplayedRounds(number int) int {
+	kept := len(s.rounds)
+	for kept > 0 && s.rounds[kept-1].number >= number {
+		kept--
+	}
+	dropped := len(s.rounds) - kept
+	s.rounds = s.rounds[:kept]
+	return dropped
+}
+
 func (s *scanner) closeCurrent(tick int) {
 	if s.current == nil {
 		return
@@ -403,21 +445,7 @@ func (s *scanner) slotFor(p *common.Player) (uint8, bool) {
 		name:      p.Name,
 		startSide: side,
 	})
-	s.recordTeamMember(p, side)
 	return slot, true
-}
-
-func (s *scanner) recordTeamMember(p *common.Player, side tacticalplan.Side) {
-	// A team is identified by the side it started on, because that is the only
-	// identity that survives the half-time swap. Clan names, when the demo has
-	// them, become the display name.
-	key := teamKeyForStartSide(side, s.half)
-	team, ok := s.teams[key]
-	if !ok {
-		team = &teamAcc{key: key, startSide: startSideForKey(key), members: map[uint64]struct{}{}}
-		s.teams[key] = team
-	}
-	team.members[p.SteamID64] = struct{}{}
 }
 
 func (s *scanner) onFrame() {
@@ -675,6 +703,7 @@ func (s *scanner) onHurt(e events.PlayerHurt) {
 	if r == nil || e.Player == nil || e.Attacker == nil {
 		return
 	}
+	s.recordUtilityDamage(e)
 	if e.Attacker.Team == e.Player.Team {
 		return
 	}

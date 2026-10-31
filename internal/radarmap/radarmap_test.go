@@ -92,6 +92,11 @@ func TestLevelSplitsOnAltitude(t *testing.T) {
 	if mirage.MultiLevel() {
 		t.Fatal("de_mirage has one level")
 	}
+	// Train's sites sit near -250 and -350, under Valve's -50 split.
+	train, _ := Lookup("de_train")
+	if train.MultiLevel() || train.Level(-350) != LevelDefault {
+		t.Fatal("de_train must be drawn as one level")
+	}
 	if got := mirage.Level(-99999); got != LevelDefault {
 		t.Fatalf("single-level map must always answer %q, got %q", LevelDefault, got)
 	}

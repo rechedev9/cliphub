@@ -31,7 +31,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
-import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_STEPS, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
+import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
 import { MapCover } from '@/components/brand/map-cover';
@@ -42,7 +42,7 @@ import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioBackLink } from '@/components/studio/back-link';
-import { WorkflowProgress } from '@/components/studio/workflow-progress';
+import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -444,7 +444,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     <div className="measure-list flex flex-col gap-5">
       {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
-      <WorkflowProgress steps={FLOW_STEPS[format]} current={progressStep} />
+      <CreateFlowSteps flow={format} step={progressStep} />
       {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div
@@ -492,19 +492,19 @@ function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: R
         <MapCover map={match?.map ?? ''} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">
+        <span className="truncate font-display text-body-lg font-bold text-fg-1">
           {match ? (
             <>
               {prettyMapName(match.map)}{' '}
-              <span className={match.scoreT > match.scoreCt ? 'text-warning' : 'text-fg-3'}>{match.scoreT}</span>
+              <span className={match.scoreT > match.scoreCt ? 'text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
               <span className="text-fg-3"> : </span>
-              <span className={match.scoreCt > match.scoreT ? 'text-primary' : 'text-fg-3'}>{match.scoreCt}</span>
+              <span className={match.scoreCt > match.scoreT ? 'text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
             </>
           ) : (
             'Demo escaneada'
           )}
         </span>
-        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span className="truncate text-meta text-fg-3">
           {fileName ?? 'demo'} · {match ? `${match.rounds} rondas` : '—'}
         </span>
       </span>
@@ -518,10 +518,10 @@ function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: R
 function SingleDemoProgress({ label, fileName }: { label: string; fileName: string | null }): ReactNode {
   return (
     <div role="status" aria-live="polite" className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
-      <span className="grid size-14 place-items-center border border-border-accent bg-surface-0 text-primary shadow-[var(--glow-primary-md)]">
+      <span className="grid size-14 place-items-center border border-border-accent bg-surface-0 text-fg-2">
         <span aria-hidden className="studio-spinner size-6" />
       </span>
-      <p className="font-display text-title font-bold uppercase text-fg-1">{label}</p>
+      <p className="font-display text-title font-bold text-fg-1">{label}</p>
       {fileName ? (
         <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
           <FileVideo aria-hidden className="size-4 shrink-0" />
@@ -538,7 +538,7 @@ function SingleDemoProgress({ label, fileName }: { label: string; fileName: stri
 function ScanRowList({ rows }: { rows: ScanRow[] }): ReactNode {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Escaneando {rows.length} demos</p>
+      <p className="mb-1 text-meta text-fg-3">Escaneando {rows.length} demos</p>
       {rows.map((row, i) => (
         <StudioDataRow
           key={`${row.fileName}-${i}`}
@@ -580,7 +580,7 @@ function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
 function ParseRowList({ rows }: { rows: ParseRow[] }): ReactNode {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">
+      <p className="mb-1 text-meta text-fg-3">
         {rows.some((row) => row.status === 'parsing') ? 'Analizando las jugadas en cada mapa' : 'Resultado por mapa'}
       </p>
       {rows.map((row) => (

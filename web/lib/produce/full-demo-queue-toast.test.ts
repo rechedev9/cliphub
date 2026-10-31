@@ -6,12 +6,12 @@ const NO_PACKETS = 'Esta demo no tiene datos de voz. El vídeo se hace sin las v
 
 test('a queued long video shows plan warnings long enough to dismiss', () => {
   const plain = fullDemoQueueToast(false, []);
-  assert.equal(plain.description, 'Sigue el progreso en Resultados.');
+  assert.equal(plain.description, 'Sigue el progreso en Mis vídeos.');
   assert.equal(plain.duration, undefined);
   assert.equal(plain.closeButton, undefined);
 
   const warned = fullDemoQueueToast(false, [{ message: NO_PACKETS }]);
-  assert.equal(warned.description, `${NO_PACKETS} Sigue el progreso en Resultados.`);
+  assert.equal(warned.description, `${NO_PACKETS} Sigue el progreso en Mis vídeos.`);
   assert.equal(warned.duration, 12_000);
   assert.equal(warned.closeButton, true);
 

@@ -8,6 +8,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { openAppTour } from '@/lib/app-tour-state';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
+import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import {
   serverShellActivitySnapshot,
@@ -15,7 +16,7 @@ import {
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
 import { LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
-import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
+import { sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
   newShort: 'nuevo short',
@@ -30,7 +31,7 @@ const SERIES_PREFIX = '/series/';
 /** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
 const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
+// Full-inset ceiling: own padding, no max-w, opaque and flat (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
   const section = sectionForPath(pathname);
@@ -55,7 +56,7 @@ export function CommandStrip(): ReactElement {
       {/* 6px inside the label, 14px across the level break, so the breadcrumb
           reads as two levels. */}
       <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate font-[family-name:var(--font-display)] text-label font-semibold tracking-wide text-fg-1 uppercase">
+        <span className="truncate text-body-sm font-semibold text-fg-1">
           {section?.label ?? 'ClipHub'}
         </span>
         {trail === null ? null : (
@@ -86,6 +87,7 @@ export function CommandStrip(): ReactElement {
           <CircleHelp aria-hidden />
           <span className="max-sm:sr-only">Guía</span>
         </Button>
+        <ThemeMenu />
         <AppUpdateControl />
       </div>
     </header>
@@ -99,23 +101,15 @@ function CapturePip(): ReactElement {
       role="status"
       className="hidden h-9 items-center gap-2 rounded-md border border-stream/45 bg-stream/10 px-2.5 sm:flex"
     >
-      <span className="neon-pulse size-2 rounded-full bg-stream" aria-hidden />
-      <span className="font-[family-name:var(--font-mono)] text-meta tracking-wider text-stream-text uppercase">
+      <span className="live-pulse size-2 rounded-full bg-stream" aria-hidden />
+      <span className="text-meta font-medium text-stream-text">
         Captura
       </span>
     </span>
   );
 }
 
-function sectionForPath(pathname: string): NavSection | null {
-  if (pathname.startsWith(SERIES_PREFIX)) return NAV_SECTIONS.find((section) => section.href === SHORTS_HREF) ?? null;
-  for (const section of NAV_SECTIONS) {
-    if (pathname === section.href || pathname.startsWith(`${section.href}/`)) return section;
-  }
-  return null;
-}
-
-// Screen names for the creation flows and Resultados; other sections show a readable nested segment.
+// Screen names for the creation flows and Mis vídeos; other sections show a readable nested segment.
 function trailForPath(pathname: string, section: NavSection | null): string | null {
   if (section === null) return null;
   if (pathname.startsWith(SERIES_PREFIX)) return TRAIL.series;

@@ -75,7 +75,7 @@ export function MediaFrame({
       className={cn(
         'group/frame relative w-full overflow-hidden bg-surface-0',
         capHeight ? CAPPED_ASPECT_CLASS[aspect] : ASPECT_CLASS[aspect],
-        scanline && 'studio-scanline',
+        scanline && 'relative',
         className,
       )}
     >

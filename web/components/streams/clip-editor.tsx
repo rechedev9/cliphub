@@ -27,8 +27,6 @@ import { cn } from '@/lib/utils';
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
 
-const CHIP_CLASS = 'font-mono uppercase tracking-wider';
-
 /**
  * A compact list selects one moment. Its range stays visible; optional
  * text, speed and audio controls preserve the existing edit-plan contract.
@@ -96,7 +94,7 @@ export function StreamClipEditor({
               <span className="truncate">
                 {i + 1}. {item.title || `Short ${i + 1}`}
               </span>
-              <span className="shrink-0 font-mono">{formatStreamClock(clipOutputDuration(item))}</span>
+              <span className="shrink-0 tabular-nums">{formatStreamClock(clipOutputDuration(item))}</span>
             </button>
           </li>
         ))}
@@ -193,17 +191,17 @@ function ClipCard({
           <span
             aria-hidden
             className={cn(
-              'grid size-7 shrink-0 place-items-center border font-mono text-label tabular-nums',
+              'grid size-7 shrink-0 place-items-center border text-label tabular-nums',
               selected ? 'border-stream/45 bg-stream/10 text-stream-text' : 'border-border-strong text-fg-2',
             )}
           >
             {number}
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate font-display text-label font-semibold uppercase text-fg-1">
+            <span className="truncate font-display text-label font-semibold text-fg-1">
               {clip.title?.trim() || `Clip ${index + 1}`}
             </span>
-            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+            <span className="truncate text-meta text-fg-3">
               {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)} → Short de{' '}
               {formatStreamClock(clipOutputDuration(clip))}
             </span>
@@ -262,7 +260,7 @@ function ClipCard({
           >
             <SelectTrigger
               aria-label="Velocidad de reproducción"
-              className="h-10 w-full gap-1 px-2.5 font-mono tracking-wider"
+              className="h-10 w-full gap-1 px-2.5"
             >
               <SelectValue />
             </SelectTrigger>
@@ -282,7 +280,7 @@ function ClipCard({
             aria-pressed={sourceVolume === 0}
             aria-label={sourceVolume === 0 ? 'Quitar silencio' : 'Silenciar audio original'}
             onClick={toggleMute}
-            className={cn(CHIP_CLASS, sourceVolume === 0 && 'border-destructive/45 text-destructive')}
+            className={cn(sourceVolume === 0 && 'border-destructive/45 text-destructive')}
           >
             {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
           </Button>
@@ -299,7 +297,7 @@ function ClipCard({
                   : { fade_in_seconds: CHIP_FADE_SECONDS, fade_out_seconds: CHIP_FADE_SECONDS },
               )
             }
-            className={cn(CHIP_CLASS, fadesOn && 'border-stream/45 text-stream-text')}
+            className={cn(fadesOn && 'border-stream/45 text-stream-text')}
           >
             {fadesOn ? `Fundidos ${fadeIn === fadeOut ? fadeIn : `${fadeIn}/${fadeOut}`} s` : 'Sin fundidos'}
           </Button>
@@ -310,7 +308,7 @@ function ClipCard({
             disabled={disabled}
             aria-expanded={showText}
             onClick={() => setTextOpen((open) => !open)}
-            className={cn(CHIP_CLASS, overlays.length > 0 && 'border-stream/45 text-stream-text')}
+            className={cn(overlays.length > 0 && 'border-stream/45 text-stream-text')}
           >
             {overlays.length > 0 ? `Texto · ${overlays.length}/${MAX_TEXT_OVERLAYS}` : '+ Texto'}
           </Button>
@@ -340,7 +338,7 @@ function ClipCard({
               <Label htmlFor={`${clip.id}-source-volume`} className="text-label text-fg-2">
                 Volumen original
               </Label>
-              <output htmlFor={`${clip.id}-source-volume`} className="font-mono text-label tabular-nums text-fg-1">
+              <output htmlFor={`${clip.id}-source-volume`} className="text-label tabular-nums text-fg-1">
                 {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`}
               </output>
             </div>
@@ -423,7 +421,7 @@ function ClipOverlayEditor({
   return (
     <section className="flex flex-col gap-3 border-t border-border-subtle pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span className="text-meta text-fg-3">
           Textos en pantalla · {rows.length}/{MAX_TEXT_OVERLAYS}
         </span>
         <Button
@@ -573,7 +571,7 @@ function OverlayRow({
         />
         <output
           htmlFor={`${idBase}-position`}
-          className="w-11 shrink-0 text-right font-mono text-label tabular-nums text-fg-1"
+          className="w-11 shrink-0 text-right text-label tabular-nums text-fg-1"
         >
           {Math.round(overlay.position_y * 100)}%
         </output>

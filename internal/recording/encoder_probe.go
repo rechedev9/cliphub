@@ -31,15 +31,21 @@ func EncoderFFmpegCodec(encoder string) string {
 
 // HLAEStreamFFmpeg resolves the ffmpeg binary HLAE's mirv_streams will invoke
 // for the given HLAE.exe: the bundled ffmpeg\bin\ffmpeg.exe when present, then
-// the Path declared in ffmpeg\ffmpeg.ini, and finally the PATH ffmpeg that
-// ensureHLAEFFmpegConfig would write into a fresh ini. Capture-encoder probes
-// must use this binary, not whatever ffmpeg the caller itself resolved,
+// configured, the ffmpeg zv-recorder writes into ffmpeg\ffmpeg.ini when Studio
+// passes one, then the Path declared in that ini, and finally the PATH ffmpeg
+// that ensureHLAEFFmpegConfig would write into a fresh ini. Capture-encoder
+// probes must use this binary, not whatever ffmpeg the caller itself resolved,
 // because the two can differ per install.
-func HLAEStreamFFmpeg(hlaeExe string) string {
+func HLAEStreamFFmpeg(hlaeExe, configured string) string {
 	dir := filepath.Join(filepath.Dir(hlaeExe), "ffmpeg")
 	bundled := filepath.Join(dir, "bin", "ffmpeg.exe")
 	if _, err := os.Stat(bundled); err == nil {
 		return bundled
+	}
+	// zv-recorder only writes the configured ffmpeg into an existing ffmpeg
+	// folder; without one HLAE never sees it, so the probe must not either.
+	if _, err := os.Stat(dir); configured != "" && err == nil {
+		return configured
 	}
 	if data, err := os.ReadFile(filepath.Join(dir, "ffmpeg.ini")); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {

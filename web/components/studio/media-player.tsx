@@ -419,8 +419,8 @@ export function MediaPlayer({
               <Button ref={playButtonRef} variant="outline-primary" size="icon-sm" onClick={() => void togglePlayback()} aria-label={playing ? 'Pausar' : 'Reproducir'}>
                 {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
               </Button>
-              <span className="min-w-24 font-mono text-meta tabular-nums text-fg-2">{clock(position)} / {clock(duration)}</span>
-              <span className="font-mono text-meta uppercase tracking-wider text-fg-3" role="status">
+              <span className="min-w-24 text-meta tabular-nums text-fg-2">{clock(position)} / {clock(duration)}</span>
+              <span className="text-meta text-fg-3" role="status">
                 {mediaStatusLabel}
               </span>
               <Button variant="ghost" size="icon-sm" onClick={() => setMuted((value) => !value)} aria-label={muted ? 'Activar sonido' : 'Silenciar'}>
@@ -440,7 +440,7 @@ export function MediaPlayer({
               <Button variant={loop ? 'outline-primary' : 'ghost'} size="icon-sm" onClick={() => setLoop((value) => !value)} aria-pressed={loop} aria-label="Repetir vídeo">
                 <Repeat2 aria-hidden />
               </Button>
-              <label className="flex h-10 items-center gap-1.5 font-mono text-meta uppercase tracking-wider text-fg-3">
+              <label className="flex h-10 items-center gap-1.5 text-meta text-fg-3">
                 Velocidad
                 <select
                   value={playbackRate}

@@ -35,9 +35,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -156,6 +158,8 @@ type Handlers struct {
 	labBundles          LabBundlePreparer
 	labBundleRoot       string
 	importedVideos      ImportedVideos
+	libraryRepo         LibraryRepository
+	lineups             lineups.Catalog
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex
@@ -344,6 +348,7 @@ const (
 	codeCSGODemo       = "csgo_demo"
 	codeNotADemo       = "not_a_demo"
 	codeUnreadableDemo = "unreadable_demo"
+	codeTruncatedDemo  = "truncated_demo"
 )
 
 // isDemoHeader reports whether the leading bytes look like a CS2 (Source 2)
@@ -461,6 +466,10 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := h.persistAndEnqueueDemo(r.Context(), demo, demoFileName, cfg.TargetSteamID, seriesID, effectiveRules)
+	if errors.Is(err, parser.ErrTruncatedDemo) {
+		writeCodedError(w, http.StatusBadRequest, codeTruncatedDemo, "uploaded file is an incomplete CS2 demo")
+		return
+	}
 	if err != nil {
 		internalError(w, "admit uploaded demo", err)
 		return
@@ -471,8 +480,48 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// persistAndEnqueueDemo stores a validated demo stream and queues parse or roster scan.
+// persistAndEnqueueDemo stores a validated demo stream and queues parse or
+// roster scan. A demo shorter than its header announces is dropped with
+// parser.ErrTruncatedDemo.
 func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) (*job.Job, error) {
+	j := newDemoJob(fileName, targetSteamID, seriesID, effectiveRules)
+	h256 := sha256.New()
+	stored := &storedDemo{r: demo}
+	if err := h.storage.Put(j.DemoPath, io.TeeReader(stored, h256)); err != nil {
+		return nil, fmt.Errorf("store demo: %w", err)
+	}
+	if err := stored.checkLength(); err != nil {
+		h.discardStoredDemo(j.DemoPath)
+		log.Printf("httpapi: refuse demo code=%s: %v", codeTruncatedDemo, err)
+		return nil, err
+	}
+	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
+	return h.admitDemoJob(ctx, j)
+}
+
+// storedDemo counts a demo as it is stored and keeps its first bytes, so the
+// stored length can be checked against the length its header announces.
+type storedDemo struct {
+	r      io.Reader
+	header []byte
+	n      int64
+}
+
+func (d *storedDemo) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	if missing := parser.DemoHeaderLen - len(d.header); missing > 0 {
+		d.header = append(d.header, p[:min(n, missing)]...)
+	}
+	d.n += int64(n)
+	return n, err
+}
+
+func (d *storedDemo) checkLength() error {
+	return parser.CheckDemoLength(d.header, d.n)
+}
+
+// newDemoJob is a queued job whose demo will live under demos/<id>.dem.
+func newDemoJob(fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) *job.Job {
 	j := &job.Job{
 		ID:            uuid.New(),
 		Status:        job.StatusQueued,
@@ -481,20 +530,17 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 		TargetSteamID: targetSteamID,
 		Rules:         effectiveRules,
 	}
-	key := fmt.Sprintf("demos/%s.dem", j.ID)
-	j.DemoPath = key
+	j.DemoPath = fmt.Sprintf("demos/%s.dem", j.ID)
+	return j
+}
 
-	h256 := sha256.New()
-	tee := io.TeeReader(demo, h256)
-	if err := h.storage.Put(key, tee); err != nil {
-		return nil, fmt.Errorf("store demo: %w", err)
-	}
-	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
-
+// admitDemoJob creates a job whose demo is already stored and queues its parse
+// (with a target) or roster scan (without one).
+func (h *Handlers) admitDemoJob(ctx context.Context, j *job.Job) (*job.Job, error) {
 	if err := h.repo.Create(ctx, j); err != nil {
 		// No job will ever point at the stored demo, so nothing else can
 		// find it to delete it.
-		h.discardStoredDemo(key)
+		h.discardStoredDemo(j.DemoPath)
 		return nil, fmt.Errorf("create job: %w", err)
 	}
 
@@ -513,6 +559,8 @@ func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fi
 	}); err != nil {
 		return nil, fmt.Errorf("enqueue %s task: %w", taskKind, err)
 	}
+	// The job's own task goes first, so the library scan never delays it.
+	h.linkJobToLibrary(ctx, *j)
 	return j, nil
 }
 
@@ -809,8 +857,8 @@ func (h *Handlers) GetRoster(w http.ResponseWriter, r *http.Request) {
 	rc, err := h.storage.Open(artifacts.RosterKey(j.ID))
 	if err != nil {
 		if storage.IsNotExist(err) {
-			// Either the scan is still running or this job was created with a
-			// target and never scanned.
+			// The scan or the parse that scans inline is still running, or the
+			// job predates the inline scan of a job created with a target.
 			writeError(w, http.StatusConflict, "roster not ready")
 			return
 		}

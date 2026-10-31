@@ -321,21 +321,21 @@ export const OUTPUT_TONE = {
 } as const satisfies Record<OutputState, string>;
 export type OutputTone = (typeof OUTPUT_TONE)[OutputState];
 
-/** The uppercase HUD tag an output item shows: LISTO, RENDER 41%, REC R3/20, EN COLA, FALLÓ. */
+/** The tag an output item shows: Listo, Render 41%, REC R3/20, En cola, Falló. */
 export function outputTagLabel(
   output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'>,
 ): string {
   switch (output.state) {
     case OUTPUT_STATE.ready:
-      return 'LISTO';
+      return 'Listo';
     case OUTPUT_STATE.render:
-      return output.percent === null ? 'RENDER' : `RENDER ${output.percent}%`;
+      return output.percent === null ? 'Render' : `Render ${output.percent}%`;
     case OUTPUT_STATE.rec:
       return output.rounds === null ? 'REC' : `REC R${output.rounds.done}/${output.rounds.total}`;
     case OUTPUT_STATE.queue:
-      return 'EN COLA';
+      return 'En cola';
     case OUTPUT_STATE.failed:
-      return 'FALLÓ';
+      return 'Falló';
   }
 }
 

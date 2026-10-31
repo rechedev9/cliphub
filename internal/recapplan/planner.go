@@ -116,6 +116,9 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
 	canonical.Capture.TrueView = options.Capture.TrueView
+	if len(options.Rounds) > 0 {
+		canonical.Rounds = slices.Compact(slices.Sorted(slices.Values(options.Rounds)))
+	}
 	// Only the player id is the user's choice; the values always come from the catalog.
 	proSettings, err := ResolveProSettings(options.Capture.ProSettings.PlayerID)
 	if err != nil {
@@ -239,6 +242,9 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	}
 	lastFact := -1
 	for i, fact := range f.Rounds {
+		if !options.IncludesRound(fact.Number) {
+			continue
+		}
 		r, notices, err := planRound(f, fact, options.Editorial, false)
 		if err != nil {
 			return Document{}, err

@@ -1,6 +1,9 @@
 # ClipHub
 
-ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into edited videos.
+ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into edited videos and
+analyzes them. The product we sell is that desktop app. `web/` is only its UI inside Electron: there
+is no web product, and a browser is only a quick way to test the UI. Design, scope and verify every
+change for the installed Windows app.
 
 ## Layout
 - `cmd/`, `internal/`: Go backend (orchestrator, parser, recorder, editor). Go 1.26.10 from `go.mod`.

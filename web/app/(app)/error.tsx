@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { recordRendererError } from '@/lib/desktop-telemetry';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 
 /**
  * Route-level error boundary. ClipHub ships packaged with `devTools: false`,
@@ -68,7 +69,7 @@ export default function AppError({
             Reintentar
           </Button>
           <Button asChild variant="outline">
-            <Link href="/resultados">Volver a Resultados</Link>
+            <Link href={RESULTS_HREF}>Volver a Mis vídeos</Link>
           </Button>
           <Button
             type="button"

@@ -17,7 +17,7 @@ export function DemoSourceHelp(): ReactNode {
           <li><strong className="font-medium text-fg-1">CS2:</strong> descarga la repetición de una partida o usa su código de compartir en la opción «Importar desde Steam».</li>
         </ul>
         <p>Puedes cargar .dem, .dem.zst, .zip o .rar. No necesitas conectar Steam si ya tienes el archivo.</p>
-        <p>Si ya tienes un vídeo MP4, ve a <Link href="/streams" className={`text-primary underline underline-offset-4 ${FOCUS_RING}`}>Clips de stream</Link> para recortarlo.</p>
+        <p>Si ya tienes un vídeo MP4, ve a <Link href="/streams" className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>Clips de stream</Link> para recortarlo.</p>
       </div>
     </details>
   );

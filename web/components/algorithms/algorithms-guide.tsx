@@ -5,7 +5,7 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { STATUS_TONE_CLASS } from '@/components/studio/status-tag';
 
-const PAGE_TITLE = 'Algoritmos';
+const PAGE_TITLE = 'Ideas';
 const PAGE_DESCRIPTION =
   'Cómo deciden YouTube y Google qué vídeos recomiendan, qué mide cada plataforma mientras ves un vídeo y qué hacer con tus Shorts y vídeos largos de CS2.';
 
@@ -20,9 +20,9 @@ const EVIDENCE_META = {
 } as const satisfies Record<EvidenceLevel, { title: string; className: string }>;
 
 // Marks wrap in prose so a long note fits a phone; tables scroll sideways, so their marks stay on one line.
-const MARK_CLASS = 'evidence-mark mx-0.5 inline-block max-w-full border px-1 align-[0.1em] font-mono text-meta leading-tight';
+const MARK_CLASS = 'evidence-mark mx-0.5 inline-block max-w-full border px-1 align-[0.1em] text-meta leading-tight';
 const HEADING_CLASS = {
-  2: 'mt-4 font-display text-section font-bold text-fg-1 uppercase',
+  2: 'mt-4 font-display text-section font-bold text-fg-1',
   3: 'mt-2 font-display text-title font-bold text-fg-1',
 } as const;
 
@@ -36,7 +36,7 @@ export function AlgorithmsGuide(): ReactNode {
         <ol className="grid gap-x-6 gap-y-1.5 text-body-sm @[44rem]/content:grid-cols-2">
           {CONTENTS.map((heading) => (
             <li key={heading.id}>
-              <a href={`#${heading.id}`} className="text-fg-2 underline-offset-2 hover:text-primary hover:underline">
+              <a href={`#${heading.id}`} className="text-fg-2 underline-offset-4 hover:text-fg-1 hover:underline">
                 {heading.title}
               </a>
             </li>
@@ -90,7 +90,7 @@ function GuideBlock({ block }: { block: Block }): ReactNode {
             <thead className="bg-surface-2">
               <tr>
                 {block.head.map((cell, index) => (
-                  <th key={index} scope="col" className="px-3 py-2 align-bottom font-mono text-meta font-normal tracking-widest text-fg-3 uppercase">
+                  <th key={index} scope="col" className="px-3 py-2 align-bottom text-meta font-medium text-fg-3">
                     <InlineContent content={cell} />
                   </th>
                 ))}
@@ -145,7 +145,7 @@ function InlineNode({ node }: { node: Inline }): ReactNode {
       return <code className="bg-surface-2 px-1 font-mono text-[0.85em] text-fg-1">{node.text}</code>;
     case 'link':
       return (
-        <a href={node.href} target="_blank" rel="noopener noreferrer" className="break-all text-primary underline underline-offset-2">
+        <a href={node.href} target="_blank" rel="noopener noreferrer" className="break-all text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
           {node.href}
         </a>
       );

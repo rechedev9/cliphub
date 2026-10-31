@@ -11,7 +11,7 @@ import { cellRadarRect, maxCellWeight, worldToRendered, yawToRadarAngle } from '
 import type { RadarPoint, RadarRect } from '@/lib/tactical-transform';
 import type { TimelineEvent } from '@/lib/tactical-timeline';
 import type { TrailPoint } from '@/lib/tactical-replay';
-import { opponentSide } from '@/lib/tactical-labels';
+import { opponentSide, placeLabel } from '@/lib/tactical-labels';
 import type { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 
 /**
@@ -166,7 +166,7 @@ function drawCallouts(
     if (callout.level !== activeLevel) continue;
     const point = worldToRendered(geometry.calibration, callout.center[0], callout.center[1], size);
     ctx.globalAlpha = 0.32;
-    ctx.fillText(callout.name.toUpperCase(), point.x, point.y);
+    ctx.fillText(placeLabel(callout.name).toUpperCase(), point.x, point.y);
   }
   ctx.globalAlpha = 1;
 }

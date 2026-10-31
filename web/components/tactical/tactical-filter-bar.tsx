@@ -33,7 +33,6 @@ import {
   siteLabel,
   tPatternLabel,
 } from '@/lib/tactical-labels';
-import { STUDIO_FILTER_CHIP_CLASS } from '@/components/studio/filter-chip';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -51,7 +50,7 @@ function optionsFor<T extends string>(values: readonly T[], label: (value: T) =>
 
 function GroupLabel({ children, id }: { children: ReactNode; id: string }): ReactNode {
   return (
-    <span id={id} className="font-mono text-meta uppercase tracking-widest text-fg-3">
+    <span id={id} className="text-meta text-fg-3">
       {children}
     </span>
   );
@@ -82,14 +81,15 @@ function MultiChips<T extends string>({
           onChange(kept.length > 0 ? kept : undefined);
         }}
         aria-labelledby={labelId}
-        className="flex w-full flex-wrap gap-2"
+        variant="filter"
+        spacing={2}
+        className="w-full flex-wrap"
       >
         {options.map((option) => (
           <ToggleGroupItem
             key={option.value}
             value={option.value}
             aria-label={`${label}: ${option.label}`}
-            className={STUDIO_FILTER_CHIP_CLASS}
           >
             {option.label}
           </ToggleGroupItem>
@@ -125,9 +125,11 @@ function SingleChips<T extends string>({
           onChange(match?.value);
         }}
         aria-labelledby={labelId}
-        className="flex w-full flex-wrap gap-2"
+        variant="filter"
+        spacing={2}
+        className="w-full flex-wrap"
       >
-        <ToggleGroupItem value={ANY_VALUE} aria-label={`${label}: ${anyLabel}`} className={STUDIO_FILTER_CHIP_CLASS}>
+        <ToggleGroupItem value={ANY_VALUE} aria-label={`${label}: ${anyLabel}`}>
           {anyLabel}
         </ToggleGroupItem>
         {options.map((option) => (
@@ -135,7 +137,6 @@ function SingleChips<T extends string>({
             key={option.value}
             value={option.value}
             aria-label={`${label}: ${option.label}`}
-            className={STUDIO_FILTER_CHIP_CLASS}
           >
             {option.label}
           </ToggleGroupItem>
@@ -149,6 +150,7 @@ function SingleChips<T extends string>({
 function BoundInput({
   label,
   value,
+  min,
   max,
   placeholder,
   edgeClassName,
@@ -156,6 +158,7 @@ function BoundInput({
 }: {
   label: string;
   value: number | undefined;
+  min: number;
   max: number;
   placeholder: string;
   /** Which outer corners this cell keeps, so the two bounds read as one plate. */
@@ -165,14 +168,14 @@ function BoundInput({
   const inputId = useId();
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2">
-      <label htmlFor={inputId} className="font-mono text-meta uppercase tracking-widest text-fg-3">
+      <label htmlFor={inputId} className="text-meta text-fg-3">
         {label}
       </label>
       <Input
         id={inputId}
         type="number"
         inputMode="numeric"
-        min={1}
+        min={min}
         max={max}
         placeholder={placeholder}
         value={value === undefined ? '' : String(value)}
@@ -186,10 +189,10 @@ function BoundInput({
         // not match the field recipe. It also contradicted itself — --elev-0 is
         // the RAISED bevel (light top, shade bottom), so a step-down fill under
         // a step-up bevel read as two depths at once. Only the joined corners
-        // and the mono/tabular type are local. z-10 on focus is
+        // and the tabular type are local. z-10 on focus is
         // toggle-group.tsx's fix, so one cell's 2px focus outline is not painted
         // over by its neighbour's background.
-        className={cn('font-mono text-body-sm tabular-nums focus-visible:z-10', edgeClassName)}
+        className={cn('text-body-sm tabular-nums focus-visible:z-10', edgeClassName)}
       />
     </div>
   );
@@ -245,6 +248,9 @@ export function TacticalFilterBar({
     label: player.name,
   }));
   const selectedSlots = (filter.slots ?? []).map(String);
+  // A demo recorded mid-match starts at the game's own round count, not at 1.
+  const firstRound = doc.rounds[0]?.number ?? 1;
+  const lastRound = doc.rounds.at(-1)?.number ?? total;
 
   const advancedCount = [
     filter.buys?.length,
@@ -330,23 +336,25 @@ export function TacticalFilterBar({
               <BoundInput
                 label="Desde"
                 value={filter.round_from}
-                max={total}
-                placeholder="1"
+                min={firstRound}
+                max={lastRound}
+                placeholder={String(firstRound)}
                 edgeClassName="rounded-r-none"
                 onChange={(round_from) => patch({ round_from })}
               />
               <BoundInput
                 label="Hasta"
                 value={filter.round_to}
-                max={total}
-                placeholder={String(total)}
+                min={firstRound}
+                max={lastRound}
+                placeholder={String(lastRound)}
                 edgeClassName="rounded-l-none border-l-0"
                 onChange={(round_to) => patch({ round_to })}
               />
             </div>
 
             <div className="flex shrink-0 items-center gap-3">
-              <span className="font-mono text-meta uppercase text-fg-2 tabular-nums">
+              <span className="text-meta text-fg-2 tabular-nums">
                 {matched} / {total} rondas
               </span>
               <Button
@@ -356,10 +364,10 @@ export function TacticalFilterBar({
                 // The outline variant already ships a measured disabled recipe
                 // (--surface-2 + --fg-3, the AA floor); the base opacity-50 was
                 // compositing that floor down to ~2:1.
-                className="font-mono text-meta tracking-wider disabled:opacity-100"
+                className="text-meta disabled:opacity-100"
               >
                 <FilterX aria-hidden />
-                LIMPIAR
+                Limpiar
               </Button>
             </div>
           </div>
@@ -372,14 +380,14 @@ export function TacticalFilterBar({
         >
           <summary
             className={cn(
-              'flex cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-fg-3 outline-none hover:text-fg-1',
+              'flex cursor-pointer list-none items-center gap-2 text-meta text-fg-3 outline-none hover:text-fg-1',
               FOCUS_RING,
             )}
           >
             <SlidersHorizontal className="size-3.5" aria-hidden />
             Filtros avanzados
             {advancedCount > 0 ? (
-              <Badge variant="outline" className="border-primary/45 text-primary tabular-nums">
+              <Badge variant="outline" className="border-primary/45 text-fg-1 tabular-nums">
                 {advancedCount}
               </Badge>
             ) : null}

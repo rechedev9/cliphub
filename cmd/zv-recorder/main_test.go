@@ -1429,3 +1429,64 @@ func TestCaptureLabEventOffsetsFollowProtectedCaptureWindow(t *testing.T) {
 		})
 	}
 }
+
+// A capture once encoded with the WinGet FFmpeg on PATH while the render used
+// the FFmpeg Studio provisions: the ini written on the first capture stuck.
+func TestEnsureHLAEFFmpegConfig(t *testing.T) {
+	const older = "[Ffmpeg]\r\nPath=C:\\winget\\ffmpeg.exe\r\n"
+	cases := []struct {
+		name       string
+		configured string
+		bundled    bool
+		want       string
+	}{
+		{name: "configured ffmpeg replaces the ini", configured: `C:\studio\ffmpeg.exe`, want: "[Ffmpeg]\r\nPath=C:\\studio\\ffmpeg.exe\r\n"},
+		{name: "without one the ini is kept", want: older},
+		{name: "HLAE's own ffmpeg leaves the ini alone", configured: `C:\studio\ffmpeg.exe`, bundled: true, want: older},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "ffmpeg")
+			if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if tc.bundled {
+				if err := os.WriteFile(filepath.Join(dir, "bin", "ffmpeg.exe"), []byte("fake"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ini := filepath.Join(dir, "ffmpeg.ini")
+			if err := os.WriteFile(ini, []byte(older), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := ensureHLAEFFmpegConfig(filepath.Join(filepath.Dir(dir), "HLAE.exe"), tc.configured); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(ini)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tc.want {
+				t.Fatalf("ffmpeg.ini = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSiblingFFprobeUsesTheConfiguredBuild(t *testing.T) {
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg.exe")
+	if got := siblingFFprobe(ffmpeg); got != "" {
+		t.Fatalf("siblingFFprobe without a probe = %q, want empty", got)
+	}
+	probe := filepath.Join(dir, "ffprobe.exe")
+	if err := os.WriteFile(probe, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := siblingFFprobe(ffmpeg); got != probe {
+		t.Fatalf("siblingFFprobe = %q, want %q", got, probe)
+	}
+	if got := siblingFFprobe(""); got != "" {
+		t.Fatalf("siblingFFprobe(\"\") = %q, want empty", got)
+	}
+}

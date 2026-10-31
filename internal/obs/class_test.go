@@ -33,6 +33,11 @@ func TestClassOfCaptureIncompatible(t *testing.T) {
 			message: "scan roster: parsing demo: pov_demo: the demo was recorded by a player's client, not by GOTV",
 			want:    ClassPOVDemo,
 		},
+		{
+			name:    "truncated demo wrapped by the scan worker",
+			message: "scan roster: parsing demo: truncated_demo: the demo file is incomplete: the demo stream ends before the first round",
+			want:    ClassTruncatedDemo,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

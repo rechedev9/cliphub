@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1214,6 +1215,37 @@ func TestPostJobsValidatesDemoMagicBytes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// truncatedDemo is a CS2 demo header whose file info sits at byte 4096, cut
+// to 64 bytes, like the first megabytes of a real demo.
+func truncatedDemo() []byte {
+	demo := make([]byte, 64)
+	copy(demo, "PBDEMS2\x00")
+	binary.LittleEndian.PutUint32(demo[8:12], 4096)
+	return demo
+}
+
+// A cut copy passes the magic check and the parser reads it without an error,
+// so only the length its header announces gives it away.
+func TestPostJobsRefusesTruncatedDemo(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	h := NewHandlers(repo, store, queue)
+
+	body, ct := multipartBodyRaw(t, truncatedDemo(), "")
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+	req.Header.Set("Content-Type", ct)
+	rw := httptest.NewRecorder()
+	h.CreateJob(rw, req)
+
+	if rw.Code != http.StatusBadRequest || !strings.Contains(rw.Body.String(), codeTruncatedDemo) {
+		t.Fatalf("status = %d body = %s, want 400 %s", rw.Code, rw.Body.String(), codeTruncatedDemo)
+	}
+	if len(store.puts) != 0 || len(repo.jobs) != 0 || len(queue.enqueued) != 0 {
+		t.Fatalf("kept puts=%d jobs=%d tasks=%d, want nothing", len(store.puts), len(repo.jobs), len(queue.enqueued))
 	}
 }
 

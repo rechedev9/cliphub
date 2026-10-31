@@ -243,7 +243,7 @@ func TestPrettyMapName(t *testing.T) {
 		want string
 	}{
 		{name: "known ancient", raw: "de_ancient", want: "Ancient"},
-		{name: "known dust2 has space", raw: "de_dust2", want: "Dust 2"},
+		{name: "known dust2", raw: "de_dust2", want: "Dust2"},
 		{name: "known office cs prefix", raw: "cs_office", want: "Office"},
 		{name: "case insensitive key", raw: "DE_MIRAGE", want: "Mirage"},
 		{name: "unknown de prefix", raw: "de_cache", want: "Cache"},

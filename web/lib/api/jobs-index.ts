@@ -31,6 +31,8 @@ export type IndexedJob = {
   status: string;
   failureReason?: string;
   fileName?: string;
+  /** Checksum of the demo file; jobs of the same demo share it. */
+  demoSha256?: string;
   seriesId?: string;
   targetSteamId?: string;
   /** ISO-8601 upload time; the Partidas list sorts newest first by it. */
@@ -164,6 +166,7 @@ export function jobToMatch(job: IndexedJob, enrichment?: { map?: string; player?
   // Name the row after the clipped/target player when the roster resolved them;
   // leave it off (no stray separator) for an unenriched or nameless entry.
   if (player?.name) match.player = player.name;
+  if (job.demoSha256) match.demoSha256 = job.demoSha256;
   if (job.status === MATCH_STATUS_FAILED && job.failureReason) match.failureReason = job.failureReason;
   return match;
 }

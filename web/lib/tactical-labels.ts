@@ -199,3 +199,35 @@ export function rateLabel(pct: number, total: number): string {
   if (total <= 0) return '— (n=0)';
   return `${pct.toFixed(1)} % (n=${total})`;
 }
+
+/** CS2 place tokens whose English name is not their CamelCase split (`csgo_english.txt`). */
+const PLACE_NAMES: ReadonlyMap<string, string> = new Map([
+  ['TopofMid', 'Top of Mid'],
+  ['BackofA', 'Back of A'],
+  ['BackofB', 'Back of B'],
+  ['SnipersNest', "Sniper's Nest"],
+  ['VipRescueZone', 'VIP Rescue Zone'],
+  ['Control', 'Control Room'],
+  ['Floor50', '50th Floor'],
+  ['Floor51', '51st Floor'],
+  ['MotorBoats', 'Motorboats'],
+  ['BoatHouse', 'Boathouse'],
+  ['DriveWay', 'Driveway'],
+  ['PopDog', 'Popdog'],
+  ['LongDog', 'Longdog'],
+  ['Gravelpit', 'Gravel Pit'],
+]);
+
+/**
+ * A CS2 place token (`m_szLastPlaceName`, e.g. `BombsiteA`, `CTSpawn`) as the
+ * callout players say: `Bombsite A`, `CT Spawn`. Unknown tokens are split at
+ * their case changes, so a workshop map still reads as words.
+ */
+export function placeLabel(place: string): string {
+  const known = PLACE_NAMES.get(place);
+  if (known !== undefined) return known;
+  return place
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .replace(/([A-Za-z])([0-9])/g, '$1 $2');
+}

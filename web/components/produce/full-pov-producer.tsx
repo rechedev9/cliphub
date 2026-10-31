@@ -8,7 +8,7 @@ import type { Match, Play } from '@/lib/api/types';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, FULL_DEMO_BUMPERS_LABEL, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan, withFullDemoRounds,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoProPlayer,
 } from '@/lib/full-demo-plan';
 import { proSettingsSummary } from '@/lib/produce/full-demo-pro-settings';
@@ -26,15 +26,18 @@ import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoProSettings } from './full-demo-pro-settings';
 import { FullDemoHud } from './full-demo-hud';
 import { customHudLabel } from '@/lib/custom-hud';
+import { roundListLabel } from '@/lib/library/analysis-video';
 
 /** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
 const OVERLAYS_NOTE = 'Jugadores y marcador con el diseño de ClipHub, independiente del HUD. El origen de la demo decide su formato.';
 
 export type FullPovProducerProps = {
   active: boolean; matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
+  /** From the analysis area: the video covers only these source rounds. */
+  selectedRounds?: readonly number[] | null;
 };
 
-export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: FullPovProducerProps): ReactNode {
+export function FullPovProducer({ active, matchId, match, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
   const router = useRouter();
   const backHref = seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.full);
   const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
@@ -52,6 +55,8 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const [loadAttempt, setLoadAttempt] = useState(0);
   const createRequest = useRef<AbortController | null>(null);
   const draftKey = `cliphub.full-demo.draft.v1:${matchId}`;
+  // A string key, so a new array from the same query does not reload the plan.
+  const roundsKey = selectedRounds?.join(',') ?? '';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,14 +71,17 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
         if (controller.signal.aborted) return;
         if (recalled && JSON.stringify(remembered) !== JSON.stringify(recalled)) rememberFullDemoBumpers(remembered);
       }
-      const base = currentFullDemoOptions(loaded.document?.options ?? withRememberedBumpers(loaded.defaults, remembered));
+      const focus = roundsKey === '' ? null : roundsKey.split(',').map(Number);
+      const saved = currentFullDemoOptions(loaded.document?.options ?? withRememberedBumpers(loaded.defaults, remembered));
+      const base = focus ? withFullDemoRounds(saved, focus) : saved;
       let draft: unknown = null;
       try {
         const raw = localStorage.getItem(draftKey);
         draft = raw ? JSON.parse(raw) : null;
       } catch { }
       // An old draft may still carry the retired sponsor group: normalizing moves its video to the sponsor slot.
-      const initial = isFullDemoOptions(draft) ? currentFullDemoOptions(draft) : base;
+      const drafted = isFullDemoOptions(draft) ? currentFullDemoOptions(draft) : base;
+      const initial = focus ? withFullDemoRounds(drafted, focus) : drafted;
       // Saving a plan also stores its options as the draft; only a real divergence is "recovered".
       setRestored(fullDemoOptionsKey(initial) !== fullDemoOptionsKey(base));
       setDocument(loaded.document); setBaseline(base); setOptions(initial); setProPlayers(loaded.pro_players ?? []); setBusy(null);
@@ -82,7 +90,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
     });
     return () => controller.abort();
-  }, [matchId, draftKey, loadAttempt]);
+  }, [matchId, draftKey, loadAttempt, roundsKey]);
   useEffect(() => () => {
     const request = createRequest.current;
     if (request) {
@@ -150,8 +158,10 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     }
   }
 
+  const chosenRounds = options?.rounds ?? [];
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
+    { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
     { label: 'HUD', value: customHudLabel(options.overlays.hud_theme) },
     { label: 'POV', value: options.capture.trueview ? 'Original 1:1' : 'Estándar' },
     { label: 'Settings', value: proSettingsSummary(options.capture.pro_settings) },
@@ -163,13 +173,26 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
 
   return <>
     <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+      <p className="wrap-anywhere text-meta text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
-      <p className="w-full text-body-sm text-fg-2">Todas las rondas con la mira del jugador y el audio de la partida.</p>
+      <p className="w-full text-body-sm text-fg-2">
+        {chosenRounds.length > 0
+          ? `${chosenRounds.length === 1 ? 'La ronda' : 'Las rondas'} ${roundListLabel(chosenRounds)} con la mira del jugador y el audio de la partida.`
+          : 'Todas las rondas con la mira del jugador y el audio de la partida.'}
+        {chosenRounds.length > 0 && options ? (
+          <>
+            {' '}
+            <button type="button" disabled={busy !== null} onClick={() => change(withFullDemoRounds(options, null))}
+              className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+              Usar todas las rondas
+            </button>
+          </>
+        ) : null}
+      </p>
       {restored ? (
         <p role="status" className="w-full text-body-sm text-fg-3">
           {PRODUCE_FULL_DRAFT_RESTORED}{' '}
-          <button type="button" disabled={busy !== null} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+          <button type="button" disabled={busy !== null} onClick={startOver} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
             {PRODUCE_DRAFT_RESET}
           </button>
         </p>
@@ -208,6 +231,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       readyHint={dirty ? 'Se preparará al crear.' : undefined}
       ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
       cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
-        className="neon-notch shrink-0 focus-visible:-outline-offset-4">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
+        className="shrink-0">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
   </>;
 }

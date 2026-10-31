@@ -19,6 +19,13 @@ import (
 // versions they do not understand rather than render a partial analysis.
 const SchemaVersion = "1.0"
 
+// AnalysisVersion counts changes to what a scan concludes from the same demo
+// (2: zones per cell and floor, Train on one level, sites matched per level,
+// players on the team of their first live round, "Equipo CT/T" fallback names;
+// 3: rounds numbered by the game's count, as Crear numbers them).
+// The library scans a stored analysis below it again; bump it with each change.
+const AnalysisVersion = 3
+
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
 
@@ -75,6 +82,9 @@ const (
 	TUnknown TPattern = "unknown"  // not enough evidence to classify
 )
 
+// TPatterns lists every T pattern in report order.
+var TPatterns = []TPattern{TExecute, TDefault, TSplit, TFast, TEcoRush, TSave, TUnknown}
+
 // CTPattern is the defending side's round shape.
 type CTPattern string
 
@@ -87,6 +97,9 @@ const (
 	CTSave       CTPattern = "save"       // equipment preserved after losing map control
 	CTUnknown    CTPattern = "unknown"
 )
+
+// CTPatterns lists every CT pattern in report order.
+var CTPatterns = []CTPattern{CTHold, CTRetake, CTAggression, CTStack, CTSave, CTUnknown}
 
 // Site names a bombsite or the neutral middle of the map.
 type Site string
@@ -132,18 +145,22 @@ const (
 
 // Document is the top-level tactical analysis of one demo.
 type Document struct {
-	SchemaVersion string      `json:"schema_version"`
-	GeneratedAt   time.Time   `json:"generated_at"`
-	JobID         uuid.UUID   `json:"job_id,omitempty"`
-	Demo          Demo        `json:"demo"`
-	Teams         []Team      `json:"teams"`
-	Players       []Player    `json:"players"`
-	Rounds        []Round     `json:"rounds"`
-	Geometry      MapGeometry `json:"geometry"`
-	Positions     Positions   `json:"positions"`
+	SchemaVersion   string      `json:"schema_version"`
+	AnalysisVersion int         `json:"analysis_version,omitempty"` // 0 before the field existed
+	GeneratedAt     time.Time   `json:"generated_at"`
+	JobID           uuid.UUID   `json:"job_id,omitempty"`
+	Demo            Demo        `json:"demo"`
+	Teams           []Team      `json:"teams"`
+	Players         []Player    `json:"players"`
+	Rounds          []Round     `json:"rounds"`
+	Geometry        MapGeometry `json:"geometry"`
+	Positions       Positions   `json:"positions"`
 	// Warnings records every ambiguity the scan resolved by convention, so a
 	// surprising number can be traced instead of guessed at.
 	Warnings []string `json:"warnings,omitempty"`
+	// UtilityEffects is true when the scan recorded who each flash blinded and
+	// what each HE and molotov damaged. Older documents lack it.
+	UtilityEffects bool `json:"utility_effects,omitempty"`
 }
 
 // Demo is the source demo's identity and timing.
@@ -171,6 +188,16 @@ type Team struct {
 	StartSide Side     `json:"start_side"`
 	Slots     []uint8  `json:"slots"`
 	SteamIDs  []string `json:"steamids"`
+}
+
+// FallbackTeamName is the name a scan gives a team whose demo carried no clan
+// name, so a reader can tell a real clan name from the placeholder. It is the
+// label Studio shows for such a team everywhere (web teamLabel).
+func FallbackTeamName(startSide Side) string {
+	if startSide == SideCT {
+		return "Equipo CT"
+	}
+	return "Equipo T"
 }
 
 // Player is the identity table. Every per-tick sample and every event refers to
@@ -323,6 +350,23 @@ type Event struct {
 	NoScope       bool       `json:"no_scope,omitempty"`
 	Traded        bool       `json:"traded,omitempty"`
 	Opening       bool       `json:"opening,omitempty"`
+	// Effect is what a flash, HE or molotov did to players. It is nil for other
+	// events and for grenades that touched nobody.
+	Effect *UtilityEffect `json:"effect,omitempty"`
+}
+
+// UtilityEffect is the measured outcome of one grenade.
+type UtilityEffect struct {
+	Blinded     []BlindHit `json:"blinded,omitempty"`
+	EnemyDamage int        `json:"enemy_damage,omitempty"`
+	TeamDamage  int        `json:"team_damage,omitempty"`
+}
+
+// BlindHit is one player a flash blinded and for how long.
+type BlindHit struct {
+	Slot    uint8   `json:"slot"`
+	Seconds float64 `json:"seconds"`
+	Enemy   bool    `json:"enemy"`
 }
 
 // MarshalJSON guarantees every emitted document carries the current
@@ -337,11 +381,12 @@ func (d Document) MarshalJSON() ([]byte, error) {
 // and a UTC timestamp.
 func NewDocument() Document {
 	return Document{
-		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Now().UTC(),
-		Rounds:        []Round{},
-		Players:       []Player{},
-		Teams:         []Team{},
+		SchemaVersion:   SchemaVersion,
+		AnalysisVersion: AnalysisVersion,
+		GeneratedAt:     time.Now().UTC(),
+		Rounds:          []Round{},
+		Players:         []Player{},
+		Teams:           []Team{},
 	}
 }
 

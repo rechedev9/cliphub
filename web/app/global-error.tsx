@@ -21,8 +21,8 @@ const PAGE: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: '24px',
-  backgroundColor: '#0e1220',
-  color: '#eef3f8',
+  backgroundColor: '#18191b',
+  color: '#f2f3f5',
   fontFamily: 'system-ui, sans-serif',
 };
 
@@ -31,26 +31,24 @@ const PANEL: CSSProperties = {
   width: '100%',
   padding: '28px',
   borderRadius: '10px',
-  border: '1px solid #3a4560',
-  backgroundColor: '#171d2e',
+  border: '1px solid #34363a',
+  backgroundColor: '#1e1f22',
 };
 
 const EYEBROW: CSSProperties = {
   margin: 0,
   fontSize: '12px',
-  letterSpacing: '0.2em',
-  textTransform: 'uppercase',
-  color: '#22d9ee',
+  color: '#a0a3a9',
 };
 
 const TITLE: CSSProperties = { margin: '12px 0 0', fontSize: '24px', lineHeight: 1.15 };
-const BODY: CSSProperties = { margin: '12px 0 0', fontSize: '15px', lineHeight: 1.6, color: '#aab7ca' };
+const BODY: CSSProperties = { margin: '12px 0 0', fontSize: '15px', lineHeight: 1.6, color: '#c3c5ca' };
 const CODE: CSSProperties = {
   margin: '20px 0 0',
   padding: '10px 12px',
   borderRadius: '6px',
-  backgroundColor: '#0b0f1a',
-  color: '#aab7ca',
+  backgroundColor: '#141517',
+  color: '#c3c5ca',
   fontFamily: 'ui-monospace, monospace',
   fontSize: '12px',
   overflowX: 'auto',
@@ -61,8 +59,8 @@ const ACTION: CSSProperties = {
   padding: '0 20px',
   borderRadius: '6px',
   border: 0,
-  backgroundColor: '#22d9ee',
-  color: '#08131c',
+  backgroundColor: '#f3f4f6',
+  color: '#1b1c1f',
   fontSize: '14px',
   fontWeight: 700,
   cursor: 'pointer',

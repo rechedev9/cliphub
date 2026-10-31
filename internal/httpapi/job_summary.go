@@ -81,13 +81,13 @@ type rosterCacheEntry struct {
 // absent. A roster is written once by the scan worker and never rewritten, so
 // a positive entry only goes stale when the job is deleted, which evicts it.
 //
-// A negative entry is bounded by the scan lifecycle instead. The only writer
-// of the artifact is workers.ParserWorker.HandleScanRoster, which runs while
-// the job is queued/scanning and publishes the artifact before moving the job
-// to scanned; a job created with a target skips the scan and never gets one at
-// all. So once a job's status is past queued/scanning, "absent" is permanent:
+// A negative entry is bounded by the scan lifecycle instead. The artifact is
+// written by workers.ParserWorker: the roster scan publishes it while the job
+// is queued/scanning, before the job moves to scanned, and a job created with
+// a target scans it inline at the start of its parse, while it is parsing. So
+// once a job's status is past queued/scanning/parsing, "absent" is permanent:
 // the scan either already published (and we would have read it), failed, or
-// was never enqueued. rosterMayStillAppear encodes that, and it gates both the
+// predates the inline scan. rosterMayStillAppear encodes that, and it gates both the
 // write and the read of a negative entry, so even a status that somehow moved
 // back into the scan window re-opens the artifact instead of being served a
 // stale absent. The zero value is ready.
@@ -101,7 +101,7 @@ type rosterSummaryCache struct {
 // remembered.
 func rosterMayStillAppear(s job.Status) bool {
 	switch s {
-	case job.StatusQueued, job.StatusScanning:
+	case job.StatusQueued, job.StatusScanning, job.StatusParsing:
 		return true
 	default:
 		return false

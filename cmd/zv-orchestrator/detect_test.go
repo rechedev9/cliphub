@@ -37,6 +37,18 @@ func TestDetectCaptureToolsEnvWins(t *testing.T) {
 	}
 }
 
+// Capture gets the ffmpeg Studio set; a PATH ffmpeg found by detection must not
+// overwrite an ffmpeg.ini the user wrote for HLAE.
+func TestRecordFFmpegPathOnlyPassesTheConfiguredFFmpeg(t *testing.T) {
+	cfg := config{FFmpegPath: filepath.FromSlash("/tools/ffmpeg")}
+	if got := recordFFmpegPath(cfg, captureToolSource{"ZV_FFMPEG_PATH": "env"}); got != cfg.FFmpegPath {
+		t.Errorf("configured ffmpeg = %q, want %q", got, cfg.FFmpegPath)
+	}
+	if got := recordFFmpegPath(cfg, captureToolSource{"ZV_FFMPEG_PATH": "detected"}); got != "" {
+		t.Errorf("detected ffmpeg = %q, want none", got)
+	}
+}
+
 func TestDetectCaptureToolsEnablesRenderWorkerFromSibling(t *testing.T) {
 	// detectSibling probes next to os.Executable(), which under `go test` is the
 	// test binary in a scratch dir; plant a zv-editor there to simulate the

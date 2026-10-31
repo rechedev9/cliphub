@@ -27,10 +27,6 @@ const progressVariants = cva(
   }
 )
 
-/** Literal glows cannot ride the `--glow-*` tokens' efficiency downgrade. */
-const GLOW_EFFICIENCY_GATE =
-  "[html[data-performance-profile='efficiency']_&]:shadow-none"
-
 const progressIndicatorVariants = cva(
   "h-full w-full flex-1 transition-transform duration-(--dur-data) ease-standard",
   {
@@ -42,42 +38,9 @@ const progressIndicatorVariants = cva(
         warning: "bg-warning",
         destructive: "bg-destructive",
       },
-      glow: {
-        true: "",
-        false: "",
-      },
     },
-    compoundVariants: [
-      // primary/stream have real glow tokens, so they inherit the efficiency
-      // downgrade (the token resolves to `none`) for free.
-      { tone: "primary", glow: true, class: "shadow-[var(--glow-primary-md)]" },
-      { tone: "stream", glow: true, class: "shadow-[var(--glow-stream-md)]" },
-      // The remaining tones have no glow token yet, so they are built from a
-      // parseable literal plus a `shadow-<color>` — the one shape Tailwind can
-      // splice a colour into. Writing the colour inside the arbitrary value
-      // instead silently drops its alpha: `shadow-[0_0_18px_color-mix(…45%…)]`
-      // compiles to `0 0 18px var(--tw-shadow-color, var(--success))`, i.e. a
-      // fully opaque glow. Because the value is a literal it does not degrade
-      // on its own, hence the explicit efficiency gate.
-      {
-        tone: "success",
-        glow: true,
-        class: `shadow-[0_0_18px] shadow-success/45 ${GLOW_EFFICIENCY_GATE}`,
-      },
-      {
-        tone: "warning",
-        glow: true,
-        class: `shadow-[0_0_18px] shadow-warning/45 ${GLOW_EFFICIENCY_GATE}`,
-      },
-      {
-        tone: "destructive",
-        glow: true,
-        class: `shadow-[0_0_18px] shadow-destructive/45 ${GLOW_EFFICIENCY_GATE}`,
-      },
-    ],
     defaultVariants: {
       tone: "primary",
-      glow: false,
     },
   }
 )
@@ -91,7 +54,6 @@ function Progress({
   value,
   size = "md",
   tone = "primary",
-  glow = false,
   indeterminate = false,
   ...props
 }: React.ComponentProps<typeof ProgressPrimitive.Root> &
@@ -113,7 +75,7 @@ function Progress({
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
         className={cn(
-          progressIndicatorVariants({ tone, glow }),
+          progressIndicatorVariants({ tone }),
           indeterminate && `animate-pulse ${INDETERMINATE_MOTION_GATE}`
         )}
         style={

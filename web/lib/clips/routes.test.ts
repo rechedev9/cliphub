@@ -4,10 +4,16 @@ import {
   flowHref,
   isJobIdParam,
   LONG_VIDEOS_HREF,
+  matchHref,
+  matchesHref,
+  parseRoundsParam,
+  playerHref,
   PRODUCE_FORMAT,
   produceHref,
   publishHref,
+  roundsProduceHref,
   SHORTS_HREF,
+  teamHref,
 } from './routes.ts';
 
 const JOB_ID = '9a1c6e2f-4b3d-4a10-8f2e-1d6c7b9a0e55';
@@ -38,7 +44,16 @@ test('produceHref opens the producer of the given flow', () => {
 });
 
 test('publishHref lives under the results area', () => {
-  assert.equal(publishHref(JOB_ID, 'clip 1'), `/resultados/${JOB_ID}/publicar/clip%201`);
+  assert.equal(publishHref(JOB_ID, 'clip 1'), `/mis-videos/${JOB_ID}/publicar/clip%201`);
+});
+
+test('matchHref opens the partida record under Partidas', () => {
+  assert.equal(matchHref(JOB_ID), `/partidas/${JOB_ID}`);
+  assert.equal(matchHref('a/b'), '/partidas/a%2Fb');
+  assert.equal(teamHref(JOB_ID), `/equipos/${JOB_ID}`);
+  assert.equal(matchesHref(), '/partidas');
+  assert.equal(matchesHref({ team: JOB_ID, map: 'de_mirage' }), `/partidas?team=${JOB_ID}&map=de_mirage`);
+  assert.equal(playerHref('76561198000000001'), '/jugadores/76561198000000001');
 });
 
 test('isJobIdParam accepts only a well-formed job id', () => {
@@ -56,4 +71,13 @@ test('isJobIdParam accepts only a well-formed job id', () => {
   for (const { name, value, want } of cases) {
     assert.equal(isJobIdParam(value), want, name);
   }
+});
+
+test('a round selection travels as ?rondas= and only clean round lists are read back', () => {
+  assert.equal(roundsProduceHref(JOB_ID, PRODUCE_FORMAT.full, [12, 3]), `${LONG_VIDEOS_HREF}/${JOB_ID}?rondas=3%2C12`);
+  assert.equal(roundsProduceHref(JOB_ID, PRODUCE_FORMAT.short, []), `${SHORTS_HREF}/${JOB_ID}`);
+  assert.deepEqual(parseRoundsParam('12,3,3'), [3, 12]);
+  for (const bad of ['', '0', '3,x', '1000', '-1', undefined]) assert.equal(parseRoundsParam(bad), null);
+  assert.equal(parseRoundsParam(['3']), null);
+  assert.equal(parseRoundsParam(Array.from({ length: 61 }, (_, i) => i + 1).join(',')), null);
 });

@@ -34,12 +34,12 @@ export function StreamRenderStage({
   variantLabel: string;
 }): ReactNode {
   const elapsed = useElapsedSeconds(true);
-  const stage = streamRenderQueued(renderState) ? 'EN COLA' : 'CREANDO VÍDEOS';
+  const stage = streamRenderQueued(renderState) ? 'En cola' : 'Creando vídeos';
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionEyebrow label="EXPORTACIÓN" accent="magenta" />
+        <SectionEyebrow label="Exportación" accent="magenta" />
         <StatusTag tone="stream" dot>
           {stage}
         </StatusTag>
@@ -55,13 +55,13 @@ export function StreamRenderStage({
       <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
-            {/* The header above already says CREANDO VÍDEOS three ways; a magenta
+            {/* The header above already says Creando vídeos three ways; a magenta
                 edge, badge, wash and glyph on every pending tile spends the
                 accent N more times and says nothing new. */}
             <MediaFrame
               aspect="9:16"
               scanline
-              className="studio-rim border border-border"
+              className="border border-border"
               badge={<StatusTag>{String(index + 1).padStart(2, '0')}</StatusTag>}
               fallback={
                 <span className="grid size-full place-items-center">
@@ -70,7 +70,7 @@ export function StreamRenderStage({
               }
             />
             <p className="truncate text-body-sm text-fg-2">{clip.title?.trim() || `Short ${index + 1}`}</p>
-            <p className="font-mono text-meta tabular-nums text-fg-3">
+            <p className="text-meta tabular-nums text-fg-3">
               {formatStreamClock(clipOutputDuration(clip))}
             </p>
           </li>

@@ -81,6 +81,32 @@ func (l *Local) Put(key string, r io.Reader) error {
 	return nil
 }
 
+// Link gives the file at srcKey a second key without copying it: a hard link
+// on the same volume, or a copy where the filesystem refuses one. Either way
+// deleting one key leaves the other intact.
+func (l *Local) Link(srcKey, dstKey string) error {
+	src, err := l.resolve(srcKey)
+	if err != nil {
+		return err
+	}
+	dst, err := l.resolve(dstKey)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+		return fmt.Errorf("storage: create artifact directory: %w", err)
+	}
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	f, err := l.Open(srcKey)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return l.Put(dstKey, f)
+}
+
 // Open returns a ReadCloser for the file at key.
 func (l *Local) Open(key string) (io.ReadCloser, error) {
 	path, err := l.resolve(key)

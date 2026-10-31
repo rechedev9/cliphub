@@ -36,6 +36,7 @@ func (s *scanner) finish() (Result, error) {
 		return Result{}, fmt.Errorf("demo contains no completed rounds")
 	}
 
+	s.resolveTeams()
 	remap := s.renumberSlots()
 	s.remapFrames(remap)
 	doc := tacticalplan.NewDocument()
@@ -83,7 +84,31 @@ func (s *scanner) finish() (Result, error) {
 		RegulationEnded: s.regulationEndRound(),
 	}
 	doc.Warnings = s.warnings
+	doc.UtilityEffects = true
 	return Result{Document: doc, Positions: blob}, nil
+}
+
+// resolveTeams keys every player to a team by the side of their first counted
+// round, not the side they were first seen on: a knife round that MatchStart
+// discarded can end with the teams swapping sides.
+func (s *scanner) resolveTeams() {
+	s.teams = map[string]*teamAcc{}
+	for _, acc := range s.players {
+		key := teamKeyForStartSide(acc.startSide, 1)
+		for _, round := range s.rounds {
+			if side := round.sides[acc.slot]; side != "" {
+				key = teamKeyForStartSide(side, round.half)
+				break
+			}
+		}
+		acc.startSide = startSideForKey(key)
+		team, ok := s.teams[key]
+		if !ok {
+			team = &teamAcc{key: key, startSide: acc.startSide, members: map[uint64]struct{}{}}
+			s.teams[key] = team
+		}
+		team.members[acc.steamID] = struct{}{}
+	}
 }
 
 // renumberSlots returns a mapping from the provisional slot assigned during the
@@ -152,16 +177,10 @@ func (s *scanner) documentTeams(remap map[uint8]uint8) []tacticalplan.Team {
 func (s *scanner) teamDisplayName(acc *teamAcc) string {
 	// Clan names are read from the side a team was on in the first half, which
 	// is the half the key is defined by.
-	side := acc.startSide
-	for team, name := range s.clanNames {
-		if sideOf(team) == side && name != "" {
-			return name
-		}
+	if name := s.clanNames[acc.startSide]; name != "" {
+		return name
 	}
-	if side == tacticalplan.SideCT {
-		return "CT start"
-	}
-	return "T start"
+	return tacticalplan.FallbackTeamName(acc.startSide)
 }
 
 func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.Round {
@@ -189,9 +208,12 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 	}
 
 	openingSlot, openingDeathSlot, openingTick, openingSide, openingTraded := openingDuel(acc)
+	acc.events = tacticalplan.DropRepeatedUtility(acc.events)
+	attachUtilityEffects(acc.events, acc.utilityHits, s.tickrateOrDefault())
 	for _, ev := range acc.events {
 		ev.ActorSlot = remapSlotPtr(ev.ActorSlot, remap)
 		ev.TargetSlot = remapSlotPtr(ev.TargetSlot, remap)
+		ev.Effect = remapEffect(ev.Effect, remap)
 		if ev.Kind == tacticalplan.EventKill && ev.Tick == openingTick {
 			ev.Opening = true
 		}

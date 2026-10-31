@@ -19,7 +19,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         "file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-body-sm file:font-medium file:text-fg-1",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         FOCUS_RING,
-        "focus-visible:border-primary focus-visible:bg-surface-4",
+        "focus-visible:border-fg-3 focus-visible:bg-surface-4",
         "aria-invalid:border-destructive aria-invalid:focus-visible:outline-destructive",
         className
       )}

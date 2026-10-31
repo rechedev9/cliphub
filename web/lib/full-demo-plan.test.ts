@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, withFullDemoRounds, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -410,4 +410,17 @@ test('a local file declaration bounds its title in UTF-8 bytes like the server',
   const long = localFileProvenance(new File(['test'], `${'ñ'.repeat(150)}.mp4`));
   assert.equal(long.title, 'ñ'.repeat(100));
   assert.equal(long.source_url, `local:${encodeURIComponent('ñ'.repeat(100))}`);
+});
+
+test('a round selection from analysis survives normalization and every round drops the key', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  const review = withFullDemoRounds(defaults, [12, 3, 3]);
+  assert.deepEqual(review.rounds, [3, 12]);
+  assert.ok(isFullDemoOptions(review));
+  assert.deepEqual(currentFullDemoOptions(review).rounds, [3, 12]);
+  const all = withFullDemoRounds(review, null);
+  assert.equal(Object.hasOwn(all, 'rounds'), false);
+  assert.equal(fullDemoOptionsKey(all), fullDemoOptionsKey(defaults));
+  assert.equal(isFullDemoOptions({ ...defaults, rounds: [0] }), false);
 });

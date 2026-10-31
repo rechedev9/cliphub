@@ -3,6 +3,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowRight, Play } from 'lucide-react';
+import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, streamPlaybackItem, type MediaPlaybackItem } from '@/lib/api/playback';
 import type { StreamJob } from '@/lib/api/streams';
 import {
@@ -46,7 +47,7 @@ const GRID_COLUMNS = {
 } as const satisfies Record<ClipSize, string>;
 
 const CHIP_CLASS =
-  'inline-flex h-10 items-center border px-3 font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'inline-flex h-10 items-center border px-3 text-meta transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 const CLIPS_EMPTY_COPY = 'Ningún vídeo con ese filtro.';
 
@@ -114,7 +115,7 @@ export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNo
             {FILTER_LABEL[key]} · {counts[key]}
           </button>
         ))}
-        <span className="ml-auto flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span className="ml-auto flex items-center gap-2 text-meta text-fg-3">
           Tamaño
           <span className="flex">
             {Object.values(CLIP_SIZE).map((key) => (
@@ -124,7 +125,7 @@ export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNo
                 aria-pressed={size === key}
                 onClick={() => setSize(key)}
                 className={cn(
-                  '-ml-px grid size-10 place-items-center border font-mono text-meta transition-colors duration-(--dur-fast) first:ml-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                  '-ml-px grid size-10 place-items-center border text-meta transition-colors duration-(--dur-fast) first:ml-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   size === key ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong text-fg-3 hover:text-fg-1',
                 )}
               >
@@ -240,11 +241,11 @@ function ClipCard({
       </button>
 
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{clip.title}</span>
+        <span className="truncate font-display text-body-sm font-bold text-fg-1">{clip.title}</span>
         {/* Two lines rather than a truncate: at M the format ("9:16") is the
             part that got cut, and it is the one bit the title does not say. */}
-        <span className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-          {video.map} · {player} · {sub}
+        <span className="line-clamp-2 text-meta text-fg-3">
+          {prettifyMap(video.map)} · {player} · {sub}
         </span>
       </span>
 
@@ -267,7 +268,7 @@ function ClipCard({
             <Link
               href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
               aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otro vídeo largo de esta demo'}
-              className="inline-flex h-10 items-center gap-1 self-end px-2 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="inline-flex h-10 items-center gap-1 self-end px-2 text-meta text-fg-3 transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               {MAKE_ANOTHER_LABEL}
               <ArrowRight aria-hidden className="size-3" />
@@ -301,8 +302,8 @@ function StreamClipCard({ item, small, onPlay }: { item: MediaPlaybackItem; smal
         />
       </button>
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{item.title}</span>
-        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">Stream · {isShort ? 'Short' : 'Full POV'}</span>
+        <span className="truncate font-display text-body-sm font-bold text-fg-1">{item.title}</span>
+        <span className="truncate text-meta text-fg-3">Stream · {isShort ? 'Short' : 'Full POV'}</span>
       </span>
       {small ? null : (
         <span className="flex flex-wrap items-center gap-1.5">

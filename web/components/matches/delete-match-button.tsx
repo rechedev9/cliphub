@@ -5,12 +5,12 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 
-/** How long the armed "¿BORRAR?" state waits before reverting on its own. */
+/** How long the armed "¿Borrar?" state waits before reverting on its own. */
 const REVERT_MS = 8000;
 
 /**
  * Two-step inline delete for a Partidas row (match or series). The first click
- * arms a destructive "¿BORRAR?" button; the second confirms. Blur or a short
+ * arms a destructive "¿Borrar?" button; the second confirms. Blur or a short
  * timeout disarms it, so there is no native confirm() and no modal. While
  * deleting the button shows a spinner and is disabled; on success `onDeleted`
  * lets the page re-fetch, and on failure the row shows an inline Spanish message
@@ -84,10 +84,10 @@ export function DeleteMatchButton({
           onClick={() => void confirm()}
           onBlur={disarm}
           aria-label={`Confirmar borrar ${label}`}
-          className="font-mono text-meta uppercase tracking-wider"
+          className="text-meta"
         >
           {deleting ? null : <Trash2 aria-hidden />}
-          {deleting ? 'BORRANDO…' : '¿BORRAR?'}
+          {deleting ? 'Borrando…' : '¿Borrar?'}
         </Button>
       ) : (
         <Button
@@ -102,7 +102,7 @@ export function DeleteMatchButton({
         </Button>
       )}
       {error ? (
-        <p role="status" className={`max-w-[13rem] text-right font-mono text-meta leading-tight ${deleteFeedbackTone(error) === 'notice' ? 'text-fg-2' : 'text-destructive'}`}>
+        <p role="status" className={`max-w-[13rem] text-right text-meta leading-tight ${deleteFeedbackTone(error) === 'notice' ? 'text-fg-2' : 'text-destructive'}`}>
           {error}
         </p>
       ) : null}

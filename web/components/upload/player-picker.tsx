@@ -124,8 +124,8 @@ function signed(n: number): string {
 }
 
 const TEAM_META = {
-  T: { label: 'Terroristas', text: 'text-warning', chip: 'border-warning/45 bg-warning/10 text-warning' },
-  CT: { label: 'Antiterroristas', text: 'text-primary', chip: 'border-primary/45 bg-primary/10 text-primary' },
+  T: { label: 'Terroristas', text: 'text-side-t', chip: 'border-side-t/45 bg-side-t/10 text-side-t' },
+  CT: { label: 'Antiterroristas', text: 'text-side-ct', chip: 'border-side-ct/45 bg-side-ct/10 text-side-ct' },
   '': { label: 'Otros', text: 'text-fg-2', chip: 'border-border-strong bg-surface-3 text-fg-2' },
 } as const;
 
@@ -141,11 +141,11 @@ function MatchHeader({ match }: { match: RosterMatch }) {
           className="inline-flex items-baseline gap-1.5 text-body-lg"
           aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`}
         >
-          <span className={tWon ? 'font-bold text-warning' : 'text-fg-3'}>{match.scoreT}</span>
+          <span className={tWon ? 'font-bold text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
           {/* A rule, not a hyphen: a literal separator inside a tabular-nums run
               renders at digit width and jitters against the figures. */}
           <span aria-hidden className="h-4 w-px self-center bg-border-strong" />
-          <span className={ctWon ? 'font-bold text-primary' : 'text-fg-3'}>{match.scoreCt}</span>
+          <span className={ctWon ? 'font-bold text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
         </span>
       }
       status={<StatusTag>{match.rounds} rondas</StatusTag>}
@@ -255,10 +255,10 @@ export function PlayerPicker({
         return (
           <section key={side || 'other'}>
             <div className="mb-2 flex items-center justify-between gap-3 px-1">
-              <span className={cn('font-display text-label font-bold uppercase tracking-widest', meta.text)}>
+              <span className={cn('font-display text-label font-bold', meta.text)}>
                 {meta.label}
               </span>
-              <span className="font-mono text-meta uppercase tracking-wider tabular-nums text-fg-3">
+              <span className="text-meta tabular-nums text-fg-3">
                 media {avg.toFixed(2)}
               </span>
             </div>
@@ -266,7 +266,7 @@ export function PlayerPicker({
             <div className="overflow-hidden border border-border">
               <div
                 className={cn(
-                  'grid items-center gap-x-1 border-b border-border bg-surface-3 px-3 py-2 font-mono text-meta uppercase tracking-wider text-fg-3',
+                  'grid items-center gap-x-1 border-b border-border bg-surface-3 px-3 py-2 text-meta text-fg-3',
                   gridClass,
                 )}
                 style={gridStyle}
@@ -299,7 +299,7 @@ export function PlayerPicker({
                     </StatusTag>
                   ));
                 } else if (!isRecommended && !showMapsChip) {
-                  chipRow = <span className="font-mono text-meta text-fg-3">—</span>;
+                  chipRow = <span className="text-meta text-fg-3">—</span>;
                 } else {
                   chipRow = null;
                 }
@@ -357,7 +357,7 @@ export function PlayerPicker({
                       <span
                         key={c.key}
                         className={cn(
-                          'text-right font-mono text-body-sm tabular-nums',
+                          'text-right text-body-sm tabular-nums',
                           cellClass(c),
                           c.tone?.(p) ?? 'text-fg-1',
                         )}
@@ -375,12 +375,12 @@ export function PlayerPicker({
 
       <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[40rem]/content:-mx-6 @[40rem]/content:-mb-6 @[40rem]/content:px-6">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="font-mono text-meta uppercase tracking-widest text-fg-3">Jugador elegido</span>
-          <p className="truncate font-mono text-body uppercase text-fg-1">
+          <span className="text-meta text-fg-3">Jugador elegido</span>
+          <p className="truncate text-body text-fg-1">
             {selectedPlayer ? (
               <>
                 {contextLabel} <span className="text-fg-3">·</span>{' '}
-                <span className="text-primary">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
+                <span className="font-medium text-fg-1">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
                 <span className="text-fg-3">
                   · {faceitSelected?.kills ?? selectedPlayer.kills}K / {faceitSelected?.deaths ?? selectedPlayer.deaths}D
                 </span>
@@ -410,7 +410,6 @@ export function PlayerPicker({
           type="button"
           variant="hero"
           size="lg"
-          className="neon-notch"
           disabled={selected === null}
           onClick={() => selected && onPick(selected, purpose)}
         >

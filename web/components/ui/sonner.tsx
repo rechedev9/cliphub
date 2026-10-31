@@ -74,7 +74,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast: "pointer-events-auto shadow-[var(--elev-5)]",
           closeButton: "pointer-events-auto",
           description: "text-fg-2!",
-          actionButton: "bg-primary! text-primary-foreground! font-mono uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-ring",
+          actionButton: "bg-primary! text-primary-foreground! font-semibold focus-visible:outline-2 focus-visible:outline-ring",
           success:
             "[--normal-border:var(--success)] [--normal-text:var(--success)]",
           warning:

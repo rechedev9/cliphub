@@ -25,6 +25,7 @@ import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FLOW_PRODUCE_CTA } from '@/lib/produce/copy';
+import { oneRowPerDemo, type DemoRowGroup } from '@/lib/produce/demo-rows';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
@@ -102,15 +103,15 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
   // The upload above is the empty state: an empty list adds nothing to it.
   if (state === null || state.rows.length === 0) return banner;
 
-  const rows = state.rows;
+  const rows = oneRowPerDemo(state.rows);
   const anyMade = rows.some((row) => madeCount(row, format) > 0);
 
   return (
     <section aria-labelledby="demo-list-title" className="flex flex-col gap-3">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id="demo-list-title" className="font-display text-title font-bold uppercase text-fg-1">
-            {LIST_TITLE} <span className="font-mono text-body-sm font-normal text-fg-3">· {rows.length}</span>
+          <h2 id="demo-list-title" className="font-display text-title font-bold text-fg-1">
+            {LIST_TITLE} <span className="text-body-sm font-normal text-fg-3">· {rows.length}</span>
           </h2>
           <p className="text-body-sm text-fg-2">{LIST_HINT[format]}</p>
         </div>
@@ -133,12 +134,22 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
   );
 }
 
+/** The row stands for every job of its demo, so deleting it deletes all of them. A busy job
+ * fails alone; the list still refreshes so the jobs already gone leave the row. */
+async function deleteJobs(jobIds: readonly string[], onChange: () => void): Promise<void> {
+  const results = await Promise.allSettled(jobIds.map((jobId) => api.deleteMatch(jobId)));
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed === undefined) return;
+  if (results.some((result) => result.status === 'fulfilled')) onChange();
+  throw failed.reason;
+}
+
 function madeCount(row: HubMatch, format: ProduceFormat): number {
   return format === PRODUCE_FORMAT.short ? row.shorts.length : row.fulls.length;
 }
 
 type DemoRowProps = {
-  row: HubMatch;
+  row: DemoRowGroup;
   format: ProduceFormat;
   onChange: () => void;
 };
@@ -164,7 +175,7 @@ function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
     stateBlock = (
       <span className="row-state flex-row flex-wrap items-center justify-start gap-3 @[44rem]/content:basis-52">
         {hasScore ? (
-          <span role="img" aria-label={`Marcador ${ours} a ${theirs}`} className="font-mono text-title font-bold leading-none tabular-nums">
+          <span role="img" aria-label={`Marcador ${ours} a ${theirs}`} className="text-title font-bold leading-none tabular-nums">
             <span className={cn(win && 'text-success', loss && 'text-destructive', !win && !loss && 'text-fg-1')}>{ours}</span>
             <span className="text-fg-3"> : </span>
             <span className="text-fg-1">{theirs}</span>
@@ -187,7 +198,7 @@ function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
           </span>
         </span>
         <span className="flex min-w-[200px] flex-1 flex-col justify-center gap-1">
-          <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
+          <span className="truncate font-display text-body-lg font-bold text-fg-1">{prettyMapName(match.map)}</span>
           {/* Each part moves as a whole so a date never splits; the separator stays glued to the part before it. */}
           <span className="text-body-sm text-fg-2">
             {matchMetaParts(match, matchDateLabel(match)).map((part, index, parts) => (
@@ -218,7 +229,7 @@ function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
             </Link>
           </Button>
         ) : null}
-        <DeleteMatchButton label={prettyMapName(match.map)} onConfirm={() => api.deleteMatch(match.id)} onDeleted={onChange} />
+        <DeleteMatchButton label={prettyMapName(match.map)} onConfirm={() => deleteJobs(row.jobIds, onChange)} onDeleted={onChange} />
       </span>
     </article>
   );
@@ -238,7 +249,7 @@ function FailedBlock({ reason }: { reason?: string }): ReactNode {
   const failure = parseFailureReason(reason, { job: true });
   return (
     <span role="status" className="row-state row-state-block">
-      <span className="font-mono text-meta uppercase tracking-wider text-destructive">{jobFailureTitle(reason)}</span>
+      <span className="text-meta text-destructive">{jobFailureTitle(reason)}</span>
       <span className="text-body-sm text-fg-2">{failure.message}</span>
     </span>
   );
@@ -247,14 +258,14 @@ function FailedBlock({ reason }: { reason?: string }): ReactNode {
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
     <span role="status" className="row-state row-state-block">
-      <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary">
+      <span className="flex items-center gap-2 text-meta text-fg-1">
         <span aria-hidden className="studio-spinner" />
         {player === undefined ? 'Analizando la demo' : `Analizando las jugadas de ${player}`}
       </span>
       <span className="studio-bar text-primary">
         <span className="studio-indeterminate" />
       </span>
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">Podrás crear al terminar</span>
+      <span className="text-meta text-fg-3">Podrás crear al terminar</span>
     </span>
   );
 }
@@ -262,8 +273,8 @@ function ParsingBlock({ player }: { player?: string }): ReactNode {
 function UnpickedBlock(): ReactNode {
   return (
     <span className="row-state row-state-block">
-      <span className="font-mono text-meta uppercase tracking-wider text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
+      <span className="text-meta text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
+      <span className="text-meta text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
     </span>
   );
 }

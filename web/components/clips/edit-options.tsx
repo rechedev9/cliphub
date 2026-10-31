@@ -56,7 +56,7 @@ export function EditOptions({
   return (
     <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
       {showFullDemoDelivery ? (
-        <OptionBlock label="ENTREGA OPCIONAL" className="md:col-span-2">
+        <OptionBlock label="Entrega opcional" className="md:col-span-2">
           <ToggleGroup
             type="multiple"
             value={[
@@ -93,9 +93,9 @@ export function EditOptions({
             <div className="flex items-center gap-4 pt-1">
               <label
                 htmlFor="voice-volume"
-                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+                className="w-36 shrink-0 text-meta text-fg-2"
               >
-                COMMS <span className="text-stream-text">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
+                Comms <span className="text-fg-1">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
               </label>
               <input
                 id="voice-volume"
@@ -106,14 +106,14 @@ export function EditOptions({
                 value={Math.round((value.voiceVolume ?? 0.85) * 100)}
                 disabled={disabled}
                 onChange={(e) => onChange({ ...value, voiceVolume: Number(e.target.value) / 100 })}
-                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           ) : null}
         </OptionBlock>
       ) : null}
 
-      <OptionBlock label="EFECTO DE KILL">
+      <OptionBlock label="Efecto de kill">
         <ToggleGroup
           type="single"
           value={value.killEffect}
@@ -133,7 +133,7 @@ export function EditOptions({
         </ToggleGroup>
       </OptionBlock>
 
-      <OptionBlock label="TRANSICIONES">
+      <OptionBlock label="Transiciones">
         <ToggleGroup
           type="single"
           value={value.transition}
@@ -153,7 +153,7 @@ export function EditOptions({
         </ToggleGroup>
       </OptionBlock>
 
-      <OptionBlock label="TEXTO AUTOMÁTICO" className="md:col-span-2">
+      <OptionBlock label="Texto automático" className="md:col-span-2">
         <ToggleGroup
           type="multiple"
           value={[value.hookText ? 'hook-text' : '', value.killCounter ? 'kill-counter' : ''].filter(Boolean)}
@@ -179,7 +179,7 @@ export function EditOptions({
         </ToggleGroup>
       </OptionBlock>
 
-      <OptionBlock label="APERTURA Y CIERRE" className="md:col-span-2">
+      <OptionBlock label="Apertura y cierre" className="md:col-span-2">
         <ToggleGroup
           type="multiple"
           value={[value.intro ? 'intro' : '', value.outro ? 'outro' : ''].filter(Boolean)}
@@ -220,7 +220,7 @@ export function EditOptions({
         </div>
       </OptionBlock>
 
-      <OptionBlock label="PORTADA" className="md:col-span-2">
+      <OptionBlock label="Portada" className="md:col-span-2">
         <ToggleGroup
           type="single"
           value={value.coverStrategy}
@@ -241,7 +241,7 @@ export function EditOptions({
         </ToggleGroup>
       </OptionBlock>
 
-      <OptionBlock label="BANNER AFILIADO" className="md:col-span-2">
+      <OptionBlock label="Banner afiliado" className="md:col-span-2">
         <ToggleGroup
           type="single"
           value={value.keyDropFamily || ''}
@@ -310,7 +310,7 @@ export function EditOptions({
         {value.keyDropStyle ? (
           <div className="flex max-w-md flex-col gap-3 pt-1">
             <div className="flex max-w-sm flex-col gap-1.5">
-              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              <span className="text-meta text-fg-3">
                 Código
               </span>
               <Input
@@ -335,7 +335,7 @@ export function EditOptions({
             </div>
             <div className="grid max-w-sm gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+                <span className="text-meta text-fg-3">
                   Entra (s)
                 </span>
                 <Input
@@ -344,7 +344,6 @@ export function EditOptions({
                   step={0.1}
                   value={value.keyDropStartSeconds ?? 0}
                   disabled={disabled}
-                  className="font-mono"
                   onChange={(e) =>
                     onChange({ ...value, keyDropStartSeconds: Number(e.target.value) })
                   }
@@ -352,7 +351,7 @@ export function EditOptions({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+                <span className="text-meta text-fg-3">
                   Sale (s)
                 </span>
                 <Input
@@ -361,7 +360,6 @@ export function EditOptions({
                   step={0.1}
                   value={value.keyDropEndSeconds ?? 4}
                   disabled={disabled}
-                  className="font-mono"
                   onChange={(e) =>
                     onChange({ ...value, keyDropEndSeconds: Number(e.target.value) })
                   }
@@ -404,7 +402,7 @@ function BookendTextField({
     >
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+          <span className="text-meta text-fg-3">
             {label}
           </span>
           {near ? (
@@ -412,7 +410,7 @@ function BookendTextField({
               className={cn(
                 // [font-size:…] not `text-meta`: tailwind-merge files an unknown
                 // `text-*` under text-COLOUR, so the step would lose to text-fg-3.
-                'font-mono [font-size:var(--text-meta)] tabular-nums text-fg-3',
+                '[font-size:var(--text-meta)] tabular-nums text-fg-3',
                 value.length >= BOOKEND_TEXT_MAX_LENGTH && 'text-destructive',
               )}
             >
@@ -437,7 +435,7 @@ function BookendTextField({
 function OptionBlock({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-2', className)}>
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{label}</span>
+      <span className="text-meta text-fg-3">{label}</span>
       {children}
     </div>
   );

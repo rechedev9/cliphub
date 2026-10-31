@@ -125,7 +125,7 @@ export function ReelCover({ seed, label, plain = false, className }: ReelCoverPr
                   className="h-3 w-0.5 shrink-0 forced-colors:hidden"
                   style={{ backgroundColor: hot }}
                 />
-                <span className="min-w-0 truncate font-mono text-meta uppercase text-fg-2">
+                <span className="min-w-0 truncate text-meta text-fg-2">
                   {label}
                 </span>
               </span>

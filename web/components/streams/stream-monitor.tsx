@@ -144,7 +144,7 @@ export function StreamMonitor({
             </Button>
           ) : null}
         </div>
-        <output aria-label="Tiempo de reproducción" className="ml-auto font-mono text-label tabular-nums text-fg-2">
+        <output aria-label="Tiempo de reproducción" className="ml-auto text-label tabular-nums text-fg-2">
           {formatStreamClock(elapsedSeconds)} / {formatStreamClock(playbackDuration)}
         </output>
         <label htmlFor={sizeId} className="flex items-center gap-2 text-label text-fg-3">

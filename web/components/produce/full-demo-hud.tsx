@@ -137,7 +137,7 @@ function OptionCard({ type, name, checked, icon: Icon, title, label, detail, onC
 }): ReactNode {
   const detailId = useId();
   return <label className="group flex min-w-0 cursor-pointer items-start gap-3 rounded-md border border-border-subtle bg-surface-1 p-3 transition-colors hover:border-border-strong has-[:checked]:border-primary/60 has-[:checked]:bg-primary/8 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary">
-    <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border-subtle bg-surface-2 text-fg-2 group-has-[:checked]:border-primary/40 group-has-[:checked]:text-primary"><Icon className="size-4.5" aria-hidden /></span>
+    <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border-subtle bg-surface-2 text-fg-2 group-has-[:checked]:border-primary/40 group-has-[:checked]:text-fg-1"><Icon className="size-4.5" aria-hidden /></span>
     <span className="min-w-0 flex-1">
       <span className="block text-body-sm font-semibold text-fg-1">{title}</span>
       <span id={detailId} className="mt-1 block text-body-sm text-fg-2">{detail}</span>

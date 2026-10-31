@@ -77,7 +77,7 @@ export default async function BootstrapPage({
         <div className="flex flex-col gap-2">
           <label
             htmlFor="capability"
-            className="font-display text-label font-semibold tracking-wide text-fg-1 uppercase"
+            className="font-display text-label font-semibold text-fg-1"
           >
             Capacidad local
           </label>

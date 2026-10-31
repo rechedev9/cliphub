@@ -44,7 +44,11 @@ func traceHTTP(next http.Handler) http.Handler {
 				}
 			}
 			level, outcome := "info", "ok"
-			if status >= 400 {
+			switch {
+			case status == http.StatusConflict && r.Method == http.MethodGet:
+				// A read answered 409 is a poll for something not ready yet.
+				outcome = ""
+			case status >= 400:
 				level, outcome = "error", "error"
 			}
 			message := fmt.Sprintf("%s %s status=%d", r.Method, pattern, status)

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
  * minimum, with no focus indicator, and rendered differently per font fallback.
  */
 const BACK_LINK_CLASS =
-  'inline-flex min-h-10 w-fit items-center gap-1.5 pr-2 font-mono uppercase text-fg-3 transition-colors duration-(--dur-fast) ease-standard hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'inline-flex min-h-10 w-fit items-center gap-1.5 pr-2 text-fg-3 transition-colors duration-(--dur-fast) ease-standard hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 /*
  * Concatenated rather than merged: tailwind-merge classifies a custom `--text-*`
@@ -28,7 +28,7 @@ export type StudioBackLinkProps =
   | (StudioBackLinkBase & { href: string; onClick?: undefined })
   | (StudioBackLinkBase & { onClick: () => void; href?: undefined });
 
-/** Mono eyebrow back link for detail routes. */
+/** Quiet back link for detail routes. */
 export function StudioBackLink(props: StudioBackLinkProps): ReactNode {
   const content = (
     <>

@@ -54,7 +54,7 @@ export function ProduceFooter({
     <button
       type="button"
       onClick={onHintAction}
-      className="rounded-sm text-left text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="rounded-sm text-left text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       {nextStep}
     </button>
@@ -81,7 +81,7 @@ export function ProduceFooter({
           'sticky bottom-0 z-20 mt-2 border-t bg-surface-1 px-1',
           'py-2',
           FOOTER_SHADOW,
-          tone === 'full' ? 'border-stream/45' : 'border-border-accent',
+          'border-border-accent',
         )}
       >
         <div className="flex flex-col gap-3">
@@ -93,7 +93,7 @@ export function ProduceFooter({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
             <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">
-              <p className="font-mono text-meta uppercase tracking-widest text-fg-3">{eyebrow}</p>
+              <p className="text-meta text-fg-3">{eyebrow}</p>
               {summary !== null ? (
                 <p className="mt-0.5 break-words text-body-sm text-fg-1">{summary}</p>
               ) : (

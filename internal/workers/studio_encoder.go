@@ -7,10 +7,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-// Capture and render encode with different ffmpeg binaries: HLAE's
+// Capture and render can encode with different ffmpeg binaries: HLAE's
 // mirv_streams uses the ffmpeg HLAE resolves next to HLAE.exe (bundled bin or
-// ffmpeg.ini), while zv-editor uses the orchestrator-resolved ffmpeg. Each
-// side probes its own binary once; tool paths do not change mid-process.
+// ffmpeg.ini, which the recorder points at Studio's ffmpeg when it has one),
+// while zv-editor uses the orchestrator-resolved ffmpeg. Each side probes its
+// own binary once; tool paths do not change mid-process.
 var studioEncoders = struct {
 	mu            sync.Mutex
 	captureProbed bool
@@ -21,14 +22,14 @@ var studioEncoders = struct {
 
 // studioCaptureEncoder decides the HLAE stream encoder for recorder launches.
 // It probes the ffmpeg HLAE will actually invoke for the configured HLAE.exe
-// and returns EncoderNVENC only when that binary can open h264_nvenc here;
-// otherwise capture stays on the default software encoder.
-func studioCaptureEncoder(hlaePath string) string {
+// and ffmpeg, and returns EncoderNVENC only when that binary can open
+// h264_nvenc here; otherwise capture stays on the default software encoder.
+func studioCaptureEncoder(hlaePath, ffmpegPath string) string {
 	studioEncoders.mu.Lock()
 	defer studioEncoders.mu.Unlock()
 	if !studioEncoders.captureProbed {
 		studioEncoders.captureProbed = true
-		ffmpegPath := recording.HLAEStreamFFmpeg(hlaePath)
+		ffmpegPath := recording.HLAEStreamFFmpeg(hlaePath, ffmpegPath)
 		if err := recording.CheckEncoderUsable(ffmpegPath, recording.EncoderNVENC); err != nil {
 			log.Printf("workers: studio capture NVENC unavailable: %v", err)
 		} else {

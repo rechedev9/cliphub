@@ -10,5 +10,5 @@ test('dropzone icon tile is an opaque surface, not alpha glass', () => {
   );
   assert.doesNotMatch(src, /backdrop-blur/);
   assert.doesNotMatch(src, /bg-surface-0\/\d+/);
-  assert.match(src, /bg-surface-0 text-primary/);
+  assert.match(src, /bg-surface-0 text-fg-2/);
 });

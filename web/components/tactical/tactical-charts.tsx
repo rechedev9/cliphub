@@ -22,11 +22,11 @@ export function SmallSampleChip({ className }: { className?: string }): ReactNod
       title={`Menos de ${MIN_RELIABLE_SAMPLE} rondas: no es una tendencia`}
       className={cn(
         // The house pair for a tinted chip: edge 45%, fill 10%, square.
-        'shrink-0 border border-warning/45 bg-warning/10 px-2 py-0.5 font-mono text-meta uppercase tracking-wider text-warning',
+        'shrink-0 border border-warning/45 bg-warning/10 px-2 py-0.5 text-meta text-warning',
         className,
       )}
     >
-      muestra baja
+      Muestra baja
     </span>
   );
 }
@@ -71,7 +71,7 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
     <span className={cn('inline-flex items-center gap-2', className)}>
       <span
         className={cn(
-          'font-mono text-meta tracking-normal tabular-nums',
+          'text-meta tracking-normal tabular-nums',
           rate.reliable ? 'text-fg-1' : 'text-fg-3',
         )}
       >
@@ -82,9 +82,9 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
   );
 }
 
-/** Bar colour by meaning: share is neutral cyan, a win rate is a result. */
+/** Bar colour by meaning: share is neutral, a win rate is a result. */
 const RATE_TONE = {
-  primary: 'text-primary',
+  primary: 'text-fg-2',
   success: 'text-success',
   muted: 'text-fg-3',
 } as const;
@@ -104,7 +104,7 @@ export function RateRow({
   const toneClass = RATE_TONE[tone];
   return (
     <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2fr)_auto] items-center gap-x-3 gap-y-1">
-      <span className="min-w-0 truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+      <span className="min-w-0 truncate text-meta text-fg-3">
         {label}
       </span>
       <RateBar rate={rate} className={toneClass} />
@@ -142,9 +142,9 @@ export function HistogramChart({
   return (
     <figure className="flex min-w-0 flex-col gap-2">
       <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{title}</span>
+        <span className="text-meta text-fg-3">{title}</span>
         <span className="flex items-center gap-2">
-          <span className="font-mono text-meta tracking-normal tabular-nums text-fg-1">
+          <span className="text-meta tracking-normal tabular-nums text-fg-1">
             mediana {histogram.median.toFixed(1)} s (n={histogram.samples})
           </span>
           {histogram.samples > 0 && histogram.samples < MIN_RELIABLE_SAMPLE ? <SmallSampleChip /> : null}
@@ -152,8 +152,8 @@ export function HistogramChart({
       </figcaption>
 
       {histogram.samples === 0 || peak === 0 ? (
-        <p className="rounded-md border border-border bg-surface-1 px-3 py-4 text-center font-mono text-meta uppercase tracking-wider text-fg-3">
-          sin muestras
+        <p className="rounded-md border border-border bg-surface-1 px-3 py-4 text-center text-meta text-fg-3">
+          Sin muestras
         </p>
       ) : (
         <svg
@@ -196,7 +196,7 @@ export function HistogramChart({
           <text
             x="0"
             y={HISTOGRAM_HEIGHT - 3}
-            className="fill-fg-3 font-mono text-meta tracking-normal"
+            className="fill-fg-3 text-meta tracking-normal"
           >
             0 s
           </text>
@@ -204,7 +204,7 @@ export function HistogramChart({
             x="100%"
             y={HISTOGRAM_HEIGHT - 3}
             textAnchor="end"
-            className="fill-fg-3 font-mono text-meta tracking-normal"
+            className="fill-fg-3 text-meta tracking-normal"
           >
             {axisSeconds} s
           </text>

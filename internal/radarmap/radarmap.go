@@ -39,9 +39,9 @@ type Calibration struct {
 	PosX   float64 `json:"pos_x"`
 	PosY   float64 `json:"pos_y"`
 	Scale  float64 `json:"scale"`
-	// Size is the native radar resolution in pixels. It is square for every
-	// map CS2 ships; since the May 2025 update some maps are 2048 rather than
-	// 1024, always with a halved Scale, so the two fields must be read together.
+	// Size is the native radar resolution in pixels. Every overview CS2 ships
+	// is 1024x1024; a larger image would come with a smaller Scale, so the two
+	// fields must be read together.
 	Size int `json:"size"`
 	// LowerAltitudeMax is the AltitudeMax of the lower vertical section for
 	// split-level maps. Nil means the map has a single level.
@@ -52,6 +52,10 @@ type Calibration struct {
 // competitive map pool. rotate/zoom are deliberately absent: they only affect
 // the in-game HUD radar, not the flat overview, so applying them would skew
 // every plotted position.
+//
+// de_train drops Valve's lower section (AltitudeMax -50): 87% of its nav lies
+// at or below -50, and only one passage west of A is stacked, so a split by
+// altitude alone would file almost the whole map under the lower floor.
 var calibrations = map[string]Calibration{
 	"de_mirage":   {Map: "de_mirage", PosX: -3230, PosY: 1713, Scale: 5.0, Size: 1024},
 	"de_inferno":  {Map: "de_inferno", PosX: -2087, PosY: 3870, Scale: 4.9, Size: 1024},
@@ -60,7 +64,7 @@ var calibrations = map[string]Calibration{
 	"de_anubis":   {Map: "de_anubis", PosX: -2796, PosY: 3328, Scale: 5.22, Size: 1024},
 	"de_overpass": {Map: "de_overpass", PosX: -4831, PosY: 1781, Scale: 5.2, Size: 1024},
 	"de_nuke":     {Map: "de_nuke", PosX: -3453, PosY: 2887, Scale: 7.0, Size: 1024, LowerAltitudeMax: altitude(-495)},
-	"de_train":    {Map: "de_train", PosX: -2308, PosY: 2078, Scale: 4.082077, Size: 1024, LowerAltitudeMax: altitude(-50)},
+	"de_train":    {Map: "de_train", PosX: -2308, PosY: 2078, Scale: 4.082077, Size: 1024},
 	"de_vertigo":  {Map: "de_vertigo", PosX: -3168, PosY: 1762, Scale: 4.0, Size: 1024, LowerAltitudeMax: altitude(11700)},
 }
 

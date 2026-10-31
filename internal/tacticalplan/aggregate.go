@@ -1,6 +1,7 @@
 package tacticalplan
 
 import (
+	"fmt"
 	"math"
 	"sort"
 )
@@ -18,6 +19,8 @@ const timingBucketSeconds = 5
 type Tendencies struct {
 	Filter     Filter `json:"filter"`
 	RoundCount int    `json:"round_count"`
+	// MatchCount is set when the rounds came from several matches.
+	MatchCount int `json:"match_count,omitempty"`
 	// Perspective is the side the rates are computed from when the filter fixes
 	// one, either directly or through a team key.
 	Perspective Side `json:"perspective,omitempty"`
@@ -131,7 +134,9 @@ type HistogramBucket struct {
 
 // PlayerSummary is one player's contribution across the filtered rounds.
 type PlayerSummary struct {
-	Slot          uint8   `json:"slot"`
+	Slot uint8 `json:"slot"`
+	// SteamID64 keys the line across matches, where slots are not comparable.
+	SteamID64     string  `json:"steamid64,omitempty"`
 	Name          string  `json:"name"`
 	Rounds        int     `json:"rounds"`
 	Kills         int     `json:"kills"`
@@ -147,60 +152,86 @@ type PlayerSummary struct {
 
 // Aggregate computes tendencies over the rounds the filter selects.
 func Aggregate(d Document, f Filter) Tendencies {
-	rounds := f.Apply(d)
-	t := Tendencies{
-		Filter:     f,
-		RoundCount: len(rounds),
-		Buys:       []BuyBucket{},
-		Matchups:   []MatchupBucket{},
-		Sites:      []SiteBucket{},
-		BuySites:   []BuySiteBucket{},
-		TPatterns:  []PatternBucket{},
-		CTPatterns: []PatternBucket{},
-		Players:    []PlayerSummary{},
+	a := newAggregator(f)
+	a.add(d, f, f.Apply(d))
+	return a.finish()
+}
+
+// aggregator accumulates rounds from one or more documents. Every count is a
+// plain sum, so adding documents one by one equals aggregating their union.
+type aggregator struct {
+	t Tendencies
+
+	buyRounds, buyWins, buyConversion map[BuyType]int
+	matchupRounds, matchupWins        map[[2]BuyType]int
+	siteRounds, siteWins              map[Site]int
+	buySiteRounds, buySiteWins        map[BuySiteKey]int
+	tRounds, tWins                    map[TPattern]int
+	ctRounds, ctWins                  map[CTPattern]int
+	tSideRounds, ctSideRounds         int
+
+	openings, openingWon, openingLost   int
+	openingLostTraded                   int
+	roundWinAfterWin, roundWinAfterLoss int
+
+	firstContact, plant, duration []float64
+	players                       map[string]*PlayerSummary
+	playerSurvived                map[string]int
+	started                       bool
+}
+
+func newAggregator(f Filter) *aggregator {
+	return &aggregator{
+		t: Tendencies{
+			Filter:     f,
+			Buys:       []BuyBucket{},
+			Matchups:   []MatchupBucket{},
+			Sites:      []SiteBucket{},
+			BuySites:   []BuySiteBucket{},
+			TPatterns:  []PatternBucket{},
+			CTPatterns: []PatternBucket{},
+			Players:    []PlayerSummary{},
+		},
+		buyRounds: map[BuyType]int{}, buyWins: map[BuyType]int{}, buyConversion: map[BuyType]int{},
+		matchupRounds: map[[2]BuyType]int{}, matchupWins: map[[2]BuyType]int{},
+		siteRounds: map[Site]int{}, siteWins: map[Site]int{},
+		buySiteRounds: map[BuySiteKey]int{}, buySiteWins: map[BuySiteKey]int{},
+		tRounds: map[TPattern]int{}, tWins: map[TPattern]int{},
+		ctRounds: map[CTPattern]int{}, ctWins: map[CTPattern]int{},
+		players:        map[string]*PlayerSummary{},
+		playerSurvived: map[string]int{},
 	}
+}
+
+// playerKey identifies a player across documents. Slots are only stable inside
+// one demo, so the SteamID wins whenever the demo carries one.
+func playerKey(d Document, slot uint8) (string, Player) {
+	p, ok := d.PlayerBySlot(slot)
+	if !ok {
+		p = Player{Slot: slot}
+	}
+	if p.SteamID64 != "" {
+		return "steam:" + p.SteamID64, p
+	}
+	return fmt.Sprintf("slot:%d", slot), p
+}
+
+func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 	if len(rounds) == 0 {
-		t.Timings = TimingSummary{
-			FirstContact:  newHistogram(nil),
-			Plant:         newHistogram(nil),
-			RoundDuration: newHistogram(nil),
-		}
-		return t
+		return
 	}
-	if len(rounds) > 0 {
-		t.Perspective = f.Perspective(d, rounds[0])
+	a.t.RoundCount += len(rounds)
+	if !a.started {
+		a.t.Perspective = f.Perspective(d, rounds[0])
+		a.started = true
 	}
-
-	buyRounds := map[BuyType]int{}
-	buyWins := map[BuyType]int{}
-	buyConversion := map[BuyType]int{}
-	matchupRounds := map[[2]BuyType]int{}
-	matchupWins := map[[2]BuyType]int{}
-	siteRounds := map[Site]int{}
-	siteWins := map[Site]int{}
-	buySiteRounds := map[BuySiteKey]int{}
-	buySiteWins := map[BuySiteKey]int{}
-	tRounds := map[TPattern]int{}
-	tWins := map[TPattern]int{}
-	ctRounds := map[CTPattern]int{}
-	ctWins := map[CTPattern]int{}
-	tSideRounds := 0
-	ctSideRounds := 0
-
-	openings := 0
-	openingWon := 0
-	openingLost := 0
-	openingLostTraded := 0
-	roundWinAfterWin := 0
-	roundWinAfterLoss := 0
-
-	var firstContact, plant, duration []float64
-	players := map[uint8]*PlayerSummary{}
-	playerSurvived := map[uint8]int{}
 
 	for _, r := range rounds {
 		side := f.Perspective(d, r)
 		won := side != "" && r.Winner == side
+		if won {
+			a.t.Wins++
+		}
 
 		// A round has two economies, so a buy type only means something once a
 		// perspective picks one of them. Without a perspective these rollups
@@ -209,32 +240,32 @@ func Aggregate(d Document, f Filter) Tendencies {
 		if side != "" {
 			buy := r.Economy.Buy(side)
 			opponentBuy := r.Economy.Buy(side.Opponent())
-			buyRounds[buy]++
+			a.buyRounds[buy]++
 			if won {
-				buyWins[buy]++
+				a.buyWins[buy]++
 			}
 			// Conversion is what the economy bought: a plant for the attackers,
 			// a defuse or a stopped plant for the defenders.
 			if converted(r, side) {
-				buyConversion[buy]++
+				a.buyConversion[buy]++
 			}
 			key := [2]BuyType{buy, opponentBuy}
-			matchupRounds[key]++
+			a.matchupRounds[key]++
 			if won {
-				matchupWins[key]++
+				a.matchupWins[key]++
 			}
 			bs := BuySiteKey{Buy: buy, Site: r.Class.Site}
-			buySiteRounds[bs]++
+			a.buySiteRounds[bs]++
 			if won {
-				buySiteWins[bs]++
+				a.buySiteWins[bs]++
 			}
 		}
 
 		// Where a round was played is a fact about the round, so it is reported
 		// with or without a perspective; only its win rate needs one.
-		siteRounds[r.Class.Site]++
+		a.siteRounds[r.Class.Site]++
 		if won {
-			siteWins[r.Class.Site]++
+			a.siteWins[r.Class.Site]++
 		}
 
 		// A round shape only belongs to the perspective when the perspective
@@ -242,63 +273,60 @@ func Aggregate(d Document, f Filter) Tendencies {
 		// rounds it spent defending would divide real wins by a denominator
 		// that includes rounds the pattern was never theirs.
 		if side == "" || side == SideT {
-			tSideRounds++
-			tRounds[r.Class.TSide]++
+			a.tSideRounds++
+			a.tRounds[r.Class.TSide]++
 			if won {
-				tWins[r.Class.TSide]++
+				a.tWins[r.Class.TSide]++
 			}
 		}
 		if side == "" || side == SideCT {
-			ctSideRounds++
-			ctRounds[r.Class.CTSide]++
+			a.ctSideRounds++
+			a.ctRounds[r.Class.CTSide]++
 			if won {
-				ctWins[r.Class.CTSide]++
+				a.ctWins[r.Class.CTSide]++
 			}
 		}
 
 		if r.Class.OpeningSide != "" {
-			openings++
+			a.openings++
 			switch {
 			case side == "":
 				// No perspective: count the duel but not its ownership.
 			case r.Class.OpeningSide == side:
-				openingWon++
+				a.openingWon++
 				if won {
-					roundWinAfterWin++
+					a.roundWinAfterWin++
 				}
 			default:
-				openingLost++
+				a.openingLost++
 				if r.Class.OpeningTraded {
-					openingLostTraded++
+					a.openingLostTraded++
 				}
 				if won {
-					roundWinAfterLoss++
+					a.roundWinAfterLoss++
 				}
 			}
 		}
 
 		if r.Class.FirstContactTick > 0 && r.TickFreezeEnd > 0 && d.Demo.Tickrate > 0 {
-			firstContact = append(firstContact, float64(r.Class.FirstContactTick-r.TickFreezeEnd)/d.Demo.Tickrate)
+			a.firstContact = append(a.firstContact, float64(r.Class.FirstContactTick-r.TickFreezeEnd)/d.Demo.Tickrate)
 		}
 		if r.Bomb != nil && r.Bomb.PlantTick > 0 && r.TickFreezeEnd > 0 && d.Demo.Tickrate > 0 {
-			plant = append(plant, float64(r.Bomb.PlantTick-r.TickFreezeEnd)/d.Demo.Tickrate)
+			a.plant = append(a.plant, float64(r.Bomb.PlantTick-r.TickFreezeEnd)/d.Demo.Tickrate)
 		}
 		if secs := r.Duration(d.Demo.Tickrate); secs > 0 {
-			duration = append(duration, secs)
+			a.duration = append(a.duration, secs)
 		}
 
 		for _, pr := range r.Players {
 			if side != "" && pr.Side != side {
 				continue
 			}
-			acc, ok := players[pr.Slot]
+			key, identity := playerKey(d, pr.Slot)
+			acc, ok := a.players[key]
 			if !ok {
-				name := ""
-				if p, found := d.PlayerBySlot(pr.Slot); found {
-					name = p.Name
-				}
-				acc = &PlayerSummary{Slot: pr.Slot, Name: name}
-				players[pr.Slot] = acc
+				acc = &PlayerSummary{Slot: pr.Slot, SteamID64: identity.SteamID64, Name: identity.Name}
+				a.players[key] = acc
 			}
 			acc.Rounds++
 			acc.Kills += pr.Kills
@@ -313,21 +341,26 @@ func Aggregate(d Document, f Filter) Tendencies {
 				acc.OpeningDeaths++
 			}
 			if pr.Survived {
-				playerSurvived[pr.Slot]++
+				a.playerSurvived[key]++
 			}
 		}
 	}
+}
 
-	total := len(rounds)
-	for _, r := range rounds {
-		side := f.Perspective(d, r)
-		if side != "" && r.Winner == side {
-			t.Wins++
+func (a *aggregator) finish() Tendencies {
+	t := a.t
+	total := t.RoundCount
+	if total == 0 {
+		t.Timings = TimingSummary{
+			FirstContact:  newHistogram(nil),
+			Plant:         newHistogram(nil),
+			RoundDuration: newHistogram(nil),
 		}
+		return t
 	}
 
 	for _, buy := range BuyTypes {
-		n := buyRounds[buy]
+		n := a.buyRounds[buy]
 		if n == 0 {
 			continue
 		}
@@ -335,14 +368,14 @@ func Aggregate(d Document, f Filter) Tendencies {
 			Buy:           buy,
 			Rounds:        n,
 			Share:         newRate(n, total),
-			WinRate:       newRate(buyWins[buy], n),
-			PlantOrDefuse: newRate(buyConversion[buy], n),
+			WinRate:       newRate(a.buyWins[buy], n),
+			PlantOrDefuse: newRate(a.buyConversion[buy], n),
 		})
 	}
 
-	for key, n := range matchupRounds {
+	for key, n := range a.matchupRounds {
 		t.Matchups = append(t.Matchups, MatchupBucket{
-			Buy: key[0], OpponentBuy: key[1], Rounds: n, WinRate: newRate(matchupWins[key], n),
+			Buy: key[0], OpponentBuy: key[1], Rounds: n, WinRate: newRate(a.matchupWins[key], n),
 		})
 	}
 	sort.Slice(t.Matchups, func(i, j int) bool {
@@ -356,22 +389,22 @@ func Aggregate(d Document, f Filter) Tendencies {
 	})
 
 	for _, site := range []Site{SiteA, SiteB, SiteMid, SiteNone} {
-		n := siteRounds[site]
+		n := a.siteRounds[site]
 		if n == 0 {
 			continue
 		}
 		t.Sites = append(t.Sites, SiteBucket{
-			Site: site, Rounds: n, Share: newRate(n, total), WinRate: newRate(siteWins[site], n),
+			Site: site, Rounds: n, Share: newRate(n, total), WinRate: newRate(a.siteWins[site], n),
 		})
 	}
 
-	for key, n := range buySiteRounds {
+	for key, n := range a.buySiteRounds {
 		t.BuySites = append(t.BuySites, BuySiteBucket{
 			Buy:     key.Buy,
 			Site:    key.Site,
 			Rounds:  n,
-			Share:   newRate(n, buyRounds[key.Buy]),
-			WinRate: newRate(buySiteWins[key], n),
+			Share:   newRate(n, a.buyRounds[key.Buy]),
+			WinRate: newRate(a.buySiteWins[key], n),
 		})
 	}
 	sort.Slice(t.BuySites, func(i, j int) bool {
@@ -381,50 +414,53 @@ func Aggregate(d Document, f Filter) Tendencies {
 		return t.BuySites[i].Site < t.BuySites[j].Site
 	})
 
-	for _, pattern := range []TPattern{TExecute, TDefault, TSplit, TFast, TEcoRush, TSave, TUnknown} {
-		n := tRounds[pattern]
+	for _, pattern := range TPatterns {
+		n := a.tRounds[pattern]
 		if n == 0 {
 			continue
 		}
 		t.TPatterns = append(t.TPatterns, PatternBucket{
-			Pattern: string(pattern), Rounds: n, Share: newRate(n, tSideRounds), WinRate: newRate(tWins[pattern], n),
+			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.tSideRounds), WinRate: newRate(a.tWins[pattern], n),
 		})
 	}
-	for _, pattern := range []CTPattern{CTHold, CTRetake, CTAggression, CTStack, CTSave, CTUnknown} {
-		n := ctRounds[pattern]
+	for _, pattern := range CTPatterns {
+		n := a.ctRounds[pattern]
 		if n == 0 {
 			continue
 		}
 		t.CTPatterns = append(t.CTPatterns, PatternBucket{
-			Pattern: string(pattern), Rounds: n, Share: newRate(n, ctSideRounds), WinRate: newRate(ctWins[pattern], n),
+			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.ctSideRounds), WinRate: newRate(a.ctWins[pattern], n),
 		})
 	}
 
 	t.Openings = OpeningSummary{
-		Rounds:        openings,
-		Won:           newRate(openingWon, openings),
-		TradedOnLoss:  newRate(openingLostTraded, openingLost),
-		RoundWinAfter: newRate(roundWinAfterWin, openingWon),
-		RoundWinLost:  newRate(roundWinAfterLoss, openingLost),
+		Rounds:        a.openings,
+		Won:           newRate(a.openingWon, a.openings),
+		TradedOnLoss:  newRate(a.openingLostTraded, a.openingLost),
+		RoundWinAfter: newRate(a.roundWinAfterWin, a.openingWon),
+		RoundWinLost:  newRate(a.roundWinAfterLoss, a.openingLost),
 	}
 	t.Timings = TimingSummary{
-		FirstContact:  newHistogram(firstContact),
-		Plant:         newHistogram(plant),
-		RoundDuration: newHistogram(duration),
+		FirstContact:  newHistogram(a.firstContact),
+		Plant:         newHistogram(a.plant),
+		RoundDuration: newHistogram(a.duration),
 	}
 
-	for slot, acc := range players {
+	for key, acc := range a.players {
 		if acc.Rounds > 0 {
 			acc.ADR = math.Round(float64(acc.Damage)/float64(acc.Rounds)*10) / 10
 		}
-		acc.SurvivalRate = newRate(playerSurvived[slot], acc.Rounds)
+		acc.SurvivalRate = newRate(a.playerSurvived[key], acc.Rounds)
 		t.Players = append(t.Players, *acc)
 	}
 	sort.Slice(t.Players, func(i, j int) bool {
 		if t.Players[i].Kills != t.Players[j].Kills {
 			return t.Players[i].Kills > t.Players[j].Kills
 		}
-		return t.Players[i].Slot < t.Players[j].Slot
+		if t.Players[i].Slot != t.Players[j].Slot {
+			return t.Players[i].Slot < t.Players[j].Slot
+		}
+		return t.Players[i].SteamID64 < t.Players[j].SteamID64
 	})
 	return t
 }
@@ -456,19 +492,11 @@ func newHistogram(samples []float64) Histogram {
 	if len(samples) == 0 {
 		return h
 	}
-	sorted := append([]float64(nil), samples...)
-	sort.Float64s(sorted)
-	mid := len(sorted) / 2
-	if len(sorted)%2 == 1 {
-		h.Median = sorted[mid]
-	} else {
-		h.Median = (sorted[mid-1] + sorted[mid]) / 2
-	}
-	h.Median = math.Round(h.Median*10) / 10
+	h.Median = median(samples)
 
 	counts := map[int]int{}
 	maxBucket := 0
-	for _, v := range sorted {
+	for _, v := range samples {
 		if v < 0 {
 			v = 0
 		}

@@ -31,7 +31,8 @@ const (
 //
 // Most fields are read from a perspective: the side a team was playing that
 // round. Set TeamKey to follow one team across the side swap, or Side to look
-// at one side of the server regardless of who was on it. With neither, a
+// at one side of the server regardless of who was on it. With both, the team
+// is followed only in the rounds it played on that side. With neither, a
 // perspective-dependent field matches if either side satisfies it.
 type Filter struct {
 	TeamKey      string      `json:"team_key,omitempty"`
@@ -87,6 +88,10 @@ func (f Filter) Match(d Document, r Round) bool {
 	side := f.Perspective(d, r)
 	if f.TeamKey != "" && side == "" {
 		// The team did not play this round (a series document, another map).
+		return false
+	}
+	if f.TeamKey != "" && f.Side != "" && side != f.Side {
+		// With both set, Side keeps the rounds the team played on that side.
 		return false
 	}
 
@@ -322,11 +327,10 @@ func parseOutcome(raw string) (Outcome, error) {
 }
 
 func parseTPatterns(raw []string) ([]TPattern, error) {
-	known := []TPattern{TExecute, TDefault, TSplit, TFast, TEcoRush, TSave, TUnknown}
 	var out []TPattern
 	for _, item := range raw {
 		v := TPattern(strings.ToLower(item))
-		if !containsPattern(known, v) {
+		if !containsPattern(TPatterns, v) {
 			return nil, fmt.Errorf("filter: unknown T pattern %q", item)
 		}
 		out = append(out, v)
@@ -335,11 +339,10 @@ func parseTPatterns(raw []string) ([]TPattern, error) {
 }
 
 func parseCTPatterns(raw []string) ([]CTPattern, error) {
-	known := []CTPattern{CTHold, CTRetake, CTAggression, CTStack, CTSave, CTUnknown}
 	var out []CTPattern
 	for _, item := range raw {
 		v := CTPattern(strings.ToLower(item))
-		if !containsCTPattern(known, v) {
+		if !containsCTPattern(CTPatterns, v) {
 			return nil, fmt.Errorf("filter: unknown CT pattern %q", item)
 		}
 		out = append(out, v)
