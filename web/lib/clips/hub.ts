@@ -308,7 +308,7 @@ function fullStateLabel(fulls: readonly MatchOutput[]): string {
 
 /** Full POV chip label for a collapsed row. */
 export function fullChipLabel(fulls: readonly MatchOutput[]): string {
-  return `Vídeo largo · ${fullStateLabel(fulls)}`;
+  return `Demo completa · ${fullStateLabel(fulls)}`;
 }
 
 /** Tone vocabulary for an output's tag; mirrors `StatusTagTone` by name. */

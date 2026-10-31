@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CAPTURES_DELETE_WARNING =
-  'Se borran las grabaciones de CS2 de este vídeo largo. El vídeo final se queda. Para editarlo y renderizarlo de nuevo habrá que volver a capturar.';
+  'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final se queda. Para editarlo y renderizarlo de nuevo habrá que volver a capturar.';
 
 type StorageState =
   | { kind: 'loading' }
@@ -58,7 +58,7 @@ export function StorageSettings(): ReactNode {
         <StudioDataRow label="Usado por tus vídeos" value={formatBytes(state.totalBytes)} />
         {freed ? <p role="status" className="text-body-sm text-success">{freed}</p> : null}
         {state.jobs.length > 0 ? (
-          <ul className="flex flex-col gap-2" aria-label="Vídeos largos con capturas">
+          <ul className="flex flex-col gap-2" aria-label="Demos completas con capturas">
             {state.jobs.map((job) => (
               <CaptureRow key={job.jobId} job={job} onFreed={(bytes) => onFreed(job, bytes)} />
             ))}
@@ -68,7 +68,7 @@ export function StorageSettings(): ReactNode {
             No hay capturas que borrar.
           </p>
         )}
-        <p className="text-body-sm text-fg-2">Studio borra las capturas de un vídeo largo cuando su render final está listo.</p>
+        <p className="text-body-sm text-fg-2">Studio borra las capturas de una demo completa cuando su render final está listo.</p>
       </div>
     );
   } else if (state.kind === 'error') {

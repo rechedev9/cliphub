@@ -127,7 +127,7 @@ const POV_VERIFICATION_MESSAGE =
   'vuelve a preparar la demo para generar sus rondas con el contrato actual.';
 
 const POV_ACQUISITION_MESSAGE =
-  'No se pudo fijar la cámara al jugador antes de grabar la ronda. Vuelve a preparar y aprobar el vídeo largo para reservar tiempo al POV tras reaparecer; reintentar el mismo plan puede repetir el fallo.';
+  'No se pudo fijar la cámara al jugador antes de grabar la ronda. Vuelve a preparar y aprobar la demo completa para reservar tiempo al POV tras reaparecer; reintentar el mismo plan puede repetir el fallo.';
 
 const CAPTURE_FLAKE_MESSAGE =
   'La cámara perdió el POV durante la captura. Reintentar vuelve a grabar al jugador elegido; si se repite, comparte el diagnóstico desde Ajustes.';

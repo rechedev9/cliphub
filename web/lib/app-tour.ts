@@ -35,7 +35,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Qué es ClipHub',
     title: 'De tus partidas de CS2 a vídeos listos para subir',
     lead:
-      'ClipHub Studio convierte una demo de CS2 en un Short vertical o en un vídeo largo grabado desde la vista real de un jugador. También recorta tus streams en Shorts y analiza demos como un analista de equipo.',
+      'ClipHub Studio convierte una demo de CS2 en un Short vertical o en una demo completa grabada desde la vista real de un jugador. También recorta tus streams en Shorts y analiza demos como un analista de equipo.',
     points: [
       {
         term: 'Todo en tu PC',
@@ -57,7 +57,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Cargar una demo',
     title: 'Todo empieza con una demo',
     lead:
-      'Cada formato tiene su sección en la barra lateral: «Vídeo largo» y «Short». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
+      'Cada formato tiene su sección en la barra lateral: «Demo completa» y «Short». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
     points: [
       {
         term: 'Archivo en mi PC',
@@ -83,11 +83,11 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'full',
-    kicker: 'Vídeo largo',
-    label: 'Vídeo largo',
+    kicker: 'Demo completa',
+    label: 'Demo completa',
     title: 'La partida entera desde un jugador',
     lead:
-      'El vídeo largo 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo.',
+      'La demo completa 16:9 graba todas las rondas desde la vista del jugador, con el audio de la partida equilibrado automáticamente y sin música de fondo.',
     points: [
       {
         term: 'HUD de la partida',
@@ -106,7 +106,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Añade tus propios MP4 al principio y al final, y un vídeo de sponsor que se reproduce después de la ronda 2 si tienes sus derechos de uso.',
       },
     ],
-    link: { href: LONG_VIDEOS_HREF, label: 'Ir a Vídeo largo' },
+    link: { href: LONG_VIDEOS_HREF, label: 'Ir a Demo completa' },
   },
   {
     id: 'short',
@@ -189,21 +189,16 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     id: 'ideas',
     kicker: 'Ideas',
     label: 'Ideas',
-    title: 'Cómo eligen YouTube y Google qué vídeos recomendar',
-    lead:
-      'Una guía para tus Shorts y vídeos largos: qué mide cada plataforma mientras alguien ve tu vídeo, cómo usa esas señales y qué hacer con eso.',
+    title: 'Qué hacer para llegar a más gente en YouTube',
+    lead: 'Instrucciones cortas para tus Shorts y demos completas de CS2.',
     points: [
       {
-        term: 'Con su evidencia',
-        text: 'Cada afirmación indica de dónde sale: tráfico observado, fuente oficial o inferencia de la industria.',
+        term: 'Por formato',
+        text: 'Cómo empezar un Short, qué poner en título y miniatura, y cuándo publicar.',
       },
       {
-        term: 'Mitos',
-        text: 'Qué ideas populares ha negado YouTube, como que las primeras 24 horas lo decidan todo.',
-      },
-      {
-        term: 'Para CS2',
-        text: 'Consejos concretos de hook, duración, música y contenido reutilizado para clips de CS2.',
+        term: 'Qué evitar',
+        text: 'Música que bloquea un Short, clips ajenos y enlaces a apuestas de skins.',
       },
     ],
     link: { href: '/ideas', label: 'Ir a Ideas' },

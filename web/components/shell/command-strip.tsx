@@ -20,7 +20,7 @@ import { sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
   newShort: 'nuevo short',
-  newFull: 'vídeo largo',
+  newFull: 'demo completa',
   publish: 'publicar',
   series: 'serie',
 } as const;

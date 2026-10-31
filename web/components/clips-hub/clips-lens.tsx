@@ -34,7 +34,7 @@ type HubClip = HubModel['clips'][number];
 const FILTER_LABEL = {
   all: 'Todos',
   short: 'Shorts',
-  full: 'Vídeos largos',
+  full: 'Demos completas',
   ready: 'Listos',
   working: 'En marcha',
 } as const satisfies Record<ClipFilter, string>;
@@ -203,7 +203,7 @@ function ClipCard({
   const isShort = clip.type === OUTPUT_TYPE.short;
   const { video } = clip;
   const player = clip.match?.player ?? video.targetName ?? '—';
-  const sub = isShort ? 'Short · 9:16' : 'Vídeo largo · 16:9';
+  const sub = isShort ? 'Short · 9:16' : 'Demo completa · 16:9';
   const matchId = clip.match?.id ?? null;
   const playback = demoPlaybackItem(video);
 
@@ -267,7 +267,7 @@ function ClipCard({
           {matchId !== null ? (
             <Link
               href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
-              aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otro vídeo largo de esta demo'}
+              aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otra demo completa de esta partida'}
               className="inline-flex h-10 items-center gap-1 self-end px-2 text-meta text-fg-3 transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               {MAKE_ANOTHER_LABEL}

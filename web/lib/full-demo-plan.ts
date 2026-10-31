@@ -272,8 +272,8 @@ export function fullDemoApprovalKey(document: FullDemoDocument, options: FullDem
     && (document.timeline?.length ?? 0) > 0 && (document.blockers?.length ?? 0) === 0 ? document.plan_hash : null;
 }
 export function approveFullDemo(document: FullDemoDocument, timestamp = new Date().toISOString()): FullDemoSnapshot {
-  if (document.options.overlays.hud_theme && document.options.capture.hud_profile !== CUSTOM_HUD_CAPTURE_PROFILE) throw new Error('Vuelve a preparar el vídeo largo para aplicar el nuevo HUD y radar.');
-  if (document.planner_version !== FULL_DEMO_PLANNER_VERSION || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(fixedFullDemoFreeze(document.options))) throw new Error('Vuelve a preparar el vídeo largo con el freeze fijo de 2 segundos.');
+  if (document.options.overlays.hud_theme && document.options.capture.hud_profile !== CUSTOM_HUD_CAPTURE_PROFILE) throw new Error('Vuelve a preparar la demo completa para aplicar el nuevo HUD y radar.');
+  if (document.planner_version !== FULL_DEMO_PLANNER_VERSION || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(fixedFullDemoFreeze(document.options))) throw new Error('Vuelve a preparar la demo completa con el freeze fijo de 2 segundos.');
   const snapshot = { document, approval: { approved_plan_hash: document.plan_hash, allow_safe_tail_trim: document.options.editorial.allow_safe_tail_trim, timestamp } };
   if (!isFullDemoSnapshot(snapshot)) throw new Error('El plan tiene bloqueos o está incompleto.');
   return snapshot;
@@ -331,14 +331,14 @@ async function responseJSON(response: Response): Promise<unknown> {
 const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1') }, ['pro_players']);
 export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Promise<Guarded<typeof envelopeShape>> {
   const value = await responseJSON(await fetch(planURL(jobId), { cache: 'no-store', signal }));
-  if (!envelopeShape(value)) throw new Error('El servidor devolvió un plan de vídeo largo incompatible.');
+  if (!envelopeShape(value)) throw new Error('El servidor devolvió un plan de demo completa incompatible.');
   return value;
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, signal?: AbortSignal): Promise<FullDemoDocument> {
   options = currentFullDemoOptions(options);
   if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y vídeos añadidos.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
-  if (!documentShape(value)) throw new Error('El servidor devolvió un plan de vídeo largo incompatible.');
+  if (!documentShape(value)) throw new Error('El servidor devolvió un plan de demo completa incompatible.');
   return value;
 }
 

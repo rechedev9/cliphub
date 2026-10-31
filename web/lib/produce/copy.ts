@@ -5,22 +5,22 @@ export const PRODUCE_MATCH_MISSING = {
 } as const;
 
 /** Browser titles of the producer route, one per format. */
-export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nuevo vídeo largo' } as const;
+export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nueva demo completa' } as const;
 
 /** Each format is its own flow: the section name, its home copy and its steps. */
-export const FLOW_TITLE = { short: 'Short', full: 'Vídeo largo' } as const;
-export const FLOW_HOME_TITLE = { short: 'Crea un Short', full: 'Crea un vídeo largo' } as const;
+export const FLOW_TITLE = { short: 'Short', full: 'Demo completa' } as const;
+export const FLOW_HOME_TITLE = { short: 'Crea un Short', full: 'Crea una demo completa' } as const;
 export const FLOW_HOME_DESCRIPTION = {
   short: 'Vídeo vertical 9:16 con las mejores jugadas de un jugador. Carga una demo de CS2, elige el jugador y revisa las jugadas antes de grabar.',
   full: 'Vídeo horizontal 16:9 con todas las rondas desde la vista de un jugador. Carga una demo de CS2, elige el jugador y revisa los ajustes antes de grabar.',
 } as const;
 export const FLOW_STEPS = {
   short: ['Cargar demo', 'Elegir jugador', 'Preparar Short', 'Grabar y descargar'],
-  full: ['Cargar demo', 'Elegir jugador', 'Preparar vídeo largo', 'Grabar y descargar'],
+  full: ['Cargar demo', 'Elegir jugador', 'Preparar demo completa', 'Grabar y descargar'],
 } as const;
 export const FLOW_PRODUCE_CTA = {
   short: { first: 'Crear Short', again: 'Crear otro Short' },
-  full: { first: 'Preparar vídeo largo', again: 'Preparar otro vídeo largo' },
+  full: { first: 'Preparar demo completa', again: 'Preparar otra demo completa' },
 } as const;
 
 export const PRODUCE_DRAFT_RESET = 'Empezar de cero';
@@ -35,11 +35,11 @@ export const PRODUCE_SHORT_CTA = 'Crear Short';
 /** Footer line once a producer can create: where it records and where the result lands. */
 export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Mis vídeos.';
 
-/** The long-form flow is "vídeo largo" everywhere the user reads it; "Full Demo" stays internal. */
-export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';
+/** The long-form flow is "demo completa" everywhere the user reads it; "Full Demo" stays internal. */
+export const PRODUCE_FULL_TITLE = 'Prepara tu demo completa';
 export const PRODUCE_FULL_DRAFT_RESTORED = 'Configuración recuperada de tu última visita.';
-export const PRODUCE_FULL_CTA = 'Crear vídeo largo';
-export const PRODUCE_FULL_QUEUE_CTA = 'Poner vídeo largo en cola';
+export const PRODUCE_FULL_CTA = 'Crear demo completa';
+export const PRODUCE_FULL_QUEUE_CTA = 'Poner demo completa en cola';
 
 /** A poll tick failed while the partida is already on screen: warn, keep the content. */
 export const PRODUCE_POLL_ERROR = 'No se pudo actualizar esta partida. Seguimos mostrando los últimos datos cargados.';
