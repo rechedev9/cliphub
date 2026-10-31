@@ -21,9 +21,10 @@ const SchemaVersion = "1.0"
 
 // AnalysisVersion counts changes to what a scan concludes from the same demo
 // (2: zones per cell and floor, Train on one level, sites matched per level,
-// players on the team of their first live round, "Equipo CT/T" fallback names).
+// players on the team of their first live round, "Equipo CT/T" fallback names;
+// 3: rounds numbered by the game's count, as Crear numbers them).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 2
+const AnalysisVersion = 3
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string

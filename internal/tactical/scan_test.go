@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
@@ -109,6 +110,24 @@ func TestTeamsComeFromTheFirstCountedRoundNotTheFirstSighting(t *testing.T) {
 	}
 	if got := s.teams["ct-start"].startSide; got != tacticalplan.SideCT {
 		t.Errorf("ct-start team start side = %s", got)
+	}
+}
+
+func TestBackupRestoreReplacesTheReplayedRounds(t *testing.T) {
+	// A demo that starts at round 7 and restores round 9 from a backup after it.
+	s := &scanner{rounds: []*roundAcc{{number: 7}, {number: 8}, {number: 9}, {number: 10}}}
+	if dropped := s.dropReplayedRounds(9); dropped != 2 {
+		t.Fatalf("dropReplayedRounds(9) = %d, want 2", dropped)
+	}
+	if dropped := s.dropReplayedRounds(9); dropped != 0 {
+		t.Fatalf("second dropReplayedRounds(9) = %d, want 0", dropped)
+	}
+	got := make([]int, 0, len(s.rounds))
+	for _, r := range s.rounds {
+		got = append(got, r.number)
+	}
+	if !slices.Equal(got, []int{7, 8}) {
+		t.Fatalf("rounds = %v, want [7 8]", got)
 	}
 }
 

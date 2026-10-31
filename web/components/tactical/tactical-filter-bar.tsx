@@ -150,6 +150,7 @@ function SingleChips<T extends string>({
 function BoundInput({
   label,
   value,
+  min,
   max,
   placeholder,
   edgeClassName,
@@ -157,6 +158,7 @@ function BoundInput({
 }: {
   label: string;
   value: number | undefined;
+  min: number;
   max: number;
   placeholder: string;
   /** Which outer corners this cell keeps, so the two bounds read as one plate. */
@@ -173,7 +175,7 @@ function BoundInput({
         id={inputId}
         type="number"
         inputMode="numeric"
-        min={1}
+        min={min}
         max={max}
         placeholder={placeholder}
         value={value === undefined ? '' : String(value)}
@@ -246,6 +248,9 @@ export function TacticalFilterBar({
     label: player.name,
   }));
   const selectedSlots = (filter.slots ?? []).map(String);
+  // A demo recorded mid-match starts at the game's own round count, not at 1.
+  const firstRound = doc.rounds[0]?.number ?? 1;
+  const lastRound = doc.rounds.at(-1)?.number ?? total;
 
   const advancedCount = [
     filter.buys?.length,
@@ -331,16 +336,18 @@ export function TacticalFilterBar({
               <BoundInput
                 label="Desde"
                 value={filter.round_from}
-                max={total}
-                placeholder="1"
+                min={firstRound}
+                max={lastRound}
+                placeholder={String(firstRound)}
                 edgeClassName="rounded-r-none"
                 onChange={(round_from) => patch({ round_from })}
               />
               <BoundInput
                 label="Hasta"
                 value={filter.round_to}
-                max={total}
-                placeholder={String(total)}
+                min={firstRound}
+                max={lastRound}
+                placeholder={String(lastRound)}
                 edgeClassName="rounded-l-none border-l-0"
                 onChange={(round_to) => patch({ round_to })}
               />

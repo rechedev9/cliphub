@@ -299,8 +299,14 @@ func (s *scanner) register() {
 			return
 		}
 		s.closeCurrent(s.tick())
+		// The game's own count, the number Crear gives its plays, so a round
+		// picked here is the round a Short or review video records.
+		number := gs.TotalRoundsPlayed() + 1
+		if dropped := s.dropReplayedRounds(number); dropped > 0 {
+			s.warn("dropped %d rounds replayed from round %d (backup restore)", dropped, number)
+		}
 		s.current = &roundAcc{
-			number:    len(s.rounds) + 1,
+			number:    number,
 			tickStart: s.tick(),
 			scoreCT:   gs.TeamCounterTerrorists().Score(),
 			scoreT:    gs.TeamTerrorists().Score(),
@@ -382,6 +388,18 @@ func (s *scanner) tick() int {
 
 func (s *scanner) warn(format string, args ...any) {
 	s.warnings = append(s.warnings, fmt.Sprintf(format, args...))
+}
+
+// dropReplayedRounds removes the rounds a backup restore or a restarted round
+// plays again from number on: the replay is the round the match kept.
+func (s *scanner) dropReplayedRounds(number int) int {
+	kept := len(s.rounds)
+	for kept > 0 && s.rounds[kept-1].number >= number {
+		kept--
+	}
+	dropped := len(s.rounds) - kept
+	s.rounds = s.rounds[:kept]
+	return dropped
 }
 
 func (s *scanner) closeCurrent(tick int) {
