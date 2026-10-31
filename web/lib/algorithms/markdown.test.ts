@@ -27,19 +27,11 @@ function inlinesOf(block: Block): Inline[][] {
   }
 }
 
-test('markdown: evidence marks win over emphasis and keep their note', () => {
-  assert.deepEqual(parseInline('a [R*] b [C, corregido]'), [
-    { kind: 'text', text: 'a ' },
-    { kind: 'evidence', level: 'R*', note: null },
-    { kind: 'text', text: ' b ' },
-    { kind: 'evidence', level: 'C', note: 'corregido' },
-  ]);
-  assert.deepEqual(parseInline('**[R*]** *(debilitado)* [no verificable]'), [
-    { kind: 'strong', children: [{ kind: 'evidence', level: 'R*', note: null }] },
+test('markdown: emphasis needs a closing mark at a word edge', () => {
+  assert.deepEqual(parseInline('**Sin relleno.** *(nota)*'), [
+    { kind: 'strong', children: [{ kind: 'text', text: 'Sin relleno.' }] },
     { kind: 'text', text: ' ' },
-    { kind: 'em', children: [{ kind: 'text', text: '(debilitado)' }] },
-    { kind: 'text', text: ' ' },
-    { kind: 'caveat', text: 'no verificable' },
+    { kind: 'em', children: [{ kind: 'text', text: '(nota)' }] },
   ]);
   assert.deepEqual(parseInline('Q* y P* (x)'), [{ kind: 'text', text: 'Q* y P* (x)' }]);
 });
@@ -72,10 +64,6 @@ test('markdown: URLs keep balanced parentheses and query commas', () => {
   assert.deepEqual(parseInline('https://a.example/?a=1,2;'), [
     { kind: 'link', href: 'https://a.example/?a=1,2' },
     { kind: 'text', text: ';' },
-  ]);
-  assert.deepEqual(parseInline('https://a.example/x[C]'), [
-    { kind: 'link', href: 'https://a.example/x' },
-    { kind: 'evidence', level: 'C', note: null },
   ]);
 });
 
@@ -118,7 +106,7 @@ test('markdown: the guide leaves no raw markup in its text', () => {
   const leftovers = blocks
     .flatMap(inlinesOf)
     .flatMap(textNodes)
-    .filter((text) => /(?<![A-Z])\*|`|\[(R|C|I)\b|^#|\s---\s/.test(text));
+    .filter((text) => /\*|`|^#|\s---\s/.test(text));
   assert.deepEqual(leftovers, []);
 });
 

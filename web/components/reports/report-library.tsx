@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FilePlus2, FileText, PlugZap, Shield } from 'lucide-react';
-import { isLibraryOffline, listLibraryReports } from '@/lib/api/library';
+import { deleteLibraryReport, isLibraryNotFound, isLibraryOffline, listLibraryReports } from '@/lib/api/library';
 import type { LibraryReport } from '@/lib/api/scout';
 import { REPORTS_QUERY, TEAMS_HREF, reportHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
@@ -13,6 +13,7 @@ import { REPORT_SIDE_LABEL } from '@/lib/reports/scout-sections';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
+import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,6 +40,25 @@ const COLUMNS: readonly DataTableColumn<LibraryReport>[] = [
     sortValue: (report) => Date.parse(report.updated_at) || null,
   },
 ];
+
+/** A report already gone counts as deleted: the row only has to leave the list. */
+async function deleteReport(reportId: string): Promise<void> {
+  try {
+    await deleteLibraryReport(reportId);
+  } catch (error) {
+    if (!isLibraryNotFound(error)) throw error;
+  }
+}
+
+function deleteColumn(onDeleted: () => void): DataTableColumn<LibraryReport> {
+  return {
+    id: 'delete',
+    header: '',
+    required: true,
+    className: 'w-px',
+    cell: (report) => <DeleteMatchButton label={report.title} onConfirm={() => deleteReport(report.id)} onDeleted={onDeleted} />,
+  };
+}
 
 /** Informes: the saved scouting reports, and the door to a new one. */
 export function ReportLibrary(): ReactNode {
@@ -95,7 +115,7 @@ export function ReportLibrary(): ReactNode {
   // The dialog stays at one place in the tree, so loading the list never remounts it mid-animation.
   return (
     <>
-      <ReportListBody reports={reports} offline={offline} view={view} newButton={newButton} onRetry={() => setAttempt((n) => n + 1)} />
+      <ReportListBody reports={reports} offline={offline} view={view} newButton={newButton} onReload={() => setAttempt((n) => n + 1)} />
       {dialog}
     </>
   );
@@ -106,13 +126,13 @@ function ReportListBody({
   offline,
   view,
   newButton,
-  onRetry,
+  onReload,
 }: {
   reports: LibraryReport[] | null;
   offline: boolean;
   view: TableViewControl;
   newButton: ReactNode;
-  onRetry: () => void;
+  onReload: () => void;
 }): ReactNode {
   if (reports === null) {
     return (
@@ -130,7 +150,7 @@ function ReportListBody({
         title="Servicio local sin conexión"
         description="No se pudieron leer los informes. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          <Button type="button" variant="outline" size="sm" onClick={onReload}>
             Reintentar
           </Button>
         }
@@ -181,7 +201,7 @@ function ReportListBody({
       <DataTable
         label="Informes"
         rows={shown}
-        columns={COLUMNS}
+        columns={[...COLUMNS, deleteColumn(onReload)]}
         rowKey={(report) => report.id}
         rowHref={(report) => reportHref(report.id)}
         view={view}

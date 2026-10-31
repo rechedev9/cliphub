@@ -225,7 +225,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
         <>
           <section className="flex flex-col gap-2" aria-labelledby="publish-title-recommendations">
             <h3 id="publish-title-recommendations" className="flex items-center gap-2 text-meta text-fg-3">
-              <Sparkles className="size-3.5 text-fg-2" aria-hidden /> {hasTemplates ? 'Plantillas para vídeo largo' : 'Títulos recomendados'}
+              <Sparkles className="size-3.5 text-fg-2" aria-hidden /> {hasTemplates ? 'Plantillas para demo completa' : 'Títulos recomendados'}
             </h3>
             {hasTemplates ? (
               <p className="text-meta leading-relaxed text-fg-3">

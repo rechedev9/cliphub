@@ -85,7 +85,7 @@ export function recoveredVideo(
     : { ...DEFAULT_EDIT_CONFIG, ...render.editConfig, format: 'short-9x16', matchRecap: false };
   const plays = render.segmentIds?.length ?? 0;
   const title = full
-    ? 'Vídeo largo'
+    ? 'Demo completa'
     : `${plays} ${plays === 1 ? 'jugada' : 'jugadas'} - ${SHORT_VARIANT_LABELS[variant] ?? variant}`;
 
   const dp = dataPlane();

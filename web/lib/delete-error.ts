@@ -50,7 +50,7 @@ export function deleteErrorMessage(err: unknown): string {
 
 export const CAPTURES_JOB_BUSY_MESSAGE = 'Espera a que termine el análisis o la captura para borrar las capturas.';
 export const CAPTURES_RENDER_BUSY_MESSAGE = 'Espera a que termine el render para borrar las capturas.';
-export const CAPTURES_NO_RENDER_MESSAGE = 'Este vídeo largo aún no tiene el render final. Sus capturas siguen haciendo falta.';
+export const CAPTURES_NO_RENDER_MESSAGE = 'Esta demo completa aún no tiene el render final. Sus capturas siguen haciendo falta.';
 export const CAPTURES_JOB_GONE_MESSAGE = 'Este vídeo ya no está en Studio.';
 
 const CAPTURES_ERROR_MESSAGES: Record<string, string> = {

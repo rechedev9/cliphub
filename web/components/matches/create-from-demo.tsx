@@ -23,7 +23,7 @@ async function crearJobFor(demo: LibraryDemo): Promise<string> {
   return createJobFromLibraryDemo(demo.id);
 }
 
-/** "Crear Short" and "Vídeo largo" for a partida: the analysis area hands the demo to Crear. */
+/** "Crear Short" and "Demo completa" for a partida: the analysis area hands the demo to Crear. */
 export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
   const router = useRouter();
   const [busy, setBusy] = useState<ProduceFormat | null>(null);
@@ -48,7 +48,7 @@ export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
       </Button>
       <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void open(PRODUCE_FORMAT.full)}>
         <MonitorPlay aria-hidden />
-        {busy === PRODUCE_FORMAT.full ? 'Preparando' : 'Vídeo largo'}
+        {busy === PRODUCE_FORMAT.full ? 'Preparando' : 'Demo completa'}
       </Button>
       {error ? (
         <span role="alert" className="text-meta text-destructive">

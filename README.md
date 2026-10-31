@@ -26,7 +26,7 @@ The app updates itself from the latest GitHub Release.
 
 ## Quick start
 
-1. Open the section for the format you want: **Shorts** (9:16) or **Vídeos largos** (16:9).
+1. Open the section for the format you want: **Shorts** (9:16) or **Demo completa** (16:9).
 2. Add the match. Drop a `.dem`, `.dem.zst`, `.zip` or `.rar` file (up to 10 demos at once), or paste a `CSGO-` share code and download the demo from Steam.
 3. Pick the player. ClipHub reads the demo and lists the ten players with rating, ADR, KAST and HS %.
 4. For a Short, work through four steps: plays, style, music, text and graphics. **Auto: mejores 60 s** picks the best minute for you.
@@ -38,7 +38,7 @@ The app updates itself from the latest GitHub Release.
 | Section in the app | What it does |
 | --- | --- |
 | Shorts | Make vertical Shorts from a demo. |
-| Vídeos largos | Make a full-match video from a demo. Several demos of one best-of are grouped as a series. |
+| Demo completa | Make a full-match video from a demo. Several demos of one best-of are grouped as a series. |
 | Resultados | Every video you made, with download and the publish assistant. |
 | Clips de stream | Cut moments from a Twitch, YouTube or Kick link or an MP4 into vertical Shorts, with facecam framing. |
 | Jugadores | Follow FACEIT players and turn their matches into clips. |

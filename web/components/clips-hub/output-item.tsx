@@ -150,7 +150,7 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   );
 }
 
-/** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
+/** Ready: MP4 + Publicar + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
@@ -191,6 +191,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             <Link href={publishHref(matchId, video.id)}>Publicar</Link>
           </Button>
         )}
+        <DeleteVideoButton video={video} onDeleted={onChange} />
       </span>
     );
   }

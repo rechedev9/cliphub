@@ -338,7 +338,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
             preview={[
               'Varias demos a la vez; una demo repetida se detecta por su huella y no se duplica.',
               'Cada demo se analiza en este PC: equipos, jugadores, rondas y táctica.',
-              'Desde la ficha de una partida puedes crear un Short o un vídeo largo.',
+              'Desde la ficha de una partida puedes crear un Short o una demo completa.',
             ]}
             actions={
               <Button asChild variant="outline" size="sm">

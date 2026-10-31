@@ -30,10 +30,10 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
     try {
       await api.deleteVideo(video.id);
       setOpen(false);
-      toast('Reel borrado.');
+      toast('Vídeo borrado.');
       onDeleted();
     } catch {
-      toast('No se pudo borrar el reel.');
+      toast('No se pudo borrar el vídeo.');
     } finally {
       setDeleting(false);
     }
@@ -54,10 +54,10 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>¿Borrar este reel?</DialogTitle>
+            <DialogTitle>¿Borrar este vídeo?</DialogTitle>
             <DialogDescription className="break-words">
-              <span className="font-medium text-fg-1">{video.title}</span> y su archivo renderizado se
-              eliminarán. Esta acción no se puede deshacer.
+              <span className="font-medium text-fg-1">{video.title}</span> y su MP4 se
+              borrarán de este PC. Esta acción no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

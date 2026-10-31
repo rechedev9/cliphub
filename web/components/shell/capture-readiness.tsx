@@ -126,7 +126,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
         {variant === 'settings' ? (
           <button type="button" className={`studio-panel studio-panel-interactive flex w-full flex-col gap-3 p-5 text-left ${FOCUS_RING}`}>
             <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-fg-2" />Grabación de demos</span>
-            <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para crear shorts y vídeos largos desde una demo.</span>
+            <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para grabar Shorts y demos completas.</span>
             <span className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
               <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
               <span className="font-semibold text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar requisitos →</span>

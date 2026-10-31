@@ -329,7 +329,7 @@ test('planning and upload use same-origin endpoints with complete options and pr
   await assert.rejects(loadFullDemoPlan('../private'));
 });
 
-const INCOMPATIBLE = /plan de vídeo largo incompatible/;
+const INCOMPATIBLE = /plan de demo completa incompatible/;
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PROVENANCE = { title: 'Owned clip', creator: 'Owner', source_url: 'local:owned', permission: 'Owned media', attribution: '' };
 // Malformed or failed wire responses reject at the guard; nothing is defaulted or

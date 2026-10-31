@@ -445,7 +445,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
       <CreateFlowSteps flow={format} step={progressStep} />
-      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
+      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás demo completa o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div
           role="alert"

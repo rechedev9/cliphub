@@ -1,18 +1,12 @@
-// The Markdown subset the algorithms guide uses: headings, paragraphs, flat lists, pipe tables,
-// fenced code, rules, and the evidence marks ([R], [R*], [C], [I], [C, corregido], [no verificable]).
-
-const EVIDENCE_LEVELS = ['R', 'R*', 'C', 'I'] as const;
-
-export type EvidenceLevel = (typeof EVIDENCE_LEVELS)[number];
+// The Markdown subset the Ideas guide uses: headings, paragraphs, flat lists, pipe tables,
+// fenced code and rules.
 
 export type Inline =
   | { kind: 'text'; text: string }
   | { kind: 'strong'; children: Inline[] }
   | { kind: 'em'; children: Inline[] }
   | { kind: 'code'; text: string }
-  | { kind: 'link'; href: string }
-  | { kind: 'evidence'; level: EvidenceLevel; note: string | null }
-  | { kind: 'caveat'; text: string };
+  | { kind: 'link'; href: string };
 
 export type Block =
   | { kind: 'heading'; level: 2 | 3; id: string; title: string; content: Inline[] }
@@ -22,9 +16,8 @@ export type Block =
   | { kind: 'code'; text: string }
   | { kind: 'rule' };
 
-// Evidence precedes em so `[R*]` is never emphasis; em needs a non-word edge so `Q* ... P*` stays text.
-const INLINE_RE =
-  /`([^`]+)`|\[(R\*|R|C|I)(?:,\s*([^\]]+))?\]|\[(debilitado[^\]]*|no verificable)\]|\*\*(.+?)\*\*|(?<![\w*])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?!\w)|(https?:\/\/[^\s<[]+)/g;
+// Em needs a non-word edge so `Q* ... P*` stays text.
+const INLINE_RE = /`([^`]+)`|\*\*(.+?)\*\*|(?<![\w*])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?!\w)|(https?:\/\/[^\s<]+)/g;
 
 const URL_TRAILING_RE = /[.,:;!?"»\]]+$/;
 
@@ -45,12 +38,9 @@ export function parseInline(source: string): Inline[] {
   for (const match of source.matchAll(INLINE_RE)) {
     const index = match.index;
     if (index > last) out.push({ kind: 'text', text: source.slice(last, index) });
-    const [whole, code, level, note, caveat, strong, em, url = ''] = match;
-    const evidence = EVIDENCE_LEVELS.find((value) => value === level);
+    const [whole, code, strong, em, url = ''] = match;
     let consumed = whole;
     if (code !== undefined) out.push({ kind: 'code', text: code });
-    else if (evidence !== undefined) out.push({ kind: 'evidence', level: evidence, note: note?.trim() ?? null });
-    else if (caveat !== undefined) out.push({ kind: 'caveat', text: caveat });
     else if (strong !== undefined) out.push({ kind: 'strong', children: parseInline(strong) });
     else if (em !== undefined) out.push({ kind: 'em', children: parseInline(em) });
     else {
@@ -69,15 +59,12 @@ function plainText(content: Inline[]): string {
       switch (node.kind) {
         case 'text':
         case 'code':
-        case 'caveat':
           return node.text;
         case 'strong':
         case 'em':
           return plainText(node.children);
         case 'link':
           return node.href;
-        case 'evidence':
-          return node.note === null ? `[${node.level}]` : `[${node.level}, ${node.note}]`;
       }
     })
     .join('');
