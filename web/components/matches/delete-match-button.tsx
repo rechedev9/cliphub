@@ -29,7 +29,7 @@ export function DeleteMatchButton({
 }: {
   label: string;
   /** The armed button's text; name there what else the delete takes with it. */
-  confirmText?: string;
+  confirmText?: string | undefined;
   onConfirm: () => Promise<void>;
   onDeleted: () => void;
 }) {

@@ -37,5 +37,5 @@ test('the delete prompt of a folded demo counts the videos of all its jobs', () 
   const [mirage, anubis] = oneRowPerDemo([row('pov', HUB_ROW_STAGE.ready, 'sha-mirage', 2), row('short', HUB_ROW_STAGE.ready, 'sha-mirage', 1), row('anubis', HUB_ROW_STAGE.ready, 'sha-anubis')]);
   assert.ok(mirage !== undefined && anubis !== undefined);
   assert.equal(demoDeletePrompt(mirage), '¿Borrar con 2 vídeos?');
-  assert.equal(demoDeletePrompt(anubis), '¿Borrar?');
+  assert.equal(demoDeletePrompt(anubis), undefined);
 });
