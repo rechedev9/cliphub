@@ -318,9 +318,11 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       </div>
       {unlinkedJobs > 0 ? <CrearBacklog count={unlinkedJobs} busy={linking} onLink={() => void linkCrearDemos()} /> : null}
       {notice ? <p role="status" className="text-body-sm text-fg-2">{notice}</p> : null}
-      {offline ? (
+      {offline || failed ? (
         <p role="alert" className="text-body-sm text-destructive">
-          Se perdió la conexión con el servicio local; la tabla muestra la última lectura.
+          {offline
+            ? 'Se perdió la conexión con el servicio local; la tabla muestra la última lectura.'
+            : 'El servicio local respondió con un error; la tabla muestra la última lectura.'}
         </p>
       ) : null}
       <FilterBar

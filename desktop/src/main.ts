@@ -281,6 +281,11 @@ function saveWindowBounds(): void {
 // Guards mainWindow.reload() so a crash-loop in the renderer reloads once
 // instead of hammering a dead server forever.
 let renderProcessGoneReloaded = false;
+
+// The dark --surface-1 and --fg-1 of web/app/globals.css, Studio's default
+// theme, for the screens shown before the web UI exists.
+const BOOT_SURFACE = '#121314';
+const BOOT_INK = '#f3f3f4';
 let renderProcessGoneResetTimer: NodeJS.Timeout | null = null;
 
 // After this, a later unrelated crash gets its own free reload.
@@ -290,8 +295,7 @@ function createWindow(): BrowserWindow {
   const { bounds, isMaximized } = loadWindowState();
   const win = new BrowserWindow({
     ...bounds,
-    // The dark --surface-1 of web/app/globals.css, Studio's default theme.
-    backgroundColor: '#121314',
+    backgroundColor: BOOT_SURFACE,
     title: 'ClipHub Studio',
     webPreferences: {
       // Leave throttling on when hidden so the GPU can sleep.
@@ -403,8 +407,8 @@ function showErrorScreen(err: unknown, title?: string, hint?: string): void {
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
     <style>
-      body{font:15px/1.5 "Segoe UI",system-ui,sans-serif;background:#121314;color:#f3f3f4;padding:2rem}
-      a.retry{display:inline-block;margin-top:1rem;padding:.5rem 1rem;background:#f3f3f4;color:#121314;
+      body{font:15px/1.5 "Segoe UI",system-ui,sans-serif;background:${BOOT_SURFACE};color:${BOOT_INK};padding:2rem}
+      a.retry{display:inline-block;margin-top:1rem;padding:.5rem 1rem;background:${BOOT_INK};color:${BOOT_SURFACE};
         font-weight:600;text-decoration:none;border-radius:6px}
     </style></head>
     <body>
