@@ -290,7 +290,8 @@ function createWindow(): BrowserWindow {
   const { bounds, isMaximized } = loadWindowState();
   const win = new BrowserWindow({
     ...bounds,
-    backgroundColor: '#0a0a0a',
+    // The dark --surface-1 of web/app/globals.css, Studio's default theme.
+    backgroundColor: '#121314',
     title: 'ClipHub Studio',
     webPreferences: {
       // Leave throttling on when hidden so the GPU can sleep.
@@ -402,16 +403,16 @@ function showErrorScreen(err: unknown, title?: string, hint?: string): void {
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
     <style>
-      body{font:16px system-ui;background:#0a0a0a;color:#eee;padding:2rem}
-      a.retry{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;background:#22d9ee;color:#04121a;
-        font-weight:600;text-decoration:none;border-radius:4px}
+      body{font:15px/1.5 "Segoe UI",system-ui,sans-serif;background:#121314;color:#f3f3f4;padding:2rem}
+      a.retry{display:inline-block;margin-top:1rem;padding:.5rem 1rem;background:#f3f3f4;color:#121314;
+        font-weight:600;text-decoration:none;border-radius:6px}
     </style></head>
     <body>
       <h2>${escapeHtml(title || defaultTitle)}</h2>
       <p>${escapeHtml(err)}</p>
-      <p style="color:#999">${hint || defaultHint} Registro completo: ${escapeHtml(logFile)}</p>
+      <p style="color:#b9babd">${hint || defaultHint} Registro completo: ${escapeHtml(logFile)}</p>
       <a class="retry" href="${RETRY_URL}">Reintentar</a>
-      <pre style="background:#111;padding:1rem;overflow:auto;max-height:40vh;font-size:12px">${logTail()}</pre>
+      <pre style="background:#1a1b1d;border:1px solid #2a2b2e;border-radius:6px;padding:1rem;overflow:auto;max-height:40vh;font-size:12px">${logTail()}</pre>
     </body></html>`;
   const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   // Only the error screen currently on display is a trusted navigation
