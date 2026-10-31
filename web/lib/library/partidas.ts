@@ -113,6 +113,11 @@ export function matchScoreLabel(match: LibraryMatch): string {
   return `${teamByKey(match, 'ct-start')?.score ?? 0}-${teamByKey(match, 't-start')?.score ?? 0}`;
 }
 
+/** Rounds between the two final scores: what sorting by Marcador ranks, from the tightest game to the widest win. */
+export function matchScoreMargin(match: LibraryMatch): number {
+  return Math.abs((teamByKey(match, 'ct-start')?.score ?? 0) - (teamByKey(match, 't-start')?.score ?? 0));
+}
+
 export type Outcome = 'win' | 'loss' | 'draw';
 
 /** How a library team fared in a match, or null when it did not play it. */

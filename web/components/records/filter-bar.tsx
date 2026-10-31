@@ -25,6 +25,8 @@ export type FilterBarProps = {
   searchPlaceholder?: string;
   /** "12 de 40 partidas": what the filters leave on screen. */
   count?: { readonly shown: number; readonly total: number; readonly noun: string };
+  /** Puts the selects on a row of their own under the search and the count, for lists with many filters. */
+  stacked?: boolean;
   className?: string;
 };
 
@@ -36,9 +38,44 @@ export function FilterBar({
   onReset,
   searchPlaceholder = 'Buscar',
   count,
+  stacked = false,
   className,
 }: FilterBarProps): ReactNode {
   const active = activeFilterCount(values);
+  const selects = filters.map((filter) => {
+    const value = values[filter.id] ?? FILTER_ANY;
+    return (
+      <Select
+        key={filter.id}
+        value={value === FILTER_ANY ? ANY_OPTION : value}
+        onValueChange={(next) => onChange(filter.id, next === ANY_OPTION ? FILTER_ANY : next)}
+      >
+        <SelectTrigger aria-label={filter.label} className="h-9 min-w-36">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY_OPTION}>{`${filter.label}: todos`}</SelectItem>
+          {filter.options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  });
+  const reset =
+    active > 0 ? (
+      <Button type="button" variant="ghost" size="sm" className="h-9" onClick={onReset}>
+        <X aria-hidden />
+        Limpiar filtros
+      </Button>
+    ) : null;
+  const shownCount = count ? (
+    <span role="status" className="ml-auto text-body-sm text-fg-3">
+      {count.shown === count.total ? `${count.total} ${count.noun}` : `${count.shown} de ${count.total} ${count.noun}`}
+    </span>
+  ) : null;
   return (
     <div role="search" className={className ?? 'flex flex-wrap items-center gap-2'}>
       <label className="relative min-w-48 flex-1 basis-56 sm:max-w-80">
@@ -52,39 +89,21 @@ export function FilterBar({
           className="h-9 pl-9"
         />
       </label>
-      {filters.map((filter) => {
-        const value = values[filter.id] ?? FILTER_ANY;
-        return (
-          <Select
-            key={filter.id}
-            value={value === FILTER_ANY ? ANY_OPTION : value}
-            onValueChange={(next) => onChange(filter.id, next === ANY_OPTION ? FILTER_ANY : next)}
-          >
-            <SelectTrigger aria-label={filter.label} className="h-9 min-w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY_OPTION}>{`${filter.label}: todos`}</SelectItem>
-              {filter.options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      })}
-      {active > 0 ? (
-        <Button type="button" variant="ghost" size="sm" className="h-9" onClick={onReset}>
-          <X aria-hidden />
-          Limpiar filtros
-        </Button>
-      ) : null}
-      {count ? (
-        <span role="status" className="ml-auto text-body-sm text-fg-3">
-          {count.shown === count.total ? `${count.total} ${count.noun}` : `${count.shown} de ${count.total} ${count.noun}`}
-        </span>
-      ) : null}
+      {stacked ? (
+        <>
+          {shownCount}
+          <div className="flex basis-full flex-wrap items-center gap-2">
+            {selects}
+            {reset}
+          </div>
+        </>
+      ) : (
+        <>
+          {selects}
+          {reset}
+          {shownCount}
+        </>
+      )}
     </div>
   );
 }

@@ -49,10 +49,12 @@ export type DataTableProps<Row> = {
   rowHref?: (row: Row) => string | undefined;
   /** Rendered instead of the body when no row is left. */
   empty?: ReactNode;
+  /** Controls that share the row of the views and columns menus, such as the list's FilterBar. */
+  toolbar?: ReactNode;
 };
 
 /** Dense, sortable record list with configurable columns and saved views. */
-export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty }: DataTableProps<Row>): ReactNode {
+export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar }: DataTableProps<Row>): ReactNode {
   const router = useRouter();
   const { sort, hidden } = view.state;
   const visible = columns.filter((column) => column.required === true || !hidden.includes(column.id));
@@ -66,9 +68,13 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-end gap-2">
-        <SavedViewsMenu view={view} />
-        <ColumnsMenu columns={columns} hidden={hidden} onToggle={view.toggleColumn} />
+      <div className="flex flex-wrap items-start gap-2">
+        {toolbar}
+        {/* As tall as one FilterBar row, so the menus stay level with its first line when it wraps. */}
+        <div className="ml-auto flex h-9 shrink-0 items-center gap-2">
+          <SavedViewsMenu view={view} />
+          <ColumnsMenu columns={columns} hidden={hidden} onToggle={view.toggleColumn} />
+        </div>
       </div>
       <div className="studio-panel overflow-x-auto">
         <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
@@ -90,11 +96,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                       <button
                         type="button"
                         onClick={() => view.setSort(nextSort(sort, column.id))}
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-sm hover:text-fg-1',
-                          direction !== null && 'text-fg-1',
-                          column.align === 'end' && 'flex-row-reverse',
-                        )}
+                        className={cn('inline-flex items-center gap-1 rounded-sm hover:text-fg-1', direction !== null && 'text-fg-1')}
                       >
                         {column.header}
                         <SortGlyph direction={direction} />
