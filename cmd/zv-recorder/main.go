@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -1382,11 +1383,11 @@ func ensureHLAEFFmpegConfig(hlaeExe, configured string) error {
 	}
 	ini := filepath.Join(dir, "ffmpeg.ini")
 	if configured != "" {
-		content := fmt.Sprintf("[Ffmpeg]\r\nPath=%s\r\n", configured)
-		if current, err := os.ReadFile(ini); err == nil && string(current) == content {
+		content := recording.HLAEFFmpegINI(configured)
+		if current, err := os.ReadFile(ini); err == nil && bytes.Equal(current, content) {
 			return nil
 		}
-		return os.WriteFile(ini, []byte(content), 0o600)
+		return os.WriteFile(ini, content, 0o600)
 	}
 	if _, err := os.Stat(ini); err == nil {
 		return nil
@@ -1395,8 +1396,7 @@ func ensureHLAEFFmpegConfig(hlaeExe, configured string) error {
 	if err != nil {
 		return fmt.Errorf("HLAE FFmpeg config missing: install ffmpeg under %s or create %s", filepath.Join(dir, "bin"), ini)
 	}
-	content := fmt.Sprintf("[Ffmpeg]\r\nPath=%s\r\n", ffmpegPath)
-	return os.WriteFile(ini, []byte(content), 0o600)
+	return os.WriteFile(ini, recording.HLAEFFmpegINI(ffmpegPath), 0o600)
 }
 
 func locateHookDLL(hlaeExe string) (string, error) {

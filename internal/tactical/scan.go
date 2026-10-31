@@ -398,6 +398,11 @@ func (s *scanner) dropReplayedRounds(number int) int {
 		kept--
 	}
 	dropped := len(s.rounds) - kept
+	if dropped > 0 {
+		// A restore across halftime replays the earlier half, and GameHalfEnded
+		// does not fire backwards.
+		s.half = s.rounds[kept].half
+	}
 	s.rounds = s.rounds[:kept]
 	return dropped
 }

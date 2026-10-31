@@ -278,6 +278,9 @@ func titleWord(raw string) string {
 		return strings.ToUpper(lower)
 	case "cs2":
 		return "CS2"
+	case "of":
+		// Inferno's "Top of Mid" and the placename table keep it lowercase.
+		return lower
 	default:
 		return strings.ToUpper(lower[:1]) + lower[1:]
 	}

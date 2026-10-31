@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Match, Video } from '../api/types.ts';
 import { HUB_ROW_STAGE, toOutput, type HubMatch, type HubRowStage } from '../clips/hub.ts';
-import { oneRowPerDemo } from './demo-rows.ts';
+import { demoDeletePrompt, oneRowPerDemo } from './demo-rows.ts';
 
 function row(id: string, stage: HubRowStage, demoSha256?: string, shortAt?: number): HubMatch {
   const match: Match = {
@@ -31,4 +31,11 @@ test('jobs of the same demo fold into one row that opens the newest ready job', 
 test('a demo with no ready job shows its newest job, and jobs without a checksum stay apart', () => {
   const groups = oneRowPerDemo([row('b', HUB_ROW_STAGE.failed, 'sha'), row('a', HUB_ROW_STAGE.parsing, 'sha'), row('x', HUB_ROW_STAGE.ready), row('y', HUB_ROW_STAGE.ready)]);
   assert.deepEqual(groups.map((group) => group.match.id), ['b', 'x', 'y']);
+});
+
+test('the delete prompt of a folded demo counts the videos of all its jobs', () => {
+  const [mirage, anubis] = oneRowPerDemo([row('pov', HUB_ROW_STAGE.ready, 'sha-mirage', 2), row('short', HUB_ROW_STAGE.ready, 'sha-mirage', 1), row('anubis', HUB_ROW_STAGE.ready, 'sha-anubis')]);
+  assert.ok(mirage !== undefined && anubis !== undefined);
+  assert.equal(demoDeletePrompt(mirage), '¿Borrar con 2 vídeos?');
+  assert.equal(demoDeletePrompt(anubis), '¿Borrar?');
 });

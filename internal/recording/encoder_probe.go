@@ -48,11 +48,8 @@ func HLAEStreamFFmpeg(hlaeExe, configured string) string {
 		return configured
 	}
 	if data, err := os.ReadFile(filepath.Join(dir, "ffmpeg.ini")); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if path, ok := strings.CutPrefix(line, "Path="); ok && strings.TrimSpace(path) != "" {
-				return strings.TrimSpace(path)
-			}
+		if path := HLAEFFmpegINIPath(data); path != "" {
+			return path
 		}
 	}
 	return FindFFmpeg()

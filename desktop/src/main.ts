@@ -15,7 +15,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { escapeHtml } from './escaping';
 import { StreamDownloads } from './stream-downloads';
 import {
@@ -819,10 +819,19 @@ function registerStudioClipboardIPC(): void {
 // in-memory session, and no request beyond the report file itself.
 const REPORT_PDF_PARTITION = 'cliphub-report-pdf';
 
+// Compares paths, not URL strings: Node and Chromium escape '%', '[' and ']'
+// in a temp path differently.
+function isReportFile(url: string, file: string): boolean {
+  try {
+    return path.normalize(fileURLToPath(url)).toLowerCase() === path.normalize(file).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 async function renderReportPdf(html: string): Promise<Buffer> {
   const dir = await fs.promises.mkdtemp(path.join(app.getPath('temp'), 'cliphub-report-'));
   const file = path.join(dir, 'informe.html');
-  const fileURL = pathToFileURL(file).href;
   await fs.promises.writeFile(file, html, 'utf8');
   const printer = new BrowserWindow({
     show: false,
@@ -836,7 +845,7 @@ async function renderReportPdf(html: string): Promise<Buffer> {
   });
   try {
     printer.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-      callback({ cancel: details.url !== fileURL });
+      callback({ cancel: !isReportFile(details.url, file) });
     });
     printer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     printer.webContents.on('will-navigate', (event) => event.preventDefault());

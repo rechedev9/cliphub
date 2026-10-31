@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { FileUp, Link2, MonitorPlay, PlugZap, RefreshCw, Swords } from 'lucide-react';
+import { FileUp, Link2, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
@@ -172,6 +172,8 @@ export function MatchLibrary(): ReactNode {
 function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [offline, setOffline] = useState(false);
+  // A read that failed for another reason than an absent service.
+  const [failed, setFailed] = useState(false);
   const [linking, setLinking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const view = useTableView('partidas', initialView(search));
@@ -183,9 +185,12 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       const next = await loadLibrary();
       setLoaded(next);
       setOffline(false);
+      setFailed(false);
       pendingRef.current = next.rows.some(isPending);
     } catch (error) {
-      setOffline(isLibraryOffline(error));
+      const absent = isLibraryOffline(error);
+      setOffline(absent);
+      setFailed(!absent);
       setLoaded((current) => current ?? { rows: [], unlinkedJobs: 0 });
     }
   }, []);
@@ -237,6 +242,20 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           icon={PlugZap}
           title="Servicio local sin conexión"
           description="No se pudo leer la biblioteca de partidas. Comprueba que ClipHub Studio sigue abierto y vuelve a intentarlo."
+          actions={
+            <Button type="button" variant="outline" size="sm" onClick={() => pollRef.current()}>
+              Reintentar
+            </Button>
+          }
+        />
+      );
+    }
+    if (failed) {
+      return (
+        <EmptyState
+          icon={TriangleAlert}
+          title="No se pudo leer la biblioteca"
+          description="El servicio local respondió con un error al listar las partidas. Vuelve a intentarlo."
           actions={
             <Button type="button" variant="outline" size="sm" onClick={() => pollRef.current()}>
               Reintentar

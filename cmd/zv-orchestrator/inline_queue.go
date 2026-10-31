@@ -552,10 +552,11 @@ func (q *inlineQueue) finishClosePending(ctx context.Context) error {
 }
 
 var demoReadingTasks = map[string]bool{
-	tasks.TypeParseDemo:        true,
-	tasks.TypeScanRoster:       true,
-	tasks.TypeAnalyzeAnticheat: true,
-	tasks.TypeAnalyzeTactical:  true,
+	tasks.TypeParseDemo:          true,
+	tasks.TypeScanRoster:         true,
+	tasks.TypeAnalyzeAnticheat:   true,
+	tasks.TypeAnalyzeTactical:    true,
+	tasks.TypeAnalyzeLibraryDemo: true,
 }
 
 func (q *inlineQueue) run(ctx context.Context, lane *inlineTaskQueue, runnable func(inlineTask) bool) {

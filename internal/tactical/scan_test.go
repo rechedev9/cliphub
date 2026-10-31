@@ -114,10 +114,14 @@ func TestTeamsComeFromTheFirstCountedRoundNotTheFirstSighting(t *testing.T) {
 }
 
 func TestBackupRestoreReplacesTheReplayedRounds(t *testing.T) {
-	// A demo that starts at round 7 and restores round 9 from a backup after it.
-	s := &scanner{rounds: []*roundAcc{{number: 7}, {number: 8}, {number: 9}, {number: 10}}}
+	// A demo that starts at round 7 and, in the second half, restores round 9
+	// of the first half from a backup.
+	s := &scanner{half: 2, rounds: []*roundAcc{{number: 7, half: 1}, {number: 8, half: 1}, {number: 9, half: 1}, {number: 10, half: 2}}}
 	if dropped := s.dropReplayedRounds(9); dropped != 2 {
 		t.Fatalf("dropReplayedRounds(9) = %d, want 2", dropped)
+	}
+	if s.half != 1 {
+		t.Fatalf("half after the restore = %d, want 1", s.half)
 	}
 	if dropped := s.dropReplayedRounds(9); dropped != 0 {
 		t.Fatalf("second dropReplayedRounds(9) = %d, want 0", dropped)

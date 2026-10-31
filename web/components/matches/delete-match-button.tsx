@@ -22,10 +22,13 @@ const REVERT_MS = 8000;
  */
 export function DeleteMatchButton({
   label,
+  confirmText = '¿Borrar?',
   onConfirm,
   onDeleted,
 }: {
   label: string;
+  /** The armed button's text; name there what else the delete takes with it. */
+  confirmText?: string;
   onConfirm: () => Promise<void>;
   onDeleted: () => void;
 }) {
@@ -83,11 +86,11 @@ export function DeleteMatchButton({
           loading={deleting}
           onClick={() => void confirm()}
           onBlur={disarm}
-          aria-label={`Confirmar borrar ${label}`}
+          aria-label={`Confirmar borrar ${label}: ${confirmText}`}
           className="text-meta"
         >
           {deleting ? null : <Trash2 aria-hidden />}
-          {deleting ? 'Borrando…' : '¿Borrar?'}
+          {deleting ? 'Borrando…' : confirmText}
         </Button>
       ) : (
         <Button
