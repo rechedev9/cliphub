@@ -55,6 +55,7 @@ func TestDisplayPlaceNameKeepsTheWordsOfCS2PlaceTokens(t *testing.T) {
 	tests := map[string]string{
 		"PalaceInterior":   "Palace Interior",
 		"TopofMid":         "Top of Mid",
+		"Top of Mid":       "Top of Mid",
 		"BombsiteA":        "Bombsite A",
 		"CTSpawn":          "CT Spawn",
 		"B tunnels":        "B Tunnels",

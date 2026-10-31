@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { Film } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamPlaybackItem } from '@/lib/api/playback';
@@ -28,7 +29,7 @@ import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
-import { CreationPaths } from '@/components/studio/creation-paths';
+import { EmptyState } from '@/components/records/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -159,10 +160,11 @@ export default function ResultsPage(): ReactNode {
       <div className="measure-list flex flex-col gap-6">
         {header}
         {banner}
-        <p className="rounded-[10px] border border-dashed border-border-subtle p-6 text-body text-fg-2">
-          Aún no has creado ningún vídeo. Empieza por uno de estos flujos: lo que crees aparecerá aquí.
-        </p>
-        <CreationPaths />
+        <EmptyState
+          icon={Film}
+          title="Aún no hay vídeos"
+          description="Los Shorts, vídeos largos y clips de stream que crees aparecerán aquí, ordenados por fecha."
+        />
       </div>
     );
   }

@@ -12,69 +12,34 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
     <title>ClipHub Studio</title>
     <style>
+      /* The dark tokens of web/app/globals.css (Studio's default theme),
+         inlined because this page loads before the web server exists. */
+      :root {
+        --surface-1: oklch(0.185 0.003 264);
+        --fg-1: oklch(0.96 0.002 264);
+        --fg-2: oklch(0.79 0.004 264);
+        --fg-3: oklch(0.68 0.005 264);
+        --border: oklch(1 0 0 / 0.1);
+      }
       html, body { height: 100%; margin: 0; }
       body {
         display: flex; align-items: center; justify-content: center;
-        position: relative;
-        overflow: hidden;
-        background: #060a14;
-        color: #eafcff;
-        font: 15px/1.5 ui-monospace, "Cascadia Code", "Consolas", "SFMono-Regular", monospace;
+        background: var(--surface-1);
+        color: var(--fg-1);
+        font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
       }
-      /* NEON HUD grid — same 48px cyan grid as web/app/globals.css .neon-grid,
-         inlined since this file loads with no network access. */
-      body::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(34, 217, 238, .04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(34, 217, 238, .04) 1px, transparent 1px);
-        background-size: 48px 48px;
-        pointer-events: none;
-      }
-      /* Scanlines overlay, matching .neon-scanlines. */
-      body::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 4px);
-        pointer-events: none;
-      }
-      .box { position: relative; text-align: center; }
-      .wordmark {
-        font: 700 20px/1 "Segoe UI", system-ui, sans-serif;
-        letter-spacing: .04em;
-        color: #eafcff;
-      }
-      .wordmark .slashes { color: #22d9ee; }
-      .katakana {
-        margin-top: 4px;
-        font-size: 10px;
-        letter-spacing: .26em;
-        color: #ff2d78;
-      }
+      .box { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 28rem; padding: 0 24px; text-align: center; }
+      .wordmark { font: 600 20px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
       .spinner {
-        width: 34px; height: 34px; margin: 28px auto 16px;
-        border: 3px solid rgba(34, 217, 238, .18);
-        border-top-color: #22d9ee;
+        width: 22px; height: 22px; margin: 22px 0 12px;
+        border: 2px solid var(--border);
+        border-top-color: var(--fg-2);
         border-radius: 50%;
-        box-shadow: 0 0 14px rgba(34, 217, 238, .35);
-        animation: spin 0.8s linear infinite;
+        animation: spin 0.9s linear infinite;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
-      .status {
-        font-size: 12px;
-        letter-spacing: .12em;
-        text-transform: uppercase;
-        color: #eafcff;
-      }
-      .muted {
-        margin-top: .5rem;
-        font-size: 10.5px;
-        letter-spacing: .1em;
-        color: #5b6d80;
-      }
+      .status { font-size: 14px; color: var(--fg-1); }
+      .muted { font-size: 12.5px; color: var(--fg-3); }
       @media (prefers-reduced-motion: reduce) {
         .spinner { animation: none; }
       }
@@ -82,14 +47,12 @@
   </head>
   <body>
     <div class="box">
-      <div class="wordmark">CLIP<span class="slashes">//</span>HUB</div>
-      <div class="katakana">クリップ・ハブ</div>
+      <div class="wordmark">ClipHub Studio</div>
       <div class="spinner"></div>
       <!-- id="status": main.js's setLoadingStatus() updates this textContent as boot
            progresses (choosing ports, provisioning tools, starting each server). -->
       <div class="status" id="status">Arrancando ClipHub Studio</div>
-      <div class="muted">ORQUESTADOR + CAPTURA LOCAL (HLAE/CS2)</div>
-      <div class="muted">EL PRIMER ARRANQUE DESCARGA DEPENDENCIAS (~110 MB); LOS SIGUIENTES SON INSTANTÁNEOS</div>
+      <div class="muted">El primer arranque descarga las herramientas (unos 110 MB). Los siguientes son inmediatos.</div>
     </div>
   </body>
 </html>

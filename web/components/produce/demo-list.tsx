@@ -25,7 +25,7 @@ import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FLOW_PRODUCE_CTA } from '@/lib/produce/copy';
-import { oneRowPerDemo, type DemoRowGroup } from '@/lib/produce/demo-rows';
+import { demoDeletePrompt, oneRowPerDemo, type DemoRowGroup } from '@/lib/produce/demo-rows';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
@@ -118,7 +118,7 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
         {anyMade ? (
           <Button asChild size="sm" variant="ghost">
             <Link href={RESULTS_HREF}>
-              Ver resultados
+              Ver en Mis vídeos
               <ArrowRight aria-hidden />
             </Link>
           </Button>
@@ -229,7 +229,7 @@ function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
             </Link>
           </Button>
         ) : null}
-        <DeleteMatchButton label={prettyMapName(match.map)} onConfirm={() => deleteJobs(row.jobIds, onChange)} onDeleted={onChange} />
+        <DeleteMatchButton label={prettyMapName(match.map)} confirmText={demoDeletePrompt(row)} onConfirm={() => deleteJobs(row.jobIds, onChange)} onDeleted={onChange} />
       </span>
     </article>
   );

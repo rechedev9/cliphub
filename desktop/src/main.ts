@@ -15,7 +15,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { escapeHtml } from './escaping';
 import { StreamDownloads } from './stream-downloads';
 import {
@@ -281,6 +281,11 @@ function saveWindowBounds(): void {
 // Guards mainWindow.reload() so a crash-loop in the renderer reloads once
 // instead of hammering a dead server forever.
 let renderProcessGoneReloaded = false;
+
+// The dark --surface-1 and --fg-1 of web/app/globals.css, Studio's default
+// theme, for the screens shown before the web UI exists.
+const BOOT_SURFACE = '#121314';
+const BOOT_INK = '#f3f3f4';
 let renderProcessGoneResetTimer: NodeJS.Timeout | null = null;
 
 // After this, a later unrelated crash gets its own free reload.
@@ -290,7 +295,7 @@ function createWindow(): BrowserWindow {
   const { bounds, isMaximized } = loadWindowState();
   const win = new BrowserWindow({
     ...bounds,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: BOOT_SURFACE,
     title: 'ClipHub Studio',
     webPreferences: {
       // Leave throttling on when hidden so the GPU can sleep.
@@ -402,16 +407,16 @@ function showErrorScreen(err: unknown, title?: string, hint?: string): void {
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
     <style>
-      body{font:16px system-ui;background:#0a0a0a;color:#eee;padding:2rem}
-      a.retry{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;background:#22d9ee;color:#04121a;
-        font-weight:600;text-decoration:none;border-radius:4px}
+      body{font:15px/1.5 "Segoe UI",system-ui,sans-serif;background:${BOOT_SURFACE};color:${BOOT_INK};padding:2rem}
+      a.retry{display:inline-block;margin-top:1rem;padding:.5rem 1rem;background:${BOOT_INK};color:${BOOT_SURFACE};
+        font-weight:600;text-decoration:none;border-radius:6px}
     </style></head>
     <body>
       <h2>${escapeHtml(title || defaultTitle)}</h2>
       <p>${escapeHtml(err)}</p>
-      <p style="color:#999">${hint || defaultHint} Registro completo: ${escapeHtml(logFile)}</p>
+      <p style="color:#b9babd">${hint || defaultHint} Registro completo: ${escapeHtml(logFile)}</p>
       <a class="retry" href="${RETRY_URL}">Reintentar</a>
-      <pre style="background:#111;padding:1rem;overflow:auto;max-height:40vh;font-size:12px">${logTail()}</pre>
+      <pre style="background:#1a1b1d;border:1px solid #2a2b2e;border-radius:6px;padding:1rem;overflow:auto;max-height:40vh;font-size:12px">${logTail()}</pre>
     </body></html>`;
   const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   // Only the error screen currently on display is a trusted navigation
@@ -819,10 +824,19 @@ function registerStudioClipboardIPC(): void {
 // in-memory session, and no request beyond the report file itself.
 const REPORT_PDF_PARTITION = 'cliphub-report-pdf';
 
+// Compares paths, not URL strings: Node and Chromium escape '%', '[' and ']'
+// in a temp path differently.
+function isReportFile(url: string, file: string): boolean {
+  try {
+    return path.normalize(fileURLToPath(url)).toLowerCase() === path.normalize(file).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 async function renderReportPdf(html: string): Promise<Buffer> {
   const dir = await fs.promises.mkdtemp(path.join(app.getPath('temp'), 'cliphub-report-'));
   const file = path.join(dir, 'informe.html');
-  const fileURL = pathToFileURL(file).href;
   await fs.promises.writeFile(file, html, 'utf8');
   const printer = new BrowserWindow({
     show: false,
@@ -836,7 +850,7 @@ async function renderReportPdf(html: string): Promise<Buffer> {
   });
   try {
     printer.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-      callback({ cancel: details.url !== fileURL });
+      callback({ cancel: !isReportFile(details.url, file) });
     });
     printer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     printer.webContents.on('will-navigate', (event) => event.preventDefault());

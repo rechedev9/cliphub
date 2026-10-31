@@ -1440,7 +1440,7 @@ func TestEnsureHLAEFFmpegConfig(t *testing.T) {
 		bundled    bool
 		want       string
 	}{
-		{name: "configured ffmpeg replaces the ini", configured: `C:\studio\ffmpeg.exe`, want: "[Ffmpeg]\r\nPath=C:\\studio\\ffmpeg.exe\r\n"},
+		{name: "configured ffmpeg replaces the ini", configured: `C:\Users\José\ffmpeg.exe`, want: string(recording.HLAEFFmpegINI(`C:\Users\José\ffmpeg.exe`))},
 		{name: "without one the ini is kept", want: older},
 		{name: "HLAE's own ffmpeg leaves the ini alone", configured: `C:\studio\ffmpeg.exe`, bundled: true, want: older},
 	}

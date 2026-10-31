@@ -7,6 +7,7 @@ import { deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 
 /** How long the armed "¿Borrar?" state waits before reverting on its own. */
 const REVERT_MS = 8000;
+const DEFAULT_CONFIRM = '¿Borrar?';
 
 /**
  * Two-step inline delete for a Partidas row (match or series). The first click
@@ -22,10 +23,13 @@ const REVERT_MS = 8000;
  */
 export function DeleteMatchButton({
   label,
+  confirmText = DEFAULT_CONFIRM,
   onConfirm,
   onDeleted,
 }: {
   label: string;
+  /** The armed button's text; name there what else the delete takes with it. */
+  confirmText?: string | undefined;
   onConfirm: () => Promise<void>;
   onDeleted: () => void;
 }) {
@@ -83,11 +87,11 @@ export function DeleteMatchButton({
           loading={deleting}
           onClick={() => void confirm()}
           onBlur={disarm}
-          aria-label={`Confirmar borrar ${label}`}
+          aria-label={confirmText === DEFAULT_CONFIRM ? `Confirmar borrar ${label}` : `Confirmar borrar ${label}: ${confirmText}`}
           className="text-meta"
         >
           {deleting ? null : <Trash2 aria-hidden />}
-          {deleting ? 'Borrando…' : '¿Borrar?'}
+          {deleting ? 'Borrando…' : confirmText}
         </Button>
       ) : (
         <Button

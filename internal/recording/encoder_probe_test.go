@@ -52,6 +52,10 @@ func TestHLAEStreamFFmpeg(t *testing.T) {
 			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\tools\\ffmpeg.exe\r\n")
 			return `C:\tools\ffmpeg.exe`
 		}},
+		{name: "UTF-16 ini with a non-ASCII path", setup: func(t *testing.T, dir string) string {
+			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), string(HLAEFFmpegINI(`C:\Users\José Núñez\ffmpeg.exe`)))
+			return `C:\Users\José Núñez\ffmpeg.exe`
+		}},
 		// zv-recorder rewrites the ini with the ffmpeg Studio provisions, so the probe tests that binary.
 		{name: "configured ffmpeg wins over an older ini", configured: `C:\studio\ffmpeg.exe`, setup: func(t *testing.T, dir string) string {
 			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\winget\\ffmpeg.exe\r\n")
