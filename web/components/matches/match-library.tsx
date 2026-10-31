@@ -171,9 +171,8 @@ export function MatchLibrary(): ReactNode {
 
 function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [offline, setOffline] = useState(false);
-  // A read that failed for another reason than an absent service.
-  const [failed, setFailed] = useState(false);
+  // Why the last library read failed: the service is absent, or it answered with an error.
+  const [readError, setReadError] = useState<'offline' | 'error' | null>(null);
   const [linking, setLinking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const view = useTableView('partidas', initialView(search));
@@ -184,13 +183,10 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     try {
       const next = await loadLibrary();
       setLoaded(next);
-      setOffline(false);
-      setFailed(false);
+      setReadError(null);
       pendingRef.current = next.rows.some(isPending);
     } catch (error) {
-      const absent = isLibraryOffline(error);
-      setOffline(absent);
-      setFailed(!absent);
+      setReadError(isLibraryOffline(error) ? 'offline' : 'error');
       setLoaded((current) => current ?? { rows: [], unlinkedJobs: 0 });
     }
   }, []);
@@ -236,7 +232,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const importer = <DemoImport onImported={() => pollRef.current()} />;
 
   if (rows.length === 0) {
-    if (offline) {
+    if (readError === 'offline') {
       return (
         <EmptyState
           icon={PlugZap}
@@ -250,7 +246,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         />
       );
     }
-    if (failed) {
+    if (readError === 'error') {
       return (
         <EmptyState
           icon={TriangleAlert}
@@ -318,9 +314,9 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       </div>
       {unlinkedJobs > 0 ? <CrearBacklog count={unlinkedJobs} busy={linking} onLink={() => void linkCrearDemos()} /> : null}
       {notice ? <p role="status" className="text-body-sm text-fg-2">{notice}</p> : null}
-      {offline || failed ? (
+      {readError !== null ? (
         <p role="alert" className="text-body-sm text-destructive">
-          {offline
+          {readError === 'offline'
             ? 'Se perdió la conexión con el servicio local; la tabla muestra la última lectura.'
             : 'El servicio local respondió con un error; la tabla muestra la última lectura.'}
         </p>
