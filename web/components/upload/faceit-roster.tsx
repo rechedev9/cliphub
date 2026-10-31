@@ -104,10 +104,10 @@ const GRID_CLASS =
 const HEAD_TIER = ['', 'hidden @[48rem]/content:block', 'hidden @[62rem]/content:block'] as const;
 const CELL_TIER = ['flex', 'hidden @[48rem]/content:flex', 'hidden @[62rem]/content:flex'] as const;
 
-// FACEIT tells the two factions apart by colour; the theme's cyan and green
-// keep that without borrowing FACEIT's palette.
+// FACEIT tells the two factions apart by colour; two chart colours keep that
+// without borrowing FACEIT's palette.
 const TEAM_TINTS = [
-  { cell: 'bg-primary/12', bar: 'bg-primary' },
+  { cell: 'bg-chart-1/12', bar: 'bg-chart-1' },
   { cell: 'bg-success/10', bar: 'bg-success' },
 ] as const;
 
@@ -133,7 +133,7 @@ export function FaceitRoster({ board, selected, onSelect, selectable, recommende
           href={board.roomUrl}
           target="_blank"
           rel="noreferrer"
-          className={cn('inline-flex items-center gap-1.5 text-body-sm font-medium text-primary hover:text-fg-1', FOCUS_RING)}
+          className={cn('inline-flex items-center gap-1.5 text-body-sm font-medium text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1', FOCUS_RING)}
         >
           Abrir sala <ExternalLink aria-hidden className="size-3.5" />
         </a>

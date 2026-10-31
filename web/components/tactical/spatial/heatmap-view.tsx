@@ -7,8 +7,8 @@ import type { SpatialScope } from '@/lib/api/library';
 import { HEATMAP_GRENADES, HEATMAP_KINDS } from '@/lib/api/spatial';
 import type { HeatmapCell, HeatmapGrenade, HeatmapKind, SpatialMatchRef, SpatialResponse } from '@/lib/api/spatial';
 import { RADAR_LEVELS, TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { RadarLevel, TacticalSide } from '@/lib/api/tactical';
-import { eventKindLabel } from '@/lib/tactical-labels';
+import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tactical';
+import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import {
   HEATMAP_KIND_LABEL,
   HEATMAP_UNIT_LABEL,
@@ -179,7 +179,7 @@ export function HeatmapView({
           matchCount={heatmap.matches}
           missing={heatmap.missing_positions}
           cellSize={heatmap.cell_size}
-          callouts={data.geometry.callouts}
+          geometry={data.geometry}
           matches={matches}
           selected={selectedCell}
           onSelect={(cell) => setSelected(cellKey(cell))}
@@ -266,7 +266,7 @@ function HeatmapSidebar({
   matchCount,
   missing,
   cellSize,
-  callouts,
+  geometry,
   matches,
   selected,
   onSelect,
@@ -279,14 +279,15 @@ function HeatmapSidebar({
   matchCount: number;
   missing: number;
   cellSize: number;
-  callouts: { name: string; level: string; center: [number, number] }[];
+  geometry: TacticalGeometry;
   matches: ReadonlyMap<string, SpatialMatchRef>;
   selected: HeatmapCell | undefined;
   onSelect: (cell: HeatmapCell) => void;
 }): ReactNode {
   const unit = HEATMAP_UNIT_LABEL[kind];
   const zone = (cell: HeatmapCell): string =>
-    nearestCallout(callouts, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize) || `Celda ${cell.x}, ${cell.y}`;
+    placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize)) ||
+    `Celda ${cell.x}, ${cell.y}`;
   const top = topCells(layer, TOP_CELLS);
   return (
     <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
@@ -298,7 +299,7 @@ function HeatmapSidebar({
       {selected ? (
         <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
           <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
-          <span className="font-mono text-meta tabular-nums text-fg-2">
+          <span className="text-meta tabular-nums text-fg-2">
             {selected.count} {unit} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'} · mediana {selected.seconds} s
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
@@ -329,8 +330,8 @@ function HeatmapSidebar({
                     {zone(cell)}
                   </button>
                 </td>
-                <td className="py-1 text-right font-mono tabular-nums text-fg-2">{cell.count}</td>
-                <td className="py-1 pl-2 text-right font-mono tabular-nums text-fg-3">{cell.seconds} s</td>
+                <td className="py-1 text-right tabular-nums text-fg-2">{cell.count}</td>
+                <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td>
               </tr>
             ))}
           </tbody>
@@ -345,10 +346,10 @@ function HeatmapSidebar({
   );
 }
 
-/** The radar paints CT in --primary and T in --warning; the legend follows it. */
+/** The radar paints CT in --side-ct and T in --side-t; the legend follows it. */
 const SIDE_RAMP: Record<TacticalSide, string> = {
-  [TACTICAL_SIDES.ct]: 'var(--primary)',
-  [TACTICAL_SIDES.t]: 'var(--warning)',
+  [TACTICAL_SIDES.ct]: 'var(--side-ct)',
+  [TACTICAL_SIDES.t]: 'var(--side-t)',
 };
 
 function Legend({ kind, side, maxCount, maxSeconds }: { kind: HeatmapKind; side: TacticalSide; maxCount: number; maxSeconds: number }): ReactNode {
@@ -361,7 +362,7 @@ function Legend({ kind, side, maxCount, maxSeconds }: { kind: HeatmapKind; side:
         style={{ background: `linear-gradient(to right, color-mix(in oklab, ${color} 15%, transparent), ${color})` }}
         aria-hidden
       />
-      <div className="flex justify-between font-mono text-meta tabular-nums text-fg-3">
+      <div className="flex justify-between text-meta tabular-nums text-fg-3">
         <span>{timing ? `${maxSeconds} s` : '1'}</span>
         <span>{timing ? '0 s, llegan antes' : `${maxCount} ${HEATMAP_UNIT_LABEL[kind]}`}</span>
       </div>

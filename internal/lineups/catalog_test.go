@@ -6,8 +6,44 @@ import (
 	"testing"
 	"testing/fstest"
 
+	lineupdata "github.com/rechedev9/cliphub/data/lineups"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
+
+// TestEmbeddedCatalogNamesWhereSmokesLand pins the shipped catalog to smoke
+// landings seen in real demos, named by the CS2 place they rest in.
+func TestEmbeddedCatalogNamesWhereSmokesLand(t *testing.T) {
+	catalog, err := LoadFS(lineupdata.Files)
+	if err != nil {
+		t.Fatalf("LoadFS error = %v", err)
+	}
+	tests := []struct {
+		name    string
+		mapName string
+		landing [3]float64
+		want    string
+	}{
+		{"mirage T spawn smoke into SnipersNest", "de_mirage", [3]float64{-1191.4, -637.1, -166}, "Window"},
+		{"mirage CT smoke into PalaceInterior", "de_mirage", [3]float64{16.6, -2324.5, -38}, "Palace"},
+		{"dust2 CT smoke into UpperTunnel", "de_dust2", [3]float64{-1974.3, 1589.9, 33.4}, "B tunnels"},
+		{"dust2 CT smoke at LongDoors", "de_dust2", [3]float64{580.2, 603.7, 3.1}, "Long doors"},
+		{"mirage T spawn smoke at the top of Catwalk", "de_mirage", [3]float64{-50, -475, -166}, "Catwalk"},
+		{"dust2 upper tunnel smoke inside BombsiteB", "de_dust2", [3]float64{-1965, 1840, 10}, "B site"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match, ok := catalog.MatchLanding(tt.mapName, tt.landing)
+			if !ok || match.Destination != tt.want {
+				t.Fatalf("MatchLanding = %+v, %v; want destination %q", match, ok, tt.want)
+			}
+		})
+	}
+	// The "A short" entry was thrown 3000 units from B and rested on a wall top
+	// no demo smoke reached, so it was dropped.
+	if match, ok := catalog.MatchLanding("de_dust2", [3]float64{1060.3, 1210.6, 159.2}); ok {
+		t.Fatalf("MatchLanding at the dropped A short landing = %+v", match)
+	}
+}
 
 func TestCatalogMatchesSmokeByLandingAndThrow(t *testing.T) {
 	dir := t.TempDir()

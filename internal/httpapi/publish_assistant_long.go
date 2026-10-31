@@ -85,7 +85,7 @@ func longVideoPublishRecommendations(facts publishAssistantFacts) []publishRecom
 	if mapName == "" {
 		mapName = "Unknown map"
 	}
-	knownMaps := map[string]string{"dust2": "Dust 2", "mirage": "Mirage", "anubis": "Anubis", "inferno": "Inferno", "nuke": "Nuke", "ancient": "Ancient", "vertigo": "Vertigo", "overpass": "Overpass", "cache": "Cache", "train": "Train"}
+	knownMaps := map[string]string{"dust2": "Dust2", "mirage": "Mirage", "anubis": "Anubis", "inferno": "Inferno", "nuke": "Nuke", "ancient": "Ancient", "vertigo": "Vertigo", "overpass": "Overpass", "cache": "Cache", "train": "Train"}
 	if name, ok := knownMaps[strings.ToLower(mapName)]; ok {
 		mapName = name
 	}

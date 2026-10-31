@@ -43,7 +43,7 @@ export function StudioEmptyState({
           <div className="mt-7 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">{actions}</div>
         ) : null}
         {note ? (
-          <div className="mt-6 border-t border-border-subtle pt-4 font-mono text-meta uppercase text-fg-3">{note}</div>
+          <div className="mt-6 border-t border-border-subtle pt-4 text-meta text-fg-3">{note}</div>
         ) : null}
       </section>
     </div>

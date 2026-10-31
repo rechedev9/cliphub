@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 /** Marker colour per event family; kills take the attacker's side colour. */
 function markerClass(event: TacticalEvent): string {
   if (event.kind === TACTICAL_EVENT_KINDS.kill) {
-    return event.side === TACTICAL_SIDES.t ? 'bg-warning' : 'bg-primary';
+    return event.side === TACTICAL_SIDES.t ? 'bg-side-t' : 'bg-side-ct';
   }
   if (event.kind === TACTICAL_EVENT_KINDS.defuse) return 'bg-success';
   if (
@@ -71,7 +71,7 @@ export function TacticalTimelineBar({
       <div className="relative h-10">
         {/* A well, so it takes --surface-0 and the WCAG control edge; inset by
             the thumb's half-width so 0-100% matches the playhead's travel. */}
-        <div className="studio-rim pointer-events-none absolute inset-x-[3px] top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-sm border border-border-strong bg-surface-0">
+        <div className="pointer-events-none absolute inset-x-[3px] top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-sm border border-border-strong bg-surface-0">
           <div
             className="absolute inset-y-0 left-0 border-r border-primary/40 bg-surface-3"
             style={{ width: `${freezeFraction * 100}%` }}
@@ -106,7 +106,7 @@ export function TacticalTimelineBar({
           className={cn(
             'absolute inset-0 h-10 w-full cursor-pointer appearance-none bg-transparent outline-none',
             '[&::-webkit-slider-runnable-track]:h-10 [&::-webkit-slider-runnable-track]:bg-transparent',
-            '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-[6px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[var(--glow-primary-sm)]',
+            '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-[6px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:',
             '[&::-moz-range-track]:h-10 [&::-moz-range-track]:bg-transparent',
             '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-[6px] [&::-moz-range-thumb]:rounded-[2px] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary',
             FOCUS_RING,
@@ -115,7 +115,7 @@ export function TacticalTimelineBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        {/* The only solid cyan fill in the row, and the largest control in it. */}
+        {/* The only solid fill in the row, and the largest control in it. */}
         <Button
           type="button"
           size="icon"
@@ -126,8 +126,8 @@ export function TacticalTimelineBar({
         </Button>
 
         {/* Right-aligned so the leading sign grows leftward instead of shifting
-            every digit; 8ch in a mono face fits the widest label. */}
-        <span ref={clockRef} className="w-[8ch] text-right font-mono text-body tabular-nums text-fg-1">
+            every digit; 8ch with tabular figures fits the widest label. */}
+        <span ref={clockRef} className="w-[8ch] text-right text-body tabular-nums text-fg-1">
           {roundClockLabelFor(timeline, 0)}
         </span>
 
@@ -139,12 +139,12 @@ export function TacticalTimelineBar({
               onClick={() => onSpeedChange(option)}
               aria-pressed={speed === option}
               // Same resting/active contract as the square filter chips one
-              // panel above (STUDIO_FILTER_CHIP_CLASS), at the same 44px.
+              // panel above (ToggleGroup variant="filter"), at the same 44px.
               className={cn(
-                'h-11 min-w-11 border px-3 font-mono text-meta tabular-nums outline-none transition-colors duration-(--dur-fast) ease-standard',
+                'h-11 min-w-11 border px-3 text-meta tabular-nums outline-none transition-colors duration-(--dur-fast) ease-standard',
                 FOCUS_RING,
                 speed === option
-                  ? 'border-primary bg-primary font-semibold text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-sm)]'
+                  ? 'border-primary bg-primary font-semibold text-primary-foreground shadow-[var(--elev-1)]'
                   : 'border-border-strong bg-surface-2 text-fg-2 hover:border-border-accent hover:bg-surface-3 hover:text-fg-1',
               )}
             >
@@ -165,8 +165,8 @@ export function TacticalTimelineBar({
           <Repeat aria-hidden />
         </Button>
 
-        <span className="ml-auto font-mono text-meta uppercase tracking-wider text-fg-3">
-          espacio · ←/→ 1 s · ⇧←/→ evento
+        <span className="ml-auto text-meta text-fg-3">
+          Espacio · ←/→ 1 s · ⇧←/→ evento
         </span>
       </div>
     </div>

@@ -168,7 +168,7 @@ export function RadarSurface({
         className="relative w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
         style={{ aspectRatio: `${view.width} / ${view.height}` }}
       >
-        <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full font-mono" />
+        <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
         {drawable ? (
           children?.(projection)
         ) : (

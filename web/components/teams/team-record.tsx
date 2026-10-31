@@ -299,7 +299,7 @@ function TeamMatches({ team, matches }: { team: LibraryTeam; matches: readonly L
       cell: (match) => {
         const own = match.teams.find((entry) => entry.team_id === team.id);
         const rival = rivalOf(match, team.id);
-        return <span className="font-mono">{`${own?.score ?? 0}-${rival?.score ?? 0}`}</span>;
+        return <span>{`${own?.score ?? 0}-${rival?.score ?? 0}`}</span>;
       },
     },
     {
@@ -307,7 +307,7 @@ function TeamMatches({ team, matches }: { team: LibraryTeam; matches: readonly L
       header: 'Empezó',
       cell: (match) => {
         const side = match.teams.find((entry) => entry.team_id === team.id)?.start_side;
-        return <span className={cn('font-mono text-meta', side === 'CT' ? 'text-side-ct' : 'text-side-t')}>{side ?? ''}</span>;
+        return <span className={cn('text-meta', side === 'CT' ? 'text-side-ct' : 'text-side-t')}>{side ?? ''}</span>;
       },
     },
   ];

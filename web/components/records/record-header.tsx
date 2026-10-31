@@ -28,7 +28,7 @@ export function RecordHeader({ kind, title, icon: Icon, subtitle, fields, action
             </span>
           ) : null}
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-meta font-medium text-fg-3 uppercase">{kind}</span>
+            <span className="text-meta font-medium text-fg-3">{kind}</span>
             <h1 className="truncate text-section font-semibold text-fg-1">{title}</h1>
             {subtitle ? <div className="text-body-sm text-fg-2">{subtitle}</div> : null}
           </div>

@@ -85,7 +85,7 @@ function columns(onRetry: (demoId: string) => void): DataTableColumn<PartidaRow>
     {
       id: 'score',
       header: 'Marcador',
-      cell: ({ match }) => (match ? <span className="font-mono">{matchScoreLabel(match)}</span> : ''),
+      cell: ({ match }) => (match ? <span>{matchScoreLabel(match)}</span> : ''),
     },
     {
       id: 'rounds',

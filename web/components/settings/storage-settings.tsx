@@ -92,8 +92,8 @@ export function StorageSettings(): ReactNode {
       <div className="flex items-center gap-4">
         <IconTile icon={HardDrive} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="DISCO" />
-          <h2 id="storage-settings-title" className="font-display text-title font-bold uppercase text-fg-1">
+          <SectionEyebrow label="Disco" />
+          <h2 id="storage-settings-title" className="font-display text-title font-bold text-fg-1">
             Almacenamiento
           </h2>
         </div>
@@ -129,8 +129,8 @@ function CaptureRow({ job, onFreed }: { job: FreeableJob; onFreed: (bytes: numbe
     <li className="flex flex-col gap-3 border border-border bg-surface-2 px-3.5 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate font-display text-body-sm font-bold uppercase tracking-wide text-fg-1">{job.label}</span>
-          <span className="font-mono text-meta tabular-nums text-fg-2">
+          <span className="truncate font-display text-body-sm font-bold text-fg-1">{job.label}</span>
+          <span className="text-meta tabular-nums text-fg-2">
             Capturas {formatBytes(job.captureBytes)} · Render {formatBytes(job.renderBytes)}
           </span>
         </div>

@@ -47,6 +47,7 @@ import { AnnotationPanel, useAnnotations } from '@/components/tactical/spatial/a
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
 import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { TelestratorLayer, useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import { teamScoreBefore } from '@/lib/library/rounds';
 import { cn } from '@/lib/utils';
 
 /** Enough of the canvas box to draw one frame without measuring again. */
@@ -437,13 +438,13 @@ export function TacticalReplay({
       aria-label={`Repetición de la ronda ${round.number}`}
     >
       <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle px-5 py-4">
-        <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
+        <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
           Ronda {round.number}
-          <span className="pl-3 font-mono text-body-sm font-normal tabular-nums text-fg-3">
-            {round.score_ct_before}:{round.score_t_before}
+          <span className="pl-3 text-body-sm font-normal tabular-nums text-fg-3">
+            {teamScoreBefore(doc, round).join(':')}
           </span>
         </h2>
-        <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
+        <p className="text-meta text-fg-3">
           {buyLabel(round.economy.ct_buy)} vs {buyLabel(round.economy.t_buy)} · {tPatternLabel(round.class.t_side)} /{' '}
           {ctPatternLabel(round.class.ct_side)} · {siteLabel(round.class.site)}
         </p>
@@ -483,7 +484,7 @@ export function TacticalReplay({
             <canvas
               ref={canvasRef}
               aria-hidden="true"
-              className="block h-full w-full font-mono"
+              className="block h-full w-full"
             />
             {drawable && notesMatchId !== undefined ? (
               <TelestratorLayer calibration={doc.geometry.calibration} projection={projection} shown={shownDrawings} draft={draft} />
@@ -527,7 +528,7 @@ export function TacticalReplay({
             notesMatchId === undefined && '@[56rem]:max-h-[62vh]',
           )}
         >
-          <h3 className="border-b border-border-subtle px-3 py-2.5 font-mono text-meta uppercase tracking-widest text-fg-3">
+          <h3 className="border-b border-border-subtle px-3 py-2.5 text-meta text-fg-3">
             Eventos de la ronda
           </h3>
           <div className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', notesMatchId !== undefined && 'max-h-[34vh]')}>
@@ -535,7 +536,7 @@ export function TacticalReplay({
           </div>
           {notesMatchId === undefined ? null : (
             <div className="border-t border-border-subtle px-3 py-3">
-              <h3 className="pb-2 font-mono text-meta uppercase tracking-widest text-fg-3">Notas</h3>
+              <h3 className="pb-2 text-meta text-fg-3">Notas</h3>
               <AnnotationPanel
                 store={notes}
                 items={noteItems}
@@ -568,8 +569,8 @@ function RoundLegend({
         <div key={side} className="flex min-w-0 flex-col gap-1.5">
           <span
             className={cn(
-              'font-mono text-meta uppercase tracking-widest',
-              side === TACTICAL_SIDES.ct ? 'text-primary' : 'text-warning',
+              'text-meta uppercase',
+              side === TACTICAL_SIDES.ct ? 'text-side-ct' : 'text-side-t',
             )}
           >
             {side}
@@ -579,12 +580,12 @@ function RoundLegend({
             .map((player) => (
               <div
                 key={player.slot}
-                className="flex min-w-0 items-center gap-2 font-mono text-meta tracking-normal tabular-nums"
+                className="flex min-w-0 items-center gap-2 text-meta tracking-normal tabular-nums"
               >
                 <span
                   className={cn(
                     'w-11 shrink-0 border-l-2 bg-surface-3 py-0.5 pr-1.5 pl-1 text-fg-1',
-                    player.side === TACTICAL_SIDES.ct ? 'border-l-primary' : 'border-l-warning',
+                    player.side === TACTICAL_SIDES.ct ? 'border-l-side-ct' : 'border-l-side-t',
                   )}
                 >
                   {labels.get(player.slot) ?? '···'}

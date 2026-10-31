@@ -48,7 +48,7 @@ function Field({
       data-slot="field"
       className={cn("flex w-full flex-col gap-2", hasError && "studio-shake", className)}
     >
-      <Label htmlFor={id} className="text-label tracking-wide text-fg-2 uppercase">
+      <Label htmlFor={id} className="text-label font-medium text-fg-2">
         {label}
         {required ? (
           <span aria-hidden className="text-destructive">

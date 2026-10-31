@@ -67,6 +67,7 @@ func run() (retErr error) {
 		outDir               = flag.String("out", "", "recording output directory")
 		hlaeExe              = flag.String("hlae", "", "path to HLAE.exe")
 		cs2Exe               = flag.String("cs2", "", "path to cs2.exe")
+		ffmpegExe            = flag.String("ffmpeg", "", "ffmpeg for HLAE's stream encode and the clip mux; written into HLAE's ffmpeg.ini (empty = keep the ini, else PATH)")
 		hudMode              = flag.String("hud", string(recording.HUDModeGameplay), "HUD mode: gameplay, clean, or deathnotices")
 		portraitSafeKillfeed = flag.Bool("portrait-safe-killfeed", false, "move filtered death notices into the 9:16 center-crop safe area")
 		fps                  = flag.Int("fps", 0, "recording FPS; defaults to recorder preset")
@@ -231,7 +232,10 @@ func run() (retErr error) {
 	}
 
 	ffprobePath := recording.FindFFprobe()
-	ffmpegPath := recording.FindFFmpeg()
+	ffmpegPath := *ffmpegExe
+	if ffmpegPath == "" {
+		ffmpegPath = recording.FindFFmpeg()
+	}
 
 	if err := validateExecutables(absHLAEExe, absCS2Exe); err != nil {
 		result.Error = err.Error()
@@ -243,12 +247,12 @@ func run() (retErr error) {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
-	if err := ensureHLAEFFmpegConfig(absHLAEExe); err != nil {
+	if err := ensureHLAEFFmpegConfig(absHLAEExe, *ffmpegExe); err != nil {
 		result.Error = err.Error()
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
-	if err := recording.CheckEncoderSupported(recording.HLAEStreamFFmpeg(absHLAEExe), plan.Stream.Encoder); err != nil {
+	if err := recording.CheckEncoderSupported(recording.HLAEStreamFFmpeg(absHLAEExe, *ffmpegExe), plan.Stream.Encoder); err != nil {
 		result.Error = err.Error()
 		_ = writeResult(plan.OutputDir, result)
 		return err
@@ -1347,7 +1351,12 @@ func validateCaptureResult(result recording.RecordingResult, cs2Exe string) erro
 	return nil
 }
 
-func ensureHLAEFFmpegConfig(hlaeExe string) error {
+// ensureHLAEFFmpegConfig points HLAE's mirv_streams at an ffmpeg unless HLAE
+// ships its own under ffmpeg\bin. A configured ffmpeg (the one Studio
+// provisions) replaces whatever the ini named before, so capture and render
+// encode with the same build; without one, an existing ini is kept and a
+// missing one is written with the PATH ffmpeg.
+func ensureHLAEFFmpegConfig(hlaeExe, configured string) error {
 	dir := filepath.Join(filepath.Dir(hlaeExe), "ffmpeg")
 	if _, err := os.Stat(dir); err != nil {
 		return nil
@@ -1356,6 +1365,13 @@ func ensureHLAEFFmpegConfig(hlaeExe string) error {
 		return nil
 	}
 	ini := filepath.Join(dir, "ffmpeg.ini")
+	if configured != "" {
+		content := fmt.Sprintf("[Ffmpeg]\r\nPath=%s\r\n", configured)
+		if current, err := os.ReadFile(ini); err == nil && string(current) == content {
+			return nil
+		}
+		return os.WriteFile(ini, []byte(content), 0o600)
+	}
 	if _, err := os.Stat(ini); err == nil {
 		return nil
 	}

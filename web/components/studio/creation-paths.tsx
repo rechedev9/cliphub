@@ -34,7 +34,7 @@ export function CreationPaths(): ReactNode {
             <p className="text-body-sm text-fg-2">{path.source}</p>
           </div>
           <p className="text-body-sm text-fg-2">{path.description}</p>
-          <p className="mt-auto pt-2 font-mono text-meta text-fg-3">{path.format}</p>
+          <p className="mt-auto pt-2 text-meta text-fg-3">{path.format}</p>
         </Link>
       ))}
     </section>

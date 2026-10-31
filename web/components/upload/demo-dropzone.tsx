@@ -110,7 +110,7 @@ export function DemoDropzone({
         <span
           aria-hidden
           className={cn(
-            'grid shrink-0 place-items-center border border-border-accent bg-surface-0 text-primary',
+            'grid shrink-0 place-items-center border border-border-accent bg-surface-0 text-fg-2',
             compact ? 'size-10' : 'size-14',
           )}
         >
@@ -120,11 +120,11 @@ export function DemoDropzone({
           <span className={cn('font-display font-semibold text-fg-1', compact ? 'text-body' : 'text-title')}>
             {extracting ? 'Extrayendo archivo…' : DROPZONE_TITLE}
           </span>
-          {!compact && !extracting ? <span className="rounded-md border border-border-strong bg-surface-3 px-4 py-2 text-body-sm font-semibold text-primary">Elegir archivo</span> : null}
+          {!compact && !extracting ? <span className="rounded-md border border-border-strong bg-surface-3 px-4 py-2 text-body-sm font-semibold text-fg-1">Elegir archivo</span> : null}
           {compact ? (
             <span className="text-body-sm text-fg-3">.dem, .zst, .rar o .zip</span>
           ) : (
-            <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+            <span className="text-meta text-fg-3">
               .dem · .dem.zst · .rar · .zip · hasta {MAX_DEMO_FILES} demos
             </span>
           )}

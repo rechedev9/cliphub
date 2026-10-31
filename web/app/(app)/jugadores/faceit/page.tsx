@@ -173,7 +173,7 @@ export default function FaceitPlayersPage(): ReactNode {
 
   return (
     <div className="measure-work flex min-w-0 flex-col gap-8">
-      <Link href={PLAYERS_HREF} className="inline-flex w-fit items-center gap-1 text-body-sm font-medium text-fg-2 hover:text-primary">
+      <Link href={PLAYERS_HREF} className="inline-flex w-fit items-center gap-1 text-body-sm font-medium text-fg-2 hover:text-fg-1">
         <ArrowLeft className="size-4" aria-hidden />
         Jugadores de la biblioteca
       </Link>

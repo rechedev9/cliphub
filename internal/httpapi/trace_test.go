@@ -42,6 +42,33 @@ func TestHTTPTraceCapturesFailureWithoutChangingResponseOrLoggingRequestSecrets(
 	}
 }
 
+// Studio polls the roster of a job until it exists; each 409 on the way is
+// expected and must not read as an error in studio.log.
+func TestHTTPTraceLogsNotReadyPollBelowErrorLevel(t *testing.T) {
+	var logs bytes.Buffer
+	prior := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(prior)
+	r := chi.NewRouter()
+	r.Use(traceHTTP)
+	r.Get("/api/jobs/{id}/roster", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusConflict, "roster not ready")
+	})
+	r.Post("/api/jobs/{id}/parse", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusConflict, "job is not ready to parse")
+	})
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/jobs/"+uuid.NewString()+"/roster", nil))
+	if text := logs.String(); !strings.Contains(text, `"level":"info"`) || strings.Contains(text, `"outcome":"error"`) {
+		t.Fatalf("roster poll trace = %s, want info level without an error outcome", text)
+	}
+	logs.Reset()
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/jobs/"+uuid.NewString()+"/parse", nil))
+	if text := logs.String(); !strings.Contains(text, `"level":"error"`) {
+		t.Fatalf("refused mutation trace = %s, want error level", text)
+	}
+}
+
 func TestHTTPTraceRetainsPanicWithoutTurningItIntoSuccessfulPolling(t *testing.T) {
 	var logs bytes.Buffer
 	prior := log.Writer()

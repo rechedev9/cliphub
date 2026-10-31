@@ -95,7 +95,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
 
         <span className="flex min-w-[10rem] flex-1 flex-col gap-1.5">
           <span className="flex items-center gap-2">
-            <span className="min-w-0 truncate font-display text-label font-bold uppercase text-fg-1">{output.title}</span>
+            <span className="min-w-0 truncate font-display text-label font-bold text-fg-1">{output.title}</span>
             <OutputTag output={output} className="shrink-0" />
           </span>
 
@@ -111,7 +111,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
           {output.state === OUTPUT_STATE.failed ? (
             <FailureLine output={output} />
           ) : (
-            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+            <span className="truncate text-meta text-fg-3">
               {output.state === OUTPUT_STATE.render && video.captureProgress?.stage
                 ? video.captureProgress.stage
                 : `${prettyMapName(video.map)} · ${timeAgo(video.createdAt)}`}

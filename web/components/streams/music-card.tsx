@@ -153,7 +153,7 @@ export function StreamMusicCard({
           }}
         />
         {songs === null ? (
-          <p role="status" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+          <p role="status" className="flex items-center gap-2 text-meta text-fg-3">
             <Loader2 aria-hidden className="size-3.5 animate-spin" />
             Cargando catálogo local
           </p>
@@ -188,7 +188,6 @@ export function StreamMusicCard({
                 key={v.value}
                 value={String(v.value)}
                 aria-label={`${v.label}, ${Math.round(v.value * 100)}%`}
-                className="font-mono uppercase tracking-wider"
               >
                 {v.label}
               </ToggleGroupItem>
@@ -201,7 +200,7 @@ export function StreamMusicCard({
         title="Realce de color"
         control={<StreamSwitch label="Realce de color" checked={grade} disabled={busy} onChange={onGrade} />}
       >
-        <p className="font-display text-body-sm font-semibold uppercase text-fg-1">
+        <p className="font-display text-body-sm font-semibold text-fg-1">
           {grade ? 'Activado' : 'Desactivado'}
         </p>
         <p className="text-body-sm text-fg-3">Ligero realce de contraste y saturación en cada Short.</p>

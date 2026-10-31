@@ -72,7 +72,7 @@ func TestAnalysisFromDocumentSumsRoundsPerTeamAndPlayer(t *testing.T) {
 	doc := tacticalplan.NewDocument()
 	doc.Demo = tacticalplan.Demo{Map: "de_mirage", Tickrate: 64, DurationTicks: 9000}
 	doc.Teams = []tacticalplan.Team{
-		{Key: "t-start", Name: "T start", StartSide: tacticalplan.SideT},
+		{Key: "t-start", Name: tacticalplan.FallbackTeamName(tacticalplan.SideT), StartSide: tacticalplan.SideT},
 		{Key: "ct-start", Name: "  Team  Vitality ", StartSide: tacticalplan.SideCT},
 	}
 	doc.Players = []tacticalplan.Player{

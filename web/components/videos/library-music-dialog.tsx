@@ -144,9 +144,9 @@ export function LibraryMusicDialog({
             <div className="flex items-center gap-4">
               <label
                 htmlFor={`library-music-volume-${video.id}`}
-                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+                className="w-36 shrink-0 text-meta text-fg-2"
               >
-                MÚSICA <span className="text-stream-text">· {volumePercent}%</span>
+                Música <span className="text-fg-1">· {volumePercent}%</span>
               </label>
               <input
                 id={`library-music-volume-${video.id}`}
@@ -157,15 +157,15 @@ export function LibraryMusicDialog({
                 value={volumePercent}
                 disabled={busy}
                 onChange={(event) => setVolumePercent(Number(event.target.value))}
-                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             <div className="flex items-center gap-4">
               <label
                 htmlFor={`library-game-volume-${video.id}`}
-                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+                className="w-36 shrink-0 text-meta text-fg-2"
               >
-                JUEGO <span className="text-stream-text">· {gameVolumePercent}%</span>
+                Juego <span className="text-fg-1">· {gameVolumePercent}%</span>
               </label>
               <input
                 id={`library-game-volume-${video.id}`}
@@ -176,7 +176,7 @@ export function LibraryMusicDialog({
                 value={gameVolumePercent}
                 disabled={busy}
                 onChange={(event) => setGameVolumePercent(Number(event.target.value))}
-                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>
@@ -201,7 +201,7 @@ export function LibraryMusicDialog({
         <section className="studio-panel px-4 py-3" aria-labelledby={`library-music-brief-${video.id}`}>
           <p
             id={`library-music-brief-${video.id}`}
-            className="font-mono text-meta uppercase tracking-wider text-primary"
+            className="text-meta font-medium text-fg-1"
           >
             Configuración del render
           </p>
@@ -216,7 +216,7 @@ export function LibraryMusicDialog({
           className="w-full"
           disabled={!ready}
           loading={busy}
-          loadingText="RENDERIZANDO DE NUEVO…"
+          loadingText="Renderizando de nuevo…"
           onClick={() => void apply()}
         >
           <Music className="size-4" aria-hidden /> VOLVER A RENDERIZAR

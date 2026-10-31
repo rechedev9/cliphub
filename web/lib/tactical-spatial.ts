@@ -197,16 +197,73 @@ export function arrowHead(from: RadarPoint, to: RadarPoint, length: number): str
   return [to, left, right].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 }
 
+type CalloutGeometry = {
+  cell_size: number;
+  callouts: readonly {
+    name: string;
+    level: string;
+    center: [number, number];
+    cells?: [number, number][];
+    stacked?: [number, number, number][];
+  }[];
+};
+
 /**
- * The callout whose centre of play is closest to a world point, preferring the
- * same level, like `tacticalplan.NearestCallout`; empty when there are none.
+ * The place owning a grid cell. In a cell shared by two floors the place whose
+ * altitude there is nearest `z` wins; without `z`, the cell's busiest place.
  */
-export function nearestCallout(
-  callouts: readonly { name: string; level: string; center: [number, number] }[],
-  level: string,
-  x: number,
-  y: number,
-): string {
+function cellOwner(geometry: CalloutGeometry, level: string, cx: number, cy: number, z: number | undefined): string {
+  if (z !== undefined) {
+    let best = '';
+    let bestGap = Infinity;
+    for (const callout of geometry.callouts) {
+      if (callout.level !== level) continue;
+      const entry = callout.stacked?.find(([x, y]) => x === cx && y === cy);
+      if (entry === undefined) continue;
+      const gap = Math.abs(z - entry[2]);
+      if (gap < bestGap || (gap === bestGap && callout.name < best)) {
+        best = callout.name;
+        bestGap = gap;
+      }
+    }
+    if (best !== '') return best;
+  }
+  for (const callout of geometry.callouts) {
+    if (callout.level !== level) continue;
+    if (callout.cells?.some(([x, y]) => x === cx && y === cy)) return callout.name;
+  }
+  return '';
+}
+
+/**
+ * The place CS2 reported most in the grid cell of a world point, or in its
+ * closest owned neighbour; off the grid, the callout whose centre of play is
+ * closest, preferring the same level. Mirrors `tacticalplan.NearestCallout`,
+ * which always has the altitude `z`.
+ */
+export function nearestCallout(geometry: CalloutGeometry, level: string, x: number, y: number, z?: number): string {
+  const size = geometry.cell_size;
+  if (size > 0) {
+    const cx = Math.floor(x / size);
+    const cy = Math.floor(y / size);
+    const own = cellOwner(geometry, level, cx, cy, z);
+    if (own !== '') return own;
+    let near = '';
+    let nearDistance = Infinity;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const name = cellOwner(geometry, level, cx + dx, cy + dy, z);
+        if (name === '') continue;
+        const d = Math.hypot(x - (cx + dx + 0.5) * size, y - (cy + dy + 0.5) * size);
+        if (d < nearDistance || (d === nearDistance && name < near)) {
+          near = name;
+          nearDistance = d;
+        }
+      }
+    }
+    if (near !== '') return near;
+  }
+  const { callouts } = geometry;
   for (const sameLevel of [true, false]) {
     let best = '';
     let bestDistance = Infinity;

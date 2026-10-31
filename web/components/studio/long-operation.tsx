@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 type LongOperationTone = 'primary' | 'stream';
 
 const TONE_TEXT_CLASS = {
-  primary: 'text-primary',
+  primary: 'text-fg-1',
   stream: 'text-stream-text',
 } as const satisfies Record<LongOperationTone, string>;
 
@@ -23,9 +23,9 @@ function formatElapsed(seconds: number): string {
 }
 
 export type LongOperationProps = {
-  /** What the pipeline is doing right now, e.g. "CAPTURANDO". */
+  /** What the pipeline is doing right now, e.g. "Capturando". */
   stage: string;
-  /** Secondary fact, e.g. "SEGMENTOS 2/4" or "CORTES + RITMO". */
+  /** Secondary fact, e.g. "Segmentos 2/4" or "Cortes + ritmo". */
   detail?: ReactNode;
   /** 0-100 from the pipeline. Omit when the stage reports none. */
   percent?: number;
@@ -58,7 +58,7 @@ export function LongOperation({
       <div className="flex items-baseline justify-between gap-3">
         {/* Template literal, not cn(): tailwind-merge reads a custom `--text-*`
             key as a colour and would drop `text-meta` behind the tone class. */}
-        <span className={`flex min-w-0 items-center gap-2 font-mono text-meta uppercase ${TONE_TEXT_CLASS[tone]}`}>
+        <span className={`flex min-w-0 items-center gap-2 text-meta font-medium ${TONE_TEXT_CLASS[tone]}`}>
           {complete ? (
             <svg viewBox="0 0 16 16" className="size-3 shrink-0" aria-hidden>
               <path className="studio-op-check-path" d="M3.5 8.5 6.5 11.5 12.5 4.5" />
@@ -66,7 +66,7 @@ export function LongOperation({
           ) : null}
           <span className="min-w-0 truncate">{stage}</span>
         </span>
-        <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-meta tabular-nums">
+        <span className="flex shrink-0 items-baseline gap-2.5 text-meta tabular-nums">
           {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
           {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
         </span>
@@ -90,7 +90,7 @@ export function LongOperation({
         )}
       </div>
 
-      {detail ? <p className="font-mono text-meta uppercase text-fg-3">{detail}</p> : null}
+      {detail ? <p className="text-meta text-fg-3">{detail}</p> : null}
     </div>
   );
 }

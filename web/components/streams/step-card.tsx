@@ -16,7 +16,7 @@ export function StreamStepCard({
   return (
     <section className={cn('studio-panel flex flex-col gap-2.5 p-3.5', className)} aria-label={title}>
       <div className="flex min-h-5 items-center justify-between gap-3">
-        <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{title}</span>
+        <span className="text-meta text-fg-3">{title}</span>
         {control}
       </div>
       {children}

@@ -29,7 +29,7 @@ export function OutputTag({ output, className }: OutputTagProps): ReactNode {
     case OUTPUT_STATE.rec:
       return (
         <StatusTag tone={tone} className={className}>
-          <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+          <span aria-hidden className="live-pulse size-1.5 shrink-0 rounded-full bg-current" />
           {label}
         </StatusTag>
       );

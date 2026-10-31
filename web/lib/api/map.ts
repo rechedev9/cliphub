@@ -66,12 +66,22 @@ const WEAPON_LABELS: Record<string, string> = {
   p250: 'P250',
   revolver: 'R8 Revolver',
   elite: 'Dual Berettas',
+  mp5sd: 'MP5-SD',
+  scar20: 'SCAR-20',
+  g3sg1: 'G3SG1',
+  taser: 'Zeus x27',
   knife: 'Knife',
   hegrenade: 'HE Grenade',
+  flashbang: 'Flashbang',
+  smokegrenade: 'Smoke',
+  molotov: 'Molotov',
+  incgrenade: 'Incendiary',
+  decoy: 'Decoy',
+  c4: 'C4',
 };
 
 /** Pretty weapon label for an engine id, falling back to the raw value. */
-function prettifyWeapon(raw: string): string {
+export function prettifyWeapon(raw: string): string {
   if (!raw) return raw;
   return WEAPON_LABELS[raw.toLowerCase()] ?? raw;
 }

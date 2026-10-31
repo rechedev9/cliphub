@@ -9,6 +9,7 @@ const (
 	ClassCaptureFlake           = "capture_flake"
 	ClassDemoIncompatible       = "demo_incompatible"
 	ClassPOVDemo                = "pov_demo"
+	ClassTruncatedDemo          = "truncated_demo"
 	ClassUnplayableStart        = "unplayable_start"
 	ClassRecordingNotReusable   = "recording_not_reusable"
 	ClassInterrupted            = "interrupted"
@@ -16,6 +17,7 @@ const (
 	ClassCaptureIncompatible    = "capture_incompatible"
 	prefixDemoIncompatible      = "demo_incompatible:"
 	prefixPOVDemo               = "pov_demo:"
+	prefixTruncatedDemo         = "truncated_demo:"
 	prefixUnplayableStart       = "unplayable_start:"
 	prefixRecordingNotReusable  = "recording_not_reusable:"
 	prefixInterrupted           = "interrupted:"
@@ -40,6 +42,8 @@ func ClassOf(message string) string {
 		return ClassDemoIncompatible
 	case strings.HasPrefix(message, prefixPOVDemo) || strings.Contains(message, ": "+prefixPOVDemo):
 		return ClassPOVDemo
+	case strings.HasPrefix(message, prefixTruncatedDemo) || strings.Contains(message, ": "+prefixTruncatedDemo):
+		return ClassTruncatedDemo
 	case strings.HasPrefix(message, prefixUnplayableStart):
 		return ClassUnplayableStart
 	case strings.HasPrefix(message, prefixRecordingNotReusable):

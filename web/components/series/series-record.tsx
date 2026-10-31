@@ -242,10 +242,10 @@ function SeriesMatches({
             {ordered.map((match, index) => (
               <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-body-sm">
                 <Link href={matchHref(match.id)} className="flex min-w-0 flex-wrap items-baseline gap-x-3 hover:text-primary">
-                  <span className="font-mono text-fg-3">Mapa {index + 1}</span>
+                  <span className="text-fg-3">Mapa {index + 1}</span>
                   <span className="font-medium text-fg-1">{prettyMapName(match.map)}</span>
                   <span className="text-fg-2">{matchTitle(match)}</span>
-                  <span className="font-mono text-fg-1">{matchScoreLabel(match)}</span>
+                  <span className="text-fg-1">{matchScoreLabel(match)}</span>
                   <span className="text-fg-3">{formatShortDate(match.played_at)}</span>
                 </Link>
                 <Button type="button" size="sm" variant="ghost" onClick={() => void move(match.id, null)}>
@@ -352,7 +352,7 @@ function SeriesVeto({ series, matches, onChanged }: { series: LibrarySeries; mat
           <ol className="flex flex-col divide-y divide-border-subtle">
             {steps.map((step, index) => (
               <li key={index} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                <span className="w-6 font-mono text-fg-3">{index + 1}</span>
+                <span className="w-6 text-fg-3">{index + 1}</span>
                 <Select value={step.action} onValueChange={(action: VetoAction) => update(index, { action })}>
                   <SelectTrigger aria-label={`Acción del paso ${index + 1}`} className="h-8 w-28">
                     <SelectValue />

@@ -58,7 +58,7 @@ func runUtility(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (
 	}
 
 	for _, u := range watch.flush() {
-		annotateUtilityDestination(u, m.Map)
+		annotateUtilityDestination(u, m.Map, watch.placeGeometry())
 		c.RecordUtility(*u)
 	}
 

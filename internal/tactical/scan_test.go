@@ -81,6 +81,37 @@ func TestTeamKeyFollowsTheStartingSide(t *testing.T) {
 	}
 }
 
+func TestTeamsComeFromTheFirstCountedRoundNotTheFirstSighting(t *testing.T) {
+	// 5kMirage shape: everyone is first seen in a pre-match round with the
+	// sides the other way round, then the live match starts. A late joiner is
+	// first counted in the second half.
+	s := &scanner{players: []*playerAcc{
+		{steamID: 1, slot: 0, startSide: tacticalplan.SideT},
+		{steamID: 2, slot: 1, startSide: tacticalplan.SideCT},
+		{steamID: 3, slot: 2, startSide: tacticalplan.SideCT},
+		{steamID: 4, slot: 3, startSide: tacticalplan.SideT},
+	}}
+	s.rounds = []*roundAcc{
+		{half: 1, sides: map[uint8]tacticalplan.Side{0: tacticalplan.SideCT, 1: tacticalplan.SideT}},
+		{half: 2, sides: map[uint8]tacticalplan.Side{0: tacticalplan.SideT, 1: tacticalplan.SideCT, 2: tacticalplan.SideCT}},
+	}
+	s.resolveTeams()
+
+	want := map[uint64]string{1: "ct-start", 2: "t-start", 3: "t-start", 4: "t-start"}
+	for _, acc := range s.players {
+		key := teamKeyForStartSide(acc.startSide, 1)
+		if key != want[acc.steamID] {
+			t.Errorf("player %d start side %s (%s), want %s", acc.steamID, acc.startSide, key, want[acc.steamID])
+		}
+		if _, ok := s.teams[key].members[acc.steamID]; !ok {
+			t.Errorf("player %d missing from team %s", acc.steamID, key)
+		}
+	}
+	if got := s.teams["ct-start"].startSide; got != tacticalplan.SideCT {
+		t.Errorf("ct-start team start side = %s", got)
+	}
+}
+
 // TestScanRealDemo exercises the whole pipeline against a real recording. It
 // skips without TEST_DEMO_PATH, the way the other demo-backed tests in this
 // repository do, because real demos are not committed.

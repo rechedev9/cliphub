@@ -68,7 +68,7 @@ export function StreamSourcePanel({
             <li className="flex items-center gap-2"><span aria-hidden className="font-display text-section font-bold leading-none text-success">K</span>Kick</li>
           </ul>
           <div className="flex min-w-0 flex-col gap-2">
-            <Label htmlFor="stream-url" className="text-label tracking-wide text-fg-2 uppercase">Enlace del vídeo</Label>
+            <Label htmlFor="stream-url" className="text-label text-fg-2">Enlace del vídeo</Label>
             <div className="relative">
               <Link2 aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-fg-3" />
               <Input
@@ -92,7 +92,7 @@ export function StreamSourcePanel({
           </div>
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="stream-title" className="text-label tracking-wide text-fg-2 uppercase">Nombre del proyecto</Label>
+              <Label htmlFor="stream-title" className="text-label text-fg-2">Nombre del proyecto</Label>
               <span id="stream-title-hint" className="text-body-sm text-fg-3">Opcional</span>
             </div>
             <Input
@@ -149,7 +149,7 @@ export function StreamSourcePanel({
               dragging ? 'border-primary bg-surface-4' : 'border-border-strong',
             )}
           >
-            <UploadCloud aria-hidden className="mb-5 size-10 text-fg-3 group-hover/upload:text-primary" strokeWidth={1.5} />
+            <UploadCloud aria-hidden className="mb-5 size-10 text-fg-3 group-hover/upload:text-fg-1" strokeWidth={1.5} />
             <span className="font-display text-body-lg font-semibold text-fg-1">{dragging ? 'Suelta tu vídeo aquí' : 'Arrastra tu vídeo aquí'}</span>
             <span className="mt-1.5 text-body-sm text-fg-2">Archivo MP4</span>
             <span className={buttonVariants({ variant: 'outline', className: 'mt-5 bg-surface-2' })}>Seleccionar archivo</span>

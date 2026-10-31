@@ -9,7 +9,7 @@ import type { TacticalDocument, TacticalRound, TacticalSide } from '@/lib/api/ta
 import { matchHref, playHref } from '@/lib/clips/routes';
 import { roundEvidenceHref, teamKeyOnSide } from '@/lib/library/rounds';
 import { LINEUP_STATUS_LABEL, playFromDraft, playSecondsLabel, playShapeLabel, suggestPlayTitle } from '@/lib/stratbook/plays';
-import { eventKindLabel } from '@/lib/tactical-labels';
+import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import { Segmented } from '@/components/tactical/spatial/spatial-controls';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { Button } from '@/components/ui/button';
@@ -291,7 +291,7 @@ function RoundLineupsTable({ matchId, result }: { matchId: string; result: Round
                   <td className={CELL}>
                     <Link
                       href={roundEvidenceHref(matchHref(matchId), result.round, grenade.tick)}
-                      className="font-mono text-fg-2 hover:text-primary hover:underline"
+                      className="text-fg-2 hover:text-primary hover:underline"
                     >
                       {playSecondsLabel(grenade.seconds)}
                     </Link>
@@ -301,12 +301,12 @@ function RoundLineupsTable({ matchId, result }: { matchId: string; result: Round
                     {grenade.side ? <span className="pl-1 text-fg-3">{grenade.side}</span> : null}
                   </td>
                   <td className={CELL}>{grenade.player || <span className="text-fg-3">Sin dato</span>}</td>
-                  <td className={CELL}>{grenade.callout || <span className="text-fg-3">Sin zona</span>}</td>
+                  <td className={CELL}>{placeLabel(grenade.callout ?? '') || <span className="text-fg-3">Sin zona</span>}</td>
                   <td className={CELL}>
                     {grenade.status === 'matched' && grenade.lineup ? (
                       <span className="text-fg-1">
                         {grenade.lineup.destination}
-                        {grenade.lineup.from_area ? ` desde ${grenade.lineup.from_area}` : ''}
+                        {grenade.lineup.from_area ? ` desde ${placeLabel(grenade.lineup.from_area)}` : ''}
                         <span className="pl-1 text-fg-3">{Math.round((grenade.lineup.confidence ?? 0) * 100)} %</span>
                       </span>
                     ) : (

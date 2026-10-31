@@ -111,13 +111,7 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
     }} />
     <Button type="button" variant="ghost" className={`${styles.upload} ${asset ? styles.replace : styles.empty}`}
       aria-label={uploading ? `Subiendo ${slot}…` : actionLabel}
-      loading={uploading} loadingText={`Subiendo ${slot}…`} onClick={() => input.current?.click()}
-      onPointerMove={(event) => {
-        const box = event.currentTarget.getBoundingClientRect();
-        event.currentTarget.style.setProperty('--pointer-x', `${event.clientX - box.left}px`);
-        event.currentTarget.style.setProperty('--pointer-y', `${event.clientY - box.top}px`);
-      }}>
-      <span aria-hidden data-bumper-glow className={styles.glow} />
+      loading={uploading} loadingText={`Subiendo ${slot}…`} onClick={() => input.current?.click()}>
       {asset ? <RefreshCw aria-hidden className={styles.replaceIcon} /> : <span className={styles.uploadIcon}><Upload aria-hidden /></span>}
       <span className={styles.uploadCopy}>{asset ? 'Cambiar' : 'Subir un MP4'}{!asset ? <span>{copy.hint}</span> : null}</span>
     </Button>

@@ -17,19 +17,19 @@ export function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
     // Identity chips take the ramp's raised step rather than more alpha over
     // --surface-0, so a name reads on an opaque plate whatever is behind it.
     plate: token('--surface-3', '#141b2b'),
-    // The occupancy grid is the map, not a signal: it stays neutral so cyan can
-    // keep meaning "CT" on top of it.
+    // The occupancy grid is the map, not a signal: it stays neutral so the side
+    // colours keep their meaning on top of it.
     map: token('--fg-3', '#8998a7'),
     callout: token('--fg-3', '#8998a7'),
-    ct: token('--primary', '#21d9ee'),
-    t: token('--warning', '#fcb52c'),
+    ct: token('--side-ct', '#21d9ee'),
+    t: token('--side-t', '#fcb52c'),
     bomb: token('--destructive', '#fe545c'),
     defuse: token('--success', '#5de0b0'),
     utility: token('--fg-3', '#8998a7'),
     text: token('--fg-1', '#edf7fb'),
-    // Resolved through the element, so the var() in --font-mono is already
+    // Resolved through the element, so the var() in the font token is already
     // substituted with the family next/font generated.
-    fontFamily: computed.fontFamily || 'ui-monospace, monospace',
+    fontFamily: computed.fontFamily || 'ui-sans-serif, system-ui, sans-serif',
   };
 }
 

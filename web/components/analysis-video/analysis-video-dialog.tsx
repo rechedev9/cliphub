@@ -156,7 +156,7 @@ export function AnalysisVideoDialog({ sources, onClose, selected, teamId, steamI
                   <label
                     key={round}
                     className={cn(
-                      'flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-meta tabular-nums',
+                      'flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-meta tabular-nums',
                       checked.has(round) ? 'border-primary text-fg-1' : 'border-border text-fg-2',
                     )}
                   >

@@ -15,12 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 const HEAD_CELL =
-  'px-3 py-2 text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-3';
+  'px-3 py-2 text-left text-meta font-normal text-fg-3';
 const BODY_CELL = 'px-3 py-2 align-middle';
 
 function SectionTitle({ children }: { children: ReactNode }): ReactNode {
   return (
-    <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+    <h3 className="text-meta text-fg-3">
       {children}
     </h3>
   );
@@ -37,20 +37,20 @@ function CrossCell({
   reliable: boolean;
 }): ReactNode {
   if (rounds === 0) {
-    return <span className="font-mono text-meta text-fg-3">—</span>;
+    return <span className="text-meta text-fg-3">—</span>;
   }
   return (
     <span className="flex flex-col gap-1">
       <span className="flex items-baseline gap-2">
         <span
           className={cn(
-            'font-mono text-meta tracking-normal tabular-nums',
+            'text-meta tracking-normal tabular-nums',
             reliable ? 'text-fg-1' : 'text-fg-3',
           )}
         >
           {pct.toFixed(1)} %
         </span>
-        <span className="font-mono text-meta tracking-normal tabular-nums text-fg-3">
+        <span className="text-meta tracking-normal tabular-nums text-fg-3">
           n={rounds}
         </span>
       </span>
@@ -79,17 +79,17 @@ export function TacticalTendenciesPanel({
   return (
     <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Tendencias">
       <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle pb-4">
-        <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
+        <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
           Tendencias
         </h2>
-        <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
-          calculadas sobre las {roundCount} rondas filtradas · tasas con menos de {MIN_RELIABLE_SAMPLE} rondas
+        <p className="text-meta text-fg-3">
+          Calculadas sobre las {roundCount} rondas filtradas · tasas con menos de {MIN_RELIABLE_SAMPLE} rondas
           marcadas
         </p>
       </header>
 
       {error !== null ? (
-        <p className="mt-5 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 font-mono text-body-sm leading-5 break-words text-destructive">
+        <p className="mt-5 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-body-sm leading-5 break-words text-destructive">
           No se pudieron calcular las tendencias: {error}
         </p>
       ) : null}
@@ -196,17 +196,17 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                     scope="row"
                     className={cn(
                       BODY_CELL,
-                      'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
+                      'text-left text-meta font-normal text-fg-1',
                     )}
                   >
                     {buyLabel(bucket.buy)}
                   </th>
-                  <td className={cn(BODY_CELL, 'font-mono text-meta tracking-normal tabular-nums text-fg-3')}>
+                  <td className={cn(BODY_CELL, 'text-meta tracking-normal tabular-nums text-fg-3')}>
                     {bucket.rounds}
                   </td>
                   <td className={BODY_CELL}>
                     <div className="flex flex-col gap-1.5">
-                      <RateBar rate={bucket.share} className="text-primary" />
+                      <RateBar rate={bucket.share} className="text-fg-2" />
                       <RateValue rate={bucket.share} />
                     </div>
                   </td>
@@ -251,7 +251,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
+                        'text-left text-meta font-normal text-fg-1',
                       )}
                     >
                       {buyLabel(buy)}
@@ -300,7 +300,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
+                        'text-left text-meta font-normal text-fg-1',
                       )}
                     >
                       {buyLabel(buy)}
@@ -414,11 +414,11 @@ function Headline({
 }): ReactNode {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-meta uppercase tracking-widest text-fg-3">
+      <span className="text-meta text-fg-3">
         {label}
       </span>
       <span className="flex items-center gap-2">
-        <span className="font-mono text-body-sm tabular-nums text-fg-1">{value}</span>
+        <span className="text-body-sm tabular-nums text-fg-1">{value}</span>
         {warn ? <SmallSampleChip /> : null}
       </span>
     </div>
@@ -428,8 +428,8 @@ function Headline({
 /** The win rate that belongs next to a share, with its own denominator. */
 function WinRateNote({ pct, total }: { pct: number; total: number }): ReactNode {
   return (
-    <span className="font-mono text-meta uppercase tracking-wider tabular-nums text-fg-3">
-      gana {total > 0 ? `${pct.toFixed(1)} %` : '—'} (n={total})
+    <span className="text-meta tabular-nums text-fg-3">
+      Gana {total > 0 ? `${pct.toFixed(1)} %` : '—'} (n={total})
     </span>
   );
 }

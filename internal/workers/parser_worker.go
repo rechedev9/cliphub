@@ -66,6 +66,9 @@ func (w *ParserWorker) ProcessParseDemo(ctx context.Context, jobID uuid.UUID) er
 	}
 	logWorkerTransition(j.ID, tasks.TypeParseDemo, job.StatusParsing)
 
+	if err := w.ensureRoster(ctx, j); err != nil {
+		return w.recordParserFailure(ctx, j.ID, tasks.TypeParseDemo, err)
+	}
 	plan, parseErr := w.parse(ctx, j)
 	if parseErr != nil {
 		return w.recordParserFailure(ctx, j.ID, tasks.TypeParseDemo, parseErr)
@@ -108,7 +111,7 @@ func (w *ParserWorker) ProcessScanRoster(ctx context.Context, jobID uuid.UUID) e
 	}
 	logWorkerTransition(j.ID, tasks.TypeScanRoster, job.StatusScanning)
 
-	rosterKey, scanErr := w.scanRoster(ctx, j)
+	rosterKey, scanErr := w.scanRoster(ctx, j, tasks.TypeScanRoster)
 	if scanErr != nil {
 		return w.recordParserFailure(ctx, j.ID, tasks.TypeScanRoster, scanErr)
 	}
@@ -120,12 +123,12 @@ func (w *ParserWorker) ProcessScanRoster(ctx context.Context, jobID uuid.UUID) e
 	return nil
 }
 
-// recordParserFailure records a failed scan or parse. A POV demo, a demo the
-// parser cannot read or a target missing from it fails the same way on every
-// attempt, so it ends the task now.
+// recordParserFailure records a failed scan or parse. A POV demo, a truncated
+// demo, a demo the parser cannot read or a target missing from it fails the
+// same way on every attempt, so it ends the task now.
 func (w *ParserWorker) recordParserFailure(ctx context.Context, id uuid.UUID, taskType string, err error) error {
 	class := obs.ClassOf(err.Error())
-	final := class == obs.ClassPOVDemo || class == obs.ClassDemoIncompatible || class == obs.ClassTargetNotFound
+	final := class == obs.ClassPOVDemo || class == obs.ClassTruncatedDemo || class == obs.ClassDemoIncompatible || class == obs.ClassTargetNotFound
 	if final {
 		ctx = tasks.WithTaskAttempt(ctx, 0, 0)
 	}
@@ -145,14 +148,9 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	}
 	defer cleanup()
 
+	// ensureRoster ran first, so the roster scan already logged the demo facts.
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
-	// The roster scan already logged a scanned job's demo facts.
-	if scanned, err := w.storage.Exists(artifacts.RosterKey(j.ID)); err != nil || !scanned {
-		header := parser.TrackDemoHeader(p)
-		first := parser.TrackFirstPacketTick(p)
-		defer func() { logDemoFacts(j.ID, tasks.TypeParseDemo, p, header, first) }()
-	}
 
 	meta := parser.PlanMeta{
 		DemoPath: j.DemoPath,
@@ -174,12 +172,35 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	return dual.Kills, nil
 }
 
-func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error) {
+// ensureRoster scans the roster of a job created with its target, which skips
+// the scan; the Full Demo overlays and the player list read roster.json. It
+// is a second pass over the demo, logged under parse:demo.
+func (w *ParserWorker) ensureRoster(ctx context.Context, j job.Job) error {
+	scanned, err := w.storage.Exists(artifacts.RosterKey(j.ID))
+	if err != nil {
+		return fmt.Errorf("check roster: %w", err)
+	}
+	if scanned {
+		return nil
+	}
+	key, err := w.scanRoster(ctx, j, tasks.TypeParseDemo)
+	if err != nil {
+		return err
+	}
+	logWorkerArtifacts(j.ID, tasks.TypeParseDemo, []string{key})
+	return nil
+}
+
+// scanRoster stores the job's roster and logs the demo facts under step.
+func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job, step string) (string, error) {
 	demo, cleanup, err := w.openDemo(j.DemoPath)
 	if err != nil {
 		return "", err
 	}
 	defer cleanup()
+	if _, err := checkDemoFileLength(demo); err != nil {
+		return "", fmt.Errorf("scan roster: %w", err)
+	}
 
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
@@ -187,7 +208,7 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error
 	first := parser.TrackFirstPacketTick(p)
 
 	result, err := parser.RosterScanWithContext(ctx, p)
-	logDemoFacts(j.ID, tasks.TypeScanRoster, p, header, first)
+	logDemoFacts(j.ID, step, p, header, first)
 	if err != nil {
 		return "", fmt.Errorf("scan roster: %w", err)
 	}
@@ -200,6 +221,21 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error
 		return "", fmt.Errorf("store roster: %w", err)
 	}
 	return key, nil
+}
+
+// checkDemoFileLength refuses a demo file shorter than its header announces
+// and returns the header. ReadAt leaves the offset where the parser starts.
+func checkDemoFileLength(f *os.File) ([]byte, error) {
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat demo: %w", err)
+	}
+	header := make([]byte, parser.DemoHeaderLen)
+	n, err := f.ReadAt(header, 0)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("read demo header: %w", err)
+	}
+	return header[:n], parser.CheckDemoLength(header[:n], info.Size())
 }
 
 // openDemo returns a local demo file directly when storage already provides

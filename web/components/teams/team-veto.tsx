@@ -170,7 +170,7 @@ export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
                 const taken = new Set(plan.steps.slice(0, index).map((s) => s.map));
                 return (
                   <li key={step.index} className="flex flex-wrap items-center gap-3 px-3 py-2 text-body-sm">
-                    <span className="w-6 font-mono text-fg-3">{step.index}</span>
+                    <span className="w-6 text-fg-3">{step.index}</span>
                     <span className={cn('w-36 truncate', step.team === 'a' ? 'text-fg-1' : 'text-fg-2')}>{slotNames[step.team]}</span>
                     <span className={cn('w-16 font-medium', step.action === 'pick' && 'text-outcome-win', step.action === 'ban' && 'text-outcome-loss')}>
                       {VETO_ACTION_LABEL[step.action]}
@@ -218,21 +218,21 @@ export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
                       <th scope="row" className="px-3 py-2 text-left font-medium text-fg-1">
                         {prettyMapName(map.map)}
                       </th>
-                      <td className="px-3 py-2 font-mono">
+                      <td className="px-3 py-2">
                         <Link href={matchesHref({ team: teamId, map: map.map })} className="hover:text-primary hover:underline">
                           {map.our_rounds_won}/{map.our_rounds} en {map.our_matches} {map.our_matches === 1 ? 'partida' : 'partidas'}
                         </Link>
                       </td>
-                      <td className="px-3 py-2 font-mono">{rateLabel(map.our_rate)}</td>
-                      <td className="px-3 py-2 font-mono">
+                      <td className="px-3 py-2">{rateLabel(map.our_rate)}</td>
+                      <td className="px-3 py-2">
                         <Link href={matchesHref({ team: opponent, map: map.map })} className="hover:text-primary hover:underline">
                           {map.their_rounds_won}/{map.their_rounds} en {map.their_matches} {map.their_matches === 1 ? 'partida' : 'partidas'}
                         </Link>
                       </td>
-                      <td className="px-3 py-2 font-mono">{rateLabel(map.their_rate)}</td>
-                      <td className={cn('px-3 py-2 font-mono', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
-                      <td className="px-3 py-2 font-mono">{map.their_bans}</td>
-                      <td className="px-3 py-2 font-mono">{map.their_picks}</td>
+                      <td className="px-3 py-2">{rateLabel(map.their_rate)}</td>
+                      <td className={cn('px-3 py-2', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
+                      <td className="px-3 py-2">{map.their_bans}</td>
+                      <td className="px-3 py-2">{map.their_picks}</td>
                     </tr>
                   ))}
                 </tbody>

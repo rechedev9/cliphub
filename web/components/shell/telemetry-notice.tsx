@@ -56,11 +56,11 @@ export function TelemetryNotice(): ReactElement | null {
     <Dialog open>
       <DialogContent showCloseButton={false} aria-describedby="telemetry-notice-description">
         <DialogHeader>
-          <div className="mb-2 flex items-center gap-3 text-primary">
+          <div className="mb-2 flex items-center gap-3 text-fg-2">
             <span className="grid size-10 place-items-center rounded-md border border-primary/50 bg-surface-3">
               <Activity className="size-5" aria-hidden />
             </span>
-            <span className="font-mono text-meta uppercase tracking-wider">Diagnóstico local-first</span>
+            <span className="text-meta font-medium">Diagnóstico local-first</span>
           </div>
           <DialogTitle>Ayuda a detectar fallos de ClipHub</DialogTitle>
           <DialogDescription id="telemetry-notice-description">
@@ -75,8 +75,8 @@ export function TelemetryNotice(): ReactElement | null {
             Se ocultan rutas, credenciales, correos y SteamID en los mensajes de error. No se adjuntan demos, vídeos
             ni otros archivos multimedia. Puedes desactivarlo después en Ajustes.
           </p>
-          <p className="mt-3 font-mono text-meta tracking-wider text-fg-3">
-            CÓDIGO DE SOPORTE · {status.supportCode}
+          <p className="mt-3 text-meta text-fg-3">
+            Código de soporte · <span className="font-mono">{status.supportCode}</span>
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export function TelemetryNotice(): ReactElement | null {
             type="button"
             variant="ghost"
             loading={pending === false}
-            loadingText="DESACTIVANDO"
+            loadingText="Desactivando"
             onClick={() => choose(false)}
           >
             Desactivar
@@ -99,7 +99,7 @@ export function TelemetryNotice(): ReactElement | null {
           <Button
             type="button"
             loading={pending === true}
-            loadingText="GUARDANDO"
+            loadingText="Guardando"
             onClick={() => choose(true)}
           >
             Mantener activado

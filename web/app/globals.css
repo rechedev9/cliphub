@@ -61,7 +61,7 @@
   --border-subtle: oklch(0.93 0.003 264);
   --border: oklch(0.9 0.004 264);
   --border-strong: oklch(0.8 0.006 264);
-  --border-accent: oklch(0.52 0.1 215 / 0.45);
+  --border-accent: oklch(0.21 0.006 264 / 0.35);
   --input: var(--border-strong);
   --sidebar-border: var(--border);
 
@@ -70,22 +70,22 @@
 
   /* Accent and meaning. --destructive writes, --destructive-solid fills under
    * white text; the same pair exists for stream, success and warning. */
-  --primary: oklch(0.52 0.1 215);
-  --primary-foreground: oklch(1 0 0);
+  --primary: oklch(0.21 0.006 264);
+  --primary-foreground: oklch(0.985 0.001 264);
   --accent: oklch(0.955 0.003 264);
   --destructive: oklch(0.53 0.2 25);
   --destructive-solid: oklch(0.53 0.2 25);
   --destructive-foreground: oklch(1 0 0);
   --brand-accent: oklch(0.6 0.2 25);
-  --stream: oklch(0.6 0.22 6.9);
-  --stream-text: oklch(0.52 0.2 6.9);
+  --stream: oklch(0.56 0.15 6.9);
+  --stream-text: oklch(0.5 0.14 6.9);
   --stream-foreground: oklch(1 0 0);
   --success: oklch(0.52 0.12 160);
   --success-foreground: oklch(1 0 0);
   --warning: oklch(0.56 0.13 65);
   --warning-foreground: oklch(1 0 0);
   --skeleton: oklch(0.93 0.003 264);
-  --ring: oklch(0.52 0.1 215);
+  --ring: oklch(0.43 0.008 264);
 
   /* Sides and outcomes, the only other colours with a job. */
   --side-ct: oklch(0.52 0.15 255);
@@ -93,9 +93,9 @@
   --outcome-win: var(--success);
   --outcome-loss: var(--destructive);
 
-  --chart-1: oklch(0.52 0.1 215);
-  --chart-2: oklch(0.6 0.22 6.9);
-  --chart-3: oklch(0.52 0.18 292);
+  --chart-1: oklch(0.48 0.07 250);
+  --chart-2: oklch(0.56 0.15 6.9);
+  --chart-3: oklch(0.5 0.1 292);
   --chart-4: oklch(0.6 0.01 264);
   --chart-5: oklch(0.75 0.008 264);
 
@@ -123,11 +123,6 @@
   --elev-5: 0 20px 40px -12px oklch(0 0 0 / 0.2);
   --elev-band-up: 0 -6px 16px -12px oklch(0 0 0 / 0.18);
 
-  /* Glows are retired; the tokens resolve to nothing so old call sites stay flat. */
-  --glow-primary-sm: 0 0 0 0 transparent;
-  --glow-primary-md: 0 0 0 0 transparent;
-  --glow-primary-lg: 0 0 0 0 transparent;
-  --glow-stream-md: 0 0 0 0 transparent;
 
   /* Motion durations. Easings live in @theme so they emit `ease-*` utilities. */
   --dur-instant: 80ms;
@@ -143,13 +138,6 @@
   /* Shell geometry, shared by the command strip and the page frame. */
   --shell-strip-height: 3rem;
   --shell-gutter: clamp(1rem, 2.4vw, 2.5rem);
-
-  /* Content measure: read (form, definition list), list (a stack of rows),
-   * work (subject plus inspector rail). A page picks one; it never writes a
-   * pixel width. */
-  --measure-read: 42rem;
-  --measure-list: 67.5rem;
-  --measure-work: 72.5rem;
 }
 
 .dark {
@@ -172,34 +160,34 @@
   --border-subtle: oklch(1 0 0 / 0.06);
   --border: oklch(1 0 0 / 0.1);
   --border-strong: oklch(1 0 0 / 0.2);
-  --border-accent: oklch(0.811 0.135 207.6 / 0.45);
+  --border-accent: oklch(1 0 0 / 0.3);
 
   --edge-light: oklch(1 0 0 / 0.04);
   --edge-shade: oklch(0 0 0 / 0.4);
 
-  --primary: oklch(0.811 0.135 207.6); /* brand cyan #22d9ee */
-  --primary-foreground: oklch(0.2 0.03 233.6);
+  --primary: oklch(0.96 0.002 264);
+  --primary-foreground: oklch(0.185 0.003 264);
   --accent: oklch(0.26 0.004 264);
-  --destructive: oklch(0.68 0.19 22);
+  --destructive: oklch(0.68 0.16 22);
   --destructive-solid: oklch(0.5 0.19 22);
   --destructive-foreground: oklch(0.16 0.035 22);
   --brand-accent: oklch(0.68 0.21 25);
-  --stream: oklch(0.657 0.241 6.9);
-  --stream-text: oklch(0.74 0.2 6.9);
+  --stream: oklch(0.68 0.15 6.9);
+  --stream-text: oklch(0.76 0.12 6.9);
   --stream-foreground: oklch(0.17 0.035 6.9);
-  --success: oklch(0.78 0.13 160);
+  --success: oklch(0.76 0.11 158);
   --success-foreground: oklch(0.17 0.04 160);
-  --warning: oklch(0.82 0.15 78);
+  --warning: oklch(0.8 0.12 78);
   --warning-foreground: oklch(0.18 0.045 78);
   --skeleton: oklch(0.3 0.004 264);
-  --ring: oklch(0.811 0.135 207.6);
+  --ring: oklch(0.79 0.004 264);
 
   --side-ct: oklch(0.72 0.13 250);
   --side-t: oklch(0.8 0.14 75);
 
-  --chart-1: oklch(0.811 0.135 207.6);
-  --chart-2: oklch(0.657 0.241 6.9);
-  --chart-3: oklch(0.65 0.2 292);
+  --chart-1: oklch(0.74 0.07 250);
+  --chart-2: oklch(0.68 0.15 6.9);
+  --chart-3: oklch(0.68 0.11 292);
   --chart-4: oklch(0.55 0.008 264);
   --chart-5: oklch(0.4 0.006 264);
 
@@ -217,6 +205,23 @@
   --elev-4: 0 12px 28px -8px oklch(0 0 0 / 0.55), 0 0 0 1px oklch(1 0 0 / 0.04);
   --elev-5: 0 24px 48px -16px oklch(0 0 0 / 0.65), 0 0 0 1px oklch(1 0 0 / 0.04);
   --elev-band-up: 0 -8px 20px -14px oklch(0 0 0 / 0.7);
+}
+
+/* Compact density: a 3.5px spacing unit instead of 4px and the type scale one
+ * notch down, so every utility tightens together. --text-meta keeps the 12px floor. */
+:root[data-density="compact"] {
+  --spacing: 0.21875rem;
+  --text-label: 0.78125rem;
+  --text-body-sm: 0.8125rem;
+  --text-body: 0.875rem;
+  --text-body-lg: 1rem;
+  --text-title: 1.125rem;
+  --text-section: 1.3125rem;
+  --text-display-sm: 1.625rem;
+  --text-display: 2.125rem;
+  --text-stat: 1.5rem;
+  --shell-strip-height: 2.625rem;
+  --shell-gutter: clamp(0.875rem, 2vw, 2rem);
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"],
@@ -270,11 +275,154 @@ html[data-capture-active="true"] {
   --tracking-widest: 0.06em;
   --tracking-ultra: 0.08em;
 
+  /* Content measures: `max-w-read` (form), `max-w-list` (rows), `max-w-work`
+   * (subject plus inspector rail). A page picks one; it never writes a pixel width. */
+  --container-read: 42rem;
+  --container-list: 67.5rem;
+  --container-work: 72.5rem;
+
+  /* Motion. Amplitudes multiply --shell-depth, so efficiency, capture, reduced
+   * motion and an inactive window snap to the end state. */
+  --animate-studio-shake: studio-shake var(--dur-base) var(--ease-standard) 1;
+  --animate-studio-reveal: studio-reveal var(--dur-base) var(--ease-entrance) both;
+  --animate-studio-indeterminate: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
+  --animate-studio-enter: studio-enter var(--dur-slow) var(--ease-entrance) both;
+  --animate-studio-spin: studio-spin 0.9s linear infinite;
+  --animate-check-draw: studio-check-draw var(--dur-base) var(--ease-entrance) both;
+  /* Three beats, then static: an infinite opacity loop keeps the compositor busy. */
+  --animate-live-pulse: live-pulse 1.4s steps(2, end) 3;
+  --animate-equalizer: ff-eq 0.9s ease-in-out infinite;
+  --animate-nav-pending: ff-nav-pending 900ms var(--ease-standard) infinite;
+  --animate-dialog-in: ff-dialog-in var(--dur-base) var(--ease-standard);
+  --animate-dialog-out: ff-dialog-out var(--dur-fast) var(--ease-exit);
+
   /* Easings. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-pop: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  @keyframes ff-dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(calc(1 - 0.02 * var(--shell-depth)));
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ff-dialog-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes ff-nav-pending {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes studio-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    20% {
+      transform: translateX(calc(6px * var(--shell-depth)));
+    }
+
+    40% {
+      transform: translateX(calc(-5px * var(--shell-depth)));
+    }
+
+    60% {
+      transform: translateX(calc(4px * var(--shell-depth)));
+    }
+
+    80% {
+      transform: translateX(calc(-2px * var(--shell-depth)));
+    }
+  }
+
+  @keyframes studio-reveal {
+    from {
+      opacity: calc(1 - 0.28 * var(--shell-depth));
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes studio-indeterminate {
+    from {
+      transform: translateX(-120%);
+    }
+
+    to {
+      transform: translateX(280%);
+    }
+  }
+
+  @keyframes studio-enter {
+    from {
+      opacity: 0;
+      transform: translateY(calc(8px * var(--shell-depth)));
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes studio-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes studio-check-draw {
+    from {
+      stroke-dashoffset: calc(24 * var(--shell-depth));
+    }
+
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+
+  @keyframes ff-eq {
+    0%,
+    100% {
+      height: 30%;
+    }
+
+    50% {
+      height: 100%;
+    }
+  }
 }
 
 @theme inline {
@@ -348,22 +496,8 @@ html[data-capture-active="true"] {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* shadow-* maps onto the elevation scale, including -xl/-2xl which v3 left
-   * on Tailwind's light-mode default (rgb(0 0 0 / 0.1) — a no-op on navy, and
-   * the reason the Select popover had zero depth cues). Because these point at
-   * --elev-*, the efficiency downgrade propagates to the utilities too.
-   *
-   * TRADE-OFF, read before adding a `shadow-<color>` class: Tailwind can only
-   * splice `var(--tw-shadow-color, …)` into a shadow value it can parse, and a
-   * bare `var(--elev-N)` is opaque to it. Compiled proof:
-   *   .shadow-sm{--tw-shadow:var(--elev-1)}          <- no colour slot
-   *   .shadow-primary\/15{--tw-shadow-color:…}       <- written, never read
-   * So `shadow-primary/15`, `hover:shadow-primary/20` and `shadow-stream/15`
-   * are inert against these keys. Keeping the indirection is deliberate: the
-   * efficiency profile is unconditional in the packaged app, so propagating the
-   * downgrade is worth more than a tinted shadow. Express brand emphasis with
-   * the --glow-primary-sm/md/lg and --glow-stream-md tokens
-   * instead, and delete the dead shadow-color utilities when primitives land. */
+  /* shadow-* maps onto the elevation scale so the efficiency downgrade reaches
+   * the utilities. A `shadow-<color>` class is inert against these keys. */
   --shadow-2xs: var(--elev-0);
   --shadow-xs: var(--elev-0);
   --shadow-sm: var(--elev-1);
@@ -410,405 +544,110 @@ html[data-capture-active="true"] {
 }
 
 @layer components {
-  /* ── Content measure ─────────────────────────────────────────────────────
-   * `width: 100%` first so the cap only ever binds on a wide stage; these are
-   * ceilings, not fixed columns. Left-pinned like the stage itself, so the
-   * H1, the rows under it and the sidebar edge share one optical spine. */
-  .measure-read,
-  .measure-list,
-  .measure-work {
-    width: 100%;
-  }
-
+  /* Content measure: ceilings, not fixed columns, left-pinned like the stage. */
   .measure-read {
-    max-width: var(--measure-read);
+    @apply w-full max-w-read;
   }
 
   .measure-list {
-    max-width: var(--measure-list);
+    @apply w-full max-w-list;
   }
 
   .measure-work {
-    max-width: var(--measure-work);
+    @apply w-full max-w-work;
   }
 
-  /* ── Row rail ────────────────────────────────────────────────────────────
-   * A list row is identity on the left, state and actions on the right. When
-   * the trailing slots size to their content, every row parks its controls at
-   * a different x and the column reads as ragged — the defect visible on the
-   * hub, where one row's "Clipear short" sat 60px left of the next one's.
-   * These two reserve the columns instead, and only from `@[44rem]/content`:
-   * below that the cluster wraps and a reserved width would be a hole.
-   *
-   * The reservation is a flex BASIS that may shrink, never a fixed width: a
-   * rail keyed to the content container but used inside a narrower nested
-   * column — a half-width expanded partida, a two-column scoreboard cell —
-   * would otherwise reserve 280px it does not have and push its siblings out
-   * of the card. `flex: 0 1 <basis>` reserves the column wherever it fits and
-   * gives it back where it does not, which is the whole point of asking for a
-   * column instead of a width. */
+  /* Row rail: from 44rem the trailing state and actions reserve a column so
+   * every row parks its controls at the same x. A shrinkable basis, never a
+   * fixed width, so a narrower nested column gets the space back. */
   .row-state {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.375rem;
-    align-self: center;
-    flex: 0 1 auto;
-    min-width: 0;
+    @apply flex min-w-0 flex-[0_1_auto] flex-col justify-center gap-1.5 self-center @min-[44rem]/content:basis-70;
   }
 
-  /* The stages that own a whole wrapped line on a narrow row — a progress
-   * block, a two-line hint — rather than sitting inline beside a score. */
   .row-state-block {
-    width: 100%;
+    @apply w-full @min-[44rem]/content:w-auto;
   }
 
   .row-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    flex: 0 1 auto;
-    /* Never below the controls themselves: the rail aligns a column, it does
-     * not get to clip a button. */
-    min-width: min-content;
+    @apply flex min-w-min flex-[0_1_auto] items-center justify-end gap-2 @min-[44rem]/content:basis-50;
   }
 
-  @container content (min-width: 44rem) {
-    .row-state {
-      flex-basis: 17.5rem; /* 280px */
-    }
-
-    .row-state-block {
-      width: auto;
-    }
-
-    .row-actions {
-      flex-basis: 12.5rem; /* 200px */
-    }
-  }
-
-  /* ── Studio surfaces ─────────────────────────────────────────────────────
-   * Flat, opaque panels: a hairline border and a soft shadow. No tint, no
-   * gradient; the accent never fills a surface. */
+  /* Flat, opaque panels: a hairline border and a soft shadow. */
   .studio-panel {
-    position: relative;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background-color: var(--surface-2);
-    box-shadow: var(--elev-1);
+    @apply relative rounded-lg border border-border bg-surface-2 shadow-sm forced-colors:border-[CanvasText] forced-colors:shadow-none;
   }
 
   .studio-panel-raised {
-    border-color: var(--border);
-    background-color: var(--panel-raised);
-    box-shadow: var(--elev-2);
+    @apply border-border bg-panel-raised shadow-md forced-colors:border-[CanvasText] forced-colors:shadow-none;
   }
 
   .studio-panel-interactive {
-    transition:
-      border-color var(--dur-fast) var(--ease-standard),
-      background-color var(--dur-fast) var(--ease-standard),
-      box-shadow var(--dur-base) var(--ease-standard),
-      transform var(--dur-base) var(--ease-standard);
+    @apply transition-[border-color,background-color,box-shadow,transform] duration-(--dur-fast) ease-standard hover:border-border-strong hover:bg-surface-3;
   }
 
-  .studio-panel-interactive:hover {
-    border-color: var(--border-strong);
-    background-color: var(--surface-3);
-  }
-
-  /* The bevel on its own, for surfaces that bring their own shadow or none.
-   * Do not combine with a `shadow-*` utility: both write box-shadow. */
-  .studio-rim {
-    box-shadow: var(--elev-bevel);
-  }
-
-  /* Media frames position their overlays against this. */
-  .studio-scanline {
-    position: relative;
-  }
-
-  /* ── Chrome walls & ceiling ──────────────────────────────────────────────
-   * The sidebar and the command strip are flat bands separated from the
-   * content by one hairline. The strip is opaque rather than blurred: a
-   * full-width sticky backdrop-filter re-blurs the band on every scroll frame. */
+  /* The sidebar and the command strip are opaque bands split by one hairline;
+   * a sticky backdrop blur would re-blur on every scroll frame. */
   .shell-wall {
-    background-color: var(--surface-0);
+    @apply bg-surface-0 forced-colors:shadow-none;
   }
 
   .shell-wall-left {
-    box-shadow: inset -1px 0 0 0 var(--border);
+    @apply shadow-[inset_-1px_0_0_0_var(--border)] forced-colors:shadow-none;
   }
 
   .shell-strip {
-    background-color: var(--surface-1);
-    box-shadow: inset 0 -1px 0 0 var(--border);
+    @apply bg-surface-1 shadow-[inset_0_-1px_0_0_var(--border)] forced-colors:shadow-none;
   }
 
-  /* ── Sidebar active key ──────────────────────────────────────────────────
-   * The type step lives here, not in a `text-label` utility on the row:
-   * tailwind-merge files an unknown `text-*` under text colour, so
-   * `cn('text-label text-fg-1')` would drop the size. The active row keeps a
-   * neutral fill and a short accent bar; the accent is never the surface. */
+  /* The type step lives here: tailwind-merge files an unknown `text-*` under
+   * text colour, so `cn('text-body-sm text-fg-1')` would drop the size. */
   .shell-nav-key {
-    position: relative;
-    font-size: var(--text-body-sm);
-    line-height: var(--text-body-sm--line-height);
+    @apply relative text-body-sm data-[active=true]:before:absolute data-[active=true]:before:inset-y-1.5 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-[1px] data-[active=true]:before:bg-primary data-[active=true]:before:content-[''] forced-colors:data-[active=true]:before:bg-[Highlight];
   }
 
-  .shell-nav-key[data-active="true"]::before {
-    content: "";
-    position: absolute;
-    inset-block: 0.375rem;
-    left: 0;
-    width: 2px;
-    border-radius: 1px;
-    background-color: var(--primary);
-  }
-
-  /* Route-pending underline, mounted by useLinkStatus only while a navigation
-   * is in flight — so the infinite iteration count is bounded by the navigation
-   * itself, not by the compositor. */
+  /* Route-pending underline, mounted only while a navigation is in flight. */
   .ff-nav-pending {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: 2px;
-    overflow: hidden;
-    background-color: color-mix(in oklch, var(--primary) 18%, transparent);
+    @apply absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-primary/18 after:absolute after:inset-y-0 after:left-0 after:w-[34%] after:animate-nav-pending after:bg-primary after:content-[''];
   }
 
-  .ff-nav-pending::after {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    left: 0;
-    width: 34%;
-    background-color: var(--primary);
-    animation: ff-nav-pending 900ms var(--ease-standard) infinite;
-  }
-
-  /* ── Restyled moments (indexes → product tokens) ─────────────────────────
-   * Amplitude and blur multiply by --shell-depth so efficiency, capture,
-   * reduced-motion and an inactive window snap to the end state. */
+  /* Named so the performance guards below can stop them. */
   .studio-shake {
-    animation: studio-shake var(--dur-base) var(--ease-standard) 1;
+    @apply animate-studio-shake;
   }
 
   .studio-reveal {
-    animation: studio-reveal var(--dur-base) var(--ease-entrance) both;
+    @apply animate-studio-reveal;
   }
 
   .studio-indeterminate {
-    animation: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
+    @apply animate-studio-indeterminate;
   }
 
-  /* Route and list entrance: fade plus an 8px rise. The rise multiplies
-   * --shell-depth, so reduced motion and the efficiency profile keep only the
-   * fade, and the duration token collapses it to 1ms under reduced motion. */
-  /* Same entrance as .studio-reveal at a larger travel amplitude; both stay. */
   .studio-enter {
-    animation: studio-enter var(--dur-slow) var(--ease-entrance) both;
+    @apply animate-studio-enter;
   }
 
-  /* Determinate-less activity ring, 12px by default: cyan for local work,
-   * magenta (via `text-stream`) for CS2 recording. Colour comes from
-   * currentColor so one class serves every tone. */
-  /* 0.9s is the spec's spinner cadence, deliberately off the --dur-* scale. */
+  .live-pulse {
+    @apply animate-live-pulse;
+  }
+
+  .ff-equalizer-bar {
+    @apply animate-equalizer;
+  }
+
+  /* Activity ring; colour comes from currentColor so one class serves every tone. */
   .studio-spinner {
-    display: inline-block;
-    flex: none;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 9999px;
-    border: 2px solid color-mix(in oklch, currentColor 20%, transparent);
-    border-top-color: currentColor;
-    animation: studio-spin 0.9s linear infinite;
+    @apply inline-block size-3 flex-none animate-studio-spin rounded-full border-2 border-current/20 border-t-current;
   }
 
-  /* 3px progress track. Give the fill its width inline; add
-   * `.studio-indeterminate` to the fill when there is no percent to show. */
+  /* 3px progress track. The fill gets its width inline, or `.studio-indeterminate`. */
   .studio-bar {
-    position: relative;
-    display: block;
-    height: 3px;
-    overflow: hidden;
-    background-color: var(--surface-3);
-  }
-
-  .studio-bar > span {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 0;
-    background-color: currentColor;
-    transition: width var(--dur-base) linear;
-  }
-
-  .studio-bar > span.studio-indeterminate {
-    width: 34%;
+    @apply relative block h-[3px] overflow-hidden bg-surface-3 [&>span]:absolute [&>span]:inset-y-0 [&>span]:left-0 [&>span]:w-0 [&>span]:bg-current [&>span]:transition-[width] [&>span]:duration-(--dur-base) [&>span]:ease-linear [&>span.studio-indeterminate]:w-[34%];
   }
 
   .studio-op-check-path {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: square;
-    stroke-linejoin: miter;
-    stroke-dasharray: 24;
-    stroke-dashoffset: 0;
-    animation: studio-check-draw var(--dur-base) var(--ease-entrance) both;
+    @apply animate-check-draw fill-none stroke-current stroke-2 [stroke-dasharray:24] [stroke-linecap:square] [stroke-linejoin:miter];
   }
-}
-
-/* ── Overlays ──────────────────────────────────────────────────────────────
- * A dialog fades in with a small scale; nothing behind it moves. */
-@keyframes ff-dialog-in {
-  from {
-    opacity: 0;
-    transform: scale(calc(1 - 0.02 * var(--shell-depth)));
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes ff-dialog-out {
-  to {
-    opacity: 0;
-  }
-}
-
-[data-slot="dialog-content"][data-state="open"] {
-  animation: ff-dialog-in var(--dur-base) var(--ease-standard);
-}
-
-[data-slot="dialog-content"][data-state="closed"] {
-  animation: ff-dialog-out var(--dur-fast) var(--ease-exit);
-}
-
-@keyframes ff-nav-pending {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(300%);
-  }
-}
-
-@keyframes studio-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-
-  20% {
-    transform: translateX(calc(6px * var(--shell-depth)));
-  }
-
-  40% {
-    transform: translateX(calc(-5px * var(--shell-depth)));
-  }
-
-  60% {
-    transform: translateX(calc(4px * var(--shell-depth)));
-  }
-
-  80% {
-    transform: translateX(calc(-2px * var(--shell-depth)));
-  }
-}
-
-@keyframes studio-reveal {
-  from {
-    opacity: calc(1 - 0.28 * var(--shell-depth));
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes studio-indeterminate {
-  from {
-    transform: translateX(-120%);
-  }
-
-  to {
-    transform: translateX(280%);
-  }
-}
-
-@keyframes studio-enter {
-  from {
-    opacity: 0;
-    transform: translateY(calc(8px * var(--shell-depth)));
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes studio-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes studio-check-draw {
-  from {
-    stroke-dashoffset: calc(24 * var(--shell-depth));
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* .neon-pulse: the REC dot and the active pipeline step. */
-@keyframes neon-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.neon-pulse {
-  /*
-   * Draw attention when a live state first appears, then settle to a static
-   * indicator. An infinite opacity animation keeps Chromium's compositor
-   * producing frames at the monitor refresh rate (notably expensive at 240Hz)
-   * even though no useful content changed.
-   */
-  animation: neon-pulse 1.4s steps(2, end) 3;
-}
-
-/* Owned here rather than injected from components/clips/song-picker-dialog.tsx:
- * a <style> element rendered inside a dialog re-parses the same rule on every
- * open, and the .ff-equalizer-bar class that consumes it has always lived in
- * this file — the keyframe and its guards belong together. */
-@keyframes ff-eq {
-  0%,
-  100% {
-    height: 30%;
-  }
-
-  50% {
-    height: 100%;
-  }
-}
-
-.ff-equalizer-bar {
-  animation: ff-eq 0.9s ease-in-out infinite;
 }
 
 /* Thin scrollbars on the neutral ramp. */
@@ -930,24 +769,5 @@ html[data-capture-active="true"] .animate-spin {
 @media (forced-colors: active) {
   :root {
     --shell-depth: 0;
-  }
-
-  .studio-panel,
-  .studio-panel-raised,
-  .studio-rim {
-    border: 1px solid CanvasText;
-    box-shadow: none;
-  }
-
-  .shell-wall,
-  .shell-wall-left,
-  .shell-strip {
-    background-image: none;
-    box-shadow: none;
-    border-color: CanvasText;
-  }
-
-  .shell-nav-key[data-active="true"]::before {
-    background-color: Highlight;
   }
 }

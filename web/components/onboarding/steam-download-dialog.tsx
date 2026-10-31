@@ -68,7 +68,7 @@ export function SteamDownloadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="uppercase">Descargar esta demo</DialogTitle>
+          <DialogTitle>Descargar esta demo</DialogTitle>
           <DialogDescription>
             Valve solo entrega la demo si ClipHub abre una sesión corta con la cuenta con la que
             juegas. Si estás en una partida de CS2, Steam te echará de ella.
@@ -91,8 +91,8 @@ export function SteamDownloadDialog({
             )}
           </Field>
           <DialogFooter>
-            <Button type="submit" loading={pending} loadingText="CONECTANDO">
-              DESCARGAR
+            <Button type="submit" loading={pending} loadingText="Conectando">
+              Descargar
             </Button>
           </DialogFooter>
         </form>

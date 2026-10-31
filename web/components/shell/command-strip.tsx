@@ -101,8 +101,8 @@ function CapturePip(): ReactElement {
       role="status"
       className="hidden h-9 items-center gap-2 rounded-md border border-stream/45 bg-stream/10 px-2.5 sm:flex"
     >
-      <span className="neon-pulse size-2 rounded-full bg-stream" aria-hidden />
-      <span className="font-[family-name:var(--font-mono)] text-meta tracking-wider text-stream-text uppercase">
+      <span className="live-pulse size-2 rounded-full bg-stream" aria-hidden />
+      <span className="text-meta font-medium text-stream-text">
         Captura
       </span>
     </span>

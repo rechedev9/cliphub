@@ -109,6 +109,7 @@ func TestImportLibraryDemosStoresDeduplicatesAndRejectsPerFile(t *testing.T) {
 		{"copy.dem", demo},
 		{"old.dem", []byte("HL2DEMO\x00rest")},
 		{"notes.txt", []byte("hello")},
+		{"cut.dem", truncatedDemo()},
 	} {
 		part, _ := mw.CreateFormFile("demo", file.name)
 		_, _ = part.Write(file.data)
@@ -125,8 +126,8 @@ func TestImportLibraryDemosStoresDeduplicatesAndRejectsPerFile(t *testing.T) {
 	if err := json.Unmarshal(rw.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	wantStatus := []string{libraryImportImported, libraryImportDuplicate, libraryImportRejected, libraryImportRejected}
-	wantCode := []string{"", "", codeCSGODemo, codeNotADemo}
+	wantStatus := []string{libraryImportImported, libraryImportDuplicate, libraryImportRejected, libraryImportRejected, libraryImportRejected}
+	wantCode := []string{"", "", codeCSGODemo, codeNotADemo, codeTruncatedDemo}
 	if len(resp.Demos) != len(wantStatus) {
 		t.Fatalf("results = %+v", resp.Demos)
 	}

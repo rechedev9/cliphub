@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { DENSITY_BOOT_SCRIPT } from '@/lib/density';
 import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup';
 import { StudioThemeProvider } from '@/components/shell/theme-provider';
@@ -31,8 +32,12 @@ const fontVars = `${geistSans.variable} ${geistMono.variable}`;
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (
     // The next/font variables live on <html> so the --font-* tokens in globals.css resolve at :root.
-    // next-themes writes the theme class here before paint, hence the hydration opt-out.
+    // next-themes and the density script write here before paint, hence the hydration opt-out.
     <html lang="es" className={fontVars} data-window-activity="active" suppressHydrationWarning>
+      <head>
+        {/* Plain inline script: next/script queues even beforeInteractive behind the runtime. */}
+        <script id="density-boot" dangerouslySetInnerHTML={{ __html: DENSITY_BOOT_SCRIPT }} />
+      </head>
       <body className="bg-background text-foreground antialiased">
         <StudioThemeProvider>
           <ServiceWorkerCleanup />

@@ -3,7 +3,7 @@
   "smokes": [
     {
       "id": "dust2-ropz-upper-b-doors-smoke-a",
-      "destination": "B doors",
+      "destination": "B site",
       "from_area": "UpperTunnel",
       "side": "T",
       "landing": [-1975.219, 1853.656, 2.594],
@@ -13,7 +13,7 @@
     },
     {
       "id": "dust2-ropz-upper-b-doors-smoke-b",
-      "destination": "B doors",
+      "destination": "B site",
       "from_area": "UpperTunnel",
       "side": "T",
       "landing": [-1976.031, 1856.594, 2.688],
@@ -33,7 +33,7 @@
     },
     {
       "id": "dust2-ropz-upper-xbox-smoke",
-      "destination": "Xbox",
+      "destination": "Long doors",
       "from_area": "UpperTunnel",
       "side": "T",
       "landing": [650.094, 570.594, 2.781],
@@ -53,7 +53,7 @@
     },
     {
       "id": "dust2-ropz-upper-b-doors-smoke-c",
-      "destination": "B doors",
+      "destination": "B site",
       "from_area": "UpperTunnel",
       "side": "T",
       "landing": [-1975.969, 1853.906, 2.594],
@@ -63,7 +63,7 @@
     },
     {
       "id": "dust2-ropz-bsite-xbox-smoke",
-      "destination": "Xbox",
+      "destination": "Long doors",
       "from_area": "BombsiteB",
       "side": "CT",
       "landing": [579.375, 584.344, 3.156],
@@ -72,18 +72,8 @@
       "throw_radius": 36.0
     },
     {
-      "id": "dust2-ropz-bsite-a-short-smoke",
-      "destination": "A short",
-      "from_area": "BombsiteB",
-      "side": "CT",
-      "landing": [1060.344, 1210.625, 159.219],
-      "landing_radius": 32.0,
-      "throw": [-1900.837, 1905.317, 0.064],
-      "throw_radius": 36.0
-    },
-    {
       "id": "dust2-ropz-bsite-b-doors-smoke-a",
-      "destination": "B doors",
+      "destination": "B tunnels",
       "from_area": "BombsiteB",
       "side": "CT",
       "landing": [-1935.313, 1457.813, 35.844],
@@ -93,7 +83,7 @@
     },
     {
       "id": "dust2-ropz-bsite-b-doors-smoke-b",
-      "destination": "B doors",
+      "destination": "B tunnels",
       "from_area": "BombsiteB",
       "side": "CT",
       "landing": [-1939.438, 1513.188, 37.125],
@@ -103,7 +93,7 @@
     },
     {
       "id": "dust2-ropz-hole-b-doors-smoke",
-      "destination": "B doors",
+      "destination": "B tunnels",
       "from_area": "Hole",
       "side": "CT",
       "landing": [-1987.469, 1580.719, 32.844],
@@ -123,7 +113,7 @@
     },
     {
       "id": "dust2-ropz-bsite-b-doors-smoke-c",
-      "destination": "B doors",
+      "destination": "B tunnels",
       "from_area": "BombsiteB",
       "side": "CT",
       "landing": [-1950.219, 1598.063, 34.656],

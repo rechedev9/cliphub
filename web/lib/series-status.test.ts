@@ -92,9 +92,9 @@ test('summarize keeps an unknown status consistent with its "analizando" pill', 
 });
 
 test('seriesTitle reads singular for one map and plural otherwise', () => {
-  assert.equal(seriesTitle(1), 'SERIE DE 1 MAPA');
-  assert.equal(seriesTitle(2), 'SERIE DE 2 MAPAS');
-  assert.equal(seriesTitle(5), 'SERIE DE 5 MAPAS');
+  assert.equal(seriesTitle(1), 'Serie de 1 mapa');
+  assert.equal(seriesTitle(2), 'Serie de 2 mapas');
+  assert.equal(seriesTitle(5), 'Serie de 5 mapas');
 });
 
 test('isSeriesId accepts client-minted UUIDs and rejects other route values', () => {

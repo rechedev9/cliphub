@@ -37,7 +37,7 @@ const TONE_CLASS = {
 function CellView({ cell, matches, minSample }: { cell: ReportCell; matches: ReadonlyMap<string, ScoutMatchSummary>; minSample: number }): ReactNode {
   const className = cn(
     'px-3 py-2 align-top',
-    cell.numeric && 'text-right font-mono whitespace-nowrap',
+    cell.numeric && 'text-right whitespace-nowrap',
     cell.lowSample && 'text-fg-3 italic',
     cell.tone && TONE_CLASS[cell.tone],
   );
@@ -50,7 +50,7 @@ function CellView({ cell, matches, minSample }: { cell: ReportCell; matches: Rea
               key={`${evidence.match_id}:${evidence.round}:${evidence.tick}`}
               href={evidencePath(evidence)}
               title={evidenceTitle(evidence, matches)}
-              className="rounded-sm border border-border px-1.5 font-mono text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
+              className="rounded-sm border border-border px-1.5 text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
             >
               {evidenceLabel(evidence, matches)}
             </Link>
@@ -151,7 +151,7 @@ export function SectionView({
           {section.facts.map((fact) => (
             <div key={fact.label} className="flex flex-col gap-0.5">
               <dt className="text-meta text-fg-3">{fact.label}</dt>
-              <dd className="font-mono text-body-sm text-fg-1">{fact.value}</dd>
+              <dd className="text-body-sm text-fg-1">{fact.value}</dd>
             </div>
           ))}
         </dl>

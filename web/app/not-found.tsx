@@ -21,8 +21,8 @@ export default function NotFound(): ReactElement {
         <Wordmark />
       </Link>
 
-      <p className="font-mono text-meta tracking-ultra text-fg-3 uppercase tabular-nums">404</p>
-      <h1 className="font-display text-display-sm font-bold text-fg-1 uppercase sm:text-display">
+      <p className="text-meta font-medium text-fg-3 tabular-nums">404</p>
+      <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">
         Esta página ha sido fraggeada
       </h1>
       <p className="max-w-md text-body text-fg-2">

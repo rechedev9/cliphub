@@ -395,7 +395,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
               onChange={(event) => show(Number(event.target.value))}
               className="min-w-40 flex-1 accent-primary"
             />
-            <span ref={clockRef} className="w-12 font-mono text-body-sm tabular-nums text-fg-1">
+            <span ref={clockRef} className="w-12 text-body-sm tabular-nums text-fg-1">
               0:00
             </span>
             <Segmented
@@ -472,7 +472,7 @@ function RoundList({
     <div className="flex flex-col gap-2 rounded-lg border border-border-strong bg-surface-1">
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2">
         <h3 className="text-body-sm font-medium text-fg-1">
-          Rondas <span className="font-mono tabular-nums text-fg-3">{rounds.length - hidden.size}/{rounds.length}</span>
+          Rondas <span className="tabular-nums text-fg-3">{rounds.length - hidden.size}/{rounds.length}</span>
         </h3>
         <span className="flex gap-1">
           <Button type="button" size="xs" variant="ghost" onClick={onShowAll}>

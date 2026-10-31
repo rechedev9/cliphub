@@ -7,13 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tactical"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -114,6 +117,13 @@ func (w *LibraryWorker) analyze(ctx context.Context, d library.Demo) (library.An
 		return library.Analysis{}, newTacticalFailure(tacticalClassDemoUnreadable, err)
 	}
 	defer cleanup()
+	if err := checkLibraryDemo(ctx, demoPath); err != nil {
+		class := tacticalClassDemoUnreadable
+		if errors.Is(err, parser.ErrTruncatedDemo) {
+			class = obs.ClassTruncatedDemo
+		}
+		return library.Analysis{}, newTacticalFailure(class, err)
+	}
 
 	result, err := tactical.ScanFile(ctx, demoPath, tactical.Options{SHA256: d.SHA256})
 	if err != nil {
@@ -141,6 +151,29 @@ func (w *LibraryWorker) analyze(ctx context.Context, d library.Demo) (library.An
 	analysis.CS2Build = result.Header.BuildNum
 	analysis.PatchVersion = result.Header.PatchVersion
 	return analysis, nil
+}
+
+// checkLibraryDemo refuses a cut demo before the tactical scan, which reads it
+// without complaint. A recording CS2 never closed gets a roster pass, the parse
+// that tells whether it was cut before the first round.
+func checkLibraryDemo(ctx context.Context, path string) error {
+	// #nosec G304 -- the path is the worker's own local copy of a stored demo.
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open demo: %w", err)
+	}
+	defer f.Close()
+	header, err := checkDemoFileLength(f)
+	if err != nil || !parser.DemoRecordingUnclosed(header) {
+		return err
+	}
+	p := demoinfocs.NewParser(f)
+	defer p.Close()
+	// Any other failure is the tactical scan's to report.
+	if _, err := parser.RosterScanWithContext(ctx, p); errors.Is(err, parser.ErrTruncatedDemo) {
+		return err
+	}
+	return ctx.Err()
 }
 
 // discard removes the folder of a demo deleted while its scan ran, so the

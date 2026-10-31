@@ -30,3 +30,13 @@ func detectCaptureTools(cfg config) (config, captureToolSource) {
 	cfg.YtdlpPath = paths.Ytdlp
 	return cfg, sources
 }
+
+// recordFFmpegPath is the ffmpeg capture must encode with: the one set in
+// ZV_FFMPEG_PATH (Studio's provisioned build). A PATH ffmpeg found by
+// detection is left out, so an ffmpeg.ini the user wrote for HLAE still wins.
+func recordFFmpegPath(cfg config, sources captureToolSource) string {
+	if sources["ZV_FFMPEG_PATH"] != capturetools.SourceEnvironment {
+		return ""
+	}
+	return cfg.FFmpegPath
+}

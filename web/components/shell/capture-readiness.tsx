@@ -114,7 +114,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
     pillText = `REC · ${detail}`;
     label = `Grabando ${recording.title}`;
     pillTone = REC_TONE;
-    pillDot = 'neon-pulse bg-stream';
+    pillDot = 'live-pulse bg-stream';
   }
 
   let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
@@ -125,11 +125,11 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
       <DialogTrigger asChild>
         {variant === 'settings' ? (
           <button type="button" className={`studio-panel studio-panel-interactive flex w-full flex-col gap-3 p-5 text-left ${FOCUS_RING}`}>
-            <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-primary" />Grabación de demos</span>
+            <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-fg-2" />Grabación de demos</span>
             <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para crear shorts y vídeos largos desde una demo.</span>
             <span className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
               <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
-              <span className="font-semibold text-primary">Revisar requisitos →</span>
+              <span className="font-semibold text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar requisitos →</span>
             </span>
           </button>
         ) : (
@@ -175,7 +175,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
             return (
               <div key={tool.name} className="studio-panel flex flex-col gap-2 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="font-display text-body font-bold uppercase text-fg-1">{tool.label}</span>
+                  <span className="font-display text-body font-bold text-fg-1">{tool.label}</span>
                   <StatusTag tone={badge.tone}>{badge.label}</StatusTag>
                 </div>
                 {found ? (
@@ -205,7 +205,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
             size="sm"
             onClick={() => void refresh()}
             loading={loading}
-            loadingText="COMPROBANDO…"
+            loadingText="Comprobando…"
           >
             <RefreshCw className="size-4" />
             Volver a comprobar

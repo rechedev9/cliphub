@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { StudioPageHeader } from '@/components/studio/page-header';
+import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { StudioInfo } from '@/components/settings/studio-info';
 import { StorageSettings } from '@/components/settings/storage-settings';
 import { SteamAccount } from '@/components/settings/steam-account';
@@ -19,6 +20,7 @@ export default function SettingsPage(): ReactNode {
         <section id="capture" className="scroll-mt-20"><CaptureReadiness variant="settings" /></section>
         <p className="text-body-sm text-fg-2">Conectar Steam solo es necesario para importar partidas desde tu cuenta. Puedes cargar demos y archivos MP4 sin configurarlo.</p>
         <SteamAccount />
+        <AppearanceSettings />
         <StudioInfo />
         <StorageSettings />
         <PlaybackDiagnostics />

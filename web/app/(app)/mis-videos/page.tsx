@@ -171,7 +171,7 @@ export default function ResultsPage(): ReactNode {
     <div className="measure-list flex flex-col gap-6">
       {header}
       {banner}
-      <span role="status" className="self-end font-mono text-meta uppercase tracking-wider text-fg-3">
+      <span role="status" className="self-end text-meta text-fg-3">
         {resultsActivityLabel({ running: activeJobCount(model, streams), queued: queuedOutputCount(model) })}
       </span>
       <div aria-busy={loadError !== null || undefined}>

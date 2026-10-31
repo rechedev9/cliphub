@@ -153,7 +153,7 @@ export function AnnotationPanel({
           className={TEXTAREA_CLASS}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-mono text-meta tabular-nums text-fg-3">{anchorLabel ?? 'Sin ronda para anclar la nota'}</span>
+          <span className="text-meta tabular-nums text-fg-3">{anchorLabel ?? 'Sin ronda para anclar la nota'}</span>
           <Button type="submit" size="xs" disabled={!canSave}>
             <MessageSquarePlus aria-hidden />
             Guardar nota
@@ -201,12 +201,12 @@ function NoteRow({ item, store }: { item: NoteItem; store: AnnotationStore }): R
           <button
             type="button"
             onClick={item.onSeek}
-            className="font-mono text-meta tabular-nums text-fg-2 underline-offset-2 outline-none hover:text-fg-1 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="text-meta tabular-nums text-fg-2 underline-offset-2 outline-none hover:text-fg-1 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             {item.label}
           </button>
         ) : (
-          <span className="font-mono text-meta tabular-nums text-fg-2">{item.label}</span>
+          <span className="text-meta tabular-nums text-fg-2">{item.label}</span>
         )}
         <span className="flex items-center gap-1">
           {item.href ? (

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/demozstd"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
 )
@@ -275,6 +276,10 @@ func (h *Handlers) ImportShareCode(w http.ResponseWriter, r *http.Request) {
 		target = acc.SteamID
 	}
 	created, err := h.persistAndEnqueueDemo(r.Context(), demo, fileName, target, "", rules.Default())
+	if errors.Is(err, parser.ErrTruncatedDemo) {
+		writeCodedError(w, http.StatusBadRequest, codeTruncatedDemo, "downloaded file is an incomplete CS2 demo")
+		return
+	}
 	if err != nil {
 		internalError(w, "admit downloaded demo", err)
 		return

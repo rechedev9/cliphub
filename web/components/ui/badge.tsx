@@ -27,7 +27,7 @@ const badgeVariants = cva(
         danger: "border-destructive/40 bg-destructive/10 text-destructive",
         outline: "border-border-strong text-fg-1 [a&]:hover:bg-surface-3",
         ghost: "border-transparent text-fg-2 [a&]:hover:bg-surface-3 [a&]:hover:text-fg-1",
-        link: "border-transparent text-primary underline-offset-4 [a&]:hover:underline",
+        link: "border-transparent text-fg-1 underline decoration-fg-4 underline-offset-4 [a&]:hover:decoration-fg-1",
       },
       // The HUD language is square; `pill` stays the default so no existing
       // call site changes shape without asking for it.

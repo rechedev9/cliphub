@@ -165,7 +165,7 @@ function adrTone(adr: number | undefined): string {
 
 function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): ReactNode {
   const { label, tone } = RESULTS[result ?? UNKNOWN];
-  return <StatusTag tone={tone} className="rounded-sm font-sans normal-case tracking-normal">{label}</StatusTag>;
+  return <StatusTag tone={tone} className="rounded-sm">{label}</StatusTag>;
 }
 
 function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {

@@ -197,6 +197,7 @@ func run() error {
 			RecorderPath: cfg.RecorderPath,
 			HLAEPath:     cfg.HLAEPath,
 			CS2Path:      cfg.CS2Path,
+			FFmpegPath:   recordFFmpegPath(cfg, captureSource),
 			Timeout:      cfg.RecordTimeout,
 			HUDMode:      cfg.RecordHUD,
 		})

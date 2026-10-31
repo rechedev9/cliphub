@@ -52,7 +52,7 @@ function DemoPicker({
             selected === match.id && 'border-primary/45 bg-primary/10',
           )}
         >
-          <span className="font-display text-body-sm font-semibold uppercase tracking-tight text-fg-1">
+          <span className="font-display text-body-sm font-semibold tracking-tight text-fg-1">
             {prettyMapName(match.map)}
           </span>
           {/* Four "Ancient" rows only differ by who was the target and when. */}
@@ -61,7 +61,7 @@ function DemoPicker({
               {match.player}
             </span>
           ) : null}
-          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+          <span className="text-meta text-fg-3">
             {match.score ? `${match.score} · ` : ''}
             {matchDateLabel(match)}
           </span>
@@ -115,9 +115,9 @@ function AnalysisPanel({
         description={error}
         compact
         actions={
-          <Button onClick={onStart} loading={starting} loadingText="REINTENTANDO…">
+          <Button onClick={onStart} loading={starting} loadingText="Reintentando…">
             <RefreshCw aria-hidden />
-            REINTENTAR
+            Reintentar
           </Button>
         }
       />
@@ -152,9 +152,9 @@ function AnalysisPanel({
         }
         compact
         actions={
-          <Button onClick={onStart} loading={starting} loadingText="INICIANDO ANÁLISIS…">
+          <Button onClick={onStart} loading={starting} loadingText="Iniciando análisis…">
             <ShieldAlert aria-hidden />
-            ANALIZAR DEMO
+            Analizar demo
           </Button>
         }
       />
@@ -169,9 +169,9 @@ function AnalysisPanel({
         description="Se está recorriendo la demo tick a tick para medir puntería, información y tiempos de reacción. Puedes salir de esta pantalla; el análisis sigue. Si lleva demasiado tiempo aquí, reinicia el análisis."
         compact
         actions={
-          <Button variant="outline" onClick={onStart} loading={starting} loadingText="REINICIANDO ANÁLISIS…">
+          <Button variant="outline" onClick={onStart} loading={starting} loadingText="Reiniciando análisis…">
             <RefreshCw aria-hidden />
-            REINICIAR ANÁLISIS
+            Reiniciar análisis
           </Button>
         }
       />
@@ -186,9 +186,9 @@ function AnalysisPanel({
         description={document.failure_reason ?? 'La demo no pudo analizarse.'}
         compact
         actions={
-          <Button onClick={onStart} loading={starting} loadingText="REINTENTANDO…">
+          <Button onClick={onStart} loading={starting} loadingText="Reintentando…">
             <RefreshCw aria-hidden />
-            REINTENTAR
+            Reintentar
           </Button>
         }
       />
@@ -200,7 +200,7 @@ function AnalysisPanel({
   return (
     <div className="flex flex-col gap-6">
       <div className="studio-panel flex flex-col gap-2 rounded-lg px-4 py-3.5">
-        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span className="text-meta text-fg-3">
           {report.match.map} · {report.match.rounds} rondas · línea base {report.baseline.id}
         </span>
         <p className="text-body-sm text-fg-2">{report.baseline.description}</p>
@@ -238,7 +238,7 @@ function AnalysisPanel({
       </ul>
 
       <section className="flex flex-col gap-2 border-t border-border-subtle pt-5">
-        <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">Qué es y qué no es esto</h3>
+        <h3 className="text-meta font-medium text-fg-3">Qué es y qué no es esto</h3>
         <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-2">
           {report.limitations.map((limitation) => (
             <li key={limitation}>{limitation}</li>
@@ -256,8 +256,8 @@ function IngestStatus({ fileName }: { fileName: string | null }): ReactNode {
       aria-live="polite"
       className="studio-panel flex min-h-24 flex-col items-center justify-center gap-2 px-4 py-5 text-center"
     >
-      <Loader2 className="size-5 animate-spin text-primary" />
-      <p className="font-display text-body-sm font-bold uppercase text-fg-1">Escaneando el roster…</p>
+      <Loader2 className="size-5 animate-spin text-fg-2" />
+      <p className="font-display text-body-sm font-bold text-fg-1">Escaneando el roster…</p>
       {fileName ? (
         <p className="inline-flex max-w-full items-center gap-2 font-mono text-meta text-fg-3">
           <FileVideo aria-hidden className="size-4 shrink-0" />

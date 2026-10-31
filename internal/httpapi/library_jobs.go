@@ -255,8 +255,9 @@ func (h *Handlers) LinkLibraryJobDemo(w http.ResponseWriter, r *http.Request) {
 }
 
 // createLibraryJobRequest is the optional body of POST
-// /api/library/demos/{id}/jobs. A target skips the roster scan and parses
-// that player's POV right away, as the analysis area's video actions need.
+// /api/library/demos/{id}/jobs. A target skips the scan:roster task and parses
+// that player's POV right away, as the analysis area's video actions need; the
+// parse scans the roster inline first, since the Full Demo render reads it.
 type createLibraryJobRequest struct {
 	TargetSteamID string `json:"target_steamid"`
 }

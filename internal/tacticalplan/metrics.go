@@ -423,14 +423,6 @@ func (s *roundState) win(tick int) WinState {
 	return w
 }
 
-func (s *roundState) probability(tick int, side Side) float64 {
-	p := WinProbabilityCT(s.win(tick))
-	if side == SideT {
-		return 1 - p
-	}
-	return p
-}
-
 func (s *roundState) point(tick int, kind string, ev *Event, p float64) WinPoint {
 	w := s.win(tick)
 	point := WinPoint{Tick: tick, Kind: kind, AliveCT: w.AliveCT, AliveT: w.AliveT, ProbabilityCT: round4(p)}

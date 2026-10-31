@@ -30,7 +30,7 @@ export function RelatedList({ title, count, actions, viewAll, children, classNam
         <footer className="border-t border-border px-4 py-2">
           <Link
             href={viewAll.href}
-            className="inline-flex items-center gap-1 text-body-sm font-medium text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-body-sm font-medium text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
           >
             {viewAll.label}
             <ChevronRight className="size-3.5" aria-hidden />

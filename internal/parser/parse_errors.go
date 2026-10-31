@@ -22,7 +22,10 @@ var errPOVDemo = errors.New("pov_demo: the demo was recorded by a player's clien
 // Every failure but a cancellation is tagged "demo_incompatible: " so obs.ClassOf
 // gives the job the demo-format FailureCode, panic or not.
 func parseToEnd(p demoinfocs.Parser) error {
-	parseErr := demosafe.ParseToEnd(p)
+	return tagParseError(demosafe.ParseToEnd(p))
+}
+
+func tagParseError(parseErr error) error {
 	switch {
 	case parseErr == nil, errors.Is(parseErr, demoinfocs.ErrUnexpectedEndOfDemo):
 		return nil
@@ -36,6 +39,13 @@ func parseToEnd(p demoinfocs.Parser) error {
 // parseCaptureDemo is parseToEnd for the paths that feed a capture (roster,
 // kills, smokes, utility). It also refuses a client-recorded demo with errPOVDemo.
 func parseCaptureDemo(p demoinfocs.Parser) error {
+	_, err := parseCaptureDemoToEnd(p)
+	return err
+}
+
+// parseCaptureDemoToEnd is parseCaptureDemo that also reports whether the
+// demo stream stopped without its closing command.
+func parseCaptureDemoToEnd(p demoinfocs.Parser) (endedEarly bool, err error) {
 	var pov atomic.Bool
 	p.RegisterEventHandler(func(e events.POVRecordingPlayerDetected) {
 		// The library matches the header's client name against every user, so a
@@ -44,9 +54,10 @@ func parseCaptureDemo(p demoinfocs.Parser) error {
 			pov.Store(true)
 		}
 	})
-	err := parseToEnd(p)
+	parseErr := demosafe.ParseToEnd(p)
+	err = tagParseError(parseErr)
 	if pov.Load() && !errors.Is(err, demoinfocs.ErrCancelled) {
-		return errPOVDemo
+		return false, errPOVDemo
 	}
-	return err
+	return errors.Is(parseErr, demoinfocs.ErrUnexpectedEndOfDemo), err
 }

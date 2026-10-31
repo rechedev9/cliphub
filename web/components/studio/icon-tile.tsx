@@ -21,7 +21,7 @@ const ICON_CLASS = {
 /** The tone colours the edge and the glyph only; depth owns the fill. */
 const TONE_CLASS = {
   neutral: 'border-border-strong text-fg-2',
-  primary: 'border-primary/45 text-primary',
+  primary: 'border-primary/45 text-fg-1',
   success: 'border-success/45 text-success',
   warning: 'border-warning/45 text-warning',
   danger: 'border-destructive/45 text-destructive',

@@ -4,6 +4,9 @@ import (
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+
+	"github.com/rechedev9/cliphub/internal/radarmap"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // utilityWatch is the shared grenade observer used by utility-mode parsing
@@ -17,6 +20,11 @@ type utilityWatch struct {
 	byUniqueID map[int64]*RawUtilityThrow
 	maxTick    *int
 	onIdentity func(name, team string)
+
+	places        *tacticalplan.OccupancyBuilder
+	placeGeo      *tacticalplan.MapGeometry
+	lastPlaceTick int
+	placesSampled bool
 }
 
 func newUtilityWatch(targetID uint64, target string, maxTick *int, onIdentity func(string, string)) *utilityWatch {
@@ -27,6 +35,7 @@ func newUtilityWatch(targetID uint64, target string, maxTick *int, onIdentity fu
 		byUniqueID: map[int64]*RawUtilityThrow{},
 		maxTick:    maxTick,
 		onIdentity: onIdentity,
+		places:     tacticalplan.NewOccupancyBuilder(radarmap.Calibration{}, placeCellSize),
 	}
 }
 
@@ -66,6 +75,9 @@ func (w *utilityWatch) startThrow(p *common.Player, typ string, round, tick int,
 func (w *utilityWatch) bind(p demoinfocs.Parser) {
 	p.RegisterEventHandler(func(events.MatchStart) {
 		w.reset()
+	})
+	p.RegisterEventHandler(func(events.FrameDone) {
+		w.samplePlaces(p)
 	})
 
 	p.RegisterEventHandler(func(e events.WeaponFire) {

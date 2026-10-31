@@ -55,7 +55,7 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
   if (assistant.trends.available && assistant.trends.terms.length > 0) {
     trendContent = (
       <div>
-        <p className="font-mono text-meta uppercase tracking-wider text-fg-3">Tendencias públicas recientes</p>
+        <p className="text-meta text-fg-3">Tendencias públicas recientes</p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {assistant.trends.terms.map((term) => (
             <span key={term} className="border border-border bg-surface-1 px-2 py-1 text-meta text-fg-1">
@@ -70,15 +70,15 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
   }
   return (
     <section className="flex flex-col gap-3 border-t border-border-subtle pt-3" aria-labelledby="publish-schedule-title">
-      <h3 id="publish-schedule-title" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-        <Clock3 className="size-3.5 text-primary" aria-hidden /> Más franjas · {assistant.schedule.timeZone}
+      <h3 id="publish-schedule-title" className="flex items-center gap-2 text-meta text-fg-3">
+        <Clock3 className="size-3.5 text-fg-2" aria-hidden /> Más franjas · {assistant.schedule.timeZone}
       </h3>
       {upcoming.length > 0 ? (
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
           {upcoming.slice(0, 4).map(({ day, slot }) => (
             <div key={day.date} className="border border-border bg-surface-1 px-2.5 py-2 text-meta">
               <span className="block text-fg-3">{localDayLabel(day.date, assistant.schedule.timeZone)}</span>
-              <strong className="font-mono text-fg-1">{slot.localTime}</strong>
+              <strong className="text-fg-1">{slot.localTime}</strong>
               <span className="block text-fg-3">confianza {confidenceLabel(slot.confidence)}</span>
             </div>
           ))}
@@ -93,7 +93,7 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-meta text-primary underline underline-offset-4"
+              className="inline-flex items-center gap-1 text-meta text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
             >
               {source.title} <ExternalLink className="size-3" aria-hidden />
             </a>
@@ -193,8 +193,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between font-mono text-meta uppercase tracking-ultra">
-        <span className="text-primary">Publicar en YouTube</span>
+      <div className="flex items-center justify-between text-meta">
+        <span className="text-fg-1">Publicar en YouTube</span>
         <span className="text-fg-3">Asistente</span>
       </div>
 
@@ -224,8 +224,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
       {!loading && assistant ? (
         <>
           <section className="flex flex-col gap-2" aria-labelledby="publish-title-recommendations">
-            <h3 id="publish-title-recommendations" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-              <Sparkles className="size-3.5 text-primary" aria-hidden /> {hasTemplates ? 'Plantillas para vídeo largo' : 'Títulos recomendados'}
+            <h3 id="publish-title-recommendations" className="flex items-center gap-2 text-meta text-fg-3">
+              <Sparkles className="size-3.5 text-fg-2" aria-hidden /> {hasTemplates ? 'Plantillas para vídeo largo' : 'Títulos recomendados'}
             </h3>
             {hasTemplates ? (
               <p className="text-meta leading-relaxed text-fg-3">
@@ -245,10 +245,10 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
                   aria-pressed={selectedRecommendation?.title === recommendation.title}
                 >
                   <span className="min-w-0 break-words">
-                    {recommendation.template ? <span className="mb-1 block font-mono text-meta uppercase text-primary">{recommendation.template}</span> : null}
+                    {recommendation.template ? <span className="mb-1 block text-meta text-fg-2">{recommendation.template}</span> : null}
                     {recommendation.title}
                   </span>
-                  {!recommendation.template ? <span className="shrink-0 font-mono text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span> : null}
+                  {!recommendation.template ? <span className="shrink-0 text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span> : null}
                 </Button>
               ))}
             </div>
@@ -261,7 +261,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="publish-title" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              <Label htmlFor="publish-title" className="text-meta text-fg-3">
                 Título
               </Label>
               <Button type="button" variant="ghost" size="xs" onClick={() => void copy(title, 'Título')}>
@@ -274,12 +274,12 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
               onChange={(event) => setTitle(event.currentTarget.value)}
               maxLength={YOUTUBE_TITLE_MAX_LENGTH}
             />
-            <p className="text-right font-mono text-meta text-fg-3">{title.length}/{YOUTUBE_TITLE_MAX_LENGTH}</p>
+            <p className="text-right text-meta text-fg-3">{title.length}/{YOUTUBE_TITLE_MAX_LENGTH}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="publish-description" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              <Label htmlFor="publish-description" className="text-meta text-fg-3">
                 Descripción
               </Label>
               <Button type="button" variant="ghost" size="xs" onClick={() => void copy(description, 'Descripción')}>
@@ -298,8 +298,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
 
           <section className="flex flex-col gap-1.5" aria-labelledby="publish-tags-title">
             <div className="flex items-center justify-between gap-3">
-              <h3 id="publish-tags-title" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-                <Tags className="size-3.5 text-primary" aria-hidden /> Etiquetas
+              <h3 id="publish-tags-title" className="flex items-center gap-2 text-meta text-fg-3">
+                <Tags className="size-3.5 text-fg-2" aria-hidden /> Etiquetas
               </h3>
               <Button type="button" variant="ghost" size="xs" onClick={() => void copy(tagsText, 'Etiquetas')}>
                 <Copy className="size-3" /> Copiar
@@ -316,8 +316,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
 
           <div className="flex items-center justify-between gap-3 border border-border-accent bg-primary/8 px-3 py-2.5">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">Mejor hora (Madrid)</span>
-              <span className="font-display text-body-sm font-semibold uppercase text-fg-1">
+              <span className="text-meta text-fg-3">Mejor hora (Madrid)</span>
+              <span className="font-display text-body-sm font-semibold text-fg-1">
                 {best ? `${localDayLabel(best.day.date, assistant.schedule.timeZone)} · ${best.slot.localTime}` : 'Sin franjas futuras'}
               </span>
             </div>
@@ -341,10 +341,10 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
       <Button type="button" variant="hero" onClick={openYouTubeStudio} className="w-full">
         <Youtube className="size-4" /> Abrir YouTube Studio →
       </Button>
-      <p className="text-center font-mono text-meta uppercase tracking-wider text-fg-3">Sin cuenta conectada · subes tú el MP4</p>
+      <p className="text-center text-meta text-fg-3">Sin cuenta conectada · subes tú el MP4</p>
       <p className="text-meta leading-relaxed text-fg-3">
         YouTube Studio te guía por <strong className="text-fg-2">CREAR → Subir vídeos</strong>, audiencia, visibilidad y programación.{' '}
-        <a href={YOUTUBE_UPLOAD_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4">
+        <a href={YOUTUBE_UPLOAD_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
           Guía oficial de YouTube
         </a>
         .

@@ -133,7 +133,7 @@ export function ReportMatchPicker({
                     <span className="w-20 shrink-0 text-fg-2">{formatShortDate(match.played_at)}</span>
                     <span className="w-20 shrink-0">{prettyMapName(match.map)}</span>
                     <span className="min-w-0 flex-1 truncate">contra {teamLabel(rival)}</span>
-                    <span className="font-mono text-fg-2">{`${own?.score ?? 0}-${rival?.score ?? 0}`}</span>
+                    <span className="text-fg-2">{`${own?.score ?? 0}-${rival?.score ?? 0}`}</span>
                   </label>
                 </li>
               );

@@ -186,7 +186,7 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
       <div className="min-w-0 flex-1">
         <p className="truncate text-body-sm font-semibold text-fg-1">{song.title}</p>
         {/* Only the artist truncates, so genre and length always stay readable. */}
-        <p className="flex min-w-0 font-mono text-meta tracking-wider text-fg-3">
+        <p className="flex min-w-0 text-meta text-fg-3">
           <span className="min-w-[4ch] truncate">{song.artist}</span>
           {meta ? <span className="shrink-0 whitespace-nowrap">&nbsp;· {meta}</span> : null}
         </p>

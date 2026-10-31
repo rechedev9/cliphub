@@ -35,7 +35,7 @@ function SelectTrigger({
         "transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard",
         "disabled:pointer-events-none disabled:opacity-50 data-[placeholder]:text-fg-3 [&>span]:truncate",
         FOCUS_RING,
-        "focus-visible:border-primary focus-visible:bg-surface-4",
+        "focus-visible:border-fg-3 focus-visible:bg-surface-4",
         "aria-invalid:border-destructive aria-invalid:focus-visible:outline-destructive",
         className,
       )}
@@ -100,7 +100,7 @@ function SelectItem({
       {...props}
     >
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-      <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center text-primary">
+      <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center text-fg-1">
         <SelectPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />
         </SelectPrimitive.ItemIndicator>

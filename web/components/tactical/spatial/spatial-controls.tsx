@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * A row of mutually exclusive buttons. The active one is marked with the
- * accent edge, never filled with it: cyan stays an accent.
+ * accent edge, never filled with it.
  */
 export function Segmented<T extends string>({
   label,
@@ -67,7 +67,7 @@ export function EvidenceChips({
         <Link
           key={`${evidence.match_id}:${evidence.round}:${evidence.tick}`}
           href={evidencePath(evidence)}
-          className="rounded-sm border border-border px-1.5 font-mono text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
+          className="rounded-sm border border-border px-1.5 text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
         >
           {evidenceShortLabel(evidence, matches, many)}
         </Link>

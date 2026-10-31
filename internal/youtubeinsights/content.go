@@ -368,7 +368,7 @@ func normalizeTextList(values []string) []string {
 // prefix/underscore normalization.
 var mapDisplayNames = map[string]string{
 	"de_ancient":  "Ancient",
-	"de_dust2":    "Dust 2",
+	"de_dust2":    "Dust2",
 	"de_mirage":   "Mirage",
 	"de_inferno":  "Inferno",
 	"de_nuke":     "Nuke",

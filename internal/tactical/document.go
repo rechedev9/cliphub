@@ -36,6 +36,7 @@ func (s *scanner) finish() (Result, error) {
 		return Result{}, fmt.Errorf("demo contains no completed rounds")
 	}
 
+	s.resolveTeams()
 	remap := s.renumberSlots()
 	s.remapFrames(remap)
 	doc := tacticalplan.NewDocument()
@@ -85,6 +86,29 @@ func (s *scanner) finish() (Result, error) {
 	doc.Warnings = s.warnings
 	doc.UtilityEffects = true
 	return Result{Document: doc, Positions: blob}, nil
+}
+
+// resolveTeams keys every player to a team by the side of their first counted
+// round, not the side they were first seen on: a knife round that MatchStart
+// discarded can end with the teams swapping sides.
+func (s *scanner) resolveTeams() {
+	s.teams = map[string]*teamAcc{}
+	for _, acc := range s.players {
+		key := teamKeyForStartSide(acc.startSide, 1)
+		for _, round := range s.rounds {
+			if side := round.sides[acc.slot]; side != "" {
+				key = teamKeyForStartSide(side, round.half)
+				break
+			}
+		}
+		acc.startSide = startSideForKey(key)
+		team, ok := s.teams[key]
+		if !ok {
+			team = &teamAcc{key: key, startSide: acc.startSide, members: map[uint64]struct{}{}}
+			s.teams[key] = team
+		}
+		team.members[acc.steamID] = struct{}{}
+	}
 }
 
 // renumberSlots returns a mapping from the provisional slot assigned during the

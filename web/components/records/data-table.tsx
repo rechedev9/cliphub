@@ -126,7 +126,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                         className={cn('h-10 px-3 align-middle text-fg-1', column.align === 'end' && 'text-right', column.className)}
                       >
                         {index === 0 && href !== undefined ? (
-                          <Link href={href} className="font-medium text-fg-1 hover:text-primary hover:underline">
+                          <Link href={href} className="font-medium text-fg-1 underline-offset-4 hover:underline">
                             {column.cell(row)}
                           </Link>
                         ) : (
@@ -183,7 +183,7 @@ function ColumnsMenu<Row>({
             }}
           >
             <span className="flex-1">{column.header}</span>
-            {hidden.includes(column.id) ? null : <Check aria-label="Visible" className="text-primary" />}
+            {hidden.includes(column.id) ? null : <Check aria-label="Visible" className="text-fg-1" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -220,7 +220,7 @@ function SavedViewsMenu({ view }: { view: TableViewControl }): ReactNode {
             view.views.map((entry) => (
               <DropdownMenuItem key={entry.id} onSelect={() => view.applyView(entry.id)} className="pr-1">
                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                {entry.id === view.activeViewId ? <Check aria-label="Vista actual" className="text-primary" /> : null}
+                {entry.id === view.activeViewId ? <Check aria-label="Vista actual" className="text-fg-1" /> : null}
                 <button
                   type="button"
                   aria-label={`Borrar la vista ${entry.name}`}

@@ -1,9 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { prettifyWeapon } from '@/lib/api/map';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent } from '@/lib/api/tactical';
-import { eventKindLabel, siteLabel } from '@/lib/tactical-labels';
+import { eventKindLabel, placeLabel, siteLabel } from '@/lib/tactical-labels';
 import { roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { FOCUS_RING } from '@/components/ui/button';
@@ -46,8 +47,8 @@ function describe(event: TacticalEvent, names: ReadonlyMap<number, string>): str
 }
 
 function sideClass(event: TacticalEvent): string {
-  if (event.side === TACTICAL_SIDES.ct) return 'text-primary';
-  if (event.side === TACTICAL_SIDES.t) return 'text-warning';
+  if (event.side === TACTICAL_SIDES.ct) return 'text-side-ct';
+  if (event.side === TACTICAL_SIDES.t) return 'text-side-t';
   return 'text-fg-3';
 }
 
@@ -98,7 +99,7 @@ export function TacticalEventList({
                 'focus-visible:outline-offset-[-2px]',
               )}
             >
-              <span className="w-14 shrink-0 font-mono text-meta tracking-normal tabular-nums text-fg-3">
+              <span className="w-14 shrink-0 text-meta tracking-normal tabular-nums text-fg-3">
                 {roundClockLabelFor(timeline, entry.seconds)}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -106,8 +107,8 @@ export function TacticalEventList({
                   {describe(event, names)}
                 </span>
                 {event.weapon || notes.length > 0 || event.place ? (
-                  <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
-                    {[event.weapon, event.place, ...notes].filter(Boolean).join(' · ')}
+                  <span className="text-meta text-fg-3">
+                    {[event.weapon && prettifyWeapon(event.weapon), event.place && placeLabel(event.place), ...notes].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
               </span>

@@ -250,6 +250,10 @@ func (h *Handlers) ImportLibraryDemos(w http.ResponseWriter, r *http.Request) {
 				internalError(w, "import library demo", err)
 				return
 			}
+			// importLibraryDemo already logs a truncated demo with its byte counts.
+			if result.Status == libraryImportRejected && result.ErrorCode != codeTruncatedDemo {
+				log.Printf("httpapi: refuse library demo %q code=%s: %s", result.FileName, result.ErrorCode, result.Error)
+			}
 			results = append(results, result)
 			playedAt = nil
 		}
@@ -305,11 +309,17 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 	id := uuid.New()
 	key := artifacts.LibraryDemoKey(id)
 	digest := sha256.New()
-	counted := &countingReader{r: io.MultiReader(bytes.NewReader(header[:n]), opened)}
+	counted := &storedDemo{r: io.MultiReader(bytes.NewReader(header[:n]), opened)}
 	if err := h.storage.Put(key, io.TeeReader(counted, digest)); err != nil {
 		h.discardLibraryDemo(id)
 		log.Printf("httpapi: store library demo %q: %v", name, err)
 		result.ErrorCode, result.Error = codeUnreadableDemo, "could not store the demo"
+		return result, nil
+	}
+	if err := counted.checkLength(); err != nil {
+		h.discardLibraryDemo(id)
+		log.Printf("httpapi: refuse library demo code=%s: %v", codeTruncatedDemo, err)
+		result.ErrorCode, result.Error = codeTruncatedDemo, "the demo file is incomplete"
 		return result, nil
 	}
 	demo := library.Demo{
@@ -344,17 +354,6 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 	return result, nil
 }
 
-type countingReader struct {
-	r io.Reader
-	n int64
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
-	c.n += int64(n)
-	return n, err
-}
-
 // discardLibraryDemo removes the stored folder of a demo the library does not
 // keep: a duplicate, a failed store, or a deleted demo.
 func (h *Handlers) discardLibraryDemo(id uuid.UUID) {
@@ -386,7 +385,8 @@ func (h *Handlers) enqueueLibraryScan(ctx context.Context, id uuid.UUID) error {
 }
 
 // ResumeLibraryScans re-queues every demo a previous process left queued or
-// parsing: the desktop queue lives in memory, so those scans have no owner.
+// parsing, as the desktop queue lives in memory, and every ready demo whose
+// analysis an older scanner made.
 func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	if h.libraryRepo == nil {
 		return 0, nil
@@ -394,13 +394,17 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 	var pending []library.Demo
 	for offset := 0; ; offset += library.MaxListLimit {
 		page, err := h.libraryRepo.ListDemos(ctx, library.DemoFilter{
-			States: []library.ParseState{library.ParseQueued, library.ParseParsing},
+			States: []library.ParseState{library.ParseQueued, library.ParseParsing, library.ParseReady},
 			Limit:  library.MaxListLimit, Offset: offset,
 		})
 		if err != nil {
 			return 0, err
 		}
-		pending = append(pending, page...)
+		for _, d := range page {
+			if d.State != library.ParseReady || h.libraryAnalysisStale(d.ID) {
+				pending = append(pending, d)
+			}
+		}
 		if len(page) < library.MaxListLimit {
 			break
 		}

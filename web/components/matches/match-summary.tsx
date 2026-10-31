@@ -110,7 +110,7 @@ function TeamPanel({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-3">
         <span
           className={cn(
-            'font-mono text-section font-semibold tabular-nums',
+            'text-section font-semibold tabular-nums',
             won && 'text-outcome-win',
             lost && 'text-outcome-loss',
             !won && !lost && 'text-fg-1',
@@ -119,11 +119,11 @@ function TeamPanel({
         >
           {team.score}
         </span>
-        <span className={cn('font-mono text-meta font-semibold', team.start_side === 'CT' ? 'text-side-ct' : 'text-side-t')}>
+        <span className={cn('text-meta font-semibold', team.start_side === 'CT' ? 'text-side-ct' : 'text-side-t')}>
           Empezó {team.start_side}
         </span>
         {team.team_id ? (
-          <Link href={teamHref(team.team_id)} className="text-body-sm font-medium text-primary hover:underline">
+          <Link href={teamHref(team.team_id)} className="text-body-sm font-medium text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
             Ficha del equipo
           </Link>
         ) : null}
@@ -154,11 +154,11 @@ function TeamPanel({
                     {player.name || player.steamid64}
                   </Link>
                 </td>
-                <td className="px-3 text-right font-mono">{player.kills}</td>
-                <td className="px-3 text-right font-mono">{player.deaths}</td>
-                <td className="px-3 text-right font-mono">{player.assists}</td>
-                <td className="px-3 text-right font-mono">{adrLabel(player.damage, player.rounds)}</td>
-                <td className="px-3 text-right font-mono">
+                <td className="px-3 text-right">{player.kills}</td>
+                <td className="px-3 text-right">{player.deaths}</td>
+                <td className="px-3 text-right">{player.assists}</td>
+                <td className="px-3 text-right">{adrLabel(player.damage, player.rounds)}</td>
+                <td className="px-3 text-right">
                   <Link href={rounds} onClick={onOpenTactical} className="hover:text-primary hover:underline" aria-label={`Ver las ${player.rounds} rondas de ${player.name} en el replay`}>
                     {player.rounds}
                   </Link>

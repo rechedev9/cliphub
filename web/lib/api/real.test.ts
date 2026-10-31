@@ -373,6 +373,32 @@ test('unreadable rows do not accumulate job-gone strikes', async () => {
   }
 });
 
+// Mis vídeos polls the list every 10 s. A job past its parse without a roster
+// (an old targeted job) never gets one, so only a parse in flight may still ask.
+test('listMatches asks for a missing roster only while the job can still get one', async () => {
+  const PARSING = '22222222-2222-4333-8444-555555555555';
+  const listed = [
+    { jobId: JOB, status: 'done', createdAt: '2026-09-06T12:00:00Z' },
+    { jobId: PARSING, status: 'parsing', createdAt: '2026-09-06T12:01:00Z' },
+    { jobId: '33333333-2222-4333-8444-555555555555', status: 'failed', createdAt: '2026-09-06T12:02:00Z' },
+  ];
+  const original = globalThis.fetch;
+  const asked: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url === '/api/demos/jobs') return json({ jobs: listed });
+    asked.push(url);
+    return json({ error: 'roster not ready' }, 409);
+  }) as typeof globalThis.fetch;
+  try {
+    const matches = await new RealApiClient().listMatches();
+    assert.equal(matches.length, 3);
+    assert.deepEqual(asked, [`/api/demos/${PARSING}/roster`]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test('listMatches reuses the last jobs body when the list answers 304', async () => {
   const JOBS_URL = '/api/demos/jobs';
   const listed = [{

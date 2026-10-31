@@ -73,7 +73,7 @@ export function StreamBannerControls({
                 disabled={busy}
                 aria-pressed={platform === entry}
                 onClick={() => onPlatformChange(entry)}
-                className={`font-mono uppercase tracking-wider ${platform === entry ? 'border-stream/45 text-stream-text' : ''}`}
+                className={platform === entry ? 'border-stream/45 text-stream-text' : undefined}
               >
                 {entry === 'twitch' ? 'Twitch' : 'Kick'}
               </Button>
@@ -96,8 +96,8 @@ export function StreamBannerControls({
               Usa solo letras, números o guiones bajos (máximo 25).
             </p>
           )}
-          <div className="flex items-center justify-between gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-            <Label htmlFor="streamer-banner-position" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+          <div className="flex items-center justify-between gap-2 text-meta text-fg-3">
+            <Label htmlFor="streamer-banner-position" className="text-meta text-fg-3">
               Posición · {Math.round(position * 100)}%
             </Label>
             <button

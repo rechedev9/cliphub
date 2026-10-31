@@ -18,7 +18,7 @@ export function FullDemoToggle({ label, value, onChange }: { label: string; valu
 }
 
 const SLIDER_CLASS =
-  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
+  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50';
 
 /** Gain slider shown as a percentage: 1.0 gain renders as 100 %. */
 export function FullDemoGain({ label, value, max = 2, step = 0.05, disabled = false, onChange }: {
@@ -27,8 +27,8 @@ export function FullDemoGain({ label, value, max = 2, step = 0.05, disabled = fa
   const id = useId();
   const percent = Math.round(value * 100);
   return <div className="flex min-w-0 items-center gap-3">
-    <label htmlFor={id} className="w-24 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2">
-      {label} <span className="text-stream-text">· {percent}%</span>
+    <label htmlFor={id} className="w-24 shrink-0 text-meta text-fg-2">
+      {label} <span className="text-fg-1">· {percent}%</span>
     </label>
     <input id={id} type="range" min={0} max={Math.round(max * 100)} step={Math.round(step * 100)} value={percent} disabled={disabled}
       aria-valuetext={`${percent}%`} className={SLIDER_CLASS} onChange={(event) => onChange(Number(event.target.value) / 100)} />

@@ -86,19 +86,19 @@ export function MatchRounds({
                     <Link
                       href={roundEvidenceHref(pathname, row.number, row.tick)}
                       onClick={onOpenRound}
-                      className="font-mono font-medium text-fg-1 hover:text-primary hover:underline"
+                      className="font-medium text-fg-1 hover:text-primary hover:underline"
                       aria-label={`Abrir la ronda ${row.number} en el replay, tick ${row.tick}`}
                     >
                       {row.number}
                     </Link>
                   </td>
-                  <td className="px-3 font-mono text-fg-2">{row.scoreBefore}</td>
+                  <td className="px-3 text-fg-2">{row.scoreBefore}</td>
                   <td className="px-3">
                     {row.winnerSide === '' ? (
                       <span className="text-fg-3">Sin ganador</span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <span className={cn('font-mono text-meta font-semibold', row.winnerSide === 'CT' ? 'text-side-ct' : 'text-side-t')}>
+                        <span className={cn('text-meta font-semibold', row.winnerSide === 'CT' ? 'text-side-ct' : 'text-side-t')}>
                           {row.winnerSide}
                         </span>
                         <span className="text-fg-1">{teamLabel(winner)}</span>
@@ -111,7 +111,7 @@ export function MatchRounds({
                   <td className="px-3 text-fg-2">{tPatternLabel(row.round.class.t_side)}</td>
                   <td className="px-3 text-fg-2">{ctPatternLabel(row.round.class.ct_side)}</td>
                   <td className="px-3 text-fg-2">{siteLabel(row.round.class.site)}</td>
-                  <td className="px-3 font-mono text-fg-2">{clock(row.liveSeconds)}</td>
+                  <td className="px-3 text-fg-2">{clock(row.liveSeconds)}</td>
                   <td className="px-3">
                     <Button type="button" size="xs" variant="ghost" onClick={() => setVideo([row.number])} aria-label={`Crear vídeo de la ronda ${row.number}`}>
                       <Clapperboard aria-hidden />

@@ -165,6 +165,8 @@ func TestListJobsRemembersAbsentRoster(t *testing.T) {
 	}{
 		{name: "queued rechecks", status: job.StatusQueued, wantOpens: 3},
 		{name: "scanning rechecks", status: job.StatusScanning, wantOpens: 3},
+		// A job created with a target scans its roster inline while it parses.
+		{name: "parsing rechecks", status: job.StatusParsing, wantOpens: 3},
 		{name: "scanned remembers", status: job.StatusScanned, wantOpens: 1},
 		{name: "parsed remembers", status: job.StatusParsed, wantOpens: 1},
 		{name: "done remembers", status: job.StatusDone, wantOpens: 1},

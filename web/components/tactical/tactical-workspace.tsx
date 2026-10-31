@@ -159,9 +159,9 @@ function TacticalBody({
           description="No se pudo contactar con el servicio de análisis local. Arráncalo y vuelve a intentarlo."
           compact
           actions={
-            <Button onClick={onRetry} className="font-display tracking-wide">
+            <Button onClick={onRetry} className="font-display">
               <RefreshCw aria-hidden />
-              REINTENTAR
+              Reintentar
             </Button>
           }
         />
@@ -210,13 +210,13 @@ function TacticalStartPanel({
         <Button
           onClick={onStart}
           disabled={starting}
-          className="font-display tracking-wide"
+          className="font-display"
         >
           <Radar aria-hidden />
-          {starting ? 'ENVIANDO…' : 'ANALIZAR'}
+          {starting ? 'Enviando…' : 'Analizar'}
         </Button>
       }
-      note={error ? <span className="text-destructive">{error}</span> : 'ANÁLISIS LOCAL · SIN SUBIR NADA'}
+      note={error ? <span className="text-destructive">{error}</span> : 'Análisis local · sin subir nada'}
     />
   );
 }
@@ -227,10 +227,10 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
       className="studio-panel studio-panel-raised flex flex-col items-center gap-4 px-6 py-14 text-center sm:px-10"
       aria-live="polite"
     >
-      <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-primary shadow-[var(--elev-0)]">
+      <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-fg-2 shadow-[var(--elev-0)]">
         <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
       </span>
-      <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
+      <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
         {stateLabel(status.state)}
       </h2>
       <p className="max-w-xl text-body leading-6 text-fg-2">
@@ -263,10 +263,10 @@ function TacticalFailurePanel({
         <Button
           onClick={onRetry}
           disabled={starting}
-          className="font-display tracking-wide"
+          className="font-display"
         >
           <RefreshCw aria-hidden />
-          {starting ? 'ENVIANDO…' : 'REINTENTAR ANÁLISIS'}
+          {starting ? 'Enviando…' : 'Reintentar análisis'}
         </Button>
       }
       note={error ? <span className="text-destructive">{error}</span> : undefined}

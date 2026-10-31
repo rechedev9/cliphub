@@ -62,7 +62,6 @@ export function PlayList({
             size="xs"
             disabled={allSelected}
             onClick={onSelectAll}
-            className="font-mono tracking-wider uppercase"
           >
             Seleccionar todo
           </Button>
@@ -72,7 +71,6 @@ export function PlayList({
             size="xs"
             disabled={selectedIds.size === 0}
             onClick={onClear}
-            className="font-mono tracking-wider uppercase"
           >
             Limpiar
           </Button>

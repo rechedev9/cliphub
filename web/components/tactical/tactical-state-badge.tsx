@@ -18,11 +18,11 @@ const STATE_STYLE: Record<TacticalState, { icon: typeof Radar; className: string
   },
   [TACTICAL_STATES.queued]: {
     icon: CircleSlash,
-    className: 'border-primary/45 bg-primary/10 text-primary',
+    className: 'border-primary/45 bg-primary/10 text-fg-1',
   },
   [TACTICAL_STATES.running]: {
     icon: Loader2,
-    className: 'border-primary/45 bg-primary/10 text-primary',
+    className: 'border-primary/45 bg-primary/10 text-fg-1',
     spin: true,
   },
   [TACTICAL_STATES.ready]: {
@@ -49,7 +49,7 @@ export function TacticalStateBadge({
     <span
       className={cn(
         // Square: panels are rounded, HUD chrome is not.
-        'inline-flex h-7 items-center gap-1.5 border px-2.5 font-mono text-meta uppercase tracking-wider',
+        'inline-flex h-7 items-center gap-1.5 border px-2.5 text-meta',
         style.className,
         className,
       )}

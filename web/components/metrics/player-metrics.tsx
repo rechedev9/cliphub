@@ -43,7 +43,7 @@ function Facts({ report }: { report: MetricsReport }): ReactNode {
       {facts.map(([label, value]) => (
         <div key={label} className="flex flex-col gap-0.5">
           <dt className="text-meta text-fg-3">{label}</dt>
-          <dd className="font-mono text-body-sm text-fg-1">{value}</dd>
+          <dd className="text-body-sm text-fg-1">{value}</dd>
         </div>
       ))}
     </dl>

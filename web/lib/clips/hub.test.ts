@@ -240,15 +240,15 @@ test('fullChipLabel follows the latest Full POV state', () => {
   assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'queued', editConfig: FULL_DEMO_EDIT }))]), 'Vídeo largo · en cola');
 });
 
-test('outputTagLabel: one uppercase tag per state, with progress when reported', () => {
+test('outputTagLabel: one tag per state, with progress when reported', () => {
   const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
-    [{ state: 'ready', percent: null, rounds: null }, 'LISTO'],
-    [{ state: 'render', percent: 41, rounds: null }, 'RENDER 41%'],
-    [{ state: 'render', percent: null, rounds: null }, 'RENDER'],
+    [{ state: 'ready', percent: null, rounds: null }, 'Listo'],
+    [{ state: 'render', percent: 41, rounds: null }, 'Render 41%'],
+    [{ state: 'render', percent: null, rounds: null }, 'Render'],
     [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'REC R3/20'],
     [{ state: 'rec', percent: null, rounds: null }, 'REC'],
-    [{ state: 'queue', percent: null, rounds: null }, 'EN COLA'],
-    [{ state: 'failed', percent: null, rounds: null }, 'FALLÓ'],
+    [{ state: 'queue', percent: null, rounds: null }, 'En cola'],
+    [{ state: 'failed', percent: null, rounds: null }, 'Falló'],
   ];
   for (const [input, want] of cases) assert.equal(outputTagLabel(input), want);
 });

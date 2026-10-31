@@ -82,7 +82,7 @@ export function AppSidebar(): ReactElement {
         {LABELLED_AREAS.map((area) => (
           <SidebarGroup key={area} className="gap-0.5 px-2 pb-4">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
-            <SidebarGroupLabel className="h-7 px-2 [font-size:var(--text-meta)] font-semibold tracking-wider text-fg-3 uppercase">
+            <SidebarGroupLabel className="h-7 px-2 [font-size:var(--text-meta)] font-semibold text-fg-3">
               {NAV_AREA_LABEL[area]}
             </SidebarGroupLabel>
             <SidebarMenu className="gap-px">
@@ -129,7 +129,7 @@ function NavRow({ section, active }: { section: NavSection; active: boolean }): 
       >
         <Link href={section.href} aria-current={active ? 'page' : undefined}>
           <Icon
-            className={cn('size-4 shrink-0', active ? 'text-primary' : 'text-fg-3')}
+            className={cn('size-4 shrink-0', active ? 'text-fg-1' : 'text-fg-3')}
             aria-hidden
           />
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">{section.label}</span>
@@ -152,7 +152,7 @@ function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElem
   }
   if (kind === 'faceit') {
     return (
-      <span className="shrink-0 font-mono [font-size:var(--text-meta)] font-normal tracking-normal text-fg-3 group-data-[collapsible=icon]:hidden">
+      <span className="shrink-0 [font-size:var(--text-meta)] font-normal text-fg-3 group-data-[collapsible=icon]:hidden">
         FACEIT
       </span>
     );

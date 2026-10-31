@@ -421,6 +421,10 @@ type TacticalCallout = {
   level: RadarLevel;
   center: [number, number];
   samples: number;
+  /** Grid cells (`cell_size` units) where CS2 reported this place most; absent in older analyses. */
+  cells?: [number, number][];
+  /** `[x, y, altitude]` of the cells this place shares with a place on another floor. */
+  stacked?: [number, number, number][];
 };
 
 /**

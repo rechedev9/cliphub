@@ -30,7 +30,7 @@ function SideCell({ side, refs }: { side: SideRecord | undefined; refs: Readonly
   if (!side || side.rounds === 0) return <span className="text-fg-3">Sin rondas</span>;
   return (
     <span className="flex flex-col gap-1">
-      <span className="font-mono">
+      <span>
         {countOf(side.won.count, side.rounds)} <span className="text-fg-3">({percentLabel(side.won.count, side.rounds)})</span>
       </span>
       <EvidenceChips examples={side.won.examples.slice(0, 3)} matches={refs} />
@@ -43,7 +43,7 @@ function PistolCell({ won, lost, refs }: { won: MapCount; lost: MapCount; refs: 
   if (total === 0) return <span className="text-fg-3">Sin pistolas</span>;
   return (
     <span className="flex flex-col gap-1">
-      <span className="font-mono">{countOf(won.count, total)}</span>
+      <span>{countOf(won.count, total)}</span>
       <EvidenceChips examples={[...won.examples, ...lost.examples].slice(0, 4)} matches={refs} />
     </span>
   );
@@ -53,9 +53,9 @@ function VetoCell({ count }: { count: VetoCount }): ReactNode {
   if (count.count === 0) return <span className="text-fg-3">0</span>;
   return (
     <span className="flex flex-wrap items-center gap-1">
-      <span className="font-mono">{count.count}</span>
+      <span>{count.count}</span>
       {[...new Set(count.series_ids)].slice(0, 3).map((id, index) => (
-        <Link key={id} href={librarySeriesHref(id)} className="rounded-sm border border-border px-1.5 font-mono text-meta text-fg-2 hover:border-primary hover:text-primary">
+        <Link key={id} href={librarySeriesHref(id)} className="rounded-sm border border-border px-1.5 text-meta text-fg-2 hover:border-primary hover:text-primary">
           S{index + 1}
         </Link>
       ))}
@@ -142,11 +142,11 @@ export function TeamMapHistory({ teamId, matches }: { teamId: string; matches: r
                           <span className="text-fg-2">{prettyMapName(record.map)}</span>
                         )}
                       </th>
-                      <td className="px-3 py-2 font-mono">{record.matches}</td>
-                      <td className="px-3 py-2 font-mono whitespace-nowrap">
+                      <td className="px-3 py-2">{record.matches}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <span className="text-outcome-win">{record.wins}</span>-<span className="text-outcome-loss">{record.losses}</span>-{record.ties}
                       </td>
-                      <td className={cn('px-3 py-2 font-mono', rounds === 0 && 'text-fg-3')}>{percentLabel(record.rounds_won, rounds) || 'Sin rondas'}</td>
+                      <td className={cn('px-3 py-2', rounds === 0 && 'text-fg-3')}>{percentLabel(record.rounds_won, rounds) || 'Sin rondas'}</td>
                       <td className="px-3 py-2">
                         <SideCell side={ct} refs={refs} />
                       </td>

@@ -38,8 +38,9 @@ func TestHLAEStreamFFmpeg(t *testing.T) {
 		}
 	}
 	tests := []struct {
-		name  string
-		setup func(t *testing.T, hlaeDir string) string // returns want; "" = FindFFmpeg fallback
+		name       string
+		configured string
+		setup      func(t *testing.T, hlaeDir string) string // returns want; "" = FindFFmpeg fallback
 	}{
 		{name: "bundled bin wins over ini", setup: func(t *testing.T, dir string) string {
 			bundled := filepath.Join(dir, "ffmpeg", "bin", "ffmpeg.exe")
@@ -50,6 +51,16 @@ func TestHLAEStreamFFmpeg(t *testing.T) {
 		{name: "ini path with CRLF", setup: func(t *testing.T, dir string) string {
 			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\tools\\ffmpeg.exe\r\n")
 			return `C:\tools\ffmpeg.exe`
+		}},
+		// zv-recorder rewrites the ini with the ffmpeg Studio provisions, so the probe tests that binary.
+		{name: "configured ffmpeg wins over an older ini", configured: `C:\studio\ffmpeg.exe`, setup: func(t *testing.T, dir string) string {
+			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\winget\\ffmpeg.exe\r\n")
+			return `C:\studio\ffmpeg.exe`
+		}},
+		{name: "bundled bin wins over configured ffmpeg", configured: `C:\studio\ffmpeg.exe`, setup: func(t *testing.T, dir string) string {
+			bundled := filepath.Join(dir, "ffmpeg", "bin", "ffmpeg.exe")
+			writeFile(t, bundled, "fake")
+			return bundled
 		}},
 		{name: "no config falls back to PATH ffmpeg", setup: func(t *testing.T, dir string) string {
 			return ""
@@ -62,7 +73,7 @@ func TestHLAEStreamFFmpeg(t *testing.T) {
 			if want == "" {
 				want = FindFFmpeg()
 			}
-			if got := HLAEStreamFFmpeg(filepath.Join(dir, "HLAE.exe")); got != want {
+			if got := HLAEStreamFFmpeg(filepath.Join(dir, "HLAE.exe"), tt.configured); got != want {
 				t.Fatalf("HLAEStreamFFmpeg = %q, want %q", got, want)
 			}
 		})

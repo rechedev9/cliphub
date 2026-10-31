@@ -19,12 +19,8 @@ export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 /**
- * Brand emphasis is expressed with `--glow-primary-*` / `--glow-stream-md`,
- * never with a `shadow-<color>` utility: Tailwind can only splice a shadow
- * colour into a value it can parse, and `--shadow-*` maps onto a bare
- * `var(--elev-N)`, so `shadow-primary/15` compiled to a variable that was
- * written and never read. The glow tokens also inherit the efficiency-profile
- * downgrade (they resolve to `none`), which a literal colour would not.
+ * The UI is monochrome: `primary` is the ink colour (near white on dark, near
+ * black on light). Colour is kept for data and for stream, never for chrome.
  */
 const buttonVariants = cva(
   [
@@ -38,11 +34,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-sm)] hover:bg-primary/90 hover:shadow-[var(--elev-2),var(--glow-primary-md)] active:shadow-[var(--elev-0),var(--glow-primary-sm)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
+          "bg-primary text-primary-foreground shadow-[var(--elev-1)] hover:bg-primary/88 active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         hero:
-          "bg-primary text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-md)] hover:bg-primary/92 hover:shadow-[var(--elev-3),var(--glow-primary-lg)] active:shadow-[var(--elev-1),var(--glow-primary-md)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
+          "bg-primary text-primary-foreground shadow-[var(--elev-1)] hover:bg-primary/88 active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         stream:
-          "bg-stream text-stream-foreground shadow-[var(--elev-1),var(--glow-stream-md)] hover:bg-stream/90 hover:shadow-[var(--elev-2),var(--glow-stream-md)] active:shadow-[var(--elev-0)] focus-visible:outline-stream disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
+          "bg-stream text-stream-foreground shadow-[var(--elev-1)] hover:bg-stream/90 active:shadow-[var(--elev-0)] focus-visible:outline-stream disabled:bg-secondary disabled:text-fg-3 disabled:shadow-[var(--elev-0)]",
         success:
           "bg-success text-success-foreground shadow-[var(--elev-1)] hover:bg-success/90 hover:shadow-[var(--elev-2)] active:shadow-[var(--elev-0)] disabled:bg-secondary disabled:text-fg-3",
         warning:
@@ -52,13 +48,13 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive-solid text-white shadow-[var(--elev-1)] hover:bg-destructive-solid/90 hover:shadow-[var(--elev-2)] active:shadow-[var(--elev-0)] focus-visible:outline-destructive disabled:bg-secondary disabled:text-fg-3",
         outline:
-          "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-primary/60 hover:bg-surface-4 hover:text-fg-1 active:shadow-none disabled:bg-surface-2 disabled:text-fg-3",
+          "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-4 hover:bg-surface-4 hover:text-fg-1 active:shadow-none disabled:bg-surface-2 disabled:text-fg-3",
         "outline-primary":
-          "border border-primary/50 bg-surface-2 text-primary shadow-[var(--elev-0),var(--glow-primary-sm)] hover:border-primary hover:bg-primary/12 hover:shadow-[var(--elev-1),var(--glow-primary-md)] active:shadow-[var(--elev-0)] disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
+          "border border-fg-3 bg-surface-2 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-2 hover:bg-surface-3 active:shadow-none disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
         secondary:
           "bg-secondary text-secondary-foreground shadow-[var(--elev-0)] hover:bg-surface-5 active:shadow-none",
         ghost: "text-fg-2 hover:bg-surface-3 hover:text-fg-1",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1",
       },
       size: {
         default: "h-11 px-5 py-2.5 has-[>svg]:px-4",

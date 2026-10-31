@@ -4,6 +4,7 @@ import { useCallback, useId, useState, type ReactNode } from 'react';
 import { ChevronDown, ScrollText } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalDocument, TacticalFilter, TacticalRound, TacticalSide } from '@/lib/api/tactical';
+import { teamScoreBefore } from '@/lib/library/rounds';
 import { tacticalPerspective } from '@/lib/tactical-filter';
 import { buyLabel, ctPatternLabel, roundTagLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { FOCUS_RING } from '@/components/ui/button';
@@ -11,12 +12,12 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
 
 function sideClass(side: TacticalSide): string {
-  return side === TACTICAL_SIDES.ct ? 'text-primary' : 'text-warning';
+  return side === TACTICAL_SIDES.ct ? 'text-side-ct' : 'text-side-t';
 }
 
 function sideBarClass(winner: TacticalSide | ''): string {
-  if (winner === TACTICAL_SIDES.ct) return 'bg-primary';
-  if (winner === TACTICAL_SIDES.t) return 'bg-warning';
+  if (winner === TACTICAL_SIDES.ct) return 'bg-side-ct';
+  if (winner === TACTICAL_SIDES.t) return 'bg-side-t';
   // --fg-4 is the hairline/graphics token (3.75:1 on --surface-2); --border is an
   // edge, and an edge token is not a surface fill.
   return 'bg-fg-4';
@@ -25,10 +26,10 @@ function sideBarClass(winner: TacticalSide | ''): string {
 /** The economy line, always in CT-then-T order so rows scan vertically. */
 function BuyLine({ round }: { round: TacticalRound }): ReactNode {
   return (
-    <span className="block truncate font-mono text-meta uppercase tracking-wider">
-      <span className="text-primary">{buyLabel(round.economy.ct_buy)}</span>{' '}
+    <span className="block truncate text-meta">
+      <span className="text-side-ct">{buyLabel(round.economy.ct_buy)}</span>{' '}
       <span className="text-fg-3">vs</span>{' '}
-      <span className="text-warning">{buyLabel(round.economy.t_buy)}</span>
+      <span className="text-side-t">{buyLabel(round.economy.t_buy)}</span>
     </span>
   );
 }
@@ -41,11 +42,14 @@ function BuyLine({ round }: { round: TacticalRound }): ReactNode {
  */
 function RoundRow({
   round,
+  score,
   perspective,
   selected,
   onSelect,
 }: {
   round: TacticalRound;
+  /** Score before the round, the team that started CT first. */
+  score: string;
   perspective: TacticalSide | undefined;
   selected: boolean;
   onSelect: (round: number) => void;
@@ -67,7 +71,7 @@ function RoundRow({
         // selected-tile glow instead of a stronger hue.
         'studio-panel shrink-0 overflow-hidden transition-colors',
         selected
-          ? 'studio-panel-raised shadow-[var(--elev-3),var(--glow-primary-sm)]'
+          ? 'studio-panel-raised shadow-[var(--elev-3)]'
           : 'studio-panel-interactive',
       )}
     >
@@ -89,16 +93,11 @@ function RoundRow({
         >
           <span className="flex min-w-0 items-center gap-2">
             <span className="flex w-9 shrink-0 flex-col items-center gap-1">
-              <span
-                className={cn(
-                  'font-mono text-title leading-none tabular-nums',
-                  selected ? 'text-primary' : 'text-fg-1',
-                )}
-              >
+              <span className="text-title leading-none tabular-nums text-fg-1">
                 {round.number}
               </span>
-              <span className="font-mono text-meta leading-none tracking-normal tabular-nums text-fg-3">
-                {round.score_ct_before}:{round.score_t_before}
+              <span className="text-meta leading-none tracking-normal tabular-nums text-fg-3">
+                {score}
               </span>
             </span>
 
@@ -109,7 +108,7 @@ function RoundRow({
                   site moved to the footline so the pair fits. The untruncated
                   string is reprinted in the replay header when the round is
                   selected. */}
-              <span className="block truncate font-display text-label font-semibold uppercase leading-tight text-fg-1">
+              <span className="block truncate font-display text-label font-semibold leading-tight text-fg-1">
                 {tPatternLabel(round.class.t_side)}{' '}
                 <span className="text-fg-3">/</span>{' '}
                 {ctPatternLabel(round.class.ct_side)}
@@ -121,28 +120,26 @@ function RoundRow({
                 className={cn(
                   // border-current inherits the side's semantic colour, so the
                   // marker reads as a HUD key without a new token.
-                  'inline-flex h-5 items-center justify-center border border-current px-1.5 font-mono text-meta leading-none tracking-wider',
+                  'inline-flex h-5 items-center justify-center border border-current px-1.5 text-meta leading-none',
                   round.winner === '' ? 'text-fg-3' : sideClass(round.winner),
                 )}
               >
                 {round.winner === '' ? '—' : round.winner}
               </span>
               {won ? (
-                <span className="font-mono text-meta uppercase tracking-wider text-success">gana</span>
+                <span className="text-meta text-success">Gana</span>
               ) : null}
               {lost ? (
-                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">pierde</span>
+                <span className="text-meta text-fg-3">Pierde</span>
               ) : null}
             </span>
           </span>
 
           {/* Site first, then the tags, as one `·` run — the house idiom
-              (tactical-event-list.tsx). tracking-normal rather than the
-              mono-meta tracking-wider on purpose: at 0.12em a three-tag round
-              loses nine characters of a ~256px band, and this is a dense data
-              run, not a HUD label. Overflow ellipsises; the full list is in the
-              drawer. */}
-          <span className="block truncate font-mono text-meta uppercase tracking-normal text-fg-3">
+              (tactical-event-list.tsx). tracking-normal on purpose: this is a
+              dense data run in a ~256px band, not a label. Overflow
+              ellipsises; the full list is in the drawer. */}
+          <span className="block truncate text-meta tracking-normal text-fg-3">
             <span className="text-fg-2">{siteLabel(round.class.site)}</span>
             {round.class.tags.map((tag) => (
               <span key={tag}>{` · ${roundTagLabel(tag)}`}</span>
@@ -174,11 +171,11 @@ function RoundRow({
             ))}
           </div>
         ) : null}
-        <p className="mb-2 font-mono text-meta uppercase tracking-widest text-fg-3">
+        <p className="mb-2 text-meta text-fg-3">
           Por qué se clasificó así
         </p>
         {reasons.length === 0 ? (
-          <p className="font-mono text-body-sm leading-5 text-fg-2">
+          <p className="text-body-sm leading-5 text-fg-2">
             El clasificador no registró ningún motivo para esta ronda.
           </p>
         ) : (
@@ -226,8 +223,8 @@ export function TacticalRoundList({
       aria-label="Rondas"
     >
       <header className="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-3">
-        <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">Rondas</h2>
-        <span className="font-mono text-meta tracking-normal tabular-nums text-fg-2">{rounds.length}</span>
+        <h2 className="text-meta text-fg-3">Rondas</h2>
+        <span className="text-meta tracking-normal tabular-nums text-fg-2">{rounds.length}</span>
       </header>
 
       {rounds.length === 0 ? (
@@ -243,6 +240,7 @@ export function TacticalRoundList({
             <RoundRow
               key={round.number}
               round={round}
+              score={teamScoreBefore(doc, round).join(':')}
               perspective={tacticalPerspective(doc.teams, filter, round)}
               selected={round.number === selected}
               onSelect={select}

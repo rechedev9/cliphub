@@ -132,9 +132,39 @@ test('the nearest callout prefers the same level and the busiest cells come firs
     { name: 'Ramp', level: 'default', center: [100, 100] as [number, number] },
     { name: 'Vents', level: 'lower', center: [0, 0] as [number, number] },
   ];
-  assert.equal(nearestCallout(callouts, 'default', 0, 0), 'Ramp');
-  assert.equal(nearestCallout(callouts, 'lower', 90, 90), 'Vents');
-  assert.equal(nearestCallout([], 'default', 0, 0), '');
+  assert.equal(nearestCallout({ cell_size: 0, callouts }, 'default', 0, 0), 'Ramp');
+  assert.equal(nearestCallout({ cell_size: 0, callouts }, 'lower', 90, 90), 'Vents');
+  assert.equal(nearestCallout({ cell_size: 64, callouts: [] }, 'default', 0, 0), '');
   const top = topCells(heatmapLayer(HEATMAP, 'CT', 'default'), 1);
   assert.deepEqual(top.map((cell) => cell.count), [4]);
+});
+
+test('the nearest callout is the place that owns the cell, then its closest owned neighbour', () => {
+  const geometry = {
+    cell_size: 64,
+    callouts: [
+      // A long site whose far end lies closer to the stairs' centre than its own.
+      { name: 'BombsiteA', level: 'default', center: [320, 32] as [number, number], cells: [[0, 0], [9, 0]] as [number, number][] },
+      { name: 'Stairs', level: 'default', center: [700, 100] as [number, number], cells: [[10, 1]] as [number, number][] },
+    ],
+  };
+  assert.equal(nearestCallout(geometry, 'default', 600, 40), 'BombsiteA');
+  assert.equal(nearestCallout(geometry, 'default', 650, -30), 'BombsiteA');
+  assert.equal(nearestCallout(geometry, 'default', 2000, 2000), 'Stairs');
+  // Cells only answer for their own level; another level falls back to the centres.
+  assert.equal(nearestCallout(geometry, 'lower', 600, 40), 'Stairs');
+});
+
+test('a cell shared by two floors names the place nearest in height, like the Go lookup', () => {
+  const geometry = {
+    cell_size: 64,
+    callouts: [
+      { name: 'Catwalk', level: 'default', center: [0, 0] as [number, number], cells: [[0, 0]] as [number, number][], stacked: [[0, 0, -168]] as [number, number, number][] },
+      { name: 'Underpass', level: 'default', center: [0, 0] as [number, number], stacked: [[0, 0, -318]] as [number, number, number][] },
+    ],
+  };
+  assert.equal(nearestCallout(geometry, 'default', 30, 30, -170), 'Catwalk');
+  assert.equal(nearestCallout(geometry, 'default', 30, 30, -360), 'Underpass');
+  // A heatmap cell carries no altitude: the cell's busiest place answers.
+  assert.equal(nearestCallout(geometry, 'default', 30, 30), 'Catwalk');
 });

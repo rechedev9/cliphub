@@ -98,7 +98,7 @@ export function StreamKeyDropBannerControls({
                 disabled={busy}
                 aria-pressed={family === entry.id}
                 onClick={() => onFamilyChange(entry.id)}
-                className={`font-mono uppercase tracking-wider ${family === entry.id ? 'border-stream/45 text-stream-text' : ''}`}
+                className={family === entry.id ? 'border-stream/45 text-stream-text' : undefined}
               >
                 {entry.label}
               </Button>
@@ -117,7 +117,7 @@ export function StreamKeyDropBannerControls({
                 onClick={() => {
                   if (isKeyDropStyle(entry.id)) onStyleChange(entry.id);
                 }}
-                className={`font-mono uppercase tracking-wider ${style === entry.id ? 'border-stream/45 text-stream-text' : ''}`}
+                className={style === entry.id ? 'border-stream/45 text-stream-text' : undefined}
               >
                 {entry.label}
                 <span className="text-fg-3">{entry.subtitle}</span>
@@ -153,7 +153,7 @@ export function StreamKeyDropBannerControls({
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-label text-fg-2">Visible en el clip</Label>
-              <output className="font-mono text-label tabular-nums text-fg-1">
+              <output className="text-label tabular-nums text-fg-1">
                 {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
               </output>
             </div>
@@ -174,7 +174,7 @@ export function StreamKeyDropBannerControls({
                   value={Number.isFinite(startSeconds) ? startSeconds : 0}
                   disabled={busy}
                   onChange={(e) => onStartChange(Number(e.target.value))}
-                  className="h-9 font-mono"
+                  className="h-9"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -190,7 +190,7 @@ export function StreamKeyDropBannerControls({
                   value={Number.isFinite(endSeconds) ? endSeconds : DEFAULT_KEYDROP_END_SECONDS}
                   disabled={busy}
                   onChange={(e) => onEndChange(Number(e.target.value))}
-                  className="h-9 font-mono"
+                  className="h-9"
                 />
               </div>
             </div>
@@ -237,7 +237,7 @@ export function StreamKeyDropBannerControls({
             </Label>
             <output
               htmlFor="keydrop-banner-position"
-              className="font-mono text-label tabular-nums text-fg-1"
+              className="text-label tabular-nums text-fg-1"
             >
               {Math.round(position * 100)}%
             </output>
@@ -263,7 +263,7 @@ export function StreamKeyDropBannerControls({
               disabled={busy}
               aria-pressed={slideEnabled}
               onClick={() => onSlideChange(!slideEnabled)}
-              className={`font-mono uppercase tracking-wider ${slideEnabled ? 'border-stream/45 text-stream-text' : ''}`}
+              className={slideEnabled ? 'border-stream/45 text-stream-text' : undefined}
             >
               Deslizamiento: {slideEnabled ? 'sí' : 'no'}
             </Button>

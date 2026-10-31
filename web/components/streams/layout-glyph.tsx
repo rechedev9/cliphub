@@ -76,7 +76,7 @@ export function LayoutGlyph({
             className={cn(
               'block transition-colors duration-(--dur-fast) ease-standard',
               band.kind === 'game' && 'bg-surface-3',
-              band.kind === 'cam' && (selected ? 'bg-stream shadow-[var(--glow-stream-md)]' : 'bg-fg-4'),
+              band.kind === 'cam' && (selected ? 'bg-stream' : 'bg-fg-4'),
             )}
           />
         ))}

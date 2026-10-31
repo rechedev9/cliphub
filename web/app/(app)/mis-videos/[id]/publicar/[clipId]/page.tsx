@@ -137,7 +137,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
       <section className="flex min-w-0 flex-col gap-3.5">
         <div className="flex flex-col gap-1.5">
           {ready ? (
-            <p className="flex items-center gap-1.5 font-mono text-meta uppercase tracking-ultra text-success">
+            <p className="flex items-center gap-1.5 text-meta font-medium text-success">
               <Check className="size-3.5" aria-hidden /> Listo
             </p>
           ) : (
@@ -145,7 +145,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
               {STATE_TAG[state].label}
             </StatusTag>
           )}
-          <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{video.title}</h1>
+          <h1 className="font-display text-display-sm font-bold text-fg-1">{video.title}</h1>
         </div>
 
         <div className="studio-panel studio-panel-raised flex flex-wrap gap-4 p-4">
@@ -156,7 +156,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
             fallback={<ReelCover seed={video.id} label={map} />}
           />
           <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
-            <p className="font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
+            <p className="text-meta text-fg-3">{meta}</p>
             <p className="text-body-sm text-fg-2">{description}</p>
             <div className="mt-auto flex flex-wrap gap-2 pt-1">
               {playback ? (

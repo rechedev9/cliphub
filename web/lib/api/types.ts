@@ -23,6 +23,8 @@ export type Match = {
   source?: 'steam' | 'upload';
   /** Display name of the clipped/target player, when known. */
   player?: string;
+  /** Checksum of the demo file, shared by every job made from the same demo. */
+  demoSha256?: string;
   /** Orchestrator job status when known (Partidas / constructors). */
   status?: string;
   /** Human text from the orchestrator when `status` is `failed`. */

@@ -250,7 +250,10 @@ type RecordWorkerConfig struct {
 	RecorderPath string
 	HLAEPath     string
 	CS2Path      string
-	Timeout      string
+	// FFmpegPath, when set, is the ffmpeg HLAE encodes the capture with; the
+	// recorder writes it into HLAE's ffmpeg.ini. Empty keeps HLAE's own choice.
+	FFmpegPath string
+	Timeout    string
 	// HUDMode is the in-game HUD the recorder captures with (gameplay, clean, or
 	// deathnotices). The viral short wants a HUD-less POV with the deathnotices
 	// killfeed, so it defaults to "deathnotices" (see withDefaults).
@@ -757,7 +760,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	// The encoder is part of the recording identity: it must reach both the
 	// recorder argv and the expected plan, or attempt validation rejects the
 	// recorder's echoed plan after a successful capture.
-	captureEncoder := studioCaptureEncoder(cfg.HLAEPath)
+	captureEncoder := studioCaptureEncoder(cfg.HLAEPath, cfg.FFmpegPath)
 	expectedStream, err := normalizedRecordingStream(requestedPlan, cfg.HUDMode, portraitSafeKillfeed, captureEncoder)
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
@@ -880,6 +883,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	}
 	if captureEncoder != "" {
 		recorderArgs = append(recorderArgs, "--encoder", captureEncoder)
+	}
+	if cfg.FFmpegPath != "" {
+		recorderArgs = append(recorderArgs, "--ffmpeg", cfg.FFmpegPath)
 	}
 	progressAttemptID, err := startCaptureProgressAttempt(w.storage, j.ID, killPlanSegmentIDs(recordPlan))
 	if err != nil {

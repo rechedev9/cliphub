@@ -81,7 +81,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-4 @[34rem]/content:p-6">
-      <SectionEyebrow label="¿YA TIENES EL CÓDIGO DE UNA PARTIDA?" />
+      <SectionEyebrow label="¿Ya tienes el código de una partida?" />
 
       <p className="text-body-sm text-fg-2">
         Ese código identifica una partida concreta de CS2; ClipHub lo lee aquí.
@@ -90,7 +90,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
       <ol className="flex flex-col gap-2">
         {STEPS.map((step, index) => (
           <li key={step} className="flex items-baseline gap-3">
-            <span className="w-5 shrink-0 font-mono text-meta tabular-nums text-fg-3">
+            <span className="w-5 shrink-0 text-meta tabular-nums text-fg-3">
               {String(index + 1).padStart(2, '0')}
             </span>
             <span className="text-body-sm text-fg-2">{step}</span>
@@ -114,8 +114,8 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
                 autoComplete="off"
                 spellCheck={false}
               />
-              <Button type="submit" loading={state.phase === 'pending'} loadingText="COMPROBANDO">
-                COMPROBAR
+              <Button type="submit" loading={state.phase === 'pending'} loadingText="Comprobando">
+                Comprobar
               </Button>
             </div>
           )}
@@ -146,7 +146,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
           href={STEAM_AUTH_CODE_URL}
           target="_blank"
           rel="noreferrer"
-          className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}
+          className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}
         >
           código de autenticación de Steam
         </a>{' '}
@@ -174,7 +174,7 @@ function ResolutionOutcome({
       return (
         <>
           <StatusTag tone="success" className="self-start">Código válido</StatusTag>
-          <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {result.matchId}</p>
+          <p className="text-body-sm tabular-nums text-fg-1">Partida {result.matchId}</p>
           <p className="text-body-sm text-fg-2">
             {result.kind === 'resolved'
               ? 'La demo está en los servidores de Valve. Después de descargarla podrás elegir al jugador y preparar el vídeo.'
@@ -183,7 +183,7 @@ function ResolutionOutcome({
                   ClipHub ya sabe qué partida es. Para bajarla, la primera vez te pedirá el login de
                   Steam de la cuenta con la que juegas. El código de autenticación para listar el
                   historial está en{' '}
-                  <Link href="/settings" className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
+                  <Link href="/settings" className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>
                     Ajustes
                   </Link>
                   .
@@ -191,7 +191,7 @@ function ResolutionOutcome({
               )}
           </p>
           <Button type="button" className="self-start" loading={downloading} loadingText="Descargando…" onClick={onDownload}>
-            DESCARGAR DEMO
+            Descargar demo
           </Button>
           {downloadError ? <p className="text-body-sm text-destructive">{downloadError}</p> : null}
         </>

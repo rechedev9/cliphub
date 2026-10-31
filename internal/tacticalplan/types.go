@@ -19,6 +19,12 @@ import (
 // versions they do not understand rather than render a partial analysis.
 const SchemaVersion = "1.0"
 
+// AnalysisVersion counts changes to what a scan concludes from the same demo
+// (2: zones per cell and floor, Train on one level, sites matched per level,
+// players on the team of their first live round, "Equipo CT/T" fallback names).
+// The library scans a stored analysis below it again; bump it with each change.
+const AnalysisVersion = 2
+
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
 
@@ -138,15 +144,16 @@ const (
 
 // Document is the top-level tactical analysis of one demo.
 type Document struct {
-	SchemaVersion string      `json:"schema_version"`
-	GeneratedAt   time.Time   `json:"generated_at"`
-	JobID         uuid.UUID   `json:"job_id,omitempty"`
-	Demo          Demo        `json:"demo"`
-	Teams         []Team      `json:"teams"`
-	Players       []Player    `json:"players"`
-	Rounds        []Round     `json:"rounds"`
-	Geometry      MapGeometry `json:"geometry"`
-	Positions     Positions   `json:"positions"`
+	SchemaVersion   string      `json:"schema_version"`
+	AnalysisVersion int         `json:"analysis_version,omitempty"` // 0 before the field existed
+	GeneratedAt     time.Time   `json:"generated_at"`
+	JobID           uuid.UUID   `json:"job_id,omitempty"`
+	Demo            Demo        `json:"demo"`
+	Teams           []Team      `json:"teams"`
+	Players         []Player    `json:"players"`
+	Rounds          []Round     `json:"rounds"`
+	Geometry        MapGeometry `json:"geometry"`
+	Positions       Positions   `json:"positions"`
 	// Warnings records every ambiguity the scan resolved by convention, so a
 	// surprising number can be traced instead of guessed at.
 	Warnings []string `json:"warnings,omitempty"`
@@ -183,12 +190,13 @@ type Team struct {
 }
 
 // FallbackTeamName is the name a scan gives a team whose demo carried no clan
-// name, so a reader can tell a real clan name from the placeholder.
+// name, so a reader can tell a real clan name from the placeholder. It is the
+// label Studio shows for such a team everywhere (web teamLabel).
 func FallbackTeamName(startSide Side) string {
 	if startSide == SideCT {
-		return "CT start"
+		return "Equipo CT"
 	}
-	return "T start"
+	return "Equipo T"
 }
 
 // Player is the identity table. Every per-tick sample and every event refers to
@@ -372,11 +380,12 @@ func (d Document) MarshalJSON() ([]byte, error) {
 // and a UTC timestamp.
 func NewDocument() Document {
 	return Document{
-		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Now().UTC(),
-		Rounds:        []Round{},
-		Players:       []Player{},
-		Teams:         []Team{},
+		SchemaVersion:   SchemaVersion,
+		AnalysisVersion: AnalysisVersion,
+		GeneratedAt:     time.Now().UTC(),
+		Rounds:          []Round{},
+		Players:         []Player{},
+		Teams:           []Team{},
 	}
 }
 

@@ -14,7 +14,7 @@ import type {
 import { matchHref } from '../clips/routes.ts';
 import { prettyMapName } from '../format.ts';
 import { roundEvidenceHref } from '../library/rounds.ts';
-import { buyLabel, eventKindLabel, patternLabel, siteLabel } from '../tactical-labels.ts';
+import { buyLabel, eventKindLabel, patternLabel, placeLabel, siteLabel } from '../tactical-labels.ts';
 
 /**
  * The scouting report as plain sections of tables. The page and the exported
@@ -145,7 +145,7 @@ function players(list: readonly ScoutPlayerCount[]): string {
 }
 
 function calloutText(callout: string): string {
-  return callout === '' ? 'Sin zona' : callout;
+  return callout === '' ? 'Sin zona' : placeLabel(callout);
 }
 
 function patternTable(caption: string, rows: readonly ScoutPatternRow[], empty: string): ReportTable {
@@ -186,7 +186,7 @@ function placeTable(caption: string, rows: readonly ScoutPlaceRow[], empty: stri
   return {
     caption,
     columns: ['Zona', 'Rondas', '% de los duelos', 'Duelo ganado', 'Rondas de ejemplo'],
-    rows: rows.map((row) => [text(row.place), count(row.rounds), rate(row.share), rate(row.won), examples(row.examples)]),
+    rows: rows.map((row) => [text(calloutText(row.place)), count(row.rounds), rate(row.share), rate(row.won), examples(row.examples)]),
     empty,
   };
 }
@@ -299,7 +299,7 @@ function setupsSection(report: ScoutReport): ReportSection {
         rows: s.positions.map((row) => [
           text(row.name || row.steamid64),
           count(row.rounds),
-          text(row.spots.map((spot) => `${spot.callout} ${rateText(spot.share)}`).join(', ')),
+          text(row.spots.map((spot) => `${calloutText(spot.callout)} ${rateText(spot.share)}`).join(', ')),
           examples(row.spots[0]?.examples ?? []),
         ]),
         empty: 'Sin posiciones: las partidas no tienen el fichero de posiciones o no hay rondas de CT con compra completa.',
@@ -426,7 +426,7 @@ function openingsSection(report: ScoutReport): ReportSection {
           rate(row.attempts),
           rate(row.won),
           rate(row.traded_on_loss),
-          text(row.places.slice(0, 3).map((place) => `${place.place} (${place.count})`).join(', ')),
+          text(row.places.slice(0, 3).map((place) => `${calloutText(place.place)} (${place.count})`).join(', ')),
           examples(row.examples),
         ]),
         empty: 'Sin duelos de apertura.',

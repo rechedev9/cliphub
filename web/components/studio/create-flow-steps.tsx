@@ -27,7 +27,7 @@ export function CreateFlowSteps({ flow, step }: { flow: CreateFlow; step: number
             )}
           >
             {phase.state === 'done' ? (
-              <Check aria-label="Completado" className="size-3.5 text-primary" />
+              <Check aria-label="Completado" className="size-3.5 text-fg-1" />
             ) : (
               <span aria-hidden>{index + 1}</span>
             )}

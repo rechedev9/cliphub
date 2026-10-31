@@ -173,7 +173,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
 
   return <>
     <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+      <p className="wrap-anywhere text-meta text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
       <p className="w-full text-body-sm text-fg-2">
         {chosenRounds.length > 0
@@ -183,7 +183,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
           <>
             {' '}
             <button type="button" disabled={busy !== null} onClick={() => change(withFullDemoRounds(options, null))}
-              className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+              className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
               Usar todas las rondas
             </button>
           </>
@@ -192,7 +192,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
       {restored ? (
         <p role="status" className="w-full text-body-sm text-fg-3">
           {PRODUCE_FULL_DRAFT_RESTORED}{' '}
-          <button type="button" disabled={busy !== null} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+          <button type="button" disabled={busy !== null} onClick={startOver} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
             {PRODUCE_DRAFT_RESET}
           </button>
         </p>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PlayGrenade, PlayPosition } from '@/lib/api/stratbook';
 import { GRENADE_LABEL, playSecondsLabel, shareLabel } from '@/lib/stratbook/plays';
+import { placeLabel } from '@/lib/tactical-labels';
 
 const CELL = 'px-2 py-1.5 text-left font-normal';
 
@@ -30,7 +31,7 @@ export function PlayGrenadeTable({ grenades, showShare = false }: { grenades: re
             <tr key={`${grenade.kind}:${index}`} className="border-t border-border-subtle">
               <td className={CELL}>{GRENADE_LABEL[grenade.kind]}</td>
               <td className={CELL}>{playSecondsLabel(grenade.seconds)}</td>
-              <td className={CELL}>{grenade.callout || <span className="text-fg-3">{coords(grenade.pos)}</span>}</td>
+              <td className={CELL}>{placeLabel(grenade.callout ?? '') || <span className="text-fg-3">{coords(grenade.pos)}</span>}</td>
               <td className={CELL}>{grenade.player || <span className="text-fg-3">Sin dato</span>}</td>
               {showShare ? <td className={CELL}>{shareLabel(grenade.share)}</td> : null}
               <td className={CELL}>
@@ -66,7 +67,7 @@ export function PlayPositionTable({ positions, showShare = false }: { positions:
           {positions.map((position, index) => (
             <tr key={`${position.steamid64 ?? position.player ?? ''}:${index}`} className="border-t border-border-subtle">
               <td className={CELL}>{position.player || <span className="text-fg-3">Sin dato</span>}</td>
-              <td className={CELL}>{position.callout || <span className="text-fg-3">{coords(position.pos)}</span>}</td>
+              <td className={CELL}>{placeLabel(position.callout ?? '') || <span className="text-fg-3">{coords(position.pos)}</span>}</td>
               {showShare ? <td className={CELL}>{shareLabel(position.share)}</td> : null}
             </tr>
           ))}

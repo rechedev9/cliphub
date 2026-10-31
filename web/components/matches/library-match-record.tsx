@@ -38,7 +38,7 @@ function durationLabel(match: LibraryMatch): string {
 function matchFields(match: LibraryMatch, demo: LibraryDemo): RecordField[] {
   return [
     { label: 'Fecha', value: formatShortDate(match.played_at) },
-    { label: 'Marcador', value: <span className="font-mono">{matchScoreLabel(match)}</span> },
+    { label: 'Marcador', value: <span>{matchScoreLabel(match)}</span> },
     { label: 'Rondas', value: match.round_count },
     { label: 'Duración', value: durationLabel(match) },
     { label: 'Fuente', value: SOURCE_LABEL[demo.source] },

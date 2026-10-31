@@ -14,6 +14,11 @@ jugadores:
 2. **Analizar**: análisis profesional de demos para analistas, coaches e IGLs: scouting de rivales,
    anti-strats, stratbook y métricas avanzadas.
 
+**El producto que se vende es la aplicación de escritorio para Windows.** `web/` es solo su interfaz:
+Electron la empaqueta en el instalador. No hay un producto web: abrir Studio en un navegador sirve
+para probar la interfaz, no para venderlo. Cada decisión de diseño, de alcance y cada verificación
+se piensa para el escritorio de Windows (instalador, actualizaciones, CS2 y HLAE en el mismo PC).
+
 Lo que une las dos áreas es el registro común. Una partida es un objeto con su ficha, sus rondas,
 sus jugadores y sus vídeos, igual que en un CRM un cliente tiene su ficha y sus listas relacionadas.
 

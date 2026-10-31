@@ -38,7 +38,7 @@ function formatBaseline(metric: AnticheatMetric): string {
 function suspicionBarClass(suspicion: number): string {
   if (suspicion >= 80) return 'text-destructive';
   if (suspicion >= 50) return 'text-stream';
-  return 'text-primary';
+  return 'text-fg-2';
 }
 
 /** One metric row: value, reference, and a bar for its 0..100 suspicion. */
@@ -47,7 +47,7 @@ function MetricRow({ metric }: { metric: AnticheatMetric }) {
     <li className="flex flex-col gap-1.5 border-t border-border-subtle py-3 first:border-t-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="text-body-sm font-medium text-fg-1">{metric.label}</span>
-        <span className="font-mono text-meta text-fg-2">
+        <span className="text-meta text-fg-2">
           {formatValue(metric)} <span className="text-fg-3">vs {formatBaseline(metric)}</span>
         </span>
       </div>
@@ -57,14 +57,14 @@ function MetricRow({ metric }: { metric: AnticheatMetric }) {
           <span className={cn('studio-bar flex-1', suspicionBarClass(metric.suspicion))}>
             <span style={{ width: `${Math.max(2, Math.min(100, metric.suspicion))}%` }} />
           </span>
-          <span className="w-24 shrink-0 text-right font-mono text-meta text-fg-2">
+          <span className="w-24 shrink-0 text-right text-meta text-fg-2">
             z {metric.z >= 0 ? '+' : ''}
             {metric.z.toFixed(2)}
           </span>
         </div>
       ) : (
-        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
-          muestra insuficiente ({metric.samples})
+        <span className="text-meta text-fg-3">
+          Muestra insuficiente ({metric.samples})
         </span>
       )}
     </li>
@@ -93,7 +93,7 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
       </ul>
 
       <section className="flex flex-col gap-2">
-        <h4 className="font-mono text-meta uppercase tracking-widest text-fg-3">Momentos revisables</h4>
+        <h4 className="text-meta text-fg-3">Momentos revisables</h4>
         {player.evidence.length === 0 ? (
           <p className="text-body-sm text-fg-2">No se ha marcado ningún momento concreto.</p>
         ) : (
@@ -116,11 +116,11 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
             variant="outline"
             onClick={() => onOpenDossier(player)}
             loading={dossierPending}
-            loadingText="PREPARANDO EXPEDIENTE…"
-            className="font-display tracking-wide"
+            loadingText="Preparando expediente…"
+            className="font-display"
           >
             <FileText aria-hidden />
-            PREPARAR EXPEDIENTE
+            Preparar expediente
           </Button>
           <span className="text-body-sm text-fg-2">
             Reúne la evidencia para que la denuncies tú desde tu cuenta. ClipHub no envía nada.
@@ -147,7 +147,7 @@ export function PlayerSummaryRow({
       aria-expanded={expanded}
       className="flex w-full flex-wrap items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-surface-3 @[44rem]/content:flex-nowrap sm:px-5"
     >
-      <span className="w-12 shrink-0 font-mono text-title font-semibold tabular-nums text-fg-1">
+      <span className="w-12 shrink-0 text-title font-semibold tabular-nums text-fg-1">
         {player.score.toFixed(0)}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">

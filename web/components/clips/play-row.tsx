@@ -52,7 +52,7 @@ export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: Pla
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span
           className={cn(
-            'truncate font-display text-body-sm font-bold uppercase',
+            'truncate font-display text-body-sm font-bold',
             selected ? 'text-fg-1' : 'text-fg-2',
           )}
         >
@@ -61,12 +61,12 @@ export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: Pla
         <span className="text-body-sm text-fg-2">
           {playDescription(play)}
         </span>
-        {playSourceRange(play) ? <span className="font-mono text-label tabular-nums text-fg-2">Demo {playSourceRange(play)}</span> : null}
+        {playSourceRange(play) ? <span className="text-label tabular-nums text-fg-2">Demo {playSourceRange(play)}</span> : null}
       </span>
 
       <span className="ml-auto flex shrink-0 items-center gap-3">
         {reelPosition !== null ? (
-          <span className="hidden font-mono text-meta uppercase tracking-wider tabular-nums text-primary @[26rem]/reel:inline">
+          <span className="hidden text-meta tabular-nums text-fg-2 @[26rem]/reel:inline">
             #{String(reelPosition).padStart(2, '0')}
           </span>
         ) : null}

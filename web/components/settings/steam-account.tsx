@@ -176,8 +176,8 @@ export function SteamAccount(): ReactNode {
       <div className="flex items-center gap-4">
         <IconTile icon={KeyRound} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="CUENTA CON LA QUE JUEGAS" />
-          <h2 id="steam-account-title" className="font-display text-title font-bold uppercase text-fg-1">
+          <SectionEyebrow label="Cuenta con la que juegas" />
+          <h2 id="steam-account-title" className="font-display text-title font-bold text-fg-1">
             Steam
           </h2>
         </div>
@@ -208,7 +208,7 @@ export function SteamAccount(): ReactNode {
           hint={(
             <>
               Lo sacas en{' '}
-              <a href={STEAM_AUTH_CODE_URL} target="_blank" rel="noreferrer" className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
+              <a href={STEAM_AUTH_CODE_URL} target="_blank" rel="noreferrer" className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>
                 el asistente de Steam
               </a>
               . {account?.authCodeSet ? 'Ya hay uno guardado; déjalo vacío para no cambiarlo.' : null}
@@ -233,7 +233,7 @@ export function SteamAccount(): ReactNode {
           hint={(
             <>
               Valve la exige para enumerar códigos.{' '}
-              <a href={STEAM_API_KEY_URL} target="_blank" rel="noreferrer" className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
+              <a href={STEAM_API_KEY_URL} target="_blank" rel="noreferrer" className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>
                 steamcommunity.com/dev/apikey
               </a>
               . {account?.apiKeySet ? 'Ya hay una guardada; déjala vacía para no cambiarla.' : null}
@@ -305,7 +305,7 @@ export function SteamAccount(): ReactNode {
           {account.matches.map((match) => (
             <li key={match.shareCode} className="flex flex-col gap-2 border border-border bg-surface-1 px-3 py-3 @[34rem]/content:flex-row @[34rem]/content:items-center">
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {match.matchId}</p>
+                <p className="text-body-sm tabular-nums text-fg-1">Partida {match.matchId}</p>
                 <p className="truncate font-mono text-meta text-fg-3">{match.shareCode}</p>
               </div>
               <Button
@@ -327,7 +327,7 @@ export function SteamAccount(): ReactNode {
           ? 'La sesión de descarga ya está lista en este PC. ClipHub solo la abre cuando pulsas Descargar.'
           : 'La primera descarga te pedirá usuario, contraseña y Steam Guard. No se escriben a disco.'}{' '}
         Si estás jugando, Steam te echará de la partida. Sigue el flujo en{' '}
-        <Link href={SHORTS_HREF} className={`text-primary underline underline-offset-2 ${FOCUS_RING}`}>
+        <Link href={SHORTS_HREF} className={`text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 ${FOCUS_RING}`}>
           Shorts
         </Link>
         .

@@ -188,7 +188,7 @@ function ImportResultRow({ entry }: { entry: FileResult }): ReactNode {
     if (entry.result.status === 'rejected') detail = importErrorLabel(entry.result.error_code);
     else if (entry.result.status === 'duplicate' && matchId) {
       detail = (
-        <Link href={matchHref(matchId)} className="text-primary hover:underline">
+        <Link href={matchHref(matchId)} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
           Abrir la partida
         </Link>
       );

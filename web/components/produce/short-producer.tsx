@@ -100,7 +100,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   const cues = selectionTimeline(plays, selectedIds);
   const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
-  // No tilde: under uppercase mono it reads as a minus sign ("-0:00").
+  // No tilde: beside the figures it reads as a minus sign ("-0:00").
   const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;
   const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, SHORT_FORMAT);
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
@@ -194,7 +194,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
       <span className="text-fg-3"> · </span>
       <span className={overTarget ? 'text-warning' : undefined}>{formatClock(estimatedSeconds)} aprox.</span>
       <span className="text-fg-3"> · </span>
-      <span className="text-primary">{presetLabel ?? 'Estilo pendiente'}</span>
+      <span className="text-fg-1">{presetLabel ?? 'Estilo pendiente'}</span>
       <span className="text-fg-3"> · </span>
       {musicDecided ? musicSummary : 'Música pendiente'}
     </>
@@ -203,7 +203,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   return (
     <Dialog open={stylesOpen} onOpenChange={setStylesOpen}>
       <div className="mb-3 mt-1 flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 @[80rem]/content:mb-6 @[80rem]/content:mt-4 @[80rem]/content:gap-y-2">
-        <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">
+        <p className="wrap-anywhere text-meta text-fg-3">
           Nuevo short · {match.map}
           {match.player ? ` · ${match.player}` : ''}
         </p>
@@ -219,7 +219,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
         {restored ? (
           <p role="status" className="w-full text-body-sm text-fg-3">
             {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
-            <button type="button" disabled={busy} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+            <button type="button" disabled={busy} onClick={startOver} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
               {PRODUCE_SHORT_DRAFT_RESET}
             </button>
           </p>
@@ -235,7 +235,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
             toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || plays.length === 0}
               onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}><Sparkles aria-hidden />{AUTO_PICK_LABEL}</Button>}
             counter={
-              <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-primary')}>
+              <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-fg-1')}>
                 {selectedPlays.length} de {plays.length} elegidos · {clock}
               </span>
             }
@@ -263,7 +263,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
                 </div>
               ) : (
                 <Select value={variant ?? ''} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
-                  <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
+                  <SelectTrigger id="short-preset" className="h-10 font-display font-semibold">
                     <SelectValue placeholder="Cargando estilos…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -301,9 +301,9 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
           <details className="group/overlays studio-panel px-4 py-3 @[80rem]/content:px-5 @[80rem]/content:py-4">
             <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
               <span className={STEP_LABEL_CLASS}>{STEP.overlays}</span>
-              <span className="flex items-center gap-1.5 font-display text-body-sm font-semibold uppercase text-fg-1">
+              <span className="flex items-center gap-1.5 font-display text-body-sm font-semibold text-fg-1">
                 <span className="wrap-anywhere">{overlaysSummary(editConfig)}</span>
-                <ChevronRight aria-hidden className="size-4 text-primary transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />
+                <ChevronRight aria-hidden className="size-4 text-fg-2 transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />
               </span>
             </summary>
             <div className="mt-3 border-t border-border-subtle pt-3">
@@ -361,7 +361,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
               <PresetPreview preset={preset} className="mx-auto w-24" />
               <span className="font-display text-body font-semibold text-fg-1">{preset.label}</span>
               <span className="text-body-sm text-fg-2">{presetDescription(preset)}</span>
-              {variant === preset.name ? <span className="mt-auto text-body-sm text-primary">Seleccionado</span> : null}
+              {variant === preset.name ? <span className="mt-auto text-body-sm text-fg-1">Seleccionado</span> : null}
             </button>
           ))}
         </div>

@@ -7,6 +7,9 @@ export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 /** Parser marker for a client-recorded demo; scan and parse failures carry it after a wrap prefix. */
 const POV_DEMO_MARKER = 'pov_demo:' as const;
 
+/** Parser marker for a demo cut before its recording ends, carried like the POV marker. */
+const TRUNCATED_DEMO_MARKER = 'truncated_demo:' as const;
+
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
 const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
@@ -37,6 +40,7 @@ export type FailureReason = {
     | 'demo-incompatible'
     | 'unplayable-start'
     | 'pov-demo'
+    | 'truncated-demo'
     | 'recording-not-reusable'
     | 'pov-verification'
     | 'pov-acquisition'
@@ -110,6 +114,10 @@ export const POV_DEMO_MESSAGE =
   'Esta demo es POV: la grabó un jugador desde su propio juego y CS2 no deja fijar la cámara en ningún jugador. ' +
   'Usa la demo GOTV de la partida: descárgala desde CS2 (Ver > Tus partidas), FACEIT o HLTV.';
 
+const TRUNCATED_DEMO_MESSAGE =
+  'La demo está incompleta: el archivo se corta antes del final de la partida. ' +
+  'Reintentar no lo arreglará: vuelve a descargarla entera y cárgala de nuevo.';
+
 const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de ClipHub. ' +
   'Reintenta: se volverá a grabar la POV con el contrato actual.';
@@ -173,6 +181,10 @@ function classifyFailureReason(reason: string | undefined, context: FailureConte
 
   if (reason.includes(POV_DEMO_MARKER)) {
     return { kind: 'pov-demo', message: POV_DEMO_MESSAGE, retryCanHelp: false };
+  }
+
+  if (reason.includes(TRUNCATED_DEMO_MARKER)) {
+    return { kind: 'truncated-demo', message: TRUNCATED_DEMO_MESSAGE, retryCanHelp: false };
   }
 
   // Client-minted and already user-facing Spanish: surface it verbatim.

@@ -370,7 +370,7 @@ function RoleMetricView({
     <div className="flex flex-col gap-1.5 px-4 py-3">
       <dt className="text-meta text-fg-3">{label}</dt>
       <dd className="flex flex-col gap-1.5">
-        <span className="font-mono text-title font-semibold text-fg-1">{value || 'Sin dato'}</span>
+        <span className="text-title font-semibold text-fg-1">{value || 'Sin dato'}</span>
         <span className="text-meta text-fg-2">{summary}</span>
         {note ? <span className="text-meta text-fg-3">{note}</span> : null}
         {metric.examples.length > 0 ? (
@@ -379,7 +379,7 @@ function RoleMetricView({
               <Link
                 key={`${example.match_id}-${example.round}-${example.tick}`}
                 href={roundEvidenceHref(matchHref(example.match_id), example.round, example.tick)}
-                className="font-mono text-primary hover:underline"
+                className="font-mono text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
                 aria-label={`Abrir la ronda ${example.round}, tick ${example.tick}`}
               >
                 R{example.round} t{example.tick}
@@ -496,8 +496,8 @@ function PlayerFaceit({ player, linking, onLink }: { player: LibraryPlayer; link
         {profile ? (
           <>
             <LevelBadge level={profile.skill_level} />
-            {profile.elo !== undefined ? <span className="font-mono text-fg-1">{profile.elo} ELO</span> : null}
-            <a href={profile.profile_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            {profile.elo !== undefined ? <span className="text-fg-1">{profile.elo} ELO</span> : null}
+            <a href={profile.profile_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
               Perfil en FACEIT
               <ExternalLink className="size-3.5" aria-hidden />
             </a>

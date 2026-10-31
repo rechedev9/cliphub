@@ -64,9 +64,9 @@ export function seriesStatusLabel(status: string): string {
   return LABEL_OF[status] ?? 'analizando';
 }
 
-/** The series header title: "SERIE DE 1 MAPA" / "SERIE DE N MAPAS". */
+/** The series header title: "Serie de 1 mapa" / "Serie de N mapas". */
 export function seriesTitle(mapCount: number): string {
-  return mapCount === 1 ? 'SERIE DE 1 MAPA' : `SERIE DE ${mapCount} MAPAS`;
+  return mapCount === 1 ? 'Serie de 1 mapa' : `Serie de ${mapCount} mapas`;
 }
 
 /** The pill tone for a raw status; drives the pill colour in the series view. */

@@ -195,7 +195,7 @@ function EvidenceLinks({ examples, labels }: { examples: readonly ScoutEvidence[
           key={`${example.match_id}:${example.round}`}
           href={evidencePath(example)}
           title={`${labels.get(example.match_id) ?? 'Partida'}, ronda ${example.round}, tick ${example.tick}`}
-          className="rounded-sm border border-border px-1.5 font-mono text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
+          className="rounded-sm border border-border px-1.5 text-meta whitespace-nowrap text-fg-2 hover:border-primary hover:text-primary"
         >
           {many ? `${labels.get(example.match_id) ?? 'Partida'} R${example.round}` : `R${example.round}`}
         </Link>

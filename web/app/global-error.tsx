@@ -38,9 +38,7 @@ const PANEL: CSSProperties = {
 const EYEBROW: CSSProperties = {
   margin: 0,
   fontSize: '12px',
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
-  color: '#22d9ee',
+  color: '#a0a3a9',
 };
 
 const TITLE: CSSProperties = { margin: '12px 0 0', fontSize: '24px', lineHeight: 1.15 };
@@ -61,8 +59,8 @@ const ACTION: CSSProperties = {
   padding: '0 20px',
   borderRadius: '6px',
   border: 0,
-  backgroundColor: '#22d9ee',
-  color: '#08131c',
+  backgroundColor: '#f3f4f6',
+  color: '#1b1c1f',
   fontSize: '14px',
   fontWeight: 700,
   cursor: 'pointer',

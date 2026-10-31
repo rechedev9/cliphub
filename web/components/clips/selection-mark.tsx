@@ -27,7 +27,7 @@ export function SelectionMark({ selected, className }: SelectionMarkProps): Reac
       className={cn(
         'grid size-6 shrink-0 place-items-center border transition-colors duration-(--dur-fast) ease-standard',
         selected
-          ? 'border-primary bg-primary text-primary-foreground shadow-[var(--glow-primary-sm)]'
+          ? 'border-primary bg-primary text-primary-foreground'
           : 'border-border-strong bg-surface-0 text-transparent',
         className,
       )}

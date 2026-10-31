@@ -64,8 +64,8 @@ export function StudioInfo(): ReactNode {
       <div className="flex items-center gap-4">
         <IconTile icon={MonitorCog} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="APLICACIÓN" />
-          <h2 id="studio-info-title" className="font-display text-title font-bold uppercase text-fg-1">
+          <SectionEyebrow label="Aplicación" />
+          <h2 id="studio-info-title" className="font-display text-title font-bold text-fg-1">
             ClipHub Studio
           </h2>
         </div>

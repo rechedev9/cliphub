@@ -54,7 +54,7 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="uppercase">¿Borrar este reel?</DialogTitle>
+            <DialogTitle>¿Borrar este reel?</DialogTitle>
             <DialogDescription className="break-words">
               <span className="font-medium text-fg-1">{video.title}</span> y su archivo renderizado se
               eliminarán. Esta acción no se puede deshacer.
@@ -65,7 +65,7 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={deleting}
-              className="font-display font-bold tracking-wide uppercase"
+              className="font-display font-bold"
             >
               Cancelar
             </Button>
@@ -73,7 +73,7 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
               variant="destructive"
               onClick={onConfirm}
               loading={deleting}
-              className="font-display font-bold tracking-wide uppercase"
+              className="font-display font-bold"
             >
               {deleting ? (
                 'Borrando…'

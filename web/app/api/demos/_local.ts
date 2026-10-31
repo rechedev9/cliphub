@@ -185,6 +185,7 @@ export async function localJobs(request: Request): Promise<Response> {
     status: string;
     failure_reason?: string;
     demo_file_name?: string;
+    demo_sha256?: string;
     series_id?: string;
     target_steamid?: string;
     created_at?: string;
@@ -198,6 +199,7 @@ export async function localJobs(request: Request): Promise<Response> {
       status: string;
       failureReason?: string;
       fileName?: string;
+      demoSha256?: string;
       seriesId?: string;
       targetSteamId?: string;
       createdAt?: string;
@@ -205,6 +207,7 @@ export async function localJobs(request: Request): Promise<Response> {
     } = { jobId: job.id, status: job.status };
     if (job.failure_reason) out.failureReason = job.failure_reason;
     if (job.demo_file_name) out.fileName = job.demo_file_name;
+    if (job.demo_sha256) out.demoSha256 = job.demo_sha256;
     if (job.series_id) out.seriesId = job.series_id;
     if (job.target_steamid) out.targetSteamId = job.target_steamid;
     if (job.created_at) out.createdAt = job.created_at;

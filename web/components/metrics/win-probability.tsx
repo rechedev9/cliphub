@@ -122,15 +122,15 @@ export function WinProbability({
             const delta = prev ? point.probability_ct - prev.probability_ct : 0;
             return (
               <li key={`${point.tick}:${i}`} className="flex flex-wrap items-baseline gap-x-3 py-1.5">
-                <span className="w-10 font-mono text-fg-3">{secondsText(point.seconds)}</span>
+                <span className="w-10 text-fg-3">{secondsText(point.seconds)}</span>
                 <Link href={href(point)} className="min-w-48 flex-1 text-fg-1 hover:text-primary hover:underline">
                   {pointText(point, names)}
                 </Link>
-                <span className="font-mono text-fg-3">
+                <span className="text-fg-3">
                   {point.alive_ct}v{point.alive_t}
                 </span>
-                <span className="w-16 text-right font-mono text-fg-1">CT {percentText(point.probability_ct)}</span>
-                <span className={cn('w-20 text-right font-mono', deltaClass(delta))}>
+                <span className="w-16 text-right text-fg-1">CT {percentText(point.probability_ct)}</span>
+                <span className={cn('w-20 text-right', deltaClass(delta))}>
                   {i === 0 ? '' : ppText(delta)}
                 </span>
               </li>

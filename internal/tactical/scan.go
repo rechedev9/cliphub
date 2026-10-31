@@ -427,21 +427,7 @@ func (s *scanner) slotFor(p *common.Player) (uint8, bool) {
 		name:      p.Name,
 		startSide: side,
 	})
-	s.recordTeamMember(p, side)
 	return slot, true
-}
-
-func (s *scanner) recordTeamMember(p *common.Player, side tacticalplan.Side) {
-	// A team is identified by the side it started on, because that is the only
-	// identity that survives the half-time swap. Clan names, when the demo has
-	// them, become the display name.
-	key := teamKeyForStartSide(side, s.half)
-	team, ok := s.teams[key]
-	if !ok {
-		team = &teamAcc{key: key, startSide: startSideForKey(key), members: map[uint64]struct{}{}}
-		s.teams[key] = team
-	}
-	team.members[p.SteamID64] = struct{}{}
 }
 
 func (s *scanner) onFrame() {

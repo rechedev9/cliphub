@@ -25,7 +25,7 @@ export function ShortStoryboard({
     <section aria-label={STORYBOARD_TITLE} className="studio-panel flex min-w-0 flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-body-sm font-semibold text-fg-2">{STORYBOARD_TITLE}</span>
-        <span className={cn('font-mono text-meta tabular-nums uppercase tracking-wider', over ? 'text-warning' : 'text-primary')}>
+        <span className={cn('text-meta tabular-nums', over ? 'text-warning' : 'text-fg-1')}>
           {formatClock(totalSeconds)} / {formatClock(SHORT_TARGET_SECONDS)}
         </span>
       </div>
@@ -38,7 +38,7 @@ export function ShortStoryboard({
         <ol className="flex max-h-64 flex-col gap-3 @[80rem]/content:gap-4 overflow-y-auto overscroll-y-contain @[56rem]/content:max-h-[clamp(15rem,calc(100dvh-32rem),32rem)]" tabIndex={0} aria-label="Jugadas en orden de salida">
           {cues.map((cue, index) => (
             <li key={cue.play.id} className="flex items-center gap-3 py-1 @[80rem]/content:py-2">
-              <span className="w-6 shrink-0 font-mono text-meta tabular-nums text-primary">
+              <span className="w-6 shrink-0 text-meta tabular-nums text-fg-3">
                 {String(index + 1).padStart(2, '0')}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
@@ -47,11 +47,11 @@ export function ShortStoryboard({
                   {cue.play.startSeconds !== undefined ? <> · <span className="whitespace-nowrap">{playClock(cue.play.startSeconds)}</span></> : null}
                 </span>
                 {/* Numbers keep their units: the line may break at the separator, never inside "6.8 s". */}
-                <span className="font-mono text-label tabular-nums text-fg-2">
+                <span className="text-label tabular-nums text-fg-2">
                   <span className="whitespace-nowrap">Short {formatClock(cue.startAt)}</span> · <span className="whitespace-nowrap">{cue.seconds} s</span>
                 </span>
               </span>
-              <span className="flex shrink-0 items-center gap-1 font-mono text-meta tabular-nums text-fg-2">
+              <span className="flex shrink-0 items-center gap-1 text-meta tabular-nums text-fg-2">
                 <Crosshair aria-hidden className="size-3.5" />
                 {cue.play.kills}
               </span>

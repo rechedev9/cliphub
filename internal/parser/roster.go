@@ -68,8 +68,14 @@ func RosterScan(p demoinfocs.Parser) (RosterResult, error) {
 	acc := newRosterAccumulator()
 	acc.register(p)
 
-	if err := parseCaptureDemo(p); err != nil {
+	endedEarly, err := parseCaptureDemoToEnd(p)
+	if err != nil {
 		return RosterResult{}, fmt.Errorf("parsing demo: %w", err)
+	}
+	// A demo cut short keeps the rounds it reached; one cut before the first
+	// round only offers warmup, which no video or analysis can use.
+	if endedEarly && acc.rounds == 0 {
+		return RosterResult{}, fmt.Errorf("parsing demo: %w: the demo stream ends before the first round", ErrTruncatedDemo)
 	}
 
 	gs := p.GameState()

@@ -14,7 +14,7 @@ type StatusTagSize = 'sm' | 'md';
  */
 export const STATUS_TONE_CLASS = {
   neutral: 'border-border-strong bg-surface-3 text-fg-2',
-  primary: 'border-primary/45 bg-primary/10 text-primary',
+  primary: 'border-primary/45 bg-primary/10 text-fg-1',
   success: 'border-success/45 bg-success/10 text-success',
   warning: 'border-warning/45 bg-warning/10 text-warning',
   danger: 'border-destructive/45 bg-destructive/10 text-destructive',
@@ -54,7 +54,7 @@ export type StatusTagProps = {
 };
 
 /**
- * Square HUD status tag — queued / recording / ready / failed / expiry and the
+ * Square status tag — queued / recording / ready / failed / expiry and the
  * rest of the pipeline vocabulary. Geometry rule for the kit: panels are
  * rounded, HUD chrome is square, so a tag never picks up a radius.
  */
@@ -69,13 +69,13 @@ export function StatusTag({
   return (
     <span
       className={`${SIZE_TYPE_CLASS[size]} ${cn(
-        'inline-flex shrink-0 items-center border font-mono uppercase',
+        'inline-flex shrink-0 items-center border font-medium',
         SIZE_CLASS[size],
         STATUS_TONE_CLASS[tone],
         className,
       )}`}
     >
-      {dot ? <span aria-hidden className="size-1.5 shrink-0 bg-current shadow-[0_0_6px_currentColor]" /> : null}
+      {dot ? <span aria-hidden className="size-1.5 shrink-0 bg-current" /> : null}
       {Icon ? <Icon aria-hidden className={cn('shrink-0', ICON_CLASS[size])} /> : null}
       {children}
     </span>

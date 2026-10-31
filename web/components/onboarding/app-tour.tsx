@@ -65,7 +65,7 @@ export function AppTour(): ReactElement {
             aria-label="Capítulos de la guía"
             className="hidden border-r border-border bg-surface-3 py-5 md:block"
           >
-            <DialogTitle className="px-5 pb-4 font-mono text-meta font-normal uppercase tracking-widest text-fg-3">
+            <DialogTitle className="px-5 pb-4 text-meta font-medium text-fg-3">
               {TOUR_TITLE}
             </DialogTitle>
             <ol className="flex flex-col">
@@ -78,12 +78,12 @@ export function AppTour(): ReactElement {
                     className={cn(
                       'flex min-h-10 w-full items-center gap-3 px-5 py-2 text-left text-body-sm transition-colors duration-(--dur-fast)',
                       'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-                      i === index ? 'bg-surface-4 text-primary' : 'text-fg-2 hover:bg-surface-4 hover:text-fg-1',
+                      i === index ? 'bg-surface-4 text-fg-1' : 'text-fg-2 hover:bg-surface-4 hover:text-fg-1',
                     )}
                   >
                     <span
                       aria-hidden
-                      className={cn('w-6 shrink-0 font-mono text-meta tabular-nums', i === index ? 'text-primary' : 'text-fg-3')}
+                      className={cn('w-6 shrink-0 text-meta tabular-nums', i === index ? 'text-fg-1' : 'text-fg-3')}
                     >
                       {i < index ? <Check className="size-3.5" /> : String(i + 1).padStart(2, '0')}
                     </span>
@@ -116,9 +116,9 @@ function ChapterPanel({
     <div className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col md:max-h-[min(640px,calc(100dvh-2rem))]">
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-5 md:px-8 md:pt-8">
         {/* Below md the chapter rail is hidden, so the dialog title moves here. */}
-        <p className="mb-3 font-mono text-meta uppercase tracking-widest text-fg-3 md:hidden">{TOUR_TITLE}</p>
+        <p className="mb-3 text-meta font-medium text-fg-3 md:hidden">{TOUR_TITLE}</p>
         <div aria-live="polite">
-          <p className="font-mono text-meta uppercase tracking-widest text-primary">
+          <p className="text-meta font-medium text-fg-2">
             {chapter.kicker} · {chapter.label}
           </p>
           <h3 className="mt-2 pr-8 font-display text-title font-bold text-fg-1">{chapter.title}</h3>
@@ -128,7 +128,7 @@ function ChapterPanel({
           <dl className="mt-5 flex flex-col gap-3.5">
             {chapter.points.map((point) => (
               <div key={point.term} className="border-l-2 border-border-strong pl-3.5">
-                <dt className="font-display text-label font-bold uppercase tracking-wide text-fg-1">{point.term}</dt>
+                <dt className="font-display text-label font-bold text-fg-1">{point.term}</dt>
                 <dd className="mt-0.5 text-body-sm text-fg-2">{point.text}</dd>
               </div>
             ))}
@@ -145,7 +145,7 @@ function ChapterPanel({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 border-t border-border px-6 py-3.5 md:px-8">
-        <span className="mr-auto font-mono text-meta tabular-nums text-fg-3" aria-label={`Paso ${index + 1} de ${last + 1}`}>
+        <span className="mr-auto text-meta tabular-nums text-fg-3" aria-label={`Paso ${index + 1} de ${last + 1}`}>
           {String(index + 1).padStart(2, '0')} / {String(last + 1).padStart(2, '0')}
         </span>
         {index > 0 ? (

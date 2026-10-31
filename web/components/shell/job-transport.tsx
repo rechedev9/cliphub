@@ -16,14 +16,14 @@ import { cn } from '@/lib/utils';
 
 const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string }> = {
   recording: { tag: 'REC', sub: 'CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
-  composing: { tag: 'RENDER', sub: 'Edición · FFmpeg', tone: 'text-primary' },
-  parsing: { tag: 'PARSEO', sub: 'Parseando la demo', tone: 'text-primary' },
-  acquiring: { tag: 'DESCARGA', sub: 'Descargando el vídeo de origen', tone: 'text-primary' },
-  queued: { tag: 'EN COLA', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
+  composing: { tag: 'Render', sub: 'Edición · FFmpeg', tone: 'text-fg-1' },
+  parsing: { tag: 'Parseo', sub: 'Parseando la demo', tone: 'text-fg-1' },
+  acquiring: { tag: 'Descarga', sub: 'Descargando el vídeo de origen', tone: 'text-fg-1' },
+  queued: { tag: 'En cola', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
 };
 
 const PILL_CLASS =
-  'flex min-h-10 min-w-0 items-center gap-2.5 rounded-md border border-border-strong bg-surface-2 px-3 font-[family-name:var(--font-mono)] text-meta tracking-wider uppercase';
+  'flex min-h-10 min-w-0 items-center gap-2.5 rounded-md border border-border-strong bg-surface-2 px-3 text-meta';
 
 /** Command-strip job pill plus the 400px dropdown listing every live job. */
 export function JobTransport(): ReactElement | null {
@@ -87,7 +87,7 @@ export function JobTransport(): ReactElement | null {
             {more > 0 ? (
               <>
                 <span aria-hidden className="h-3.5 w-px shrink-0 bg-border-strong" />
-                <span className="text-primary">{more} más</span>
+                <span className="text-fg-2">{more} más</span>
               </>
             ) : null}
           </>
@@ -104,14 +104,14 @@ export function JobTransport(): ReactElement | null {
           aria-label="Trabajos en marcha"
           className="absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[10px] border border-border bg-surface-4 shadow-[var(--elev-4)]"
         >
-          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 font-[family-name:var(--font-mono)] text-meta tracking-widest text-fg-3 uppercase">
+          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 text-meta text-fg-3">
             <span>
               Trabajos · {activity.jobs.length === 0 ? 'nada en marcha' : `${active} activos · ${queued} en cola`}
             </span>
             <Link
               href={RESULTS_HREF}
               onClick={() => setOpen(false)}
-              className="inline-flex min-h-10 items-center text-primary hover:text-fg-1"
+              className="inline-flex min-h-10 items-center text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
             >
               Ver en Mis vídeos →
             </Link>
@@ -143,18 +143,18 @@ function JobRow({ job, onNavigate }: { job: ShellJob; onNavigate: () => void }):
       className="flex min-h-10 flex-col gap-1.5 px-3.5 py-3 transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-5"
     >
       <span className="flex items-center justify-between gap-2.5">
-        <span className="flex min-w-0 items-center gap-2 font-[family-name:var(--font-display)] text-label font-bold text-fg-1 uppercase">
+        <span className="flex min-w-0 items-center gap-2 font-[family-name:var(--font-display)] text-label font-bold text-fg-1">
           <StageIndicator stage={job.stage} />
           <span className="truncate">{job.title}</span>
         </span>
-        <span className={cn('shrink-0 font-[family-name:var(--font-mono)] text-meta tracking-wider tabular-nums', meta.tone)}>
+        <span className={cn('shrink-0 text-meta tabular-nums', meta.tone)}>
           {pillTag(job)}
         </span>
       </span>
       <span className={cn('studio-bar', meta.tone)} aria-hidden>
         <BarFill stage={job.stage} percent={percent} />
       </span>
-      <span className="font-[family-name:var(--font-mono)] text-meta tracking-wider text-fg-3 uppercase">
+      <span className="text-meta text-fg-3">
         {jobSubtitle(job)}
       </span>
     </Link>
@@ -174,12 +174,12 @@ function BarFill({ stage, percent }: { stage: ShellJobStage; percent: number | n
 
 function StageIndicator({ stage }: { stage: ShellJobStage }): ReactElement {
   if (stage === 'recording') {
-    return <span aria-hidden className="neon-pulse size-2 shrink-0 rounded-full bg-stream" />;
+    return <span aria-hidden className="live-pulse size-2 shrink-0 rounded-full bg-stream" />;
   }
   if (stage === 'queued') {
     return <span aria-hidden className="size-2 shrink-0 rounded-full border border-fg-3" />;
   }
-  return <span aria-hidden className="studio-spinner text-primary" />;
+  return <span aria-hidden className="studio-spinner text-fg-2" />;
 }
 
 function pillTag(job: ShellJob): string {

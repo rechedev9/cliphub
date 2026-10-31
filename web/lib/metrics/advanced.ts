@@ -2,6 +2,7 @@ import type { DuelBucket, MetricCount, MetricsReport, PlayerMetrics, RoundTimeli
 import type { ScoutEvidence, ScoutMatchSummary } from '../api/scout.ts';
 import type { TacticalSide } from '../api/tactical.ts';
 import { ROLE_LABEL } from '../library/partidas.ts';
+import { placeLabel } from '../tactical-labels.ts';
 import { prettyMapName } from '../format.ts';
 import { dateText, type ReportCell, type ReportSection, type ReportTable } from '../reports/scout-sections.ts';
 
@@ -300,7 +301,7 @@ function positionSection(report: MetricsReport, options: MetricsSectionOptions):
           p.positions.map((line) => [
             playerCell(p, options),
             sideCell(line.side),
-            text(line.callout),
+            text(placeLabel(line.callout)),
             num(line.rounds),
             num(line.rounds === 0 ? '' : percentText(line.won / line.rounds)),
             num(line.kills),
