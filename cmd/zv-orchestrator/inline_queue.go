@@ -149,26 +149,45 @@ func (q *inlineTaskQueue) push(ctx context.Context, task inlineTask, transition 
 }
 
 // pop waits for the oldest task that runnable accepts (any task when runnable
-// is nil) and takes it out of the FIFO, keeping the order of the rest.
+// is nil) and takes it out of the FIFO, keeping the order of the rest. A
+// background task only runs when no other accepted task is waiting.
 func (q *inlineTaskQueue) pop(runnable func(inlineTask) bool) (inlineTask, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for !q.closed {
-		for index, task := range q.tasks {
-			if runnable != nil && !runnable(task) {
-				continue
-			}
-			copy(q.tasks[index:], q.tasks[index+1:])
-			q.tasks[len(q.tasks)-1] = inlineTask{}
-			q.tasks = q.tasks[:len(q.tasks)-1]
-			if len(q.tasks) == 0 {
-				q.tasks = nil
-			}
+		if task, ok := q.take(runnable, false); ok {
+			return task, true
+		}
+		if task, ok := q.take(runnable, true); ok {
 			return task, true
 		}
 		q.ready.Wait()
 	}
 	return inlineTask{}, false
+}
+
+// take removes the oldest accepted task that is, or is not, background work.
+// The caller holds q.mu.
+func (q *inlineTaskQueue) take(runnable func(inlineTask) bool, background bool) (inlineTask, bool) {
+	for index, task := range q.tasks {
+		if isBackgroundTask(task) != background || (runnable != nil && !runnable(task)) {
+			continue
+		}
+		copy(q.tasks[index:], q.tasks[index+1:])
+		q.tasks[len(q.tasks)-1] = inlineTask{}
+		q.tasks = q.tasks[:len(q.tasks)-1]
+		if len(q.tasks) == 0 {
+			q.tasks = nil
+		}
+		return task, true
+	}
+	return inlineTask{}, false
+}
+
+// isBackgroundTask is library analysis: a full demo scan nobody waits on, so
+// a Crear parse or scan queued after it still runs first.
+func isBackgroundTask(task inlineTask) bool {
+	return task.task != nil && task.task.Type() == tasks.TypeAnalyzeLibraryDemo
 }
 
 // wake makes waiting workers look at the FIFO again after the answer of their
@@ -290,9 +309,13 @@ func (q *inlineQueue) Start(ctx context.Context) {
 	go q.run(ctx, q.captureTasks, nil)
 }
 
-// poolRunnable holds renders back while a capture is queued or running.
+// poolRunnable holds renders and library analysis back while a capture is
+// queued or running, so neither competes with CS2 for the CPU and GPU.
 func (q *inlineQueue) poolRunnable(task inlineTask) bool {
-	return task.task == nil || !isRenderTaskType(task.task.Type()) || q.captures.Load() == 0
+	if task.task == nil || q.captures.Load() == 0 {
+		return true
+	}
+	return !isRenderTaskType(task.task.Type()) && !isBackgroundTask(task)
 }
 
 // releaseCaptures records that n capture tasks left the capture lane and wakes

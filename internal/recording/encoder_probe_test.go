@@ -62,6 +62,10 @@ func TestHLAEStreamFFmpeg(t *testing.T) {
 			writeFile(t, bundled, "fake")
 			return bundled
 		}},
+		// Without an ffmpeg folder zv-recorder writes no ini, so HLAE never sees the configured one.
+		{name: "configured ffmpeg ignored without an ffmpeg folder", configured: `C:\studiofmpeg.exe`, setup: func(t *testing.T, dir string) string {
+			return ""
+		}},
 		{name: "no config falls back to PATH ffmpeg", setup: func(t *testing.T, dir string) string {
 			return ""
 		}},

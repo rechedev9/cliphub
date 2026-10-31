@@ -50,7 +50,7 @@ const buttonVariants = cva(
         outline:
           "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-4 hover:bg-surface-4 hover:text-fg-1 active:shadow-none disabled:bg-surface-2 disabled:text-fg-3",
         "outline-primary":
-          "border border-fg-3 bg-surface-2 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-2 hover:bg-surface-3 active:shadow-none disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
+          "border border-fg-2 bg-surface-4 text-fg-1 shadow-[var(--elev-0)] hover:border-fg-1 hover:bg-surface-5 active:shadow-none disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3",
         secondary:
           "bg-secondary text-secondary-foreground shadow-[var(--elev-0)] hover:bg-surface-5 active:shadow-none",
         ghost: "text-fg-2 hover:bg-surface-3 hover:text-fg-1",

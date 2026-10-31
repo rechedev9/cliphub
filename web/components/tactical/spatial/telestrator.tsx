@@ -11,16 +11,17 @@ import type { RadarProjection } from '@/lib/tactical-spatial';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** The theme token each stroke colour resolves to, so a drawing follows light and dark. */
+/** The colour each stroke resolves to. The radar plate is dark in both themes, so the
+ * accent pen is a fixed near white rather than the theme's ink colour. */
 const STROKE_VAR: Record<StrokeColor, string> = {
-  accent: 'var(--primary)',
+  accent: 'oklch(0.96 0.002 264)',
   ct: 'var(--side-ct)',
   t: 'var(--side-t)',
   mark: 'var(--destructive)',
 };
 
 const STROKE_LABEL: Record<StrokeColor, string> = {
-  accent: 'Acento',
+  accent: 'Blanco',
   ct: 'Color CT',
   t: 'Color T',
   mark: 'Rojo',

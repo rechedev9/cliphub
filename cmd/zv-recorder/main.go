@@ -232,6 +232,9 @@ func run() (retErr error) {
 	}
 
 	ffprobePath := recording.FindFFprobe()
+	if sibling := siblingFFprobe(*ffmpegExe); sibling != "" {
+		ffprobePath = sibling
+	}
 	ffmpegPath := *ffmpegExe
 	if ffmpegPath == "" {
 		ffmpegPath = recording.FindFFmpeg()
@@ -1349,6 +1352,19 @@ func validateCaptureResult(result recording.RecordingResult, cs2Exe string) erro
 		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
 	}
 	return nil
+}
+
+// siblingFFprobe is the ffprobe shipped beside a configured ffmpeg, so the
+// clip probes come from the same build as the encode; "" when there is none.
+func siblingFFprobe(ffmpeg string) string {
+	if ffmpeg == "" {
+		return ""
+	}
+	probe := filepath.Join(filepath.Dir(ffmpeg), "ffprobe"+filepath.Ext(ffmpeg))
+	if _, err := os.Stat(probe); err != nil {
+		return ""
+	}
+	return probe
 }
 
 // ensureHLAEFFmpegConfig points HLAE's mirv_streams at an ffmpeg unless HLAE

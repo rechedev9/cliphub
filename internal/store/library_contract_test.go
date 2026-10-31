@@ -223,6 +223,31 @@ func TestLibraryRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "re-analysis never puts a manual side's team on the other side",
+			run: func(t *testing.T, f libraryFixture) {
+				d := f.demo("d", 0)
+				m := f.analyze(d, "de_nuke", side{"Foo", 13, []string{"1"}}, side{"Bar", 10, []string{"2"}})
+				x := &library.Team{Name: "X"}
+				if err := f.repo.CreateTeam(f.ctx, x); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.repo.AssignMatchTeam(f.ctx, library.TeamAssignment{MatchID: m.ID, TeamKey: "t-start", TeamID: &x.ID}); err != nil {
+					t.Fatal(err)
+				}
+				// Merging Foo into X moves Foo's alias to X while the t side holds X by hand.
+				if _, err := f.repo.MergeTeams(f.ctx, *teamOf(t, m, "ct-start").TeamID, x.ID); err != nil {
+					t.Fatal(err)
+				}
+				again := f.analyze(d, "de_nuke", side{"Foo", 13, []string{"1"}}, side{"Bar", 10, []string{"2"}})
+				if ct := teamOf(t, again, "ct-start"); ct.TeamID != nil && *ct.TeamID == x.ID {
+					t.Fatalf("ct side = %+v, want X only on the manual t side", ct)
+				}
+				if tt := teamOf(t, again, "t-start"); tt.TeamID == nil || *tt.TeamID != x.ID || tt.Assignment != library.AssignmentManual {
+					t.Fatalf("t side = %+v, want manual X", tt)
+				}
+			},
+		},
+		{
 			name: "AssignMatchTeam remembers the alias and refuses one team on both sides",
 			run: func(t *testing.T, f libraryFixture) {
 				m1 := f.analyze(f.demo("a", 0), "de_mirage", side{"team_apEX", 13, nil}, side{"Spirit", 3, nil})

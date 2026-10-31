@@ -135,10 +135,7 @@ function downloadHtml(html: string, stem: string): void {
 function printHtml(html: string): void {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.position = 'fixed';
-  frame.style.width = '0';
-  frame.style.height = '0';
-  frame.style.border = '0';
+  frame.className = 'fixed size-0 border-0';
   frame.srcdoc = html;
   frame.onload = () => {
     frame.contentWindow?.print();

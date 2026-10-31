@@ -42,7 +42,9 @@ func HLAEStreamFFmpeg(hlaeExe, configured string) string {
 	if _, err := os.Stat(bundled); err == nil {
 		return bundled
 	}
-	if configured != "" {
+	// zv-recorder only writes the configured ffmpeg into an existing ffmpeg
+	// folder; without one HLAE never sees it, so the probe must not either.
+	if _, err := os.Stat(dir); configured != "" && err == nil {
 		return configured
 	}
 	if data, err := os.ReadFile(filepath.Join(dir, "ffmpeg.ini")); err == nil {

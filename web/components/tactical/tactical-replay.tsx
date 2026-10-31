@@ -311,6 +311,7 @@ export function TacticalReplay({
       renderRef.current(positionRef.current);
     };
 
+    // Fonts or theme changed: every cached drawing is stale.
     const fontsChanged = (): void => {
       drawCache.clear();
       backgroundsRef.current.clear();
@@ -322,8 +323,12 @@ export function TacticalReplay({
     observer.observe(container);
     // Zoom changes the pixel ratio without necessarily changing the CSS box.
     window.addEventListener('resize', measure);
+    // A theme switch changes the tokens the baked backgrounds were drawn with.
+    const themeObserver = new MutationObserver(fontsChanged);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => {
       observer.disconnect();
+      themeObserver.disconnect();
       document.fonts.removeEventListener('loadingdone', fontsChanged);
       window.removeEventListener('resize', measure);
     };

@@ -7,6 +7,7 @@ import type {
   LibraryRole,
   LibrarySource,
 } from '../api/library.ts';
+import { TRUNCATED_DEMO_MESSAGE } from '../api/failure-reason.ts';
 
 /**
  * Pure reads over the library records: how a partida, a team and a player are
@@ -39,7 +40,7 @@ export const ROLE_LABEL: Record<LibraryRole, string> = {
 
 const DEMO_ERROR_LABEL: Record<string, string> = {
   demo_unreadable: 'La demo no se puede leer. Puede estar incompleta o dañada.',
-  truncated_demo: 'La demo está incompleta: el archivo se corta antes del final. Vuelve a descargarla.',
+  truncated_demo: TRUNCATED_DEMO_MESSAGE,
   demo_incompatible: 'Esta versión de Studio no entiende el formato de la demo.',
   map_uncalibrated: 'El mapa aún no tiene radar calibrado, así que no se puede analizar.',
   write_artifact: 'No se pudo guardar el análisis en disco.',
@@ -51,7 +52,7 @@ const IMPORT_ERROR_LABEL: Record<string, string> = {
   csgo_demo: 'Es una demo de CS:GO; solo se admiten demos de CS2.',
   not_a_demo: 'El archivo no es una demo de CS2.',
   unreadable_demo: 'No se pudo leer el archivo.',
-  truncated_demo: 'La demo está incompleta: el archivo se corta antes del final. Vuelve a descargarla.',
+  truncated_demo: TRUNCATED_DEMO_MESSAGE,
 };
 
 const END_REASON_LABEL: Record<string, string> = {

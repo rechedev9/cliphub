@@ -5,10 +5,9 @@
 
 /*
  * ClipHub Studio, sober skin: a work tool for analysts and creators.
- * Neutral grey ramps in a light and a dark theme, Geist with tabular figures,
- * one accent (the brand cyan) for selection, focus and primary actions only,
- * never as a surface. Colour otherwise carries meaning: CT blue, T amber,
- * won or lost, live stream magenta, errors red.
+ * Neutral grey ramps in a light and a dark theme, Geist with tabular figures.
+ * The chrome is monochrome: `primary` is the ink colour. Colour only carries
+ * meaning: CT blue, T amber, won or lost, live stream magenta, errors red.
  *
  * Token names are shared by both themes. `:root` is light; `.dark` (written on
  * <html> by next-themes, dark by default) overrides it.
@@ -89,7 +88,7 @@
 
   /* Sides and outcomes, the only other colours with a job. */
   --side-ct: oklch(0.52 0.15 255);
-  --side-t: oklch(0.62 0.14 70);
+  --side-t: oklch(0.53 0.12 65); /* 4.5:1 on white for 12px labels */
   --outcome-win: var(--success);
   --outcome-loss: var(--destructive);
 

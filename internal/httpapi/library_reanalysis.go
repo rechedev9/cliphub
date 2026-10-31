@@ -19,11 +19,37 @@ func (h *Handlers) libraryAnalysisStale(id uuid.UUID) bool {
 		return storage.IsNotExist(err)
 	}
 	defer rc.Close()
-	var doc struct {
-		AnalysisVersion int `json:"analysis_version"`
+	version, ok := leadingAnalysisVersion(json.NewDecoder(rc))
+	return !ok || version < tacticalplan.AnalysisVersion
+}
+
+// leadingAnalysisVersion reads analysis_version without decoding the whole
+// document, which runs to megabytes. Document marshals schema_version first
+// and analysis_version right after it, so any other key there means version 0.
+func leadingAnalysisVersion(dec *json.Decoder) (int, bool) {
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return 0, false
 	}
-	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
-		return true
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			return 0, false
+		}
+		switch key {
+		case "schema_version":
+			var skip string
+			if err := dec.Decode(&skip); err != nil {
+				return 0, false
+			}
+		case "analysis_version":
+			var version int
+			if err := dec.Decode(&version); err != nil {
+				return 0, false
+			}
+			return version, true
+		default:
+			return 0, true
+		}
 	}
-	return doc.AnalysisVersion < tacticalplan.AnalysisVersion
+	return 0, true
 }

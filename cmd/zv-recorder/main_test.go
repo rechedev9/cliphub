@@ -1472,3 +1472,21 @@ func TestEnsureHLAEFFmpegConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestSiblingFFprobeUsesTheConfiguredBuild(t *testing.T) {
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg.exe")
+	if got := siblingFFprobe(ffmpeg); got != "" {
+		t.Fatalf("siblingFFprobe without a probe = %q, want empty", got)
+	}
+	probe := filepath.Join(dir, "ffprobe.exe")
+	if err := os.WriteFile(probe, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := siblingFFprobe(ffmpeg); got != probe {
+		t.Fatalf("siblingFFprobe = %q, want %q", got, probe)
+	}
+	if got := siblingFFprobe(""); got != "" {
+		t.Fatalf("siblingFFprobe(\"\") = %q, want empty", got)
+	}
+}

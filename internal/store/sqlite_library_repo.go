@@ -467,7 +467,13 @@ func (r *SQLiteLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 		if _, err := tx.ExecContext(ctx, `DELETE FROM library_match_teams WHERE match_id = ?`, matchID.String()); err != nil {
 			return fmt.Errorf("clear match teams: %w", err)
 		}
+		// Manual sides are kept first, so an auto side never takes their team.
 		var taken []uuid.UUID
+		for _, team := range analysis.Teams {
+			if prev, ok := previous[team.Key]; ok && prev.assignment == library.AssignmentManual && prev.teamID != nil {
+				taken = append(taken, *prev.teamID)
+			}
+		}
 		for _, team := range analysis.Teams {
 			row := sqliteMatchTeamRow{
 				key: team.Key, startSide: team.StartSide, clan: team.ClanName,
@@ -485,7 +491,7 @@ func (r *SQLiteLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 					row.assignment, row.teamID = library.AssignmentAuto, &teamID
 				}
 			}
-			if row.teamID != nil {
+			if row.assignment == library.AssignmentAuto {
 				taken = append(taken, *row.teamID)
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO library_match_teams

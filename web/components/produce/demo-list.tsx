@@ -134,9 +134,14 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
   );
 }
 
-/** The row stands for every job of its demo, so deleting it deletes all of them. */
-async function deleteJobs(jobIds: readonly string[]): Promise<void> {
-  await Promise.all(jobIds.map((jobId) => api.deleteMatch(jobId)));
+/** The row stands for every job of its demo, so deleting it deletes all of them. A busy job
+ * fails alone; the list still refreshes so the jobs already gone leave the row. */
+async function deleteJobs(jobIds: readonly string[], onChange: () => void): Promise<void> {
+  const results = await Promise.allSettled(jobIds.map((jobId) => api.deleteMatch(jobId)));
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed === undefined) return;
+  if (results.some((result) => result.status === 'fulfilled')) onChange();
+  throw failed.reason;
 }
 
 function madeCount(row: HubMatch, format: ProduceFormat): number {
@@ -224,7 +229,7 @@ function DemoRow({ row, format, onChange }: DemoRowProps): ReactNode {
             </Link>
           </Button>
         ) : null}
-        <DeleteMatchButton label={prettyMapName(match.map)} onConfirm={() => deleteJobs(row.jobIds)} onDeleted={onChange} />
+        <DeleteMatchButton label={prettyMapName(match.map)} onConfirm={() => deleteJobs(row.jobIds, onChange)} onDeleted={onChange} />
       </span>
     </article>
   );

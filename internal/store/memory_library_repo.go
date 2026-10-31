@@ -377,7 +377,13 @@ func (r *MemoryLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 		previous[t.key] = t
 	}
 	var sides []memoryMatchTeam
+	// Manual sides are kept first, so an auto side never takes their team.
 	var taken []uuid.UUID
+	for _, team := range analysis.Teams {
+		if prev, ok := previous[team.Key]; ok && prev.assignment == library.AssignmentManual && prev.teamID != nil {
+			taken = append(taken, *prev.teamID)
+		}
+	}
 	for _, team := range analysis.Teams {
 		row := memoryMatchTeam{
 			key: team.Key, startSide: team.StartSide, clan: team.ClanName,
@@ -391,7 +397,7 @@ func (r *MemoryLibraryRepository) SaveAnalysis(ctx context.Context, analysis lib
 				row.assignment, row.teamID = library.AssignmentAuto, uuidPtr(teamID)
 			}
 		}
-		if row.teamID != nil {
+		if row.assignment == library.AssignmentAuto {
 			taken = append(taken, *row.teamID)
 		}
 		sides = append(sides, row)

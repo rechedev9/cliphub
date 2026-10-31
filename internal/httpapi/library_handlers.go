@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -409,15 +410,27 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 			break
 		}
 	}
+	// One demo the queue refuses (it is full) does not strand the rest; a ready
+	// demo it refused goes back to ready, keeping its older analysis usable.
+	resumed := 0
+	var firstErr error
 	for _, d := range pending {
 		if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseQueued, "", ""); err != nil {
-			return 0, err
+			firstErr = cmp.Or(firstErr, err)
+			continue
 		}
 		if err := h.enqueueLibraryScan(ctx, d.ID); err != nil {
-			return 0, err
+			firstErr = cmp.Or(firstErr, err)
+			if d.State == library.ParseReady {
+				if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseReady, "", ""); err != nil {
+					log.Printf("httpapi: restore library demo %s to ready: %v", d.ID, err)
+				}
+			}
+			continue
 		}
+		resumed++
 	}
-	return len(pending), nil
+	return resumed, firstErr
 }
 
 // ListLibraryDemos handles GET /api/library/demos.

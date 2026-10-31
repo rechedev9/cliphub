@@ -114,9 +114,9 @@ export const POV_DEMO_MESSAGE =
   'Esta demo es POV: la grabó un jugador desde su propio juego y CS2 no deja fijar la cámara en ningún jugador. ' +
   'Usa la demo GOTV de la partida: descárgala desde CS2 (Ver > Tus partidas), FACEIT o HLTV.';
 
-const TRUNCATED_DEMO_MESSAGE =
-  'La demo está incompleta: el archivo se corta antes del final de la partida. ' +
-  'Reintentar no lo arreglará: vuelve a descargarla entera y cárgala de nuevo.';
+/** Why a demo cut short is refused, wherever Studio meets one: import, scan or job. */
+export const TRUNCATED_DEMO_MESSAGE =
+  'La demo está incompleta: el archivo se corta antes del final de la partida. Vuelve a descargarla entera y cárgala de nuevo.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de ClipHub. ' +

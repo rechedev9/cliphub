@@ -21,8 +21,8 @@ export function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
     // colours keep their meaning on top of it.
     map: token('--fg-3', '#8998a7'),
     callout: token('--fg-3', '#8998a7'),
-    ct: token('--side-ct', '#21d9ee'),
-    t: token('--side-t', '#fcb52c'),
+    ct: token('--side-ct', '#6aa6f0'),
+    t: token('--side-t', '#f1b54f'),
     bomb: token('--destructive', '#fe545c'),
     defuse: token('--success', '#5de0b0'),
     utility: token('--fg-3', '#8998a7'),

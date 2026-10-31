@@ -1526,6 +1526,24 @@ func TestInlineTaskQueuePopPassesOverHeldTasksInOrder(t *testing.T) {
 	}
 }
 
+func TestInlineTaskQueueRunsLibraryAnalysisAfterWaitingWork(t *testing.T) {
+	queue := newInlineTaskQueue(4)
+	ctx := context.Background()
+	for _, task := range []inlineTask{
+		{id: "library", task: asynq.NewTask(tasktypes.TypeAnalyzeLibraryDemo, nil)},
+		{id: "parse", task: asynq.NewTask(tasktypes.TypeParseDemo, nil)},
+	} {
+		if err := queue.push(ctx, task, nil); err != nil {
+			t.Fatalf("push(%s) error = %v", task.id, err)
+		}
+	}
+	for _, want := range []string{"parse", "library"} {
+		if task, ok := queue.pop(nil); !ok || task.id != want {
+			t.Fatalf("pop() = (%q, %t), want (%s, true)", task.id, ok, want)
+		}
+	}
+}
+
 func TestInlineQueueHoldsRendersWhileCaptureIsActive(t *testing.T) {
 	captureStarted := make(chan struct{})
 	releaseCapture := make(chan struct{})

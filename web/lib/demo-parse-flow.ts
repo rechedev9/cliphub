@@ -1,6 +1,6 @@
 import { JOB_WAIT_TIMEOUT_CODE, SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import { MUTATION_CAPABILITY_ERROR } from './api/local-request-guard.ts';
-import { POV_DEMO_MESSAGE } from './api/failure-reason.ts';
+import { POV_DEMO_MESSAGE, TRUNCATED_DEMO_MESSAGE } from './api/failure-reason.ts';
 
 export const DEMO_SERVICE_OFFLINE_HINT =
   'El servicio de análisis está offline. Arráncalo y vuelve a intentarlo.';
@@ -18,8 +18,7 @@ export const DEMO_SCAN_HINTS = {
   notDemo:
     'Ese archivo no es una demo de CS2. Si lo renombraste a .dem o la descarga no terminó, vuelve a descargar la demo.',
   unreadable: 'No se pudo descomprimir la demo. Vuelve a descargarla y cárgala de nuevo.',
-  truncated:
-    'La demo está incompleta: el archivo se corta antes del final de la partida. Vuelve a descargarla entera y cárgala de nuevo.',
+  truncated: TRUNCATED_DEMO_MESSAGE,
   povDemo: POV_DEMO_MESSAGE,
   incompatible:
     'ClipHub no pudo leer esa demo: está dañada o viene de una actualización de CS2 que ClipHub aún no soporta. Vuelve a descargarla; si sigue fallando, escríbenos con tu código de soporte de Ajustes.',

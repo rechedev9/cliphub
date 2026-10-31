@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Rows3 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { DENSITY_OPTIONS, parseDensity } from '@/lib/density';
@@ -10,12 +10,11 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { IconTile } from '@/components/studio/icon-tile';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
-const subscribeNever = (): (() => void) => () => undefined;
-
 export function AppearanceSettings(): ReactNode {
   const { theme, setTheme } = useTheme();
   const density = useDensity();
-  const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
+  // useDensity is null until hydration, the same moment next-themes knows the theme.
+  const mounted = density !== null;
   const densityHint = DENSITY_OPTIONS.find((option) => option.value === density)?.hint;
 
   return (
@@ -36,7 +35,7 @@ export function AppearanceSettings(): ReactNode {
           variant="filter"
           spacing={2}
           aria-labelledby="appearance-theme"
-          value={mounted ? theme : undefined}
+          value={mounted ? (theme ?? '') : ''}
           onValueChange={(next: string) => { if (next) setTheme(next); }}
           className="flex-wrap"
         >
@@ -52,7 +51,7 @@ export function AppearanceSettings(): ReactNode {
           variant="filter"
           spacing={2}
           aria-labelledby="appearance-density"
-          value={density ?? undefined}
+          value={density ?? ''}
           onValueChange={(next: string) => { if (next) setDensity(parseDensity(next)); }}
           className="flex-wrap"
         >
