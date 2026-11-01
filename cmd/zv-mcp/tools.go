@@ -109,6 +109,7 @@ type waitJobIn struct {
 type createJobIn struct {
 	DemoID  string `json:"demo_id"`
 	SteamID string `json:"steamid" jsonschema:"SteamID64 of the player whose point of view the video uses"`
+	Reparse bool   `json:"reparse,omitempty" jsonschema:"parse the player again when the job already exists, for example after a Studio update or when plan_full_demo reports stale or incomplete facts"`
 }
 
 type jobOut struct {
@@ -297,7 +298,8 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "create_job",
-		Description: "Create a video job from a library demo for one player's point of view. The job parses that player; follow with wait_for_job until \"parsed\"."},
+		Description: "Create a video job from a library demo for one player's point of view. The job parses that player; follow with wait_for_job until \"parsed\". " +
+			"An existing job for the same player is reused as it is; set reparse to parse it again."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in createJobIn) (*mcp.CallToolResult, jobOut, error) {
 			if err := checkUUID("demo_id", in.DemoID); err != nil {
 				return nil, jobOut{}, err
@@ -312,6 +314,13 @@ func registerTools(server *mcp.Server, s *studio) {
 			res, err := c.CreatePlayerJob(ctx, in.DemoID, in.SteamID)
 			if err != nil {
 				return nil, jobOut{}, toolError(err)
+			}
+			if res.Reused && in.Reparse {
+				parse, err := c.StartParse(ctx, res.JobID, in.SteamID)
+				if err != nil {
+					return nil, jobOut{}, toolError(err)
+				}
+				return nil, jobOut{JobID: res.JobID, Status: cleanName(parse.Status), Running: workerOwnsJob(parse.Status), Reused: true}, nil
 			}
 			return nil, jobOut{JobID: res.JobID, Status: cleanName(res.Status), Running: workerOwnsJob(res.Status), Reused: res.Reused}, nil
 		})
