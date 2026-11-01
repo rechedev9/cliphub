@@ -66,35 +66,36 @@ func TestFullDemoFactsIndependentRoundEvents(t *testing.T) {
 	}
 }
 
-func TestFullDemoFactsSkipBoundedIncompleteRound(t *testing.T) {
+func TestFullDemoFactsSkipOnlyBoundedIncompleteRounds(t *testing.T) {
+	type round struct{ live, end bool }
 	for _, tc := range []struct {
-		name               string
-		missingLive, first bool
+		name     string
+		rounds   []round
+		skipped  string
+		complete bool
 	}{
-		{name: "recording starts after round 1 went live", missingLive: true, first: true},
-		{name: "round end lost mid match", first: false},
+		{name: "recording starts after round 1 went live", rounds: []round{{false, true}, {true, true}, {true, true}}, skipped: "round-001", complete: true},
+		{name: "round end lost mid match", rounds: []round{{true, true}, {true, false}, {true, true}}, skipped: "round-002", complete: true},
+		{name: "EOF in the last live round still blocks", rounds: []round{{true, true}, {true, true}, {true, false}}, skipped: "round-003"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewCollector(targetID, defaultTestRules())
-			for round, start := range map[int]int{1: 1, 2: 1000, 3: 2000} {
-				c.RecordRoundStart(RoundStart{Round: round, Tick: start})
-				broken := round == 2
-				if tc.first {
-					broken = round == 1
+			for i, r := range tc.rounds {
+				number, start := i+1, 1+i*1000
+				c.RecordRoundStart(RoundStart{Round: number, Tick: start})
+				if r.live {
+					c.RecordRoundLiveStart(RoundLiveStart{Round: number, Tick: start + 300})
 				}
-				if !broken || !tc.missingLive {
-					c.RecordRoundLiveStart(RoundLiveStart{Round: round, Tick: start + 300})
-				}
-				if !broken || tc.missingLive {
-					c.RecordRoundEnd(RoundEnd{Round: round, Tick: start + 700})
+				if r.end {
+					c.RecordRoundEnd(RoundEnd{Round: number, Tick: start + 700})
 				}
 			}
 			facts := c.fullDemoFacts(PlanMeta{SHA256: strings.Repeat("a", 64), Tickrate: 64, DurationTicks: 2750}, nil, false)
 			if err := facts.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			if !facts.Complete {
-				t.Fatalf("a bounded incomplete round marked the source incomplete: %+v", facts)
+			if facts.Complete != tc.complete {
+				t.Fatalf("complete = %v, want %v: %+v", facts.Complete, tc.complete, facts)
 			}
 			o := recapplan.DefaultOptions()
 			o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Editorial.KeepFreezeVoice = false, false, false
@@ -103,19 +104,15 @@ func TestFullDemoFactsSkipBoundedIncompleteRound(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(d.Blockers) != 0 || len(d.Rounds) != 2 {
-				t.Fatalf("want the two complete rounds and no blocker: %+v", d)
-			}
-			skipped := "round-002"
-			if tc.first {
-				skipped = "round-001"
+			if (len(d.Blockers) == 0) != tc.complete || len(d.Rounds) != 2 {
+				t.Fatalf("want the two complete rounds, blocked = %v: %+v", !tc.complete, d)
 			}
 			for _, r := range d.Rounds {
-				if r.ID == skipped {
-					t.Fatalf("incomplete round %s was planned", skipped)
+				if r.ID == tc.skipped {
+					t.Fatalf("incomplete round %s was planned", tc.skipped)
 				}
 			}
-			if !slices.ContainsFunc(d.Warnings, func(n recapplan.Notice) bool { return n.RoundID == skipped }) {
+			if !slices.ContainsFunc(d.Warnings, func(n recapplan.Notice) bool { return n.RoundID == tc.skipped }) {
 				t.Fatalf("no warning names the skipped round: %+v", d.Warnings)
 			}
 		})
