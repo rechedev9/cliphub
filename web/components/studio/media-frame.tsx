@@ -22,6 +22,9 @@ const CAPPED_ASPECT_CLASS = {
   '1:1': 'aspect-square',
 } as const satisfies Record<MediaFrameAspect, string>;
 
+// A tag's 10% tint vanishes over gameplay, so tags in a corner sit on an opaque surface.
+const CORNER_CLASS = 'flex items-center gap-1.5 *:bg-surface-1/90 *:shadow-sm *:backdrop-blur-sm';
+
 export type MediaFrameProps = {
   /**
    * The reel's real shape. A shorts tool whose library crops every 9:16 reel to
@@ -40,6 +43,8 @@ export type MediaFrameProps = {
   fallback?: ReactNode;
   /** Top-right corner slot: format, duration, kill count. */
   badge?: ReactNode;
+  /** Top-left corner slot: the pipeline state, clear of the CS2 kill feed in the top-right. */
+  status?: ReactNode;
   /** Bottom-left corner slot: stage label, map, REC state. */
   footer?: ReactNode;
   /** Actions revealed on hover — always keyboard-reachable, always on for touch. */
@@ -64,6 +69,7 @@ export function MediaFrame({
   media,
   fallback,
   badge,
+  status,
   footer,
   actions,
   scrim = false,
@@ -90,8 +96,9 @@ export function MediaFrame({
         />
       ) : null}
 
-      {badge ? <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">{badge}</div> : null}
-      {footer ? <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">{footer}</div> : null}
+      {status ? <div className={cn('absolute top-2.5 left-2.5', CORNER_CLASS)}>{status}</div> : null}
+      {badge ? <div className={cn('absolute top-2.5 right-2.5', CORNER_CLASS)}>{badge}</div> : null}
+      {footer ? <div className={cn('absolute bottom-2.5 left-2.5', CORNER_CLASS)}>{footer}</div> : null}
 
       {actions ? (
         <div
