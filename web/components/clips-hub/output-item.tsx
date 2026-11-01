@@ -157,7 +157,7 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
-  const rowClass = cn('flex items-center gap-1.5', compact ? 'flex-nowrap' : 'flex-wrap', className);
+  const rowClass = cn('flex flex-wrap items-center gap-1.5', className);
   const remove = (
     <span className={cn('inline-flex', compact && 'ml-auto')}>
       <DeleteVideoButton video={video} onDeleted={onChange} />
