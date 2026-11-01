@@ -123,11 +123,22 @@ func TestPlanRoundEvidence(t *testing.T) {
 	}{
 		{"survival zero kills", func(*Facts, *Options, *VoiceEvidence) {}, 2300, 8700, 3, "fixed-freeze-2s"},
 		{"next round caps tail", func(f *Facts, _ *Options, _ *VoiceEvidence) { f.Rounds[0].NextStartTick = 8600 }, 2300, 8600, 3, "fixed-freeze-2s"},
-		{"file caps tail", func(f *Facts, _ *Options, _ *VoiceEvidence) {
+		{"demo end margin caps the final tail", func(f *Facts, _ *Options, _ *VoiceEvidence) {
+			f.Rounds = f.Rounds[:1]
+			f.Rounds[0].NextStartTick = 0
+			f.EndTick = 8900
+		}, 2300, 8600, 1, "fixed-freeze-2s"},
+		{"demo end margin never trims live play", func(f *Facts, _ *Options, _ *VoiceEvidence) {
 			f.Rounds = f.Rounds[:1]
 			f.Rounds[0].NextStartTick = 0
 			f.EndTick = 8550
-		}, 2300, 8550, 1, "fixed-freeze-2s"},
+		}, 2300, 8500, 1, "fixed-freeze-2s"},
+		{"demo end margin caps a final death tail", func(f *Facts, _ *Options, _ *VoiceEvidence) {
+			tick := 8400
+			f.Rounds = f.Rounds[:1]
+			f.Rounds[0].NextStartTick, f.Rounds[0].DeathTick = 0, &tick
+			f.EndTick = 8800
+		}, 2300, 8500, 1, "fixed-freeze-2s"},
 		{"death first live tick", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2500; f.Rounds[0].DeathTick = &tick }, 2300, 2800, 3, "fixed-freeze-2s"},
 		{"death at round end", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 8500; f.Rounds[0].DeathTick = &tick }, 2300, 8800, 3, "fixed-freeze-2s"},
 		{"freeze death excluded", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2400; f.Rounds[0].DeathTick = &tick }, 10300, 14300, 2, "fixed-freeze-2s"},

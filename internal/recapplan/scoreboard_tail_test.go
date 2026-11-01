@@ -19,7 +19,7 @@ func TestFinalRoundTailFitsTheScoreboardAfterTheLastKill(t *testing.T) {
 		{"late final kill extends the tail", func(*Facts, *Options) {}, 2, 19800, "scoreboard-tail"},
 		{"early final kill keeps the round tail", func(f *Facts, _ *Options) { f.Rounds[2].Kills = f.Rounds[2].Kills[:1] }, 2, 19200, "round-tail"},
 		{"demo end caps the extension three seconds early", func(f *Facts, _ *Options) { f.EndTick = 19600 }, 2, 19300, "scoreboard-tail"},
-		{"a demo ending inside the round tail is not extended", func(f *Facts, _ *Options) { f.EndTick = 19350 }, 2, 19200, "round-tail"},
+		{"a demo ending inside the round tail keeps three seconds from its end", func(f *Facts, _ *Options) { f.EndTick = 19350 }, 2, 19050, "round-tail"},
 		{"no scoreboard keeps the round tail", func(_ *Facts, o *Options) { o.Overlays.Scoreboard = false }, 2, 19200, "round-tail"},
 		{"no safe tail trim keeps the round tail", func(_ *Facts, o *Options) { o.Editorial.AllowSafeTailTrim = false }, 2, 19200, "round-tail"},
 		{"a dead POV keeps the death tail", func(f *Facts, _ *Options) { death := 18950; f.Rounds[2].DeathTick = &death }, 2, 19250, "death-tail-requires-certified-pov"},

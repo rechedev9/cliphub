@@ -17,6 +17,8 @@ import (
 
 func twoFullDemoFixtureRounds(f *recapplan.Facts, o *recapplan.Options) {
 	o.Editorial.RoundTailSeconds = 1
+	// Keep the second round's tails clear of the demo-end margin.
+	f.EndTick = 2200
 	f.Rounds[0].NextStartTick = 1200
 	f.Rounds = append(f.Rounds, recapplan.RoundFacts{ID: "round-002", Number: 2, StartTick: 1200, FreezeEndTick: 1500, RoundEndTick: 1800, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}})
 }
