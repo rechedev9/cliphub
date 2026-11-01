@@ -211,6 +211,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
+			recentCaptures.mark(in.JobID)
 			return nil, startedOut(summary, res, fullDemoVariant), nil
 		})
 }

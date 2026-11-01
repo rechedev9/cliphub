@@ -351,6 +351,12 @@ func registerTools(server *mcp.Server, s *studio) {
 					}
 				}
 				out = describeJob(in.ID, st, renders)
+				switch {
+				case workerOwnsJob(st.Status):
+					recentCaptures.forget(in.ID)
+				case !out.Running && out.FailureCode == "" && recentCaptures.queued(in.ID):
+					out.Running, out.Stage, out.Note, out.Renders = true, "capture queued", "", nil
+				}
 				notify(ctx, req, donePercent(!out.Running, out.Percent), jobMessage(out))
 				return !out.Running, nil
 			})
@@ -468,6 +474,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
+			recentCaptures.mark(in.JobID)
 			return nil, startedOut(summary, res, ""), nil
 		})
 }

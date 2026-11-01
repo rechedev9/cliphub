@@ -313,6 +313,19 @@ Fixed during the pass:
 - `cmd/zv-mcp` was missing from the Makefile and the `zv` pass-throughs, which failed
   `TestZVBinaryCurrentRepoWorkflowChecksEndToEnd`.
 
+Real capture, approved through elicitation: two plays of job `be912ccd`, glitch, zoom-whip and
+`pase-directo`. CS2 recorded both plays and Studio rendered `viral-60-clean` in about a minute and a
+half: 1080x1920 at 60 fps, 11.8 s, music in the mix, a cover image. `list_videos` returned the MP4
+link (served with range requests) and `publish_copy` the title, description and tags. `studio.log`
+had no errors besides the deliberate bad SteamID.
+
+That run found one more bug, fixed: right after `generate_short`, `wait_for_job` answered "parsed,
+not running", because a worker had not taken the job yet. A capture this process started now counts
+as "capture queued" for up to two minutes, until a worker owns the job.
+
+Known noise: `list_videos` without a render asks every preset, and each missing one logs a 404 as an
+error diagnostic in `studio.log`.
+
 Still not verified: the views and the elicitation form inside a real Claude Desktop Chat tab or
-ChatGPT Desktop, and an approved Short or Full Demo through a real CS2 capture. Without tool calls
-from the view, the picker has no track previews and the gallery has no thumbnails.
+ChatGPT Desktop. Without tool calls from the view, the picker has no track previews and the gallery
+has no thumbnails.
