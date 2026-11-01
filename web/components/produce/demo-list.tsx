@@ -44,8 +44,14 @@ const LIST_HINT = {
   full: 'Ya están analizadas en este PC: prepara otro vídeo sin volver a cargarlas.',
 } as const satisfies Record<ProduceFormat, string>;
 
+type DemoListProps = {
+  format: ProduceFormat;
+  /** How many demo rows the list shows, once its first read settles; a failed first read counts as 0. */
+  onCount?: (count: number) => void;
+};
+
 /** The demos already on this PC, each with the next step of this flow. */
-export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
+export function DemoList({ format, onCount }: DemoListProps): ReactNode {
   const router = useRouter();
   const [state, setState] = useState<HubModel | null>(null);
   const [offline, setOffline] = useState<boolean | null>(null);
@@ -71,12 +77,14 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
       }
       stateRef.current = next;
       setState(next);
+      onCount?.(oneRowPerDemo(next.rows).length);
       return next;
     } catch (err) {
       setOffline(isDemoServiceUnavailable(err));
+      if (stateRef.current === null) onCount?.(0);
       return null;
     }
-  }, [format, router]);
+  }, [format, onCount, router]);
 
   useEffect(() => {
     let active = true;
@@ -100,7 +108,7 @@ export function DemoList({ format }: { format: ProduceFormat }): ReactNode {
   }, [refresh]);
 
   const banner = offline === null ? null : <HubBanner offline={offline} onRetry={onChange} />;
-  // The upload above is the empty state: an empty list adds nothing to it.
+  // The upload below is the empty state: an empty list adds nothing to it.
   if (state === null || state.rows.length === 0) return banner;
 
   const rows = oneRowPerDemo(state.rows);

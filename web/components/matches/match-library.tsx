@@ -198,8 +198,8 @@ async function loadLibrary(): Promise<Loaded> {
   return { rows: buildPartidaRows(demos, matches), unlinkedJobs: unlinked.length };
 }
 
-/** Title and page actions. The page's Suspense fallback passes a placeholder where the live importer goes. */
-export function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
+/** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
+function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
   return (
     <StudioPageHeader
       title="Partidas"
@@ -445,12 +445,51 @@ function CrearBacklog({ count, busy, onLink }: { count: number; busy: boolean; o
   );
 }
 
-/** Same blocks and heights as the loaded table, so the first read does not shift the page. */
+const SKELETON_FILTERS = ['map', 'team', 'date', 'source', 'state'] as const;
+const SKELETON_ROWS = 3;
+// One width per column of the loaded table: Mapa, Fecha, Equipos, Marcador, Rondas, Fuente, Estado.
+const SKELETON_CELLS = ['w-14', 'w-10', 'w-56', 'w-12', 'w-8', 'w-16', 'w-12'] as const;
+
+/** The page while the route or its first read loads: the real header, the importer slot and the table skeleton. */
+export function PartidasSkeleton(): ReactNode {
+  return (
+    <>
+      <PartidasHeader importer={<Skeleton className="h-10 w-40" />} />
+      <LibrarySkeleton />
+    </>
+  );
+}
+
+/** The loaded toolbar and table drawn at their own heights, so the first read does not shift the page. */
 function LibrarySkeleton(): ReactNode {
   return (
-    <div role="status" aria-label="Cargando partidas" className="flex flex-col gap-3">
-      <Skeleton className="h-9 w-full" />
-      <Skeleton className="h-64 w-full" />
+    <div role="status" aria-label="Cargando partidas" className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Skeleton className="h-9 w-80 max-w-full" />
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-9 w-24" />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {SKELETON_FILTERS.map((id) => (
+          <Skeleton key={id} className="h-9 w-36" />
+        ))}
+      </div>
+      <div className="studio-panel overflow-hidden">
+        <div className="flex h-9 items-center gap-6 border-b border-border bg-surface-2 px-3">
+          {SKELETON_CELLS.map((width, index) => (
+            <Skeleton key={index} className={cn('h-2.5 shrink-0 opacity-60 shadow-none', width)} />
+          ))}
+        </div>
+        {Array.from({ length: SKELETON_ROWS }, (_, row) => (
+          <div key={row} className="flex h-10 items-center gap-6 border-b border-border-subtle px-3 last:border-b-0">
+            {SKELETON_CELLS.map((width, index) => (
+              <Skeleton key={index} className={cn('h-3 shrink-0 shadow-none', width)} />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

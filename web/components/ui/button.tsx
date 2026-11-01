@@ -25,7 +25,8 @@ export const FOCUS_RING =
 const buttonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-body-sm font-semibold whitespace-nowrap",
-    "transition-[background-color,border-color,box-shadow,color,opacity] duration-(--dur-fast) ease-standard",
+    "transition-[background-color,border-color,box-shadow,color,opacity,scale] duration-(--dur-fast) ease-standard",
+    "motion-safe:active:scale-[0.97]",
     "disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     FOCUS_RING,
@@ -54,7 +55,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground shadow-[var(--elev-0)] hover:bg-surface-5 active:shadow-none",
         ghost: "text-fg-2 hover:bg-surface-3 hover:text-fg-1",
-        link: "text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1",
+        link: "text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 motion-safe:active:scale-100",
       },
       size: {
         default: "h-11 px-5 py-2.5 has-[>svg]:px-4",

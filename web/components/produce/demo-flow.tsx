@@ -48,6 +48,7 @@ import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
 
@@ -380,26 +381,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       />
     );
   } else if (stage === 'idle') {
-    body = (
-      <div className="flex flex-col gap-8">
-        <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
-          <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
-            <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
-            <TabsTrigger value={SOURCE_KIND.steam} className="min-h-10">Importar desde Steam</TabsTrigger>
-          </TabsList>
-          <TabsContent value={SOURCE_KIND.file} className="flex flex-col gap-3">
-            <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[200px]" />
-            {error ? <ErrorBanner message={error} /> : null}
-            <DemoSourceHelp />
-          </TabsContent>
-          <TabsContent value={SOURCE_KIND.steam} className="flex flex-col gap-4">
-            <ShareCodeDoor format={format} />
-            <RecentSteamMatches format={format} />
-          </TabsContent>
-        </Tabs>
-        <DemoList format={format} />
-      </div>
-    );
+    body = <IdleHome format={format} error={error} onFiles={onFiles} />;
   } else if (seriesMode && stage === 'scanning') {
     body = <ScanRowList rows={scanRows} />;
   } else if (seriesMode && stage === 'parsing') {
@@ -463,6 +445,47 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
         </div>
       ) : null}
       {body}
+    </div>
+  );
+}
+
+type IdleHomeProps = {
+  format: ProduceFormat;
+  error: string | null;
+  onFiles: (files: File[]) => void;
+};
+
+/** The upload home. It mounts fresh on every return to idle, so the demo count starts unknown each time. */
+function IdleHome({ format, error, onFiles }: IdleHomeProps): ReactNode {
+  // null until the list's first read settles; the upload waits for it so the page lays out once.
+  const [demoCount, setDemoCount] = useState<number | null>(null);
+  const compact = demoCount !== null && demoCount > 0;
+  return (
+    <div className="flex flex-col gap-8">
+      <DemoList format={format} onCount={setDemoCount} />
+      {demoCount === null ? (
+        <div role="status" aria-label="Cargando demos" className="flex flex-col gap-4">
+          <Skeleton className="h-11 w-full sm:w-80" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : (
+        <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
+          {compact ? <h2 className="font-display text-title font-bold text-fg-1">Cargar otra demo</h2> : null}
+          <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
+            <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
+            <TabsTrigger value={SOURCE_KIND.steam} className="min-h-10">Importar desde Steam</TabsTrigger>
+          </TabsList>
+          <TabsContent value={SOURCE_KIND.file} className="flex flex-col gap-3">
+            <DemoDropzone onFiles={onFiles} compact={compact} minHeightClass="min-h-[200px]" />
+            {error ? <ErrorBanner message={error} /> : null}
+            <DemoSourceHelp />
+          </TabsContent>
+          <TabsContent value={SOURCE_KIND.steam} className="flex flex-col gap-4">
+            <ShareCodeDoor format={format} />
+            <RecentSteamMatches format={format} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
