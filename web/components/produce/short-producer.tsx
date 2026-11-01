@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
+import { ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
@@ -190,8 +190,6 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
   const summary = selectedPlays.length > 0 ? (
     <>
-      {roundsSummary(selectedPlays)}
-      <span className="text-fg-3"> · </span>
       <span className={overTarget ? 'text-warning' : undefined}>{formatClock(estimatedSeconds)} aprox.</span>
       <span className="text-fg-3"> · </span>
       <span className="text-fg-1">{presetLabel ?? 'Estilo pendiente'}</span>
@@ -204,11 +202,10 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
     <Dialog open={stylesOpen} onOpenChange={setStylesOpen}>
       <div className="mb-3 mt-1 flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 @[80rem]/content:mb-6 @[80rem]/content:mt-4 @[80rem]/content:gap-y-2">
         <p className="wrap-anywhere text-meta text-fg-3">
-          Nuevo short · {match.map}
+          {match.map}
           {match.player ? ` · ${match.player}` : ''}
         </p>
         <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
-        <p className="w-full text-body-sm text-fg-2">Selecciona las jugadas y ajusta el estilo y la música de tu vídeo.</p>
         {focusRounds && focusRounds.length > 0 ? (
           <p role="status" className="w-full text-body-sm text-fg-2">
             {focusIds.length > 0
@@ -233,7 +230,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
             selectedIds={selectedIds}
             title={STEP.highlights}
             toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || plays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}><Sparkles aria-hidden />{AUTO_PICK_LABEL}</Button>}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}>{AUTO_PICK_LABEL}</Button>}
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-fg-1')}>
                 {selectedPlays.length} de {plays.length} elegidos · {clock}

@@ -121,7 +121,6 @@ function MusicDecision({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-body-sm text-fg-2">Elige un tema o confirma que va sin música.</p>
       <div className="flex flex-wrap gap-2">
         <Button
           ref={pickerRef}

@@ -130,7 +130,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
     };
   }, [id, format]);
 
-  if (!loaded) return <LoadingState />;
+  if (!loaded) return <ProduceLoading format={format} seriesId={seriesId} />;
 
   const backHref = seriesId ? seriesHref(seriesId) : flowHref(format);
   const backLabel = seriesId ? 'Serie' : FLOW_TITLE[format];
@@ -270,10 +270,25 @@ function matchEmptyState(failure: FullDemoLoadFailure): { icon: typeof SearchX; 
   return { icon: SearchX, ...PRODUCE_MATCH_MISSING };
 }
 
+/** The page before its match loads. The back link and stepper are already known, so they stay put when it arrives. */
+export function ProduceLoading({ format, seriesId }: { format: ProduceFormat; seriesId: string | null }): ReactNode {
+  return (
+    <div className="flex min-h-[calc(100dvh-7rem)] w-full flex-col">
+      <StudioBackLink href={seriesId ? seriesHref(seriesId) : flowHref(format)}>{seriesId ? 'Serie' : FLOW_TITLE[format]}</StudioBackLink>
+      <div className="mb-2">
+        <CreateFlowSteps flow={format} step={2} />
+      </div>
+      <div className="flex flex-1 flex-col gap-3 pt-2">
+        <LoadingState />
+      </div>
+    </div>
+  );
+}
+
 function LoadingState(): ReactNode {
   return (
-    <div className="measure-work flex flex-col gap-6" role="status" aria-label="Cargando la partida">
-      <Skeleton className="h-12 w-full" />
+    <div className="flex flex-col gap-6" role="status" aria-label="Cargando la partida">
+      <Skeleton className="h-9 w-64" />
       <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-4">
           <Skeleton className="h-8 w-72" />
