@@ -36,6 +36,7 @@ import {
   type WindowState,
 } from './window-state';
 import { lastLines } from './log-tail';
+import { readAgentAccess, removeAgentSession, writeAgentSession } from './agent-session';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
@@ -197,6 +198,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const portsFile = path.join(app.getPath('userData'), 'ports.json');
+const agentSessionFile = path.join(app.getPath('userData'), 'agent-session.json');
+const agentAccessFile = path.join(app.getPath('userData'), 'agent-access.json');
 
 /** Last lines of studio.log, HTML-escaped for the error screen. */
 function logTail(maxLines = 40): string {
@@ -520,6 +523,8 @@ async function boot(): Promise<void> {
 async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   const bootStartedAt = performance.now();
   assertBootAttemptActive(attempt);
+  // A new boot mints a new token, so the last session must not outlive it.
+  removeAgentSession(agentSessionFile);
   // Reuse the existing window on retry instead of opening another one over the
   // error screen from the failed attempt.
   const existing = aliveWindow();
@@ -612,6 +617,17 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     childExited,
   });
   assertBootAttemptActive(attempt);
+  try {
+    writeAgentSession({
+      sessionFile: agentSessionFile,
+      enabled: readAgentAccess(agentAccessFile),
+      orchestratorUrl,
+      token: security.mutationToken,
+    });
+  } catch (err) {
+    // Assistant access is optional; Studio itself keeps booting.
+    logLine(`[agent] could not publish the session: ${String(err)}\n`);
+  }
 
   const watchPostBoot = (child: LaunchedProcess): void => {
     attempt.processes.watchUnexpectedExit(child, (err: unknown) => {
@@ -643,6 +659,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
 function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailureDetails = {}): void {
   if (activeBootAttempt !== attempt) return;
   attempt.controller.abort();
+  removeAgentSession(agentSessionFile);
   const stopped = attempt.processes.stop();
   if (stopped) activeBootAttempt = null;
   allowedOrigins.clear();
@@ -669,6 +686,7 @@ function assertBootAttemptActive(attempt: BootAttempt): void {
 
 function stopActiveBootAttempt(): boolean {
   const attempt = activeBootAttempt;
+  removeAgentSession(agentSessionFile);
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
