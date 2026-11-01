@@ -382,7 +382,7 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions, scoreboardTail
 		// extended, and only when an uncertified tail may be trimmed instead
 		// of failing the capture. Kills after the round end are captured and
 		// delay the scoreboard too, so they count. Full Demo windows are exact,
-		// so the extension stays scoreboardEOFMarginSeconds away from demo EOF
+		// so the extension stays demoEOFMarginSeconds away from demo EOF
 		// where record-end may never fire.
 		lastKill := 0
 		for _, k := range source.Kills {
@@ -390,11 +390,15 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions, scoreboardTail
 				lastKill = max(lastKill, k.Tick)
 			}
 		}
-		hold := min(limit, f.EndTick-scoreboardEOFMarginSeconds*f.TickRate, lastKill+secondsTicks(ScoreboardAfterLastKillSeconds+ScoreboardSeconds, f.TickRate))
+		hold := min(limit, f.EndTick-demoEOFMarginSeconds*f.TickRate, lastKill+secondsTicks(ScoreboardAfterLastKillSeconds+ScoreboardSeconds, f.TickRate))
 		if lastKill > 0 && hold > end {
 			end = hold
 			r.EndReason = "scoreboard-tail"
 		}
+	}
+	if source.NextStartTick <= source.StartTick {
+		// GOTV playback can stop before the last tick; the cap never trims live play.
+		end = min(end, max(liveEnd, f.EndTick-demoEOFMarginSeconds*f.TickRate))
 	}
 	// POV acquisition is unrecorded. Never shorten/extend the fixed two
 	// seconds to hide a source that cannot provide both acquisition and freeze.

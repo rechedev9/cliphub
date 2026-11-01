@@ -148,6 +148,9 @@ not padded with frozen frames to reach the full 8 s.
 The cap was two seconds until a GOTV demo (HyperX Retake, Nuke, 2026-11-01)
 ended playback 2.16 s before its last tick and the final round came up 9
 frames short (`full_demo_capture_incomplete`). Do not lower it again.
+The same three seconds cap the final round's normal round or death tail, so a
+final round without the scoreboard extension also stops before GOTV playback
+does. The cap never ends the window before the round end or the POV death.
 
 ## HLAE pin and CS2 updates (`desktop/src/hlae-tool.*`)
 

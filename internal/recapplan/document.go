@@ -32,8 +32,9 @@ const (
 const (
 	ScoreboardAfterLastKillSeconds = 1.0
 	ScoreboardSeconds              = 8
-	// GOTV demos can stop playing about 2.2 s before their last tick (HyperX Retake, 2026-11-01).
-	scoreboardEOFMarginSeconds = 3
+	// The final round ends this far before demo EOF: GOTV demos can stop playing
+	// about 2.2 s before their last tick (HyperX Retake, 2026-11-01).
+	demoEOFMarginSeconds = 3
 )
 
 // Options contains creative decisions only. Facts and resolved media properties
