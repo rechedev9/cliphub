@@ -714,8 +714,11 @@ func checkDemoPath(path string) error {
 	if !filepath.IsAbs(path) {
 		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
 	}
-	// Lstat: a link on C: could still point at a network share.
-	info, err := os.Lstat(path)
+	// A link on C: could still point at a network share; other reparse points (OneDrive) are fine.
+	if link, err := os.Lstat(path); err == nil && link.Mode()&os.ModeSymlink != 0 {
+		return errors.New("links are not accepted; use the demo file itself")
+	}
+	info, err := os.Stat(path)
 	if err != nil {
 		return errors.New("cannot read that file; check the path")
 	}
