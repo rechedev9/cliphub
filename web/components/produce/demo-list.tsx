@@ -46,7 +46,7 @@ const LIST_HINT = {
 
 type DemoListProps = {
   format: ProduceFormat;
-  /** How many demo rows the list shows, so the flow can shrink its upload once there are some. */
+  /** How many demo rows the list shows, once its first read settles; a failed first read counts as 0. */
   onCount?: (count: number) => void;
 };
 
@@ -81,6 +81,7 @@ export function DemoList({ format, onCount }: DemoListProps): ReactNode {
       return next;
     } catch (err) {
       setOffline(isDemoServiceUnavailable(err));
+      if (stateRef.current === null) onCount?.(0);
       return null;
     }
   }, [format, onCount, router]);

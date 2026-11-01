@@ -198,8 +198,8 @@ async function loadLibrary(): Promise<Loaded> {
   return { rows: buildPartidaRows(demos, matches), unlinkedJobs: unlinked.length };
 }
 
-/** Title and page actions. The page's Suspense fallback passes a placeholder where the live importer goes. */
-export function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
+/** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
+function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
   return (
     <StudioPageHeader
       title="Partidas"
