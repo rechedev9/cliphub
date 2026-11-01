@@ -1069,6 +1069,7 @@ func TestValidateLegacyPassThroughEntrypointsRejectsMissingEntrypoint(t *testing
 		"zv-rhythm",
 		"zv-hud-designs",
 		"zv-tui",
+		"zv-mcp",
 	}
 
 	issues := validateLegacyPassThroughEntrypoints(commands)

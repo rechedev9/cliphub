@@ -63,6 +63,7 @@ Legacy pass-throughs:
   zv rhythm [zv-rhythm args]
   zv hud-designs [zv-hud-designs args]
   zv tui [zv-tui args]
+  zv mcp [zv-mcp args]
 
 Use "zv <command> --help" for the underlying command help.
 `

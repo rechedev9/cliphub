@@ -209,11 +209,7 @@ function ClipCard({
 
   return (
     <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
-      {/* A true 9:16 frame, narrowed rather than capped. `capHeight` pins the
-          height of a full-width box, so the frame stops being 9:16 and
-          object-cover eats a third of the reel — a Shorts tool must not show a
-          reel it did not make (media-frame.tsx). Constraining the width keeps
-          the shape honest and still lands the card near its landscape row. */}
+      {/* A true 9:16 frame on a full-width stage: `capHeight` would crop the reel (media-frame.tsx). */}
       <button
         type="button"
         disabled={playback === null}
@@ -221,23 +217,28 @@ function ClipCard({
         onClick={(event) => {
           if (playback) onPlay(playback, event.currentTarget);
         }}
-        className={cn('relative text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default', isShort && 'w-[54%] self-center')}
+        className={cn(
+          'relative text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default',
+          isShort && 'flex justify-center border border-border bg-surface-0 py-3',
+        )}
       >
-        <MediaFrame
-          aspect={isShort ? '9:16' : '16:9'}
-          badge={<OutputTag output={clip} />}
-          className="border border-border"
-          fallback={<ReelCover seed={video.id} plain />}
-          media={video.thumbnailUrl === undefined ? undefined : <CoverImage src={video.thumbnailUrl} />}
-        />
-        {isWorking(clip.state) ? (
-          <span className={cn('studio-bar absolute inset-x-0 bottom-0', clip.state === OUTPUT_STATE.rec ? 'text-stream-text' : 'text-primary')}>
-            <span
-              className={clip.percent === null ? 'studio-indeterminate' : undefined}
-              style={clip.percent === null ? undefined : { width: `${clip.percent}%` }}
-            />
-          </span>
-        ) : null}
+        <span className={cn('relative block', isShort ? 'w-[54%]' : 'w-full')}>
+          <MediaFrame
+            aspect={isShort ? '9:16' : '16:9'}
+            status={<OutputTag output={clip} />}
+            className={isShort ? undefined : 'border border-border'}
+            fallback={<ReelCover seed={video.id} plain />}
+            media={video.thumbnailUrl === undefined ? undefined : <CoverImage src={video.thumbnailUrl} />}
+          />
+          {isWorking(clip.state) ? (
+            <span className={cn('studio-bar absolute inset-x-0 bottom-0', clip.state === OUTPUT_STATE.rec ? 'text-stream-text' : 'text-primary')}>
+              <span
+                className={clip.percent === null ? 'studio-indeterminate' : undefined}
+                style={clip.percent === null ? undefined : { width: `${clip.percent}%` }}
+              />
+            </span>
+          ) : null}
+        </span>
       </button>
 
       <span className="flex min-w-0 flex-col gap-0.5">
@@ -253,22 +254,19 @@ function ClipCard({
           without wrapping them into more chrome than thumbnail, which is the
           opposite of what the density step was asked for. */}
       {small ? null : (
-        <span className="flex flex-col gap-1.5">
-          {/* The "another one" link gets its own row on every card, so a ready card
-              (three buttons) and a rendering one (delete only) share the same
-              row count and the grid reads as one line of equal cards. */}
+        <span className="flex flex-col gap-2">
+          {/* "Crear otro" is a footer on every card, so ready and rendering cards keep equal rows. */}
           <OutputActions
             compact
             output={clip}
             matchId={matchId ?? ORPHAN_MATCH_SEGMENT}
             onChange={onChange}
-            onPlay={playback === null ? undefined : (button) => onPlay(playback, button)}
           />
           {matchId !== null ? (
             <Link
               href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
               aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otra demo completa de esta partida'}
-              className="inline-flex h-10 items-center gap-1 self-end px-2 text-meta text-fg-3 transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="-mx-3 -mb-3 inline-flex h-9 items-center justify-end gap-1 border-t border-border px-3 text-meta text-fg-3 transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               {MAKE_ANOTHER_LABEL}
               <ArrowRight aria-hidden className="size-3" />

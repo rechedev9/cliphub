@@ -1,5 +1,5 @@
 // Assembles the resources electron-builder bundles into the installer:
-//   build-resources/bin/   -> zv-orchestrator.exe, zv-editor.exe, zv-recorder.exe
+//   build-resources/bin/   -> zv-orchestrator.exe, zv-editor.exe, zv-recorder.exe, zv-mcp.exe
 //   build-resources/web/   -> the Next.js standalone server, ready to run
 //   build-resources/hlae/  -> pinned HLAE release archive (desktop/src/hlae-tool.json)
 //   build-resources/music/ -> catalog.json (track metadata; audio is downloaded on first boot)
@@ -33,12 +33,14 @@ if (args.length > 0) {
 // in the same bin/ so the orchestrator auto-detects it and enables the render
 // worker; without it every created reel fails after capture with an
 // unconfigured render:variant queue. zv-recorder.exe is the capture worker the
-// orchestrator launches for selected demo segments. The developer CLI is
-// intentionally not part of the desktop runtime.
+// orchestrator launches for selected demo segments. zv-mcp.exe is the stdio
+// server an assistant (Claude) launches itself; Settings shows its path. The
+// developer CLI is intentionally not part of the desktop runtime.
 const zvOrchestrator = join(bin, 'zv-orchestrator.exe');
 const zvEditor = join(bin, 'zv-editor.exe');
 const zvRecorder = join(bin, 'zv-recorder.exe');
-for (const required of [zvOrchestrator, zvEditor, zvRecorder]) {
+const zvMcp = join(bin, 'zv-mcp.exe');
+for (const required of [zvOrchestrator, zvEditor, zvRecorder, zvMcp]) {
   if (!existsSync(required)) {
     console.error(`\nmissing ${required}\nBuild the Go binaries first:  .\\scripts\\build.ps1\n`);
     process.exit(1);
@@ -93,6 +95,7 @@ if (existsSync(publicDir)) cpSync(publicDir, join(out, 'web', 'public'), { recur
 cpSync(zvOrchestrator, join(out, 'bin', 'zv-orchestrator.exe'));
 cpSync(zvEditor, join(out, 'bin', 'zv-editor.exe'));
 cpSync(zvRecorder, join(out, 'bin', 'zv-recorder.exe'));
+cpSync(zvMcp, join(out, 'bin', 'zv-mcp.exe'));
 
 // HLAE: ship the exact pinned archive in the installer. Both this staging
 // step and runtime provisioning verify the pinned digest before using it.

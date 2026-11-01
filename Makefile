@@ -14,6 +14,7 @@ build:
 	go build -o bin/zv-tactical-data ./cmd/zv-tactical-data
 	go build -o bin/zv-hud-designs ./cmd/zv-hud-designs
 	go build -o bin/zv-tui ./cmd/zv-tui
+	go build -o bin/zv-mcp ./cmd/zv-mcp
 
 test:
 	go test ./... -count=1 -timeout 3m

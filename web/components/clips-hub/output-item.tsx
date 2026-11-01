@@ -150,26 +150,28 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   );
 }
 
-/** Ready: MP4 + Publicar + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
+/**
+ * Ready: MP4 + Publicar + delete. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only.
+ * Compact is the card: its thumbnail already plays, and delete sits at the far end of one row.
+ */
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
+  const rowClass = cn('flex flex-wrap items-center gap-1.5', className);
+  const remove = (
+    <span className={cn('inline-flex', compact && 'ml-auto')}>
+      <DeleteVideoButton video={video} onDeleted={onChange} />
+    </span>
+  );
 
   if (output.state === OUTPUT_STATE.ready) {
     const url = video.downloadUrl;
     return (
-      <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
-        {onPlay ? (
-          <Button
-            type="button"
-            size={compact ? 'icon-xs' : 'xs'}
-            variant="outline-primary"
-            aria-label={compact ? 'Reproducir' : undefined}
-            title={compact ? 'Reproducir' : undefined}
-            onClick={(event) => onPlay(event.currentTarget)}
-          >
+      <span className={rowClass}>
+        {onPlay && !compact ? (
+          <Button type="button" size="xs" variant="outline-primary" onClick={(event) => onPlay(event.currentTarget)}>
             <Play aria-hidden />
-            {compact ? null : 'Reproducir'}
+            Reproducir
           </Button>
         ) : null}
         <Button
@@ -191,7 +193,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             <Link href={publishHref(matchId, video.id)}>Publicar</Link>
           </Button>
         )}
-        <DeleteVideoButton video={video} onDeleted={onChange} />
+        {remove}
       </span>
     );
   }
@@ -200,7 +202,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
     const failure = parseFailureReason(video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version });
     const canRetry = video.unrecoverable !== true && failure.retryCanHelp;
     return (
-      <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+      <span className={rowClass}>
         {video.unrecoverable !== true && (failure.kind === 'pov-acquisition' || failure.kind === 'pov-verification') ? (
           <Button asChild size="xs" variant="outline">
             <Link href={produceHref(matchId, PRODUCE_FORMAT.full)}>Volver a preparar</Link>
@@ -225,15 +227,11 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             Reintentar
           </Button>
         ) : null}
-        <DeleteVideoButton video={video} onDeleted={onChange} />
+        {remove}
       </span>
     );
   }
 
   // Queue/REC/render: still no result, but the intent must stay removable.
-  return (
-    <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
-      <DeleteVideoButton video={video} onDeleted={onChange} />
-    </span>
-  );
+  return <span className={rowClass}>{remove}</span>;
 }

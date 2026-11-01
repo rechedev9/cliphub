@@ -32,5 +32,6 @@ func legacyPassThroughs() []legacyPassThrough {
 		{Command: "rhythm", Binary: "zv-rhythm"},
 		{Command: "hud-designs", Binary: "zv-hud-designs"},
 		{Command: "tui", Binary: "zv-tui"},
+		{Command: "mcp", Binary: "zv-mcp"},
 	}
 }
