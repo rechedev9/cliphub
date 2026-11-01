@@ -1,10 +1,9 @@
 'use client';
 
-import { Crosshair } from 'lucide-react';
 import type { Play } from '@/lib/api/types';
 import { PlayThumbnail } from './play-thumbnail';
 import { playDescription, playSourceRange } from '@/lib/produce/play-details';
-import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { StatusTag } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
 import { roundTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
 import { SelectionMark } from './selection-mark';
@@ -19,20 +18,8 @@ export type PlayRowProps = {
   onToggle: () => void;
 };
 
-/**
- * Kill badge by frag count. ACE (5K) is the cyan chip, 2K-4K neutral, 1K quiet.
- * CLUTCH's magenta chip exists in the mockup only; the plan has no clutch data
- * to drive it, and inventing one would be a fabricated fact.
- */
-function killBadge(kills: number): { label: string; tone: StatusTagTone } {
-  if (kills >= 5) return { label: 'ACE', tone: 'primary' };
-  return { label: `${kills}K`, tone: 'neutral' };
-}
-
 /** Compact highlight selector; each selected row shows its output position. */
 export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: PlayRowProps) {
-  const badge = killBadge(play.kills);
-
   return (
     <button
       type="button"
@@ -70,11 +57,8 @@ export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: Pla
             #{String(reelPosition).padStart(2, '0')}
           </span>
         ) : null}
-        {/* The Crosshair also anchors the E2E pick-a-clip selector
-            (button:has(.lucide-crosshair)); keep it inside this button. */}
-        <StatusTag tone={badge.tone} icon={Crosshair} className="tabular-nums">
-          {badge.label}
-        </StatusTag>
+        {/* The description already counts the kills; only an ace stands out. */}
+        {play.kills >= 5 ? <StatusTag tone="primary">ACE</StatusTag> : null}
       </span>
     </button>
   );
