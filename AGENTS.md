@@ -3,23 +3,32 @@
 ClipHub Studio is a Windows desktop app that turns CS2 demos and streams into edited videos and
 analyzes them. The product we sell is that desktop app. `web/` is only its UI inside Electron: there
 is no web product, and a browser is only a quick way to test the UI. Design, scope and verify every
-change for the installed Windows app.
+change for the installed Windows app. The UI is in Spanish.
 
-## Layout
-- `cmd/`, `internal/`: Go backend (orchestrator, parser, recorder, editor). Go 1.26.10 from `go.mod`.
-- `web/`: Studio UI (Next.js, standalone build). `desktop/`: Electron shell that bundles the Go
-  binaries, the web build and HLAE into the Windows installer.
-- `landing/`: separate Next.js site. `deploy/`: telemetry deploy files.
-- Node 24, pnpm 11.22.0: `pnpm --dir <web|desktop> install --frozen-lockfile`.
+## Architecture
+- `desktop/src/main.ts` picks stable loopback ports (`stable-ports.ts`), spawns
+  `zv-orchestrator.exe` and the web standalone server (`ORCHESTRATOR_URL`, `PORT`), then loads the UI.
+- `web/app/api/*` route handlers proxy to the orchestrator. `web/proxy.ts` and
+  `lib/api/local-request-guard.ts` reject cross-origin and DNS-rebound requests.
+- `cmd/zv-orchestrator`: local HTTP API (`internal/httpapi`) and the job queue. Workers in
+  `internal/workers` parse demos in process (`internal/parser`) and run `zv-recorder` (CS2 capture
+  through HLAE) and `zv-editor` (FFmpeg render) as subprocesses. The installer ships only these three
+  binaries; `zv` and the other `cmd/` tools are for development.
+- State lives in SQLite through `internal/store`; memory repos share contract tests with it.
+- `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
+  and command build targets.
 
 ## Build and check
-- Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. A few Full Demo editor tests depend on the FFmpeg
-  version; Studio ships FFmpeg 8.1.2.
+- Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. One test:
+  `go test ./internal/<pkg> -run TestName -count=1`. A few Full Demo editor tests depend on the
+  FFmpeg version; Studio ships FFmpeg 8.1.2.
 - `go test ./...` includes `TestNoDeadCode` (`cmd/zv`), which runs pinned `deadcode` and `staticcheck -checks U1000`
   for both `GOOS=windows` and `GOOS=linux`. A function that only tests call is dead: delete it, or move a
   real test helper into a `_test.go` file. A helper only `_windows.go` code calls belongs in a `_windows.go` file.
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders; pre-PR runs use the full suite.
+  `internal/editor` alone nears the 10 min default on Windows, so pass `-timeout 30m` to a full run.
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
+  One test: `pnpm --dir <pkg> exec node --test <path>.test.ts`.
 - There is no CI on pushes or PRs. `desktop-release.yml` runs the checks (Go with `-short`, web, desktop) before it publishes a release. Run the checks for what you touched, and the full Go suite before a release.
 
 ## Run Studio from source (Windows)
@@ -47,11 +56,9 @@ Extend that test instead of adding another. When a change moves its output, run
 `go test ./internal/pipeline -update` and review the golden diff like code; never accept it blindly.
 It does not replace the manual check above. Unit tests are welcome where they test real logic.
 
-## Releases
-Bump `desktop/package.json` and `landing/app/page.tsx` (`DOWNLOAD_URL`, `RELEASE_VERSION`), commit
-`chore(release): prepare Studio X.Y.Z`, then push an annotated tag `vX.Y.Z` ("ClipHub Studio X.Y.Z").
-`desktop-release.yml` publishes the GitHub Release as `latest`, which is what the in-app updater reads.
-To prove a release before tagging, run it by hand from `main` (`gh workflow run desktop-release.yml`):
-`dry_run` defaults to true, so it runs the checks and builds the installer without publishing.
+## Releases and domain rules
+Release steps are in `docs/incidents.md` (Releases). Before tagging, prove the release with
+`gh workflow run desktop-release.yml` from `main`: `dry_run` defaults to true, so it runs the checks
+and builds the installer without publishing.
 
-Domain rules and incident history (HLAE pin, Full Demo audio, telemetry): `docs/incidents.md`.
+Domain rules and incident history (HLAE pin, Full Demo audio and overlays, telemetry): `docs/incidents.md`.
