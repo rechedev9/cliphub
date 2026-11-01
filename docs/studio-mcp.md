@@ -150,7 +150,7 @@ Read:
 | --- | --- |
 | `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state |
 | `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs) |
-| `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores |
+| `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total` |
 | `list_presets` | `GET /api/presets` |
 | `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
@@ -174,7 +174,7 @@ Short look and Full Demo HUD:
 | --- | --- |
 | `list_short_options` | format, kill effect, transition, music and extras, each with a one-line Spanish description and the default |
 | `get_song_audio` | one track as audio content, app-only (`_meta.ui.visibility: ["app"]`) |
-| `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with webp previews as image content |
+| `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
 | `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
 

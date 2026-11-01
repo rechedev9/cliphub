@@ -24,6 +24,8 @@ const (
 	// Client tool calls time out around a minute; a longer wait returns "still running".
 	maxWaitSecs  = 55
 	maxNameRunes = 64
+	// defaultMomentsLimit keeps list_moments small; a match can have dozens of plays.
+	defaultMomentsLimit = 10
 	// maxErrorRunes caps server messages and failure reasons, which can quote demo content.
 	maxErrorRunes = 200
 	// maxDemoBytes is the server's per-demo import cap (internal/httpapi maxDemoBytes).
@@ -137,6 +139,12 @@ type momentOut struct {
 
 type momentsOut struct {
 	Moments []momentOut `json:"moments"`
+	Total   int         `json:"total" jsonschema:"plays the job has; raise limit to see more"`
+}
+
+type momentsIn struct {
+	ID    string `json:"id"`
+	Limit int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
 }
 
 type presetOut struct {
@@ -349,8 +357,8 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
-		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\"."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, momentsOut, error) {
+		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in momentsIn) (*mcp.CallToolResult, momentsOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, momentsOut{}, err
 			}
@@ -362,8 +370,12 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
-			out := momentsOut{Moments: make([]momentOut, 0, len(doc.Moments))}
-			for _, m := range doc.Moments {
+			limit := in.Limit
+			if limit <= 0 {
+				limit = defaultMomentsLimit
+			}
+			out := momentsOut{Moments: make([]momentOut, 0, min(limit, len(doc.Moments))), Total: len(doc.Moments)}
+			for _, m := range doc.Moments[:min(limit, len(doc.Moments))] {
 				out.Moments = append(out.Moments, momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
 					Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 					Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)})
@@ -648,11 +660,18 @@ func summarizeMatch(m tuiclient.LibraryMatch) matchSummary {
 	return matchSummary{ID: m.ID, DemoID: m.DemoID, Map: cleanName(m.Map), PlayedAt: m.PlayedAt.Format(time.DateOnly), RoundCount: m.RoundCount, Teams: teams}
 }
 
+// teamName falls back to the starting side, so players of a match without clan
+// names can still be told apart.
 func teamName(t tuiclient.LibraryMatchTeam) string {
-	if t.TeamName != "" {
+	switch {
+	case t.TeamName != "":
 		return t.TeamName
+	case t.ClanName != "":
+		return t.ClanName
+	case t.StartSide != "":
+		return "Empieza " + strings.ToUpper(t.StartSide)
 	}
-	return t.ClanName
+	return t.Key
 }
 
 // checkDemoPath accepts only a regular .dem or .dem.zst file on a local drive.

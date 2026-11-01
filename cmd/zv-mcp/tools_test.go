@@ -186,3 +186,17 @@ func TestCheckIDs(t *testing.T) {
 		t.Error("steamid check wrong")
 	}
 }
+
+func TestTeamNameFallsBackToStartSide(t *testing.T) {
+	cases := map[string]tuiclient.LibraryMatchTeam{
+		"Navi":       {TeamName: "Navi", ClanName: "navi.gg", StartSide: "ct"},
+		"navi.gg":    {ClanName: "navi.gg", StartSide: "ct"},
+		"Empieza CT": {Key: "ct-start", StartSide: "ct"},
+		"t-start":    {Key: "t-start"},
+	}
+	for want, team := range cases {
+		if got := teamName(team); got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	}
+}

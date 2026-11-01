@@ -105,7 +105,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 				out.Themes = append(out.Themes, hudThemeOut{ID: id, Name: name, Description: description, Preview: image != nil})
 				fmt.Fprintf(&text, "%s (%s): %s\n", id, name, description)
 				if image != nil {
-					content = append(content, &mcp.TextContent{Text: id + ": " + name}, &mcp.ImageContent{Data: image, MIMEType: "image/webp"})
+					content = append(content, &mcp.TextContent{Text: id + ": " + name}, &mcp.ImageContent{Data: image, MIMEType: "image/jpeg"})
 				}
 			}
 			for _, t := range customhud.Themes() {
@@ -407,8 +407,12 @@ func fetchHUDPreviews(ctx context.Context, s *studio) (map[string][]byte, string
 	defer cancel()
 	previews := map[string][]byte{}
 	for _, t := range customhud.Themes() {
-		if image, err := fetchPreview(ctx, origin, t.ID); err == nil {
-			previews[t.ID] = image
+		image, err := fetchPreview(ctx, origin, t.ID)
+		if err != nil {
+			continue
+		}
+		if thumb, err := hudThumbnail(image); err == nil {
+			previews[t.ID] = thumb
 		}
 	}
 	if len(previews) == 0 {
