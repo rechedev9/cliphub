@@ -142,14 +142,6 @@ func (c *Client) CreatePlayerJob(ctx context.Context, demoID, steamID string) (P
 // GetJobStatus returns the lightweight status view of a job.
 func (c *Client) GetJobStatus(ctx context.Context, id string) (JobStatus, error) {
 	var out JobStatus
-	err := c.getJSON(ctx, "/api/jobs/"+url.PathEscape(id)+"?view=status", &out)
-	return out, err
-}
-
-// StartGenerate queues the capture and edit of the chosen plan segments.
-func (c *Client) StartGenerate(ctx context.Context, id, preset string, segmentIDs []string) (EnqueueResponse, error) {
-	var out EnqueueResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/jobs/"+url.PathEscape(id)+"/generate",
-		map[string]any{"preset": preset, "segment_ids": segmentIDs}, &out)
+	err := c.getJSON(ctx, jobPath(id)+"?view=status", &out)
 	return out, err
 }

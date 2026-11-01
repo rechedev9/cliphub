@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('cliphubSettings', {
     STUDIO_SETTINGS_CHANNEL,
     { action: 'telemetry-update', enabled },
   ),
+  getAssistantAccess: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'assistant-status' }),
+  updateAssistantAccess: (enabled: unknown): Promise<unknown> => ipcRenderer.invoke(
+    STUDIO_SETTINGS_CHANNEL,
+    { action: 'assistant-update', enabled },
+  ),
 });
 
 contextBridge.exposeInMainWorld('cliphubDownloads', {

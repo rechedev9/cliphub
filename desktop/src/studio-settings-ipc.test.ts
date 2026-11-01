@@ -21,6 +21,14 @@ test('parses only the narrow Studio settings action shape', () => {
     enabled: false,
   });
 
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'assistant-status' }), {
+    action: STUDIO_SETTINGS_ACTION.assistantStatus,
+  });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'assistant-update', enabled: true }), {
+    action: STUDIO_SETTINGS_ACTION.assistantUpdate,
+    enabled: true,
+  });
+
   for (const invalid of [
     null,
     {},
@@ -33,6 +41,10 @@ test('parses only the narrow Studio settings action shape', () => {
     { action: 'telemetry-update' },
     { action: 'telemetry-update', enabled: 'yes' },
     { action: 'telemetry-update', enabled: true, extra: true },
+    { action: 'assistant-status', enabled: true },
+    { action: 'assistant-update' },
+    { action: 'assistant-update', enabled: 1 },
+    { action: 'assistant-update', enabled: true, path: '/tmp/zv-mcp' },
     Object.create({ action: STUDIO_SETTINGS_ACTION.appInfo }),
   ]) {
     assert.throws(() => parseStudioSettingsRequest(invalid), /invalid Studio settings request/);

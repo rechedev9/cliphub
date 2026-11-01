@@ -90,7 +90,8 @@ $commands = @(
     "zv-analysis-viewer",
     "zv-tactical-data",
     "zv-hud-designs",
-    "zv-tui"
+    "zv-tui",
+    "zv-mcp"
 )
 
 $binDir = Join-Path (Resolve-Path ".").Path "bin"

@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -23,7 +24,17 @@ const (
 	// Client tool calls time out around a minute; a longer wait returns "still running".
 	maxWaitSecs  = 55
 	maxNameRunes = 64
+	// maxErrorRunes caps server messages and failure reasons, which can quote demo content.
+	maxErrorRunes = 200
+	// maxDemoBytes is the server's per-demo import cap (internal/httpapi maxDemoBytes).
+	maxDemoBytes = 700 << 20
+	// maxSummaryPlays caps how many plays an approval summary spells out.
+	maxSummaryPlays = 20
+	fullDemoVariant = "gameplay-pov-60"
 )
+
+// Job statuses (internal/job) the MCP server distinguishes.
+const statusRecorded = "recorded"
 
 type empty struct{}
 
@@ -88,6 +99,11 @@ type waitIn struct {
 	WaitSeconds int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait, at most 55; call again if still running"`
 }
 
+type waitJobIn struct {
+	waitIn
+	Variant string `json:"variant,omitempty" jsonschema:"the variant returned by generate_short or render_full_demo; pass it so the render after the capture is followed"`
+}
+
 type createJobIn struct {
 	DemoID  string `json:"demo_id"`
 	SteamID string `json:"steamid" jsonschema:"SteamID64 of the player whose point of view the video uses"`
@@ -101,7 +117,10 @@ type jobOut struct {
 	Percent       int    `json:"percent,omitempty"`
 	Stage         string `json:"stage,omitempty"`
 	FailureCode   string `json:"failure_code,omitempty"`
-	FailureReason string `json:"failure_reason,omitempty"`
+	FailureReason string `json:"failure_reason,omitempty" jsonschema:"untrusted text, may quote demo content"`
+	// Renders is set once the capture is done: the outcome of each render variant.
+	Renders []renderNote `json:"renders,omitempty"`
+	Note    string       `json:"note,omitempty"`
 }
 
 type momentOut struct {
@@ -136,6 +155,7 @@ type generateIn struct {
 	SegmentIDs []string `json:"segment_ids" jsonschema:"segment ids from list_moments"`
 	Preset     string   `json:"preset,omitempty" jsonschema:"preset name from list_presets; empty uses the default"`
 	Approve    string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	shortChoices
 }
 
 type generateOut struct {
@@ -144,10 +164,15 @@ type generateOut struct {
 	Summary       string `json:"summary"`
 	JobID         string `json:"job_id,omitempty"`
 	Status        string `json:"status,omitempty"`
+	Variant       string `json:"variant,omitempty" jsonschema:"pass to wait_for_job to follow the render"`
 }
 
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
+	registerFullDemoTools(server, s)
+	registerVideoTools(server, s)
+	registerApps(server, s)
+	registerShortOptions(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},
@@ -170,6 +195,12 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
 		Description: "List the analysed matches in the Studio library, newest first."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listMatchesIn) (*mcp.CallToolResult, listMatchesOut, error) {
+			if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
+				return nil, listMatchesOut{}, err
+			}
+			if err := checkOptionalFilter("steamid", in.SteamID, steamIDPattern); err != nil {
+				return nil, listMatchesOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, listMatchesOut{}, toolError(err)
@@ -188,6 +219,9 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "get_match", Annotations: readOnly,
 		Description: "Read one match with its players and their SteamID64, to pick whose point of view a video uses."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, matchOut, error) {
+			if err := checkUUID("id", in.ID); err != nil {
+				return nil, matchOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, matchOut{}, toolError(err)
@@ -202,7 +236,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			}
 			out := matchOut{matchSummary: summarizeMatch(m), Players: make([]playerOut, 0, len(m.Players))}
 			for _, p := range m.Players {
-				out.Players = append(out.Players, playerOut{SteamID64: p.SteamID64, Name: cleanName(p.Name), Team: teams[p.TeamKey],
+				out.Players = append(out.Players, playerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: teams[p.TeamKey],
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists, Damage: p.Damage})
 			}
 			return nil, out, nil
@@ -214,7 +248,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err := checkDemoPath(in.Path); err != nil {
 				return nil, demoOut{}, err
 			}
-			c, err := s.client(ctx)
+			c, err := s.uploadClient(ctx)
 			if err != nil {
 				return nil, demoOut{}, toolError(err)
 			}
@@ -223,7 +257,7 @@ func registerTools(server *mcp.Server, s *studio) {
 				return nil, demoOut{}, toolError(err)
 			}
 			if res.Demo == nil {
-				return nil, demoOut{}, fmt.Errorf("Studio rejected the demo (%s): %s", res.ErrorCode, res.Error)
+				return nil, demoOut{}, fmt.Errorf("Studio rejected the demo (%s): %s", cleanName(res.ErrorCode), cleanText(res.Error, maxErrorRunes))
 			}
 			out := describeDemo(*res.Demo)
 			out.Duplicate = res.Status == "duplicate"
@@ -233,6 +267,9 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly,
 		Description: "Wait until an imported demo is analysed (state ready or failed). Returns its match_id when ready."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, demoOut, error) {
+			if err := checkUUID("id", in.ID); err != nil {
+				return nil, demoOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, demoOut{}, toolError(err)
@@ -253,6 +290,12 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "create_job",
 		Description: "Create a video job from a library demo for one player's point of view. The job parses that player; follow with wait_for_job until \"parsed\"."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in createJobIn) (*mcp.CallToolResult, jobOut, error) {
+			if err := checkUUID("demo_id", in.DemoID); err != nil {
+				return nil, jobOut{}, err
+			}
+			if err := checkSteamID(in.SteamID); err != nil {
+				return nil, jobOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, jobOut{}, toolError(err)
@@ -261,23 +304,44 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, jobOut{}, toolError(err)
 			}
-			return nil, jobOut{JobID: res.JobID, Status: res.Status, Running: jobRunning(res.Status, nil), Reused: res.Reused}, nil
+			return nil, jobOut{JobID: res.JobID, Status: cleanName(res.Status), Running: workerOwnsJob(res.Status), Reused: res.Reused}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_job", Annotations: readOnly,
-		Description: "Wait for a job to leave its running state (parsing, recording, rendering). Reports progress; call again while running is true."},
-		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, jobOut, error) {
+		Description: "Wait for a job to leave its running state (parsing, recording, rendering). Reports progress; call again while running is true. " +
+			"After generate_short or render_full_demo, pass the variant they returned: the capture ends before the render does, and only the variant tells when the video is finished."},
+		func(ctx context.Context, req *mcp.CallToolRequest, in waitJobIn) (*mcp.CallToolResult, jobOut, error) {
+			if err := checkUUID("id", in.ID); err != nil {
+				return nil, jobOut{}, err
+			}
+			if in.Variant != "" {
+				if err := checkArtifactName("variant", in.Variant); err != nil {
+					return nil, jobOut{}, err
+				}
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, jobOut{}, toolError(err)
 			}
 			out := jobOut{JobID: in.ID}
+			var variants []string
 			err = poll(ctx, in.WaitSeconds, func() (bool, error) {
 				st, err := c.GetJobStatus(ctx, in.ID)
 				if err != nil {
 					return false, err
 				}
-				out = describeJob(in.ID, st)
+				var renders []tuiclient.RenderVariantState
+				if st.Status == statusRecorded {
+					if variants == nil {
+						if variants, err = renderVariants(ctx, c, in.Variant); err != nil {
+							return false, err
+						}
+					}
+					if renders, err = loadRenderStates(ctx, c, in.ID, variants); err != nil {
+						return false, err
+					}
+				}
+				out = describeJob(in.ID, st, renders)
 				notify(ctx, req, out.Percent, jobMessage(out))
 				return !out.Running, nil
 			})
@@ -287,6 +351,9 @@ func registerTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
 		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\"."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, momentsOut, error) {
+			if err := checkUUID("id", in.ID); err != nil {
+				return nil, momentsOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
@@ -298,8 +365,8 @@ func registerTools(server *mcp.Server, s *studio) {
 			out := momentsOut{Moments: make([]momentOut, 0, len(doc.Moments))}
 			for _, m := range doc.Moments {
 				out.Moments = append(out.Moments, momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
-					Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: m.ReasonCodes,
-					Weapons: m.Weapons, Victims: cleanNames(m.Victims)})
+					Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
+					Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)})
 			}
 			return nil, out, nil
 		})
@@ -323,71 +390,125 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "generate_short",
-		Description: "Capture and edit a Short from chosen plays. This opens CS2 full screen and records for minutes, so the user must approve it. " +
-			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree."},
+		Description: "Capture and edit a Short from chosen plays. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
+			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
+			"Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in generateIn) (*mcp.CallToolResult, generateOut, error) {
-			if len(in.SegmentIDs) == 0 {
-				return nil, generateOut{}, errors.New("segment_ids is empty; pick plays from list_moments")
+			if err := checkUUID("job_id", in.JobID); err != nil {
+				return nil, generateOut{}, err
+			}
+			if err := checkSegmentIDs(in.SegmentIDs); err != nil {
+				return nil, generateOut{}, err
+			}
+			if in.Preset != "" {
+				if err := checkArtifactName("preset", in.Preset); err != nil {
+					return nil, generateOut{}, err
+				}
+			}
+			edit, err := resolveEdit(in.shortChoices)
+			if err != nil {
+				return nil, generateOut{}, err
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
-			preset := in.Preset
-			if preset == "" {
-				list, err := c.Presets(ctx)
+			if in.Music != "" {
+				songs, err := c.ListSongs(ctx)
 				if err != nil {
 					return nil, generateOut{}, toolError(err)
 				}
-				preset = list.Default
+				if err := checkMusic(in.Music, songs); err != nil {
+					return nil, generateOut{}, err
+				}
 			}
-			code := approvalCode(in.JobID, preset, in.SegmentIDs)
-			summary := fmt.Sprintf("Capture %d plays of job %s with preset %q. CS2 opens full screen and records for several minutes.", len(in.SegmentIDs), in.JobID, preset)
-			approved, err := approve(ctx, req, summary, in.Approve, code)
-			if err != nil {
-				return nil, generateOut{}, err
-			}
-			if !approved {
-				return nil, generateOut{NeedsApproval: true, ApprovalCode: code, Summary: summary}, nil
-			}
-			res, err := c.StartGenerate(ctx, in.JobID, preset, in.SegmentIDs)
+			presets, err := c.Presets(ctx)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
-			return nil, generateOut{Summary: summary + " Started; follow with wait_for_job.", JobID: res.ID, Status: res.Status}, nil
+			preset, err := pickPreset(in.Preset, presets)
+			if err != nil {
+				return nil, generateOut{}, err
+			}
+			doc, err := c.GetMoments(ctx, in.JobID)
+			if err != nil {
+				return nil, generateOut{}, toolError(err)
+			}
+			plays, err := describePlays(doc.Moments, in.SegmentIDs)
+			if err != nil {
+				return nil, generateOut{}, err
+			}
+			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
+			summary := fmt.Sprintf("Capture %d plays of job %s as a Short with preset %q: %s. Options: %s. CS2 opens full screen and records for several minutes.",
+				len(in.SegmentIDs), in.JobID, preset, plays, describeShortRequest(body))
+			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
+			if err != nil {
+				return nil, generateOut{}, err
+			}
+			if ok.Ask != nil {
+				return ok.Ask, generateOut{}, nil
+			}
+			if !ok.Approved {
+				return nil, generateOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: summary}, nil
+			}
+			res, err := c.StartShort(ctx, in.JobID, body)
+			if err != nil {
+				return nil, generateOut{}, toolError(err)
+			}
+			return nil, startedOut(summary, res, ""), nil
 		})
 }
 
-// approve asks the user through elicitation when the client supports it, and
-// otherwise accepts only the approval code a previous call returned.
-func approve(ctx context.Context, req *mcp.CallToolRequest, summary, given, code string) (bool, error) {
-	if given != "" {
-		if given != code {
-			return false, errors.New("the approval code does not match these plays and preset; ask the user again")
-		}
-		return true, nil
+// startedOut is the result of a started capture. The render outlives the
+// capture, so the variant is what wait_for_job needs to see it finish.
+func startedOut(summary string, res tuiclient.EnqueueResponse, fallbackVariant string) generateOut {
+	variant := res.Variant
+	if variant == "" {
+		variant = fallbackVariant
 	}
-	params := req.Session.InitializeParams()
-	if params == nil || params.Capabilities == nil || params.Capabilities.Elicitation == nil {
-		return false, nil
+	follow := " Started; follow with wait_for_job."
+	if variant != "" {
+		follow = fmt.Sprintf(" Started; follow with wait_for_job and variant %q.", cleanName(variant))
 	}
-	res, err := req.Session.Elicit(ctx, &mcp.ElicitParams{
-		Message:         summary + " Start now?",
-		RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-	})
-	if err != nil {
-		// A client that advertises elicitation but fails it falls back to the code.
-		return false, nil
-	}
-	if res.Action != "accept" {
-		return false, errors.New("the user declined; nothing was started")
-	}
-	return true, nil
+	return generateOut{Summary: summary + follow, JobID: res.ID, Status: cleanName(res.Status), Variant: cleanName(variant)}
 }
 
-func approvalCode(jobID, preset string, segments []string) string {
-	sum := sha256.Sum256([]byte(jobID + "\x00" + preset + "\x00" + strings.Join(segments, ",")))
-	return hex.EncodeToString(sum[:])[:12]
+func pickPreset(chosen string, list tuiclient.PresetList) (string, error) {
+	if chosen == "" {
+		return list.Default, nil
+	}
+	names := make([]string, 0, len(list.Presets))
+	for _, p := range list.Presets {
+		if p.Name == chosen {
+			return chosen, nil
+		}
+		names = append(names, p.Name)
+	}
+	return "", fmt.Errorf("unknown preset %q; valid presets: %s", cleanName(chosen), strings.Join(names, ", "))
+}
+
+// describePlays spells out, for the approval, the plays the user agrees to. The
+// data comes from list_moments, so it is what the user may have seen in Studio.
+func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
+	bySegment := make(map[string]tuiclient.Moment, len(moments))
+	for _, m := range moments {
+		bySegment[m.SegmentID] = m
+	}
+	parts := make([]string, 0, min(len(ids), maxSummaryPlays+1))
+	for i, id := range ids {
+		m, ok := bySegment[id]
+		if !ok {
+			return "", fmt.Errorf("segment id %s is not a play of this job; use the ids from list_moments", id)
+		}
+		switch {
+		case i < maxSummaryPlays:
+			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("round %d", m.Round), fmt.Sprintf("%d kills", m.Events.Kills))
+			parts = append(parts, fmt.Sprintf("%s (%s)", id, strings.Join(details, ", ")))
+		case i == maxSummaryPlays:
+			parts = append(parts, fmt.Sprintf("and %d more", len(ids)-maxSummaryPlays))
+		}
+	}
+	return strings.Join(parts, "; "), nil
 }
 
 // poll runs check every pollInterval until it reports done or the wait ends.
@@ -417,24 +538,91 @@ func notify(ctx context.Context, req *mcp.CallToolRequest, percent int, message 
 	_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{ProgressToken: token, Progress: float64(percent), Total: 100, Message: message})
 }
 
-func describeJob(id string, st tuiclient.JobStatus) jobOut {
-	out := jobOut{JobID: id, Status: st.Status, Running: jobRunning(st.Status, st.Progress), FailureCode: st.FailureCode, FailureReason: st.FailureReason}
-	if st.Progress != nil {
-		out.Percent, out.Stage = st.Progress.Percent, st.Progress.Stage
+// describeJob reports a job. After the capture ("recorded") the job record says
+// nothing more: the render outcome lives in the render variant states, and the
+// persisted progress file is never deleted, so it is no proof of work.
+func describeJob(id string, st tuiclient.JobStatus, renders []tuiclient.RenderVariantState) jobOut {
+	out := jobOut{JobID: id, Status: cleanName(st.Status), FailureCode: cleanName(st.FailureCode), FailureReason: cleanText(st.FailureReason, maxErrorRunes)}
+	if st.Status != statusRecorded {
+		out.Running = workerOwnsJob(st.Status)
+		if st.Progress != nil {
+			out.Percent, out.Stage = st.Progress.Percent, cleanName(st.Progress.Stage)
+		}
+		return out
+	}
+	var failed *tuiclient.RenderVariantState
+	for i, r := range renders {
+		out.Renders = append(out.Renders, renderNote{Variant: cleanName(r.Variant), Status: cleanName(r.Status), Error: cleanText(r.Error, maxErrorRunes)})
+		switch r.Status {
+		case tuiclient.RenderQueued:
+			out.Running = true
+			if out.Stage == "" {
+				out.Stage = "render queued"
+			}
+		case tuiclient.RenderRendering:
+			out.Running = true
+			out.Stage = "rendering"
+			if st.Progress != nil {
+				out.Percent = st.Progress.Percent
+				if st.Progress.Stage != "" {
+					out.Stage = cleanName(st.Progress.Stage)
+				}
+			}
+		case tuiclient.RenderFailed:
+			failed = &renders[i]
+		}
+	}
+	switch {
+	case out.Running:
+	case failed != nil:
+		out.FailureCode = "render_failed"
+		out.FailureReason = cleanText(failed.Error, maxErrorRunes)
+		out.Note = "The render of variant " + cleanName(failed.Variant) + " failed."
+	case len(renders) > 0:
+		out.Note = "The render finished; list_videos has the videos."
+	default:
+		out.Note = "The capture is done and no render was found; pass the variant returned by generate_short or render_full_demo."
 	}
 	return out
 }
 
-// jobRunning is true while a worker owns the job; "recorded" is running only
-// while its render reports progress.
-func jobRunning(status string, progress *tuiclient.JobProgress) bool {
-	switch status {
-	case "queued", "parsing", "scanning", "recording", "composing":
-		return true
-	case "recorded":
-		return progress != nil
+// workerOwnsJob is true while a worker holds the job. "recorded" is not in the
+// list: whether its render is still going depends on the render variant.
+func workerOwnsJob(status string) bool {
+	return slices.Contains([]string{"queued", "parsing", "scanning", "recording", "composing"}, status)
+}
+
+// renderVariants lists the variants wait_for_job follows: the one it was given,
+// or every preset the job may have rendered.
+func renderVariants(ctx context.Context, c *tuiclient.Client, variant string) ([]string, error) {
+	if variant != "" {
+		return []string{variant}, nil
 	}
-	return false
+	presets, err := c.Presets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(presets.Presets))
+	for _, p := range presets.Presets {
+		names = append(names, p.Name)
+	}
+	return names, nil
+}
+
+// loadRenderStates reads the state of each variant; one never requested (404) is skipped.
+func loadRenderStates(ctx context.Context, c *tuiclient.Client, jobID string, variants []string) ([]tuiclient.RenderVariantState, error) {
+	states := make([]tuiclient.RenderVariantState, 0, len(variants))
+	for _, v := range variants {
+		state, err := c.GetRenderVariant(ctx, jobID, v)
+		if tuiclient.StatusCode(err) == http.StatusNotFound {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		states = append(states, state)
+	}
+	return states, nil
 }
 
 func jobMessage(j jobOut) string {
@@ -445,7 +633,7 @@ func jobMessage(j jobOut) string {
 }
 
 func describeDemo(d tuiclient.LibraryDemo) demoOut {
-	out := demoOut{DemoID: d.ID, State: d.State, Error: d.Error}
+	out := demoOut{DemoID: d.ID, State: cleanName(d.State), Error: cleanText(d.Error, maxErrorRunes)}
 	if d.MatchID != nil {
 		out.MatchID = *d.MatchID
 	}
@@ -457,7 +645,7 @@ func summarizeMatch(m tuiclient.LibraryMatch) matchSummary {
 	for _, t := range m.Teams {
 		teams = append(teams, cleanName(teamName(t)))
 	}
-	return matchSummary{ID: m.ID, DemoID: m.DemoID, Map: m.Map, PlayedAt: m.PlayedAt.Format(time.DateOnly), RoundCount: m.RoundCount, Teams: teams}
+	return matchSummary{ID: m.ID, DemoID: m.DemoID, Map: cleanName(m.Map), PlayedAt: m.PlayedAt.Format(time.DateOnly), RoundCount: m.RoundCount, Teams: teams}
 }
 
 func teamName(t tuiclient.LibraryMatchTeam) string {
@@ -467,19 +655,42 @@ func teamName(t tuiclient.LibraryMatchTeam) string {
 	return t.ClanName
 }
 
+// checkDemoPath accepts only a regular .dem or .dem.zst file on a local drive.
+// A UNC path would make Windows authenticate to whatever host the model names.
 func checkDemoPath(path string) error {
 	lower := strings.ToLower(path)
-	if !filepath.IsAbs(path) || !(strings.HasSuffix(lower, ".dem") || strings.HasSuffix(lower, ".dem.zst")) {
+	if !strings.HasSuffix(lower, ".dem") && !strings.HasSuffix(lower, ".dem.zst") {
+		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
+	}
+	if strings.HasPrefix(path, `\\`) || strings.HasPrefix(path, "//") {
+		return errors.New("network (UNC) paths are not accepted; use a file on a local drive")
+	}
+	if runtime.GOOS == "windows" && !localDrivePath(path) {
+		return errors.New(`path must start with a local drive letter, such as C:\`)
+	}
+	if !filepath.IsAbs(path) {
 		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("cannot read %s: %w", path, err)
+		return errors.New("cannot read that file; check the path")
 	}
 	if !info.Mode().IsRegular() {
 		return errors.New("path is not a regular file")
 	}
+	if info.Size() > maxDemoBytes {
+		return fmt.Errorf("the demo is %d MiB; Studio accepts at most %d MiB", info.Size()>>20, maxDemoBytes>>20)
+	}
 	return nil
+}
+
+// localDrivePath is true for C:\ and C:/ style paths.
+func localDrivePath(path string) bool {
+	if len(path) < 3 || path[1] != ':' || (path[2] != '\\' && path[2] != '/') {
+		return false
+	}
+	letter := path[0] | 0x20
+	return letter >= 'a' && letter <= 'z'
 }
 
 // cleanName keeps a player-chosen string printable and short before it reaches the model.

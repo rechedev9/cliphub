@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getDesktopSettingsBridge, type DesktopSettingsBridge } from './desktop-settings.ts';
+import {
+  claudeCodeCommand,
+  claudeDesktopConfigSnippet,
+  getDesktopSettingsBridge,
+  parseAssistantAccess,
+  type DesktopSettingsBridge,
+} from './desktop-settings.ts';
 
 function bridge(): DesktopSettingsBridge {
   return {
@@ -61,4 +67,35 @@ test('rejects a malformed optional playback operation', () => {
   assert.equal(getDesktopSettingsBridge({
     cliphubSettings: { ...bridge(), getPlaybackInfo: 'not a function' },
   }), null);
+});
+
+test('rejects a malformed optional assistant operation', () => {
+  assert.equal(getDesktopSettingsBridge({
+    cliphubSettings: { ...bridge(), getAssistantAccess: 'not a function' },
+  }), null);
+  assert.equal(getDesktopSettingsBridge({
+    cliphubSettings: { ...bridge(), updateAssistantAccess: 1 },
+  }), null);
+});
+
+test('reads an assistant access reply and refuses a failure reply', () => {
+  const mcpPath = String.raw`C:\Users\Ana\AppData\Roaming\cliphub-studio\mcp\zv-mcp.exe`;
+  assert.deepEqual(parseAssistantAccess({ enabled: true, mcpPath }), { enabled: true, mcpPath });
+  assert.equal(parseAssistantAccess({ ok: false, error: 'No se pudo guardar.' }), null);
+  assert.equal(parseAssistantAccess({ enabled: 'yes', mcpPath }), null);
+  assert.equal(parseAssistantAccess({ enabled: false, mcpPath: '' }), null);
+  assert.equal(parseAssistantAccess(null), null);
+});
+
+test('builds the Claude snippets with the path escaped for each format', () => {
+  const mcpPath = String.raw`C:\Users\Ana Lopez\AppData\Roaming\cliphub-studio\mcp\zv-mcp.exe`;
+  const desktopSnippet = claudeDesktopConfigSnippet(mcpPath);
+  // JSON needs every backslash doubled, and reading it back must give the original path.
+  assert.ok(desktopSnippet.includes(String.raw`"command": "C:\\Users\\Ana Lopez\\AppData\\Roaming\\cliphub-studio\\mcp\\zv-mcp.exe"`));
+  assert.deepEqual(JSON.parse(desktopSnippet), {
+    mcpServers: { 'cliphub-studio': { command: mcpPath } },
+  });
+  // A shell command takes the path as typed, quoted because of the space.
+  assert.equal(claudeCodeCommand(mcpPath), `claude mcp add cliphub-studio -- "${mcpPath}"`);
+  assert.ok(!claudeCodeCommand(mcpPath).includes('\\\\'));
 });

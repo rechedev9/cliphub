@@ -36,7 +36,14 @@ import {
   type WindowState,
 } from './window-state';
 import { lastLines } from './log-tail';
-import { readAgentAccess, removeAgentSession, writeAgentSession } from './agent-session';
+import {
+  readAgentAccess,
+  removeAgentSession,
+  setAgentAccess,
+  writeAgentSession,
+  type AgentSessionTarget,
+} from './agent-session';
+import { syncStableMcp } from './stable-mcp';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
@@ -115,6 +122,12 @@ const recorderExe = resourcePath(
   'bin',
   process.platform === 'win32' ? 'zv-recorder.exe' : 'zv-recorder',
 );
+// Packaged builds bundle zv-mcp next to the other binaries; from source it is the repo's bin/.
+const mcpExe = app.isPackaged
+  ? resourcePath('bin', process.platform === 'win32' ? 'zv-mcp.exe' : 'zv-mcp')
+  : path.join(appRoot, '..', 'bin', process.platform === 'win32' ? 'zv-mcp.exe' : 'zv-mcp');
+// Assistants launch this copy under userData, so a running zv-mcp never locks the install folder.
+const stableMcpExe = path.join(app.getPath('userData'), 'mcp', path.basename(mcpExe));
 const nextServer = resourcePath('web', 'server.js');
 const dataDir = path.join(app.getPath('userData'), 'data');
 const musicDir = path.join(dataDir, 'music');
@@ -212,6 +225,8 @@ function logTail(maxLines = 40): string {
 
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
+// The services of the current boot once they answer, so the assistant switch can republish them.
+let activeAgentSession: AgentSessionTarget | null = null;
 // Same per-launch capability the web child holds; re-seeded whenever the window regains focus.
 let activeProxyCapability: string | null = null;
 let appUpdate: AppUpdateController | null = null;
@@ -220,6 +235,20 @@ let appUpdateIntervalTimer: NodeJS.Timeout | null = null;
 
 const APP_UPDATE_START_DELAY_MS = 8_000;
 const APP_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+// The path an assistant is told to launch; the bundled one only if the stable copy cannot exist.
+let assistantMcpPath = stableMcpExe;
+
+function refreshStableMcp(): void {
+  const stable = syncStableMcp({ source: mcpExe, target: stableMcpExe });
+  assistantMcpPath = stable.path;
+  if (stable.problem !== null) logLine(`[agent] ${stable.problem}\n`);
+}
+
+function clearAgentSession(): void {
+  activeAgentSession = null;
+  removeAgentSession(agentSessionFile);
+}
 
 /** Null if the window was closed or destroyed during an await. */
 function aliveWindow(): BrowserWindow | null {
@@ -524,7 +553,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   const bootStartedAt = performance.now();
   assertBootAttemptActive(attempt);
   // A new boot mints a new token, so the last session must not outlive it.
-  removeAgentSession(agentSessionFile);
+  clearAgentSession();
   // Reuse the existing window on retry instead of opening another one over the
   // error screen from the failed attempt.
   const existing = aliveWindow();
@@ -555,9 +584,10 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   });
   assertBootAttemptActive(attempt);
   const orchestratorUrl = `http://${LOOPBACK_HOST}:${orchPort}`;
-  activeWebOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
+  const webOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
+  activeWebOrigin = webOrigin;
   allowedOrigins.add(`http://${LOOPBACK_HOST}:${orchPort}`);
-  allowedOrigins.add(activeWebOrigin);
+  allowedOrigins.add(webOrigin);
 
   // The web server needs no tools, so its startup overlaps provisioning.
   // If the orchestrator port is taken meanwhile, the boot fails and the next attempt picks a new one.
@@ -617,12 +647,15 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     childExited,
   });
   assertBootAttemptActive(attempt);
+  const running: AgentSessionTarget = { orchestratorUrl, token: security.mutationToken, webOrigin };
+  activeAgentSession = running;
+  const assistantEnabled = readAgentAccess(agentAccessFile);
+  if (assistantEnabled) refreshStableMcp();
   try {
     writeAgentSession({
       sessionFile: agentSessionFile,
-      enabled: readAgentAccess(agentAccessFile),
-      orchestratorUrl,
-      token: security.mutationToken,
+      enabled: assistantEnabled,
+      ...running,
     });
   } catch (err) {
     // Assistant access is optional; Studio itself keeps booting.
@@ -659,7 +692,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
 function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailureDetails = {}): void {
   if (activeBootAttempt !== attempt) return;
   attempt.controller.abort();
-  removeAgentSession(agentSessionFile);
+  clearAgentSession();
   const stopped = attempt.processes.stop();
   if (stopped) activeBootAttempt = null;
   allowedOrigins.clear();
@@ -686,7 +719,7 @@ function assertBootAttemptActive(attempt: BootAttempt): void {
 
 function stopActiveBootAttempt(): boolean {
   const attempt = activeBootAttempt;
-  removeAgentSession(agentSessionFile);
+  clearAgentSession();
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
@@ -772,6 +805,24 @@ function registerStudioSettingsIPC(): void {
       } catch {
         return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
       }
+    }
+    if (request.action === 'assistant-status') {
+      return { enabled: readAgentAccess(agentAccessFile), mcpPath: assistantMcpPath };
+    }
+    if (request.action === 'assistant-update') {
+      try {
+        if (request.enabled) refreshStableMcp();
+        setAgentAccess({
+          accessFile: agentAccessFile,
+          sessionFile: agentSessionFile,
+          enabled: request.enabled,
+          running: activeAgentSession,
+        });
+      } catch (error) {
+        logLine(`[agent] could not save assistant access: ${String(error)}\n`);
+        return settingsFailure('No se pudo guardar el acceso de asistentes.');
+      }
+      return { enabled: request.enabled, mcpPath: assistantMcpPath };
     }
     if (request.action === 'playback-info') {
       const read = readPlaybackInfo(

@@ -5,13 +5,17 @@ export const STUDIO_SETTINGS_ACTION = {
   playbackInfo: 'playback-info',
   telemetryStatus: 'telemetry-status',
   telemetryUpdate: 'telemetry-update',
+  assistantStatus: 'assistant-status',
+  assistantUpdate: 'assistant-update',
 } as const;
 
 export type StudioSettingsRequest =
   | { action: typeof STUDIO_SETTINGS_ACTION.appInfo }
   | { action: typeof STUDIO_SETTINGS_ACTION.playbackInfo }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }
-  | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean };
+  | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean }
+  | { action: typeof STUDIO_SETTINGS_ACTION.assistantStatus }
+  | { action: typeof STUDIO_SETTINGS_ACTION.assistantUpdate; enabled: boolean };
 
 export interface TrustedSettingsSenderInput {
   expectedOrigin: string | null;
@@ -29,11 +33,13 @@ export function parseStudioSettingsRequest(value: unknown): StudioSettingsReques
   const action = value.action;
   if (action === STUDIO_SETTINGS_ACTION.appInfo
     || action === STUDIO_SETTINGS_ACTION.playbackInfo
-    || action === STUDIO_SETTINGS_ACTION.telemetryStatus) {
+    || action === STUDIO_SETTINGS_ACTION.telemetryStatus
+    || action === STUDIO_SETTINGS_ACTION.assistantStatus) {
     requireExactKeys(value, ['action']);
     return { action };
   }
-  if (action === STUDIO_SETTINGS_ACTION.telemetryUpdate && typeof value.enabled === 'boolean') {
+  if ((action === STUDIO_SETTINGS_ACTION.telemetryUpdate || action === STUDIO_SETTINGS_ACTION.assistantUpdate)
+    && typeof value.enabled === 'boolean') {
     requireExactKeys(value, ['action', 'enabled']);
     return { action, enabled: value.enabled };
   }

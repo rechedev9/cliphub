@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opciones del Short</title>
+<style>
+/*BASE_CSS*/
+</style>
+</head>
+<body>
+<h1>Opciones del Short</h1>
+<p class="sub" id="plays">Cargando opciones...</p>
+<div id="root"></div>
+<script>
+/*BRIDGE_JS*/
+</script>
+<script>
+const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: false, approval: null };
+const root = document.getElementById("root");
+const SINGLE = [["format", "Formato"], ["kill_effect", "Efecto de baja"], ["transition", "Transición"]];
+
+function defaults(data) {
+  const choice = { music: "" };
+  for (const [field] of SINGLE) {
+    const first = data[field].find((o) => o.default) || data[field][0];
+    choice[field] = first ? first.id : "";
+  }
+  for (const t of data.toggles) choice[t.id] = Boolean(t.default);
+  return choice;
+}
+
+// Any change to the options invalidates a pending approval, which is bound to them.
+function change(field, value) {
+  state.choice[field] = value;
+  state.approval = null;
+  state.started = false;
+  render();
+}
+
+function render() {
+  const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key : "";
+  const { data, choice } = state;
+  const count = state.segmentIds.length;
+  document.getElementById("plays").textContent = count + (count === 1 ? " jugada elegida" : " jugadas elegidas");
+  const sections = SINGLE.map(([field, title]) => [
+    el("h2", {}, title),
+    el("div", { class: "grid", role: "radiogroup", "aria-label": title },
+      data[field].map((o) => el("button", { class: "card", type: "button", role: "radio", "data-key": field + ":" + o.id, "aria-checked": String(choice[field] === o.id), onclick: () => change(field, o.id) },
+        el("b", {}, o.label), el("span", {}, o.description)))),
+  ]);
+  sections.push([el("h2", {}, "Música"), el("div", { class: "rows", role: "radiogroup", "aria-label": "Música" }, musicRows())]);
+  sections.push([el("h2", {}, "Extras"), el("div", { class: "rows" }, data.toggles.map(toggleRow))]);
+  root.replaceChildren(...sections.flat(), footer());
+  const again = focused ? root.querySelector('[data-key="' + focused + '"]') : null;
+  if (again) again.focus();
+}
+
+function musicRows() {
+  const none = musicRow("", el("b", {}, "Sin música"), el("span", {}, "El audio del juego tal cual"));
+  return [none, ...state.data.music.map((m) => {
+    const detail = [m.artist, m.genre, m.duration_seconds ? formatDuration(m.duration_seconds) : ""].filter(Boolean).join(" · ");
+    const playing = state.playing === m.id;
+    const play = !bridge.canCallTools() ? null : el("button", { class: "play", type: "button", "aria-pressed": String(playing), "aria-label": (playing ? "Parar " : "Escuchar ") + m.title,
+      onclick: (e) => { e.stopPropagation(); togglePlay(m.id); } }, playing ? "■" : "▶");
+    if (play && state.loading === m.id) play.disabled = true;
+    return musicRow(m.id, el("b", {}, m.title), el("span", {}, detail), play);
+  })];
+}
+
+function musicRow(id, title, detail, play) {
+  const pick = () => change("music", id);
+  return el("div", { class: "row", role: "radio", tabindex: "0", "data-key": "music:" + id, "aria-checked": String(state.choice.music === id), onclick: pick,
+    onkeydown: (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(); } } },
+  play || null, el("div", { class: "grow" }, title, detail));
+}
+
+function toggleRow(t) {
+  const box = el("input", { type: "checkbox", id: "t-" + t.id, "data-key": "toggle:" + t.id, onchange: (e) => change(t.id, e.target.checked) });
+  box.checked = Boolean(state.choice[t.id]);
+  return el("div", { class: "row" }, box, el("label", { class: "grow", for: "t-" + t.id }, el("b", {}, t.label), el("span", {}, t.description)));
+}
+
+function formatDuration(seconds) {
+  return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+}
+
+function footer() {
+  const waiting = state.approval !== null;
+  const label = waiting ? "Confirmar y generar" : state.started ? "Generado" : "Generar";
+  const generate = el("button", { class: "primary", type: "button", id: "go", onclick: waiting ? confirmStart : start }, label);
+  generate.disabled = state.busy || state.started || state.segmentIds.length === 0;
+  const msg = el("div", { class: "msg", id: "msg", role: "status" }, waiting ? state.approval.summary : "");
+  const cancel = waiting ? el("button", { class: "ghost", type: "button", onclick: () => { state.approval = null; render(); setMsg("Cancelado."); } }, "Cancelar") : null;
+  return el("div", { class: "bar" }, msg, cancel, generate);
+}
+
+function setMsg(text, kind) {
+  const msg = document.getElementById("msg");
+  if (!msg) return;
+  msg.textContent = text;
+  msg.className = "msg" + (kind ? " " + kind : "");
+}
+
+function stopAudio() {
+  if (state.audio) state.audio.pause();
+  state.audio = null;
+  state.playing = "";
+}
+
+// The host sandbox only lets audio start from a user gesture, so play() runs in the click
+// handler when the track is cached. After a fetch it may be refused; the next click then plays.
+function playTrack(id, src) {
+  const audio = new Audio(src);
+  state.audio = audio;
+  state.playing = id;
+  audio.addEventListener("ended", () => { if (state.audio === audio) { stopAudio(); render(); } });
+  audio.addEventListener("error", () => {
+    if (state.audio !== audio) return;
+    stopAudio();
+    render();
+    setMsg("La pista no se pudo reproducir: el audio está dañado o no es compatible.", "bad");
+  });
+  render();
+  return audio.play().then(() => setMsg("")).catch((err) => {
+    if (state.audio !== audio) return;
+    stopAudio();
+    render();
+    setMsg(err.name === "NotAllowedError"
+      ? "El asistente bloqueó el audio. Pulsa ▶ otra vez para escuchar la pista."
+      : "La pista no se pudo reproducir: " + err.message, "bad");
+  });
+}
+
+function togglePlay(id) {
+  const wasPlaying = state.playing === id;
+  stopAudio();
+  state.wanted = wasPlaying ? "" : id;
+  if (wasPlaying) return render();
+  if (state.sources[id]) return playTrack(id, state.sources[id]);
+  state.loading = id;
+  render();
+  setMsg("Cargando la pista...");
+  bridge.callTool("get_song_audio", { song_id: id }).then((res) => {
+    const src = dataUrl((res.content || []).find((c) => c.type === "audio"), "audio");
+    if (res.isError || !src) throw new Error(resultText(res) || "Studio no devolvió el audio");
+    state.sources = { [id]: src };
+    if (state.loading === id) state.loading = "";
+    if (state.wanted !== id) return render();
+    return playTrack(id, src);
+  }).catch((err) => {
+    if (state.loading === id) state.loading = "";
+    render();
+    setMsg("No se pudo cargar la pista: " + err.message, "bad");
+  });
+}
+
+function request() {
+  const c = state.choice;
+  const args = { job_id: state.jobId, segment_ids: state.segmentIds, format: c.format, kill_effect: c.kill_effect, transition: c.transition };
+  if (c.music) args.music = c.music;
+  for (const t of state.data.toggles) args[t.id] = Boolean(c[t.id]);
+  return args;
+}
+
+function chatMessage(args) {
+  const rest = Object.entries(args).filter(([k]) => k !== "job_id" && k !== "segment_ids").map(([k, v]) => k + "=" + v);
+  return "Genera el Short con generate_short: job_id=" + args.job_id + ", segment_ids=" + JSON.stringify(args.segment_ids) + ", " + rest.join(", ") + ".";
+}
+
+async function start() {
+  const args = request();
+  if (bridge.canCallTools()) return run(args);
+  try {
+    await bridge.sendMessage(chatMessage(args));
+    state.started = true;
+    render();
+    setMsg("Enviado al chat. Claude lo generará con estas opciones.", "ok");
+  } catch (err) {
+    setMsg("No se pudo enviar al chat: " + err.message, "bad");
+  }
+}
+
+function confirmStart() {
+  return run({ ...request(), approve: state.approval.code });
+}
+
+async function run(args) {
+  state.busy = true;
+  document.getElementById("go").disabled = true;
+  setMsg("Preparando el Short...");
+  try {
+    const res = await bridge.callTool("generate_short", args);
+    if (res.isError) throw new Error(resultText(res) || "Studio rechazó la petición");
+    const out = res.structuredContent || {};
+    state.busy = false;
+    if (out.needs_approval) {
+      state.approval = { code: out.approval_code, summary: out.summary };
+      return render();
+    }
+    state.approval = null;
+    state.started = true;
+    render();
+    setMsg("Short en marcha. Mira el progreso en Studio.", "ok");
+    await bridge.sendMessage("El Short ya está en marcha (job_id=" + out.job_id + ", variant=" + (out.variant || "") + "). Sigue su progreso con wait_for_job pasando ese variant.").catch(() => {});
+  } catch (err) {
+    state.busy = false;
+    render();
+    setMsg(err.message, "bad");
+  }
+}
+
+function show(data, jobId, segmentIds) {
+  state.data = data;
+  state.jobId = jobId || state.jobId;
+  state.segmentIds = segmentIds && segmentIds.length ? segmentIds : state.segmentIds;
+  state.choice = defaults(data);
+  render();
+}
+
+function setPlain(text) {
+  document.getElementById("plays").textContent = text;
+}
+
+async function load(result) {
+  const out = result && result.structuredContent;
+  if (out && out.format) return show(out, out.job_id, out.segment_ids);
+  if (!bridge.canCallTools()) return setPlain("Esta vista no recibió las opciones. Elige en el chat.");
+  const listed = await bridge.callTool("list_short_options", {});
+  if (!listed.structuredContent) return setPlain("No se pudieron cargar las opciones.");
+  show(listed.structuredContent);
+}
+
+bridge.onTeardown(stopAudio);
+bridge.onToolInput((args) => {
+  state.jobId = args.job_id || "";
+  state.segmentIds = Array.isArray(args.segment_ids) ? args.segment_ids : [];
+});
+bridge.onToolResult((result) => load(result).catch((err) => setPlain(err.message)));
+bridge.start("cliphub-short-options").then((ok) => { if (!ok) setPlain("Esta vista solo funciona dentro de un asistente compatible."); });
+</script>
+</body>
+</html>

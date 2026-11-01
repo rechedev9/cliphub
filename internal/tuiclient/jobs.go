@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -43,7 +44,7 @@ func (c *Client) ListJobs(ctx context.Context, limit int) ([]Job, error) {
 // GetJob returns one job, including its kill plan when parsed.
 func (c *Client) GetJob(ctx context.Context, id string) (Job, error) {
 	var job Job
-	err := c.getJSON(ctx, "/api/jobs/"+id, &job)
+	err := c.getJSON(ctx, jobPath(id), &job)
 	return job, err
 }
 
@@ -62,14 +63,14 @@ func (c *Client) CreateJob(ctx context.Context, demoPath, targetSteamID string) 
 func (c *Client) StartParse(ctx context.Context, id, targetSteamID string) (CreateJobResponse, error) {
 	body := map[string]string{"target_steamid": targetSteamID}
 	var out CreateJobResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/jobs/"+id+"/parse", body, &out)
+	err := c.doJSON(ctx, http.MethodPost, jobPath(id)+"/parse", body, &out)
 	return out, err
 }
 
 // GetPlan returns the kill plan, or a 409 APIError if not parsed.
 func (c *Client) GetPlan(ctx context.Context, id string) (Plan, error) {
 	var plan Plan
-	err := c.getJSON(ctx, "/api/jobs/"+id+"/plan", &plan)
+	err := c.getJSON(ctx, jobPath(id)+"/plan", &plan)
 	return plan, err
 }
 
@@ -77,14 +78,14 @@ func (c *Client) GetPlan(ctx context.Context, id string) (Plan, error) {
 // has not finished.
 func (c *Client) GetRoster(ctx context.Context, id string) (RosterResult, error) {
 	var roster RosterResult
-	err := c.getJSON(ctx, "/api/jobs/"+id+"/roster", &roster)
+	err := c.getJSON(ctx, jobPath(id)+"/roster", &roster)
 	return roster, err
 }
 
 // GetMoments returns the scored moments, or a 409 APIError if not ready.
 func (c *Client) GetMoments(ctx context.Context, id string) (MomentsDocument, error) {
 	var doc MomentsDocument
-	err := c.getJSON(ctx, "/api/jobs/"+id+"/moments", &doc)
+	err := c.getJSON(ctx, jobPath(id)+"/moments", &doc)
 	return doc, err
 }
 
@@ -99,14 +100,14 @@ func (c *Client) StartRecording(ctx context.Context, id, preset string, segmentI
 		body["segment_ids"] = segmentIDs
 	}
 	var out EnqueueResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/jobs/"+id+"/record", body, &out)
+	err := c.doJSON(ctx, http.MethodPost, jobPath(id)+"/record", body, &out)
 	return out, err
 }
 
 // StartCompose enqueues the final concat/composition of the recorded segments.
 func (c *Client) StartCompose(ctx context.Context, id string) (EnqueueResponse, error) {
 	var out EnqueueResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/jobs/"+id+"/compose", nil, &out)
+	err := c.doJSON(ctx, http.MethodPost, jobPath(id)+"/compose", nil, &out)
 	return out, err
 }
 
@@ -114,7 +115,7 @@ func (c *Client) StartCompose(ctx context.Context, id string) (EnqueueResponse, 
 // publish-ready Short.
 func (c *Client) StartRenderVariant(ctx context.Context, id, variant string) (EnqueueResponse, error) {
 	var out EnqueueResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/jobs/"+id+"/renders/"+variant, map[string]any{}, &out)
+	err := c.doJSON(ctx, http.MethodPost, renderPath(id, variant), map[string]any{}, &out)
 	return out, err
 }
 
@@ -122,14 +123,14 @@ func (c *Client) StartRenderVariant(ctx context.Context, id, variant string) (En
 // when it has never been requested.
 func (c *Client) GetRenderVariant(ctx context.Context, id, variant string) (RenderVariantState, error) {
 	var state RenderVariantState
-	err := c.getJSON(ctx, "/api/jobs/"+id+"/renders/"+variant, &state)
+	err := c.getJSON(ctx, renderPath(id, variant), &state)
 	return state, err
 }
 
 // DownloadFinal streams the composed MP4 to dst. Returns a 409 APIError when the
 // job has not been composed yet.
 func (c *Client) DownloadFinal(ctx context.Context, id string, dst io.Writer) error {
-	_, err := c.stream(ctx, "/api/jobs/"+id+"/final", dst)
+	_, err := c.stream(ctx, jobPath(id)+"/final", dst)
 	return err
 }
 
@@ -200,4 +201,9 @@ func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath,
 	_ = pr.Close()
 	<-done
 	return err
+}
+
+// jobPath is the escaped URL path of one job.
+func jobPath(id string) string {
+	return "/api/jobs/" + url.PathEscape(id)
 }

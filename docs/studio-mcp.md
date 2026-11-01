@@ -41,8 +41,10 @@ Decide in phase 1 whether the WebMCP preview stays.
 
 ## Product behavior
 
-- Settings gets a "Claude" section with a switch, "Permitir que Claude use Studio" (default off),
-  and a card that shows the Claude Desktop config snippet and the `claude mcp add` command.
+- Settings has an "Asistentes (Claude, ChatGPT)" card with the switch "Permitir que un asistente use
+  Studio" (default off) and two copy buttons: the Claude Desktop config snippet and the
+  `claude mcp add` command. Both point at a stable copy, `<userData>\mcp\zv-mcp.exe`, so a running
+  `zv-mcp.exe` never blocks the auto-updater and a custom install folder never breaks the config.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run.
@@ -75,10 +77,13 @@ boot, and production requires it even for reads (`requireMutationToken` in
 
 1. After `waitForDesktopServices` succeeds, Electron always writes `<userData>/agent-session.json`
    atomically: `{ "version": 1, "enabled": false }` when the switch is off, and
-   `{ "version": 1, "enabled": true, "orchestratorUrl": "http://127.0.0.1:<port>", "token": "<hex>", "dataDir": "<path>" }`
+   `{ "version": 1, "enabled": true, "orchestratorUrl": "http://127.0.0.1:<port>", "token": "<hex>", "webOrigin": "http://127.0.0.1:<port>" }`
    when it is on. "No file" then means "Studio is closed", and `enabled: false` means "switch off".
-2. Electron rewrites it when the switch changes and deletes it on quit, on boot failure and at the
-   start of a new boot attempt (a new boot mints a new token).
+2. Electron rewrites it at once when the switch changes (session file first, then
+   `agent-access.json`), retries a rename that Windows refuses while `zv-mcp` reads the file, and
+   falls back to deleting it when turning access off fails, so no token stays on disk. It deletes
+   the file on quit, on boot failure and at the start of a new boot attempt (a new boot mints a new
+   token). `webOrigin` serves public UI assets such as the HUD previews (`/hud/*` needs no cookie).
 3. `zv-mcp` finds userData at `%APPDATA%\cliphub-studio`, overridden by
    `CLIPHUB_STUDIO_USER_DATA`. This is a new variable: `CLIPHUB_E2E_USER_DATA` is consumed and
    deleted by `isolated-userdata.cjs`, so the MCP cannot inherit it.
@@ -99,22 +104,29 @@ The settings switch needs a new store file, a new action in the typed settings I
 There is no event stream; the UI polls.
 - Start tools return right away with the job id and first status.
 - `wait_for_job` blocks up to 50 s by default, polls `GET /api/jobs/{id}?view=status` every 2 s
-  and sends MCP progress notifications from `progress` (capture progress while recording, render
-  progress with `stage` while rendering). It returns the final status with `failure_code`, or
-  "still running" so Claude calls it again. The spike confirms each client's tool-call timeout.
-- Library demos have their own states (`queued`, `parsing`, `ready`, `failed`); `wait_for_job`
-  also accepts a library demo id and waits for `ready`.
+  and sends MCP progress notifications. It returns the final status with `failure_code`, or
+  "still running" so Claude calls it again.
+- After capture a Short job stays `recorded`; the render outcome lives in
+  `GET /api/jobs/{id}/renders/{variant}`, and `render/render-progress.json` is never deleted. So for
+  `recorded`, `wait_for_job` decides from the render variant state (queued or rendering is running,
+  failed is a failure, ready is done), never from the progress file alone. `generate_short` and
+  `render_full_demo` return the variant to pass in.
+- Library demos have their own states (`queued`, `parsing`, `ready`, `failed`): `wait_for_demo`.
 
 The orchestrator rate limiter is a pass-through in Studio (`WithRateLimit(0, 0)`), so polling is
 safe. Only uploads are limited (2 concurrent).
 
 ### Approval
 
-- Elicitation before `generate_short` and `render_full_demo`, showing what will run (segments and
-  preset, or the Full Demo plan summary and `plan_hash`).
-- Fallback for clients without elicitation: the tool returns the summary and requires a second
-  call with `approve` set to the shown hash (a hash of the segment ids and preset for Shorts, the
-  `plan_hash` for Full Demo).
+- Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
+  rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
+- On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
+  travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
+  clients. A failed or declined question starts nothing and hands out no code.
+- Only a client that does not advertise elicitation gets the approval-code path: an HMAC with a
+  per-process random key over the tool, the job and the exact request, single use, expiring after
+  10 minutes. This path still relies on the model asking the user, as the tool description says.
+- Headless Claude Code (`claude -p`) advertises elicitation and declines it, so nothing starts.
 
 ### Untrusted text
 
@@ -141,7 +153,7 @@ Read:
 | `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores |
 | `list_presets` | `GET /api/presets` |
 | `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
-| `list_videos` | `GET /api/jobs/{id}/renders/{variant}` and the publish board; paths resolved against `dataDir` |
+| `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags |
 
 Write:
@@ -152,10 +164,25 @@ Write:
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid` | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
-| `wait_for_job` | polls a job or a library demo | no |
+| `wait_for_job` | polls a job; takes the render `variant` | no |
+| `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
+| `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
 
-`import_demo` accepts only an absolute path to a `.dem` or `.dem.zst` file, refuses directories
-and files above the server's demo size limit, and leaves real validation to the orchestrator.
+Short look and Full Demo HUD:
+
+| Tool | What it does |
+| --- | --- |
+| `list_short_options` | format, kill effect, transition, music and extras, each with a one-line Spanish description and the default |
+| `get_song_audio` | one track as audio content, app-only (`_meta.ui.visibility: ["app"]`) |
+| `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with webp previews as image content |
+| `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
+| `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
+
+`import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
+paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real
+validation to the orchestrator. Every id argument is validated (UUIDs, `seg-` ids, strict variant
+and video names) before it reaches a URL, and a panic in a handler is recovered so the stdio server
+survives.
 
 `studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
 instead of failing halfway.
@@ -224,3 +251,25 @@ changes, `open_studio`, resources and prompts.
 
 1. Does the WebMCP preview (`web/lib/webmcp.ts`) stay?
 2. Does ChatGPT Desktop run local stdio servers (answered by the spike)?
+
+## v1 results (2026-11-01)
+
+- Built by a workflow of Sonnet agents in two rounds (implementation, then the fixes from an
+  adversarial review), then checked by hand.
+- Checks: `go vet` and `go test` for `cmd/zv-mcp` and `internal/tuiclient`, `TestNoDeadCode` for both
+  GOOS targets, and typecheck, lint and unit tests for desktop and web all pass.
+- Real Studio from the branch with a throwaway profile: Claude Code, configured only with the stable
+  `<userData>\mcp\zv-mcp.exe`, imported a demo, picked the top fragger, created the job, listed the
+  plays, read the Short options (2 formats, 6 kill effects, 6 transitions, 15 tracks, 7 extras),
+  listed 12 HUDs with 11 previews, planned a Full Demo with the `ember` HUD (23 rounds, 1328 s) and
+  was refused a UNC path and a corrupt demo. The headless client declined the Short and the render,
+  so nothing started. `studio.log` showed no errors and no refused requests, and the match showed up
+  in Partidas.
+- The Settings switch, clicked in the real window: off rewrote the session to
+  `{"version":1,"enabled":false}` and `zv-mcp` answered that access is off; on republished the URL,
+  token and `webOrigin` without a restart. A new `zv-mcp.exe` build replaced the stable copy on the
+  next boot.
+- Not verified yet: MCP Apps rendering, audio playback and the elicitation form in a real Claude
+  Desktop or ChatGPT Desktop (ChatGPT Desktop is not installed here), and a real CS2 capture.
+- `zv-mcp.exe` is about 27 MB because the Full Demo and Short tools import `recapplan`,
+  `renderplan` and `customhud` to validate requests the same way the server does.

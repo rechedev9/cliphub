@@ -42,12 +42,38 @@ export type StudioPlaybackInfo =
     scope: 'global';
   };
 
+export type StudioAssistantAccess = {
+  enabled: boolean;
+  /** Absolute path of the stable zv-mcp copy under userData that an assistant launches. */
+  mcpPath: string;
+};
+
 export interface DesktopSettingsBridge {
   getAppInfo(): Promise<StudioAppInfo>;
   /** Optional so a current UI can still use settings exposed by an older preload. */
   getPlaybackInfo?(): Promise<StudioPlaybackInfo>;
   getTelemetry(): Promise<StudioTelemetryStatus>;
   updateTelemetry(enabled: boolean): Promise<StudioTelemetryStatus>;
+  /** Optional so a current UI can still use settings exposed by an older preload. */
+  getAssistantAccess?(): Promise<unknown>;
+  updateAssistantAccess?(enabled: boolean): Promise<unknown>;
+}
+
+/** Narrows an assistant-access reply; the main process answers a failure with another shape. */
+export function parseAssistantAccess(value: unknown): StudioAssistantAccess | null {
+  if (!isRecord(value) || typeof value.enabled !== 'boolean') return null;
+  if (typeof value.mcpPath !== 'string' || value.mcpPath === '') return null;
+  return { enabled: value.enabled, mcpPath: value.mcpPath };
+}
+
+/** The Claude Desktop config block that registers the bundled server. */
+export function claudeDesktopConfigSnippet(mcpPath: string): string {
+  return JSON.stringify({ mcpServers: { 'cliphub-studio': { command: mcpPath } } }, null, 2);
+}
+
+/** The Claude Code command that registers the bundled server. */
+export function claudeCodeCommand(mcpPath: string): string {
+  return `claude mcp add cliphub-studio -- "${mcpPath}"`;
 }
 
 /**
@@ -66,7 +92,9 @@ function isDesktopSettingsBridge(value: unknown): value is DesktopSettingsBridge
   return typeof value.getAppInfo === 'function'
     && (value.getPlaybackInfo === undefined || typeof value.getPlaybackInfo === 'function')
     && typeof value.getTelemetry === 'function'
-    && typeof value.updateTelemetry === 'function';
+    && typeof value.updateTelemetry === 'function'
+    && (value.getAssistantAccess === undefined || typeof value.getAssistantAccess === 'function')
+    && (value.updateAssistantAccess === undefined || typeof value.updateAssistantAccess === 'function');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

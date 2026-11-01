@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD de la Demo completa</title>
+<style>
+/*BASE_CSS*/
+.grid.huds { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+</style>
+</head>
+<body>
+<h1>HUD de la Demo completa</h1>
+<p class="sub" id="lead">Cargando diseños...</p>
+<div id="root"></div>
+<script>
+/*BRIDGE_JS*/
+</script>
+<script>
+const state = { jobId: "", themes: [], previews: {}, selected: "", busy: false, planned: false };
+const root = document.getElementById("root");
+
+function render() {
+  const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key : "";
+  const cards = state.themes.map((t) => {
+    const src = state.previews[t.id];
+    const thumb = el("div", { class: "thumb" }, src ? el("img", { src, alt: "Vista previa de " + t.name }) : "Sin vista previa");
+    return el("button", { class: "card", type: "button", role: "radio", "data-key": "hud:" + t.id, "aria-checked": String(state.selected === t.id), onclick: () => select(t.id) },
+      thumb, el("b", {}, t.name), el("span", {}, t.description));
+  });
+  const confirm = el("button", { class: "primary", type: "button", onclick: plan }, state.planned ? "Plan creado" : "Usar este HUD");
+  confirm.disabled = !state.selected || state.busy || state.planned;
+  root.replaceChildren(
+    el("div", { class: "grid huds", role: "radiogroup", "aria-label": "Diseños de HUD" }, cards),
+    el("div", { class: "bar" }, el("div", { class: "msg", id: "msg", role: "status" }), confirm),
+    el("div", { id: "plan" }));
+  const again = focused ? root.querySelector('[data-key="' + focused + '"]') : null;
+  if (again) again.focus();
+}
+
+function select(id) {
+  state.selected = id;
+  state.planned = false;
+  render();
+}
+
+function setMsg(text, kind) {
+  const msg = document.getElementById("msg");
+  if (!msg) return;
+  msg.textContent = text;
+  msg.className = "msg" + (kind ? " " + kind : "");
+}
+
+function name(id) {
+  const theme = state.themes.find((t) => t.id === id);
+  return theme ? theme.name : id;
+}
+
+// list_hud_themes answers with a text block "id: name" before each preview image.
+function readPreviews(result) {
+  const content = result.content || [];
+  const previews = {};
+  content.forEach((block, i) => {
+    const next = content[i + 1];
+    if (block.type !== "text" || !next || next.type !== "image") return;
+    const id = block.text.split(":")[0].trim();
+    const src = dataUrl(next, "image");
+    if (src) previews[id] = src;
+  });
+  return previews;
+}
+
+async function loadPreviews() {
+  if (!bridge.canCallTools()) return;
+  try {
+    const res = await bridge.callTool("list_hud_themes", {});
+    if (!res.isError) {
+      state.previews = readPreviews(res);
+      render();
+    }
+  } catch (err) {
+    setMsg("No se pudieron cargar las vistas previas.", "bad");
+  }
+}
+
+function chatMessage() {
+  return "Quiero el HUD " + state.selected + " (" + name(state.selected) + ") para la Demo completa del job_id=" + state.jobId + ". Prepara el plan con plan_full_demo.";
+}
+
+async function plan() {
+  if (!bridge.canCallTools()) {
+    try {
+      await bridge.sendMessage(chatMessage());
+      state.planned = true;
+      render();
+      setMsg("Enviado al chat. Claude preparará el plan con este HUD.", "ok");
+    } catch (err) {
+      setMsg("No se pudo enviar al chat: " + err.message, "bad");
+    }
+    return;
+  }
+  state.busy = true;
+  render();
+  setMsg("Preparando el plan...");
+  try {
+    const res = await bridge.callTool("plan_full_demo", { job_id: state.jobId, hud: state.selected });
+    if (res.isError) throw new Error(resultText(res) || "Studio rechazó el plan");
+    const out = res.structuredContent || {};
+    state.busy = false;
+    state.planned = Boolean(out.ready);
+    render();
+    showPlan(out);
+    if (out.ready) {
+      await bridge.sendMessage("Plan de Demo completa listo con el HUD " + state.selected + " (plan_hash=" + out.plan_hash + ", job_id=" + state.jobId + "). Si el usuario quiere grabarlo, sigue con render_full_demo.").catch(() => {});
+    }
+  } catch (err) {
+    state.busy = false;
+    render();
+    setMsg(err.message, "bad");
+  }
+}
+
+function showPlan(out) {
+  const lines = [el("div", {}, out.summary || "")];
+  const notes = (out.blockers || []).concat(out.warnings || []);
+  if (notes.length) lines.push(el("ul", { class: "notes" }, notes.map((n) => el("li", {}, n))));
+  document.getElementById("plan").replaceChildren(el("div", { class: "plan" }, lines));
+  setMsg(out.ready ? "Plan listo. Claude te pedirá confirmar antes de grabar." : "El plan tiene bloqueos.", out.ready ? "ok" : "bad");
+}
+
+function load(result) {
+  const out = result && result.structuredContent;
+  if (!out || !Array.isArray(out.themes)) {
+    document.getElementById("lead").textContent = "Esta vista no recibió los diseños. Elige en el chat.";
+    return;
+  }
+  state.jobId = out.job_id || state.jobId;
+  state.themes = out.themes;
+  document.getElementById("lead").textContent = "Elige el diseño del HUD para el vídeo.";
+  render();
+  loadPreviews();
+}
+
+bridge.onToolInput((args) => { state.jobId = args.job_id || ""; });
+bridge.onToolResult(load);
+bridge.start("cliphub-hud-gallery").then((ok) => {
+  if (!ok) document.getElementById("lead").textContent = "Esta vista solo funciona dentro de un asistente compatible.";
+});
+</script>
+</body>
+</html>
