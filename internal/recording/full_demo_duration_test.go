@@ -21,6 +21,7 @@ func TestFullDemoRecordingAcceptsApprovedTailBeyondLegacyDuration(t *testing.T) 
 	}{
 		{"round tail", 2000, 2400, 0, 2128, 2128},
 		{"death tail", 2000, 2400, 1980, 2172, 2172},
+		{"source EOF margin shortens the round tail", 2000, 2300, 0, 2108, 2108},
 		{"source EOF within the margin stops at the round end", 2000, 2040, 0, 2000, 2000},
 		{"existing duration already covers tail", 2400, 2400, 0, 2128, 2400},
 	} {
