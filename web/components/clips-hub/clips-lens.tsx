@@ -209,10 +209,7 @@ function ClipCard({
 
   return (
     <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
-      {/* A true 9:16 frame, narrowed rather than capped, on a full-width stage
-          so the card keeps the width of its landscape neighbours. `capHeight`
-          would crop the reel, and a Shorts tool must not show a reel it did not
-          make (media-frame.tsx). */}
+      {/* A true 9:16 frame on a full-width stage: `capHeight` would crop the reel (media-frame.tsx). */}
       <button
         type="button"
         disabled={playback === null}
@@ -225,21 +222,23 @@ function ClipCard({
           isShort && 'flex justify-center border border-border bg-surface-0 py-3',
         )}
       >
-        <MediaFrame
-          aspect={isShort ? '9:16' : '16:9'}
-          status={<OutputTag output={clip} />}
-          className={isShort ? 'w-[54%]' : 'border border-border'}
-          fallback={<ReelCover seed={video.id} plain />}
-          media={video.thumbnailUrl === undefined ? undefined : <CoverImage src={video.thumbnailUrl} />}
-        />
-        {isWorking(clip.state) ? (
-          <span className={cn('studio-bar absolute inset-x-0 bottom-0', clip.state === OUTPUT_STATE.rec ? 'text-stream-text' : 'text-primary')}>
-            <span
-              className={clip.percent === null ? 'studio-indeterminate' : undefined}
-              style={clip.percent === null ? undefined : { width: `${clip.percent}%` }}
-            />
-          </span>
-        ) : null}
+        <span className={cn('relative block', isShort ? 'w-[54%]' : 'w-full')}>
+          <MediaFrame
+            aspect={isShort ? '9:16' : '16:9'}
+            status={<OutputTag output={clip} />}
+            className={isShort ? undefined : 'border border-border'}
+            fallback={<ReelCover seed={video.id} plain />}
+            media={video.thumbnailUrl === undefined ? undefined : <CoverImage src={video.thumbnailUrl} />}
+          />
+          {isWorking(clip.state) ? (
+            <span className={cn('studio-bar absolute inset-x-0 bottom-0', clip.state === OUTPUT_STATE.rec ? 'text-stream-text' : 'text-primary')}>
+              <span
+                className={clip.percent === null ? 'studio-indeterminate' : undefined}
+                style={clip.percent === null ? undefined : { width: `${clip.percent}%` }}
+              />
+            </span>
+          ) : null}
+        </span>
       </button>
 
       <span className="flex min-w-0 flex-col gap-0.5">
@@ -256,15 +255,12 @@ function ClipCard({
           opposite of what the density step was asked for. */}
       {small ? null : (
         <span className="flex flex-col gap-2">
-          {/* The "another one" link gets its own footer row on every card, so a ready
-              card and a rendering one (delete only) share the same row count and the
-              grid reads as one line of equal cards. */}
+          {/* "Crear otro" is a footer on every card, so ready and rendering cards keep equal rows. */}
           <OutputActions
             compact
             output={clip}
             matchId={matchId ?? ORPHAN_MATCH_SEGMENT}
             onChange={onChange}
-            onPlay={playback === null ? undefined : (button) => onPlay(playback, button)}
           />
           {matchId !== null ? (
             <Link

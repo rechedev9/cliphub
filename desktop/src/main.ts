@@ -245,9 +245,15 @@ function refreshStableMcp(): void {
   if (stable.problem !== null) logLine(`[agent] ${stable.problem}\n`);
 }
 
+// Runs inside quit and boot cleanup, so a file zv-mcp holds open must not stop them.
 function clearAgentSession(): void {
   activeAgentSession = null;
-  removeAgentSession(agentSessionFile);
+  try {
+    removeAgentSession(agentSessionFile);
+  } catch (err) {
+    logLine(`[agent] could not remove the session file: ${String(err)}
+`);
+  }
 }
 
 /** Null if the window was closed or destroyed during an await. */

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -408,18 +409,44 @@ func fetchHUDPreviews(ctx context.Context, s *studio) (map[string][]byte, string
 	defer cancel()
 	previews := map[string][]byte{}
 	for _, t := range customhud.Themes() {
+		if thumb, ok := hudThumbs.get(t.ID); ok {
+			previews[t.ID] = thumb
+			continue
+		}
 		image, err := fetchPreview(ctx, origin, t.ID)
 		if err != nil {
 			continue
 		}
 		if thumb, err := hudThumbnail(image); err == nil {
 			previews[t.ID] = thumb
+			hudThumbs.put(t.ID, thumb)
 		}
 	}
 	if len(previews) == 0 {
 		return nil, "Preview images could not be loaded from Studio."
 	}
 	return previews, ""
+}
+
+// hudThumbs keeps the thumbnails this process made: the previews ship with Studio and do not change.
+var hudThumbs = thumbCache{byID: map[string][]byte{}}
+
+type thumbCache struct {
+	mu   sync.Mutex
+	byID map[string][]byte
+}
+
+func (c *thumbCache) get(id string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	thumb, ok := c.byID[id]
+	return thumb, ok
+}
+
+func (c *thumbCache) put(id string, thumb []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.byID[id] = thumb
 }
 
 func fetchPreview(ctx context.Context, origin, id string) ([]byte, error) {

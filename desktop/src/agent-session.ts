@@ -51,11 +51,7 @@ export function readAgentAccess(accessFile: string): boolean {
   }
 }
 
-/**
- * Publishes the running orchestrator to zv-mcp. The token is written only when
- * access is on, so a closed switch leaves just the "switch off" marker. If that
- * marker cannot be written, the file is removed so no token stays on disk.
- */
+/** Publishes the running orchestrator to zv-mcp; the token is written only while access is on. */
 export function writeAgentSession({
   sessionFile,
   enabled,
@@ -75,11 +71,7 @@ export function writeAgentSession({
   }
 }
 
-/**
- * Stores the switch and, when a boot is running, rewrites the session file so
- * the change applies without restarting Studio. The session goes first: a
- * failure must never leave the access file off while the session holds the token.
- */
+/** Stores the switch and republishes a running boot; the session goes first so no token outlives a failure. */
 export function setAgentAccess({ accessFile, sessionFile, enabled, running, fsOps = nodeFs }: SetAgentAccessOptions): void {
   if (running !== null) writeAgentSession({ sessionFile, enabled, ...running, fsOps });
   try {

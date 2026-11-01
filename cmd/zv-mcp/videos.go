@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -70,8 +71,13 @@ func registerVideoTools(server *mcp.Server, s *studio) {
 				return nil, listVideosOut{}, toolError(err)
 			}
 			// A missing job must fail loudly instead of looking like "no videos".
-			if _, err := c.GetJobStatus(ctx, in.JobID); err != nil {
+			st, err := c.GetJobStatus(ctx, in.JobID)
+			if err != nil {
 				return nil, listVideosOut{}, toolError(err)
+			}
+			// Before a capture no variant exists, and each probe would log a 404 in Studio.
+			if slices.Contains([]string{"queued", "parsing", "parsed"}, st.Status) {
+				return nil, listVideosOut{Videos: []videoOut{}, Note: "No video yet: this job has not been captured."}, nil
 			}
 			presets, err := c.Presets(ctx)
 			if err != nil {

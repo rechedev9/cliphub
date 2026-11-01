@@ -352,7 +352,7 @@ func registerTools(server *mcp.Server, s *studio) {
 				}
 				out = describeJob(in.ID, st, renders)
 				switch {
-				case workerOwnsJob(st.Status):
+				case out.Running:
 					recentCaptures.forget(in.ID)
 				case !out.Running && out.FailureCode == "" && recentCaptures.queued(in.ID):
 					out.Running, out.Stage, out.Note, out.Renders = true, "capture queued", "", nil
@@ -714,7 +714,8 @@ func checkDemoPath(path string) error {
 	if !filepath.IsAbs(path) {
 		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
 	}
-	info, err := os.Stat(path)
+	// Lstat: a link on C: could still point at a network share.
+	info, err := os.Lstat(path)
 	if err != nil {
 		return errors.New("cannot read that file; check the path")
 	}
