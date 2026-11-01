@@ -23,7 +23,7 @@ func main() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "cliphub-studio", Title: "ClipHub Studio", Version: version}, &mcp.ServerOptions{
 		Instructions: serverInstructions,
 	})
-	server.AddReceivingMiddleware(recoverPanics)
+	server.AddReceivingMiddleware(recoverPanics, pinNegotiatedVersion)
 	registerTools(server, newStudio())
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
 		log.Fatalf("zv-mcp: %v", err)

@@ -16,7 +16,7 @@
 /*BRIDGE_JS*/
 </script>
 <script>
-const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: false, approval: null };
+const state = { jobId: "", segmentIds: [], data: null, choice: {}, audio: null, playing: "", loading: "", wanted: "", sources: {}, busy: false, started: "", approval: null };
 const root = document.getElementById("root");
 const SINGLE = [["format", "Formato"], ["kill_effect", "Efecto de baja"], ["transition", "Transición"]];
 
@@ -34,7 +34,7 @@ function defaults(data) {
 function change(field, value) {
   state.choice[field] = value;
   state.approval = null;
-  state.started = false;
+  state.started = "";
   render();
 }
 
@@ -87,7 +87,7 @@ function formatDuration(seconds) {
 
 function footer() {
   const waiting = state.approval !== null;
-  const label = waiting ? "Confirmar y generar" : state.started ? "Generado" : "Generar";
+  const label = waiting ? "Confirmar y generar" : state.started || "Generar";
   const generate = el("button", { class: "primary", type: "button", id: "go", onclick: waiting ? confirmStart : start }, label);
   generate.disabled = state.busy || state.started || state.segmentIds.length === 0;
   const msg = el("div", { class: "msg", id: "msg", role: "status" }, waiting ? state.approval.summary : "");
@@ -173,9 +173,9 @@ async function start() {
   if (bridge.canCallTools()) return run(args);
   try {
     await bridge.sendMessage(chatMessage(args));
-    state.started = true;
+    state.started = "Enviado";
     render();
-    setMsg("Enviado al chat. Claude lo generará con estas opciones.", "ok");
+    setMsg("Enviado al chat. El asistente lo generará con estas opciones.", "ok");
   } catch (err) {
     setMsg("No se pudo enviar al chat: " + err.message, "bad");
   }
@@ -199,7 +199,7 @@ async function run(args) {
       return render();
     }
     state.approval = null;
-    state.started = true;
+    state.started = "En marcha";
     render();
     setMsg("Short en marcha. Mira el progreso en Studio.", "ok");
     await bridge.sendMessage("El Short ya está en marcha (job_id=" + out.job_id + ", variant=" + (out.variant || "") + "). Sigue su progreso con wait_for_job pasando ese variant.").catch(() => {});

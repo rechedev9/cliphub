@@ -91,7 +91,7 @@ func TestDescribeFullDemoPlan(t *testing.T) {
 	if out.Ready || len(out.Blockers) != 1 || out.Warnings[0] != "ab" {
 		t.Errorf("blockers or warnings wrong: %+v", out)
 	}
-	if !strings.Contains(out.Summary, "30 min") || !strings.Contains(out.Summary, "Arena") || !strings.Contains(out.Summary, "abc123") {
+	if !strings.Contains(out.Summary, "30 min") || !strings.Contains(out.Summary, "Arena") || out.PlanHash != "abc123" || !strings.Contains(out.Summary, "3 rondas") {
 		t.Errorf("summary = %q", out.Summary)
 	}
 	doc.Options.Overlays.HUDTheme = ""

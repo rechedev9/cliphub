@@ -191,7 +191,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if !caps.Record.Enabled {
 				return nil, generateOut{}, errors.New("capture is not available: Steam, CS2 or HLAE is missing, so the video cannot be recorded")
 			}
-			summary := plan.Summary + " CS2 opens full screen and records for a long time."
+			summary := plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_full_demo", JobID: in.JobID,
 				Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: in.Approve})
 			if err != nil {
@@ -362,16 +362,16 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
 		TrueView: o.Capture.TrueView, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
 	}
-	voices := "team voices off"
+	voices := "sin voces del equipo"
 	if out.TeamVoices {
-		voices = fmt.Sprintf("team voices on (%d%%)", out.VoiceLevel)
+		voices = fmt.Sprintf("voces del equipo al %d%%", out.VoiceLevel)
 	}
-	effectsText := "off"
+	effectsText := "sin efectos entre rondas"
 	if effects {
-		effectsText = "on"
+		effectsText = "con efectos entre rondas"
 	}
-	out.Summary = fmt.Sprintf("Full Demo of job %s: %d rounds, about %d min, HUD %s, match data from %s, %s, game sound %d%%, between-round effects %s, plan %s.",
-		jobID, out.Rounds, (seconds+30)/60, hudName, sourceLabel(source), voices, out.GameLevel, effectsText, doc.PlanHash)
+	out.Summary = fmt.Sprintf("Demo completa: %s, unos %d min, HUD %s, datos de la partida de %s, %s, sonido del juego al %d%%, %s.",
+		plural(out.Rounds, "ronda", "rondas"), (seconds+30)/60, hudName, sourceLabel(source), voices, out.GameLevel, effectsText)
 	return out
 }
 
@@ -379,7 +379,7 @@ func percent(gain float64) int { return int(math.Round(gain * 100)) }
 
 func sourceLabel(kind string) string {
 	if kind == "demo" || kind == "" {
-		return "the local demo"
+		return "la demo local"
 	}
 	return kind
 }
@@ -391,7 +391,7 @@ func noticeMessages(notices []recapplan.Notice) []string {
 		if len(out) == maxNotices {
 			break
 		}
-		out = append(out, cleanName(n.Message))
+		out = append(out, cleanText(n.Message, maxErrorRunes))
 	}
 	return out
 }

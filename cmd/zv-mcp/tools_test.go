@@ -146,7 +146,7 @@ func TestDescribePlays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "seg-002 (round 9, 2 kills); seg-001 (s1mple, de_mirage, round 5, 4 kills)"
+	want := "seg-002 (ronda 9, 2 bajas); seg-001 (s1mple, de_mirage, ronda 5, 4 bajas)"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

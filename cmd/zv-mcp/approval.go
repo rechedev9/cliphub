@@ -80,7 +80,7 @@ func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approva
 	answer, answered := answerTo(req, state)
 	if !answered {
 		ask := &mcp.ElicitParams{
-			Message:         spec.Summary + " Start now?",
+			Message:         spec.Summary + " ¿Empezar ahora?",
 			RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 		}
 		return approval{Ask: &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{elicitKey: ask}, RequestState: state}}, nil

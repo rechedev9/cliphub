@@ -93,7 +93,7 @@ async function plan() {
       await bridge.sendMessage(chatMessage());
       state.planned = true;
       render();
-      setMsg("Enviado al chat. Claude preparará el plan con este HUD.", "ok");
+      setMsg("Enviado al chat. El asistente preparará el plan con este HUD.", "ok");
     } catch (err) {
       setMsg("No se pudo enviar al chat: " + err.message, "bad");
     }
@@ -125,7 +125,7 @@ function showPlan(out) {
   const notes = (out.blockers || []).concat(out.warnings || []);
   if (notes.length) lines.push(el("ul", { class: "notes" }, notes.map((n) => el("li", {}, n))));
   document.getElementById("plan").replaceChildren(el("div", { class: "plan" }, lines));
-  setMsg(out.ready ? "Plan listo. Claude te pedirá confirmar antes de grabar." : "El plan tiene bloqueos.", out.ready ? "ok" : "bad");
+  setMsg(out.ready ? "Plan listo. El asistente te pedirá confirmar antes de grabar." : "El plan tiene bloqueos.", out.ready ? "ok" : "bad");
 }
 
 function load(result) {

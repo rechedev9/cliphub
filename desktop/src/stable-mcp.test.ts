@@ -53,6 +53,23 @@ test('keeps the old copy and cleans up when the copy is in use', () => {
   assert.equal(fs.existsSync(`${target}.new`), false);
 });
 
+test('moves a running copy aside and removes it on a later sync', () => {
+  const { source, target } = layout();
+  syncStableMcp({ source, target });
+  fs.writeFileSync(source, 'version two, longer');
+  // Like Windows with a running exe: the file cannot be replaced, only renamed.
+  const lockedRename = (from: string, to: string): void => {
+    if (to === target && fs.existsSync(target)) throw Object.assign(new Error('in use'), { code: 'EPERM' });
+    fs.renameSync(from, to);
+  };
+  assert.deepEqual(syncStableMcp({ source, target, renameFile: lockedRename }), { path: target, problem: null });
+  assert.equal(fs.readFileSync(target, 'utf8'), 'version two, longer');
+  const oldCopies = (): string[] => fs.readdirSync(path.dirname(target)).filter((name) => name.includes('.old-'));
+  assert.equal(oldCopies().length, 1);
+  syncStableMcp({ source, target });
+  assert.deepEqual(oldCopies(), []);
+});
+
 test('falls back to the bundled path when no copy exists and the copy fails', () => {
   const { source, target } = layout();
   const result = syncStableMcp({

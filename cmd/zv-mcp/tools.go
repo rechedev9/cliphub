@@ -289,8 +289,9 @@ func registerTools(server *mcp.Server, s *studio) {
 					return false, err
 				}
 				out = describeDemo(d)
-				notify(ctx, req, 0, "analysing demo: "+d.State)
-				return d.State == "ready" || d.State == "failed", nil
+				done := d.State == "ready" || d.State == "failed"
+				notify(ctx, req, donePercent(done, 0), "analysing demo: "+d.State)
+				return done, nil
 			})
 			return nil, out, toolError(err)
 		})
@@ -350,7 +351,7 @@ func registerTools(server *mcp.Server, s *studio) {
 					}
 				}
 				out = describeJob(in.ID, st, renders)
-				notify(ctx, req, out.Percent, jobMessage(out))
+				notify(ctx, req, donePercent(!out.Running, out.Percent), jobMessage(out))
 				return !out.Running, nil
 			})
 			return nil, out, toolError(err)
@@ -451,8 +452,8 @@ func registerTools(server *mcp.Server, s *studio) {
 				return nil, generateOut{}, err
 			}
 			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
-			summary := fmt.Sprintf("Capture %d plays of job %s as a Short with preset %q: %s. Options: %s. CS2 opens full screen and records for several minutes.",
-				len(in.SegmentIDs), in.JobID, preset, plays, describeShortRequest(body))
+			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
+				plural(len(in.SegmentIDs), "jugada", "jugadas"), preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, generateOut{}, err
@@ -514,13 +515,21 @@ func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
 		}
 		switch {
 		case i < maxSummaryPlays:
-			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("round %d", m.Round), fmt.Sprintf("%d kills", m.Events.Kills))
+			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), plural(m.Events.Kills, "baja", "bajas"))
 			parts = append(parts, fmt.Sprintf("%s (%s)", id, strings.Join(details, ", ")))
 		case i == maxSummaryPlays:
-			parts = append(parts, fmt.Sprintf("and %d more", len(ids)-maxSummaryPlays))
+			parts = append(parts, fmt.Sprintf("y %d más", len(ids)-maxSummaryPlays))
 		}
 	}
 	return strings.Join(parts, "; "), nil
+}
+
+// plural spells a count for the Spanish approval text: "1 jugada", "3 jugadas".
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // poll runs check every pollInterval until it reports done or the wait ends.
@@ -540,6 +549,14 @@ func poll(ctx context.Context, waitSecs int, check func() (bool, error)) error {
 		case <-time.After(pollInterval):
 		}
 	}
+}
+
+// donePercent reports a finished wait as complete, whatever the last progress said.
+func donePercent(done bool, percent int) int {
+	if done {
+		return 100
+	}
+	return percent
 }
 
 func notify(ctx context.Context, req *mcp.CallToolRequest, percent int, message string) {

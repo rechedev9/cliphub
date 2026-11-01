@@ -964,5 +964,6 @@ func defaultLegacyCommandEntrypointNames() []string {
 		"zv-rhythm",
 		"zv-hud-designs",
 		"zv-tui",
+		"zv-mcp",
 	}
 }

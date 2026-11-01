@@ -230,7 +230,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	e := req.Edit
 	music := req.Music
 	if music == "" {
-		music = "none"
+		music = "ninguna"
 	}
 	var extras []string
 	for _, x := range []struct {
@@ -243,8 +243,8 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 		}
 	}
 	if len(extras) == 0 {
-		extras = []string{"none"}
+		extras = []string{"ninguno"}
 	}
-	return fmt.Sprintf("format %s, kill effect %s, transition %s, music %s, extras: %s",
+	return fmt.Sprintf("formato %s, efecto de baja %s, transición %s, música %s, extras: %s",
 		e.Format, e.KillEffect, e.Transition, music, strings.Join(extras, ", "))
 }

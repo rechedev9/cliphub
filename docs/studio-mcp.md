@@ -273,3 +273,46 @@ changes, `open_studio`, resources and prompts.
   Desktop or ChatGPT Desktop (ChatGPT Desktop is not installed here), and a real CS2 capture.
 - `zv-mcp.exe` is about 27 MB because the Full Demo and Short tools import `recapplan`,
   `renderplan` and `customhud` to validate requests the same way the server does.
+
+## QA pass (2026-11-01)
+
+A scripted MCP client drove `zv-mcp` over stdio against real Studio from the branch (throwaway
+profile, two real demos), and a small MCP Apps host emulator ran both views in the built-in browser
+under a strict CSP (`img-src data:; media-src data:; connect-src 'none'`).
+
+- About 70 tool cases: bad and unknown ids, relative, UNC, `\\?\` and missing paths, folders,
+  empty, garbage and corrupt demos, duplicates (same file in another case), bad SteamIDs, a player
+  not in the demo (the job fails with `target_not_found`, as in the UI), out of range limits and
+  levels, unknown HUDs, effects, tracks and presets, duplicate and unknown segments, wrong arg types
+  and extra args. Every one got a clear tool error or a sane clamp; none crashed the server.
+- Approval: decline and cancel start nothing on every protocol; a forged or reused code, or a code
+  for other plays or options, is refused; an elicitation client never gets a code path.
+- Session file: missing, empty, malformed, version 2, non-loopback or `localhost` URL, https, a
+  path in the URL, short or wrong token, dead port, bad `webOrigin` and a 5 MB file each give a
+  specific message. A killed Studio reads as closed; a restarted Studio heals the same `zv-mcp`
+  process in about 4 s. A normal quit deletes the session file.
+- Views: options picker, track previews (switching tracks stops the previous one), the approval
+  step and Cancel, the HUD gallery with 11 thumbnails, planning from the gallery, the chat fallback
+  when the host does not let the view call tools, and a host that refuses `ui/message`.
+
+Fixed during the pass:
+
+- A client asking for a protocol newer than the server negotiates (for example `2026-07-28`, which
+  the stdio handshake answers with `2025-11-25`) got `input_required` results it cannot read, so the
+  approval never showed. `pinNegotiatedVersion` stores the negotiated version; the SDK reads the
+  requested one.
+- Approval text is Spanish and drops the job id and plan hash, since clients show it to the user
+  verbatim in the elicitation form.
+- A rejected token said "call the tool again", an endless loop when the token stays wrong; it now
+  says to retry once and then ask the user to restart Studio.
+- Studio could not refresh the stable `zv-mcp.exe` while an assistant ran it (EPERM). It now moves
+  the running copy aside, puts the new one in place and deletes old copies on a later boot.
+- The picker said "Generado" after only sending the request to the chat; it now says "Enviado" or
+  "En marcha", and the views say "el asistente" instead of "Claude".
+- Full Demo notices were cut at 64 characters; waits now report 100% progress when they finish.
+- `cmd/zv-mcp` was missing from the Makefile and the `zv` pass-throughs, which failed
+  `TestZVBinaryCurrentRepoWorkflowChecksEndToEnd`.
+
+Still not verified: the views and the elicitation form inside a real Claude Desktop Chat tab or
+ChatGPT Desktop, and an approved Short or Full Demo through a real CS2 capture. Without tool calls
+from the view, the picker has no track previews and the gallery has no thumbnails.

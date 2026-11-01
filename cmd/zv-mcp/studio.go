@@ -145,7 +145,7 @@ func toolError(err error) error {
 	if errors.As(err, &apiErr) {
 		switch apiErr.StatusCode {
 		case http.StatusUnauthorized:
-			return errors.New("ClipHub Studio restarted; call the tool again")
+			return errors.New("ClipHub Studio refused the session, usually because it restarted; call the tool once more, and if it fails again ask the user to restart ClipHub Studio")
 		case http.StatusNotFound:
 			return fmt.Errorf("not found: %s", cleanText(apiErr.Message, maxErrorRunes))
 		}

@@ -34,22 +34,58 @@ export function mcpCopyNeeded({ source, target }: { source: McpFileStamp; target
     || Math.abs(target.mtimeMs - source.mtimeMs) >= MTIME_TOLERANCE_MS;
 }
 
-/** Brings the stable copy up to date. Never throws; an in-use copy keeps its old content. */
+/** Brings the stable copy up to date. Never throws; a copy that cannot be replaced keeps its old content. */
 export function syncStableMcp({ source, target, renameFile = fs.renameSync }: SyncStableMcpOptions): StableMcp {
   const stagedCopy = `${target}.new`;
   try {
+    removeOldCopies(target);
     const sourceStamp = stampOf(source);
     if (!mcpCopyNeeded({ source: sourceStamp, target: statOrNull(target) })) return { path: target, problem: null };
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(source, stagedCopy);
     fs.utimesSync(stagedCopy, sourceStamp.mtimeMs / 1000, sourceStamp.mtimeMs / 1000);
-    renameFile(stagedCopy, target);
+    replaceFile({ staged: stagedCopy, target, renameFile });
     return { path: target, problem: null };
   } catch (error) {
     removeQuietly(stagedCopy);
     const problem = `could not update ${target}: ${String(error)}`;
     // An older copy still works; only a missing one sends the assistant to the install folder.
     return { path: statOrNull(target) === null ? source : target, problem };
+  }
+}
+
+// Windows refuses to overwrite an executable an assistant is running, but lets it be renamed.
+function replaceFile({ staged, target, renameFile }: { staged: string; target: string; renameFile: (from: string, to: string) => void }): void {
+  try {
+    renameFile(staged, target);
+    return;
+  } catch (error) {
+    if (statOrNull(target) === null) throw error;
+  }
+  const aside = `${target}${OLD_COPY_MARKER}${Date.now()}`;
+  renameFile(target, aside);
+  try {
+    renameFile(staged, target);
+  } catch (error) {
+    renameFile(aside, target);
+    throw error;
+  }
+}
+
+const OLD_COPY_MARKER = '.old-';
+
+/** Deletes copies moved aside earlier; one still running stays until a later boot. */
+function removeOldCopies(target: string): void {
+  const dir = path.dirname(target);
+  const prefix = `${path.basename(target)}${OLD_COPY_MARKER}`;
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (name.startsWith(prefix)) removeQuietly(path.join(dir, name));
   }
 }
 
