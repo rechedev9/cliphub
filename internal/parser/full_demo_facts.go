@@ -56,7 +56,8 @@ func (c *Collector) fullDemoFacts(meta PlanMeta, freezeDeaths []TargetDeath, saw
 		}
 		if r.FreezeEndTick <= 0 || r.RoundEndTick <= 0 {
 			r.Evidence = "incomplete-round-events"
-			f.Complete = false
+			// A later round bounds this one, so the planner only skips it; EOF in a live round blocks.
+			f.Complete = f.Complete && r.NextStartTick > 0
 		}
 		for _, death := range deaths[number] {
 			if death < r.StartTick || (r.RoundEndTick > 0 && death > r.RoundEndTick) {
