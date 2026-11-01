@@ -161,7 +161,7 @@ Write:
 | Tool | Orchestrator calls | Approval |
 | --- | --- | --- |
 | `import_demo` | `POST /api/library/demos` (multipart `demo`, `tag`) | no |
-| `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid` | no |
+| `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
 | `wait_for_job` | polls a job; takes the render `variant` | no |

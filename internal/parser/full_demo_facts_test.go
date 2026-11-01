@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,6 +61,59 @@ func TestFullDemoFactsIndependentRoundEvents(t *testing.T) {
 				}
 			} else if len(d.Blockers) != 0 || len(d.Rounds) != 1 {
 				t.Fatalf("valid zero-kill round lost: %+v", d)
+			}
+		})
+	}
+}
+
+func TestFullDemoFactsSkipOnlyBoundedIncompleteRounds(t *testing.T) {
+	type round struct{ live, end bool }
+	for _, tc := range []struct {
+		name     string
+		rounds   []round
+		skipped  string
+		complete bool
+	}{
+		{name: "recording starts after round 1 went live", rounds: []round{{false, true}, {true, true}, {true, true}}, skipped: "round-001", complete: true},
+		{name: "round end lost mid match", rounds: []round{{true, true}, {true, false}, {true, true}}, skipped: "round-002", complete: true},
+		{name: "EOF in the last live round still blocks", rounds: []round{{true, true}, {true, true}, {true, false}}, skipped: "round-003"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewCollector(targetID, defaultTestRules())
+			for i, r := range tc.rounds {
+				number, start := i+1, 1+i*1000
+				c.RecordRoundStart(RoundStart{Round: number, Tick: start})
+				if r.live {
+					c.RecordRoundLiveStart(RoundLiveStart{Round: number, Tick: start + 300})
+				}
+				if r.end {
+					c.RecordRoundEnd(RoundEnd{Round: number, Tick: start + 700})
+				}
+			}
+			facts := c.fullDemoFacts(PlanMeta{SHA256: strings.Repeat("a", 64), Tickrate: 64, DurationTicks: 2750}, nil, false)
+			if err := facts.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if facts.Complete != tc.complete {
+				t.Fatalf("complete = %v, want %v: %+v", facts.Complete, tc.complete, facts)
+			}
+			o := recapplan.DefaultOptions()
+			o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Editorial.KeepFreezeVoice = false, false, false
+			o.Capture.Crosshair.AllowCaptureDefault = true
+			d, err := recapplan.Plan(facts, o, recapplan.VoiceEvidence{Availability: "not_requested"}, nil, "facts.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(d.Blockers) == 0) != tc.complete || len(d.Rounds) != 2 {
+				t.Fatalf("want the two complete rounds, blocked = %v: %+v", !tc.complete, d)
+			}
+			for _, r := range d.Rounds {
+				if r.ID == tc.skipped {
+					t.Fatalf("incomplete round %s was planned", tc.skipped)
+				}
+			}
+			if !slices.ContainsFunc(d.Warnings, func(n recapplan.Notice) bool { return n.RoundID == tc.skipped }) {
+				t.Fatalf("no warning names the skipped round: %+v", d.Warnings)
 			}
 		})
 	}
