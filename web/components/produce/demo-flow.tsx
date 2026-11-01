@@ -105,6 +105,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
 
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [demoCount, setDemoCount] = useState(0);
 
   const reset = useCallback((message: string | null) => {
     setError(message);
@@ -382,13 +383,15 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   } else if (stage === 'idle') {
     body = (
       <div className="flex flex-col gap-8">
+        <DemoList format={format} onCount={setDemoCount} />
         <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
+          {demoCount > 0 ? <h2 className="font-display text-title font-bold text-fg-1">Cargar otra demo</h2> : null}
           <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
             <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
             <TabsTrigger value={SOURCE_KIND.steam} className="min-h-10">Importar desde Steam</TabsTrigger>
           </TabsList>
           <TabsContent value={SOURCE_KIND.file} className="flex flex-col gap-3">
-            <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[200px]" />
+            <DemoDropzone onFiles={onFiles} compact={demoCount > 0} minHeightClass="min-h-[200px]" />
             {error ? <ErrorBanner message={error} /> : null}
             <DemoSourceHelp />
           </TabsContent>
@@ -397,7 +400,6 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
             <RecentSteamMatches format={format} />
           </TabsContent>
         </Tabs>
-        <DemoList format={format} />
       </div>
     );
   } else if (seriesMode && stage === 'scanning') {
