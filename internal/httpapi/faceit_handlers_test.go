@@ -363,9 +363,10 @@ func TestUnfollowReturnsAFollowedZonePlayerToTheirZone(t *testing.T) {
 }
 
 // The Players list used to show the ELO zones_default.json shipped with and
-// the ELO a followed player had when followed, forever. The startup refresh
-// must update both in the background; a list read must never reach FACEIT,
-// and a failed refresh must keep the last good roster.
+// the ELO a followed player had when followed, forever, and a start inside the
+// ladder reuse window kept the zone ELOs of the last ladder read. Every startup
+// refresh must update both in the background; a list read must never reach
+// FACEIT, and a failed refresh must keep the last good roster.
 func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 	t.Parallel()
 	var faceitHits atomic.Int32
@@ -390,6 +391,8 @@ func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 			_, _ = w.Write([]byte(`{"player_id":"player-1","nickname":"m0NESY-renamed","country":"ru",
 				"avatar":"https://assets.faceit-cdn.net/avatars/3b536dda-e3dd-40cd-baed-7e66ab050c8f.png",
 				"games":{"cs2":{"skill_level":10,"faceit_elo":4123}}}`))
+		case r.URL.Path == "/players/cis-1":
+			_, _ = w.Write([]byte(`{"player_id":"cis-1","nickname":"nipl","games":{"cs2":{"skill_level":10,"faceit_elo":4850}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -460,21 +463,27 @@ func TestStartupRefreshUpdatesPlayersEloAndListReadsStayLocal(t *testing.T) {
 		t.Fatalf("list after refresh reached FACEIT: hits %d -> %d", hits, faceitHits.Load())
 	}
 
-	// A restart inside the reuse window refreshes only the followed profiles.
+	// A restart inside the reuse window skips the ladders but still rereads
+	// every profile: the followed one and the seeded one, by id.
+	generatedAt := now
+	now = now.Add(time.Hour)
 	hits = faceitHits.Load()
 	h.StartFaceitRosterRefresh()
 	h.faceitRoster.wg.Wait()
-	if got := faceitHits.Load() - hits; got != 1 {
-		t.Fatalf("restart inside the window made %d FACEIT requests, want only the followed profile", got)
+	if got := faceitHits.Load() - hits; got != 2 {
+		t.Fatalf("restart inside the window made %d FACEIT requests, want the two profiles", got)
+	}
+	if _, updatedAt, players := list(); !updatedAt.Equal(now) || players[1].ID != "cis-1" || players[1].ELO != 4850 {
+		t.Fatalf("after restart updated_at=%v players=%#v, want this start's seeded ELO", updatedAt, players)
 	}
 
 	// A failed refresh (a later start) keeps the last good roster.
 	refreshedAt := now
-	now = now.Add(faceitZoneRosterMaxAge)
+	now = generatedAt.Add(faceitZoneRosterMaxAge)
 	failRankings.Store(true)
 	h.StartFaceitRosterRefresh()
 	h.faceitRoster.wg.Wait()
-	if _, updatedAt, players := list(); !updatedAt.Equal(refreshedAt) || players[1].ELO != 4801 {
+	if _, updatedAt, players := list(); !updatedAt.Equal(refreshedAt) || players[1].ELO != 4850 {
 		t.Fatalf("after failed refresh updated_at=%v players=%#v, want the last roster", updatedAt, players)
 	}
 }

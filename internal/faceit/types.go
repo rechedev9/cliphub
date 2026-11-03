@@ -90,10 +90,21 @@ type RankedPlayer struct {
 // seeded row reports as its FollowedAt so the list does not reshuffle on every
 // restart.
 type SeedDocument struct {
-	SchemaVersion string       `json:"schema_version"`
-	GeneratedAt   time.Time    `json:"generated_at"`
-	Regions       []string     `json:"regions"`
-	Players       []SeedPlayer `json:"players"`
+	SchemaVersion string    `json:"schema_version"`
+	GeneratedAt   time.Time `json:"generated_at"`
+	// RefreshedAt is when SeedStore.RefreshProfiles last reread the players'
+	// ELOs; the ladders, and so the membership, date from GeneratedAt.
+	RefreshedAt time.Time    `json:"refreshed_at,omitzero"`
+	Regions     []string     `json:"regions"`
+	Players     []SeedPlayer `json:"players"`
+}
+
+// UpdatedAt is when the listed ELOs were last read from FACEIT.
+func (d SeedDocument) UpdatedAt() time.Time {
+	if d.RefreshedAt.After(d.GeneratedAt) {
+		return d.RefreshedAt
+	}
+	return d.GeneratedAt
 }
 
 // SeedPlayer is a leaderboard row as the seed document stores it. Zone is the

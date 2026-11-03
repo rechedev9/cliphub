@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -294,22 +297,113 @@ func TestSeedStoreRefreshIfStaleReusesARecentRoster(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := leaderboardServer(t, []rankedFixture{{id: "eu-0", region: "EU", country: "ru", elo: 4600}}, nil)
-	if _, err := store.RefreshIfStale(context.Background(), client, 5, time.Hour); err != nil {
+	if _, rebuilt, err := store.RefreshIfStale(context.Background(), client, 5, time.Hour); err != nil || !rebuilt {
 		t.Fatalf("stale embedded roster: %v", err)
 	}
 	refreshedAt := store.Document().GeneratedAt
 	// Every region fails, so any request would surface as an error.
 	broken := leaderboardServer(t, nil, map[string]bool{"EU": true, "NA": true, "SA": true, "OCE": true, "SEA": true})
 	broken.now = func() time.Time { return refreshedAt.Add(59 * time.Minute) }
-	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err != nil {
+	if _, rebuilt, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err != nil || rebuilt {
 		t.Fatalf("recent roster was refetched: %v", err)
 	}
 	broken.now = func() time.Time { return refreshedAt.Add(time.Hour) }
-	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
+	if _, _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
 		t.Fatal("roster at maxAge was reused, want a refresh")
 	}
 	broken.now = func() time.Time { return refreshedAt.Add(-time.Minute) }
-	if _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
+	if _, _, err := store.RefreshIfStale(context.Background(), broken, 5, time.Hour); err == nil {
 		t.Fatal("roster from the future was reused, want a refresh")
+	}
+}
+
+// A Studio start inside the ladder reuse window used to show the ELOs of the
+// last ladder read; RefreshProfiles rereads each roster player instead.
+func TestSeedStoreRefreshProfilesUpdatesELOsAndStopsOnAnAPIFailure(t *testing.T) {
+	t.Parallel()
+	generatedAt := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+	refreshedAt := generatedAt.Add(time.Hour)
+	var mu sync.Mutex
+	var requested []string
+	denied := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/players/")
+		mu.Lock()
+		requested = append(requested, id)
+		deny := denied
+		mu.Unlock()
+		switch {
+		case deny:
+			w.WriteHeader(http.StatusUnauthorized)
+		case id == "cis-1":
+			_, _ = w.Write([]byte(`{"player_id":"cis-1","nickname":"nipl-renamed","games":{"cs2":{"skill_level":10,"faceit_elo":4999}}}`))
+		case id == "latam-1":
+			// No CS2 stats: the ladder's ELO and level must survive.
+			_, _ = w.Write([]byte(`{"player_id":"latam-1","nickname":"latam-nick"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client, err := New(Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
+		Now: func() time.Time { return refreshedAt }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "zones.json")
+	seed := func(id, zone string, elo int) SeedPlayer {
+		return SeedPlayer{RankedPlayer: RankedPlayer{PlayerID: id, Nickname: id + "-nick", Region: "EU", ELO: elo, SkillLevel: 10}, Zone: zone}
+	}
+	doc := SeedDocument{SchemaVersion: SeedSchemaVersion, GeneratedAt: generatedAt, Regions: []string{"EU"}, Players: []SeedPlayer{
+		seed("cis-1", ZoneCIS, 4000), seed("cis-followed", ZoneCIS, 3900), seed("cis-gone", ZoneCIS, 3800), seed("latam-1", ZoneLATAM, 3700),
+	}}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewSeedStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.RefreshProfiles(context.Background(), client, map[string]bool{"cis-followed": true}); err != nil {
+		t.Fatalf("RefreshProfiles: %v", err)
+	}
+	mu.Lock()
+	calls := strings.Join(requested, ",")
+	mu.Unlock()
+	if calls != "cis-1,cis-gone,latam-1" {
+		t.Fatalf("requested %s, want every roster player but the followed one", calls)
+	}
+	got := store.Document()
+	if !got.UpdatedAt().Equal(refreshedAt) || !got.GeneratedAt.Equal(generatedAt) {
+		t.Fatalf("updated_at=%v generated_at=%v, want the profile read time and the ladder time kept", got.UpdatedAt(), got.GeneratedAt)
+	}
+	if p := got.Players[0]; p.Nickname != "nipl-renamed" || p.ELO != 4999 {
+		t.Fatalf("cis-1 = %#v, want the live profile", p)
+	}
+	if got.Players[1].ELO != 3900 || got.Players[2].ELO != 3800 || got.Players[3].ELO != 3700 || got.Players[3].SkillLevel != 10 {
+		t.Fatalf("players = %#v, want skipped, missing and stat-less rows unchanged", got.Players)
+	}
+
+	// An API failure (offline, rate limited, revoked key) stops at the first
+	// call and keeps the stored roster.
+	mu.Lock()
+	requested = nil
+	denied = true
+	mu.Unlock()
+	if err := store.RefreshProfiles(context.Background(), client, nil); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("RefreshProfiles error = %v, want ErrUnauthorized", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(requested) != 1 {
+		t.Fatalf("requested %v after a failure, want one call", requested)
+	}
+	if after := store.Document(); after.Players[0].ELO != 4999 || !after.UpdatedAt().Equal(refreshedAt) {
+		t.Fatalf("after failure = %#v, want the last roster", after)
 	}
 }

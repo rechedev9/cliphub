@@ -28,7 +28,9 @@ type faceitRosterRefresh struct {
 	wg      sync.WaitGroup
 }
 
-// StartFaceitRosterRefresh refreshes the Players ELOs in the background. The
+// StartFaceitRosterRefresh refreshes the Players ELOs in the background: the
+// followed profiles, and the zone rosters, whose ladders are rebuilt at most
+// every faceitZoneRosterMaxAge but whose ELOs are reread on every start. The
 // orchestrator calls it once at startup, which is the only refresh: a list
 // read never reaches FACEIT, it only reports whether this one is running so
 // the page can pick up its result.
@@ -60,21 +62,31 @@ func (h *Handlers) faceitRosterRefreshing() bool {
 }
 
 func (h *Handlers) refreshFaceitRoster() {
+	followed, listErr := h.faceitFollows.List()
 	// Each phase gets its own deadline: a zone refresh slowed down by 429
 	// backoff must not leave the followed profiles with an expired context.
 	seedCtx, cancelSeed := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
-	_, err := h.faceitSeeds.RefreshIfStale(seedCtx, h.faceit, faceit.SeedZoneLimit, faceitZoneRosterMaxAge)
-	cancelSeed()
+	_, rebuilt, err := h.faceitSeeds.RefreshIfStale(seedCtx, h.faceit, faceit.SeedZoneLimit, faceitZoneRosterMaxAge)
 	if err != nil {
 		log.Printf("httpapi: refresh FACEIT zone rosters: %v", err)
+	} else if !rebuilt {
+		// Reused ladders still get this session's ELOs. A followed player shows
+		// their own row instead, refreshed below.
+		skip := make(map[string]bool, len(followed))
+		for _, stored := range followed {
+			skip[stored.ID] = true
+		}
+		if err := h.faceitSeeds.RefreshProfiles(seedCtx, h.faceit, skip); err != nil {
+			log.Printf("httpapi: refresh FACEIT zone roster ELOs: %v", err)
+		}
+	}
+	cancelSeed()
+	if listErr != nil {
+		log.Printf("httpapi: refresh followed FACEIT players: %v", listErr)
+		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), faceitRosterRefreshTimeout)
 	defer cancel()
-	followed, err := h.faceitFollows.List()
-	if err != nil {
-		log.Printf("httpapi: refresh followed FACEIT players: %v", err)
-		return
-	}
 	fresh := make([]faceit.Player, 0, len(followed))
 	for _, stored := range followed {
 		player, err := h.faceit.LookupPlayerByID(ctx, stored.ID)

@@ -127,7 +127,7 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		"enabled":    h.faceitEnabled(),
 		"players":    players,
 		"refreshing": h.faceitRosterRefreshing(),
-		"updated_at": seed.GeneratedAt,
+		"updated_at": seed.UpdatedAt(),
 	})
 }
 
