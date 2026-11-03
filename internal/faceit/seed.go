@@ -141,6 +141,10 @@ func (s *SeedStore) Document() SeedDocument {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.documentLocked()
+}
+
+func (s *SeedStore) documentLocked() SeedDocument {
 	if doc, err := s.loadLocked(); err == nil {
 		return doc
 	}
@@ -184,15 +188,77 @@ func (s *SeedStore) Refresh(ctx context.Context, client *Client, limit int) (See
 
 // RefreshIfStale refreshes only when the stored roster is at least maxAge old
 // by the client's clock, so restarting Studio does not refetch every ladder.
-func (s *SeedStore) RefreshIfStale(ctx context.Context, client *Client, limit int, maxAge time.Duration) (SeedDocument, error) {
+// refreshed reports whether the ladders were read.
+func (s *SeedStore) RefreshIfStale(ctx context.Context, client *Client, limit int, maxAge time.Duration) (doc SeedDocument, refreshed bool, err error) {
 	if s != nil && client != nil {
 		// A negative age means the clock went back: refresh rather than trust it.
-		doc := s.Document()
-		if age := client.now().Sub(doc.GeneratedAt); age >= 0 && age < maxAge {
-			return doc, nil
+		stored := s.Document()
+		if age := client.now().Sub(stored.GeneratedAt); age >= 0 && age < maxAge {
+			return stored, false, nil
 		}
 	}
-	return s.Refresh(ctx, client, limit)
+	doc, err = s.Refresh(ctx, client, limit)
+	return doc, err == nil, err
+}
+
+// RefreshProfiles rereads the ELO and level of every roster player by id, one
+// request each instead of the ~160 ladder reads of Refresh, so a Studio start
+// inside the ladder reuse window still shows current ELOs. Players in skip are
+// left alone. It stops at the first error other than a missing player, so an
+// offline or rate-limited API keeps the stored roster after one failed call.
+func (s *SeedStore) RefreshProfiles(ctx context.Context, client *Client, skip map[string]bool) error {
+	if s == nil {
+		return errors.New("FACEIT seed roster store is not configured")
+	}
+	if client == nil {
+		return ErrNotConfigured
+	}
+	fresh := make(map[string]Player)
+	var failed error
+	for _, seeded := range s.Document().Players {
+		if skip[seeded.PlayerID] {
+			continue
+		}
+		player, err := client.LookupPlayerByID(ctx, seeded.PlayerID)
+		if errors.Is(err, ErrPlayerNotFound) {
+			continue
+		}
+		if err != nil {
+			failed = fmt.Errorf("refresh FACEIT seed player %s: %w", seeded.PlayerID, err)
+			break
+		}
+		fresh[player.ID] = player
+	}
+	if len(fresh) == 0 {
+		return failed
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Reread under the lock: the stored roster is the one to update, even if it
+	// is not the document the lookups started from.
+	doc := s.documentLocked()
+	for i, seeded := range doc.Players {
+		player, ok := fresh[seeded.PlayerID]
+		if !ok {
+			continue
+		}
+		doc.Players[i].Nickname = player.Nickname
+		// A profile without CS2 stats reports 0; keep the ladder's numbers then.
+		if player.ELO > 0 {
+			doc.Players[i].ELO = player.ELO
+		}
+		if player.SkillLevel > 0 {
+			doc.Players[i].SkillLevel = player.SkillLevel
+		}
+	}
+	// A partial read keeps the rows it got but must not date the whole list as fresh.
+	if failed == nil {
+		doc.RefreshedAt = client.now().UTC()
+	}
+	if err := s.saveLocked(doc); err != nil {
+		return errors.Join(failed, err)
+	}
+	return failed
 }
 
 // seedPlayers stamps the zone and the merged zone order onto the rows.
