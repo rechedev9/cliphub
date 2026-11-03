@@ -130,7 +130,7 @@ func Example() Snapshot {
 		if side == "T" {
 			weapon = "AK-47"
 		}
-		s.Players = append(s.Players, Player{SteamID: fmt.Sprintf("765611990000000%02d", i), Name: name, Side: side, Known: true, Alive: alive, Health: hp, Armor: 100, Money: 2450 + i*150, Kills: 2 + i%4, Deaths: 1, Assists: i % 2, Weapon: weapon, Ammo: 9, Reserve: 30})
+		s.Players = append(s.Players, Player{SteamID: fmt.Sprintf("765611990000000%02d", i), Name: name, Side: side, Known: true, Alive: alive, Health: hp, Armor: 100, Money: 2450 + i*150, Kills: 2 + i%4, Deaths: 1, Assists: i % 2, Weapon: weapon, Ammo: 9, Reserve: 2})
 	}
 	left := uint64(0x200)
 	s.Players[1].Movement = &left

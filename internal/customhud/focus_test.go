@@ -99,3 +99,25 @@ func TestFocusInputTimingSurvivesTrim(t *testing.T) {
 		t.Fatal("trim shifted movement timing")
 	}
 }
+
+func TestFocusAmmoShowsMagazinesAndHidesWithoutOne(t *testing.T) {
+	r, _ := NewRenderer("focus")
+	for _, tc := range []struct {
+		ammo, reserve int
+		clip, count   string
+		magazines     int
+	}{{30, 3, "30", "", 3}, {12, 0, "12", "", 0}, {20, 9, "20", "×9", 0}, {-1, -1, "", "", 0}} {
+		state := Example()
+		state.Players[1].Ammo, state.Players[1].Reserve = tc.ammo, tc.reserve
+		nodes, magazines := map[string]Node{}, 0
+		for _, n := range r.Scene(state, ExampleTarget) {
+			nodes[n.ID] = n
+			if strings.HasPrefix(n.ID, "focus/magazine-") && n.ID != "focus/magazine-empty" {
+				magazines++
+			}
+		}
+		if nodes["focus/ammo"].Text != tc.clip || nodes["focus/reserve"].Text != tc.count || magazines != tc.magazines {
+			t.Fatalf("ammo %d/%d drew clip=%q count=%q magazines=%d", tc.ammo, tc.reserve, nodes["focus/ammo"].Text, nodes["focus/reserve"].Text, magazines)
+		}
+	}
+}
