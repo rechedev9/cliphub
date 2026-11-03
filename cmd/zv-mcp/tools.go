@@ -182,6 +182,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerVideoTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
+	registerSeriesTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},
@@ -392,9 +393,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			}
 			out := momentsOut{Moments: make([]momentOut, 0, min(limit, len(doc.Moments))), Total: len(doc.Moments)}
 			for _, m := range doc.Moments[:min(limit, len(doc.Moments))] {
-				out.Moments = append(out.Moments, momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
-					Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
-					Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)})
+				out.Moments = append(out.Moments, describeMoment(m))
 			}
 			return nil, out, nil
 		})
@@ -418,7 +417,7 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "generate_short",
-		Description: "Capture and edit a Short from chosen plays. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
+		Description: "Capture and edit a Short from chosen plays of one job. For a series, the plays of one call must share one job_id (one map); a Short that mixes maps is not supported, so make one Short per map. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
 			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in generateIn) (*mcp.CallToolResult, generateOut, error) {
@@ -488,6 +487,12 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 }
 
+func describeMoment(m tuiclient.Moment) momentOut {
+	return momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
+		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
+		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
+}
+
 // startedOut is the result of a started capture. The render outlives the
 // capture, so the variant is what wait_for_job needs to see it finish.
 func startedOut(summary string, res tuiclient.EnqueueResponse, fallbackVariant string) generateOut {
@@ -527,7 +532,7 @@ func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
 	for i, id := range ids {
 		m, ok := bySegment[id]
 		if !ok {
-			return "", fmt.Errorf("segment id %s is not a play of this job; use the ids from list_moments", id)
+			return "", fmt.Errorf("segment id %s is not a play of this job; use the ids from list_moments, or for a series the segment ids listed with this job_id", id)
 		}
 		switch {
 		case i < maxSummaryPlays:
