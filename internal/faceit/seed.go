@@ -251,7 +251,10 @@ func (s *SeedStore) RefreshProfiles(ctx context.Context, client *Client, skip ma
 			doc.Players[i].SkillLevel = player.SkillLevel
 		}
 	}
-	doc.RefreshedAt = client.now().UTC()
+	// A partial read keeps the rows it got but must not date the whole list as fresh.
+	if failed == nil {
+		doc.RefreshedAt = client.now().UTC()
+	}
 	if err := s.saveLocked(doc); err != nil {
 		return errors.Join(failed, err)
 	}

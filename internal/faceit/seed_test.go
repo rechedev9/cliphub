@@ -323,20 +323,24 @@ func TestSeedStoreRefreshProfilesUpdatesELOsAndStopsOnAnAPIFailure(t *testing.T)
 	t.Parallel()
 	generatedAt := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
 	refreshedAt := generatedAt.Add(time.Hour)
+	// RefreshProfiles reads the clock on the test goroutine, so it needs no lock.
+	clock := refreshedAt
 	var mu sync.Mutex
 	var requested []string
-	denied := false
+	denied, deniedAfterCIS1 := false, false
+	cis1ELO := 4999
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(r.URL.Path, "/players/")
 		mu.Lock()
 		requested = append(requested, id)
-		deny := denied
+		deny := denied || (deniedAfterCIS1 && id != "cis-1")
+		elo := cis1ELO
 		mu.Unlock()
 		switch {
 		case deny:
 			w.WriteHeader(http.StatusUnauthorized)
 		case id == "cis-1":
-			_, _ = w.Write([]byte(`{"player_id":"cis-1","nickname":"nipl-renamed","games":{"cs2":{"skill_level":10,"faceit_elo":4999}}}`))
+			_, _ = fmt.Fprintf(w, `{"player_id":"cis-1","nickname":"nipl-renamed","games":{"cs2":{"skill_level":10,"faceit_elo":%d}}}`, elo)
 		case id == "latam-1":
 			// No CS2 stats: the ladder's ELO and level must survive.
 			_, _ = w.Write([]byte(`{"player_id":"latam-1","nickname":"latam-nick"}`))
@@ -346,7 +350,7 @@ func TestSeedStoreRefreshProfilesUpdatesELOsAndStopsOnAnAPIFailure(t *testing.T)
 	}))
 	t.Cleanup(server.Close)
 	client, err := New(Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client(),
-		Now: func() time.Time { return refreshedAt }})
+		Now: func() time.Time { return clock }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,8 +393,24 @@ func TestSeedStoreRefreshProfilesUpdatesELOsAndStopsOnAnAPIFailure(t *testing.T)
 		t.Fatalf("players = %#v, want skipped, missing and stat-less rows unchanged", got.Players)
 	}
 
+	// A failure midway keeps the rows already read, but the list is not dated
+	// as fresh: the rows after the failure still hold older ELOs.
+	clock = refreshedAt.Add(time.Hour)
+	mu.Lock()
+	deniedAfterCIS1 = true
+	cis1ELO = 5100
+	mu.Unlock()
+	if err := store.RefreshProfiles(context.Background(), client, nil); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("partial RefreshProfiles error = %v, want ErrUnauthorized", err)
+	}
+	if partial := store.Document(); partial.Players[0].ELO != 5100 || !partial.UpdatedAt().Equal(refreshedAt) {
+		t.Fatalf("after partial failure players[0]=%#v updated_at=%v, want the read row saved and updated_at kept at %v",
+			partial.Players[0], partial.UpdatedAt(), refreshedAt)
+	}
+
 	// An API failure (offline, rate limited, revoked key) stops at the first
 	// call and keeps the stored roster.
+	clock = refreshedAt.Add(2 * time.Hour)
 	mu.Lock()
 	requested = nil
 	denied = true
@@ -403,7 +423,7 @@ func TestSeedStoreRefreshProfilesUpdatesELOsAndStopsOnAnAPIFailure(t *testing.T)
 	if len(requested) != 1 {
 		t.Fatalf("requested %v after a failure, want one call", requested)
 	}
-	if after := store.Document(); after.Players[0].ELO != 4999 || !after.UpdatedAt().Equal(refreshedAt) {
+	if after := store.Document(); after.Players[0].ELO != 5100 || !after.UpdatedAt().Equal(refreshedAt) {
 		t.Fatalf("after failure = %#v, want the last roster", after)
 	}
 }
