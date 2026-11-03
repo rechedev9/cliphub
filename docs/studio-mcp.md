@@ -151,6 +151,7 @@ Read:
 | `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state |
 | `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs) |
 | `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total` |
+| `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first |
 | `list_presets` | `GET /api/presets` |
 | `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
@@ -162,7 +163,8 @@ Write:
 | --- | --- | --- |
 | `import_demo` | `POST /api/library/demos` (multipart `demo`, `tag`) | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
-| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan | yes |
+| `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
+| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
 | `wait_for_job` | polls a job; takes the render `variant` | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
