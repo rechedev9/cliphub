@@ -42,7 +42,7 @@ func ValidateCaptureCoverage(plan RecordingPlan, artifacts []RecordingArtifact) 
 		}
 	}
 	var truncated []string
-	for _, s := range plan.Segments {
+	for _, s := range plan.CaptureSegments() {
 		expected := expectedSegmentDurationSeconds(s, plan)
 		if expected <= 0 {
 			continue
@@ -85,11 +85,12 @@ func ValidateArtifacts(plan RecordingPlan, artifacts []RecordingArtifact) []stri
 			rawTakes[a.TakeID] = true
 		}
 	}
-	if len(rawTakes) != len(plan.Segments) {
-		warnings = append(warnings, fmt.Sprintf("raw take count = %d, want %d", len(rawTakes), len(plan.Segments)))
+	captures := plan.CaptureSegments()
+	if len(rawTakes) != len(captures) {
+		warnings = append(warnings, fmt.Sprintf("raw take count = %d, want %d", len(rawTakes), len(captures)))
 	}
 
-	for _, s := range plan.Segments {
+	for _, s := range captures {
 		items := bySegment[s.ID]
 		if !hasArtifact(items, "raw", "video") {
 			warnings = append(warnings, fmt.Sprintf("segment %s missing raw video", s.ID))

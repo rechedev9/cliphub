@@ -378,6 +378,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.killCounter) parts.push('Kill counter');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.victimReplay) parts.push('Repetición');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }

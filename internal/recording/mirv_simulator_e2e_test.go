@@ -295,11 +295,11 @@ func legacyScheduleDispatcher(t *testing.T, script string) string {
 	t.Helper()
 	const current = `        while (scheduleIndex < schedule.length) {
             const item = schedule[scheduleIndex];
-            if (tick < item.tick) break;
+            if ((item.pass ?? 0) > pass || tick < item.tick) break;
             scheduleIndex++;
             if (fired[item.key]) continue;`
 	const reference = `        for (const item of schedule) {
-            if (fired[item.key] || tick < item.tick) continue;`
+            if (fired[item.key] || (item.pass ?? 0) > pass || tick < item.tick) continue;`
 	if strings.Count(script, current) != 1 {
 		t.Fatal("expected exactly one dispatcher to replace with the pre-optimization reference")
 	}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
+import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Sparkles, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -178,6 +178,29 @@ export function EditOptions({
           </ToggleGroupItem>
         </ToggleGroup>
       </OptionBlock>
+
+      {showFullDemoDelivery ? null : (
+        <OptionBlock label="Repetición" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={value.victimReplay ? ['victim-replay'] : []}
+            onValueChange={(items) => onChange({ ...value, victimReplay: items.includes('victim-replay') })}
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="victim-replay" aria-label="Desde la víctima">
+              <Rewind className="size-4" />
+              Desde la víctima
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {value.victimReplay ? (
+            <p className="text-body-sm text-fg-3">
+              Tras cada jugada, su última baja otra vez a cámara lenta, vista por quien muere.
+            </p>
+          ) : null}
+        </OptionBlock>
+      )}
 
       <OptionBlock label="Apertura y cierre" className="md:col-span-2">
         <ToggleGroup

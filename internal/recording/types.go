@@ -129,6 +129,9 @@ type StreamConfig struct {
 	DeathnoticeSafeZoneX float64                  `json:"deathnotice_safe_zone_x,omitempty"`
 	DeathnoticeSafeZoneY float64                  `json:"deathnotice_safe_zone_y,omitempty"`
 	DeathnoticeLifetime  float64                  `json:"deathnotice_lifetime_seconds,omitempty"`
+	// VictimReplay adds a second demo pass that re-records each segment's last
+	// kill from the victim's POV (RecordingSegment.VictimReplay).
+	VictimReplay bool `json:"victim_replay,omitempty"`
 }
 
 // DefaultPlaybackTimescale speeds unrecorded demo gaps when PlaybackTimescale is 0.
@@ -195,6 +198,19 @@ type RecordingSegment struct {
 	LiveEndTick int                     `json:"live_end_tick,omitempty"`
 	Kills       []killplan.Kill         `json:"kills,omitempty"`
 	Utility     []killplan.UtilityThrow `json:"utility,omitempty"`
+	// VictimReplay is the victim POV window captured after the main pass.
+	VictimReplay *VictimReplay `json:"victim_replay,omitempty"`
+	// POVSteamID64 overrides the plan target. Only CaptureSegments sets it,
+	// on the synthetic replay windows; plan segments never carry it.
+	POVSteamID64 string `json:"pov_steamid64,omitempty"`
+}
+
+// VictimReplay is the window around one kill seen by the player who died.
+type VictimReplay struct {
+	SteamID64 string `json:"steamid64"`
+	KillTick  int    `json:"kill_tick"`
+	TickStart int    `json:"tick_start"`
+	TickEnd   int    `json:"tick_end"`
 }
 
 // RecordingArtifact is one file discovered after recording.
@@ -313,6 +329,9 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		return RecordingPlan{}, err
 	}
 	stream = normalizeStreamConfig(stream)
+	if fullDemo != nil {
+		stream.VictimReplay = false
+	}
 	out := RecordingPlan{
 		FullDemo:              fullDemo,
 		CaptureContract:       CaptureContractVersion,
@@ -358,6 +377,11 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		}
 		return out.Segments[i].ID < out.Segments[j].ID
 	})
+	if out.Stream.VictimReplay {
+		for i := range out.Segments {
+			out.Segments[i].VictimReplay = victimReplayFor(out.Segments[i], out)
+		}
+	}
 	if err := out.Validate(); err != nil {
 		return RecordingPlan{}, err
 	}
@@ -591,6 +615,9 @@ func (p RecordingPlan) Validate() error {
 			}
 		}
 		previousEnd = s.TickEnd
+	}
+	if err := p.validateVictimReplays(seen); err != nil {
+		return err
 	}
 	if len(p.EditorialSegmentIDs) > 0 {
 		if len(p.EditorialSegmentIDs) != len(p.Segments) {

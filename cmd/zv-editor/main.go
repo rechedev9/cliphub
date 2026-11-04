@@ -96,6 +96,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		tailTrim            = fs.Float64("tail-trim", 1.5, "end each kill clip this many seconds after its final kill; 0 disables")
 		outputFPS           = fs.Int("fps", 0, "optional final output FPS; defaults to 60")
 		compileSegments     = fs.Bool("compile-segments", false, "render selected segments as one compilation short")
+		victimReplay        = fs.Bool("victim-replay", false, "append each short's victim POV replay in slow motion when the capture has one")
 		lineupCatalogPath   = fs.String("lineup-catalog", "", "optional directory with manual smoke lineup catalog JSON files")
 		segments            = fs.String("segments", "", "optional comma-separated segment ids to render, e.g. seg-001,seg-004")
 		limit               = fs.Int("limit", 0, "optional max number of shorts to render after segment filtering")
@@ -208,6 +209,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		TailTrimSeconds:       *tailTrim,
 		OutputFPS:             *outputFPS,
 		CompileSegments:       *compileSegments,
+		VictimReplay:          *victimReplay,
 		LineupCatalogPath:     *lineupCatalogPath,
 		SegmentIDs:            segmentIDs,
 		Limit:                 *limit,

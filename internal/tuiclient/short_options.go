@@ -30,6 +30,7 @@ type ShortEdit struct {
 	KillCounter   bool   `json:"kill_counter"`
 	VoiceComms    bool   `json:"voice_comms"`
 	NativeHUD     bool   `json:"native_hud"`
+	VictimReplay  bool   `json:"victim_replay,omitempty"`
 	CoverStrategy string `json:"cover_strategy"`
 }
 

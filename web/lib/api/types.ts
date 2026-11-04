@@ -238,6 +238,8 @@ export type EditConfig = {
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;
+  /** Shorts only: replay each play's last kill from the victim, slowed down. */
+  victimReplay?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

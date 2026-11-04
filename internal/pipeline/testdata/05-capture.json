@@ -3,7 +3,10 @@
   "recorded_segments": [
     "seg-002",
     "seg-004",
-    "seg-011"
+    "seg-011",
+    "seg-002-victim",
+    "seg-004-victim",
+    "seg-011-victim"
   ],
   "record_operations": [
     {
@@ -26,6 +29,27 @@
       "id": "seg-011",
       "start_frame": 2301,
       "start_tick": 61524
+    },
+    {
+      "end_frame": 3152,
+      "end_tick": 17815,
+      "id": "seg-002-victim",
+      "start_frame": 2928,
+      "start_tick": 17591
+    },
+    {
+      "end_frame": 3729,
+      "end_tick": 22927,
+      "id": "seg-004-victim",
+      "start_frame": 3505,
+      "start_tick": 22703
+    },
+    {
+      "end_frame": 4306,
+      "end_tick": 61732,
+      "id": "seg-011-victim",
+      "start_frame": 4082,
+      "start_tick": 61508
     }
   ],
   "executed_commands": [
@@ -71,6 +95,44 @@
     "mirv_streams record end",
     "demo_timescale 8",
     "demo_gototick 61076",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "demo_timescale 1",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record start",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record end",
+    "demo_gototick 17271",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "spec_player 10",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "demo_timescale 1",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record start",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record end",
+    "demo_timescale 8",
+    "demo_gototick 22383",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "spec_player 11",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "demo_timescale 1",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record start",
+    "spec_autodirector 0",
+    "spec_mode 2",
+    "mirv_streams record end",
+    "demo_timescale 8",
+    "demo_gototick 61188",
     "spec_autodirector 0",
     "spec_mode 2",
     "demo_timescale 1",

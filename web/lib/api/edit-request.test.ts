@@ -66,3 +66,9 @@ test('buildEditRequest serializes overlay_theme when set', () => {
   assert.equal(body.demo_source, 'faceit');
   assert.equal(buildEditRequest(edit()).overlay_theme, undefined);
 });
+
+test('buildEditRequest sends the victim replay only for Shorts that ask for it', () => {
+  assert.equal(buildEditRequest(edit()).victim_replay, undefined);
+  assert.equal(buildEditRequest(edit({ victimReplay: true })).victim_replay, true);
+  assert.equal(buildEditRequest({ ...FULL_DEMO_EDIT, victimReplay: true }).victim_replay, undefined);
+});
