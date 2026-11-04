@@ -48,6 +48,11 @@ type RoundLiveStart struct {
 type TargetDeath struct {
 	Round int
 	Tick  int
+	// Killer, Weapon and Headshot describe the kill; empty in older tests.
+	Killer   killplan.Player
+	Victim   killplan.Player
+	Weapon   string
+	Headshot bool
 }
 
 // Segment groups a chronologically ordered list of kills into recording

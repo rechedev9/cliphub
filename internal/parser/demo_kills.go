@@ -64,6 +64,22 @@ func BuildRawKill(e events.Kill, gi gameInfo, targetID uint64, excludeTeamKills 
 	}, true
 }
 
+// targetDeath adds who killed the target, and with what, to a live death.
+func targetDeath(e events.Kill, death TargetDeath) TargetDeath {
+	death.Victim = demoPlayer(e.Victim)
+	death.Killer = demoPlayer(e.Killer)
+	death.Weapon = weaponName(e.Weapon)
+	death.Headshot = e.IsHeadshot
+	return death
+}
+
+func demoPlayer(p *common.Player) killplan.Player {
+	if p == nil {
+		return killplan.Player{}
+	}
+	return killplan.Player{SteamID64: strconv.FormatUint(p.SteamID64, 10), NameInDemo: p.Name, TeamAtKill: teamLabel(p.Team)}
+}
+
 func weaponName(w *common.Equipment) string {
 	if w == nil {
 		return ""
@@ -160,20 +176,18 @@ func playerPosition(p *common.Player) [3]float64 {
 	return [3]float64{v.X, v.Y, v.Z}
 }
 
-func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
-	kills, _, err := collectKills(p, target, r, m, SegmentModeKills, false)
-	return kills, err
+// runKillEvents parses one plan in mode: kills, recap or deaths.
+func runKillEvents(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
+	dual, err := collectKills(p, target, r, m, mode, false)
+	return dual.Kills, err
 }
 
-func runRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
-	kills, _, err := collectKills(p, target, r, m, SegmentModeRecap, false)
-	return kills, err
-}
-
-func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode, alsoRecap bool, factsOut ...*recapplan.Facts) (killplan.Plan, killplan.Plan, error) {
+// collectKills returns the plan for mode as Kills. With alsoRecap it also
+// fills Recap, Deaths and Facts from the same pass.
+func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode, alsoRecap bool) (DualPlan, error) {
 	targetID, err := strconv.ParseUint(target, 10, 64)
 	if err != nil {
-		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
+		return DualPlan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
 	}
 
 	c := NewCollector(target, r)
@@ -223,7 +237,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			// counter already points at the next round. Only a live round owns a
 			// POV boundary; post-round events must not clip the following round.
 			if activeRound > 0 && roundLive {
-				c.RecordTargetDeath(TargetDeath{Round: activeRound, Tick: gi.Tick})
+				c.RecordTargetDeath(targetDeath(e, TargetDeath{Round: activeRound, Tick: gi.Tick}))
 			} else if activeRound > 0 {
 				freezeDeaths = append(freezeDeaths, TargetDeath{Round: activeRound, Tick: gi.Tick})
 			}
@@ -290,7 +304,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		roundLive = false
 	})
 
-	if len(factsOut) > 0 {
+	if alsoRecap {
 		p.RegisterEventHandler(func(events.FrameDone) {
 			tick := p.GameState().IngameTick()
 			if tick > factsLastTick {
@@ -311,7 +325,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		})
 	}
 	if err := parseCaptureDemo(p); err != nil {
-		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
+		return DualPlan{}, fmt.Errorf("parsing demo: %w", err)
 	}
 
 	if m.Tickrate <= 0 {
@@ -336,29 +350,27 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		// Translate the collector's "target not seen" error into the sentinel
 		// so the CLI can map it to its exit code.
 		if errors.Is(err, ErrTargetNotFound) {
-			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound
+			return DualPlan{}, ErrTargetNotFound
 		}
-		return killplan.Plan{}, killplan.Plan{}, err
+		return DualPlan{}, err
 	}
-	if len(factsOut) > 0 && factsOut[0] != nil {
-		factsMeta := m
-		factsMeta.DurationTicks = max(m.DurationTicks, factsLastTick)
-		*factsOut[0] = c.fullDemoFacts(factsMeta, freezeDeaths, sawMatchStart)
-		factsOut[0].Crosshairs = crosshairs.samples
-		if crosshairs.overflow {
-			factsOut[0].Complete = false
-			factsOut[0].Warnings = append(factsOut[0].Warnings, recapplan.Notice{Code: "crosshair_evidence_limit", Message: "Observed crosshair exceeded its bounded source timeline"})
-		}
-	}
+	dual := DualPlan{Kills: plan}
 	if !alsoRecap || mode == SegmentModeRecap {
-		return plan, killplan.Plan{}, nil
+		return dual, nil
 	}
-	recap, err := c.BuildPlan(m, SegmentModeRecap)
-	if err != nil {
-		if errors.Is(err, ErrTargetNotFound) {
-			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound
-		}
-		return plan, killplan.Plan{}, err
+	factsMeta := m
+	factsMeta.DurationTicks = max(m.DurationTicks, factsLastTick)
+	dual.Facts = c.fullDemoFacts(factsMeta, freezeDeaths, sawMatchStart)
+	dual.Facts.Crosshairs = crosshairs.samples
+	if crosshairs.overflow {
+		dual.Facts.Complete = false
+		dual.Facts.Warnings = append(dual.Facts.Warnings, recapplan.Notice{Code: "crosshair_evidence_limit", Message: "Observed crosshair exceeded its bounded source timeline"})
 	}
-	return plan, recap, nil
+	if dual.Recap, err = c.BuildPlan(m, SegmentModeRecap); err != nil {
+		return DualPlan{Kills: plan}, err
+	}
+	if dual.Deaths, err = c.BuildPlan(m, SegmentModeDeaths); err != nil {
+		return DualPlan{Kills: plan}, err
+	}
+	return dual, nil
 }

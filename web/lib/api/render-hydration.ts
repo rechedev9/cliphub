@@ -61,6 +61,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
     voiceComms: edit.voice_comms === true,
     nativeHud: edit.native_hud === true,
   };
+  if (edit.death_reel === true) parsed.deathReel = true;
   if (
     typeof edit.voice_volume === 'number' &&
     Number.isFinite(edit.voice_volume) &&

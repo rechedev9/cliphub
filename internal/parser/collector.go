@@ -185,6 +185,9 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		segs = SegmentRecap(recapKills, c.utility, c.roundStarts, c.liveStarts, c.roundEnds, c.targetDeaths, planRules, m.Tickrate)
 		segs = WithIntroFreeze(segs, c.roundStarts, m.Tickrate)
 		segs = WithOutroHold(segs, c.roundStarts, c.targetDeaths, m.Tickrate)
+	case SegmentModeDeaths:
+		planKillsAfterFilters = 0
+		segs = SegmentDeaths(c.targetDeaths, c.liveStarts, c.roundStarts, m.Tickrate)
 	default:
 		segs = Segment(c.kills, c.roundEnds, c.roundStarts, c.rules, m.Tickrate)
 	}
@@ -284,6 +287,9 @@ func lastSegmentEventTick(segment killplan.Segment) int {
 			last = kill.Tick
 		}
 	}
+	if segment.Death != nil {
+		last = max(last, segment.Death.Tick)
+	}
 	for _, utility := range segment.Utility {
 		if utility.ThrowTick > last {
 			last = utility.ThrowTick
@@ -351,7 +357,11 @@ func clampSegmentsToDuration(segments []killplan.Segment, durationTicks, tickrat
 		if segment.TickEnd <= segment.TickStart {
 			continue
 		}
-		segment.ID = killplan.FormatSegmentID(len(out) + 1)
+		if segment.Death != nil {
+			segment.ID = DeathSegmentID(len(out) + 1)
+		} else {
+			segment.ID = killplan.FormatSegmentID(len(out) + 1)
+		}
 		out = append(out, segment)
 	}
 	return out

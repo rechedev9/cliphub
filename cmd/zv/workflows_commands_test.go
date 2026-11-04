@@ -373,8 +373,8 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 		t.Fatalf("demo-parse safety = %#v, want short mutating workflow with dry-run", parse.Safety)
 	}
 	segmentMode := workflowValueConstraintForFlag(t, parse, "--segment-mode")
-	if got, want := strings.Join(segmentMode.AllowedValues, " "), "kills smokes utility recap"; got != want || segmentMode.Default != "kills" {
-		t.Fatalf("demo-parse segment mode metadata = %#v, want kills/smokes/utility/recap with kills default", segmentMode)
+	if got, want := strings.Join(segmentMode.AllowedValues, " "), "kills smokes utility recap deaths"; got != want || segmentMode.Default != "kills" {
+		t.Fatalf("demo-parse segment mode metadata = %#v, want kills/smokes/utility/recap/deaths with kills default", segmentMode)
 	}
 
 	moments, ok := findWorkflow("demo-moments")
@@ -570,7 +570,7 @@ func TestRunWorkflowsValidateRejectsUnknownConstrainedValueWithoutExecuting(t *t
 	if result.OK || result.Executed {
 		t.Fatalf("result = %#v, want invalid unexecuted preflight", result)
 	}
-	if got, want := result.Error, `invalid value "banana" for flag --segment-mode in workflow "demo-parse"; allowed values: kills, smokes, utility, recap`; got != want {
+	if got, want := result.Error, `invalid value "banana" for flag --segment-mode in workflow "demo-parse"; allowed values: kills, smokes, utility, recap, deaths`; got != want {
 		t.Fatalf("error = %q, want %q", got, want)
 	}
 }

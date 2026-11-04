@@ -48,6 +48,15 @@ type Moment struct {
 	Utility         []UtilityEvent `json:"utility,omitempty"`
 	Warnings        []string       `json:"warnings,omitempty"`
 	DefaultVariant  string         `json:"default_variant"`
+	Death           *Death         `json:"death,omitempty"`
+}
+
+// Death is how the target died in a death clip.
+type Death struct {
+	Tick     int    `json:"tick"`
+	Killer   string `json:"killer,omitempty"`
+	Weapon   string `json:"weapon,omitempty"`
+	Headshot bool   `json:"headshot,omitempty"`
 }
 
 type Events struct {
@@ -81,6 +90,20 @@ func Build(jobID uuid.UUID, plan killplan.Plan) Document {
 		GeneratedAt:   time.Now().UTC(),
 		Moments:       Rank(plan),
 	}
+}
+
+// BuildDeaths lists the clips of a death plan in match order: a death reel
+// follows the match, so it is not ranked.
+func BuildDeaths(jobID uuid.UUID, plan killplan.Plan) Document {
+	out := make([]Moment, 0, len(plan.Segments))
+	for i, segment := range plan.Segments {
+		moment := buildMoment(i+1, segment, plan)
+		if d := segment.Death; d != nil {
+			moment.Death = &Death{Tick: d.Tick, Killer: d.Killer.NameInDemo, Weapon: d.Weapon, Headshot: d.Headshot}
+		}
+		out = append(out, moment)
+	}
+	return Document{SchemaVersion: SchemaVersion, JobID: jobID, GeneratedAt: time.Now().UTC(), Moments: out}
 }
 
 // Rank scores every planned segment and returns a deterministic best-first
@@ -256,7 +279,7 @@ func warnings(segment killplan.Segment, tickrate int) []string {
 	if segment.TickEnd <= segment.TickStart {
 		out = append(out, "invalid_tick_range")
 	}
-	if len(segment.Kills) == 0 && len(segment.Utility) == 0 {
+	if len(segment.Kills) == 0 && len(segment.Utility) == 0 && segment.Death == nil {
 		out = append(out, "empty_segment")
 	}
 	return out

@@ -67,6 +67,8 @@ type EditRequest struct {
 	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds,omitempty"`
 	DemoSource          string              `json:"demo_source,omitempty"`
 	OverlayTheme        string              `json:"overlay_theme,omitempty"`
+	// DeathReel records the clips of the death plan instead of the kill plan.
+	DeathReel bool `json:"death_reel,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -121,6 +123,11 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if req.KeyDropStyle != "" && req.KeyDropFamily == "" {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
+	if req.DeathReel {
+		// The hook and the counter tell the player's kills, not a reel of deaths.
+		req.HookText = false
+		req.KillCounter = false
+	}
 	return req
 }
 
@@ -159,6 +166,9 @@ func (r EditRequest) validateFields() error {
 			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != o.OverlaySource() || r.OverlayTheme != o.Overlays.Theme {
 			return fmt.Errorf("full demo edit fields contradict the approved document")
 		}
+	}
+	if r.DeathReel && (r.MatchRecap || r.FullDemo != nil) {
+		return fmt.Errorf("a death reel is not a match recap")
 	}
 	switch r.Format {
 	case FormatShort9x16, FormatLandscape16x9:

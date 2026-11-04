@@ -30,11 +30,13 @@ import (
 	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/demozstd"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -58,6 +60,7 @@ const (
 	maxJSONBodyBytes   = 1 << 20              // JSON control documents are small
 	renderUniqueTTL    = 24 * time.Hour
 	generateWorkActive = "generate_work_active"
+	deathPlanMissing   = "death_plan_missing"
 )
 
 var errGenerateRenderActive = errors.New("a render is already active for this job")
@@ -1017,12 +1020,26 @@ func (h *Handlers) GetFinal(w http.ResponseWriter, r *http.Request) {
 // outside the job's kill plan or names one segment twice; an empty selection
 // means every segment. It writes the 400 itself and reports whether the
 // selection is usable.
-func validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string) bool {
+// validateSegmentSelection checks ids against the job's kill plan, or its
+// death plan for a death reel.
+func (h *Handlers) validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string, deathReel bool) bool {
 	if len(ids) == 0 {
+		if deathReel {
+			writeError(w, http.StatusBadRequest, "a death reel needs the segment ids of its deaths")
+			return false
+		}
 		return true
 	}
-	valid := make(map[string]bool, len(j.KillPlan.Segments))
-	for _, s := range j.KillPlan.Segments {
+	plan := j.KillPlan
+	if deathReel {
+		deaths, ok := h.loadDeathPlan(w, j)
+		if !ok {
+			return false
+		}
+		plan = &deaths
+	}
+	valid := make(map[string]bool, len(plan.Segments))
+	for _, s := range plan.Segments {
 		valid[s.ID] = true
 	}
 	seen := make(map[string]bool, len(ids))
@@ -1038,6 +1055,33 @@ func validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string) bo
 		seen[id] = true
 	}
 	return true
+}
+
+func (h *Handlers) loadDeathPlan(w http.ResponseWriter, j job.Job) (killplan.Plan, bool) {
+	plan, found, err := deathplan.Load(h.storage, j.ID)
+	if err != nil {
+		internalError(w, "load death plan", err)
+		return killplan.Plan{}, false
+	}
+	if !found {
+		writeCodedError(w, http.StatusConflict, deathPlanMissing, "this demo was analysed before death clips existed; analyse it again")
+		return killplan.Plan{}, false
+	}
+	return plan, true
+}
+
+// GetDeaths handles GET /api/jobs/{id}/deaths: one clip per death of the
+// target, in match order.
+func (h *Handlers) GetDeaths(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadJobMeta(w, r)
+	if !ok {
+		return
+	}
+	plan, ok := h.loadDeathPlan(w, j)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, moments.BuildDeaths(j.ID, plan))
 }
 
 func applyCaptureOverrides(hudMode string, edit renderplan.EditRequest) (string, bool) {
@@ -1174,7 +1218,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 				segmentIDs = nil
 				demoSource = edit.DemoSource
 			} else {
-				if !validateSegmentSelection(w, j, req.SegmentIDs) {
+				if !h.validateSegmentSelection(w, j, req.SegmentIDs, edit.DeathReel) {
 					return
 				}
 				segmentIDs = req.SegmentIDs
@@ -1314,7 +1358,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			h.rejectFullDemoFaceit(w, j, err)
 			return
 		}
-	} else if !validateSegmentSelection(w, j, segmentIDs) {
+	} else if !h.validateSegmentSelection(w, j, segmentIDs, intent.Edit.DeathReel) {
 		return
 	}
 	intent.SegmentIDs = segmentIDs
@@ -1413,7 +1457,7 @@ func sameCapture(a, b renderplan.GenerateIntent) bool {
 	}
 	ca, okA := captureRequestFor(a)
 	cb, okB := captureRequestFor(b)
-	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan &&
+	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan && a.Edit.DeathReel == b.Edit.DeathReel &&
 		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && slices.Equal(ca.segmentIDs, cb.segmentIDs)
 }
 
@@ -1574,6 +1618,7 @@ type renderEditRequest struct {
 	HookText            *bool               `json:"hook_text"`
 	KillCounter         *bool               `json:"kill_counter"`
 	MatchRecap          *bool               `json:"match_recap"`
+	DeathReel           *bool               `json:"death_reel"`
 	VoiceComms          *bool               `json:"voice_comms"`
 	VoiceVolume         *float64            `json:"voice_volume"`
 	NativeHUD           *bool               `json:"native_hud"`
@@ -1618,6 +1663,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.MatchRecap != nil {
 		base.MatchRecap = *r.MatchRecap
+	}
+	if r.DeathReel != nil {
+		base.DeathReel = *r.DeathReel
 	}
 	if r.VoiceComms != nil {
 		base.VoiceComms = *r.VoiceComms
@@ -1733,7 +1781,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "game volume must be between 0 and 1")
 				return
 			}
-			if !validateSegmentSelection(w, j, req.SegmentIDs) {
+			if !h.validateSegmentSelection(w, j, req.SegmentIDs, req.Edit.DeathReel != nil && *req.Edit.DeathReel) {
 				return
 			}
 			segmentIDs = req.SegmentIDs

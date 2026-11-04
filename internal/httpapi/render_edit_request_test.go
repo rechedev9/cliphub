@@ -17,7 +17,7 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 	const full = `{
 		"format":"landscape-16x9","killEffect":"clean","transition":"cut",
 		"intro":true,"outro":true,"hook_text":true,"kill_counter":true,
-		"match_recap":true,"voice_comms":true,"voice_volume":0.5,"native_hud":true,
+		"match_recap":true,"death_reel":true,"voice_comms":true,"voice_volume":0.5,"native_hud":true,
 		"cover_strategy":"generated-gameplay","cover_first_frame":true,
 		"intro_text":"hi","outro_text":"bye",
 		"keydrop_family":"keydrop","keydrop_style":"jcorko","keydrop_code":"ZACK",

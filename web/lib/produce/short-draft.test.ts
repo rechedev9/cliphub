@@ -70,3 +70,9 @@ test('storage helpers tolerate an unavailable browser', () => {
   assert.doesNotThrow(() => saveShortDraft('match', defaults));
   assert.doesNotThrow(() => clearShortDraft('match'));
 });
+
+test('a saved death-reel draft keeps its mode', () => {
+  const restored = parseShortDraft({ version: 1, selectedIds: ['death-001'], editConfig: { deathReel: true } }, new Set(['death-001']));
+  assert.equal(restored?.editConfig.deathReel, true);
+  assert.deepEqual(restored?.selectedIds, ['death-001']);
+});

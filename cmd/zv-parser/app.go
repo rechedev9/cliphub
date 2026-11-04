@@ -105,7 +105,7 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 	var pa parseArgs
 	fs.StringVar(&pa.demo, "demo", "", "path to .dem file")
 	fs.StringVar(&pa.steamid, "steamid", "", "target SteamID64")
-	fs.StringVar(&pa.segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, or recap")
+	fs.StringVar(&pa.segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, recap, or deaths")
 	fs.StringVar(&pa.rules, "rules", "", "optional JSON rules file")
 	fs.StringVar(&pa.out, "out", "-", "output path or \"-\" for stdout")
 	fs.BoolVar(&pa.dryRun, "dry-run", false, "validate inputs and the output path without parsing or writing")

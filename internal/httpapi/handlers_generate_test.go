@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -18,9 +19,11 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -941,5 +944,71 @@ func TestStartGenerateRefusesStaleIntentBehindPlainQueuedCapture(t *testing.T) {
 	}
 	if got.ActiveRunID != uuid.Nil || got.Variant != editor.PresetViral60Clean {
 		t.Fatalf("stale display intent mutated: %+v", got)
+	}
+}
+
+func TestStartGenerateDeathReelTakesIdsFromTheDeathPlan(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001"}}
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+	body := `{"preset":"viral-60-clean","segment_ids":["death-001"],"edit":{"death_reel":true,"kill_counter":true}}`
+
+	if rw := postGenerate(t, h, j.ID, body); rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), deathPlanMissing) {
+		t.Fatalf("without a death plan: status = %d, body=%s; want 409 %s", rw.Code, rw.Body.String(), deathPlanMissing)
+	}
+	deaths := killplan.NewPlan()
+	deaths.Segments = []killplan.Segment{{ID: "death-001", Death: &killplan.Kill{Tick: 100}}}
+	if err := deathplan.Store(store, j.ID, deaths); err != nil {
+		t.Fatal(err)
+	}
+	if rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":{"death_reel":true}}`); rw.Code != http.StatusBadRequest {
+		t.Fatalf("kill id in a death reel: status = %d, want 400", rw.Code)
+	}
+	if rw := postGenerate(t, h, j.ID, body); rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	intent, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0])
+	if err != nil || !ok {
+		t.Fatalf("GenerateIntentFromTask = (%#v, %v, %v)", intent, ok, err)
+	}
+	if !intent.Edit.DeathReel || intent.Edit.KillCounter || !slices.Equal(intent.SegmentIDs, []string{"death-001"}) {
+		t.Fatalf("intent = %+v, want a death reel of death-001 without kill counter", intent)
+	}
+}
+
+func TestGetDeathsListsTheDeathClipsInMatchOrder(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, &fakeQueue{})
+	deaths := killplan.NewPlan()
+	deaths.Demo.Tickrate = 64
+	deaths.Segments = []killplan.Segment{
+		{ID: "death-001", Round: 3, TickStart: 10, TickEnd: 600, Death: &killplan.Kill{Tick: 536, Weapon: "awp", Killer: killplan.Player{NameInDemo: "enemy"}}},
+		{ID: "death-002", Round: 9, TickStart: 900, TickEnd: 1500, Kills: []killplan.Kill{{Tick: 1000}}, Death: &killplan.Kill{Tick: 1436}},
+	}
+	if err := deathplan.Store(store, j.ID, deaths); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/deaths", nil)
+	rw := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/deaths", h.GetDeaths)
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rw.Code, rw.Body.String())
+	}
+	var doc moments.Document
+	if err := json.Unmarshal(rw.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Moments) != 2 || doc.Moments[0].SegmentID != "death-001" || doc.Moments[0].Death == nil || doc.Moments[0].Death.Killer != "enemy" {
+		t.Fatalf("moments = %+v", doc.Moments)
 	}
 }

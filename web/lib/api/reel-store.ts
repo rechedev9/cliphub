@@ -165,6 +165,7 @@ export function coerceEditConfig(value: unknown): EditConfig {
     introText: coerceBookendText(raw.introText),
     outroText: coerceBookendText(raw.outroText),
   };
+  if (raw.deathReel === true) cfg.deathReel = true;
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   const family =

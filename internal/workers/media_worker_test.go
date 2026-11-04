@@ -365,7 +365,11 @@ func TestRecordSourcePlanUsesRecapWindows(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			got, err := recordSourcePlan(store, j, tc.useRecap)
+			source := planSourceKills
+			if tc.useRecap {
+				source = planSourceRecap
+			}
+			got, err := recordSourcePlan(store, j, source)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("error = nil, want missing recap plan")

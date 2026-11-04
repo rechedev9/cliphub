@@ -124,6 +124,36 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number
   };
 }
 
+/** Minimal mirror of GET /api/jobs/{id}/deaths (internal/moments, BuildDeaths). */
+export type DeathMoments = {
+  moments?: {
+    segment_id: string;
+    round: number;
+    time_start_seconds?: number;
+    time_end_seconds?: number;
+    death?: { killer?: string; weapon?: string; headshot?: boolean };
+  }[];
+};
+
+/** Death clips → Plays, in match order. */
+export function deathMomentsToPlays(jobId: string, doc: DeathMoments): Play[] {
+  return (doc.moments ?? []).map((moment): Play => {
+    const { time_start_seconds: start, time_end_seconds: end } = moment;
+    const timed = start !== undefined && end !== undefined && Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start;
+    const weapon = moment.death?.weapon ? prettifyWeapon(moment.death.weapon) : undefined;
+    return {
+      id: moment.segment_id,
+      matchId: jobId,
+      kind: 'clean',
+      round: moment.round,
+      kills: 0,
+      label: `Muerte · Ronda ${moment.round}`,
+      ...(timed ? { startSeconds: start, endSeconds: end } : {}),
+      death: { killer: moment.death?.killer || undefined, weapon, headshot: moment.death?.headshot === true },
+    };
+  });
+}
+
 /** All of a plan's segments → Plays for the given job. */
 export function planToPlays(jobId: string, plan: KillPlan): Play[] {
   const seen = new Set<string>();

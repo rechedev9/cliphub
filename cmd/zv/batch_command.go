@@ -50,7 +50,7 @@ func runBatch(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&outDir, "out", "", "optional directory to write each kill plan into")
 	fs.StringVar(&obsDir, "obs-dir", obs.DefaultDir(), "observability directory for the error journal and metrics")
 	fs.IntVar(&jobs, "jobs", 0, "max concurrent demos; 0 picks a CPU-based default")
-	fs.StringVar(&segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, or recap")
+	fs.StringVar(&segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, recap, or deaths")
 	fs.StringVar(&format, "format", "text", "summary format: text or json")
 	fs.StringVar(&report, "report", "", "optional path to write the JSON summary report")
 	if err := fs.Parse(args); err != nil {

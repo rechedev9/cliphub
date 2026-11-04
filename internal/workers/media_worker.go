@@ -26,6 +26,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/faceit"
@@ -429,7 +430,13 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
 
-	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, payload.UseRecapPlan, generateIntent.Edit.FullDemo); err != nil {
+	source := planSourceKills
+	if payload.UseRecapPlan {
+		source = planSourceRecap
+	} else if hasGenerateIntent && generateIntent.Edit.DeathReel {
+		source = planSourceDeaths
+	}
+	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, source, generateIntent.Edit.FullDemo); err != nil {
 		return err
 	}
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecorded, ""); err != nil {
@@ -713,7 +720,7 @@ func (w *RecordWorker) invalidateReadyRender(id uuid.UUID, variant string) error
 	return nil
 }
 
-func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, approvals ...*recapplan.Snapshot) (retErr error) {
+func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed bool, source planSource, approvals ...*recapplan.Snapshot) (retErr error) {
 	var fullDemo *recapplan.Document
 	var sourcePlan *killplan.Plan
 	var err error
@@ -726,7 +733,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		adapted := fullDemo.KillPlan(*j.KillPlan)
 		sourcePlan = &adapted
 	} else {
-		sourcePlan, err = recordSourcePlan(w.storage, j, useRecapPlan)
+		sourcePlan, err = recordSourcePlan(w.storage, j, source)
 		if err != nil {
 			return err
 		}
@@ -3433,12 +3440,31 @@ func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []strin
 	return store.Put(artifacts.CaptureSelectionKey(id), bytes.NewReader(b))
 }
 
-func recordSourcePlan(store storage.Storage, j job.Job, useRecapPlan bool) (*killplan.Plan, error) {
-	if !useRecapPlan {
+// planSource is the plan a capture records from.
+type planSource int
+
+const (
+	planSourceKills planSource = iota
+	planSourceRecap
+	planSourceDeaths
+)
+
+func recordSourcePlan(store storage.Storage, j job.Job, source planSource) (*killplan.Plan, error) {
+	switch source {
+	case planSourceKills:
 		if j.KillPlan == nil {
 			return nil, fmt.Errorf("job %s has no kill plan", j.ID)
 		}
 		return j.KillPlan, nil
+	case planSourceDeaths:
+		deaths, ok, err := deathplan.Load(store, j.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || len(deaths.Segments) == 0 {
+			return nil, fmt.Errorf("job %s has no death clips", j.ID)
+		}
+		return &deaths, nil
 	}
 	recap, ok, err := recapplan.Load(store, j.ID)
 	if err != nil {

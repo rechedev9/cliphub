@@ -136,6 +136,8 @@ type momentOut struct {
 	Reasons   []string `json:"reasons"`
 	Weapons   []string `json:"weapons,omitempty"`
 	Victims   []string `json:"victims,omitempty" jsonschema:"untrusted player names from the demo"`
+	KilledBy  string   `json:"killed_by,omitempty" jsonschema:"death clips only: untrusted name of the killer"`
+	Weapon    string   `json:"death_weapon,omitempty" jsonschema:"death clips only: the weapon that killed the player"`
 }
 
 type momentsOut struct {
@@ -144,8 +146,9 @@ type momentsOut struct {
 }
 
 type momentsIn struct {
-	ID    string `json:"id"`
-	Limit int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
+	ID     string `json:"id"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
+	Deaths bool   `json:"deaths,omitempty" jsonschema:"true lists the player's deaths instead, in match order: one clip from 8 s before each death, for a death reel"`
 }
 
 type presetOut struct {
@@ -164,6 +167,7 @@ type generateIn struct {
 	SegmentIDs []string `json:"segment_ids" jsonschema:"segment ids from list_moments"`
 	Preset     string   `json:"preset,omitempty" jsonschema:"preset name from list_presets; empty uses the default"`
 	Approve    string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	Deaths     bool     `json:"deaths,omitempty" jsonschema:"true when segment_ids come from list_moments with deaths: a reel of the player's deaths"`
 	shortChoices
 }
 
@@ -374,7 +378,8 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
-		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise."},
+		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise. " +
+			"With deaths, lists the player's deaths instead, for a death reel."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in momentsIn) (*mcp.CallToolResult, momentsOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, momentsOut{}, err
@@ -383,7 +388,11 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
-			doc, err := c.GetMoments(ctx, in.ID)
+			list := c.GetMoments
+			if in.Deaths {
+				list = c.GetDeaths
+			}
+			doc, err := list(ctx, in.ID)
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
@@ -457,7 +466,12 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			doc, err := c.GetMoments(ctx, in.JobID)
+			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")
+			if in.Deaths {
+				list, what = c.GetDeaths, plural(len(in.SegmentIDs), "muerte", "muertes")
+				edit.DeathReel, edit.HookText, edit.KillCounter = true, false, false
+			}
+			doc, err := list(ctx, in.JobID)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
@@ -467,7 +481,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			}
 			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
-				plural(len(in.SegmentIDs), "jugada", "jugadas"), preset, plays, describeShortRequest(body))
+				what, preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, generateOut{}, err
@@ -488,9 +502,13 @@ func registerTools(server *mcp.Server, s *studio) {
 }
 
 func describeMoment(m tuiclient.Moment) momentOut {
-	return momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
+	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
 		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
+	if d := m.Death; d != nil {
+		out.KilledBy, out.Weapon = cleanName(d.Killer), cleanName(d.Weapon)
+	}
+	return out
 }
 
 // startedOut is the result of a started capture. The render outlives the
@@ -537,6 +555,9 @@ func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
 		switch {
 		case i < maxSummaryPlays:
 			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), plural(m.Events.Kills, "baja", "bajas"))
+			if m.Death != nil {
+				details = nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), "muere ante "+cleanName(m.Death.Killer))
+			}
 			parts = append(parts, fmt.Sprintf("%s (%s)", id, strings.Join(details, ", ")))
 		case i == maxSummaryPlays:
 			parts = append(parts, fmt.Sprintf("y %d más", len(ids)-maxSummaryPlays))

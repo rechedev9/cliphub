@@ -164,7 +164,7 @@ func TestCheckIDs(t *testing.T) {
 			t.Errorf("accepted %q as a UUID", bad)
 		}
 	}
-	if err := checkSegmentIDs([]string{"seg-001", "seg-18", "seg--07"}); err != nil {
+	if err := checkSegmentIDs([]string{"seg-001", "seg-18", "seg--07", "death-004"}); err != nil {
 		t.Errorf("refused plan segment ids: %v", err)
 	}
 	for _, bad := range [][]string{nil, {"seg-1/../x"}, {"../seg-1"}, {"seg-1", "seg-1"}, {"segment-1"}} {

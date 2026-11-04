@@ -8,7 +8,7 @@ import {
 } from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
 import { JOB_WAIT_TIMEOUT_CODE, MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
-import { planToMatch, planToPlays, type KillPlan } from './map.ts';
+import { deathMomentsToPlays, planToMatch, planToPlays, type DeathMoments, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { customHudTheme } from '../custom-hud.ts';
@@ -542,6 +542,25 @@ export class RealApiClient implements ApiClient {
     return planToPlays(matchId, plan);
   }
 
+  /** The plays a reel is cut from: recap rounds, death clips or kills. */
+  private playsFor(matchId: string, editConfig: EditConfig): Promise<Play[]> {
+    if (isLandscapeRecap(editConfig)) return this.findRecapClips(matchId);
+    if (editConfig.deathReel) return this.findDeathClips(matchId);
+    return this.findClips(matchId);
+  }
+
+  async findDeathClips(matchId: string): Promise<Play[]> {
+    if (!isJobId(matchId)) return [];
+
+    const status = await this.beatStatus(matchId);
+    if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
+
+    const res = await this.send((dp) => ({ url: dp.deathsUrl(matchId) }));
+    // 409: the demo was parsed before death clips existed.
+    if (res.status === 409) return [];
+    return deathMomentsToPlays(matchId, await readJson<DeathMoments>(res));
+  }
+
   /** Polls /status until it reaches `want`; throws on `failed` or timeout. */
   private async waitForStatus(jobId: string, want: string, maxAttempts = 240): Promise<void> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -584,7 +603,7 @@ export class RealApiClient implements ApiClient {
         id: round.round_id, matchId: request.matchId, label: `R${round.source_round_number}`, kind: 'highlight', round: round.source_round_number, kills: round.kills?.length ?? 0,
       })));
     } else {
-      playsRequest = recap ? this.findRecapClips(request.matchId) : this.findClips(request.matchId);
+      playsRequest = this.playsFor(request.matchId, editConfig);
     }
     const [plays, match] = await Promise.all([
       playsRequest,
@@ -596,9 +615,9 @@ export class RealApiClient implements ApiClient {
       : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = request.variant ?? REEL_VARIANT;
     const suffix = request.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
-    const selectionTitle = recap
-      ? `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`
-      : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
+    let selectionTitle = playsSelectionLabel(pickedPlays) ?? 'Highlight';
+    if (recap) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`;
+    else if (editConfig.deathReel) selectionTitle = `${pickedPlays.length} ${pickedPlays.length === 1 ? 'muerte' : 'muertes'}`;
     const intent: ReelIntent = {
       videoId,
       jobId: request.matchId,
