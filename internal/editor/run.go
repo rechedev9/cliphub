@@ -280,6 +280,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		TailTrimSeconds:     cfg.TailTrimSeconds,
 		OutputFPS:           cfg.OutputFPS,
 		CompileSegments:     cfg.CompileSegments,
+		VictimReplay:        cfg.VictimReplay,
 		LineupCatalogPath:   cfg.LineupCatalogPath,
 		SegmentIDs:          cfg.SegmentIDs,
 		Limit:               cfg.Limit,

@@ -31,6 +31,10 @@ export function validateScenario(raw) {
   if (typeof scenario.target_steamid !== 'string' || !/^\d{17}$/.test(scenario.target_steamid)) {
     throw new Error('scenario.target_steamid must be a 17-digit SteamID64');
   }
+  if (scenario.players !== undefined && (!Array.isArray(scenario.players) ||
+      scenario.players.some((id) => typeof id !== 'string' || !/^\d{17}$/.test(id)))) {
+    throw new Error('scenario.players must be an array of SteamID64 strings');
+  }
   requireInteger(scenario.start_tick ?? 0, 'scenario.start_tick', 0);
   requireInteger(scenario.tick_step ?? 1, 'scenario.tick_step', 1);
   requireInteger(scenario.max_frames ?? 10000, 'scenario.max_frames', 1);
@@ -145,6 +149,8 @@ export async function runSimulation(scriptSource, rawScenario) {
   let pendingSeek = null;
   let paused = false;
   let pendingPOV = null;
+  // With scenario.players, spec_player switches the observer to that player.
+  let spectated = null;
   let simulatedObserved = scenario.default_observed_steamid ?? scenario.target_steamid;
   let timescale = 1;
   let disconnected = false;
@@ -171,6 +177,10 @@ export async function runSimulation(scriptSource, rawScenario) {
       paused = false;
     } else if (command.startsWith('demo_timescale ')) {
       timescale = Number(command.slice('demo_timescale '.length));
+    } else if (command.startsWith('spec_player ') && scenario.players && !scenario.simulate_pov_lock) {
+      const controller = currentEntities().entities.get(Number(command.slice('spec_player '.length)));
+      const id = controller?.getSteamId?.().toString();
+      if (id === scenario.target_steamid || scenario.players.includes(id)) spectated = id;
     } else if (command.startsWith('spec_player ') && scenario.simulate_pov_lock) {
       const state = stateAtTick(scenario, tick);
       const index = Number(command.slice('spec_player '.length));
@@ -216,6 +226,7 @@ export async function runSimulation(scriptSource, rawScenario) {
 
   function currentEntities() {
     const state = stateAtTick(scenario, tick);
+    if (spectated !== null) state.observedSteamID = spectated;
     if (scenario.simulate_pov_lock) {
       state.observedSteamID = simulatedObserved;
       // Explicit visual faults still override command-driven acquisition.
@@ -255,6 +266,14 @@ export async function runSimulation(scriptSource, rawScenario) {
     };
     const entities = new Map([[1, localController], [2, localPawn], [3, observedPawn], [4, observedController]]);
     if (state.targetPresent && state.observedSteamID !== scenario.target_steamid) entities.set(5, targetController);
+    for (const [index, id] of (scenario.players ?? []).entries()) {
+      entities.set(10 + index, {
+        isPlayerController: () => true,
+        isPlayerPawn: () => false,
+        getSteamId: () => ({ toString: () => id }),
+        getPlayerPawnHandle: () => 100 + index,
+      });
+    }
     return { entities, localController };
   }
 

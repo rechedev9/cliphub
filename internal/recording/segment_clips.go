@@ -13,6 +13,22 @@ type SegmentClip struct {
 	Artifact        RecordingArtifact `json:"artifact,omitempty"`
 }
 
+// ResolveVictimReplayClip returns the victim POV clip recorded for segmentID.
+func ResolveVictimReplayClip(result RecordingResult, segmentID string) (SegmentClip, bool) {
+	id := VictimReplayID(segmentID)
+	var chosen *RecordingArtifact
+	for i := range result.Artifacts {
+		artifact := &result.Artifacts[i]
+		if artifact.Role == "segment" && artifact.Type == "video" && artifact.SegmentID == id && (chosen == nil || artifact.Path < chosen.Path) {
+			chosen = artifact
+		}
+	}
+	if chosen == nil {
+		return SegmentClip{}, false
+	}
+	return SegmentClip{SegmentID: id, Path: chosen.Path, DurationSeconds: chosen.DurationSeconds, Artifact: *chosen}, true
+}
+
 // ResolveSegmentClips selects one video artifact for each planned segment in
 // plan order. A missing artifact is fatal; duplicate artifacts are resolved to
 // the lexicographically first path and reported as warnings. On a missing

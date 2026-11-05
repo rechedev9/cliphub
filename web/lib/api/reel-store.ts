@@ -167,6 +167,7 @@ export function coerceEditConfig(value: unknown): EditConfig {
   };
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
+  if (raw.victimReplay === true) cfg.victimReplay = true;
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

@@ -97,8 +97,8 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   }, [updateSettings, presetAttempt]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
-  const cues = selectionTimeline(plays, selectedIds);
-  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
+  const cues = selectionTimeline(plays, { selectedIds, victimReplay: editConfig.victimReplay === true });
+  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
   // No tilde: beside the figures it reads as a minus sign ("-0:00").
   const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;
@@ -230,7 +230,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
             selectedIds={selectedIds}
             title={STEP.highlights}
             toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || plays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}>{AUTO_PICK_LABEL}</Button>}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays, { victimReplay: editConfig.victimReplay === true })] })}>{AUTO_PICK_LABEL}</Button>}
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-fg-1')}>
                 {selectedPlays.length} de {plays.length} elegidos · {clock}
@@ -378,6 +378,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.killCounter) parts.push('Kill counter');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.victimReplay) parts.push('Repetición');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }

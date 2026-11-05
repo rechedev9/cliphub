@@ -1414,7 +1414,7 @@ func sameCapture(a, b renderplan.GenerateIntent) bool {
 	ca, okA := captureRequestFor(a)
 	cb, okB := captureRequestFor(b)
 	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan &&
-		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && slices.Equal(ca.segmentIDs, cb.segmentIDs)
+		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && ca.victimReplay == cb.victimReplay && slices.Equal(ca.segmentIDs, cb.segmentIDs)
 }
 
 type captureRequest struct {
@@ -1422,6 +1422,7 @@ type captureRequest struct {
 	segmentIDs           []string
 	portraitSafeKillfeed bool
 	useRecapPlan         bool
+	victimReplay         bool
 }
 
 // captureRequestFor derives the capture-time choices of an intent the same way
@@ -1441,6 +1442,7 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 		segmentIDs:           segmentIDs,
 		portraitSafeKillfeed: preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16,
 		useRecapPlan:         useRecapPlan,
+		victimReplay:         intent.Edit.VictimReplay && !useRecapPlan,
 	}, true
 }
 
@@ -1577,6 +1579,7 @@ type renderEditRequest struct {
 	VoiceComms          *bool               `json:"voice_comms"`
 	VoiceVolume         *float64            `json:"voice_volume"`
 	NativeHUD           *bool               `json:"native_hud"`
+	VictimReplay        *bool               `json:"victim_replay"`
 	CoverStrategy       *string             `json:"cover_strategy"`
 	CoverFirstFrame     *bool               `json:"cover_first_frame"`
 	IntroText           *string             `json:"intro_text"`
@@ -1628,6 +1631,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.NativeHUD != nil {
 		base.NativeHUD = *r.NativeHUD
+	}
+	if r.VictimReplay != nil {
+		base.VictimReplay = *r.VictimReplay
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy

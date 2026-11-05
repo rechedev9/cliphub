@@ -202,8 +202,9 @@ func ValidateUploadResult(result RecordingResult) error {
 		return fmt.Errorf("recording result has no segment clips")
 	}
 
-	missing := make([]string, 0, len(result.Plan.Segments))
-	for _, segment := range result.Plan.Segments {
+	captures := result.Plan.CaptureSegments()
+	missing := make([]string, 0, len(captures))
+	for _, segment := range captures {
 		if !clips[segment.ID] {
 			missing = append(missing, segment.ID)
 		}

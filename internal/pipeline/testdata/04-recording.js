@@ -291,21 +291,193 @@
         ]
       },
       {
-        "tick": 61832,
-        "key": "timescale-up-seg-011",
+        "pass": 1,
+        "tick": 17303,
+        "key": "camera-warmup-seg-002-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17463,
+        "key": "timescale-reset-seg-002-victim",
+        "commands": [
+          "demo_timescale 1"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17590,
+        "key": "camera-lock-seg-002-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17591,
+        "key": "record-start-seg-002-victim",
+        "commands": [
+          "mirv_streams record start"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17623,
+        "key": "camera-relock-seg-002-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17815,
+        "key": "record-end-seg-002-victim",
+        "commands": [
+          "mirv_streams record end"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 17819,
+        "key": "timescale-up-seg-002-victim",
         "commands": [
           "demo_timescale 8"
         ]
       },
       {
-        "tick": 61924,
+        "pass": 1,
+        "tick": 22415,
+        "key": "camera-warmup-seg-004-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22575,
+        "key": "timescale-reset-seg-004-victim",
+        "commands": [
+          "demo_timescale 1"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22702,
+        "key": "camera-lock-seg-004-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22703,
+        "key": "record-start-seg-004-victim",
+        "commands": [
+          "mirv_streams record start"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22735,
+        "key": "camera-relock-seg-004-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22927,
+        "key": "record-end-seg-004-victim",
+        "commands": [
+          "mirv_streams record end"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 22931,
+        "key": "timescale-up-seg-004-victim",
+        "commands": [
+          "demo_timescale 8"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61220,
+        "key": "camera-warmup-seg-011-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61380,
+        "key": "timescale-reset-seg-011-victim",
+        "commands": [
+          "demo_timescale 1"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61507,
+        "key": "camera-lock-seg-011-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61508,
+        "key": "record-start-seg-011-victim",
+        "commands": [
+          "mirv_streams record start"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61540,
+        "key": "camera-relock-seg-011-victim",
+        "commands": [
+          "spec_autodirector 0",
+          "spec_mode 2"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61732,
+        "key": "record-end-seg-011-victim",
+        "commands": [
+          "mirv_streams record end"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61736,
+        "key": "timescale-up-seg-011-victim",
+        "commands": [
+          "demo_timescale 8"
+        ]
+      },
+      {
+        "pass": 1,
+        "tick": 61828,
         "key": "timescale-reset-shutdown",
         "commands": [
           "demo_timescale 1"
         ]
       },
       {
-        "tick": 61928,
+        "pass": 1,
+        "tick": 61832,
         "key": "shutdown",
         "commands": []
       }
@@ -322,6 +494,19 @@
       {
         "after": 23247,
         "target": 61076
+      },
+      {
+        "after": 61830,
+        "target": 17271,
+        "rewind": true
+      },
+      {
+        "after": 17847,
+        "target": 22383
+      },
+      {
+        "after": 22959,
+        "target": 61188
       }
     ];
     const captureWindows = [
@@ -345,6 +530,33 @@
         "recordStart": 61524,
         "verifyUntil": 61700,
         "recordEnd": 61828
+      },
+      {
+        "pass": 1,
+        "targetSteamId": "76561198000000002",
+        "segmentId": "seg-002-victim",
+        "lockFrom": 17303,
+        "recordStart": 17591,
+        "verifyUntil": 17782,
+        "recordEnd": 17815
+      },
+      {
+        "pass": 1,
+        "targetSteamId": "76561198000000004",
+        "segmentId": "seg-004-victim",
+        "lockFrom": 22415,
+        "recordStart": 22703,
+        "verifyUntil": 22894,
+        "recordEnd": 22927
+      },
+      {
+        "pass": 1,
+        "targetSteamId": "76561198000000004",
+        "segmentId": "seg-011-victim",
+        "lockFrom": 61220,
+        "recordStart": 61508,
+        "verifyUntil": 61699,
+        "recordEnd": 61732
       }
     ];
     const targetSteamId = "76561198000000100";
@@ -353,6 +565,8 @@
     let scheduleIndex = 0;
     let armed = false;
     let seekIdx = 0;
+    let pass = 0;
+    const rewindLandTicks = 64;
     let frame = 0;
     let lastSeekFrame = -999;
     let seekAttempts = 0;
@@ -386,13 +600,14 @@
         if (!mirv.isHandleValid(handle)) return null;
         return mirv.getEntityFromIndex(mirv.getHandleEntryIndex(handle));
     };
-    const targetControllerIndex = () => {
+    const windowTarget = (window) => window.targetSteamId ?? targetSteamId;
+    const targetControllerIndex = (steamId) => {
         const highest = mirv.getHighestEntityIndex();
         for (let index = 1; index <= highest; index++) {
             const entity = mirv.getEntityFromIndex(index);
             if (entity === null || !entity.isPlayerController()) continue;
             try {
-                if (entity.getSteamId().toString() === targetSteamId) return index;
+                if (entity.getSteamId().toString() === steamId) return index;
             } catch (_) {
                 // Entity handles can be replaced while a seek settles.
             }
@@ -414,8 +629,8 @@
             return null;
         }
     };
-    const lockTarget = (segmentId) => {
-        const targetIndex = targetControllerIndex();
+    const lockTarget = (segmentId, steamId = targetSteamId) => {
+        const targetIndex = targetControllerIndex(steamId);
         const attempt = (lockAttempts[segmentId] ?? 0) + 1;
         lockAttempts[segmentId] = attempt;
         if (attempt === 1 || attempt % 60 === 0) {
@@ -492,8 +707,10 @@
         // hair too early). Hold the segment's schedule until its seek has landed.
         if (seekIdx < seeks.length) {
             const s = seeks[seekIdx];
-            if (tick >= s.after) {
-                if (tick + 8 < s.target) {
+            // A rewind lands below s.after, so once issued it is checked every frame.
+            if (tick >= s.after || (s.rewind && seekAttempts > 0)) {
+                // A rewind has landed once the tick is back near its target.
+                if (s.rewind ? tick > s.target + rewindLandTicks : tick + 8 < s.target) {
                     // Stall diagnostic: a healthy demo_gototick can freeze the demo tick
                     // for the duration of its load, and the client FPS is uncapped between
                     // record windows, so a frame-counted budget cannot tell a slow jump
@@ -525,6 +742,7 @@
                     return;
                 }
                 mirv.message(`[zackvideo] seek-landed -> ${s.target} (at ${tick})\n`);
+                if (s.rewind) pass = 1;
                 seekIdx++;
                 lastLockFrame = -999; // Entity/observer state may have been replaced by the seek.
                 seekAttempts = 0;
@@ -532,7 +750,7 @@
                 lastSeekTick = -1;
             }
         }
-        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);
+        const captureWindow = captureWindows.find((window) => (window.pass ?? 0) === pass && tick >= window.lockFrom && tick <= window.verifyUntil);
         if (captureWindow !== undefined) {
             const observed = observedSteamId();
             if (activeSegment === captureWindow.segmentId) {
@@ -543,15 +761,15 @@
                         failCapture(`observer target remained unknown during ${captureWindow.segmentId}`);
                         return;
                     }
-                } else if (observed !== targetSteamId) {
+                } else if (observed !== windowTarget(captureWindow)) {
                     unknownObserverFrames = 0;
                     driftedObserverFrames++;
                     if (frame - lastLockFrame >= 8) {
-                        lockTarget(captureWindow.segmentId);
+                        lockTarget(captureWindow.segmentId, windowTarget(captureWindow));
                         lastLockFrame = frame;
                     }
                     if (driftedObserverFrames >= maxDriftedObserverFrames) {
-                        failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);
+                        failCapture(`observer target ${observed} drifted from ${windowTarget(captureWindow)} during ${captureWindow.segmentId}`);
                         return;
                     }
                 } else {
@@ -562,8 +780,8 @@
                 unknownObserverFrames = 0;
                 driftedObserverFrames = 0;
             }
-            if (activeSegment === null && observed !== targetSteamId && frame - lastLockFrame >= 8) {
-                lockTarget(captureWindow.segmentId);
+            if (activeSegment === null && observed !== windowTarget(captureWindow) && frame - lastLockFrame >= 8) {
+                lockTarget(captureWindow.segmentId, windowTarget(captureWindow));
                 lastLockFrame = frame;
             }
         } else {
@@ -574,7 +792,7 @@
         // never runs again, even if demo ticks rewind; fired still owns key deduplication.
         while (scheduleIndex < schedule.length) {
             const item = schedule[scheduleIndex];
-            if (tick < item.tick) break;
+            if ((item.pass ?? 0) > pass || tick < item.tick) break;
             scheduleIndex++;
             if (fired[item.key]) continue;
             if (item.key.startsWith("record-start-")) {
@@ -584,8 +802,8 @@
                     return;
                 }
                 const observed = observedSteamId();
-                if (observed !== targetSteamId) {
-                    failCapture(`observer target ${observed ?? "unknown"} does not match ${targetSteamId} before ${item.key}`);
+                if (observed !== windowTarget(window)) {
+                    failCapture(`observer target ${observed ?? "unknown"} does not match ${windowTarget(window)} before ${item.key}`);
                     return;
                 }
                 run(item);

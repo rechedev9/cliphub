@@ -177,7 +177,7 @@ func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) 
 		`const targetSteamId = "76561198148986856"`,
 		`mirv.getHighestEntityIndex()`,
 		`entity.isPlayerController()`,
-		`entity.getSteamId().toString() === targetSteamId`,
+		`entity.getSteamId().toString() === steamId`,
 		`mirv.getEntityFromSplitScreenPlayer(0)`,
 		`getObserverTargetHandle()`,
 		`spec_player ${targetIndex}`,
@@ -195,8 +195,8 @@ func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) 
 		`unknownObserverFrames >= maxUnknownObserverFrames`,
 		`driftedObserverFrames >= maxDriftedObserverFrames`,
 		`unknownObserverFrames = 0`,
-		`} else if (observed !== targetSteamId) {`,
-		`lockTarget(captureWindow.segmentId)`,
+		`} else if (observed !== windowTarget(captureWindow)) {`,
+		`lockTarget(captureWindow.segmentId, windowTarget(captureWindow))`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing verified POV contract %q\n%s", want, js)

@@ -43,7 +43,13 @@
             -168
           ]
         }
-      ]
+      ],
+      "victim_replay": {
+        "steamid64": "76561198000000002",
+        "kill_tick": 17783,
+        "tick_start": 17591,
+        "tick_end": 17815
+      }
     },
     {
       "id": "seg-004",
@@ -103,7 +109,13 @@
             -168
           ]
         }
-      ]
+      ],
+      "victim_replay": {
+        "steamid64": "76561198000000004",
+        "kill_tick": 22895,
+        "tick_start": 22703,
+        "tick_end": 22927
+      }
     },
     {
       "id": "seg-011",
@@ -163,7 +175,13 @@
             -40
           ]
         }
-      ]
+      ],
+      "victim_replay": {
+        "steamid64": "76561198000000004",
+        "kill_tick": 61700,
+        "tick_start": 61508,
+        "tick_end": 61732
+      }
     }
   ],
   "editorial_segment_ids": [
@@ -177,7 +195,8 @@
     "fps": 60,
     "width": 1920,
     "height": 1080,
-    "crf": 18
+    "crf": 18,
+    "victim_replay": true
   },
   "runtime": {
     "playback_timescale": 8,

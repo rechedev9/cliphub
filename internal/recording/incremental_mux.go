@@ -75,6 +75,7 @@ func finishedTakePairs(plan RecordingPlan) []finishedTake {
 	}
 	// The newest take may still be streaming; the end-of-run pass owns it.
 	candidates := takes[:len(takes)-1]
+	captures := plan.CaptureSegments()
 	out := make([]finishedTake, 0, len(candidates))
 	for _, take := range candidates {
 		video := filepath.Join(plan.OutputDir, take, "video.mp4")
@@ -83,11 +84,11 @@ func finishedTakePairs(plan RecordingPlan) []finishedTake {
 			continue
 		}
 		index, ok := takeNumber(take)
-		if !ok || index < 0 || index >= len(plan.Segments) {
+		if !ok || index < 0 || index >= len(captures) {
 			continue // more takes than segments
 		}
 		out = append(out, finishedTake{
-			segmentID: plan.Segments[index].ID,
+			segmentID: captures[index].ID,
 			videoPath: video,
 			audioPath: audio,
 		})

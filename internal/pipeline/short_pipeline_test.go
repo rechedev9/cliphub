@@ -89,7 +89,10 @@ func TestShortPipelineGolden(t *testing.T) {
 
 	demoPath := filepath.Join(work, "match.dem")
 	recordingDir := filepath.Join(work, "recording")
-	recPlan, err := recording.NewPlanFromKillPlan(selected, demoPath, recordingDir, recording.DefaultStreamConfig())
+	// The Short asks for the victim replay, so capture adds a second, rewound pass.
+	stream := recording.DefaultStreamConfig()
+	stream.VictimReplay = true
+	recPlan, err := recording.NewPlanFromKillPlan(selected, demoPath, recordingDir, stream)
 	if err != nil {
 		t.Fatalf("recording plan: %v", err)
 	}
@@ -100,7 +103,7 @@ func TestShortPipelineGolden(t *testing.T) {
 	assertGolden(t, "03-recording-plan.json", normalizedJSON(t, work, recPlan))
 	assertGolden(t, "04-recording.js", normalizePaths(script, work))
 
-	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, captureOrderSegmentIDs(recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
 	assertGolden(t, "05-capture.json", normalizedJSON(t, work, capture))
 
 	resultPath := writeRecordingResult(t, recPlan)
@@ -115,6 +118,7 @@ func TestShortPipelineGolden(t *testing.T) {
 		OutputFormat:        studioEdit.Format,
 		KillEffect:          studioEdit.KillEffect,
 		Transition:          studioEdit.Transition,
+		VictimReplay:        true,
 		DryRun:              true,
 	})
 	if err != nil {
@@ -194,7 +198,7 @@ type captureView struct {
 
 // simulateCapture runs the generated HLAE script in the Capture Lab MIRV
 // simulator (scripts/capturelab), the same harness the recording tests use.
-func simulateCapture(t *testing.T, work, script, target string, want []string) captureView {
+func simulateCapture(t *testing.T, work, script, target string, plan recording.RecordingPlan) captureView {
 	t.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -205,15 +209,22 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 		t.Fatal(err)
 	}
 	scenarioPath := filepath.Join(work, "scenario.json")
+	var victims []string
+	for _, segment := range plan.CaptureSegments() {
+		if segment.POVSteamID64 != "" && !slices.Contains(victims, segment.POVSteamID64) {
+			victims = append(victims, segment.POVSteamID64)
+		}
+	}
 	writeJSON(t, scenarioPath, map[string]any{
 		"schema_version": 1,
 		"name":           "short-pipeline",
 		"target_steamid": target,
+		"players":        victims,
 		"tick_step":      1,
 		"max_frames":     200000,
 		"expect": map[string]any{
 			"outcome":           "verified",
-			"recorded_segments": want,
+			"recorded_segments": captureOrderSegmentIDs(plan),
 			"soft_quit":         true,
 		},
 	})
@@ -235,12 +246,12 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 	return view
 }
 
-// captureOrderSegmentIDs lists the unique segment IDs in capture (tick) order,
-// which is the order the simulator records them, not the editorial order.
+// captureOrderSegmentIDs lists the unique segment IDs in capture order (the
+// main pass by tick, then the victim replays), not the editorial order.
 func captureOrderSegmentIDs(plan recording.RecordingPlan) []string {
 	seen := map[string]bool{}
 	var ids []string
-	for _, segment := range plan.Segments {
+	for _, segment := range plan.CaptureSegments() {
 		if segment.ID == "" || seen[segment.ID] {
 			continue
 		}
@@ -254,8 +265,9 @@ func captureOrderSegmentIDs(plan recording.RecordingPlan) []string {
 // planned segment, sized like a real HLAE take, with no media on disk.
 func writeRecordingResult(t *testing.T, plan recording.RecordingPlan) string {
 	t.Helper()
-	artifacts := make([]recording.RecordingArtifact, 0, len(plan.Segments))
-	for _, segment := range plan.Segments {
+	captures := plan.CaptureSegments()
+	artifacts := make([]recording.RecordingArtifact, 0, len(captures))
+	for _, segment := range captures {
 		start := recording.EffectiveRecordStartTick(segment, plan.Tickrate)
 		end := recording.EffectiveRecordEndTick(segment, plan)
 		artifacts = append(artifacts, recording.RecordingArtifact{

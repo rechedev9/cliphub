@@ -14,6 +14,7 @@ export type EditRequestBody = {
   voice_comms: boolean;
   voice_volume?: number;
   native_hud: boolean;
+  victim_replay?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -42,6 +43,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     cover_strategy: edit.coverStrategy,
   };
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
+  else if (edit.victimReplay && !edit.matchRecap) body.victim_replay = true;
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 var fullDemoRuntime string
 
 type scheduledCommand struct {
+	Pass     int      `json:"pass,omitempty"`
 	Tick     int      `json:"tick"`
 	Key      string   `json:"key"`
 	Commands []string `json:"commands"`
@@ -25,9 +27,11 @@ type scheduledCommand struct {
 // After. The runtime re-issues demo_gototick until the demo actually reaches
 // Target, because a one-shot seek issued a hair too early is silently dropped
 // ("Not currently playing back a demo").
+// Rewind marks the one backward seek that starts the victim replay pass.
 type seekStep struct {
-	After  int `json:"after"`
-	Target int `json:"target"`
+	After  int  `json:"after"`
+	Target int  `json:"target"`
+	Rewind bool `json:"rewind,omitempty"`
 }
 
 // captureWindow is the interval where the generated runtime must prove that
@@ -35,6 +39,8 @@ type seekStep struct {
 // without that proof, and any drift before the final selected event fails the
 // run instead of publishing a structurally valid clip from another POV.
 type captureWindow struct {
+	Pass        int    `json:"pass,omitempty"`
+	TargetSteam string `json:"targetSteamId,omitempty"`
 	LiveEndTick int    `json:"liveEndTick,omitempty"`
 	SegmentID   string `json:"segmentId"`
 	LockFrom    int    `json:"lockFrom"`
@@ -81,6 +87,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	}
 	schedule, seeks, windows := buildRuntimeSchedule(plan)
 	sort.SliceStable(schedule, func(i, j int) bool {
+		if schedule[i].Pass != schedule[j].Pass {
+			return schedule[i].Pass < schedule[j].Pass
+		}
 		if schedule[i].Tick == schedule[j].Tick {
 			return schedule[i].Key < schedule[j].Key
 		}
@@ -128,6 +137,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let scheduleIndex = 0;\n")
 	sb.WriteString("    let armed = false;\n")
 	sb.WriteString("    let seekIdx = 0;\n")
+	sb.WriteString("    let pass = 0;\n")
+	sb.WriteString(fmt.Sprintf("    const rewindLandTicks = %d;\n", plan.Tickrate))
 	sb.WriteString("    let frame = 0;\n")
 	sb.WriteString("    let lastSeekFrame = -999;\n")
 	sb.WriteString("    let seekAttempts = 0;\n")
@@ -169,13 +180,14 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        if (!mirv.isHandleValid(handle)) return null;\n")
 	sb.WriteString("        return mirv.getEntityFromIndex(mirv.getHandleEntryIndex(handle));\n")
 	sb.WriteString("    };\n")
-	sb.WriteString("    const targetControllerIndex = () => {\n")
+	sb.WriteString("    const windowTarget = (window) => window.targetSteamId ?? targetSteamId;\n")
+	sb.WriteString("    const targetControllerIndex = (steamId) => {\n")
 	sb.WriteString("        const highest = mirv.getHighestEntityIndex();\n")
 	sb.WriteString("        for (let index = 1; index <= highest; index++) {\n")
 	sb.WriteString("            const entity = mirv.getEntityFromIndex(index);\n")
 	sb.WriteString("            if (entity === null || !entity.isPlayerController()) continue;\n")
 	sb.WriteString("            try {\n")
-	sb.WriteString("                if (entity.getSteamId().toString() === targetSteamId) return index;\n")
+	sb.WriteString("                if (entity.getSteamId().toString() === steamId) return index;\n")
 	sb.WriteString("            } catch (_) {\n")
 	sb.WriteString("                // Entity handles can be replaced while a seek settles.\n")
 	sb.WriteString("            }\n")
@@ -200,8 +212,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            return null;\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("    };\n")
-	sb.WriteString("    const lockTarget = (segmentId) => {\n")
-	sb.WriteString("        const targetIndex = targetControllerIndex();\n")
+	sb.WriteString("    const lockTarget = (segmentId, steamId = targetSteamId) => {\n")
+	sb.WriteString("        const targetIndex = targetControllerIndex(steamId);\n")
 	sb.WriteString("        const attempt = (lockAttempts[segmentId] ?? 0) + 1;\n")
 	sb.WriteString("        lockAttempts[segmentId] = attempt;\n")
 	sb.WriteString("        if (attempt === 1 || attempt % 60 === 0) {\n")
@@ -316,8 +328,10 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // hair too early). Hold the segment's schedule until its seek has landed.\n")
 	sb.WriteString("        if (seekIdx < seeks.length) {\n")
 	sb.WriteString("            const s = seeks[seekIdx];\n")
-	sb.WriteString("            if (tick >= s.after) {\n")
-	sb.WriteString("                if (tick + 8 < s.target) {\n")
+	sb.WriteString("            // A rewind lands below s.after, so once issued it is checked every frame.\n")
+	sb.WriteString("            if (tick >= s.after || (s.rewind && seekAttempts > 0)) {\n")
+	sb.WriteString("                // A rewind has landed once the tick is back near its target.\n")
+	sb.WriteString("                if (s.rewind ? tick > s.target + rewindLandTicks : tick + 8 < s.target) {\n")
 	sb.WriteString("                    // Stall diagnostic: a healthy demo_gototick can freeze the demo tick\n")
 	sb.WriteString("                    // for the duration of its load, and the client FPS is uncapped between\n")
 	sb.WriteString("                    // record windows, so a frame-counted budget cannot tell a slow jump\n")
@@ -349,6 +363,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("                mirv.message(`[zackvideo] seek-landed -> ${s.target} (at ${tick})\\n`);\n")
+	sb.WriteString("                if (s.rewind) pass = 1;\n")
 	sb.WriteString("                seekIdx++;\n")
 	sb.WriteString("                lastLockFrame = -999; // Entity/observer state may have been replaced by the seek.\n")
 	sb.WriteString("                seekAttempts = 0;\n")
@@ -356,7 +371,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                lastSeekTick = -1;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")
-	sb.WriteString("        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);\n")
+	sb.WriteString("        const captureWindow = captureWindows.find((window) => (window.pass ?? 0) === pass && tick >= window.lockFrom && tick <= window.verifyUntil);\n")
 	if plan.FullDemo != nil {
 		sb.WriteString("        if (fullDemoAcquiring !== null && captureWindow?.segmentId !== fullDemoAcquiring.segmentId) { failCapture('pov_acquisition_failed: demo left the acquisition window'); return; }\n")
 	}
@@ -377,18 +392,18 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	}
 	sb.WriteString("                        return;\n")
 	sb.WriteString("                    }\n")
-	sb.WriteString("                } else if (observed !== targetSteamId) {\n")
+	sb.WriteString("                } else if (observed !== windowTarget(captureWindow)) {\n")
 	sb.WriteString("                    unknownObserverFrames = 0;\n")
 	sb.WriteString("                    driftedObserverFrames++;\n")
 	sb.WriteString("                    if (frame - lastLockFrame >= 8) {\n")
-	sb.WriteString("                        lockTarget(captureWindow.segmentId);\n")
+	sb.WriteString("                        lockTarget(captureWindow.segmentId, windowTarget(captureWindow));\n")
 	sb.WriteString("                        lastLockFrame = frame;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                    if (driftedObserverFrames >= maxDriftedObserverFrames) {\n")
 	if plan.FullDemo != nil {
-		sb.WriteString("                        failOrTrimFullDemo(captureWindow, tick, `observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+		sb.WriteString("                        failOrTrimFullDemo(captureWindow, tick, `observer target ${observed} drifted from ${windowTarget(captureWindow)} during ${captureWindow.segmentId}`);\n")
 	} else {
-		sb.WriteString("                        failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+		sb.WriteString("                        failCapture(`observer target ${observed} drifted from ${windowTarget(captureWindow)} during ${captureWindow.segmentId}`);\n")
 	}
 	sb.WriteString("                        return;\n")
 	sb.WriteString("                    }\n")
@@ -403,8 +418,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                unknownObserverFrames = 0;\n")
 	sb.WriteString("                driftedObserverFrames = 0;\n")
 	sb.WriteString("            }\n")
-	sb.WriteString("            if (activeSegment === null && observed !== targetSteamId && frame - lastLockFrame >= 8) {\n")
-	sb.WriteString("                lockTarget(captureWindow.segmentId);\n")
+	sb.WriteString("            if (activeSegment === null && observed !== windowTarget(captureWindow) && frame - lastLockFrame >= 8) {\n")
+	sb.WriteString("                lockTarget(captureWindow.segmentId, windowTarget(captureWindow));\n")
 	sb.WriteString("                lastLockFrame = frame;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        } else {\n")
@@ -415,7 +430,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // never runs again, even if demo ticks rewind; fired still owns key deduplication.\n")
 	sb.WriteString("        while (scheduleIndex < schedule.length) {\n")
 	sb.WriteString("            const item = schedule[scheduleIndex];\n")
-	sb.WriteString("            if (tick < item.tick) break;\n")
+	sb.WriteString("            if ((item.pass ?? 0) > pass || tick < item.tick) break;\n")
 	sb.WriteString("            scheduleIndex++;\n")
 	sb.WriteString("            if (fired[item.key]) continue;\n")
 	sb.WriteString("            if (item.key.startsWith(\"record-start-\")) {\n")
@@ -425,11 +440,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("                const observed = observedSteamId();\n")
-	sb.WriteString("                if (observed !== targetSteamId) {\n")
+	sb.WriteString("                if (observed !== windowTarget(window)) {\n")
 	if plan.FullDemo != nil {
-		sb.WriteString("                    failCapture(`pov_acquisition_failed: observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key} at tick ${tick}`);\n")
+		sb.WriteString("                    failCapture(`pov_acquisition_failed: observer target ${observed ?? \"unknown\"} does not match ${windowTarget(window)} before ${item.key} at tick ${tick}`);\n")
 	} else {
-		sb.WriteString("                    failCapture(`observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key}`);\n")
+		sb.WriteString("                    failCapture(`observer target ${observed ?? \"unknown\"} does not match ${windowTarget(window)} before ${item.key}`);\n")
 	}
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
@@ -498,10 +513,18 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		})
 	}
 
-	for i, s := range plan.Segments {
+	captures := plan.CaptureSegments()
+	firstReplay := slices.IndexFunc(captures, func(s RecordingSegment) bool { return s.POVSteamID64 != "" })
+	passWindows := [2][]captureWindow{}
+	rewindAfter := 0
+	for i, s := range captures {
+		pass := 0
+		if firstReplay > 0 && i >= firstReplay {
+			pass = 1
+		}
 		seekTick := 50
 		if i > 0 {
-			seekTick = EffectiveRecordEndTick(plan.Segments[i-1], plan) + 32
+			seekTick = EffectiveRecordEndTick(captures[i-1], plan) + 32
 		}
 		recordStart := EffectiveRecordStartTick(s, plan.Tickrate)
 		recordEnd := EffectiveRecordEndTick(s, plan)
@@ -519,27 +542,39 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		if s.ExactWindow {
 			verifyUntil = recordEnd - 1
 		}
-		windows = append(windows, captureWindow{
+		if s.POVSteamID64 != "" {
+			// The victim dies at the kill tick, so its POV only holds until then.
+			verifyUntil = max(recordStart, firstKillTick(s)-1)
+		}
+		window := captureWindow{
+			Pass:        pass,
+			TargetSteam: s.POVSteamID64,
 			LiveEndTick: s.LiveEndTick,
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
 			RecordStart: recordStart,
 			VerifyUntil: verifyUntil,
 			RecordEnd:   recordEnd,
-		})
+		}
+		windows = append(windows, window)
+		passWindows[pass] = append(passWindows[pass], window)
 
 		// Short demo_gototick jumps can corrupt CS2's demo netchannel. Let nearby
 		// segments advance naturally and reserve seeking for gaps worth skipping.
-		if seekTarget-seekTick >= plan.Tickrate*minimumDemoSeekGapSeconds {
+		if i > 0 && i == firstReplay {
+			// Rewind right after the main pass: a later tick may already be past EOF.
+			rewindAfter = EffectiveRecordEndTick(captures[i-1], plan) + 2
+			seeks = append(seeks, seekStep{After: rewindAfter, Target: seekTarget, Rewind: true})
+		} else if seekTarget-seekTick >= plan.Tickrate*minimumDemoSeekGapSeconds {
 			// The seek is driven by the runtime (re-issued until it lands), not a
 			// one-shot scheduled command, so it survives being attempted too early.
 			seeks = append(seeks, seekStep{After: seekTick, Target: seekTarget})
 		}
 
 		commands = append(commands,
-			scheduledCommand{Tick: max(seekTarget+1, cameraWarmupTick), Key: "camera-warmup-" + s.ID, Commands: camera},
-			scheduledCommand{Tick: max(seekTarget+5, cameraLockTick), Key: "camera-lock-" + s.ID, Commands: camera},
-			scheduledCommand{Tick: recordStart + max(1, plan.Tickrate/2), Key: "camera-relock-" + s.ID, Commands: camera},
+			scheduledCommand{Pass: pass, Tick: max(seekTarget+1, cameraWarmupTick), Key: "camera-warmup-" + s.ID, Commands: camera},
+			scheduledCommand{Pass: pass, Tick: max(seekTarget+5, cameraLockTick), Key: "camera-lock-" + s.ID, Commands: camera},
+			scheduledCommand{Pass: pass, Tick: recordStart + max(1, plan.Tickrate/2), Key: "camera-relock-" + s.ID, Commands: camera},
 		)
 		if i == 0 {
 			commands = append(commands,
@@ -548,20 +583,30 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		}
 
 		commands = append(commands,
-			scheduledCommand{Tick: recordStart, Key: "record-start-" + s.ID, Commands: []string{"mirv_streams record start"}},
-			scheduledCommand{Tick: recordEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
+			scheduledCommand{Pass: pass, Tick: recordStart, Key: "record-start-" + s.ID, Commands: []string{"mirv_streams record start"}},
+			scheduledCommand{Pass: pass, Tick: recordEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
 		)
 	}
 
-	lastEnd := EffectiveRecordEndTick(plan.Segments[len(plan.Segments)-1], plan)
+	lastPass := 0
+	if rewindAfter > 0 {
+		lastPass = 1
+	}
+	lastEnd := EffectiveRecordEndTick(captures[len(captures)-1], plan)
 	pad := plan.Runtime.QuitTickPad
 	if pad <= 0 {
 		pad = 200
 	}
 	shutdownTick := lastEnd + max(8, pad/2)
-	commands = append(commands, playbackTimescaleCommands(plan, windows, shutdownTick)...)
+	if lastPass == 1 {
+		commands = append(commands, playbackTimescaleCommands(plan, timescalePass{windows: passWindows[0], endTick: rewindAfter, first: true})...)
+		commands = append(commands, playbackTimescaleCommands(plan, timescalePass{windows: passWindows[1], endTick: shutdownTick, pass: 1, last: true})...)
+	} else {
+		commands = append(commands, playbackTimescaleCommands(plan, timescalePass{windows: windows, endTick: shutdownTick, first: true, last: true})...)
+	}
 	for i, cmd := range hudCleanupCommands(plan.Stream) {
 		commands = append(commands, scheduledCommand{
+			Pass:     lastPass,
 			Tick:     shutdownTick - 4,
 			Key:      fmt.Sprintf("hud-cleanup-%02d", i+1),
 			Commands: []string{cmd},
@@ -571,7 +616,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	// delayed by softQuitClientFrames because disconnect ends demo playback and
 	// ticks stop advancing (a scheduled quit after disconnect would never fire).
 	commands = append(commands,
-		scheduledCommand{Tick: shutdownTick, Key: "shutdown", Commands: []string{}},
+		scheduledCommand{Pass: lastPass, Tick: shutdownTick, Key: "shutdown", Commands: []string{}},
 	)
 	return commands, seeks, windows
 }
@@ -584,9 +629,19 @@ func playbackTimescaleCommand(scale float64) string {
 	return "demo_timescale " + formatFloat(scale)
 }
 
+// timescalePass is one demo pass: its windows, the tick where it hands over
+// (the rewind or the shutdown), and whether it opens or closes the playback.
+type timescalePass struct {
+	windows     []captureWindow
+	endTick     int
+	pass        int
+	first, last bool
+}
+
 // playbackTimescaleCommands speed unrecorded gaps and restore 1x before every
 // record window. Commands are never scheduled inside [recordStart, recordEnd].
-func playbackTimescaleCommands(plan RecordingPlan, windows []captureWindow, shutdownTick int) []scheduledCommand {
+func playbackTimescaleCommands(plan RecordingPlan, p timescalePass) []scheduledCommand {
+	windows, shutdownTick := p.windows, p.endTick
 	if !playbackTimescaleEnabled(plan) || len(windows) == 0 {
 		return nil
 	}
@@ -620,12 +675,13 @@ func playbackTimescaleCommands(plan RecordingPlan, windows []captureWindow, shut
 		}
 		resetTicks[i] = resetTick
 		commands = append(commands, scheduledCommand{
+			Pass:     p.pass,
 			Tick:     resetTick,
 			Key:      "timescale-reset-" + window.SegmentID,
 			Commands: []string{reset},
 		})
 	}
-	if firstReset := resetTicks[0]; firstReset > 50 {
+	if firstReset := resetTicks[0]; p.first && firstReset > 50 {
 		commands = append(commands, scheduledCommand{
 			Tick:     50,
 			Key:      "timescale-up-preamble",
@@ -645,14 +701,16 @@ func playbackTimescaleCommands(plan RecordingPlan, windows []captureWindow, shut
 			continue
 		}
 		commands = append(commands, scheduledCommand{
+			Pass:     p.pass,
 			Tick:     upTick,
 			Key:      "timescale-up-" + window.SegmentID,
 			Commands: []string{speed},
 		})
 	}
 	lastEnd := windows[len(windows)-1].RecordEnd
-	if shutdownReset := shutdownTick - 4; shutdownReset > lastEnd {
+	if shutdownReset := shutdownTick - 4; p.last && shutdownReset > lastEnd {
 		commands = append(commands, scheduledCommand{
+			Pass:     p.pass,
 			Tick:     shutdownReset,
 			Key:      "timescale-reset-shutdown",
 			Commands: []string{reset},
@@ -670,7 +728,7 @@ func quoteConsoleArg(value string) string {
 // EffectiveRecordStartTick returns the actual tick where HLAE starts recording
 // a segment after applying recorder camera-settle timing.
 func EffectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
-	if segment.ExactWindow {
+	if segment.ExactWindow || segment.POVSteamID64 != "" {
 		return segment.TickStart
 	}
 	if tickrate <= 0 || len(segment.Kills) == 0 {
@@ -701,7 +759,7 @@ func EffectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
 // short clean tail (and hard headroom before absolute duration) instead of
 // soft-capping before that event.
 func EffectiveRecordEndTick(segment RecordingSegment, plan RecordingPlan) int {
-	if segment.ExactWindow {
+	if segment.ExactWindow || segment.POVSteamID64 != "" {
 		return segment.TickEnd
 	}
 	end := segment.TickEnd

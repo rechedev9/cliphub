@@ -162,6 +162,8 @@ type Config struct {
 	OverlayAssetsDir string
 	// ProgressOutPath is an optional JSON status file updated during render.
 	ProgressOutPath string
+	// VictimReplay appends each Short's victim POV clip when the capture has one.
+	VictimReplay bool
 }
 
 type ManifestOptions struct {
@@ -187,6 +189,7 @@ type ManifestOptions struct {
 	TailTrimSeconds     float64
 	OutputFPS           int
 	CompileSegments     bool
+	VictimReplay        bool
 	LineupCatalogPath   string
 	SegmentIDs          []string
 	Limit               int
@@ -399,6 +402,8 @@ type ShortPart struct {
 	CaptureTickStart     int                         `json:"capture_tick_start,omitempty"`
 	CaptureTickEnd       int                         `json:"capture_tick_end,omitempty"`
 	Kills                []KillCue                   `json:"kills,omitempty"`
+	// Speed below 1 plays the part in slow motion (the victim replay).
+	Speed float64 `json:"speed,omitempty"`
 }
 
 type KillCue struct {

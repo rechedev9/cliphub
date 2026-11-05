@@ -71,6 +71,8 @@ func run() (retErr error) {
 		ffmpegExe            = flag.String("ffmpeg", "", "ffmpeg for HLAE's stream encode and the clip mux; written into HLAE's ffmpeg.ini (empty = keep the ini, else PATH)")
 		hudMode              = flag.String("hud", string(recording.HUDModeGameplay), "HUD mode: gameplay, clean, or deathnotices")
 		portraitSafeKillfeed = flag.Bool("portrait-safe-killfeed", false, "move filtered death notices into the 9:16 center-crop safe area")
+		victimReplay         = flag.Bool("victim-replay", false, "after the main pass, rewind and record each segment's last kill from the victim's POV")
+		replayOnly           = flag.String("replay-only", "", "comma-separated segment ids whose main clip is already stored; record only their victim replay")
 		fps                  = flag.Int("fps", 0, "recording FPS; defaults to recorder preset")
 		videoCRF             = flag.Int("video-crf", 0, "HLAE stream CRF; defaults to recorder preset")
 		encoder              = flag.String("encoder", "", "HLAE stream encoder: libx264, nvenc-h264, amf-h264, or qsv-h264 (empty = libx264)")
@@ -140,6 +142,7 @@ func run() (retErr error) {
 	stream.Encoder = *encoder
 	stream.HUDMode = recording.HUDMode(*hudMode)
 	stream.PortraitSafeKillfeed = *portraitSafeKillfeed
+	stream.VictimReplay = *victimReplay
 	if *fps > 0 {
 		stream.FPS = *fps
 	}
@@ -160,6 +163,11 @@ func run() (retErr error) {
 	plan, err := recording.NewPlanFromKillPlan(kp, absDemoPath, absOutDir, stream, fullDemo)
 	if err != nil {
 		return err
+	}
+	if *replayOnly != "" {
+		if err := plan.MarkReplayOnly(strings.Split(*replayOnly, ",")); err != nil {
+			return err
+		}
 	}
 	if err := applyRuntimeFlags(&plan, *gapTimescale, *settleSeconds); err != nil {
 		return err
@@ -434,8 +442,9 @@ func applyRuntimeFlags(plan *recording.RecordingPlan, gapTimescale, settleSecond
 }
 
 func captureSegmentIDs(plan recording.RecordingPlan) []string {
-	ids := make([]string, 0, len(plan.Segments))
-	for _, segment := range plan.Segments {
+	captures := plan.CaptureSegments()
+	ids := make([]string, 0, len(captures))
+	for _, segment := range captures {
 		if segment.ID != "" {
 			ids = append(ids, segment.ID)
 		}
@@ -518,8 +527,9 @@ func generateFakeSegments(ctx context.Context, plan recording.RecordingPlan) ([]
 		fps = 60
 	}
 	instrumentation := captureLabInstrumentation{SchemaVersion: 1, CaptureMode: string(recording.CaptureModeFake)}
-	out := make([]recording.RecordingArtifact, 0, len(plan.Segments))
-	for index, seg := range plan.Segments {
+	captures := plan.CaptureSegments()
+	out := make([]recording.RecordingArtifact, 0, len(captures))
+	for index, seg := range captures {
 		clip := filepath.Join(segDir, seg.ID+".mp4")
 		identity := captureLabSegmentIdentity(seg.ID, index)
 		eventOffsets := captureLabEventOffsets(seg, plan, fakeDurationSec)
