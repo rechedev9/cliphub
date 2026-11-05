@@ -22,9 +22,10 @@ const SchemaVersion = "1.0"
 // AnalysisVersion counts changes to what a scan concludes from the same demo
 // (2: zones per cell and floor, Train on one level, sites matched per level,
 // players on the team of their first live round, "Equipo CT/T" fallback names;
-// 3: rounds numbered by the game's count, as Crear numbers them).
+// 3: rounds numbered by the game's count, as Crear numbers them;
+// 4: every grenade carries where it was thrown from).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 3
+const AnalysisVersion = 4
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -353,6 +354,18 @@ type Event struct {
 	// Effect is what a flash, HE or molotov did to players. It is nil for other
 	// events and for grenades that touched nobody.
 	Effect *UtilityEffect `json:"effect,omitempty"`
+	// Throw is where a grenade left the thrower's hand. Analyses before version 4
+	// lack it, and so does a grenade whose throw the demo never showed.
+	Throw *Throw `json:"throw,omitempty"`
+}
+
+// Throw is the thrower's state on the tick a grenade was thrown. Pos is at the
+// feet; Yaw (0 to 360) and Pitch (270 to 90 through 0) are the eye angles.
+type Throw struct {
+	Tick  int        `json:"tick"`
+	Pos   [3]float64 `json:"pos"`
+	Yaw   float64    `json:"yaw"`
+	Pitch float64    `json:"pitch"`
 }
 
 // UtilityEffect is the measured outcome of one grenade.

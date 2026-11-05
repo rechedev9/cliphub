@@ -169,6 +169,7 @@ type scanner struct {
 
 	occupancy *tacticalplan.OccupancyBuilder
 	warnings  []string
+	throws    throwLog
 }
 
 type playerAcc struct {
@@ -316,6 +317,7 @@ func (s *scanner) register() {
 			sides:     map[uint8]tacticalplan.Side{},
 		}
 		s.lastEmittedTick = math.MinInt32
+		s.throws.reset()
 	})
 
 	p.RegisterEventHandler(func(events.RoundFreezetimeEnd) {
@@ -348,6 +350,7 @@ func (s *scanner) register() {
 	p.RegisterEventHandler(func(e events.BombDefused) { s.onDefuse(e) })
 	p.RegisterEventHandler(func(e events.BombExplode) { s.onExplode(e) })
 
+	p.RegisterEventHandler(func(e events.GrenadeProjectileThrow) { s.onThrow(e) })
 	p.RegisterEventHandler(func(e events.SmokeStart) {
 		s.addUtility(tacticalplan.EventSmoke, e.GrenadeEvent)
 	})
@@ -372,6 +375,7 @@ func (s *scanner) register() {
 			Pos:    [3]float64{pos.X, pos.Y, pos.Z},
 			Weapon: "molotov",
 			Side:   sideOfPlayer(thrower),
+			Throw:  s.claimThrow(0, thrower, tacticalplan.EventMolotov),
 		}, thrower)
 	})
 
@@ -792,6 +796,7 @@ func (s *scanner) addUtility(kind tacticalplan.EventKind, e events.GrenadeEvent)
 		Weapon: parser.WeaponName(e.Grenade),
 		Side:   sideOfPlayer(e.Thrower),
 		Place:  placeOf(e.Thrower),
+		Throw:  s.claimThrow(e.GrenadeEntityID, e.Thrower, kind),
 	}, e.Thrower)
 }
 
