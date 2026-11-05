@@ -19,6 +19,7 @@ type KillPlanSegment = {
   tick_start?: number;
   tick_end?: number;
   kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
+  utility?: { thrower?: { team_at_kill?: string } }[];
 };
 
 /** Lowest individual-account SteamID64; bots and empty ids fall below it. */
@@ -126,9 +127,9 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
   return best ? prettifyWeapon(best) : undefined;
 }
 
-/** The player's side at the segment's first kill, as internal/moments reads it. */
+/** The player's side at the segment's first kill, else its first throw, as internal/moments reads it. */
 function segmentSide(segment: KillPlanSegment): PlaySide | undefined {
-  const team = segment.kills?.[0]?.killer?.team_at_kill;
+  const team = segment.kills?.length ? segment.kills[0].killer?.team_at_kill : segment.utility?.[0]?.thrower?.team_at_kill;
   return team === 'CT' || team === 'T' ? team : undefined;
 }
 

@@ -55,6 +55,7 @@ type foundMatchOut struct {
 	JobID    string `json:"job_id,omitempty"`
 	Status   string `json:"status,omitempty"`
 	Pending  bool   `json:"pending,omitempty" jsonschema:"the player's plays in this match are not ready; wait_for_job on job_id and call again"`
+	Skipped  string `json:"skipped,omitempty" jsonschema:"why this match was left out, for example its demo file is no longer in the library"`
 	Moments  int    `json:"moments"`
 }
 
@@ -105,13 +106,18 @@ func registerFindMomentsTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, findMomentsOut{}, toolError(err)
 			}
-			all, err := c.ListLibraryMatches(ctx, in.Map, in.SteamID)
+			// The server applies the range before its page limit; one extra row tells "too many" apart.
+			q := tuiclient.LibraryMatchQuery{Map: in.Map, SteamID: in.SteamID, From: from, Limit: maxSearchMatches + 1}
+			if !to.IsZero() {
+				q.To = to.Add(-time.Millisecond)
+			}
+			all, err := c.SearchLibraryMatches(ctx, q)
 			if err != nil {
 				return nil, findMomentsOut{}, toolError(err)
 			}
 			matches := matchesBetween(all, from, to)
-			if len(matches) > maxSearchMatches {
-				return nil, findMomentsOut{}, fmt.Errorf("%d matches fit; at most %d per call, so narrow from/to or the map", len(matches), maxSearchMatches)
+			if len(all) > maxSearchMatches {
+				return nil, findMomentsOut{}, fmt.Errorf("more than %d matches fit; narrow from/to or the map", maxSearchMatches)
 			}
 			out := findMomentsOut{Matches: make([]foundMatchOut, 0, len(matches)), Moments: []foundMomentOut{}}
 			var plays []foundPlay
@@ -148,6 +154,10 @@ type matchSearch struct {
 func (s matchSearch) find(ctx context.Context, m tuiclient.LibraryMatch) (foundMatchOut, []foundPlay, error) {
 	found := foundMatchOut{MatchID: m.ID, Map: cleanName(m.Map), PlayedOn: playedOn(m)}
 	res, err := s.c.CreatePlayerJob(ctx, m.DemoID, s.in.SteamID)
+	if code := tuiclient.StatusCode(err); code == http.StatusConflict || code == http.StatusNotFound {
+		found.Skipped = "the demo file of this match is no longer in the library"
+		return found, nil, nil
+	}
 	if err != nil {
 		return found, nil, fmt.Errorf("match %s: %w", m.ID, toolError(err))
 	}

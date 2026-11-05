@@ -3584,19 +3584,21 @@ func TestGetMomentsPrefersStoredArtifact(t *testing.T) {
 	}
 }
 
-func TestGetMomentsFiltersStoredArtifact(t *testing.T) {
+func TestGetMomentsFiltersFromTheKillPlanOverAStaleArtifact(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
+	ct := killplan.Player{TeamAtKill: "CT"}
 	plan := killplan.NewPlan()
+	plan.Demo.Tickrate = 64
+	plan.Segments = []killplan.Segment{
+		{ID: "seg-001", Round: 2, TickStart: 64, TickEnd: 640, Kills: []killplan.Kill{{Tick: 100, Weapon: "awp", Killer: ct, ClutchVs: 2}}},
+		{ID: "seg-002", Round: 14, TickStart: 900, TickEnd: 1400, Kills: []killplan.Kill{{Tick: 1000, Weapon: "awp", Killer: killplan.Player{TeamAtKill: "T"}}}},
+		{ID: "seg-003", Round: 3, TickStart: 1500, TickEnd: 1900, Kills: []killplan.Kill{{Tick: 1600, Weapon: "ak47", Killer: ct}}},
+	}
 	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
 	repo.jobs[j.ID] = j
-	stored := moments.Document{SchemaVersion: moments.SchemaVersion, JobID: j.ID, Moments: []moments.Moment{
-		{SegmentID: "seg-001", Side: "CT", Events: moments.Events{Weapons: []string{"awp"}}, ReasonCodes: []string{"clutch"}},
-		{SegmentID: "seg-002", Side: "T", Events: moments.Events{Weapons: []string{"awp"}}, ReasonCodes: []string{"clutch"}},
-		{SegmentID: "seg-003", Side: "CT", Events: moments.Events{Weapons: []string{"ak47"}}, ReasonCodes: []string{"ace"}},
-	}}
-	body, _ := json.Marshal(stored)
-	_ = store.Put(moments.ArtifactKey(j.ID), bytes.NewReader(body))
+	// Stored before side and clutch existed: filtering it would match nothing.
+	_ = store.Put(moments.ArtifactKey(j.ID), bytes.NewReader([]byte(`{"schema_version":"stored","moments":[{"segment_id":"seg-001","events":{"kills":1,"weapons":["awp"]}}]}`)))
 	r := chi.NewRouter()
 	r.Get("/api/jobs/{id}/moments", NewHandlers(repo, store, &fakeQueue{}).GetMoments)
 
@@ -3609,8 +3611,8 @@ func TestGetMomentsFiltersStoredArtifact(t *testing.T) {
 	if err := json.Unmarshal(rw.Body.Bytes(), &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Moments) != 1 || doc.Moments[0].SegmentID != "seg-001" {
-		t.Fatalf("moments = %+v, want only seg-001", doc.Moments)
+	if len(doc.Moments) != 1 || doc.Moments[0].SegmentID != "seg-001" || doc.Moments[0].Side != "CT" {
+		t.Fatalf("moments = %+v, want only seg-001 on CT", doc.Moments)
 	}
 
 	rw = httptest.NewRecorder()

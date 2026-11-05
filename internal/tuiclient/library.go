@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -96,10 +97,35 @@ func (c *Client) Healthy(ctx context.Context) bool {
 
 // ListLibraryMatches lists analysed matches, optionally for one map or player.
 func (c *Client) ListLibraryMatches(ctx context.Context, mapName, steamID string) ([]LibraryMatch, error) {
+	return c.SearchLibraryMatches(ctx, LibraryMatchQuery{Map: mapName, SteamID: steamID})
+}
+
+// LibraryMatchQuery filters GET /api/library/matches; zero fields are unset.
+// From and To bound played_at, both included; Limit 0 is the server default.
+type LibraryMatchQuery struct {
+	Map     string
+	SteamID string
+	From    time.Time
+	To      time.Time
+	Limit   int
+}
+
+// SearchLibraryMatches lists analysed matches newest first, filtered on the server.
+func (c *Client) SearchLibraryMatches(ctx context.Context, q LibraryMatchQuery) ([]LibraryMatch, error) {
+	params := map[string]string{"map": q.Map, "steamid": q.SteamID}
+	if !q.From.IsZero() {
+		params["from"] = q.From.UTC().Format(time.RFC3339Nano)
+	}
+	if !q.To.IsZero() {
+		params["to"] = q.To.UTC().Format(time.RFC3339Nano)
+	}
+	if q.Limit > 0 {
+		params["limit"] = strconv.Itoa(q.Limit)
+	}
 	var out struct {
 		Matches []LibraryMatch `json:"matches"`
 	}
-	err := c.getJSON(ctx, "/api/library/matches"+query(map[string]string{"map": mapName, "steamid": steamID}), &out)
+	err := c.getJSON(ctx, "/api/library/matches"+query(params), &out)
 	return out.Matches, err
 }
 

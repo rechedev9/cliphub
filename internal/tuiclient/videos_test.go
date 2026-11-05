@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestVideoDurationsKeyedByPublishedFileStem(t *testing.T) {
@@ -49,6 +50,21 @@ func TestFilterMomentsSendsTheFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := "kind=clutch&kind=ace&side=CT&weapon=awp"; seen != want {
+		t.Errorf("query = %q, want %q", seen, want)
+	}
+}
+
+func TestSearchLibraryMatchesSendsTheRangeAndLimit(t *testing.T) {
+	var seen string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"matches":[]}`))
+	})
+	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := c.SearchLibraryMatches(context.Background(), LibraryMatchQuery{SteamID: "76561198000000000", From: from, To: from.AddDate(0, 1, 0).Add(-time.Millisecond), Limit: 11}); err != nil {
+		t.Fatal(err)
+	}
+	if want := "from=2026-10-01T00%3A00%3A00Z&limit=11&steamid=76561198000000000&to=2026-10-31T23%3A59%3A59.999Z"; seen != want {
 		t.Errorf("query = %q, want %q", seen, want)
 	}
 }

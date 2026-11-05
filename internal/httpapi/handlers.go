@@ -838,6 +838,13 @@ func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A filter reads side and clutch, which a moments file stored before they existed lacks.
+	if !filter.Empty() && j.KillPlan != nil {
+		doc := moments.Build(j.ID, *j.KillPlan)
+		doc.Moments = moments.Apply(doc.Moments, filter)
+		writeJSON(w, http.StatusOK, doc)
+		return
+	}
 	if rc, err := h.storage.Open(moments.ArtifactKey(j.ID)); err == nil {
 		defer rc.Close()
 		if filter.Empty() {

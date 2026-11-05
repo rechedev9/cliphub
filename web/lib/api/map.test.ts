@@ -65,3 +65,18 @@ test('planToPlays marks plays the recorder cannot replay from the victim', () =>
   });
   assert.deepEqual(plays.map((play) => play.victimReplay), [true, false, false]);
 });
+
+test('planToPlays reads the side and the clutch the filters use', () => {
+  const plays = planToPlays('job-1', {
+    segments: [
+      { id: 'kill', round: 2, tick_start: 0, tick_end: 64, kills: [{ weapon: 'weapon_AWP', clutch_vs: 2, killer: { team_at_kill: 'CT' } }, { weapon: 'awp', clutch_vs: 3 }] },
+      { id: 'smoke', round: 14, tick_start: 100, tick_end: 164, utility: [{ thrower: { team_at_kill: 'T' } }] },
+      { id: 'spectator', round: 3, tick_start: 200, tick_end: 264, kills: [{ weapon: 'ak47', killer: { team_at_kill: 'SPEC' } }] },
+    ],
+  });
+  assert.deepEqual(plays.map((play) => [play.id, play.side, play.clutchVs, play.weapons]), [
+    ['kill', 'CT', 3, ['awp']],
+    ['smoke', 'T', undefined, []],
+    ['spectator', undefined, undefined, ['ak47']],
+  ]);
+});

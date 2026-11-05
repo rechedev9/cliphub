@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
@@ -85,4 +88,23 @@ func segmentIDs(plays []foundPlay) []string {
 		out = append(out, p.m.SegmentID)
 	}
 	return out
+}
+
+func TestFindSkipsAMatchWhoseDemoIsGone(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/library/demos/gone/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"job_demo_missing","error":"the library demo file is no longer stored"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	search := matchSearch{c: tuiclient.New(tuiclient.Config{BaseURL: srv.URL, HTTPClient: srv.Client()}), in: findMomentsIn{SteamID: "76561198000000000"}}
+
+	found, plays, err := search.find(context.Background(), tuiclient.LibraryMatch{ID: "m1", DemoID: "gone", Map: "de_mirage"})
+	if err != nil {
+		t.Fatalf("a missing demo must not fail the search: %v", err)
+	}
+	if found.Skipped == "" || found.Pending || len(plays) != 0 {
+		t.Fatalf("found = %+v, plays = %d; want a skipped match", found, len(plays))
+	}
 }
