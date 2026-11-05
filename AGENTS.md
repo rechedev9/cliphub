@@ -25,6 +25,11 @@ change for the installed Windows app. The UI is in Spanish.
 - `go test ./...` includes `TestNoDeadCode` (`cmd/zv`), which runs pinned `deadcode` and `staticcheck -checks U1000`
   for both `GOOS=windows` and `GOOS=linux`. A function that only tests call is dead: delete it, or move a
   real test helper into a `_test.go` file. A helper only `_windows.go` code calls belongs in a `_windows.go` file.
+- Source files stay at or under 1000 lines: `TestGoFileLength` (`cmd/zv`) for Go, `max-lines` in the
+  web and desktop oxlint configs for TS. Files already past it are frozen at their size; split, never raise.
+  Split by responsibility: each new file (or package, when there is a real API boundary) owns one concern,
+  such as `handlers_library.go` and `handlers_streams.go`. A cut by line count (`handlers2.go`) does not count.
+  Lower or drop the frozen entry in the same change.
 - Fast local Go loop: `go test -short ./...` skips the slow FFmpeg renders; pre-PR runs use the full suite.
   `internal/editor` alone nears the 10 min default on Windows, so pass `-timeout 30m` to a full run.
 - web, desktop: `pnpm --dir <pkg> run typecheck`, `lint`, `test:unit`; `run build` for web.
