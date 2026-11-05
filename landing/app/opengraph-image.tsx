@@ -2,212 +2,76 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "ClipHub — Your best CS2 frags, ready to post";
+export const alt = "Un puesto de ciber con ClipHub Studio en el monitor";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const BRAND = "#fb923c";
-const WHITE = "#f2fbff";
-const BRAND_DEEP = "#8b5cf6";
-const EMBER = "#f97316";
+const ACCENT = "#fb923c";
 
 export default async function OpengraphImage() {
-  const heroImage = await readFile(
-    path.join(process.cwd(), "public", "images", "hero-replay-forge-og.jpg"),
-  );
-  const heroSource = `data:image/jpeg;base64,${heroImage.toString("base64")}`;
-
-  const markSvg = await readFile(
-    path.join(process.cwd(), "public", "brand", "cliphub-mark.svg"),
-    "utf8",
-  );
-  const markSource = `data:image/svg+xml;base64,${Buffer.from(markSvg).toString("base64")}`;
+  const scene = await readFile(path.join(process.cwd(), "public", "scene", "stills", "og.jpg"));
+  const mark = await readFile(path.join(process.cwd(), "public", "brand", "cliphub-mark.svg"), "utf8");
+  const sceneSource = `data:image/jpeg;base64,${scene.toString("base64")}`;
+  const markSource = `data:image/svg+xml;base64,${Buffer.from(mark).toString("base64")}`;
 
   return new ImageResponse(
-    (
+    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: "#050709" }}>
+      <img
+        alt=""
+        src={sceneSource}
+        width={1200}
+        height={630}
+        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+      />
+      {/* Satori has no `inset`, so the scrim takes explicit edges. */}
       <div
         style={{
-          position: "relative",
-          height: "100%",
+          position: "absolute",
+          top: 0,
+          left: 0,
           width: "100%",
+          height: "100%",
           display: "flex",
-          overflow: "hidden",
-          backgroundColor: "#050812",
+          backgroundImage: "linear-gradient(0deg, rgba(5,7,9,0.97) 0%, rgba(5,7,9,0.9) 34%, rgba(5,7,9,0) 66%)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 56,
+          top: 44,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "10px 16px",
+          borderRadius: 12,
+          backgroundColor: "rgba(10,13,17,0.92)",
         }}
       >
-        <img
-          alt=""
-          src={heroSource}
-          width={1200}
-          height={630}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            backgroundImage:
-              "linear-gradient(90deg, rgba(3,6,14,0.98) 0%, rgba(3,6,14,0.93) 38%, rgba(3,6,14,0.40) 72%, rgba(3,6,14,0.14) 100%)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            backgroundImage:
-              "linear-gradient(0deg, rgba(3,6,14,0.92) 0%, transparent 35%, rgba(3,6,14,0.35) 100%)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: 10,
-            height: "100%",
-            display: "flex",
-            background: `linear-gradient(180deg, ${BRAND}, ${BRAND_DEEP})`,
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            padding: "58px 70px 54px 76px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <img
-                alt=""
-                src={markSource}
-                width={52}
-                height={52}
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 12,
-                  border: `2px solid ${BRAND}`,
-                }}
-              />
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  fontSize: 34,
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                <span style={{ color: WHITE }}>Clip</span>
-                <span style={{ color: BRAND }}>Hub</span>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                padding: "10px 17px",
-                border: "1px solid rgba(255,255,255,0.25)",
-                backgroundColor: "rgba(3,6,14,0.72)",
-                color: WHITE,
-                fontSize: 18,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              FREE WINDOWS APP
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              marginTop: 74,
-              color: BRAND,
-              fontSize: 21,
-              fontWeight: 700,
-              letterSpacing: "0.16em",
-            }}
-          >
-            CS2 DEMO → VERTICAL SHORT
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              marginTop: 18,
-              fontSize: 72,
-              fontWeight: 800,
-              lineHeight: 0.98,
-              color: WHITE,
-              letterSpacing: "-0.035em",
-            }}
-          >
-            <span>YOUR BEST FRAGS.</span>
-            <span style={{ color: BRAND }}>READY TO POST.</span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              marginTop: 28,
-              color: "#c7d5e3",
-              fontSize: 25,
-            }}
-          >
-            Real HLAE capture. Native killfeed. 1080 × 1920 at 60 FPS.
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginTop: "auto",
-              fontSize: 20,
-              color: "#a7b7c8",
-              letterSpacing: "0.04em",
-            }}
-          >
-            <span style={{ color: BRAND, fontWeight: 700 }}>LOCAL CAPTURE</span>
-            <span>•</span>
-            <span>NO ACCOUNT</span>
-            <span>•</span>
-            <span style={{ color: BRAND }}>CLIPHUB.RECHEDEV.CLOUD</span>
-            <span
-              style={{
-                marginLeft: 8,
-                width: 10,
-                height: 10,
-                borderRadius: 2,
-                backgroundColor: EMBER,
-              }}
-            />
-          </div>
+        <img alt="" src={markSource} width={40} height={40} style={{ width: 40, height: 40 }} />
+        <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: "#f2f5f8" }}>
+          ClipHub<span style={{ color: "#a7b0bc", marginLeft: 8, fontWeight: 500 }}>Studio</span>
         </div>
       </div>
-    ),
+      <div style={{ position: "absolute", left: 56, right: 56, bottom: 48, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            fontSize: 58,
+            fontWeight: 700,
+            lineHeight: 1.05,
+            color: "#ffffff",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          Tus partidas de CS2, convertidas en vídeo
+        </div>
+        <div style={{ display: "flex", marginTop: 16, fontSize: 26, color: "#c9d1db" }}>
+          Shorts, demo completa, clips de stream y análisis.
+          <span style={{ color: ACCENT, marginLeft: 10 }}>Gratis y en tu PC.</span>
+        </div>
+      </div>
+    </div>,
     { ...size },
   );
 }

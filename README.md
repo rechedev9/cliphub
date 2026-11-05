@@ -108,7 +108,7 @@ pnpm --dir desktop run typecheck && pnpm --dir desktop run lint && pnpm --dir de
 
 ## Releases
 
-Bump `desktop/package.json` and `landing/app/page.tsx`, commit `chore(release): prepare Studio X.Y.Z`, then push an annotated tag `vX.Y.Z`. The `desktop-release.yml` workflow builds the unsigned Windows installer and publishes the GitHub Release that the in-app updater reads.
+Bump `desktop/package.json` and `landing/lib/site.ts`, commit `chore(release): prepare Studio X.Y.Z`, then push an annotated tag `vX.Y.Z`. The `desktop-release.yml` workflow builds the unsigned Windows installer and publishes the GitHub Release that the in-app updater reads.
 
 ## Documentation
 
