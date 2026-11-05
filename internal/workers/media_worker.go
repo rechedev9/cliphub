@@ -2462,6 +2462,8 @@ func projectDurableEdit(id uuid.UUID, variant string, revisionID uuid.UUID, shor
 	short.CoverCommand = nil
 	short.CoverSheetCommand = nil
 	short.QualityCommand = nil
+	short.KillfeedASS = ""
+	short.KillfeedFontsDir = ""
 	short.OutputArtifact.Path = refs.video.Key
 	short.PublishArtifact.Path = refs.video.Key
 	return nil

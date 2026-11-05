@@ -1397,6 +1397,22 @@ func TestDurableRenderProjectorsReturnArtifactReferenceErrors(t *testing.T) {
 	}
 }
 
+func TestProjectDurableEditDropsTheCenteredKillfeedScratchPaths(t *testing.T) {
+	scratch := t.TempDir()
+	short := editor.ShortEdit{
+		SegmentID:        "seg-001",
+		CenteredKillfeed: true,
+		KillfeedASS:      filepath.Join(scratch, "short-001-seg-001.mp4.killfeed.ass"),
+		KillfeedFontsDir: filepath.Join(scratch, "fonts"),
+	}
+	if err := projectDurableEdit(uuid.New(), editor.PresetViral60Clean, uuid.New(), &short); err != nil {
+		t.Fatal(err)
+	}
+	if short.KillfeedASS != "" || short.KillfeedFontsDir != "" || !short.CenteredKillfeed {
+		t.Fatalf("durable short = ass %q, fonts %q, centered %v", short.KillfeedASS, short.KillfeedFontsDir, short.CenteredKillfeed)
+	}
+}
+
 func TestExplicitCoverArgsCarriesEveryBooleanDecision(t *testing.T) {
 	tests := []struct {
 		name string
