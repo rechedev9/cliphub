@@ -224,6 +224,12 @@ body {
   transform: scale(0.97);
 }
 
+@media (pointer: coarse) {
+  .ciber-tool {
+    min-height: 2.75rem;
+  }
+}
+
 .lite-3d-link {
   min-height: 2.75rem;
   color: var(--fg);

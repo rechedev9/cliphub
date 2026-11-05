@@ -431,9 +431,10 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
   }
 
   function updateCamera(dt: number) {
-    shownInsets.right = MathUtils.damp(shownInsets.right, insets.right, 6, dt);
-    shownInsets.bottom = MathUtils.damp(shownInsets.bottom, insets.bottom, 6, dt);
-    shownInsets.top = MathUtils.damp(shownInsets.top, insets.top, 6, dt);
+    // With reduced motion the framing jumps to a new panel size instead of gliding.
+    for (const side of ["top", "right", "bottom"] as const) {
+      shownInsets[side] = reducedMotion ? insets[side] : MathUtils.damp(shownInsets[side], insets[side], 6, dt);
+    }
     const live = liveFrame();
     if (progress < 1 && from) {
       progress = Math.min(1, progress + dt / duration);
