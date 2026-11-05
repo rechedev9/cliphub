@@ -1495,9 +1495,8 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 	}, true
 }
 
-// capturePortraitSafeKillfeed asks the capture to bring CS2's notices into the
-// 9:16 crop. A centered killfeed is drawn by the editor instead, so its capture
-// leaves the native notices in their corner, outside the crop.
+// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the
+// editor draws a centered killfeed and the native ones must stay outside it.
 func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {
 	return killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
 }

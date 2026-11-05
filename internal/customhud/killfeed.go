@@ -5,6 +5,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"golang.org/x/image/font/sfnt"
 )
 
 // KillNotice is one death notice drawn in place of CS2's own, so its position
@@ -59,11 +61,30 @@ const (
 )
 
 // killfeedSpan is a stretch of one notice's lifetime spent in a single row.
-// shift is how far below that row it starts, so it can slide up into place.
+// shift is how many rows below that row it starts, so it can slide up.
 type killfeedSpan struct {
 	start, end  float64
 	slot, shift int
-	first, last bool
+}
+
+// killfeedEvent is a span ready to write. Its offset and fade continue from the
+// previous span, so a row never pops when the stack changes quickly.
+type killfeedEvent struct {
+	killfeedSpan
+	offset int
+	fade   [7]int
+}
+
+// killfeedLabel is a name or weapon label fitted to its width budget.
+type killfeedLabel struct {
+	text  string
+	face  measuredFace
+	width int
+}
+
+type killfeedFit struct {
+	value                string
+	size, budget, weight int
 }
 
 type killfeedPart struct {
@@ -106,10 +127,9 @@ func KillfeedASS(notices []KillNotice, layout KillfeedLayout) (string, error) {
 	b.WriteString("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 	stack := killfeedStack{notices: ordered, duration: layout.DurationSeconds}
 	for i, notice := range ordered {
-		for _, span := range stack.spans(i) {
-			span.shift *= step
-			box := killfeedRowBox{centerX: layout.Width / 2, top: layout.Top + span.slot*step, scale: scale}
-			span.write(&b, killfeedRow(notice, box))
+		for _, event := range stack.events(i, step) {
+			box := killfeedRowBox{centerX: layout.Width / 2, top: layout.Top + event.slot*step, scale: scale}
+			event.write(&b, killfeedRow(notice, box))
 		}
 	}
 	return b.String(), nil
@@ -157,11 +177,39 @@ func (k killfeedStack) spans(index int) []killfeedSpan {
 		}
 		spans = append(spans, killfeedSpan{start: a, end: z, slot: slot})
 	}
-	if len(spans) > 0 {
-		spans[0].first = spans[0].start == start
-		spans[len(spans)-1].last = spans[len(spans)-1].end == end
-	}
 	return spans
+}
+
+// events turns the spans into rows step px apart. A slide still under way when
+// the row changes again carries over, and the fade follows the notice, not the span.
+func (k killfeedStack) events(index, step int) []killfeedEvent {
+	notice := k.notices[index]
+	born, dies := notice.AtSeconds, k.end(notice)
+	var out []killfeedEvent
+	carry := 0.0
+	for i, span := range k.spans(index) {
+		if i > 0 && out[i-1].end != span.start {
+			carry = 0
+		}
+		offset := carry + float64(span.shift*step)
+		out = append(out, killfeedEvent{killfeedSpan: span, offset: int(math.Round(offset)), fade: killfeedFade(born, dies, span)})
+		carry = offset * max(0, 1-(span.end-span.start)*1000/killfeedSlideMS)
+	}
+	return out
+}
+
+// killfeedFade is the 7-argument fade tag for span: alphas (255 is transparent)
+// and times relative to the span's start.
+func killfeedFade(born, dies float64, span killfeedSpan) [7]int {
+	alpha := func(t float64) int {
+		opacity := min(1, (t-born)*1000/killfeedFadeInMS, (dies-t)*1000/killfeedFadeOutMS)
+		return int(math.Round(255 * (1 - max(0, opacity))))
+	}
+	ms := func(t float64) int { return int(math.Round((t - span.start) * 1000)) }
+	fadedIn, fadingOut := born+killfeedFadeInMS/1000.0, dies-killfeedFadeOutMS/1000.0
+	peak := max(span.start, min(fadedIn, fadingOut))
+	out := max(peak, fadingOut)
+	return [7]int{alpha(span.start), alpha(peak), 255, 0, ms(peak), ms(out), ms(dies)}
 }
 
 // slot is the notice's row at t among the notices on screen, keeping only
@@ -190,26 +238,23 @@ func killfeedRow(notice KillNotice, box killfeedRowBox) []killfeedPart {
 	px := func(v int) int { return int(math.Round(float64(v) * box.scale)) }
 	height, pad, gap := px(killfeedRowHeight), px(killfeedPadX), px(killfeedItemGap)
 	nameSize, nameWidth := px(killfeedNameSize), px(killfeedNameWidth)
-	attacker, attackerFace := fitText(notice.Attacker, nameSize, nameWidth, 700)
-	victim, victimFace := fitText(notice.Victim, nameSize, nameWidth, 700)
-	attackerW := renderedWidth(attacker, nameSize, attackerFace)
-	victimW := renderedWidth(victim, nameSize, victimFace)
+	attacker := killfeedFit{value: notice.Attacker, size: nameSize, budget: nameWidth, weight: 700}.label()
+	victim := killfeedFit{value: notice.Victim, size: nameSize, budget: nameWidth, weight: 700}.label()
 
 	weapon := iconBox{key: weaponIcon(notice.Weapon), h: px(killfeedIconHeight), maxW: px(killfeedIconWidth)}
 	weaponW := weapon.width()
-	var label string
-	var labelFace measuredFace
+	var label killfeedLabel
 	if weaponW == 0 {
 		// Unknown equipment keeps its source label instead of a lookalike icon.
-		label, labelFace = fitText(notice.Weapon, px(killfeedLabelSize), px(killfeedIconWidth), 600)
-		weaponW = renderedWidth(label, px(killfeedLabelSize), labelFace)
+		label = killfeedFit{value: notice.Weapon, size: px(killfeedLabelSize), budget: px(killfeedIconWidth), weight: 600}.label()
+		weaponW = label.width
 	}
 	skull := iconBox{key: "status/icon_skull_default", h: px(killfeedHSSize), maxW: px(killfeedHSSize)}
 	hsW := 0
 	if notice.Headshot {
 		hsW = gap + skull.width()
 	}
-	width := pad + attackerW + gap + weaponW + hsW + gap + victimW + pad
+	width := pad + attacker.width + gap + weaponW + hsW + gap + victim.width + pad
 	left, mid := box.centerX-width/2, box.top+height/2
 	border := px(killfeedBorder)
 	outer := roundedRect{x: left, y: box.top, w: width, h: height, r: px(killfeedRadius)}
@@ -219,13 +264,13 @@ func killfeedRow(notice KillNotice, box killfeedRowBox) []killfeedPart {
 		{path: outer.path(false) + " " + inner.path(true), color: killfeedBorderColor},
 	}
 	x := left + pad
-	parts = append(parts, killfeedPart{text: attacker, font: attackerFace.Family, weight: attackerFace.Weight, size: nameSize, x: x, y: mid, color: sideColor(notice.AttackerSide)})
-	x += attackerW + gap
-	if label == "" {
+	parts = append(parts, killfeedPart{text: attacker.text, font: attacker.face.Family, weight: attacker.face.Weight, size: nameSize, x: x, y: mid, color: sideColor(notice.AttackerSide)})
+	x += attacker.width + gap
+	if label.text == "" {
 		weapon.x, weapon.y = x, mid-weapon.h/2
 		parts = append(parts, killfeedPart{path: weapon.path(), color: killfeedIconColor})
 	} else {
-		parts = append(parts, killfeedPart{text: label, font: labelFace.Family, weight: labelFace.Weight, size: px(killfeedLabelSize), x: x, y: mid, color: killfeedIconColor})
+		parts = append(parts, killfeedPart{text: label.text, font: label.face.Family, weight: label.face.Weight, size: px(killfeedLabelSize), x: x, y: mid, color: killfeedIconColor})
 	}
 	x += weaponW
 	if notice.Headshot {
@@ -233,7 +278,7 @@ func killfeedRow(notice KillNotice, box killfeedRowBox) []killfeedPart {
 		parts = append(parts, killfeedPart{path: skull.path(), color: killfeedIconColor})
 		x += hsW
 	}
-	parts = append(parts, killfeedPart{text: victim, font: victimFace.Family, weight: victimFace.Weight, size: nameSize, x: x + gap, y: mid, color: sideColor(notice.VictimSide)})
+	parts = append(parts, killfeedPart{text: victim.text, font: victim.face.Family, weight: victim.face.Weight, size: nameSize, x: x + gap, y: mid, color: sideColor(notice.VictimSide)})
 	return parts
 }
 
@@ -306,8 +351,44 @@ func (b *iconBox) path() string {
 	return out.String()
 }
 
-func renderedWidth(text string, size int, face measuredFace) int {
-	return int(math.Ceil(float64(measureText(text, size, face)) * face.assScale))
+// label fits the escaped text, as drawn, to the budget at the size libass renders.
+func (f killfeedFit) label() killfeedLabel {
+	value := assText(cleanText(f.value, 100))
+	face := textFace(value, f.weight)
+	if width := f.width(value, face); width <= f.budget {
+		return killfeedLabel{text: value, face: face, width: width}
+	}
+	runes := []rune(value)
+	for len(runes) > 0 {
+		runes = runes[:len(runes)-1]
+		candidate := string(runes) + "…"
+		if width := f.width(candidate, face); width <= f.budget {
+			return killfeedLabel{text: candidate, face: face, width: width}
+		}
+	}
+	return killfeedLabel{face: face}
+}
+
+// width counts a full font size for each character the HUD fonts lack, since
+// libass draws those with a system fallback font the embedded faces cannot measure.
+func (f killfeedFit) width(text string, face measuredFace) int {
+	var buf sfnt.Buffer
+	var covered []rune
+	missing, total := 0, 0.0
+	flush := func() {
+		total += float64(measureText(string(covered), f.size, face)) * face.assScale
+		covered = covered[:0]
+	}
+	for _, c := range text {
+		if glyph, err := face.font.GlyphIndex(&buf, c); err != nil || glyph == 0 {
+			flush()
+			missing++
+			continue
+		}
+		covered = append(covered, c)
+	}
+	flush()
+	return int(math.Ceil(total)) + missing*f.size
 }
 
 func sideColor(side string) string {
@@ -350,24 +431,19 @@ func (r roundedRect) path(reverse bool) string {
 	return out.String() + " Z"
 }
 
-func (s killfeedSpan) write(b *strings.Builder, parts []killfeedPart) {
-	fadeIn, fadeOut := 0, 0
-	if s.first {
-		fadeIn = killfeedFadeInMS
-	}
-	if s.last {
-		fadeOut = killfeedFadeOutMS
-	}
-	start, end := killfeedTime(s.start), killfeedTime(s.end)
+func (e killfeedEvent) write(b *strings.Builder, parts []killfeedPart) {
+	start, end := killfeedTime(e.start), killfeedTime(e.end)
+	f := e.fade
+	fade := fmt.Sprintf("\\fade(%d,%d,%d,%d,%d,%d,%d)", f[0], f[1], f[2], f[3], f[4], f[5], f[6])
 	for layer, part := range parts {
 		if part.path != "" {
 			path := strings.NewReplacer("M", "m", "L", "l", "C", "b", "Z", "").Replace(part.path)
-			fmt.Fprintf(b, "Dialogue: %d,%s,%s,Killfeed,,0,0,0,,{\\an7\\move(0,%d,0,0,0,%d)\\bord0\\shad0\\1c&H%s&\\1a&H%02X&\\fad(%d,%d)\\p1}%s{\\p0}\n",
-				20+layer, start, end, s.shift, killfeedSlideMS, assColor(part.color), part.alpha, fadeIn, fadeOut, path)
+			fmt.Fprintf(b, "Dialogue: %d,%s,%s,Killfeed,,0,0,0,,{\\an7\\move(0,%d,0,0,0,%d)\\bord0\\shad0\\1c&H%s&\\1a&H%02X&%s\\p1}%s{\\p0}\n",
+				20+layer, start, end, e.offset, killfeedSlideMS, assColor(part.color), part.alpha, fade, path)
 			continue
 		}
-		fmt.Fprintf(b, "Dialogue: %d,%s,%s,Killfeed,,0,0,0,,{\\an4\\move(%d,%d,%d,%d,0,%d)\\fn%s\\b%d\\fs%d\\bord0\\shad0\\1c&H%s&\\fad(%d,%d)}%s\n",
-			20+layer, start, end, part.x, part.y+s.shift, part.x, part.y, killfeedSlideMS, part.font, part.weight, part.size, assColor(part.color), fadeIn, fadeOut, assText(part.text))
+		fmt.Fprintf(b, "Dialogue: %d,%s,%s,Killfeed,,0,0,0,,{\\an4\\move(%d,%d,%d,%d,0,%d)\\fn%s\\b%d\\fs%d\\bord0\\shad0\\1c&H%s&%s}%s\n",
+			20+layer, start, end, part.x, part.y+e.offset, part.x, part.y, killfeedSlideMS, part.font, part.weight, part.size, assColor(part.color), fade, assText(part.text))
 	}
 }
 

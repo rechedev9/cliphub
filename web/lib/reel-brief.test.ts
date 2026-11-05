@@ -261,3 +261,25 @@ test('creative brief names CSGOSkins when that family is selected', () => {
   assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · 0.0s–4.0s');
   assert.equal(skins.KeyDrop, undefined);
 });
+
+test('a death reel drops the centered kill feed from the brief, since its clips have no kills', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+    centeredKillfeed: true,
+  };
+  const hud = (config: EditConfig) =>
+    reelCreativeBrief(config, PRESET, { status: 'none' }).find((item) => item.label === 'HUD / killfeed')?.value ?? '';
+  assert.match(hud(edit), /kill feed centrada arriba/);
+  assert.doesNotMatch(hud({ ...edit, deathReel: true }), /kill feed centrada/);
+  assert.equal('centeredKillfeed' in constrainEditConfig({ ...edit, deathReel: true }), false);
+});
