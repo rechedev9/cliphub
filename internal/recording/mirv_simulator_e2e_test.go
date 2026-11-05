@@ -17,6 +17,7 @@ type captureLabScenario struct {
 	SchemaVersion     int                      `json:"schema_version"`
 	Name              string                   `json:"name"`
 	TargetSteamID     string                   `json:"target_steamid"`
+	Players           []string                 `json:"players,omitempty"`
 	StartTick         int                      `json:"start_tick"`
 	TickStep          int                      `json:"tick_step"`
 	TickOverrides     []captureLabTickOverride `json:"tick_overrides,omitempty"`
@@ -295,13 +296,79 @@ func legacyScheduleDispatcher(t *testing.T, script string) string {
 	t.Helper()
 	const current = `        while (scheduleIndex < schedule.length) {
             const item = schedule[scheduleIndex];
-            if (tick < item.tick) break;
+            if ((item.pass ?? 0) > pass || tick < item.tick) break;
             scheduleIndex++;
             if (fired[item.key]) continue;`
 	const reference = `        for (const item of schedule) {
-            if (fired[item.key] || tick < item.tick) continue;`
+            if (fired[item.key] || (item.pass ?? 0) > pass || tick < item.tick) continue;`
 	if strings.Count(script, current) != 1 {
 		t.Fatal("expected exactly one dispatcher to replace with the pre-optimization reference")
 	}
 	return strings.Replace(script, current, reference, 1)
+}
+
+// The replay pass rewinds the demo, so the scan-every-frame reference dispatcher
+// above cannot replay it; this runs the generated script alone.
+func TestVictimReplayPassBeforeADemoEndPlayRunsInMIRVSimulator(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required for the exact-script Capture Lab integration")
+	}
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate test source")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	victim := "76561198000000001"
+	plan := captureLabPlan(
+		RecordingSegment{
+			ID: "seg-001", TickStart: 1000, TickEnd: 1400,
+			Kills:        []killplan.Kill{{Tick: 1300, Victim: killplan.Player{SteamID64: victim}}},
+			VictimReplay: &VictimReplay{SteamID64: victim, KillTick: 1300, TickStart: 1108, TickEnd: 1332},
+		},
+		// The last kill sits at the demo end: this play is recorded after the replays.
+		RecordingSegment{ID: "seg-002", TickStart: 5700, TickEnd: 5990, Kills: []killplan.Kill{{Tick: 5950}}, AfterReplays: true},
+	)
+	plan.Stream.VictimReplay = true
+	plan.EditorialSegmentIDs = []string{"seg-001", "seg-002"}
+	if err := plan.Validate(); err != nil {
+		t.Fatalf("plan.Validate: %v", err)
+	}
+	script, err := GenerateHLAEJavaScriptWithAttestation(plan, "capturelab-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenario := captureLabScenario{
+		SchemaVersion: 1, Name: "victim-replay-demo-end", TargetSteamID: plan.TargetSteamID64, Players: []string{victim},
+		TickStep: 1, MaxFrames: 40000, DemoEndTick: ptr(6000),
+		Expected: captureLabExpected{
+			Outcome: "verified", RecordedSegments: []string{"seg-001", "seg-001-victim", "seg-002"},
+			MustExec: []string{"demo_gototick", "disconnect", "quit"}, SoftQuit: true,
+		},
+	}
+	dir := t.TempDir()
+	scriptPath, scenarioPath := filepath.Join(dir, "recording.js"), filepath.Join(dir, "scenario.json")
+	scenarioJSON, err := json.Marshal(scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scenarioPath, scenarioJSON, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(node, filepath.Join(repoRoot, "scripts", "capturelab", "run.mjs"), "--script", scriptPath, "--scenario", scenarioPath)
+	command.Dir = repoRoot
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("MIRV simulator: %v\n%s", err, output)
+	}
+	var summary captureLabSummary
+	if err := json.Unmarshal(output, &summary); err != nil {
+		t.Fatalf("decode simulator summary: %v\n%s", err, output)
+	}
+	if !summary.OK {
+		t.Fatalf("simulator expectations failed: %v\n%s", summary.ExpectationFailures, output)
+	}
 }

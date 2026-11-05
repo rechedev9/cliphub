@@ -51,3 +51,17 @@ test('deathMomentsToPlays keeps match order and says how the player died', () =>
   assert.equal(plays[1].startSeconds, undefined);
   assert.equal(plays[1].kills, 0);
 });
+
+test('planToPlays marks plays the recorder cannot replay from the victim', () => {
+  const kill = (steamid64: string) => ({ victim: { steamid64 } });
+  const plays = planToPlays('job-1', {
+    demo: { tickrate: 64, duration_ticks: 50000 },
+    target: { steamid64: '76561198148986856' },
+    segments: [
+      { id: 'player', round: 1, tick_start: 100, tick_end: 900, kills: [kill('76561198000000001')] },
+      { id: 'bot', round: 2, tick_start: 1000, tick_end: 1900, kills: [kill('0')] },
+      { id: 'end', round: 3, tick_start: 49000, tick_end: 49990, kills: [kill('76561198000000001')] },
+    ],
+  });
+  assert.deepEqual(plays.map((play) => play.victimReplay), [true, false, false]);
+});

@@ -38,6 +38,8 @@ export type Play = {
   startSeconds?: number; endSeconds?: number; headshots?: number;
   /** Death clips only: how the player died at the end of the clip. */
   death?: PlayDeath;
+  /** False when the recorder cannot replay this play from the victim (bot victim, demo end). */
+  victimReplay?: boolean;
 };
 export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type RenderMode = 'clean' | 'music';
@@ -243,6 +245,8 @@ export type EditConfig = {
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;
+  /** Shorts only: replay each play's last kill from the victim, slowed down. */
+  victimReplay?: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

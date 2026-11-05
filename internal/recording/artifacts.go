@@ -19,7 +19,7 @@ const maxConcurrentArtifactProbes = 4
 // ffprobe is available. HLAE Source 2 writes takeNNNN/video.mp4 and audio.wav.
 func CollectArtifacts(ctx context.Context, plan RecordingPlan, ffprobePath string) []RecordingArtifact {
 	files := discoverMediaFiles(plan.OutputDir)
-	takeSegments := mapTakesToSegments(files, plan.Segments)
+	takeSegments := mapTakesToSegments(files, plan.CaptureSegments())
 	for i := range files {
 		files[i].SegmentID = takeSegments[files[i].TakeID]
 	}

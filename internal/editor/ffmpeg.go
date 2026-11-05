@@ -322,9 +322,13 @@ func CompilationFilter(short ShortEdit) string {
 		}
 		videoLabel := fmt.Sprintf("pv%d", i)
 		audioLabel := fmt.Sprintf("pa%d", i)
+		slowIn, slowFlash, slowAudio := slowMotionFilters(part)
+		if short.Transition == TransitionFlash {
+			slowFlash = "" // The transition already flashes into every part.
+		}
 		clauses = append(clauses,
-			fmt.Sprintf("[%d:v]%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, VideoFilter(partShort), partFrames, videoLabel),
-			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, partDuration, audioLabel),
+			fmt.Sprintf("[%d:v]%s%s%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, slowIn, VideoFilter(partShort), slowFlash, partFrames, videoLabel),
+			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000%s,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, slowAudio, partDuration, audioLabel),
 		)
 		if voice := voiceMixFilter(short, i, part, audioLabel, partDuration); voice != "" {
 			clauses = append(clauses, voice)
@@ -672,7 +676,7 @@ func voiceMixWindow(part ShortPart, tickrate int, partDuration float64) (start, 
 
 func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string, partDuration float64) string {
 	start, end := voiceMixWindow(part, short.VoiceTickrate, partDuration)
-	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start {
+	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start || isSlowMotion(part) {
 		return ""
 	}
 	base := voiceInputStart(short)

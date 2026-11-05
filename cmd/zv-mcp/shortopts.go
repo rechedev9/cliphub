@@ -66,6 +66,7 @@ var toggleOptions = []shortToggle{
 	{ID: "kill_counter", Label: "Contador de kills", Description: "Contador de bajas visible durante la jugada"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
+	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez a cámara lenta vista por quien muere"},
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
 }
 
@@ -87,17 +88,18 @@ type shortOptionsOut struct {
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
 type shortChoices struct {
-	Format      string `json:"format,omitempty" jsonschema:"output format id from list_short_options; default short-9x16"`
-	KillEffect  string `json:"kill_effect,omitempty" jsonschema:"kill effect id from list_short_options; default punch-in"`
-	Transition  string `json:"transition,omitempty" jsonschema:"transition id from list_short_options; default flash"`
-	Music       string `json:"music,omitempty" jsonschema:"music track id from list_short_options; default no music"`
-	Intro       *bool  `json:"intro,omitempty" jsonschema:"opening card; default false"`
-	Outro       *bool  `json:"outro,omitempty" jsonschema:"closing card; default false"`
-	HookText    *bool  `json:"hook_text,omitempty" jsonschema:"automatic hook title; default false"`
-	KillCounter *bool  `json:"kill_counter,omitempty" jsonschema:"kill counter overlay; default false"`
-	VoiceComms  *bool  `json:"voice_comms,omitempty" jsonschema:"mix team voice comms; default false"`
-	NativeHUD   *bool  `json:"native_hud,omitempty" jsonschema:"record with the native game HUD; default false"`
-	Cover       *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
+	Format       string `json:"format,omitempty" jsonschema:"output format id from list_short_options; default short-9x16"`
+	KillEffect   string `json:"kill_effect,omitempty" jsonschema:"kill effect id from list_short_options; default punch-in"`
+	Transition   string `json:"transition,omitempty" jsonschema:"transition id from list_short_options; default flash"`
+	Music        string `json:"music,omitempty" jsonschema:"music track id from list_short_options; default no music"`
+	Intro        *bool  `json:"intro,omitempty" jsonschema:"opening card; default false"`
+	Outro        *bool  `json:"outro,omitempty" jsonschema:"closing card; default false"`
+	HookText     *bool  `json:"hook_text,omitempty" jsonschema:"automatic hook title; default false"`
+	KillCounter  *bool  `json:"kill_counter,omitempty" jsonschema:"kill counter overlay; default false"`
+	VoiceComms   *bool  `json:"voice_comms,omitempty" jsonschema:"mix team voice comms; default false"`
+	NativeHUD    *bool  `json:"native_hud,omitempty" jsonschema:"record with the native game HUD; default false"`
+	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill in slow motion from the victim's view; default false"`
+	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 }
 
 type songIn struct {
@@ -218,6 +220,7 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	edit.Intro, edit.Outro = orDefault(c.Intro, false), orDefault(c.Outro, false)
 	edit.HookText, edit.KillCounter = orDefault(c.HookText, false), orDefault(c.KillCounter, false)
 	edit.VoiceComms, edit.NativeHUD = orDefault(c.VoiceComms, false), orDefault(c.NativeHUD, false)
+	edit.VictimReplay = orDefault(c.VictimReplay, false)
 	edit.CoverStrategy = coverNone
 	if orDefault(c.Cover, true) {
 		edit.CoverStrategy = coverGenerated
@@ -237,7 +240,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 		name string
 		on   bool
 	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter},
-		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"cover", e.CoverStrategy == coverGenerated}} {
+		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated}} {
 		if x.on {
 			extras = append(extras, x.name)
 		}

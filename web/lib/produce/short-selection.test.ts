@@ -5,6 +5,7 @@ import {
   autoPickBestPlays,
   estimatedPlaySeconds,
   estimatedSelectionSeconds,
+  VICTIM_REPLAY_SECONDS,
   formatClock,
   roundsSummary,
   selectionTimeline,
@@ -37,7 +38,7 @@ test('known source lengths drive auto selection and the running order', () => {
   ];
   const selected = autoPickBestPlays(plays);
   assert.deepEqual([...selected], ['long', 'short']);
-  assert.deepEqual(selectionTimeline(plays, selected).map(({ seconds, startAt }) => ({ seconds, startAt })), [
+  assert.deepEqual(selectionTimeline(plays, { selectedIds: selected }).map(({ seconds, startAt }) => ({ seconds, startAt })), [
     { seconds: 45, startAt: 0 }, { seconds: 15, startAt: 45 },
   ]);
   assert.equal(estimatedPlaySeconds({ kills: 1, startSeconds: 5, endSeconds: 4 }), 9);
@@ -50,7 +51,7 @@ test('fractional source durations fit an exact minute without floating-point ove
   const selected = autoPickBestPlays(plays);
   assert.equal(selected.size, 3);
   assert.equal(estimatedSelectionSeconds(plays), 60);
-  const timeline = selectionTimeline(plays, selected);
+  const timeline = selectionTimeline(plays, { selectedIds: selected });
   assert.deepEqual(timeline.map((cue) => cue.startAt), [0, 8.3, 32.4]);
 });
 
@@ -80,7 +81,7 @@ test('auto pick takes the biggest frags first and never exceeds the target', () 
 
 test('auto pick keeps plan order among equal kill counts', () => {
   const plays = [play('x', 1, 2), play('y', 2, 2), play('z', 3, 2)];
-  const picked = autoPickBestPlays(plays, 24);
+  const picked = autoPickBestPlays(plays, { targetSeconds: 24 });
   assert.deepEqual([...picked], ['x', 'y']);
 });
 
@@ -105,7 +106,7 @@ test('auto pick always keeps the top-ranked play when nothing fits the target', 
     { name: 'no plays at all', plays: [], target: 60, want: [] },
   ];
   for (const tc of cases) {
-    assert.deepEqual([...autoPickBestPlays(tc.plays, tc.target)], tc.want, tc.name);
+    assert.deepEqual([...autoPickBestPlays(tc.plays, { targetSeconds: tc.target })], tc.want, tc.name);
   }
 });
 
@@ -115,7 +116,7 @@ test('selectionTimeline keeps plan order and accumulates estimated starts', () =
     { id: 'b', matchId: 'm', label: 'b', kind: 'highlight', round: 7, kills: 5 },
     { id: 'c', matchId: 'm', label: 'c', kind: 'highlight', round: 9, kills: 1 },
   ];
-  const cues = selectionTimeline(plays, new Set(['c', 'a']));
+  const cues = selectionTimeline(plays, { selectedIds: new Set(['c', 'a']) });
   assert.deepEqual(
     cues.map((cue) => [cue.play.id, cue.seconds, cue.startAt]),
     [
@@ -123,5 +124,23 @@ test('selectionTimeline keeps plan order and accumulates estimated starts', () =
       ['c', 9, 12],
     ],
   );
-  assert.deepEqual(selectionTimeline(plays, new Set()), []);
+  assert.deepEqual(selectionTimeline(plays, { selectedIds: new Set() }), []);
+});
+
+test('estimatedSelectionSeconds adds a slowed replay per play when asked', () => {
+  const plays = [{ kills: 1 }, { kills: 3 }];
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true }), 24 + 2 * VICTIM_REPLAY_SECONDS);
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: false }), 24);
+});
+
+test('replay seconds skip plays the recorder cannot replay', () => {
+  const plays = [{ kills: 1 }, { kills: 3, victimReplay: false }];
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true }), 24 + VICTIM_REPLAY_SECONDS);
+});
+
+test('autoPickBestPlays counts the replays against the target', () => {
+  const play = (id: string, kills: number): Play => ({ id, kills, matchId: 'm', label: id, kind: 'highlight', round: 1, startSeconds: 0, endSeconds: 20 });
+  const plays = [play('a', 3), play('b', 2), play('c', 1)];
+  assert.equal(autoPickBestPlays(plays).size, 3);
+  assert.deepEqual([...autoPickBestPlays(plays, { victimReplay: true })], ['a', 'b']);
 });

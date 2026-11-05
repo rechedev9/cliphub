@@ -172,7 +172,8 @@ export function retryReelAction(input: {
 /** Capture-time bits: a ready render that disagrees must not be this reel. */
 function captureContractMatches(intentEdit: EditConfig, renderEdit: EditConfig | undefined): boolean {
   if (!renderEdit) return false;
-  return intentEdit.matchRecap === renderEdit.matchRecap && intentEdit.nativeHud === renderEdit.nativeHud;
+  return intentEdit.matchRecap === renderEdit.matchRecap && intentEdit.nativeHud === renderEdit.nativeHud &&
+    (intentEdit.victimReplay === true) === (renderEdit.victimReplay === true);
 }
 
 function selectionMatches(

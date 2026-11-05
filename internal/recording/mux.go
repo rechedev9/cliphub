@@ -31,8 +31,9 @@ func MuxSegmentClips(ctx context.Context, plan RecordingPlan, artifacts []Record
 		}}
 	}
 
-	segmentOrder := make(map[string]int, len(plan.Segments))
-	for i, s := range plan.Segments {
+	captures := plan.CaptureSegments()
+	segmentOrder := make(map[string]int, len(captures))
+	for i, s := range captures {
 		segmentOrder[s.ID] = i
 	}
 	sort.SliceStable(pairs, func(i, j int) bool {

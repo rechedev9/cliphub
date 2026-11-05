@@ -75,3 +75,9 @@ test('a death reel travels as death_reel without the kill counter or hook', () =
   assert.equal(body.hook_text, false);
   assert.equal(Object.hasOwn(buildEditRequest(edit()), 'death_reel'), false);
 });
+
+test('buildEditRequest sends the victim replay only for Shorts that ask for it', () => {
+  assert.equal(buildEditRequest(edit()).victim_replay, undefined);
+  assert.equal(buildEditRequest(edit({ victimReplay: true })).victim_replay, true);
+  assert.equal(buildEditRequest({ ...FULL_DEMO_EDIT, victimReplay: true }).victim_replay, undefined);
+});
