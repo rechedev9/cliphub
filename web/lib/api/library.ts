@@ -1,4 +1,5 @@
 import type { CollectionInput, CollectionPatch, LibraryCollection, LibraryCollectionDetail } from './collections.ts';
+import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
 import type { Annotation, HeatmapGrenade, HeatmapKind, SpatialResponse, Stroke } from './spatial.ts';
@@ -639,4 +640,20 @@ export function patchLibraryCollection(collectionId: string, patch: CollectionPa
 
 export function deleteLibraryCollection(collectionId: string): Promise<void> {
   return request<void>(`/collections/${id(collectionId)}`, { method: 'DELETE' });
+}
+
+export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKind[] };
+
+/** Every grenade a team threw on its matches, filtered like the scout and by kind. */
+export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): Promise<TeamGrenades> {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const kind of query.kinds ?? []) params.append('kind', kind);
+  const search = params.toString();
+  return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
 }

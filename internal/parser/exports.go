@@ -23,6 +23,10 @@ func TeamLabel(t common.Team) string { return teamLabel(t) }
 // player is missing from the demo's entity state.
 func PlayerPosition(p *common.Player) [3]float64 { return playerPosition(p) }
 
+// ViewAngles returns a player's eye yaw and pitch in degrees; ok is false when
+// the player has no pawn to read them from.
+func ViewAngles(p *common.Player) (yaw, pitch float64, ok bool) { return safeViewAngles(p) }
+
 // ParseToEnd drives a parser to completion, treating a truncated demo as a
 // complete parse: GOTV recordings routinely end mid-frame and the data up to
 // that point is still valid.

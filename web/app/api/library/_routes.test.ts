@@ -71,6 +71,7 @@ test('the stratbook routes are reachable and a play patch cannot move its map, s
   assert.ok(matchLibraryRoute('GET', ['plays', 'export']));
   assert.ok(matchLibraryRoute('DELETE', ['plays', ID]));
   assert.ok(matchLibraryRoute('GET', ['teams', ID, 'plays']));
+  assert.ok(matchLibraryRoute('GET', ['teams', ID, 'grenades']));
   assert.ok(matchLibraryRoute('GET', ['matches', ID, 'tactical', 'rounds', '3', 'play']));
   assert.ok(matchLibraryRoute('GET', ['matches', ID, 'tactical', 'rounds', '3', 'lineups']));
   assert.equal(matchLibraryRoute('DELETE', ['plays', 'export']), undefined);

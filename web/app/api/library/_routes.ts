@@ -20,6 +20,7 @@ import {
   STRATBOOK_FILE_KEYS,
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
+import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
 import { COLLECTION_DETAIL_KEYS, COLLECTION_FIELDS, COLLECTION_KEYS } from '../../../lib/api/collections.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 
@@ -112,6 +113,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'heatmap'], query: [...TEAM_SPATIAL_QUERY, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'overlay'], query: [...TEAM_SPATIAL_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
   { method: 'GET', segments: ['series'], query: ['team_id', ...PAGING], response: json(['series']) },

@@ -384,7 +384,12 @@ export type TacticalEvent = {
   no_scope?: boolean;
   traded?: boolean;
   opening?: boolean;
+  /** Where a grenade was thrown from; absent on analyses before version 4. */
+  throw?: TacticalThrow;
 };
+
+/** The thrower's state when a grenade left the hand (`tacticalplan.Throw`). */
+export type TacticalThrow = { tick: number; pos: [number, number, number]; yaw: number; pitch: number };
 
 /* -------------------------------------------------------------------------- */
 /* Geometry and radar calibration                                             */
