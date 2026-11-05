@@ -519,10 +519,10 @@ for i, x in enumerate((-0.80, 0.80)):
     finish(hood, "hood", hoodies[i], pl)
     # (z, half width, half depth, forward lean): hips on the seat, chest leaning toward the screen, round shoulders.
     loft("torso", ((0.53, 0.17, 0.12, 0.0), (0.66, 0.175, 0.125, 0.01), (0.82, 0.19, 0.12, 0.03), (0.95, 0.205, 0.115, 0.05), (1.02, 0.19, 0.1, 0.06), (1.07, 0.12, 0.075, 0.05), (1.09, 0.06, 0.05, 0.04)), hoodies[i], pl)
-    # Elbows stick out past the chair back so the arms read from the camera; hands rest on keyboard and mouse.
+    # Upper arms start inside the torso and hang beside it; forearms reach forward to keyboard and mouse.
     for sx, wrist in ((-1, Vector((-0.09, 0.37, DESK + 0.058))), (1, Vector((0.245, 0.385, DESK + 0.05)))):
-        shoulder, elbow = Vector((sx * 0.18, 0.04, 1.02)), Vector((sx * 0.28, 0.13, 0.84))
-        pts = spline((shoulder, shoulder + Vector((sx * 0.06, 0.02, -0.06)), elbow, elbow + (wrist - elbow) * 0.5, wrist), 10)
+        shoulder, elbow = Vector((sx * 0.15, 0.05, 1.0)), Vector((sx * 0.245, 0.15, 0.83))
+        pts = spline((shoulder, shoulder + Vector((sx * 0.05, 0.02, -0.07)), elbow, elbow + (wrist - elbow) * 0.5, wrist), 10)
         # Baggy hoodie sleeve: full at the shoulder, narrower past the elbow, ribbed cuff at the wrist.
         sleeve = [0.064, 0.058, 0.052, 0.049, 0.047, 0.044, 0.042, 0.039, 0.036, 0.034]
         tube("sleeve", pts, lambda t: sleeve[min(int(t * 9.99), 9)] * (1 + 0.04 * math.sin(t * 31)), hoodies[i], pl)
@@ -554,8 +554,9 @@ for i, x in enumerate((-0.80, 0.80)):
     back = bpy.context.active_object
     for v in back.data.vertices:
         w = 0.46 if v.co.z > 0 else 0.40
-        v.co = Vector((v.co.x * w, v.co.y * 0.06 + 0.05 * (2 * v.co.x) ** 2, v.co.z * 0.52))
-    back.location = (0, -0.15, 0.86)
+        v.co = Vector((v.co.x * w, v.co.y * 0.06 + 0.05 * (2 * v.co.x) ** 2, v.co.z * 0.4))
+    # Mid-back chair: the shoulders and upper back show above it, so the arms read as part of the body.
+    back.location = (0, -0.15, 0.79)
     bevel(back, 0.025, 4)
     finish(back, "chair_back", mesh_m, chair)
     box("chair_frame", (0.04, 0.03, 0.34), (0, -0.17, 0.52), black_plastic, 0.01, parent=chair)

@@ -53,26 +53,54 @@ function Still({ name, alt, eager = false }: { name: string; alt: string; eager?
   );
 }
 
+const navLink =
+  "inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-sm transition-colors pointer-coarse:min-h-11";
+
+/** Every part of Studio at the top of a station panel, the current one marked, so the visitor sees where they are. */
+function StationTabs({ id }: { id: StationId }) {
+  return (
+    <nav aria-label="Partes de Studio" className="only-3d -mx-2 mb-4 flex flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-line pb-3">
+      <a href="#inicio" aria-keyshortcuts="Escape" className={`${navLink} text-muted hover:text-fg`}>
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Mesa
+      </a>
+      <span aria-hidden="true" className="mx-1 h-4 w-px bg-line" />
+      {TOUR.map((tab) => (
+        <a
+          key={tab}
+          href={`#${tab}`}
+          aria-current={tab === id ? "page" : undefined}
+          className={`${navLink} text-muted hover:text-fg aria-[current=page]:font-semibold aria-[current=page]:text-fg aria-[current=page]:underline aria-[current=page]:decoration-accent aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]`}
+        >
+          {stationById(tab).label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 function PanelNav({ id }: { id: StationId }) {
-  const next = TOUR[TOUR.indexOf(id) + 1];
+  const index = TOUR.indexOf(id);
+  const prev = TOUR[index - 1];
+  const next = TOUR[index + 1];
   return (
     <nav
-      aria-label="Recorrer la mesa"
+      aria-label="Anterior y siguiente"
       className="only-3d mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4"
     >
-      <a
-        href="#inicio"
-        aria-keyshortcuts="Escape"
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:text-fg"
-      >
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        Volver a la mesa
-      </a>
+      {prev ? (
+        <a href={`#${prev}`} aria-keyshortcuts="ArrowLeft" className={`${navLink} min-h-11 text-muted hover:text-fg`}>
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          {stationById(prev).label}
+        </a>
+      ) : (
+        <span />
+      )}
       {next ? (
         <a
           href={`#${next}`}
           aria-keyshortcuts="ArrowRight"
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-fg transition-colors hover:text-accent"
+          className={`${navLink} min-h-11 font-medium text-fg hover:text-accent`}
         >
           {stationById(next).label}
           <ArrowRight className="size-4" aria-hidden="true" />
@@ -172,6 +200,7 @@ export default function Home() {
 
         <section id="short" data-panel="short" aria-labelledby="short-titulo" className={panel}>
           <div className={body}>
+            <StationTabs id="short" />
             <h2 id="short-titulo" tabIndex={-1} className={h2}>
               Short: tus mejores jugadas en vertical
             </h2>
@@ -199,6 +228,7 @@ export default function Home() {
 
         <section id="demo-completa" data-panel="demo-completa" aria-labelledby="demo-completa-titulo" className={panel}>
           <div className={body}>
+            <StationTabs id="demo-completa" />
             <h2 id="demo-completa-titulo" tabIndex={-1} className={h2}>
               Demo completa: la partida entera desde un jugador
             </h2>
@@ -220,6 +250,7 @@ export default function Home() {
 
         <section id="clips" data-panel="clips" aria-labelledby="clips-titulo" className={panel}>
           <div className={body}>
+            <StationTabs id="clips" />
             <h2 id="clips-titulo" tabIndex={-1} className={h2}>
               Clips de stream: tus directos, en Shorts
             </h2>
@@ -244,6 +275,7 @@ export default function Home() {
 
         <section id="analisis" data-panel="analisis" aria-labelledby="analisis-titulo" className={panel}>
           <div className={body}>
+            <StationTabs id="analisis" />
             <h2 id="analisis-titulo" tabIndex={-1} className={h2}>
               Análisis: tus partidas, ronda a ronda
             </h2>
@@ -269,6 +301,7 @@ export default function Home() {
 
         <section id="descargar" data-panel="descargar" aria-labelledby="descargar-titulo" className={panel}>
           <div className={body}>
+            <StationTabs id="descargar" />
             <h2 id="descargar-titulo" tabIndex={-1} className={h2}>
               Descarga ClipHub Studio
             </h2>
