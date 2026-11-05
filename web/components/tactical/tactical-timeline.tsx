@@ -166,7 +166,7 @@ export function TacticalTimelineBar({
         </Button>
 
         <span className="ml-auto text-meta text-fg-3">
-          Espacio · ←/→ 1 s · ⇧←/→ evento
+          Espacio · ←/→ 1 s · ⇧←/→ evento · [ ] ronda
         </span>
       </div>
     </div>

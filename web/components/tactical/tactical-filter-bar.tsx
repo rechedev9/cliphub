@@ -272,18 +272,10 @@ export function TacticalFilterBar({
   };
 
   return (
-    // shadow-md maps onto --elev-2, so the control rail sits one step above the
-    // --elev-1 content panels it filters. .studio-panel owns the radius.
-    <section
-      className="studio-panel px-5 py-5 shadow-md sm:px-6 sm:py-6"
-      aria-label="Filtros de rondas"
-    >
-      <div className="flex flex-col gap-5">
-        {/* One wrapping rail, not two nested flex containers: two levels can
-            never share a line, so the counter was always pushed onto a third,
-            otherwise empty band. Flat, every group is a sibling and the rail
-            wraps once. */}
-        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+    // The replay's left column: no plate of its own, groups stack and wrap.
+    <section aria-label="Filtros de rondas">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           {teamOptions.length > 0 ? (
             <SingleChips
               label="Equipo"
@@ -393,7 +385,7 @@ export function TacticalFilterBar({
             ) : null}
           </summary>
 
-          <div className="mt-5 grid gap-x-8 gap-y-5 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4">
             <MultiChips
               label="Economía propia"
               options={BUY_OPTIONS}
@@ -430,7 +422,7 @@ export function TacticalFilterBar({
               selected={filter.ct_patterns}
               onChange={(ct_patterns) => patch({ ct_patterns })}
             />
-            <div className="lg:col-span-2">
+            <div>
               <MultiChips
                 label="Jugador"
                 options={playerOptions}
