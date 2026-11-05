@@ -21,3 +21,6 @@ next-env.d.ts
 .vercel
 .env*
 !.env.example
+
+# H.264 fallbacks for browsers without VP9 (the root .gitignore drops every .mp4)
+!/public/video/*.mp4

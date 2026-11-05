@@ -1,0 +1,814 @@
+"""Puesto 07: a cybercafe desk built from primitives, rendered with Cycles.
+
+Run: blender -b --factory-startup -P puesto07.py -- [--quick] [--only NAME]
+"""
+import bpy, bmesh, math, os, sys
+from mathutils import Vector
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TEX = os.path.join(HERE, "tex")
+OUT = os.path.join(HERE, "renders")
+ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+QUICK = "--quick" in ARGS
+ONLY = ARGS[ARGS.index("--only") + 1] if "--only" in ARGS else None
+DESK = 0.75
+
+scene = bpy.context.scene
+for o in list(bpy.data.objects):
+    bpy.data.objects.remove(o, do_unlink=True)
+
+
+def setin(node, name, value):
+    s = node.inputs.get(name)
+    if s is not None:
+        s.default_value = value
+
+
+def principled(name, color=(0.8, 0.8, 0.8), rough=0.5, metal=0.0, extra=None):
+    m = bpy.data.materials.new(name)
+    try:
+        m.use_nodes = True
+    except Exception:
+        pass
+    nt = m.node_tree
+    p = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    setin(p, "Base Color", (*color, 1))
+    setin(p, "Roughness", rough)
+    setin(p, "Metallic", metal)
+    for k, v in (extra or {}).items():
+        setin(p, k, v)
+    return m, nt, p
+
+
+def obj_coords(nt):
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    return tc.outputs["Object"]
+
+
+def add_bump(nt, p, scale, strength, distance=0.0004):
+    n = nt.nodes.new("ShaderNodeTexNoise")
+    n.inputs["Scale"].default_value = scale
+    n.inputs["Detail"].default_value = 3
+    nt.links.new(obj_coords(nt), n.inputs["Vector"])
+    b = nt.nodes.new("ShaderNodeBump")
+    b.inputs["Strength"].default_value = strength
+    b.inputs["Distance"].default_value = distance
+    nt.links.new(n.outputs["Fac"], b.inputs["Height"])
+    nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+
+
+def vary_rough(nt, p, lo, hi, scale=6):
+    n = nt.nodes.new("ShaderNodeTexNoise")
+    n.inputs["Scale"].default_value = scale
+    nt.links.new(obj_coords(nt), n.inputs["Vector"])
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.inputs["To Min"].default_value = lo
+    mr.inputs["To Max"].default_value = hi
+    nt.links.new(n.outputs["Fac"], mr.inputs["Value"])
+    nt.links.new(mr.outputs["Result"], p.inputs["Roughness"])
+
+
+def plastic(name, color, rough=0.42, bump=0.12):
+    m, nt, p = principled(name, color, rough)
+    add_bump(nt, p, 1400, bump)
+    vary_rough(nt, p, rough - 0.08, rough + 0.12)
+    return m
+
+
+def image_mat(name, file, rough=0.6, metal=0.0, emission=0.0):
+    m, nt, p = principled(name, (1, 1, 1), rough, metal)
+    t = nt.nodes.new("ShaderNodeTexImage")
+    t.image = bpy.data.images.load(os.path.join(TEX, file))
+    uvn = nt.nodes.new("ShaderNodeUVMap")
+    uvn.uv_map = "UVMap"
+    nt.links.new(uvn.outputs["UV"], t.inputs["Vector"])
+    nt.links.new(t.outputs["Color"], p.inputs["Base Color"])
+    if emission:
+        nt.links.new(t.outputs["Color"], p.inputs["Emission Color"])
+        p.inputs["Emission Strength"].default_value = emission
+    return m, nt, p, t
+
+
+def emissive(name, color, strength):
+    m, nt, p = principled(name, (0, 0, 0), 0.4)
+    setin(p, "Emission Color", (*color, 1))
+    setin(p, "Emission Strength", strength)
+    return m
+
+
+def smooth(o):
+    for poly in o.data.polygons:
+        poly.use_smooth = True
+
+
+def bevel(o, width, segments=3):
+    md = o.modifiers.new("Bevel", "BEVEL")
+    md.width = width
+    md.segments = segments
+    md.limit_method = "ANGLE"
+    md.harden_normals = True
+    smooth(o)
+
+
+def finish(o, name, mat, parent):
+    o.name = name
+    if mat:
+        o.data.materials.append(mat)
+    if parent:
+        o.parent = parent
+    return o
+
+
+def box(name, size, loc, mat=None, bev=0.0, rot=(0, 0, 0), parent=None, seg=3):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+    o = bpy.context.active_object
+    for v in o.data.vertices:
+        v.co = Vector((v.co.x * size[0], v.co.y * size[1], v.co.z * size[2]))
+    o.location = loc
+    o.rotation_euler = rot
+    if bev:
+        bevel(o, bev, seg)
+    return finish(o, name, mat, parent)
+
+
+def cyl(name, r, depth, loc, mat=None, rot=(0, 0, 0), verts=48, bev=0.0, parent=None):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=depth, location=(0, 0, 0))
+    o = bpy.context.active_object
+    o.location = loc
+    o.rotation_euler = rot
+    if bev:
+        bevel(o, bev, 2)
+    else:
+        smooth_sides(o)
+    return finish(o, name, mat, parent)
+
+
+def smooth_sides(o):
+    for poly in o.data.polygons:
+        poly.use_smooth = abs(poly.normal.z) < 0.5
+
+
+def plane(name, w, h, loc, mat, rot=(math.pi / 2, 0, 0), parent=None):
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 0, 0))
+    o = bpy.context.active_object
+    for v in o.data.vertices:
+        v.co = Vector((v.co.x * w, v.co.y * h, 0))
+    o.location = loc
+    o.rotation_euler = rot
+    return finish(o, name, mat, parent)
+
+
+def text(name, body, size, loc, mat, rot=(math.pi / 2, 0, 0), extrude=0.0, parent=None, align="CENTER"):
+    cu = bpy.data.curves.new(name, "FONT")
+    cu.body = body
+    cu.size = size
+    cu.extrude = extrude
+    cu.align_x = align
+    cu.align_y = "CENTER"
+    o = bpy.data.objects.new(name, cu)
+    scene.collection.objects.link(o)
+    o.location = loc
+    o.rotation_euler = rot
+    cu.materials.append(mat)
+    if parent:
+        o.parent = parent
+    return o
+
+
+def empty(name, loc, rot=(0, 0, 0)):
+    o = bpy.data.objects.new(name, None)
+    scene.collection.objects.link(o)
+    o.location = loc
+    o.rotation_euler = rot
+    return o
+
+
+# Materials
+beige = plastic("beige", (0.60, 0.55, 0.45))
+beige_dark = plastic("beige_dark", (0.47, 0.43, 0.35), 0.5)
+key_mat = plastic("key", (0.66, 0.62, 0.53), 0.38, 0.06)
+key_worn = plastic("key_worn", (0.55, 0.52, 0.45), 0.16, 0.03)
+black_plastic = plastic("black_plastic", (0.025, 0.025, 0.028), 0.5)
+foam_m, foam_nt, foam_p = principled("foam", (0.02, 0.02, 0.022), 0.95)
+add_bump(foam_nt, foam_p, 600, 0.6)
+dark_grey = plastic("dark_grey", (0.06, 0.06, 0.065), 0.45)
+legend = principled("legend", (0.08, 0.08, 0.08), 0.5)[0]
+marker = principled("marker", (0.01, 0.01, 0.012), 0.35)[0]
+alu = principled("alu", (0.8, 0.8, 0.82), 0.22, 1.0)[0]
+coin_mat = principled("coin", (0.55, 0.4, 0.17), 0.38, 1.0)[0]
+led_green = emissive("led_green", (0.2, 1.0, 0.3), 12)
+led_amber = emissive("led_amber", (1.0, 0.55, 0.1), 6)
+
+wall_m, wall_nt, wall_p = principled("wall", (0.13, 0.19, 0.17), 0.85)
+add_bump(wall_nt, wall_p, 180, 0.25, 0.002)
+melamine_m, mel_nt, mel_p = principled("melamine", (0.30, 0.29, 0.27), 0.5)
+add_bump(mel_nt, mel_p, 500, 0.05)
+floor_m = principled("floor", (0.05, 0.045, 0.04), 0.6)[0]
+
+desk_m, dnt, dp = principled("desk", (0.5, 0.33, 0.2), 0.42)
+wave = dnt.nodes.new("ShaderNodeTexWave")
+wave.inputs["Scale"].default_value = 3.0
+wave.inputs["Distortion"].default_value = 6.0
+wave.inputs["Detail"].default_value = 4.0
+mapping = dnt.nodes.new("ShaderNodeMapping")
+mapping.inputs["Scale"].default_value = (0.25, 4.0, 1.0)
+dnt.links.new(obj_coords(dnt), mapping.inputs["Vector"])
+dnt.links.new(mapping.outputs["Vector"], wave.inputs["Vector"])
+ramp = dnt.nodes.new("ShaderNodeValToRGB")
+ramp.color_ramp.elements[0].color = (0.16, 0.08, 0.04, 1)
+ramp.color_ramp.elements[1].color = (0.32, 0.18, 0.09, 1)
+dnt.links.new(wave.outputs["Fac"], ramp.inputs["Fac"])
+dnt.links.new(ramp.outputs["Color"], dp.inputs["Base Color"])
+vary_rough(dnt, dp, 0.28, 0.5, 3)
+edge_m = principled("desk_edge", (0.05, 0.035, 0.025), 0.45)[0]
+
+# Room
+plane("floor", 6, 5, (0, 0.3, 0), floor_m, rot=(0, 0, 0))
+box("desk", (3.4, 0.86, 0.03), (0, -0.07, DESK - 0.015), desk_m, 0.002)
+box("desk_edge", (3.4, 0.006, 0.032), (0, -0.503, DESK - 0.015), edge_m, 0.001)
+box("desk_back", (3.4, 0.018, 0.09), (0, 0.36, DESK + 0.045), melamine_m, 0.004)
+for x in (-0.79, 0.79):
+    box("divider", (0.018, 0.84, 0.46), (x, -0.06, DESK + 0.23), melamine_m, 0.006)
+
+# CRT monitor
+def make_crt(name, loc, tex, emission=2.6, light_energy=5, light_color=(1.0, 0.82, 0.62), postit=False):
+    mon = empty(name, loc)
+    cyl("stand_base", 0.12, 0.016, (0, 0.05, DESK + 0.008), beige_dark, bev=0.004, parent=mon)
+    box("stand_neck", (0.09, 0.09, 0.05), (0, 0.06, DESK + 0.035), beige_dark, 0.01, parent=mon)
+    bz = box("bezel", (0.43, 0.075, 0.40), (0, 0, DESK + 0.255), beige, 0.012, parent=mon)
+    cut = box("screen_cut", (0.335, 0.05, 0.255), (0, -0.05, DESK + 0.27), None, parent=mon)
+    cut.hide_render = True
+    cut.display_type = "WIRE"
+    bm = bz.modifiers.new("Recess", "BOOLEAN")
+    bm.operation = "DIFFERENCE"
+    bm.object = cut
+    bz.modifiers.move(1, 0)
+
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+    house = bpy.context.active_object
+    for v in house.data.vertices:
+        x, y, z = v.co.x * 0.40, v.co.y * 0.32, v.co.z * 0.36
+        if y > 0:
+            x *= 0.62
+            z = z * 0.6 + 0.02
+        v.co = Vector((x, y, z))
+    house.location = (0, 0.19, DESK + 0.255)
+    bevel(house, 0.02, 4)
+    finish(house, "housing", beige, mon)
+    for i in range(7):
+        box("vent", (0.20, 0.003, 0.004), (0, 0.28, DESK + 0.40 - i * 0.012), black_plastic, parent=mon)
+
+    screen_m, snt, sp = principled(name + "_screen", (0.004, 0.005, 0.005), 0.16, extra={"Specular IOR Level": 0.18})
+    img = snt.nodes.new("ShaderNodeTexImage")
+    img.image = bpy.data.images.load(os.path.join(TEX, tex))
+    uv = snt.nodes.new("ShaderNodeTexCoord")
+    sep = snt.nodes.new("ShaderNodeSeparateXYZ")
+    snt.links.new(uv.outputs["UV"], sep.inputs["Vector"])
+    lines = snt.nodes.new("ShaderNodeMath")
+    lines.operation = "MULTIPLY"
+    lines.inputs[1].default_value = 380 * math.pi * 2
+    snt.links.new(sep.outputs["Y"], lines.inputs[0])
+    sine = snt.nodes.new("ShaderNodeMath")
+    sine.operation = "SINE"
+    snt.links.new(lines.outputs[0], sine.inputs[0])
+    scan = snt.nodes.new("ShaderNodeMapRange")
+    scan.inputs["From Min"].default_value = -1
+    scan.inputs["To Min"].default_value = 0.72
+    scan.inputs["To Max"].default_value = 1.0
+    snt.links.new(sine.outputs[0], scan.inputs["Value"])
+    dist = snt.nodes.new("ShaderNodeVectorMath")
+    dist.operation = "DISTANCE"
+    dist.inputs[1].default_value = (0.5, 0.5, 0)
+    snt.links.new(uv.outputs["UV"], dist.inputs[0])
+    vig = snt.nodes.new("ShaderNodeMapRange")
+    vig.inputs["From Min"].default_value = 0.32
+    vig.inputs["From Max"].default_value = 0.72
+    vig.inputs["To Min"].default_value = 1.0
+    vig.inputs["To Max"].default_value = 0.15
+    snt.links.new(dist.outputs["Value"], vig.inputs["Value"])
+    mul1 = snt.nodes.new("ShaderNodeVectorMath")
+    mul1.operation = "MULTIPLY"
+    snt.links.new(img.outputs["Color"], mul1.inputs[0])
+    snt.links.new(scan.outputs["Result"], mul1.inputs[1])
+    mul2 = snt.nodes.new("ShaderNodeVectorMath")
+    mul2.operation = "MULTIPLY"
+    snt.links.new(mul1.outputs["Vector"], mul2.inputs[0])
+    snt.links.new(vig.outputs["Result"], mul2.inputs[1])
+    snt.links.new(mul2.outputs["Vector"], sp.inputs["Emission Color"])
+    sp.inputs["Emission Strength"].default_value = emission
+
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=48, y_subdivisions=36, size=1, location=(0, 0, 0))
+    scr = bpy.context.active_object
+    for v in scr.data.vertices:
+        x, y = v.co.x, v.co.y
+        v.co = Vector((x * 0.318, y * 0.24, 0.014 * (1 - (2 * x) ** 2 * 0.6) * (1 - (2 * y) ** 2 * 0.6)))
+    scr.location = (0, -0.028, DESK + 0.27)
+    scr.rotation_euler = (math.pi / 2, 0, 0)
+    smooth(scr)
+    finish(scr, "screen", screen_m, mon)
+    box("screen_mask", (0.34, 0.004, 0.262), (0, -0.017, DESK + 0.27), black_plastic, parent=mon)
+
+    text("brand", "VISTAMAX 17", 0.013, (-0.13, -0.0385, DESK + 0.085), beige_dark, extrude=0.0008, parent=mon)
+    cyl("led", 0.0028, 0.004, (0.175, -0.039, DESK + 0.085), led_green, rot=(math.pi / 2, 0, 0), verts=16, parent=mon)
+    for i in range(4):
+        box("btn", (0.014, 0.004, 0.007), (0.06 + i * 0.022, -0.039, DESK + 0.085), beige_dark, 0.001, parent=mon)
+    if postit:
+        postit_m = image_mat("postit", "postit.png", 0.8)[0]
+    if postit:
+        plane("postit", 0.072, 0.072, (0.175, -0.0395, DESK + 0.405), postit_m, rot=(math.pi / 2, math.radians(-7), 0), parent=mon)
+
+    screen_light = bpy.data.lights.new("screen_light", "AREA")
+    screen_light.shape = "RECTANGLE"
+    screen_light.size = 0.30
+    screen_light.size_y = 0.22
+    screen_light.energy = light_energy
+    screen_light.color = light_color
+    sl = bpy.data.objects.new("screen_light", screen_light)
+    scene.collection.objects.link(sl)
+    sl.parent = mon
+    sl.location = (0, -0.06, DESK + 0.27)
+    sl.rotation_euler = (math.pi / 2, 0, 0)
+    sl.visible_camera = False
+    sl.visible_glossy = False
+    sl.visible_volume_scatter = False
+
+    return mon, scr
+
+
+CRT_TEX = ARGS[ARGS.index("--crt") + 1] if "--crt" in ARGS else "screen-jugada.png"
+mon, scr = make_crt("monitor", (0, -0.06, 0), CRT_TEX, 1.6, 6, (1.0, 0.8, 0.58), postit=True)
+
+# The row behind: two players with headsets, backlit by their own CRTs
+far_y = 1.55
+box("far_desk", (4.0, 0.8, 0.03), (0, far_y + 0.1, DESK - 0.015), desk_m, 0.002)
+cloth = principled("cloth", (0.018, 0.018, 0.022), 0.9)[0]
+skin, hair_nt, hair_p = principled("hair", (0.016, 0.012, 0.010), 0.55)
+add_bump(hair_nt, hair_p, 90, 0.7, 0.004)
+for i, (x, tex, col) in enumerate(((-0.92, "screen3.png", (0.65, 0.45, 1.0)), (0.0, "screen2.png", (1.0, 0.8, 0.6)), (0.95, "screen4.png", (0.75, 0.62, 1.0)))):
+    make_crt("far_crt_%d" % i, (x, far_y, 0), tex, 1.8, 9, col)
+mesh_m = principled("chair_mesh", (0.012, 0.012, 0.014), 0.8)[0]
+add_bump(mesh_m.node_tree, next(n for n in mesh_m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), 900, 0.5)
+hoodies = (principled("hoodie_a", (0.03, 0.05, 0.11), 0.92)[0], principled("hoodie_b", (0.11, 0.035, 0.03), 0.92)[0])
+for i, x in enumerate((-0.80, 0.80)):
+    pl = empty("player", (x, far_y - 0.56, 0), (0, 0, math.radians(4 if i else -5)))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.1, location=(0, 0, 0))
+    head = bpy.context.active_object
+    head.scale = (0.85, 0.95, 1.08)
+    head.location = (0, 0.01, 1.18)
+    smooth(head)
+    finish(head, "head", skin, pl)
+    cyl("neck", 0.045, 0.08, (0, 0.02, 1.08), skin, verts=24, parent=pl)
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+    torso = bpy.context.active_object
+    for v in torso.data.vertices:
+        top = v.co.z > 0
+        v.co = Vector((v.co.x * (0.44 if top else 0.36), v.co.y * (0.22 if top else 0.24), v.co.z * 0.5))
+    torso.location = (0, 0.04, 0.82)
+    bevel(torso, 0.085, 5)
+    finish(torso, "torso", hoodies[i], pl)
+    for sx in (-1, 1):
+        box("arm", (0.09, 0.34, 0.09), (sx * 0.2, 0.2, 0.93), hoodies[i], 0.04, rot=(math.radians(-18), 0, sx * math.radians(-8)), parent=pl)
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.105, minor_radius=0.008, major_segments=48, minor_segments=12, location=(0, 0, 0))
+    hb = bpy.context.active_object
+    hb.location = (0, 0.01, 1.19)
+    hb.rotation_euler = (0, math.pi / 2, 0)
+    smooth(hb)
+    finish(hb, "headband", black_plastic, pl)
+    for sx in (-1, 1):
+        cyl("cup", 0.045, 0.03, (sx * 0.095, 0.01, 1.16), black_plastic, rot=(0, math.pi / 2, 0), verts=32, bev=0.006, parent=pl)
+    chair = empty("chair", (x, far_y - 0.56, 0), (0, 0, math.radians(-3 if i else 6)))
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+    back = bpy.context.active_object
+    for v in back.data.vertices:
+        w = 0.46 if v.co.z > 0 else 0.40
+        v.co = Vector((v.co.x * w, v.co.y * 0.06 + 0.05 * (2 * v.co.x) ** 2, v.co.z * 0.52))
+    back.location = (0, -0.15, 0.86)
+    bevel(back, 0.025, 4)
+    finish(back, "chair_back", mesh_m, chair)
+    box("chair_frame", (0.04, 0.03, 0.34), (0, -0.17, 0.52), black_plastic, 0.01, parent=chair)
+    box("seat", (0.48, 0.46, 0.08), (0, 0.04, 0.49), mesh_m, 0.03, parent=chair, seg=4)
+    cyl("lift", 0.025, 0.36, (0, 0.04, 0.27), alu, verts=24, parent=chair)
+    for k in range(5):
+        a = k * 2 * math.pi / 5 + 0.3
+        box("leg", (0.30, 0.04, 0.03), (math.cos(a) * 0.15, 0.04 + math.sin(a) * 0.15, 0.07), black_plastic, 0.01, rot=(0, 0, a), parent=chair)
+        cyl("wheel", 0.025, 0.02, (math.cos(a) * 0.29, 0.04 + math.sin(a) * 0.29, 0.025), black_plastic, rot=(math.pi / 2, 0, a), verts=16, parent=chair)
+cam_x, cam_y = 0.95, far_y - 0.02
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=0.026, location=(cam_x, cam_y, DESK + 0.492))
+wc = bpy.context.active_object
+smooth(wc)
+finish(wc, "webcam", dark_grey, None)
+cyl("webcam_base", 0.03, 0.01, (cam_x, cam_y + 0.01, DESK + 0.462), dark_grey, verts=24, bev=0.003)
+cyl("webcam_lens", 0.011, 0.006, (cam_x, cam_y - 0.024, DESK + 0.492), black_plastic, rot=(math.pi / 2, 0, 0), verts=24)
+cyl("webcam_led", 0.0025, 0.004, (cam_x + 0.017, cam_y - 0.019, DESK + 0.505), emissive("led_red", (1.0, 0.08, 0.05), 14), rot=(math.pi / 2, 0, 0), verts=12)
+box("far_wall", (8, 0.02, 3.4), (0, 2.75, 1.7), wall_m)
+neon_m = emissive("neon", (1.0, 0.42, 0.12), 18)
+text("neon_sign", "CIBER", 0.24, (-1.35, 2.72, 1.8), neon_m, extrude=0.01)
+box("neon_back", (1.0, 0.02, 0.34), (-1.35, 2.735, 1.8), black_plastic, 0.01)
+
+# Tower with the CD tray open
+tower = empty("tower", (-0.53, 0.08, DESK), (0, 0, math.radians(16)))
+box("case", (0.19, 0.44, 0.42), (0, 0, 0.21), beige, 0.006, parent=tower)
+box("front", (0.19, 0.012, 0.42), (0, -0.226, 0.21), beige_dark, 0.004, parent=tower)
+box("bay_cd", (0.148, 0.008, 0.042), (0, -0.234, 0.375), beige, 0.002, parent=tower)
+box("bay_blank", (0.148, 0.006, 0.042), (0, -0.233, 0.327), beige, 0.002, parent=tower)
+box("tray", (0.134, 0.15, 0.008), (0, -0.31, 0.37), black_plastic, 0.001, parent=tower)
+cd_m = plastic("cd", (0.86, 0.86, 0.83), 0.35, 0.02)
+rim_m = principled("cd_rim", (0.85, 0.86, 0.9), 0.12, 1.0, {"Thin Film Thickness": 520.0, "Thin Film IOR": 1.45})[0]
+cd = cyl("cd", 0.06, 0.0012, (0, -0.31, 0.3748), cd_m, verts=96, parent=tower)
+cyl("cd_rim", 0.0605, 0.001, (0, -0.31, 0.3745), rim_m, verts=96, parent=tower)
+cyl("cd_ring", 0.019, 0.0014, (0, -0.31, 0.3751), rim_m, verts=64, parent=tower)
+cyl("cd_hub", 0.0075, 0.0016, (0, -0.31, 0.3753), dark_grey, verts=32, parent=tower)
+lab = text("cd_label", "FINAL SÁB", 0.02, (0.002, -0.338, 0.3758), marker, rot=(0, 0, math.radians(-8)), parent=tower)
+lab.data.font = bpy.data.fonts.load("C:/Windows/Fonts/segoepr.ttf")
+box("floppy", (0.10, 0.007, 0.026), (0, -0.233, 0.285), beige, 0.002, parent=tower)
+box("floppy_slot", (0.07, 0.004, 0.003), (0, -0.2375, 0.288), black_plastic, parent=tower)
+cyl("power", 0.011, 0.008, (0.04, -0.234, 0.12), beige_dark, rot=(math.pi / 2, 0, 0), verts=32, bev=0.002, parent=tower)
+cyl("pled", 0.0025, 0.004, (-0.04, -0.2335, 0.15), led_green, rot=(math.pi / 2, 0, 0), verts=16, parent=tower)
+cyl("hled", 0.0025, 0.004, (-0.04, -0.2335, 0.135), led_amber, rot=(math.pi / 2, 0, 0), verts=16, parent=tower)
+for i in range(10):
+    box("grille", (0.12, 0.004, 0.003), (0, -0.234, 0.05 + i * 0.006), black_plastic, parent=tower)
+
+# Keyboard
+kb = empty("keyboard", (0.0, -0.335, DESK), (math.radians(3), 0, math.radians(-1.5)))
+box("kb_base", (0.46, 0.165, 0.022), (0, 0, 0.011), beige, 0.006, parent=kb)
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+cap = bpy.context.active_object
+for v in cap.data.vertices:
+    x, y, z = v.co.x * 0.0175, v.co.y * 0.0175, v.co.z * 0.011
+    if z > 0:
+        x *= 0.78
+        y *= 0.78
+    v.co = Vector((x, y, z))
+bevel(cap, 0.0018, 2)
+finish(cap, "keycap", key_mat, kb)
+cap.location = (10, 10, 10)
+cap.hide_render = True
+worn_data = cap.data.copy()
+worn_data.materials.clear()
+worn_data.materials.append(key_worn)
+PITCH = 0.019
+ROWS = [
+    [1] * 13 + [2],
+    [1.5] + [1] * 12 + [1.5],
+    [1.75] + [1] * 11 + [2.25],
+    [2.25] + [1] * 10 + [2.75],
+    [1.25, 1.25, 1.25, 6.25, 1.25, 1.25, 1.25, 1.25],
+]
+WASD = {(1, 2): "W", (2, 1): "A", (2, 2): "S", (2, 3): "D"}
+for r, row in enumerate(ROWS):
+    x = -0.205
+    for c, w in enumerate(row):
+        k = cap.copy()
+        k.hide_render = False
+        if (r, c) in WASD:
+            k.data = worn_data
+        scene.collection.objects.link(k)
+        k.parent = kb
+        k.location = (x + w * PITCH / 2, 0.046 - r * PITCH, 0.027 + (4 - r) * 0.0012)
+        k.scale = ((w * PITCH - 0.0015) / 0.0175, 1, 1)
+        if (r, c) in WASD:
+            text("leg_" + WASD[(r, c)], WASD[(r, c)], 0.008, (k.location.x, k.location.y, k.location.z + 0.0056), legend, rot=(0, 0, 0), parent=kb)
+        x += w * PITCH
+    for c in range(4):
+        if r == 4:
+            continue
+        k = cap.copy()
+        k.hide_render = False
+        scene.collection.objects.link(k)
+        k.parent = kb
+        k.location = (0.112 + c * PITCH, 0.046 - r * PITCH, 0.027 + (4 - r) * 0.0012)
+cyl("kb_led", 0.002, 0.003, (0.19, 0.06, 0.023), led_green, verts=12, parent=kb)
+
+# Mouse and mousepad
+pad_m = image_mat("pad", "pad.png", 0.85)[0]
+box("pad_base", (0.25, 0.21, 0.003), (0.37, -0.31, DESK + 0.0015), black_plastic, 0.001)
+plane("pad_top", 0.248, 0.208, (0.37, -0.31, DESK + 0.0031), pad_m, rot=(0, 0, 0))
+bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=1, location=(0, 0, 0))
+mouse = bpy.context.active_object
+for v in mouse.data.vertices:
+    z = v.co.z * 0.02
+    y = v.co.y * 0.054
+    x = v.co.x * 0.031 * (1 - 0.12 * v.co.y)
+    v.co = Vector((x, y, max(z, -0.004)))
+mouse.location = (0.40, -0.32, DESK + 0.0072)
+mouse.rotation_euler = (0, 0, math.radians(-8))
+smooth(mouse)
+finish(mouse, "mouse", beige, None)
+cable = bpy.data.curves.new("cable", "CURVE")
+cable.dimensions = "3D"
+cable.bevel_depth = 0.0018
+spl = cable.splines.new("BEZIER")
+pts = [(0.405, -0.268, DESK + 0.012), (0.40, -0.17, DESK + 0.003), (0.25, -0.10, DESK + 0.002), (0.16, 0.05, DESK + 0.002), (0.13, 0.30, DESK + 0.002)]
+spl.bezier_points.add(len(pts) - 1)
+for bp, co in zip(spl.bezier_points, pts):
+    bp.co = co
+    bp.handle_left_type = bp.handle_right_type = "AUTO"
+cable_o = bpy.data.objects.new("cable", cable)
+scene.collection.objects.link(cable_o)
+cable.materials.append(beige_dark)
+
+# Headset lying on the desk
+hs = empty("headset", (0.335, 0.065, DESK), (0, 0, math.radians(20)))
+for sx in (-1, 1):
+    cyl("cup", 0.042, 0.03, (sx * 0.088, 0, 0.042), black_plastic, rot=(0, math.pi / 2, 0), verts=48, bev=0.006, parent=hs)
+    cyl("cushion", 0.036, 0.018, (sx * 0.068, 0, 0.042), foam_m, rot=(0, math.pi / 2, 0), verts=48, bev=0.007, parent=hs)
+bpy.ops.mesh.primitive_torus_add(major_radius=0.09, minor_radius=0.0075, major_segments=64, minor_segments=16, location=(0, 0, 0))
+band = bpy.context.active_object
+bmh = bmesh.new()
+bmh.from_mesh(band.data)
+bmesh.ops.delete(bmh, geom=[v for v in bmh.verts if v.co.y < -0.002], context="VERTS")
+bmh.to_mesh(band.data)
+bmh.free()
+band.location = (0, 0, 0.05)
+band.rotation_euler = (math.pi / 2, 0, 0)
+smooth(band)
+finish(band, "band", black_plastic, hs)
+mic = bpy.data.curves.new("mic", "CURVE")
+mic.dimensions = "3D"
+mic.bevel_depth = 0.0022
+ms = mic.splines.new("BEZIER")
+mpts = [(-0.1, -0.01, 0.03), (-0.13, -0.09, 0.012), (-0.08, -0.15, 0.008)]
+ms.bezier_points.add(len(mpts) - 1)
+for bp, co in zip(ms.bezier_points, mpts):
+    bp.co = co
+    bp.handle_left_type = bp.handle_right_type = "AUTO"
+mic_o = bpy.data.objects.new("mic", mic)
+scene.collection.objects.link(mic_o)
+mic.materials.append(black_plastic)
+mic_o.parent = hs
+cyl("mic_tip", 0.007, 0.02, (-0.08, -0.155, 0.008), foam_m, rot=(math.pi / 2, 0, 0.5), verts=24, bev=0.003, parent=hs)
+
+# Cola can
+can_m = image_mat("can", "can.png", 0.28, 0.6)[0]
+bpy.ops.mesh.primitive_cylinder_add(vertices=96, radius=0.033, depth=0.122, location=(0, 0, 0))
+can = bpy.context.active_object
+can.data.materials.append(can_m)
+can.data.materials.append(alu)
+bmc = bmesh.new()
+bmc.from_mesh(can.data)
+uvl = bmc.loops.layers.uv.verify()
+for f in bmc.faces:
+    if abs(f.normal.z) > 0.9:
+        f.material_index = 1
+        continue
+    us = [(math.atan2(l.vert.co.y, l.vert.co.x) / (2 * math.pi)) % 1.0 for l in f.loops]
+    if max(us) - min(us) > 0.5:
+        us = [u + 1 if u < 0.5 else u for u in us]
+    for l, u in zip(f.loops, us):
+        l[uvl].uv = (u, l.vert.co.z / 0.122 + 0.5)
+bmc.to_mesh(can.data)
+bmc.free()
+can.location = (0.48, -0.10, DESK + 0.061)
+can.rotation_euler = (0, 0, math.radians(128))
+bevel(can, 0.004, 3)
+can.name = "can"
+cyl("can_top", 0.027, 0.003, (0.48, -0.10, DESK + 0.1225), alu, verts=64, bev=0.0012)
+
+# Ticket, coins, post-it, poster
+ticket_m = image_mat("ticket", "ticket.png", 0.75)[0]
+bpy.ops.mesh.primitive_grid_add(x_subdivisions=12, y_subdivisions=6, size=1, location=(0, 0, 0))
+tk = bpy.context.active_object
+for v in tk.data.vertices:
+    v.co = Vector((v.co.x * 0.092, v.co.y * 0.0575, 0.0035 * (2 * v.co.x) ** 2))
+tk.location = (-0.28, -0.395, DESK + 0.0008)
+tk.rotation_euler = (0, 0, math.radians(14))
+smooth(tk)
+finish(tk, "ticket", ticket_m, None)
+for i, (dx, dy) in enumerate(((0, 0), (0.024, 0.01), (0.012, -0.018))):
+    cyl("coin", 0.0115, 0.0022, (-0.205 + dx, -0.455 + dy, DESK + 0.0011 + i * 0.0001), coin_mat, verts=48, bev=0.0006)
+
+pad_m2 = image_mat("notepad", "notepad.png", 0.82)[0]
+paper_side = principled("paper_side", (0.78, 0.76, 0.70), 0.9)[0]
+note = empty("notepad", (-0.30, -0.19, DESK), (0, 0, math.radians(-6)))
+box("note_pages", (0.148, 0.21, 0.006), (0, 0, 0.003), paper_side, 0.0008, parent=note)
+box("note_back", (0.150, 0.212, 0.0015), (0, 0, 0.0007), principled("cardboard", (0.32, 0.24, 0.15), 0.8)[0], 0.0004, parent=note)
+plane("note_top", 0.148, 0.21, (0, 0, 0.0062), pad_m2, rot=(0, 0, 0), parent=note)
+wire = principled("spiral", (0.55, 0.55, 0.58), 0.3, 1.0)[0]
+for i in range(18):
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.0042, minor_radius=0.0006, major_segments=16, minor_segments=6, location=(0, 0, 0))
+    ring = bpy.context.active_object
+    ring.location = (-0.0655 + i * 0.0077, 0.0975, 0.0062)
+    ring.rotation_euler = (0, math.pi / 2, 0)
+    smooth(ring)
+    finish(ring, "spiral", wire, note)
+pen = empty("pen", (-0.255, -0.215, DESK + 0.0105), (0, math.pi / 2, math.radians(58)))
+pen_body = principled("pen_body", (0.80, 0.84, 0.88), 0.12, extra={"Transmission Weight": 0.6})[0]
+pen_blue = plastic("pen_blue", (0.03, 0.12, 0.5), 0.35)
+cyl("pen_shaft", 0.0038, 0.13, (0, 0, 0), pen_body, verts=6, bev=0.0006, parent=pen)
+cyl("pen_cap", 0.0042, 0.045, (0, 0, 0.055), pen_blue, verts=6, bev=0.0006, parent=pen)
+cyl("pen_tip", 0.0016, 0.012, (0, 0, -0.07), alu, verts=12, parent=pen)
+cyl("pen_end", 0.0034, 0.006, (0, 0, -0.064), pen_blue, verts=6, parent=pen)
+
+CX, CY, CZ = 1.62, 2.73, 1.70
+clock_rim = plastic("clock_rim", (0.04, 0.04, 0.045), 0.35)
+cyl("clock_rim", 0.165, 0.036, (CX, CY, CZ), clock_rim, rot=(math.pi / 2, 0, 0), verts=64, bev=0.008)
+face_m = image_mat("clockface", "clockface.png", 0.6)[0]
+bpy.ops.mesh.primitive_circle_add(vertices=64, radius=0.15, fill_type="NGON", location=(0, 0, 0))
+face = bpy.context.active_object
+bmf = bmesh.new()
+bmf.from_mesh(face.data)
+uvf = bmf.loops.layers.uv.verify()
+for f in bmf.faces:
+    for l in f.loops:
+        l[uvf].uv = (l.vert.co.x / 0.3 + 0.5, l.vert.co.y / 0.3 + 0.5)
+bmf.to_mesh(face.data)
+bmf.free()
+face.data.uv_layers[0].name = "UVMap"
+face.location = (CX, CY - 0.0185, CZ)
+face.rotation_euler = (math.pi / 2, 0, 0)
+finish(face, "clock_face", face_m, None)
+hand_dark = principled("hand", (0.02, 0.02, 0.02), 0.4)[0]
+hand_red = principled("hand_red", (0.6, 0.03, 0.02), 0.4)[0]
+for nm, ln, wd, mat, dy in (("clock_hour", 0.085, 0.009, hand_dark, 0.021), ("clock_min", 0.125, 0.006, hand_dark, 0.0225), ("clock_sec", 0.135, 0.0022, hand_red, 0.024)):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+    hnd = bpy.context.active_object
+    for v in hnd.data.vertices:
+        v.co = Vector((v.co.x * wd, v.co.y * 0.0015, v.co.z * (ln + 0.025) + (ln + 0.025) / 2 - 0.025))
+    hnd.location = (CX, CY - dy, CZ)
+    finish(hnd, nm, mat, None)
+cyl("clock_pin", 0.006, 0.006, (CX, CY - 0.0255, CZ), hand_red, rot=(math.pi / 2, 0, 0), verts=16)
+
+poster_m = image_mat("poster", "poster.png", 0.7)[0]
+PX, PZ, PW, PH = 0.72, 1.58, 0.42, 0.606
+plane("poster", PW, PH, (PX, 2.738, PZ), poster_m, rot=(math.pi / 2, math.radians(1.8), 0))
+tape_m, tnt, tp = principled("tape", (0.86, 0.83, 0.68), 0.45)
+for sx, sz, a in ((-1, 1, -35), (1, 1, 30), (-1, -1, 30), (1, -1, -30)):
+    plane("tape", 0.07, 0.02, (PX + sx * PW / 2, 2.736, PZ + sz * PH / 2), tape_m, rot=(math.pi / 2, math.radians(a), 0))
+spot = bpy.data.lights.new("poster_spot", "SPOT")
+spot.energy = 22
+spot.spot_size = math.radians(40)
+spot.spot_blend = 0.6
+spot.color = (1.0, 0.86, 0.66)
+spo = bpy.data.objects.new("poster_spot", spot)
+scene.collection.objects.link(spo)
+spo.location = (PX, 2.1, 2.35)
+spo.rotation_euler = (Vector((PX, 2.74, PZ)) - Vector(spo.location)).to_track_quat("-Z", "Y").to_euler()
+
+# Lights
+world = bpy.data.worlds.new("world")
+scene.world = world
+try:
+    world.use_nodes = True
+except Exception:
+    pass
+bg = next(n for n in world.node_tree.nodes if n.type == "BACKGROUND")
+bg.inputs["Color"].default_value = (0.004, 0.005, 0.008, 1)
+
+
+def area(name, size, loc, rot, energy, color, size_y=None):
+    lt = bpy.data.lights.new(name, "AREA")
+    lt.shape = "RECTANGLE"
+    lt.size = size
+    lt.size_y = size_y or size
+    lt.energy = energy
+    lt.color = color
+    o = bpy.data.objects.new(name, lt)
+    scene.collection.objects.link(o)
+    o.location = loc
+    o.rotation_euler = rot
+    return o
+
+
+area("fluorescent", 1.2, (0, -0.55, 2.45), (0, 0, 0), 26, (0.84, 0.97, 0.92), 0.08)
+area("fluorescent_far", 1.2, (0, 1.2, 2.45), (0, 0, 0), 22, (0.84, 0.97, 0.92), 0.08)
+area("neon_right", 0.5, (1.5, -0.9, 1.75), (math.radians(60), 0, math.radians(55)), 18, (1.0, 0.45, 0.15))
+nb = bpy.data.lights.new("neighbor", "POINT")
+nb.energy = 14
+nb.color = (0.55, 0.3, 1.0)
+nb.shadow_soft_size = 0.15
+nbo = bpy.data.objects.new("neighbor", nb)
+scene.collection.objects.link(nbo)
+nbo.location = (-1.15, -0.05, 1.12)
+nl = bpy.data.lights.new("neon_glow", "POINT")
+nl.energy = 25
+nl.color = (1.0, 0.42, 0.12)
+nl.shadow_soft_size = 0.4
+nlo = bpy.data.objects.new("neon_glow", nl)
+scene.collection.objects.link(nlo)
+nlo.location = (-1.35, 2.55, 1.8)
+
+# Smoke haze: cybercafes in the 2000s still allowed smoking
+haze_m = bpy.data.materials.new("haze")
+try:
+    haze_m.use_nodes = True
+except Exception:
+    pass
+hnt = haze_m.node_tree
+for n in list(hnt.nodes):
+    if n.type == "BSDF_PRINCIPLED":
+        hnt.nodes.remove(n)
+vol = hnt.nodes.new("ShaderNodeVolumePrincipled")
+vol.inputs["Density"].default_value = 0.016
+vol.inputs["Anisotropy"].default_value = 0.35
+vol.inputs["Color"].default_value = (0.8, 0.85, 0.9, 1)
+mo = next(n for n in hnt.nodes if n.type == "OUTPUT_MATERIAL")
+hnt.links.new(vol.outputs["Volume"], mo.inputs["Volume"])
+box("haze", (6, 5.5, 3.0), (0, 0.4, 1.5), haze_m)
+
+# Render setup
+scene.render.engine = "CYCLES"
+try:
+    cp = bpy.context.preferences.addons["cycles"].preferences
+    for kind in ("OPTIX", "CUDA"):
+        cp.compute_device_type = kind
+        cp.get_devices()
+        devs = [d for d in cp.devices if d.type == kind]
+        if devs:
+            for d in cp.devices:
+                d.use = d.type == kind
+            scene.cycles.device = "GPU"
+            print("render device", kind, [d.name for d in devs])
+            break
+except Exception as e:
+    print("gpu setup failed", e)
+scene.cycles.samples = 48 if QUICK else 320
+scene.cycles.use_denoising = True
+scene.render.resolution_x = 1440
+scene.render.resolution_y = 900
+scene.render.resolution_percentage = 50 if QUICK else 100
+scene.render.image_settings.file_format = "PNG"
+scene.view_settings.view_transform = "Khronos PBR Neutral"
+for look in ("AgX - Medium High Contrast", "Medium High Contrast"):
+    try:
+        scene.view_settings.look = look
+        break
+    except Exception:
+        pass
+scene.view_settings.exposure = 0.0
+
+bpy.context.view_layer.update()
+cd_world = cd.matrix_world.translation.copy()
+screen_world = scr.matrix_world.translation.copy()
+
+
+def camera(name, loc, target, lens, fstop, focus):
+    cam = bpy.data.cameras.new(name)
+    cam.lens = lens
+    cam.sensor_width = 36
+    cam.dof.use_dof = True
+    cam.dof.aperture_fstop = fstop
+    cam.dof.focus_distance = (Vector(focus) - Vector(loc)).length
+    o = bpy.data.objects.new(name, cam)
+    scene.collection.objects.link(o)
+    o.location = loc
+    o.rotation_euler = (Vector(target) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+    return o
+
+
+cams = [
+    camera("cam_mesa", (0.0, -1.22, 1.26), (0.0, 0.0, 1.02), 28, 7.0, screen_world),
+    camera("cam_crt", (0.09, -0.66, 1.05), (0.0, -0.09, 1.0), 45, 3.2, screen_world),
+    camera("cam_cd", (-0.20, -0.60, 1.36), tuple(cd_world), 55, 2.4, tuple(cd_world)),
+    camera("cam_poster", (0.22, -0.95, 1.32), (PX, 2.738, PZ), 85, 3.5, (PX, 2.738, PZ)),
+    camera("cam_ticket", (-0.10, -0.68, 0.98), (-0.25, -0.40, DESK), 55, 2.8, (-0.28, -0.395, DESK)),
+    camera("cam_notepad", (-0.20, -0.56, 1.16), (-0.30, -0.19, DESK), 45, 3.2, (-0.30, -0.19, DESK)),
+    camera("cam_stream", (1.40, -0.20, 1.44), (0.90, far_y - 0.06, DESK + 0.25), 44, 4.0, (0.95, far_y - 0.06, DESK + 0.27)),
+    camera("cam_mesa_v", (0.0, -1.38, 1.62), (0.0, -0.08, 1.12), 29.8, 7.0, screen_world),
+]
+os.makedirs(OUT, exist_ok=True)
+if "--move" in ARGS:
+    src, dst = cams[0], cams[1]
+    cd_ = bpy.data.cameras.new("move")
+    cd_.sensor_width = 36
+    cd_.dof.use_dof = True
+    cd_.dof.focus_object = scr
+    mv = bpy.data.objects.new("cam_move", cd_)
+    scene.collection.objects.link(mv)
+    mv.rotation_mode = "QUATERNION"
+    for frame, c in ((8, src), (64, dst)):
+        mv.location = c.location
+        mv.rotation_quaternion = c.rotation_euler.to_quaternion()
+        cd_.lens = c.data.lens
+        cd_.dof.aperture_fstop = c.data.dof.aperture_fstop
+        mv.keyframe_insert("location", frame=frame)
+        mv.keyframe_insert("rotation_quaternion", frame=frame)
+        cd_.keyframe_insert("lens", frame=frame)
+        cd_.dof.keyframe_insert("aperture_fstop", frame=frame)
+    scene.camera = mv
+    scene.frame_start, scene.frame_end = 1, 72
+    scene.render.fps = 24
+    scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = 960, 600, 100
+    scene.cycles.samples = 40
+    scene.render.filepath = os.path.join(OUT, "move", "f_####")
+    bpy.ops.render.render(animation=True)
+    print("rendered move")
+    cams = []
+# Home stills are wider than their frame; landing/components/ciber-stage.tsx uses the same factors.
+OVERSCAN = {"cam_mesa": 1.5, "cam_mesa_v": 2.1}
+for c in cams:
+    if ONLY and c.name[4:] not in ONLY.split(","):
+        continue
+    scene.camera = c
+    base = (1408, 1600) if c.name.endswith("_v") else (1440, 900)
+    k = OVERSCAN.get(c.name, 1.0)
+    if k != 1.0:
+        # Wider frame, same vertical fov and blur: the landing lets the loading still overflow its region.
+        tan_v = c.data.sensor_width / 2 / c.data.lens * min(1.0, base[1] / base[0])
+        lens = 18 / tan_v
+        c.data.dof.aperture_fstop *= lens / c.data.lens
+        c.data.sensor_fit, c.data.sensor_height, c.data.lens = "VERTICAL", 36, lens
+    scene.render.resolution_x, scene.render.resolution_y = round(base[0] * k), base[1]
+    scene.render.filepath = os.path.join(OUT, c.name[4:] + (".quick" if QUICK else "") + ".png")
+    bpy.ops.render.render(write_still=True)
+    print("rendered", scene.render.filepath)
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(HERE, "puesto07.blend"))

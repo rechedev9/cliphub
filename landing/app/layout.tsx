@@ -1,9 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Chakra_Petch, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
 
-// NEON HUD type system: Chakra Petch for display/sans, Share Tech Mono for
-// every number/label/eyebrow. Same next/font/google wiring as web/app/layout.tsx.
 const chakraPetch = Chakra_Petch({
   variable: "--font-chakra-petch",
   subsets: ["latin"],
@@ -18,60 +16,55 @@ const shareTechMono = Share_Tech_Mono({
   display: "swap",
 });
 
-const SOCIAL_TITLE = "Your CS2 frags, ready to post | ClipHub";
-const SITE_DESCRIPTION =
-  "Turn CS2 demos and stream moments into polished vertical Shorts with local capture and ready-to-post edits.";
+const TITLE = "ClipHub Studio: tus partidas de CS2, convertidas en vídeo";
+const DESCRIPTION =
+  "Convierte una demo de CS2 en un Short vertical o en la partida entera grabada desde un jugador, recorta tus streams y analiza tus partidas. Gratis y en tu PC con Windows.";
+
+// Runs before first paint so the page never flashes the wrong layout.
+const MODE_SCRIPT = `(function(){var d=document.documentElement;try{var q=new URLSearchParams(location.search),s=null;try{s=localStorage.getItem('ciber-lite')}catch(e){}var gl=false;try{gl=!!document.createElement('canvas').getContext('webgl2')}catch(e){}d.dataset.webgl=gl?'1':'0';var n=navigator,weak=(n.deviceMemory&&n.deviceMemory<3)||(n.connection&&n.connection.saveData)||(n.hardwareConcurrency&&n.hardwareConcurrency<=2);var want=q.get('3d')==='1'||(q.get('lite')!=='1'&&s!=='1'&&(s==='0'||!weak));d.dataset.ciber=gl&&want?'3d':'lite'}catch(e){d.dataset.ciber='lite'}})();`;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cliphub.rechedev.cloud"),
-  title: SOCIAL_TITLE,
-  description: SITE_DESCRIPTION,
+  title: TITLE,
+  description: DESCRIPTION,
   applicationName: "ClipHub Studio",
-  keywords: [
-    "CS2",
-    "Counter-Strike 2",
-    "demo to video",
-    "vertical Shorts",
-    "HLAE",
-    "highlights",
-    "frag movie",
-  ],
+  keywords: ["CS2", "Counter-Strike 2", "demo a vídeo", "Shorts", "HLAE", "jugadas", "análisis de demos"],
   openGraph: {
     type: "website",
+    locale: "es_ES",
     siteName: "ClipHub Studio",
-    title: SOCIAL_TITLE,
-    description: SITE_DESCRIPTION,
+    title: TITLE,
+    description: DESCRIPTION,
     url: "/",
-    // Query busts Discord/Slack OG caches after the ClipHub rebrand.
     images: [
       {
-        url: "/opengraph-image?v=cliphub-1",
+        url: "/opengraph-image?v=ciber-1",
         width: 1200,
         height: 630,
-        alt: "ClipHub — Your best CS2 frags, ready to post",
+        alt: "Un puesto de ciber con ClipHub Studio en el monitor",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: SOCIAL_TITLE,
-    description: SITE_DESCRIPTION,
-    images: ["/opengraph-image?v=cliphub-1"],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/opengraph-image?v=ciber-1"],
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  themeColor: "#0a0d11",
+  colorScheme: "dark light",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${chakraPetch.variable} ${shareTechMono.variable} bg-[#050812] text-[#f2fbff] antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MODE_SCRIPT }} />
+      </head>
+      <body className={`${chakraPetch.variable} ${shareTechMono.variable} font-display antialiased`}>{children}</body>
     </html>
   );
 }
