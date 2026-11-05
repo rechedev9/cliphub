@@ -38,3 +38,17 @@ func TestJobIDsAreEscapedInPaths(t *testing.T) {
 		t.Errorf("path = %q, want %q", seen, want)
 	}
 }
+
+func TestFilterMomentsSendsTheFilter(t *testing.T) {
+	var seen string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{}`))
+	})
+	if _, err := c.FilterMoments(context.Background(), MomentsQuery{JobID: "j", Weapon: "awp", Kinds: []string{"clutch", "ace"}, Side: "CT"}); err != nil {
+		t.Fatal(err)
+	}
+	if want := "kind=clutch&kind=ace&side=CT&weapon=awp"; seen != want {
+		t.Errorf("query = %q, want %q", seen, want)
+	}
+}

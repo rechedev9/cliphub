@@ -48,6 +48,7 @@ type seriesMomentsIn struct {
 	JobIDs []string `json:"job_ids" jsonschema:"job ids from create_series_jobs, map 1 first"`
 	Order  string   `json:"order,omitempty" jsonschema:"play (default): map 1 to the last map, each in round order; best: highest score first across every map"`
 	Limit  int      `json:"limit,omitempty" jsonschema:"how many plays to return; default all of them"`
+	momentFilterIn
 }
 
 type seriesMomentOut struct {
@@ -60,7 +61,7 @@ type seriesMomentOut struct {
 type seriesMomentsOut struct {
 	Maps    []seriesMapOut    `json:"maps"`
 	Moments []seriesMomentOut `json:"moments"`
-	Total   int               `json:"total" jsonschema:"plays in the whole series"`
+	Total   int               `json:"total" jsonschema:"plays in the whole series that pass the filter"`
 }
 
 // seriesMap is one parsed map of a series with its scored plays.
@@ -112,7 +113,8 @@ func registerSeriesTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_series_moments", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "List the plays of a whole series, one job per map from create_series_jobs. By default the plays come in play order: map 1 round by round, then map 2, and so on. " +
-			"Each play carries map_number, map and the job_id of its map. generate_short records one map at a time: call it once per map with that map's job_id and segment ids; a single Short that mixes maps is not supported."},
+			"Each play carries map_number, map and the job_id of its map. generate_short records one map at a time: call it once per map with that map's job_id and segment ids; a single Short that mixes maps is not supported. " +
+			"weapon, kinds and side filter the plays as in list_moments, for example the player's clutches in the series."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in seriesMomentsIn) (*mcp.CallToolResult, seriesMomentsOut, error) {
 			if err := checkSeriesIDs("job_ids", in.JobIDs); err != nil {
 				return nil, seriesMomentsOut{}, err
@@ -123,6 +125,9 @@ func registerSeriesTools(server *mcp.Server, s *studio) {
 			}
 			if order != orderPlay && order != orderBest {
 				return nil, seriesMomentsOut{}, fmt.Errorf("order must be %q or %q", orderPlay, orderBest)
+			}
+			if _, err := in.query(""); err != nil {
+				return nil, seriesMomentsOut{}, err
 			}
 			c, err := s.client(ctx)
 			if err != nil {
@@ -142,7 +147,8 @@ func registerSeriesTools(server *mcp.Server, s *studio) {
 			out := seriesMomentsOut{Maps: make([]seriesMapOut, 0, len(jobs))}
 			maps := make([]seriesMap, 0, len(jobs))
 			for i, job := range jobs {
-				doc, err := c.GetMoments(ctx, job.ID)
+				q, _ := in.query(job.ID)
+				doc, err := c.FilterMoments(ctx, q)
 				if err != nil {
 					return nil, seriesMomentsOut{}, fmt.Errorf("map %d is not ready (%s); wait_for_job until parsed: %w", i+1, cleanName(job.Status), toolError(err))
 				}

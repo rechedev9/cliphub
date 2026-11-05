@@ -3584,6 +3584,42 @@ func TestGetMomentsPrefersStoredArtifact(t *testing.T) {
 	}
 }
 
+func TestGetMomentsFiltersStoredArtifact(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	stored := moments.Document{SchemaVersion: moments.SchemaVersion, JobID: j.ID, Moments: []moments.Moment{
+		{SegmentID: "seg-001", Side: "CT", Events: moments.Events{Weapons: []string{"awp"}}, ReasonCodes: []string{"clutch"}},
+		{SegmentID: "seg-002", Side: "T", Events: moments.Events{Weapons: []string{"awp"}}, ReasonCodes: []string{"clutch"}},
+		{SegmentID: "seg-003", Side: "CT", Events: moments.Events{Weapons: []string{"ak47"}}, ReasonCodes: []string{"ace"}},
+	}}
+	body, _ := json.Marshal(stored)
+	_ = store.Put(moments.ArtifactKey(j.ID), bytes.NewReader(body))
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/moments", NewHandlers(repo, store, &fakeQueue{}).GetMoments)
+
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/moments?weapon=awp&kind=clutch&side=ct", nil))
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	var doc moments.Document
+	if err := json.Unmarshal(rw.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Moments) != 1 || doc.Moments[0].SegmentID != "seg-001" {
+		t.Fatalf("moments = %+v, want only seg-001", doc.Moments)
+	}
+
+	rw = httptest.NewRecorder()
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/moments?side=spec", nil))
+	if rw.Code != http.StatusBadRequest {
+		t.Fatalf("bad side status = %d, want 400", rw.Code)
+	}
+}
+
 func TestRoutesRequireMutationTokenForPostsWhenConfigured(t *testing.T) {
 	repo := newFakeRepo()
 	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{}, WithMutationToken("secret"))

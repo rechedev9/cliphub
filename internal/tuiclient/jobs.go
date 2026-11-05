@@ -84,8 +84,36 @@ func (c *Client) GetRoster(ctx context.Context, id string) (RosterResult, error)
 
 // GetMoments returns the scored moments, or a 409 APIError if not ready.
 func (c *Client) GetMoments(ctx context.Context, id string) (MomentsDocument, error) {
+	return c.FilterMoments(ctx, MomentsQuery{JobID: id})
+}
+
+// MomentsQuery asks for the moments of one job that pass a filter; empty
+// fields match everything (internal/moments.Filter).
+type MomentsQuery struct {
+	JobID  string
+	Weapon string
+	Kinds  []string
+	Side   string
+}
+
+// FilterMoments returns the scored moments that pass the query's filter.
+func (c *Client) FilterMoments(ctx context.Context, q MomentsQuery) (MomentsDocument, error) {
+	values := url.Values{}
+	if q.Weapon != "" {
+		values.Set("weapon", q.Weapon)
+	}
+	for _, kind := range q.Kinds {
+		values.Add("kind", kind)
+	}
+	if q.Side != "" {
+		values.Set("side", q.Side)
+	}
+	path := jobPath(q.JobID) + "/moments"
+	if len(values) > 0 {
+		path += "?" + values.Encode()
+	}
 	var doc MomentsDocument
-	err := c.getJSON(ctx, jobPath(id)+"/moments", &doc)
+	err := c.getJSON(ctx, path, &doc)
 	return doc, err
 }
 

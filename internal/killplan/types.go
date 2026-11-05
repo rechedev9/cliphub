@@ -67,6 +67,8 @@ type Kill struct {
 	Victim    Player     `json:"victim"`
 	KillerPos [3]float64 `json:"killer_pos"`
 	VictimPos [3]float64 `json:"victim_pos"`
+	// ClutchVs is the enemies the killer faced as the last one alive, victim included; 0 otherwise.
+	ClutchVs int `json:"clutch_vs,omitempty"`
 }
 
 // UtilityThrow captures one target-player utility event that can become a

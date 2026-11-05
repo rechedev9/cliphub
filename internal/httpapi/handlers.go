@@ -822,17 +822,34 @@ func (h *Handlers) GetRecapPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, plan)
 }
 
-// GetMoments handles GET /api/jobs/{id}/moments.
+// GetMoments handles GET /api/jobs/{id}/moments. Optional weapon, kind (repeatable)
+// and side query parameters narrow the list; see moments.Filter.
 func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filter, err := moments.ParseFilter(q.Get("weapon"), q["kind"], q.Get("side"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	j, ok := h.loadJob(w, r)
 	if !ok {
 		return
 	}
 	if rc, err := h.storage.Open(moments.ArtifactKey(j.ID)); err == nil {
 		defer rc.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, rc)
+		if filter.Empty() {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.Copy(w, rc)
+			return
+		}
+		var doc moments.Document
+		if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+			internalError(w, "decode moments artifact", err)
+			return
+		}
+		doc.Moments = moments.Apply(doc.Moments, filter)
+		writeJSON(w, http.StatusOK, doc)
 		return
 	} else if !storage.IsNotExist(err) {
 		internalError(w, "open moments artifact", err)
@@ -842,7 +859,9 @@ func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job moments are not ready (status=%s)", j.Status))
 		return
 	}
-	writeJSON(w, http.StatusOK, moments.Build(j.ID, *j.KillPlan))
+	doc := moments.Build(j.ID, *j.KillPlan)
+	doc.Moments = moments.Apply(doc.Moments, filter)
+	writeJSON(w, http.StatusOK, doc)
 }
 
 // GetRoster handles GET /api/jobs/{id}/roster. It streams the roster scan

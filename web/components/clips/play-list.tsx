@@ -15,6 +15,11 @@ export type PlayListProps = {
   /** Right side of the header; defaults to the selected count. */
   counter?: ReactNode;
   toolbar?: ReactNode;
+  /** Filter controls under the toolbar; with them, only `visibleIds` render as rows. */
+  filters?: ReactNode;
+  visibleIds?: ReadonlySet<string>;
+  /** Shown in place of the rows when the filters hide every play. */
+  emptyFiltered?: ReactNode;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -32,11 +37,15 @@ export function PlayList({
   title = 'Highlights',
   counter,
   toolbar,
+  filters,
+  visibleIds,
+  emptyFiltered,
   onToggle,
   onSelectAll,
   onClear,
 }: PlayListProps): ReactNode {
-  const allSelected = plays.length > 0 && selectedIds.size === plays.length;
+  const rows = visibleIds ? plays.filter((play) => visibleIds.has(play.id)) : plays;
+  const allSelected = rows.length > 0 && rows.every((play) => selectedIds.has(play.id));
   // Short order is plan order filtered by membership — the same rule the page
   // uses to build the render payload — so the badge always matches the output.
   const ordinals = roundOrdinals(plays);
@@ -60,7 +69,7 @@ export function PlayList({
             type="button"
             variant="ghost"
             size="xs"
-            disabled={allSelected}
+            disabled={allSelected || rows.length === 0}
             onClick={onSelectAll}
           >
             Seleccionar todo
@@ -75,10 +84,12 @@ export function PlayList({
             Limpiar
           </Button>
         </div>
+        {filters}
       </div>
 
       <div role="region" aria-label="Jugadas disponibles">
-        {plays.map((play) => (
+        {rows.length === 0 && plays.length > 0 ? emptyFiltered : null}
+        {rows.map((play) => (
           <PlayRow
             key={play.id}
             play={play}

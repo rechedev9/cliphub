@@ -129,6 +129,8 @@ type jobOut struct {
 type momentOut struct {
 	SegmentID string   `json:"segment_id"`
 	Round     int      `json:"round"`
+	Side      string   `json:"side,omitempty" jsonschema:"CT or T"`
+	ClutchVs  int      `json:"clutch_vs,omitempty" jsonschema:"for a clutch, the enemies alive when the player was the last one of the team"`
 	Seconds   float64  `json:"seconds"`
 	Score     float64  `json:"score"`
 	Kills     int      `json:"kills"`
@@ -140,12 +142,13 @@ type momentOut struct {
 
 type momentsOut struct {
 	Moments []momentOut `json:"moments"`
-	Total   int         `json:"total" jsonschema:"plays the job has; raise limit to see more"`
+	Total   int         `json:"total" jsonschema:"plays the job has that pass the filter; raise limit to see more"`
 }
 
 type momentsIn struct {
 	ID    string `json:"id"`
 	Limit int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
+	momentFilterIn
 }
 
 type presetOut struct {
@@ -183,6 +186,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerApps(server, s)
 	registerShortOptions(server, s)
 	registerSeriesTools(server, s)
+	registerFindMomentsTool(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},
@@ -374,16 +378,21 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
-		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise."},
+		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise. " +
+			"weapon, kinds and side keep only matching plays, for example only AWP, only clutches and aces, or only CT."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in momentsIn) (*mcp.CallToolResult, momentsOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
+				return nil, momentsOut{}, err
+			}
+			q, err := in.query(in.ID)
+			if err != nil {
 				return nil, momentsOut{}, err
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
-			doc, err := c.GetMoments(ctx, in.ID)
+			doc, err := c.FilterMoments(ctx, q)
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
@@ -488,7 +497,7 @@ func registerTools(server *mcp.Server, s *studio) {
 }
 
 func describeMoment(m tuiclient.Moment) momentOut {
-	return momentOut{SegmentID: m.SegmentID, Round: m.Round, Seconds: m.DurationSeconds,
+	return momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, Seconds: m.DurationSeconds,
 		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
 }

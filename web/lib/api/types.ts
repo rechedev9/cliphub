@@ -36,7 +36,10 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** Engine ids of every kill's weapon ("awp"), the side the player was on, and the enemies of a clutch. */
+  weapons?: string[]; side?: PlaySide; clutchVs?: number;
 };
+export type PlaySide = 'CT' | 'T';
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
