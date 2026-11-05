@@ -14,7 +14,7 @@ import {
   TACTICAL_TENDENCIES_KEYS,
 } from '@/lib/api/tactical';
 import { parseCaptureProgress } from '@/lib/capture-progress';
-import { projectFreedBytes, projectStorageUsage } from '@/lib/api/storage';
+import { projectFreedBytes, projectStorageFiles, projectStorageUsage } from '@/lib/api/storage';
 import {
   orchestratorUrl,
   forwardError,
@@ -114,6 +114,43 @@ export async function localStorageUsage(): Promise<Response> {
   if (!res.ok) return forwardError(res);
   const body: unknown = await res.json();
   return NextResponse.json(projectStorageUsage(body), { headers: { 'cache-control': 'no-store' } });
+}
+
+/** GET /api/demos/storage/files: PC demos and Studio videos, camelCased and whitelisted. */
+export async function localStorageFiles(): Promise<Response> {
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/storage/files`, { cache: 'no-store' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  const body: unknown = await res.json();
+  return NextResponse.json(projectStorageFiles(body), { headers: { 'cache-control': 'no-store' } });
+}
+
+/** POST /api/demos/storage/files/scan: search the PC for demos again; 202. */
+export async function localScanStorageFiles(): Promise<Response> {
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/storage/files/scan`, { method: 'POST' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  return new Response(null, { status: 202 });
+}
+
+/** POST /api/demos/storage/files/{delete|reveal} with `{path}`; the orchestrator only acts on a listed path. */
+export async function localStorageFileAction(request: Request, action: 'delete' | 'reveal'): Promise<Response> {
+  const text = await readBoundedText(request, 8 * 1024);
+  if (!text.ok) return NextResponse.json({ error: text.error }, { status: text.status });
+  const parsed = parseControlJSONObject(text.text, ['path']);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const path: unknown = parsed.value.path;
+  if (typeof path !== 'string' || path === '') return NextResponse.json({ error: 'path is required' }, { status: 400 });
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/storage/files/${action}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  if (action === 'reveal') return new Response(null, { status: 204 });
+  const body: unknown = await res.json();
+  return NextResponse.json(projectFreedBytes(body));
 }
 
 /** DELETE /api/demos/{jobId}/captures: 200 with the freed bytes, or the orchestrator's 409/404. */

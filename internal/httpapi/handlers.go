@@ -132,6 +132,7 @@ type Handlers struct {
 	anticheatJobLocks   *anticheat.JobLocks
 	streamJobLocks      *streamclips.JobLocks
 	storage             storage.Storage
+	storageFiles        storageFileIndex
 	generateIntents     *generateintent.Store
 	voiceProfiles       *voiceprofile.Store
 	queue               Enqueuer
@@ -2521,68 +2522,6 @@ func (h *Handlers) GetRenderGallery(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) GetRenderVideo(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	h.streamRenderVariantArtifact(w, r, "video/mp4", renderplan.RenderVariantArtifactVideo, name)
-}
-
-// renderArtifactDeleter is the optional storage capability DeleteRenderVideo
-// needs. Local filesystem storage implements it; a backend without delete
-// support makes the endpoint report 501 rather than pretending to delete.
-type renderArtifactDeleter interface {
-	Delete(key string) error
-}
-
-// DeleteRenderVideo handles DELETE /api/jobs/{id}/renders/{variant}/videos/{name}:
-// it removes one reel's video plus its cover and caption artifacts so the user
-// can clear finished reels from the library and free disk space. Idempotent —
-// deleting an already-deleted reel succeeds.
-func (h *Handlers) DeleteRenderVideo(w http.ResponseWriter, r *http.Request) {
-	// Metadata only: the artifacts to remove are addressed by job id, variant
-	// and reel name.
-	j, ok := h.loadJobMeta(w, r)
-	if !ok {
-		return
-	}
-	variant := chi.URLParam(r, "variant")
-	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	name := chi.URLParam(r, "name")
-	if _, err := renderplan.NewRenderVariantArtifactRef(
-		j.ID,
-		variant,
-		renderplan.RenderVariantArtifactVideo,
-		name,
-	); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	deleter, ok := h.storage.(renderArtifactDeleter)
-	if !ok {
-		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
-		return
-	}
-	snapshot, err := h.currentRenderVariantSnapshot(j.ID, variant)
-	if err != nil {
-		internalError(w, "read render state for video deletion", err)
-		return
-	}
-	kinds := []renderplan.RenderVariantArtifactKind{
-		renderplan.RenderVariantArtifactVideo,
-		renderplan.RenderVariantArtifactCover,
-		renderplan.RenderVariantArtifactCaption,
-	}
-	for _, kind := range kinds {
-		ref, err := snapshot.artifactRef(kind, name)
-		if err != nil {
-			internalError(w, "resolve render artifact for video deletion", err)
-			return
-		}
-		if err := deleter.Delete(ref.Key); err != nil {
-			internalError(w, "delete render artifact", err)
-			return
-		}
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // jobArtifactDeleter is the optional storage capability DeleteJob needs: a

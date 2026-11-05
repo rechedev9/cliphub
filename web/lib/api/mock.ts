@@ -12,7 +12,7 @@ import {
 } from './publish-assistant.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig } from '../reel-brief.ts';
-import type { StorageUsage } from './storage.ts';
+import type { StorageFile, StorageFiles, StorageUsage } from './storage.ts';
 import {
   fixtureUser,
   fixtureSlots,
@@ -44,6 +44,15 @@ const mockStorage = fixtureMatches.map((m, index) => ({
   renderBytes: Math.round(1.2 * GIB),
   freeable: index === 0,
 }));
+
+const MIB = 1024 ** 2;
+const MOCK_DATA_DIR = 'C:/Users/demo/AppData/Roaming/ClipHub Studio/data';
+let mockFiles: StorageFile[] = [
+  { path: 'C:/Users/demo/Downloads/faceit-mirage.dem', sizeBytes: 412 * MIB, modifiedAt: '2026-11-02T18:20:00Z', kind: 'demo' },
+  { path: 'C:/Program Files (x86)/Steam/steamapps/common/Counter-Strike Global Offensive/game/csgo/replays/match730_1.dem', sizeBytes: 298 * MIB, modifiedAt: '2026-10-30T21:05:00Z', kind: 'demo' },
+  ...fixtureMatches.slice(0, 2).map((m): StorageFile => ({ path: `${MOCK_DATA_DIR}/demos/${m.id}.dem`, sizeBytes: 380 * MIB, modifiedAt: '2026-11-01T12:00:00Z', kind: 'studio_demo', jobId: m.id })),
+  ...fixtureMatches.slice(0, 2).map((m): StorageFile => ({ path: `${MOCK_DATA_DIR}/jobs/${m.id}/renders/short-pov/videos/reel-1.mp4`, sizeBytes: 48 * MIB, modifiedAt: '2026-11-03T09:00:00Z', kind: 'short', jobId: m.id })),
+];
 
 function mockPublishAssistant(video: Video): PublishAssistant {
   const now = Date.now();
@@ -547,6 +556,35 @@ export class MockApiClient implements ApiClient {
     job.captureBytes = 0;
     job.freeable = false;
     return freed;
+  }
+
+  async listStorageFiles(): Promise<StorageFiles> {
+    await delay();
+    const of = (kinds: readonly string[]): StorageFile[] => mockFiles.filter((file) => kinds.includes(file.kind));
+    return {
+      dataDir: MOCK_DATA_DIR,
+      scanning: false,
+      scannedAt: new Date().toISOString(),
+      demos: of(['demo']),
+      studioDemos: of(['studio_demo']),
+      videos: of(['short', 'full_demo', 'stream', 'editor', 'cloud']),
+    };
+  }
+
+  async rescanStorageFiles(): Promise<void> {
+    await delay();
+  }
+
+  async deleteStorageFile(path: string): Promise<number> {
+    await delay();
+    const file = mockFiles.find((entry) => entry.path === path);
+    if (file === undefined) throw Object.assign(new Error('file is not in the storage list; refresh it'), { status: 404 });
+    mockFiles = mockFiles.filter((entry) => entry.path !== path);
+    return file.sizeBytes;
+  }
+
+  async revealStorageFile(): Promise<void> {
+    await delay();
   }
 
   async deleteSeries(seriesId: string): Promise<void> {
