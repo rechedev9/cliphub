@@ -78,6 +78,11 @@ func RecapPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recap-plan.json")
 }
 
+// DeathPlanKey is the sidecar plan of the target's deaths, one clip per death.
+func DeathPlanKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "death-plan.json")
+}
+
 func FullDemoFactsKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "full-demo", "facts.json")
 }

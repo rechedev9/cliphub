@@ -32,6 +32,7 @@ type ShortEdit struct {
 	NativeHUD     bool   `json:"native_hud"`
 	VictimReplay  bool   `json:"victim_replay,omitempty"`
 	CoverStrategy string `json:"cover_strategy"`
+	DeathReel     bool   `json:"death_reel,omitempty"`
 }
 
 // GenerateRequest is the body of POST /api/jobs/{id}/generate for a Short.

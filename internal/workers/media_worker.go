@@ -27,6 +27,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/faceit"
@@ -430,11 +431,17 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
 
+	source := planSourceKills
+	if payload.UseRecapPlan {
+		source = planSourceRecap
+	} else if payload.UseDeathPlan {
+		source = planSourceDeaths
+	}
 	if err := w.record(ctx, j, recordRequest{
 		hudMode:              payload.HUDMode,
 		segmentIDs:           payload.SegmentIDs,
 		portraitSafeKillfeed: payload.PortraitSafeKillfeed,
-		useRecapPlan:         payload.UseRecapPlan,
+		source:               source,
 		victimReplay:         generateIntent.Edit.VictimReplay,
 		approval:             generateIntent.Edit.FullDemo,
 	}); err != nil {
@@ -727,13 +734,13 @@ type recordRequest struct {
 	hudMode              string
 	segmentIDs           []string
 	portraitSafeKillfeed bool
-	useRecapPlan         bool
+	source               planSource
 	victimReplay         bool
 	approval             *recapplan.Snapshot
 }
 
 func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest) (retErr error) {
-	hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan := req.hudMode, req.segmentIDs, req.portraitSafeKillfeed, req.useRecapPlan
+	hudMode, segmentIDs, portraitSafeKillfeed, source := req.hudMode, req.segmentIDs, req.portraitSafeKillfeed, req.source
 	var fullDemo *recapplan.Document
 	var sourcePlan *killplan.Plan
 	var err error
@@ -746,7 +753,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest)
 		adapted := fullDemo.KillPlan(*j.KillPlan)
 		sourcePlan = &adapted
 	} else {
-		sourcePlan, err = recordSourcePlan(w.storage, j, useRecapPlan)
+		sourcePlan, err = recordSourcePlan(w.storage, j, source)
 		if err != nil {
 			return err
 		}
@@ -785,7 +792,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, req recordRequest)
 		HUDMode:              recording.HUDMode(cfg.HUDMode),
 		PortraitSafeKillfeed: portraitSafeKillfeed,
 		Encoder:              captureEncoder,
-		VictimReplay:         req.victimReplay && fullDemo == nil && !useRecapPlan,
+		VictimReplay:         req.victimReplay && fullDemo == nil && source == planSourceKills,
 	})
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
@@ -3473,12 +3480,31 @@ func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []strin
 	return store.Put(artifacts.CaptureSelectionKey(id), bytes.NewReader(b))
 }
 
-func recordSourcePlan(store storage.Storage, j job.Job, useRecapPlan bool) (*killplan.Plan, error) {
-	if !useRecapPlan {
+// planSource is the plan a capture records from.
+type planSource int
+
+const (
+	planSourceKills planSource = iota
+	planSourceRecap
+	planSourceDeaths
+)
+
+func recordSourcePlan(store storage.Storage, j job.Job, source planSource) (*killplan.Plan, error) {
+	switch source {
+	case planSourceKills:
 		if j.KillPlan == nil {
 			return nil, fmt.Errorf("job %s has no kill plan", j.ID)
 		}
 		return j.KillPlan, nil
+	case planSourceDeaths:
+		deaths, ok, err := deathplan.Load(store, j.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || len(deaths.Segments) == 0 {
+			return nil, fmt.Errorf("job %s has no death clips", j.ID)
+		}
+		return &deaths, nil
 	}
 	recap, ok, err := recapplan.Load(store, j.ID)
 	if err != nil {

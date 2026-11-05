@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "job_id": "00000000-0000-0000-0000-000000000000",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "moments": [
+    {
+      "id": "mom-001",
+      "source": "killplan",
+      "segment_id": "death-001",
+      "player": "target",
+      "map": "de_mirage",
+      "round": 1,
+      "tick_start": 5988,
+      "tick_end": 6564,
+      "time_start_seconds": 93.563,
+      "time_end_seconds": 102.563,
+      "duration_seconds": 9,
+      "score": 0.28,
+      "reason_codes": [],
+      "events": {
+        "kills": 0
+      },
+      "default_variant": "viral-60-clean",
+      "death": {
+        "tick": 6500,
+        "killer": "opponent-3",
+        "weapon": "glock",
+        "headshot": true
+      }
+    },
+    {
+      "id": "mom-002",
+      "source": "killplan",
+      "segment_id": "death-002",
+      "player": "target",
+      "map": "de_mirage",
+      "round": 3,
+      "tick_start": 17388,
+      "tick_end": 17964,
+      "time_start_seconds": 271.688,
+      "time_end_seconds": 280.688,
+      "duration_seconds": 9,
+      "score": 0.28,
+      "reason_codes": [],
+      "events": {
+        "kills": 0
+      },
+      "default_variant": "viral-60-clean",
+      "death": {
+        "tick": 17900,
+        "killer": "opponent-4",
+        "weapon": "ak47"
+      }
+    },
+    {
+      "id": "mom-003",
+      "source": "killplan",
+      "segment_id": "death-003",
+      "player": "target",
+      "map": "de_mirage",
+      "round": 8,
+      "tick_start": 45488,
+      "tick_end": 46064,
+      "time_start_seconds": 710.75,
+      "time_end_seconds": 719.75,
+      "duration_seconds": 9,
+      "score": 0.28,
+      "reason_codes": [],
+      "events": {
+        "kills": 0
+      },
+      "default_variant": "viral-60-clean",
+      "death": {
+        "tick": 46000,
+        "killer": "opponent-5",
+        "weapon": "awp"
+      }
+    }
+  ]
+}

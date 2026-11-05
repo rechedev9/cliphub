@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -149,6 +151,11 @@ func readFixture(t *testing.T) parsedFixture {
 // parser feeds, so segmentation and filtering run as in production.
 func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 	t.Helper()
+	return buildPlan(t, fixture, nil, parser.SegmentModeKills)
+}
+
+func buildPlan(t *testing.T, fixture parsedFixture, deaths []parser.TargetDeath, mode parser.SegmentMode) killplan.Plan {
+	t.Helper()
 	collector := parser.NewCollector(fixture.Target.SteamID64, rules.Default())
 	collector.RecordTargetIdentity(fixture.Target.NameInDemo, fixture.Target.TeamAtStart)
 	for _, start := range fixture.RoundStarts {
@@ -171,6 +178,9 @@ func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 			VictimPos: kill.VictimPos,
 		})
 	}
+	for _, death := range deaths {
+		collector.RecordTargetDeath(death)
+	}
 	for _, end := range fixture.RoundEnds {
 		collector.RecordRoundEnd(end)
 	}
@@ -180,12 +190,75 @@ func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 		Map:           fixture.Map,
 		Tickrate:      fixture.Tickrate,
 		DurationTicks: fixture.DurationTicks,
-	}, parser.SegmentModeKills)
+	}, mode)
 	if err != nil {
-		t.Fatalf("build kill plan: %v", err)
+		t.Fatalf("build %s plan: %v", mode, err)
 	}
 	plan.GeneratedAt = fixedClock
 	return plan
+}
+
+// fixtureDeaths are target deaths placed in the fixture's rounds: one with no
+// kill before it, one right after a kill, one late in a round.
+func fixtureDeaths(fixture parsedFixture) []parser.TargetDeath {
+	opponent := func(n int) killplan.Player {
+		return killplan.Player{SteamID64: fmt.Sprintf("7656119800000000%d", n), NameInDemo: fmt.Sprintf("opponent-%d", n), TeamAtKill: "T"}
+	}
+	victim := killplan.Player{SteamID64: fixture.Target.SteamID64, NameInDemo: fixture.Target.NameInDemo, TeamAtKill: fixture.Target.TeamAtStart}
+	return []parser.TargetDeath{
+		{Round: 1, Tick: 6500, Killer: opponent(3), Victim: victim, Weapon: "glock", Headshot: true},
+		{Round: 3, Tick: 17900, Killer: opponent(4), Victim: victim, Weapon: "ak47"},
+		{Round: 8, Tick: 46000, Killer: opponent(5), Victim: victim, Weapon: "awp"},
+	}
+}
+
+// TestDeathReelPipelineGolden walks a death reel: the death plan, its capture
+// contract and simulated capture, and the dry-run editor plan.
+func TestDeathReelPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	fixture := readFixture(t)
+	plan := buildPlan(t, fixture, fixtureDeaths(fixture), parser.SegmentModeDeaths)
+	doc := moments.BuildDeaths(uuid.Nil, plan)
+	doc.GeneratedAt = fixedClock
+	assertGolden(t, "08-death-moments.json", normalizedJSON(t, work, doc))
+	planPath := filepath.Join(work, "death-plan.json")
+	writeJSON(t, planPath, plan)
+
+	recPlan, err := recording.NewPlanFromKillPlan(plan, filepath.Join(work, "match.dem"), filepath.Join(work, "recording"), recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatalf("recording plan: %v", err)
+	}
+	script, err := recording.GenerateHLAEJavaScript(recPlan)
+	if err != nil {
+		t.Fatalf("HLAE script: %v", err)
+	}
+	assertGolden(t, "09-death-recording-plan.json", normalizedJSON(t, work, recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
+	assertGolden(t, "10-death-capture.json", normalizedJSON(t, work, capture))
+
+	edit := renderplan.NormalizeEditRequest(renderplan.EditRequest{DeathReel: true, KillCounter: true, HookText: true})
+	if _, err := editor.Run(context.Background(), editor.Config{
+		RecordingResultPath: writeRecordingResult(t, recPlan),
+		KillPlanPath:        planPath,
+		OutputDir:           filepath.Join(work, "render"),
+		PublishDir:          filepath.Join(work, "publish"),
+		FFmpegPath:          "ffmpeg",
+		FFprobePath:         "ffprobe",
+		OutputFormat:        edit.Format,
+		KillEffect:          edit.KillEffect,
+		Transition:          edit.Transition,
+		HookText:            edit.HookText,
+		KillCounter:         edit.KillCounter,
+		DryRun:              true,
+	}); err != nil {
+		t.Fatalf("editor dry run: %v", err)
+	}
+	var manifest editor.Manifest
+	readJSON(t, filepath.Join(work, "render", "edit-manifest.json"), &manifest)
+	if len(manifest.Shorts) != len(plan.Segments) {
+		t.Fatalf("editor planned %d clips, want one per death (%d)", len(manifest.Shorts), len(plan.Segments))
+	}
+	assertGolden(t, "11-death-edit-manifest.json", normalizedJSON(t, work, manifest))
 }
 
 type captureView struct {
@@ -209,7 +282,7 @@ func simulateCapture(t *testing.T, work, script, target string, plan recording.R
 		t.Fatal(err)
 	}
 	scenarioPath := filepath.Join(work, "scenario.json")
-	var victims []string
+	victims := []string{}
 	for _, segment := range plan.CaptureSegments() {
 		if segment.POVSteamID64 != "" && !slices.Contains(victims, segment.POVSteamID64) {
 			victims = append(victims, segment.POVSteamID64)

@@ -269,7 +269,7 @@ func TestDemoCollectorsDiscardEventsBeforeMatchStart(t *testing.T) {
 		{
 			name: "kills",
 			run: func(p *fakeScanParser) (killplan.Plan, error) {
-				return runKills(p, strconv.FormatUint(killerID, 10), rules.Default(), meta)
+				return runKillEvents(p, strconv.FormatUint(killerID, 10), rules.Default(), meta, SegmentModeKills)
 			},
 		},
 		{

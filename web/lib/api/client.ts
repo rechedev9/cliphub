@@ -18,6 +18,8 @@ export interface ApiClient {
   parseDemo(input: { jobId: string; steamId: string }): Promise<Match>;
   findClips(matchId: string): Promise<Play[]>;
   findRecapClips(matchId: string): Promise<Play[]>;
+  /** Death clips of the match's player; empty for a demo parsed before death clips existed. */
+  findDeathClips(matchId: string): Promise<Play[]>;
   listSongs(): Promise<Song[]>;
   listPresets(): Promise<Preset[]>;
   /** playIds must be in plan order, not click order. */

@@ -593,9 +593,9 @@ func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
 		}
 		return task
 	}
-	recordAClean := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "clean", []string{"seg-001"}, false, false))
-	recordADeathnotices := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "deathnotices", nil, true, false))
-	recordB := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobB, "clean", []string{"seg-001"}, false, false))
+	recordAClean := mustTask(tasktypes.NewRecordDemoTask(tasktypes.RecordDemoPayload{JobID: jobA, HUDMode: "clean", SegmentIDs: []string{"seg-001"}}))
+	recordADeathnotices := mustTask(tasktypes.NewRecordDemoTask(tasktypes.RecordDemoPayload{JobID: jobA, HUDMode: "deathnotices", PortraitSafeKillfeed: true}))
+	recordB := mustTask(tasktypes.NewRecordDemoTask(tasktypes.RecordDemoPayload{JobID: jobB, HUDMode: "clean", SegmentIDs: []string{"seg-001"}}))
 	composeA := mustTask(tasktypes.NewComposeFinalTask(jobA))
 	composeAAgain := mustTask(tasktypes.NewComposeFinalTask(jobA))
 	composeB := mustTask(tasktypes.NewComposeFinalTask(jobB))

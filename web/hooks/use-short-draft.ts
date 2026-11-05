@@ -4,15 +4,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Play } from '@/lib/api/types';
 import { clearShortDraft, defaultShortSettings, loadShortDraft, saveShortDraft, type ShortSettings } from '@/lib/produce/short-draft';
 
-/**
- * The producer is keyed by matchId. Polls must not reinitialize the user's choices.
- * `focusIds` comes from the analysis area: those plays open selected, even over a saved draft.
- */
-export function useShortDraft(matchId: string, plays: Play[], focusIds: readonly string[] = []) {
+type ShortDraftOptions = {
+  matchId: string;
+  plays: Play[];
+  /** Death clips a saved death-reel draft may have selected. */
+  deathPlays?: Play[];
+  /** From the analysis area: those plays open selected, even over a saved draft. */
+  focusIds?: readonly string[];
+};
+
+/** The producer is keyed by matchId. Polls must not reinitialize the user's choices. */
+export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [] }: ShortDraftOptions) {
   const [initial] = useState(() => {
-    const base = defaultShortSettings(plays);
+    const base = defaultShortSettings(plays, deathPlays);
     const focus = focusIds.length > 0 ? [...focusIds] : null;
-    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds: new Set(plays.map((play) => play.id)), focus };
+    return { settings: focus ? { ...base, selectedIds: focus } : base, validIds: new Set([...plays, ...deathPlays].map((play) => play.id)), focus };
   });
   const [settings, setSettings] = useState(initial.settings);
   const current = useRef(initial.settings);

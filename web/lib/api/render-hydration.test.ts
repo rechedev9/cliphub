@@ -303,3 +303,10 @@ test('queued render revisions do not inherit artifact URLs while names are trans
   assert.equal(queuedRevision.thumbnailUrl, undefined);
   assert.equal(clearVideoArtifactUrls(queuedRevision).downloadUrl, undefined);
 });
+
+test('a rendered death reel reads back as the same edit, so the reel is not generated again', () => {
+  const intent: EditConfig = { ...DEFAULT_EDIT_CONFIG, deathReel: true };
+  const rendered = parseEffectiveEditConfig(buildEditRequest(intent));
+  assert.equal(rendered?.deathReel, true);
+  assert.deepEqual(buildEditRequest(rendered ?? DEFAULT_EDIT_CONFIG), buildEditRequest(intent));
+});

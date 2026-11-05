@@ -36,9 +36,12 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** Death clips only: how the player died at the end of the clip. */
+  death?: PlayDeath;
   /** False when the recorder cannot replay this play from the victim (bot victim, demo end). */
   victimReplay?: boolean;
 };
+export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
@@ -237,6 +240,8 @@ export type EditConfig = {
   hookText: boolean;
   killCounter: boolean;
   matchRecap: boolean;
+  /** The plays are death clips (death plan), not kills. */
+  deathReel?: boolean;
   voiceComms: boolean;
   voiceVolume?: number;
   nativeHud: boolean;

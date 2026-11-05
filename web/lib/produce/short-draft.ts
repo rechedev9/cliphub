@@ -21,11 +21,14 @@ export function shortDraftKey(matchId: string): string {
   return `cliphub.short-draft.v1.${matchId}`;
 }
 
-export function defaultShortSettings(plays: Play[]): ShortSettings {
+/** A player without kills but with deaths opens a death reel of every death. */
+export function defaultShortSettings(plays: Play[], deathPlays: Play[] = []): ShortSettings {
+  const deathReel = plays.length === 0 && deathPlays.length > 0;
   return {
-    selectedIds: [...autoPickBestPlays(plays)], variant: null, songId: null, songTitle: null, musicDecided: false,
+    selectedIds: deathReel ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(plays)],
+    variant: null, songId: null, songTitle: null, musicDecided: false,
     musicVolume: MUSIC_VOLUME_DEFAULT_PERCENT, gameVolume: GAME_VOLUME_DEFAULT_PERCENT,
-    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16' }),
+    editConfig: constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: 'short-9x16', ...(deathReel ? { deathReel } : {}) }),
   };
 }
 

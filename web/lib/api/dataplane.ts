@@ -28,6 +28,8 @@ export type DataPlane = {
   parseBody(steamId: string): Record<string, string>;
   planUrl(jobId: string): string;
   recapPlanUrl(jobId: string): string;
+  /** One clip per death of the job's player (death reel). */
+  deathsUrl(jobId: string): string;
   recordUrl(jobId: string): string;
   /** Atomically reuse/record the required capture and chain its render. */
   generateUrl(jobId: string): string;
@@ -67,6 +69,7 @@ export function dataPlane(): DataPlane {
     parseBody: (steamId) => ({ steamId }),
     planUrl: (jobId) => `/api/demos/${jobId}/plan`,
     recapPlanUrl: (jobId) => `/api/demos/${jobId}/recap-plan`,
+    deathsUrl: (jobId) => `/api/demos/${jobId}/deaths`,
     recordUrl: (jobId) => `/api/demos/${jobId}/record`,
     generateUrl: (jobId) => `/api/demos/${jobId}/generate`,
     renderUrl: (jobId, variant) => `/api/demos/${jobId}/renders/${variant}`,

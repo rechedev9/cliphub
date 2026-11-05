@@ -318,7 +318,7 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 	case "demo-parse":
 		return []workflowValueConstraint{
 			constraint("--segment-mode", string(parser.SegmentModeKills), "",
-				string(parser.SegmentModeKills), string(parser.SegmentModeSmokes), string(parser.SegmentModeUtility), string(parser.SegmentModeRecap)),
+				string(parser.SegmentModeKills), string(parser.SegmentModeSmokes), string(parser.SegmentModeUtility), string(parser.SegmentModeRecap), string(parser.SegmentModeDeaths)),
 		}
 	case "utility-audit":
 		return []workflowValueConstraint{

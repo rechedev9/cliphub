@@ -156,6 +156,14 @@ type Moment struct {
 	Weapons         []string     `json:"weapons,omitempty"`
 	Victims         []string     `json:"victims,omitempty"`
 	DefaultVariant  string       `json:"default_variant"`
+	Death           *MomentDeath `json:"death,omitempty"`
+}
+
+// MomentDeath is how the target died in a death clip.
+type MomentDeath struct {
+	Killer   string `json:"killer,omitempty"`
+	Weapon   string `json:"weapon,omitempty"`
+	Headshot bool   `json:"headshot,omitempty"`
 }
 
 type MomentEvents struct {

@@ -58,6 +58,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const [plays, setPlays] = useState<Play[]>([]);
   const [shortPlanJobId, setShortPlanJobId] = useState<string | null>(null);
   const [rounds, setRounds] = useState<Play[]>([]);
+  const [deathPlays, setDeathPlays] = useState<Play[]>([]);
   const [recapFailure, setRecapFailure] = useState<RecapFailure>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
@@ -65,21 +66,26 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const [pollError, setPollError] = useState<FullDemoLoadFailure>(null);
   /** The last partida the API confirmed; a failing tick must keep it on screen. */
   const matchRef = useRef<Match | null>(null);
+  /** The death plan is fixed once parsed: after a non-empty list, polls stop asking for it. */
+  const deathsLoadedRef = useRef(false);
 
   const activity = useSyncExternalStore(subscribeToShellActivity, shellActivitySnapshot, serverShellActivitySnapshot);
   const recBusy = activity.jobs.some((job) => job.stage === 'recording');
 
   useEffect(() => {
     let active = true;
+    deathsLoadedRef.current = false;
+    setDeathPlays([]);
     const stop = startPollLoop({
       tick: async () => {
         // One wave: the client shares this beat's status and kill-plan reads
         // across the three calls, so asking for everything at once costs one
         // status request plus one document wave instead of a waterfall.
-        const [matchResult, planResult, recapResult] = await Promise.allSettled([
+        const [matchResult, planResult, recapResult, deathsResult] = await Promise.allSettled([
           api.getMatch(id),
           api.findClips(id),
           api.findRecapClips(id),
+          format === PRODUCE_FORMAT.short && !deathsLoadedRef.current ? api.findDeathClips(id) : Promise.resolve(null),
         ]);
         if (!active) return 'idle';
         if (matchResult.status === 'rejected') {
@@ -98,6 +104,8 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         setPollError(null);
         if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
           setPlays([]);
+          setDeathPlays([]);
+          deathsLoadedRef.current = false;
           setRounds([]);
           setRecapFailure(null);
           setLoaded(true);
@@ -107,8 +115,14 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         // findClips shares getMatch's status and plan reads, so a plan failure
         // already rejected getMatch above; a rejected plan result cannot reach here.
         const nextPlays = planResult.status === 'fulfilled' ? planResult.value : [];
+        // Only a non-empty list replaces the last one, so a blip never drops a death-reel selection.
+        const nextDeaths = deathsResult.status === 'fulfilled' ? deathsResult.value : null;
         setPlays(nextPlays);
-        if (nextPlays.length > 0) setShortPlanJobId(id);
+        if (nextDeaths !== null && nextDeaths.length > 0) {
+          setDeathPlays(nextDeaths);
+          deathsLoadedRef.current = true;
+        }
+        if (nextPlays.length > 0 || deathsLoadedRef.current) setShortPlanJobId(id);
         let recapPending = false;
         if (recapResult.status === 'fulfilled') {
           setRounds(recapResult.value);
@@ -214,7 +228,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} />
     );
   } else {
-    const shortUnavailable = plays.length === 0;
+    const shortUnavailable = plays.length === 0 && deathPlays.length === 0;
     body = (
       <>
         {shortUnavailable ? (
@@ -224,7 +238,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
         {shortPlanJobId === id ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} focusRounds={focusRounds} />
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds} />
           </div>
         ) : null}
       </>

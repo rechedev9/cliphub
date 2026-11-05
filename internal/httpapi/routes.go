@@ -70,6 +70,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/anticheat", h.GetAnticheat)
 	r.Get("/api/jobs/{id}/anticheat/dossier/{steamid}", h.GetAnticheatDossier)
 	r.Get("/api/jobs/{id}/moments", h.GetMoments)
+	r.Get("/api/jobs/{id}/deaths", h.GetDeaths)
 	r.Post("/api/jobs/{id}/tactical", h.StartTacticalAnalysis)
 	r.Get("/api/jobs/{id}/tactical", h.GetTacticalDocument)
 	r.Get("/api/jobs/{id}/tactical/status", h.GetTacticalStatus)

@@ -13,7 +13,7 @@ const maxSegmentIDs = 200
 // Every id a model sends is checked here before it reaches a URL or a body.
 var (
 	// Plan segment ids are "seg-<n>", and "seg--<nn>" for negative indexes (killplan).
-	segmentIDPattern = regexp.MustCompile(`^seg--?[0-9]{1,6}$`)
+	segmentIDPattern = regexp.MustCompile(`^(seg--?|death-)[0-9]{1,6}$`)
 	steamIDPattern   = regexp.MustCompile(`^[0-9]{17}$`)
 	mapNamePattern   = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
 	// Same token shape as internal/artifacts: variants and video names are path segments.

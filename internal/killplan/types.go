@@ -54,6 +54,8 @@ type Segment struct {
 	LiveEndTick int            `json:"live_end_tick,omitempty"`
 	Kills       []Kill         `json:"kills,omitempty"`
 	Utility     []UtilityThrow `json:"utility,omitempty"`
+	// Death is the target's death a death clip ends on; nil on every other segment.
+	Death *Kill `json:"death,omitempty"`
 }
 
 // Kill captures the metadata downstream stages need to choose effects

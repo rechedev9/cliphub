@@ -155,6 +155,20 @@ func TestDescribePlays(t *testing.T) {
 	}
 }
 
+func TestDescribePlaysNamesTheKillerOnlyWhenKnown(t *testing.T) {
+	moments := []tuiclient.Moment{
+		{SegmentID: "death-001", Round: 3, Death: &tuiclient.MomentDeath{Killer: "enemy"}},
+		{SegmentID: "death-002", Round: 7, Death: &tuiclient.MomentDeath{}},
+	}
+	got, err := describePlays(moments, []string{"death-001", "death-002"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "death-001 (ronda 3, muere ante enemy); death-002 (ronda 7, muere)"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestCheckIDs(t *testing.T) {
 	if checkUUID("id", "9d4f1a52-2c1e-4a5e-8d6f-3b7a1c0e9f21") != nil {
 		t.Error("refused a UUID")
@@ -164,7 +178,7 @@ func TestCheckIDs(t *testing.T) {
 			t.Errorf("accepted %q as a UUID", bad)
 		}
 	}
-	if err := checkSegmentIDs([]string{"seg-001", "seg-18", "seg--07"}); err != nil {
+	if err := checkSegmentIDs([]string{"seg-001", "seg-18", "seg--07", "death-004"}); err != nil {
 		t.Errorf("refused plan segment ids: %v", err)
 	}
 	for _, bad := range [][]string{nil, {"seg-1/../x"}, {"../seg-1"}, {"seg-1", "seg-1"}, {"segment-1"}} {
