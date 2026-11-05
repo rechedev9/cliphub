@@ -187,7 +187,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		segs = WithOutroHold(segs, c.roundStarts, c.targetDeaths, m.Tickrate)
 	case SegmentModeDeaths:
 		planKillsAfterFilters = 0
-		segs = SegmentDeaths(c.targetDeaths, c.liveStarts, c.roundStarts, m.Tickrate)
+		segs = SegmentDeaths(DeathSegmentsInput{Deaths: c.targetDeaths, LiveStarts: c.liveStarts, RoundStarts: c.roundStarts, Tickrate: m.Tickrate})
 	default:
 		segs = Segment(c.kills, c.roundEnds, c.roundStarts, c.rules, m.Tickrate)
 	}

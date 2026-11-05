@@ -16,7 +16,7 @@ type ShortDraftOptions = {
 /** The producer is keyed by matchId. Polls must not reinitialize the user's choices. */
 export function useShortDraft({ matchId, plays, deathPlays = [], focusIds = [] }: ShortDraftOptions) {
   const [initial] = useState(() => {
-    const base = defaultShortSettings(plays);
+    const base = defaultShortSettings(plays, deathPlays);
     const focus = focusIds.length > 0 ? [...focusIds] : null;
     return { settings: focus ? { ...base, selectedIds: focus } : base, validIds: new Set([...plays, ...deathPlays].map((play) => play.id)), focus };
   });

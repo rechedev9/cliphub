@@ -16,7 +16,7 @@ func TestSegmentDeathsEndsEachClipOnTheDeath(t *testing.T) {
 	}
 	liveStarts := []RoundLiveStart{{Round: 2, Tick: 2800}, {Round: 4, Tick: 7000}, {Round: 6, Tick: 12000}}
 	roundStarts := []RoundStart{{Round: 2, Tick: 2000}, {Round: 4, Tick: 6000}, {Round: 6, Tick: 11000}, {Round: 7, Tick: 12990}}
-	segs := SegmentDeaths(deaths, liveStarts, roundStarts, testTickrate)
+	segs := SegmentDeaths(DeathSegmentsInput{Deaths: deaths, LiveStarts: liveStarts, RoundStarts: roundStarts, Tickrate: testTickrate})
 	if len(segs) != 3 {
 		t.Fatalf("got %d segments, want one per round with a death: %+v", len(segs), segs)
 	}

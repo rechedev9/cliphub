@@ -1179,6 +1179,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var segmentIDs []string
 	var portraitSafeKillfeed bool
 	var useRecapPlan bool
+	var useDeathPlan bool
 	var demoSource string
 	if r.Body == nil && h.retryApprovedFullDemo(w, r, j, nil) {
 		return
@@ -1222,6 +1223,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				segmentIDs = req.SegmentIDs
+				useDeathPlan = edit.DeathReel
 			}
 		default:
 			writeError(w, http.StatusBadRequest, "invalid record request JSON")
@@ -1234,7 +1236,8 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
+	task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: j.ID, HUDMode: hudMode, SegmentIDs: segmentIDs,
+		PortraitSafeKillfeed: portraitSafeKillfeed, UseRecapPlan: useRecapPlan, UseDeathPlan: useDeathPlan})
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
@@ -1457,7 +1460,7 @@ func sameCapture(a, b renderplan.GenerateIntent) bool {
 	}
 	ca, okA := captureRequestFor(a)
 	cb, okB := captureRequestFor(b)
-	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan && a.Edit.DeathReel == b.Edit.DeathReel &&
+	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan && ca.useDeathPlan == cb.useDeathPlan &&
 		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && slices.Equal(ca.segmentIDs, cb.segmentIDs)
 }
 
@@ -1466,6 +1469,7 @@ type captureRequest struct {
 	segmentIDs           []string
 	portraitSafeKillfeed bool
 	useRecapPlan         bool
+	useDeathPlan         bool
 }
 
 // captureRequestFor derives the capture-time choices of an intent the same way
@@ -1485,6 +1489,7 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 		segmentIDs:           segmentIDs,
 		portraitSafeKillfeed: preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16,
 		useRecapPlan:         useRecapPlan,
+		useDeathPlan:         !useRecapPlan && intent.Edit.DeathReel,
 	}, true
 }
 

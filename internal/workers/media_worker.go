@@ -433,7 +433,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	source := planSourceKills
 	if payload.UseRecapPlan {
 		source = planSourceRecap
-	} else if hasGenerateIntent && generateIntent.Edit.DeathReel {
+	} else if payload.UseDeathPlan {
 		source = planSourceDeaths
 	}
 	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, source, generateIntent.Edit.FullDemo); err != nil {

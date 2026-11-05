@@ -18,18 +18,25 @@ func DeathSegmentID(n int) string {
 	return fmt.Sprintf("death-%03d", n)
 }
 
-// SegmentDeaths returns one clip per live-round death of the target, from
-// DeathLeadSeconds before the death (never before the round goes live) to
-// DeathTailSeconds after it. Clips carry no kills: kills would make the
-// recorder start late and the editor add kill effects.
-func SegmentDeaths(deaths []TargetDeath, liveStarts []RoundLiveStart, roundStarts []RoundStart, tickrate int) []killplan.Segment {
-	if tickrate <= 0 || len(deaths) == 0 {
+// DeathSegmentsInput is what SegmentDeaths cuts the death clips from.
+type DeathSegmentsInput struct {
+	Deaths      []TargetDeath
+	LiveStarts  []RoundLiveStart
+	RoundStarts []RoundStart
+	Tickrate    int
+}
+
+// SegmentDeaths returns one clip per live-round death, never before the round goes live.
+// Clips carry no kills, which would delay the recorder start and add kill effects.
+func SegmentDeaths(in DeathSegmentsInput) []killplan.Segment {
+	tickrate := in.Tickrate
+	if tickrate <= 0 || len(in.Deaths) == 0 {
 		return nil
 	}
-	ordered := slices.Clone(deaths)
+	ordered := slices.Clone(in.Deaths)
 	slices.SortStableFunc(ordered, func(a, b TargetDeath) int { return a.Tick - b.Tick })
-	liveByRound := indexRoundLiveStarts(liveStarts)
-	startByRound := indexRoundStarts(roundStarts)
+	liveByRound := indexRoundLiveStarts(in.LiveStarts)
+	startByRound := indexRoundStarts(in.RoundStarts)
 	out := make([]killplan.Segment, 0, len(ordered))
 	seenRound := map[int]bool{}
 	for _, death := range ordered {

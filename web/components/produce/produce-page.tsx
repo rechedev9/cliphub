@@ -66,12 +66,16 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   const [pollError, setPollError] = useState<FullDemoLoadFailure>(null);
   /** The last partida the API confirmed; a failing tick must keep it on screen. */
   const matchRef = useRef<Match | null>(null);
+  /** The death plan is fixed once parsed: after a non-empty list, polls stop asking for it. */
+  const deathsLoadedRef = useRef(false);
 
   const activity = useSyncExternalStore(subscribeToShellActivity, shellActivitySnapshot, serverShellActivitySnapshot);
   const recBusy = activity.jobs.some((job) => job.stage === 'recording');
 
   useEffect(() => {
     let active = true;
+    deathsLoadedRef.current = false;
+    setDeathPlays([]);
     const stop = startPollLoop({
       tick: async () => {
         // One wave: the client shares this beat's status and kill-plan reads
@@ -81,7 +85,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
           api.getMatch(id),
           api.findClips(id),
           api.findRecapClips(id),
-          format === PRODUCE_FORMAT.short ? api.findDeathClips(id) : Promise.resolve([]),
+          format === PRODUCE_FORMAT.short && !deathsLoadedRef.current ? api.findDeathClips(id) : Promise.resolve(null),
         ]);
         if (!active) return 'idle';
         if (matchResult.status === 'rejected') {
@@ -101,6 +105,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
           setPlays([]);
           setDeathPlays([]);
+          deathsLoadedRef.current = false;
           setRounds([]);
           setRecapFailure(null);
           setLoaded(true);
@@ -110,11 +115,14 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         // findClips shares getMatch's status and plan reads, so a plan failure
         // already rejected getMatch above; a rejected plan result cannot reach here.
         const nextPlays = planResult.status === 'fulfilled' ? planResult.value : [];
-        // A failed death list keeps the last one: the reel stays available through a blip.
+        // Only a non-empty list replaces the last one, so a blip never drops a death-reel selection.
         const nextDeaths = deathsResult.status === 'fulfilled' ? deathsResult.value : null;
         setPlays(nextPlays);
-        if (nextDeaths !== null) setDeathPlays(nextDeaths);
-        if (nextPlays.length > 0 || (nextDeaths?.length ?? 0) > 0) setShortPlanJobId(id);
+        if (nextDeaths !== null && nextDeaths.length > 0) {
+          setDeathPlays(nextDeaths);
+          deathsLoadedRef.current = true;
+        }
+        if (nextPlays.length > 0 || deathsLoadedRef.current) setShortPlanJobId(id);
         let recapPending = false;
         if (recapResult.status === 'fulfilled') {
           setRounds(recapResult.value);

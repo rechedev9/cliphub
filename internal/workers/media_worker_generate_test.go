@@ -176,7 +176,7 @@ func TestRecordWorkerChainsRecapRenderWithoutGenerateIntent(t *testing.T) {
 	enq := &fakeEnqueuer{}
 	w := newRecordWorkerForTest(repo, store, t)
 	w.UseEnqueuer(enq)
-	task, err := tasks.NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+	task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: id, HUDMode: "gameplay", UseRecapPlan: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 			enq := &fakeEnqueuer{}
 			w := newRecordWorkerForTest(repo, store, t)
 			w.UseEnqueuer(enq)
-			task, err := tasks.NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+			task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: id, HUDMode: "gameplay", UseRecapPlan: true})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -170,7 +170,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
 
   function startOver(): void {
     if (busy) return;
-    resetSettings({ ...defaultShortSettings(killPlays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
+    resetSettings({ ...defaultShortSettings(killPlays, deathPlays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
     setCreateError(null);
     setSongOpen(false);
   }

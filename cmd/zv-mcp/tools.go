@@ -147,8 +147,8 @@ type momentsOut struct {
 
 type momentsIn struct {
 	ID     string `json:"id"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
-	Deaths bool   `json:"deaths,omitempty" jsonschema:"true lists the player's deaths instead, in match order: one clip from 8 s before each death, for a death reel"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10, or every death with deaths"`
+	Deaths bool   `json:"deaths,omitempty" jsonschema:"true lists every death of the player instead, in match order: one clip from 8 s before each death, for a death reel"`
 }
 
 type presetOut struct {
@@ -399,6 +399,10 @@ func registerTools(server *mcp.Server, s *studio) {
 			limit := in.Limit
 			if limit <= 0 {
 				limit = defaultMomentsLimit
+				// Deaths are in match order, not ranked: a cut would drop the last rounds.
+				if in.Deaths {
+					limit = len(doc.Moments)
+				}
 			}
 			out := momentsOut{Moments: make([]momentOut, 0, min(limit, len(doc.Moments))), Total: len(doc.Moments)}
 			for _, m := range doc.Moments[:min(limit, len(doc.Moments))] {
@@ -556,7 +560,11 @@ func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
 		case i < maxSummaryPlays:
 			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), plural(m.Events.Kills, "baja", "bajas"))
 			if m.Death != nil {
-				details = nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), "muere ante "+cleanName(m.Death.Killer))
+				death := "muere"
+				if killer := cleanName(m.Death.Killer); killer != "" {
+					death = "muere ante " + killer
+				}
+				details = nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), death)
 			}
 			parts = append(parts, fmt.Sprintf("%s (%s)", id, strings.Join(details, ", ")))
 		case i == maxSummaryPlays:

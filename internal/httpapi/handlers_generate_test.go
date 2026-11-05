@@ -979,6 +979,29 @@ func TestStartGenerateDeathReelTakesIdsFromTheDeathPlan(t *testing.T) {
 	if !intent.Edit.DeathReel || intent.Edit.KillCounter || !slices.Equal(intent.SegmentIDs, []string{"death-001"}) {
 		t.Fatalf("intent = %+v, want a death reel of death-001 without kill counter", intent)
 	}
+	assertRecordsDeathPlan(t, queue.enqueued[0])
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/record", h.StartRecording)
+	record := httptest.NewRecorder()
+	r.ServeHTTP(record, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record",
+		strings.NewReader(`{"preset":"viral-60-clean","segment_ids":["death-001"],"edit":{"death_reel":true}}`)))
+	if record.Code != http.StatusAccepted {
+		t.Fatalf("record status = %d, want 202; body=%s", record.Code, record.Body.String())
+	}
+	// A plain record has no generate intent: the payload alone picks the death plan.
+	assertRecordsDeathPlan(t, queue.enqueued[len(queue.enqueued)-1])
+}
+
+func assertRecordsDeathPlan(t *testing.T, task *asynq.Task) {
+	t.Helper()
+	var payload tasks.RecordDemoPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.UseDeathPlan || payload.UseRecapPlan || !slices.Equal(payload.SegmentIDs, []string{"death-001"}) {
+		t.Fatalf("record payload = %+v, want the death plan for death-001", payload)
+	}
 }
 
 func TestGetDeathsListsTheDeathClipsInMatchOrder(t *testing.T) {
