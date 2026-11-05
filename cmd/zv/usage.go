@@ -31,7 +31,7 @@ Usage:
   zv shorts render [zv-editor flags]
   zv stream fetch --url <https://...> --out <stream.mp4> [--max-bytes <n>] [--dry-run] [--format text|json]
   zv stream variants [--format text|json]
-  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--variant <name>] [--dry-run] [--format text|json]
+  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--variant <name>] [--highlights] [--dry-run] [--format text|json]
   zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir> [--dry-run] [--format text|json]
   zv music analyze [zv-rhythm analyze flags]
   zv analysis tactical --demo <match.dem> --out <tactical.json> [--positions <positions.zvpos>] [--hz <n>] [--cell-size <n>] [--dry-run] [--format text|json]

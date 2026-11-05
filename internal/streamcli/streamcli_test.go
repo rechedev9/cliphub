@@ -16,6 +16,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/vodplays"
 )
 
 type fakeStreamService struct {
@@ -31,6 +32,14 @@ type fakeStreamService struct {
 	ffmpegHasDeadline bool
 	renderHasDeadline bool
 	renderRequest     streamRenderRequest
+	kills             []vodplays.Kill
+	killsErr          error
+	killCalls         int
+}
+
+func (f *fakeStreamService) FindKills(_ context.Context, _ string, _ string) ([]vodplays.Kill, error) {
+	f.killCalls++
+	return f.kills, f.killsErr
 }
 
 func (f *fakeStreamService) Probe(ctx context.Context, _ string, _ string) (streamclips.SourceProbe, error) {
@@ -160,6 +169,46 @@ func TestRunStreamPlanWritesEditablePlan(t *testing.T) {
 	}
 	if plan.Variant != streamclips.VariantStreamerFullframeNoCam || len(plan.Clips) != 1 {
 		t.Fatalf("plan = %#v", plan)
+	}
+}
+
+func TestRunStreamPlanHighlightsMakesOneClipPerBestPlay(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "edit-plan.json")
+	service := &fakeStreamService{
+		probe: streamclips.SourceProbe{DurationSeconds: 300},
+		kills: []vodplays.Kill{{Seconds: 40}, {Seconds: 120}, {Seconds: 121}, {Seconds: 200}, {Seconds: 205}, {Seconds: 209}},
+	}
+	var stdout, stderr bytes.Buffer
+	code := runStreamWithService([]string{
+		"plan", "--input", "vod.mp4", "--out", out, "--highlights", "--min-kills", "2", "--max-clips", "1", "--format", "json",
+	}, &stdout, &stderr, service)
+	if code != exitSuccess || stderr.Len() != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr.String())
+	}
+	var plan streamclips.EditPlan
+	body, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(body, &plan); err != nil {
+		t.Fatal(err)
+	}
+	want := streamclips.ClipRange{ID: "play-003", StartSeconds: 194, EndSeconds: 212, Title: "Triple kill"}
+	if len(plan.Clips) != 1 || plan.Clips[0] != want {
+		t.Fatalf("clips = %+v, want only %+v", plan.Clips, want)
+	}
+}
+
+func TestRunStreamPlanHighlightsFailsWhenNoPlayIsFound(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "edit-plan.json")
+	service := &fakeStreamService{probe: streamclips.SourceProbe{DurationSeconds: 300}}
+	var stdout, stderr bytes.Buffer
+	code := runStreamWithService([]string{"plan", "--input", "vod.mp4", "--out", out, "--highlights"}, &stdout, &stderr, service)
+	if code != exitUnexpected || !strings.Contains(stderr.String(), "no plays") {
+		t.Fatalf("code = %d, stderr = %q", code, stderr.String())
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Fatalf("plan stat error = %v, want no plan written", err)
 	}
 }
 

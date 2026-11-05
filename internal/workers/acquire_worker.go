@@ -91,10 +91,7 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	if j.SourceURL == "" {
 		return fmt.Errorf("stream job %s has no source url", j.ID)
 	}
-	cfg := w.cfg.withDefaults()
-	if err := cfg.validate(); err != nil {
-		return err
-	}
+	cfg := w.cfg
 
 	workDir, cleanup, err := prepareStageDir(cfg.WorkDir, j.ID, "stream-acquire")
 	if err != nil {
@@ -130,7 +127,10 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 			discoveredTitle = metadata.Title
 		}
 	} else {
-		runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
+		runCtx, cancel, err := cfg.downloadContext(ctx)
+		if err != nil {
+			return err
+		}
 		defer cancel()
 		result, err := w.fetcher.Download(runCtx, j.SourceURL, destPath)
 		if err != nil {
@@ -171,26 +171,19 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	return nil
 }
 
-func (c AcquireWorkerConfig) withDefaults() AcquireWorkerConfig {
+// downloadContext bounds the download only when a timeout is set: a full VOD
+// can take any time, and yt-dlp's socket timeout already ends a stalled one.
+func (c AcquireWorkerConfig) downloadContext(ctx context.Context) (context.Context, context.CancelFunc, error) {
 	if c.Timeout == "" {
-		c.Timeout = defaultMediaWorkerTimeout
+		ctx, cancel := context.WithCancel(ctx)
+		return ctx, cancel, nil
 	}
-	return c
-}
-
-func (c AcquireWorkerConfig) validate() error {
-	if _, err := time.ParseDuration(c.Timeout); err != nil {
-		return fmt.Errorf("timeout must be a duration: %w", err)
-	}
-	return nil
-}
-
-func (c AcquireWorkerConfig) timeoutDuration() time.Duration {
 	d, err := time.ParseDuration(c.Timeout)
 	if err != nil {
-		return 20 * time.Minute
+		return nil, nil, fmt.Errorf("timeout must be a duration: %w", err)
 	}
-	return d
+	ctx, cancel := context.WithTimeout(ctx, d)
+	return ctx, cancel, nil
 }
 
 // sha256File hashes a local file's contents.

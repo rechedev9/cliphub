@@ -163,6 +163,24 @@ export type StreamRenderState = {
   delivery?: { name: string; kind: string; key: string }[];
 };
 
+/** A run of the recording player's kills found in the source kill feed. */
+export type StreamPlay = {
+  id: string;
+  label: string;
+  start_seconds: number;
+  end_seconds: number;
+  kill_seconds: number[];
+  score: number;
+};
+
+export type StreamPlayScan = {
+  status: 'idle' | 'running' | 'done' | 'failed';
+  /** 0..1 of the source scanned while running. */
+  progress: number;
+  plays: StreamPlay[];
+  error?: string;
+};
+
 export interface StreamsApiClient {
   createFromUrl(input: { sourceUrl: string; title?: string }): Promise<StreamJob>;
   createFromFile(file: File, title?: string): Promise<StreamJob>;
@@ -176,6 +194,9 @@ export interface StreamsApiClient {
   putEditPlan(id: string, plan: StreamEditPlan): Promise<StreamEditPlan>;
   startRender(id: string, variant: StreamVariant, expectedEditPlanUpdatedAt: string): Promise<StreamRenderState>;
   getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState>;
+  getPlays(id: string): Promise<StreamPlayScan>;
+  /** Starts the kill-feed scan of the source; answers at once with the running state. */
+  startPlayScan(id: string): Promise<StreamPlayScan>;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
   videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string;
   deliveryUrl(id: string, variant: StreamVariant, name: string): string;
@@ -271,6 +292,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
     const res = await fetch(`/api/streams/${id}/renders/${variant}`, { cache: 'no-store' });
     if (res.status === 404) return { status: 'none', videos: [] };
     return readJson<StreamRenderState>(res);
+  }
+
+  async getPlays(id: string): Promise<StreamPlayScan> {
+    return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { cache: 'no-store' }));
+  }
+
+  async startPlayScan(id: string): Promise<StreamPlayScan> {
+    return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { method: 'POST' }));
   }
 
   videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string {

@@ -642,6 +642,9 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--face-crop",
 			"--gameplay-crop",
 			"--ffprobe",
+			"--ffmpeg",
+			"--min-kills",
+			"--max-clips",
 			"--format",
 		)
 	case `"stream render"`:
@@ -728,7 +731,9 @@ func commandBoolFlags(commandName string) []string {
 			"--temporal-smoothing",
 			"--compile-segments",
 		}
-	case `"stream fetch"`, `"stream plan"`, `"stream render"`:
+	case `"stream plan"`:
+		return []string{"--dry-run", "--highlights"}
+	case `"stream fetch"`, `"stream render"`:
 		return []string{"--dry-run"}
 	case `"music analyze"`:
 		return []string{"--rank-moments"}

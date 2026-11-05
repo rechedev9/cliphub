@@ -12,6 +12,7 @@ import {
   type StreamEditPlan,
   type StreamerBannerPlatform,
   type StreamJob,
+  type StreamPlay,
   type StreamRenderState,
   type StreamVariant,
 } from '@/lib/api/streams';
@@ -78,6 +79,8 @@ import { MomentRange } from '@/components/streams/moment-range';
 import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { streamRangeIssue, streamRangeOverlapIssue, streamRangesIssue } from '@/lib/clip-edit';
 import { StreamSaveButton } from '@/components/streams/stream-save-button';
+import { StreamDetectedPlays } from '@/components/streams/detected-plays';
+import { clipsWithPlays } from '@/lib/streams/plays';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -353,6 +356,18 @@ export function StreamEditor({
     setClips(next);
     selectClip(clip);
   };
+  const addPlays = (plays: StreamPlay[]) => {
+    const next = clipsWithPlays(plan.clips, plays, nextClipId);
+    const added = next.find((clip) => !plan.clips.some((c) => c.id === clip.id));
+    if (!added) return;
+    setClips(next);
+    selectClip(added);
+  };
+  const seekSource = (seconds: number) => {
+    setPlaybackMode('source');
+    setPreviewPlaying(false);
+    seek(seconds);
+  };
   const removeClip = (clip: StreamClipRange) => {
     const next = plan.clips.filter((c) => c.id !== clip.id);
     setClips(next);
@@ -493,6 +508,13 @@ export function StreamEditor({
         <p className="text-body-sm text-fg-2">
           Reproduce el original, marca el inicio y el final y añade el momento. Cada momento será un Short.
         </p>
+        <StreamDetectedPlays
+          jobId={job.id}
+          clips={plan.clips}
+          disabled={busy}
+          onAdd={addPlays}
+          onSeek={seekSource}
+        />
         {creatingMoment ? (
           <section aria-label="Nuevo momento" className="flex flex-col gap-3 rounded-md border border-stream/40 p-3">
             <h3 className="font-semibold">Nuevo momento</h3>

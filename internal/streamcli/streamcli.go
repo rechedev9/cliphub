@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/vodplays"
 	"github.com/rechedev9/cliphub/internal/workers"
 )
 
@@ -32,6 +34,7 @@ type streamService interface {
 	Probe(ctx context.Context, input, ffprobe string) (streamclips.SourceProbe, error)
 	ValidateFFmpeg(ctx context.Context, ffmpeg string) error
 	Render(ctx context.Context, request streamRenderRequest) (streamRenderResult, error)
+	FindKills(ctx context.Context, input, ffmpeg string) ([]vodplays.Kill, error)
 }
 
 type localStreamService struct{}
@@ -84,6 +87,7 @@ type streamPlanResult struct {
 	Output   string                  `json:"output"`
 	Probe    streamclips.SourceProbe `json:"probe"`
 	Plan     streamclips.EditPlan    `json:"plan"`
+	Plays    []vodplays.Play         `json:"plays,omitempty"`
 }
 
 type streamVariantRow struct {
@@ -195,10 +199,20 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 	faceCrop := fs.String("face-crop", "", "normalized x,y,width,height")
 	gameplayCrop := fs.String("gameplay-crop", "", "normalized x,y,width,height")
 	ffprobe := fs.String("ffprobe", "", "ffprobe executable")
+	ffmpeg := fs.String("ffmpeg", "", "ffmpeg executable for --highlights")
+	highlights := fs.Bool("highlights", false, "one clip per detected play")
+	minKills := fs.Int("min-kills", 1, "fewest kills a detected play needs")
+	maxClips := fs.Int("max-clips", 10, "most detected plays to keep")
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate and print without writing the plan")
 	if err := fs.Parse(args); err != nil {
 		return writeStreamCommandError(args, stdout, stderr, err, streamPlanUsage)
+	}
+	if *highlights && (flagSet(fs, "clip-id") || flagSet(fs, "clip-start") || flagSet(fs, "clip-end") || flagSet(fs, "title")) {
+		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--highlights picks the clips; drop --clip-id, --clip-start, --clip-end and --title"), streamPlanUsage)
+	}
+	if *minKills < 1 || *maxClips < 1 {
+		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--min-kills and --max-clips must be at least 1"), streamPlanUsage)
 	}
 	if fs.NArg() != 0 {
 		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), streamPlanUsage)
@@ -250,6 +264,22 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 		EndSeconds:   end,
 		Title:        *title,
 	}}
+	var plays []vodplays.Play
+	if *highlights {
+		ffmpegPath := *ffmpeg
+		if ffmpegPath == "" {
+			ffmpegPath = recording.FindFFmpeg()
+		}
+		kills, err := service.FindKills(context.Background(), *input, ffmpegPath)
+		if err != nil {
+			return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("find plays: %w", err))
+		}
+		plays = vodplays.BestPlays(vodplays.GroupPlays(kills, probe.DurationSeconds), *minKills, *maxClips)
+		if len(plays) == 0 {
+			return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("no plays with at least %d kills found in %s; the kill feed must be visible in the top-right corner", *minKills, *input))
+		}
+		plan.Clips = highlightClips(plays)
+	}
 	plan.StreamerBanner.Nick = *nick
 	plan.UpdatedAt = time.Now().UTC()
 	plan = streamclips.NormalizeEditPlan(plan)
@@ -266,6 +296,7 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 		Output:   absOut,
 		Probe:    probe,
 		Plan:     plan,
+		Plays:    plays,
 	}
 	if !*dryRun {
 		body, marshalErr := json.MarshalIndent(plan, "", "  ")
@@ -439,6 +470,40 @@ func (localStreamService) Probe(ctx context.Context, input, ffprobe string) (str
 		return streamclips.SourceProbe{}, fmt.Errorf("input is not a regular file")
 	}
 	return (streamclips.FFprobeProber{Path: ffprobe}).Probe(ctx, input)
+}
+
+func (localStreamService) FindKills(ctx context.Context, input, ffmpeg string) ([]vodplays.Kill, error) {
+	if ffmpeg == "" {
+		return nil, fmt.Errorf("ffmpeg is not configured")
+	}
+	return vodplays.FindKills(ctx, vodplays.FindOptions{FFmpeg: ffmpeg, Input: input})
+}
+
+// highlightClips orders the chosen plays by time so the render follows the
+// video, and titles each clip with its play.
+func highlightClips(plays []vodplays.Play) []streamclips.ClipRange {
+	ordered := append([]vodplays.Play(nil), plays...)
+	sort.Slice(ordered, func(a, b int) bool { return ordered[a].StartSeconds < ordered[b].StartSeconds })
+	clips := make([]streamclips.ClipRange, 0, len(ordered))
+	for _, play := range ordered {
+		clips = append(clips, streamclips.ClipRange{
+			ID:           play.ID,
+			StartSeconds: play.StartSeconds,
+			EndSeconds:   play.EndSeconds,
+			Title:        play.Label,
+		})
+	}
+	return clips
+}
+
+func flagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }
 
 func (localStreamService) Render(ctx context.Context, request streamRenderRequest) (streamRenderResult, error) {

@@ -60,8 +60,8 @@ func TestRunStreamFetchDryRunValidatesWithoutDownloading(t *testing.T) {
 	if result.URL != "https://clips.twitch.tv/SomeClipSlug" {
 		t.Fatalf("url = %q", result.URL)
 	}
-	if result.MaxBytes != vodfetch.DefaultMaxBytes {
-		t.Fatalf("max_bytes = %d, want default", result.MaxBytes)
+	if result.MaxBytes != 0 {
+		t.Fatalf("max_bytes = %d, want no ceiling", result.MaxBytes)
 	}
 	if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run created dest; stat err = %v", err)
@@ -90,8 +90,8 @@ func TestRunStreamFetchTable(t *testing.T) {
 			wantCode: exitInvalidArgs,
 		},
 		{
-			name:     "zero max-bytes",
-			args:     []string{"--url", "https://www.twitch.tv/videos/123456789", "--out", dest, "--max-bytes", "0", "--format", "json"},
+			name:     "negative max-bytes",
+			args:     []string{"--url", "https://www.twitch.tv/videos/123456789", "--out", dest, "--max-bytes", "-1", "--format", "json"},
 			wantCode: exitInvalidArgs,
 		},
 		{

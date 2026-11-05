@@ -13,9 +13,6 @@ export const STREAM_IMPORT_FILE_FAIL_MESSAGE = 'No se pudo procesar ese archivo.
 export const STREAM_IMPORT_YTDLP_MISSING_MESSAGE =
   'Este equipo no puede descargar vídeos desde un enlace. Usa “Subir un MP4” o reinstala ClipHub Studio.';
 
-export const STREAM_IMPORT_FILE_TOO_LARGE_MESSAGE =
-  'Ese archivo supera el límite de 2 GB. Recorta la grabación o importa el clip desde su enlace.';
-
 export const STREAM_IMPORT_FILE_UNREADABLE_MESSAGE =
   'Ese archivo no se puede leer como vídeo. Prueba con otro MP4.';
 
@@ -78,11 +75,6 @@ const URL_IMPORT_RULES: readonly ImportErrorRule[] = [
 ];
 
 const FILE_IMPORT_RULES: readonly ImportErrorRule[] = [
-  {
-    match: (message, status) =>
-      status === 413 || message === 'file too large' || message === 'request body too large',
-    message: STREAM_IMPORT_FILE_TOO_LARGE_MESSAGE,
-  },
   { match: (message) => message.startsWith('probe video:'), message: STREAM_IMPORT_FILE_UNREADABLE_MESSAGE },
 ];
 

@@ -17,9 +17,8 @@ import { publicStreamJob } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 
-// Generous cap for an uploaded MP4 (facecam + gameplay VOD clip), well above a
-// typical Twitch clip/short VOD export.
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+// A full VOD can be any size, so an uploaded MP4 has no cap.
+const MAX_UPLOAD_BYTES = Number.POSITIVE_INFINITY;
 
 /**
  * POST /api/streams — create a Stream Clips job, either from a Twitch clip/VOD

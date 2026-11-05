@@ -19,11 +19,6 @@ import (
 	"strings"
 )
 
-// DefaultMaxBytes matches the direct stream-upload ceiling. URL acquisition
-// uses the same limit so yt-dlp cannot fill the local disk with an unbounded
-// VOD before the worker timeout expires.
-const DefaultMaxBytes int64 = 8 << 30
-
 // Sentinel errors classified from yt-dlp stderr. Callers can use errors.Is to
 // branch on them; Download always wraps the underlying yt-dlp output as
 // additional context.
@@ -281,7 +276,8 @@ type Fetcher struct {
 	// BinaryPath is the yt-dlp executable to run. Defaults to "yt-dlp" (found
 	// via PATH) when empty.
 	BinaryPath string
-	// MaxBytes caps the downloaded file. Values <= 0 use DefaultMaxBytes.
+	// MaxBytes caps the downloaded file. Values <= 0 mean no cap, since a full
+	// VOD can be any size.
 	MaxBytes int64
 	// Runner executes BinaryPath. Defaults to execCommandRunner when nil.
 	Runner CommandRunner
@@ -308,11 +304,8 @@ func (f Fetcher) runner() CommandRunner {
 	return execCommandRunner{}
 }
 
-func (f Fetcher) maxBytes() int64 {
-	if f.MaxBytes > 0 {
-		return f.MaxBytes
-	}
-	return DefaultMaxBytes
+func (f Fetcher) tooLarge(size int64) bool {
+	return f.MaxBytes > 0 && size > f.MaxBytes
 }
 
 // Download fetches url into destPath as an MP4. It is idempotent: if
@@ -326,15 +319,14 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		return Result{}, fmt.Errorf("classify source: %w", err)
 	}
 	rawURL = validated.AcquisitionURL
-	maxBytes := f.maxBytes()
 	source := validated.PublicURL
 
 	if info, err := os.Stat(destPath); err == nil {
 		if info.IsDir() {
 			return Result{}, fmt.Errorf("dest path %q is a directory", destPath)
 		}
-		if info.Size() > maxBytes {
-			return Result{}, fmt.Errorf("download %s: %w (limit %d bytes)", source, ErrTooLarge, maxBytes)
+		if f.tooLarge(info.Size()) {
+			return Result{}, fmt.Errorf("download %s: %w (limit %d bytes)", source, ErrTooLarge, f.MaxBytes)
 		}
 		return Result{Path: destPath, Bytes: info.Size()}, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -378,10 +370,11 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		"--fragment-retries", "2",
 		"--extractor-retries", "2",
 		"--print", "after_move:%(title)s",
-		"--max-filesize", strconv.FormatInt(maxBytes, 10),
-		"-o", tmpPath,
-		rawURL,
 	}
+	if f.MaxBytes > 0 {
+		args = append(args, "--max-filesize", strconv.FormatInt(f.MaxBytes, 10))
+	}
+	args = append(args, "-o", tmpPath, rawURL)
 
 	stdout, stderr, runErr := f.runner().Run(ctx, destDir, f.binaryPath(), args...)
 	if runErr != nil {
@@ -400,9 +393,9 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		_ = os.Remove(tmpPath)
 		return Result{}, fmt.Errorf("download %s: yt-dlp produced an empty file", source)
 	}
-	if info.Size() > maxBytes {
+	if f.tooLarge(info.Size()) {
 		_ = os.Remove(tmpPath)
-		return Result{}, fmt.Errorf("download %s: %w (limit %d bytes)", source, ErrTooLarge, maxBytes)
+		return Result{}, fmt.Errorf("download %s: %w (limit %d bytes)", source, ErrTooLarge, f.MaxBytes)
 	}
 	if err := os.Chmod(tmpPath, 0o600); err != nil {
 		_ = os.Remove(tmpPath)

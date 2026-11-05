@@ -140,6 +140,8 @@ type Handlers struct {
 	rateLimiter         *rateLimiter
 	uploadLimiter       *uploadLimiter
 	streamProber        streamclips.Prober
+	playScanFFmpeg      string
+	playScans           streamPlayScans
 	musicDir            string
 	capabilities        Capabilities
 	youtubeTrends       YouTubeTrends
