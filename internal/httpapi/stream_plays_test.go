@@ -17,7 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
-func TestStreamPlayScanFindsTheHighlightedKill(t *testing.T) {
+func TestStreamPlaysFindTheHighlightedKillAndSummarizeIt(t *testing.T) {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		t.Skip("ffmpeg not on PATH")
@@ -69,6 +69,49 @@ func TestStreamPlayScanFindsTheHighlightedKill(t *testing.T) {
 	if got := scan.Plays[0].KillSeconds[0]; got < 0.9 || got > 1.3 {
 		t.Fatalf("kill at %.2fs, want about 1s", got)
 	}
+
+	requestSummary(t, router, http.MethodPost, id)
+	summary := requestSummary(t, router, http.MethodGet, id)
+	for summary.Status == playScanRunning && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+		summary = requestSummary(t, router, http.MethodGet, id)
+	}
+	if summary.Status != playScanDone || summary.PlayCount != 1 {
+		t.Fatalf("summary = %+v, want one play summarized", summary)
+	}
+	video := httptest.NewRecorder()
+	router.ServeHTTP(video, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String()+"/summary/video", nil))
+	if video.Code != http.StatusOK || video.Header().Get("Content-Type") != "video/mp4" || video.Body.Len() == 0 {
+		t.Fatalf("summary video status = %d type = %q bytes = %d", video.Code, video.Header().Get("Content-Type"), video.Body.Len())
+	}
+}
+
+func TestStreamSummaryNeedsThePlays(t *testing.T) {
+	repo := newFakeStreamRepo()
+	id := uuid.New()
+	if err := repo.Create(context.Background(), &streamclips.Job{ID: id, Status: streamclips.StatusReady}); err != nil {
+		t.Fatal(err)
+	}
+	router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamPlayScanner("ffmpeg")))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/stream-jobs/"+id.String()+"/summary", nil))
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", response.Code, response.Body.String())
+	}
+}
+
+func requestSummary(t *testing.T, router http.Handler, method string, id uuid.UUID) streamSummary {
+	t.Helper()
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(method, "/api/stream-jobs/"+id.String()+"/summary", nil))
+	if response.Code != http.StatusOK && response.Code != http.StatusAccepted {
+		t.Fatalf("%s summary status = %d; body=%s", method, response.Code, response.Body.String())
+	}
+	var summary streamSummary
+	if err := json.Unmarshal(response.Body.Bytes(), &summary); err != nil {
+		t.Fatal(err)
+	}
+	return summary
 }
 
 func TestStreamPlayScanWaitsForTheSource(t *testing.T) {

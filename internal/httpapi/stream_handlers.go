@@ -32,14 +32,16 @@ const (
 )
 
 type createStreamJobConfig struct {
-	Title string `json:"title,omitempty"`
+	Title      string `json:"title,omitempty"`
+	SourceKind string `json:"source_kind,omitempty"`
 }
 
 // createStreamJobFromURLRequest is the JSON body for POST /api/stream-jobs
 // when acquiring a source video by URL instead of uploading it directly.
 type createStreamJobFromURLRequest struct {
-	SourceURL string `json:"source_url"`
-	Title     string `json:"title,omitempty"`
+	SourceURL  string `json:"source_url"`
+	Title      string `json:"title,omitempty"`
+	SourceKind string `json:"source_kind,omitempty"`
 }
 
 type streamVariantSummary struct {
@@ -115,6 +117,11 @@ func (h *Handlers) CreateStreamJob(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	kind, err := streamclips.ParseSourceKind(cfg.SourceKind)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	tmp, err := os.CreateTemp("", "zv-stream-upload-*.mp4")
 	if err != nil {
@@ -161,6 +168,7 @@ func (h *Handlers) CreateStreamJob(w http.ResponseWriter, r *http.Request) {
 		SourcePath:   sourceKey,
 		SourceSHA256: hex.EncodeToString(h256.Sum(nil)),
 		Title:        cfg.Title,
+		SourceKind:   kind,
 		Probe:        probe,
 	}
 	if err := h.streamRepo.Create(r.Context(), j); err != nil {
@@ -201,6 +209,18 @@ func (h *Handlers) createStreamJobFromURL(w http.ResponseWriter, r *http.Request
 		writeCodedError(w, http.StatusBadRequest, "invalid_source_url", "invalid source_url: "+err.Error())
 		return
 	}
+	kind, err := streamclips.ParseSourceKind(req.SourceKind)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.SourceKind == "" {
+		kind = sourceKindOfURL(req.SourceURL)
+	}
+	if mismatch := sourceKindMismatch(kind, req.SourceURL); mismatch != "" {
+		writeCodedError(w, http.StatusBadRequest, "source_kind_mismatch", mismatch)
+		return
+	}
 
 	id := uuid.New()
 	j := &streamclips.Job{
@@ -210,6 +230,7 @@ func (h *Handlers) createStreamJobFromURL(w http.ResponseWriter, r *http.Request
 		SourceURL:       source.AcquisitionURL,
 		PublicSourceURL: source.PublicURL,
 		Title:           req.Title,
+		SourceKind:      kind,
 	}
 	if err := h.streamRepo.Create(r.Context(), j); err != nil {
 		internalError(w, "create stream job", err)
@@ -233,6 +254,33 @@ func (h *Handlers) createStreamJobFromURL(w http.ResponseWriter, r *http.Request
 		"status": j.Status,
 		"probe":  j.Probe,
 	})
+}
+
+// sourceKindMismatch explains why a link cannot be imported as the chosen
+// kind. Only Twitch and Kick tell a clip from a VOD by URL; others pass.
+func sourceKindMismatch(kind streamclips.SourceKind, rawURL string) string {
+	urlKind, err := vodfetch.ClassifySource(rawURL)
+	if err != nil {
+		return ""
+	}
+	switch {
+	case kind == streamclips.SourceKindClip && (urlKind == vodfetch.SourceTwitchVOD || urlKind == vodfetch.SourceKickVOD):
+		return "source_url is a full VOD, not a clip"
+	case kind == streamclips.SourceKindVOD && (urlKind == vodfetch.SourceTwitchClip || urlKind == vodfetch.SourceKickClip):
+		return "source_url is a clip, not a full VOD"
+	default:
+		return ""
+	}
+}
+
+// sourceKindOfURL is the kind a client that does not choose one gets: a
+// Twitch or Kick VOD link is a VOD, anything else a clip.
+func sourceKindOfURL(rawURL string) streamclips.SourceKind {
+	urlKind, err := vodfetch.ClassifySource(rawURL)
+	if err == nil && (urlKind == vodfetch.SourceTwitchVOD || urlKind == vodfetch.SourceKickVOD) {
+		return streamclips.SourceKindVOD
+	}
+	return streamclips.SourceKindClip
 }
 
 // persistStreamAcquireQueueDecision prevents URL-backed jobs from remaining

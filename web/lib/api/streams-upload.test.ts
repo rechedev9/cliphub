@@ -16,13 +16,13 @@ test('stream upload uses the orchestrator multipart field names', async () => {
 
   try {
     const file = new File([new Uint8Array([1, 2, 3])], 'clip.mp4', { type: 'video/mp4' });
-    await new RealStreamsApiClient().createFromFile(file, 'Clutch');
+    await new RealStreamsApiClient().createFromFile(file, { title: 'Clutch', sourceKind: 'vod' });
 
     assert.ok(requestBody);
     const video = requestBody.get('video');
     assert.ok(video instanceof File);
     assert.equal(video.name, 'clip.mp4');
-    assert.equal(requestBody.get('config'), JSON.stringify({ title: 'Clutch' }));
+    assert.equal(requestBody.get('config'), JSON.stringify({ title: 'Clutch', source_kind: 'vod' }));
     assert.equal(requestBody.has('file'), false);
     assert.equal(requestBody.has('title'), false);
   } finally {

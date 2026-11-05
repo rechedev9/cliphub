@@ -206,7 +206,7 @@ func migrateV1Baseline(tx *sql.Tx) error {
 	if err := migrateKillPlansOffJobsRow(tx); err != nil {
 		return err
 	}
-	for _, column := range []string{"public_source_url", "failure_code"} {
+	for _, column := range []string{"public_source_url", "failure_code", "source_kind"} {
 		found, err := columnExists(tx, "stream_jobs", column)
 		if err != nil {
 			return err

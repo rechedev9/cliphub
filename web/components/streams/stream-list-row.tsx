@@ -52,7 +52,8 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
   // The source only loads for rows on screen: a long list must not range-fetch every MP4 at once.
   const { ref, seen } = useSeen<HTMLLIElement>();
   const title = streamTitle(job);
-  const meta = streamSourceLabel(job.source_url) ?? 'Archivo local';
+  const kind = job.source_kind === 'vod' ? 'VOD completo' : 'Clip';
+  const meta = `${kind} · ${streamSourceLabel(job.source_url) ?? 'Archivo local'}`;
   const actionLabel = PROJECT_ACTION_LABELS[job.status];
 
   return (

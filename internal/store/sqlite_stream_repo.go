@@ -55,10 +55,10 @@ func (r *SQLiteStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 		j.PublicSourceURL = source.PublicURL
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO stream_jobs (id, status, failure_reason, failure_code, source_path, source_sha256, source_url, public_source_url, title, probe, edit_plan, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO stream_jobs (id, status, failure_reason, failure_code, source_path, source_sha256, source_url, public_source_url, title, source_kind, probe, edit_plan, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		j.ID.String(), string(j.Status), nullableText(j.FailureReason), nullableText(streamFailureCode(j.FailureReason, j.FailureCode)), j.SourcePath, j.SourceSHA256,
-		nullableText(j.SourceURL), nullableText(j.PublicSourceURL), nullableText(j.Title), probeJSON, nullableEditPlan(j.EditPlan),
+		nullableText(j.SourceURL), nullableText(j.PublicSourceURL), nullableText(j.Title), nullableText(string(j.SourceKind)), probeJSON, nullableEditPlan(j.EditPlan),
 		now.UnixNano(), now.UnixNano(),
 	)
 	if err != nil {
@@ -70,7 +70,7 @@ func (r *SQLiteStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 func (r *SQLiteStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
-		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
+		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), COALESCE(source_kind,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs WHERE id = ?`, id.String())
 	return scanSQLiteStreamJob(row)
 }
@@ -84,7 +84,7 @@ func (r *SQLiteStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
-		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
+		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), COALESCE(source_kind,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs ORDER BY updated_at DESC, created_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query stream jobs: %w", err)
@@ -108,7 +108,7 @@ func (r *SQLiteStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 func (r *SQLiteStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
-		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
+		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), COALESCE(source_kind,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs WHERE status = ? ORDER BY updated_at DESC, created_at DESC`, string(status))
 	if err != nil {
 		return nil, fmt.Errorf("query stream jobs by status: %w", err)
@@ -197,11 +197,11 @@ func (r *SQLiteStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) er
 }
 func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 	var j streamclips.Job
-	var idStr, statusRaw string
+	var idStr, statusRaw, kindRaw string
 	var probeJSON, planJSON []byte
 	var createdNano, updatedNano int64
 	err := row.Scan(&idStr, &statusRaw, &j.FailureReason, &j.FailureCode, &j.SourcePath, &j.SourceSHA256,
-		&j.SourceURL, &j.PublicSourceURL, &j.Title, &probeJSON, &planJSON, &createdNano, &updatedNano)
+		&j.SourceURL, &j.PublicSourceURL, &j.Title, &kindRaw, &probeJSON, &planJSON, &createdNano, &updatedNano)
 	if errors.Is(err, sql.ErrNoRows) {
 		return streamclips.Job{}, streamclips.ErrNotFound
 	}
@@ -218,6 +218,7 @@ func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 		return streamclips.Job{}, err
 	}
 	j.Status = status
+	j.SourceKind = streamclips.SourceKind(kindRaw)
 	if j.SourceURL == "" {
 		// Downstream render metadata historically reads SourceURL. Once the
 		// acquisition secret is cleared, the safe public value preserves that

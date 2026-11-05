@@ -2,30 +2,47 @@
 
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { ArrowRight, Info, Link2, Twitch, UploadCloud, Youtube } from 'lucide-react';
+import type { StreamSourceKind } from '@/lib/api/streams';
 import { isStreamURLValidationError } from '@/lib/streams/plan';
 import { Button, buttonVariants, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 
 /** A failed import, tagged with the control that caused it so the message sits beside it. */
 export type StreamImportError = { source: 'url' | 'file'; message: string };
 
+const KIND_COPY: Record<StreamSourceKind, { placeholder: string; result: string }> = {
+  clip: {
+    placeholder: 'Pega el enlace de un clip de Twitch, YouTube o Kick',
+    result: 'Un momento corto: lo pasas a vertical, ajustas la cámara y lo exportas como un Short.',
+  },
+  vod: {
+    placeholder: 'Pega el enlace del VOD de Twitch, YouTube o Kick',
+    result: 'Un stream entero: buscamos tus kills y sacas un resumen horizontal de todas y Shorts verticales de las que elijas.',
+  },
+};
+
 /** Both source choices share the optional title. Keep #stream-url stable for integrations. */
 export function StreamSourcePanel({
+  sourceKind,
   sourceUrl,
   title,
   submitting,
   error,
+  onSourceKindChange,
   onSourceUrlChange,
   onTitleChange,
   onSubmitUrl,
   onSubmitFile,
 }: {
+  sourceKind: StreamSourceKind;
   sourceUrl: string;
   title: string;
   submitting: boolean;
   error: StreamImportError | null;
+  onSourceKindChange: (kind: StreamSourceKind) => void;
   onSourceUrlChange: (value: string) => void;
   onTitleChange: (value: string) => void;
   onSubmitUrl: () => void;
@@ -54,6 +71,25 @@ export function StreamSourcePanel({
         <p className="mt-1.5 text-body text-fg-2">Pega un enlace o sube una grabación para empezar.</p>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <span id="stream-kind-label" className="text-label text-fg-2">Qué vas a importar</span>
+        <ToggleGroup
+          type="single"
+          variant="filter"
+          spacing={2}
+          aria-labelledby="stream-kind-label"
+          aria-describedby="stream-source-hint"
+          disabled={submitting}
+          value={sourceKind}
+          onValueChange={(next: string) => {
+            if (next === 'clip' || next === 'vod') onSourceKindChange(next);
+          }}
+        >
+          <ToggleGroupItem value="vod">VOD completo</ToggleGroupItem>
+          <ToggleGroupItem value="clip">Clip</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       <div className="grid gap-6 @[48rem]/content:grid-cols-[minmax(0,1.1fr)_auto_minmax(0,1fr)] @[48rem]/content:gap-8">
         <form
           className="flex min-w-0 flex-col gap-5"
@@ -74,7 +110,7 @@ export function StreamSourcePanel({
               <Input
                 id="stream-url"
                 aria-label="Enlace del vídeo de Twitch, YouTube o Kick"
-                placeholder="Pega un enlace de Twitch, YouTube o Kick"
+                placeholder={KIND_COPY[sourceKind].placeholder}
                 autoComplete="off"
                 spellCheck={false}
                 inputMode="url"
@@ -175,7 +211,7 @@ export function StreamSourcePanel({
 
       <p id="stream-source-hint" className="flex items-start gap-2.5 border-t border-border pt-4 text-body-sm text-fg-2">
         <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-        <span>Después podrás elegir los cortes. Cada corte se exporta como un Short independiente.</span>
+        <span>{KIND_COPY[sourceKind].result}</span>
       </p>
     </section>
   );

@@ -1,26 +1,30 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { streamsApi, type StreamClipRange, type StreamPlay, type StreamPlayScan } from '@/lib/api/streams';
 import { errorMessage, formatStreamClock } from '@/lib/streams/plan';
 import { playIsCovered, rankPlays } from '@/lib/streams/plays';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { StreamSummaryCard } from '@/components/streams/stream-summary';
 
 const POLL_MS = 2000;
 
 /**
  * Finds the streamer's kills in the source (the red kill-feed highlight of
- * CS2) and offers each run of kills as a moment.
+ * CS2) and offers each run of kills as a moment. A full VOD scans on its own
+ * and also offers the landscape summary of every play.
  */
 export function StreamDetectedPlays({
   jobId,
+  vod,
   clips,
   disabled,
   onAdd,
   onSeek,
 }: {
   jobId: string;
+  vod: boolean;
   clips: readonly StreamClipRange[];
   disabled: boolean;
   onAdd: (plays: StreamPlay[]) => void;
@@ -29,6 +33,7 @@ export function StreamDetectedPlays({
   const [scan, setScan] = useState<StreamPlayScan | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const running = scan?.status === 'running';
+  const autoStarted = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -57,7 +62,14 @@ export function StreamDetectedPlays({
     }
   };
 
+  useEffect(() => {
+    if (!vod || disabled || scan?.status !== 'idle' || autoStarted.current) return;
+    autoStarted.current = true;
+    void start();
+  });
+
   const ranked = rankPlays(scan?.plays ?? []);
+  const playSeconds = (scan?.plays ?? []).reduce((total, play) => total + play.end_seconds - play.start_seconds, 0);
   const open = ranked.filter((play) => !playIsCovered(clips, play));
 
   return (
@@ -97,6 +109,10 @@ export function StreamDetectedPlays({
         <p className="text-body-sm text-fg-2">
           No encontramos kills tuyas. El kill feed tiene que verse arriba a la derecha.
         </p>
+      ) : null}
+
+      {vod && scan?.status === 'done' && ranked.length > 0 ? (
+        <StreamSummaryCard jobId={jobId} playCount={ranked.length} playSeconds={playSeconds} disabled={disabled} />
       ) : null}
 
       {scan?.status === 'done' && ranked.length > 0 ? (

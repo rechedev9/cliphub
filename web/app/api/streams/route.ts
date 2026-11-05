@@ -59,14 +59,15 @@ export async function POST(request: Request): Promise<Response> {
   } else {
     const incoming = await readBoundedText(request);
     if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
-    const parsed = parseControlJSONObject(incoming.text, ['source_url', 'title']);
+    const parsed = parseControlJSONObject(incoming.text, ['source_url', 'title', 'source_kind']);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const body = parsed.value;
     if (typeof body.source_url !== 'string' || !body.source_url) {
       return NextResponse.json({ error: 'source_url is required' }, { status: 400 });
     }
-    const payload: { source_url: string; title?: string } = { source_url: body.source_url };
+    const payload: { source_url: string; title?: string; source_kind?: string } = { source_url: body.source_url };
     if (typeof body.title === 'string' && body.title) payload.title = body.title;
+    if (typeof body.source_kind === 'string' && body.source_kind) payload.source_kind = body.source_kind;
     init = {
       method: 'POST',
       headers: { ...mutationHeaders(), 'Content-Type': 'application/json' },

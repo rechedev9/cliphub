@@ -6,6 +6,7 @@
 const STREAM_JOB_PUBLIC_KEYS = [
   'id',
   'status',
+  'source_kind',
   'failure_reason',
   'failure_code',
   'source_url',

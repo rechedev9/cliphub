@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Clapperboard } from 'lucide-react';
-import { streamsApi, type StreamJob } from '@/lib/api/streams';
+import { streamsApi, type StreamJob, type StreamSourceKind } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
 import { readIfCurrent } from '@/lib/streams/list-poll';
@@ -36,6 +36,7 @@ export default function StreamsPage(): ReactNode {
   const [pollGeneration, setPollGeneration] = useState(0);
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
+  const [sourceKind, setSourceKind] = useState<StreamSourceKind>('vod');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<StreamImportError | null>(null);
 
@@ -71,7 +72,7 @@ export default function StreamsPage(): ReactNode {
 
   const submitUrl = useCallback(async () => {
     const trimmed = sourceUrl.trim();
-    const invalid = streamSourceUrlError(trimmed);
+    const invalid = streamSourceUrlError(trimmed, sourceKind);
     if (invalid) {
       setError({ source: 'url', message: invalid });
       return;
@@ -79,25 +80,25 @@ export default function StreamsPage(): ReactNode {
     setError(null);
     setSubmitting(true);
     try {
-      open(await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined }));
+      open(await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined, sourceKind }));
     } catch (err) {
       setError({ source: 'url', message: streamImportErrorMessage(err, 'url') });
       setSubmitting(false);
     }
-  }, [sourceUrl, title, open]);
+  }, [sourceUrl, title, sourceKind, open]);
 
   const submitFile = useCallback(
     async (file: File) => {
       setError(null);
       setSubmitting(true);
       try {
-        open(await streamsApi.createFromFile(file, title.trim() || undefined));
+        open(await streamsApi.createFromFile(file, { title: title.trim() || undefined, sourceKind }));
       } catch (err) {
         setError({ source: 'file', message: streamImportErrorMessage(err, 'file') });
         setSubmitting(false);
       }
     },
-    [title, open],
+    [title, sourceKind, open],
   );
 
   let list: ReactNode;
@@ -136,7 +137,7 @@ export default function StreamsPage(): ReactNode {
             <Link href={SHORTS_HREF}><Clapperboard aria-hidden />Crear desde una demo</Link>
           </Button>
         )}
-        description="Convierte tus mejores momentos en Shorts verticales."
+        description="Convierte un clip en un Short, o un stream entero en un resumen y en Shorts de tus jugadas."
       />
 
       {listError !== null ? (
@@ -154,6 +155,7 @@ export default function StreamsPage(): ReactNode {
 
       <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} />
       <StreamSourcePanel
+        sourceKind={sourceKind}
         sourceUrl={sourceUrl}
         title={title}
         submitting={submitting}
@@ -161,6 +163,10 @@ export default function StreamsPage(): ReactNode {
         onSourceUrlChange={(value) => {
           setSourceUrl(value);
           if (isStreamURLValidationError(error?.message ?? null)) setError(null);
+        }}
+        onSourceKindChange={(kind) => {
+          setSourceKind(kind);
+          setError(null);
         }}
         onTitleChange={setTitle}
         onSubmitUrl={() => void submitUrl()}
