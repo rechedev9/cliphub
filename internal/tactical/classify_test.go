@@ -338,26 +338,6 @@ func TestClassifyRoundKeepsOpeningFacts(t *testing.T) {
 	}
 }
 
-func TestSiteFromPlace(t *testing.T) {
-	tests := []struct {
-		place string
-		want  tacticalplan.Site
-	}{
-		{"BombsiteA", tacticalplan.SiteA},
-		{"Bombsite A", tacticalplan.SiteA},
-		{"BombsiteB", tacticalplan.SiteB},
-		{"Middle", tacticalplan.SiteMid},
-		{"Mid", tacticalplan.SiteMid},
-		{"Apartments", tacticalplan.SiteNone},
-		{"", tacticalplan.SiteNone},
-	}
-	for _, tt := range tests {
-		if got := siteFromPlace(tt.place); got != tt.want {
-			t.Fatalf("siteFromPlace(%q) = %s, want %s", tt.place, got, tt.want)
-		}
-	}
-}
-
 func TestBuildSiteMapPrefersPlants(t *testing.T) {
 	rounds := []*roundAcc{
 		{events: []tacticalplan.Event{

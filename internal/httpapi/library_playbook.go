@@ -1,0 +1,137 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+	"log"
+	"net/http"
+
+	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
+)
+
+// playbookResponse is a team's playbook on one map and side, with the matches skipped.
+type playbookResponse struct {
+	TeamID   uuid.UUID      `json:"team_id"`
+	TeamName string         `json:"team_name"`
+	Skipped  []scoutSkipped `json:"skipped"`
+	tacticalplan.Playbook
+}
+
+// prepResponse is the match prep against a team on one map, with the matches skipped.
+type prepResponse struct {
+	TeamID   uuid.UUID      `json:"team_id"`
+	TeamName string         `json:"team_name"`
+	Skipped  []scoutSkipped `json:"skipped"`
+	tacticalplan.Prep
+}
+
+// framedQuery names the team, the explicit matches and the scout filter of a
+// view that reads positions.
+type framedQuery struct {
+	team     library.Team
+	matchIDs []uuid.UUID
+	filter   tacticalplan.ScoutFilter
+}
+
+// loadFramedMatches reads the team's matches the filter selects, with their
+// documents; each position blob is read only when the builder reaches it.
+func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tacticalplan.FramedMatch, []scoutSkipped, error) {
+	candidates, pending, skipped, err := h.teamCandidates(ctx, q.team, q.matchIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	selected := q.filter.Select(pending)
+	loaded := make([]tacticalplan.FramedMatch, 0, len(selected))
+	for i, sm := range selected {
+		if i >= library.MaxReportMatches {
+			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
+			continue
+		}
+		c := candidates[sm.MatchID]
+		doc, err := h.readLibraryDocument(c.match.DemoID)
+		if err != nil {
+			log.Printf("httpapi: team %s skips match %s: %v", q.team.ID, sm.MatchID, err)
+			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
+			continue
+		}
+		sm.Document = doc
+		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: sm, Blob: h.positionsReader(c.match.DemoID)})
+	}
+	return loaded, skipped, nil
+}
+
+// framedRequest reads the team and the scout filter of a playbook or a prep.
+// Both read one map, since zones and callouts belong to a map.
+func (h *Handlers) framedRequest(w http.ResponseWriter, r *http.Request) (framedQuery, bool) {
+	if !h.libraryReady(w) {
+		return framedQuery{}, false
+	}
+	id, ok := libraryUUIDParam(w, r, "id")
+	if !ok {
+		return framedQuery{}, false
+	}
+	filter, matchIDs, err := scoutQuery(r.URL.Query())
+	if err == nil && len(filter.Maps) != 1 {
+		err = errors.New("map is required, exactly once")
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return framedQuery{}, false
+	}
+	team, err := h.libraryRepo.GetTeam(r.Context(), id)
+	if err != nil {
+		writeLibraryError(w, "get team", err)
+		return framedQuery{}, false
+	}
+	return framedQuery{team: team, matchIDs: matchIDs, filter: filter}, true
+}
+
+// GetLibraryTeamPlaybook handles GET /api/library/teams/{id}/playbook with the
+// scout filter; map and side are required.
+func (h *Handlers) GetLibraryTeamPlaybook(w http.ResponseWriter, r *http.Request) {
+	q, ok := h.framedRequest(w, r)
+	if !ok {
+		return
+	}
+	if q.filter.Side == "" {
+		writeError(w, http.StatusBadRequest, "side is required")
+		return
+	}
+	loaded, skipped, err := h.loadFramedMatches(r.Context(), q)
+	if err != nil {
+		internalError(w, "team playbook", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, playbookResponse{
+		TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Playbook: tacticalplan.BuildPlaybook(loaded, q.filter),
+	})
+}
+
+// GetLibraryTeamPrep handles GET /api/library/teams/{id}/prep with the scout
+// filter minus side, since it reads both; map is required.
+func (h *Handlers) GetLibraryTeamPrep(w http.ResponseWriter, r *http.Request) {
+	q, ok := h.framedRequest(w, r)
+	if !ok {
+		return
+	}
+	if q.filter.Side != "" {
+		writeError(w, http.StatusBadRequest, "the prep reads both sides; drop side")
+		return
+	}
+	loaded, skipped, err := h.loadFramedMatches(r.Context(), q)
+	if err != nil {
+		internalError(w, "team prep", err)
+		return
+	}
+	metrics := make([]tacticalplan.MetricsMatch, 0, len(loaded))
+	for _, m := range loaded {
+		metrics = append(metrics, tacticalplan.MetricsMatch{MatchID: m.MatchID, Document: m.Document, TeamKey: m.TeamKey})
+	}
+	prep := tacticalplan.BuildPrep(loaded, tacticalplan.PrepOptions{
+		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)),
+	})
+	writeJSON(w, http.StatusOK, prepResponse{TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Prep: prep})
+}

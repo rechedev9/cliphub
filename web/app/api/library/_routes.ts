@@ -10,6 +10,7 @@ import {
 } from '../../../lib/api/spatial.ts';
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
 import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
+import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import {
   PLAY_CREATE_FIELDS,
   PLAY_DETAIL_KEYS,
@@ -121,6 +122,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'overlay'], query: [...TEAM_SPATIAL_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'playbook'], query: PLAYBOOK_QUERY, response: json(PLAYBOOK_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'prep'], query: PREP_QUERY, response: json(PREP_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },

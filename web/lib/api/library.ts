@@ -19,6 +19,7 @@ import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
 import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
+import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -707,4 +708,26 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
   params.set('metric', query.metric);
   if (query.limit) params.set('limit', String(query.limit));
   return request<Leaderboard>(`/leaderboard?${params.toString()}`);
+}
+
+/** Appends the scout filter shared by the playbook and the prep. */
+function framedParams(query: TeamPrepQuery): URLSearchParams {
+  const params = new URLSearchParams({ map: query.map });
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  return params;
+}
+
+/** Every round a team played on one side of one map, classified, with the counts per category, site, tempo and zone. */
+export function getTeamPlaybook(teamId: string, query: TeamPlaybookQuery): Promise<TeamPlaybook> {
+  const params = framedParams(query);
+  params.set('side', query.side);
+  return request<TeamPlaybook>(`/teams/${id(teamId)}/playbook?${params.toString()}`);
+}
+
+/** Buy matchups, tempo per buy and CT positions of a team on one map. */
+export function getTeamPrep(teamId: string, query: TeamPrepQuery): Promise<TeamPrep> {
+  return request<TeamPrep>(`/teams/${id(teamId)}/prep?${framedParams(query).toString()}`);
 }
