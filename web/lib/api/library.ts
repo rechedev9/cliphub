@@ -18,6 +18,7 @@ import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
 import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
+import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -684,4 +685,26 @@ export function playerPositionsPath(steamId: string, query: PlayerPositionsQuery
 /** Where a player stands early in rounds, per map and side, with their AWP share. */
 export function getPlayerPositions(steamId: string, query: PlayerPositionsQuery = {}): Promise<PlayerPositions> {
   return request<PlayerPositions>(playerPositionsPath(steamId, query));
+}
+
+function baselineParams(query: BaselineQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.map) params.set('map', query.map);
+  if (query.min_rounds) params.set('min_rounds', String(query.min_rounds));
+  return params;
+}
+
+/** Per-player averages of the reference metrics over the library or its HLTV demos. */
+export function getBaseline(query: BaselineQuery = {}): Promise<Baseline> {
+  const search = baselineParams(query).toString();
+  return request<Baseline>(`/baseline${search === '' ? '' : `?${search}`}`);
+}
+
+/** The library's players ranked by one reference metric, best first. */
+export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
+  const params = baselineParams(query);
+  params.set('metric', query.metric);
+  if (query.limit) params.set('limit', String(query.limit));
+  return request<Leaderboard>(`/leaderboard?${params.toString()}`);
 }

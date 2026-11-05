@@ -47,6 +47,7 @@ type LibraryMatchTeam struct {
 	StartSide string `json:"start_side"`
 	ClanName  string `json:"clan_name"`
 	TeamName  string `json:"team_name,omitempty"`
+	TeamID    string `json:"team_id,omitempty"`
 }
 
 type LibraryMatchPlayer struct {
@@ -105,6 +106,7 @@ func (c *Client) ListLibraryMatches(ctx context.Context, mapName, steamID string
 type LibraryMatchQuery struct {
 	Map     string
 	SteamID string
+	TeamID  string
 	From    time.Time
 	To      time.Time
 	Limit   int
@@ -112,7 +114,7 @@ type LibraryMatchQuery struct {
 
 // SearchLibraryMatches lists analysed matches newest first, filtered on the server.
 func (c *Client) SearchLibraryMatches(ctx context.Context, q LibraryMatchQuery) ([]LibraryMatch, error) {
-	params := map[string]string{"map": q.Map, "steamid": q.SteamID}
+	params := map[string]string{"map": q.Map, "steamid": q.SteamID, "team_id": q.TeamID}
 	if !q.From.IsZero() {
 		params["from"] = q.From.UTC().Format(time.RFC3339Nano)
 	}

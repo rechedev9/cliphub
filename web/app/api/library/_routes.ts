@@ -9,6 +9,7 @@ import {
   TEAM_SPATIAL_QUERY,
 } from '../../../lib/api/spatial.ts';
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
+import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
 import {
   PLAY_CREATE_FIELDS,
   PLAY_DETAIL_KEYS,
@@ -162,6 +163,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['players', STEAM_ID, 'role'], response: json(ROLE_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'positions'], query: PLAYER_POSITIONS_QUERY, response: json(PLAYER_POSITIONS_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'metrics'], query: PLAYER_METRICS_QUERY, response: json(METRICS_KEYS) },
+  { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
+  { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },

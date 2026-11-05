@@ -198,6 +198,8 @@ func Routes(h *Handlers) chi.Router {
 	r.Post("/api/library/annotations", h.CreateLibraryAnnotation)
 	r.Patch("/api/library/annotations/{id}", h.PatchLibraryAnnotation)
 	r.Delete("/api/library/annotations/{id}", h.DeleteLibraryAnnotation)
+	r.Get("/api/library/baseline", h.GetLibraryBaseline)
+	r.Get("/api/library/leaderboard", h.GetLibraryLeaderboard)
 	r.Get("/api/library/players", h.ListLibraryPlayers)
 	r.Get("/api/library/players/{steamid}", h.GetLibraryPlayer)
 	r.Get("/api/library/players/{steamid}/role", h.GetLibraryPlayerRole)
