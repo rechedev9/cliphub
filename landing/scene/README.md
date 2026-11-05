@@ -35,25 +35,32 @@ The tubes in the bake and the stills use frames of the landing videos:
 ```bash
 ffmpeg -ss 2.2 -i ../public/video/killfeed-loop.webm -frames:v 1 tex/frame-kf.png
 ffmpeg -ss 1.4 -i ../public/video/hero-loop.webm -frames:v 1 tex/frame-hero.png
-ffmpeg -ss 9 -i ../public/video/crt-jugada.webm -frames:v 1 -vf scale=1024:768 tex/screen-jugada.png
+ffmpeg -ss 80.5 -i ../public/video/crt-jugada.webm -frames:v 1 -vf scale=1024:768 tex/screen-jugada.png
 ffmpeg -i tex/frame-kf.png -filter_complex "[0]scale=1024:-1,crop=1024:768,boxblur=24,eq=brightness=-0.40[bg];[0]scale=-1:736,pad=iw+8:ih+8:4:4:color=0xff7a1e[fg];[bg][fg]overlay=(W-w)/2:12" tex/screen.png
 ffmpeg -i tex/frame-hero.png -filter_complex "[0]scale=1024:-1,crop=1024:768,boxblur=24,eq=brightness=-0.40[bg];[0]scale=-1:736,pad=iw+8:ih+8:4:4:color=0xff7a1e[fg];[bg][fg]overlay=(W-w)/2:12" tex/screen4.png
 ffmpeg -i tex/frame-hero.png -vf "crop=540:405:0:250,scale=1024:768" tex/screen2.png
 ffmpeg -i tex/frame-hero.png -vf "crop=540:405:0:40,scale=1024:768" tex/screen3.png
 ```
 
-The page shows the same frames on the tubes until each video plays, and starts each video at that
-time (`FEEDS` in `lib/ciber/scene.ts`). With reduced motion it never fetches the videos unless the
-visitor presses "Reproducir vídeos":
+The page shows the same frames on the tubes until each video plays (`FEEDS` in
+`lib/ciber/scene.ts`). The two loops start at that frame; the CRT play tunes in through static, runs
+once from the start and holds its last frame. With reduced motion the page never fetches the videos
+unless the visitor presses "Reproducir vídeos":
 
 ```bash
-ffmpeg -y -ss 9 -i ../public/video/crt-jugada.webm -frames:v 1 -c:v libwebp -quality 80 ../public/video/crt-jugada.webp
+ffmpeg -y -ss 80.5 -i ../public/video/crt-jugada.webm -frames:v 1 -c:v libwebp -quality 80 ../public/video/crt-jugada.webp
 ffmpeg -y -ss 2.2 -i ../public/video/killfeed-loop.webm -frames:v 1 -vf scale=360:-2 -c:v libwebp -quality 80 ../public/video/killfeed-loop.webp
 ffmpeg -y -ss 1.4 -i ../public/video/hero-loop.webm -frames:v 1 -vf scale=360:-2 -c:v libwebp -quality 80 ../public/video/hero-loop.webp
 ```
 
-`public/video/crt-jugada.*` is 11 seconds of NEO's 1v5 clutch for Virtus.pro at DreamHack Open
-(from youtube.com/watch?v=hLXQMMJmt-w, 71.5 s onwards), cropped to 4:3 with no audio.
+`public/video/crt-jugada.*` is NEO's whole 1v5 clutch for Virtus.pro at DreamHack Open: the first
+83.2 s of youtube.com/watch?v=hLXQMMJmt-w, up to the fade after "Virtus.pro Wins The Round", cropped
+to 4:3 and scaled to 512x384 with no audio:
+
+```bash
+ffmpeg -t 83.2 -i neo-1v5.webm -an -vf "crop=640:480:107:0,scale=512:384:flags=lanczos" -c:v libvpx-vp9 -b:v 0 -crf 46 -row-mt 1 -deadline good -cpu-used 2 ../public/video/crt-jugada.webm
+ffmpeg -t 83.2 -i neo-1v5.webm -an -vf "crop=640:480:107:0,scale=512:384:flags=lanczos" -c:v libx264 -preset slow -crf 30 -pix_fmt yuv420p -movflags +faststart ../public/video/crt-jugada.mp4
+```
 
 ## 2. Scene and stills
 

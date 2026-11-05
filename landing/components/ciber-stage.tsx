@@ -257,7 +257,7 @@ export default function CiberStage() {
           ref={canvasRef}
           className="ciber-canvas"
           role="img"
-          aria-label="Un puesto de ciber de los años 2000: un monitor CRT con un Short de ClipHub, una torre con un CD, una libreta con notas de la partida y el ticket de la hora"
+          aria-label="Un puesto de ciber de los años 2000: un monitor CRT con una jugada de CS:GO, una torre con un CD, una libreta con notas de la partida y el ticket de la hora"
         />
         <div className="ciber-labels">
           {LABELLED.map((s) => (

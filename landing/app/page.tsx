@@ -164,7 +164,7 @@ export default function Home() {
           <Still
             name="mesa"
             eager
-            alt="Un puesto de ciber de noche: monitor CRT con un Short de CS2, torre con un CD, teclado, libreta y ticket"
+            alt="Un puesto de ciber de noche: monitor CRT con una jugada de CS:GO, torre con un CD, teclado, libreta y ticket"
           />
         </section>
 

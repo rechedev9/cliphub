@@ -64,11 +64,12 @@ export interface Insets {
   bottom: number;
 }
 
-// The still public/video/<file>.webp is the frame at `start`, and the video starts there, so the swap is seamless.
+// public/video/<file>.webp is the frame at `still`. A video that starts at its still swaps in seamlessly;
+// the CRT play starts from the beginning, so its tube tunes in through static.
 const FEEDS = {
-  jugada: { file: "crt-jugada", start: 9 },
-  kill: { file: "killfeed-loop", start: 2.2 },
-  hero: { file: "hero-loop", start: 1.4 },
+  jugada: { file: "crt-jugada", still: 80.5, start: 0, loop: false },
+  kill: { file: "killfeed-loop", still: 2.2, start: 2.2, loop: true },
+  hero: { file: "hero-loop", still: 1.4, start: 1.4, loop: true },
 } as const;
 type Feed = keyof typeof FEEDS;
 const FEED_IDS = ["jugada", "kill", "hero"] as const satisfies readonly Feed[];
@@ -141,10 +142,10 @@ function pickVideoSource(name: string): string {
   return probe.canPlayType('video/webm; codecs="vp9"') ? `/video/${name}.webm` : `/video/${name}.mp4`;
 }
 
-function makeVideo(): HTMLVideoElement {
+function makeVideo(feed: Feed): HTMLVideoElement {
   const video = document.createElement("video");
   video.muted = true;
-  video.loop = true;
+  video.loop = FEEDS[feed].loop;
   video.playsInline = true;
   video.preload = "none";
   return video;
@@ -230,7 +231,11 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     });
   }
 
-  const videos = { jugada: makeVideo(), kill: makeVideo(), hero: makeVideo() } satisfies Record<Feed, HTMLVideoElement>;
+  const videos = {
+    jugada: makeVideo("jugada"),
+    kill: makeVideo("kill"),
+    hero: makeVideo("hero"),
+  } satisfies Record<Feed, HTMLVideoElement>;
   const videoTex = {
     jugada: videoTexture(videos.jugada),
     kill: videoTexture(videos.kill),
@@ -244,7 +249,6 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
   // layout 0 is a vertical Short on the tube, 1 fills the tube.
   const channels = {
     jugada: { feed: "jugada", aspect: 4 / 3, layout: 1 },
-    short: { feed: "kill", aspect: SHORT_ASPECT, layout: 0 },
     stream: { feed: "hero", aspect: SHORT_ASPECT, layout: 0 },
     killFill: { feed: "kill", aspect: SHORT_ASPECT, layout: 1 },
     heroFill: { feed: "hero", aspect: SHORT_ASPECT, layout: 1 },
@@ -357,6 +361,8 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
   function playVideos() {
     for (const feed of FEED_IDS) {
       const video = videos[feed];
+      // The CRT play runs once and then holds its last frame.
+      if (video.ended) continue;
       if (!video.getAttribute("src")) {
         video.src = pickVideoSource(FEEDS[feed].file);
         video.currentTime = FEEDS[feed].start;
@@ -368,9 +374,12 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
 
   function showLive(feed: Feed) {
     live.add(feed);
+    const seamless = FEEDS[feed].still === FEEDS[feed].start;
     for (const [name, channel] of showing) {
       const mat = screens.get(name);
-      if (mat && channel.feed === feed) mat.uniforms.map.value = videoTex[feed];
+      if (!mat || channel.feed !== feed) continue;
+      if (seamless) mat.uniforms.map.value = videoTex[feed];
+      else tune(name, channel);
     }
   }
 
@@ -415,8 +424,6 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     if (id === current && progress >= 1) return;
     from = { position: state.position.clone(), target: state.target.clone(), fov: state.fov };
     const dist = from.position.distanceTo(frameFor(stationById(id), width / height).position);
-    if ((id === "short") !== (current === "short"))
-      tune("screen_main", id === "short" ? channels.short : channels.jugada);
     current = id;
     duration = MathUtils.clamp(0.9 + dist * 0.55, 1.1, 2.1);
     progress = instant || reducedMotion ? 1 : 0;
@@ -544,8 +551,8 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
       nextChannel = t + 11 + Math.random() * 8;
       const pick = Math.random() < 0.5 ? "screen_far0" : "screen_far1";
       const now = showing.get(pick)?.feed;
-      const options = [channels.jugada, channels.killFill, channels.heroFill].filter((c) => c.feed !== now);
-      tune(pick, options[Math.floor(Math.random() * options.length)] ?? channels.jugada);
+      const options = [channels.killFill, channels.heroFill].filter((c) => c.feed !== now);
+      tune(pick, options[Math.floor(Math.random() * options.length)] ?? channels.heroFill);
     }
     for (const [name, tv] of tuning) {
       const mat = screens.get(name);
