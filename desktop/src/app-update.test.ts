@@ -119,9 +119,9 @@ test('landing download URL matches the desktop version', () => {
   assert.equal(typeof version, 'string');
   const installer = installerAssetName(version);
   const downloadUrl = releaseDownloadUrl(version, installer);
-  const landing = fs.readFileSync(path.join(desktopDirectory, '..', 'landing', 'app', 'page.tsx'), 'utf8');
+  const landing = fs.readFileSync(path.join(desktopDirectory, '..', 'landing', 'lib', 'site.ts'), 'utf8');
   assert.equal(landing.includes(downloadUrl), true, downloadUrl);
-  assert.equal(landing.includes(`const RELEASE_VERSION = "v${version}"`), true, version);
+  assert.equal(landing.includes(`export const RELEASE_VERSION = "v${version}"`), true, version);
 });
 
 test('reads GitHub latest JSON and SHA256SUMS.txt entries', () => {
