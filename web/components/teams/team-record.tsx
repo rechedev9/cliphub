@@ -29,6 +29,7 @@ import {
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
+import { TeamGrenades } from '@/components/patterns/team-grenades';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -129,9 +130,10 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   veto: ['opponent'],
   scouting: ['map', 'side', 'period', 'opponent'],
   radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
+  granadas: ['map', 'side', 'period', 'buy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'scouting', 'radar']);
+const REPORTING_TABS = new Set(['mapas', 'scouting', 'radar', 'granadas']);
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
@@ -288,6 +290,14 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             content: withScope(
               'radar',
               <TeamSpatial teamId={team.id} scope={scope} onMapChange={onMapChange} onCounts={onCounts} />,
+            ),
+          },
+          {
+            id: 'granadas',
+            label: 'Granadas',
+            content: withScope(
+              'granadas',
+              <TeamGrenades teamId={team.id} scope={scope} matches={matches} onMapChange={onMapChange} onCounts={onCounts} />,
             ),
           },
         ]}
