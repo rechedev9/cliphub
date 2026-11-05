@@ -33,6 +33,8 @@ type ShortEdit struct {
 	VictimReplay  bool   `json:"victim_replay,omitempty"`
 	CoverStrategy string `json:"cover_strategy"`
 	DeathReel     bool   `json:"death_reel,omitempty"`
+	// CenteredKillfeed is omitted when off, like the server's own field.
+	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
 }
 
 // GenerateRequest is the body of POST /api/jobs/{id}/generate for a Short.

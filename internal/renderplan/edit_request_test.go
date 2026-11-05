@@ -82,6 +82,7 @@ func TestEditRequestValidateRejectsUnknownFields(t *testing.T) {
 		{name: "effect", req: EditRequest{Format: FormatShort9x16, KillEffect: "explode", Transition: TransitionFlash}, want: "unknown kill effect"},
 		{name: "transition", req: EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: "spin"}, want: "unknown transition"},
 		{name: "cover strategy", req: EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash, CoverStrategy: "uploaded"}, want: "unknown cover strategy"},
+		{name: "centered killfeed landscape", req: EditRequest{Format: FormatLandscape16x9, KillEffect: KillEffectClean, Transition: TransitionCut, CenteredKillfeed: true}, want: "centered killfeed needs"},
 		{
 			name: "intro text too long",
 			req: EditRequest{
@@ -243,6 +244,15 @@ func TestEditRequestValidateAcceptsTextAtMaxLength(t *testing.T) {
 	}
 	if err := req.Validate(); err != nil {
 		t.Fatalf("Validate error = %v, want nil at the 80-char limit", err)
+	}
+}
+
+func TestNormalizeEditRequestDropsTheCenteredKillfeedFromADeathReel(t *testing.T) {
+	if NormalizeEditRequest(EditRequest{Format: FormatShort9x16, DeathReel: true, CenteredKillfeed: true}).CenteredKillfeed {
+		t.Fatal("a death reel kept the centered killfeed; its clips have no kills to draw")
+	}
+	if !NormalizeEditRequest(EditRequest{Format: FormatShort9x16, CenteredKillfeed: true}).CenteredKillfeed {
+		t.Fatal("a kill Short lost the centered killfeed")
 	}
 }
 

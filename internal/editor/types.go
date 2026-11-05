@@ -97,6 +97,9 @@ type Config struct {
 	// the frame, so the killfeed survives the 9:16 center crop. Only applies
 	// to presets whose capture actually shows a killfeed.
 	KillfeedOverlay bool
+	// CenteredKillfeed draws the target's kill notices from the kill plan,
+	// centered near the top of a 9:16 frame, instead of the captured ones.
+	CenteredKillfeed bool
 	// TailTrimSeconds ends each kill clip this many seconds after its final
 	// kill, cutting the recorded quit-tick dead air. Zero disables trimming.
 	TailTrimSeconds   float64
@@ -186,6 +189,7 @@ type ManifestOptions struct {
 	HookText            bool
 	KillCounter         bool
 	KillfeedOverlay     bool
+	CenteredKillfeed    bool
 	TailTrimSeconds     float64
 	OutputFPS           int
 	CompileSegments     bool
@@ -275,6 +279,7 @@ type Manifest struct {
 	HookText          bool        `json:"hook_text,omitempty"`
 	KillCounter       bool        `json:"kill_counter,omitempty"`
 	KillfeedOverlay   bool        `json:"killfeed_overlay,omitempty"`
+	CenteredKillfeed  bool        `json:"centered_killfeed,omitempty"`
 	TailTrimSeconds   float64     `json:"tail_trim_seconds,omitempty"`
 	OutputFPS         int         `json:"output_fps,omitempty"`
 	CompileSegments   bool        `json:"compile_segments,omitempty"`
@@ -344,6 +349,7 @@ type ShortEdit struct {
 	HookText          bool     `json:"hook_text,omitempty"`
 	KillCounter       bool     `json:"kill_counter,omitempty"`
 	KillfeedOverlay   bool     `json:"killfeed_overlay,omitempty"`
+	CenteredKillfeed  bool     `json:"centered_killfeed,omitempty"`
 	TailTrimSeconds   float64  `json:"tail_trim_seconds,omitempty"`
 	OutputFPS         int      `json:"output_fps,omitempty"`
 	SourceWidth       int      `json:"source_width,omitempty"`
@@ -356,6 +362,10 @@ type ShortEdit struct {
 	HQFilters         bool     `json:"hq_filters,omitempty"`
 	AudioNormalize    bool     `json:"audio_normalize,omitempty"`
 	TemporalSmoothing bool     `json:"temporal_smoothing,omitempty"`
+	// KillfeedASS and KillfeedFontsDir are the generated centered killfeed
+	// script and the HUD faces libass loads for it.
+	KillfeedASS      string `json:"killfeed_ass,omitempty"`
+	KillfeedFontsDir string `json:"killfeed_fonts_dir,omitempty"`
 	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropFamily          string      `json:"keydrop_family,omitempty"`
@@ -407,12 +417,15 @@ type ShortPart struct {
 }
 
 type KillCue struct {
-	Tick        int     `json:"tick"`
-	TimeSeconds float64 `json:"time_seconds"`
-	Weapon      string  `json:"weapon,omitempty"`
-	Victim      string  `json:"victim,omitempty"`
-	Headshot    bool    `json:"headshot,omitempty"`
-	Wallbang    bool    `json:"wallbang,omitempty"`
+	Tick         int     `json:"tick"`
+	TimeSeconds  float64 `json:"time_seconds"`
+	Weapon       string  `json:"weapon,omitempty"`
+	Attacker     string  `json:"attacker,omitempty"`
+	AttackerSide string  `json:"attacker_side,omitempty"`
+	Victim       string  `json:"victim,omitempty"`
+	VictimSide   string  `json:"victim_side,omitempty"`
+	Headshot     bool    `json:"headshot,omitempty"`
+	Wallbang     bool    `json:"wallbang,omitempty"`
 }
 
 type SmokeCue struct {

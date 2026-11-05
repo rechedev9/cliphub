@@ -1205,7 +1205,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 					writeError(w, http.StatusBadRequest, err.Error())
 					return
 				}
-				portraitSafeKillfeed = preset.KillfeedSource && edit.Format == renderplan.FormatShort9x16
+				portraitSafeKillfeed = capturePortraitSafeKillfeed(preset.KillfeedSource, edit)
 			}
 			hudMode, useRecapPlan = applyCaptureOverrides(hudMode, edit)
 			if useRecapPlan {
@@ -1371,7 +1371,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	portraitSafeKillfeed := preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16
+	portraitSafeKillfeed := capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit)
 	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, intent)
 	if err != nil {
 		internalError(w, "build record task", err)
@@ -1488,11 +1488,17 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 	return captureRequest{
 		hudMode:              hudMode,
 		segmentIDs:           segmentIDs,
-		portraitSafeKillfeed: preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16,
+		portraitSafeKillfeed: capturePortraitSafeKillfeed(preset.KillfeedSource, intent.Edit),
 		useRecapPlan:         useRecapPlan,
 		useDeathPlan:         !useRecapPlan && intent.Edit.DeathReel,
 		victimReplay:         intent.Edit.VictimReplay && !useRecapPlan,
 	}, true
+}
+
+// capturePortraitSafeKillfeed brings CS2's notices into the 9:16 crop, unless the
+// editor draws a centered killfeed and the native ones must stay outside it.
+func capturePortraitSafeKillfeed(killfeedSource bool, edit renderplan.EditRequest) bool {
+	return killfeedSource && edit.Format == renderplan.FormatShort9x16 && !edit.CenteredKillfeed
 }
 
 func canGenerateFromStatus(status job.Status) bool {
@@ -1630,6 +1636,7 @@ type renderEditRequest struct {
 	VoiceVolume         *float64            `json:"voice_volume"`
 	NativeHUD           *bool               `json:"native_hud"`
 	VictimReplay        *bool               `json:"victim_replay"`
+	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	CoverStrategy       *string             `json:"cover_strategy"`
 	CoverFirstFrame     *bool               `json:"cover_first_frame"`
 	IntroText           *string             `json:"intro_text"`
@@ -1687,6 +1694,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.VictimReplay != nil {
 		base.VictimReplay = *r.VictimReplay
+	}
+	if r.CenteredKillfeed != nil {
+		base.CenteredKillfeed = *r.CenteredKillfeed
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy

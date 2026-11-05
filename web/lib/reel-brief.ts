@@ -82,8 +82,12 @@ export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>
 }
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
-  // The hook and the counter tell kills; Studio drops them from a death reel too.
-  if (edit.deathReel && (edit.hookText || edit.killCounter)) return constrainEditConfig({ ...edit, hookText: false, killCounter: false });
+  // The hook, the counter and the centered kill feed tell kills; Studio drops them from a death reel too.
+  if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed)) {
+    const next: EditConfig = { ...edit, hookText: false, killCounter: false };
+    delete next.centeredKillfeed;
+    return constrainEditConfig(next);
+  }
   if (edit.format !== 'short-9x16') return edit;
   if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
@@ -104,6 +108,9 @@ export function reelCreativeBrief(
     hud = NATIVE_HUD_LABEL;
   } else if (preset?.hudMode) {
     hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
+  }
+  if (edit.centeredKillfeed && edit.format === 'short-9x16') {
+    hud = `${hud} · kill feed centrada arriba`;
   }
   return [
     { label: 'Formato', value: FORMAT_LABEL[resolvedReelFormat(edit.format, preset)] },
