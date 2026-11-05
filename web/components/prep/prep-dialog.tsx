@@ -73,6 +73,7 @@ export function PrepDialog({ open, onOpenChange }: { open: boolean; onOpenChange
   let mapPlaceholder = 'Elige antes el rival';
   if (teamId !== '' && maps === null) mapPlaceholder = 'Cargando mapas';
   else if (maps?.length === 0) mapPlaceholder = 'Sin partidas';
+  else if (maps !== null) mapPlaceholder = 'Elige un mapa';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

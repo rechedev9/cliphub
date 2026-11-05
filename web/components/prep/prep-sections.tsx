@@ -31,7 +31,7 @@ function replayTitle(prep: Pick<TeamPrep, 'team_name' | 'map'>, what: string): s
 /** Each side's win rate per buy matchup: the team's buy per row, the rival's per column. */
 export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
   return (
-    <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2">
+    <div className="grid gap-4 print:grid-cols-2">
       {SIDES.map((side) => {
         const grid = matchupGrid(prep.matchups, side);
         const columns: HeatColumn[] = [

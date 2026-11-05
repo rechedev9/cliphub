@@ -68,7 +68,7 @@ export function LineChart({ label, points, format, showAverage = false, referenc
     <figure className={cn('relative flex flex-col gap-2', className)}>
       <svg
         viewBox={`0 0 ${WIDTH} ${height}`}
-        className="h-auto w-full rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="h-auto max-h-60 w-full rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         role="img"
         aria-label={`${label}. Usa las flechas para recorrer los puntos.`}
         tabIndex={0}

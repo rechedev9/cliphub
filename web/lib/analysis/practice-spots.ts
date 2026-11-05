@@ -1,5 +1,6 @@
 import type { TeamGrenade } from '../api/grenades.ts';
 import { PRACTICE_MAX_SPOTS, type PracticeGrenade, type PracticeSpot } from '../api/practice.ts';
+import { placeLabel } from '../tactical-labels.ts';
 import { GRENADE_KIND_LABEL, type GrenadeSpot } from './grenade-patterns.ts';
 
 /**
@@ -52,8 +53,8 @@ export function representativeThrow(spot: GrenadeSpot): TeamGrenade | null {
 /** "Humo a Ventana desde T Spawn", with whichever ends have a callout. */
 export function spotLabel(kind: GrenadeSpot['kind'], landing: string | null, origin: string | null): string {
   let label = GRENADE_KIND_LABEL[kind];
-  if (landing !== null) label += ` a ${landing}`;
-  if (origin !== null) label += ` desde ${origin}`;
+  if (landing !== null) label += ` a ${placeLabel(landing)}`;
+  if (origin !== null) label += ` desde ${placeLabel(origin)}`;
   return label;
 }
 

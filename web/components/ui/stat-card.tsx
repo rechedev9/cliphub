@@ -72,7 +72,7 @@ export function StatCard({
       <dt className="text-meta text-fg-3">{label}</dt>
       <dd className="flex flex-col gap-1">
         <span className="flex items-end justify-between gap-3">
-          <span className={cn('text-stat font-semibold text-fg-1 tabular-nums', value === null && 'text-fg-3')}>
+          <span className={cn('text-stat font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-fg-3')}>
             {value === null ? 'Sin dato' : format(value)}
           </span>
           {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} /> : null}
