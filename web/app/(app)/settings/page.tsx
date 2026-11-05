@@ -3,7 +3,6 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 import { AssistantSettings } from '@/components/settings/assistant-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { StudioInfo } from '@/components/settings/studio-info';
-import { StorageSettings } from '@/components/settings/storage-settings';
 import { SteamAccount } from '@/components/settings/steam-account';
 import { TelemetrySettings } from '@/components/settings/telemetry-settings';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
@@ -23,7 +22,6 @@ export default function SettingsPage(): ReactNode {
         <SteamAccount />
         <AppearanceSettings />
         <StudioInfo />
-        <StorageSettings />
         <AssistantSettings />
         <PlaybackDiagnostics />
         <TelemetrySettings />

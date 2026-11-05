@@ -169,5 +169,41 @@ func writeReadyFullDemoState(t *testing.T, h *Handlers, id uuid.UUID) renderplan
 	if err := h.writeRenderVariantState(state); err != nil {
 		t.Fatal(err)
 	}
+	if err := h.storage.Put(state.ArtifactPrefix+"/videos/demo-compilation.mp4", bytes.NewReader([]byte("final video"))); err != nil {
+		t.Fatal(err)
+	}
 	return state
+}
+
+func TestStorageCapturesAreNotFreeableOnceTheLongVideoIsDeleted(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, &fakeQueue{})
+	clip := "jobs/" + j.ID.String() + "/recording/revisions/a1/segments/round-001.mp4"
+	if err := store.Put(clip, bytes.NewReader([]byte("round"))); err != nil {
+		t.Fatal(err)
+	}
+	state := writeReadyFullDemoState(t, h, j.ID)
+	r := chi.NewRouter()
+	r.Get("/api/storage", h.GetStorage)
+	r.Delete("/api/jobs/{id}/captures", h.DeleteJobCaptures)
+	if usage := readStorageUsage(t, r); !usage.Jobs[0].Freeable {
+		t.Fatalf("usage with the video = %+v, want freeable", usage)
+	}
+	if err := store.Delete(state.ArtifactPrefix + "/videos/demo-compilation.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if usage := readStorageUsage(t, r); usage.Jobs[0].Freeable {
+		t.Fatalf("usage without the video = %+v, want not freeable", usage)
+	}
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/jobs/"+j.ID.String()+"/captures", nil))
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("delete captures without the video = %d, want 409", rw.Code)
+	}
 }

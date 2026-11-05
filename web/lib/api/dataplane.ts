@@ -19,6 +19,9 @@ export type DataPlane = {
   jobCapturesUrl(jobId: string): string;
   /** Disk use of every job folder (Ajustes, Almacenamiento). */
   storageUrl: string;
+  /** Almacenamiento: PC demos and Studio videos, and the actions on one file. */
+  storageFilesUrl: string;
+  storageFileActionUrl(action: 'scan' | 'delete' | 'reveal'): string;
   rosterUrl(jobId: string): string;
   /** The recent-jobs listing that Partidas rediscovers uploads/series from. */
   jobsUrl: string;
@@ -62,6 +65,8 @@ export function dataPlane(): DataPlane {
     jobDeleteUrl: (jobId) => `/api/demos/${jobId}`,
     jobCapturesUrl: (jobId) => `/api/demos/${jobId}/captures`,
     storageUrl: '/api/demos/storage',
+    storageFilesUrl: '/api/demos/storage/files',
+    storageFileActionUrl: (action) => `/api/demos/storage/files/${action}`,
     rosterUrl: (jobId) => `/api/demos/${jobId}/roster`,
     jobsUrl: '/api/demos/jobs',
     seriesUrl: (seriesId) => `/api/demos/series/${seriesId}`,

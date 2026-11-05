@@ -8,6 +8,7 @@ import {
   Clapperboard,
   FileText,
   Film,
+  HardDrive,
   Lightbulb,
   ListVideo,
   MonitorPlay,
@@ -54,6 +55,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind }
   '/colecciones': { icon: ListVideo },
   '/informes': { icon: FileText },
   '/integridad': { icon: ShieldCheck },
+  '/almacenamiento': { icon: HardDrive },
   '/settings': { icon: Settings },
 };
 

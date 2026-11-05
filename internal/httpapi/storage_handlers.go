@@ -144,7 +144,36 @@ func (h *Handlers) fullDemoRenderCovers(jobID uuid.UUID, newestClip time.Time) (
 	if err != nil || !exists {
 		return false, err
 	}
-	return state.Status == renderplan.RenderVariantStatusReady && !newestClip.After(state.UpdatedAt), nil
+	if state.Status != renderplan.RenderVariantStatusReady || newestClip.After(state.UpdatedAt) {
+		return false, nil
+	}
+	return h.renderVideoOnDisk(state.ArtifactPrefix)
+}
+
+// renderVideoOnDisk reports whether a render run still has its MP4: Almacenamiento
+// can delete it while status.json keeps saying ready.
+func (h *Handlers) renderVideoOnDisk(artifactPrefix string) (bool, error) {
+	resolver, ok := h.storage.(storagePathResolver)
+	if !ok || artifactPrefix == "" {
+		return false, nil
+	}
+	dir, err := resolver.ResolvePath(artifactPrefix + "/videos")
+	if err != nil {
+		return false, err
+	}
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.EqualFold(filepath.Ext(entry.Name()), ".mp4") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // measureJobTree sums a job dir; its capture bytes are exactly what DeleteJobCaptures frees.

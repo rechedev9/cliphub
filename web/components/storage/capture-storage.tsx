@@ -5,7 +5,6 @@ import { HardDrive, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { deleteCapturesErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 import { formatBytes, freeableJobs, storageLoadErrorMessage, type FreeableJob } from '@/lib/storage';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { IconTile } from '@/components/studio/icon-tile';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,7 @@ type StorageState =
   | { kind: 'ready'; totalBytes: number; jobs: FreeableJob[] };
 
 /** Disk used by Studio jobs, and the Full Demo captures that can be freed per long video. */
-export function StorageSettings(): ReactNode {
+export function CaptureStorage(): ReactNode {
   const [state, setState] = useState<StorageState>({ kind: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [freed, setFreed] = useState<string | null>(null);
@@ -88,15 +87,12 @@ export function StorageSettings(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="storage-settings-title">
+    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="capture-storage-title">
       <div className="flex items-center gap-4">
         <IconTile icon={HardDrive} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Disco" />
-          <h2 id="storage-settings-title" className="font-display text-title font-bold text-fg-1">
-            Almacenamiento
-          </h2>
-        </div>
+        <h2 id="capture-storage-title" className="font-display text-title font-bold text-fg-1">
+          Capturas de demos completas
+        </h2>
       </div>
       {body}
     </section>

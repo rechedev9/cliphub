@@ -20,8 +20,6 @@ import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
   hydrateVideoFromIntent,
-  parseEffectiveEditConfig,
-  parseEffectiveRenderMusic,
   type EffectiveRenderMusic,
 } from './render-hydration.ts';
 import { dataPlane, type DataPlane } from './dataplane.ts';
@@ -39,8 +37,8 @@ import { reconcileReels } from './reconcile-batch.ts';
 import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
 import { importedVideo, importedVideoId, isImportedVideo, parseImportedVideos, type ImportedVideo } from './imported-videos.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
-import type { StorageUsage } from './storage.ts';
-import { parseCaptureProgress } from '../capture-progress.ts';
+import type { StorageFiles, StorageUsage } from './storage.ts';
+import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, type RawStatusView, type RenderView } from './status-view.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 
@@ -81,52 +79,6 @@ type RosterResponse = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** `/status` and batch-status job half, as the proxy whitelists it. */
-type RawStatusView = {
-  status: string;
-  failure_reason?: string;
-  failure_code?: string;
-  progress?: { done?: number; total?: number; percent?: number; stage?: string };
-};
-
-/** `/renders/{variant}` and batch-status render half. */
-type RawRenderView = {
-  status?: string;
-  /** `renderplan.RenderVariantState.Error`: the render failure text. */
-  error?: string;
-  warnings?: string[];
-  videos?: string[];
-  covers?: string[];
-  artifact_prefix?: string;
-  segment_ids?: unknown;
-  music?: unknown;
-  edit?: {
-    format?: EditConfig['format'];
-    killEffect?: EditConfig['killEffect'];
-    transition?: EditConfig['transition'];
-    intro?: boolean;
-    outro?: boolean;
-    hook_text?: boolean;
-    kill_counter?: boolean;
-    centered_killfeed?: boolean;
-    cover_strategy?: EditConfig['coverStrategy'];
-    intro_text?: string;
-    outro_text?: string;
-  };
-};
-
-type RenderView = {
-  status: RenderStatus;
-  failureReason?: string;
-  warnings?: string[];
-  videoName?: string;
-  coverName?: string;
-  coverNames?: string[];
-  artifactPrefix?: string;
-  segmentIds?: string[];
-  editConfig?: EditConfig;
-  effectiveMusic?: EffectiveRenderMusic;
-};
 
 /**
  * One reel's prefetched reconcile inputs. `job: null` means the orchestrator no
@@ -142,61 +94,6 @@ function batchKey(jobId: string, variant: string): string {
   return `${jobId}:${variant}`;
 }
 
-function parseStatusView(data: RawStatusView): JobStatusView {
-  const full: JobStatusView = { status: data.status };
-  if (data.failure_reason) full.failureReason = data.failure_reason;
-  if (data.failure_code) full.failureCode = data.failure_code;
-  const parsed = parseCaptureProgress(data.progress);
-  if (parsed) full.captureProgress = parsed;
-  return full;
-}
-
-const KNOWN_RENDER_STATUSES = new Set<RenderStatus>(['queued', 'rendering', 'ready', 'review_required', 'failed']);
-
-function parseRenderView(data: RawRenderView): RenderView {
-  const status: RenderStatus =
-    data.status && KNOWN_RENDER_STATUSES.has(data.status as RenderStatus) ? (data.status as RenderStatus) : 'none';
-  const coverNames = Array.isArray(data.covers)
-    ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
-    : undefined;
-  const segmentIds = Array.isArray(data.segment_ids)
-    ? data.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    : undefined;
-  return {
-    status,
-    failureReason: data.error,
-    warnings: data.warnings,
-    videoName: data.videos?.[0],
-    coverName: coverNames?.[0],
-    coverNames,
-    artifactPrefix: data.artifact_prefix,
-    segmentIds,
-    editConfig: parseEffectiveEditConfig(data.edit),
-    effectiveMusic: parseEffectiveRenderMusic(data.music),
-  };
-}
-
-/**
- * The item-level read failure of one `/batch-status` row, or undefined when the
- * row was read cleanly. The server sends a message string; an object body is
- * still read as a failure so a shape change degrades to "unknown", never to
- * "job gone" (which latches the reel) or "no render yet" (which re-drives it).
- */
-function batchItemError(raw: unknown, code: unknown): string | undefined {
-  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-    const text = String(raw).trim();
-    return text === '' || text === 'false' ? undefined : text;
-  }
-  if (typeof raw === 'object' && raw !== null) {
-    const fields = raw as { message?: unknown; error?: unknown; code?: unknown };
-    for (const field of [fields.message, fields.error, fields.code]) {
-      if (typeof field === 'string' && field.trim() !== '') return field.trim();
-    }
-    return 'batch-status could not read this reel';
-  }
-  if (typeof code === 'string' && code.trim() !== '') return code.trim();
-  return undefined;
-}
 
 /** Pairs per recovery batch read; the batch-status route rejects more than 100. */
 const RECOVERY_BATCH_SIZE = 96;
@@ -229,6 +126,10 @@ function isJobId(id: string): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function storageFileInit(path: string): RequestInit {
+  return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) };
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -937,6 +838,26 @@ export class RealApiClient implements ApiClient {
     const res = await this.send((dp) => ({ url: dp.jobCapturesUrl(jobId), init: { method: 'DELETE' } }));
     const body = await readJson<{ freedBytes: number }>(res);
     return body.freedBytes;
+  }
+
+  async listStorageFiles(): Promise<StorageFiles> {
+    return readJson<StorageFiles>(await this.send((dp) => ({ url: dp.storageFilesUrl, init: { cache: 'no-store' } })));
+  }
+
+  async rescanStorageFiles(): Promise<void> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('scan'), init: { method: 'POST' } }));
+    if (!res.ok) await readJson<unknown>(res);
+  }
+
+  async deleteStorageFile(path: string): Promise<number> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('delete'), init: storageFileInit(path) }));
+    const body = await readJson<{ freedBytes: number }>(res);
+    return body.freedBytes;
+  }
+
+  async revealStorageFile(path: string): Promise<void> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('reveal'), init: storageFileInit(path) }));
+    if (!res.ok) await readJson<unknown>(res);
   }
 
   /** Delete every demo in the series; a busy member surfaces as 409. */

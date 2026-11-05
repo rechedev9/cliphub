@@ -2,7 +2,7 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
-import type { StorageUsage } from './storage.ts';
+import type { StorageFiles, StorageUsage } from './storage.ts';
 
 export interface ApiClient {
   getCaptureReadiness(): Promise<CaptureReadiness>;
@@ -37,5 +37,13 @@ export interface ApiClient {
   getStorage(): Promise<StorageUsage>;
   /** Frees a job's Full Demo round captures; resolves to the bytes freed. 404/409/503 throw. */
   deleteJobCaptures(jobId: string): Promise<number>;
+  /** PC demos (from the last background scan) and Studio's rendered videos. */
+  listStorageFiles(): Promise<StorageFiles>;
+  /** Starts a new search of the PC for demos. */
+  rescanStorageFiles(): Promise<void>;
+  /** Deletes a listed file for good; resolves to the bytes freed. */
+  deleteStorageFile(path: string): Promise<number>;
+  /** Opens File Explorer on a listed file. */
+  revealStorageFile(path: string): Promise<void>;
   listFeed(): Promise<FeedItem[]>;
 }

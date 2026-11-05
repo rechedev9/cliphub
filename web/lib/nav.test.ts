@@ -16,6 +16,7 @@ const RAIL = [
   ['analyze', 'Colecciones', '/colecciones'],
   ['analyze', 'Informes', '/informes'],
   ['analyze', 'Integridad', '/integridad'],
+  ['chrome', 'Almacenamiento', '/almacenamiento'],
   ['chrome', 'Ajustes', '/settings'],
 ] as const;
 
