@@ -11,13 +11,18 @@ import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { RADAR_2D_VIEW } from '@/components/replay/radar-centre';
 import { ReplayWorkspace } from '@/components/replay/replay-workspace';
+import { THREE_D_VIEW } from '@/components/replay/three-centre';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Segmented } from '@/components/ui/segmented';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
+
+/** The radar first; the 3D view next to it. */
+const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
 /** How the filtered rounds are read: replayed, or as heatmaps. */
 type AnalysisMode = 'replay' | 'heatmap';
@@ -162,6 +167,7 @@ export function TacticalAnalysis({
           onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
           seed={seed}
           filters={filterBar}
+          centreViews={CENTRE_VIEWS}
         />
       )}
 

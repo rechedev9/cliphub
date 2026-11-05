@@ -1,0 +1,268 @@
+import { AmbientLight, Color, DirectionalLight, HemisphereLight, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import type { Object3D } from 'three';
+import type { MapGeometry } from '@/lib/api/map-geometry';
+import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
+import type { TacticalSample } from '@/lib/api/tactical';
+import { docNames } from '@/lib/replay/centre-round';
+import type { CentreRound } from '@/lib/replay/centre-round';
+import { layerSamples, layerTrails } from '@/lib/replay/layers';
+import type { ReplayLayers } from '@/lib/replay/layers';
+import type { Vec3, WorldBox } from '@/lib/replay/three/orbit';
+import { eyeHeight, lookYaw, viewDirection } from '@/lib/replay/three/scene-math';
+import { createTrail3dReader } from '@/lib/replay/three/trails';
+import { bombVisual, utilityVisuals } from '@/lib/replay/three/utility-visuals';
+import { createInterpolatedSampleReader, frameCursor } from '@/lib/tactical-replay';
+import type { FrameCursor } from '@/lib/tactical-replay';
+import { TRAIL_SECONDS, timelineSeconds } from '@/lib/tactical-timeline';
+import { CameraRig } from './camera-rig';
+import type { CameraMode } from './camera-rig';
+import { MapMesh } from './map-mesh';
+import { ActorKit, OVERLAY_OPACITY, PlayerActor } from './player-actors';
+import type { SceneColors } from './scene-colors';
+import { UtilityLayer } from './utility-layer';
+
+export type SceneInput = {
+  rounds: readonly CentreRound[];
+  tickOf: (round: CentreRound, seconds: number) => number;
+  layers: ReplayLayers;
+};
+
+type RoundState = {
+  round: CentreRound;
+  samples: (cursor: FrameCursor) => TacticalSample[];
+  trails: (cursor: FrameCursor) => ReadonlyMap<number, readonly Vec3[]>;
+  actors: Map<number, PlayerActor>;
+  names: Map<number, string>;
+};
+
+/** Name tags this close to the screen edge or behind the camera are hidden. */
+const LABEL_EDGE = 4;
+
+/**
+ * The 3D replay scene: the map, every round's players and grenades, three
+ * cameras. It renders on demand: a clock tick, a drag or a resize asks for a
+ * frame, and at most one frame is drawn per animation frame.
+ */
+export class ReplayScene {
+  readonly #renderer: WebGLRenderer;
+  readonly #scene = new Scene();
+  readonly #rig: CameraRig;
+  readonly #kit: ActorKit;
+  readonly #utility: UtilityLayer;
+  readonly #overlay: HTMLElement;
+  readonly #rounds = new Map<string, RoundState>();
+  readonly #bodies = new Map<Object3D, number>();
+  readonly #raycaster = new Raycaster();
+  readonly #projected = new Vector3();
+  #map: MapMesh | null = null;
+  #input: SceneInput = { rounds: [], tickOf: () => 0, layers: { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] } };
+  #seconds = 0;
+  #follow: number | null = null;
+  #frame = 0;
+  #width = 1;
+  #height = 1;
+  readonly #onPick: (slot: number | null) => void;
+
+  constructor(options: { canvas: HTMLCanvasElement; overlay: HTMLElement; colors: SceneColors; onPick: (slot: number | null) => void }) {
+    this.#renderer = new WebGLRenderer({ canvas: options.canvas, antialias: true, powerPreference: 'high-performance' });
+    this.#renderer.localClippingEnabled = true;
+    this.#overlay = options.overlay;
+    this.#onPick = options.onPick;
+    this.#kit = new ActorKit(options.colors);
+    this.#utility = new UtilityLayer(options.colors);
+    this.#scene.add(this.#utility.group);
+    const sky = new HemisphereLight(0xffffff, 0x404858, 1.6);
+    sky.position.set(0, 0, 1);
+    this.#scene.add(sky);
+    this.#scene.add(new AmbientLight(0xffffff, 0.35));
+    const sun = new DirectionalLight(0xffffff, 1.4);
+    sun.position.set(-0.45, -0.7, 1);
+    this.#scene.add(sun);
+    this.#rig = new CameraRig(options.canvas, { onChange: () => this.requestRender(), onClick: (x, y) => this.#pick(x, y) });
+    this.setColors(options.colors);
+  }
+
+  setMap(geometry: MapGeometry, box: WorldBox, colors: SceneColors): void {
+    if (this.#map !== null) {
+      this.#scene.remove(this.#map.mesh);
+      this.#map.dispose();
+    }
+    this.#map = new MapMesh(geometry, colors.map);
+    this.#scene.add(this.#map.mesh);
+    this.#rig.frame(box);
+    this.requestRender();
+  }
+
+  setCut(z: number): void {
+    this.#map?.setCut(z);
+    this.requestRender();
+  }
+
+  setMode(mode: CameraMode): void {
+    this.#rig.mode = mode;
+    this.requestRender();
+  }
+
+  setFollow(slot: number | null): void {
+    this.#follow = slot;
+    this.requestRender();
+  }
+
+  setColors(colors: SceneColors): void {
+    this.#scene.background = new Color().setRGB(colors.background[0], colors.background[1], colors.background[2], 'srgb');
+    this.#map?.setColor(colors.map);
+    this.#kit.setColors(colors);
+    this.#utility.setColors(colors);
+    this.requestRender();
+  }
+
+  setInput(input: SceneInput): void {
+    this.#input = input;
+    const keep = new Set(input.rounds.map((round) => round.key));
+    for (const [key, state] of this.#rounds) {
+      const next = input.rounds.find((round) => round.key === key);
+      if (next !== undefined && next.frames === state.round.frames && next.focused === state.round.focused) continue;
+      this.#dropRound(key, state);
+    }
+    for (const round of input.rounds) {
+      const known = this.#rounds.get(round.key);
+      if (known !== undefined) {
+        known.round = round;
+        continue;
+      }
+      this.#rounds.set(round.key, {
+        round,
+        samples: createInterpolatedSampleReader(round.frames),
+        trails: createTrail3dReader(round.frames, round.timeline.tickrate, TRAIL_SECONDS),
+        actors: new Map(),
+        names: docNames(round.doc),
+      });
+    }
+    this.#utility.keepRounds(keep);
+    this.requestRender();
+  }
+
+  showAt(seconds: number): void {
+    this.#seconds = seconds;
+    this.requestRender();
+  }
+
+  resize(width: number, height: number): void {
+    this.#width = Math.max(1, width);
+    this.#height = Math.max(1, height);
+    this.#renderer.setPixelRatio(window.devicePixelRatio > 0 ? Math.min(2, window.devicePixelRatio) : 1);
+    this.#renderer.setSize(this.#width, this.#height, false);
+    this.#rig.resize(this.#width, this.#height);
+    this.#render();
+  }
+
+  requestRender(): void {
+    if (this.#frame !== 0) return;
+    this.#frame = requestAnimationFrame(() => {
+      this.#frame = 0;
+      this.#render();
+    });
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.#frame);
+    this.#rig.dispose();
+    for (const [key, state] of this.#rounds) this.#dropRound(key, state);
+    this.#utility.dispose();
+    this.#kit.dispose();
+    this.#map?.dispose();
+    this.#renderer.dispose();
+    this.#renderer.forceContextLoss();
+  }
+
+  #dropRound(key: string, state: RoundState): void {
+    for (const actor of state.actors.values()) {
+      this.#scene.remove(...actor.objects);
+      this.#bodies.delete(actor.body);
+      actor.dispose();
+    }
+    this.#rounds.delete(key);
+  }
+
+  #actor(state: RoundState, slot: number): PlayerActor {
+    const found = state.actors.get(slot);
+    if (found !== undefined) return found;
+    const actor = new PlayerActor(slot, this.#kit, !state.round.focused, this.#overlay, state.names.get(slot) ?? `Jugador ${slot}`);
+    state.actors.set(slot, actor);
+    this.#scene.add(...actor.objects);
+    if (state.round.focused) this.#bodies.set(actor.body, slot);
+    return actor;
+  }
+
+  #render(): void {
+    const { layers, tickOf } = this.#input;
+    this.#utility.beginFrame();
+    let eye: { at: Vec3; direction: Vec3 } | null = null;
+    for (const state of this.#rounds.values()) {
+      const { round } = state;
+      for (const actor of state.actors.values()) actor.hide();
+      const tick = tickOf(round, this.#seconds);
+      const nowSeconds = timelineSeconds(round.timeline, tick);
+      const strength = round.focused ? 1 : OVERLAY_OPACITY;
+      const cursor = frameCursor(round.frames, tick);
+      let carried = false;
+      if (cursor !== undefined) {
+        const samples = layerSamples(state.samples(cursor), layers);
+        const trails = layerTrails(state.trails(cursor), layers);
+        const previous = round.frames[cursor.index - 1]?.samples;
+        for (const sample of samples) {
+          if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) carried = true;
+          const yaw = lookYaw(sample, previous?.find((candidate) => candidate.slot === sample.slot));
+          const self = round.focused && this.#rig.mode === 'player' && this.#follow === sample.slot;
+          const actor = this.#actor(state, sample.slot);
+          actor.update(sample, yaw, { self, bombLayer: layers.bomb });
+          actor.setTrail(trails.get(sample.slot));
+          if (self) {
+            eye = { at: { x: sample.x, y: sample.y, z: sample.z + eyeHeight(sample) }, direction: viewDirection(yaw) };
+          }
+        }
+      }
+      if (layers.utility) this.#utility.grenades(round.key, utilityVisuals(round.events, nowSeconds, (at) => timelineSeconds(round.timeline, at)), strength);
+      if (layers.bomb) this.#utility.bomb(round.key, bombVisual(round.events, nowSeconds, carried), strength);
+    }
+    this.#utility.endFrame();
+    if (eye !== null) this.#rig.placeEye(eye.at, eye.direction);
+    const camera = this.#rig.active;
+    this.#renderer.render(this.#scene, camera);
+    this.#placeLabels();
+  }
+
+  #placeLabels(): void {
+    const { layers } = this.#input;
+    const camera = this.#rig.active;
+    for (const state of this.#rounds.values()) {
+      for (const actor of state.actors.values()) {
+        const self = this.#rig.mode === 'player' && this.#follow === actor.slot && state.round.focused;
+        if (!actor.shown || !state.round.focused || !layers.names || self) {
+          actor.label.classList.add('hidden');
+          continue;
+        }
+        const { x, y, z } = actor.anchor;
+        const projected = this.#projected.set(x, y, z).project(camera);
+        const sx = ((projected.x + 1) / 2) * this.#width;
+        const sy = ((1 - projected.y) / 2) * this.#height;
+        const outside = projected.z > 1 || projected.z < -1 || sx < LABEL_EDGE || sy < LABEL_EDGE || sx > this.#width - LABEL_EDGE || sy > this.#height;
+        if (outside) {
+          actor.label.classList.add('hidden');
+          continue;
+        }
+        actor.label.classList.remove('hidden');
+        actor.label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translate(-50%, -100%)`;
+      }
+    }
+  }
+
+  #pick(x: number, y: number): void {
+    const pointer = new Vector2((x / this.#width) * 2 - 1, -(y / this.#height) * 2 + 1);
+    this.#raycaster.setFromCamera(pointer, this.#rig.active);
+    const bodies = [...this.#bodies.keys()].filter((body) => body.visible && body.parent?.visible === true);
+    const hit = this.#raycaster.intersectObjects(bodies, false)[0];
+    const slot = hit === undefined ? undefined : this.#bodies.get(hit.object);
+    if (slot !== undefined) this.#onPick(slot);
+  }
+}

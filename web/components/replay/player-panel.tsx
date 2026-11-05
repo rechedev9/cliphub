@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Bomb, Eye, EyeOff } from 'lucide-react';
+import { Bomb, Eye, EyeOff, ScanEye } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import { prettifyWeapon } from '@/lib/api/map';
 import { utilityLine } from '@/lib/replay/player-cards';
@@ -11,7 +11,10 @@ import { cn } from '@/lib/utils';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
-function Card({ card, hidden, onToggle }: { card: PlayerCard; hidden: boolean; onToggle: () => void }): ReactNode {
+type Follow = { slot: number | null; onFollow: (slot: number | null) => void };
+
+function Card({ card, hidden, onToggle, follow }: { card: PlayerCard; hidden: boolean; onToggle: () => void; follow: Follow | null }): ReactNode {
+  const followed = follow !== null && follow.slot === card.slot;
   const ct = card.side === TACTICAL_SIDES.ct;
   const facts = [
     card.kills > 0 ? `${card.kills} ${card.kills === 1 ? 'baja' : 'bajas'}` : '',
@@ -39,6 +42,19 @@ function Card({ card, hidden, onToggle }: { card: PlayerCard; hidden: boolean; o
           {facts.length > 0 ? ` · ${facts.join(' · ')}` : ''}
         </span>
       </div>
+      {follow === null ? null : (
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-pressed={followed}
+          aria-label={followed ? `Dejar de ver con los ojos de ${card.name}` : `Ver con los ojos de ${card.name}`}
+          className={cn(followed && 'text-primary')}
+          onClick={() => follow.onFollow(followed ? null : card.slot)}
+        >
+          <ScanEye aria-hidden />
+        </Button>
+      )}
       <Button
         type="button"
         size="icon-sm"
@@ -58,10 +74,12 @@ export function PlayerPanel({
   sides,
   hiddenSlots,
   onTogglePlayer,
+  follow,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   hiddenSlots: readonly number[];
   onTogglePlayer: (slot: number) => void;
+  follow: Follow | null;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -76,7 +94,7 @@ export function PlayerPanel({
           </h3>
           <ul className="flex flex-col divide-y divide-border-subtle">
             {cards.map((card) => (
-              <Card key={card.slot} card={card} hidden={hiddenSlots.includes(card.slot)} onToggle={() => onTogglePlayer(card.slot)} />
+              <Card key={card.slot} card={card} hidden={hiddenSlots.includes(card.slot)} onToggle={() => onTogglePlayer(card.slot)} follow={follow} />
             ))}
           </ul>
         </section>

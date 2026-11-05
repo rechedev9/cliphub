@@ -14,7 +14,12 @@ import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { Button } from '@/components/ui/button';
+import { RADAR_2D_VIEW } from './radar-centre';
 import { ReplayWorkspace } from './replay-workspace';
+import { THREE_D_VIEW } from './three-centre';
+
+/** The radar first; the 3D view next to it. */
+const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
 function matchLabel(match: LibraryMatch): string {
   return `${prettyMapName(match.map)} · ${matchTitle(match)}`;
@@ -128,6 +133,7 @@ export function PlaylistReplay(): ReactNode {
       groupLabel={groupLabel}
       filters={filters}
       title={title}
+      centreViews={CENTRE_VIEWS}
     />
   );
 }

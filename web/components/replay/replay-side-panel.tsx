@@ -26,6 +26,7 @@ export function ReplaySidePanel({
   clockSecondsOf,
   layers,
   onTogglePlayer,
+  follow,
   onSeek,
   notes,
 }: {
@@ -35,6 +36,8 @@ export function ReplaySidePanel({
   clockSecondsOf: (timeline: RoundTimeline, tick: number) => number;
   layers: ReplayLayers;
   onTogglePlayer: (slot: number) => void;
+  /** The first-person button on each card, while the centre view can follow a player. */
+  follow: { slot: number | null; onFollow: (slot: number | null) => void } | null;
   onSeek: (clockSeconds: number) => void;
   notes: ComponentProps<typeof AnnotationPanel> | null;
 }): ReactNode {
@@ -66,7 +69,7 @@ export function ReplaySidePanel({
       nowTick,
       names,
     });
-    body = <PlayerPanel sides={sides} hiddenSlots={layers.hiddenSlots} onTogglePlayer={onTogglePlayer} />;
+    body = <PlayerPanel sides={sides} hiddenSlots={layers.hiddenSlots} onTogglePlayer={onTogglePlayer} follow={follow} />;
   } else if (shown === 'events') {
     const timeline = focused.timeline;
     body = (

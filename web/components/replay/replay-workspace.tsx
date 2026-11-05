@@ -59,6 +59,25 @@ const EMPTY_TIMELINE = roundTimeline({ tick_start: 0, tick_freeze_end: 0, tick_e
 
 const DEFAULT_VIEWS: readonly ReplayCentreView[] = [RADAR_2D_VIEW];
 
+/** The centre view the user picked last in this window. */
+const VIEW_STORAGE_KEY = 'cliphub.replay.view';
+
+function storedView(): string | null {
+  try {
+    return window.sessionStorage.getItem(VIEW_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeView(id: string): void {
+  try {
+    window.sessionStorage.setItem(VIEW_STORAGE_KEY, id);
+  } catch {
+    // Storage can be off; the view still switches for this page.
+  }
+}
+
 export type ReplayWorkspaceProps = {
   /** `library`: strip ids are library match ids, which also enables moments, notes and plays. `job`: a Crear job id. */
   source: TacticalSource['kind'];
@@ -110,6 +129,7 @@ export function ReplayWorkspace({
   const [multi, setMulti] = useState(false);
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
   const [viewId, setViewId] = useState(centreViews[0]?.id ?? RADAR_2D_VIEW.id);
+  const [followSlot, setFollowSlot] = useState<number | null>(null);
   const [uiTick, setUiTick] = useState(0);
   const [saving, setSaving] = useState<CollectionItem | null>(null);
   const draft = useTelestratorDraft();
@@ -358,6 +378,16 @@ export function ReplayWorkspace({
   };
 
   const view = centreViews.find((option) => option.id === viewId) ?? centreViews[0] ?? RADAR_2D_VIEW;
+  const selectView = useCallback((id: string) => {
+    setViewId(id);
+    setFollowSlot(null);
+    storeView(id);
+  }, []);
+  const viewIds = centreViews.map((option) => option.id).join('|');
+  useEffect(() => {
+    const saved = storedView();
+    if (saved !== null && viewIds.split('|').includes(saved)) setViewId(saved);
+  }, [viewIds]);
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
@@ -414,7 +444,7 @@ export function ReplayWorkspace({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {centreViews.length > 1 ? (
-            <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={setViewId} />
+            <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
           ) : null}
           <Button type="button" size="sm" variant={multi ? 'outline-primary' : 'outline'} aria-pressed={multi} disabled={focused === null} onClick={toggleMulti}>
             <Layers aria-hidden />
@@ -453,6 +483,9 @@ export function ReplayWorkspace({
               tickOf,
               layers,
               telestrator: library ? { draft, shown: shownDrawings } : null,
+              onSelectView: selectView,
+              followSlot,
+              onFollowSlot: setFollowSlot,
             })
           )}
         </div>
@@ -495,6 +528,7 @@ export function ReplayWorkspace({
           clockSecondsOf={clockSecondsOf}
           layers={layers}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
+          follow={view.followsPlayers === true ? { slot: followSlot, onFollow: setFollowSlot } : null}
           onSeek={(seconds) => {
             setPlaying(false);
             seekTo(seconds);
