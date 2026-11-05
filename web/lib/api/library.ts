@@ -1,5 +1,6 @@
 import type { CollectionInput, CollectionPatch, LibraryCollection, LibraryCollectionDetail } from './collections.ts';
 import type { MetricsReport } from './metrics.ts';
+import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
 import type { Annotation, HeatmapGrenade, HeatmapKind, SpatialResponse, Stroke } from './spatial.ts';
 import type {
@@ -639,4 +640,26 @@ export function patchLibraryCollection(collectionId: string, patch: CollectionPa
 
 export function deleteLibraryCollection(collectionId: string): Promise<void> {
   return request<void>(`/collections/${id(collectionId)}`, { method: 'DELETE' });
+}
+
+/** Appends the scout filter shared by the playbook and the prep. */
+function framedParams(query: TeamPrepQuery): URLSearchParams {
+  const params = new URLSearchParams({ map: query.map });
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  return params;
+}
+
+/** Every round a team played on one side of one map, classified, with the counts per category, site, tempo and zone. */
+export function getTeamPlaybook(teamId: string, query: TeamPlaybookQuery): Promise<TeamPlaybook> {
+  const params = framedParams(query);
+  params.set('side', query.side);
+  return request<TeamPlaybook>(`/teams/${id(teamId)}/playbook?${params.toString()}`);
+}
+
+/** Buy matchups, tempo per buy and CT positions of a team on one map. */
+export function getTeamPrep(teamId: string, query: TeamPrepQuery): Promise<TeamPrep> {
+  return request<TeamPrep>(`/teams/${id(teamId)}/prep?${framedParams(query).toString()}`);
 }

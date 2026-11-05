@@ -86,6 +86,15 @@ test('the stratbook routes are reachable and a play patch cannot move its map, s
   assert.equal(libraryUpstreamQuery(draft, new URLSearchParams('team_key=t-start&tick=900&slot=1')), 'team_key=t-start&tick=900');
 });
 
+test('the playbook keeps its side and the prep drops it', () => {
+  const playbook = matchLibraryRoute('GET', ['teams', ID, 'playbook']);
+  const prep = matchLibraryRoute('GET', ['teams', ID, 'prep']);
+  assert.ok(playbook && prep);
+  assert.equal(matchLibraryRoute('POST', ['teams', ID, 'playbook']), undefined);
+  assert.equal(libraryUpstreamQuery(playbook, new URLSearchParams('map=de_nuke&side=T&slot=2')), 'map=de_nuke&side=T');
+  assert.equal(libraryUpstreamQuery(prep, new URLSearchParams(`map=de_nuke&side=T&opponent_id=${ID}`)), `map=de_nuke&opponent_id=${ID}`);
+});
+
 test('the metrics routes are read only and a player metrics query keeps its own names', () => {
   assert.ok(matchLibraryRoute('GET', ['matches', ID, 'metrics']));
   assert.ok(matchLibraryRoute('GET', ['reports', ID, 'metrics']));
