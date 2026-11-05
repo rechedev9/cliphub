@@ -252,7 +252,6 @@ func run() error {
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
 			FFprobePath: cfg.FFprobePath,
-			Timeout:     cfg.RenderTimeout,
 		})
 		taskHandlers[tasks.TypeStreamAcquire] = acquireWorker.HandleStreamAcquire
 		log.Printf("worker: stream acquire enabled")
@@ -303,6 +302,7 @@ func run() error {
 		httpapi.WithEditorRepositories(editorAssets, editorProjects),
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
+		httpapi.WithStreamPlayScanner(cfg.FFmpegPath),
 		httpapi.WithMusicDir(cfg.MusicDir),
 		httpapi.WithLabBundles(labBundles, filepath.Join(cfg.DataDir, "lab")),
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),

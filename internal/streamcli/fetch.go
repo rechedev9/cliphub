@@ -37,7 +37,7 @@ func runStreamFetch(args []string, stdout, stderr io.Writer, fetch vodFetcher) i
 	fs.SetOutput(io.Discard)
 	rawURL := fs.String("url", "", "Twitch or YouTube clip/VOD URL")
 	out := fs.String("out", "", "destination MP4 path")
-	maxBytes := fs.Int64("max-bytes", vodfetch.DefaultMaxBytes, "download size ceiling in bytes")
+	maxBytes := fs.Int64("max-bytes", 0, "download size ceiling in bytes; 0 means no ceiling")
 	ytdlp := fs.String("ytdlp", "", "yt-dlp executable; defaults to ZV_YTDLP_PATH or PATH")
 	timeout := fs.String("timeout", "20m", "download timeout")
 	format := fs.String("format", "text", "text or json")
@@ -54,8 +54,8 @@ func runStreamFetch(args []string, stdout, stderr io.Writer, fetch vodFetcher) i
 	if *format != "text" && *format != "json" {
 		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), streamFetchUsage)
 	}
-	if *maxBytes <= 0 {
-		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--max-bytes must be positive"), streamFetchUsage)
+	if *maxBytes < 0 {
+		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--max-bytes must not be negative"), streamFetchUsage)
 	}
 	downloadTimeout, err := time.ParseDuration(*timeout)
 	if err != nil || downloadTimeout <= 0 {

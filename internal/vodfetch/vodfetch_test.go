@@ -384,11 +384,10 @@ func TestDownload_ArgsShape(t *testing.T) {
 		"--fragment-retries", "2",
 		"--extractor-retries", "2",
 		"--print", "after_move:%(title)s",
-		"--max-filesize", "8589934592",
 	}
 	got := runner.gotArgs
-	if len(got) < len(want)+3 { // +3 for "-o", tmpPath, url
-		t.Fatalf("got args %v, too short to contain %v plus -o/tmp/url", got, want)
+	if len(got) != len(want)+3 { // +3 for "-o", tmpPath, url; no --max-filesize without a cap
+		t.Fatalf("got args %v, want %v plus -o/tmp/url", got, want)
 	}
 	for i, w := range want {
 		if got[i] != w {

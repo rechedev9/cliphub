@@ -5,7 +5,6 @@ import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 import { isStreamURLValidationError, STREAM_INVALID_URL_MESSAGE, STREAM_OFFLINE_MESSAGE } from './plan.ts';
 import {
   STREAM_IMPORT_FILE_FAIL_MESSAGE,
-  STREAM_IMPORT_FILE_TOO_LARGE_MESSAGE,
   STREAM_IMPORT_FILE_UNREADABLE_MESSAGE,
   STREAM_IMPORT_URL_FAIL_MESSAGE,
   STREAM_IMPORT_YTDLP_MISSING_MESSAGE,
@@ -101,14 +100,6 @@ test('URL import failures map to Spanish copy and never echo the server body', (
 });
 
 test('file import failures map to Spanish copy', () => {
-  assert.equal(
-    streamImportErrorMessage(apiError('file too large', { status: 413 }), 'file'),
-    STREAM_IMPORT_FILE_TOO_LARGE_MESSAGE,
-  );
-  assert.equal(
-    streamImportErrorMessage(apiError('request body too large', { status: 413 }), 'file'),
-    STREAM_IMPORT_FILE_TOO_LARGE_MESSAGE,
-  );
   assert.equal(
     streamImportErrorMessage(apiError('probe video: exit status 1', { status: 400 }), 'file'),
     STREAM_IMPORT_FILE_UNREADABLE_MESSAGE,

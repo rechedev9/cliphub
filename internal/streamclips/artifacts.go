@@ -26,6 +26,11 @@ func EditPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "edit-plan.json")
 }
 
+// PlaysKey stores the plays found by the kill-feed scan of source.mp4.
+func PlaysKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "plays.json")
+}
+
 func RenderPrefix(id uuid.UUID, variant string) (string, error) {
 	if _, ok := VariantByName(variant); !ok {
 		return "", unknownVariantError(variant)

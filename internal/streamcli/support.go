@@ -60,7 +60,7 @@ Downloads an allowlisted Twitch or YouTube clip/VOD to a local MP4. The
 destination is left untouched on --dry-run. Existing files are reused.
 
 Flags:
-  --max-bytes <n>              download size ceiling (default 8589934592)
+  --max-bytes <n>              download size ceiling (default 0, no ceiling)
   --ytdlp <path>               yt-dlp path; defaults to ZV_YTDLP_PATH or PATH
   --timeout <duration>         download timeout (default 20m)
   --dry-run                    validate the URL and destination without downloading
@@ -82,6 +82,12 @@ Flags:
   --face-crop x,y,w,h          override normalized facecam crop
   --gameplay-crop x,y,w,h      override normalized gameplay crop
   --ffprobe <path>             ffprobe path; defaults to local discovery
+  --highlights                 scan a CS2 video and make one clip per detected
+                               play (kills of the recording player, read from
+                               the red kill-feed highlight)
+  --min-kills <n>              with --highlights, fewest kills per play (default 1)
+  --max-clips <n>              with --highlights, best plays to keep (default 10)
+  --ffmpeg <path>              ffmpeg path for --highlights; defaults to local discovery
   --dry-run                    probe and validate without writing the plan
   --format <text|json>         output format (default text)
 `

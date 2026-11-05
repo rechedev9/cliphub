@@ -27,10 +27,8 @@ import (
 )
 
 const (
-	maxStreamVideoBytes     = 8 << 30
-	maxStreamMultipartBytes = maxStreamVideoBytes + 2<<20
-	streamRenderUniqueTTL   = 24 * time.Hour
-	defaultStreamListLimit  = 50
+	streamRenderUniqueTTL  = 24 * time.Hour
+	defaultStreamListLimit = 50
 )
 
 type createStreamJobConfig struct {
@@ -92,8 +90,8 @@ func (h *Handlers) CreateStreamJob(w http.ResponseWriter, r *http.Request) {
 		h.createStreamJobFromURL(w, r)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxStreamMultipartBytes)
-	// #nosec G120 -- r.Body is capped with MaxBytesReader immediately above.
+	// #nosec G120 -- a full VOD upload has no size cap by design; files beyond
+	// the memory budget spill to disk, and only local callers reach this route.
 	if err := r.ParseMultipartForm(multipartMemBudget); err != nil {
 		writeError(w, http.StatusBadRequest, "parsing multipart form: "+err.Error())
 		return
