@@ -465,8 +465,8 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
 
 ## Releases
 
-- Version lives in `desktop/package.json` and `landing/app/page.tsx`
-  (`DOWNLOAD_URL`, `RELEASE_VERSION`). Bump both, commit
+- Version lives in `desktop/package.json` and `landing/lib/site.ts`
+  (`DOWNLOAD_URL`, `RELEASE_VERSION`, `INSTALLER_SIZE`). Bump both, commit
   `chore(release): prepare Studio X.Y.Z`, then push an annotated tag
   `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
   builds the installer and publishes the GitHub Release as `latest`, which
