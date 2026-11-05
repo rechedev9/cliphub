@@ -32,6 +32,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV6LibraryAnnotations,
 	migrateV7LibraryPlays,
 	migrateV8LibrarySeriesVeto,
+	migrateV9LibraryCollections,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -589,6 +590,26 @@ func migrateV8LibrarySeriesVeto(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("add series veto: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV9LibraryCollections stores the user's lists of saved moments. Items
+// are JSON because their order is the user's and a list is read whole.
+func migrateV9LibraryCollections(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_collections (
+			id         TEXT    PRIMARY KEY,
+			name       TEXT    NOT NULL,
+			items      TEXT    NOT NULL DEFAULT '[]',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX library_collections_updated ON library_collections(updated_at, id)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("create library collections: %w", err)
 		}
 	}
 	return nil

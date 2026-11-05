@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { MetricCount, MetricsReport, PlayerMetrics } from '../api/metrics.ts';
 import { playerMetricsPath } from '../api/library.ts';
-import { duelText, metricsMatchIndex, metricsSections, ppText, winChart } from './advanced.ts';
+import { duelText, mapLines, metricsMatchIndex, metricsSections, ppText, winChart } from './advanced.ts';
 
 const MATCH = 'aaaaaaaa-0000-4000-8000-000000000001';
 const ev = (round: number, tick: number) => ({ match_id: MATCH, round, tick });
@@ -38,6 +38,10 @@ function player(overrides: Partial<PlayerMetrics> = {}): PlayerMetrics {
     },
     positions: [{ side: 'CT', callout: 'BombsiteA', rounds: 9, won: 6, kills: 7, deaths: 4, wpa: 0.12, examples: [ev(1, 100)] }],
     match_lines: [{ match_id: MATCH, map: 'de_mirage', played_at: '2026-10-12T18:00:00Z', team_key: 'ct-start', rounds: 20, kills: 15, deaths: 12, eco_kills: 14.25, wpa: 0.4567 }],
+    buys: [
+      { buy: 'pistol', rounds: 2, won: 1, kills: 2, deaths: 1, wpa: 0.05 },
+      { buy: 'full', rounds: 18, won: 11, kills: 13, deaths: 11, wpa: 0.4067 },
+    ],
     ...overrides,
   };
 }
@@ -70,7 +74,7 @@ test('every metric section links its counts to rounds and never uses a dash', ()
   const sections = metricsSections(report(), { playerHref: (id) => `/jugadores/${id}`, byMatch: true, matchHref: (id) => `/partidas/${id}` });
   assert.deepEqual(
     sections.map((s) => s.id),
-    ['metricas-impacto', 'metricas-economia', 'metricas-duelos', 'metricas-trades', 'metricas-utilidad', 'metricas-posiciones', 'metricas-roles', 'metricas-partidas'],
+    ['metricas-impacto', 'metricas-economia', 'metricas-duelos', 'metricas-trades', 'metricas-utilidad', 'metricas-posiciones', 'metricas-compra', 'metricas-roles', 'metricas-mapas', 'metricas-partidas'],
   );
   const evidence = sections.flatMap((s) => s.tables.flatMap((t) => t.rows.flatMap((row) => row.flatMap((cell) => cell.evidence ?? []))));
   for (const tick of [900, 700, 300, 800, 1000, 1010, 1200, 100]) {
@@ -82,6 +86,20 @@ test('every metric section links its counts to rounds and never uses a dash', ()
   assert.equal(sections.at(-1)?.tables[0]?.rows[0]?.[0]?.href, `/partidas/${MATCH}`);
   const all = JSON.stringify(sections);
   assert.equal(/[–—]/.test(all), false);
+});
+
+test('the buy table reads each buy of the player per round', () => {
+  const buys = metricsSections(report()).find((s) => s.id === 'metricas-compra');
+  const rows = buys?.tables[0]?.rows ?? [];
+  assert.deepEqual(rows.map((row) => row[1]?.text), ['Pistola', 'Full']);
+  assert.deepEqual(rows[0]?.slice(2).map((cell) => cell.text), ['2', '50 %', '1,00', '0,50', '+2,5 pp']);
+});
+
+test('the map table adds up every match of the same map', () => {
+  const second = { match_id: 'aaaaaaaa-0000-4000-8000-000000000002', map: 'de_nuke', played_at: '2026-10-13T18:00:00Z', team_key: 't-start', rounds: 24, kills: 20, deaths: 10, eco_kills: 18, wpa: 0.2 };
+  const third = { ...second, match_id: 'aaaaaaaa-0000-4000-8000-000000000003', rounds: 16, kills: 4, deaths: 10 };
+  const lines = mapLines(report([player({ match_lines: [...player().match_lines, second, third] })]));
+  assert.deepEqual(lines.map((l) => [l.map, l.matches, l.rounds, l.kills, l.deaths]), [['de_nuke', 2, 40, 24, 20], ['de_mirage', 1, 20, 15, 12]]);
 });
 
 test('utility from older scans says it was not measured', () => {

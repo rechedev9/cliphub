@@ -65,6 +65,8 @@ test('the replay views and notes are reachable, and a note cannot change match o
 });
 
 test('the stratbook routes are reachable and a play patch cannot move its map, side or origin', () => {
+  assert.ok(matchLibraryRoute('PATCH', ['collections', ID]));
+  assert.equal(matchLibraryRoute('PUT', ['collections', ID]), undefined);
   assert.ok(matchLibraryRoute('GET', ['plays']));
   assert.ok(matchLibraryRoute('GET', ['plays', 'export']));
   assert.ok(matchLibraryRoute('DELETE', ['plays', ID]));

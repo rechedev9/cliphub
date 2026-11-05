@@ -128,6 +128,15 @@ type LibraryRepository interface {
 	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
 	// DeletePlay removes a play; a missing id is ErrNotFound.
 	DeletePlay(ctx context.Context, id uuid.UUID) error
+	// CreateCollection stores a list of saved moments; an id that is already
+	// stored is ErrConflict. Items are not checked against the matches.
+	CreateCollection(ctx context.Context, c *library.Collection) error
+	GetCollection(ctx context.Context, id uuid.UUID) (library.Collection, error)
+	// ListCollections returns every collection by most recent edit.
+	ListCollections(ctx context.Context) ([]library.Collection, error)
+	UpdateCollection(ctx context.Context, id uuid.UUID, patch library.CollectionPatch) (library.Collection, error)
+	// DeleteCollection removes a collection; a missing id is ErrNotFound.
+	DeleteCollection(ctx context.Context, id uuid.UUID) error
 }
 
 type Repositories struct {

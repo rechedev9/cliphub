@@ -37,7 +37,7 @@ var oversizedGoFiles = map[string]int{
 	"internal/httpapi/handlers.go":                         2982,
 	"internal/httpapi/handlers_generate_test.go":           1040,
 	"internal/httpapi/handlers_test.go":                    6351,
-	"internal/httpapi/library_handlers.go":                 1038,
+	"internal/httpapi/library_handlers.go":                 1035,
 	"internal/httpapi/stream_handlers.go":                  1261,
 	"internal/httpapi/workbench_htmx.go":                   1154,
 	"internal/reconcile/sweep_test.go":                     1136,

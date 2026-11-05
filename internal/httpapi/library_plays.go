@@ -69,6 +69,15 @@ func (h *Handlers) annotateLineups(mapName string, grenades []tacticalplan.PlayG
 	}
 }
 
+// libraryPlayRepository is the stratbook part of LibraryRepository.
+type libraryPlayRepository interface {
+	CreatePlay(ctx context.Context, p *library.Play) error
+	GetPlay(ctx context.Context, id uuid.UUID) (library.Play, error)
+	ListPlays(ctx context.Context, filter library.PlayFilter) ([]library.Play, error)
+	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
+	DeletePlay(ctx context.Context, id uuid.UUID) error
+}
+
 // ListLibraryPlays handles GET /api/library/plays.
 func (h *Handlers) ListLibraryPlays(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {

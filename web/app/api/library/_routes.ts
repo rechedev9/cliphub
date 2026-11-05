@@ -20,6 +20,7 @@ import {
   STRATBOOK_FILE_KEYS,
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
+import { COLLECTION_DETAIL_KEYS, COLLECTION_FIELDS, COLLECTION_KEYS } from '../../../lib/api/collections.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 
 /**
@@ -130,6 +131,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['plays', UUID], response: json(PLAY_DETAIL_KEYS) },
   { method: 'PATCH', segments: ['plays', UUID], body: fields(PLAY_PATCH_FIELDS), response: json(PLAY_KEYS) },
   { method: 'DELETE', segments: ['plays', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['collections'], response: json(['collections']) },
+  { method: 'POST', segments: ['collections'], body: fields(COLLECTION_FIELDS), response: json(COLLECTION_KEYS) },
+  { method: 'GET', segments: ['collections', UUID], response: json(COLLECTION_DETAIL_KEYS) },
+  { method: 'PATCH', segments: ['collections', UUID], body: fields(COLLECTION_FIELDS), response: json(COLLECTION_KEYS) },
+  { method: 'DELETE', segments: ['collections', UUID], response: { kind: 'empty' } },
   { method: 'GET', segments: ['reports'], query: ['team_id', ...PAGING], response: json(['reports']) },
   { method: 'POST', segments: ['reports'], body: fields(['team_id', ...REPORT_FIELDS]), response: json(REPORT_KEYS) },
   { method: 'GET', segments: ['reports', UUID], response: json(REPORT_KEYS) },

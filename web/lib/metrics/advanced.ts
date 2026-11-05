@@ -2,7 +2,7 @@ import type { DuelBucket, MetricCount, MetricsReport, PlayerMetrics, RoundTimeli
 import type { ScoutEvidence, ScoutMatchSummary } from '../api/scout.ts';
 import type { TacticalSide } from '../api/tactical.ts';
 import { ROLE_LABEL } from '../library/partidas.ts';
-import { placeLabel } from '../tactical-labels.ts';
+import { buyLabel, placeLabel } from '../tactical-labels.ts';
 import { prettyMapName } from '../format.ts';
 import { dateText, type ReportCell, type ReportSection, type ReportTable } from '../reports/scout-sections.ts';
 
@@ -374,6 +374,82 @@ function byMatchSection(report: MetricsReport, options: MetricsSectionOptions): 
   };
 }
 
+function perRoundText(value: number, rounds: number): string {
+  return rounds === 0 ? '' : decimal2.format(value / rounds);
+}
+
+function buySection(report: MetricsReport, options: MetricsSectionOptions): ReportSection {
+  return {
+    id: 'metricas-compra',
+    title: 'Por compra',
+    intro:
+      'Cada ronda cuenta con la compra de su propio equipo: pistola, eco, semi, force o full. Una force es media compra tras perder sin dinero; una semi es media compra planeada.',
+    facts: [],
+    tables: [
+      {
+        caption: 'Rendimiento por tipo de compra',
+        columns: ['Jugador', 'Compra', 'Rondas', '% ganadas', 'Bajas por ronda', 'Muertes por ronda', 'WPA por ronda'],
+        rows: report.players.flatMap((p) =>
+          p.buys.map((line) => [
+            playerCell(p, options),
+            text(buyLabel(line.buy)),
+            num(line.rounds),
+            num(line.rounds === 0 ? '' : percentText(line.won / line.rounds)),
+            num(perRoundText(line.kills, line.rounds)),
+            num(perRoundText(line.deaths, line.rounds)),
+            { ...num(line.rounds === 0 ? '' : ppText(line.wpa / line.rounds)), tone: signedTone(line.wpa) },
+          ]),
+        ),
+        empty: 'Sin rondas en la selección.',
+      },
+    ],
+  };
+}
+
+type MapLine = { map: string; matches: number; rounds: number; kills: number; deaths: number; ecoKills: number; wpa: number };
+
+/** A player's match lines added up per map, the most played map first. */
+export function mapLines(report: MetricsReport): MapLine[] {
+  const byMap = new Map<string, MapLine>();
+  for (const line of report.players.flatMap((p) => p.match_lines)) {
+    const acc = byMap.get(line.map) ?? { map: line.map, matches: 0, rounds: 0, kills: 0, deaths: 0, ecoKills: 0, wpa: 0 };
+    acc.matches += 1;
+    acc.rounds += line.rounds;
+    acc.kills += line.kills;
+    acc.deaths += line.deaths;
+    acc.ecoKills += line.eco_kills;
+    acc.wpa += line.wpa;
+    byMap.set(line.map, acc);
+  }
+  return [...byMap.values()].sort((a, b) => b.rounds - a.rounds || a.map.localeCompare(b.map));
+}
+
+function byMapSection(report: MetricsReport): ReportSection {
+  return {
+    id: 'metricas-mapas',
+    title: 'Por mapa',
+    intro: 'Las mismas cifras sumadas por mapa. Con pocas partidas en un mapa, la cifra dice poco: mira la columna de partidas antes de comparar.',
+    facts: [],
+    tables: [
+      {
+        caption: 'Rendimiento por mapa',
+        columns: ['Mapa', 'Partidas', 'Rondas', 'Bajas', 'Muertes', 'K/D', 'Bajas ajustadas por ronda', 'WPA por ronda'],
+        rows: mapLines(report).map((line) => [
+          text(prettyMapName(line.map)),
+          num(line.matches),
+          num(line.rounds),
+          num(line.kills),
+          num(line.deaths),
+          num(line.deaths === 0 ? String(line.kills) : decimal2.format(line.kills / line.deaths)),
+          num(perRoundText(line.ecoKills, line.rounds)),
+          { ...num(line.rounds === 0 ? '' : ppText(line.wpa / line.rounds)), tone: signedTone(line.wpa) },
+        ]),
+        empty: 'Sin partidas leídas.',
+      },
+    ],
+  };
+}
+
 /** Every metrics section, in the order an analyst reads a player. */
 export function metricsSections(report: MetricsReport, options: MetricsSectionOptions = {}): ReportSection[] {
   const sections = [
@@ -383,9 +459,10 @@ export function metricsSections(report: MetricsReport, options: MetricsSectionOp
     tradeSection(report, options),
     utilitySection(report, options),
     positionSection(report, options),
+    buySection(report, options),
     roleSection(report, options),
   ];
-  if (options.byMatch) sections.push(byMatchSection(report, options));
+  if (options.byMatch) sections.push(byMapSection(report), byMatchSection(report, options));
   return sections;
 }
 

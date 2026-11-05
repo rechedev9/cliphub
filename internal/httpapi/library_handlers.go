@@ -66,11 +66,8 @@ type LibraryRepository interface {
 	ListAnnotations(ctx context.Context, filter library.AnnotationFilter) ([]library.Annotation, error)
 	UpdateAnnotation(ctx context.Context, id uuid.UUID, patch library.AnnotationPatch) (library.Annotation, error)
 	DeleteAnnotation(ctx context.Context, id uuid.UUID) error
-	CreatePlay(ctx context.Context, p *library.Play) error
-	GetPlay(ctx context.Context, id uuid.UUID) (library.Play, error)
-	ListPlays(ctx context.Context, filter library.PlayFilter) ([]library.Play, error)
-	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
-	DeletePlay(ctx context.Context, id uuid.UUID) error
+	libraryPlayRepository
+	libraryCollectionRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.

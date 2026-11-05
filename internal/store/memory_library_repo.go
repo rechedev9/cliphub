@@ -29,6 +29,7 @@ type MemoryLibraryRepository struct {
 	reports      map[uuid.UUID]library.Report
 	annotations  map[uuid.UUID]library.Annotation
 	plays        map[uuid.UUID]library.Play
+	collections  map[uuid.UUID]library.Collection
 }
 
 type memoryJobLink struct {
@@ -37,14 +38,13 @@ type memoryJobLink struct {
 }
 
 type memoryLibraryMatch struct {
-	id, demoID           uuid.UUID
-	seriesID             *uuid.UUID
-	mapName              string
-	playedAt             time.Time
-	tickrate             float64
-	durationTicks        int
-	roundCount           int
-	createdAt, updatedAt time.Time
+	id, demoID                     uuid.UUID
+	seriesID                       *uuid.UUID
+	mapName                        string
+	tickrate                       float64
+	durationTicks                  int
+	roundCount                     int
+	playedAt, createdAt, updatedAt time.Time
 }
 
 type memoryMatchTeam struct {
