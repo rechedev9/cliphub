@@ -91,7 +91,14 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 	// duplicate it.
 	nativePortraitKillfeed := result.Plan.Stream.PortraitSafeKillfeed &&
 		result.Plan.Stream.HUDMode == recording.HUDModeDeathnotices
-	killfeedOverlay := opts.KillfeedOverlay && renderPreset.KillfeedSource && outputFormat == OutputFormatShort9x16 && !nativePortraitKillfeed
+	// A centered killfeed replaces both: it is drawn from the kill plan, so a
+	// capture that already moved CS2's notices into the frame would show twice.
+	centeredKillfeed := opts.CenteredKillfeed && outputFormat == OutputFormatShort9x16
+	if centeredKillfeed && nativePortraitKillfeed {
+		centeredKillfeed = false
+		warnings = append(warnings, "centered killfeed skipped: the capture already shows CS2's notices inside the 9:16 frame")
+	}
+	killfeedOverlay := opts.KillfeedOverlay && renderPreset.KillfeedSource && outputFormat == OutputFormatShort9x16 && !nativePortraitKillfeed && !centeredKillfeed
 	hqFilters := opts.HQFilters || renderPreset.HQFilters
 	audioNormalize := opts.AudioNormalize || renderPreset.AudioNormalize
 	qualityChecks := opts.QualityChecks || renderPreset.QualityChecks
@@ -133,6 +140,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		HookText:          opts.HookText,
 		KillCounter:       opts.KillCounter,
 		KillfeedOverlay:   killfeedOverlay,
+		CenteredKillfeed:  centeredKillfeed,
 		TailTrimSeconds:   opts.TailTrimSeconds,
 		OutputFPS:         outputFPS,
 		CompileSegments:   opts.CompileSegments,
@@ -217,6 +225,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			HookText:          opts.HookText,
 			KillCounter:       opts.KillCounter,
 			KillfeedOverlay:   killfeedOverlay,
+			CenteredKillfeed:  centeredKillfeed,
 			TailTrimSeconds:   opts.TailTrimSeconds,
 			OutputFPS:         outputFPS,
 			HQFilters:         hqFilters,
@@ -320,6 +329,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			HookText:            opts.HookText,
 			KillCounter:         opts.KillCounter,
 			KillfeedOverlay:     killfeedOverlay,
+			CenteredKillfeed:    centeredKillfeed,
 			TailTrimSeconds:     opts.TailTrimSeconds,
 			OutputFPS:           outputFPS,
 			VideoCRF:            videoCRF,
@@ -428,6 +438,7 @@ type compiledShortOptions struct {
 	HookText          bool
 	KillCounter       bool
 	KillfeedOverlay   bool
+	CenteredKillfeed  bool
 	TailTrimSeconds   float64
 	HQFilters         bool
 	AudioNormalize    bool
@@ -562,6 +573,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		HookText:               c.HookText,
 		KillCounter:            c.KillCounter,
 		KillfeedOverlay:        c.KillfeedOverlay,
+		CenteredKillfeed:       c.CenteredKillfeed,
 		TailTrimSeconds:        tailTrimForRhythm(c),
 		OutputFPS:              c.OutputFPS,
 		SourceWidth:            result.Plan.Stream.Width,
@@ -804,12 +816,15 @@ func killCues(segment recording.RecordingSegment, tickrate int) []KillCue {
 			continue
 		}
 		out = append(out, KillCue{
-			Tick:        kill.Tick,
-			TimeSeconds: float64(kill.Tick-recordStart) / float64(tickrate),
-			Weapon:      formatWeapon(kill.Weapon),
-			Victim:      kill.Victim.NameInDemo,
-			Headshot:    kill.Headshot,
-			Wallbang:    kill.Wallbang,
+			Tick:         kill.Tick,
+			TimeSeconds:  float64(kill.Tick-recordStart) / float64(tickrate),
+			Weapon:       formatWeapon(kill.Weapon),
+			Attacker:     kill.Killer.NameInDemo,
+			AttackerSide: kill.Killer.TeamAtKill,
+			Victim:       kill.Victim.NameInDemo,
+			VictimSide:   kill.Victim.TeamAtKill,
+			Headshot:     kill.Headshot,
+			Wallbang:     kill.Wallbang,
 		})
 	}
 	return out

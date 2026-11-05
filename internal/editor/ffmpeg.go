@@ -287,6 +287,8 @@ func CompilationFilter(short ShortEdit) string {
 	partShort := short
 	partShort.Effects = nil
 	partShort.Parts = nil
+	// The killfeed runs once on the concatenated timeline, never per part.
+	partShort.KillfeedASS = ""
 	clauses := []string{}
 	concatLabels := []string{}
 	concatCount := 0

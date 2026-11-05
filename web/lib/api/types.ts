@@ -242,6 +242,8 @@ export type EditConfig = {
   outro: boolean;
   hookText: boolean;
   killCounter: boolean;
+  /** Short only: kill notices drawn by ClipHub, centered near the top. */
+  centeredKillfeed?: boolean;
   matchRecap: boolean;
   /** The plays are death clips (death plan), not kills. */
   deathReel?: boolean;

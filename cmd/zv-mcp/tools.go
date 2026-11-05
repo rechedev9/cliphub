@@ -486,7 +486,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")
 			if in.Deaths {
 				list, what = c.GetDeaths, plural(len(in.SegmentIDs), "muerte", "muertes")
-				edit.DeathReel, edit.HookText, edit.KillCounter = true, false, false
+				edit.DeathReel, edit.HookText, edit.KillCounter, edit.CenteredKillfeed = true, false, false, false
 			}
 			doc, err := list(ctx, in.JobID)
 			if err != nil {

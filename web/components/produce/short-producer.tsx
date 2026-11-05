@@ -426,6 +426,7 @@ function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent
 function overlaysSummary(edit: EditConfig): string {
   const parts: string[] = [];
   if (edit.killCounter) parts.push('Kill counter');
+  if (edit.centeredKillfeed && edit.format === 'short-9x16') parts.push('Kill feed centrada');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
   if (edit.victimReplay) parts.push('Repetición');

@@ -108,6 +108,7 @@ type RawRenderView = {
     outro?: boolean;
     hook_text?: boolean;
     kill_counter?: boolean;
+    centered_killfeed?: boolean;
     cover_strategy?: EditConfig['coverStrategy'];
     intro_text?: string;
     outro_text?: string;

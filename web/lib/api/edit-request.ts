@@ -10,6 +10,7 @@ export type EditRequestBody = {
   outro: boolean;
   hook_text: boolean;
   kill_counter: boolean;
+  centered_killfeed?: boolean;
   match_recap: boolean;
   death_reel?: boolean;
   voice_comms: boolean;
@@ -46,6 +47,7 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   if (edit.deathReel) body.death_reel = true;
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
   else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) body.victim_replay = true;
+  if (edit.centeredKillfeed && edit.format === 'short-9x16' && !edit.fullDemo && !edit.deathReel) body.centered_killfeed = true;
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

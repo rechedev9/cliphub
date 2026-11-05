@@ -271,6 +271,7 @@ func prepareRunInputs(ctx context.Context, cfg Config) (runInputs, error) {
 		HookText:            cfg.HookText,
 		KillCounter:         cfg.KillCounter,
 		KillfeedOverlay:     cfg.KillfeedOverlay,
+		CenteredKillfeed:    cfg.CenteredKillfeed,
 		KeyDropFamily:       cfg.KeyDropFamily,
 		KeyDropStyle:        cfg.KeyDropStyle,
 		KeyDropCode:         cfg.KeyDropCode,

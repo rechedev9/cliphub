@@ -1,6 +1,6 @@
 'use client';
 
-import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Sparkles, Type, Zap } from 'lucide-react';
+import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Sparkles, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -201,6 +201,27 @@ export function EditOptions({
           ) : null}
         </OptionBlock>
       )}
+
+      {value.format === 'short-9x16' ? (
+        <OptionBlock label="Kill feed" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={value.centeredKillfeed ? ['centered-killfeed'] : []}
+            onValueChange={(items) => onChange({ ...value, centeredKillfeed: items.includes('centered-killfeed') })}
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="centered-killfeed" aria-label="Kill feed centrada arriba">
+              <Crosshair className="size-4" />
+              Centrada arriba
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-body-sm text-fg-3">
+            ClipHub dibuja tus kills en el centro, arriba del Short, en lugar de la kill feed de CS2.
+          </p>
+        </OptionBlock>
+      ) : null}
 
       <OptionBlock label="Apertura y cierre" className="md:col-span-2">
         <ToggleGroup

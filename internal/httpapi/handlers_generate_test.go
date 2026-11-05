@@ -357,9 +357,12 @@ func TestStartGenerateKillfeedCaptureProfile(t *testing.T) {
 		name                     string
 		preset                   string
 		format                   string
+		centered                 bool
 		wantHUD                  string
 		wantPortraitSafeKillfeed bool
 	}{
+		{name: "centered kill feed vertical", preset: editor.PresetViral60Clean, format: renderplan.FormatShort9x16, centered: true, wantHUD: "deathnotices"},
+		{name: "centered full HUD vertical", preset: editor.PresetFullHUD60, format: renderplan.FormatShort9x16, centered: true, wantHUD: "gameplay"},
 		{name: "kill feed vertical", preset: editor.PresetViral60Clean, format: renderplan.FormatShort9x16, wantHUD: "deathnotices", wantPortraitSafeKillfeed: true},
 		{name: "full HUD vertical", preset: editor.PresetFullHUD60, format: renderplan.FormatShort9x16, wantHUD: "gameplay", wantPortraitSafeKillfeed: true},
 		{name: "full HUD landscape", preset: editor.PresetFullHUD60, format: renderplan.FormatLandscape16x9, wantHUD: "gameplay"},
@@ -375,7 +378,7 @@ func TestStartGenerateKillfeedCaptureProfile(t *testing.T) {
 			repo.jobs[j.ID] = j
 			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 
-			body := fmt.Sprintf(`{"preset":%q,"edit":{"format":%q}}`, tc.preset, tc.format)
+			body := fmt.Sprintf(`{"preset":%q,"edit":{"format":%q,"centered_killfeed":%t}}`, tc.preset, tc.format, tc.centered)
 			rw := postGenerate(t, h, j.ID, body)
 			if rw.Code != http.StatusAccepted {
 				t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
