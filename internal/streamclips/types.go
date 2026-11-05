@@ -54,10 +54,34 @@ func ParseStatus(value string) (Status, error) {
 	}
 }
 
+// SourceKind says what the creator imported: a short clip to edit as one
+// Short, or a full VOD whose kills become a summary and a set of Shorts.
+type SourceKind string
+
+const (
+	SourceKindClip SourceKind = "clip"
+	SourceKindVOD  SourceKind = "vod"
+)
+
+// ParseSourceKind reads a requested source kind; empty means a clip, the
+// only kind that existed before VODs.
+func ParseSourceKind(value string) (SourceKind, error) {
+	switch SourceKind(value) {
+	case "", SourceKindClip:
+		return SourceKindClip, nil
+	case SourceKindVOD:
+		return SourceKindVOD, nil
+	default:
+		return "", fmt.Errorf("unknown source kind %q (valid: clip, vod)", value)
+	}
+}
+
 type Job struct {
-	ID            uuid.UUID `json:"id"`
-	Status        Status    `json:"status"`
-	FailureReason string    `json:"failure_reason,omitempty"`
+	ID     uuid.UUID `json:"id"`
+	Status Status    `json:"status"`
+	// SourceKind is empty for jobs created before it existed; read it as a clip.
+	SourceKind    SourceKind `json:"source_kind,omitempty"`
+	FailureReason string     `json:"failure_reason,omitempty"`
 	// FailureCode is the stable obs class for a terminal failure. FailureReason
 	// stays the user-facing text (including Spanish acquire reasons).
 	FailureCode  string `json:"failure_code,omitempty"`

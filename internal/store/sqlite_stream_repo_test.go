@@ -43,6 +43,7 @@ func TestSQLiteStreamRepoLifecycle(t *testing.T) {
 		SourcePath:   "streams/src.mp4",
 		SourceSHA256: "abc123",
 		Title:        "match stream",
+		SourceKind:   streamclips.SourceKindVOD,
 		Probe:        streamclips.SourceProbe{Width: 1280, Height: 720},
 	}
 	if err := repo.Create(ctx, j); err != nil {
@@ -64,6 +65,9 @@ func TestSQLiteStreamRepoLifecycle(t *testing.T) {
 	}
 	if got.Probe.Width != 1280 || got.Probe.Height != 720 {
 		t.Fatalf("Get: probe = %+v, want 1280x720", got.Probe)
+	}
+	if got.SourceKind != streamclips.SourceKindVOD {
+		t.Fatalf("Get: source kind = %q, want vod", got.SourceKind)
 	}
 
 	if _, err := repo.Get(ctx, uuid.New()); !errors.Is(err, streamclips.ErrNotFound) {

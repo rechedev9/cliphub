@@ -8,6 +8,8 @@ import {
   STREAM_IMPORT_FILE_UNREADABLE_MESSAGE,
   STREAM_IMPORT_URL_FAIL_MESSAGE,
   STREAM_IMPORT_YTDLP_MISSING_MESSAGE,
+  STREAM_VOD_LINK_AS_CLIP_MESSAGE,
+  STREAM_CLIP_LINK_AS_VOD_MESSAGE,
   STREAM_SOURCE_HOSTS,
   STREAM_URL_REQUIRED_MESSAGE,
   streamImportErrorMessage,
@@ -111,5 +113,28 @@ test('file import failures map to Spanish copy', () => {
   assert.equal(
     streamImportErrorMessage(apiError('invalid source_url: x', { code: 'invalid_source_url' }), 'file'),
     STREAM_IMPORT_FILE_FAIL_MESSAGE,
+  );
+});
+
+test('a link that is surely the other kind stays in the form beside the URL field', () => {
+  assert.equal(streamSourceUrlError('https://www.twitch.tv/videos/123', 'clip'), STREAM_VOD_LINK_AS_CLIP_MESSAGE);
+  assert.equal(streamSourceUrlError('https://clips.twitch.tv/Slug', 'vod'), STREAM_CLIP_LINK_AS_VOD_MESSAGE);
+  assert.equal(streamSourceUrlError('https://kick.com/streamer?clip=abc', 'vod'), STREAM_CLIP_LINK_AS_VOD_MESSAGE);
+  assert.equal(streamSourceUrlError('https://www.twitch.tv/videos/123', 'vod'), null);
+  assert.equal(streamSourceUrlError('https://www.youtube.com/watch?v=abc', 'clip'), null);
+  assert.equal(streamSourceUrlError('https://www.youtube.com/watch?v=abc', 'vod'), null);
+  for (const message of [STREAM_VOD_LINK_AS_CLIP_MESSAGE, STREAM_CLIP_LINK_AS_VOD_MESSAGE]) {
+    assert.equal(isStreamURLValidationError(message), true);
+  }
+});
+
+test('the server kind mismatch maps to the same Spanish copy', () => {
+  assert.equal(
+    streamImportErrorMessage(apiError('source_url is a full VOD, not a clip', { code: 'source_kind_mismatch', status: 400 }), 'url'),
+    STREAM_VOD_LINK_AS_CLIP_MESSAGE,
+  );
+  assert.equal(
+    streamImportErrorMessage(apiError('source_url is a clip, not a full VOD', { code: 'source_kind_mismatch', status: 400 }), 'url'),
+    STREAM_CLIP_LINK_AS_VOD_MESSAGE,
   );
 });

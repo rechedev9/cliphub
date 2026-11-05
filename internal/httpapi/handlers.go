@@ -142,6 +142,7 @@ type Handlers struct {
 	streamProber        streamclips.Prober
 	playScanFFmpeg      string
 	playScans           streamPlayScans
+	summaries           streamSummaries
 	musicDir            string
 	capabilities        Capabilities
 	youtubeTrends       YouTubeTrends

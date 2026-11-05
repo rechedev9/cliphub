@@ -429,6 +429,7 @@ export function StreamEditor({
     activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop
       ? { rect: faceCrop, disabled: busy, onChange: setFaceCrop }
       : undefined;
+  const isVod = job.source_kind === 'vod';
   const sourceMeta = [
     streamSourceLabel(job.source_url) ?? 'Archivo local',
     sourceDuration > 0 ? formatStreamClock(sourceDuration) : null,
@@ -506,15 +507,20 @@ export function StreamEditor({
     stepContent = (
       <>
         <p className="text-body-sm text-fg-2">
-          Reproduce el original, marca el inicio y el final y añade el momento. Cada momento será un Short.
+          {isVod
+            ? 'Añade las jugadas que quieras como Short, o marca tú el inicio y el final. Cada momento será un Short vertical.'
+            : 'Reproduce el original, marca el inicio y el final y añade el momento. Cada momento será un Short.'}
         </p>
-        <StreamDetectedPlays
-          jobId={job.id}
-          clips={plan.clips}
-          disabled={busy}
-          onAdd={addPlays}
-          onSeek={seekSource}
-        />
+        {isVod ? (
+          <StreamDetectedPlays
+            jobId={job.id}
+            vod
+            clips={plan.clips}
+            disabled={busy}
+            onAdd={addPlays}
+            onSeek={seekSource}
+          />
+        ) : null}
         {creatingMoment ? (
           <section aria-label="Nuevo momento" className="flex flex-col gap-3 rounded-md border border-stream/40 p-3">
             <h3 className="font-semibold">Nuevo momento</h3>

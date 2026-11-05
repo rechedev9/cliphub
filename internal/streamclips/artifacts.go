@@ -31,6 +31,16 @@ func PlaysKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "plays.json")
 }
 
+// SummaryKey stores the horizontal summary of every play in a full VOD.
+func SummaryKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "summary.mp4")
+}
+
+// SummaryStateKey stores what the finished summary contains.
+func SummaryStateKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "summary.json")
+}
+
 func RenderPrefix(id uuid.UUID, variant string) (string, error) {
 	if _, ok := VariantByName(variant); !ok {
 		return "", unknownVariantError(variant)

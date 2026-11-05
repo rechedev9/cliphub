@@ -112,9 +112,14 @@ export type StreamEditPlan = {
   updated_at?: string;
 };
 
+/** A short clip edited as one Short, or a full VOD that yields a summary and Shorts. */
+export type StreamSourceKind = 'clip' | 'vod';
+
 export type StreamJob = {
   id: string;
   status: StreamJobStatus;
+  /** Missing on projects created before VODs existed; read it as a clip. */
+  source_kind?: StreamSourceKind;
   title?: string;
   source_url?: string;
   probe?: StreamProbe;
@@ -181,9 +186,21 @@ export type StreamPlayScan = {
   error?: string;
 };
 
+export type StreamSummary = {
+  status: 'idle' | 'running' | 'done' | 'failed';
+  /** 0..1 of the summary encoded while running. */
+  progress: number;
+  play_count?: number;
+  duration_seconds?: number;
+  error?: string;
+  rendered_at?: string;
+};
+
+type StreamImportInput = { title?: string; sourceKind: StreamSourceKind };
+
 export interface StreamsApiClient {
-  createFromUrl(input: { sourceUrl: string; title?: string }): Promise<StreamJob>;
-  createFromFile(file: File, title?: string): Promise<StreamJob>;
+  createFromUrl(input: StreamImportInput & { sourceUrl: string }): Promise<StreamJob>;
+  createFromFile(file: File, input: StreamImportInput): Promise<StreamJob>;
   listJobs(): Promise<StreamJob[]>;
   getJob(id: string): Promise<StreamJob | null>;
   /** 404 is success; 409 (still acquiring/rendering) and 503 throw with `code`. */
@@ -197,6 +214,11 @@ export interface StreamsApiClient {
   getPlays(id: string): Promise<StreamPlayScan>;
   /** Starts the kill-feed scan of the source; answers at once with the running state. */
   startPlayScan(id: string): Promise<StreamPlayScan>;
+  getSummary(id: string): Promise<StreamSummary>;
+  /** Renders every detected play into one landscape video; answers at once. */
+  startSummary(id: string): Promise<StreamSummary>;
+  /** Same-origin URL for a <video>/download link to the summary. */
+  summaryVideoUrl(id: string, renderedAt?: string): string;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
   videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string;
   deliveryUrl(id: string, variant: StreamVariant, name: string): string;
@@ -221,20 +243,20 @@ async function readJson<T>(res: Response): Promise<T> {
 export class RealStreamsApiClient implements StreamsApiClient {
   private jobsListCache: ConditionalJSONCache<StreamJob[]> | null = null;
 
-  async createFromUrl(input: { sourceUrl: string; title?: string }): Promise<StreamJob> {
+  async createFromUrl(input: StreamImportInput & { sourceUrl: string }): Promise<StreamJob> {
     return readJson<StreamJob>(
       await fetch('/api/streams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_url: input.sourceUrl, title: input.title }),
+        body: JSON.stringify({ source_url: input.sourceUrl, title: input.title, source_kind: input.sourceKind }),
       }),
     );
   }
 
-  async createFromFile(file: File, title?: string): Promise<StreamJob> {
+  async createFromFile(file: File, input: StreamImportInput): Promise<StreamJob> {
     const form = new FormData();
     form.append('video', file, file.name);
-    if (title) form.append('config', JSON.stringify({ title }));
+    form.append('config', JSON.stringify({ title: input.title || undefined, source_kind: input.sourceKind }));
     return readJson<StreamJob>(await fetch('/api/streams', { method: 'POST', body: form }));
   }
 
@@ -300,6 +322,19 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
   async startPlayScan(id: string): Promise<StreamPlayScan> {
     return readJson<StreamPlayScan>(await fetch(`/api/streams/${id}/plays`, { method: 'POST' }));
+  }
+
+  async getSummary(id: string): Promise<StreamSummary> {
+    return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { cache: 'no-store' }));
+  }
+
+  async startSummary(id: string): Promise<StreamSummary> {
+    return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { method: 'POST' }));
+  }
+
+  summaryVideoUrl(id: string, renderedAt?: string): string {
+    const base = `/api/streams/${id}/summary/video`;
+    return renderedAt ? `${base}?v=${encodeURIComponent(renderedAt)}` : base;
   }
 
   videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string {

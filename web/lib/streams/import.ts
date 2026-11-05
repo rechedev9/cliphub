@@ -1,3 +1,4 @@
+import type { StreamSourceKind } from '../api/streams.ts';
 import { isServiceUnavailable, nonVideoExtension, STREAM_INVALID_URL_MESSAGE, STREAM_OFFLINE_MESSAGE } from './plan.ts';
 
 /** Stream import validation and error copy for the /streams source form. */
@@ -12,6 +13,12 @@ export const STREAM_IMPORT_FILE_FAIL_MESSAGE = 'No se pudo procesar ese archivo.
 
 export const STREAM_IMPORT_YTDLP_MISSING_MESSAGE =
   'Este equipo no puede descargar vídeos desde un enlace. Usa “Subir un MP4” o reinstala ClipHub Studio.';
+
+export const STREAM_VOD_LINK_AS_CLIP_MESSAGE =
+  'Esa URL es de un VOD completo. Elige «VOD completo» o pega el enlace de un clip.';
+
+export const STREAM_CLIP_LINK_AS_VOD_MESSAGE =
+  'Esa URL es de un clip. Elige «Clip» o pega el enlace del VOD completo.';
 
 export const STREAM_IMPORT_FILE_UNREADABLE_MESSAGE =
   'Ese archivo no se puede leer como vídeo. Prueba con otro MP4.';
@@ -36,12 +43,36 @@ export const STREAM_SOURCE_HOSTS: ReadonlySet<string> = new Set([
   'www.kick.com',
 ]);
 
+const TWITCH_VOD_PATH = /^\/videos\/\d+\/?$/;
+const TWITCH_CLIP_PATH = /^\/[A-Za-z0-9_]{1,25}\/clip\/[A-Za-z0-9_-]+\/?$/;
+const KICK_VOD_PATH = /^\/[A-Za-z0-9_-]{1,25}\/videos\/[0-9a-fA-F-]{36}\/?$/;
+const KICK_CLIP_PATH = /^\/[A-Za-z0-9_-]{1,25}\/clips\/[A-Za-z0-9_-]+\/?$/;
+
+/**
+ * Whether a link is surely a clip or a full VOD, mirroring
+ * `vodfetch.ClassifySource`; YouTube and unknown shapes are null.
+ */
+export function streamUrlKind(url: URL): StreamSourceKind | null {
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, '');
+  if (host === 'clips.twitch.tv') return 'clip';
+  if (host === 'twitch.tv') {
+    if (TWITCH_VOD_PATH.test(url.pathname)) return 'vod';
+    if (TWITCH_CLIP_PATH.test(url.pathname)) return 'clip';
+  }
+  if (host === 'kick.com') {
+    if (KICK_VOD_PATH.test(url.pathname)) return 'vod';
+    if (KICK_CLIP_PATH.test(url.pathname) || url.searchParams.has('clip')) return 'clip';
+  }
+  return null;
+}
+
 /**
  * Spanish validation message for a pasted source URL, or null when it may be
  * sent. Mirrors `vodfetch.ValidateSource`: HTTPS only, an allowed provider
- * host, no credentials and no explicit port.
+ * host, no credentials and no explicit port. A link that is surely the other
+ * kind is stopped too.
  */
-export function streamSourceUrlError(raw: string): string | null {
+export function streamSourceUrlError(raw: string, kind?: StreamSourceKind): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return STREAM_URL_REQUIRED_MESSAGE;
   const badExt = nonVideoExtension(trimmed);
@@ -56,6 +87,9 @@ export function streamSourceUrlError(raw: string): string | null {
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port) return STREAM_INVALID_URL_MESSAGE;
   if (!STREAM_SOURCE_HOSTS.has(url.hostname.toLowerCase())) return STREAM_INVALID_URL_MESSAGE;
+  const urlKind = streamUrlKind(url);
+  if (kind === 'clip' && urlKind === 'vod') return STREAM_VOD_LINK_AS_CLIP_MESSAGE;
+  if (kind === 'vod' && urlKind === 'clip') return STREAM_CLIP_LINK_AS_VOD_MESSAGE;
   return null;
 }
 
@@ -83,6 +117,10 @@ export function streamImportErrorMessage(err: unknown, source: 'url' | 'file'): 
   if (isServiceUnavailable(err)) return STREAM_OFFLINE_MESSAGE;
   const { code, status } = (err ?? {}) as { code?: unknown; status?: unknown };
   if (source === 'url' && code === 'invalid_source_url') return STREAM_INVALID_URL_MESSAGE;
+  if (source === 'url' && code === 'source_kind_mismatch') {
+    const message = err instanceof Error ? err.message : '';
+    return message.includes('not a clip') ? STREAM_VOD_LINK_AS_CLIP_MESSAGE : STREAM_CLIP_LINK_AS_VOD_MESSAGE;
+  }
   const message = err instanceof Error ? err.message : '';
   const httpStatus = typeof status === 'number' ? status : undefined;
   const rules = source === 'url' ? URL_IMPORT_RULES : FILE_IMPORT_RULES;
