@@ -412,6 +412,7 @@ for i, (x, tex, col) in enumerate(((-0.92, "screen3.png", (0.65, 0.45, 1.0)), (0
     make_crt("far_crt_%d" % i, (x, far_y, 0), tex, 1.8, 9, col)
 mesh_m = principled("chair_mesh", (0.012, 0.012, 0.014), 0.8)[0]
 add_bump(mesh_m.node_tree, next(n for n in mesh_m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), 900, 0.5)
+far_cushion = principled("far_cushion", (0.02, 0.02, 0.022), 0.45)[0]
 hand_m = principled("hand_skin", (0.42, 0.26, 0.19), 0.6)[0]
 
 
@@ -532,14 +533,22 @@ for i, x in enumerate((-0.80, 0.80)):
     box("far_kb", (0.40, 0.14, 0.022), (-0.06, 0.44, DESK + 0.011), black_plastic, 0.006, rot=(0, 0, math.radians(3)), parent=pl)
     box("far_mouse", (0.06, 0.11, 0.035), (0.25, 0.47, DESK + 0.017), black_plastic, 0.016, parent=pl)
     box("far_pad", (0.30, 0.26, 0.003), (0.26, 0.45, DESK + 0.0015), cloth, parent=pl)
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.105, minor_radius=0.008, major_segments=48, minor_segments=12, location=(0, 0, 0))
-    hb = bpy.context.active_object
-    hb.location = (0, 0.01, 1.19)
-    hb.rotation_euler = (0, math.pi / 2, 0)
-    smooth(hb)
-    finish(hb, "headband", black_plastic, pl)
+    # Over-ear headset: padded band over the crown, domed shells on yokes, leatherette cushions against the head.
+    band = [(Vector((0.112 * math.cos(t), 0.012, 1.17 + 0.118 * math.sin(t))), Vector((math.cos(t), 0, math.sin(t))), Vector((0, 1, 0))) for t in (math.radians(12 + 156 * k / 40) for k in range(41))]
+    sweep("headband", band, rrect(0.012, 0.034, 0.005), black_plastic, pl)
+    pad = [(Vector((0.103 * math.cos(t), 0.012, 1.17 + 0.109 * math.sin(t))), Vector((math.cos(t), 0, math.sin(t))), Vector((0, 1, 0))) for t in (math.radians(55 + 70 * k / 20) for k in range(21))]
+    sweep("band_pad", pad, rrect(0.01, 0.028, 0.0045), far_cushion, pl)
     for sx in (-1, 1):
-        cyl("cup", 0.045, 0.03, (sx * 0.095, 0.01, 1.16), black_plastic, rot=(0, math.pi / 2, 0), verts=32, bev=0.006, parent=pl)
+        shell = lathe("cup", ((0.0, 0.026), (0.022, 0.025), (0.036, 0.02), (0.044, 0.011), (0.047, 0.0), (0.046, -0.002)), black_plastic, pl, steps=40)
+        shell.location, shell.rotation_euler = (sx * 0.098, 0.012, 1.155), (0, sx * math.pi / 2, 0)
+        smooth(shell)
+        bpy.ops.mesh.primitive_torus_add(major_radius=0.036, minor_radius=0.013, major_segments=40, minor_segments=12, location=(sx * 0.092, 0.012, 1.155))
+        cush = bpy.context.active_object
+        cush.rotation_euler = (0, math.pi / 2, 0)
+        cush.scale = (1.0, 1.0, 0.75)
+        smooth(cush)
+        finish(cush, "cushion", far_cushion, pl)
+        box("yoke", (0.008, 0.012, 0.05), (sx * 0.112, 0.012, 1.2), black_plastic, 0.003, parent=pl)
     chair = empty("chair", (x, far_y - 0.56, 0), (0, 0, math.radians(-3 if i else 6)))
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
     back = bpy.context.active_object
