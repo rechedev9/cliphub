@@ -11,9 +11,11 @@ export type EditRequestBody = {
   hook_text: boolean;
   kill_counter: boolean;
   match_recap: boolean;
+  death_reel?: boolean;
   voice_comms: boolean;
   voice_volume?: number;
   native_hud: boolean;
+  victim_replay?: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -41,7 +43,9 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     native_hud: edit.nativeHud,
     cover_strategy: edit.coverStrategy,
   };
+  if (edit.deathReel) body.death_reel = true;
   if (edit.fullDemo) body.full_demo = edit.fullDemo;
+  else if (edit.victimReplay && !edit.matchRecap && !edit.deathReel) body.victim_replay = true;
   if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }

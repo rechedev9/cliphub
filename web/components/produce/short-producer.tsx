@@ -47,6 +47,7 @@ const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
 /** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
 const STEP = {
   highlights: '01 · Elige las jugadas',
+  deaths: '01 · Elige las muertes',
   preset: '02 · Estilo',
   music: '03 · Música',
   overlays: '04 · Textos y gráficos',
@@ -58,6 +59,8 @@ export type ShortProducerProps = {
   matchId: string;
   match: Match;
   plays: Play[];
+  /** One clip per death of the player; the list switches to them for a death reel. */
+  deathPlays?: Play[];
   /** From a series map card: a finished render returns to the series. */
   seriesId: string | null;
   /** From the analysis area: the plays of these rounds open selected. */
@@ -65,13 +68,16 @@ export type ShortProducerProps = {
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = null }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [], seriesId, focusRounds = null }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
-  const focusIds = focusRounds ? playsInRounds(plays, focusRounds) : [];
-  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft(matchId, plays, focusIds);
+  const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds });
   const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume, editConfig } = settings;
+  // A player without kills can still make a reel of their deaths.
+  const deathReel = deathPlays.length > 0 && (editConfig.deathReel === true || killPlays.length === 0);
+  const plays = deathReel ? deathPlays : killPlays;
   const selectedIds = useMemo(() => new Set(settings.selectedIds), [settings.selectedIds]);
   const [songOpen, setSongOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
@@ -103,8 +109,8 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   }, [updateSettings, presetAttempt]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
-  const cues = selectionTimeline(plays, selectedIds);
-  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
+  const cues = selectionTimeline(plays, { selectedIds, victimReplay: editConfig.victimReplay === true });
+  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
   // No tilde: beside the figures it reads as a minus sign ("-0:00").
   const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;
@@ -131,7 +137,17 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
 
   function changeEditConfig(next: EditConfig): void {
     if (busy) return;
-    updateSettings({ editConfig: constrainEditConfig({ ...next, format: SHORT_FORMAT }) });
+    updateSettings({ editConfig: constrainEditConfig({ ...next, format: SHORT_FORMAT, deathReel }) });
+  }
+
+  function chooseDeathReel(next: boolean): void {
+    if (busy || next === deathReel) return;
+    // A reel is either kills or deaths, so the selection starts over: every death, or the best kills.
+    setPlayFilter(NO_PLAY_FILTER);
+    updateSettings((cur) => ({
+      editConfig: constrainEditConfig({ ...cur.editConfig, format: SHORT_FORMAT, deathReel: next }),
+      selectedIds: next ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(killPlays)],
+    }));
   }
 
   function chooseVariant(nextVariant: string): void {
@@ -161,7 +177,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
 
   function startOver(): void {
     if (busy) return;
-    resetSettings({ ...defaultShortSettings(plays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
+    resetSettings({ ...defaultShortSettings(killPlays, deathPlays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
     setCreateError(null);
     setSongOpen(false);
   }
@@ -180,7 +196,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
         musicVolume: songId && musicVolume < MUSIC_VOLUME.max ? musicVolume / 100 : undefined,
         gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
-        editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT }),
+        editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT, deathReel }),
       });
       discardDraft();
       toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
@@ -230,13 +246,16 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
       </div>
       {/* Two columns (plays | storyboard over the aside) until three fit without wrapping the list toolbar or the cue rows. */}
       <div data-short-workspace="" className="grid min-w-0 items-start gap-5 @[80rem]/content:gap-7 @[40rem]/content:grid-cols-2 @[56rem]/content:grid-cols-[minmax(0,1.3fr)_minmax(300px,1fr)] @[56rem]/content:grid-rows-[auto_1fr] @[85rem]/content:grid-cols-[minmax(0,1.5fr)_minmax(0,0.85fr)_minmax(280px,1fr)] @[85rem]/content:grid-rows-none">
-        <section className="min-w-0 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1 @[56rem]/content:row-span-2 @[85rem]/content:row-span-1">
+        <section className="flex min-w-0 flex-col gap-3 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1 @[56rem]/content:row-span-2 @[85rem]/content:row-span-1">
+          {deathPlays.length > 0 && killPlays.length > 0 ? (
+            <ReelSourceSwitch deathReel={deathReel} disabled={busy} onChange={chooseDeathReel} />
+          ) : null}
           <PlayList
             plays={plays}
             selectedIds={selectedIds}
-            title={STEP.highlights}
+            title={deathReel ? STEP.deaths : STEP.highlights}
             toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || visiblePlays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays)] })}>{AUTO_PICK_LABEL}</Button>}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true })] })}>{deathReel ? 'Auto: 60 s' : AUTO_PICK_LABEL}</Button>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
@@ -378,6 +397,26 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
   );
 }
 
+/** Kills or deaths: what the Short is made of. */
+function ReelSourceSwitch({ deathReel, disabled, onChange }: { deathReel: boolean; disabled: boolean; onChange: (deathReel: boolean) => void }): ReactNode {
+  const options = [
+    { value: false, label: 'Kills' },
+    { value: true, label: 'Muertes' },
+  ];
+  return (
+    <div role="group" aria-label="Contenido del Short" className="flex w-fit gap-1 rounded-lg border border-border-subtle bg-surface-2 p-1">
+      {options.map((option) => (
+        <button key={option.label} type="button" disabled={disabled} aria-pressed={deathReel === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn('min-h-9 rounded-md px-4 font-display text-body-sm font-semibold transition-colors duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50',
+            deathReel === option.value ? 'bg-primary/15 text-fg-1' : 'text-fg-2 hover:bg-surface-3')}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent: number, gameVolumePercent: number): MusicBrief {
   if (!decided) return { status: 'pending' };
   if (songTitle) return { status: 'track', title: songTitle, volumePercent, gameVolumePercent };
@@ -389,6 +428,7 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.killCounter) parts.push('Kill counter');
   if (edit.hookText) parts.push('Título');
   if (edit.intro || edit.outro) parts.push('Intro / outro');
+  if (edit.victimReplay) parts.push('Repetición');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
 }

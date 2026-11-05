@@ -176,3 +176,24 @@ func hasReason(values []string, want string) bool {
 	}
 	return false
 }
+
+func TestBuildDeathsKeepsMatchOrderAndNamesTheKiller(t *testing.T) {
+	plan := killplan.NewPlan()
+	plan.Demo.Tickrate = 64
+	killer := killplan.Player{NameInDemo: "enemy"}
+	plan.Segments = []killplan.Segment{
+		{ID: "death-001", Round: 2, TickStart: 100, TickEnd: 700, Death: &killplan.Kill{Tick: 636, Weapon: "awp", Headshot: true, Killer: killer}},
+		{ID: "death-002", Round: 5, TickStart: 2000, TickEnd: 2600, Kills: []killplan.Kill{{Tick: 2100, Weapon: "ak47"}}, Death: &killplan.Kill{Tick: 2536, Weapon: "ak47", Killer: killer}},
+	}
+	doc := BuildDeaths(uuid.New(), plan)
+	if len(doc.Moments) != 2 || doc.Moments[0].SegmentID != "death-001" || doc.Moments[1].SegmentID != "death-002" {
+		t.Fatalf("moments = %+v, want both deaths in match order", doc.Moments)
+	}
+	first := doc.Moments[0]
+	if first.Death == nil || first.Death.Killer != "enemy" || first.Death.Weapon != "awp" || !first.Death.Headshot || first.Death.Tick != 636 {
+		t.Fatalf("death = %+v, want the AWP headshot by enemy", first.Death)
+	}
+	if len(first.Warnings) != 0 {
+		t.Fatalf("a death clip without kills is not empty: %v", first.Warnings)
+	}
+}

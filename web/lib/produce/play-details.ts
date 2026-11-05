@@ -11,6 +11,10 @@ export function playSourceRange(play: Play): string | null {
 }
 
 export function playDescription(play: Play): string {
+  if (play.death) {
+    const { killer, weapon, headshot } = play.death;
+    return [killer ? `Muere ante ${killer}` : 'Muere', weapon, headshot ? 'a la cabeza' : undefined].filter(Boolean).join(' · ');
+  }
   const parts = [`${play.kills} ${play.kills === 1 ? 'baja' : 'bajas'}`];
   if (play.weapon) parts.push(play.weapon);
   if (play.headshots) parts.push(`${play.headshots} a la cabeza`);

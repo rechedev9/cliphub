@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRequest } from './edit-request.ts';
+import { constrainEditConfig } from '../reel-brief.ts';
 import type { EditConfig } from './types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 
@@ -65,4 +66,18 @@ test('buildEditRequest serializes overlay_theme when set', () => {
   assert.equal(body.overlay_theme, 'neon-violet');
   assert.equal(body.demo_source, 'faceit');
   assert.equal(buildEditRequest(edit()).overlay_theme, undefined);
+});
+
+test('a death reel travels as death_reel without the kill counter or hook', () => {
+  const body = buildEditRequest(constrainEditConfig(edit({ deathReel: true, killCounter: true, hookText: true })));
+  assert.equal(body.death_reel, true);
+  assert.equal(body.kill_counter, false);
+  assert.equal(body.hook_text, false);
+  assert.equal(Object.hasOwn(buildEditRequest(edit()), 'death_reel'), false);
+});
+
+test('buildEditRequest sends the victim replay only for Shorts that ask for it', () => {
+  assert.equal(buildEditRequest(edit()).victim_replay, undefined);
+  assert.equal(buildEditRequest(edit({ victimReplay: true })).victim_replay, true);
+  assert.equal(buildEditRequest({ ...FULL_DEMO_EDIT, victimReplay: true }).victim_replay, undefined);
 });

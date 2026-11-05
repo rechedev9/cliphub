@@ -165,8 +165,10 @@ export function coerceEditConfig(value: unknown): EditConfig {
     introText: coerceBookendText(raw.introText),
     outroText: coerceBookendText(raw.outroText),
   };
+  if (raw.deathReel === true) cfg.deathReel = true;
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
+  if (raw.victimReplay === true) cfg.victimReplay = true;
   const family =
     typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
   if (typeof raw.keyDropStyle === 'string') {

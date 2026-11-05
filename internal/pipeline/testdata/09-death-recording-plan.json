@@ -1,0 +1,53 @@
+{
+  "capture_contract": "observer-steamid-input-v2",
+  "killplan_schema_version": "1.2",
+  "demo_path": "$WORK/match.dem",
+  "demo_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+  "demo_map": "de_mirage",
+  "demo_duration_ticks": 127155,
+  "output_dir": "$WORK/recording",
+  "target_steamid64": "76561198000000100",
+  "target_name_in_demo": "target",
+  "target_account_id": 39734372,
+  "tickrate": 64,
+  "segments": [
+    {
+      "id": "death-001",
+      "round": 1,
+      "tick_start": 5988,
+      "tick_end": 6564,
+      "live_end_tick": 6500
+    },
+    {
+      "id": "death-002",
+      "round": 3,
+      "tick_start": 17388,
+      "tick_end": 17964,
+      "live_end_tick": 17900
+    },
+    {
+      "id": "death-003",
+      "round": 8,
+      "tick_start": 45488,
+      "tick_end": 46064,
+      "live_end_tick": 46000
+    }
+  ],
+  "editorial_segment_ids": [
+    "death-001",
+    "death-002",
+    "death-003"
+  ],
+  "stream": {
+    "mode": "ffmpeg_direct",
+    "hud_mode": "gameplay",
+    "fps": 60,
+    "width": 1920,
+    "height": 1080,
+    "crf": 18
+  },
+  "runtime": {
+    "playback_timescale": 8,
+    "quit_tick_pad": 200
+  }
+}

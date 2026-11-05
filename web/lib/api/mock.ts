@@ -388,6 +388,10 @@ export class MockApiClient implements ApiClient {
     return this.findClips(matchId);
   }
 
+  async findDeathClips(): Promise<Play[]> {
+    return [];
+  }
+
   async listSongs(): Promise<Song[]> {
     await delay();
     return fixtureSongs.map((s) => ({ ...s }));

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { planToPlays, prettifyWeapon } from './map.ts';
+import { deathMomentsToPlays, planToPlays, prettifyWeapon } from './map.ts';
 
 test('planToPlays removes duplicate timeline segments but preserves distinct plays', () => {
   const plays = planToPlays('job-1', {
@@ -36,4 +36,32 @@ test('weapon ids the tactical events carry read as their in-game names', () => {
   assert.equal(prettifyWeapon('usp_silencer'), 'USP-S');
   assert.equal(prettifyWeapon('m4a1'), 'M4A4');
   assert.equal(prettifyWeapon('weapon_unknown'), 'weapon_unknown');
+});
+
+test('deathMomentsToPlays keeps match order and says how the player died', () => {
+  const plays = deathMomentsToPlays('job-1', {
+    moments: [
+      { segment_id: 'death-001', round: 3, time_start_seconds: 90, time_end_seconds: 99, death: { killer: 'enemy', weapon: 'awp', headshot: true } },
+      { segment_id: 'death-002', round: 7, death: {} },
+    ],
+  });
+  assert.deepEqual(plays.map((play) => play.id), ['death-001', 'death-002']);
+  assert.deepEqual(plays[0].death, { killer: 'enemy', weapon: 'AWP', headshot: true });
+  assert.equal(plays[0].endSeconds, 99);
+  assert.equal(plays[1].startSeconds, undefined);
+  assert.equal(plays[1].kills, 0);
+});
+
+test('planToPlays marks plays the recorder cannot replay from the victim', () => {
+  const kill = (steamid64: string) => ({ victim: { steamid64 } });
+  const plays = planToPlays('job-1', {
+    demo: { tickrate: 64, duration_ticks: 50000 },
+    target: { steamid64: '76561198148986856' },
+    segments: [
+      { id: 'player', round: 1, tick_start: 100, tick_end: 900, kills: [kill('76561198000000001')] },
+      { id: 'bot', round: 2, tick_start: 1000, tick_end: 1900, kills: [kill('0')] },
+      { id: 'end', round: 3, tick_start: 49000, tick_end: 49990, kills: [kill('76561198000000001')] },
+    ],
+  });
+  assert.deepEqual(plays.map((play) => play.victimReplay), [true, false, false]);
 });

@@ -306,7 +306,7 @@ func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 			w := NewRecordWorker(repo, store, RecordWorkerConfig{WorkDir: t.TempDir(), RecorderPath: "zv-recorder", HLAEPath: "HLAE.exe", CS2Path: "cs2.exe"})
 			w.runner = runner
 
-			task, err := tasks.NewRecordDemoTaskWithRecap(id, tc.hud, nil, tc.portraitSafeKillfeed, false)
+			task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: id, HUDMode: tc.hud, PortraitSafeKillfeed: tc.portraitSafeKillfeed})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -365,7 +365,11 @@ func TestRecordSourcePlanUsesRecapWindows(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			got, err := recordSourcePlan(store, j, tc.useRecap)
+			source := planSourceKills
+			if tc.useRecap {
+				source = planSourceRecap
+			}
+			got, err := recordSourcePlan(store, j, source)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("error = nil, want missing recap plan")
@@ -2926,7 +2930,7 @@ func recordTaskFor(t *testing.T, id uuid.UUID, segmentIDs []string) *asynq.Task 
 
 func recordTaskWithCaptureProfile(t *testing.T, id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) *asynq.Task {
 	t.Helper()
-	task, err := tasks.NewRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false)
+	task, err := tasks.NewRecordDemoTask(tasks.RecordDemoPayload{JobID: id, HUDMode: hudMode, SegmentIDs: segmentIDs, PortraitSafeKillfeed: portraitSafeKillfeed})
 	if err != nil {
 		t.Fatal(err)
 	}

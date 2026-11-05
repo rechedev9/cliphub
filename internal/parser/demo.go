@@ -25,17 +25,18 @@ const (
 	SegmentModeSmokes  SegmentMode = "smokes"
 	SegmentModeUtility SegmentMode = "utility"
 	SegmentModeRecap   SegmentMode = "recap"
+	SegmentModeDeaths  SegmentMode = "deaths"
 )
 
 // KnownSegmentModes is the public CLI allowlist, in catalog order.
 func KnownSegmentModes() []SegmentMode {
-	return []SegmentMode{SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap}
+	return []SegmentMode{SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap, SegmentModeDeaths}
 }
 
 // ValidSegmentMode reports whether mode is a known public segment mode.
 func ValidSegmentMode(mode SegmentMode) bool {
 	switch mode {
-	case SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap:
+	case SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap, SegmentModeDeaths:
 		return true
 	default:
 		return false
@@ -49,11 +50,12 @@ type RunOptions struct {
 	AlsoRecap bool
 }
 
-// DualPlan is a kill-burst plan plus the sidecar recap plan from one parse.
+// DualPlan is a kill-burst plan plus the sidecar recap and death plans from one parse.
 type DualPlan struct {
-	Kills killplan.Plan
-	Recap killplan.Plan
-	Facts recapplan.Facts
+	Kills  killplan.Plan
+	Recap  killplan.Plan
+	Deaths killplan.Plan
+	Facts  recapplan.Facts
 }
 
 // RunWithContext drives the parser like RunWithOptions but aborts parsing when
@@ -98,18 +100,16 @@ func RunDualWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m Pla
 	var err error
 	switch opts.SegmentMode {
 	case "", SegmentModeKills:
-		if opts.AlsoRecap {
-			dual.Kills, dual.Recap, err = collectKills(p, target, r, m, SegmentModeKills, true, &dual.Facts)
-		} else {
-			dual.Kills, err = runKills(p, target, r, m)
-		}
+		dual, err = collectKills(p, target, r, m, SegmentModeKills, opts.AlsoRecap)
 	case SegmentModeSmokes:
 		dual.Kills, err = runSmokes(p, target, r, m)
 	case SegmentModeUtility:
 		dual.Kills, err = runUtility(p, target, r, m)
 	case SegmentModeRecap:
-		dual.Kills, err = runRecap(p, target, r, m)
+		dual.Kills, err = runKillEvents(p, target, r, m, SegmentModeRecap)
 		dual.Recap = dual.Kills
+	case SegmentModeDeaths:
+		dual.Kills, err = runKillEvents(p, target, r, m, SegmentModeDeaths)
 	default:
 		return DualPlan{}, fmt.Errorf("unknown segment mode %q", opts.SegmentMode)
 	}

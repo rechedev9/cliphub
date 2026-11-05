@@ -25,8 +25,9 @@ func ValidateRecordingAttempt(expected RecordingPlan, outDir string, result Reco
 		return fmt.Errorf("recording script: %w", err)
 	}
 
-	expectedSegments := make(map[string]string, len(expected.Segments))
-	for _, segment := range expected.Segments {
+	captures := expected.CaptureSegments()
+	expectedSegments := make(map[string]string, len(captures))
+	for _, segment := range captures {
 		expectedSegments[segment.ID] = filepath.Join(outDir, "segments", segment.ID+".mp4")
 	}
 	seen := make(map[string]bool, len(expectedSegments))
@@ -47,7 +48,7 @@ func ValidateRecordingAttempt(expected RecordingPlan, outDir string, result Reco
 		seen[artifact.SegmentID] = true
 	}
 	missing := make([]string, 0)
-	for _, segment := range expected.Segments {
+	for _, segment := range captures {
 		if !seen[segment.ID] {
 			missing = append(missing, segment.ID)
 		}

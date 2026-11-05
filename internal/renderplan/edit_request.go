@@ -43,30 +43,34 @@ const (
 // one render. Workers snapshot it into the edit document so a render is
 // reproducible without knowing which screen launched it.
 type EditRequest struct {
-	FullDemo            *recapplan.Snapshot `json:"full_demo,omitempty"`
-	Format              string              `json:"format"`
-	KillEffect          string              `json:"killEffect"`
-	Transition          string              `json:"transition"`
-	Intro               bool                `json:"intro"`
-	Outro               bool                `json:"outro"`
-	HookText            bool                `json:"hook_text"`
-	KillCounter         bool                `json:"kill_counter"`
-	MatchRecap          bool                `json:"match_recap"`
-	VoiceComms          bool                `json:"voice_comms"`
-	VoiceVolume         *float64            `json:"voice_volume,omitempty"`
-	NativeHUD           bool                `json:"native_hud"`
-	CoverStrategy       string              `json:"cover_strategy"`
-	CoverFirstFrame     bool                `json:"cover_first_frame"`
-	IntroText           string              `json:"intro_text,omitempty"`
-	OutroText           string              `json:"outro_text,omitempty"`
-	KeyDropFamily       string              `json:"keydrop_family,omitempty"`
-	KeyDropStyle        string              `json:"keydrop_style,omitempty"`
-	KeyDropCode         string              `json:"keydrop_code,omitempty"`
-	KeyDropPositionY    *float64            `json:"keydrop_position_y,omitempty"`
-	KeyDropStartSeconds *float64            `json:"keydrop_start_seconds,omitempty"`
-	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds,omitempty"`
-	DemoSource          string              `json:"demo_source,omitempty"`
-	OverlayTheme        string              `json:"overlay_theme,omitempty"`
+	FullDemo    *recapplan.Snapshot `json:"full_demo,omitempty"`
+	Format      string              `json:"format"`
+	KillEffect  string              `json:"killEffect"`
+	Transition  string              `json:"transition"`
+	Intro       bool                `json:"intro"`
+	Outro       bool                `json:"outro"`
+	HookText    bool                `json:"hook_text"`
+	KillCounter bool                `json:"kill_counter"`
+	MatchRecap  bool                `json:"match_recap"`
+	VoiceComms  bool                `json:"voice_comms"`
+	VoiceVolume *float64            `json:"voice_volume,omitempty"`
+	NativeHUD   bool                `json:"native_hud"`
+	// VictimReplay replays each play's last kill from the victim, slowed down.
+	VictimReplay        bool     `json:"victim_replay,omitempty"`
+	CoverStrategy       string   `json:"cover_strategy"`
+	CoverFirstFrame     bool     `json:"cover_first_frame"`
+	IntroText           string   `json:"intro_text,omitempty"`
+	OutroText           string   `json:"outro_text,omitempty"`
+	KeyDropFamily       string   `json:"keydrop_family,omitempty"`
+	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
+	KeyDropCode         string   `json:"keydrop_code,omitempty"`
+	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
+	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+	DemoSource          string   `json:"demo_source,omitempty"`
+	OverlayTheme        string   `json:"overlay_theme,omitempty"`
+	// DeathReel records the clips of the death plan instead of the kill plan.
+	DeathReel bool `json:"death_reel,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -121,6 +125,12 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	if req.KeyDropStyle != "" && req.KeyDropFamily == "" {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
+	if req.DeathReel {
+		// The hook, the counter and the victim replay need kills; death clips have none.
+		req.HookText = false
+		req.KillCounter = false
+		req.VictimReplay = false
+	}
 	return req
 }
 
@@ -152,13 +162,16 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
 			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != o.OverlaySource() || r.OverlayTheme != o.Overlays.Theme {
 			return fmt.Errorf("full demo edit fields contradict the approved document")
 		}
+	}
+	if r.DeathReel && (r.MatchRecap || r.FullDemo != nil) {
+		return fmt.Errorf("a death reel is not a match recap")
 	}
 	switch r.Format {
 	case FormatShort9x16, FormatLandscape16x9:

@@ -21,8 +21,7 @@
   "shorts": [
     {
       "index": 1,
-      "segment_ordinal": 1,
-      "segment_total": 3,
+      "segment_total": 2,
       "segment_id": "seg-011",
       "preset": "viral-60-clean",
       "player": "target",
@@ -55,6 +54,7 @@
       },
       "prompt_path": "$WORK/render/prompts/short-001-seg-011-cover.md",
       "publish_path": "$WORK/publish/01_seg-011_target_de_mirage_2k_m4a1s.mp4",
+      "tickrate": 64,
       "output_format": "short-9x16",
       "kill_effect": "punch-in",
       "transition": "flash",
@@ -67,7 +67,7 @@
       "cover_path": "$WORK/publish/01_seg-011_target_de_mirage_2k_m4a1s.cover.jpg",
       "cover_sheet_path": "$WORK/publish/01_seg-011_target_de_mirage_2k_m4a1s.sheet.jpg",
       "cover_time_seconds": 0.88,
-      "duration_seconds": 4.75,
+      "duration_seconds": 11.75,
       "label": "target | de_mirage | 2K",
       "title": "target 2K M4A1-S | Mirage CS2",
       "headline": "2K con M4A1-S en Mirage",
@@ -94,11 +94,72 @@
           "headshot": true
         }
       ],
+      "parts": [
+        {
+          "segment_id": "seg-011",
+          "input": "$WORK/recording/segments/seg-011.mp4",
+          "source_artifact": {
+            "segment_id": "seg-011",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-011.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 4.75,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 4.75,
+          "tick_start": 61396,
+          "tick_end": 61828,
+          "capture_tick_start": 61524,
+          "capture_tick_end": 61828,
+          "kills": [
+            {
+              "tick": 61588,
+              "time_seconds": 1,
+              "weapon": "M4A1-S",
+              "victim": "opponent-1"
+            },
+            {
+              "tick": 61700,
+              "time_seconds": 2.75,
+              "weapon": "M4A1-S",
+              "victim": "opponent-4",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-011-victim",
+          "input": "$WORK/recording/segments/seg-011-victim.mp4",
+          "source_artifact": {
+            "segment_id": "seg-011-victim",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-011-victim.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 3.5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7,
+          "timeline_start_seconds": 4.75,
+          "speed": 0.5
+        }
+      ],
       "effects": [
         {
           "type": "grade",
           "start_seconds": 0,
-          "end_seconds": 4.75,
+          "end_seconds": 11.75,
           "contrast": 1.18,
           "saturation": 1.28,
           "gamma": 1.02,
@@ -130,20 +191,20 @@
         "error",
         "-i",
         "$WORK/recording/segments/seg-011.mp4",
+        "-i",
+        "$WORK/recording/segments/seg-011-victim.mp4",
+        "-filter_complex",
+        "[0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=out:st=11.650:d=0.100:color=white,format=yuv420p,trim=end_frame=285,setpts=PTS-STARTPTS[pv0];[0:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=4.750000,asetpts=PTS-STARTPTS[pa0];[1:v]setpts=PTS/0.500,scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=in:st=0:d=0.100:color=white,format=yuv420p,trim=end_frame=420,setpts=PTS-STARTPTS[pv1];[1:a]aformat=channel_layouts=stereo,aresample=48000,atempo=0.500,atrim=duration=7.000000,asetpts=PTS-STARTPTS[pa1];[pv0][pa0][pv1][pa1]concat=n=2:v=1:a=1[catv][gamea];[catv]scale=w=1080:h='max(if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))\\,if(between(t\\,2.590\\,2.750)\\,(1920.000+(2073.600-1920.000)*(((t-2.590)/0.160)*((t-2.590)/0.160)*(3-2*((t-2.590)/0.160))))\\,if(between(t\\,2.750\\,3.170)\\,(2073.600+(1920.000-2073.600)*(((t-2.750)/0.420)*((t-2.750)/0.420)*(3-2*((t-2.750)/0.420))))\\,1920)))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=out:st=11.650:d=0.100:color=white,format=yuv420p[v];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
         "-map",
-        "0:v:0",
+        "[v]",
         "-map",
-        "0:a?",
-        "-vf",
-        "scale=w=1080:h='max(if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))\\,if(between(t\\,2.590\\,2.750)\\,(1920.000+(2073.600-1920.000)*(((t-2.590)/0.160)*((t-2.590)/0.160)*(3-2*((t-2.590)/0.160))))\\,if(between(t\\,2.750\\,3.170)\\,(2073.600+(1920.000-2073.600)*(((t-2.750)/0.420)*((t-2.750)/0.420)*(3-2*((t-2.750)/0.420))))\\,1920)))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=out:st=4.650:d=0.100:color=white,format=yuv420p",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
         "slow",
         "-crf",
         "16",
-        "-af",
-        "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-c:a",
         "aac",
         "-b:a",
@@ -204,8 +265,7 @@
     },
     {
       "index": 2,
-      "segment_ordinal": 2,
-      "segment_total": 3,
+      "segment_total": 2,
       "segment_id": "seg-004",
       "preset": "viral-60-clean",
       "player": "target",
@@ -238,6 +298,7 @@
       },
       "prompt_path": "$WORK/render/prompts/short-002-seg-004-cover.md",
       "publish_path": "$WORK/publish/02_seg-004_target_de_mirage_2k_ak47.mp4",
+      "tickrate": 64,
       "output_format": "short-9x16",
       "kill_effect": "punch-in",
       "transition": "flash",
@@ -250,7 +311,7 @@
       "cover_path": "$WORK/publish/02_seg-004_target_de_mirage_2k_ak47.cover.jpg",
       "cover_sheet_path": "$WORK/publish/02_seg-004_target_de_mirage_2k_ak47.sheet.jpg",
       "cover_time_seconds": 0.88,
-      "duration_seconds": 7.109375,
+      "duration_seconds": 14.109375,
       "label": "target | de_mirage | 2K",
       "title": "target 2K AK-47 | Mirage CS2",
       "headline": "2K con AK-47 en Mirage",
@@ -276,11 +337,71 @@
           "victim": "opponent-4"
         }
       ],
+      "parts": [
+        {
+          "segment_id": "seg-004",
+          "input": "$WORK/recording/segments/seg-004.mp4",
+          "source_artifact": {
+            "segment_id": "seg-004",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-004.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 7.109375,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7.109375,
+          "tick_start": 22632,
+          "tick_end": 23215,
+          "capture_tick_start": 22760,
+          "capture_tick_end": 23215,
+          "kills": [
+            {
+              "tick": 22824,
+              "time_seconds": 1,
+              "weapon": "AK-47",
+              "victim": "opponent-2"
+            },
+            {
+              "tick": 22895,
+              "time_seconds": 2.109375,
+              "weapon": "AK-47",
+              "victim": "opponent-4"
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-004-victim",
+          "input": "$WORK/recording/segments/seg-004-victim.mp4",
+          "source_artifact": {
+            "segment_id": "seg-004-victim",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-004-victim.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 3.5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7,
+          "timeline_start_seconds": 7.109375,
+          "speed": 0.5
+        }
+      ],
       "effects": [
         {
           "type": "grade",
           "start_seconds": 0,
-          "end_seconds": 7.109,
+          "end_seconds": 14.109,
           "contrast": 1.18,
           "saturation": 1.28,
           "gamma": 1.02,
@@ -312,20 +433,20 @@
         "error",
         "-i",
         "$WORK/recording/segments/seg-004.mp4",
+        "-i",
+        "$WORK/recording/segments/seg-004-victim.mp4",
+        "-filter_complex",
+        "[0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=out:st=14.009:d=0.100:color=white,format=yuv420p,trim=end_frame=427,setpts=PTS-STARTPTS[pv0];[0:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=7.116667,asetpts=PTS-STARTPTS[pa0];[1:v]setpts=PTS/0.500,scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=in:st=0:d=0.100:color=white,format=yuv420p,trim=end_frame=420,setpts=PTS-STARTPTS[pv1];[1:a]aformat=channel_layouts=stereo,aresample=48000,atempo=0.500,atrim=duration=7.000000,asetpts=PTS-STARTPTS[pa1];[pv0][pa0][pv1][pa1]concat=n=2:v=1:a=1[catv][gamea];[catv]scale=w=1080:h='max(if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))\\,if(between(t\\,1.949\\,2.109)\\,(1920.000+(2073.600-1920.000)*(((t-1.949)/0.160)*((t-1.949)/0.160)*(3-2*((t-1.949)/0.160))))\\,if(between(t\\,2.109\\,2.529)\\,(2073.600+(1920.000-2073.600)*(((t-2.109)/0.420)*((t-2.109)/0.420)*(3-2*((t-2.109)/0.420))))\\,1920)))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=out:st=14.009:d=0.100:color=white,format=yuv420p[v];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
         "-map",
-        "0:v:0",
+        "[v]",
         "-map",
-        "0:a?",
-        "-vf",
-        "scale=w=1080:h='max(if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))\\,if(between(t\\,1.949\\,2.109)\\,(1920.000+(2073.600-1920.000)*(((t-1.949)/0.160)*((t-1.949)/0.160)*(3-2*((t-1.949)/0.160))))\\,if(between(t\\,2.109\\,2.529)\\,(2073.600+(1920.000-2073.600)*(((t-2.109)/0.420)*((t-2.109)/0.420)*(3-2*((t-2.109)/0.420))))\\,1920)))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=in:st=0:d=0.100:color=white,fade=t=out:st=7.009:d=0.100:color=white,format=yuv420p",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
         "slow",
         "-crf",
         "16",
-        "-af",
-        "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-c:a",
         "aac",
         "-b:a",
@@ -386,8 +507,7 @@
     },
     {
       "index": 3,
-      "segment_ordinal": 3,
-      "segment_total": 3,
+      "segment_total": 2,
       "segment_id": "seg-002",
       "preset": "viral-60-clean",
       "player": "target",
@@ -420,6 +540,7 @@
       },
       "prompt_path": "$WORK/render/prompts/short-003-seg-002-cover.md",
       "publish_path": "$WORK/publish/03_seg-002_target_de_mirage_1k_mp9.mp4",
+      "tickrate": 64,
       "output_format": "short-9x16",
       "kill_effect": "punch-in",
       "transition": "flash",
@@ -432,7 +553,7 @@
       "cover_path": "$WORK/publish/03_seg-002_target_de_mirage_1k_mp9.cover.jpg",
       "cover_sheet_path": "$WORK/publish/03_seg-002_target_de_mirage_1k_mp9.sheet.jpg",
       "cover_time_seconds": 0.88,
-      "duration_seconds": 6,
+      "duration_seconds": 13,
       "label": "target | de_mirage | 1K",
       "title": "target 1K MP9 | Mirage CS2",
       "headline": "1K con MP9 en Mirage",
@@ -453,11 +574,66 @@
           "headshot": true
         }
       ],
+      "parts": [
+        {
+          "segment_id": "seg-002",
+          "input": "$WORK/recording/segments/seg-002.mp4",
+          "source_artifact": {
+            "segment_id": "seg-002",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-002.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 6,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 6,
+          "tick_start": 17591,
+          "tick_end": 18103,
+          "capture_tick_start": 17719,
+          "capture_tick_end": 18103,
+          "kills": [
+            {
+              "tick": 17783,
+              "time_seconds": 1,
+              "weapon": "MP9",
+              "victim": "opponent-2",
+              "headshot": true
+            }
+          ]
+        },
+        {
+          "segment_id": "seg-002-victim",
+          "input": "$WORK/recording/segments/seg-002-victim.mp4",
+          "source_artifact": {
+            "segment_id": "seg-002-victim",
+            "type": "video",
+            "role": "segment",
+            "path": "$WORK/recording/segments/seg-002-victim.mp4",
+            "size_bytes": 1,
+            "duration_seconds": 3.5,
+            "frame_rate": "60/1",
+            "codec": "h264",
+            "width": 1920,
+            "height": 1080,
+            "sample_rate": 48000,
+            "channels": 2
+          },
+          "duration_seconds": 7,
+          "timeline_start_seconds": 6,
+          "speed": 0.5
+        }
+      ],
       "effects": [
         {
           "type": "grade",
           "start_seconds": 0,
-          "end_seconds": 6,
+          "end_seconds": 13,
           "contrast": 1.18,
           "saturation": 1.28,
           "gamma": 1.02,
@@ -481,20 +657,20 @@
         "error",
         "-i",
         "$WORK/recording/segments/seg-002.mp4",
+        "-i",
+        "$WORK/recording/segments/seg-002-victim.mp4",
+        "-filter_complex",
+        "[0:v]scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=out:st=12.900:d=0.100:color=white,format=yuv420p,trim=end_frame=360,setpts=PTS-STARTPTS[pv0];[0:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=6.000000,asetpts=PTS-STARTPTS[pa0];[1:v]setpts=PTS/0.500,scale=w=1080:h=1920:force_original_aspect_ratio=increase:eval=init:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,fade=t=in:st=0:d=0.100:color=white,format=yuv420p,trim=end_frame=420,setpts=PTS-STARTPTS[pv1];[1:a]aformat=channel_layouts=stereo,aresample=48000,atempo=0.500,atrim=duration=7.000000,asetpts=PTS-STARTPTS[pa1];[pv0][pa0][pv1][pa1]concat=n=2:v=1:a=1[catv][gamea];[catv]scale=w=1080:h='if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=out:st=12.900:d=0.100:color=white,format=yuv420p[v];[gamea]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
         "-map",
-        "0:v:0",
+        "[v]",
         "-map",
-        "0:a?",
-        "-vf",
-        "scale=w=1080:h='if(between(t\\,0.840\\,1.000)\\,(1920.000+(2073.600-1920.000)*(((t-0.840)/0.160)*((t-0.840)/0.160)*(3-2*((t-0.840)/0.160))))\\,if(between(t\\,1.000\\,1.420)\\,(2073.600+(1920.000-2073.600)*(((t-1.000)/0.420)*((t-1.000)/0.420)*(3-2*((t-1.000)/0.420))))\\,1920))':force_original_aspect_ratio=increase:eval=frame:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,setsar=1,fps=60,eq=contrast=1.180:saturation=1.280:gamma=1.020,fade=t=in:st=0:d=0.100:color=white,format=yuv420p",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
         "slow",
         "-crf",
         "16",
-        "-af",
-        "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-c:a",
         "aac",
         "-b:a",

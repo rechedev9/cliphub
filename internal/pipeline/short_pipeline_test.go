@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -89,7 +91,10 @@ func TestShortPipelineGolden(t *testing.T) {
 
 	demoPath := filepath.Join(work, "match.dem")
 	recordingDir := filepath.Join(work, "recording")
-	recPlan, err := recording.NewPlanFromKillPlan(selected, demoPath, recordingDir, recording.DefaultStreamConfig())
+	// The Short asks for the victim replay, so capture adds a second, rewound pass.
+	stream := recording.DefaultStreamConfig()
+	stream.VictimReplay = true
+	recPlan, err := recording.NewPlanFromKillPlan(selected, demoPath, recordingDir, stream)
 	if err != nil {
 		t.Fatalf("recording plan: %v", err)
 	}
@@ -100,7 +105,7 @@ func TestShortPipelineGolden(t *testing.T) {
 	assertGolden(t, "03-recording-plan.json", normalizedJSON(t, work, recPlan))
 	assertGolden(t, "04-recording.js", normalizePaths(script, work))
 
-	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, captureOrderSegmentIDs(recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
 	assertGolden(t, "05-capture.json", normalizedJSON(t, work, capture))
 
 	resultPath := writeRecordingResult(t, recPlan)
@@ -115,6 +120,7 @@ func TestShortPipelineGolden(t *testing.T) {
 		OutputFormat:        studioEdit.Format,
 		KillEffect:          studioEdit.KillEffect,
 		Transition:          studioEdit.Transition,
+		VictimReplay:        true,
 		DryRun:              true,
 	})
 	if err != nil {
@@ -145,6 +151,11 @@ func readFixture(t *testing.T) parsedFixture {
 // parser feeds, so segmentation and filtering run as in production.
 func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 	t.Helper()
+	return buildPlan(t, fixture, nil, parser.SegmentModeKills)
+}
+
+func buildPlan(t *testing.T, fixture parsedFixture, deaths []parser.TargetDeath, mode parser.SegmentMode) killplan.Plan {
+	t.Helper()
 	collector := parser.NewCollector(fixture.Target.SteamID64, rules.Default())
 	collector.RecordTargetIdentity(fixture.Target.NameInDemo, fixture.Target.TeamAtStart)
 	for _, start := range fixture.RoundStarts {
@@ -167,6 +178,9 @@ func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 			VictimPos: kill.VictimPos,
 		})
 	}
+	for _, death := range deaths {
+		collector.RecordTargetDeath(death)
+	}
 	for _, end := range fixture.RoundEnds {
 		collector.RecordRoundEnd(end)
 	}
@@ -176,12 +190,75 @@ func buildKillPlan(t *testing.T, fixture parsedFixture) killplan.Plan {
 		Map:           fixture.Map,
 		Tickrate:      fixture.Tickrate,
 		DurationTicks: fixture.DurationTicks,
-	}, parser.SegmentModeKills)
+	}, mode)
 	if err != nil {
-		t.Fatalf("build kill plan: %v", err)
+		t.Fatalf("build %s plan: %v", mode, err)
 	}
 	plan.GeneratedAt = fixedClock
 	return plan
+}
+
+// fixtureDeaths are target deaths placed in the fixture's rounds: one with no
+// kill before it, one right after a kill, one late in a round.
+func fixtureDeaths(fixture parsedFixture) []parser.TargetDeath {
+	opponent := func(n int) killplan.Player {
+		return killplan.Player{SteamID64: fmt.Sprintf("7656119800000000%d", n), NameInDemo: fmt.Sprintf("opponent-%d", n), TeamAtKill: "T"}
+	}
+	victim := killplan.Player{SteamID64: fixture.Target.SteamID64, NameInDemo: fixture.Target.NameInDemo, TeamAtKill: fixture.Target.TeamAtStart}
+	return []parser.TargetDeath{
+		{Round: 1, Tick: 6500, Killer: opponent(3), Victim: victim, Weapon: "glock", Headshot: true},
+		{Round: 3, Tick: 17900, Killer: opponent(4), Victim: victim, Weapon: "ak47"},
+		{Round: 8, Tick: 46000, Killer: opponent(5), Victim: victim, Weapon: "awp"},
+	}
+}
+
+// TestDeathReelPipelineGolden walks a death reel: the death plan, its capture
+// contract and simulated capture, and the dry-run editor plan.
+func TestDeathReelPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	fixture := readFixture(t)
+	plan := buildPlan(t, fixture, fixtureDeaths(fixture), parser.SegmentModeDeaths)
+	doc := moments.BuildDeaths(uuid.Nil, plan)
+	doc.GeneratedAt = fixedClock
+	assertGolden(t, "08-death-moments.json", normalizedJSON(t, work, doc))
+	planPath := filepath.Join(work, "death-plan.json")
+	writeJSON(t, planPath, plan)
+
+	recPlan, err := recording.NewPlanFromKillPlan(plan, filepath.Join(work, "match.dem"), filepath.Join(work, "recording"), recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatalf("recording plan: %v", err)
+	}
+	script, err := recording.GenerateHLAEJavaScript(recPlan)
+	if err != nil {
+		t.Fatalf("HLAE script: %v", err)
+	}
+	assertGolden(t, "09-death-recording-plan.json", normalizedJSON(t, work, recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
+	assertGolden(t, "10-death-capture.json", normalizedJSON(t, work, capture))
+
+	edit := renderplan.NormalizeEditRequest(renderplan.EditRequest{DeathReel: true, KillCounter: true, HookText: true})
+	if _, err := editor.Run(context.Background(), editor.Config{
+		RecordingResultPath: writeRecordingResult(t, recPlan),
+		KillPlanPath:        planPath,
+		OutputDir:           filepath.Join(work, "render"),
+		PublishDir:          filepath.Join(work, "publish"),
+		FFmpegPath:          "ffmpeg",
+		FFprobePath:         "ffprobe",
+		OutputFormat:        edit.Format,
+		KillEffect:          edit.KillEffect,
+		Transition:          edit.Transition,
+		HookText:            edit.HookText,
+		KillCounter:         edit.KillCounter,
+		DryRun:              true,
+	}); err != nil {
+		t.Fatalf("editor dry run: %v", err)
+	}
+	var manifest editor.Manifest
+	readJSON(t, filepath.Join(work, "render", "edit-manifest.json"), &manifest)
+	if len(manifest.Shorts) != len(plan.Segments) {
+		t.Fatalf("editor planned %d clips, want one per death (%d)", len(manifest.Shorts), len(plan.Segments))
+	}
+	assertGolden(t, "11-death-edit-manifest.json", normalizedJSON(t, work, manifest))
 }
 
 type captureView struct {
@@ -194,7 +271,7 @@ type captureView struct {
 
 // simulateCapture runs the generated HLAE script in the Capture Lab MIRV
 // simulator (scripts/capturelab), the same harness the recording tests use.
-func simulateCapture(t *testing.T, work, script, target string, want []string) captureView {
+func simulateCapture(t *testing.T, work, script, target string, plan recording.RecordingPlan) captureView {
 	t.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -205,15 +282,22 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 		t.Fatal(err)
 	}
 	scenarioPath := filepath.Join(work, "scenario.json")
+	victims := []string{}
+	for _, segment := range plan.CaptureSegments() {
+		if segment.POVSteamID64 != "" && !slices.Contains(victims, segment.POVSteamID64) {
+			victims = append(victims, segment.POVSteamID64)
+		}
+	}
 	writeJSON(t, scenarioPath, map[string]any{
 		"schema_version": 1,
 		"name":           "short-pipeline",
 		"target_steamid": target,
+		"players":        victims,
 		"tick_step":      1,
 		"max_frames":     200000,
 		"expect": map[string]any{
 			"outcome":           "verified",
-			"recorded_segments": want,
+			"recorded_segments": captureOrderSegmentIDs(plan),
 			"soft_quit":         true,
 		},
 	})
@@ -235,12 +319,12 @@ func simulateCapture(t *testing.T, work, script, target string, want []string) c
 	return view
 }
 
-// captureOrderSegmentIDs lists the unique segment IDs in capture (tick) order,
-// which is the order the simulator records them, not the editorial order.
+// captureOrderSegmentIDs lists the unique segment IDs in capture order (the
+// main pass by tick, then the victim replays), not the editorial order.
 func captureOrderSegmentIDs(plan recording.RecordingPlan) []string {
 	seen := map[string]bool{}
 	var ids []string
-	for _, segment := range plan.Segments {
+	for _, segment := range plan.CaptureSegments() {
 		if segment.ID == "" || seen[segment.ID] {
 			continue
 		}
@@ -254,8 +338,9 @@ func captureOrderSegmentIDs(plan recording.RecordingPlan) []string {
 // planned segment, sized like a real HLAE take, with no media on disk.
 func writeRecordingResult(t *testing.T, plan recording.RecordingPlan) string {
 	t.Helper()
-	artifacts := make([]recording.RecordingArtifact, 0, len(plan.Segments))
-	for _, segment := range plan.Segments {
+	captures := plan.CaptureSegments()
+	artifacts := make([]recording.RecordingArtifact, 0, len(captures))
+	for _, segment := range captures {
 		start := recording.EffectiveRecordStartTick(segment, plan.Tickrate)
 		end := recording.EffectiveRecordEndTick(segment, plan)
 		artifacts = append(artifacts, recording.RecordingArtifact{

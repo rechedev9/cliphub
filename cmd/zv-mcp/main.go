@@ -34,6 +34,8 @@ const serverInstructions = `ClipHub Studio turns CS2 demos into edited videos. T
 import_demo, wait_for_demo until ready, get_match to read the players, create_job for one player,
 wait_for_job until "parsed", list_moments, ask the user for the look with list_short_options (or
 choose_short_options for a picker), then generate_short with the chosen segment ids and options.
+A death reel (the seconds before each death of the player): list_moments with deaths, then
+generate_short with those segment ids and deaths set.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments

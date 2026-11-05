@@ -82,6 +82,8 @@ export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>
 }
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
+  // The hook and the counter tell kills; Studio drops them from a death reel too.
+  if (edit.deathReel && (edit.hookText || edit.killCounter)) return constrainEditConfig({ ...edit, hookText: false, killCounter: false });
   if (edit.format !== 'short-9x16') return edit;
   if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };

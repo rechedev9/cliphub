@@ -18,6 +18,7 @@ import (
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/deathplan"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -164,6 +165,9 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 		return killplan.Plan{}, err
 	}
 	if err := recapplan.Store(w.storage, j.ID, dual.Recap); err != nil {
+		return killplan.Plan{}, err
+	}
+	if err := deathplan.Store(w.storage, j.ID, dual.Deaths); err != nil {
 		return killplan.Plan{}, err
 	}
 	if err := recapplan.StoreFacts(w.storage, j.ID, dual.Facts); err != nil {

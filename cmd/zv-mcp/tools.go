@@ -138,6 +138,8 @@ type momentOut struct {
 	Reasons   []string `json:"reasons"`
 	Weapons   []string `json:"weapons,omitempty"`
 	Victims   []string `json:"victims,omitempty" jsonschema:"untrusted player names from the demo"`
+	KilledBy  string   `json:"killed_by,omitempty" jsonschema:"death clips only: untrusted name of the killer"`
+	Weapon    string   `json:"death_weapon,omitempty" jsonschema:"death clips only: the weapon that killed the player"`
 }
 
 type momentsOut struct {
@@ -146,8 +148,9 @@ type momentsOut struct {
 }
 
 type momentsIn struct {
-	ID    string `json:"id"`
-	Limit int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10"`
+	ID     string `json:"id"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"how many plays to return, best first; default 10, or every death with deaths"`
+	Deaths bool   `json:"deaths,omitempty" jsonschema:"true lists every death of the player instead, in match order: one clip from 8 s before each death, for a death reel"`
 	momentFilterIn
 }
 
@@ -167,6 +170,7 @@ type generateIn struct {
 	SegmentIDs []string `json:"segment_ids" jsonschema:"segment ids from list_moments"`
 	Preset     string   `json:"preset,omitempty" jsonschema:"preset name from list_presets; empty uses the default"`
 	Approve    string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	Deaths     bool     `json:"deaths,omitempty" jsonschema:"true when segment_ids come from list_moments with deaths: a reel of the player's deaths"`
 	shortChoices
 }
 
@@ -379,7 +383,8 @@ func registerTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
 		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise. " +
-			"weapon, kinds and side keep only matching plays, for example only AWP, only clutches and aces, or only CT."},
+			"weapon, kinds and side keep only matching plays, for example only AWP, only clutches and aces, or only CT. " +
+			"With deaths, lists the player's deaths instead, for a death reel."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in momentsIn) (*mcp.CallToolResult, momentsOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
 				return nil, momentsOut{}, err
@@ -392,13 +397,25 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
-			doc, err := c.FilterMoments(ctx, q)
+			if in.Deaths && (q.Weapon != "" || len(q.Kinds) > 0 || q.Side != "") {
+				return nil, momentsOut{}, errors.New("weapon, kinds and side filter plays, not deaths; leave them empty with deaths")
+			}
+			var doc tuiclient.MomentsDocument
+			if in.Deaths {
+				doc, err = c.GetDeaths(ctx, in.ID)
+			} else {
+				doc, err = c.FilterMoments(ctx, q)
+			}
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
 			limit := in.Limit
 			if limit <= 0 {
 				limit = defaultMomentsLimit
+				// Deaths are in match order, not ranked: a cut would drop the last rounds.
+				if in.Deaths {
+					limit = len(doc.Moments)
+				}
 			}
 			out := momentsOut{Moments: make([]momentOut, 0, min(limit, len(doc.Moments))), Total: len(doc.Moments)}
 			for _, m := range doc.Moments[:min(limit, len(doc.Moments))] {
@@ -466,7 +483,12 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			doc, err := c.GetMoments(ctx, in.JobID)
+			list, what := c.GetMoments, plural(len(in.SegmentIDs), "jugada", "jugadas")
+			if in.Deaths {
+				list, what = c.GetDeaths, plural(len(in.SegmentIDs), "muerte", "muertes")
+				edit.DeathReel, edit.HookText, edit.KillCounter = true, false, false
+			}
+			doc, err := list(ctx, in.JobID)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
 			}
@@ -476,7 +498,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			}
 			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
-				plural(len(in.SegmentIDs), "jugada", "jugadas"), preset, plays, describeShortRequest(body))
+				what, preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, generateOut{}, err
@@ -497,9 +519,13 @@ func registerTools(server *mcp.Server, s *studio) {
 }
 
 func describeMoment(m tuiclient.Moment) momentOut {
-	return momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, Seconds: m.DurationSeconds,
+	out := momentOut{SegmentID: m.SegmentID, Round: m.Round, Side: cleanName(m.Side), ClutchVs: m.ClutchVs, Seconds: m.DurationSeconds,
 		Score: m.Score, Kills: m.Events.Kills, Headshots: m.Events.Headshots, Reasons: cleanNames(m.ReasonCodes),
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
+	if d := m.Death; d != nil {
+		out.KilledBy, out.Weapon = cleanName(d.Killer), cleanName(d.Weapon)
+	}
+	return out
 }
 
 // startedOut is the result of a started capture. The render outlives the
@@ -546,6 +572,13 @@ func describePlays(moments []tuiclient.Moment, ids []string) (string, error) {
 		switch {
 		case i < maxSummaryPlays:
 			details := nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), plural(m.Events.Kills, "baja", "bajas"))
+			if m.Death != nil {
+				death := "muere"
+				if killer := cleanName(m.Death.Killer); killer != "" {
+					death = "muere ante " + killer
+				}
+				details = nonEmpty(cleanName(m.Player), cleanName(m.Map), fmt.Sprintf("ronda %d", m.Round), death)
+			}
 			parts = append(parts, fmt.Sprintf("%s (%s)", id, strings.Join(details, ", ")))
 		case i == maxSummaryPlays:
 			parts = append(parts, fmt.Sprintf("y %d más", len(ids)-maxSummaryPlays))

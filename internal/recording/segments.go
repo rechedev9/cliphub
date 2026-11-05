@@ -76,9 +76,15 @@ func FilterResultSegments(result RecordingResult, ids []string) (RecordingResult
 		}
 	}
 	out.Plan.EditorialSegmentIDs = append([]string(nil), ids...)
+	replays := make(map[string]bool, len(ids))
+	for _, segment := range out.Plan.Segments {
+		if segment.VictimReplay != nil {
+			replays[VictimReplayID(segment.ID)] = true
+		}
+	}
 	out.Artifacts = make([]RecordingArtifact, 0, len(result.Artifacts))
 	for _, artifact := range result.Artifacts {
-		if artifact.SegmentID == "" || selected[artifact.SegmentID] {
+		if artifact.SegmentID == "" || selected[artifact.SegmentID] || replays[artifact.SegmentID] {
 			out.Artifacts = append(out.Artifacts, artifact)
 		}
 	}

@@ -134,7 +134,7 @@ func TestNewAnalyzeTacticalTaskRoundtrip(t *testing.T) {
 
 func TestNewRecordDemoTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
-	tk, err := NewRecordDemoTaskWithRecap(id, "", nil, false, false)
+	tk, err := NewRecordDemoTask(RecordDemoPayload{JobID: id, HUDMode: ""})
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
@@ -159,9 +159,9 @@ func TestNewRecordDemoTaskRoundtrip(t *testing.T) {
 
 func TestNewRecordDemoTaskWithRecapRoundtrip(t *testing.T) {
 	id := uuid.New()
-	tk, err := NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+	tk, err := NewRecordDemoTask(RecordDemoPayload{JobID: id, HUDMode: "gameplay", UseRecapPlan: true})
 	if err != nil {
-		t.Fatalf("NewRecordDemoTaskWithRecap error = %v", err)
+		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
 	if !strings.Contains(string(tk.Payload()), `"use_recap_plan":true`) {
 		t.Errorf("payload missing use_recap_plan: %s", tk.Payload())
@@ -183,9 +183,9 @@ func TestNewRecordDemoTaskWithSourceRoundtrip(t *testing.T) {
 	tests := []string{"premier", "professional", "faceit"}
 	for _, source := range tests {
 		t.Run(source, func(t *testing.T) {
-			tk, err := NewRecordDemoTaskWithSource(id, "gameplay", nil, false, true, source)
+			tk, err := NewRecordDemoTask(RecordDemoPayload{JobID: id, HUDMode: "gameplay", UseRecapPlan: true, DemoSource: source})
 			if err != nil {
-				t.Fatalf("NewRecordDemoTaskWithSource error = %v", err)
+				t.Fatalf("NewRecordDemoTask error = %v", err)
 			}
 			if !strings.Contains(string(tk.Payload()), `"demo_source":"`+source+`"`) {
 				t.Errorf("payload missing demo_source: %s", tk.Payload())
@@ -207,7 +207,7 @@ func TestNewRecordDemoTaskWithSourceRoundtrip(t *testing.T) {
 func TestNewRecordDemoTaskRoundtripWithSegmentIDs(t *testing.T) {
 	id := uuid.New()
 	want := []string{"seg-001", "seg-002"}
-	tk, err := NewRecordDemoTaskWithRecap(id, "clean", want, true, false)
+	tk, err := NewRecordDemoTask(RecordDemoPayload{JobID: id, HUDMode: "clean", SegmentIDs: want, PortraitSafeKillfeed: true})
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
@@ -257,7 +257,7 @@ func TestNewGenerateRecordDemoTaskCarriesIntentOutsideUniquePayload(t *testing.T
 		t.Fatalf("GenerateIntentFromTask = (%#v, %v), want (%#v, true)", got, ok, want)
 	}
 
-	plain, err := NewRecordDemoTaskWithRecap(id, "deathnotices", []string{"seg-001"}, true, false)
+	plain, err := NewRecordDemoTask(RecordDemoPayload{JobID: id, HUDMode: "deathnotices", SegmentIDs: []string{"seg-001"}, PortraitSafeKillfeed: true})
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
@@ -289,7 +289,7 @@ func TestUniqueScope(t *testing.T) {
 		}
 		return task
 	}
-	recordA := must(NewRecordDemoTaskWithRecap(jobA, "clean", nil, false, false))
+	recordA := must(NewRecordDemoTask(RecordDemoPayload{JobID: jobA, HUDMode: "clean"}))
 	composeA := must(NewComposeFinalTask(jobA))
 	composeB := must(NewComposeFinalTask(jobB))
 	renderA := must(NewRenderVariantTask(jobA, testRenderVariant, "", 0, nil, edit, nil))

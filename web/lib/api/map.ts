@@ -7,7 +7,7 @@ import type { Match, Play, PlaySide, DemoPlayer } from './types';
  */
 export type KillPlan = {
   schema_version?: string;
-  demo?: { map?: string; tickrate?: number };
+  demo?: { map?: string; tickrate?: number; duration_ticks?: number };
   target?: { steamid64?: string; name_in_demo?: string; team_at_start?: string };
   stats?: { total_kills_target?: number };
   segments?: KillPlanSegment[];
@@ -18,8 +18,30 @@ type KillPlanSegment = {
   round: number;
   tick_start?: number;
   tick_end?: number;
-  kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string } }[];
+  kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
 };
+
+/** Lowest individual-account SteamID64; bots and empty ids fall below it. */
+const STEAMID64_ACCOUNT_BASE = 76561197960265728n;
+
+function isPlayerSteamID(raw: string | undefined): boolean {
+  if (!raw || !/^\d{17}$/.test(raw)) return false;
+  return BigInt(raw) >= STEAMID64_ACCOUNT_BASE;
+}
+
+/**
+ * Mirrors the recorder's choice (internal/recording victimReplayFor): a play gets
+ * a replay when a real player other than the target died in it and the demo does
+ * not end right after it.
+ */
+function hasVictimReplay(segment: KillPlanSegment, plan: KillPlan): boolean {
+  const target = plan.target?.steamid64;
+  const victim = (segment.kills ?? []).some((kill) => isPlayerSteamID(kill.victim?.steamid64) && kill.victim?.steamid64 !== target);
+  const tickrate = plan.demo?.tickrate ?? 64;
+  const duration = plan.demo?.duration_ticks;
+  const reachesEnd = duration !== undefined && segment.tick_end !== undefined && segment.tick_end + tickrate >= duration;
+  return victim && !reachesEnd;
+}
 
 /** Pretty CS2 map name: "de_inferno" → "Inferno". Falls back to the raw value. */
 export function prettifyMap(raw: string): string {
@@ -116,7 +138,8 @@ function segmentWeapons(segment: KillPlanSegment): string[] {
 }
 
 /** One killplan segment → a UI Play. */
-function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number | undefined): Play {
+function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan): Play {
+  const tickrate = plan.demo?.tickrate;
   const kills = segment.kills?.length ?? 0;
   const { tick_start: start, tick_end: end } = segment;
   const timed = tickrate !== undefined && Number.isFinite(tickrate) && tickrate > 0
@@ -135,6 +158,7 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number
     ...(segment.kills?.every((kill) => typeof kill.headshot === 'boolean') ? { headshots: segment.kills.filter((kill) => kill.headshot).length } : {}),
     ...withSide(segmentSide(segment)),
     ...withClutch(Math.max(0, ...(segment.kills ?? []).map((kill) => kill.clutch_vs ?? 0))),
+    victimReplay: hasVictimReplay(segment, plan),
   };
 }
 
@@ -146,6 +170,36 @@ function withClutch(clutchVs: number): Pick<Play, 'clutchVs'> {
   return clutchVs > 0 ? { clutchVs } : {};
 }
 
+/** Minimal mirror of GET /api/jobs/{id}/deaths (internal/moments, BuildDeaths). */
+export type DeathMoments = {
+  moments?: {
+    segment_id: string;
+    round: number;
+    time_start_seconds?: number;
+    time_end_seconds?: number;
+    death?: { killer?: string; weapon?: string; headshot?: boolean };
+  }[];
+};
+
+/** Death clips → Plays, in match order. */
+export function deathMomentsToPlays(jobId: string, doc: DeathMoments): Play[] {
+  return (doc.moments ?? []).map((moment): Play => {
+    const { time_start_seconds: start, time_end_seconds: end } = moment;
+    const timed = start !== undefined && end !== undefined && Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start;
+    const weapon = moment.death?.weapon ? prettifyWeapon(moment.death.weapon) : undefined;
+    return {
+      id: moment.segment_id,
+      matchId: jobId,
+      kind: 'clean',
+      round: moment.round,
+      kills: 0,
+      label: `Muerte · Ronda ${moment.round}`,
+      ...(timed ? { startSeconds: start, endSeconds: end } : {}),
+      death: { killer: moment.death?.killer || undefined, weapon, headshot: moment.death?.headshot === true },
+    };
+  });
+}
+
 /** All of a plan's segments → Plays for the given job. */
 export function planToPlays(jobId: string, plan: KillPlan): Play[] {
   const seen = new Set<string>();
@@ -155,7 +209,7 @@ export function planToPlays(jobId: string, plan: KillPlan): Play[] {
       : `id:${segment.id}`;
     if (seen.has(timelineKey)) return [];
     seen.add(timelineKey);
-    return [segmentToPlay(jobId, segment, plan.demo?.tickrate)];
+    return [segmentToPlay(jobId, segment, plan)];
   });
 }
 

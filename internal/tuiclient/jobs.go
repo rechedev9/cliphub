@@ -117,6 +117,13 @@ func (c *Client) FilterMoments(ctx context.Context, q MomentsQuery) (MomentsDocu
 	return doc, err
 }
 
+// GetDeaths lists one clip per death of the job's player, in match order.
+func (c *Client) GetDeaths(ctx context.Context, id string) (MomentsDocument, error) {
+	var doc MomentsDocument
+	err := c.getJSON(ctx, jobPath(id)+"/deaths", &doc)
+	return doc, err
+}
+
 // StartRecording enqueues HLAE/CS2 recording. An empty preset uses the default;
 // empty segmentIDs records every segment in the plan.
 func (c *Client) StartRecording(ctx context.Context, id, preset string, segmentIDs []string) (EnqueueResponse, error) {
