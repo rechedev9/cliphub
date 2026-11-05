@@ -103,7 +103,8 @@ func TestFullDemoSponsorBumperAndAudioMediaCanary(t *testing.T) {
 			}
 			videoRef := addAsset(sponsor, 60)
 			options.Bumpers = &recapplan.BumperOptions{Sponsor: &recapplan.BumperSlot{Enabled: true, Video: &videoRef}}
-			facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 640, Complete: true, Rounds: []recapplan.RoundFacts{
+			// The demo runs on past round two, so the demo-end cap does not trim its tail.
+			facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 832, Complete: true, Rounds: []recapplan.RoundFacts{
 				// Each clip contains fixed 2s freeze plus one live tick, rounded to 121 frames.
 				{ID: "round-001", Number: 1, StartTick: 0, FreezeEndTick: 256, RoundEndTick: 256, NextStartTick: 320, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
 				{ID: "round-002", Number: 2, StartTick: 320, FreezeEndTick: 576, RoundEndTick: 576, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
@@ -139,7 +140,7 @@ func TestFullDemoSponsorBumperAndAudioMediaCanary(t *testing.T) {
 				}
 			}
 			short.fullDemo.recording.Plan.Tickrate = 64
-			short.fullDemo.recording.Plan.DemoDurationTicks = 640
+			short.fullDemo.recording.Plan.DemoDurationTicks = 832
 			if err := prepareFullDemoCompilation(ctx, &short, progress.within(0, .65)); err != nil {
 				t.Fatal(err)
 			}
