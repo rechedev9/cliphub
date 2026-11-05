@@ -53,8 +53,8 @@ export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
               value: cell.win_rate.pct,
               n: cell.rounds,
               href:
-                cell.examples.length > 0
-                  ? replayHref(evidenceRefs(cell.examples), replayTitle(prep, `${buyLabel(buy)} contra ${buyLabel(opponentBuy).toLowerCase()} en ${side}`))
+                cell.refs.length > 0
+                  ? replayHref(evidenceRefs(cell.refs), replayTitle(prep, `${buyLabel(buy)} contra ${buyLabel(opponentBuy).toLowerCase()} en ${side}`))
                   : undefined,
             };
           }
@@ -101,7 +101,7 @@ export function TempoByBuy({ prep }: { prep: TeamPrep }): ReactNode {
                     side === 'T' && row.plant.samples > 0
                       ? `${row.tempo.samples} rondas · planta ${secondsLabel(row.plant.median)}`
                       : `${row.tempo.samples} rondas`,
-                  href: row.examples.length > 0 ? replayHref(evidenceRefs(row.examples), replayTitle(prep, `${buyLabel(row.buy)} en ${side}`)) : undefined,
+                  href: row.refs.length > 0 ? replayHref(evidenceRefs(row.refs), replayTitle(prep, `${buyLabel(row.buy)} en ${side}`)) : undefined,
                 }))}
               />
             )}
@@ -138,9 +138,9 @@ function PlayerPositions({ prep, player }: { prep: TeamPrep; player: PrepPlayer 
               <ol className="flex flex-col gap-0.5">
                 {window.spots.map((spot) => (
                   <li key={spot.callout} className="flex items-baseline justify-between gap-2 text-body-sm">
-                    {spot.examples.length > 0 ? (
+                    {spot.refs.length > 0 ? (
                       <Link
-                        href={replayHref(evidenceRefs(spot.examples), replayTitle(prep, `${player.name} en ${placeLabel(spot.callout)}`))}
+                        href={replayHref(evidenceRefs(spot.refs), replayTitle(prep, `${player.name} en ${placeLabel(spot.callout)}`))}
                         className="truncate text-fg-1 hover:text-primary hover:underline"
                       >
                         {placeLabel(spot.callout)}
