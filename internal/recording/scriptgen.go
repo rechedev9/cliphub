@@ -519,7 +519,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	rewindAfter := 0
 	for i, s := range captures {
 		pass := 0
-		if firstReplay >= 0 && i >= firstReplay {
+		if firstReplay > 0 && i >= firstReplay {
 			pass = 1
 		}
 		seekTick := 50
@@ -561,7 +561,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 
 		// Short demo_gototick jumps can corrupt CS2's demo netchannel. Let nearby
 		// segments advance naturally and reserve seeking for gaps worth skipping.
-		if i == firstReplay {
+		if i > 0 && i == firstReplay {
 			// Rewind right after the main pass: a later tick may already be past EOF.
 			rewindAfter = EffectiveRecordEndTick(captures[i-1], plan) + 2
 			seeks = append(seeks, seekStep{After: rewindAfter, Target: seekTarget, Rewind: true})

@@ -6,7 +6,8 @@ export const SHORT_TARGET_SECONDS = 60;
 /** Fallback for older plans without source timing. */
 const BASE_SECONDS = 6;
 const SECONDS_PER_KILL = 3;
-type PlayTiming = Pick<Play, 'kills' | 'startSeconds' | 'endSeconds'>;
+type PlayTiming = Pick<Play, 'kills' | 'startSeconds' | 'endSeconds' | 'victimReplay'>;
+type ReplayOption = { victimReplay?: boolean };
 
 export function estimatedPlaySeconds(play: PlayTiming): number {
   const { startSeconds, endSeconds } = play;
@@ -20,17 +21,14 @@ export function estimatedPlaySeconds(play: PlayTiming): number {
 /** A victim replay is about 3.5 s of capture played at half speed. */
 export const VICTIM_REPLAY_SECONDS = 7;
 
-export function estimatedSelectionSeconds(
-  plays: ReadonlyArray<PlayTiming>,
-  options: { victimReplay?: boolean } = {},
-): number {
-  const replayTenths = options.victimReplay ? VICTIM_REPLAY_SECONDS * 10 : 0;
-  return plays.reduce((total, play) => total + estimatedPlayTenths(play) + replayTenths, 0) / 10;
+export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>, options: ReplayOption = {}): number {
+  return plays.reduce((total, play) => total + estimatedPlayTenths(play, options), 0) / 10;
 }
 
 /** Accumulate the displayed precision as integers so an exact minute stays within budget. */
-function estimatedPlayTenths(play: PlayTiming): number {
-  return Math.round(estimatedPlaySeconds(play) * 10);
+function estimatedPlayTenths(play: PlayTiming, options: ReplayOption): number {
+  const replay = options.victimReplay && play.victimReplay !== false ? VICTIM_REPLAY_SECONDS : 0;
+  return Math.round((estimatedPlaySeconds(play) + replay) * 10);
 }
 
 /** `m:ss`, e.g. 47 → "0:47", 75 → "1:15". Clamped to zero first, so -0 or a tiny negative never prints "-0:00". */
@@ -47,14 +45,18 @@ export function formatClock(totalSeconds: number): string {
  * top-ranked highlight is always kept, so "Auto" never returns an empty
  * selection just because one long play overruns the target on its own.
  */
-export function autoPickBestPlays(plays: readonly Play[], targetSeconds = SHORT_TARGET_SECONDS): Set<string> {
+export function autoPickBestPlays(
+  plays: readonly Play[],
+  options: ReplayOption & { targetSeconds?: number } = {},
+): Set<string> {
+  const targetSeconds = options.targetSeconds ?? SHORT_TARGET_SECONDS;
   const ranked = plays
     .map((play, index) => ({ play, index }))
     .sort((a, b) => b.play.kills - a.play.kills || a.index - b.index);
   const picked = new Set<string>();
   let totalTenths = 0;
   for (const { play } of ranked) {
-    const tenths = estimatedPlayTenths(play);
+    const tenths = estimatedPlayTenths(play, options);
     if ((totalTenths + tenths) / 10 > targetSeconds) continue;
     picked.add(play.id);
     totalTenths += tenths;
@@ -79,12 +81,15 @@ export type SelectionCue = {
 };
 
 /** The Short as a running order: plan order, each cue with its estimated length and start. */
-export function selectionTimeline(plays: readonly Play[], selectedIds: ReadonlySet<string>): SelectionCue[] {
+export function selectionTimeline(
+  plays: readonly Play[],
+  selection: ReplayOption & { selectedIds: ReadonlySet<string> },
+): SelectionCue[] {
   const cues: SelectionCue[] = [];
   let elapsedTenths = 0;
   for (const play of plays) {
-    if (!selectedIds.has(play.id)) continue;
-    const tenths = estimatedPlayTenths(play);
+    if (!selection.selectedIds.has(play.id)) continue;
+    const tenths = estimatedPlayTenths(play, selection);
     cues.push({ play, seconds: tenths / 10, startAt: elapsedTenths / 10 });
     elapsedTenths += tenths;
   }

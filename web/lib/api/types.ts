@@ -36,6 +36,8 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** False when the recorder cannot replay this play from the victim (bot victim, demo end). */
+  victimReplay?: boolean;
 };
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';

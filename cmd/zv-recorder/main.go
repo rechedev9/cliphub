@@ -72,6 +72,7 @@ func run() (retErr error) {
 		hudMode              = flag.String("hud", string(recording.HUDModeGameplay), "HUD mode: gameplay, clean, or deathnotices")
 		portraitSafeKillfeed = flag.Bool("portrait-safe-killfeed", false, "move filtered death notices into the 9:16 center-crop safe area")
 		victimReplay         = flag.Bool("victim-replay", false, "after the main pass, rewind and record each segment's last kill from the victim's POV")
+		replayOnly           = flag.String("replay-only", "", "comma-separated segment ids whose main clip is already stored; record only their victim replay")
 		fps                  = flag.Int("fps", 0, "recording FPS; defaults to recorder preset")
 		videoCRF             = flag.Int("video-crf", 0, "HLAE stream CRF; defaults to recorder preset")
 		encoder              = flag.String("encoder", "", "HLAE stream encoder: libx264, nvenc-h264, amf-h264, or qsv-h264 (empty = libx264)")
@@ -162,6 +163,11 @@ func run() (retErr error) {
 	plan, err := recording.NewPlanFromKillPlan(kp, absDemoPath, absOutDir, stream, fullDemo)
 	if err != nil {
 		return err
+	}
+	if *replayOnly != "" {
+		if err := plan.MarkReplayOnly(strings.Split(*replayOnly, ",")); err != nil {
+			return err
+		}
 	}
 	if err := applyRuntimeFlags(&plan, *gapTimescale, *settleSeconds); err != nil {
 		return err

@@ -83,10 +83,11 @@ func TestRecordingOutputsReadyReusesMainClipsAcrossTheReplayToggle(t *testing.T)
 		name             string
 		stored, expected bool
 		wantMissing      int
+		wantReplayOnly   int
 	}{
-		{name: "replays recorded, now off", stored: true, expected: false, wantMissing: 0},
-		{name: "replays recorded, still on", stored: true, expected: true, wantMissing: 0},
-		{name: "no replays recorded, now on", stored: false, expected: true, wantMissing: 2},
+		{name: "replays recorded, now off", stored: true, expected: false},
+		{name: "replays recorded, still on", stored: true, expected: true},
+		{name: "no replays recorded, now on", stored: false, expected: true, wantMissing: 2, wantReplayOnly: 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -106,12 +107,12 @@ func TestRecordingOutputsReadyReusesMainClipsAcrossTheReplayToggle(t *testing.T)
 					t.Fatal(err)
 				}
 			}
-			missing, _, err := recordingOutputsReady(t.Context(), store, id, both, expected)
+			missing, reuse, err := recordingOutputsReady(t.Context(), store, id, both, expected)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(missing) != tc.wantMissing {
-				t.Fatalf("missing = %v, want %d segments", missing, tc.wantMissing)
+			if len(missing) != tc.wantMissing || len(reuse.replayOnly) != tc.wantReplayOnly {
+				t.Fatalf("missing = %v, replay only = %v; want %d and %d", missing, reuse.replayOnly, tc.wantMissing, tc.wantReplayOnly)
 			}
 		})
 	}
@@ -133,5 +134,37 @@ func TestMergeRecordingResultsKeepsReplaysAfterTheOptionIsTurnedOff(t *testing.T
 	}
 	if _, ok := recording.ResolveVictimReplayClip(merged, "seg-001"); !ok {
 		t.Fatal("seg-001 replay clip was dropped")
+	}
+}
+
+func TestMergeRecordingResultsKeepsTheStoredMainClipOfAReplayOnlyRun(t *testing.T) {
+	kp := replayKillPlan()
+	prev := captureResult(t, captureFixture{kp: kp, ids: []string{"seg-001", "seg-002"}})
+	next := captureResult(t, captureFixture{kp: kp, ids: []string{"seg-001"}, victimReplay: true})
+	if err := next.Plan.MarkReplayOnly([]string{"seg-001"}); err != nil {
+		t.Fatal(err)
+	}
+	next.Artifacts = []recording.RecordingArtifact{{SegmentID: "seg-001-victim", Role: "segment", Type: "video", Path: "seg-001-victim.mp4"}}
+	merged, err := mergeRecordingResults(prev, next, &kp)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	var clips []string
+	for _, artifact := range merged.Artifacts {
+		clips = append(clips, artifact.SegmentID)
+	}
+	slices.Sort(clips)
+	if want := []string{"seg-001", "seg-001-victim", "seg-002"}; !slices.Equal(clips, want) {
+		t.Fatalf("merged clips = %v, want %v", clips, want)
+	}
+	for _, segment := range merged.Plan.Segments {
+		if segment.ReplayOnly {
+			t.Fatalf("merged %s is still replay-only", segment.ID)
+		}
+	}
+
+	prev.Artifacts = prev.Artifacts[1:] // seg-001's stored main clip is gone.
+	if _, err := mergeRecordingResults(prev, next, &kp); err == nil {
+		t.Fatal("merge accepted a replay-only segment without its main clip")
 	}
 }

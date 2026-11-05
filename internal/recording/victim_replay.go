@@ -2,6 +2,8 @@ package recording
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -74,10 +76,8 @@ func replayKills(segment RecordingSegment, replay VictimReplay) []killplan.Kill 
 }
 
 // CaptureSegments lists every record window in capture order: the plan
-// segments, then one replay window per segment that has a VictimReplay. A last
-// segment that reaches the demo end is recorded after the replays instead,
-// because the demo stops before the rewind could run. HLAE numbers its takes
-// in this order.
+// segments, then one replay window per segment that has a VictimReplay, then a
+// segment marked AfterReplays. HLAE numbers its takes in this order.
 func (p RecordingPlan) CaptureSegments() []RecordingSegment {
 	var replays []RecordingSegment
 	for _, segment := range p.Segments {
@@ -94,14 +94,46 @@ func (p RecordingPlan) CaptureSegments() []RecordingSegment {
 			POVSteamID64: replay.SteamID64,
 		})
 	}
-	mains := p.Segments
-	var tail []RecordingSegment
-	if n := len(mains); len(replays) > 0 && reachesDemoEnd(mains[n-1], p) {
-		mains, tail = mains[:n-1], mains[n-1:]
+	var out, tail []RecordingSegment
+	for _, segment := range p.Segments {
+		if segment.ReplayOnly {
+			continue
+		} else if segment.AfterReplays {
+			tail = append(tail, segment)
+		} else {
+			out = append(out, segment)
+		}
 	}
-	out := append([]RecordingSegment(nil), mains...)
 	out = append(out, replays...)
 	return append(out, tail...)
+}
+
+// MarkReplayOnly records only the victim replay of the given segments, whose
+// main clips a stored capture already holds.
+func (p *RecordingPlan) MarkReplayOnly(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	marked := *p
+	marked.Segments = slices.Clone(p.Segments)
+	for i := range marked.Segments {
+		if want[marked.Segments[i].ID] {
+			marked.Segments[i].ReplayOnly = true
+			delete(want, marked.Segments[i].ID)
+		}
+	}
+	if len(want) > 0 {
+		return fmt.Errorf("replay-only segments are not in the plan: %v", slices.Sorted(maps.Keys(want)))
+	}
+	if err := marked.Validate(); err != nil {
+		return err
+	}
+	*p = marked
+	return nil
 }
 
 func (p RecordingPlan) validateVictimReplays(ids map[string]bool) error {
@@ -109,15 +141,18 @@ func (p RecordingPlan) validateVictimReplays(ids map[string]bool) error {
 		if segment.POVSteamID64 != "" {
 			return fmt.Errorf("segment %s pov_steamid64 is reserved for replay windows", segment.ID)
 		}
+		if segment.AfterReplays && (i != len(p.Segments)-1 || segment.VictimReplay != nil) {
+			return fmt.Errorf("segment %s after_replays needs to be the last play, without a replay", segment.ID)
+		}
 		replay := segment.VictimReplay
 		if replay == nil {
+			if segment.ReplayOnly {
+				return fmt.Errorf("segment %s replay_only needs a victim_replay", segment.ID)
+			}
 			continue
 		}
 		if !p.Stream.VictimReplay || p.FullDemo != nil {
 			return fmt.Errorf("segment %s victim_replay requires a Short plan with stream victim_replay", segment.ID)
-		}
-		if i == len(p.Segments)-1 && reachesDemoEnd(segment, p) {
-			return fmt.Errorf("segment %s victim_replay cannot follow a play that reaches the demo end", segment.ID)
 		}
 		id := VictimReplayID(segment.ID)
 		if err := artifacts.ValidateArtifactToken("victim replay id", id); err != nil {

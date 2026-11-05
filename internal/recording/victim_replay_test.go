@@ -171,3 +171,52 @@ func TestVictimReplayPassRunsBeforeAPlayThatReachesTheDemoEnd(t *testing.T) {
 		t.Errorf("last window = %+v, want seg-003 on the target in pass 1", last)
 	}
 }
+
+func TestMarkReplayOnlyRecordsJustTheReplayWithoutARewind(t *testing.T) {
+	stream := DefaultStreamConfig()
+	stream.VictimReplay = true
+	plan, err := NewPlanFromKillPlan(victimReplayKillPlan(), `C:\demos\x.dem`, `C:\out`, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.MarkReplayOnly([]string{"seg-001", "seg-002"}); err != nil {
+		t.Fatalf("MarkReplayOnly error = %v", err)
+	}
+	var ids []string
+	for _, capture := range plan.CaptureSegments() {
+		ids = append(ids, capture.ID)
+	}
+	if want := []string{"seg-003", "seg-001-victim", "seg-002-victim"}; !slices.Equal(ids, want) {
+		t.Fatalf("capture order = %v, want %v", ids, want)
+	}
+	_, seeks, _ := buildRuntimeSchedule(plan)
+	rewinds := 0
+	for _, seek := range seeks {
+		if seek.Rewind {
+			rewinds++
+		}
+	}
+	if rewinds != 1 {
+		t.Errorf("rewinds = %d, want 1 after seg-003", rewinds)
+	}
+
+	onlyReplays := plan
+	onlyReplays.Segments = append([]RecordingSegment(nil), plan.Segments[:2]...)
+	_, seeks, windows := buildRuntimeSchedule(onlyReplays)
+	for _, seek := range seeks {
+		if seek.Rewind {
+			t.Errorf("a run of replays only must not rewind: %+v", seek)
+		}
+	}
+	for _, window := range windows {
+		if window.Pass != 0 {
+			t.Errorf("window %s pass = %d, want 0", window.SegmentID, window.Pass)
+		}
+	}
+	if err := plan.MarkReplayOnly([]string{"seg-003"}); err == nil {
+		t.Error("seg-003 has no replay but was accepted as replay-only")
+	}
+	if err := plan.MarkReplayOnly([]string{"seg-999"}); err == nil {
+		t.Error("an unknown segment was accepted as replay-only")
+	}
+}

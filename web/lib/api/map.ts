@@ -7,7 +7,7 @@ import type { Match, Play, DemoPlayer } from './types';
  */
 export type KillPlan = {
   schema_version?: string;
-  demo?: { map?: string; tickrate?: number };
+  demo?: { map?: string; tickrate?: number; duration_ticks?: number };
   target?: { steamid64?: string; name_in_demo?: string; team_at_start?: string };
   stats?: { total_kills_target?: number };
   segments?: KillPlanSegment[];
@@ -18,8 +18,30 @@ type KillPlanSegment = {
   round: number;
   tick_start?: number;
   tick_end?: number;
-  kills?: { weapon?: string; headshot?: boolean }[];
+  kills?: { weapon?: string; headshot?: boolean; victim?: { steamid64?: string } }[];
 };
+
+/** Lowest individual-account SteamID64; bots and empty ids fall below it. */
+const STEAMID64_ACCOUNT_BASE = 76561197960265728n;
+
+function isPlayerSteamID(raw: string | undefined): boolean {
+  if (!raw || !/^\d{17}$/.test(raw)) return false;
+  return BigInt(raw) >= STEAMID64_ACCOUNT_BASE;
+}
+
+/**
+ * Mirrors the recorder's choice (internal/recording victimReplayFor): a play gets
+ * a replay when a real player other than the target died in it and the demo does
+ * not end right after it.
+ */
+function hasVictimReplay(segment: KillPlanSegment, plan: KillPlan): boolean {
+  const target = plan.target?.steamid64;
+  const victim = (segment.kills ?? []).some((kill) => isPlayerSteamID(kill.victim?.steamid64) && kill.victim?.steamid64 !== target);
+  const tickrate = plan.demo?.tickrate ?? 64;
+  const duration = plan.demo?.duration_ticks;
+  const reachesEnd = duration !== undefined && segment.tick_end !== undefined && segment.tick_end + tickrate >= duration;
+  return victim && !reachesEnd;
+}
 
 /** Pretty CS2 map name: "de_inferno" → "Inferno". Falls back to the raw value. */
 export function prettifyMap(raw: string): string {
@@ -105,7 +127,8 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
 }
 
 /** One killplan segment → a UI Play. */
-function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number | undefined): Play {
+function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan): Play {
+  const tickrate = plan.demo?.tickrate;
   const kills = segment.kills?.length ?? 0;
   const { tick_start: start, tick_end: end } = segment;
   const timed = tickrate !== undefined && Number.isFinite(tickrate) && tickrate > 0
@@ -121,6 +144,7 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number
     label: `${kills}K · Ronda ${segment.round}`,
     ...(timed ? { startSeconds: start / tickrate, endSeconds: end / tickrate } : {}),
     ...(segment.kills?.every((kill) => typeof kill.headshot === 'boolean') ? { headshots: segment.kills.filter((kill) => kill.headshot).length } : {}),
+    victimReplay: hasVictimReplay(segment, plan),
   };
 }
 
@@ -133,7 +157,7 @@ export function planToPlays(jobId: string, plan: KillPlan): Play[] {
       : `id:${segment.id}`;
     if (seen.has(timelineKey)) return [];
     seen.add(timelineKey);
-    return [segmentToPlay(jobId, segment, plan.demo?.tickrate)];
+    return [segmentToPlay(jobId, segment, plan)];
   });
 }
 

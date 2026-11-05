@@ -5,6 +5,7 @@ package recording
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -203,6 +204,12 @@ type RecordingSegment struct {
 	// POVSteamID64 overrides the plan target. Only CaptureSegments sets it,
 	// on the synthetic replay windows; plan segments never carry it.
 	POVSteamID64 string `json:"pov_steamid64,omitempty"`
+	// AfterReplays records the last play after the replay pass: it reaches the
+	// demo end, so no rewind could follow it.
+	AfterReplays bool `json:"after_replays,omitempty"`
+	// ReplayOnly skips the main window: a stored capture already has its clip,
+	// so this run records only the victim replay.
+	ReplayOnly bool `json:"replay_only,omitempty"`
 }
 
 // VictimReplay is the window around one kill seen by the player who died.
@@ -378,9 +385,11 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		return out.Segments[i].ID < out.Segments[j].ID
 	})
 	if out.Stream.VictimReplay {
+		last := len(out.Segments) - 1
 		for i := range out.Segments {
-			if i == len(out.Segments)-1 && reachesDemoEnd(out.Segments[i], out) {
-				break // Its main window is recorded after the replays; nothing can follow it.
+			if i == last && reachesDemoEnd(out.Segments[i], out) {
+				out.Segments[i].AfterReplays = slices.ContainsFunc(out.Segments[:last], func(s RecordingSegment) bool { return s.VictimReplay != nil })
+				break
 			}
 			out.Segments[i].VictimReplay = victimReplayFor(out.Segments[i], out)
 		}
