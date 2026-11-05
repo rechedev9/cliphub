@@ -329,8 +329,12 @@ export function deleteLibrarySeries(seriesId: string): Promise<void> {
 }
 
 /** A team's results, side rounds and known vetoes on every map. */
-export function getLibraryTeamMaps(teamId: string): Promise<TeamMaps> {
-  return request<TeamMaps>(`/teams/${id(teamId)}/maps`);
+export function getLibraryTeamMaps(teamId: string, range: { from?: string; to?: string } = {}): Promise<TeamMaps> {
+  const params = new URLSearchParams();
+  if (range.from) params.set('from', range.from);
+  if (range.to) params.set('to', range.to);
+  const search = params.toString();
+  return request<TeamMaps>(`/teams/${id(teamId)}/maps${search === '' ? '' : `?${search}`}`);
 }
 
 /** A simulated veto against a rival: the given steps kept, the rest recommended. */
@@ -440,13 +444,15 @@ export function getLibraryReportMetrics(reportId: string): Promise<MetricsReport
   return request<MetricsReport>(`/reports/${id(reportId)}/metrics`);
 }
 
-export type PlayerMetricsQuery = { map?: string; side?: ReportSide; limit?: number };
+export type PlayerMetricsQuery = { map?: string; side?: ReportSide; limit?: number; from?: string; to?: string };
 
 export function playerMetricsPath(steamId: string, query: PlayerMetricsQuery): string {
   const params = new URLSearchParams();
   if (query.map) params.set('map', query.map);
   if (query.side) params.set('side', query.side);
   if (query.limit) params.set('limit', String(query.limit));
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
   const search = params.toString();
   return `/players/${id(steamId)}/metrics${search ? `?${search}` : ''}`;
 }
@@ -487,9 +493,11 @@ export type TeamSpatialQuery = {
   map?: string;
   side?: ReportSide;
   from?: string;
+  to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
   buys?: readonly TacticalBuyType[];
+  opponent_buys?: readonly TacticalBuyType[];
 };
 
 export type HeatmapQuery = { kind: HeatmapKind; from?: number; to?: number; grenades?: readonly HeatmapGrenade[] };
@@ -502,9 +510,11 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
     if (q.map) params.set('map', q.map);
     if (q.side) params.set('side', q.side);
     if (q.from) params.set('from', q.from);
+    if (q.to) params.set('to', q.to);
     for (const opponent of q.opponent_ids ?? []) params.append('opponent_id', opponent);
     for (const match of q.match_ids ?? []) params.append('match_id', match);
     for (const buy of q.buys ?? []) params.append('buy', buy);
+    for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
   }
   for (const [key, value] of extra) params.append(key, value);
   const search = params.toString();

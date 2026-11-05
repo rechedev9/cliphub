@@ -86,6 +86,22 @@ Cambios concretos propuestos:
 4. Componentes base nuevos que ambas áreas usan: `RecordHeader`, `RecordTabs`, `RelatedList`,
    `DataTable` con vistas guardadas, `FilterBar`, `EmptyState`.
 
+### Las páginas de análisis son espacios de trabajo
+
+Una ficha de equipo, de jugador o un informe no es una pila de tablas: es un espacio de trabajo con
+un contexto fijo (noviembre de 2026, a partir de la interfaz de análisis de Skybox Edge).
+
+- **Un solo ámbito por página.** Mapa, lado, periodo, número de partidas, compra propia y rival, y
+  rival viven en la URL (`useAnalysisScope`, `web/lib/analysis/scope.ts`). Cambiar de pestaña no
+  pierde el filtro y un enlace pegado abre la misma vista. El filtro por ronda de una partida
+  (`tactical-filter-bar.tsx`) sigue aparte.
+- **Barra de contexto fija** (`ScopeBar`) bajo la barra superior, con los controles que lee la
+  pestaña abierta y, a la derecha, el tamaño de la muestra: "N mapas · M rondas".
+- **Cada cifra con su muestra y su referencia.** `StatCard` compara con una media y colorea la
+  diferencia (verde mejor, rojo peor); `HeatTable` tiñe contra la media de la tabla y apaga las
+  celdas con pocas rondas; `MapCard` resume un mapa con su silueta de radar, sacada de la
+  geometría de las propias demos.
+
 ## 4. Arquitectura de información
 
 Barra lateral propuesta:

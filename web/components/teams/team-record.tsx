@@ -26,7 +26,9 @@ import {
   teamLabel,
   teamOutcome,
 } from '@/lib/library/partidas';
+import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
+import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -45,6 +47,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { cn } from '@/lib/utils';
 import { TeamMapHistory } from './team-map-history';
 import { TeamScout } from './team-scout';
@@ -119,10 +122,28 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   return <TeamRecordView data={state.data} onChanged={reload} />;
 }
 
+/** The scope controls each tab reads; a tab missing here has no scope bar. */
+const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
+  partidas: ['map', 'period', 'opponent'],
+  mapas: ['map', 'period'],
+  veto: ['opponent'],
+  scouting: ['map', 'side', 'period', 'opponent'],
+  radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
+};
+/** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
+const REPORTING_TABS = new Set(['mapas', 'scouting', 'radar']);
+
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [tab, setTab] = useState('plantilla');
+  const [reported, setReported] = useState<ScopeCounts | null>(null);
+  const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
+  const [now] = useState(() => Date.now());
+  const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
+  const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
+  const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -133,6 +154,54 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const maps = mapPerformance(matches, team.id);
   const last = matches[0];
   const aliases = team.aliases.filter((alias) => alias.toLowerCase() !== team.name.toLowerCase());
+
+  useEffect(() => {
+    let active = true;
+    listLibraryTeams()
+      .then((list) => {
+        if (active) setTeams(list.filter((entry) => entry.id !== team.id).sort((a, b) => a.name.localeCompare(b.name, 'es')));
+      })
+      .catch(() => {
+        if (active) setTeams([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [team.id]);
+
+  const scoped = matches.filter(
+    (match) =>
+      (scope.map === '' || match.map === scope.map) &&
+      inScopePeriod(match.played_at, scope.period, now) &&
+      (scope.opponent === '' || rivalOf(match, team.id)?.team_id === scope.opponent),
+  );
+  const rivals = new Map<string, string>();
+  for (const match of matches) {
+    const rival = rivalOf(match, team.id);
+    if (rival?.team_id) rivals.set(rival.team_id, teamLabel(rival));
+  }
+  const playedRivals = [...rivals].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
+  if (REPORTING_TABS.has(tab)) counts = reported;
+  else if (tab === 'veto') counts = undefined;
+
+  function withScope(id: string, content: ReactNode): ReactNode {
+    const fields = TAB_FIELDS[id] ?? [];
+    return (
+      <div className="flex flex-col gap-4">
+        <ScopeBar
+          scope={scope}
+          onChange={setScope}
+          onReset={resetScope}
+          fields={fields}
+          maps={[...new Set(matches.map((match) => match.map))].sort()}
+          opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
+          counts={counts}
+        />
+        {content}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -174,6 +243,11 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         }
       />
       <RecordTabs
+        value={tab}
+        onValueChange={(next) => {
+          setReported(null);
+          setTab(next);
+        }}
         tabs={[
           {
             id: 'plantilla',
@@ -185,13 +259,13 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             id: 'partidas',
             label: 'Partidas',
             count: matches.length,
-            content: <TeamMatches team={team} matches={matches} />,
+            content: withScope('partidas', <TeamMatches team={team} matches={scoped} />),
           },
           {
             id: 'mapas',
             label: 'Mapas',
             count: maps.length,
-            content: <TeamMapHistory teamId={team.id} matches={matches} />,
+            content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'series',
@@ -201,17 +275,20 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           {
             id: 'veto',
             label: 'Veto',
-            content: <TeamVeto teamId={team.id} />,
+            content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
           },
           {
             id: 'scouting',
             label: 'Scouting',
-            content: <TeamScout teamId={team.id} matches={matches} />,
+            content: withScope('scouting', <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'radar',
             label: 'Radar 2D',
-            content: <TeamSpatial teamId={team.id} matches={matches} />,
+            content: withScope(
+              'radar',
+              <TeamSpatial teamId={team.id} scope={scope} onMapChange={onMapChange} onCounts={onCounts} />,
+            ),
           },
         ]}
       />

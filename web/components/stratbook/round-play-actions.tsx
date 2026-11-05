@@ -10,7 +10,7 @@ import { matchHref, playHref } from '@/lib/clips/routes';
 import { roundEvidenceHref, teamKeyOnSide } from '@/lib/library/rounds';
 import { LINEUP_STATUS_LABEL, playFromDraft, playSecondsLabel, playShapeLabel, suggestPlayTitle } from '@/lib/stratbook/plays';
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { Button } from '@/components/ui/button';
 import {

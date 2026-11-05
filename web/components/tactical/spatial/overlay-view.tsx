@@ -32,7 +32,7 @@ import { AnnotationPanel, useAnnotations } from './annotation-panel';
 import type { NoteItem } from './annotation-panel';
 import { RadarSurface } from './radar-surface';
 import type { RadarFrame, RadarSurfaceHandle } from './radar-surface';
-import { Segmented } from './spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { TelestratorLayer, useTelestratorDraft } from './telestrator';
 
 /** Seconds of path drawn behind each dot. */

@@ -35,7 +35,9 @@ import {
   utilityRatioLabel,
 } from '@/lib/library/partidas';
 import { roundEvidenceHref } from '@/lib/library/rounds';
+import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
+import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -45,9 +47,10 @@ import { useTableView } from '@/components/records/use-table-view';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { LevelBadge } from '@/components/players/level-badge';
 import { PlayerMatches } from '@/components/players/player-matches';
-import { PlayerMetrics } from '@/components/metrics/player-metrics';
+import { PLAYER_METRICS_LIMIT, PLAYER_METRICS_LIMITS, PlayerMetrics } from '@/components/metrics/player-metrics';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { cn } from '@/lib/utils';
 
 /** How many of the player's most recent matches the record reads in full. */
@@ -153,8 +156,19 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
   return <PlayerRecordView data={state.data} />;
 }
 
+/** The scope controls each tab reads; a tab missing here has no scope bar. */
+const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
+  partidas: ['map', 'period'],
+  metricas: ['map', 'side', 'period', 'limit'],
+};
+
 function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   const [player, setPlayer] = useState(data.player);
+  const [tab, setTab] = useState('resumen');
+  const [reported, setReported] = useState<ScopeCounts | null>(null);
+  const [now] = useState(() => Date.now());
+  const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'player', id: data.player.steamid64 });
+  const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const [role, setRole] = useState<LibraryPlayerRole | null | undefined>(undefined);
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -179,6 +193,33 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
       active = false;
     };
   }, [player.steamid64]);
+
+  const maps = [...new Set(data.rows.map((row) => row.match.map))].sort();
+  const details = new Map(data.rows.map((row) => [row.match.id, row.match]));
+  const scopedRows = data.rows.filter(
+    (row) => (scope.map === '' || row.match.map === scope.map) && inScopePeriod(row.match.played_at, scope.period, now),
+  );
+
+  function withScope(id: string, content: ReactNode): ReactNode {
+    return (
+      <div className="flex flex-col gap-4">
+        <ScopeBar
+          scope={scope}
+          onChange={setScope}
+          onReset={resetScope}
+          fields={TAB_FIELDS[id] ?? []}
+          maps={maps}
+          limits={{ options: PLAYER_METRICS_LIMITS, fallback: PLAYER_METRICS_LIMIT }}
+          counts={
+            id === 'metricas'
+              ? reported
+              : { maps: scopedRows.length, rounds: scopedRows.reduce((sum, row) => sum + row.match.round_count, 0) }
+          }
+        />
+        {content}
+      </div>
+    );
+  }
 
   const linkFaceit = useCallback(async () => {
     setLinking(true);
@@ -229,6 +270,11 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
       />
       {linkError ? <p role="alert" className="text-body-sm text-destructive">{linkError}</p> : null}
       <RecordTabs
+        value={tab}
+        onValueChange={(next) => {
+          setReported(null);
+          setTab(next);
+        }}
         tabs={[
           {
             id: 'resumen',
@@ -239,17 +285,14 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
             id: 'partidas',
             label: 'Partidas',
             count: data.rows.length,
-            content: <PlayerMatchesTable steamId={player.steamid64} rows={data.rows} />,
+            content: withScope('partidas', <PlayerMatchesTable steamId={player.steamid64} rows={scopedRows} />),
           },
           {
             id: 'metricas',
             label: 'Métricas',
-            content: (
-              <PlayerMetrics
-                steamId={player.steamid64}
-                maps={[...new Set(data.rows.map((row) => row.match.map))].sort()}
-                matches={rowIndex(data.rows)}
-              />
+            content: withScope(
+              'metricas',
+              <PlayerMetrics steamId={player.steamid64} scope={scope} matches={rowIndex(data.rows)} details={details} onCounts={onCounts} />,
             ),
           },
           {

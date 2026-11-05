@@ -6,7 +6,7 @@ import { createLibrarySeries, listLibraryTeams, type LibraryTeam } from '@/lib/a
 import { SERIES_FORMATS, type SeriesFormat } from '@/lib/api/veto';
 import { librarySeriesHref } from '@/lib/clips/routes';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';

@@ -33,7 +33,7 @@ import { TacticalReplay } from '@/components/tactical/tactical-replay';
 import { TacticalRoundList } from '@/components/tactical/tactical-round-list';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
 
 /** How the filtered rounds are read: one at a time, overlaid, or as heatmaps. */

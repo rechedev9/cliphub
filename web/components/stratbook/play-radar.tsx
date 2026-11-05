@@ -7,7 +7,7 @@ import { GRENADE_LABEL } from '@/lib/stratbook/plays';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap, levelForAltitude, worldToRendered } from '@/lib/tactical-transform';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /** Grenade ring radius in radar pixels at the 1024 reference size. */

@@ -26,7 +26,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
-import { EvidenceChips, Segmented } from './spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
+import { EvidenceChips } from './spatial-controls';
 
 const WINDOWS = [
   { value: 'all', label: 'Toda la ronda', from: 0, to: 0 },

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { RotateCcw } from 'lucide-react';
-import { getLibraryTeamVeto, listLibraryTeams, type LibraryTeam } from '@/lib/api/library';
+import { getLibraryTeamVeto, type LibraryTeam } from '@/lib/api/library';
 import {
   DEFAULT_MAP_POOL,
   EXTRA_POOL_MAPS,
@@ -16,7 +16,7 @@ import { matchesHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, VETO_BASIS_LABEL, edgeLabel, rateLabel, vetoSequence } from '@/lib/library/veto';
 import { RelatedList } from '@/components/records/related-list';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,9 +30,16 @@ const POOL_CHOICES = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS];
  * shows the map the rule recommends; choosing another map at a step keeps the
  * steps before it and recomputes the rest.
  */
-export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
-  const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
-  const [opponent, setOpponent] = useState(NO_OPPONENT);
+export function TeamVeto({
+  teamId,
+  opponent,
+  teams,
+}: {
+  teamId: string;
+  /** The rival from the page's analysis scope; empty until one is chosen. */
+  opponent: string;
+  teams: readonly LibraryTeam[] | null;
+}): ReactNode {
   const [format, setFormat] = useState<SeriesFormat>('bo3');
   const [first, setFirst] = useState<SeriesSlot>('a');
   const [pool, setPool] = useState<readonly string[]>(DEFAULT_MAP_POOL);
@@ -40,18 +47,8 @@ export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
   const [result, setResult] = useState<VetoSimulation | null | 'failed'>(null);
 
   useEffect(() => {
-    let active = true;
-    listLibraryTeams()
-      .then((list) => {
-        if (active) setTeams(list.filter((team) => team.id !== teamId).sort((a, b) => a.name.localeCompare(b.name, 'es')));
-      })
-      .catch(() => {
-        if (active) setTeams([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [teamId]);
+    setDone([]);
+  }, [opponent]);
 
   const doneKey = done.join(',');
   const poolKey = pool.join(',');
@@ -93,7 +90,7 @@ export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
   const slotNames: Record<string, string> = { a: 'Nosotros', b: opponentName, '': 'Ninguno' };
   const minPool = { bo1: 2, bo3: 3, bo5: 5 }[format];
   let notice: ReactNode = null;
-  if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige un rival para simular el veto.</p>;
+  if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige el rival en el filtro Rival para simular el veto.</p>;
   else if (!fits) {
     notice = (
       <p role="alert" className="text-body-sm text-warning">
@@ -111,22 +108,6 @@ export function TeamVeto({ teamId }: { teamId: string }): ReactNode {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        {teams === null ? (
-          <Skeleton className="h-9 w-48" />
-        ) : (
-          <Select value={opponent} onValueChange={(value) => { setOpponent(value); setDone([]); }}>
-            <SelectTrigger aria-label="Rival" className="h-9 min-w-48">
-              <SelectValue placeholder="Elige el rival" />
-            </SelectTrigger>
-            <SelectContent>
-              {teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
         <Segmented
           label="Formato"
           value={format}

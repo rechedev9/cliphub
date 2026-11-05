@@ -34,7 +34,7 @@ import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';

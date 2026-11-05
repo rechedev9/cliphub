@@ -171,11 +171,16 @@ export function ScoutView({
   scout,
   leading = [],
   onRowVideo,
+  tab,
+  onTabChange,
 }: {
   scout: ScoutReport;
   leading?: readonly { id: string; label: string; content: ReactNode }[];
   /** When set, every row with example rounds gets a video button. */
   onRowVideo?: RowVideoHandler;
+  /** The open tab, when the page needs to know it. */
+  tab?: string;
+  onTabChange?: (tab: string) => void;
 }): ReactNode {
   const matches = matchIndex(scout);
   const minSample = scout.thresholds.min_reliable_sample;
@@ -183,6 +188,8 @@ export function ScoutView({
   return (
     <div className="flex flex-col gap-3">
       <RecordTabs
+        value={tab}
+        onValueChange={onTabChange}
         tabs={[
           ...leading,
           ...sections.map((section) => ({

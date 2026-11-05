@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getLibraryTeamMaps, type LibraryMatch } from '@/lib/api/library';
 import type { SpatialMatchRef } from '@/lib/api/spatial';
 import type { MapCount, MapRecord, SideRecord, TeamMaps, VetoCount } from '@/lib/api/veto';
+import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { librarySeriesHref, matchesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { percentLabel } from '@/lib/library/partidas';
 import { countOf } from '@/lib/library/veto';
+import { MapCard, type MapRate } from '@/components/analysis/map-card';
+import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { RelatedList } from '@/components/records/related-list';
 import { EvidenceChips } from '@/components/tactical/spatial/spatial-controls';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 
 const VETO_COLUMNS: readonly { key: keyof MapRecord['veto']; label: string }[] = [
   { key: 'picked', label: 'Picks' },
@@ -24,18 +26,6 @@ const VETO_COLUMNS: readonly { key: keyof MapRecord['veto']; label: string }[] =
 
 function matchRefs(matches: readonly LibraryMatch[]): ReadonlyMap<string, SpatialMatchRef> {
   return new Map(matches.map((m) => [m.id, { match_id: m.id, map: m.map, played_at: m.played_at }]));
-}
-
-function SideCell({ side, refs }: { side: SideRecord | undefined; refs: ReadonlyMap<string, SpatialMatchRef> }): ReactNode {
-  if (!side || side.rounds === 0) return <span className="text-fg-3">Sin rondas</span>;
-  return (
-    <span className="flex flex-col gap-1">
-      <span>
-        {countOf(side.won.count, side.rounds)} <span className="text-fg-3">({percentLabel(side.won.count, side.rounds)})</span>
-      </span>
-      <EvidenceChips examples={side.won.examples.slice(0, 3)} matches={refs} />
-    </span>
-  );
 }
 
 function PistolCell({ won, lost, refs }: { won: MapCount; lost: MapCount; refs: ReadonlyMap<string, SpatialMatchRef> }): ReactNode {
@@ -63,18 +53,45 @@ function VetoCell({ count }: { count: VetoCount }): ReactNode {
   );
 }
 
+function sideRate(side: SideRecord | undefined): MapRate {
+  return { won: side?.won.count ?? 0, total: side?.rounds ?? 0 };
+}
+
+function SideExamples({ label, side, refs }: { label: string; side: SideRecord | undefined; refs: ReadonlyMap<string, SpatialMatchRef> }): ReactNode {
+  if (!side || side.won.examples.length === 0) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="text-fg-3">{label}</span>
+      <EvidenceChips examples={side.won.examples.slice(0, 3)} matches={refs} />
+    </span>
+  );
+}
+
 /**
- * A team's history per map: results from the scores, rounds per side and
- * pistols from the tactical documents, and the vetoes of its series. Every
- * count links to the matches, rounds or series behind it.
+ * A team's history per map: a card per map with its results and its rounds
+ * per side, then pistols and vetoes in a table. Every count links to the
+ * matches, rounds or series behind it. The scope's map and period apply.
  */
-export function TeamMapHistory({ teamId, matches }: { teamId: string; matches: readonly LibraryMatch[] }): ReactNode {
+export function TeamMapHistory({
+  teamId,
+  matches,
+  scope,
+  onCounts,
+}: {
+  teamId: string;
+  matches: readonly LibraryMatch[];
+  scope: AnalysisScope;
+  onCounts: (counts: ScopeCounts | null) => void;
+}): ReactNode {
   const [data, setData] = useState<TeamMaps | null | 'failed'>(null);
+  const [now] = useState(() => Date.now());
+  const { from, to } = scopeDateRange(scope.period, now);
 
   useEffect(() => {
     let active = true;
     setData(null);
-    getLibraryTeamMaps(teamId)
+    onCounts(null);
+    getLibraryTeamMaps(teamId, { from, to })
       .then((next) => {
         if (active) setData(next);
       })
@@ -84,7 +101,22 @@ export function TeamMapHistory({ teamId, matches }: { teamId: string; matches: r
     return () => {
       active = false;
     };
-  }, [teamId]);
+  }, [teamId, from, to, onCounts]);
+
+  const records = useMemo(
+    () => (data === null || data === 'failed' ? [] : data.maps.filter((record) => scope.map === '' || record.map === scope.map)),
+    [data, scope.map],
+  );
+  const played = useMemo(() => records.filter((record) => record.matches > 0), [records]);
+  const geometry = useMapGeometry(teamId, played.map((record) => record.map));
+
+  useEffect(() => {
+    if (data === null || data === 'failed') return;
+    onCounts({
+      maps: played.reduce((sum, record) => sum + record.matches, 0),
+      rounds: played.reduce((sum, record) => sum + record.rounds_won + record.rounds_lost, 0),
+    });
+  }, [data, played, onCounts]);
 
   if (data === 'failed') {
     return (
@@ -95,25 +127,56 @@ export function TeamMapHistory({ teamId, matches }: { teamId: string; matches: r
   }
   if (data === null) {
     return (
-      <div role="status" aria-label="Leyendo el historial de mapas" className="flex flex-col gap-3">
-        <Skeleton className="h-64 w-full" />
+      <div role="status" aria-label="Leyendo el historial de mapas" className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-44 w-full" />
       </div>
     );
   }
   const refs = matchRefs(matches);
-  const columns = ['Partidas', 'V-D-E', '% rondas', 'CT', 'T', 'Pistola CT', 'Pistola T', ...VETO_COLUMNS.map((c) => c.label), 'Última'];
+  const columns = ['Pistola CT', 'Pistola T', ...VETO_COLUMNS.map((c) => c.label), 'Última'];
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      {played.length === 0 ? (
+        <p className="text-body-sm text-fg-2">Sin partidas con este filtro. Amplía las fechas o quita el mapa.</p>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
+          {played.map((record) => {
+            const ct = record.sides.find((s) => s.side === 'CT');
+            const t = record.sides.find((s) => s.side === 'T');
+            return (
+              <MapCard
+                key={record.map}
+                map={record.map}
+                href={matchesHref({ team: teamId, map: record.map })}
+                record={{ wins: record.wins, losses: record.losses, ties: record.ties }}
+                rounds={{ won: record.rounds_won, total: record.rounds_won + record.rounds_lost }}
+                ct={sideRate(ct)}
+                t={sideRate(t)}
+                geometry={geometry.has(record.map) ? geometry.get(record.map) : undefined}
+                footer={
+                  <>
+                    <SideExamples label="CT ganadas" side={ct} refs={refs} />
+                    <SideExamples label="T ganadas" side={t} refs={refs} />
+                    {record.last_played_at ? <span className="text-fg-3">Última: {formatShortDate(record.last_played_at)}</span> : null}
+                  </>
+                }
+              />
+            );
+          })}
+        </div>
+      )}
       <RelatedList
-        title="Historial por mapa"
-        count={data.maps.length}
+        title="Pistolas y vetos por mapa"
+        count={records.length}
         viewAll={{ href: matchesHref({ team: teamId }), label: 'Ver sus partidas en Partidas' }}
       >
-        {data.maps.length === 0 ? (
+        {records.length === 0 ? (
           <p className="px-4 py-3 text-body-sm text-fg-2">Sin partidas ni vetos todavía.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table aria-label="Historial por mapa" className="w-full border-collapse text-left text-body-sm">
+            <table aria-label="Pistolas y vetos por mapa" className="w-full border-collapse text-left text-body-sm">
               <thead className="bg-surface-2 text-fg-3">
                 <tr className="border-b border-border">
                   <th scope="col" className="h-9 px-3 font-medium">
@@ -127,32 +190,14 @@ export function TeamMapHistory({ teamId, matches }: { teamId: string; matches: r
                 </tr>
               </thead>
               <tbody>
-                {data.maps.map((record) => {
+                {records.map((record) => {
                   const ct = record.sides.find((s) => s.side === 'CT');
                   const t = record.sides.find((s) => s.side === 'T');
-                  const rounds = record.rounds_won + record.rounds_lost;
                   return (
                     <tr key={record.map} className="border-b border-border-subtle align-top last:border-b-0">
-                      <th scope="row" className="px-3 py-2 text-left font-medium">
-                        {record.matches > 0 ? (
-                          <Link href={matchesHref({ team: teamId, map: record.map })} className="text-fg-1 hover:text-primary hover:underline">
-                            {prettyMapName(record.map)}
-                          </Link>
-                        ) : (
-                          <span className="text-fg-2">{prettyMapName(record.map)}</span>
-                        )}
+                      <th scope="row" className="px-3 py-2 text-left font-medium text-fg-1">
+                        {prettyMapName(record.map)}
                       </th>
-                      <td className="px-3 py-2">{record.matches}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span className="text-outcome-win">{record.wins}</span>-<span className="text-outcome-loss">{record.losses}</span>-{record.ties}
-                      </td>
-                      <td className={cn('px-3 py-2', rounds === 0 && 'text-fg-3')}>{percentLabel(record.rounds_won, rounds) || 'Sin rondas'}</td>
-                      <td className="px-3 py-2">
-                        <SideCell side={ct} refs={refs} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SideCell side={t} refs={refs} />
-                      </td>
                       <td className="px-3 py-2">{ct ? <PistolCell won={ct.pistol_won} lost={ct.pistol_lost} refs={refs} /> : null}</td>
                       <td className="px-3 py-2">{t ? <PistolCell won={t.pistol_won} lost={t.pistol_lost} refs={refs} /> : null}</td>
                       {VETO_COLUMNS.map((column) => (

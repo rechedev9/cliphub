@@ -23,6 +23,7 @@ import { saveReportPdf } from '@/lib/reports/pdf';
 import { REPORT_SIDE_LABEL, matchIndex } from '@/lib/reports/scout-sections';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
+import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -37,6 +38,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { MAX_REPORT_MATCHES, ReportSideSelect } from './new-report-dialog';
 import { EMPTY_PICKER_FILTERS, ReportMatchPicker, type PickerFilters } from './report-match-picker';
 import { MetricsView } from '@/components/metrics/metrics-view';
@@ -153,6 +155,10 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
   const [exporting, setExporting] = useState(false);
   /** The example rounds of the report row the video dialog opened on. */
   const [video, setVideo] = useState<VideoSource[] | null>(null);
+  const [tab, setTab] = useState('notas');
+  const [counts, setCounts] = useState<ScopeCounts | null>(null);
+  const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'report', id: report.id });
+  const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(report.title);
   useDocumentTitle(`${report.title} · Informe · ClipHub`);
 
@@ -234,10 +240,24 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
       ) : null}
       <ScoutView
         scout={scout}
+        tab={tab}
+        onTabChange={(next) => {
+          setCounts(null);
+          setTab(next);
+        }}
         onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))}
         leading={[
           { id: 'notas', label: 'Notas', content: <ReportNotes report={report} onSaved={onChanged} /> },
-          { id: 'radar', label: 'Radar 2D', content: <ReportSpatial report={report} /> },
+          {
+            id: 'radar',
+            label: 'Radar 2D',
+            content: (
+              <div className="flex flex-col gap-4">
+                <ScopeBar scope={scope} onChange={setScope} onReset={resetScope} fields={['buy', 'opponentBuy']} counts={counts} />
+                <ReportSpatial report={report} scope={scope} onMapChange={onMapChange} onCounts={setCounts} />
+              </div>
+            ),
+          },
           {
             id: 'metricas',
             label: 'Métricas',
