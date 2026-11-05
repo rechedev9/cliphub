@@ -78,6 +78,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/tactical/positions", h.GetTacticalPositions)
 	r.Get("/api/jobs/{id}/tactical/aggregate", h.GetTacticalAggregate)
 	r.Get("/api/maps/{map}/radar", h.GetMapRadar)
+	r.Post("/api/practice/launch", h.LaunchPractice)
 	r.Get("/api/jobs/{id}/final", h.GetFinal)
 	r.Post("/api/jobs/{id}/record", h.StartRecording)
 	r.Post("/api/jobs/{id}/generate", h.StartGenerate)
