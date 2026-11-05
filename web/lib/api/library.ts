@@ -1,3 +1,4 @@
+import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { CollectionInput, CollectionPatch, LibraryCollection, LibraryCollectionDetail } from './collections.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
@@ -639,4 +640,26 @@ export function patchLibraryCollection(collectionId: string, patch: CollectionPa
 
 export function deleteLibraryCollection(collectionId: string): Promise<void> {
   return request<void>(`/collections/${id(collectionId)}`, { method: 'DELETE' });
+}
+
+function baselineParams(query: BaselineQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.map) params.set('map', query.map);
+  if (query.min_rounds) params.set('min_rounds', String(query.min_rounds));
+  return params;
+}
+
+/** Per-player averages of the reference metrics over the library or its HLTV demos. */
+export function getBaseline(query: BaselineQuery = {}): Promise<Baseline> {
+  const search = baselineParams(query).toString();
+  return request<Baseline>(`/baseline${search === '' ? '' : `?${search}`}`);
+}
+
+/** The library's players ranked by one reference metric, best first. */
+export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
+  const params = baselineParams(query);
+  params.set('metric', query.metric);
+  if (query.limit) params.set('limit', String(query.limit));
+  return request<Leaderboard>(`/leaderboard?${params.toString()}`);
 }

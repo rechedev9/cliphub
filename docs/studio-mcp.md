@@ -157,6 +157,11 @@ Read:
 | `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags |
+| `list_teams` | `GET /api/library/teams` |
+| `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
+| `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
+| `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`) |
+| `find_rounds` | `GET /api/library/matches?team_id=` or `?steamid=`, then `GET /api/library/matches/{id}/tactical` per match (up to 20); round refs `match_id/round` filtered by side, buy and result |
 
 Write:
 

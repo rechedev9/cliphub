@@ -117,3 +117,19 @@ test('series, map history and the veto simulator are reachable with their own na
   assert.ok(job?.body?.kind === 'json');
   assert.deepEqual(job.body.fields, ['target_steamid']);
 });
+
+test('the baseline and the leaderboard are read only and keep their own query names', () => {
+  assert.equal(matchLibraryRoute('POST', ['baseline']), undefined);
+  const baseline = matchLibraryRoute('GET', ['baseline']);
+  assert.ok(baseline);
+  assert.equal(
+    libraryUpstreamQuery(baseline, new URLSearchParams('scope=pro&map=de_nuke&metric=kpr&min_rounds=50&token=x')),
+    'scope=pro&map=de_nuke&min_rounds=50',
+  );
+  const board = matchLibraryRoute('GET', ['leaderboard']);
+  assert.ok(board);
+  assert.equal(
+    libraryUpstreamQuery(board, new URLSearchParams('metric=adr&map=de_nuke&min_rounds=80&limit=10&steamid=1')),
+    'map=de_nuke&min_rounds=80&metric=adr&limit=10',
+  );
+});

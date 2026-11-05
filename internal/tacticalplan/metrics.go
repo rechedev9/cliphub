@@ -204,6 +204,7 @@ type PlayerMetrics struct {
 	Positions  []PositionLine    `json:"positions"`
 	MatchLines []PlayerMatchLine `json:"match_lines"`
 	Buys       []BuyLine         `json:"buys"`
+	Box        BoxScore          `json:"box"`
 }
 
 // RoleLine adds up the players of one inferred role.
@@ -598,6 +599,7 @@ func (run *metricsRun) round(m MetricsMatch, r Round, report *MetricsReport) boo
 			if pr.Slot == slot {
 				position(a, m, r, pr, roundWPA[slot])
 				addBuyRound(a, start[slot], r, pr.Side, roundWPA[slot])
+				addBoxRound(&a.m.Box, pr, doc.UtilityEffects)
 			}
 		}
 	}
