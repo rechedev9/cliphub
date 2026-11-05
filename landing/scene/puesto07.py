@@ -415,9 +415,56 @@ add_bump(mesh_m.node_tree, next(n for n in mesh_m.node_tree.nodes if n.type == "
 hand_m = principled("hand_skin", (0.42, 0.26, 0.19), 0.6)[0]
 
 
-def limb(name, a, b, r, mat, parent):
-    d = b - a
-    return cyl(name, r, d.length, (a + b) / 2, mat, rot=d.to_track_quat("Z", "Y").to_euler(), verts=20, parent=parent)
+cuff_m = (principled("cuff_a", (0.025, 0.04, 0.09), 0.95)[0], principled("cuff_b", (0.09, 0.03, 0.025), 0.95)[0])
+
+
+def spline(ctrl, n):
+    """Catmull-Rom through the control points, n samples per span."""
+    c = [ctrl[0]] + list(ctrl) + [ctrl[-1]]
+    out = []
+    for k in range(1, len(c) - 2):
+        p0, p1, p2, p3 = c[k - 1], c[k], c[k + 1], c[k + 2]
+        for j in range(n):
+            t = j / n
+            out.append(0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3))
+    out.append(ctrl[-1])
+    return out
+
+
+def tube(name, pts, radius, mat, parent, sides=24, flat=1.0):
+    """Smooth tube along pts with parallel-transported frames; radius(t) for t in 0..1, flat squashes one axis."""
+    bm = bmesh.new()
+    tan = [(pts[min(k + 1, len(pts) - 1)] - pts[max(k - 1, 0)]).normalized() for k in range(len(pts))]
+    nrm = tan[0].orthogonal().normalized()
+    rings = []
+    for k, (p, tg) in enumerate(zip(pts, tan)):
+        nrm = (nrm - tg * nrm.dot(tg)).normalized()
+        bi = tg.cross(nrm)
+        r = radius(k / (len(pts) - 1))
+        rings.append([bm.verts.new(p + (nrm * math.cos(a) * flat + bi * math.sin(a)) * r) for a in (2 * math.pi * j / sides for j in range(sides))])
+    for r0, r1 in zip(rings, rings[1:]):
+        for j in range(sides):
+            bm.faces.new((r0[j], r0[(j + 1) % sides], r1[(j + 1) % sides], r1[j]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    outward(bm)
+    o = mesh_object(name, bm, mat, parent)
+    smooth(o)
+    return o
+
+
+def make_hand(wrist, d, sx, parent):
+    """Palm and four curled fingers reaching along d, thumb on the inner side."""
+    side = Vector((0, 0, 1)).cross(d).normalized() * -sx
+    down = Vector((0, 0, -1))
+    palm = [wrist, wrist + d * 0.045 + down * 0.004, wrist + d * 0.085 + down * 0.01]
+    tube("palm", palm, lambda t: 0.026 + 0.008 * math.sin(t * math.pi), hand_m, parent, sides=16, flat=0.45)
+    for f, (off, ln) in enumerate(((-0.024, 0.05), (-0.008, 0.058), (0.008, 0.055), (0.023, 0.044))):
+        base = palm[-1] + side * off
+        tip = base + d * ln * 0.55 + down * ln * 0.65
+        tube("finger", spline((base, base + d * ln * 0.45 + down * 0.008, tip), 4), lambda t: 0.0085 - 0.002 * t, hand_m, parent, sides=10)
+    tb = wrist + d * 0.03 - side * 0.028 * sx * -1
+    tube("thumb", spline((tb, tb + d * 0.035 - side * 0.012 * -sx + down * 0.012, tb + d * 0.06 + down * 0.025), 4), lambda t: 0.0105 - 0.002 * t, hand_m, parent, sides=10)
 
 
 def ball(name, c, r, mat, parent):
@@ -428,6 +475,8 @@ def ball(name, c, r, mat, parent):
 
 
 hoodies = (principled("hoodie_a", (0.03, 0.05, 0.11), 0.92)[0], principled("hoodie_b", (0.11, 0.035, 0.03), 0.92)[0])
+for h in hoodies:
+    add_bump(h.node_tree, next(n for n in h.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), 14, 0.6, 0.006)
 for i, x in enumerate((-0.80, 0.80)):
     pl = empty("player", (x, far_y - 0.56, 0), (0, 0, math.radians(4 if i else -5)))
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.1, location=(0, 0, 0))
@@ -437,6 +486,14 @@ for i, x in enumerate((-0.80, 0.80)):
     smooth(head)
     finish(head, "head", skin, pl)
     cyl("neck", 0.045, 0.08, (0, 0.02, 1.08), skin, verts=24, parent=pl)
+    for sx in (-1, 1):
+        ear = ball("ear", Vector((sx * 0.086, 0.015, 1.17)), 0.022, hand_m, pl)
+        ear.scale = (0.45, 1.0, 1.3)
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.1, minor_radius=0.038, major_segments=40, minor_segments=14, location=(0, 0, 0))
+    hood = bpy.context.active_object
+    hood.location, hood.rotation_euler, hood.scale = (0, -0.03, 1.05), (math.radians(-28), 0, 0), (1.15, 0.9, 1.0)
+    smooth(hood)
+    finish(hood, "hood", hoodies[i], pl)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
     torso = bpy.context.active_object
     for v in torso.data.vertices:
@@ -446,14 +503,16 @@ for i, x in enumerate((-0.80, 0.80)):
     bevel(torso, 0.085, 5)
     finish(torso, "torso", hoodies[i], pl)
     # Elbows stick out past the chair back so the arms read from the camera; hands rest on keyboard and mouse.
-    for sx, hand in ((-1, Vector((-0.10, 0.40, DESK + 0.035))), (1, Vector((0.25, 0.42, DESK + 0.03)))):
-        shoulder, elbow = Vector((sx * 0.20, 0.05, 1.01)), Vector((sx * 0.29, 0.15, 0.85))
-        limb("upper_arm", shoulder, elbow, 0.052, hoodies[i], pl)
-        limb("forearm", elbow, hand, 0.044, hoodies[i], pl)
-        ball("elbow", elbow, 0.05, hoodies[i], pl)
-        ball("shoulder", shoulder, 0.06, hoodies[i], pl)
-        d = (hand - elbow).normalized()
-        box("hand", (0.075, 0.09, 0.03), hand + d * 0.05, hand_m, 0.012, rot=(0, 0, math.atan2(-d.x, d.y)), parent=pl)
+    for sx, wrist in ((-1, Vector((-0.09, 0.37, DESK + 0.058))), (1, Vector((0.245, 0.385, DESK + 0.05)))):
+        shoulder, elbow = Vector((sx * 0.18, 0.04, 1.02)), Vector((sx * 0.28, 0.13, 0.84))
+        pts = spline((shoulder, shoulder + Vector((sx * 0.06, 0.02, -0.06)), elbow, elbow + (wrist - elbow) * 0.5, wrist), 10)
+        # Baggy hoodie sleeve: full at the shoulder, narrower past the elbow, ribbed cuff at the wrist.
+        sleeve = [0.064, 0.058, 0.052, 0.049, 0.047, 0.044, 0.042, 0.039, 0.036, 0.034]
+        tube("sleeve", pts, lambda t: sleeve[min(int(t * 9.99), 9)] * (1 + 0.04 * math.sin(t * 31)), hoodies[i], pl)
+        d = (wrist - elbow).normalized()
+        cuff = wrist - d * 0.02
+        tube("cuff", [cuff - d * 0.03, cuff], lambda t: 0.034, cuff_m[i], pl, sides=18)
+        make_hand(wrist - d * 0.01, d, sx, pl)
     box("far_kb", (0.40, 0.14, 0.022), (-0.06, 0.44, DESK + 0.011), black_plastic, 0.006, rot=(0, 0, math.radians(3)), parent=pl)
     box("far_mouse", (0.06, 0.11, 0.035), (0.25, 0.47, DESK + 0.017), black_plastic, 0.016, parent=pl)
     box("far_pad", (0.30, 0.26, 0.003), (0.26, 0.45, DESK + 0.0015), cloth, parent=pl)
