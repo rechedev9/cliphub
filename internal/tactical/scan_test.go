@@ -196,6 +196,24 @@ func TestScanRealDemo(t *testing.T) {
 		t.Fatal("no round in the demo was classified beyond unknown")
 	}
 
+	// Nearly every grenade must know where it was thrown from.
+	grenades, thrown := 0, 0
+	for _, r := range doc.Rounds {
+		for _, ev := range r.Events {
+			switch ev.Kind {
+			case tacticalplan.EventSmoke, tacticalplan.EventFlash, tacticalplan.EventHE, tacticalplan.EventMolotov, tacticalplan.EventDecoy:
+				grenades++
+				if ev.Throw != nil && ev.Throw.Tick <= ev.Tick && ev.Throw.Pos != [3]float64{} {
+					thrown++
+				}
+			}
+		}
+	}
+	t.Logf("%d of %d grenades carry their throw", thrown, grenades)
+	if grenades == 0 || thrown*10 < grenades*9 {
+		t.Fatalf("%d of %d grenades carry their throw", thrown, grenades)
+	}
+
 	// The position blob must decode, and every round must be seekable inside it.
 	if result.Positions.Descriptor.FrameCount == 0 {
 		t.Fatal("no positions were sampled")

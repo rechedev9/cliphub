@@ -9,6 +9,8 @@ import {
   TEAM_SPATIAL_QUERY,
 } from '../../../lib/api/spatial.ts';
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
+import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
+import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import {
   PLAY_CREATE_FIELDS,
   PLAY_DETAIL_KEYS,
@@ -20,8 +22,15 @@ import {
   STRATBOOK_FILE_KEYS,
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
+import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
 import { COLLECTION_DETAIL_KEYS, COLLECTION_FIELDS, COLLECTION_KEYS } from '../../../lib/api/collections.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
+import {
+  PLAYER_POSITIONS_KEYS,
+  PLAYER_POSITIONS_QUERY,
+  TEAM_BOMBSITES_KEYS,
+  TEAM_BOMBSITES_QUERY,
+} from '../../../lib/api/team-insights.ts';
 
 /**
  * The `/api/library/*` routes the browser may reach, as a whitelist. A request
@@ -112,8 +121,12 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'heatmap'], query: [...TEAM_SPATIAL_QUERY, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'overlay'], query: [...TEAM_SPATIAL_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'playbook'], query: PLAYBOOK_QUERY, response: json(PLAYBOOK_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'prep'], query: PREP_QUERY, response: json(PREP_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },
   { method: 'GET', segments: ['series'], query: ['team_id', ...PAGING], response: json(['series']) },
   { method: 'POST', segments: ['series'], body: fields(SERIES_FIELDS), response: json(SERIES_KEYS) },
   { method: 'GET', segments: ['series', UUID], response: json(SERIES_KEYS) },
@@ -151,7 +164,10 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['players', STEAM_ID], response: json(PLAYER_KEYS) },
   { method: 'POST', segments: ['players', STEAM_ID, 'faceit'], response: json(PLAYER_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'role'], response: json(ROLE_KEYS) },
+  { method: 'GET', segments: ['players', STEAM_ID, 'positions'], query: PLAYER_POSITIONS_QUERY, response: json(PLAYER_POSITIONS_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'metrics'], query: PLAYER_METRICS_QUERY, response: json(METRICS_KEYS) },
+  { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
+  { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },

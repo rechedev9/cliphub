@@ -3,7 +3,6 @@ package tactical
 import (
 	"math"
 	"sort"
-	"strings"
 
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -77,7 +76,7 @@ func calloutCenters(geo tacticalplan.MapGeometry) (map[tacticalplan.Site][2]floa
 	callouts := append([]tacticalplan.Callout(nil), geo.Callouts...)
 	sort.Slice(callouts, func(i, j int) bool { return callouts[i].Name < callouts[j].Name })
 	for _, c := range callouts {
-		site := siteFromPlace(c.Name)
+		site := tacticalplan.SiteFromPlace(c.Name)
 		if site == tacticalplan.SiteNone {
 			continue
 		}
@@ -100,27 +99,6 @@ func calloutCenters(geo tacticalplan.MapGeometry) (map[tacticalplan.Site][2]floa
 		out[site] = [2]float64{sums[site][0] / float64(w), sums[site][1] / float64(w)}
 	}
 	return out, levels
-}
-
-// siteFromPlace classifies a CS2 place name. Only names that unambiguously
-// identify a site count; "Apartments" is near A on Mirage but is not A.
-func siteFromPlace(place string) tacticalplan.Site {
-	name := strings.ToLower(strings.TrimSpace(place))
-	if name == "" {
-		return tacticalplan.SiteNone
-	}
-	switch {
-	case strings.Contains(name, "bombsite a"), strings.Contains(name, "bombsitea"),
-		name == "site a", name == "a site":
-		return tacticalplan.SiteA
-	case strings.Contains(name, "bombsite b"), strings.Contains(name, "bombsiteb"),
-		name == "site b", name == "b site":
-		return tacticalplan.SiteB
-	case name == "middle", name == "mid", strings.Contains(name, "midsection"):
-		return tacticalplan.SiteMid
-	default:
-		return tacticalplan.SiteNone
-	}
 }
 
 // nearest returns the closest site on the same level as a world position and

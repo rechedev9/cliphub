@@ -22,6 +22,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/importedvideos"
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/practice"
 	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/steamclient"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
@@ -316,6 +317,7 @@ func run() error {
 		httpapi.WithImportedVideos(imported),
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLineupCatalog(lineupCatalog),
+		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job

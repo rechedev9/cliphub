@@ -42,6 +42,7 @@ function player(overrides: Partial<PlayerMetrics> = {}): PlayerMetrics {
       { buy: 'pistol', rounds: 2, won: 1, kills: 2, deaths: 1, wpa: 0.05 },
       { buy: 'full', rounds: 18, won: 11, kills: 13, deaths: 11, wpa: 0.4067 },
     ],
+    box: { damage: 1600, assists: 4, kast_rounds: 15, opening_kills: 3, opening_deaths: 2, utility_rounds: 20 },
     ...overrides,
   };
 }

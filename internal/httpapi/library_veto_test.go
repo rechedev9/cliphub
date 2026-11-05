@@ -53,6 +53,9 @@ func TestLibrarySeriesVetoMapsAndSimulator(t *testing.T) {
 	if byMap["de_nuke"].Veto.Picked.Count != 1 || byMap["de_mirage"].Veto.OpponentBanned.Count != 1 {
 		t.Fatalf("veto counts = %+v / %+v", byMap["de_nuke"].Veto, byMap["de_mirage"].Veto)
 	}
+	if nuke := byMap["de_nuke"].Preference; nuke.Vetoes != 1 || nuke.Veto <= 0 || played.Preference.Matches != 2 || played.Preference.Play != 1 {
+		t.Fatalf("preferences = nuke %+v, %s %+v", nuke, f.home.Map, played.Preference)
+	}
 
 	var veto vetoResponse
 	env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/veto?opponent_id="+f.mouz.String()+"&format=bo1&done=de_train", nil, http.StatusOK, &veto)

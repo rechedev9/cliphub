@@ -87,6 +87,17 @@ export type PlayerMetrics = {
   positions: PositionLine[];
   match_lines: PlayerMatchLine[];
   buys: BuyLine[];
+  box: BoxScore;
+};
+
+/** Per-round box score; `utility_rounds` are the rounds of matches scanned with utility effects. */
+export type BoxScore = {
+  damage: number;
+  assists: number;
+  kast_rounds: number;
+  opening_kills: number;
+  opening_deaths: number;
+  utility_rounds: number;
 };
 
 export type RoleLine = {

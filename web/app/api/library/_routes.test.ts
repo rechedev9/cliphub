@@ -71,6 +71,7 @@ test('the stratbook routes are reachable and a play patch cannot move its map, s
   assert.ok(matchLibraryRoute('GET', ['plays', 'export']));
   assert.ok(matchLibraryRoute('DELETE', ['plays', ID]));
   assert.ok(matchLibraryRoute('GET', ['teams', ID, 'plays']));
+  assert.ok(matchLibraryRoute('GET', ['teams', ID, 'grenades']));
   assert.ok(matchLibraryRoute('GET', ['matches', ID, 'tactical', 'rounds', '3', 'play']));
   assert.ok(matchLibraryRoute('GET', ['matches', ID, 'tactical', 'rounds', '3', 'lineups']));
   assert.equal(matchLibraryRoute('DELETE', ['plays', 'export']), undefined);
@@ -84,6 +85,15 @@ test('the stratbook routes are reachable and a play patch cannot move its map, s
   const draft = matchLibraryRoute('GET', ['matches', ID, 'tactical', 'rounds', '3', 'play']);
   assert.ok(draft);
   assert.equal(libraryUpstreamQuery(draft, new URLSearchParams('team_key=t-start&tick=900&slot=1')), 'team_key=t-start&tick=900');
+});
+
+test('the playbook keeps its side and the prep drops it', () => {
+  const playbook = matchLibraryRoute('GET', ['teams', ID, 'playbook']);
+  const prep = matchLibraryRoute('GET', ['teams', ID, 'prep']);
+  assert.ok(playbook && prep);
+  assert.equal(matchLibraryRoute('POST', ['teams', ID, 'playbook']), undefined);
+  assert.equal(libraryUpstreamQuery(playbook, new URLSearchParams('map=de_nuke&side=T&slot=2')), 'map=de_nuke&side=T');
+  assert.equal(libraryUpstreamQuery(prep, new URLSearchParams(`map=de_nuke&side=T&opponent_id=${ID}`)), `map=de_nuke&opponent_id=${ID}`);
 });
 
 test('the metrics routes are read only and a player metrics query keeps its own names', () => {
@@ -113,7 +123,30 @@ test('series, map history and the veto simulator are reachable with their own na
     libraryUpstreamQuery(veto, new URLSearchParams(`opponent_id=${ID}&format=bo3&first=a&pool=de_nuke&pool=de_mirage&done=de_nuke&token=x`)),
     `opponent_id=${ID}&format=bo3&first=a&pool=de_nuke&pool=de_mirage&done=de_nuke`,
   );
+  const bombsites = matchLibraryRoute('GET', ['teams', ID, 'bombsites']);
+  assert.ok(bombsites);
+  assert.equal(libraryUpstreamQuery(bombsites, new URLSearchParams('map=de_nuke&side=CT&limit=5')), 'map=de_nuke&side=CT');
+  const positions = matchLibraryRoute('GET', ['players', '76561198000000001', 'positions']);
+  assert.ok(positions);
+  assert.equal(libraryUpstreamQuery(positions, new URLSearchParams('map=de_nuke&side=T&to=x')), 'map=de_nuke&to=x');
+  assert.equal(matchLibraryRoute('GET', ['players', 'nick', 'positions']), undefined);
   const job = matchLibraryRoute('POST', ['demos', ID, 'jobs']);
   assert.ok(job?.body?.kind === 'json');
   assert.deepEqual(job.body.fields, ['target_steamid']);
+});
+
+test('the baseline and the leaderboard are read only and keep their own query names', () => {
+  assert.equal(matchLibraryRoute('POST', ['baseline']), undefined);
+  const baseline = matchLibraryRoute('GET', ['baseline']);
+  assert.ok(baseline);
+  assert.equal(
+    libraryUpstreamQuery(baseline, new URLSearchParams('scope=pro&map=de_nuke&metric=kpr&min_rounds=50&token=x')),
+    'scope=pro&map=de_nuke&min_rounds=50',
+  );
+  const board = matchLibraryRoute('GET', ['leaderboard']);
+  assert.ok(board);
+  assert.equal(
+    libraryUpstreamQuery(board, new URLSearchParams('metric=adr&map=de_nuke&min_rounds=80&limit=10&steamid=1')),
+    'map=de_nuke&min_rounds=80&metric=adr&limit=10',
+  );
 });
