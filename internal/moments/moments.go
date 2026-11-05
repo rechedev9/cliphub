@@ -35,6 +35,8 @@ type Moment struct {
 	Player          string         `json:"player,omitempty"`
 	Map             string         `json:"map,omitempty"`
 	Round           int            `json:"round"`
+	Side            string         `json:"side,omitempty"`
+	ClutchVs        int            `json:"clutch_vs,omitempty"`
 	TickStart       int            `json:"tick_start"`
 	TickEnd         int            `json:"tick_end"`
 	TimeStart       float64        `json:"time_start_seconds,omitempty"`
@@ -137,6 +139,8 @@ func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment
 		Player:          plan.Target.NameInDemo,
 		Map:             plan.Demo.Map,
 		Round:           segment.Round,
+		Side:            segmentSide(segment),
+		ClutchVs:        segmentClutchVs(segment),
 		TickStart:       segment.TickStart,
 		TickEnd:         segment.TickEnd,
 		TimeStart:       timeStart,
@@ -183,6 +187,31 @@ func segmentEvents(segment killplan.Segment) Events {
 	}
 	sort.Strings(events.Weapons)
 	return events
+}
+
+// segmentSide is the target's side, CT or T, at the segment's first event.
+func segmentSide(segment killplan.Segment) string {
+	team := ""
+	if len(segment.Kills) > 0 {
+		team = segment.Kills[0].Killer.TeamAtKill
+	} else if len(segment.Utility) > 0 {
+		team = segment.Utility[0].Thrower.TeamAtKill
+	}
+	switch team {
+	case SideCT, SideT:
+		return team
+	default:
+		return ""
+	}
+}
+
+// segmentClutchVs is the largest clutch a segment's kills were made in.
+func segmentClutchVs(segment killplan.Segment) int {
+	vs := 0
+	for _, kill := range segment.Kills {
+		vs = max(vs, kill.ClutchVs)
+	}
+	return vs
 }
 
 func victims(segment killplan.Segment) []string {
@@ -234,6 +263,9 @@ func reasonCodes(segment killplan.Segment, events Events) []string {
 	}
 	if events.Kills >= 5 {
 		reasons["ace"] = true
+	}
+	if segmentClutchVs(segment) > 0 {
+		reasons["clutch"] = true
 	}
 	if events.Headshots > 0 {
 		reasons["headshot"] = true

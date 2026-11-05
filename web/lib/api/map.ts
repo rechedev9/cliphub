@@ -1,4 +1,4 @@
-import type { Match, Play, DemoPlayer } from './types';
+import type { Match, Play, PlaySide, DemoPlayer } from './types';
 
 /**
  * Minimal mirror of the killplan JSON (github.com/rechedev9/cliphub
@@ -18,7 +18,8 @@ type KillPlanSegment = {
   round: number;
   tick_start?: number;
   tick_end?: number;
-  kills?: { weapon?: string; headshot?: boolean; victim?: { steamid64?: string } }[];
+  kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
+  utility?: { thrower?: { team_at_kill?: string } }[];
 };
 
 /** Lowest individual-account SteamID64; bots and empty ids fall below it. */
@@ -126,6 +127,17 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
   return best ? prettifyWeapon(best) : undefined;
 }
 
+/** The player's side at the segment's first kill, else its first throw, as internal/moments reads it. */
+function segmentSide(segment: KillPlanSegment): PlaySide | undefined {
+  const team = segment.kills?.length ? segment.kills[0].killer?.team_at_kill : segment.utility?.[0]?.thrower?.team_at_kill;
+  return team === 'CT' || team === 'T' ? team : undefined;
+}
+
+function segmentWeapons(segment: KillPlanSegment): string[] {
+  const ids = (segment.kills ?? []).map((kill) => kill.weapon?.toLowerCase().replace(/^weapon_/, '') ?? '').filter(Boolean);
+  return [...new Set(ids)];
+}
+
 /** One killplan segment → a UI Play. */
 function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan): Play {
   const tickrate = plan.demo?.tickrate;
@@ -141,11 +153,22 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan):
     round: segment.round,
     kills,
     weapon: topWeapon(segment),
+    weapons: segmentWeapons(segment),
     label: `${kills}K · Ronda ${segment.round}`,
     ...(timed ? { startSeconds: start / tickrate, endSeconds: end / tickrate } : {}),
     ...(segment.kills?.every((kill) => typeof kill.headshot === 'boolean') ? { headshots: segment.kills.filter((kill) => kill.headshot).length } : {}),
+    ...withSide(segmentSide(segment)),
+    ...withClutch(Math.max(0, ...(segment.kills ?? []).map((kill) => kill.clutch_vs ?? 0))),
     victimReplay: hasVictimReplay(segment, plan),
   };
+}
+
+function withSide(side: PlaySide | undefined): Pick<Play, 'side'> {
+  return side ? { side } : {};
+}
+
+function withClutch(clutchVs: number): Pick<Play, 'clutchVs'> {
+  return clutchVs > 0 ? { clutchVs } : {};
 }
 
 /** Minimal mirror of GET /api/jobs/{id}/deaths (internal/moments, BuildDeaths). */

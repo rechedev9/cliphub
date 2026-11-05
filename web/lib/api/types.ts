@@ -36,12 +36,15 @@ export type Play = {
   weapon?: string; thumbnailUrl?: string;
   /** Source-demo clock, only present when its tick rate and range are known. */
   startSeconds?: number; endSeconds?: number; headshots?: number;
+  /** Engine ids of every kill's weapon ("awp"), the side the player was on, and the enemies of a clutch. */
+  weapons?: string[]; side?: PlaySide; clutchVs?: number;
   /** Death clips only: how the player died at the end of the clip. */
   death?: PlayDeath;
   /** False when the recorder cannot replay this play from the victim (bot victim, demo end). */
   victimReplay?: boolean;
 };
 export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
+export type PlaySide = 'CT' | 'T';
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';

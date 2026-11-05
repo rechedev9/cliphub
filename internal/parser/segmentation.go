@@ -17,6 +17,7 @@ type RawKill struct {
 	Weapon    string
 	Headshot  bool
 	Wallbang  bool
+	ClutchVs  int
 	Killer    killplan.Player
 	Victim    killplan.Player
 	KillerPos [3]float64
@@ -560,6 +561,7 @@ func buildKillPlanKills(in []RawKill) []killplan.Kill {
 			Weapon:    k.Weapon,
 			Headshot:  k.Headshot,
 			Wallbang:  k.Wallbang,
+			ClutchVs:  k.ClutchVs,
 			Killer:    k.Killer,
 			Victim:    k.Victim,
 			KillerPos: k.KillerPos,

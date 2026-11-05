@@ -12,6 +12,7 @@ import { forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
+import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
 import {
   autoPickBestPlays,
@@ -37,6 +38,7 @@ import { ShortStoryboard } from './short-storyboard';
 import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
+import { PlayFilters } from './play-filters';
 
 const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
 const CLOCK_TARGET = formatClock(SHORT_TARGET_SECONDS);
@@ -83,6 +85,10 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
   const [createError, setCreateError] = useState<string | null>(null);
   const busy = creating || !loaded;
   const musicPickerRef = useRef<HTMLButtonElement>(null);
+  const [playFilter, setPlayFilter] = useState<PlayFilter>(NO_PLAY_FILTER);
+  const filterOptions = useMemo(() => playFilterOptions(plays), [plays]);
+  const visiblePlays = useMemo(() => filterPlays(plays, playFilter), [plays, playFilter]);
+  const visibleIds = useMemo(() => new Set(visiblePlays.map((play) => play.id)), [visiblePlays]);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +143,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
   function chooseDeathReel(next: boolean): void {
     if (busy || next === deathReel) return;
     // A reel is either kills or deaths, so the selection starts over: every death, or the best kills.
+    setPlayFilter(NO_PLAY_FILTER);
     updateSettings((cur) => ({
       editConfig: constrainEditConfig({ ...cur.editConfig, format: SHORT_FORMAT, deathReel: next }),
       selectedIds: next ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(killPlays)],
@@ -247,15 +254,20 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
             plays={plays}
             selectedIds={selectedIds}
             title={deathReel ? STEP.deaths : STEP.highlights}
-            toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || plays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays, { victimReplay: !deathReel && editConfig.victimReplay === true })] })}>{deathReel ? 'Auto: 60 s' : AUTO_PICK_LABEL}</Button>}
+            toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || visiblePlays.length === 0}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true })] })}>{deathReel ? 'Auto: 60 s' : AUTO_PICK_LABEL}</Button>}
+            filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
+            visibleIds={visibleIds}
+            emptyFiltered={
+              <p className="p-4 text-body-sm text-fg-2 @[80rem]/content:p-5">Ninguna jugada cumple estos filtros. Las elegidas siguen en el Short.</p>
+            }
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-fg-1')}>
                 {selectedPlays.length} de {plays.length} elegidos · {clock}
               </span>
             }
             onToggle={toggleSelect}
-            onSelectAll={() => !busy && updateSettings({ selectedIds: plays.map((play) => play.id) })}
+            onSelectAll={() => !busy && updateSettings((prev) => ({ selectedIds: [...new Set([...prev.selectedIds, ...visiblePlays.map((play) => play.id)])] }))}
             onClear={() => !busy && updateSettings({ selectedIds: [] })}
           />
         </section>

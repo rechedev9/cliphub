@@ -241,3 +241,31 @@ func TestFindRecentPendingFireUtilityMatchesMolotovOrIncendiary(t *testing.T) {
 		t.Fatalf("findRecentPendingFireUtility returned %+v, want %+v", got, want)
 	}
 }
+
+func TestClutchVsCountsEnemiesWhenKillerIsLastAlive(t *testing.T) {
+	killer := alivePlayer{SteamID64: 1, Team: common.TeamCounterTerrorists}
+	victim := alivePlayer{SteamID64: 10, Team: common.TeamTerrorists}
+	enemy := alivePlayer{SteamID64: 11, Team: common.TeamTerrorists}
+	mate := alivePlayer{SteamID64: 2, Team: common.TeamCounterTerrorists}
+
+	cases := []struct {
+		name  string
+		alive []alivePlayer
+		want  int
+	}{
+		{"1v3 with the victim still counted alive", []alivePlayer{killer, victim, enemy, {SteamID64: 12, Team: common.TeamTerrorists}}, 3},
+		{"1v2 with the victim already dead", []alivePlayer{killer, enemy}, 2},
+		{"1v1", []alivePlayer{killer}, 1},
+		{"a teammate alive is no clutch", []alivePlayer{killer, mate, victim, enemy}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := clutchVs(tc.alive, killer, victim); got != tc.want {
+				t.Fatalf("clutchVs = %d, want %d", got, tc.want)
+			}
+		})
+	}
+	if got := clutchVs([]alivePlayer{killer}, killer, alivePlayer{SteamID64: 3, Team: common.TeamCounterTerrorists}); got != 0 {
+		t.Fatalf("team kill clutchVs = %d, want 0", got)
+	}
+}

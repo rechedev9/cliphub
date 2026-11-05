@@ -3611,6 +3611,44 @@ func TestGetMomentsPrefersStoredArtifact(t *testing.T) {
 	}
 }
 
+func TestGetMomentsFiltersFromTheKillPlanOverAStaleArtifact(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	ct := killplan.Player{TeamAtKill: "CT"}
+	plan := killplan.NewPlan()
+	plan.Demo.Tickrate = 64
+	plan.Segments = []killplan.Segment{
+		{ID: "seg-001", Round: 2, TickStart: 64, TickEnd: 640, Kills: []killplan.Kill{{Tick: 100, Weapon: "awp", Killer: ct, ClutchVs: 2}}},
+		{ID: "seg-002", Round: 14, TickStart: 900, TickEnd: 1400, Kills: []killplan.Kill{{Tick: 1000, Weapon: "awp", Killer: killplan.Player{TeamAtKill: "T"}}}},
+		{ID: "seg-003", Round: 3, TickStart: 1500, TickEnd: 1900, Kills: []killplan.Kill{{Tick: 1600, Weapon: "ak47", Killer: ct}}},
+	}
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	// Stored before side and clutch existed: filtering it would match nothing.
+	_ = store.Put(moments.ArtifactKey(j.ID), bytes.NewReader([]byte(`{"schema_version":"stored","moments":[{"segment_id":"seg-001","events":{"kills":1,"weapons":["awp"]}}]}`)))
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/moments", NewHandlers(repo, store, &fakeQueue{}).GetMoments)
+
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/moments?weapon=awp&kind=clutch&side=ct", nil))
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	var doc moments.Document
+	if err := json.Unmarshal(rw.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Moments) != 1 || doc.Moments[0].SegmentID != "seg-001" || doc.Moments[0].Side != "CT" {
+		t.Fatalf("moments = %+v, want only seg-001 on CT", doc.Moments)
+	}
+
+	rw = httptest.NewRecorder()
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/moments?side=spec", nil))
+	if rw.Code != http.StatusBadRequest {
+		t.Fatalf("bad side status = %d, want 400", rw.Code)
+	}
+}
+
 func TestRoutesRequireMutationTokenForPostsWhenConfigured(t *testing.T) {
 	repo := newFakeRepo()
 	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{}, WithMutationToken("secret"))

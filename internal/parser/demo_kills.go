@@ -20,8 +20,49 @@ import (
 // Kill into a RawKill. It exists so BuildRawKill can be tested without a live
 // parser.
 type gameInfo struct {
-	Tick  int
-	Round int
+	Tick     int
+	Round    int
+	ClutchVs int
+}
+
+// alivePlayer is one living player when a kill happens, so clutchVs needs no live parser.
+type alivePlayer struct {
+	SteamID64 uint64
+	Team      common.Team
+}
+
+// clutchVs returns how many enemies the killer faced alone, counting the
+// victim, or 0 when a teammate was still alive.
+func clutchVs(alive []alivePlayer, killer, victim alivePlayer) int {
+	if killer.Team != common.TeamCounterTerrorists && killer.Team != common.TeamTerrorists {
+		return 0
+	}
+	enemies := 0
+	for _, p := range alive {
+		if p.SteamID64 == killer.SteamID64 || p.SteamID64 == victim.SteamID64 {
+			continue
+		}
+		if p.Team == killer.Team {
+			return 0
+		}
+		if p.Team == victim.Team {
+			enemies++
+		}
+	}
+	if victim.Team == killer.Team {
+		return 0
+	}
+	return enemies + 1
+}
+
+func alivePlayers(players []*common.Player) []alivePlayer {
+	out := make([]alivePlayer, 0, len(players))
+	for _, p := range players {
+		if p != nil && p.IsAlive() {
+			out = append(out, alivePlayer{SteamID64: p.SteamID64, Team: p.Team})
+		}
+	}
+	return out
 }
 
 // BuildRawKill converts a demoinfocs Kill event into a RawKill, applying the
@@ -49,6 +90,7 @@ func BuildRawKill(e events.Kill, gi gameInfo, targetID uint64, excludeTeamKills 
 		Weapon:   weaponName(e.Weapon),
 		Headshot: e.IsHeadshot,
 		Wallbang: e.PenetratedObjects > 0,
+		ClutchVs: gi.ClutchVs,
 		Killer: killplan.Player{
 			SteamID64:  strconv.FormatUint(e.Killer.SteamID64, 10),
 			NameInDemo: e.Killer.Name,
@@ -229,6 +271,10 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			round = activeRound
 		}
 		gi := gameInfo{Tick: tick, Round: round}
+		if e.Killer != nil && e.Killer.SteamID64 == targetID && e.Victim != nil && gs.Participants() != nil {
+			gi.ClutchVs = clutchVs(alivePlayers(gs.Participants().Playing()),
+				alivePlayer{SteamID64: e.Killer.SteamID64, Team: e.Killer.Team}, alivePlayer{SteamID64: e.Victim.SteamID64, Team: e.Victim.Team})
+		}
 
 		targetDied := e.Victim != nil && e.Victim.SteamID64 == targetID
 		if targetDied {
