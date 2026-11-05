@@ -62,6 +62,19 @@ export type VetoRecord = {
   decider: VetoCount;
 };
 
+/**
+ * How much a team seems to want a map, from -100 to 100 (`library.MapPreference`):
+ * round(100 * (0.5 * veto + 0.25 * play + 0.25 * win)), each part in [-1, 1].
+ */
+export type MapPreference = {
+  score: number;
+  veto: number;
+  play: number;
+  win: number;
+  vetoes: number;
+  matches: number;
+};
+
 export type MapRecord = {
   map: string;
   matches: number;
@@ -75,6 +88,7 @@ export type MapRecord = {
   sides: SideRecord[];
   last_played_at?: string;
   veto: VetoRecord;
+  preference: MapPreference;
 };
 
 export type TeamMaps = {

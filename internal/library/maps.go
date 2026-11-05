@@ -67,6 +67,8 @@ type MapRecord struct {
 	Sides           []SideRecord `json:"sides"`
 	LastPlayedAt    *time.Time   `json:"last_played_at,omitempty"`
 	Veto            VetoRecord   `json:"veto"`
+	// Preference folds vetoes, play count and results into one score (map_preference.go).
+	Preference MapPreference `json:"preference"`
 }
 
 func newMapRecord(name string) *MapRecord {
@@ -148,6 +150,7 @@ func TeamMapHistory(teamID uuid.UUID, matches []MapHistoryMatch, series []Series
 	for _, r := range records {
 		out = append(out, *r)
 	}
+	scorePreferences(out)
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Matches != out[j].Matches {
 			return out[i].Matches > out[j].Matches

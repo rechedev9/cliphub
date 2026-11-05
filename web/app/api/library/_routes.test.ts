@@ -114,6 +114,13 @@ test('series, map history and the veto simulator are reachable with their own na
     libraryUpstreamQuery(veto, new URLSearchParams(`opponent_id=${ID}&format=bo3&first=a&pool=de_nuke&pool=de_mirage&done=de_nuke&token=x`)),
     `opponent_id=${ID}&format=bo3&first=a&pool=de_nuke&pool=de_mirage&done=de_nuke`,
   );
+  const bombsites = matchLibraryRoute('GET', ['teams', ID, 'bombsites']);
+  assert.ok(bombsites);
+  assert.equal(libraryUpstreamQuery(bombsites, new URLSearchParams('map=de_nuke&side=CT&limit=5')), 'map=de_nuke&side=CT');
+  const positions = matchLibraryRoute('GET', ['players', '76561198000000001', 'positions']);
+  assert.ok(positions);
+  assert.equal(libraryUpstreamQuery(positions, new URLSearchParams('map=de_nuke&side=T&to=x')), 'map=de_nuke&to=x');
+  assert.equal(matchLibraryRoute('GET', ['players', 'nick', 'positions']), undefined);
   const job = matchLibraryRoute('POST', ['demos', ID, 'jobs']);
   assert.ok(job?.body?.kind === 'json');
   assert.deepEqual(job.body.fields, ['target_steamid']);

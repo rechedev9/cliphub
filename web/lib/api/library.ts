@@ -17,6 +17,7 @@ import type {
 import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
+import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -656,4 +657,31 @@ export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): 
   for (const kind of query.kinds ?? []) params.append('kind', kind);
   const search = params.toString();
   return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
+}
+
+/** A team's record on each bombsite of each map, as defender and attacker, with the scout filter. */
+export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Promise<TeamBombsites> {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  const search = params.toString();
+  return request<TeamBombsites>(`/teams/${id(teamId)}/bombsites${search === '' ? '' : `?${search}`}`);
+}
+
+export function playerPositionsPath(steamId: string, query: PlayerPositionsQuery): string {
+  const params = new URLSearchParams();
+  if (query.map) params.set('map', query.map);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const search = params.toString();
+  return `/players/${id(steamId)}/positions${search ? `?${search}` : ''}`;
+}
+
+/** Where a player stands early in rounds, per map and side, with their AWP share. */
+export function getPlayerPositions(steamId: string, query: PlayerPositionsQuery = {}): Promise<PlayerPositions> {
+  return request<PlayerPositions>(playerPositionsPath(steamId, query));
 }
