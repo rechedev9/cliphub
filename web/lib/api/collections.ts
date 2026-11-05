@@ -1,3 +1,8 @@
+/** `library.MaxCollection*`: the server rejects anything past these. */
+export const COLLECTION_NAME_MAX = 80;
+export const COLLECTION_NOTE_MAX = 280;
+export const COLLECTION_ITEMS_MAX = 200;
+
 /** Mirrors `library.CollectionItem`: one saved tick of a round of a match. */
 export type CollectionItem = { match_id: string; round: number; tick: number; note: string };
 

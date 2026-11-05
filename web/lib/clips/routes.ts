@@ -12,6 +12,7 @@ export const TEAMS_HREF = '/equipos' as const;
 export const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const STRATBOOK_HREF = '/stratbook' as const;
+export const COLLECTIONS_HREF = '/colecciones' as const;
 /** The FACEIT follow list, under Jugadores beside the library players. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 
@@ -110,6 +111,11 @@ export function reportHref(reportId: string): string {
 /** A saved stratbook play. */
 export function playHref(playId: string): string {
   return `${STRATBOOK_HREF}/${encodeURIComponent(playId)}`;
+}
+
+/** A collection of saved replay moments. */
+export function collectionHref(collectionId: string): string {
+  return `${COLLECTIONS_HREF}/${encodeURIComponent(collectionId)}`;
 }
 
 /** Query keys that open the stratbook on one team's plays, or on the detection tab. */
