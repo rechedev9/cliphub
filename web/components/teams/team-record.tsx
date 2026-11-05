@@ -51,6 +51,7 @@ import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { cn } from '@/lib/utils';
 import { TeamMapHistory } from './team-map-history';
 import { TeamScout } from './team-scout';
+import { TeamPlaybook } from '@/components/playbook/team-playbook';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamSpatial } from './team-spatial';
@@ -128,10 +129,11 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   mapas: ['map', 'period'],
   veto: ['opponent'],
   scouting: ['map', 'side', 'period', 'opponent'],
+  playbook: ['map', 'side', 'period', 'opponent'],
   radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'scouting', 'radar']);
+const REPORTING_TABS = new Set(['mapas', 'scouting', 'playbook', 'radar']);
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
@@ -184,6 +186,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
   if (REPORTING_TABS.has(tab)) counts = reported;
   else if (tab === 'veto') counts = undefined;
+  if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
 
   function withScope(id: string, content: ReactNode): ReactNode {
     const fields = TAB_FIELDS[id] ?? [];
@@ -281,6 +284,11 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             id: 'scouting',
             label: 'Scouting',
             content: withScope('scouting', <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />),
+          },
+          {
+            id: 'playbook',
+            label: 'Playbook',
+            content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'radar',
