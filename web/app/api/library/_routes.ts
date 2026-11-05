@@ -22,6 +22,12 @@ import {
 } from '../../../lib/api/stratbook.ts';
 import { COLLECTION_DETAIL_KEYS, COLLECTION_FIELDS, COLLECTION_KEYS } from '../../../lib/api/collections.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
+import {
+  PLAYER_POSITIONS_KEYS,
+  PLAYER_POSITIONS_QUERY,
+  TEAM_BOMBSITES_KEYS,
+  TEAM_BOMBSITES_QUERY,
+} from '../../../lib/api/team-insights.ts';
 
 /**
  * The `/api/library/*` routes the browser may reach, as a whitelist. A request
@@ -114,6 +120,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },
   { method: 'GET', segments: ['series'], query: ['team_id', ...PAGING], response: json(['series']) },
   { method: 'POST', segments: ['series'], body: fields(SERIES_FIELDS), response: json(SERIES_KEYS) },
   { method: 'GET', segments: ['series', UUID], response: json(SERIES_KEYS) },
@@ -151,6 +158,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['players', STEAM_ID], response: json(PLAYER_KEYS) },
   { method: 'POST', segments: ['players', STEAM_ID, 'faceit'], response: json(PLAYER_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'role'], response: json(ROLE_KEYS) },
+  { method: 'GET', segments: ['players', STEAM_ID, 'positions'], query: PLAYER_POSITIONS_QUERY, response: json(PLAYER_POSITIONS_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'metrics'], query: PLAYER_METRICS_QUERY, response: json(METRICS_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
