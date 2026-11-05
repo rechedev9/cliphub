@@ -13,10 +13,9 @@ import {
   mergeLibraryTeam,
   patchLibraryTeam,
   type LibraryMatch,
-  type LibraryRosterEntry,
   type LibraryTeam,
 } from '@/lib/api/library';
-import { TEAMS_HREF, matchHref, playerHref, teamHref, teamStratbookHref } from '@/lib/clips/routes';
+import { TEAMS_HREF, matchHref, teamHref, teamStratbookHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -49,7 +48,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { cn } from '@/lib/utils';
+import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
+import { TeamRoster } from './team-roster';
 import { TeamScout } from './team-scout';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
@@ -127,11 +128,12 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
   veto: ['opponent'],
+  sitios: ['map', 'period', 'opponent'],
   scouting: ['map', 'side', 'period', 'opponent'],
   radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'scouting', 'radar']);
+const REPORTING_TABS = new Set(['mapas', 'sitios', 'scouting', 'radar']);
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
@@ -278,6 +280,11 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
           },
           {
+            id: 'sitios',
+            label: 'Bombsites',
+            content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} onCounts={onCounts} />),
+          },
+          {
             id: 'scouting',
             label: 'Scouting',
             content: withScope('scouting', <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />),
@@ -295,43 +302,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
       <EditTeamDialog open={editing} onOpenChange={setEditing} team={team} onSaved={onChanged} />
       <MergeTeamDialog open={merging} onOpenChange={setMerging} team={team} />
     </div>
-  );
-}
-
-const ROSTER_COLUMNS: readonly DataTableColumn<LibraryRosterEntry>[] = [
-  { id: 'nick', header: 'Jugador', required: true, cell: (entry) => entry.nick || entry.steamid64, sortValue: (entry) => entry.nick },
-  { id: 'matches', header: 'Partidas', align: 'end', cell: (entry) => entry.matches, sortValue: (entry) => entry.matches },
-  {
-    id: 'first',
-    header: 'Primera',
-    cell: (entry) => <span className="text-fg-2">{formatShortDate(entry.first_played_at)}</span>,
-    sortValue: (entry) => Date.parse(entry.first_played_at) || null,
-  },
-  {
-    id: 'last',
-    header: 'Última',
-    cell: (entry) => <span className="text-fg-2">{formatShortDate(entry.last_played_at)}</span>,
-    sortValue: (entry) => Date.parse(entry.last_played_at) || null,
-  },
-  { id: 'steamid', header: 'SteamID64', cell: (entry) => <span className="font-mono text-meta text-fg-3">{entry.steamid64}</span> },
-];
-
-function TeamRoster({ roster }: { roster: readonly LibraryRosterEntry[] }): ReactNode {
-  const view = useTableView('equipo-plantilla', {
-    sort: { column: 'last', direction: 'desc' },
-    hidden: [],
-    filters: { [SEARCH_FILTER]: FILTER_ANY },
-  });
-  return (
-    <DataTable
-      label="Plantilla"
-      rows={roster}
-      columns={ROSTER_COLUMNS}
-      rowKey={(entry) => entry.steamid64}
-      rowHref={(entry) => playerHref(entry.steamid64)}
-      view={view}
-      empty={<p className="text-body-sm text-fg-2">Sin jugadores en las partidas de este equipo.</p>}
-    />
   );
 }
 

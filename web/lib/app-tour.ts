@@ -281,6 +281,24 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/jugadores', label: 'Ir a Jugadores' },
   },
   {
+    id: 'ranking',
+    kicker: 'Ranking',
+    label: 'Ranking',
+    title: 'Quién destaca en tus demos',
+    lead: 'Ordena a los jugadores de la biblioteca por una cifra: bajas, ADR, KAST, aperturas, trades, utilidad o WPA por ronda.',
+    points: [
+      {
+        term: 'Biblioteca o Pro',
+        text: 'Pro lee solo las demos de HLTV. Es la misma media con la que se comparan las cifras de cada jugador.',
+      },
+      {
+        term: 'Mínimo de rondas',
+        text: 'Solo entra quien tiene las rondas que elijas, para que tres partidas buenas no encabecen la lista.',
+      },
+    ],
+    link: { href: '/ranking', label: 'Ir a Ranking' },
+  },
+  {
     id: 'stratbook',
     kicker: 'Stratbook',
     label: 'Stratbook',

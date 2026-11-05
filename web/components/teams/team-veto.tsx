@@ -3,18 +3,20 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { RotateCcw } from 'lucide-react';
-import { getLibraryTeamVeto, type LibraryTeam } from '@/lib/api/library';
+import { getLibraryTeamMaps, getLibraryTeamVeto, type LibraryTeam } from '@/lib/api/library';
 import {
   DEFAULT_MAP_POOL,
   EXTRA_POOL_MAPS,
   SERIES_FORMATS,
   type SeriesFormat,
+  type MapPreference,
   type SeriesSlot,
   type VetoSimulation,
 } from '@/lib/api/veto';
 import { matchesHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, VETO_BASIS_LABEL, edgeLabel, rateLabel, vetoSequence } from '@/lib/library/veto';
+import { MapPreferenceScore } from '@/components/analysis/map-preference';
 import { RelatedList } from '@/components/records/related-list';
 import { Segmented } from '@/components/ui/segmented';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,32 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 const NO_OPPONENT = '';
+
+type Preferences = ReadonlyMap<string, MapPreference>;
+
+/** A team's preference per map; empty when it cannot be read, so the column shows nothing. */
+function usePreferences(teamId: string): Preferences {
+  const [preferences, setPreferences] = useState<Preferences>(new Map());
+  useEffect(() => {
+    let active = true;
+    setPreferences(new Map());
+    if (teamId === NO_OPPONENT) return;
+    getLibraryTeamMaps(teamId)
+      .then((maps) => {
+        if (active) setPreferences(new Map(maps.maps.map((record) => [record.map, record.preference])));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [teamId]);
+  return preferences;
+}
+
+function PreferenceCell({ preference }: { preference: MapPreference | undefined }): ReactNode {
+  if (preference === undefined) return <span className="text-fg-3">Sin datos</span>;
+  return <MapPreferenceScore preference={preference} withWord={false} />;
+}
 const POOL_CHOICES = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS];
 
 /**
@@ -45,6 +73,8 @@ export function TeamVeto({
   const [pool, setPool] = useState<readonly string[]>(DEFAULT_MAP_POOL);
   const [done, setDone] = useState<readonly string[]>([]);
   const [result, setResult] = useState<VetoSimulation | null | 'failed'>(null);
+  const ours = usePreferences(teamId);
+  const theirs = usePreferences(opponent);
 
   useEffect(() => {
     setDone([]);
@@ -186,7 +216,7 @@ export function TeamVeto({
               <table aria-label="Mapas del pool" className="w-full border-collapse text-left text-body-sm">
                 <thead className="bg-surface-2 text-fg-3">
                   <tr className="border-b border-border">
-                    {['Mapa', 'Nuestras rondas', 'Nosotros', 'Sus rondas', 'Ellos', 'Ventaja', 'Sus bans', 'Sus picks'].map((header) => (
+                    {['Mapa', 'Nuestras rondas', 'Nosotros', 'Sus rondas', 'Ellos', 'Ventaja', 'Nuestra preferencia', 'Su preferencia', 'Sus bans', 'Sus picks'].map((header) => (
                       <th key={header} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
                         {header}
                       </th>
@@ -212,6 +242,12 @@ export function TeamVeto({
                       </td>
                       <td className="px-3 py-2">{rateLabel(map.their_rate)}</td>
                       <td className={cn('px-3 py-2', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
+                      <td className="px-3 py-2">
+                        <PreferenceCell preference={ours.get(map.map)} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <PreferenceCell preference={theirs.get(map.map)} />
+                      </td>
                       <td className="px-3 py-2">{map.their_bans}</td>
                       <td className="px-3 py-2">{map.their_picks}</td>
                     </tr>
@@ -224,7 +260,8 @@ export function TeamVeto({
             Regla: la tasa de rondas ganadas de cada equipo en un mapa se acerca al 50 % con un peso de {plan.model.prior_rounds} rondas, para que una
             sola partida no decida. Nuestros bans quitan el mapa con menos ventaja y nuestros picks eligen el de más. El rival hace lo contrario, salvo
             que tenga al menos {plan.model.history_min} picks o bans apuntados en sus series ({plan.opponent_history} ahora): entonces repite lo que más
-            veces hizo. Los empates se resuelven por el nombre del mapa.
+            veces hizo. Los empates se resuelven por el nombre del mapa. La preferencia va de -100 a +100 y no cambia la simulación: pasa el ratón por
+            encima para ver cómo se calcula.
           </p>
         </>
       ))}
