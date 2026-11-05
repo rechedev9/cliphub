@@ -64,6 +64,7 @@ var toggleOptions = []shortToggle{
 	{ID: "outro", Label: "Cierre", Description: "Tarjeta de cierre al final del vídeo"},
 	{ID: "hook_text", Label: "Título automático", Description: "Texto gancho al inicio del vídeo"},
 	{ID: "kill_counter", Label: "Contador de kills", Description: "Contador de bajas visible durante la jugada"},
+	{ID: "centered_killfeed", Label: "Kill feed centrada arriba", Description: "Dibuja tus kills en el centro, arriba del Short (solo 9:16)"},
 	{ID: "voice_comms", Label: "Comms del equipo", Description: "Mezcla las voces del equipo en el audio"},
 	{ID: "native_hud", Label: "HUD nativo", Description: "Graba con el HUD original del juego"},
 	{ID: "victim_replay", Label: "Repetición desde la víctima", Description: "Tras cada jugada, la última baja otra vez a cámara lenta vista por quien muere"},
@@ -100,6 +101,8 @@ type shortChoices struct {
 	NativeHUD    *bool  `json:"native_hud,omitempty" jsonschema:"record with the native game HUD; default false"`
 	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill in slow motion from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
+	// CenteredKillfeed is rejected outside short-9x16, like the server does.
+	CenteredKillfeed *bool `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
 }
 
 type songIn struct {
@@ -221,6 +224,10 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	edit.HookText, edit.KillCounter = orDefault(c.HookText, false), orDefault(c.KillCounter, false)
 	edit.VoiceComms, edit.NativeHUD = orDefault(c.VoiceComms, false), orDefault(c.NativeHUD, false)
 	edit.VictimReplay = orDefault(c.VictimReplay, false)
+	edit.CenteredKillfeed = orDefault(c.CenteredKillfeed, false)
+	if edit.CenteredKillfeed && edit.Format != "short-9x16" {
+		return edit, fmt.Errorf("centered_killfeed needs format short-9x16")
+	}
 	edit.CoverStrategy = coverNone
 	if orDefault(c.Cover, true) {
 		edit.CoverStrategy = coverGenerated
@@ -239,7 +246,7 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	for _, x := range []struct {
 		name string
 		on   bool
-	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter},
+	}{{"intro", e.Intro}, {"outro", e.Outro}, {"hook_text", e.HookText}, {"kill_counter", e.KillCounter}, {"centered_killfeed", e.CenteredKillfeed},
 		{"voice_comms", e.VoiceComms}, {"native_hud", e.NativeHUD}, {"victim_replay", e.VictimReplay}, {"cover", e.CoverStrategy == coverGenerated}} {
 		if x.on {
 			extras = append(extras, x.name)

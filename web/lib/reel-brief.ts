@@ -105,6 +105,9 @@ export function reelCreativeBrief(
   } else if (preset?.hudMode) {
     hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
   }
+  if (edit.centeredKillfeed && edit.format === 'short-9x16') {
+    hud = `${hud} · kill feed centrada arriba`;
+  }
   return [
     { label: 'Formato', value: FORMAT_LABEL[resolvedReelFormat(edit.format, preset)] },
     { label: 'Entrega', value: isLandscapeRecap(edit) ? 'POV landscape · rondas en vivo (sin freeze)' : 'Compilado de jugadas' },

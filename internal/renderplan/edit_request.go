@@ -57,6 +57,7 @@ type EditRequest struct {
 	NativeHUD   bool                `json:"native_hud"`
 	// VictimReplay replays each play's last kill from the victim, slowed down.
 	VictimReplay        bool     `json:"victim_replay,omitempty"`
+	CenteredKillfeed    bool     `json:"centered_killfeed,omitempty"`
 	CoverStrategy       string   `json:"cover_strategy"`
 	CoverFirstFrame     bool     `json:"cover_first_frame"`
 	IntroText           string   `json:"intro_text,omitempty"`
@@ -162,7 +163,7 @@ func (r EditRequest) validateFields() error {
 	if r.FullDemo != nil {
 		o := r.FullDemo.Document.Options
 		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
-			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CoverFirstFrame ||
+			!r.MatchRecap || !r.NativeHUD || r.VictimReplay || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CenteredKillfeed || r.CoverFirstFrame ||
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
@@ -177,6 +178,9 @@ func (r EditRequest) validateFields() error {
 	case FormatShort9x16, FormatLandscape16x9:
 	default:
 		return fmt.Errorf("unknown render format %q", r.Format)
+	}
+	if r.CenteredKillfeed && r.Format != FormatShort9x16 {
+		return fmt.Errorf("centered killfeed needs the %s format", FormatShort9x16)
 	}
 	switch r.KillEffect {
 	case KillEffectClean, KillEffectPunchIn, KillEffectVelocity, KillEffectFreezeFlash, KillEffectShake, KillEffectGlitch:

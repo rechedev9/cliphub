@@ -2571,6 +2571,9 @@ func (w *RenderWorker) writeEditorInputs(ctx context.Context, cfg RenderWorkerCo
 	if edit.VictimReplay {
 		args = append(args, "--victim-replay")
 	}
+	if edit.CenteredKillfeed {
+		args = append(args, "--centered-killfeed")
+	}
 	args = append(args, explicitCoverArgs(loadout, edit)...)
 	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(in.recordingResult))...)
 	if edit.FullDemo != nil {

@@ -87,6 +87,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		hook                = fs.Bool("hook", true, "draw the generated headline as a hook over the first ~2s")
 		killCounter         = fs.Bool("kill-counter", true, "pop a running kill count with 2K/3K/4K/ACE milestones")
 		killfeedOverlay     = fs.Bool("killfeed-overlay", true, "re-overlay the source kill notices near the top of the 9:16 frame")
+		centeredKillfeed    = fs.Bool("centered-killfeed", false, "draw the kill notices from the kill plan, centered near the top of the 9:16 frame")
 		keyDropFamily       = fs.String("keydrop-family", "", "affiliate family for the banner plate: KEYDROP or CSGOSKINS; empty with a style means KEYDROP")
 		keyDropStyle        = fs.String("keydrop-style", "", "optional affiliate banner style in --keydrop-family: operator, classic, tigerr, or jcorko")
 		keyDropCode         = fs.String("keydrop-code", "", "affiliate sponsor code; defaults to ZACKCSGO when style is set")
@@ -200,6 +201,7 @@ func parseEditorArgs(args []string, onError flag.ErrorHandling) (editorArgs, err
 		HookText:              *hook,
 		KillCounter:           *killCounter,
 		KillfeedOverlay:       *killfeedOverlay,
+		CenteredKillfeed:      *centeredKillfeed,
 		KeyDropFamily:         *keyDropFamily,
 		KeyDropStyle:          *keyDropStyle,
 		KeyDropCode:           *keyDropCode,

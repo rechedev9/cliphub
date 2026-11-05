@@ -84,13 +84,19 @@
           "tick": 61588,
           "time_seconds": 1,
           "weapon": "M4A1-S",
-          "victim": "opponent-1"
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-1",
+          "victim_side": "T"
         },
         {
           "tick": 61700,
           "time_seconds": 2.75,
           "weapon": "M4A1-S",
+          "attacker": "target",
+          "attacker_side": "CT",
           "victim": "opponent-4",
+          "victim_side": "T",
           "headshot": true
         }
       ],
@@ -328,13 +334,19 @@
           "tick": 22824,
           "time_seconds": 1,
           "weapon": "AK-47",
-          "victim": "opponent-2"
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-2",
+          "victim_side": "T"
         },
         {
           "tick": 22895,
           "time_seconds": 2.109375,
           "weapon": "AK-47",
-          "victim": "opponent-4"
+          "attacker": "target",
+          "attacker_side": "CT",
+          "victim": "opponent-4",
+          "victim_side": "T"
         }
       ],
       "parts": [
@@ -570,7 +582,10 @@
           "tick": 17783,
           "time_seconds": 1,
           "weapon": "MP9",
+          "attacker": "target",
+          "attacker_side": "CT",
           "victim": "opponent-2",
+          "victim_side": "T",
           "headshot": true
         }
       ],

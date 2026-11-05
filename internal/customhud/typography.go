@@ -13,6 +13,36 @@ import (
 type measuredFace struct {
 	mediafont.HUDFace
 	font *sfnt.Font
+	// assScale converts a \fs size to the em size libass renders: it sizes a
+	// face so usWinAscent+usWinDescent equals \fs, not the em square.
+	assScale float64
+}
+
+func assEmScale(data []byte) float64 {
+	u16 := func(at int) int {
+		if at < 0 || at+2 > len(data) {
+			return 0
+		}
+		return int(data[at])<<8 | int(data[at+1])
+	}
+	tables := map[string]int{}
+	for i := 0; i < u16(4); i++ {
+		rec := 12 + 16*i
+		if rec+16 > len(data) {
+			break
+		}
+		tables[string(data[rec:rec+4])] = u16(rec+8)<<16 | u16(rec+10)
+	}
+	head, okHead := tables["head"]
+	os2, okOS2 := tables["OS/2"]
+	if !okHead || !okOS2 {
+		return 1
+	}
+	upm, win := u16(head+18), u16(os2+74)+u16(os2+76)
+	if upm == 0 || win == 0 {
+		return 1
+	}
+	return float64(upm) / float64(win)
 }
 
 var fontOnce sync.Once
@@ -24,6 +54,15 @@ func NewRenderer(id string) (*Renderer, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown custom HUD %q", id)
 	}
+	if err := loadAssets(); err != nil {
+		return nil, err
+	}
+	return &Renderer{Theme: theme}, nil
+}
+
+// loadAssets parses the embedded faces and icons once; text fitting and icon
+// paths depend on both.
+func loadAssets() error {
 	fontOnce.Do(func() {
 		faces, err := mediafont.HUDFaces()
 		if err != nil {
@@ -36,16 +75,13 @@ func NewRenderer(id string) (*Renderer, error) {
 				hudFontError = err
 				return
 			}
-			hudFaces = append(hudFaces, measuredFace{face, parsed})
+			hudFaces = append(hudFaces, measuredFace{face, parsed, assEmScale(face.Data)})
 		}
 	})
 	if hudFontError != nil {
-		return nil, hudFontError
+		return hudFontError
 	}
-	if err := loadIcons(); err != nil {
-		return nil, err
-	}
-	return &Renderer{Theme: theme}, nil
+	return loadIcons()
 }
 
 func textFace(value string, weight int) measuredFace {
