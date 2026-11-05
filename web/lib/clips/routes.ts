@@ -129,6 +129,17 @@ export function newReportHref(teamId: string): string {
   return `${REPORTS_HREF}?${new URLSearchParams({ [REPORTS_QUERY.team]: teamId }).toString()}`;
 }
 
+/** Query keys of the printable rival prep: team id, map, and optional days `YYYY-MM-DD`. */
+export const PREP_QUERY = { team: 'team', map: 'map', from: 'from', to: 'to' } as const;
+
+/** The printable prep of a rival on one map. */
+export function prepHref(prep: { teamId: string; map: string; from?: string; to?: string }): string {
+  const params = new URLSearchParams({ [PREP_QUERY.team]: prep.teamId, [PREP_QUERY.map]: prep.map });
+  if (prep.from) params.set(PREP_QUERY.from, prep.from);
+  if (prep.to) params.set(PREP_QUERY.to, prep.to);
+  return `${REPORTS_HREF}/prep?${params.toString()}`;
+}
+
 /** A library player's record, by SteamID64. */
 export function playerHref(steamId: string): string {
   return `${PLAYERS_HREF}/${encodeURIComponent(steamId)}`;
