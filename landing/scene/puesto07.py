@@ -453,6 +453,21 @@ def tube(name, pts, radius, mat, parent, sides=24, flat=1.0):
     return o
 
 
+def loft(name, rows, mat, parent, sides=32):
+    """Closed loft of horizontal ellipses (z, rx, ry, y offset), rounded so it reads as cloth over a body."""
+    bm = bmesh.new()
+    rings = [[bm.verts.new((rx * math.cos(a) * (1 + 0.1 * math.cos(a) ** 2), y + ry * math.sin(a), z)) for a in (2 * math.pi * j / sides for j in range(sides))] for z, rx, ry, y in spline([Vector(r) for r in rows], 5)]
+    for r0, r1 in zip(rings, rings[1:]):
+        for j in range(sides):
+            bm.faces.new((r0[j], r0[(j + 1) % sides], r1[(j + 1) % sides], r1[j]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    outward(bm)
+    o = mesh_object(name, bm, mat, parent)
+    smooth(o)
+    return o
+
+
 def make_hand(wrist, d, sx, parent):
     """Palm and four curled fingers reaching along d, thumb on the inner side."""
     side = Vector((0, 0, 1)).cross(d).normalized() * -sx
@@ -501,14 +516,8 @@ for i, x in enumerate((-0.80, 0.80)):
     hood.location, hood.rotation_euler, hood.scale = (0, -0.03, 1.05), (math.radians(-28), 0, 0), (1.15, 0.9, 1.0)
     smooth(hood)
     finish(hood, "hood", hoodies[i], pl)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
-    torso = bpy.context.active_object
-    for v in torso.data.vertices:
-        top = v.co.z > 0
-        v.co = Vector((v.co.x * (0.44 if top else 0.36), v.co.y * (0.22 if top else 0.24), v.co.z * 0.5))
-    torso.location = (0, 0.04, 0.82)
-    bevel(torso, 0.085, 5)
-    finish(torso, "torso", hoodies[i], pl)
+    # (z, half width, half depth, forward lean): hips on the seat, chest leaning toward the screen, round shoulders.
+    loft("torso", ((0.53, 0.17, 0.12, 0.0), (0.66, 0.175, 0.125, 0.01), (0.82, 0.19, 0.12, 0.03), (0.95, 0.205, 0.115, 0.05), (1.02, 0.19, 0.1, 0.06), (1.07, 0.12, 0.075, 0.05), (1.09, 0.06, 0.05, 0.04)), hoodies[i], pl)
     # Elbows stick out past the chair back so the arms read from the camera; hands rest on keyboard and mouse.
     for sx, wrist in ((-1, Vector((-0.09, 0.37, DESK + 0.058))), (1, Vector((0.245, 0.385, DESK + 0.05)))):
         shoulder, elbow = Vector((sx * 0.18, 0.04, 1.02)), Vector((sx * 0.28, 0.13, 0.84))
