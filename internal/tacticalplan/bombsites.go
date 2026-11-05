@@ -64,8 +64,6 @@ func targetSite(r Round) Site {
 	return r.Class.Site
 }
 
-func isBombsite(s Site) bool { return s == SiteA || s == SiteB }
-
 func bombPlanted(r Round) bool { return r.Bomb != nil && r.Bomb.PlantTick > 0 }
 
 type siteCounts struct {
