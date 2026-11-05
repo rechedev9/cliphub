@@ -412,6 +412,21 @@ for i, (x, tex, col) in enumerate(((-0.92, "screen3.png", (0.65, 0.45, 1.0)), (0
     make_crt("far_crt_%d" % i, (x, far_y, 0), tex, 1.8, 9, col)
 mesh_m = principled("chair_mesh", (0.012, 0.012, 0.014), 0.8)[0]
 add_bump(mesh_m.node_tree, next(n for n in mesh_m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), 900, 0.5)
+hand_m = principled("hand_skin", (0.42, 0.26, 0.19), 0.6)[0]
+
+
+def limb(name, a, b, r, mat, parent):
+    d = b - a
+    return cyl(name, r, d.length, (a + b) / 2, mat, rot=d.to_track_quat("Z", "Y").to_euler(), verts=20, parent=parent)
+
+
+def ball(name, c, r, mat, parent):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=r, location=c)
+    o = bpy.context.active_object
+    smooth(o)
+    return finish(o, name, mat, parent)
+
+
 hoodies = (principled("hoodie_a", (0.03, 0.05, 0.11), 0.92)[0], principled("hoodie_b", (0.11, 0.035, 0.03), 0.92)[0])
 for i, x in enumerate((-0.80, 0.80)):
     pl = empty("player", (x, far_y - 0.56, 0), (0, 0, math.radians(4 if i else -5)))
@@ -430,8 +445,18 @@ for i, x in enumerate((-0.80, 0.80)):
     torso.location = (0, 0.04, 0.82)
     bevel(torso, 0.085, 5)
     finish(torso, "torso", hoodies[i], pl)
-    for sx in (-1, 1):
-        box("arm", (0.09, 0.34, 0.09), (sx * 0.2, 0.2, 0.93), hoodies[i], 0.04, rot=(math.radians(-18), 0, sx * math.radians(-8)), parent=pl)
+    # Elbows stick out past the chair back so the arms read from the camera; hands rest on keyboard and mouse.
+    for sx, hand in ((-1, Vector((-0.10, 0.40, DESK + 0.035))), (1, Vector((0.25, 0.42, DESK + 0.03)))):
+        shoulder, elbow = Vector((sx * 0.20, 0.05, 1.01)), Vector((sx * 0.29, 0.15, 0.85))
+        limb("upper_arm", shoulder, elbow, 0.052, hoodies[i], pl)
+        limb("forearm", elbow, hand, 0.044, hoodies[i], pl)
+        ball("elbow", elbow, 0.05, hoodies[i], pl)
+        ball("shoulder", shoulder, 0.06, hoodies[i], pl)
+        d = (hand - elbow).normalized()
+        box("hand", (0.075, 0.09, 0.03), hand + d * 0.05, hand_m, 0.012, rot=(0, 0, math.atan2(-d.x, d.y)), parent=pl)
+    box("far_kb", (0.40, 0.14, 0.022), (-0.06, 0.44, DESK + 0.011), black_plastic, 0.006, rot=(0, 0, math.radians(3)), parent=pl)
+    box("far_mouse", (0.06, 0.11, 0.035), (0.25, 0.47, DESK + 0.017), black_plastic, 0.016, parent=pl)
+    box("far_pad", (0.30, 0.26, 0.003), (0.26, 0.45, DESK + 0.0015), cloth, parent=pl)
     bpy.ops.mesh.primitive_torus_add(major_radius=0.105, minor_radius=0.008, major_segments=48, minor_segments=12, location=(0, 0, 0))
     hb = bpy.context.active_object
     hb.location = (0, 0.01, 1.19)
