@@ -73,6 +73,36 @@ function panelInsets(id: StationId): Insets {
   return { top, right: 0, bottom: Math.max(0, vh - panel.offsetTop) };
 }
 
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Put each pill above its object, whole on screen, and lift it past a pill lower on screen it would cover. */
+function placeLabels(points: ReadonlyMap<StationId, AnchorPoint>, labels: ReadonlyMap<StationId, HTMLElement>) {
+  const placed: Box[] = [];
+  const order = [...points].sort(([, a], [, b]) => b.y - a.y);
+  for (const [id, point] of order) {
+    const el = labels.get(id);
+    if (!el) continue;
+    el.dataset.visible = point.visible ? "true" : "false";
+    const half = el.offsetWidth / 2;
+    const height = el.offsetHeight;
+    const x = Math.min(Math.max(point.x, half + 8), window.innerWidth - half - 8);
+    let bottom = point.y;
+    if (point.visible) {
+      for (const box of placed) {
+        const across = x - half < box.right + 4 && x + half > box.left - 4;
+        if (across && bottom > box.top - 4 && bottom - height < box.bottom + 4) bottom = box.top - 4;
+      }
+      placed.push({ left: x - half, right: x + half, top: bottom - height, bottom });
+    }
+    el.style.transform = `translate3d(${x.toFixed(1)}px, ${bottom.toFixed(1)}px, 0) translate(-50%, -100%)`;
+  }
+}
+
 export default function CiberStage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRefs = useRef(new Map<StationId, HTMLAnchorElement>());
@@ -134,17 +164,7 @@ export default function CiberStage() {
         onSelect: (id) => {
           window.location.hash = id;
         },
-        onAnchors: (points: ReadonlyMap<StationId, AnchorPoint>) => {
-          for (const [id, point] of points) {
-            const el = labelRefs.current.get(id);
-            if (!el) continue;
-            // Keep the whole pill on screen when its object sits at the edge of the frame.
-            const half = el.offsetWidth / 2 + 8;
-            const x = Math.min(Math.max(point.x, half), window.innerWidth - half);
-            el.style.transform = `translate3d(${x.toFixed(1)}px, ${point.y.toFixed(1)}px, 0) translate(-50%, -100%)`;
-            el.dataset.visible = point.visible ? "true" : "false";
-          }
-        },
+        onAnchors: (points) => placeLabels(points, labelRefs.current),
         onArrive: () => undefined,
         onError: () => {
           setFailed(true);
