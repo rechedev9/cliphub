@@ -81,6 +81,8 @@ import { streamRangeIssue, streamRangeOverlapIssue, streamRangesIssue } from '@/
 import { StreamSaveButton } from '@/components/streams/stream-save-button';
 import { StreamDetectedPlays } from '@/components/streams/detected-plays';
 import { clipsWithPlays } from '@/lib/streams/plays';
+import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
+import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -395,6 +397,19 @@ export function StreamEditor({
   const setMusicKey = (key: string) => onPlanChange({ ...plan, music: key ? { key, volume: plan.music?.volume } : {} });
   const setMusicVolume = (volume: number) => onPlanChange({ ...plan, music: { key: plan.music?.key, volume } });
   const setGrade = (grade: boolean) => onPlanChange({ ...plan, effects: { grade } });
+  const killFeed = plan.kill_feed ?? {};
+  const killFeedPosition =
+    killFeed.position_y ??
+    killFeedDefaultPosition({
+      variant: plan.variant,
+      gameplayCrop: plan.gameplay_crop ?? { x: 0, y: 0, width: 1, height: 1 },
+      width: job.probe?.width ?? 0,
+      height: job.probe?.height ?? 0,
+    });
+  const setKillFeedCentered = (centered: boolean) =>
+    onPlanChange({ ...plan, kill_feed: centered ? { ...killFeed, centered } : {} });
+  const setKillFeedPosition = (position_y: number) => onPlanChange({ ...plan, kill_feed: { ...killFeed, position_y } });
+  const resetKillFeedPosition = () => onPlanChange({ ...plan, kill_feed: { centered: killFeed.centered } });
 
   const musicKey = plan.music?.key ?? '';
   const musicLabel = songs?.find((song) => song.id === musicKey)?.title ?? musicKey;
@@ -445,6 +460,15 @@ export function StreamEditor({
         <StreamLayoutStep
           needsFaceCrop={variantMeta.needsFaceCrop}
           faceCropReviewed={plan.face_crop_reviewed === true}
+        />
+        <StreamKillFeedControls
+          centered={killFeed.centered ?? false}
+          position={killFeedPosition}
+          hasExplicitPosition={killFeed.position_y !== undefined}
+          busy={busy}
+          onCenteredChange={setKillFeedCentered}
+          onPositionChange={setKillFeedPosition}
+          onResetPosition={resetKillFeedPosition}
         />
         <details className="rounded-md border border-border-subtle p-3">
           <summary className="cursor-pointer font-semibold text-body-sm">Banners · opcional</summary>
