@@ -44,9 +44,14 @@
     "@typescript-eslint/triple-slash-reference": "error",
     "no-nested-ternary": "error",
     "@typescript-eslint/no-unnecessary-type-conversion": "error",
-    "@typescript-eslint/no-unnecessary-type-assertion": "off"
+    "@typescript-eslint/no-unnecessary-type-assertion": "off",
+    "max-lines": ["error", { "max": 1000 }]
   },
   "options": {
     "typeAware": true
-  }
+  },
+  "overrides": [
+    { "files": ["src/main.ts"], "rules": { "max-lines": ["error", { "max": 1126 }] } },
+    { "files": ["scripts/build-publication.test.mjs"], "rules": { "max-lines": ["error", { "max": 1348 }] } }
+  ]
 }
