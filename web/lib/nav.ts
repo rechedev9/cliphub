@@ -16,6 +16,7 @@ export const NAV_SECTIONS = [
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },
   { label: 'Jugadores', href: '/jugadores', area: 'analyze' },
+  { label: 'Ranking', href: '/ranking', area: 'analyze' },
   { label: 'Stratbook', href: '/stratbook', area: 'analyze' },
   { label: 'Informes', href: '/informes', area: 'analyze' },
   { label: 'Integridad', href: '/integridad', area: 'analyze' },

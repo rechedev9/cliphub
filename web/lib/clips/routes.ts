@@ -12,6 +12,7 @@ export const TEAMS_HREF = '/equipos' as const;
 export const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const STRATBOOK_HREF = '/stratbook' as const;
+export const RANKING_HREF = '/ranking' as const;
 /** The FACEIT follow list, under Jugadores beside the library players. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 

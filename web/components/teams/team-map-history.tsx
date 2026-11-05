@@ -10,6 +10,7 @@ import { librarySeriesHref, matchesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { countOf } from '@/lib/library/veto';
 import { MapCard, type MapRate } from '@/components/analysis/map-card';
+import { MapPreferenceScore } from '@/components/analysis/map-preference';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
 import { RelatedList } from '@/components/records/related-list';
@@ -157,6 +158,10 @@ export function TeamMapHistory({
                 geometry={geometry.has(record.map) ? geometry.get(record.map) : undefined}
                 footer={
                   <>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-fg-3">Preferencia</span>
+                      <MapPreferenceScore preference={record.preference} />
+                    </span>
                     <SideExamples label="CT ganadas" side={ct} refs={refs} />
                     <SideExamples label="T ganadas" side={t} refs={refs} />
                     {record.last_played_at ? <span className="text-fg-3">Última: {formatShortDate(record.last_played_at)}</span> : null}
