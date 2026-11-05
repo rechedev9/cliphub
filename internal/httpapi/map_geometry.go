@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 
@@ -27,16 +28,31 @@ const (
 	maxCachedMeshSize = 32 << 20
 )
 
-// GetMapGeometry handles GET /api/maps/{map}/geometry: the map's walkable
-// floor read from the user's CS2 install, cached per map and game build.
+// mapGeometryMu runs one extraction at a time: a physics read of a big map
+// holds a few hundred MB for a second or two, and a second caller then finds
+// the cache filled.
+var mapGeometryMu sync.Mutex
+
+// GetMapGeometry handles GET /api/maps/{map}/geometry?source=physics|nav: the
+// map's collision (default) or walkable floor, read from the user's CS2
+// install and cached per map, source and game build. When the physics read
+// fails the nav mesh answers instead, and the body's source says so.
 func (h *Handlers) GetMapGeometry(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "map")
 	if !geometryMapPattern.MatchString(name) {
 		writeError(w, http.StatusBadRequest, "map must match "+geometryMapPattern.String())
 		return
 	}
+	kind := r.URL.Query().Get("source")
+	if kind == "" {
+		kind = mapgeo.SourcePhysics
+	}
+	if kind != mapgeo.SourcePhysics && kind != mapgeo.SourceNav {
+		writeError(w, http.StatusBadRequest, "source must be physics or nav")
+		return
+	}
 	src := mapgeo.Source{CS2Exe: h.cs2Path(), Map: name}
-	key, err := src.CacheKey()
+	key, err := src.CacheKey(kind)
 	if err != nil {
 		writeMapGeometryError(w, name, err)
 		return
@@ -45,10 +61,19 @@ func (h *Handlers) GetMapGeometry(w http.ResponseWriter, r *http.Request) {
 		writeRawJSON(w, cached)
 		return
 	}
-	mesh, err := src.Extract()
+	mapGeometryMu.Lock()
+	defer mapGeometryMu.Unlock()
+	if cached, ok := h.readCachedMesh(key); ok {
+		writeRawJSON(w, cached)
+		return
+	}
+	mesh, err := src.Extract(kind)
 	if err != nil {
 		writeMapGeometryError(w, name, err)
 		return
+	}
+	if mesh.Fallback != "" {
+		log.Printf("httpapi: physics geometry of %s failed, serving the nav mesh: %s", name, mesh.Fallback)
 	}
 	body, err := json.Marshal(mesh)
 	if err != nil {

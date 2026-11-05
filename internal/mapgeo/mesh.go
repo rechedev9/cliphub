@@ -35,6 +35,8 @@ type Mesh struct {
 	Vertices  []float32  `json:"vertices"`
 	Triangles []uint32   `json:"triangles"`
 	Areas     []MeshArea `json:"areas"`
+	// Fallback is why a physics request was answered with the nav mesh.
+	Fallback string `json:"fallback,omitempty"`
 }
 
 // MeshFromNav turns the static areas of the smallest hull into an indexed
@@ -45,7 +47,7 @@ func MeshFromNav(mapName string, nav *Nav) (Mesh, error) {
 	if !ok {
 		return Mesh{}, errors.New("nav mesh has no static areas")
 	}
-	b := meshBuilder{index: map[Vec3]uint32{}}
+	b := newMeshBuilder(navStep)
 	mesh := Mesh{Map: mapName, Source: SourceNav, Areas: []MeshArea{}}
 	for _, area := range nav.Areas {
 		if area.Movable || area.Hull != hull || len(area.Corners) < 3 {
@@ -91,18 +93,28 @@ func signedAreaXY(corners []Vec3) float64 {
 	return sum
 }
 
+// navStep rounds nav corners to centi-units, far below what a player can
+// stand on, so the JSON stays short and float noise cannot split a corner.
+const navStep = 0.01
+
 type meshBuilder struct {
+	step      float64
 	index     map[Vec3]uint32
 	vertices  []float32
 	triangles []uint32
 	bounds    Bounds
+	seen      map[[3]uint32]bool
 }
 
-// vertex rounds to centi-units, far below what a player can stand on, so the
-// JSON stays short and float noise cannot split a shared corner in two.
+func newMeshBuilder(step float64) *meshBuilder {
+	return &meshBuilder{step: step, index: map[Vec3]uint32{}, seen: map[[3]uint32]bool{}}
+}
+
+// vertex snaps v to the builder's grid and welds it with any vertex already
+// on the same grid point.
 func (b *meshBuilder) vertex(v Vec3) uint32 {
 	for axis := range v {
-		v[axis] = float32(math.Round(float64(v[axis])*100) / 100)
+		v[axis] = float32(math.Round(float64(v[axis])/b.step) * b.step)
 	}
 	if i, ok := b.index[v]; ok {
 		return i

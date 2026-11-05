@@ -54,6 +54,10 @@ func (r *byteReader) u32() uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
 
+func (r *byteReader) i32() int {
+	return int(int32(r.u32()))
+}
+
 func (r *byteReader) u64() uint64 {
 	b := r.take(8)
 	if b == nil {

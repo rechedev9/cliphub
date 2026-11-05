@@ -73,10 +73,30 @@ func TestGetMapGeometryErrors(t *testing.T) {
 	}
 }
 
+func TestGetMapGeometrySourceParameter(t *testing.T) {
+	exe := fakeCS2Install(t, "de_mirage")
+	h, store := geometryHandlers(exe)
+	navKey, err := mapgeo.Source{CS2Exe: exe, Map: "de_mirage"}.CacheKey(mapgeo.SourceNav)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cached := `{"map":"de_mirage","source":"nav","build":"123","bounds":{"min":[0,0,0],"max":[1,1,0]},"vertices":[0,0,0,1,0,0,1,1,0],"triangles":[0,1,2],"areas":[]}`
+	if err := store.Put(navKey, strings.NewReader(cached)); err != nil {
+		t.Fatal(err)
+	}
+	for query, want := range map[string]int{"?source=nav": http.StatusOK, "?source=render": http.StatusBadRequest} {
+		rw := httptest.NewRecorder()
+		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_mirage/geometry"+query, nil))
+		if rw.Code != want {
+			t.Errorf("%s: status %d, want %d; body=%s", query, rw.Code, want, rw.Body.String())
+		}
+	}
+}
+
 func TestGetMapGeometryServesTheCachedMesh(t *testing.T) {
 	exe := fakeCS2Install(t, "de_mirage")
 	h, store := geometryHandlers(exe)
-	key, err := mapgeo.Source{CS2Exe: exe, Map: "de_mirage"}.CacheKey()
+	key, err := mapgeo.Source{CS2Exe: exe, Map: "de_mirage"}.CacheKey(mapgeo.SourcePhysics)
 	if err != nil {
 		t.Fatal(err)
 	}

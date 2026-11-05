@@ -21,11 +21,20 @@ test('parseMapGeometry returns typed buffers ready for a BufferGeometry', () => 
   assert.deepEqual(parsed.areas, [{ id: 7, polygon: [0, 1, 2] }]);
 });
 
+test('parseMapGeometry reads a physics mesh and the reason for a nav fallback', () => {
+  const physics = parseMapGeometry({ ...mesh, source: 'physics', areas: [] });
+  assert.equal(physics?.source, 'physics');
+  assert.equal(physics?.fallback, undefined);
+  const fallback = parseMapGeometry({ ...mesh, fallback: 'de_test world physics: kv3 values: bad' });
+  assert.equal(fallback?.source, 'nav');
+  assert.equal(fallback?.fallback, 'de_test world physics: kv3 values: bad');
+});
+
 test('parseMapGeometry rejects indices past the vertex list and broken shapes', () => {
   assert.equal(parseMapGeometry({ ...mesh, triangles: [0, 1, 3] }), null);
   assert.equal(parseMapGeometry({ ...mesh, areas: [{ id: 7, polygon: [0, 9] }] }), null);
   assert.equal(parseMapGeometry({ ...mesh, vertices: [0, 0] }), null);
-  assert.equal(parseMapGeometry({ ...mesh, source: 'physics' }), null);
+  assert.equal(parseMapGeometry({ ...mesh, source: 'render' }), null);
   assert.equal(parseMapGeometry({ ...mesh, bounds: { min: [0, 0], max: [1, 1, 1] } }), null);
 });
 

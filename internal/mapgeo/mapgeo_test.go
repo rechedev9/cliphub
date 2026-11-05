@@ -130,15 +130,15 @@ func TestSourceExtractAndErrors(t *testing.T) {
 	writeFile(t, filepath.Join(csgo, "maps", "de_test.vpk"), buildVPK([]vpkFile{{path: "maps/de_test.nav", data: sampleNav(36)}}))
 	writeFile(t, filepath.Join(csgo, "maps", "de_nonav.vpk"), buildVPK([]vpkFile{{path: "maps/de_nonav.vmap_c", data: []byte("x")}}))
 
-	mesh, err := Source{CS2Exe: exe, Map: "de_test"}.Extract()
+	mesh, err := Source{CS2Exe: exe, Map: "de_test"}.ExtractNav()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if mesh.Map != "de_test" || mesh.Source != SourceNav || mesh.Build != "2000942" || len(mesh.Areas) != 2 {
 		t.Errorf("mesh = %+v", mesh)
 	}
-	key, err := Source{CS2Exe: exe, Map: "de_test"}.CacheKey()
-	if err != nil || !strings.HasPrefix(key, "mapgeo/"+meshFormat+"/de_test-2000942-") {
+	key, err := Source{CS2Exe: exe, Map: "de_test"}.CacheKey(SourceNav)
+	if err != nil || !strings.HasPrefix(key, "mapgeo/"+meshFormat+"/nav/de_test-2000942-") {
 		t.Errorf("CacheKey = %q, %v", key, err)
 	}
 
@@ -151,7 +151,7 @@ func TestSourceExtractAndErrors(t *testing.T) {
 		{Source{CS2Exe: exe, Map: "de_missing"}, ErrMapNotFound},
 		{Source{CS2Exe: exe, Map: "de_nonav"}, ErrNoNavMesh},
 	} {
-		if _, err := tc.src.Extract(); !errors.Is(err, tc.want) {
+		if _, err := tc.src.ExtractNav(); !errors.Is(err, tc.want) {
 			t.Errorf("Extract(%+v) error = %v, want %v", tc.src, err, tc.want)
 		}
 	}

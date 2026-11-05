@@ -1,13 +1,17 @@
 /**
- * Map geometry for the 3D replay (`internal/mapgeo`): the walkable floor of a CS2 map,
- * read at runtime from the user's own CS2 install. World units, Z up, the same space as
- * the positions in the tactical document, so a demo position plots on the mesh as is.
+ * Map geometry for the 3D replay (`internal/mapgeo`), read at runtime from the user's own CS2
+ * install: `physics` is the decimated collision (walls, floors, props that stop players and
+ * bullets; undersides dropped, winding not uniform, so draw it double-sided), `nav` the walkable
+ * floor. World units, Z up, the same space as the tactical document's positions.
  */
+
+/** Which geometry to read; `physics` falls back to `nav` when the collision cannot be read. */
+export type MapGeometrySource = 'physics' | 'nav';
 
 /** A world point `[x, y, z]`. */
 export type MapVec3 = [number, number, number];
 
-/** One nav area; `polygon` indexes vertices, counter-clockwise seen from +Z. */
+/** One nav area; `polygon` indexes vertices, counter-clockwise seen from +Z. Empty for physics. */
 export type MapGeometryArea = { id: number; polygon: number[] };
 
 /**
@@ -16,12 +20,14 @@ export type MapGeometryArea = { id: number; polygon: number[] };
  */
 export type MapGeometry = {
   map: string;
-  source: 'nav';
+  source: MapGeometrySource;
   build: string;
   bounds: { min: MapVec3; max: MapVec3 };
   vertices: Float32Array;
   triangles: Uint32Array;
   areas: MapGeometryArea[];
+  /** Why a physics request was answered with the nav mesh. */
+  fallback?: string;
 };
 
 /** Same rule as the orchestrator's `geometryMapPattern`. */
@@ -72,7 +78,9 @@ function parseAreas(raw: unknown, vertexCount: number): MapGeometryArea[] | null
 
 /** The orchestrator's mesh body, or null when any part is malformed or out of range. */
 export function parseMapGeometry(raw: unknown): MapGeometry | null {
-  if (!isRecord(raw) || typeof raw.map !== 'string' || raw.source !== 'nav') return null;
+  if (!isRecord(raw) || typeof raw.map !== 'string') return null;
+  const source = raw.source === 'physics' || raw.source === 'nav' ? raw.source : null;
+  if (source === null) return null;
   const bounds = isRecord(raw.bounds) ? { min: vec3(raw.bounds.min), max: vec3(raw.bounds.max) } : null;
   if (bounds === null || bounds.min === null || bounds.max === null) return null;
   if (!isNumberArray(raw.vertices) || raw.vertices.length % 3 !== 0) return null;
@@ -82,19 +90,28 @@ export function parseMapGeometry(raw: unknown): MapGeometry | null {
   if (areas === null) return null;
   return {
     map: raw.map,
-    source: 'nav',
+    source,
     build: typeof raw.build === 'string' ? raw.build : '',
     bounds: { min: bounds.min, max: bounds.max },
     vertices: Float32Array.from(raw.vertices),
     triangles: Uint32Array.from(raw.triangles),
     areas,
+    ...(typeof raw.fallback === 'string' && raw.fallback !== '' ? { fallback: raw.fallback } : {}),
   };
 }
 
-/** `GET /api/maps/{map}/geometry`; throws MapGeometryError with the orchestrator's code. */
-export async function getMapGeometry(map: string, signal?: AbortSignal): Promise<MapGeometry> {
+export function isMapGeometrySource(value: string): value is MapGeometrySource {
+  return value === 'physics' || value === 'nav';
+}
+
+/** `GET /api/maps/{map}/geometry?source=`; throws MapGeometryError with the orchestrator's code. */
+export async function getMapGeometry(
+  map: string,
+  options: { source?: MapGeometrySource; signal?: AbortSignal } = {},
+): Promise<MapGeometry> {
   if (!MAP_GEOMETRY_NAME_RE.test(map)) throw new MapGeometryError(`invalid map name: ${map}`, 400, 'invalid_request');
-  const res = await fetch(`/api/maps/${encodeURIComponent(map)}/geometry`, { signal });
+  const query = options.source === undefined ? '' : `?source=${options.source}`;
+  const res = await fetch(`/api/maps/${encodeURIComponent(map)}/geometry${query}`, { signal: options.signal });
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const message = isRecord(body) && typeof body.error === 'string' ? body.error : `map geometry failed (${res.status})`;
