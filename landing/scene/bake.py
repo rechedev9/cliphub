@@ -21,7 +21,7 @@ os.makedirs(OUT, exist_ok=True)
 scene = bpy.context.scene
 
 ATLAS_SIZE = {"room": 4096, "desk": 2048, "desktop": 2048, "monitor": 4096, "far": 2048, "tower": 2048, "cd": 1024,
-              "keyboard": 2048, "props": 2048, "paper": 2048, "poster": 1024}
+              "keyboard": 2048, "props": 4096, "paper": 2048, "poster": 1024}
 UNBAKED_PREFIX = ("led", "pled", "hled", "kb_led", "webcam_led", "neon_sign", "clock_hour", "clock_min", "clock_sec", "clock_pin")
 
 
@@ -128,7 +128,7 @@ def classify(o):
         return "keyboard"
     if root in ("notepad", "pen") or name in ("ticket", "coin"):
         return "paper"
-    if root == "headset" or name in ("mouse", "pad_base", "pad_top", "cable", "can", "can_top"):
+    if root in ("headset", "can", "mouse") or name in ("pad_base", "pad_top", "cable"):
         return "props"
     if name == "desktop":
         return "desktop"

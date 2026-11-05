@@ -113,7 +113,7 @@ function placeLabels(points: ReadonlyMap<StationId, AnchorPoint>, labels: Readon
       }
       placed.push({ left: x - half, right: x + half, top: bottom - height, bottom });
     }
-    el.style.transform = `translate3d(${x.toFixed(1)}px, ${bottom.toFixed(1)}px, 0) translate(-50%, -100%)`;
+    el.style.transform = `translate3d(${x.toFixed(1)}px, ${bottom.toFixed(1)}px, 0) translate(-50%, -100%) rotate(var(--tilt, 0deg))`;
   }
 }
 

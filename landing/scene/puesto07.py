@@ -175,6 +175,70 @@ def text(name, body, size, loc, mat, rot=(math.pi / 2, 0, 0), extrude=0.0, paren
     return o
 
 
+def outward(bm):
+    """Point the normals of a lathed or swept mesh away from its middle."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mid = sum((v.co for v in bm.verts), Vector()) / max(1, len(bm.verts))
+    if sum(f.normal.dot(f.calc_center_median() - mid) * f.calc_area() for f in bm.faces) < 0:
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)
+
+
+def mesh_object(name, bm, mat, parent):
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(o)
+    smooth(o)
+    return finish(o, name, mat, parent)
+
+
+def lathe(name, prof, mat=None, parent=None, steps=64):
+    """Spin a profile of (radius, z) points around the z axis."""
+    bm = bmesh.new()
+    vs = [bm.verts.new((r, 0, z)) for r, z in prof]
+    es = [bm.edges.new((vs[i], vs[i + 1])) for i in range(len(vs) - 1)]
+    bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=steps)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-7)
+    outward(bm)
+    return mesh_object(name, bm, mat, parent)
+
+
+def rrect(w, h, r, n=3):
+    """Rounded rectangle section, w across the normal and h along it."""
+    pts = []
+    for cx, cy, a0 in ((w / 2 - r, h / 2 - r, 0), (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180), (w / 2 - r, -h / 2 + r, 270)):
+        for i in range(n + 1):
+            a = math.radians(a0 + 90 * i / n)
+            pts.append((cy + r * math.sin(a), cx + r * math.cos(a)))
+    return pts
+
+
+def sweep(name, path, section, mat=None, parent=None):
+    """Sweep a closed section of (along normal, along binormal) points along (point, normal, binormal)."""
+    bm = bmesh.new()
+    rings = [[bm.verts.new(p + nrm * u + bin_ * v) for u, v in section] for p, nrm, bin_ in path]
+    k = len(section)
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(k):
+            bm.faces.new((r0[i], r0[(i + 1) % k], r1[(i + 1) % k], r1[i]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    outward(bm)
+    return mesh_object(name, bm, mat, parent)
+
+
+def arc_path(a, b, zc, t0, t1, n=48):
+    """Half ellipse in the xz plane, from angle t0 to t1, with outward normals and +y binormals."""
+    out = []
+    for i in range(n + 1):
+        t = t0 + (t1 - t0) * i / n
+        p = Vector((a * math.cos(t), 0, zc + b * math.sin(t)))
+        nrm = Vector((b * math.cos(t), 0, a * math.sin(t))).normalized()
+        out.append((p, nrm, Vector((0, 1, 0))))
+    return out
+
+
 def empty(name, loc, rot=(0, 0, 0)):
     o = bpy.data.objects.new(name, None)
     scene.collection.objects.link(o)
@@ -493,7 +557,51 @@ for v in mouse.data.vertices:
 mouse.location = (0.40, -0.32, DESK + 0.0072)
 mouse.rotation_euler = (0, 0, math.radians(-8))
 smooth(mouse)
-finish(mouse, "mouse", beige, None)
+
+
+def mouse_shell():
+    """Beige shell with the button seams, the wheel slot and the shell joint drawn as recessed lines."""
+    m, nt, p = principled("mouse_shell", (0.60, 0.55, 0.45), 0.42)
+    vary_rough(nt, p, 0.34, 0.54)
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(obj_coords(nt), sep.inputs[0])
+
+    def op(kind, a, b=None):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation = kind
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                n.inputs[i].default_value = v
+            else:
+                nt.links.new(v, n.inputs[i])
+        return n.outputs[0]
+
+    x, y, z = sep.outputs["X"], sep.outputs["Y"], sep.outputs["Z"]
+    w = 0.00035
+    between = op("MULTIPLY", op("LESS_THAN", op("ABSOLUTE", x), w), op("GREATER_THAN", y, 0.008))
+    across = op("MULTIPLY", op("LESS_THAN", op("ABSOLUTE", op("SUBTRACT", y, 0.008)), w), op("GREATER_THAN", z, 0.006))
+    joint = op("LESS_THAN", op("ABSOLUTE", op("SUBTRACT", z, 0.0015)), w * 0.8)
+    slot = op("MULTIPLY", op("LESS_THAN", op("ABSOLUTE", x), 0.003), op("LESS_THAN", op("ABSOLUTE", op("SUBTRACT", y, 0.026)), 0.0072))
+    seam = op("MAXIMUM", op("MAXIMUM", between, across), op("MAXIMUM", joint, slot))
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    nt.links.new(seam, mix.inputs["Factor"])
+    mix.inputs["A"].default_value = (0.60, 0.55, 0.45, 1)
+    mix.inputs["B"].default_value = (0.13, 0.12, 0.10, 1)
+    nt.links.new(mix.outputs["Result"], p.inputs["Base Color"])
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.8
+    bump.inputs["Distance"].default_value = 0.0005
+    nt.links.new(op("SUBTRACT", 1.0, seam), bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], p.inputs["Normal"])
+    return m
+
+
+finish(mouse, "mouse", mouse_shell(), None)
+rubber = principled("rubber", (0.03, 0.03, 0.032), 0.7)[0]
+cyl("mouse_wheel", 0.0062, 0.0042, (0, 0.026, 0.0137), rubber, rot=(0, math.pi / 2, 0), verts=20, parent=mouse)
 cable = bpy.data.curves.new("cable", "CURVE")
 cable.dimensions = "3D"
 cable.bevel_depth = 0.0018
@@ -509,25 +617,68 @@ cable.materials.append(beige_dark)
 
 # Headset lying on the desk
 hs = empty("headset", (0.335, 0.065, DESK), (0, 0, math.radians(20)))
+leather_m, lnt, lp = principled("leather", (0.03, 0.028, 0.028), 0.48)
+add_bump(lnt, lp, 900, 0.3)
+fabric_m, fnt, fp = principled("fabric", (0.045, 0.045, 0.05), 0.95)
+add_bump(fnt, fp, 2600, 0.6)
+CUP_Z, CUP_X = 0.0412, 0.074
+# Shell: rounded back, open towards the head; (radius, depth) from the open rim to the back.
+shell_prof = [(0.0, 0.031), (0.015, 0.0305), (0.027, 0.0275), (0.0355, 0.0215), (0.0398, 0.013), (0.041, 0.004), (0.0405, 0.0)]
 for sx in (-1, 1):
-    cyl("cup", 0.042, 0.03, (sx * 0.088, 0, 0.042), black_plastic, rot=(0, math.pi / 2, 0), verts=48, bev=0.006, parent=hs)
-    cyl("cushion", 0.036, 0.018, (sx * 0.068, 0, 0.042), foam_m, rot=(0, math.pi / 2, 0), verts=48, bev=0.007, parent=hs)
-bpy.ops.mesh.primitive_torus_add(major_radius=0.09, minor_radius=0.0075, major_segments=64, minor_segments=16, location=(0, 0, 0))
-band = bpy.context.active_object
-bmh = bmesh.new()
-bmh.from_mesh(band.data)
-bmesh.ops.delete(bmh, geom=[v for v in bmh.verts if v.co.y < -0.002], context="VERTS")
-bmh.to_mesh(band.data)
-bmh.free()
-band.location = (0, 0, 0.05)
-band.rotation_euler = (math.pi / 2, 0, 0)
-smooth(band)
-finish(band, "band", black_plastic, hs)
+    shell = lathe("cup_shell", shell_prof, black_plastic, hs)
+    shell.location = (sx * CUP_X, 0, CUP_Z)
+    shell.rotation_euler = (0, sx * math.pi / 2, 0)
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.029, minor_radius=0.0105, major_segments=64, minor_segments=20, location=(0, 0, 0))
+    cush = bpy.context.active_object
+    cush.location = (sx * (CUP_X - 0.0075), 0, CUP_Z)
+    cush.rotation_euler = (0, math.pi / 2, 0)
+    cush.scale = (1, 1, 0.75)
+    smooth(cush)
+    finish(cush, "cushion", leather_m, hs)
+    cyl("cup_cloth", 0.021, 0.002, (sx * (CUP_X - 0.006), 0, CUP_Z), fabric_m, rot=(0, math.pi / 2, 0), verts=48, parent=hs)
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.017, minor_radius=0.0013, major_segments=64, minor_segments=8, location=(0, 0, 0))
+    ring = bpy.context.active_object
+    ring.location = (sx * (CUP_X + 0.0303), 0, CUP_Z)
+    ring.rotation_euler = (0, math.pi / 2, 0)
+    smooth(ring)
+    finish(ring, "cup_ring", alu, hs)
+    # Yoke: a fork over the cup from pivot to pivot, then the slider up into the band.
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.046, minor_radius=0.0032, major_segments=48, minor_segments=10, location=(0, 0, 0))
+    yoke = bpy.context.active_object
+    bmy = bmesh.new()
+    bmy.from_mesh(yoke.data)
+    bmesh.ops.delete(bmy, geom=[v for v in bmy.verts if v.co.x > 0.0005], context="VERTS")
+    bmy.to_mesh(yoke.data)
+    bmy.free()
+    yoke.location = (sx * (CUP_X + 0.012), 0, CUP_Z)
+    yoke.rotation_euler = (0, math.pi / 2, 0)
+    smooth(yoke)
+    finish(yoke, "yoke", black_plastic, hs)
+    for sy in (-1, 1):
+        cyl("pivot", 0.0045, 0.012, (sx * (CUP_X + 0.012), sy * 0.046, CUP_Z), dark_grey, rot=(math.pi / 2, 0, 0), verts=24, bev=0.001, parent=hs)
+    box("slider", (0.0035, 0.011, 0.024), (sx * (CUP_X + 0.012), 0, CUP_Z + 0.056), alu, 0.001, parent=hs)
+# Band over the top, padded underneath.
+BAND_A, BAND_B, BAND_Z = CUP_X + 0.012, 0.068, CUP_Z + 0.062
+sweep("band", arc_path(BAND_A, BAND_B, BAND_Z, 0, math.pi), rrect(0.026, 0.0075, 0.0034), black_plastic, hs)
+sweep("band_pad", arc_path(BAND_A - 0.0082, BAND_B - 0.0082, BAND_Z, 0.5, math.pi - 0.5, 36), rrect(0.021, 0.0095, 0.0045), leather_m, hs)
+cord = bpy.data.curves.new("hs_cord", "CURVE")
+cord.dimensions = "3D"
+cord.bevel_depth = 0.0016
+cs = cord.splines.new("BEZIER")
+cpts = [(-(CUP_X + 0.02), 0.02, CUP_Z - 0.03), (-(CUP_X + 0.03), 0.06, 0.0017), (-0.07, 0.15, 0.0017), (0.02, 0.24, 0.0017)]
+cs.bezier_points.add(len(cpts) - 1)
+for bp, co in zip(cs.bezier_points, cpts):
+    bp.co = co
+    bp.handle_left_type = bp.handle_right_type = "AUTO"
+cord_o = bpy.data.objects.new("hs_cord", cord)
+scene.collection.objects.link(cord_o)
+cord.materials.append(black_plastic)
+cord_o.parent = hs
 mic = bpy.data.curves.new("mic", "CURVE")
 mic.dimensions = "3D"
-mic.bevel_depth = 0.0022
+mic.bevel_depth = 0.0019
 ms = mic.splines.new("BEZIER")
-mpts = [(-0.1, -0.01, 0.03), (-0.13, -0.09, 0.012), (-0.08, -0.15, 0.008)]
+mpts = [(-(CUP_X + 0.024), -0.012, CUP_Z - 0.014), (-(CUP_X + 0.04), -0.08, 0.014), (-0.075, -0.15, 0.009)]
 ms.bezier_points.add(len(mpts) - 1)
 for bp, co in zip(ms.bezier_points, mpts):
     bp.co = co
@@ -536,33 +687,44 @@ mic_o = bpy.data.objects.new("mic", mic)
 scene.collection.objects.link(mic_o)
 mic.materials.append(black_plastic)
 mic_o.parent = hs
-cyl("mic_tip", 0.007, 0.02, (-0.08, -0.155, 0.008), foam_m, rot=(math.pi / 2, 0, 0.5), verts=24, bev=0.003, parent=hs)
+cyl("mic_tip", 0.0065, 0.018, (-0.074, -0.154, 0.009), foam_m, rot=(math.pi / 2, 0, 0.5), verts=24, bev=0.003, parent=hs)
 
-# Cola can
-can_m = image_mat("can", "can.png", 0.28, 0.6)[0]
-bpy.ops.mesh.primitive_cylinder_add(vertices=96, radius=0.033, depth=0.122, location=(0, 0, 0))
-can = bpy.context.active_object
-can.data.materials.append(can_m)
-can.data.materials.append(alu)
+# Cola can: a lathed 33 cl can, already opened
+can_m = image_mat("can", "can.png", 0.26, 0.55)[0]
+CAN_BODY = (0.0135, 0.0985)
+can_prof = [(0.0, 0.0055), (0.011, 0.0048), (0.019, 0.0022), (0.0232, 0.0), (0.0262, 0.0006), (0.0302, 0.0042),
+            (0.0325, 0.0098), (0.033, CAN_BODY[0]), (0.033, 0.035), (0.033, 0.06), (0.033, 0.08), (0.033, CAN_BODY[1]),
+            (0.0326, 0.1015), (0.0302, 0.1068), (0.0276, 0.1108), (0.0271, 0.1128), (0.0277, 0.1143), (0.0279, 0.1153),
+            (0.0273, 0.1158), (0.0264, 0.1151), (0.0258, 0.1118), (0.012, 0.1114), (0.0, 0.1112)]
 bmc = bmesh.new()
-bmc.from_mesh(can.data)
+vs = [bmc.verts.new((r, 0, z)) for r, z in can_prof]
+es = [bmc.edges.new((vs[i], vs[i + 1])) for i in range(len(vs) - 1)]
+bmesh.ops.spin(bmc, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=96)
+bmesh.ops.remove_doubles(bmc, verts=bmc.verts, dist=1e-7)
+outward(bmc)
 uvl = bmc.loops.layers.uv.verify()
 for f in bmc.faces:
-    if abs(f.normal.z) > 0.9:
+    zc = f.calc_center_median().z
+    if not (CAN_BODY[0] - 1e-5 < zc < CAN_BODY[1] + 1e-5):
         f.material_index = 1
         continue
     us = [(math.atan2(l.vert.co.y, l.vert.co.x) / (2 * math.pi)) % 1.0 for l in f.loops]
     if max(us) - min(us) > 0.5:
         us = [u + 1 if u < 0.5 else u for u in us]
     for l, u in zip(f.loops, us):
-        l[uvl].uv = (u, l.vert.co.z / 0.122 + 0.5)
-bmc.to_mesh(can.data)
-bmc.free()
-can.location = (0.48, -0.10, DESK + 0.061)
+        l[uvl].uv = (u, (l.vert.co.z - CAN_BODY[0]) / (CAN_BODY[1] - CAN_BODY[0]))
+can = mesh_object("can", bmc, can_m, None)
+can.data.uv_layers[0].name = "UVMap"
+can.data.materials.append(alu)
+can.location = (0.48, -0.10, DESK + 0.0003)
 can.rotation_euler = (0, 0, math.radians(128))
-bevel(can, 0.004, 3)
-can.name = "can"
-cyl("can_top", 0.027, 0.003, (0.48, -0.10, DESK + 0.1225), alu, verts=64, bev=0.0012)
+hole_m = principled("can_hole", (0.004, 0.002, 0.001), 0.15)[0]
+box("can_hole", (0.0105, 0.0135, 0.0006), (0, 0.0118, 0.1113), hole_m, 0.0024, parent=can)
+tab = empty("can_tab", (0, 0.0005, 0.1121), (math.radians(6), 0, 0))
+tab.parent = can
+box("can_tab", (0.0115, 0.022, 0.0008), (0, -0.002, 0), alu, 0.0026, parent=tab)
+box("can_tab_eye", (0.006, 0.0075, 0.0012), (0, -0.0075, 0.0001), hole_m, 0.0022, parent=tab)
+cyl("can_rivet", 0.0021, 0.0012, (0, 0, 0.1118), alu, verts=24, parent=can)
 
 # Ticket, coins, post-it, poster
 ticket_m = image_mat("ticket", "ticket.png", 0.75)[0]

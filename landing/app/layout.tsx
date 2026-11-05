@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Chakra_Petch, Share_Tech_Mono } from "next/font/google";
+import { Chakra_Petch, Permanent_Marker, Share_Tech_Mono } from "next/font/google";
 import "./globals.css";
 
 const chakraPetch = Chakra_Petch({
@@ -11,6 +11,13 @@ const chakraPetch = Chakra_Petch({
 
 const shareTechMono = Share_Tech_Mono({
   variable: "--font-share-tech-mono",
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
+});
+
+const permanentMarker = Permanent_Marker({
+  variable: "--font-permanent-marker",
   subsets: ["latin"],
   weight: "400",
   display: "swap",
@@ -65,7 +72,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: MODE_SCRIPT }} />
       </head>
-      <body className={`${chakraPetch.variable} ${shareTechMono.variable} font-display antialiased`}>{children}</body>
+      <body className={`${chakraPetch.variable} ${shareTechMono.variable} ${permanentMarker.variable} font-display antialiased`}>{children}</body>
     </html>
   );
 }

@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Download } from "lucide-react";
 import CiberStage, { ThreeDLink } from "@/components/ciber-stage";
 import LiteVideo from "@/components/lite-video";
+import ProductFlow from "@/components/product-flow";
 import { TOUR, stationById } from "@/lib/ciber/stations";
 import type { StationId } from "@/lib/ciber/stations";
 import { DOWNLOAD_URL, INSTALLER_SIZE, RELEASE_VERSION, REPO_URL } from "@/lib/site";
@@ -106,7 +107,7 @@ export default function Home() {
       <header className="z-30 flex items-center justify-between gap-4 px-4 py-3 sm:px-6 three-d:pointer-events-none three-d:fixed three-d:inset-x-0 three-d:top-0 lite:sticky lite:top-0 lite:border-b lite:border-line lite:bg-bg">
         <a
           href="#inicio"
-          className="pointer-events-auto rounded-lg three-d:border three-d:border-white/10 three-d:bg-[#0d1117] three-d:px-3 three-d:py-2"
+          className="pointer-events-auto rounded-lg three-d:tape three-d:px-3 three-d:py-2"
         >
           <Wordmark />
         </a>
@@ -126,7 +127,7 @@ export default function Home() {
         </nav>
         <a
           href={DOWNLOAD_URL}
-          className="header-cta pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-semibold transition-[border-color,transform] duration-150 ease-out hover:border-accent motion-safe:active:scale-[0.97]"
+          className="header-cta pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-semibold transition-[border-color,transform] duration-150 ease-out hover:border-accent motion-safe:active:scale-[0.97] three-d:tape three-d:rounded-sm three-d:border-0"
         >
           <Download className="size-4" aria-hidden="true" />
           Descargar
@@ -143,13 +144,14 @@ export default function Home() {
               tabIndex={-1}
               className="text-[2rem] font-bold leading-[1.08] text-balance outline-none sm:text-[2.6rem] three-d:text-[1.9rem] three-d:sm:text-[2.1rem]"
             >
-              Tus partidas de CS2, convertidas en vídeo
+              De la demo al vídeo, sin editar a mano
             </h1>
-            <p className={lead}>
-              ClipHub Studio convierte una demo de CS2 en un Short vertical o en la partida entera grabada desde la
-              vista de un jugador. También recorta tus streams y analiza tus partidas. Todo pasa en tu PC.
+            <p className={`${lead} inicio-lead`}>
+              Studio lee tu demo de CS2, graba las mejores jugadas y monta el vídeo, con el análisis de la partida al
+              lado. Tú eliges el jugador, la música y los efectos.
             </p>
-            <div className="mt-6">
+            <ProductFlow />
+            <div className="inicio-cta mt-6">
               <DownloadButton label="Descargar para Windows" />
               <DownloadMeta />
             </div>

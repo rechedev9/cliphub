@@ -24,7 +24,7 @@ Render each page in `textures/` to `tex/<name>.png` at its own size:
 | `ticket.html` | 480x300 |
 | `postit.html` | 320x320 |
 | `pad.html` | 960x800 |
-| `can.html` | 1024x512 |
+| `can.html` | 1024x420 |
 
 ```bash
 chrome --headless=new --hide-scrollbars --virtual-time-budget=4000 --window-size=740,1050 --screenshot=tex/notepad.png textures/notepad.html
@@ -66,13 +66,12 @@ ffmpeg -t 83.2 -i neo-1v5.webm -an -vf "crop=640:480:107:0,scale=512:384:flags=l
 
 ```bash
 blender -b --factory-startup -P puesto07.py -- --only none
-blender -b --factory-startup -P puesto07.py -- --only mesa,mesa_v,cd,stream,notepad,ticket
-blender -b --factory-startup -P puesto07.py -- --crt screen.png --only crt
+blender -b --factory-startup -P puesto07.py -- --only mesa,mesa_v,cd,stream,notepad,ticket,crt
 ```
 
 The first command only writes `puesto07.blend`. The others render `renders/<camera>.png`; `--quick`
 renders at half size with fewer samples. The monitor shows the CS clip unless `--crt` names another
-texture, so the `crt` still shows the Short like the 3D scene does at that station.
+texture; every station keeps the clip, so the `crt` still does too.
 `mesa` and `mesa_v` come out wider than their shot (`OVERSCAN` in `puesto07.py`, the same factors as
 `STILL_OVERSCAN` in `components/ciber-stage.tsx`), so the loading still also fills the area under the panel.
 

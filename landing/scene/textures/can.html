@@ -1,6 +1,32 @@
-<!doctype html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@600;700&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet"><style>
-*{margin:0} body{width:1024px;height:512px;background:linear-gradient(180deg,#c9c9c9 0 4%,#d01d1a 4% 96%,#c9c9c9 96%);overflow:hidden;position:relative;font-family:Anton}
-.w{position:absolute;left:-10%;right:-10%;top:58%;height:70px;background:#fff;transform:skewY(-4deg);border-radius:50%}
-.t{position:absolute;left:120px;top:120px;font-size:220px;color:#fff;letter-spacing:12px;transform:rotate(-4deg)}
-.t2{position:absolute;left:640px;top:150px;font-size:110px;color:#fff}.s{position:absolute;left:640px;top:300px;font-family:"Courier Prime";font-size:28px;color:#fff}
-</style></head><body><div class="w"></div><div class="t">COLA</div><div class="t2">33 cl</div><div class="s">refresco de cola</div></body></html>
+<!doctype html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Anton&family=Courier+Prime:wght@400;700&family=Pacifico&display=swap" rel="stylesheet"><style>
+*{margin:0;box-sizing:border-box}
+body{width:1024px;height:420px;overflow:hidden;position:relative;font-family:Anton;
+  background:radial-gradient(120% 90% at 34% 48%,#e3262b 0,#c3151c 55%,#8f0c12 100%)}
+/* Silver rims where the print stops near the shoulders. */
+body::before,body::after{content:"";position:absolute;left:0;right:0;height:10px;background:linear-gradient(#d9d9dc,#9a9aa0)}
+body::before{top:0}body::after{bottom:0}
+.band{position:absolute;left:0;right:0;top:250px;height:46px;background:#f6f1e6}
+.band2{position:absolute;left:0;right:0;top:304px;height:9px;background:#f6f1e6}
+.band3{position:absolute;left:0;right:0;top:92px;height:6px;background:#f6f1e6;opacity:.9}
+.brand{position:absolute;left:136px;top:108px;font-size:168px;line-height:1;color:#fff;letter-spacing:6px;
+  text-shadow:0 5px 0 #6d070c}
+.brand small{display:block;font-size:44px;letter-spacing:22px;margin:0 0 6px 6px;text-shadow:0 3px 0 #6d070c}
+.script{position:absolute;left:548px;top:247px;font-family:Pacifico;font-size:38px;color:#c3151c;transform:rotate(-3deg)}
+.vol{position:absolute;left:548px;top:118px;font-size:62px;color:#fff;text-shadow:0 3px 0 #6d070c}
+.vol span{display:block;font-family:"Courier Prime";font-weight:700;font-size:15px;letter-spacing:1px;margin-top:4px}
+.back{position:absolute;left:800px;top:112px;width:200px;padding:12px 14px;background:#f6f1e6;color:#3a0a0c;
+  font-family:"Courier Prime";font-size:15px;line-height:1.3;border-radius:6px}
+.back b{display:block;font-size:17px;margin-bottom:4px}
+.bar{position:absolute;left:826px;top:330px;width:150px;height:56px;padding:6px 8px;background:#fff;
+  background-image:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 7px,#fff 7px 8px,#111 8px 9px,#fff 9px 12px);
+  background-clip:content-box;border:6px solid #fff}
+.rec{position:absolute;left:600px;top:334px;color:#fff;font-family:"Courier Prime";font-weight:700;font-size:17px;letter-spacing:1px}
+</style></head><body>
+<div class="band3"></div><div class="band"></div><div class="band2"></div>
+<div class="brand"><small>CIBER</small>COLA</div>
+<div class="script">la de siempre</div>
+<div class="vol">33 cl<span>REFRESCO DE COLA</span></div>
+<div class="back"><b>Ingredientes</b>Agua carbonatada, azúcar, colorante caramelo, acidulante, aromas naturales y cafeína.<br>Valor energético 42 kcal / 100 ml</div>
+<div class="rec">RECICLA LA LATA</div>
+<div class="bar"></div>
+</body></html>
