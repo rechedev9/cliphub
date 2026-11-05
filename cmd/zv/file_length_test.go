@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -53,29 +55,24 @@ func TestGoFileLength(t *testing.T) {
 	root := repoRoot(t)
 	seen := map[string]bool{}
 	var problems []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	// Ask git so ignored build output and nested worktrees never count; untracked new files still do.
+	list := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.go")
+	list.Dir = root
+	out, err := list.Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	for _, rel := range strings.Split(string(out), "\x00") {
+		if rel == "" || strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
-			return err
+			t.Fatalf("read %s: %v", rel, err)
 		}
-		if d.IsDir() {
-			name := d.Name()
-			if path != root && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "testdata" || name == "vendor") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
 		lines := bytes.Count(data, []byte("\n"))
 		limit, listed := oversizedGoFiles[rel]
 		if listed {
@@ -86,15 +83,11 @@ func TestGoFileLength(t *testing.T) {
 			case lines > limit:
 				problems = append(problems, rel+" grew past its frozen size: split it instead")
 			}
-			return nil
+			continue
 		}
 		if lines > maxGoFileLines {
 			problems = append(problems, rel+" passes the line cap: split it into smaller files")
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
 	}
 	for rel := range oversizedGoFiles {
 		if !seen[rel] {

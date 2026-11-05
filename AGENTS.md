@@ -26,7 +26,7 @@ change for the installed Windows app. The UI is in Spanish.
   for both `GOOS=windows` and `GOOS=linux`. A function that only tests call is dead: delete it, or move a
   real test helper into a `_test.go` file. A helper only `_windows.go` code calls belongs in a `_windows.go` file.
 - Source files stay at or under 1000 lines: `TestGoFileLength` (`cmd/zv`) for Go, `max-lines` in the
-  web and desktop oxlint configs for TS. Files already past it are frozen at their size; split, never raise.
+  web, desktop and landing oxlint configs for TS. Files already past it are frozen at their size; split, never raise.
   Split by responsibility: each new file (or package, when there is a real API boundary) owns one concern,
   such as `handlers_library.go` and `handlers_streams.go`. A cut by line count (`handlers2.go`) does not count.
   Lower or drop the frozen entry in the same change.
