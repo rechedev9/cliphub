@@ -6,20 +6,26 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "start": "next start -p 3100"
+    "start": "next start -p 3100",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint app components lib next.config.mjs postcss.config.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.469.0",
     "next": "^15.5.28",
     "react": "^19",
     "react-dom": "^19",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "three": "^0.181.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.181.0",
+    "oxlint": "^1.91.0",
+    "oxlint-tsgolint": "^0.24.0",
     "tailwindcss": "^4.3.2",
     "typescript": "^5"
   }
