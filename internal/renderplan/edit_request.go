@@ -127,10 +127,11 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
 	if req.DeathReel {
-		// The hook, the counter and the victim replay need kills; death clips have none.
+		// The hook, the counter, the victim replay and the centered kill feed need kills; death clips have none.
 		req.HookText = false
 		req.KillCounter = false
 		req.VictimReplay = false
+		req.CenteredKillfeed = false
 	}
 	return req
 }

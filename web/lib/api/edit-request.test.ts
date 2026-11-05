@@ -87,4 +87,6 @@ test('buildEditRequest sends centered_killfeed only for a vertical Short', () =>
   assert.equal('centered_killfeed' in buildEditRequest(edit()), false);
   // The server rejects the option outside 9:16, so a stale toggle must not reach it.
   assert.equal('centered_killfeed' in buildEditRequest(edit({ centeredKillfeed: true, format: 'landscape-16x9' })), false);
+  // Death clips have no kills to draw.
+  assert.equal('centered_killfeed' in buildEditRequest(edit({ centeredKillfeed: true, deathReel: true })), false);
 });

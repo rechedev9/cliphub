@@ -247,6 +247,15 @@ func TestEditRequestValidateAcceptsTextAtMaxLength(t *testing.T) {
 	}
 }
 
+func TestNormalizeEditRequestDropsTheCenteredKillfeedFromADeathReel(t *testing.T) {
+	if NormalizeEditRequest(EditRequest{Format: FormatShort9x16, DeathReel: true, CenteredKillfeed: true}).CenteredKillfeed {
+		t.Fatal("a death reel kept the centered killfeed; its clips have no kills to draw")
+	}
+	if !NormalizeEditRequest(EditRequest{Format: FormatShort9x16, CenteredKillfeed: true}).CenteredKillfeed {
+		t.Fatal("a kill Short lost the centered killfeed")
+	}
+}
+
 func TestNormalizeEditRequestPersistsAffiliateFamilyWithStyle(t *testing.T) {
 	legacy := NormalizeEditRequest(EditRequest{
 		Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash,

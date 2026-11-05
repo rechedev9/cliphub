@@ -2569,6 +2569,33 @@ func TestStartRenderVariantEnqueuesRenderTaskWhenRecorded(t *testing.T) {
 	}
 }
 
+// The web re-renders with the whole edit it generated with, so the strict
+// decoder must know centered_killfeed.
+func TestStartRenderVariantKeepsTheCenteredKillfeed(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue)
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(`{"edit":{"format":"short-9x16","centered_killfeed":true}}`))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted || len(queue.enqueued) != 1 {
+		t.Fatalf("status = %d, enqueued = %d; body=%s", rw.Code, len(queue.enqueued), rw.Body.String())
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.Edit.CenteredKillfeed {
+		t.Fatalf("edit payload lost the centered killfeed: %#v", payload.Edit)
+	}
+}
+
 func TestStartRenderVariantPropagatesSegmentIDs(t *testing.T) {
 	repo := newFakeRepo()
 	queue := &fakeQueue{}

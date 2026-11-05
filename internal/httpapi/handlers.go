@@ -1637,6 +1637,7 @@ type renderEditRequest struct {
 	VoiceVolume         *float64            `json:"voice_volume"`
 	NativeHUD           *bool               `json:"native_hud"`
 	VictimReplay        *bool               `json:"victim_replay"`
+	CenteredKillfeed    *bool               `json:"centered_killfeed"`
 	CoverStrategy       *string             `json:"cover_strategy"`
 	CoverFirstFrame     *bool               `json:"cover_first_frame"`
 	IntroText           *string             `json:"intro_text"`
@@ -1694,6 +1695,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.VictimReplay != nil {
 		base.VictimReplay = *r.VictimReplay
+	}
+	if r.CenteredKillfeed != nil {
+		base.CenteredKillfeed = *r.CenteredKillfeed
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy
