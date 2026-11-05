@@ -197,6 +197,7 @@ type EditPlan struct {
 	KeyDropBanner    KeyDropBannerPlan  `json:"keydrop_banner,omitzero"`
 	Music            MusicPlan          `json:"music,omitzero"`
 	Effects          EffectsPlan        `json:"effects,omitzero"`
+	KillFeed         KillFeedPlan       `json:"kill_feed,omitzero"`
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
@@ -276,6 +277,21 @@ type MusicPlan struct {
 // presets; heavier looks are deliberately not offered.
 type EffectsPlan struct {
 	Grade bool `json:"grade,omitempty"`
+}
+
+// KillFeedPlan redraws the streamer's own kill-feed notices, rebuilt from the
+// source, centered on the gameplay panel of a vertical Short.
+type KillFeedPlan struct {
+	Centered bool `json:"centered,omitempty"`
+	// PositionY is the normalized top of the newest notice; nil sits it just
+	// below the players HUD.
+	PositionY *float64 `json:"position_y,omitempty"`
+}
+
+// KillFeedEnabled reports whether the render redraws the feed. A landscape
+// Short keeps the whole frame, feed included, so it never needs one.
+func (p EditPlan) KillFeedEnabled() bool {
+	return p.KillFeed.Centered && p.Variant != VariantStreamerLandscape16x9
 }
 
 type RenderState struct {
@@ -492,6 +508,11 @@ func (p EditPlan) Validate() error {
 	}
 	if err := validateKeyDropBanner(p.KeyDropBanner); err != nil {
 		return err
+	}
+	if positionY := p.KillFeed.PositionY; positionY != nil {
+		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
+			return fmt.Errorf("kill_feed position_y must be finite and between 0.025 and 0.975")
+		}
 	}
 	return nil
 }

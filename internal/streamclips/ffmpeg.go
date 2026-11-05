@@ -53,6 +53,10 @@ type FFmpegInputs struct {
 	// clip's Edit.TextOverlays. drawtext reads each file with expansion=none,
 	// so arbitrary user text never needs filtergraph escaping.
 	TextOverlayPaths []string
+	// KillFeed holds the clip's notice sprites when the plan centers the kill
+	// feed; SourceWidth and SourceHeight place them on the game panel.
+	KillFeed                  []KillFeedNotice
+	SourceWidth, SourceHeight int
 }
 
 func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, error) {
@@ -101,9 +105,25 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	}
 	if plan.KeyDropBanner.Enabled() {
 		keyDropInput = nextInput
+		nextInput++
+	}
+	var killFeed *killFeedGraph
+	if plan.KillFeedEnabled() && len(in.KillFeed) > 0 {
+		scale, err := KillFeedScale(plan, in.SourceWidth, in.SourceHeight)
+		if err != nil {
+			return nil, err
+		}
+		killFeed = &killFeedGraph{
+			notices: in.KillFeed, firstInput: nextInput, scale: scale,
+			top:         killFeedTop(layout, plan, in.SourceWidth, in.SourceHeight),
+			outputWidth: layout.OutputWidth, duration: duration,
+		}
 	}
 
-	filter, err := buildStandardFilterGraph(layout, plan, clip, in.BannerFontPath, in.TextOverlayPaths, duration, keyDropInput)
+	filter, err := buildStandardFilterGraph(layout, plan, clip, graphExtras{
+		fontPath: in.BannerFontPath, textPaths: in.TextOverlayPaths, duration: duration,
+		keyDropInput: keyDropInput, killFeed: killFeed,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +139,11 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	}
 	if keyDropInput >= 0 {
 		args = append(args, "-loop", "1", "-t", secondsArg(duration), "-i", in.KeyDropImagePath)
+	}
+	if killFeed != nil {
+		for _, n := range killFeed.notices {
+			args = append(args, "-framerate", strconv.Itoa(outputFPS), "-loop", "1", "-t", secondsArg(duration), "-i", n.Path)
+		}
 	}
 	audioMap := "0:a?"
 	shortest := false
@@ -288,9 +313,18 @@ func atempoChain(speed float64) string {
 	}
 }
 
-func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRange, bannerFontPath string, textPaths []string, duration float64, keyDropInput int) (string, error) {
-	tail := videoTail(plan, clip, bannerFontPath, textPaths)
-	needsNamedContent := plan.StreamerBanner.Nick != "" || plan.KeyDropBanner.Enabled()
+type graphExtras struct {
+	fontPath     string
+	textPaths    []string
+	duration     float64
+	keyDropInput int
+	killFeed     *killFeedGraph
+}
+
+func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRange, extras graphExtras) (string, error) {
+	bannerFontPath, duration, keyDropInput := extras.fontPath, extras.duration, extras.keyDropInput
+	tail := videoTail(plan, clip, bannerFontPath, extras.textPaths)
+	needsNamedContent := plan.StreamerBanner.Nick != "" || plan.KeyDropBanner.Enabled() || extras.killFeed != nil
 
 	outputLabel := ""
 	if needsNamedContent {
@@ -339,6 +373,12 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 	if plan.StreamerBanner.Nick != "" {
 		graph += ";" + streamerBannerFilter(layout, plan.StreamerBanner, bannerFontPath, duration)
 		current = "bannered"
+	}
+	// The streamer banner reads [content] itself, so the feed goes on after it.
+	if kf := extras.killFeed; kf != nil {
+		kf.contentLabel = current
+		graph += ";" + killFeedFilter(*kf) + "[killfeed]"
+		current = "killfeed"
 	}
 	if plan.KeyDropBanner.Enabled() {
 		if keyDropInput < 0 {

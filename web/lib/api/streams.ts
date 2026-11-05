@@ -69,6 +69,9 @@ export type StreamClipRange = {
 /** A music catalog track mixed under the clip audio; empty key means none. */
 type StreamMusic = { key?: string; volume?: number };
 
+/** Redraws the streamer's own notices centered; position_y is the first row's top. */
+type StreamKillFeed = { centered?: boolean; position_y?: number };
+
 /** Light post effects; grade is the mild viral contrast/saturation lift. */
 type StreamEffects = { grade?: boolean };
 
@@ -109,6 +112,7 @@ export type StreamEditPlan = {
   keydrop_banner?: KeyDropBanner;
   music?: StreamMusic;
   effects?: StreamEffects;
+  kill_feed?: StreamKillFeed;
   updated_at?: string;
 };
 

@@ -1564,6 +1564,13 @@ func (w *StreamRenderWorker) render(
 		if err != nil {
 			return err
 		}
+		killFeed, err := clipKillFeed(runCtx, killFeedRequest{
+			ffmpeg: cfg.FFmpegPath, source: sourcePath, workDir: workDir, plan: plan, clip: clip, probe: j.Probe,
+		})
+		if err != nil {
+			// A clip without its feed still renders; the warning says why.
+			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not redrawn: %v", clip.ID, err))
+		}
 		outPath := filepath.Join(outDir, clip.ID+".mp4")
 		args, err := streamclips.BuildFFmpegArgs(streamclips.FFmpegInputs{
 			SourcePath:       sourcePath,
@@ -1573,6 +1580,9 @@ func (w *StreamRenderWorker) render(
 			KeyDropImagePath: keyDropImagePath,
 			SourceHasAudio:   j.Probe.AudioCodec != "",
 			TextOverlayPaths: textPaths,
+			KillFeed:         killFeed,
+			SourceWidth:      j.Probe.Width,
+			SourceHeight:     j.Probe.Height,
 		}, plan, clip)
 		if err != nil {
 			return err
