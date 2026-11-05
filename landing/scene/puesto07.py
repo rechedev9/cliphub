@@ -259,7 +259,6 @@ dark_grey = plastic("dark_grey", (0.06, 0.06, 0.065), 0.45)
 legend = principled("legend", (0.08, 0.08, 0.08), 0.5)[0]
 marker = principled("marker", (0.01, 0.01, 0.012), 0.35)[0]
 alu = principled("alu", (0.8, 0.8, 0.82), 0.22, 1.0)[0]
-coin_mat = principled("coin", (0.55, 0.4, 0.17), 0.38, 1.0)[0]
 led_green = emissive("led_green", (0.2, 1.0, 0.3), 12)
 led_amber = emissive("led_amber", (1.0, 0.55, 0.1), 6)
 
@@ -836,7 +835,7 @@ box("can_tab", (0.0115, 0.022, 0.0008), (0, -0.002, 0), alu, 0.0026, parent=tab)
 box("can_tab_eye", (0.006, 0.0075, 0.0012), (0, -0.0075, 0.0001), hole_m, 0.0022, parent=tab)
 cyl("can_rivet", 0.0021, 0.0012, (0, 0, 0.1118), alu, verts=24, parent=can)
 
-# Ticket, coins, post-it, poster
+# Ticket, post-it, poster
 ticket_m = image_mat("ticket", "ticket.png", 0.75)[0]
 bpy.ops.mesh.primitive_grid_add(x_subdivisions=12, y_subdivisions=6, size=1, location=(0, 0, 0))
 tk = bpy.context.active_object
@@ -846,8 +845,6 @@ tk.location = (-0.28, -0.395, DESK + 0.0008)
 tk.rotation_euler = (0, 0, math.radians(14))
 smooth(tk)
 finish(tk, "ticket", ticket_m, None)
-for i, (dx, dy) in enumerate(((0, 0), (0.024, 0.01), (0.012, -0.018))):
-    cyl("coin", 0.0115, 0.0022, (-0.205 + dx, -0.455 + dy, DESK + 0.0011 + i * 0.0001), coin_mat, verts=48, bev=0.0006)
 
 pad_m2 = image_mat("notepad", "notepad.png", 0.82)[0]
 paper_side = principled("paper_side", (0.78, 0.76, 0.70), 0.9)[0]

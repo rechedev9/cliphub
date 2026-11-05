@@ -126,7 +126,7 @@ def classify(o):
         return "cd" if name.startswith(("cd", "tray")) else "tower"
     if root == "keyboard":
         return "keyboard"
-    if root in ("notepad", "pen") or name in ("ticket", "coin"):
+    if root in ("notepad", "pen") or name == "ticket":
         return "paper"
     if root in ("headset", "can", "mouse") or name in ("pad_base", "pad_top", "cable"):
         return "props"

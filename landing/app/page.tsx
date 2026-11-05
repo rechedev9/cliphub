@@ -338,7 +338,7 @@ export default function Home() {
             <p className="only-3d mt-6 border-t border-line pt-4 text-xs text-muted">© 2026 ClipHub</p>
             <PanelNav id="descargar" />
           </div>
-          <Still name="ticket" alt="El ticket del ciber: puesto 07, una hora, 1,50 euros, con unas monedas al lado" />
+          <Still name="ticket" alt="El ticket del ciber: puesto 07, una hora, 1,50 euros" />
         </section>
       </main>
 
