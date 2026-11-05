@@ -484,8 +484,15 @@ for i, x in enumerate((-0.80, 0.80)):
     head.scale = (0.85, 0.95, 1.08)
     head.location = (0, 0.01, 1.18)
     smooth(head)
-    finish(head, "head", skin, pl)
-    cyl("neck", 0.045, 0.08, (0, 0.02, 1.08), skin, verts=24, parent=pl)
+    finish(head, "head", hand_m, pl)
+    # Hair sits a little high and forward, so the nape and neck show skin from behind.
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.104, location=(0, 0, 0))
+    hair = bpy.context.active_object
+    hair.scale = (0.87, 0.97, 1.04)
+    hair.location = (0, 0.012, 1.19)
+    smooth(hair)
+    finish(hair, "hair", skin, pl)
+    cyl("neck", 0.045, 0.08, (0, 0.02, 1.08), hand_m, verts=24, parent=pl)
     for sx in (-1, 1):
         ear = ball("ear", Vector((sx * 0.086, 0.015, 1.17)), 0.022, hand_m, pl)
         ear.scale = (0.45, 1.0, 1.3)
