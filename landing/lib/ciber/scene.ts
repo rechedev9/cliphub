@@ -62,8 +62,17 @@ export interface Insets {
   bottom: number;
 }
 
+// The still public/video/<file>.webp is the frame at `start`, and the video starts there, so the swap is seamless.
+const FEEDS = {
+  jugada: { file: "crt-jugada", start: 9 },
+  kill: { file: "killfeed-loop", start: 2.2 },
+  hero: { file: "hero-loop", start: 1.4 },
+} as const;
+type Feed = keyof typeof FEEDS;
+const FEED_IDS = ["jugada", "kill", "hero"] as const satisfies readonly Feed[];
+
 interface Channel {
-  tex: VideoTexture;
+  feed: Feed;
   aspect: number;
   layout: number;
 }
@@ -130,14 +139,18 @@ function pickVideoSource(name: string): string {
   return probe.canPlayType('video/webm; codecs="vp9"') ? `/video/${name}.webm` : `/video/${name}.mp4`;
 }
 
-function makeVideo(name: string): HTMLVideoElement {
+function makeVideo(): HTMLVideoElement {
   const video = document.createElement("video");
   video.muted = true;
   video.loop = true;
   video.playsInline = true;
-  video.preload = "auto";
-  video.src = pickVideoSource(name);
+  video.preload = "none";
   return video;
+}
+
+function onFirstFrame(video: HTMLVideoElement, done: () => void) {
+  if (typeof video.requestVideoFrameCallback === "function") video.requestVideoFrameCallback(() => done());
+  else video.addEventListener("playing", done, { once: true });
 }
 
 function videoTexture(video: HTMLVideoElement): VideoTexture {
@@ -206,8 +219,8 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
   const suffix = quality === "high" ? "" : "-m";
   const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
-  function loadTexture(name: string): Promise<Texture> {
-    return textures.loadAsync(`/scene/tex/${name}${suffix}.webp`).then((tex) => {
+  function loadTexture(url: string): Promise<Texture> {
+    return textures.loadAsync(url).then((tex) => {
       tex.flipY = false;
       tex.colorSpace = SRGBColorSpace;
       tex.anisotropy = anisotropy;
@@ -215,19 +228,24 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     });
   }
 
-  const videos = { jugada: makeVideo("crt-jugada"), kill: makeVideo("killfeed-loop"), hero: makeVideo("hero-loop") };
+  const videos = { jugada: makeVideo(), kill: makeVideo(), hero: makeVideo() } satisfies Record<Feed, HTMLVideoElement>;
   const videoTex = {
     jugada: videoTexture(videos.jugada),
     kill: videoTexture(videos.kill),
     hero: videoTexture(videos.hero),
-  };
+  } satisfies Record<Feed, VideoTexture>;
+  // A tube shows its feed's still until that video draws a frame, so the videos wait for the scene.
+  const stills = new Map<Feed, Texture>();
+  const live = new Set<Feed>();
+  let videosOn = !reducedMotion;
+  let sceneShown = false;
   // layout 0 is a vertical Short on the tube, 1 fills the tube.
   const channels = {
-    jugada: { tex: videoTex.jugada, aspect: 4 / 3, layout: 1 },
-    short: { tex: videoTex.kill, aspect: SHORT_ASPECT, layout: 0 },
-    stream: { tex: videoTex.hero, aspect: SHORT_ASPECT, layout: 0 },
-    killFill: { tex: videoTex.kill, aspect: SHORT_ASPECT, layout: 1 },
-    heroFill: { tex: videoTex.hero, aspect: SHORT_ASPECT, layout: 1 },
+    jugada: { feed: "jugada", aspect: 4 / 3, layout: 1 },
+    short: { feed: "kill", aspect: SHORT_ASPECT, layout: 0 },
+    stream: { feed: "hero", aspect: SHORT_ASPECT, layout: 0 },
+    killFill: { feed: "kill", aspect: SHORT_ASPECT, layout: 1 },
+    heroFill: { feed: "hero", aspect: SHORT_ASPECT, layout: 1 },
   } satisfies Record<string, Channel>;
   const startChannel: Record<string, Channel> = {
     screen_main: channels.jugada,
@@ -235,6 +253,7 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     screen_far1: channels.killFill,
     screen_far2: channels.stream,
   };
+  const showing = new Map<string, Channel>();
   const screens = new Map<string, ShaderMaterial>();
   const highlight = new Map<string, MeshBasicMaterial | ShaderMaterial>();
   const hands: { hour?: Object3D; min?: Object3D; sec?: Object3D } = {};
@@ -256,12 +275,14 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     const posterName = `poster-${MathUtils.clamp(Math.round(options.posterVariant), 1, 3)}`;
     const [gltf, ...maps] = await Promise.all([
       gltfLoader.loadAsync("/scene/puesto07.glb"),
-      ...ATLASES.map((a) => loadTexture(a)),
-      loadTexture(posterName),
+      ...ATLASES.map((a) => loadTexture(`/scene/tex/${a}${suffix}.webp`)),
+      loadTexture(`/scene/tex/${posterName}${suffix}.webp`),
+      ...FEED_IDS.map((feed) => loadTexture(`/video/${FEEDS[feed].file}.webp`)),
     ]);
     const atlas = new Map<string, Texture>();
     ATLASES.forEach((a, i) => atlas.set(a, maps[i]));
     atlas.set("poster", maps[ATLASES.length]);
+    FEED_IDS.forEach((feed, i) => stills.set(feed, maps[ATLASES.length + 1 + i]));
 
     gltf.scene.traverse((node) => {
       if (node.name.startsWith("clock_hour")) hands.hour = node;
@@ -274,7 +295,7 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
       if (name.startsWith("screen_")) {
         const channel = startChannel[name] ?? channels.heroFill;
         const mat = createCrtMaterial({
-          map: channel.tex,
+          map: feedTexture(channel.feed),
           layout: channel.layout === 0 ? "short" : "fill",
           aspect: SCREEN_ASPECT,
           videoAspect: channel.aspect,
@@ -282,6 +303,7 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
         });
         node.material = mat;
         screens.set(name, mat);
+        showing.set(name, channel);
         highlight.set(name, mat);
         return;
       }
@@ -307,14 +329,6 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
       }
     });
     scene.add(gltf.scene);
-    for (const [video, still] of [
-      [videos.jugada, 9],
-      [videos.kill, 2.2],
-      [videos.hero, 1.4],
-    ] as const) {
-      if (reducedMotion) video.addEventListener("loadedmetadata", () => (video.currentTime = still), { once: true });
-      else void video.play().catch(() => undefined);
-    }
   })();
 
   // Ready after two drawn frames: the first one compiles every shader, so the fade never shows an empty canvas.
@@ -326,6 +340,37 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
         markDrawn = resolve;
       }),
   );
+  ready.then(
+    () => {
+      sceneShown = true;
+      if (videosOn && !disposed) playVideos();
+    },
+    () => undefined,
+  );
+
+  function feedTexture(feed: Feed): Texture {
+    return (live.has(feed) ? undefined : stills.get(feed)) ?? videoTex[feed];
+  }
+
+  function playVideos() {
+    for (const feed of FEED_IDS) {
+      const video = videos[feed];
+      if (!video.getAttribute("src")) {
+        video.src = pickVideoSource(FEEDS[feed].file);
+        video.currentTime = FEEDS[feed].start;
+        onFirstFrame(video, () => showLive(feed));
+      }
+      void video.play().catch(() => undefined);
+    }
+  }
+
+  function showLive(feed: Feed) {
+    live.add(feed);
+    for (const [name, channel] of showing) {
+      const mat = screens.get(name);
+      if (mat && channel.feed === feed) mat.uniforms.map.value = videoTex[feed];
+    }
+  }
 
   let width = 1;
   let height = 1;
@@ -372,20 +417,22 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     progress = instant || reducedMotion ? 1 : 0;
   }
 
-  function applyChannel(mat: ShaderMaterial, channel: Channel) {
-    mat.uniforms.map.value = channel.tex;
+  function applyChannel(name: string, channel: Channel) {
+    const mat = screens.get(name);
+    if (!mat) return;
+    showing.set(name, channel);
+    mat.uniforms.map.value = feedTexture(channel.feed);
     mat.uniforms.mode.value = channel.layout;
     mat.uniforms.aspects.value.set(SCREEN_ASPECT, channel.aspect);
   }
 
   /** Change what a tube shows, through a burst of static unless motion is reduced. */
   function tune(name: string, next: Channel) {
-    const mat = screens.get(name);
-    if (!mat) {
+    if (!screens.has(name)) {
       startChannel[name] = next;
       return;
     }
-    if (reducedMotion) applyChannel(mat, next);
+    if (reducedMotion) applyChannel(name, next);
     else tuning.set(name, { level: 1, next });
   }
 
@@ -491,15 +538,15 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     if (t > nextChannel) {
       nextChannel = t + 11 + Math.random() * 8;
       const pick = Math.random() < 0.5 ? "screen_far0" : "screen_far1";
-      const showing = screens.get(pick)?.uniforms.map.value;
-      const options = [channels.jugada, channels.killFill, channels.heroFill].filter((c) => c.tex !== showing);
+      const now = showing.get(pick)?.feed;
+      const options = [channels.jugada, channels.killFill, channels.heroFill].filter((c) => c.feed !== now);
       tune(pick, options[Math.floor(Math.random() * options.length)] ?? channels.jugada);
     }
     for (const [name, tv] of tuning) {
       const mat = screens.get(name);
       if (!mat) continue;
       const level = tv.level - dt * 2.6;
-      if (tv.level > 0.5 && level <= 0.5) applyChannel(mat, tv.next);
+      if (tv.level > 0.5 && level <= 0.5) applyChannel(name, tv.next);
       mat.uniforms.noise.value = Math.max(0, Math.sin(Math.max(0, level) * Math.PI)) * 0.85;
       if (level <= 0) tuning.delete(name);
       else tuning.set(name, { level, next: tv.next });
@@ -593,10 +640,10 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
       insets.bottom = next.bottom;
     },
     setVideosPaused(value) {
-      for (const v of Object.values(videos)) {
-        if (value) v.pause();
-        else void v.play().catch(() => undefined);
-      }
+      videosOn = !value;
+      if (!sceneShown) return;
+      if (value) for (const v of Object.values(videos)) v.pause();
+      else playVideos();
     },
     dispose() {
       disposed = true;
@@ -622,7 +669,7 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
           m.dispose();
         }
       });
-      for (const tex of Object.values(videoTex)) tex.dispose();
+      for (const tex of [...Object.values(videoTex), ...stills.values()]) tex.dispose();
       composer.dispose();
       renderer.dispose();
     },

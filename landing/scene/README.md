@@ -42,6 +42,16 @@ ffmpeg -i tex/frame-hero.png -vf "crop=540:405:0:250,scale=1024:768" tex/screen2
 ffmpeg -i tex/frame-hero.png -vf "crop=540:405:0:40,scale=1024:768" tex/screen3.png
 ```
 
+The page shows the same frames on the tubes until each video plays, and starts each video at that
+time (`FEEDS` in `lib/ciber/scene.ts`). With reduced motion it never fetches the videos unless the
+visitor presses "Reproducir vídeos":
+
+```bash
+ffmpeg -y -ss 9 -i ../public/video/crt-jugada.webm -frames:v 1 -c:v libwebp -quality 80 ../public/video/crt-jugada.webp
+ffmpeg -y -ss 2.2 -i ../public/video/killfeed-loop.webm -frames:v 1 -vf scale=360:-2 -c:v libwebp -quality 80 ../public/video/killfeed-loop.webp
+ffmpeg -y -ss 1.4 -i ../public/video/hero-loop.webm -frames:v 1 -vf scale=360:-2 -c:v libwebp -quality 80 ../public/video/hero-loop.webp
+```
+
 `public/video/crt-jugada.*` is 11 seconds of NEO's 1v5 clutch for Virtus.pro at DreamHack Open
 (from youtube.com/watch?v=hLXQMMJmt-w, 71.5 s onwards), cropped to 4:3 with no audio.
 
