@@ -11,7 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/diskfiles"
+	"github.com/rechedev9/cliphub/internal/generateintent"
 )
 
 // storageFileIndex remembers the last list: delete and reveal accept only a path
@@ -28,6 +31,10 @@ type storageFileIndex struct {
 func (idx *storageFileIndex) startScan(dataDir string) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
+	idx.startScanLocked(dataDir)
+}
+
+func (idx *storageFileIndex) startScanLocked(dataDir string) {
 	if idx.scanning {
 		return
 	}
@@ -73,13 +80,10 @@ func (h *Handlers) ListStorageFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	idx := &h.storageFiles
 	idx.mu.Lock()
-	neverScanned := !idx.scanning && idx.scannedAt.IsZero()
-	idx.mu.Unlock()
-	if neverScanned {
-		idx.startScan(dataDir)
-	}
-	idx.mu.Lock()
 	defer idx.mu.Unlock()
+	if idx.scannedAt.IsZero() {
+		idx.startScanLocked(dataDir)
+	}
 	demos := append([]diskfiles.File{}, idx.demos...)
 	listed := map[string]diskfiles.File{}
 	for _, file := range append(demos, studio...) {
@@ -122,12 +126,14 @@ func (h *Handlers) DeleteStorageFile(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusConflict, studioDemoManagedCode, "Studio's demo copy is deleted with its match")
 		return
 	}
-	paths := append([]string{file.Path}, diskfiles.Siblings(file.Path)...)
-	for _, path := range paths {
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			internalError(w, "delete storage file", err)
-			return
-		}
+	err := h.removeStorageFile(file)
+	switch {
+	case errors.Is(err, generateintent.ErrActiveRun), errors.Is(err, errGenerateRenderActive):
+		writeCodedError(w, http.StatusConflict, generateWorkActive, "job has an active render or generate run; wait for it to settle before deleting the video")
+		return
+	case err != nil:
+		internalError(w, "delete storage file", err)
+		return
 	}
 	idx := &h.storageFiles
 	idx.mu.Lock()
@@ -135,6 +141,29 @@ func (h *Handlers) DeleteStorageFile(w http.ResponseWriter, r *http.Request) {
 	idx.demos = slices.DeleteFunc(idx.demos, func(demo diskfiles.File) bool { return demo.Path == file.Path })
 	idx.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"freed_bytes": file.Size})
+}
+
+// removeStorageFile deletes a file and its render siblings; a job's render video
+// waits for the job's render or generate run to settle, like DeleteJobCaptures.
+func (h *Handlers) removeStorageFile(file diskfiles.File) error {
+	remove := func() error {
+		for _, path := range append([]string{file.Path}, diskfiles.Siblings(file.Path)...) {
+			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+		}
+		return nil
+	}
+	jobID, err := uuid.Parse(file.JobID)
+	if err != nil || (file.Kind != diskfiles.KindShort && file.Kind != diskfiles.KindFullDemo) {
+		return remove()
+	}
+	return h.generateIntents.WhileIdle(jobID, func() error {
+		if err := h.requireGenerateRenderIdle(jobID); err != nil {
+			return err
+		}
+		return remove()
+	})
 }
 
 // RevealStorageFile handles POST /api/storage/files/reveal {path}: it opens File

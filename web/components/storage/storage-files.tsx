@@ -12,6 +12,7 @@ import {
   formatFileDate,
   groupByFolder,
   groupByKind,
+  libraryVideoFor,
   matchLabel,
   splitPath,
   totalBytes,
@@ -35,6 +36,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [notice, setNotice] = useState<string | null>(null);
   const [rescanError, setRescanError] = useState<string | null>(null);
+  const [childrenKey, setChildrenKey] = useState(0);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -82,7 +84,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 
   let body: ReactNode;
   if (state.kind === 'ready') {
-    body = <ReadyBody files={state.files} matches={state.matches} onRemoved={removeFile} onMatchDeleted={() => void load()} />;
+    body = <ReadyBody files={state.files} matches={state.matches} onRemoved={removeFile} onMatchDeleted={() => { setChildrenKey((key) => key + 1); void load(); }} />;
   } else if (state.kind === 'error') {
     body = (
       <div className="flex flex-col items-start gap-3">
@@ -116,7 +118,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
       {notice ? <p role="status" className="text-body-sm text-success">{notice}</p> : null}
       {rescanError ? <p role="alert" className="text-body-sm text-destructive">{rescanError}</p> : null}
       {body}
-      {children}
+      <div key={childrenKey}>{children}</div>
     </div>
   );
 }
@@ -270,6 +272,8 @@ function FileRow({
     setError(null);
     try {
       const freed = await api.deleteStorageFile(file.path);
+      const cardId = libraryVideoFor(await api.listVideos().catch(() => []), file);
+      if (cardId !== null) await api.deleteVideo(cardId).catch(() => undefined);
       onRemoved(file.path, freed, title);
     } catch (err) {
       setError(deleteErrorMessage(err));

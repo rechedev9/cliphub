@@ -50,8 +50,7 @@ var skippedDirNames = map[string]bool{
 	".git":                      true,
 }
 
-// ScanDemos walks roots for *.dem files, skipping excluded dirs (the Studio data
-// dir), system folders, links and unreadable folders. A missing root is skipped.
+// ScanDemos walks roots for *.dem files, skipping excluded dirs, system folders and links.
 // Top-level folders are walked in parallel: a whole drive takes over a minute serially.
 func ScanDemos(roots []string, excluded []string) []File {
 	skip := map[string]bool{}
@@ -148,11 +147,17 @@ func ScanStudio(dataDir string) ([]File, error) {
 			}
 			return nil
 		}
-		if entry.IsDir() || entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-			return nil
-		}
 		rel, err := filepath.Rel(dataDir, path)
 		if err != nil {
+			return nil
+		}
+		if entry.IsDir() {
+			if isCaptureDir(filepath.ToSlash(rel)) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
 			return nil
 		}
 		kind, jobID, ok := classifyStudioFile(filepath.ToSlash(rel))
@@ -167,6 +172,12 @@ func ScanStudio(dataDir string) ([]File, error) {
 	})
 	sortBySize(files)
 	return files, err
+}
+
+// isCaptureDir matches jobs/<id>/recording: round captures are large and never listed.
+func isCaptureDir(rel string) bool {
+	parts := strings.Split(rel, "/")
+	return len(parts) == 3 && parts[0] == "jobs" && parts[2] == "recording"
 }
 
 // classifyStudioFile maps a data-dir relative path to its kind and owning job.

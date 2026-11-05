@@ -1,5 +1,5 @@
 import type { StorageFile, StorageFileKind } from './api/storage.ts';
-import type { Match } from './api/types.ts';
+import type { Match, Video } from './api/types.ts';
 import { prettyMapName } from './format.ts';
 
 export const STORAGE_FILE_KIND_LABEL = {
@@ -64,4 +64,12 @@ const DATE = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', 
 export function formatFileDate(iso: string): string {
   const time = Date.parse(iso);
   return Number.isNaN(time) ? '' : DATE.format(time);
+}
+
+/** The Mis vídeos entry that plays this render MP4, so deleting the file also drops the card. */
+export function libraryVideoFor(videos: readonly Pick<Video, 'id' | 'jobId' | 'downloadUrl'>[], file: StorageFile): string | null {
+  if (file.jobId === undefined || (file.kind !== 'short' && file.kind !== 'full_demo')) return null;
+  const suffix = `/videos/${splitPath(file.path).name}`;
+  const video = videos.find((entry) => entry.jobId === file.jobId && entry.downloadUrl?.split('?')[0]?.endsWith(suffix));
+  return video?.id ?? null;
 }

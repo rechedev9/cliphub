@@ -40,11 +40,13 @@ func TestStorageFilesListThenDeleteOnlyListedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	userDemo := filepath.Join(pcRoot, "Downloads", "match.dem")
-	render := filepath.Join(dataDir, "jobs", "j1", "renders", "short-pov", "videos", "reel.mp4")
-	cover := filepath.Join(dataDir, "jobs", "j1", "renders", "short-pov", "covers", "reel.jpg")
+	jobID := "6f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f"
+	render := filepath.Join(dataDir, "jobs", jobID, "renders", "short-pov", "videos", "reel.mp4")
+	cover := filepath.Join(dataDir, "jobs", jobID, "renders", "short-pov", "covers", "reel.jpg")
+	capture := filepath.Join(dataDir, "jobs", jobID, "recording", "segments", "seg-001.mp4")
 	studioDemo := filepath.Join(dataDir, "demos", "j1.dem")
 	unlisted := filepath.Join(pcRoot, "keep.txt")
-	for _, path := range []string{userDemo, render, cover, studioDemo, unlisted} {
+	for _, path := range []string{userDemo, render, cover, capture, studioDemo, unlisted} {
 		writeTestFile(t, path)
 	}
 
@@ -109,7 +111,7 @@ func TestStorageFilesListThenDeleteOnlyListedFiles(t *testing.T) {
 	if len(body.Demos) != 0 || len(body.Videos) != 0 {
 		t.Fatalf("deleted files still listed: %+v", body)
 	}
-	for _, path := range []string{unlisted, studioDemo} {
+	for _, path := range []string{unlisted, studioDemo, capture} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("%s was removed: %v", path, err)
 		}

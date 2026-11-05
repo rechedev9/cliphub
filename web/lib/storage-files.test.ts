@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StorageFile } from './api/storage.ts';
-import { groupByFolder, groupByKind, matchLabel, splitPath } from './storage-files.ts';
+import { groupByFolder, groupByKind, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
 
 const file = (path: string, sizeBytes: number, kind: StorageFile['kind'] = 'demo'): StorageFile => ({
   path,
@@ -38,4 +38,15 @@ test('matchLabel names a known match and returns null otherwise', () => {
   assert.equal(matchLabel('j1', matches), 'Mirage · ana');
   assert.equal(matchLabel('j2', matches), null);
   assert.equal(matchLabel(undefined, matches), null);
+});
+
+test('libraryVideoFor finds the Mis vídeos card of a render MP4', () => {
+  const reel = { ...file('D:/data/jobs/j1/renders/v/revisions/r/videos/reel.mp4', 1, 'short'), jobId: 'j1' };
+  const videos = [
+    { id: 'other', jobId: 'j2', downloadUrl: '/api/demos/j2/renders/v/videos/reel.mp4' },
+    { id: 'mine', jobId: 'j1', downloadUrl: '/api/demos/j1/renders/v/videos/reel.mp4?revision=r' },
+  ];
+  assert.equal(libraryVideoFor(videos, reel), 'mine');
+  assert.equal(libraryVideoFor(videos, { ...reel, kind: 'stream' }), null);
+  assert.equal(libraryVideoFor([], reel), null);
 });

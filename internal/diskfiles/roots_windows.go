@@ -3,6 +3,7 @@ package diskfiles
 import (
 	"os"
 	"os/exec"
+	"syscall"
 
 	"golang.org/x/sys/windows"
 )
@@ -30,9 +31,12 @@ func Roots() []string {
 	return roots
 }
 
-// Reveal opens File Explorer with path selected.
+// Reveal opens File Explorer with path selected. The command line is built by hand
+// because Explorer splits an unquoted path at a comma.
 func Reveal(path string) error {
+	cmd := exec.Command("explorer.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: `explorer.exe /select,"` + path + `"`}
 	// explorer.exe exits 1 even when it opened the window, so its error is ignored.
-	_ = exec.Command("explorer.exe", "/select,", path).Run()
+	_ = cmd.Run()
 	return nil
 }
