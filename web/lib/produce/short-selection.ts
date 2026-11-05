@@ -17,8 +17,15 @@ export function estimatedPlaySeconds(play: PlayTiming): number {
   return BASE_SECONDS + SECONDS_PER_KILL * Math.max(0, play.kills);
 }
 
-export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>): number {
-  return plays.reduce((total, play) => total + estimatedPlayTenths(play), 0) / 10;
+/** A victim replay is about 3.5 s of capture played at half speed. */
+export const VICTIM_REPLAY_SECONDS = 7;
+
+export function estimatedSelectionSeconds(
+  plays: ReadonlyArray<PlayTiming>,
+  options: { victimReplay?: boolean } = {},
+): number {
+  const replayTenths = options.victimReplay ? VICTIM_REPLAY_SECONDS * 10 : 0;
+  return plays.reduce((total, play) => total + estimatedPlayTenths(play) + replayTenths, 0) / 10;
 }
 
 /** Accumulate the displayed precision as integers so an exact minute stays within budget. */

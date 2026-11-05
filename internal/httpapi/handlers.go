@@ -1442,7 +1442,7 @@ func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) 
 		segmentIDs:           segmentIDs,
 		portraitSafeKillfeed: preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16,
 		useRecapPlan:         useRecapPlan,
-		victimReplay:         intent.Edit.VictimReplay,
+		victimReplay:         intent.Edit.VictimReplay && !useRecapPlan,
 	}, true
 }
 

@@ -3592,8 +3592,15 @@ func captureProfilesCompatible(a, b recording.RecordingPlan) bool {
 		a.TargetNameInDemo == b.TargetNameInDemo &&
 		a.TargetAccountID == b.TargetAccountID &&
 		a.Tickrate == b.Tickrate &&
-		a.Stream == b.Stream &&
+		captureStream(a.Stream) == captureStream(b.Stream) &&
 		a.Runtime.Normalized() == b.Runtime.Normalized()
+}
+
+// captureStream drops VictimReplay: it adds replay windows but leaves every
+// main clip as it was, so those clips stay reusable across the toggle.
+func captureStream(stream recording.StreamConfig) recording.StreamConfig {
+	stream.VictimReplay = false
+	return stream
 }
 
 func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) bool {
@@ -3604,7 +3611,7 @@ func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) boo
 		legacy.TargetNameInDemo == current.TargetNameInDemo &&
 		legacy.TargetAccountID == current.TargetAccountID &&
 		legacy.Tickrate == current.Tickrate &&
-		legacy.Stream == current.Stream &&
+		captureStream(legacy.Stream) == captureStream(current.Stream) &&
 		legacy.Runtime.Normalized() == current.Runtime.Normalized()
 }
 
@@ -3614,6 +3621,11 @@ func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) boo
 // prev are carried forward (their clips still live in storage under their
 // per-segment keys). Capture remains chronological; EditorialSegmentIDs keeps
 // the user-selected order from fullPlan regardless of which reel recorded when.
+func withoutVictimReplay(segment recording.RecordingSegment) recording.RecordingSegment {
+	segment.VictimReplay = nil
+	return segment
+}
+
 func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killplan.Plan) (recording.RecordingResult, error) {
 	merged := next
 	merged.Plan.Segments = append([]recording.RecordingSegment(nil), next.Plan.Segments...)
@@ -3656,6 +3668,10 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 		if isSegmentClip(a) && !haveClip[a.SegmentID] && (haveSegment[a.SegmentID] || carriedReplay[a.SegmentID]) {
 			merged.Artifacts = append(merged.Artifacts, a)
 		}
+	}
+	// Carried segments may keep replays recorded while the option was on.
+	for _, s := range merged.Plan.Segments {
+		merged.Plan.Stream.VictimReplay = merged.Plan.Stream.VictimReplay || s.VictimReplay != nil
 	}
 	if next.Plan.FullDemo != nil {
 		var err error
@@ -3780,7 +3796,7 @@ func recordingOutputsReady(ctx context.Context, store storage.Storage, id uuid.U
 	for _, segID := range requested {
 		storedSegment, stored := recordedSegments[segID]
 		expectedSegment, expected := expectedSegments[segID]
-		compatibleWindow := reflect.DeepEqual(storedSegment, expectedSegment)
+		compatibleWindow := reflect.DeepEqual(withoutVictimReplay(storedSegment), withoutVictimReplay(expectedSegment))
 		if result.Plan.FullDemo != nil && expectedPlan.FullDemo != nil && stored && expected {
 			// Narrower editorial requests use an immutable broader capture. The
 			// effective render trims it using its original capture start tick.
@@ -3817,7 +3833,7 @@ func recordingOutputsReady(ctx context.Context, store storage.Storage, id uuid.U
 			}
 			if ok, err := store.Exists(replayKey); err != nil {
 				return needAll, nil, err
-			} else if !ok || !recorded[replayID] {
+			} else if !ok || !recorded[replayID] || !reflect.DeepEqual(storedSegment.VictimReplay, expectedSegment.VictimReplay) {
 				missing = append(missing, segID)
 				continue
 			}

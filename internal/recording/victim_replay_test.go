@@ -135,3 +135,39 @@ func TestFilterResultSegmentsKeepsTheSelectedVictimReplay(t *testing.T) {
 		t.Fatalf("ResolveVictimReplayClip = %+v, %v", replay, ok)
 	}
 }
+
+func TestVictimReplayPassRunsBeforeAPlayThatReachesTheDemoEnd(t *testing.T) {
+	kp := victimReplayKillPlan()
+	// The demo stops right after seg-003, so no rewind can follow it.
+	kp.Demo.DurationTicks = 41010
+	kp.Segments[2].Kills[0] = killplan.Kill{Tick: 40980, Victim: killplan.Player{SteamID64: victimA}}
+	stream := DefaultStreamConfig()
+	stream.VictimReplay = true
+	plan, err := NewPlanFromKillPlan(kp, `C:\demos\x.dem`, `C:\out`, stream)
+	if err != nil {
+		t.Fatalf("NewPlanFromKillPlan error = %v", err)
+	}
+	var ids []string
+	for _, capture := range plan.CaptureSegments() {
+		ids = append(ids, capture.ID)
+	}
+	if want := []string{"seg-001", "seg-002", "seg-001-victim", "seg-002-victim", "seg-003"}; !slices.Equal(ids, want) {
+		t.Fatalf("capture order = %v, want %v", ids, want)
+	}
+	_, seeks, windows := buildRuntimeSchedule(plan)
+	rewinds := 0
+	for _, seek := range seeks {
+		if seek.Rewind {
+			rewinds++
+			if seek.After >= plan.DemoDurationTicks-plan.Tickrate {
+				t.Errorf("rewind waits for tick %d, too close to the demo end %d", seek.After, plan.DemoDurationTicks)
+			}
+		}
+	}
+	if rewinds != 1 {
+		t.Errorf("rewinds = %d, want 1", rewinds)
+	}
+	if last := windows[len(windows)-1]; last.SegmentID != "seg-003" || last.Pass != 1 || last.TargetSteam != "" {
+		t.Errorf("last window = %+v, want seg-003 on the target in pass 1", last)
+	}
+}

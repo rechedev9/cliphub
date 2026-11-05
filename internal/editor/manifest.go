@@ -190,6 +190,9 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		if err != nil {
 			return manifest, err
 		}
+		if opts.VictimReplay && rhythmSync != nil {
+			manifest.Warnings = append(manifest.Warnings, "victim replays are skipped in a beat-synced compilation")
+		}
 		voiceTracks, voiceTickrate := loadVoiceTracks(opts.VoiceDir)
 		compiled, err := buildCompiledShort(result, opts, compiledShortOptions{
 			BaseDir:           baseDir,
@@ -357,9 +360,9 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			edit.CoverTimeSeconds = coverTime
 		}
 		if opts.VictimReplay {
-			replay, warning, ok := victimReplayPart(result, segment, baseDir)
-			if ok {
-				edit = withVictimReplay(edit, segment, result.Plan, replay)
+			source := replaySource{result: result, segment: segment, baseDir: baseDir}
+			if replay, warning, ok := source.part(); ok {
+				edit = source.appendTo(edit, replay)
 			} else if warning != "" {
 				manifest.Warnings = append(manifest.Warnings, warning)
 			}
@@ -506,7 +509,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		cursor = partStart + duration
 		// Beat-synced timelines place every part themselves; a replay would shift them.
 		if opts.VictimReplay && c.RhythmSync == nil {
-			if replay, _, ok := victimReplayPart(result, segment, c.BaseDir); ok {
+			if replay, _, ok := (replaySource{result: result, segment: segment, baseDir: c.BaseDir}).part(); ok {
 				replay.TimelineStartSeconds = cursor
 				parts = append(parts, replay)
 				cursor += replay.DurationSeconds

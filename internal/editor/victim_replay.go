@@ -12,28 +12,36 @@ const victimReplaySpeed = 0.5
 // victimReplayFlashSeconds is the white flash that marks the cut to the replay.
 const victimReplayFlashSeconds = 0.15
 
-// victimReplayPart is the slowed victim POV part that follows the segment's
-// own part. Without a recorded clip it returns a warning instead.
-func victimReplayPart(result recording.RecordingResult, segment recording.RecordingSegment, baseDir string) (ShortPart, string, bool) {
-	if segment.VictimReplay == nil {
+// replaySource is a segment whose victim replay may follow it in a Short.
+type replaySource struct {
+	result  recording.RecordingResult
+	segment recording.RecordingSegment
+	baseDir string
+}
+
+// part is the slowed victim POV part that follows the segment's own part.
+// Without a recorded clip it returns a warning instead.
+func (s replaySource) part() (ShortPart, string, bool) {
+	if s.segment.VictimReplay == nil {
 		return ShortPart{}, "", false
 	}
-	clip, ok := recording.ResolveVictimReplayClip(result, segment.ID)
+	clip, ok := recording.ResolveVictimReplayClip(s.result, s.segment.ID)
 	if !ok || clip.DurationSeconds <= 0 {
-		return ShortPart{}, fmt.Sprintf("segment %s has no victim replay clip; rendering it without one", segment.ID), false
+		return ShortPart{}, fmt.Sprintf("segment %s has no victim replay clip; rendering it without one", s.segment.ID), false
 	}
 	return ShortPart{
 		SegmentID:       clip.SegmentID,
-		Input:           resolvePath(baseDir, clip.Path),
+		Input:           resolvePath(s.baseDir, clip.Path),
 		SourceArtifact:  clip.Artifact,
 		DurationSeconds: clip.DurationSeconds / victimReplaySpeed,
 		Speed:           victimReplaySpeed,
 	}, "", true
 }
 
-// withVictimReplay turns a single-clip Short into the clip followed by its
-// victim replay, rendered through the compilation path.
-func withVictimReplay(edit ShortEdit, segment recording.RecordingSegment, plan recording.RecordingPlan, replay ShortPart) ShortEdit {
+// appendTo turns a single-clip Short into the clip followed by its victim
+// replay, rendered through the compilation path.
+func (s replaySource) appendTo(edit ShortEdit, replay ShortPart) ShortEdit {
+	segment, plan := s.segment, s.result.Plan
 	main := ShortPart{
 		SegmentID:       segment.ID,
 		Input:           edit.Input,

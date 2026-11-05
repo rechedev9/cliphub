@@ -5,6 +5,7 @@ import {
   autoPickBestPlays,
   estimatedPlaySeconds,
   estimatedSelectionSeconds,
+  VICTIM_REPLAY_SECONDS,
   formatClock,
   roundsSummary,
   selectionTimeline,
@@ -124,4 +125,10 @@ test('selectionTimeline keeps plan order and accumulates estimated starts', () =
     ],
   );
   assert.deepEqual(selectionTimeline(plays, new Set()), []);
+});
+
+test('estimatedSelectionSeconds adds a slowed replay per play when asked', () => {
+  const plays = [{ kills: 1 }, { kills: 3 }];
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: true }), 24 + 2 * VICTIM_REPLAY_SECONDS);
+  assert.equal(estimatedSelectionSeconds(plays, { victimReplay: false }), 24);
 });

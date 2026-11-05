@@ -98,7 +98,7 @@ export function ShortProducer({ matchId, match, plays, seriesId, focusRounds = n
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
   const cues = selectionTimeline(plays, selectedIds);
-  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
+  const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
   // No tilde: beside the figures it reads as a minus sign ("-0:00").
   const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;

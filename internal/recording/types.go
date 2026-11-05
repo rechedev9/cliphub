@@ -379,6 +379,9 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	})
 	if out.Stream.VictimReplay {
 		for i := range out.Segments {
+			if i == len(out.Segments)-1 && reachesDemoEnd(out.Segments[i], out) {
+				break // Its main window is recorded after the replays; nothing can follow it.
+			}
 			out.Segments[i].VictimReplay = victimReplayFor(out.Segments[i], out)
 		}
 	}

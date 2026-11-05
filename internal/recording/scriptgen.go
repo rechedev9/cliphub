@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -513,12 +514,12 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	}
 
 	captures := plan.CaptureSegments()
-	firstReplay := len(plan.Segments)
+	firstReplay := slices.IndexFunc(captures, func(s RecordingSegment) bool { return s.POVSteamID64 != "" })
 	passWindows := [2][]captureWindow{}
 	rewindAfter := 0
 	for i, s := range captures {
 		pass := 0
-		if i >= firstReplay {
+		if firstReplay >= 0 && i >= firstReplay {
 			pass = 1
 		}
 		seekTick := 50
