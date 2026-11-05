@@ -22,12 +22,26 @@ function readVisit(): number {
   }
 }
 
-function setLite(lite: boolean) {
+function storeLite(lite: boolean) {
   try {
     window.localStorage.setItem("ciber-lite", lite ? "1" : "0");
   } catch {
-    // Private windows can refuse storage; the reload still applies the choice through the query.
+    // Private windows can refuse storage; a reload still carries the choice in the query.
   }
+}
+
+/** The visitor asked for 3D through the link or the query, so a slow frame rate is their call. */
+function choseThreeD(): boolean {
+  if (new URLSearchParams(window.location.search).get("3d") === "1") return true;
+  try {
+    return window.localStorage.getItem("ciber-lite") === "0";
+  } catch {
+    return false;
+  }
+}
+
+function setLite(lite: boolean) {
+  storeLite(lite);
   const url = new URL(window.location.href);
   url.searchParams.delete("lite");
   url.searchParams.delete("3d");
@@ -109,7 +123,7 @@ export default function CiberStage() {
   const sceneRef = useRef<CiberScene | null>(null);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [fallback, setFallback] = useState<"error" | "slow" | null>(null);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
@@ -149,6 +163,13 @@ export default function CiberStage() {
       if (heading && id !== "inicio") heading.focus({ preventScroll: true });
     }
 
+    function fallBack(reason: "error" | "slow") {
+      setFallback(reason);
+      root.dataset.ciber = "lite";
+      sceneRef.current?.dispose();
+      sceneRef.current = null;
+    }
+
     watchPanel("inicio");
     void import("@/lib/ciber/scene").then(({ createCiberScene }) => {
       if (!alive) return;
@@ -166,12 +187,13 @@ export default function CiberStage() {
         },
         onAnchors: (points) => placeLabels(points, labelRefs.current),
         onArrive: () => undefined,
-        onError: () => {
-          setFailed(true);
-          root.dataset.ciber = "lite";
-          sceneRef.current?.dispose();
-          sceneRef.current = null;
-        },
+        onError: () => fallBack("error"),
+        onSlow: choseThreeD()
+          ? null
+          : () => {
+              storeLite(true);
+              fallBack("slow");
+            },
       });
       sceneRef.current = scene;
       applyInsets("inicio");
@@ -219,9 +241,11 @@ export default function CiberStage() {
   const percent = Math.round(progress * 100);
   return (
     <>
-      {failed ? (
+      {fallback ? (
         <p className="mx-auto max-w-6xl px-5 pt-6 text-sm text-muted sm:px-8" role="status">
-          No se pudo cargar la escena 3D, así que ves la versión ligera.
+          {fallback === "slow"
+            ? "La escena 3D iba a tirones en este equipo, así que ves la versión ligera."
+            : "No se pudo cargar la escena 3D, así que ves la versión ligera."}
         </p>
       ) : null}
       <div className="ciber-stage" data-ready={ready ? "true" : "false"}>
@@ -252,7 +276,7 @@ export default function CiberStage() {
             </a>
           ))}
         </div>
-        {!ready && !failed ? (
+        {!ready && !fallback ? (
           <p className="ciber-loading" role="status">
             Encendiendo el ciber… {percent} %
           </p>

@@ -53,6 +53,8 @@ export interface CiberSceneOptions {
   onAnchors: (points: ReadonlyMap<StationId, AnchorPoint>) => void;
   onArrive: (id: StationId) => void;
   onError: (error: unknown) => void;
+  /** Called once if the first seconds after ready run under 20 fps; null when the visitor asked for 3D. */
+  onSlow: (() => void) | null;
 }
 
 /** Screen space, in CSS px, that the page covers on each side of the free region. */
@@ -396,6 +398,9 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
   const clock = new Clock();
   const raycaster = new Raycaster();
   const anchors = new Map<StationId, AnchorPoint>();
+  // Frame times from 1 s to 3 s after ready, once the fade-in and the first video frames are past.
+  let speedCheckFrom = Number.POSITIVE_INFINITY;
+  const frameTimes: number[] = [];
 
   function liveFrame(): CameraState {
     const w = Math.max(1, width - shownInsets.right);
@@ -567,6 +572,18 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     options.onAnchors(anchors);
   }
 
+  function checkSpeed(dt: number, t: number) {
+    if (t < speedCheckFrom) return;
+    if (t < speedCheckFrom + 2) {
+      frameTimes.push(dt);
+      return;
+    }
+    speedCheckFrom = Number.POSITIVE_INFINITY;
+    frameTimes.sort((a, b) => a - b);
+    const median = frameTimes[Math.floor(frameTimes.length / 2)] ?? 0;
+    if (median > 1 / 20) options.onSlow?.();
+  }
+
   function tick() {
     if (disposed) return;
     raf = requestAnimationFrame(tick);
@@ -578,8 +595,11 @@ export function createCiberScene(options: CiberSceneOptions): CiberScene {
     updateWorld(dt, t);
     composer.render(dt);
     updateAnchors();
+    checkSpeed(dt, t);
     framesDrawn += 1;
-    if (framesDrawn === 2) markDrawn();
+    if (framesDrawn !== 2) return;
+    markDrawn();
+    if (options.onSlow) speedCheckFrom = t + 1;
   }
 
   function onPointerMove(e: PointerEvent) {

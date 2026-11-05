@@ -20,8 +20,9 @@ const TITLE = "ClipHub Studio: tus partidas de CS2, convertidas en vídeo";
 const DESCRIPTION =
   "Convierte una demo de CS2 en un Short vertical o en la partida entera grabada desde un jugador, recorta tus streams y analiza tus partidas. Gratis y en tu PC con Windows.";
 
-// Runs before first paint so the page never flashes the wrong layout.
-const MODE_SCRIPT = `(function(){var d=document.documentElement;try{var q=new URLSearchParams(location.search),s=null;try{s=localStorage.getItem('ciber-lite')}catch(e){}var gl=false;try{gl=!!document.createElement('canvas').getContext('webgl2')}catch(e){}d.dataset.webgl=gl?'1':'0';var n=navigator,weak=(n.deviceMemory&&n.deviceMemory<3)||(n.connection&&n.connection.saveData)||(n.hardwareConcurrency&&n.hardwareConcurrency<=2);var want=q.get('3d')==='1'||(q.get('lite')!=='1'&&s!=='1'&&(s==='0'||!weak));d.dataset.ciber=gl&&want?'3d':'lite'}catch(e){d.dataset.ciber='lite'}})();`;
+// Runs before first paint so the page never flashes the wrong layout. WebGL that only works with
+// failIfMajorPerformanceCaveat off is software rendering, so that machine counts as weak.
+const MODE_SCRIPT = `(function(){var d=document.documentElement;try{var q=new URLSearchParams(location.search),s=null;try{s=localStorage.getItem('ciber-lite')}catch(e){}var gl=false,fast=false;try{fast=!!document.createElement('canvas').getContext('webgl2',{failIfMajorPerformanceCaveat:true});gl=fast||!!document.createElement('canvas').getContext('webgl2')}catch(e){}d.dataset.webgl=gl?'1':'0';var n=navigator,weak=!fast||(n.deviceMemory&&n.deviceMemory<3)||(n.connection&&n.connection.saveData)||(n.hardwareConcurrency&&n.hardwareConcurrency<=2);var want=q.get('3d')==='1'||(q.get('lite')!=='1'&&s!=='1'&&(s==='0'||!weak));d.dataset.ciber=gl&&want?'3d':'lite'}catch(e){d.dataset.ciber='lite'}})();`;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cliphub.rechedev.cloud"),
