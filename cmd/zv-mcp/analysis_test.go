@@ -67,6 +67,7 @@ func fakeAnalysisStudio(t *testing.T) *mcp.ClientSession {
 			{"number":1,"winner":"CT","economy":{"ct_buy":"pistol","t_buy":"pistol"},"class":{"t_side":"fast","ct_side":"hold","site":"A"},"players":[{"slot":0,"side":"CT","kills":2},{"slot":5,"side":"T","deaths":1}]},
 			{"number":2,"winner":"T","economy":{"ct_buy":"full","t_buy":"eco"},"class":{"t_side":"eco_rush","ct_side":"aggression","site":"B"},"players":[{"slot":0,"side":"CT","deaths":1},{"slot":5,"side":"T"}]}]}`))
 	})
+	addTeamReportRoutes(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	s := closedStudio(t)
@@ -76,6 +77,9 @@ func fakeAnalysisStudio(t *testing.T) *mcp.ClientSession {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
 	registerAnalysisTools(server, s)
 	registerRoundTools(server, s)
+	registerTeamReportTools(server, s)
+	registerTeamGrenadesTool(server, s)
+	registerPlayerReportTools(server, s)
 	serverT, clientT := mcp.NewInMemoryTransports()
 	ss, err := server.Connect(ctx, serverT, nil)
 	if err != nil {

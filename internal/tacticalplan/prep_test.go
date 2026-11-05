@@ -55,6 +55,9 @@ func TestPrepReadsCTPositionsPerWindow(t *testing.T) {
 	if ex := three.Windows[1].Spots[0].Examples; len(ex) != 1 || ex[0].Tick != pbTick(8, 25) {
 		t.Errorf("steam3 20-40 s example = %+v, want the first frame on B", ex)
 	}
+	if refs := three.Windows[1].Spots[0].Refs; len(refs) != 1 || refs[0].Tick != pbTick(8, 25) {
+		t.Errorf("steam3 20-40 s refs = %+v, want the round on B", refs)
+	}
 }
 
 func TestPrepMatchupsAndTempoPerBuy(t *testing.T) {
@@ -74,6 +77,9 @@ func TestPrepMatchupsAndTempoPerBuy(t *testing.T) {
 	}
 	if prep.Matchups[1].Share.Total != 7 {
 		t.Errorf("T full share = %+v, want over the 7 T rounds", prep.Matchups[1].Share)
+	}
+	if refs := prep.Matchups[1].Refs; len(refs) != 6 || len(prep.Matchups[1].Examples) > ScoutExampleLimit {
+		t.Errorf("T full refs = %d, want every one of the 6 rounds", len(refs))
 	}
 	if len(prep.Tempo) != 3 {
 		t.Fatalf("tempo rows = %+v", prep.Tempo)

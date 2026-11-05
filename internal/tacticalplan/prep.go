@@ -27,13 +27,26 @@ type PrepThresholds struct {
 	TempoBucketSeconds int          `json:"tempo_bucket_seconds"`
 }
 
+// PrepRounds is a set of rounds with the first examples and every round's
+// ref, so the UI can open each one in the replay.
+type PrepRounds struct {
+	ScoutRounds
+	Refs []Evidence `json:"refs"`
+}
+
+// PrepSpot is a callout a CT player held, with every round's ref.
+type PrepSpot struct {
+	ScoutSpot
+	Refs []Evidence `json:"refs"`
+}
+
 // PrepMatchup is the team's buy against the rival's buy on one side. Share is
 // over the team's rounds on that side.
 type PrepMatchup struct {
 	Side        Side    `json:"side"`
 	Buy         BuyType `json:"buy"`
 	OpponentBuy BuyType `json:"opponent_buy"`
-	ScoutRounds
+	PrepRounds
 }
 
 // PrepTempo is the pace of the team's rounds on one buy and side: the site
@@ -41,7 +54,7 @@ type PrepMatchup struct {
 type PrepTempo struct {
 	Side Side    `json:"side"`
 	Buy  BuyType `json:"buy"`
-	ScoutRounds
+	PrepRounds
 	Tempo Histogram `json:"tempo"`
 	Plant Histogram `json:"plant"`
 }
@@ -50,8 +63,8 @@ type PrepTempo struct {
 // the callout of most of their frames there, and the share of rounds it won.
 type PrepPlayerWindow struct {
 	PrepWindow
-	Rounds int         `json:"rounds"`
-	Spots  []ScoutSpot `json:"spots"`
+	Rounds int        `json:"rounds"`
+	Spots  []PrepSpot `json:"spots"`
 }
 
 // PrepPlayer is one CT player of the team and their positions per window.
@@ -94,14 +107,36 @@ type tempoKey struct {
 	buy  BuyType
 }
 
+// prepGroup is a roundGroup that also keeps every round's ref.
+type prepGroup struct {
+	roundGroup
+	refs []Evidence
+}
+
+func (g *prepGroup) add(won bool, e Evidence) {
+	g.roundGroup.add(won, e)
+	g.refs = append(g.refs, e)
+}
+
+func (g *prepGroup) allRefs() []Evidence {
+	if g.refs == nil {
+		return []Evidence{}
+	}
+	return g.refs
+}
+
+func (g *prepGroup) result(total int) PrepRounds {
+	return PrepRounds{ScoutRounds: g.roundGroup.result(total), Refs: g.allRefs()}
+}
+
 type tempoAcc struct {
-	group        roundGroup
+	group        prepGroup
 	tempo, plant []float64
 }
 
 type prepWindowAcc struct {
 	rounds int
-	spots  map[string]*roundGroup
+	spots  map[string]*prepGroup
 }
 
 type prepPlayerAcc struct {
@@ -112,7 +147,7 @@ type prepPlayerAcc struct {
 
 type prepRun struct {
 	sideRounds map[Side]int
-	matchups   map[matchupKey]*roundGroup
+	matchups   map[matchupKey]*prepGroup
 	tempo      map[tempoKey]*tempoAcc
 	players    map[string]*prepPlayerAcc
 }
@@ -131,7 +166,7 @@ func BuildPrep(matches []FramedMatch, opts PrepOptions) Prep {
 		prep.Map = f.Maps[0]
 	}
 	run := prepRun{
-		sideRounds: map[Side]int{}, matchups: map[matchupKey]*roundGroup{},
+		sideRounds: map[Side]int{}, matchups: map[matchupKey]*prepGroup{},
 		tempo: map[tempoKey]*tempoAcc{}, players: map[string]*prepPlayerAcc{},
 	}
 	selected := selectFramed(matches, f)
@@ -164,7 +199,7 @@ func (run *prepRun) addRound(m FramedMatch, r Round, frames []Frame) bool {
 	mk := matchupKey{side: side, buy: buy, opponentBuy: r.Economy.Buy(side.Opponent())}
 	g, ok := run.matchups[mk]
 	if !ok {
-		g = &roundGroup{}
+		g = &prepGroup{}
 		run.matchups[mk] = g
 	}
 	g.add(won, start)
@@ -226,7 +261,7 @@ func (run *prepRun) addPositions(m FramedMatch, r Round, team map[uint8]bool, tr
 			win.rounds++
 			spot, ok := win.spots[best]
 			if !ok {
-				spot = &roundGroup{}
+				spot = &prepGroup{}
 				win.spots[best] = spot
 			}
 			spot.add(false, evidence(m.ScoutMatch, r, firstTick[best]))
@@ -242,7 +277,7 @@ func (run *prepRun) player(id, name string) *prepPlayerAcc {
 	if !ok {
 		acc = &prepPlayerAcc{name: name, windows: make([]*prepWindowAcc, len(PrepWindows))}
 		for i := range acc.windows {
-			acc.windows[i] = &prepWindowAcc{spots: map[string]*roundGroup{}}
+			acc.windows[i] = &prepWindowAcc{spots: map[string]*prepGroup{}}
 		}
 		run.players[id] = acc
 	}
@@ -252,7 +287,7 @@ func (run *prepRun) player(id, name string) *prepPlayerAcc {
 func (run *prepRun) matchupRows() []PrepMatchup {
 	out := make([]PrepMatchup, 0, len(run.matchups))
 	for k, g := range run.matchups {
-		out = append(out, PrepMatchup{Side: k.side, Buy: k.buy, OpponentBuy: k.opponentBuy, ScoutRounds: g.result(run.sideRounds[k.side])})
+		out = append(out, PrepMatchup{Side: k.side, Buy: k.buy, OpponentBuy: k.opponentBuy, PrepRounds: g.result(run.sideRounds[k.side])})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
@@ -271,7 +306,7 @@ func (run *prepRun) tempoRows() []PrepTempo {
 	out := make([]PrepTempo, 0, len(run.tempo))
 	for k, acc := range run.tempo {
 		out = append(out, PrepTempo{
-			Side: k.side, Buy: k.buy, ScoutRounds: acc.group.result(run.sideRounds[k.side]),
+			Side: k.side, Buy: k.buy, PrepRounds: acc.group.result(run.sideRounds[k.side]),
 			Tempo: newHistogram(acc.tempo), Plant: newHistogram(acc.plant),
 		})
 	}
@@ -294,9 +329,10 @@ func (run *prepRun) playerRows(roles map[string]string) []PrepPlayer {
 		p := PrepPlayer{SteamID64: id, Name: acc.name, Role: role, Rounds: acc.rounds, Windows: make([]PrepPlayerWindow, 0, len(PrepWindows))}
 		for i, w := range PrepWindows {
 			win := acc.windows[i]
-			spots := make([]ScoutSpot, 0, len(win.spots))
+			spots := make([]PrepSpot, 0, len(win.spots))
 			for callout, g := range win.spots {
-				spots = append(spots, ScoutSpot{Callout: callout, Share: newRate(g.rounds, win.rounds), Examples: g.examples})
+				spot := ScoutSpot{Callout: callout, Share: newRate(g.rounds, win.rounds), Examples: g.examples}
+				spots = append(spots, PrepSpot{ScoutSpot: spot, Refs: g.allRefs()})
 			}
 			sort.Slice(spots, func(i, j int) bool {
 				if spots[i].Share.Count != spots[j].Share.Count {

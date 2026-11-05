@@ -7,7 +7,7 @@ import { matchupGrid, matchupKey, prepWindowLabel, secondsLabel, tempoRows } fro
 const rate = (count: number, total: number): PrepMatchup['share'] => ({ count, total, pct: total > 0 ? (count / total) * 100 : 0, reliable: total >= 4 });
 
 function matchup(side: TacticalSide, buy: TacticalBuyType, opponentBuy: TacticalBuyType, won: number, played: number): PrepMatchup {
-  return { side, buy, opponent_buy: opponentBuy, rounds: played, share: rate(played, 40), win_rate: rate(won, played), examples: [] };
+  return { side, buy, opponent_buy: opponentBuy, rounds: played, share: rate(played, 40), win_rate: rate(won, played), examples: [], refs: [] };
 }
 
 test('prep windows read as spans, the last one open', () => {
@@ -35,7 +35,7 @@ test('a side matchup grid orders buys economically and drops unknown buys', () =
 test('tempo rows keep one side with samples, in economic order', () => {
   const histogram = (samples: number): PrepTempo['tempo'] => ({ bucket_seconds: 5, samples, median: 20, buckets: [] });
   const row = (side: TacticalSide, buy: TacticalBuyType, samples: number): PrepTempo => ({
-    side, buy, rounds: samples, share: rate(samples, 30), win_rate: rate(0, samples), examples: [], tempo: histogram(samples), plant: histogram(0),
+    side, buy, rounds: samples, share: rate(samples, 30), win_rate: rate(0, samples), examples: [], refs: [], tempo: histogram(samples), plant: histogram(0),
   });
   const rows = tempoRows([row('T', 'full', 8), row('T', 'eco', 3), row('T', 'force', 0), row('CT', 'full', 9)], 'T');
   assert.deepEqual(rows.map((entry) => entry.buy), ['eco', 'full']);

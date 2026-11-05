@@ -162,6 +162,12 @@ Read:
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
 | `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`) |
 | `find_rounds` | `GET /api/library/matches?team_id=` or `?steamid=`, then `GET /api/library/matches/{id}/tactical` per match (up to 20); round refs `match_id/round` filtered by side, buy and result |
+| `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
+| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`); category, site and zone shares with win rates, the tempo median, and up to 5 round refs per row |
+| `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
+| `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
+| `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
+| `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
 
 Write:
 

@@ -79,9 +79,12 @@ export type TeamPlaybook = {
 /** A window of seconds after freeze end; `to_seconds` 0 has no end. */
 export type PrepWindow = { from_seconds: number; to_seconds: number };
 
-export type PrepMatchup = ScoutRounds & { side: TacticalSide; buy: TacticalBuyType; opponent_buy: TacticalBuyType };
+/** `examples` are the first rounds; `refs` holds every round, to open each in the replay. */
+export type PrepRounds = ScoutRounds & { refs: ScoutEvidence[] };
 
-export type PrepTempo = ScoutRounds & {
+export type PrepMatchup = PrepRounds & { side: TacticalSide; buy: TacticalBuyType; opponent_buy: TacticalBuyType };
+
+export type PrepTempo = PrepRounds & {
   side: TacticalSide;
   buy: TacticalBuyType;
   tempo: TacticalHistogram;
@@ -89,7 +92,9 @@ export type PrepTempo = ScoutRounds & {
 };
 
 /** Per round, the callout of most of the player's frames in the window; top 5. */
-export type PrepPlayerWindow = PrepWindow & { rounds: number; spots: ScoutSpot[] };
+export type PrepPlayerWindow = PrepWindow & { rounds: number; spots: PrepSpot[] };
+
+export type PrepSpot = ScoutSpot & { refs: ScoutEvidence[] };
 
 export type PrepPlayer = {
   steamid64: string;
