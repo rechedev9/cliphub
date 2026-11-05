@@ -19,6 +19,7 @@ export const NAV_SECTIONS = [
   { label: 'Stratbook', href: '/stratbook', area: 'analyze' },
   { label: 'Informes', href: '/informes', area: 'analyze' },
   { label: 'Integridad', href: '/integridad', area: 'analyze' },
+  { label: 'Almacenamiento', href: '/almacenamiento', area: 'chrome' },
   { label: 'Ajustes', href: '/settings', area: 'chrome' },
 ] as const satisfies readonly { label: string; href: `/${string}`; area: NavArea }[];
 

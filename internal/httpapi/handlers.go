@@ -132,6 +132,7 @@ type Handlers struct {
 	anticheatJobLocks   *anticheat.JobLocks
 	streamJobLocks      *streamclips.JobLocks
 	storage             storage.Storage
+	storageFiles        storageFileIndex
 	generateIntents     *generateintent.Store
 	voiceProfiles       *voiceprofile.Store
 	queue               Enqueuer

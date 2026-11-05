@@ -39,7 +39,7 @@ import { reconcileReels } from './reconcile-batch.ts';
 import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
 import { importedVideo, importedVideoId, isImportedVideo, parseImportedVideos, type ImportedVideo } from './imported-videos.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
-import type { StorageUsage } from './storage.ts';
+import type { StorageFiles, StorageUsage } from './storage.ts';
 import { parseCaptureProgress } from '../capture-progress.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
@@ -229,6 +229,10 @@ function isJobId(id: string): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function storageFileInit(path: string): RequestInit {
+  return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) };
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -937,6 +941,26 @@ export class RealApiClient implements ApiClient {
     const res = await this.send((dp) => ({ url: dp.jobCapturesUrl(jobId), init: { method: 'DELETE' } }));
     const body = await readJson<{ freedBytes: number }>(res);
     return body.freedBytes;
+  }
+
+  async listStorageFiles(): Promise<StorageFiles> {
+    return readJson<StorageFiles>(await this.send((dp) => ({ url: dp.storageFilesUrl, init: { cache: 'no-store' } })));
+  }
+
+  async rescanStorageFiles(): Promise<void> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('scan'), init: { method: 'POST' } }));
+    if (!res.ok) await readJson<unknown>(res);
+  }
+
+  async deleteStorageFile(path: string): Promise<number> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('delete'), init: storageFileInit(path) }));
+    const body = await readJson<{ freedBytes: number }>(res);
+    return body.freedBytes;
+  }
+
+  async revealStorageFile(path: string): Promise<void> {
+    const res = await this.send((dp) => ({ url: dp.storageFileActionUrl('reveal'), init: storageFileInit(path) }));
+    if (!res.ok) await readJson<unknown>(res);
   }
 
   /** Delete every demo in the series; a busy member surfaces as 409. */

@@ -354,6 +354,28 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/integridad', label: 'Ir a Integridad' },
   },
   {
+    id: 'storage',
+    kicker: 'Almacenamiento',
+    label: 'Almacenamiento',
+    title: 'Encuentra y borra lo que ocupa espacio',
+    lead: 'En Almacenamiento ves dónde están tus demos y los vídeos que ha creado Studio, y borras lo que ya no necesitas.',
+    points: [
+      {
+        term: 'Demos en tu PC',
+        text: 'Studio busca los archivos .dem en todos tus discos y los agrupa por carpeta. «Mostrar en carpeta» abre el Explorador en ese archivo.',
+      },
+      {
+        term: 'Vídeos de Studio',
+        text: 'Todos los MP4 que has creado, por tipo: Shorts, demos completas y clips de stream.',
+      },
+      {
+        term: 'Borrar',
+        text: 'Cada archivo tiene su botón «Borrar», que pide confirmación. Borrar no se puede deshacer.',
+      },
+    ],
+    link: { href: '/almacenamiento', label: 'Ir a Almacenamiento' },
+  },
+  {
     id: 'settings',
     kicker: 'Ajustes',
     label: 'Ajustes',
