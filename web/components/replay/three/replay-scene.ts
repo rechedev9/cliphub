@@ -1,6 +1,7 @@
 import { AmbientLight, Color, DirectionalLight, HemisphereLight, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import type { Object3D } from 'three';
 import type { MapGeometry } from '@/lib/api/map-geometry';
+import type { MapScene } from '@/lib/api/map-scene';
 import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
 import type { RadarCalibration, TacticalSample } from '@/lib/api/tactical';
 import { docNames } from '@/lib/replay/centre-round';
@@ -22,6 +23,7 @@ import type { CameraMode } from './camera-rig';
 import { MapMesh } from './map-mesh';
 import { MAX_FEET } from './map-shader';
 import { ActorKit, OVERLAY_OPACITY, PlayerActor } from './player-actors';
+import { RealMap } from './real-map';
 import type { SceneColors } from './scene-colors';
 import { UtilityLayer } from './utility-layer';
 
@@ -62,6 +64,11 @@ export class ReplayScene {
   readonly #raycaster = new Raycaster();
   readonly #projected = new Vector3();
   #map: MapMesh | null = null;
+  #real: RealMap | null = null;
+  #realScene: MapScene | null = null;
+  #realOn = true;
+  #mapName = '';
+  #colors: SceneColors;
   #radar: { image: HTMLImageElement; calibration: RadarCalibration } | null = null;
   #radarOn = false;
   #input: SceneInput = { rounds: [], tickOf: () => 0, layers: DEFAULT_LAYERS };
@@ -80,6 +87,7 @@ export class ReplayScene {
     this.#renderer.localClippingEnabled = true;
     this.#overlay = options.overlay;
     this.#onPick = options.onPick;
+    this.#colors = options.colors;
     this.#kit = new ActorKit(options.colors);
     this.#utility = new UtilityLayer(options.colors, () => this.requestRender());
     this.#scene.add(this.#utility.group);
@@ -95,8 +103,10 @@ export class ReplayScene {
     this.setColors(options.colors);
   }
 
+
   /** The collision mesh, cut over the floor field of `nav` when the nav mesh could be read. */
   setMap(geometry: MapGeometry, nav: MapGeometry | null, box: WorldBox, colors: SceneColors): void {
+    this.#dropReal();
     if (this.#map !== null) {
       this.#scene.remove(...this.#map.objects);
       this.#map.dispose();
@@ -105,13 +115,78 @@ export class ReplayScene {
     const [maxX, maxY] = geometry.bounds.max;
     const field = nav === null || geometry.source === 'nav' ? null : buildFloorField(nav, { minX, minY, maxX, maxY }, FIELD_CELL);
     this.#map = new MapMesh(geometry, field, colors.background);
+    this.#mapName = geometry.map;
     this.#map.setRadar(this.#radar?.image ?? null, this.#radar?.calibration ?? null);
     this.#map.setRadarMix(this.#radarOn ? 1 : 0);
     this.#map.setCeiling(this.#cut);
     this.#meshZ = { minZ: geometry.bounds.min[2], maxZ: geometry.bounds.max[2] };
     this.#scene.add(...this.#map.objects);
+    this.#buildReal();
     this.#rig.frame(box);
     this.requestRender();
+  }
+
+  /** The map's real surfaces from CS2, drawn instead of the plain map while `setRealOn` is on. */
+  setScene(scene: MapScene | null): void {
+    if (scene === this.#realScene) return;
+    this.#dropReal();
+    this.#realScene = scene;
+    this.#buildReal();
+    this.requestRender();
+  }
+
+  setRealOn(on: boolean): void {
+    this.#realOn = on;
+    this.#showReal();
+    this.requestRender();
+  }
+
+  /** Whether the real map is built and on screen. */
+  get realShown(): boolean {
+    return this.#real !== null && this.#realOn;
+  }
+
+  #buildReal(): void {
+    if (this.#map === null || this.#realScene === null || this.#real !== null || this.#realScene.map !== this.#mapName) return;
+    try {
+      this.#real = new RealMap(this.#realScene, this.#map.uniforms, this.#renderer);
+    } catch (error) {
+      console.error('3D: the real map could not be built', error);
+      this.#real = null;
+      return;
+    }
+    this.#scene.add(this.#real.group);
+    this.#showReal();
+  }
+
+  #dropReal(): void {
+    if (this.#real === null) return;
+    this.#scene.remove(this.#real.group);
+    this.#real.dispose();
+    this.#real = null;
+    this.#showReal();
+  }
+
+  #showReal(): void {
+    const real = this.#real !== null && this.#realOn;
+    this.#real?.setVisible(real);
+    this.#map?.setVisible(!real);
+    this.#applyBackground();
+  }
+
+  #applyBackground(): void {
+    if (this.#real !== null && this.#realOn && this.#real.hasSky) {
+      this.#scene.background = null;
+      return;
+    }
+    const sky = this.#realScene?.sun?.sky;
+    if (this.#real !== null && this.#realOn && sky !== undefined) {
+      // The haze the real map's fog fades into, lightened like a sky near the horizon.
+      this.#scene.background = new Color().setRGB(Math.min(1, sky[0] * 0.75 + 0.18), Math.min(1, sky[1] * 0.75 + 0.18), Math.min(1, sky[2] * 0.75 + 0.2), 'srgb-linear');
+      return;
+    }
+    const { background } = this.#colors;
+    this.#scene.background = new Color().setRGB(background[0], background[1], background[2], 'srgb');
   }
 
   /** The game's overview, laid on the floors from above while `setRadarOn` is on. */
@@ -151,7 +226,8 @@ export class ReplayScene {
   }
 
   setColors(colors: SceneColors): void {
-    this.#scene.background = new Color().setRGB(colors.background[0], colors.background[1], colors.background[2], 'srgb');
+    this.#colors = colors;
+    this.#applyBackground();
     this.#map?.setColor(colors.background);
     this.#kit.setColors(colors);
     this.#utility.setColors(colors);
@@ -212,6 +288,7 @@ export class ReplayScene {
     for (const [key, state] of this.#rounds) this.#dropRound(key, state);
     this.#utility.dispose();
     this.#kit.dispose();
+    this.#dropReal();
     this.#map?.dispose();
     this.#renderer.dispose();
     this.#renderer.forceContextLoss();
@@ -280,6 +357,8 @@ export class ReplayScene {
     this.#rig.setFocus(actionFocus(focusedSamples));
     if (this.#rig.step(performance.now())) this.requestRender();
     const camera = this.#rig.active;
+    this.#real?.setCameraHeight(camera.position.z);
+    if (this.#real !== null && this.realShown && this.#real.adaptExposure({ renderer: this.#renderer, scene: this.#scene, camera, now: performance.now() })) this.requestRender();
     this.#renderer.render(this.#scene, camera);
     this.#placeLabels();
   }

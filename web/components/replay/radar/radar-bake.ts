@@ -6,11 +6,13 @@ import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
+import type { RealPlate } from './real-plate';
 
 /** What the map plate is painted from. */
 export type MapArt =
   | { kind: 'nav'; model: NavRadarModel }
   | { kind: 'image'; upper: HTMLImageElement; lower: HTMLImageElement | null }
+  | { kind: 'real'; plate: RealPlate }
   | { kind: 'grid' };
 
 /** Floors this many world units apart get an edge between them, which reads as a step. */
@@ -170,6 +172,7 @@ export function bakeMapPlate(options: {
   ctx.fillStyle = NAV_RADAR_PALETTE.void;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (art.kind === 'nav') paintNav(ctx, { model: art.model, geometry, level, size, dpr, view });
+  if (art.kind === 'real') art.plate.draw(ctx, { calibration: geometry.calibration, level, size, dpr, view });
   ctx.setTransform(dpr, 0, 0, dpr, -view.x * size * dpr, -view.y * size * dpr);
   if (art.kind === 'image') {
     // The game's overview is the radar square itself, so it lands on the calibration exactly.
