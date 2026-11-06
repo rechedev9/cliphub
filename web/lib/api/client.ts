@@ -3,6 +3,9 @@ import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
 import type { StorageFiles, StorageUsage } from './storage.ts';
+import type { UploadProgress } from './upload.ts';
+
+export type ScanDemoOptions = { seriesId?: string; onUploadProgress?: (progress: UploadProgress) => void };
 
 export interface ApiClient {
   getCaptureReadiness(): Promise<CaptureReadiness>;
@@ -10,8 +13,8 @@ export interface ApiClient {
   listPlanReadyMatches(): Promise<Match[]>;
   listSeriesSummaries(): Promise<SeriesSummary[]>;
   getMatch(id: string): Promise<Match | null>;
-  /** Pass `opts.seriesId` to tag a bo3/bo5 part. */
-  scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }>;
+  /** Pass `opts.seriesId` to tag a bo3/bo5 part; `onUploadProgress` follows the .dem upload. */
+  scanDemo(file: File, opts?: ScanDemoOptions): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }>;
   getSeries(seriesId: string): Promise<SeriesDemo[]>;
   /** Resumes an existing job's POV pick: its status and roster; null when the job is gone (404). */
   getScan(jobId: string): Promise<ScannedDemo | null>;

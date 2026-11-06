@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, Check, ChevronRight, Film, RefreshCw, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LongOperation } from '@/components/studio/long-operation';
+import { formatUploadBytes, uploadProgress, uploadSent, type UploadProgress } from '@/lib/api/upload';
 import { uploadFullDemoBumper, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
 import styles from './full-demo-bumpers.module.css';
@@ -57,6 +59,7 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
   const input = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<{ id: string; name: string } | null>(null);
   const copy = SLOT_COPY[slot];
@@ -80,14 +83,14 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
   async function upload(file: File): Promise<void> {
     if (request.current) return;
     const controller = new AbortController(); request.current = controller;
-    setError(null); setUploading(true); onBusy(true);
+    setError(null); setUploading(true); setProgress(uploadProgress(0, file.size)); onBusy(true);
     try {
-      const ref = await uploadFullDemoBumper(file, controller.signal);
+      const ref = await uploadFullDemoBumper(file, { signal: controller.signal, onProgress: setProgress });
       if (!controller.signal.aborted) { setFileName({ id: ref.id, name: file.name }); onChange(ref); }
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo subir el MP4. Inténtalo de nuevo.');
     } finally {
-      if (!controller.signal.aborted) { request.current = null; setUploading(false); onBusy(false); }
+      if (!controller.signal.aborted) { request.current = null; setUploading(false); setProgress(null); onBusy(false); }
     }
   }
 
@@ -117,6 +120,10 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
     </Button>
     {asset ? <Button type="button" variant="ghost" size="icon-xs" className={styles.remove} aria-label={`Quitar ${slot}`} title={`Quitar ${slot}`} onClick={() => { setError(null); onChange(null); }}><X aria-hidden /></Button> : null}
     </div>
+    {uploading && progress ? <div className="px-3 pb-3">
+      {uploadSent(progress) ? <LongOperation stage="Verificando el archivo…" />
+        : <LongOperation stage="Subiendo" percent={progress.percent} detail={formatUploadBytes(progress)} />}
+    </div> : null}
     {error ? <div role="alert" className={styles.error}><AlertCircle aria-hidden /><p>{error}{asset ? <span>Tu vídeo anterior sigue seleccionado.</span> : null}</p></div> : null}
   </div>;
 }

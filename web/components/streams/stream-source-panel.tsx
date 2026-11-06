@@ -3,11 +3,13 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { ArrowRight, Info, Link2, Twitch, UploadCloud, Youtube } from 'lucide-react';
 import type { StreamSourceKind } from '@/lib/api/streams';
+import { formatUploadBytes, uploadSent, type UploadProgress } from '@/lib/api/upload';
 import { isStreamURLValidationError } from '@/lib/streams/plan';
 import { Button, buttonVariants, FOCUS_RING } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { LongOperation } from '@/components/studio/long-operation';
 import { cn } from '@/lib/utils';
 
 /** A failed import, tagged with the control that caused it so the message sits beside it. */
@@ -30,6 +32,7 @@ export function StreamSourcePanel({
   sourceUrl,
   title,
   submitting,
+  upload = null,
   error,
   onSourceKindChange,
   onSourceUrlChange,
@@ -41,6 +44,8 @@ export function StreamSourcePanel({
   sourceUrl: string;
   title: string;
   submitting: boolean;
+  /** The MP4 being sent; null when no file import is in flight. */
+  upload?: UploadProgress | null;
   error: StreamImportError | null;
   onSourceKindChange: (kind: StreamSourceKind) => void;
   onSourceUrlChange: (value: string) => void;
@@ -190,6 +195,7 @@ export function StreamSourcePanel({
             <span className="mt-1.5 text-body-sm text-fg-2">Archivo MP4</span>
             <span className={buttonVariants({ variant: 'outline', className: 'mt-5 bg-surface-2' })}>Seleccionar archivo</span>
           </button>
+          {upload ? <FileUploadProgress upload={upload} /> : null}
           {importError?.source === 'file' ? (
             <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
           ) : null}
@@ -215,4 +221,10 @@ export function StreamSourcePanel({
       </p>
     </section>
   );
+}
+
+/** Bytes first, then the server-side import once every byte has left. */
+function FileUploadProgress({ upload }: { upload: UploadProgress }): ReactNode {
+  if (uploadSent(upload)) return <LongOperation stage="Importando…" tone="stream" />;
+  return <LongOperation stage="Subiendo" percent={upload.percent} detail={formatUploadBytes(upload)} tone="stream" />;
 }
