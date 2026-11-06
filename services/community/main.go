@@ -16,14 +16,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 )
 
 const (
 	defaultAddress  = "127.0.0.1:8160"
-	defaultDatasets = "cs2povarchive/cs2-demos"
+	defaultDatasets = "cs2povarchive/cs2-demos,aldigobbler/cs2demos@tier1"
 	defaultMaxDemos = 40
 )
 
@@ -64,9 +63,10 @@ func run(args []string) error {
 			return err
 		}
 		defer s.Close()
-		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir())}
-		datasets := strings.Split(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets), ",")
-		return ix.run(ctx, indexOptions{datasets: datasets, maxDemos: *maxDemos})
+		inbox := os.Getenv("CLIPHUB_COMMUNITY_INBOX")
+		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox}
+		datasets := parseDatasetSpecs(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets))
+		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, maxDemos: *maxDemos})
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }

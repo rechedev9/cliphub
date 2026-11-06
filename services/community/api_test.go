@@ -238,3 +238,47 @@ func TestRebuildJoinsRestartPartsAndSkipsFragments(t *testing.T) {
 		t.Fatalf("mapKey = %q", got)
 	}
 }
+
+func TestTierOneKeepsOnlyMatchesBetweenKnownTeams(t *testing.T) {
+	known := map[string]bool{}
+	addTeams(known, []hfFile{{Path: "cac2026/1-x/natus-vincere-vs-the-mongolz-m1-mirage.dem"}})
+	files := []hfFile{
+		{Path: "the-mongolz-vs-natus-vincere-m2-nuke-p2.dem"},
+		{Path: "natus-vincere-vs-chicken-coop-m1-dust2.dem"},
+		{Path: "readme.dem"},
+	}
+	got := keepTierOne(files, known)
+	if len(got) != 1 || got[0].Path != files[0].Path {
+		t.Fatalf("keepTierOne = %+v", got)
+	}
+	specs := parseDatasetSpecs("a/b, c/d@tier1,")
+	if len(specs) != 2 || specs[0].tierOne || !specs[1].tierOne || specs[1].id != "c/d" {
+		t.Fatalf("parseDatasetSpecs = %+v", specs)
+	}
+	if eventName("x-vs-y-mirage.dem") != otherEvents {
+		t.Fatal("a root demo has no event folder")
+	}
+}
+
+func TestRebuildCountsAMapInTwoDatasetsOnce(t *testing.T) {
+	a, _ := testAPI(t)
+	ctx := context.Background()
+	for _, ds := range []string{"a/one", "b/two"} {
+		d := demoSummary("de_mirage")
+		d.Match.Rounds, d.FirstRound, d.LastRound = 20, 1, 20
+		path := "ev/1-x/navi-vs-vitality-m1-mirage.dem"
+		if ds == "b/two" {
+			path = "navi-vs-vitality-m1-mirage.dem"
+		}
+		if err := a.store.markIndexed(ctx, pendingDemo{dataset: ds, path: path, sha256: ds, size: 1, event: eventName(path)}, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	index, err := rebuildReference(ctx, a.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index.Matches != 1 {
+		t.Fatalf("maps = %d, want 1", index.Matches)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	pathpkg "path"
 	"regexp"
 	"slices"
 	"sort"
@@ -62,6 +63,7 @@ func rebuildReference(ctx context.Context, s *store) (community.ProReferenceInde
 	events := []string{}
 	keys := []string{}
 	parts := map[string][]tacticalplan.ProDemoSummary{}
+	owners := map[string]string{}
 	for rows.Next() {
 		var dataset, path, event, raw string
 		if err := rows.Scan(&dataset, &path, &event, &raw); err != nil {
@@ -71,12 +73,18 @@ func rebuildReference(ctx context.Context, s *store) (community.ProReferenceInde
 		if err := json.Unmarshal([]byte(raw), &d); err != nil {
 			return community.ProReferenceIndex{}, fmt.Errorf("decode summary: %w", err)
 		}
+		// One map can sit in two datasets; the first dataset listed by name keeps it.
+		base := mapKey(pathpkg.Base(path))
+		if owner, seen := owners[base]; seen && owner != dataset {
+			continue
+		}
+		owners[base] = dataset
 		key := dataset + "/" + mapKey(path)
 		if parts[key] == nil {
 			keys = append(keys, key)
 		}
 		parts[key] = append(parts[key], d)
-		if !slices.Contains(events, event) {
+		if event != "" && !slices.Contains(events, event) {
 			events = append(events, event)
 		}
 	}

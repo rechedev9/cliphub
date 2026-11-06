@@ -50,13 +50,15 @@ type hfFile struct {
 }
 
 type indexer struct {
-	store   *store
-	http    *http.Client
-	workDir string
+	store    *store
+	http     *http.Client
+	workDir  string
+	inboxDir string
 }
 
 type indexOptions struct {
-	datasets []string
+	datasets []datasetSpec
+	inboxDir string
 	maxDemos int
 }
 
@@ -64,16 +66,35 @@ type indexOptions struct {
 // (each file is deleted right after its scan) and rebuilds the reference.
 func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 	todo := []pendingDemo{}
-	for _, dataset := range opts.datasets {
-		files, err := ix.listDataset(ctx, dataset)
+	known := map[string]bool{}
+	for _, spec := range opts.datasets {
+		files, err := ix.listDataset(ctx, spec.id)
 		if err != nil {
-			return fmt.Errorf("list %s: %w", dataset, err)
+			return fmt.Errorf("list %s: %w", spec.id, err)
 		}
-		pending, err := ix.store.pendingDemos(ctx, dataset, files)
+		listed := len(files)
+		if spec.tierOne {
+			files = keepTierOne(files, known)
+		} else {
+			addTeams(known, files)
+		}
+		pending, err := ix.store.pendingDemos(ctx, spec.id, files)
 		if err != nil {
 			return err
 		}
-		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", dataset, len(files), len(pending))
+		log.Printf("community stage=index class=listed dataset=%s demos=%d kept=%d pending=%d", spec.id, listed, len(files), len(pending))
+		todo = append(todo, pending...)
+	}
+	if opts.inboxDir != "" {
+		files, err := listInbox(opts.inboxDir)
+		if err != nil {
+			return fmt.Errorf("list inbox: %w", err)
+		}
+		pending, err := ix.store.pendingDemos(ctx, inboxDataset, files)
+		if err != nil {
+			return err
+		}
+		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", inboxDataset, len(files), len(pending))
 		todo = append(todo, pending...)
 	}
 	done, failed := 0, 0
@@ -174,6 +195,9 @@ func (ix *indexer) get(ctx context.Context, rawURL string) (*http.Response, erro
 
 // indexDemo downloads one demo, checks its SHA-256 against the dataset, scans it and deletes it.
 func (ix *indexer) indexDemo(ctx context.Context, demo pendingDemo) (tacticalplan.ProDemoSummary, error) {
+	if demo.dataset == inboxDataset {
+		return ix.indexInboxDemo(ctx, demo)
+	}
 	escaped := []string{}
 	for _, part := range strings.Split(demo.path, "/") {
 		escaped = append(escaped, url.PathEscape(part))
@@ -202,7 +226,18 @@ func (ix *indexer) indexDemo(ctx context.Context, demo pendingDemo) (tacticalpla
 	if err := tmp.Close(); err != nil {
 		return tacticalplan.ProDemoSummary{}, err
 	}
-	res, err := tactical.ScanFile(ctx, tmp.Name(), tactical.Options{})
+	return scanProDemo(ctx, tmp.Name())
+}
+
+// indexInboxDemo scans a hand-copied demo and deletes it, like a download.
+func (ix *indexer) indexInboxDemo(ctx context.Context, demo pendingDemo) (tacticalplan.ProDemoSummary, error) {
+	name := filepath.Join(ix.inboxDir, filepath.Base(demo.path))
+	defer func() { _ = os.Remove(name) }()
+	return scanProDemo(ctx, name)
+}
+
+func scanProDemo(ctx context.Context, name string) (tacticalplan.ProDemoSummary, error) {
+	res, err := tactical.ScanFile(ctx, name, tactical.Options{})
 	if err != nil {
 		return tacticalplan.ProDemoSummary{}, fmt.Errorf("scan: %w", err)
 	}
@@ -270,11 +305,17 @@ func (s *store) markFailed(ctx context.Context, d pendingDemo, cause error) erro
 	return err
 }
 
+// otherEvents names demos a dataset keeps at its root, with no event folder.
+const otherEvents = "otros torneos"
+
 var eventDigits = regexp.MustCompile(`([a-z])(\d{4})$`)
 
 // eventName turns the dataset folder "iem_cologne_major_2026" into "IEM Cologne Major 2026".
 func eventName(path string) string {
-	folder, _, _ := strings.Cut(path, "/")
+	folder, _, nested := strings.Cut(path, "/")
+	if !nested {
+		return otherEvents
+	}
 	folder = eventDigits.ReplaceAllString(strings.ToLower(folder), "$1 $2")
 	words := strings.FieldsFunc(folder, func(r rune) bool { return r == '_' || r == '-' || r == ' ' })
 	for i, w := range words {
