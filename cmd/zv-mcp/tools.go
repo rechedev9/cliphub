@@ -46,6 +46,9 @@ type statusOut struct {
 	RenderEnabled  bool   `json:"render_enabled"`
 	StreamLinks    bool   `json:"stream_links" jsonschema:"false means import_stream cannot download Twitch, Kick or YouTube links (yt-dlp is missing); a local .mp4 still works"`
 	DefaultPreset  string `json:"default_preset"`
+	StudioVersion  string `json:"studio_version,omitempty" jsonschema:"the Studio release; cite it in a bug report"`
+	SupportCode    string `json:"support_code,omitempty" jsonschema:"lets the ClipHub team find this installation's diagnostics; cite it in a bug report"`
+	LogPath        string `json:"log_path,omitempty" jsonschema:"studio.log of this installation; read the lines near a failure for a bug report"`
 }
 
 type matchSummary struct {
@@ -202,7 +205,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerDeleteTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
-		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},
+		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, statusOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -216,7 +219,9 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, statusOut{}, toolError(err)
 			}
-			return nil, statusOut{Running: true, CaptureEnabled: caps.Record.Enabled, RenderEnabled: caps.Render.Enabled, StreamLinks: caps.Stream.YtdlpEnabled, DefaultPreset: presets.Default}, nil
+			ev := s.reportEvidence()
+			return nil, statusOut{Running: true, CaptureEnabled: caps.Record.Enabled, RenderEnabled: caps.Render.Enabled, StreamLinks: caps.Stream.YtdlpEnabled, DefaultPreset: presets.Default,
+				StudioVersion: ev.studioVersion, SupportCode: ev.supportCode, LogPath: ev.logPath}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
