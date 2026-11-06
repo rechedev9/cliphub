@@ -110,6 +110,12 @@ func runFFmpegOutputProgressTo(ctx context.Context, command []string, label stri
 	return output, nil
 }
 
+// NewFFmpegProgressWriter reads FFmpeg `-progress` records and reports the
+// share of expectedDurationSec encoded so far, rising and at most 0.99.
+func NewFFmpegProgressWriter(expectedDurationSec float64, onFraction func(float64)) io.Writer {
+	return &ffmpegProgressWriter{duration: expectedDurationSec, onFraction: onFraction}
+}
+
 // Retains at most one bounded partial line across arbitrary pipe chunks.
 // Unexpected oversized output is discarded through its newline, never allowed
 // to back up FFmpeg's stdout or masquerade as a progress record.

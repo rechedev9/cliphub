@@ -186,3 +186,22 @@ test('collectShellJobs merges parsing partidas and stream jobs with reels', () =
   assert.equal(snapshot.jobs[0]?.href, '/streams/s1');
   assert.equal(snapshot.capturing, false);
 });
+
+test('a rendering stream job carries its encode percent and clip into the pill', () => {
+  const jobs = collectShellJobs({
+    videos: [],
+    streams: [
+      {
+        id: 's1',
+        status: 'rendering',
+        created_at: '2026-09-01T00:00:00Z',
+        render_progress: { variant: 'streamer-fullframe-nocam', percent: 41.6, clip: 2, clips: 4 },
+      },
+      { id: 's2', status: 'rendering', created_at: '2026-09-01T00:00:00Z' },
+    ],
+  });
+  assert.deepEqual(
+    jobs.map((job) => job.progress),
+    [{ done: 1, total: 4, percent: 42, stage: 'Short 2 de 4' }, null],
+  );
+});

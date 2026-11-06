@@ -137,6 +137,8 @@ export type StreamJob = {
   rendered_outputs?: StreamRenderedOutput[];
   /** The server could not safely recover this job's published output metadata. */
   rendered_outputs_unavailable?: boolean;
+  /** Set only while a render is encoding. */
+  render_progress?: StreamRenderProgress;
 };
 
 type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
@@ -162,6 +164,14 @@ export const STREAM_RENDER_ERROR_CODE = {
 } as const;
 type StreamRenderErrorCode =
   (typeof STREAM_RENDER_ERROR_CODE)[keyof typeof STREAM_RENDER_ERROR_CODE];
+/** Live encode progress of a running render. `clip` is 1-based, out of `clips`. */
+export type StreamRenderProgress = {
+  variant: string;
+  percent: number;
+  clip: number;
+  clips: number;
+};
+
 export type StreamRenderState = {
   status: StreamRenderStatus;
   videos: StreamRenderVideo[];
@@ -170,6 +180,8 @@ export type StreamRenderState = {
   error?: string;
   error_code?: StreamRenderErrorCode | string;
   delivery?: { name: string; kind: string; key: string }[];
+  /** Set only while the render is encoding. */
+  render_progress?: StreamRenderProgress;
 };
 
 /** A run of the recording player's kills found in the source kill feed. */

@@ -336,7 +336,8 @@ type streamJobListItem struct {
 	// RenderedOutputsUnavailable distinguishes an unreadable render catalog
 	// from a project which has never published an output. List enrichment is
 	// isolated per job so one damaged artifact cannot take down the library.
-	RenderedOutputsUnavailable bool `json:"rendered_outputs_unavailable,omitempty"`
+	RenderedOutputsUnavailable bool                        `json:"rendered_outputs_unavailable,omitempty"`
+	RenderProgress             *streamclips.RenderProgress `json:"render_progress,omitempty"`
 }
 
 func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListItem {
@@ -348,6 +349,7 @@ func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListIte
 			ClipCount:                  streamClipCount(j.EditPlan),
 			RenderedOutputs:            outputs,
 			RenderedOutputsUnavailable: unavailable,
+			RenderProgress:             h.liveStreamRenderProgress(j, ""),
 		}
 		item.Job.EditPlan = nil
 		items = append(items, item)
@@ -884,37 +886,6 @@ func decodeExpectedStreamPlanRevision(w http.ResponseWriter, r *http.Request) (t
 		return time.Time{}, false, false
 	}
 	return expected, true, true
-}
-
-func (h *Handlers) GetStreamRender(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadStreamJob(w, r)
-	if !ok {
-		return
-	}
-	variant := chi.URLParam(r, "variant")
-	key, err := streamclips.RenderStateKey(j.ID, variant)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	rc, err := h.storage.Open(key)
-	if err == nil {
-		defer rc.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, rc)
-		return
-	}
-	if !storageNotExist(err) {
-		internalError(w, "open stream render state", err)
-		return
-	}
-	state, err := streamclips.NewRenderState(j.ID, variant, j.Status, nil, j.FailureReason, nil)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, state)
 }
 
 func (h *Handlers) GetStreamGallery(w http.ResponseWriter, r *http.Request) {

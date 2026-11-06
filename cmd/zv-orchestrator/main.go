@@ -181,6 +181,7 @@ func run() error {
 	// coordinator. It closes the Ready->Rendering claim and final pointer-commit
 	// races without serializing unrelated stream jobs.
 	streamJobLocks := streamclips.NewJobLocks()
+	streamRenderProgress := streamclips.NewRenderProgressBoard()
 
 	taskHandlers := map[string]taskHandler{}
 	parserWorker := workers.NewParserWorker(repo, files)
@@ -240,6 +241,7 @@ func run() error {
 			Timeout:    cfg.RenderTimeout,
 			JobLocks:   streamJobLocks,
 			MusicDir:   cfg.MusicDir,
+			Progress:   streamRenderProgress,
 			// Studio only ever enqueues bound tasks, so an unbound one is a
 			// stale or forged render and must never commit the canonical pointer.
 			RequireImmutableEditPlanIntent: true,
@@ -302,6 +304,7 @@ func run() error {
 		httpapi.WithStreamRepository(streamRepo),
 		httpapi.WithEditorRepositories(editorAssets, editorProjects),
 		httpapi.WithStreamJobLocks(streamJobLocks),
+		httpapi.WithStreamRenderProgress(streamRenderProgress),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
 		httpapi.WithStreamPlayScanner(cfg.FFmpegPath),
 		httpapi.WithMusicDir(cfg.MusicDir),

@@ -28,6 +28,7 @@ test('stream job projection drops local filesystem facts and keeps the Studio co
       review_required: false,
     }],
     rendered_outputs_unavailable: false,
+    render_progress: { variant: 'streamer-fullframe-nocam', percent: 37.5, clip: 2, clips: 4 },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:01Z',
   };

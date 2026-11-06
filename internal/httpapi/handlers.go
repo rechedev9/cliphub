@@ -131,6 +131,7 @@ type Handlers struct {
 	streamListJSON      cachedJSON
 	anticheatJobLocks   *anticheat.JobLocks
 	streamJobLocks      *streamclips.JobLocks
+	streamRenderBoard   *streamclips.RenderProgressBoard
 	storage             storage.Storage
 	storageFiles        storageFileIndex
 	generateIntents     *generateintent.Store
@@ -209,33 +210,10 @@ func WithRateLimit(rps float64, burst int) Option {
 	}
 }
 
-func WithStreamRepository(repo StreamJobRepository) Option {
-	return func(h *Handlers) {
-		h.streamRepo = repo
-	}
-}
-
 func WithEditorRepositories(assets EditorAssetRepository, projects EditorProjectRepository) Option {
 	return func(h *Handlers) {
 		h.editorAssets = assets
 		h.editorProjects = projects
-	}
-}
-
-// WithStreamJobLocks shares per-job render admission/finalization locks with
-// the stream worker. The local orchestrator must pass the same instance to
-// both owners; tests and handler-only deployments receive a private instance.
-func WithStreamJobLocks(locks *streamclips.JobLocks) Option {
-	return func(h *Handlers) {
-		if locks != nil {
-			h.streamJobLocks = locks
-		}
-	}
-}
-
-func WithStreamProber(prober streamclips.Prober) Option {
-	return func(h *Handlers) {
-		h.streamProber = prober
 	}
 }
 
