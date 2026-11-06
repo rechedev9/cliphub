@@ -9,7 +9,7 @@ import { layerSamples, layerTrails } from '@/lib/replay/layers';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { Vec3, WorldBox } from '@/lib/replay/three/orbit';
 import { eyeHeight, lookYaw, viewDirection } from '@/lib/replay/three/scene-math';
-import { actionFocus, liveCut } from '@/lib/replay/three/action-camera';
+import { actionFocus, actionLevel, liveCut, standingFeet } from '@/lib/replay/three/action-camera';
 import { layoutTags } from '@/lib/replay/tag-layout';
 import { buildFloorField } from '@/lib/replay/three/floor-field';
 import { createTrail3dReader } from '@/lib/replay/three/trails';
@@ -20,6 +20,7 @@ import { TRAIL_SECONDS, timelineSeconds } from '@/lib/tactical-timeline';
 import { CameraRig } from './camera-rig';
 import type { CameraMode } from './camera-rig';
 import { MapMesh } from './map-mesh';
+import { MAX_FEET } from './map-shader';
 import { ActorKit, OVERLAY_OPACITY, PlayerActor } from './player-actors';
 import type { SceneColors } from './scene-colors';
 import { UtilityLayer } from './utility-layer';
@@ -273,6 +274,9 @@ export class ReplayScene {
     // Without a floor field the old global cut over the living players stands in.
     if (this.#cut === null && this.#map !== null && !this.#map.local) this.#map.setCeiling(liveCut(this.#meshZ, focusedSamples));
     this.#map?.setCutaway(this.#rig.mode !== 'player');
+    // A fixed ceiling is the manual override: it cuts over the top level, as the slider promises.
+    this.#map?.setActionLevel(this.#cut === null ? actionLevel(focusedSamples, this.#follow) : null);
+    this.#map?.setFeet(standingFeet(focusedSamples, MAX_FEET));
     this.#rig.setFocus(actionFocus(focusedSamples));
     if (this.#rig.step(performance.now())) this.requestRender();
     const camera = this.#rig.active;

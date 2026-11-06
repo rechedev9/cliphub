@@ -5,6 +5,7 @@ import { creaseEdges } from '@/lib/replay/three/crease-edges';
 import { markWalls } from '@/lib/replay/three/floor-field';
 import type { FloorField } from '@/lib/replay/three/floor-field';
 import { mapPalette, surfaceColors, zRange } from '@/lib/replay/three/mesh';
+import type { Vec3 } from '@/lib/replay/three/orbit';
 import { blankTexture, disposeUniforms, mapUniforms, patchLines, patchSurface } from './map-shader';
 import type { MapUniforms } from './map-shader';
 import type { Rgb } from './scene-colors';
@@ -84,6 +85,20 @@ export class MapMesh {
     this.#uniforms.uCeiling.value = z ?? 1e9;
   }
 
+  /** Cuts stacked floors over the level at height `z`; null keeps the top level everywhere. */
+  setActionLevel(z: number | null): void {
+    this.#uniforms.uActionZ.value = z ?? 1e9;
+  }
+
+  /** Keeps the surface under each of these feet, so no living player floats over a cut roof or box. */
+  setFeet(feet: readonly Vec3[]): void {
+    this.#uniforms.uFeet.value.forEach((slot, i) => {
+      const foot = feet[i];
+      if (foot === undefined) slot.set(0, 0, 0, 0);
+      else slot.set(foot.x, foot.y, foot.z, 1);
+    });
+  }
+
   /** Lays the official radar on the floors from above; `mix` 0 hides it. */
   setRadar(image: HTMLImageElement | null, calibration: RadarCalibration | null): void {
     this.#uniforms.uRadar.value.dispose();
@@ -112,6 +127,7 @@ export class MapMesh {
   /** Re-tones the map for the page behind it, after a theme change. */
   setColor(background: Rgb): void {
     const palette = mapPalette(background);
+    this.#uniforms.uVoid.value.set(background[0], background[1], background[2]);
     const attribute = this.mesh.geometry.getAttribute('color');
     if (attribute instanceof BufferAttribute) {
       attribute.set(surfaceColors(this.#positions, palette, this.#range));

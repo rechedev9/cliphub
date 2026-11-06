@@ -52,3 +52,24 @@ test('floor field: floors beside the foot of a wall darken, open floor and wall 
   assert.ok(near > 0.5, `near ${near}`);
   assert.equal(open, 0);
 });
+
+test('floor field: stacked levels keep both floors and the action picks the one it is on', () => {
+  // Nuke style: a lower hall at z -400 under the whole street, the street and ledge above it.
+  const upper = nav();
+  const hall = new Float32Array([...upper.vertices, 0, 0, -400, 512, 0, -400, 512, 256, -400, 0, 256, -400]);
+  const field = buildFloorField({ vertices: hall, triangles: new Uint32Array([...upper.triangles, 8, 9, 10, 8, 10, 11]) }, bounds, 32);
+  assert.ok(field !== null);
+  assert.equal(floorAt(field, 100, 100), 0, 'without a level the top floor cuts, as before');
+  assert.equal(floorAt(field, 100, 100, -380), -400, 'action below: the hall is the floor, the street over it is a roof');
+  assert.equal(floorAt(field, 400, 100, -380), -400);
+  assert.equal(floorAt(field, 100, 100, 10), 0, 'action on the street keeps the street');
+  assert.equal(floorAt(field, 400, 100, 10), 128, 'and the ledge is still the nearest floor beside it');
+  // Past the nav both levels carry over from the nearest cell.
+  assert.equal(floorAt(field, 700, 100, -380), -400);
+});
+
+test('floor field: a ledge beside a street is one level, not two', () => {
+  const field = buildFloorField(nav(), bounds, 32);
+  assert.ok(field !== null);
+  for (let x = 16; x < 512; x += 32) assert.equal(floorAt(field, x, 100, -1000), floorAt(field, x, 100), `x ${x}`);
+});

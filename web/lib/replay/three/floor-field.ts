@@ -1,7 +1,8 @@
 /**
- * A coarse height field of the walkable floor, read from the nav mesh: one Z
- * per square cell, the highest floor in it. The 3D map cuts walls and roofs
- * against it, so a roof goes wherever it hangs over a floor, at any height.
+ * A coarse height field of the walkable floor, read from the nav mesh: per
+ * square cell the highest floor and, where floors stack, the lowest one under
+ * it. The 3D map cuts walls and roofs against the layer nearest the action, so
+ * a roof goes wherever it hangs over a floor, at any height.
  */
 
 export type FloorField = {
@@ -12,6 +13,8 @@ export type FloorField = {
   rows: number;
   /** Floor Z per cell, row-major from `minY`; empty cells take the nearest floor. */
   floor: Float32Array;
+  /** The lowest floor at least `LAYER_GAP` under `floor` in the same cell, or `floor` itself where nothing stacks. */
+  under: Float32Array;
   /** 0..1 per cell: how much wall stands at the foot of this floor, for ambient occlusion. */
   walls: Float32Array;
   /** 0..1 per cell: 0 on and beside the walkable floor, 1 well outside the playable map. */
@@ -29,6 +32,8 @@ const MAX_CELLS = 512;
 const TONE_TRIM = 0.02;
 /** A face whose normal leans less than this from vertical is floor or roof. */
 export const FLAT_NORMAL_Z = 0.7;
+/** Two floors this far apart in one cell are two levels, not a ramp or a step. */
+export const LAYER_GAP = 150;
 
 function quantile(sorted: Float32Array, q: number): number {
   if (sorted.length === 0) return 0;
@@ -48,6 +53,7 @@ function emptyField(bounds: Bounds2, cellSize: number): FloorField {
     cols,
     rows,
     floor: new Float32Array(cols * rows).fill(Number.NaN),
+    under: new Float32Array(cols * rows).fill(Number.NaN),
     walls: new Float32Array(cols * rows),
     outside: new Float32Array(cols * rows),
     lowZ: 0,
@@ -64,6 +70,12 @@ function cellIndex(field: FloorField, x: number, y: number): number {
 function raise(field: FloorField, index: number, z: number): void {
   const current = field.floor[index];
   if (Number.isNaN(current) || z > current) field.floor[index] = z;
+}
+
+/** Only cell centres feed the lower level, so a ledge whose corners share a cell with the street below is not a second floor. */
+function lower(field: FloorField, index: number, z: number): void {
+  const current = field.under[index];
+  if (Number.isNaN(current) || z < current) field.under[index] = z;
 }
 
 type Corner = { x: number; y: number; z: number };
@@ -87,7 +99,9 @@ function rasterize(field: FloorField, a: Corner, b: Corner, c: Corner): void {
       const wb = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / det;
       const wc = 1 - wa - wb;
       if (wa < -1e-6 || wb < -1e-6 || wc < -1e-6) continue;
-      raise(field, row * field.cols + col, wa * a.z + wb * b.z + wc * c.z);
+      const z = wa * a.z + wb * b.z + wc * c.z;
+      raise(field, row * field.cols + col, z);
+      lower(field, row * field.cols + col, z);
     }
   }
 }
@@ -96,7 +110,16 @@ function rasterize(field: FloorField, a: Corner, b: Corner, c: Corner): void {
 const OUTSIDE_FROM = 3;
 const OUTSIDE_RAMP = 6;
 
-/** Gives every empty cell the floor of its nearest filled cell, breadth first, and marks how far outside the map it lies. */
+/** Keeps the lower floor only where it lies a whole level under the top one. */
+function settleLayers(field: FloorField): void {
+  for (let i = 0; i < field.floor.length; i += 1) {
+    const top = field.floor[i];
+    const low = field.under[i];
+    field.under[i] = Number.isNaN(top) || Number.isNaN(low) || top - low < LAYER_GAP ? top : low;
+  }
+}
+
+/** Gives every empty cell the floors of its nearest filled cell, breadth first, and marks how far outside the map it lies. */
 function fillEmpty(field: FloorField): void {
   const steps = new Int32Array(field.floor.length);
   const queue = new Int32Array(field.floor.length);
@@ -107,10 +130,12 @@ function fillEmpty(field: FloorField): void {
     const at = queue[head++];
     const col = at % field.cols;
     const z = field.floor[at];
+    const under = field.under[at];
     const neighbours = [col > 0 ? at - 1 : -1, col < field.cols - 1 ? at + 1 : -1, at - field.cols, at + field.cols];
     for (const next of neighbours) {
       if (next < 0 || next >= field.floor.length || !Number.isNaN(field.floor[next])) continue;
       field.floor[next] = z;
+      field.under[next] = under;
       steps[next] = steps[at] + 1;
       field.outside[next] = Math.min(1, Math.max(0, (steps[next] - OUTSIDE_FROM) / OUTSIDE_RAMP));
       queue[tail++] = next;
@@ -134,12 +159,16 @@ export function buildFloorField(nav: { vertices: Float32Array; triangles: Uint32
   if (filled.length === 0) return null;
   field.lowZ = quantile(filled, TONE_TRIM);
   field.highZ = quantile(filled, 1 - TONE_TRIM);
+  settleLayers(field);
   fillEmpty(field);
   return field;
 }
 
-/** The floor under a point, bilinear between cell centres as the GPU samples it. */
-export function floorAt(field: FloorField, x: number, y: number): number {
+/**
+ * The floor under a point, bilinear between cell centres as the GPU samples it.
+ * With `near`, the level nearest that height, as the shader picks it for the action.
+ */
+export function floorAt(field: FloorField, x: number, y: number, near?: number): number {
   const fx = Math.min(field.cols - 1, Math.max(0, (x - field.minX) / field.cell - 0.5));
   const fy = Math.min(field.rows - 1, Math.max(0, (y - field.minY) / field.cell - 0.5));
   const c0 = Math.floor(fx);
@@ -148,10 +177,16 @@ export function floorAt(field: FloorField, x: number, y: number): number {
   const r1 = Math.min(field.rows - 1, r0 + 1);
   const tx = fx - c0;
   const ty = fy - r0;
-  const at = (col: number, row: number): number => field.floor[row * field.cols + col];
-  const bottom = at(c0, r0) + (at(c1, r0) - at(c0, r0)) * tx;
-  const top = at(c0, r1) + (at(c1, r1) - at(c0, r1)) * tx;
-  return bottom + (top - bottom) * ty;
+  const sample = (layer: Float32Array): number => {
+    const at = (col: number, row: number): number => layer[row * field.cols + col];
+    const bottom = at(c0, r0) + (at(c1, r0) - at(c0, r0)) * tx;
+    const top = at(c0, r1) + (at(c1, r1) - at(c0, r1)) * tx;
+    return bottom + (top - bottom) * ty;
+  };
+  const high = sample(field.floor);
+  if (near === undefined) return high;
+  const low = sample(field.under);
+  return Math.abs(low - near) < Math.abs(high - near) ? low : high;
 }
 
 /** Wall within this height over the floor darkens the floor beside it. */
