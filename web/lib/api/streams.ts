@@ -137,6 +137,19 @@ export type StreamJob = {
   rendered_outputs?: StreamRenderedOutput[];
   /** The server could not safely recover this job's published output metadata. */
   rendered_outputs_unavailable?: boolean;
+  /** Live yt-dlp progress, only while `acquiring` and once the download reported any. */
+  download_progress?: StreamDownloadProgress;
+};
+
+/** One update for the track being downloaded; a YouTube source fetches video, then audio. */
+export type StreamDownloadProgress = {
+  audio_only?: boolean;
+  downloaded_bytes: number;
+  total_bytes?: number;
+  total_estimated?: boolean;
+  /** Absent when the length is unknown (a live stream): keep the bar indeterminate. */
+  percent?: number;
+  eta_seconds?: number;
 };
 
 type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };

@@ -181,6 +181,7 @@ func run() error {
 	// coordinator. It closes the Ready->Rendering claim and final pointer-commit
 	// races without serializing unrelated stream jobs.
 	streamJobLocks := streamclips.NewJobLocks()
+	acquireProgress := streamclips.NewAcquireProgress()
 
 	taskHandlers := map[string]taskHandler{}
 	parserWorker := workers.NewParserWorker(repo, files)
@@ -253,6 +254,7 @@ func run() error {
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
 			FFprobePath: cfg.FFprobePath,
+			Progress:    acquireProgress,
 		})
 		taskHandlers[tasks.TypeStreamAcquire] = acquireWorker.HandleStreamAcquire
 		log.Printf("worker: stream acquire enabled")
@@ -302,6 +304,7 @@ func run() error {
 		httpapi.WithStreamRepository(streamRepo),
 		httpapi.WithEditorRepositories(editorAssets, editorProjects),
 		httpapi.WithStreamJobLocks(streamJobLocks),
+		httpapi.WithStreamAcquireProgress(acquireProgress),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
 		httpapi.WithStreamPlayScanner(cfg.FFmpegPath),
 		httpapi.WithMusicDir(cfg.MusicDir),

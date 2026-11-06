@@ -16,6 +16,7 @@ const STREAM_JOB_PUBLIC_KEYS = [
   'clip_count',
   'rendered_outputs',
   'rendered_outputs_unavailable',
+  'download_progress',
   'created_at',
   'updated_at',
 ] as const;
