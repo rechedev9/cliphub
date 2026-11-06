@@ -106,6 +106,8 @@ func rebuildReference(ctx context.Context, s *store) (community.ProReferenceInde
 	}
 	log.Printf("community stage=rebuild class=maps maps=%d replayed_parts_dropped=%d fragments_skipped=%d", len(build.Demos), dropped, short)
 	build.ID = "server-" + time.Now().UTC().Format("20060102")
+	// Named events first; the catch-all reads last ("..., CAC 2026 y otros torneos").
+	slices.SortStableFunc(events, func(a, b string) int { return boolRank(a == otherEvents) - boolRank(b == otherEvents) })
 	build.Description = fmt.Sprintf("%d %s de %s.", len(build.Demos), plural(len(build.Demos), "mapa profesional", "mapas profesionales"), joinSpanish(events))
 	ref, err := tacticalplan.BuildProReference(build)
 	if err != nil {
@@ -203,4 +205,11 @@ func joinSpanish(names []string) string {
 		return names[0]
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " y " + names[len(names)-1]
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
