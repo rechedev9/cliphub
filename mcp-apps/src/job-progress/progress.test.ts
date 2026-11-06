@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import type { ToolResult } from "../bridge.ts";
 import type { Json } from "../json.ts";
-import { describeVideos, formatElapsed, keepCalls, readProgress, videoNames } from "./progress.ts";
+import { describeVideos, followResult, formatElapsed, keepCalls, readProgress, videoNames } from "./progress.ts";
 
 const JOB = "6f1d2c1e-8a4b-4c55-9e0e-2b7d4f6a9c10";
 const ok = (structured: Json): ToolResult => ({ structured, text: "", isError: false });
@@ -23,6 +23,16 @@ test("a started capture follows its own variant before any wait_for_job", () => 
   const p = readProgress(ok({ summary: "Grabar…", job_id: JOB, status: "queued", variant: "short-9x16" }), {});
   assert.equal(p?.phase, "queued");
   assert.equal(p?.follow?.args.variant, "short-9x16");
+});
+
+test("polls after a started capture keep its variant, which wait_for_job does not echo", () => {
+  const start = readProgress(ok({ summary: "Grabar", job_id: JOB, status: "queued", variant: "short-9x16" }), { job_id: JOB });
+  const follow = start?.follow;
+  assert.ok(follow);
+  const recording = followResult(follow, ok({ job_id: JOB, status: "recording", running: true, percent: 30 }));
+  assert.equal(recording?.follow?.args.variant, "short-9x16");
+  const done = followResult(follow, ok({ job_id: JOB, status: "recorded", running: false, renders: [{ variant: "short-9x16", status: "ready" }] }));
+  assert.equal(done?.variant, "short-9x16");
 });
 
 test("a capture waiting for approval shows nothing", () => {
@@ -62,6 +72,14 @@ test("a stream render translates the video counter", () => {
   const p = readProgress(ok({ stream_id: JOB, variant: "vertical", status: "rendering", running: true, percent: 40, progress: "video 2 of 3" }), {});
   assert.equal(p?.detail, "Vídeo 2 de 3");
   assert.equal(p?.follow?.tool, "wait_for_stream_render");
+});
+
+test("a stream render that was never started is not shown as done", () => {
+  for (const [variant, status] of [["vertical", "ready"], ["summary", "idle"]]) {
+    const p = readProgress(ok({ stream_id: JOB, variant, status, running: false }), {});
+    assert.equal(p?.phase, "failed");
+    assert.equal(p?.videos, null);
+  }
 });
 
 test("keepCalls keeps the follow call identity across equal refreshes", () => {

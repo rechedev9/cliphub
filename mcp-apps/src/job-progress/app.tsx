@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Bridge, Theme, ToolResult } from "../bridge.ts";
 import type { Json } from "../json.ts";
-import { type Progress, describeVideos, formatElapsed, keepCalls, readProgress, videoNames } from "./progress.ts";
+import { type Progress, describeVideos, followResult, formatElapsed, keepCalls, readProgress, videoNames } from "./progress.ts";
 
 const RETRY_MS = 10_000;
 
@@ -64,7 +64,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           // A failed call is Studio being closed or busy, not the job failing: keep the last state.
           if (result.isError) throw new Error(result.text);
           setRetrying("");
-          const next = readProgress(result, input.current);
+          const next = followResult(follow, result);
           if (next) setProgress((prev) => keepCalls(prev, next));
           if (!next?.follow) return;
         } catch (_err) {

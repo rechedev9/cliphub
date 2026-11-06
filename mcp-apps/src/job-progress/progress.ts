@@ -80,6 +80,8 @@ function readStream(s: Json, input: Json): Progress {
   const isStart = "summary" in s;
   const videos = { tool: "list_stream_videos", args: { id } };
   if (status === "failed" || text(s.error)) return view("failed", { detail: clip(text(s.error)) || "El render del stream falló", variant });
+  // ready (a render) and idle (the summary) mean this variant was never started.
+  if (!isStart && (status === "ready" || status === "idle")) return view("failed", { detail: "Este render no se ha iniciado", variant });
   if (!isStart && s.running !== true) return view("done", { percent: 100, videos, variant });
   const follow = { tool: "wait_for_stream_render", args: { id, variant, wait_seconds: FOLLOW_WAIT_SECONDS } };
   if (status === "queued") return view("queued", { detail: "El render empieza en cuanto Studio quede libre", follow, variant });
@@ -135,6 +137,12 @@ export function readProgress(result: ToolResult, input: Json): Progress | null {
   if (text(s.stream_id)) return readStream(s, input);
   if (text(s.job_id)) return readJob(s, input);
   return null;
+}
+
+// followResult reads a poll against the call that made it: wait_for_job does not echo
+// the variant, and only the call's own args still hold it.
+export function followResult(call: ToolCall, result: ToolResult): Progress | null {
+  return readProgress(result, call.args);
 }
 
 function sameCall(a: ToolCall | null, b: ToolCall | null): boolean {
