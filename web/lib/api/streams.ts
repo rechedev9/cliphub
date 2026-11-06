@@ -195,6 +195,8 @@ export type StreamSummary = {
   /** 0..1 of the summary encoded while running. */
   progress: number;
   play_count?: number;
+  /** The plays in the summary, in source order. */
+  play_ids?: string[];
   duration_seconds?: number;
   error?: string;
   rendered_at?: string;
@@ -219,8 +221,8 @@ export interface StreamsApiClient {
   /** Starts the kill-feed scan of the source; answers at once with the running state. */
   startPlayScan(id: string): Promise<StreamPlayScan>;
   getSummary(id: string): Promise<StreamSummary>;
-  /** Renders every detected play into one landscape video; answers at once. */
-  startSummary(id: string): Promise<StreamSummary>;
+  /** Renders the chosen plays into one landscape video; answers at once. */
+  startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary>;
   /** Same-origin URL for a <video>/download link to the summary. */
   summaryVideoUrl(id: string, renderedAt?: string): string;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
@@ -332,8 +334,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
     return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { cache: 'no-store' }));
   }
 
-  async startSummary(id: string): Promise<StreamSummary> {
-    return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { method: 'POST' }));
+  async startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary> {
+    return readJson<StreamSummary>(
+      await fetch(`/api/streams/${id}/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ play_ids: playIds }),
+      }),
+    );
   }
 
   summaryVideoUrl(id: string, renderedAt?: string): string {

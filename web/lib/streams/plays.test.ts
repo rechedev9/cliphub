@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamPlay } from '../api/streams.ts';
-import { clipsWithPlays, rankPlays } from './plays.ts';
+import { clipsWithPlays, rankPlays, sameIds, summaryPlayIds } from './plays.ts';
 
 function play(id: string, start: number, end: number, score: number): StreamPlay {
   return { id, label: id, start_seconds: start, end_seconds: end, kill_seconds: [start + 6], score };
@@ -30,4 +30,18 @@ test('clipsWithPlays skips plays that overlap a moment and keeps source order', 
       ['new-1', 100, 'late'],
     ],
   );
+});
+
+test('summaryPlayIds reads the chosen plays and treats an old full summary as every play', () => {
+  const plays = [play('a', 10, 20, 20), play('b', 50, 60, 65)];
+  assert.deepEqual(summaryPlayIds({ status: 'done', progress: 1, play_count: 1, play_ids: ['b'] }, plays), ['b']);
+  assert.deepEqual(summaryPlayIds({ status: 'done', progress: 1, play_count: 2 }, plays), ['a', 'b']);
+  assert.equal(summaryPlayIds({ status: 'done', progress: 1, play_count: 3 }, plays), null);
+  assert.equal(summaryPlayIds({ status: 'idle', progress: 0 }, plays), null);
+});
+
+test('sameIds ignores order but not membership', () => {
+  assert.equal(sameIds(['a', 'b'], ['b', 'a']), true);
+  assert.equal(sameIds(['a', 'b'], ['a']), false);
+  assert.equal(sameIds(['a'], ['b']), false);
 });
