@@ -7,9 +7,9 @@ import (
 
 const resourceHeaderVersion = 12
 
-// resourceBlocks splits a compiled Source 2 resource (a *_c file) into its
+// ResourceBlocks splits a compiled Source 2 resource (a *_c file) into its
 // blocks by four-letter type. Layout reference: ValveResourceFormat's Resource.
-func resourceBlocks(data []byte) (map[string][]byte, error) {
+func ResourceBlocks(data []byte) (map[string][]byte, error) {
 	r := &byteReader{data: data}
 	r.u32() // file size
 	if v := r.u16(); v != resourceHeaderVersion && r.err == nil {

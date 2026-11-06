@@ -24,7 +24,7 @@ var nonBlockingTags = []string{"clip", "passbullets", "sky", "ladder", "window",
 // triangles of every static hull and mesh whose collision blocks players and
 // bullets. Field names follow ValveResourceFormat's PhysAggregateData.
 func physicsTriangles(resource []byte) ([]Triangle, error) {
-	blocks, err := resourceBlocks(resource)
+	blocks, err := ResourceBlocks(resource)
 	if err != nil {
 		return nil, err
 	}

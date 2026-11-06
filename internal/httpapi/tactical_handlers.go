@@ -250,10 +250,10 @@ func (h *Handlers) serveTacticalAggregate(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, tacticalplan.Aggregate(doc, filter))
 }
 
-// GetMapRadar handles GET /api/maps/{map}/radar. An uncalibrated map is a 404
-// rather than an identity transform, which would silently misplace every
-// position a client draws.
-func (h *Handlers) GetMapRadar(w http.ResponseWriter, r *http.Request) {
+// GetMapCalibration handles GET /api/maps/{map}/calibration. An uncalibrated
+// map is a 404 rather than an identity transform, which would silently
+// misplace every position a client draws.
+func (h *Handlers) GetMapCalibration(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "map")
 	if !mapNamePattern.MatchString(name) {
 		writeError(w, http.StatusBadRequest, "map must match ^[a-z0-9_]+$")

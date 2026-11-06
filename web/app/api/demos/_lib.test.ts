@@ -6,6 +6,7 @@ import {
   ifNoneMatchInit,
   listCacheHeaders,
   notModifiedFromUpstream,
+  proxyGameAsset,
   proxyStream,
 } from './_lib.ts';
 
@@ -249,4 +250,38 @@ test('listCacheHeaders copies the orchestrator ETag onto a rewritten body', () =
   const headers = listCacheHeaders(new Response('{}', { headers: { ETag: 'W/"jobs1"' } }));
   assert.equal(headers.get('ETag'), 'W/"jobs1"');
   assert.equal(headers.get('Cache-Control'), 'private, no-cache');
+});
+
+test('proxyGameAsset passes images through and hardens svg', async () => {
+  const svg = await withUpstream(
+    () => new Response('<svg/>', { status: 200, headers: { 'content-type': 'image/svg+xml' } }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/equipment/ak47/icon'),
+  );
+  assert.equal(svg.response.status, 200);
+  assert.equal(await svg.response.text(), '<svg/>');
+  assert.equal(svg.response.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(svg.response.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+
+  const png = await withUpstream(
+    () => new Response('png', { status: 200, headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=60' } }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/maps/de_mirage/radar?layer=upper'),
+  );
+  assert.equal(png.response.headers.get('content-type'), 'image/png');
+  assert.equal(png.response.headers.get('cache-control'), 'private, max-age=60');
+  assert.equal(png.response.headers.get('content-security-policy'), null);
+});
+
+test('proxyGameAsset refuses other content types and forwards coded errors', async () => {
+  const html = await withUpstream(
+    () => new Response('<script>x</script>', { status: 200, headers: { 'content-type': 'text/html' } }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/equipment/ak47/icon'),
+  );
+  assert.equal(html.response.status, 502);
+
+  const missing = await withUpstream(
+    () => Response.json({ error: 'no radar', code: 'radar_not_found' }, { status: 404 }),
+    () => proxyGameAsset('http://127.0.0.1:8080/api/maps/de_mirage/radar?layer=lower'),
+  );
+  assert.equal(missing.response.status, 404);
+  assert.deepEqual(await missing.response.json(), { error: 'no radar', code: 'radar_not_found' });
 });

@@ -85,7 +85,7 @@ func TestLZ4ChainsMatchesAcrossFrames(t *testing.T) {
 
 func TestResourceBlocks(t *testing.T) {
 	data := buildResource(map[string][]byte{"PHYS": []byte("phys-bytes"), "DATA": []byte("d")})
-	blocks, err := resourceBlocks(data)
+	blocks, err := ResourceBlocks(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,8 +93,8 @@ func TestResourceBlocks(t *testing.T) {
 		t.Errorf("blocks = %q", blocks)
 	}
 	binary.LittleEndian.PutUint32(data[16+4:], 1<<20) // PHYS offset far past the end
-	if _, err := resourceBlocks(data); err == nil {
-		t.Error("resourceBlocks accepted a block outside the file")
+	if _, err := ResourceBlocks(data); err == nil {
+		t.Error("ResourceBlocks accepted a block outside the file")
 	}
 }
 

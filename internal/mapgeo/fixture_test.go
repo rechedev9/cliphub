@@ -33,10 +33,20 @@ type vpkFile struct {
 	path    string
 	data    []byte
 	preload int
+	// split stores the data in numbered archive instead of the directory file.
+	split   bool
+	archive uint16
 }
 
 // buildVPK writes a version 2 single-file VPK holding files.
 func buildVPK(files []vpkFile) []byte {
+	dir, _ := buildSplitVPK(files)
+	return dir
+}
+
+// buildSplitVPK writes a version 2 directory file and the contents of each
+// numbered archive its split entries point into.
+func buildSplitVPK(files []vpkFile) ([]byte, map[uint16][]byte) {
 	type leaf struct {
 		name string
 		file vpkFile
@@ -57,6 +67,7 @@ func buildVPK(files []vpkFile) []byte {
 		tree[ext][dir] = append(tree[ext][dir], leaf{name, f})
 	}
 	var t, data le
+	archives := map[uint16][]byte{}
 	for _, ext := range sortedKeys(tree) {
 		t.cstr(ext)
 		for _, dir := range sortedKeys(tree[ext]) {
@@ -65,12 +76,19 @@ func buildVPK(files []vpkFile) []byte {
 				t.cstr(l.name)
 				t.u32(0)
 				t.u16(uint16(l.file.preload))
-				t.u16(vpkInline)
-				t.u32(uint32(data.Len()))
-				t.u32(uint32(len(l.file.data) - l.file.preload))
+				body := l.file.data[l.file.preload:]
+				if l.file.split {
+					t.u16(l.file.archive)
+					t.u32(uint32(len(archives[l.file.archive])))
+					archives[l.file.archive] = append(archives[l.file.archive], body...)
+				} else {
+					t.u16(vpkInline)
+					t.u32(uint32(data.Len()))
+					data.Write(body)
+				}
+				t.u32(uint32(len(body)))
 				t.u16(vpkTerminator)
 				t.Write(l.file.data[:l.file.preload])
-				data.Write(l.file.data[l.file.preload:])
 			}
 			t.cstr("")
 		}
@@ -87,7 +105,7 @@ func buildVPK(files []vpkFile) []byte {
 	out.u32(0)
 	out.Write(t.Bytes())
 	out.Write(data.Bytes())
-	return out.Bytes()
+	return out.Bytes(), archives
 }
 
 func sortedKeys[V any](m map[string]V) []string {

@@ -251,6 +251,30 @@ export async function proxyStream(
   return new Response(res.body, { status: res.status, headers });
 }
 
+const GAME_ASSET_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/svg+xml']);
+/** Keeps an icon opened on its own inert, on top of the orchestrator's sanitizing. */
+const SVG_ASSET_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+
+/**
+ * Proxies a CS2 art file (`internal/gameassets`: radar PNG, equipment icon SVG or PNG). Any other
+ * content type is a 502, so a confused upstream cannot make Studio serve HTML from its origin.
+ */
+export async function proxyGameAsset(url: string): Promise<Response> {
+  // A first read decodes the asset from the CS2 install; later reads come from the cache.
+  const res = await callOrchestrator(url, { cache: 'no-store' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!GAME_ASSET_TYPES.has(contentType)) return NextResponse.json({ error: 'upstream error' }, { status: 502 });
+  const headers: Record<string, string> = {
+    'content-type': contentType,
+    'x-content-type-options': 'nosniff',
+    'cache-control': res.headers.get('cache-control') ?? 'private, max-age=3600',
+  };
+  if (contentType === 'image/svg+xml') headers['content-security-policy'] = SVG_ASSET_POLICY;
+  return new Response(await res.arrayBuffer(), { status: 200, headers });
+}
+
 function streamCacheHeaders(res: Response, fallbackCacheControl: string): Record<string, string> {
   const headers: Record<string, string> = {
     'cache-control': streamCacheControl(res, fallbackCacheControl),
