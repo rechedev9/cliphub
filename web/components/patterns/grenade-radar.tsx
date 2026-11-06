@@ -15,6 +15,7 @@ import type { RadarPoint } from '@/lib/tactical-transform';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
+import { cn } from '@/lib/utils';
 
 /** One token per kind, shared by the tracers and the kind toggles. */
 export const GRENADE_KIND_TOKEN: Record<TeamGrenadeKind, string> = {
@@ -63,8 +64,8 @@ function paintTracer(ctx: CanvasRenderingContext2D, tracer: GrenadeTracer, color
 
 /**
  * Every throw on the radar as a tracer from the thrower to the landing,
- * coloured by kind. Dragging draws a box that filters the list; hovering a
- * tracer highlights its spot.
+ * coloured by kind. Dragging draws a box that filters the list (Shift + drag
+ * once zoomed, when a plain drag pans); hovering a tracer highlights its spot.
  */
 export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, highlight, box, onBox, onHover }: Props): ReactNode {
   const paint = useCallback(
@@ -100,10 +101,11 @@ export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, high
 
   return (
     <RadarSurface geometry={geometry} level={level} paint={paint} label="Radar con las granadas del equipo">
-      {(projection) => (
+      {(projection, zoomed) => (
         <DragLayer
           geometry={geometry}
           projection={projection}
+          zoomed={zoomed}
           grenades={grenades}
           spotOf={spotOf}
           box={box}
@@ -123,7 +125,8 @@ function DragLayer({
   box,
   onBox,
   onHover,
-}: Pick<Props, 'geometry' | 'grenades' | 'spotOf' | 'box' | 'onBox' | 'onHover'> & { projection: RadarProjection }): ReactNode {
+  zoomed,
+}: Pick<Props, 'geometry' | 'grenades' | 'spotOf' | 'box' | 'onBox' | 'onHover'> & { projection: RadarProjection; zoomed: boolean }): ReactNode {
   const start = useRef<RadarPoint | null>(null);
   const [drag, setDrag] = useState<{ a: RadarPoint; b: RadarPoint } | null>(null);
   const { size, offsetX, offsetY } = projection;
@@ -142,7 +145,9 @@ function DragLayer({
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
-    if (event.button !== 0) return;
+    // Once zoomed, a plain drag belongs to the map's pan.
+    if (event.button !== 0 || (zoomed && !event.shiftKey)) return;
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     start.current = local(event);
     onHover(null);
@@ -168,6 +173,7 @@ function DragLayer({
     start.current = null;
     setDrag(null);
     if (from === null) return;
+    event.stopPropagation();
     const to = local(event);
     if (Math.hypot(to.x - from.x, to.y - from.y) < DRAG_MIN) onBox(null);
     else onBox(dragWorldBox(geometry.calibration, size, from, to));
@@ -190,7 +196,7 @@ function DragLayer({
   return (
     <div
       aria-hidden
-      className="absolute inset-0 cursor-crosshair touch-none select-none"
+      className={cn('absolute inset-0 touch-none select-none', zoomed ? '' : 'cursor-crosshair')}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

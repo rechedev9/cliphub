@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Maximize2, Minus, Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
-import { followView, paddedView, panView, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
+import { WHEEL_STEP, followView, paddedView, panView, sameRect, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
 import { radarProjection } from '@/lib/tactical-spatial';
@@ -16,6 +16,7 @@ import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
 import { TelestratorLayer } from '@/components/tactical/spatial/telestrator';
 import { Segmented } from '@/components/ui/segmented';
+import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
@@ -32,7 +33,6 @@ type Box = { width: number; height: number; dpr: number };
 const OVERLAY_ALPHA = 0.42;
 /** Air round the nav mesh, as a share of its longer side. */
 const VIEW_MARGIN = 0.03;
-const WHEEL_STEP = 1.0015;
 /** A press that moves less than this is a click on a player, not a drag. */
 const CLICK_SLOP = 4;
 
@@ -42,10 +42,6 @@ type Readers = {
 };
 
 type ArtSource = 'scheme' | 'official';
-
-function sameRect(a: RadarRect, b: RadarRect): boolean {
-  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
-}
 
 /**
  * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
@@ -419,20 +415,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         ) : null}
       </div>
 
-      <div className="absolute right-2 bottom-2 flex items-center gap-0.5 rounded-md border border-border-strong bg-surface-1/95 p-0.5">
-        <MapButton label="Alejar" disabled={zoom <= 1} onClick={() => zoomBy(1 / 1.5)}>
-          <Minus aria-hidden />
-        </MapButton>
-        <span className="w-10 text-center text-meta tabular-nums text-fg-2" aria-live="polite">
-          {Math.round(zoom * 100)}%
-        </span>
-        <MapButton label="Acercar" disabled={zoom >= 8} onClick={() => zoomBy(1.5)}>
-          <Plus aria-hidden />
-        </MapButton>
-        <MapButton label="Ver el mapa entero" disabled={zoomed === null} onClick={() => setZoomed(null)}>
-          <Maximize2 aria-hidden />
-        </MapButton>
-      </div>
+      <MapZoomControls zoom={zoom} zoomed={zoomed !== null} onZoomBy={zoomBy} onReset={() => setZoomed(null)} className="absolute right-2 bottom-2" />
 
       {drawable ? null : (
         <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
@@ -445,21 +428,6 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         </p>
       ) : null}
     </div>
-  );
-}
-
-function MapButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: ReactNode }): ReactNode {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="grid size-8 place-items-center rounded-sm text-fg-2 outline-none hover:bg-surface-3 hover:text-fg-1 focus-visible:ring-2 focus-visible:ring-ring disabled:text-fg-4 motion-safe:active:scale-[0.97] [&_svg]:size-4"
-    >
-      {children}
-    </button>
   );
 }
 

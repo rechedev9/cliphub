@@ -19,6 +19,7 @@ import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
 import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
+import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 
 /**
@@ -718,6 +719,16 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
   params.set('metric', query.metric);
   if (query.limit) params.set('limit', String(query.limit));
   return request<Leaderboard>(`/leaderboard?${params.toString()}`);
+}
+
+/** Team rates pooled over every library team: bombsites, buy matchups and, with a map, playbook categories. */
+export function getLibraryNorms(query: LibraryNormsQuery = {}): Promise<LibraryNorms> {
+  const params = new URLSearchParams();
+  if (query.map) params.set('map', query.map);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const search = params.toString();
+  return request<LibraryNorms>(`/norms${search === '' ? '' : `?${search}`}`);
 }
 
 /** Appends the scout filter shared by the playbook and the prep. */

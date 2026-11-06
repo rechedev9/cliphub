@@ -80,32 +80,47 @@ export function placeLabels(dots: readonly { x: number; y: number; width: number
 export type SpotMarker = {
   readonly player: number;
   readonly callout: string;
-  /** World position of the callout's centre. */
+  /** World position where the player stood there, or the callout's centre for a spot without one. */
   readonly x: number;
   readonly y: number;
   readonly pct: number;
   /** The player's most frequent spot in the window; the others are drawn smaller. */
   readonly main: boolean;
-  /** Place among the markers on the same callout, to fan them out. */
+  /** Place among the markers drawn on one point, to fan them out. */
   readonly slot: number;
   readonly slots: number;
 };
 
-type WindowSpots = { readonly spots: readonly { readonly callout: string; readonly share: { readonly pct: number } }[] };
+type WindowSpot = {
+  readonly callout: string;
+  readonly share: { readonly pct: number };
+  readonly pos?: readonly [number, number, number];
+  readonly floor?: string;
+};
+type WindowSpots = { readonly spots: readonly WindowSpot[] };
 
 /** Spots under this share of the player's rounds stay in the list, off the radar. */
 const MIN_MARKER_PCT = 20;
 const MAX_MARKERS_PER_PLAYER = 2;
+/** Markers closer than this, in world units, share a point and fan out. */
+const SAME_POINT = 120;
+
+/** The floor a spot is drawn on: "lower" for the lower radar of a two-level map. */
+export function spotLevel(spot: Pick<WindowSpot, 'floor'>): 'default' | 'lower' {
+  return spot.floor === 'lower' ? 'lower' : 'default';
+}
 
 /**
- * Where each CT player stands in one window, as markers at the callouts'
- * centres: the main spot always, a second one when it holds 20 % or more.
- * A callout the geometry does not know is left off.
+ * Where each CT player stands in one window of one floor, as markers at the
+ * spot's real position: the main spot always, a second one when it holds 20 %
+ * or more. A spot with no position falls back to the callout's centre, and
+ * one the geometry does not know either is left off.
  */
 export function windowMarkers(
   players: readonly { readonly windows: readonly WindowSpots[] }[],
-  options: { window: number; centers: ReadonlyMap<string, readonly [number, number]> },
+  options: { window: number; centers: ReadonlyMap<string, readonly [number, number]>; level?: 'default' | 'lower' },
 ): SpotMarker[] {
+  const level = options.level ?? 'default';
   const raw: Omit<SpotMarker, 'slot' | 'slots'>[] = [];
   players.forEach((player, index) => {
     const spots = player.windows[options.window]?.spots ?? [];
@@ -113,16 +128,22 @@ export function windowMarkers(
       .filter((spot, at) => at === 0 || spot.share.pct >= MIN_MARKER_PCT)
       .slice(0, MAX_MARKERS_PER_PLAYER)
       .forEach((spot, at) => {
-        const center = options.centers.get(spot.callout);
-        if (center) raw.push({ player: index, callout: spot.callout, x: center[0], y: center[1], pct: spot.share.pct, main: at === 0 });
+        if (spotLevel(spot) !== level) return;
+        const point = spot.pos ?? options.centers.get(spot.callout);
+        if (point) raw.push({ player: index, callout: spot.callout, x: point[0], y: point[1], pct: spot.share.pct, main: at === 0 });
       });
   });
-  const groups = new Map<string, number>();
-  for (const marker of raw) groups.set(marker.callout, (groups.get(marker.callout) ?? 0) + 1);
-  const seen = new Map<string, number>();
-  return raw.map((marker) => {
-    const slot = seen.get(marker.callout) ?? 0;
-    seen.set(marker.callout, slot + 1);
-    return { ...marker, slot, slots: groups.get(marker.callout) ?? 1 };
+  const anchors: { x: number; y: number; count: number }[] = [];
+  const group = raw.map((marker) => {
+    let at = anchors.findIndex((anchor) => Math.hypot(anchor.x - marker.x, anchor.y - marker.y) < SAME_POINT);
+    if (at < 0) at = anchors.push({ x: marker.x, y: marker.y, count: 0 }) - 1;
+    const anchor = anchors[at];
+    const slot = anchor ? anchor.count : 0;
+    if (anchor) anchor.count += 1;
+    return { at, slot };
+  });
+  return raw.map((marker, index) => {
+    const entry = group[index];
+    return { ...marker, slot: entry?.slot ?? 0, slots: anchors[entry?.at ?? 0]?.count ?? 1 };
   });
 }

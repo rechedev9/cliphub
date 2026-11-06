@@ -1,11 +1,14 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import type { MetricsReport } from '@/lib/api/metrics';
-import { weightedMean } from '@/lib/analysis/compare';
 import { buyIcon } from '@/lib/analysis/icons';
+import { roundReferences } from '@/lib/analysis/reference';
 import { prettyMapName } from '@/lib/format';
 import { ecoText, mapLines, percentText, ppText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
 import { buyLabel } from '@/lib/tactical-labels';
 import { HeatTable, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
+import { useLibraryBaselines } from '@/hooks/use-references';
 
 const decimal2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -15,24 +18,40 @@ const MIN_MAP_ROUNDS = 20;
 
 const ratio = (value: number, rounds: number): number | null => (rounds > 0 ? value / rounds : null);
 
-/** Every player's rounds per buy type, tinted against the table's own weighted mean. */
+/** Every round has a winner, so the library wins half of its rounds. */
+const LIBRARY_WIN_SHARE = 0.5;
+
+/** The tint of a column against a library mean; a column the library cannot read stays plain. */
+function libraryHeat(baseline: number | null, spread: number, higherIsBetter = true): HeatColumn['heat'] {
+  return baseline === null ? undefined : { baseline, spread, higherIsBetter };
+}
+
+function referenceText(minRounds: number | null): string {
+  if (minRounds === null) return 'la media de la biblioteca, que aún se está leyendo';
+  return `la media de los jugadores de la biblioteca con ${minRounds} rondas o más (en % ganadas, el 50 %)`;
+}
+
+/** The report's map when it reads one, else every map. */
+function reportMap(report: MetricsReport): string {
+  const maps = new Set(mapLines(report).map((line) => line.map));
+  return maps.size === 1 ? ([...maps][0] ?? '') : '';
+}
+
+/** Every player's rounds per buy type, tinted against the library's player means. */
 export function BuyHeatTable({ report, options }: { report: MetricsReport; options: MetricsSectionOptions }): ReactNode {
+  const map = reportMap(report);
+  const baselines = useLibraryBaselines([map]);
+  const baseline = baselines?.get(map) ?? null;
+  const refs = roundReferences(baseline);
   const lines = report.players.flatMap((player) => player.buys.map((line) => ({ player, line })));
   const many = report.players.length > 1;
-  const mean = (value: (l: (typeof lines)[number]) => number): number =>
-    weightedMean(lines, (l) => value(l) / l.line.rounds, (l) => l.line.rounds) ?? 0;
   const columns: HeatColumn[] = [
     ...(many ? [{ id: 'player', header: 'Jugador' }] : []),
     { id: 'buy', header: 'Compra' },
-    { id: 'won', header: '% ganadas', align: 'end', heat: { baseline: mean((l) => l.line.won), spread: 0.15 } },
-    { id: 'kills', header: 'Bajas por ronda', align: 'end', heat: { baseline: mean((l) => l.line.kills), spread: 0.25 } },
-    {
-      id: 'deaths',
-      header: 'Muertes por ronda',
-      align: 'end',
-      heat: { baseline: mean((l) => l.line.deaths), spread: 0.25, higherIsBetter: false },
-    },
-    { id: 'wpa', header: 'WPA por ronda', align: 'end', heat: { baseline: mean((l) => l.line.wpa), spread: 0.03 } },
+    { id: 'won', header: '% ganadas', align: 'end', heat: { baseline: LIBRARY_WIN_SHARE, spread: 0.15 } },
+    { id: 'kills', header: 'Bajas por ronda', align: 'end', heat: libraryHeat(refs.kills, 0.25) },
+    { id: 'deaths', header: 'Muertes por ronda', align: 'end', heat: libraryHeat(refs.deaths, 0.25, false) },
+    { id: 'wpa', header: 'WPA por ronda', align: 'end', heat: libraryHeat(refs.wpa, 0.03) },
   ];
   const rows: HeatRow[] = lines.map(({ player, line }) => {
     const n = line.rounds;
@@ -61,39 +80,44 @@ export function BuyHeatTable({ report, options }: { report: MetricsReport; optio
       minSample={MIN_BUY_ROUNDS}
       sampleNoun="rondas"
       empty="Sin rondas en la selección."
+      reference={referenceText(baseline?.min_rounds ?? null)}
     />
   );
 }
 
-/** One player's matches added up per map, tinted against their own weighted mean. */
+/**
+ * One player's matches added up per map, each row tinted against the library's
+ * player means on that map. The adjusted kills have no library mean and stay plain.
+ */
 export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
   const lines = mapLines(report);
-  const mean = (value: (l: (typeof lines)[number]) => number): number => weightedMean(lines, (l) => value(l) / l.rounds, (l) => l.rounds) ?? 0;
-  const deaths = lines.reduce((sum, l) => sum + l.deaths, 0);
-  const kd = deaths > 0 ? lines.reduce((sum, l) => sum + l.kills, 0) / deaths : 1;
+  const baselines = useLibraryBaselines(lines.map((line) => line.map));
   const columns: HeatColumn[] = [
     { id: 'map', header: 'Mapa' },
     { id: 'matches', header: 'Partidas', align: 'end' },
-    { id: 'kd', header: 'K/D', align: 'end', heat: { baseline: kd, spread: 0.3 } },
-    { id: 'eco', header: 'Bajas ajustadas por ronda', align: 'end', heat: { baseline: mean((l) => l.ecoKills), spread: 0.2 } },
-    { id: 'wpa', header: 'WPA por ronda', align: 'end', heat: { baseline: mean((l) => l.wpa), spread: 0.03 } },
+    { id: 'kd', header: 'K/D', align: 'end', heat: { baseline: 1, spread: 0.3 } },
+    { id: 'eco', header: 'Bajas ajustadas por ronda', align: 'end' },
+    { id: 'wpa', header: 'WPA por ronda', align: 'end', heat: { baseline: 0, spread: 0.03 } },
   ];
   const rows: HeatRow[] = lines.map((line) => {
     const n = line.rounds;
     const lineKd = line.deaths > 0 ? line.kills / line.deaths : line.kills;
     const eco = ratio(line.ecoKills, n);
     const wpa = ratio(line.wpa, n);
+    const refs = roundReferences(baselines?.get(line.map));
+    const place = prettyMapName(line.map);
     return {
       id: line.map,
       cells: {
-        map: { text: prettyMapName(line.map), map: line.map },
+        map: { text: place, map: line.map },
         matches: { text: String(line.matches) },
-        kd: { text: decimal2.format(lineKd), value: lineKd, n },
-        eco: { text: eco === null ? '' : ecoText(eco), value: eco, n },
-        wpa: { text: wpa === null ? '' : ppText(wpa), value: wpa, n },
+        kd: { text: decimal2.format(lineKd), value: lineKd, n, reference: refs.kd, referenceText: refs.kd === null ? undefined : `Biblioteca en ${place}: ${decimal2.format(refs.kd)}` },
+        eco: { text: eco === null ? '' : ecoText(eco), n },
+        wpa: { text: wpa === null ? '' : ppText(wpa), value: wpa, n, reference: refs.wpa, referenceText: refs.wpa === null ? undefined : `Biblioteca en ${place}: ${ppText(refs.wpa)}` },
       },
     };
   });
+  const minRounds = baselines === null ? null : ([...baselines.values()][0]?.min_rounds ?? null);
   return (
     <HeatTable
       label="Rendimiento por mapa"
@@ -102,6 +126,7 @@ export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
       minSample={MIN_MAP_ROUNDS}
       sampleNoun="rondas"
       empty="Sin partidas leídas."
+      reference={minRounds === null ? 'la media de la biblioteca, que aún se está leyendo' : `la media de la biblioteca en cada mapa, sus jugadores con ${minRounds} rondas o más`}
     />
   );
 }

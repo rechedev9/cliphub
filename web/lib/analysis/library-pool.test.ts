@@ -2,13 +2,14 @@
 // library's pooled rate, not the team's own mean.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RatePool, adaptiveMinRounds, bombsiteKey, categoryKey, poolBombsites, poolCategories, poolMatchups, significantStats } from './library-pool.ts';
+import { RatePool, adaptiveMinRounds, bombsiteKey, categoryKey, libraryMatchesText, normsCategories, poolBombsites, poolCategories, poolMatchups, significantStats } from './library-pool.ts';
 import { teamTrend } from './team-trend.ts';
 import { gappedPoints, segmentsOf } from './chart.ts';
 import { prepStatInputs } from './prep-stats.ts';
 import type { TeamPlaybook, TeamPrep } from '../api/playbook.ts';
-import type { TeamBombsites } from '../api/team-insights.ts';
+import type { BombsiteMap } from '../api/team-insights.ts';
 import type { LibraryMatch } from '../api/library.ts';
+import type { LibraryNorms } from '../api/norms.ts';
 
 const rate = (count: number, total: number) => ({ count, total, pct: total > 0 ? (100 * count) / total : 0, reliable: true });
 
@@ -28,7 +29,7 @@ test('a pool sums counts and totals before the percent', () => {
   assert.equal(pool.pct('missing'), null);
 });
 
-test('categories, matchups and bombsites pool across teams', () => {
+test('categories, matchups and bombsites pool their rows', () => {
   const playbook = (used: number, won: number) =>
     ({ win_rate: rate(won, 10), categories: [{ category: 'execute', share: rate(used, 10), win_rate: rate(won, used) }] }) as unknown as TeamPlaybook;
   const categories = poolCategories([playbook(2, 1), playbook(6, 3)]);
@@ -43,10 +44,32 @@ test('categories, matchups and bombsites pool across teams', () => {
 
   const defense = { hit: rate(5, 10), held: rate(3, 5), plants_allowed: rate(2, 5), won: rate(3, 5), retakes_attempted: rate(2, 2), retakes_won: rate(1, 2), examples: [] };
   const attack = { attacks: rate(4, 10), plants: rate(2, 4), won: rate(1, 4), post_plant_won: rate(1, 2), examples: [] };
-  const report = { maps: [{ map: 'de_mirage', sites: [{ site: 'A', ct: defense, t: attack }] }] } as unknown as TeamBombsites;
-  const sites = poolBombsites([report, report]);
+  const entry = { map: 'de_mirage', sites: [{ site: 'A', ct: defense, t: attack }] } as unknown as BombsiteMap;
+  const sites = poolBombsites([entry, entry]);
   assert.equal(sites.pct(bombsiteKey('de_mirage', 'A', 'ct.held')), 60);
   assert.equal(sites.total(bombsiteKey('de_mirage', 'A', 't.attacks')), 20);
+});
+
+test('the library norms read through the same keys as a team', () => {
+  const norms: LibraryNorms = {
+    map: 'de_mirage',
+    matches: 3,
+    skipped: 0,
+    bombsites: [],
+    matchups: [{ side: 'T', buy: 'full', opponent_buy: 'full', win_rate: rate(30, 60) }],
+    playbook: [
+      { side: 'T', round_count: 60, win_rate: rate(30, 60), categories: [{ category: 'rush', share: rate(12, 60), win_rate: rate(3, 12) }] },
+      { side: 'CT', round_count: 60, win_rate: rate(30, 60), categories: [{ category: 'stack', share: rate(6, 60), win_rate: rate(4, 6) }] },
+    ],
+  };
+  const t = normsCategories(norms, 'T');
+  assert.equal(t.pct(categoryKey('used', 'rush')), 20);
+  assert.equal(t.pct(categoryKey('won', 'rush')), 25);
+  assert.equal(t.pct(categoryKey('used', 'stack')), null);
+  assert.equal(normsCategories(norms, 'CT').pct(categoryKey('won', 'stack')), (100 * 4) / 6);
+  assert.equal(poolMatchups([norms]).pct('T|full|full'), 50);
+  assert.equal(libraryMatchesText(1), 'la partida de la biblioteca');
+  assert.equal(libraryMatchesText(3), 'las 3 partidas de la biblioteca');
 });
 
 test('significant stats name the gap in points, worse in its own tone, largest first', () => {

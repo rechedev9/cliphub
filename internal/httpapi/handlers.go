@@ -168,7 +168,7 @@ type Handlers struct {
 	libraryRepo         LibraryRepository
 	lineups             lineups.Catalog
 	practiceGame        practice.Game
-	baselines           baselineCache
+	references          referenceCaches
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex

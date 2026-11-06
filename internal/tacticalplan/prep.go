@@ -1,6 +1,11 @@
 package tacticalplan
 
-import "sort"
+import (
+	"math"
+	"sort"
+
+	"github.com/rechedev9/cliphub/internal/radarmap"
+)
 
 // PrepSpotLimit caps the positions listed for one player in one time window.
 const PrepSpotLimit = 5
@@ -34,10 +39,14 @@ type PrepRounds struct {
 	Refs []Evidence `json:"refs"`
 }
 
-// PrepSpot is a callout a CT player held, with every round's ref.
+// PrepSpot is a callout a CT player held, with every round's ref. Pos is the
+// world centroid of the samples that named it; Floor is "lower" when that
+// centroid lies on the lower radar of a two-level map.
 type PrepSpot struct {
 	ScoutSpot
-	Refs []Evidence `json:"refs"`
+	Refs  []Evidence `json:"refs"`
+	Pos   [3]float64 `json:"pos"`
+	Floor string     `json:"floor,omitempty"`
 }
 
 // PrepMatchup is the team's buy against the rival's buy on one side. Share is
@@ -136,7 +145,25 @@ type tempoAcc struct {
 
 type prepWindowAcc struct {
 	rounds int
-	spots  map[string]*prepGroup
+	spots  map[string]*prepSpotAcc
+}
+
+// prepSpotAcc sums the positions of the samples that named the spot.
+type prepSpotAcc struct {
+	prepGroup
+	sum     [3]float64
+	samples int
+}
+
+func (a *prepSpotAcc) centroid() [3]float64 {
+	if a.samples == 0 {
+		return [3]float64{}
+	}
+	var out [3]float64
+	for i, v := range a.sum {
+		out[i] = math.Round(v / float64(a.samples))
+	}
+	return out
 }
 
 type prepPlayerAcc struct {
@@ -182,7 +209,7 @@ func BuildPrep(matches []FramedMatch, opts PrepOptions) Prep {
 	}
 	prep.Matchups = run.matchupRows()
 	prep.Tempo = run.tempoRows()
-	prep.CTPlayers = run.playerRows(opts.Roles)
+	prep.CTPlayers = run.playerRows(opts.Roles, prep.Map)
 	return prep
 }
 
@@ -261,10 +288,20 @@ func (run *prepRun) addPositions(m FramedMatch, r Round, team map[uint8]bool, tr
 			win.rounds++
 			spot, ok := win.spots[best]
 			if !ok {
-				spot = &prepGroup{}
+				spot = &prepSpotAcc{}
 				win.spots[best] = spot
 			}
 			spot.add(false, evidence(m.ScoutMatch, r, firstTick[best]))
+			for _, f := range track {
+				if f.callouts[slot] != best || !w.contains(f.seconds) {
+					continue
+				}
+				at := f.pos[slot]
+				for k := range at {
+					spot.sum[k] += at[k]
+				}
+				spot.samples++
+			}
 		}
 		if seen {
 			run.players[id].rounds++
@@ -277,7 +314,7 @@ func (run *prepRun) player(id, name string) *prepPlayerAcc {
 	if !ok {
 		acc = &prepPlayerAcc{name: name, windows: make([]*prepWindowAcc, len(PrepWindows))}
 		for i := range acc.windows {
-			acc.windows[i] = &prepWindowAcc{spots: map[string]*prepGroup{}}
+			acc.windows[i] = &prepWindowAcc{spots: map[string]*prepSpotAcc{}}
 		}
 		run.players[id] = acc
 	}
@@ -319,7 +356,8 @@ func (run *prepRun) tempoRows() []PrepTempo {
 	return out
 }
 
-func (run *prepRun) playerRows(roles map[string]string) []PrepPlayer {
+func (run *prepRun) playerRows(roles map[string]string, mapName string) []PrepPlayer {
+	cal, calibrated := radarmap.Lookup(mapName)
 	out := make([]PrepPlayer, 0, len(run.players))
 	for id, acc := range run.players {
 		role := roles[id]
@@ -332,7 +370,11 @@ func (run *prepRun) playerRows(roles map[string]string) []PrepPlayer {
 			spots := make([]PrepSpot, 0, len(win.spots))
 			for callout, g := range win.spots {
 				spot := ScoutSpot{Callout: callout, Share: newRate(g.rounds, win.rounds), Examples: g.examples}
-				spots = append(spots, PrepSpot{ScoutSpot: spot, Refs: g.allRefs()})
+				row := PrepSpot{ScoutSpot: spot, Refs: g.allRefs(), Pos: g.centroid()}
+				if calibrated && g.samples > 0 && cal.Level(row.Pos[2]) == radarmap.LevelLower {
+					row.Floor = radarmap.LevelLower
+				}
+				spots = append(spots, row)
 			}
 			sort.Slice(spots, func(i, j int) bool {
 				if spots[i].Share.Count != spots[j].Share.Count {

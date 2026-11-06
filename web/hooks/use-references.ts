@@ -44,6 +44,27 @@ function cached(map: string, metrics: readonly BaselineMetric[]): Promise<Refere
   return pending;
 }
 
+/** The library baseline of each map ("" for every map) at its adaptive minimum; null while loading, an empty map on failure. */
+export function useLibraryBaselines(maps: readonly string[]): ReadonlyMap<string, Baseline> | null {
+  const [state, setState] = useState<{ key: string; value: ReadonlyMap<string, Baseline> } | null>(null);
+  const key = [...new Set(maps)].sort().join(',');
+  useEffect(() => {
+    let active = true;
+    const wanted = key.split(',');
+    Promise.all(wanted.map((map) => cached(map, []).then((refs): [string, Baseline][] => [[map, refs.library]]).catch((): [string, Baseline][] => [])))
+      .then((entries) => {
+        if (active) setState({ key, value: new Map(entries.flat()) });
+      })
+      .catch(() => {
+        if (active) setState({ key, value: new Map() });
+      });
+    return () => {
+      active = false;
+    };
+  }, [key]);
+  return state?.key === key ? state.value : null;
+}
+
 /** The references of a map, shared by the context bar and the view under it; null while loading. */
 export function useReferences(map: string, metrics: readonly BaselineMetric[] = []): References | null | 'failed' {
   const [state, setState] = useState<References | null | 'failed'>(null);

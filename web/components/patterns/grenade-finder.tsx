@@ -125,7 +125,7 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
         <div className="flex flex-wrap items-center gap-2">
           <Segmented label="La zona filtra por" value={area} options={AREAS} onChange={setArea} />
           {box === null ? (
-            <span className="text-body-sm text-fg-3">Arrastra sobre el radar para quedarte con una zona.</span>
+            <span className="text-body-sm text-fg-3">Arrastra sobre el radar para quedarte con una zona; con zoom, Mayús + arrastrar.</span>
           ) : (
             <Button type="button" variant="ghost" size="xs" onClick={() => setBox(null)}>
               <X aria-hidden />

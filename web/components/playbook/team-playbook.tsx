@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getTeamPlaybook } from '@/lib/api/library';
 import type { TeamPlaybook as Playbook } from '@/lib/api/playbook';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
-import { poolCategories } from '@/lib/analysis/library-pool';
-import { useLibraryPool } from '@/hooks/use-library-pool';
+import { libraryMatchesText, normsCategories } from '@/lib/analysis/library-pool';
+import { useLibraryNorms } from '@/hooks/use-library-norms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryGrid, SiteBars, SkippedNote, TempoChart } from './playbook-summary';
@@ -44,11 +44,8 @@ export function TeamPlaybook({
   const { map, side, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
   const ready = map !== '' && side !== '';
-  const readPool = useCallback(
-    (id: string) => (ready ? getTeamPlaybook(id, { map, side }) : Promise.reject(new Error('Sin mapa o lado'))),
-    [ready, map, side],
-  );
-  const pool = useLibraryPool(`playbook|${map}|${side}`, readPool);
+  const norms = useLibraryNorms(ready ? map : '');
+  const reference = ready && norms !== null && norms !== 'failed' ? normsCategories(norms, side) : null;
 
   useEffect(() => {
     if (map === '' || side === '') return undefined;
@@ -106,10 +103,10 @@ export function TeamPlaybook({
     <div className="flex flex-col gap-4">
       <Section title="Tipos de ronda" className="flex flex-col gap-3">
         <p className="text-body-sm text-fg-2">
-          Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas. Pulsa un tipo para ver sus rondas. ▲▼ frente
-          a {pool === null ? 'la biblioteca' : `los ${pool.filter((entry) => entry.round_count > 0).length} equipos de la biblioteca`} en el mismo mapa y lado.
+          Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas. Pulsa un tipo para ver sus rondas.
+          {norms !== null && norms !== 'failed' ? ` ▲▼ frente a los dos equipos de ${libraryMatchesText(norms.matches)} en ${prettyMapName(map)}, de ${side}.` : ''}
         </p>
-        <CategoryGrid playbook={playbook} reference={pool === null ? null : poolCategories(pool)} />
+        <CategoryGrid playbook={playbook} reference={reference} />
       </Section>
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Ritmo">

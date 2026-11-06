@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PrepMatchup, PrepTempo } from '../api/playbook.ts';
 import type { TacticalBuyType, TacticalSide } from '../api/tactical.ts';
-import { matchupGrid, matchupKey, placeLabels, prepWindowLabel, secondsLabel, tempoRows, windowMarkers } from './prep.ts';
+import { matchupGrid, matchupKey, placeLabels, prepWindowLabel, secondsLabel, spotLevel, tempoRows, windowMarkers } from './prep.ts';
 
 test('CT markers keep the main spot, a strong second one, and fan out shared callouts', () => {
   const spot = (callout: string, pct: number) => ({ callout, share: { pct } });
@@ -25,6 +25,24 @@ test('CT markers keep the main spot, a strong second one, and fan out shared cal
     ],
   );
   assert.deepEqual(windowMarkers(players, { window: 3, centers }), []);
+});
+
+test('CT markers stand at the spot position, on its own floor', () => {
+  const players = [
+    { windows: [{ spots: [{ callout: 'Ramp', share: { pct: 70 }, pos: [10, 20, -600] as const, floor: 'lower' }] }] },
+    { windows: [{ spots: [{ callout: 'Ramp', share: { pct: 50 }, pos: [900, 20, 0] as const }] }] },
+    { windows: [{ spots: [{ callout: 'Ramp', share: { pct: 50 }, pos: [950, 40, 0] as const }] }] },
+  ];
+  const centers = new Map<string, readonly [number, number]>([['Ramp', [0, 0]]]);
+  const upper = windowMarkers(players, { window: 0, centers });
+  assert.deepEqual(upper.map((m) => [m.player, m.x, m.y, m.slot, m.slots]), [
+    [1, 900, 20, 0, 2],
+    [2, 950, 40, 1, 2],
+  ]);
+  const lower = windowMarkers(players, { window: 0, centers, level: 'lower' });
+  assert.deepEqual(lower.map((m) => [m.player, m.x, m.slots]), [[0, 10, 1]]);
+  assert.equal(spotLevel({ floor: 'lower' }), 'lower');
+  assert.equal(spotLevel({}), 'default');
 });
 
 test('labels of close dots move to a free side', () => {

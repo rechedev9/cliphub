@@ -94,7 +94,8 @@ export type PrepTempo = PrepRounds & {
 /** Per round, the callout of most of the player's frames in the window; top 5. */
 export type PrepPlayerWindow = PrepWindow & { rounds: number; spots: PrepSpot[] };
 
-export type PrepSpot = ScoutSpot & { refs: ScoutEvidence[] };
+/** `pos` is the world centroid of the samples that named the spot; `floor` is "lower" on the lower radar of a two-level map. */
+export type PrepSpot = ScoutSpot & { refs: ScoutEvidence[]; pos: [number, number, number]; floor?: 'lower' };
 
 export type PrepPlayer = {
   steamid64: string;

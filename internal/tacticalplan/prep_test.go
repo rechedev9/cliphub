@@ -3,6 +3,9 @@ package tacticalplan
 import (
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 func prepPlayer(t *testing.T, p Prep, steamID string) PrepPlayer {
@@ -90,5 +93,41 @@ func TestPrepMatchupsAndTempoPerBuy(t *testing.T) {
 	}
 	if ct := prep.Tempo[2]; ct.Side != SideCT || ct.Tempo.Samples != 1 || ct.Tempo.Median != 30 {
 		t.Errorf("CT tempo = %+v, want the first contact", ct)
+	}
+}
+
+// A spot sits where its samples stood, and a nuke spot under the split is on the lower radar.
+func TestPrepSpotsCarryTheirCentroidAndFloor(t *testing.T) {
+	doc := NewDocument()
+	doc.Demo = Demo{Map: "de_nuke", Tickrate: pbRate}
+	doc.Geometry = pbGeometry()
+	doc.Teams = []Team{{Key: "t-start", StartSide: SideT}, {Key: "ct-start", StartSide: SideCT}}
+	doc.Players = []Player{{Slot: 2, SteamID64: "steam2", TeamKey: "t-start"}, {Slot: 3, SteamID64: "steam3", TeamKey: "t-start"}}
+	doc.Rounds = []Round{pbRound(1, 2, Class{CTSide: CTHold}, BuyFull, true)}
+	var frames []Frame
+	for s := 0.0; s < 20; s += 0.5 {
+		// steam2 drifts inside B on the lower floor; steam3 stands still on A.
+		frames = append(frames, Frame{Tick: pbTick(1, s), Samples: []Sample{
+			{Slot: 2, X: -1000 + s*10, Y: -1000, Z: -700, Flags: FlagAlive},
+			{Slot: 3, X: 1000, Y: 1000, Z: 0, Flags: FlagAlive},
+		}})
+	}
+	blob, err := EncodePositions([]RoundFrames{{Round: 1, Frames: frames}}, 32, pbRate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Positions = blob.Descriptor
+	m := FramedMatch{
+		ScoutMatch: ScoutMatch{MatchID: uuid.MustParse("00000000-0000-4000-8000-000000000002"), TeamKey: "t-start", PlayedAt: time.Unix(1, 0), Document: doc},
+		Blob:       func() ([]byte, error) { return blob.Data, nil },
+	}
+	prep := BuildPrep([]FramedMatch{m}, PrepOptions{Filter: ScoutFilter{Maps: []string{"de_nuke"}}})
+	b := prepPlayer(t, prep, "steam2").Windows[0].Spots[0]
+	if b.Callout != "BombsiteB" || b.Floor != "lower" || b.Pos[1] != -1000 || b.Pos[2] != -700 || b.Pos[0] < -910 || b.Pos[0] > -890 {
+		t.Fatalf("B spot = %+v, want the mean of its samples on the lower floor", b)
+	}
+	a := prepPlayer(t, prep, "steam3").Windows[0].Spots[0]
+	if a.Callout != "BombsiteA" || a.Floor != "" || a.Pos != [3]float64{1000, 1000, 0} {
+		t.Fatalf("A spot = %+v", a)
 	}
 }

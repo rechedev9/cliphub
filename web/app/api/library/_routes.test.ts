@@ -150,3 +150,15 @@ test('the baseline and the leaderboard are read only and keep their own query na
     'map=de_nuke&min_rounds=80&metric=adr&limit=10',
   );
 });
+
+test('the norms are read only and forward only the map and the dates', () => {
+  assert.equal(matchLibraryRoute('POST', ['norms']), undefined);
+  const norms = matchLibraryRoute('GET', ['norms']);
+  assert.ok(norms);
+  assert.equal(
+    libraryUpstreamQuery(norms, new URLSearchParams('map=de_mirage&side=CT&from=2026-01-01T00:00:00Z&team_id=x')),
+    'map=de_mirage&from=2026-01-01T00%3A00%3A00Z',
+  );
+  assert.ok(norms.response.kind === 'json');
+  assert.ok(norms.response.keys.includes('playbook'));
+});

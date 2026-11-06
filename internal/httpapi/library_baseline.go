@@ -153,7 +153,7 @@ func (h *Handlers) baselineSample(ctx context.Context, q baselineQuery) (baselin
 	}
 	version := matchesVersion(matches)
 	key := q.scope + "|" + q.mapName
-	c := &h.baselines
+	c := &h.references.baselines
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if e, ok := c.entries[key]; ok && e.version == version {

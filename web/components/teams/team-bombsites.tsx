@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getTeamBombsites } from '@/lib/api/library';
 import type { ScoutEvidence } from '@/lib/api/scout';
 import type { TacticalRate } from '@/lib/api/tactical';
 import type { BombsiteMap, TeamBombsites as TeamBombsitesReport } from '@/lib/api/team-insights';
 import { weightedMean } from '@/lib/analysis/compare';
-import { RatePool, bombsiteKey, poolBombsites, type AttackField, type DefenseField } from '@/lib/analysis/library-pool';
+import { RatePool, bombsiteKey, libraryMatchesText, poolBombsites, type AttackField, type DefenseField } from '@/lib/analysis/library-pool';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
@@ -14,7 +14,14 @@ import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useLibraryPool } from '@/hooks/use-library-pool';
+import { useLibraryNorms } from '@/hooks/use-library-norms';
+
+/** What the ▲▼ compare with, by the state of the library norms. */
+function referenceText(norms: ReturnType<typeof useLibraryNorms>): string {
+  if (norms === null) return 'Leyendo la referencia de la biblioteca.';
+  if (norms === 'failed') return 'No se pudo leer la referencia de la biblioteca, así que no hay ▲▼.';
+  return `La referencia suma los dos equipos de ${libraryMatchesText(norms.matches)} en todas sus fechas, este incluido; cuenta desde ${MIN_LIBRARY_ROUNDS} rondas.`;
+}
 
 /** Points of rate that earn the strongest tint. */
 const SPREAD = 30;
@@ -141,9 +148,8 @@ export function TeamBombsites({
   const [now] = useState(() => Date.now());
   const { map, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
-  const readPool = useCallback((id: string) => getTeamBombsites(id, { maps: map === '' ? [] : [map] }), [map]);
-  const pool = useLibraryPool(`bombsites|${map}`, readPool);
-  const library = pool === null ? null : poolBombsites(pool);
+  const norms = useLibraryNorms(map);
+  const library = norms === null || norms === 'failed' ? null : poolBombsites(norms.bombsites);
 
   useEffect(() => {
     let active = true;
@@ -193,7 +199,7 @@ export function TeamBombsites({
       <p className="measure-read text-meta text-fg-3">
         Defendiendo, &quot;Les atacan&quot; cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
         sitio; los retakes, sobre las plantas. Atacando, &quot;Atacan&quot; cuenta sobre sus rondas de T y &quot;Ganan tras plantar&quot;, sobre sus
-        plantas. La referencia suma los {pool?.filter((entry) => entry.maps.length > 0).length ?? 0} equipos de la biblioteca en todas sus fechas, este incluido; cuenta desde {MIN_LIBRARY_ROUNDS} rondas.
+        plantas. {referenceText(norms)}
         {data.skipped.length > 0
           ? ` ${data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}`
           : ''}

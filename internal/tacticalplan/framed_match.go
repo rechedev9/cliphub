@@ -44,6 +44,8 @@ type teamFrame struct {
 	tick     int
 	seconds  float64
 	callouts map[uint8]string
+	// pos is where each named player stood, for spots drawn at real positions.
+	pos map[uint8][3]float64
 }
 
 // teamTrack turns a round's frames into team frames, from freeze end to the
@@ -59,13 +61,15 @@ func teamTrack(doc Document, r Round, team map[uint8]bool, frames []Frame) []tea
 		if !ok {
 			continue
 		}
-		tf := teamFrame{tick: f.Tick, seconds: secs, callouts: map[uint8]string{}}
+		tf := teamFrame{tick: f.Tick, seconds: secs, callouts: map[uint8]string{}, pos: map[uint8][3]float64{}}
 		for _, s := range f.Samples {
 			if !team[s.Slot] || !s.Flags.Has(FlagAlive) {
 				continue
 			}
-			if callout := NearestCallout(doc.Geometry, [3]float64{s.X, s.Y, s.Z}); callout != "" {
+			at := [3]float64{s.X, s.Y, s.Z}
+			if callout := NearestCallout(doc.Geometry, at); callout != "" {
 				tf.callouts[s.Slot] = callout
+				tf.pos[s.Slot] = at
 			}
 		}
 		out = append(out, tf)

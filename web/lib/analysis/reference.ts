@@ -97,3 +97,12 @@ export function baselineSampleText(baseline: Baseline): string {
 export function minRoundsNote(minRounds: number): string {
   return minRounds < 50 ? ` El mínimo baja de 50 a ${minRounds} rondas porque la biblioteca aún es pequeña.` : '';
 }
+
+/** Per-round references a heat table tints against: the library baseline's means, null where it has no players. */
+export type RoundReferences = { readonly kills: number | null; readonly deaths: number | null; readonly wpa: number | null; readonly kd: number | null };
+
+export function roundReferences(baseline: Baseline | null | undefined): RoundReferences {
+  const kills = baselineValue(baseline ?? null, 'kpr');
+  const deaths = baselineValue(baseline ?? null, 'dpr');
+  return { kills, deaths, wpa: baselineValue(baseline ?? null, 'wpa_per_round'), kd: kills !== null && deaths !== null && deaths > 0 ? kills / deaths : null };
+}

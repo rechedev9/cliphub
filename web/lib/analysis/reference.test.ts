@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Baseline } from '../api/baseline.ts';
 import type { PlayerMetrics } from '../api/metrics.ts';
-import { METRIC_INFO, baselineValue, leaderboardEmptyText, playerReferenceValues, proUnavailableText } from './reference.ts';
+import { METRIC_INFO, baselineValue, leaderboardEmptyText, playerReferenceValues, proUnavailableText, roundReferences } from './reference.ts';
 
 function player(overrides: Partial<PlayerMetrics>): PlayerMetrics {
   const count = (n: number) => ({ count: n, examples: [] });
@@ -71,4 +71,14 @@ test('reference: Pro says why it is missing', () => {
   assert.equal(proUnavailableText(baseline(3, 2)), null);
   assert.match(proUnavailableText(baseline(0, 0)) ?? '', /no tiene demos de HLTV/);
   assert.match(proUnavailableText(baseline(0, 4)) ?? '', /llega a 50 rondas/);
+});
+
+test('heat tables read the library per round, and nothing where the library has no players', () => {
+  const metric = (mean: number, players = 10) => ({ mean, players });
+  const baseline = { metrics: { kpr: metric(0.7), dpr: metric(0.65), wpa_per_round: metric(0, 0) } } as unknown as Baseline;
+  const refs = roundReferences(baseline);
+  assert.equal(refs.kills, 0.7);
+  assert.equal(refs.wpa, null);
+  assert.ok(refs.kd !== null && Math.abs(refs.kd - 0.7 / 0.65) < 1e-9);
+  assert.deepEqual(roundReferences(null), { kills: null, deaths: null, wpa: null, kd: null });
 });

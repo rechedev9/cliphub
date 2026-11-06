@@ -1,11 +1,11 @@
-import type { TacticalRate } from '../api/tactical.ts';
-import type { PlaybookCategoryName, TeamPlaybook, TeamPrep } from '../api/playbook.ts';
-import type { TeamBombsites } from '../api/team-insights.ts';
+import type { TacticalBuyType, TacticalRate, TacticalSide } from '../api/tactical.ts';
+import type { PlaybookCategoryName } from '../api/playbook.ts';
+import type { BombsiteMap } from '../api/team-insights.ts';
 
 /**
  * The library as a reference for one team: an adaptive player minimum for the
- * baseline, and team rates pooled over every library team so a team table
- * compares with the library instead of with its own mean.
+ * baseline, and pools keyed like a team table, filled from a team's own rows
+ * or from the library norms, so both read with one definition.
  */
 
 export const MIN_ROUNDS_CAP = 50;
@@ -41,8 +41,12 @@ export class RatePool {
   }
 }
 
+type RateOf = Pick<TacticalRate, 'count' | 'total'>;
+type CategoryRows = { readonly win_rate: RateOf; readonly categories: readonly { readonly category: PlaybookCategoryName; readonly share: RateOf; readonly win_rate: RateOf }[] };
+type MatchupRows = { readonly matchups: readonly { readonly side: TacticalSide; readonly buy: TacticalBuyType; readonly opponent_buy: TacticalBuyType; readonly win_rate: RateOf }[] };
+
 /** Each category's use (`share`) and success (`win_rate`) pooled over the playbooks of one side. */
-export function poolCategories(playbooks: readonly TeamPlaybook[]): RatePool {
+export function poolCategories(playbooks: readonly CategoryRows[]): RatePool {
   const pool = new RatePool();
   for (const playbook of playbooks) {
     pool.add('win', playbook.win_rate);
@@ -54,12 +58,22 @@ export function poolCategories(playbooks: readonly TeamPlaybook[]): RatePool {
   return pool;
 }
 
+/** One side's categories from the library norms, keyed like `poolCategories`. */
+export function normsCategories(norms: { readonly playbook: readonly (CategoryRows & { readonly side: TacticalSide })[] }, side: TacticalSide): RatePool {
+  return poolCategories(norms.playbook.filter((entry) => entry.side === side));
+}
+
+/** "la partida de la biblioteca" or "las 12 partidas de la biblioteca". */
+export function libraryMatchesText(matches: number): string {
+  return matches === 1 ? 'la partida de la biblioteca' : `las ${matches} partidas de la biblioteca`;
+}
+
 export function categoryKey(kind: 'used' | 'won', category: PlaybookCategoryName): string {
   return `${kind}|${category}`;
 }
 
-/** Win rate per side and buy matchup, and per side overall, pooled over the library's preps of a map. */
-export function poolMatchups(preps: readonly TeamPrep[]): RatePool {
+/** Win rate per side and buy matchup, per side overall and per own buy, pooled over the sources. */
+export function poolMatchups(preps: readonly MatchupRows[]): RatePool {
   const pool = new RatePool();
   for (const prep of preps) {
     for (const row of prep.matchups) {
@@ -84,15 +98,13 @@ export function bombsiteKey(map: string, site: string, field: `ct.${DefenseField
   return `${map}|${site}|${field}`;
 }
 
-/** Every bombsite rate pooled per map and site over the library's teams. */
-export function poolBombsites(reports: readonly TeamBombsites[]): RatePool {
+/** Every bombsite rate keyed by map and site. */
+export function poolBombsites(maps: readonly BombsiteMap[]): RatePool {
   const pool = new RatePool();
-  for (const report of reports) {
-    for (const entry of report.maps) {
-      for (const site of entry.sites) {
-        for (const field of BOMBSITE_FIELDS.ct) pool.add(bombsiteKey(entry.map, site.site, `ct.${field}`), site.ct[field]);
-        for (const field of BOMBSITE_FIELDS.t) pool.add(bombsiteKey(entry.map, site.site, `t.${field}`), site.t[field]);
-      }
+  for (const entry of maps) {
+    for (const site of entry.sites) {
+      for (const field of BOMBSITE_FIELDS.ct) pool.add(bombsiteKey(entry.map, site.site, `ct.${field}`), site.ct[field]);
+      for (const field of BOMBSITE_FIELDS.t) pool.add(bombsiteKey(entry.map, site.site, `t.${field}`), site.t[field]);
     }
   }
   return pool;

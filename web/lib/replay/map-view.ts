@@ -73,6 +73,22 @@ export function paddedView(rect: RadarRect, margin: number): RadarRect {
   return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
 }
 
+/** Zoom per pixel of wheel delta, the same on every 2D map. */
+export const WHEEL_STEP = 1.0015;
+
+/**
+ * Whether a wheel turn belongs to the map: zooming in always does; zooming
+ * out only while zoomed, so at the whole map the page scrolls on.
+ */
+export function wheelZooms(view: RadarRect, base: RadarRect, deltaY: number): boolean {
+  if (deltaY < 0) return true;
+  return deltaY > 0 && zoomLevel(view, base) > 1;
+}
+
+export function sameRect(a: RadarRect, b: RadarRect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
 /** Zoom a followed player starts at, as a multiple of the whole map. */
 export const FOLLOW_ZOOM = 2.5;
 

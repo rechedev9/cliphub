@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -65,5 +68,37 @@ func TestLibraryTeamPrepReadsBothSides(t *testing.T) {
 		if rw := env.do(http.MethodGet, base+"/prep"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("GET prep%s = %d, want 400", bad, rw.Code)
 		}
+	}
+}
+
+func TestLibraryTeamPrepPlacesSpotsAtTheirSamples(t *testing.T) {
+	env := newLibraryTestEnv(t)
+	m := env.seedLibraryMatch("prep-pos", "Vitality", "MOUZ")
+	// Rewrite the analysis with one callout, so the CT player's frames are named.
+	key := artifacts.LibraryTacticalIndexKey(m.DemoID)
+	rc, err := env.storage.Open(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc tacticalplan.Document
+	err = json.NewDecoder(rc).Decode(&doc)
+	_ = rc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Geometry.Callouts = []tacticalplan.Callout{{Name: "CTSpawn", Level: "default", Center: [2]float64{0, 0}}}
+	b, _ := json.Marshal(doc)
+	if err := env.storage.Put(key, bytes.NewReader(b)); err != nil {
+		t.Fatal(err)
+	}
+
+	var prep prepResponse
+	env.json(http.MethodGet, "/api/library/teams/"+teamOfMatch(t, m, "ct-start").TeamID.String()+"/prep?map=de_mirage", nil, http.StatusOK, &prep)
+	if len(prep.CTPlayers) != 1 || len(prep.CTPlayers[0].Windows[0].Spots) != 1 {
+		t.Fatalf("CT players = %+v", prep.CTPlayers)
+	}
+	// The fixture's CT player stands at (10, 20, 30) and then (40, 20, 30).
+	if spot := prep.CTPlayers[0].Windows[0].Spots[0]; spot.Pos != [3]float64{25, 20, 30} || spot.Floor != "" {
+		t.Fatalf("spot = %+v, want the centroid of the two samples on Mirage's only floor", spot)
 	}
 }
