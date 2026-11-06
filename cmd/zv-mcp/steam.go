@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"errors"
-	"regexp"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-// shareCodePattern is a CS2 match share code, such as CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK.
-var shareCodePattern = regexp.MustCompile(`^CSGO(-[A-Za-z0-9]{5}){5}$`)
+// shareCodeDictionary is the base-57 alphabet of internal/sharecode and web/lib/sharecode.ts.
+const shareCodeDictionary = "ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789"
 
 const steamSetupHint = "Ask the user to connect it in Studio, Ajustes, Cuenta con la que juegas: it needs their Steam authentication code, which stays in the UI."
 
@@ -98,14 +98,15 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 			"Follow with wait_for_job: \"parsed\" is ready for list_moments; \"scanned\" means pick the player with job_players and pick_player. " +
 			"Studio signs in to Steam with the session the user started in the UI; the assistant never handles Steam passwords."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in shareCodeIn) (*mcp.CallToolResult, steamImportOut, error) {
-			if !shareCodePattern.MatchString(in.Code) {
+			code, ok := normalizeShareCode(in.Code)
+			if !ok {
 				return nil, steamImportOut{}, errors.New("code must be a CS2 share code, such as CSGO-GADqf-jjyJ8-cSP2r-smZRo-TO2xK")
 			}
 			c, err := s.uploadClient(ctx)
 			if err != nil {
 				return nil, steamImportOut{}, toolError(err)
 			}
-			res, err := c.ImportShareCode(ctx, in.Code)
+			res, err := c.ImportShareCode(ctx, code)
 			switch tuiclient.ErrorCode(err) {
 			case tuiclient.SteamCredentialsRequired:
 				return nil, steamImportOut{}, errors.New("Studio needs the user to sign in to Steam once to download demos. Ask them to press Descargar demo on this match in Studio (Shorts, the share code field) and sign in there; after that, import_share_code works until Studio restarts")
@@ -164,10 +165,25 @@ func registerSteamTools(server *mcp.Server, s *studio) {
 func describeSteamMatches(acc tuiclient.SteamAccount) steamMatchesOut {
 	out := steamMatchesOut{HistoryConfigured: acc.HistoryConfigured, CanDownload: acc.GCConfigured, Matches: []steamMatchOut{}}
 	for _, m := range acc.Matches {
-		if !shareCodePattern.MatchString(m.ShareCode) {
+		code, ok := normalizeShareCode(m.ShareCode)
+		if !ok {
 			continue
 		}
-		out.Matches = append(out.Matches, steamMatchOut{ShareCode: m.ShareCode, MatchID: cleanName(m.MatchID), DiscoveredAt: m.DiscoveredAt.Local().Format("2006-01-02 15:04")})
+		out.Matches = append(out.Matches, steamMatchOut{ShareCode: code, MatchID: cleanName(m.MatchID), DiscoveredAt: m.DiscoveredAt.Local().Format("2006-01-02 15:04")})
 	}
 	return out
+}
+
+// normalizeShareCode accepts what Studio's share code field accepts (spaces, no or lowercase
+// CSGO- prefix) and returns the CSGO-xxxxx-... form the orchestrator decodes.
+func normalizeShareCode(raw string) (string, bool) {
+	s := strings.Join(strings.Fields(raw), "")
+	if len(s) >= 5 && strings.EqualFold(s[:5], "CSGO-") {
+		s = s[5:]
+	}
+	s = strings.ReplaceAll(s, "-", "")
+	if len(s) != 25 || strings.ContainsFunc(s, func(r rune) bool { return !strings.ContainsRune(shareCodeDictionary, r) }) {
+		return "", false
+	}
+	return "CSGO-" + s[0:5] + "-" + s[5:10] + "-" + s[10:15] + "-" + s[15:20] + "-" + s[20:25], true
 }
