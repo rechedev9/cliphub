@@ -72,3 +72,11 @@ func TestReadVBIBRejectsHeadersOutsideTheBlock(t *testing.T) {
 		t.Fatal("want an error for buffer headers past the block")
 	}
 }
+
+func TestReadVBIBRejectsAHugeBufferCount(t *testing.T) {
+	block := vbibBlock([]float32{0, 0, 0}, []uint16{0})
+	binary.LittleEndian.PutUint32(block[4:], math.MaxUint32)
+	if _, _, err := readVBIB(block); err == nil {
+		t.Fatal("want an error for a buffer count the block cannot hold")
+	}
+}

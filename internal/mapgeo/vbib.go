@@ -38,6 +38,10 @@ func readVBIB(block []byte) (vertex, index []gpuBuffer, err error) {
 
 func readVBIBBuffers(block []byte, at, count int, vertex bool) ([]gpuBuffer, error) {
 	le := binary.LittleEndian
+	// Each header takes 24 bytes, so a damaged count cannot size a huge slice.
+	if at < 0 || count > (len(block)-min(at, len(block)))/24 {
+		return nil, errors.New("buffer headers outside the block")
+	}
 	out := make([]gpuBuffer, 0, count)
 	for i := 0; i < count; i++ {
 		head := at + i*24
