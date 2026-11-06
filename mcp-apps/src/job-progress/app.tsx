@@ -80,6 +80,9 @@ export function App({ bridge }: { bridge: Bridge }) {
   }, [bridge, follow, stopped, onScreen]);
 
   const running = progress !== null && progress.phase !== "done" && progress.phase !== "failed";
+  // A view that opens on a finished job has no time of its own to show.
+  const [sawRunning, setSawRunning] = useState(false);
+  if (running && !sawRunning) setSawRunning(true);
   useEffect(() => {
     if (!running) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -110,9 +113,11 @@ export function App({ bridge }: { bridge: Bridge }) {
       <div className="head">
         <strong className="title">{progress.title}</strong>
         {percent !== null && progress.phase !== "done" ? <span className="percent">{percent}%</span> : null}
-        <span className="elapsed" title="Tiempo desde que se abrió esta vista">
-          {elapsed}
-        </span>
+        {sawRunning ? (
+          <span className="elapsed" title="Tiempo desde que se abrió esta vista">
+            {elapsed}
+          </span>
+        ) : null}
       </div>
       <div
         className="track"
