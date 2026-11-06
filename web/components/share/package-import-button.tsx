@@ -5,13 +5,12 @@ import Link from 'next/link';
 import { PackageOpen } from 'lucide-react';
 import { isLibraryOffline, LibraryApiError } from '@/lib/api/library';
 import { importSharePackage } from '@/lib/api/share-package';
-import { collectionHref, reportHref } from '@/lib/clips/routes';
+import { reportHref } from '@/lib/clips/routes';
 import { SHARE_FILE, SHARE_PACKAGE_EXTENSION, shareErrorLabel, shareImportSummary, type SharePackageImport } from '@/lib/library/share';
 import { Button } from '@/components/ui/button';
 
-/** The page a finished import opens: the collection or report it brought. */
+/** The page a finished import opens: the report it brought. */
 export function importedHref(result: SharePackageImport): string | null {
-  if (result.collection_id) return collectionHref(result.collection_id);
   if (result.report_id) return reportHref(result.report_id);
   return null;
 }

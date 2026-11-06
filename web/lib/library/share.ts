@@ -10,10 +10,9 @@ export const SHARE_NOTES_MAX = 4000;
 
 /** Mirrors `httpapi.shareImportResponse`. */
 export type SharePackageImport = {
-  kind: 'collection' | 'report';
+  kind: 'report';
   title: string;
   notes: string;
-  collection_id?: string;
   report_id?: string;
   duplicate: boolean;
   matches_imported: number;
@@ -22,7 +21,7 @@ export type SharePackageImport = {
 };
 
 export const SHARE_IMPORT_KEYS = [
-  'kind', 'title', 'notes', 'collection_id', 'report_id', 'duplicate', 'matches_imported', 'matches_existing', 'annotations',
+  'kind', 'title', 'notes', 'report_id', 'duplicate', 'matches_imported', 'matches_existing', 'annotations',
 ] as const;
 
 const SHARE_ERROR_LABEL: Record<string, string> = {
@@ -47,11 +46,6 @@ export function packageSizeLabel(bytes: number): string {
   return `${mb.toLocaleString('es-ES', { maximumFractionDigits: mb < 10 ? 1 : 0 })} MB`;
 }
 
-/** What a collection package will carry, before it is built. */
-export function collectionShareSummary(moments: number, matches: number): string {
-  return `Lleva ${plural(moments, 'momento', 'momentos')} de ${plural(matches, 'partida', 'partidas')} con sus rondas, posiciones y notas, sin las demos.`;
-}
-
 /** What a report package will carry, before it is built. */
 export function reportShareSummary(matches: number): string {
   return `Lleva el informe y ${plural(matches, 'partida', 'partidas')} con sus rondas, posiciones y notas, sin las demos.`;
@@ -59,7 +53,7 @@ export function reportShareSummary(matches: number): string {
 
 /** One line on what an import added to the library. */
 export function shareImportSummary(result: SharePackageImport): string {
-  const what = result.kind === 'collection' ? 'La colección' : 'El informe';
+  const what = 'El informe';
   if (result.duplicate) return `${what} «${result.title}» ya estaba en tu biblioteca.`;
   const parts = [];
   if (result.matches_imported > 0) parts.push(plural(result.matches_imported, 'partida nueva', 'partidas nuevas'));

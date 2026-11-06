@@ -7,7 +7,7 @@ import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
-import { COLLECTIONS_HREF } from '@/lib/clips/routes';
+import { REPORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
@@ -75,10 +75,10 @@ export function PlaylistReplay(): ReactNode {
       <EmptyState
         icon={ListVideo}
         title="Esta lista no tiene rondas"
-        description="Abre una colección o un informe y pulsa Reproducir para ver sus rondas una tras otra."
+        description="Abre un informe y pulsa Reproducir para ver sus rondas una tras otra."
         actions={
           <Button asChild size="sm">
-            <Link href={COLLECTIONS_HREF}>Ver colecciones</Link>
+            <Link href={REPORTS_HREF}>Ver informes</Link>
           </Button>
         }
       />
