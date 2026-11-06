@@ -47,8 +47,9 @@ numbers compared with get_baseline, and find_rounds for round refs (match_id/rou
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
 these and scout_team take opponent_id and match_id to narrow the matches.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
-Fix the library's teams: update_team renames or sets aliases, assign_match_team sets the team of one
-side of a match (side keys from get_match), merge_teams folds a duplicate team into another.
+Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
+assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
+a duplicate team into another.
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
