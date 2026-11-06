@@ -6,6 +6,7 @@ import { LIBRETA_QUERY, LIBRETA_TABS } from '@/lib/clips/routes';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { PlayDetection } from '@/components/stratbook/play-detection';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { PlanTable } from './plan-table';
 import { PlayList, useLibretaPlays } from './play-list';
 
 const TABS = Object.values(LIBRETA_TABS);
@@ -35,6 +36,11 @@ export function LibretaHub(): ReactNode {
               onDetect={() => setTab(LIBRETA_TABS.detect)}
             />
           ),
+        },
+        {
+          id: LIBRETA_TABS.table,
+          label: 'Tabla',
+          content: <PlanTable plays={plays} onReload={reload} />,
         },
         {
           id: LIBRETA_TABS.detect,

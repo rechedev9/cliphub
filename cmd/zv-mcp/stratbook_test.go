@@ -218,3 +218,27 @@ func TestPlaysCarryStatusAndTags(t *testing.T) {
 	}
 	toolFails(t, cs, "create_play", map[string]any{"title": "x", "map": "de_mirage", "side": "T", "kind": ""}, "map, side and kind are required")
 }
+
+func TestPlanTableGroupsPlaysByKind(t *testing.T) {
+	rec := &recorder{seen: map[string]string{}}
+	mux := http.NewServeMux()
+	plays := `{"plays":[
+		{"id":"` + testPlayID + `","title":"b split","map":"de_mirage","side":"T","kind":"split","site":"B","status":"active","team_id":null},
+		{"id":"` + testPlayID + `","title":"A exec","map":"de_mirage","side":"T","kind":"execute","site":"A","status":"practice","team_id":"` + testTeamID + `","team_name":"Vitality"}]}`
+	rec.handle(mux, "GET /api/library/plays", plays)
+	cs := serveTools(t, mux, registerLibretaTableTools)
+	var out planTableOut
+	callTool(t, cs, "plan_table", map[string]any{"map": "DE_MIRAGE", "side": "t"}, &out)
+	if got := rec.get("GET /api/library/plays"); !strings.Contains(got, "map=de_mirage") || !strings.Contains(got, "side=T") ||
+		!strings.Contains(got, "limit=1000") || strings.Contains(got, "include_archived") {
+		t.Errorf("plan query = %s", got)
+	}
+	if len(out.Columns) != 6 || out.Columns[0].Kind != "execute" || len(out.Columns[0].Plays) != 1 || out.Columns[2].Plays[0].Title != "b split" {
+		t.Fatalf("plan = %+v", out)
+	}
+	callTool(t, cs, "plan_table", map[string]any{"map": "de_mirage", "side": "T", "no_team": true}, &out)
+	if len(out.Columns[0].Plays) != 0 || len(out.Columns[2].Plays) != 1 {
+		t.Errorf("plan without team = %+v", out)
+	}
+	toolFails(t, cs, "plan_table", map[string]any{"map": "de_mirage", "side": ""}, "map and side are required")
+}
