@@ -59,6 +59,9 @@ Scouting reports (Informes): list_reports, get_report (sections and players), cr
 update_report, delete_report. Stratbook: list_plays, get_play, save_round_as_play (a round ref and
 the team's side key), detect_team_plays then save_detected_play with a play's ref, update_play,
 delete_play, export_plays and import_plays (stratbook .json files on this PC).
+Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
+update_library_series, delete_library_series and set_match_series. team_maps reads a team's map record
+and simulate_veto recommends a veto against a rival.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
 player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered).
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
@@ -81,7 +84,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report and delete_play need the user's approval.
+delete_report, delete_play and delete_library_series need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

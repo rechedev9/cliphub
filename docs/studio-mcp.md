@@ -131,7 +131,7 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report` and `delete_play` (the title).
+  `delete_report` and `delete_play` (the title), and `delete_library_series` (format and teams).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -180,6 +180,9 @@ Read:
 | `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
 | `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, example refs and missing matches |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
+| `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
+| `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
+| `simulate_veto` | `GET /api/library/teams/{id}/veto` (`opponent_id`, `format`, `first`, repeatable `pool` and `done`): steps with their basis, the maps played and each map's edge |
 | `get_player` | `GET /api/library/players/{steamid}`: nicks and teams by date, linked FACEIT account |
 | `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`, repeatable `opponent_id` and `match_id`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
@@ -249,6 +252,9 @@ Write:
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
 | `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
 | `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
+| `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
+| `delete_library_series` | `GET` then `DELETE /api/library/series/{id}`; its matches stay | yes |
+| `set_match_series` | `PATCH /api/library/matches/{id}` with `series_id` or null | no |
 | `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |
 
 Short look and Full Demo HUD:
@@ -271,7 +277,7 @@ survives.
 instead of failing halfway.
 
 Not covered yet (see the parity rule in AGENTS.md): the editor, collections, report exports (the
-HTML page and the `.cliphub` package), library series, FACEIT follows, practice launch, community ranking, `open_studio`, resources and prompts. Steam sign-in, the authentication code
+HTML page and the `.cliphub` package), FACEIT follows, practice launch, community ranking, `open_studio`, resources and prompts. Steam sign-in, the authentication code
 and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
 the UI's local record of it.
