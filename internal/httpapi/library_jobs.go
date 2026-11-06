@@ -95,9 +95,15 @@ func (h *Handlers) registerJobDemo(ctx context.Context, j job.Job) (library.Demo
 		SizeBytes: h.storedSize(j.DemoPath),
 		Source:    library.DetectSource("", name),
 	}
+	upload := library.Demo{Path: j.DemoPath, FileName: name, SizeBytes: demo.SizeBytes, Source: demo.Source}
 	created, err := h.libraryRepo.CreateDemo(ctx, &demo)
 	if err != nil {
 		return library.Demo{}, err
+	}
+	if !created && demo.Source == library.SourceShared {
+		if demo, err = h.attachSharedDemo(ctx, demo, upload); err != nil {
+			return library.Demo{}, err
+		}
 	}
 	if created {
 		if err := h.placeLibraryDemo(j.DemoPath, key); err != nil {
@@ -312,6 +318,10 @@ func (h *Handlers) CreateJobFromLibraryDemo(w http.ResponseWriter, r *http.Reque
 			writeJSON(w, http.StatusOK, map[string]any{"job_id": j.ID, "status": j.Status, "reused": true})
 			return
 		}
+	}
+	if d.Source == library.SourceShared {
+		writeCodedError(w, http.StatusConflict, codeSharedMatch, errSharedMatch)
+		return
 	}
 	if exists, err := h.storage.Exists(d.Path); err != nil || !exists {
 		writeCodedError(w, http.StatusConflict, codeJobDemoMissing, "the library demo file is no longer stored")

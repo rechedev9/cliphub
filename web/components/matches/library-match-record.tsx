@@ -13,6 +13,7 @@ import { SOURCE_LABEL, matchScoreLabel, matchTitle } from '@/lib/library/partida
 import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
 import { RecordHeader, type RecordField } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
+import { StatusTag } from '@/components/studio/status-tag';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { CreateFromDemo } from '@/components/matches/create-from-demo';
 import { MatchVideos } from '@/components/matches/match-record';
@@ -41,7 +42,7 @@ function matchFields(match: LibraryMatch, demo: LibraryDemo): RecordField[] {
     { label: 'Marcador', value: <span>{matchScoreLabel(match)}</span> },
     { label: 'Rondas', value: match.round_count },
     { label: 'Duración', value: durationLabel(match) },
-    { label: 'Fuente', value: SOURCE_LABEL[demo.source] },
+    { label: 'Fuente', value: demo.source === 'shared' ? <StatusTag tone="neutral">{SOURCE_LABEL.shared}</StatusTag> : SOURCE_LABEL[demo.source] },
     { label: 'Build de CS2', value: demo.cs2_build ?? 'Sin dato' },
     {
       label: 'Serie',

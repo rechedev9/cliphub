@@ -17,6 +17,7 @@ import { useTableView } from '@/components/records/use-table-view';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PackageImportButton } from '@/components/share/package-import-button';
 import { RenameCollectionDialog } from './rename-collection-dialog';
 
 /** A collection already gone counts as deleted: the row only has to leave the list. */
@@ -85,14 +86,17 @@ export function CollectionLibrary(): ReactNode {
       <EmptyState
         icon={Bookmark}
         title="Aún no hay colecciones"
-        description="Abre una partida, ve a la repetición y pulsa Guardar momento en una jugada que quieras volver a ver."
+        description="Abre una partida, ve a la repetición y pulsa Guardar momento en una jugada que quieras volver a ver. Si un compañero te pasó un paquete .cliphub, ábrelo con Importar paquete."
         actions={
-          <Button asChild size="sm">
-            <Link href={MATCHES_HREF}>
-              <Swords aria-hidden />
-              Ver partidas
-            </Link>
-          </Button>
+          <>
+            <Button asChild size="sm">
+              <Link href={MATCHES_HREF}>
+                <Swords aria-hidden />
+                Ver partidas
+              </Link>
+            </Button>
+            <PackageImportButton onImported={reload} />
+          </>
         }
       />
     );
@@ -148,6 +152,7 @@ export function CollectionLibrary(): ReactNode {
         count={{ shown: shown.length, total: collections.length, noun: collections.length === 1 ? 'colección' : 'colecciones' }}
         className="flex flex-1 flex-wrap items-center gap-2"
       />
+      <PackageImportButton onImported={reload} />
       <DataTable
         label="Colecciones"
         rows={shown}

@@ -21,7 +21,12 @@ export const SOURCE_LABEL: Record<LibrarySource, string> = {
   hltv: 'Torneo',
   scrim: 'Scrim',
   unknown: 'Sin identificar',
+  shared: 'Compartido',
 };
+
+/** Why an action that needs the .dem is off on a shared match. */
+export const SHARED_MATCH_REASON =
+  'Esta partida llegó en un paquete compartido, sin la demo. Importa su archivo .dem para analizarla de nuevo o crear vídeos: se une a esta partida.';
 
 export const PARSE_STATE_LABEL: Record<LibraryParseState, string> = {
   queued: 'En cola',
