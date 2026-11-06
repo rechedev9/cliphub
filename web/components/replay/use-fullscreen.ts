@@ -25,15 +25,22 @@ export function useFullscreen(ref: RefObject<HTMLElement | null>): { active: boo
   useEffect(() => {
     // Esc or F11 leaving full screen ends the mode too.
     const sync = (): void => {
-      if (document.fullscreenElement !== null) screen.current = true;
-      else if (screen.current && on.current) leave();
+      const element = ref.current;
+      if (document.fullscreenElement !== null) {
+        screen.current = true;
+        // The full-screen root joins the top layer above the popover; showing it again puts it back on top.
+        if (on.current && element !== null && element.matches(':popover-open')) {
+          element.hidePopover();
+          element.showPopover();
+        }
+      } else if (screen.current && on.current) leave();
     };
     document.addEventListener('fullscreenchange', sync);
     return () => {
       document.removeEventListener('fullscreenchange', sync);
       if (on.current) leave();
     };
-  }, [leave]);
+  }, [ref, leave]);
 
   const toggle = useCallback(() => {
     const element = ref.current;

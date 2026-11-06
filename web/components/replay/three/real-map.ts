@@ -8,8 +8,10 @@ import {
   Group,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   NearestFilter,
   OrthographicCamera,
+  PlaneGeometry,
   ShaderMaterial,
   Texture,
   UnsignedIntType,
@@ -25,6 +27,9 @@ import type { MapUniforms } from './map-shader';
 import { REAL_MAP_FRAGMENT, REAL_MAP_VERTEX, SUN_DEPTH_FRAGMENT, SUN_DEPTH_VERTEX } from './real-map-shader';
 import { RealSky } from './real-sky';
 import { toTexture } from './scene-textures';
+
+/** The albedo of the shaded ground laid under the map. */
+const GROUND_ALBEDO = 0.3;
 
 /** Side of the sun's shadow map, in texels. */
 const SUN_DEPTH_SIZE = 4096;
@@ -87,6 +92,7 @@ export class RealMap {
   readonly #scene: MapScene;
   readonly #cut: MapUniforms;
   readonly #sky: RealSky | null;
+  readonly #ground: Mesh<PlaneGeometry, MeshBasicMaterial>;
   #sunTarget: WebGLRenderTarget | null = null;
   #look: RealMapLook = DEFAULT_LOOK;
   readonly #ambient: Vector3;
@@ -124,6 +130,8 @@ export class RealMap {
       this.group.add(mesh);
     }
     this.#bakeSunShadow(renderer);
+    this.#ground = groundUnder(scene, this.#ambient.clone().multiplyScalar(GROUND_ALBEDO * this.#exposure));
+    this.group.add(this.#ground);
     this.#sky = RealSky.build(scene, renderer);
     this.#sky?.setExposure(this.#look.exposure);
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
@@ -168,6 +176,8 @@ export class RealMap {
     for (const texture of this.#textures) texture?.dispose();
     this.#sunTarget?.dispose();
     this.#sky?.dispose();
+    this.#ground.geometry.dispose();
+    this.#ground.material.dispose();
     this.#shared.sunDepth?.dispose();
   }
 
@@ -346,4 +356,22 @@ function isSceneMaterial(value: unknown): value is SceneMaterial {
 /** A hazy horizon: the sky lightened toward white, in linear light. */
 function fogColor(sky: readonly number[]): [number, number, number] {
   return [Math.min(1, sky[0] * 0.75 + 0.18), Math.min(1, sky[1] * 0.75 + 0.18), Math.min(1, sky[2] * 0.75 + 0.2)];
+}
+
+/**
+ * A shaded floor under the whole map. Maps leave voids nobody sees from inside,
+ * such as Nuke's walled yard, and from above those would show the sky.
+ */
+function groundUnder(scene: MapScene, color: Vector3): Mesh<PlaneGeometry, MeshBasicMaterial> {
+  const [x0, y0, z0] = scene.min;
+  const [x1, y1] = scene.max;
+  const size = 12 * Math.max(x1 - x0, y1 - y0);
+  const ground = new Mesh(new PlaneGeometry(size, size), new MeshBasicMaterial({ color: `rgb(${toByte(color.x)}, ${toByte(color.y)}, ${toByte(color.z)})` }));
+  ground.position.set((x0 + x1) / 2, (y0 + y1) / 2, z0 - 2);
+  return ground;
+}
+
+function toByte(linear: number): number {
+  const c = Math.min(1, Math.max(0, linear));
+  return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055));
 }
