@@ -167,7 +167,7 @@ func describeSteamMatches(acc tuiclient.SteamAccount) steamMatchesOut {
 		if !shareCodePattern.MatchString(m.ShareCode) {
 			continue
 		}
-		out.Matches = append(out.Matches, steamMatchOut{ShareCode: m.ShareCode, MatchID: cleanName(m.MatchID), DiscoveredAt: m.DiscoveredAt.Format("2006-01-02 15:04")})
+		out.Matches = append(out.Matches, steamMatchOut{ShareCode: m.ShareCode, MatchID: cleanName(m.MatchID), DiscoveredAt: m.DiscoveredAt.Local().Format("2006-01-02 15:04")})
 	}
 	return out
 }

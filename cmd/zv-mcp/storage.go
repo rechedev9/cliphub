@@ -24,7 +24,7 @@ const (
 
 // storageKindLabels names each file kind the way the Almacenamiento screen does.
 var storageKindLabels = map[string]string{
-	"demo":        "la demo de tu PC",
+	"demo":        "la demo",
 	"studio_demo": "la copia de la demo en Studio",
 	"short":       "el Short",
 	"full_demo":   "el vídeo largo",
@@ -254,7 +254,7 @@ func describeStorageFiles(files tuiclient.StorageFiles, limit int) storageFilesO
 	out := storageFilesOut{DataDir: files.DataDir, Scanning: files.Scanning,
 		Demos: describeStorageList(files.Demos, limit), StudioDemos: describeStorageList(files.StudioDemos, limit), Videos: describeStorageList(files.Videos, limit)}
 	if files.ScannedAt != nil {
-		out.ScannedAt = files.ScannedAt.Format("2006-01-02 15:04")
+		out.ScannedAt = files.ScannedAt.Local().Format("2006-01-02 15:04")
 	}
 	return out
 }
@@ -269,7 +269,7 @@ func describeStorageList(files []tuiclient.StorageFile, limit int) storageListOu
 		if len(out.Files) == limit || cleanText(f.Path, maxPathRunes) != f.Path {
 			continue
 		}
-		out.Files = append(out.Files, storageFileOut{Path: f.Path, SizeBytes: f.SizeBytes, ModifiedAt: f.ModifiedAt.Format("2006-01-02 15:04"),
+		out.Files = append(out.Files, storageFileOut{Path: f.Path, SizeBytes: f.SizeBytes, ModifiedAt: f.ModifiedAt.Local().Format("2006-01-02 15:04"),
 			Kind: cleanName(f.Kind), JobID: cleanName(f.JobID)})
 	}
 	return out
