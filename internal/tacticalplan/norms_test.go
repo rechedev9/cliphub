@@ -28,7 +28,7 @@ func TestNormsPoolEveryTeamWithTheTeamDefinitions(t *testing.T) {
 		wantRounds, wantWins := 0, 0
 		perCategory := map[string][2]int{}
 		for _, key := range teams {
-			pb := BuildPlaybook([]FramedMatch{asTeam(key)}, ScoutFilter{Side: p.Side})
+			pb := BuildPlaybook([]FramedMatch{asTeam(key)}, PlaybookOptions{Filter: ScoutFilter{Side: p.Side}})
 			wantRounds += pb.RoundCount
 			wantWins += pb.WinRate.Count
 			for _, c := range pb.Categories {

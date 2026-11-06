@@ -156,7 +156,7 @@ func refRounds(refs []Evidence) []int {
 }
 
 func TestPlaybookClassifiesEachTRoundOnce(t *testing.T) {
-	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, ScoutFilter{Maps: []string{"de_mirage"}, Side: SideT})
+	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, PlaybookOptions{Filter: ScoutFilter{Maps: []string{"de_mirage"}, Side: SideT}})
 	if pb.Map != "de_mirage" || pb.RoundCount != 7 || pb.Framed != 6 || pb.WinRate.Count != 4 {
 		t.Fatalf("playbook totals = map %s, %d rounds, %d framed, %d won", pb.Map, pb.RoundCount, pb.Framed, pb.WinRate.Count)
 	}
@@ -191,7 +191,7 @@ func TestPlaybookClassifiesEachTRoundOnce(t *testing.T) {
 }
 
 func TestPlaybookCountsSitesAndZones(t *testing.T) {
-	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, ScoutFilter{Maps: []string{"de_mirage"}, Side: SideT})
+	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, PlaybookOptions{Filter: ScoutFilter{Maps: []string{"de_mirage"}, Side: SideT}})
 	sites := map[Site][]int{}
 	for _, s := range pb.Sites {
 		sites[s.Site] = refRounds(s.Refs)
@@ -208,7 +208,7 @@ func TestPlaybookCountsSitesAndZones(t *testing.T) {
 }
 
 func TestPlaybookCTCategoriesFollowTheClassifier(t *testing.T) {
-	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, ScoutFilter{Side: SideCT})
+	pb := BuildPlaybook([]FramedMatch{pbMatch(t)}, PlaybookOptions{Filter: ScoutFilter{Side: SideCT}})
 	if pb.RoundCount != 2 || pb.Map != "" {
 		t.Fatalf("CT rounds = %d, map %q", pb.RoundCount, pb.Map)
 	}
@@ -226,7 +226,7 @@ func TestPlaybookCTCategoriesFollowTheClassifier(t *testing.T) {
 func TestPlaybookWithoutBlobFallsBackToEvents(t *testing.T) {
 	m := pbMatch(t)
 	m.Blob = func() ([]byte, error) { return []byte("broken"), nil }
-	pb := BuildPlaybook([]FramedMatch{m}, ScoutFilter{Side: SideT})
+	pb := BuildPlaybook([]FramedMatch{m}, PlaybookOptions{Filter: ScoutFilter{Side: SideT}})
 	if pb.Framed != 0 || len(pb.Zones) != 0 {
 		t.Fatalf("a broken blob read %d framed rounds and zones %+v", pb.Framed, pb.Zones)
 	}

@@ -1,16 +1,28 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { getTeamPlaybook } from '@/lib/api/library';
-import type { TeamPlaybook as Playbook } from '@/lib/api/playbook';
+import type { PlaybookCombo, TeamPlaybook as Playbook } from '@/lib/api/playbook';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { libraryMatchesText, normsCategories } from '@/lib/analysis/library-pool';
+import {
+  EMPTY_COMBO,
+  comboFromQuery,
+  comboIsEmpty,
+  comboSummary,
+  narrowPlaybook,
+  positionsNote,
+  toggleTactic,
+  writeComboQuery,
+  type ComboMode,
+} from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryGrid, SiteBars, SkippedNote, TempoChart } from './playbook-summary';
-import { ZoneExplorer } from './zone-explorer';
+import { ComboBar, TacticBoard, comboLabeler } from './tactic-board';
 
 function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }): ReactNode {
   return (
@@ -41,6 +53,22 @@ export function TeamPlaybook({
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [now] = useState(() => Date.now());
+  const router = useRouter();
+  const pathname = usePathname();
+  const query = useSearchParams().toString();
+  const known = useMemo(() => new Set(playbook?.tactics.map((tactic) => tactic.key) ?? []), [playbook]);
+  const combo = useMemo(() => comboFromQuery(query, known), [query, known]);
+  const view = useMemo(() => (playbook === null ? null : narrowPlaybook(playbook, combo)), [playbook, combo]);
+  const labelOf = useMemo(() => (playbook === null ? null : comboLabeler(playbook)), [playbook]);
+  const setCombo = useCallback(
+    (next: PlaybookCombo) => {
+      const search = writeComboQuery(next, query);
+      router.replace(search === '' ? pathname : `${pathname}?${search}`, { scroll: false });
+    },
+    [router, pathname, query],
+  );
+  const toggle = useCallback((key: string, mode: ComboMode) => setCombo(toggleTactic(combo, key, mode)), [setCombo, combo]);
+  const clear = useCallback(() => setCombo(EMPTY_COMBO), [setCombo]);
   const { map, side, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
   const ready = map !== '' && side !== '';
@@ -79,7 +107,7 @@ export function TeamPlaybook({
       </p>
     );
   }
-  if (playbook === null) {
+  if (playbook === null || view === null || labelOf === null) {
     return (
       <div role="status" aria-label="Leyendo el playbook" className="flex flex-col gap-4">
         <Skeleton className="h-36 w-full" />
@@ -99,25 +127,35 @@ export function TeamPlaybook({
     );
   }
 
+  const narrowed = !comboIsEmpty(combo);
+  const note = positionsNote(view);
   return (
     <div className="flex flex-col gap-4">
+      <section aria-label="Combinación" className="studio-panel flex flex-col gap-2 p-4">
+        <h2 className="text-body font-semibold text-fg-1">Combina tácticas</h2>
+        <ComboBar teamId={teamId} view={view} labelOf={labelOf} onToggle={toggle} onClear={clear} />
+      </section>
       <Section title="Tipos de ronda" className="flex flex-col gap-3">
         <p className="text-body-sm text-fg-2">
-          Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas. Pulsa un tipo para ver sus rondas.
-          {norms !== null && norms !== 'failed' ? ` ▲▼ frente a los dos equipos de ${libraryMatchesText(norms.matches)} en ${prettyMapName(map)}, de ${side}.` : ''}
+          {narrowed
+            ? comboSummary(view, playbook.round_count)
+            : `Gana el ${Math.round(playbook.win_rate.pct)} % de sus ${playbook.round_count} rondas.`}{' '}
+          Pulsa un tipo para ver sus rondas.
+          {norms !== null && norms !== 'failed' && !narrowed ? ` ▲▼ frente a los dos equipos de ${libraryMatchesText(norms.matches)} en ${prettyMapName(map)}, de ${side}.` : ''}
         </p>
-        <CategoryGrid playbook={playbook} reference={reference} />
+        <CategoryGrid playbook={view} reference={narrowed ? null : reference} />
       </Section>
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Ritmo">
-          <TempoChart playbook={playbook} rounds={playbook.rounds} />
+          <TempoChart playbook={view} rounds={view.rounds} />
         </Section>
         <Section title="Sitios">
-          <SiteBars playbook={playbook} />
+          <SiteBars playbook={view} />
         </Section>
       </div>
-      <Section title="Zonas que controlan">
-        <ZoneExplorer key={`${playbook.map}-${playbook.side}`} teamId={teamId} playbook={playbook} />
+      <Section title="Tácticas">
+        {note === '' ? null : <p className="text-meta text-fg-3">{note}</p>}
+        <TacticBoard teamId={teamId} playbook={playbook} view={view} onToggle={toggle} />
       </Section>
       <SkippedNote skipped={playbook.skipped} />
     </div>

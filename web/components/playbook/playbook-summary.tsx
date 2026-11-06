@@ -135,7 +135,7 @@ export function TempoChart({ playbook, rounds }: { playbook: TeamPlaybook; round
   return (
     <div className="flex flex-col gap-2">
       <p className="text-meta text-fg-2">
-        {tempoMeaning(playbook.side)}. Mediana {secondsLabel(playbook.tempo.median)}, {timed} rondas.
+        {tempoMeaning(playbook.side)}. Mediana {secondsLabel(playbook.tempo.median)}, {timed} {timed === 1 ? 'ronda' : 'rondas'}.
       </p>
       <ColumnChart
         label={tempoMeaning(playbook.side)}

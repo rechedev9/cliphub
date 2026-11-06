@@ -32,12 +32,24 @@ func TestLibraryTeamPlaybookReadsOneMapAndSide(t *testing.T) {
 		t.Fatalf("thresholds = %+v", pb.Thresholds)
 	}
 
+	var pistol playbookResponse
+	env.json(http.MethodGet, base+"/playbook?map=de_mirage&side=CT&with=buy:pistol", nil, http.StatusOK, &pistol)
+	if pistol.RoundCount != 1 || len(pistol.Combo.With) != 1 || len(pistol.Rounds) != 1 || pistol.Rounds[0].Buy != tacticalplan.BuyPistol {
+		t.Fatalf("with buy:pistol = %d rounds, combo %+v", pistol.RoundCount, pistol.Combo)
+	}
+	var rest playbookResponse
+	env.json(http.MethodGet, base+"/playbook?map=de_mirage&side=CT&without=buy:pistol", nil, http.StatusOK, &rest)
+	if rest.RoundCount != 1 || rest.Rounds[0].Buy == tacticalplan.BuyPistol {
+		t.Fatalf("without buy:pistol = %+v", rest.Rounds)
+	}
+
 	var other playbookResponse
 	env.json(http.MethodGet, base+"/playbook?map=de_nuke&side=T", nil, http.StatusOK, &other)
 	if other.Matches != 0 || len(other.Rounds) != 0 || len(other.Categories) != 6 {
 		t.Fatalf("playbook on another map = %+v", other.Playbook)
 	}
-	for _, bad := range []string{"?map=de_mirage", "?side=T", "?map=de_mirage&map=de_nuke&side=T", "?map=de_mirage&side=mid"} {
+	for _, bad := range []string{"?map=de_mirage", "?side=T", "?map=de_mirage&map=de_nuke&side=T", "?map=de_mirage&side=mid",
+		"?map=de_mirage&side=T&with=pistol", "?map=de_mirage&side=T&without=weapon:awp"} {
 		if rw := env.do(http.MethodGet, base+"/playbook"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("GET playbook%s = %d, want 400", bad, rw.Code)
 		}

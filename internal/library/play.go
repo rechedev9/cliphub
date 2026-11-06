@@ -30,6 +30,7 @@ const (
 	PlayOriginRound    = "round"    // saved from one round of the replay
 	PlayOriginDetected = "detected" // saved from a repeated play the detection found
 	PlayOriginImport   = "import"   // read from a stratbook file
+	PlayOriginPlaybook = "playbook" // saved from a tactic combination of the team playbook
 )
 
 var playMapPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
@@ -164,8 +165,8 @@ func CleanPlay(p Play) (Play, error) {
 		return p, fmt.Errorf("kind %q is not a %s round pattern", p.Kind, p.Side)
 	case !validPlaySite(p.Site):
 		return p, errors.New("site must be A, B, mid or none")
-	case p.Origin != PlayOriginRound && p.Origin != PlayOriginDetected && p.Origin != PlayOriginImport:
-		return p, errors.New("origin must be round, detected or import")
+	case p.Origin != PlayOriginRound && p.Origin != PlayOriginDetected && p.Origin != PlayOriginImport && p.Origin != PlayOriginPlaybook:
+		return p, errors.New("origin must be round, detected, import or playbook")
 	case math.IsNaN(p.PositionsSeconds) || p.PositionsSeconds < 0 || p.PositionsSeconds > 300:
 		return p, errors.New("positions_seconds must be from 0 to 300")
 	case len(p.Grenades) > MaxPlayGrenades:

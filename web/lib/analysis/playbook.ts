@@ -1,6 +1,6 @@
 import type { PlaybookCategoryName, PlaybookRound, PlaybookThresholds } from '../api/playbook.ts';
 import type { ScoutEvidence } from '../api/scout.ts';
-import type { TacticalSide, TacticalSite } from '../api/tactical.ts';
+import type { TacticalSide } from '../api/tactical.ts';
 import type { ReplayRef } from './replay-link.ts';
 
 /** Spanish names of the playbook categories; `default` and `save` read the same on both sides. */
@@ -44,47 +44,6 @@ export function playbookCategoryRule(category: PlaybookCategoryName, side: Tacti
     default:
       return '';
   }
-}
-
-/** The narrowing a person builds from the zone chips: every zone held and, optionally, where the round ended. */
-export type ZoneFilter = { readonly zones: readonly string[]; readonly site: TacticalSite | '' };
-
-export const EMPTY_ZONE_FILTER: ZoneFilter = { zones: [], site: '' };
-
-export function toggleZone(filter: ZoneFilter, zone: string): ZoneFilter {
-  const zones = filter.zones.includes(zone) ? filter.zones.filter((entry) => entry !== zone) : [...filter.zones, zone];
-  return { ...filter, zones };
-}
-
-/** The rounds that held every zone of the filter and ended on its site. */
-export function filterRoundsByZones(rounds: readonly PlaybookRound[], filter: ZoneFilter): PlaybookRound[] {
-  return rounds.filter((round) => {
-    if (filter.site !== '' && round.site !== filter.site) return false;
-    return filter.zones.every((zone) => round.zones.some((hold) => hold.zone === zone));
-  });
-}
-
-/** How many of these rounds held each zone, for the counts on the chips. */
-export function zoneRoundCounts(rounds: readonly PlaybookRound[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const round of rounds) {
-    for (const zone of new Set(round.zones.map((hold) => hold.zone))) counts.set(zone, (counts.get(zone) ?? 0) + 1);
-  }
-  return counts;
-}
-
-function joinWords(words: readonly string[]): string {
-  if (words.length <= 1) return words.join('');
-  return `${words.slice(0, -1).join(', ')} y ${words[words.length - 1] ?? ''}`;
-}
-
-/** "Controla Mid y Banana y acaba en B", the filter read as a sentence; empty for no filter. */
-export function zoneFilterSentence(labels: readonly string[], siteName: string): string {
-  const parts: string[] = [];
-  if (labels.length > 0) parts.push(`controla ${joinWords(labels)}`);
-  if (siteName !== '') parts.push(`acaba en ${siteName}`);
-  const text = parts.join(' y ');
-  return text === '' ? '' : `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
 /** Playbook rows as replay refs, opening each round at freeze end. */

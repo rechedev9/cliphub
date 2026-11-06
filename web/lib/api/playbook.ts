@@ -46,7 +46,27 @@ export type PlaybookRound = {
   tempo_seconds: number | null;
   framed: boolean;
   zones: ZoneHold[];
+  /** Every tactic key the round shows, such as `zone:Middle`. */
+  tactics: string[];
 };
+
+/** Tactic kinds in display order (`tacticalplan.TacticKinds`). */
+export const TACTIC_KINDS = ['category', 'site', 'buy', 'opponent_buy', 'opening', 'opening_result', 'awp', 'zone', 'utility'] as const;
+export type TacticKind = (typeof TACTIC_KINDS)[number];
+
+/** The rounds that show one tactic; `share` is over the rounds the combination kept. */
+export type PlaybookTactic = PlaybookGroup & {
+  key: string;
+  kind: TacticKind;
+  /** A category, site, buy, callout, `won` or `lost`. */
+  value: string;
+  grenade?: 'smoke' | 'molotov';
+  /** The callout's name on tactics read at a place. */
+  label?: string;
+};
+
+/** A round stays when it shows every `with` tactic and no `without` tactic. */
+export type PlaybookCombo = { with: string[]; without: string[] };
 
 export type PlaybookThresholds = {
   rush_seconds: number;
@@ -73,6 +93,8 @@ export type TeamPlaybook = {
   tempo: TacticalHistogram;
   sites: PlaybookSite[];
   zones: PlaybookZone[];
+  tactics: PlaybookTactic[];
+  combo: PlaybookCombo;
   rounds: PlaybookRound[];
 };
 
@@ -128,11 +150,11 @@ export type TeamPrep = {
   ct_players: PrepPlayer[];
 };
 
-export const PLAYBOOK_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'] as const;
+export const PLAYBOOK_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'with', 'without'] as const;
 export const PREP_QUERY = ['map', 'from', 'to', 'opponent_id', 'match_id'] as const;
 export const PLAYBOOK_KEYS = [
   'team_id', 'team_name', 'skipped', 'map', 'side', 'thresholds', 'matches', 'round_count', 'win_rate', 'framed',
-  'categories', 'tempo', 'sites', 'zones', 'rounds',
+  'categories', 'tempo', 'sites', 'zones', 'tactics', 'combo', 'rounds',
 ] as const;
 export const PREP_KEYS = [
   'team_id', 'team_name', 'skipped', 'map', 'thresholds', 'matches', 'round_count', 'framed', 'matchups', 'tempo', 'ct_players',

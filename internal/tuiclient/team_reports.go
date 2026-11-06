@@ -101,6 +101,35 @@ type TeamPlaybook struct {
 	Tempo      Histogram         `json:"tempo"`
 	Sites      []PlaybookGroup   `json:"sites"`
 	Zones      []PlaybookGroup   `json:"zones"`
+	Tactics    []PlaybookTactic  `json:"tactics"`
+	Combo      PlaybookCombo     `json:"combo"`
+	Rounds     []PlaybookRound   `json:"rounds"`
+}
+
+// PlaybookTactic is the rounds that show one tactic of a playbook.
+type PlaybookTactic struct {
+	Key     string `json:"key"`
+	Kind    string `json:"kind"`
+	Value   string `json:"value"`
+	Grenade string `json:"grenade"`
+	Label   string `json:"label"`
+	ReportGroup
+}
+
+// PlaybookCombo is the tactic combination a playbook was narrowed to.
+type PlaybookCombo struct {
+	With    []string `json:"with"`
+	Without []string `json:"without"`
+}
+
+// PlaybookRound is the part of a playbook round the assistant reads.
+type PlaybookRound struct {
+	MatchID string `json:"match_id"`
+	Round   int    `json:"round"`
+	Tick    int    `json:"tick"`
+	Pattern string `json:"pattern"`
+	Site    string `json:"site"`
+	Won     bool   `json:"won"`
 }
 
 // TeamPlaybookReport returns what a team does on one side of one map.
