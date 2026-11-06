@@ -341,6 +341,16 @@ type StreamRenderState struct {
 	Error     string             `json:"error,omitempty"`
 	UpdatedAt time.Time          `json:"updated_at"`
 	Videos    []StreamVideoEntry `json:"videos,omitempty"`
+	// RenderProgress is the live encode progress, sent only while the status is rendering.
+	RenderProgress *StreamRenderProgress `json:"render_progress,omitempty"`
+}
+
+// StreamRenderProgress is a running stream render's progress (internal/streamclips.RenderProgress).
+type StreamRenderProgress struct {
+	Variant string  `json:"variant"`
+	Percent float64 `json:"percent"`
+	Clip    int     `json:"clip"`
+	Clips   int     `json:"clips"`
 }
 
 type StreamVideoEntry struct {

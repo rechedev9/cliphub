@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -87,6 +88,7 @@ type streamRenderOut struct {
 	Status   string   `json:"status"`
 	Running  bool     `json:"running"`
 	Percent  int      `json:"percent,omitempty"`
+	Progress string   `json:"progress,omitempty" jsonschema:"while rendering: the video being encoded, such as video 2 of 3"`
 	Error    string   `json:"error,omitempty" jsonschema:"untrusted text"`
 	Warnings []string `json:"warnings,omitempty"`
 	Note     string   `json:"note,omitempty"`
@@ -312,7 +314,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 					}
 					out = describeStreamRender(in.ID, in.Variant, state)
 				}
-				notify(ctx, req, donePercent(!out.Running, out.Percent), "render: "+out.Status)
+				notify(ctx, req, donePercent(!out.Running, out.Percent), streamRenderMessage(out))
 				return !out.Running, nil
 			})
 			return nil, out, toolError(err)
@@ -621,6 +623,12 @@ func describeStreamRender(id, variant string, state tuiclient.StreamRenderState)
 		out.Warnings = append(out.Warnings, cleanText(w, maxErrorRunes))
 	}
 	switch state.Status {
+	case tuiclient.StreamRendering:
+		// Clamped the way Studio's export stage does (web/lib/streams/render-progress.ts).
+		if p := state.RenderProgress; p != nil && p.Clips >= 1 && !math.IsNaN(p.Percent) {
+			out.Percent = int(math.Round(min(max(p.Percent, 0), 100)))
+			out.Progress = fmt.Sprintf("video %d of %d", min(max(p.Clip, 1), p.Clips), p.Clips)
+		}
 	case tuiclient.StreamRendered:
 		out.Note = "The render finished; list_stream_videos has the videos."
 	case tuiclient.StreamFailed:
@@ -629,4 +637,11 @@ func describeStreamRender(id, variant string, state tuiclient.StreamRenderState)
 		out.Note = "No render of this variant was started; call render_stream."
 	}
 	return out
+}
+
+func streamRenderMessage(out streamRenderOut) string {
+	if out.Progress != "" {
+		return "render: " + out.Status + ", " + out.Progress
+	}
+	return "render: " + out.Status
 }
