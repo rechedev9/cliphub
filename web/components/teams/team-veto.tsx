@@ -17,6 +17,7 @@ import { matchesHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, VETO_BASIS_LABEL, edgeLabel, rateLabel, vetoSequence } from '@/lib/library/veto';
 import { MapPreferenceScore } from '@/components/analysis/map-preference';
+import { MapLabel, MapThumb } from '@/components/analysis/map-thumb';
 import { RelatedList } from '@/components/records/related-list';
 import { Segmented } from '@/components/ui/segmented';
 import { Button } from '@/components/ui/button';
@@ -136,7 +137,7 @@ export function TeamVeto({
   } else if (plan === null) notice = <Skeleton className="h-64 w-full" />;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <Segmented
           label="Formato"
@@ -167,6 +168,7 @@ export function TeamVeto({
               )}
             >
               <input type="checkbox" className="accent-[var(--primary)]" checked={pool.includes(map)} onChange={() => togglePool(map)} />
+              <MapThumb map={map} className={cn('h-4 w-6', !pool.includes(map) && 'opacity-50')} crop={1.6} />
               {prettyMapName(map)}
             </label>
           ))}
@@ -180,12 +182,13 @@ export function TeamVeto({
               {plan.steps.map((step, index) => {
                 const taken = new Set(plan.steps.slice(0, index).map((s) => s.map));
                 return (
-                  <li key={step.index} className="flex flex-wrap items-center gap-3 px-3 py-2 text-body-sm">
+                  <li key={step.index} className="flex flex-wrap items-center gap-3 px-3 py-1.5 text-body-sm">
                     <span className="w-6 text-fg-3">{step.index}</span>
                     <span className={cn('w-36 truncate', step.team === 'a' ? 'text-fg-1' : 'text-fg-2')}>{slotNames[step.team]}</span>
                     <span className={cn('w-16 font-medium', step.action === 'pick' && 'text-outcome-win', step.action === 'ban' && 'text-outcome-loss')}>
                       {VETO_ACTION_LABEL[step.action]}
                     </span>
+                    <MapThumb map={step.map} className="h-6 w-10" crop={1.4} />
                     {step.action === 'decider' ? (
                       <span className="min-w-40 font-medium text-fg-1">{prettyMapName(step.map)}</span>
                     ) : (
@@ -214,10 +217,10 @@ export function TeamVeto({
           <RelatedList title="Mapas del pool" count={plan.maps.length}>
             <div className="overflow-x-auto">
               <table aria-label="Mapas del pool" className="w-full border-collapse text-left text-body-sm">
-                <thead className="bg-surface-2 text-fg-3">
+                <thead className="bg-surface-2 text-meta text-fg-3">
                   <tr className="border-b border-border">
-                    {['Mapa', 'Nuestras rondas', 'Nosotros', 'Sus rondas', 'Ellos', 'Ventaja', 'Nuestra preferencia', 'Su preferencia', 'Sus bans', 'Sus picks'].map((header) => (
-                      <th key={header} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
+                    {['Mapa', 'Nuestras rondas', 'Nosotros', 'Sus rondas', 'Ellos', 'Ventaja', 'Nuestra preferencia', 'Su preferencia', 'Sus bans', 'Sus picks'].map((header, index) => (
+                      <th key={header} scope="col" className={cn('h-8 px-2.5 font-medium whitespace-nowrap', index === 0 && 'sticky left-0 z-10 bg-surface-2')}>
                         {header}
                       </th>
                     ))}
@@ -226,30 +229,30 @@ export function TeamVeto({
                 <tbody>
                   {plan.maps.map((map) => (
                     <tr key={map.map} className="border-b border-border-subtle last:border-b-0">
-                      <th scope="row" className="px-3 py-2 text-left font-medium text-fg-1">
-                        {prettyMapName(map.map)}
+                      <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-2.5 py-1.5 text-left font-medium text-fg-1">
+                        <MapLabel map={map.map} />
                       </th>
-                      <td className="px-3 py-2">
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <Link href={matchesHref({ team: teamId, map: map.map })} className="hover:text-primary hover:underline">
                           {map.our_rounds_won}/{map.our_rounds} en {map.our_matches} {map.our_matches === 1 ? 'partida' : 'partidas'}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">{rateLabel(map.our_rate)}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">{rateLabel(map.our_rate)}</td>
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <Link href={matchesHref({ team: opponent, map: map.map })} className="hover:text-primary hover:underline">
                           {map.their_rounds_won}/{map.their_rounds} en {map.their_matches} {map.their_matches === 1 ? 'partida' : 'partidas'}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">{rateLabel(map.their_rate)}</td>
-                      <td className={cn('px-3 py-2', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">{rateLabel(map.their_rate)}</td>
+                      <td className={cn('px-2.5 py-1.5 whitespace-nowrap', map.edge > 0 && 'text-outcome-win', map.edge < 0 && 'text-outcome-loss')}>{edgeLabel(map.edge)}</td>
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <PreferenceCell preference={ours.get(map.map)} />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <PreferenceCell preference={theirs.get(map.map)} />
                       </td>
-                      <td className="px-3 py-2">{map.their_bans}</td>
-                      <td className="px-3 py-2">{map.their_picks}</td>
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">{map.their_bans}</td>
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">{map.their_picks}</td>
                     </tr>
                   ))}
                 </tbody>

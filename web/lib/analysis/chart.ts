@@ -58,6 +58,40 @@ export function linePath(points: readonly ChartPoint[]): string {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${r(point.x)} ${r(point.y)}`).join(' ');
 }
 
+/**
+ * A smooth SVG path through the points (monotone cubic, Fritsch-Carlson): the
+ * curve never overshoots a point, so a peak on the chart is a real peak.
+ */
+export function smoothPath(points: readonly ChartPoint[]): string {
+  const n = points.length;
+  if (n < 3) return linePath(points);
+  const r = (v: number): number => Math.round(v * 10) / 10;
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const a = points[i] ?? { x: 0, y: 0 };
+    const b = points[i + 1] ?? a;
+    dx.push(b.x - a.x);
+    slope.push(b.x === a.x ? 0 : (b.y - a.y) / (b.x - a.x));
+  }
+  const tangent: number[] = [slope[0] ?? 0];
+  for (let i = 1; i < n - 1; i += 1) {
+    const s0 = slope[i - 1] ?? 0;
+    const s1 = slope[i] ?? 0;
+    tangent.push(s0 * s1 <= 0 ? 0 : (3 * (dx[i - 1] ?? 0) + 3 * (dx[i] ?? 0)) / ((2 * (dx[i] ?? 0) + (dx[i - 1] ?? 0)) / s0 + ((dx[i] ?? 0) + 2 * (dx[i - 1] ?? 0)) / s1));
+  }
+  tangent.push(slope[n - 2] ?? 0);
+  const first = points[0] ?? { x: 0, y: 0 };
+  let d = `M${r(first.x)} ${r(first.y)}`;
+  for (let i = 0; i < n - 1; i += 1) {
+    const a = points[i] ?? first;
+    const b = points[i + 1] ?? a;
+    const h = (dx[i] ?? 0) / 3;
+    d += ` C${r(a.x + h)} ${r(a.y + (tangent[i] ?? 0) * h)} ${r(b.x - h)} ${r(b.y - (tangent[i + 1] ?? 0) * h)} ${r(b.x)} ${r(b.y)}`;
+  }
+  return d;
+}
+
 /** The arithmetic mean, or null for an empty series. */
 export function mean(values: readonly number[]): number | null {
   if (values.length === 0) return null;

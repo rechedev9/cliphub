@@ -4,12 +4,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getPlayerPositions, type LibraryPlayerRole, type LibraryRoleMetric } from '@/lib/api/library';
 import type { PlayerMapPositions, PlayerPositions, PlayerSidePositions } from '@/lib/api/team-insights';
+import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { awpText, rateText, roleSentence } from '@/lib/analysis/positions';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { ROLE_LABEL, percentLabel, utilityRatioLabel } from '@/lib/library/partidas';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { RelatedList } from '@/components/records/related-list';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -82,10 +85,12 @@ function Positions({ steamId, scope, onCounts }: { steamId: string; scope: Analy
     return <p className="text-body-sm text-fg-2">Sin partidas analizadas con este filtro. Amplía las fechas o quita el mapa.</p>;
   }
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-x-3 gap-y-4 @[90rem]/content:grid-cols-2">
       {data.maps.map((entry) => (
         <MapPositions key={entry.map} entry={entry} minSample={data.min_reliable_sample} />
       ))}
+      </div>
       <p className="measure-read text-meta text-fg-3">
         Cada ronda cuenta el sitio donde pasa la mayor parte de sus primeros {data.window_seconds} segundos. En CT es ancla de un sitio si
         está en él en al menos el {Math.round(data.anchor_share * 100)} % de las rondas leídas; si no, rotador. Con menos de{' '}
@@ -98,12 +103,13 @@ function Positions({ steamId, scope, onCounts }: { steamId: string; scope: Analy
 function MapPositions({ entry, minSample }: { entry: PlayerMapPositions; minSample: number }): ReactNode {
   const name = prettyMapName(entry.map);
   return (
-    <section aria-label={name} className="flex flex-col gap-3">
-      <h2 className="text-body-lg font-semibold text-fg-1">
+    <section aria-label={name} className="flex flex-col gap-2">
+      <h2 className="flex items-center gap-2 text-body font-semibold text-fg-1">
+        <MapThumb map={entry.map} className="h-6 w-10" crop={1.4} />
         {name}
-        <span className="ml-2 text-body-sm font-normal text-fg-2">{entry.matches === 1 ? '1 partida' : `${entry.matches} partidas`}</span>
+        <span className="text-body-sm font-normal text-fg-2">{entry.matches === 1 ? '1 partida' : `${entry.matches} partidas`}</span>
       </h2>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] gap-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         {entry.sides.map((side) => (
           <SideCard key={side.side} side={side} map={entry.map} minSample={minSample} />
         ))}
@@ -118,21 +124,26 @@ function SideCard({ side, map, minSample }: { side: PlayerSidePositions; map: st
   const awp = awpText(side);
   return (
     <article aria-label={`${name}, ${side.side}`} className="studio-panel flex flex-col">
-      <header className="flex flex-col gap-0.5 border-b border-border-subtle px-4 py-3">
+      <header className="flex flex-col gap-0.5 border-b border-border-subtle px-3 py-2">
         <span className={cn('text-meta font-medium', SIDE_CLASS[side.side])}>{side.side}</span>
-        <h3 className={cn('text-body font-semibold', low ? 'text-fg-3' : 'text-fg-1')} title={low ? `Muestra pequeña: ${side.sampled} rondas` : undefined}>
+        <h3 className={cn('text-body-sm font-semibold', low ? 'text-fg-3' : 'text-fg-1')} title={low ? `Muestra pequeña: ${side.sampled} rondas` : undefined}>
           {roleSentence(side, name)}
         </h3>
-        {awp ? <p className="text-body-sm text-fg-2">{awp}</p> : null}
+        {awp ? (
+          <p className="flex items-center gap-1.5 text-body-sm text-fg-2">
+            <EquipmentIcon name="awp" height={11} className="text-fg-2" />
+            {awp}
+          </p>
+        ) : null}
       </header>
       {side.places.length === 0 ? (
-        <p className="px-4 py-3 text-body-sm text-fg-2">Sin sitios repetidos.</p>
+        <p className="px-3 py-2 text-body-sm text-fg-2">Sin sitios repetidos.</p>
       ) : (
         <ul className="divide-y divide-border-subtle">
           {side.places.map((place) => {
             const refs = place.examples.map((example) => ({ matchId: example.match_id, round: example.round, tick: example.tick }));
             return (
-              <li key={place.place} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-body-sm">
+              <li key={place.place} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-1 text-body-sm">
                 <span className="min-w-0 flex-1 truncate text-fg-1">{place.label || place.place}</span>
                 <span className={cn('tabular-nums', place.rounds.reliable ? 'text-fg-2' : 'text-fg-3')}>{rateText(place.rounds)}</span>
                 {refs.length > 0 ? (
@@ -179,6 +190,7 @@ function RoleEvidence({ role }: { role: LibraryPlayerRole | null | undefined }):
       <dl className="grid divide-y divide-border-subtle @[64rem]/content:grid-cols-3 @[64rem]/content:divide-x @[64rem]/content:divide-y-0">
         <RoleMetricView
           label="Kills con AWP"
+          icon="awp"
           metric={role.awp_kills}
           value={percentLabel(role.awp_kills.count, role.awp_kills.total)}
           summary={`${role.awp_kills.count} de ${role.awp_kills.total} kills`}
@@ -191,6 +203,7 @@ function RoleEvidence({ role }: { role: LibraryPlayerRole | null | undefined }):
         />
         <RoleMetricView
           label="Granadas frente a sus compañeros"
+          icon="smokegrenade"
           metric={role.utility}
           value={ratio === '' ? '' : `${ratio} veces`}
           summary={`${role.utility.count} granadas en ${role.utility.total} rondas`}
@@ -207,16 +220,21 @@ function RoleMetricView({
   value,
   summary,
   note,
+  icon,
 }: {
   label: string;
+  icon?: EquipmentIconName;
   metric: LibraryRoleMetric;
   value: string;
   summary: string;
   note?: string;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-1.5 px-4 py-3">
-      <dt className="text-meta text-fg-3">{label}</dt>
+    <div className="flex flex-col gap-1 px-3 py-2">
+      <dt className="flex items-center gap-1.5 text-meta text-fg-3">
+        {icon ? <EquipmentIcon name={icon} height={11} /> : null}
+        {label}
+      </dt>
       <dd className="flex flex-col gap-1.5">
         <span className="text-title font-semibold text-fg-1">{value || 'Sin dato'}</span>
         <span className="text-meta text-fg-2">{summary}</span>

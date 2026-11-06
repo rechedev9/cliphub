@@ -22,6 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Toggle } from '@/components/ui/toggle';
 import { GRENADE_KIND_TOKEN, GrenadeRadar } from './grenade-radar';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
+import { grenadeIcon } from '@/lib/analysis/icons';
 import { GrenadeSpotList, type LabelledSpot } from './grenade-spot-list';
 import { PracticeResult, usePracticeLaunch } from './practice-launch';
 import { ThrowTimeHistogram } from './throw-time-histogram';
@@ -94,13 +96,15 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
     setChosen((current) => (current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key].slice(0, PRACTICE_MAX_SPOTS)));
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,1fr)]">
-      <section aria-label="Radar" className="flex flex-col gap-3">
+    <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]">
+      <section aria-label="Radar" className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Tipos de granada" className="flex flex-wrap gap-1.5">
             {TEAM_GRENADE_KINDS.map((kind) => (
               <Toggle key={kind} variant="filter" size="sm" pressed={kinds.has(kind)} onPressedChange={() => toggleKind(kind)}>
-                <span aria-hidden className="size-2.5 rounded-full" style={{ backgroundColor: `var(${GRENADE_KIND_TOKEN[kind]})` }} />
+                <span aria-hidden className="flex" style={{ color: `var(${GRENADE_KIND_TOKEN[kind]})` }}>
+                <EquipmentIcon name={grenadeIcon(kind)} height={14} />
+              </span>
                 {GRENADE_KIND_LABEL[kind]}
                 <span className="tabular-nums opacity-80">{counts.get(kind) ?? 0}</span>
               </Toggle>
@@ -143,9 +147,9 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
         <ThrowTimeHistogram bins={bins} />
       </section>
 
-      <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-3">
+      <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-2 lg:sticky lg:top-[calc(var(--shell-strip-height)+3.5rem)] lg:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] lg:overflow-y-auto">
         <header className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="granadas-posiciones" className="text-body-lg font-semibold text-fg-1">
+          <h2 id="granadas-posiciones" className="text-body font-semibold text-fg-1">
             {spots.length} {spots.length === 1 ? 'posición' : 'posiciones'}
             <span className="ml-2 text-body-sm font-normal text-fg-2 tabular-nums">
               {matching.length} {matching.length === 1 ? 'lanzamiento' : 'lanzamientos'}

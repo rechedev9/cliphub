@@ -20,9 +20,11 @@ import { REPORTS_HREF, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { buildReportHtml, reportFileStem } from '@/lib/reports/export-html';
 import { saveReportPdf } from '@/lib/reports/pdf';
-import { REPORT_SIDE_LABEL, matchIndex } from '@/lib/reports/scout-sections';
+import { REPORT_SIDE_LABEL, matchIndex, scoutSections } from '@/lib/reports/scout-sections';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
+import { lastResults, scoreOutcome } from '@/lib/analysis/context-bar';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -39,6 +41,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
+import { useRecordTab } from '@/hooks/use-record-tab';
 import { MAX_REPORT_MATCHES, ReportSideSelect } from './new-report-dialog';
 import { EMPTY_PICKER_FILTERS, ReportMatchPicker, type PickerFilters } from './report-match-picker';
 import { MetricsView } from '@/components/metrics/metrics-view';
@@ -155,14 +158,12 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
   const [exporting, setExporting] = useState(false);
   /** The example rounds of the report row the video dialog opened on. */
   const [video, setVideo] = useState<VideoSource[] | null>(null);
-  const [tab, setTab] = useState('notas');
+  const [tab, setTab] = useRecordTab(['notas', 'radar', 'metricas', ...scoutSections(scout).map((section) => section.id)], 'notas');
   const [counts, setCounts] = useState<ScopeCounts | null>(null);
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'report', id: report.id });
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(report.title);
   useDocumentTitle(`${report.title} · Informe · ClipHub`);
-
-  const maps = [...new Set(scout.matches.map((match) => prettyMapName(match.map)))];
 
   function exportHtml(): void {
     downloadHtml(buildReportHtml(exportInput(report, scout, metrics)), reportFileStem(report.title));
@@ -201,9 +202,6 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
         }
         fields={[
           { label: 'Partidas', value: scout.matches.length },
-          { label: 'Mapas', value: maps.length === 0 ? 'Sin mapas' : maps.join(', ') },
-          { label: 'Lado', value: REPORT_SIDE_LABEL[report.side] },
-          { label: 'Rondas leídas', value: scout.tendencies.round_count },
           { label: 'Actualizado', value: formatShortDate(report.updated_at) },
         ]}
         actions={
@@ -238,6 +236,28 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           {message}
         </p>
       ) : null}
+      <ScopeBar
+        scope={scope}
+        onChange={setScope}
+        onReset={resetScope}
+        fields={tab === 'radar' ? ['buy', 'opponentBuy'] : []}
+        counts={tab === 'radar' ? counts : { maps: scout.matches.length, rounds: scout.tendencies.round_count }}
+        results={lastResults(
+          scout.matches.map((match) => ({ playedAt: match.played_at, outcome: scoreOutcome(match.score, match.opponent_score) })),
+          10,
+        )}
+        context={
+          <span className="flex items-center gap-2">
+            <span className="font-medium text-fg-1">{REPORT_SIDE_LABEL[report.side]}</span>
+            {[...new Set(scout.matches.map((match) => match.map))].map((map) => (
+              <span key={map} className="flex items-center gap-1">
+                <MapThumb map={map} className="h-4 w-6" crop={1.6} />
+                {prettyMapName(map)}
+              </span>
+            ))}
+          </span>
+        }
+      />
       <ScoutView
         scout={scout}
         tab={tab}
@@ -252,10 +272,7 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
             id: 'radar',
             label: 'Radar 2D',
             content: (
-              <div className="flex flex-col gap-4">
-                <ScopeBar scope={scope} onChange={setScope} onReset={resetScope} fields={['buy', 'opponentBuy']} counts={counts} />
-                <ReportSpatial report={report} scope={scope} onMapChange={onMapChange} onCounts={setCounts} />
-              </div>
+              <ReportSpatial report={report} scope={scope} onMapChange={onMapChange} onCounts={setCounts} />
             ),
           },
           {

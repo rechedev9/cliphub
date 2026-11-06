@@ -5,13 +5,16 @@ import { mapSilhouette } from '@/lib/analysis/map-silhouette';
 import { zoneShapes } from '@/lib/analysis/zone-shapes';
 import { prettyMapName } from '@/lib/format';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
+import { radarImageUrl } from '@/lib/api/game-assets';
+import { useRadarImage } from '@/hooks/use-radar-image';
 import { cn } from '@/lib/utils';
 
 const SIZE = 100;
 
 /**
- * The map's silhouette with the controlled zones on it; chosen zones in ink,
- * the rest faint. Nothing renders when the map has no analysed geometry.
+ * CS2's radar (or, without the game, the map's silhouette) with the controlled
+ * zones on it; chosen zones in ink, the rest faint. Nothing renders when the
+ * map has no analysed geometry.
  */
 export function ZoneMap({
   teamId,
@@ -27,7 +30,8 @@ export function ZoneMap({
   selected: readonly string[];
 }): ReactNode {
   const geometry = useMapGeometry(teamId, [map]).get(map);
-  if (geometry === undefined) return <div aria-hidden className="aspect-square w-full max-w-80 rounded-md bg-surface-3" />;
+  const radar = useRadarImage(map);
+  if (geometry === undefined) return <div aria-hidden className="aspect-square w-full max-w-[26rem] rounded-md bg-surface-3" />;
   const silhouette = geometry ? mapSilhouette(geometry, SIZE) : null;
   if (geometry === null || silhouette === null) return null;
   const shapes = zoneShapes(geometry, zones, SIZE);
@@ -38,11 +42,22 @@ export function ZoneMap({
       viewBox={silhouette.viewBox}
       role="img"
       aria-label={`Zonas controladas en ${prettyMapName(map)}`}
-      className="aspect-square w-full max-w-80 rounded-md bg-surface-3"
+      className="aspect-square w-full max-w-[26rem] rounded-md bg-surface-3"
     >
-      <path d={silhouette.path} className="fill-fg-4/50" />
+      {radar ? (
+        <image
+          href={radarImageUrl(map)}
+          x={0}
+          y={0}
+          width={(SIZE * radar.naturalWidth) / geometry.calibration.size}
+          height={(SIZE * radar.naturalHeight) / geometry.calibration.size}
+          className="[filter:grayscale(0.55)_brightness(0.78)]"
+        />
+      ) : (
+        <path d={silhouette.path} className="fill-fg-4/50" />
+      )}
       {shapes.map((shape) => (
-        <path key={`area-${shape.zone}`} d={shape.path} className={selected.includes(shape.zone) ? 'fill-primary/80' : 'fill-fg-3/40'} />
+        <path key={`area-${shape.zone}`} d={shape.path} className={selected.includes(shape.zone) ? 'fill-primary/70' : 'fill-fg-3/25'} />
       ))}
       {shapes.map((shape) => (
         <text

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { compareDelta, type DeltaTone } from '@/lib/analysis/compare';
+import { compareDelta, deltaArrow } from '@/lib/analysis/compare';
 import { cn } from '@/lib/utils';
+import { DELTA_TONE_CLASS } from './delta-value';
 import { Sparkline } from './sparkline';
 
 export type StatComparison = {
@@ -29,12 +30,6 @@ export type StatCardProps = {
   className?: string;
 };
 
-const TONE_CLASS: Record<DeltaTone, string> = {
-  better: 'text-outcome-win',
-  worse: 'text-outcome-loss',
-  even: 'text-fg-2',
-};
-
 function signed(format: (value: number) => string): (delta: number) => string {
   return (delta) => {
     let sign = '';
@@ -45,10 +40,10 @@ function signed(format: (value: number) => string): (delta: number) => string {
 }
 
 /**
- * One headline number with what it is compared against. The delta is green
- * when the value is better than the reference and red when worse, so
- * `higherIsBetter` decides the colour, not the sign. Group cards in a
- * `StatCardGroup`.
+ * One headline number with what it is compared against, dense: the value, then
+ * "▲ +0,05 vs 0,71". The arrow gives the direction and its colour whether that
+ * is good news, so `higherIsBetter` decides the colour, not the sign. Group
+ * cards in a `StatCardGroup`.
  */
 export function StatCard({
   label,
@@ -68,21 +63,24 @@ export function StatCard({
       : null;
   const deltaText = formatDelta ?? signed(format);
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1.5 bg-surface-2 px-4 py-3', className)}>
-      <dt className="text-meta text-fg-3">{label}</dt>
-      <dd className="flex flex-col gap-1">
-        <span className="flex items-end justify-between gap-3">
-          <span className={cn('text-stat font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-fg-3')}>
+    <div className={cn('flex min-w-0 flex-col gap-0.5 bg-surface-2 px-3 py-2', className)}>
+      <dt className="truncate text-meta text-fg-3" title={label}>
+        {label}
+      </dt>
+      <dd className="flex flex-col gap-0.5">
+        <span className="flex items-center justify-between gap-2">
+          <span className={cn('text-title font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-body-sm font-normal text-fg-3')}>
             {value === null ? 'Sin dato' : format(value)}
           </span>
-          {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} /> : null}
+          {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} width={64} height={20} /> : null}
         </span>
         {result && comparison && comparison.value !== null ? (
-          <span className="text-meta text-fg-2">
-            <span className={cn('font-medium tabular-nums', TONE_CLASS[result.tone])}>
-              {result.tone === 'even' ? 'Igual' : deltaText(result.delta)}
+          <span className="truncate text-meta text-fg-3 tabular-nums" title={`${comparison.label}: ${format(comparison.value)}`}>
+            <span className={cn('font-medium', DELTA_TONE_CLASS[result.tone])}>
+              {result.tone === 'even' ? '= ' : `${deltaArrow(result.delta, epsilon)} ${deltaText(result.delta)}`}
             </span>{' '}
-            frente a {format(comparison.value)}, {comparison.label.toLowerCase()}
+            vs {format(comparison.value)}
+            <span className="sr-only">, {comparison.label.toLowerCase()}</span>
           </span>
         ) : null}
         {sample ? <span className="text-meta text-fg-3">{sample}</span> : null}
@@ -96,7 +94,7 @@ export function StatCardGroup({ label, children, className }: { label: string; c
   return (
     <dl
       aria-label={label}
-      className={cn('studio-panel grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-px overflow-hidden bg-border-subtle', className)}
+      className={cn('studio-panel grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-px overflow-hidden bg-border-subtle', className)}
     >
       {children}
     </dl>

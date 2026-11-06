@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { heatLevel } from '@/lib/analysis/compare';
+import type { EquipmentIconName } from '@/lib/api/game-assets';
+import { deltaArrow, heatLevel } from '@/lib/analysis/compare';
+import { MapThumb } from '@/components/analysis/map-thumb';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
 
 export type HeatColumn = {
@@ -18,10 +21,14 @@ export type HeatCell = {
   readonly text: string;
   /** The number the tint reads; null or absent leaves the cell untinted. */
   readonly value?: number | null;
-  /** Sample size behind the value, shown small beside it. */
+  /** Sample size behind the value, shown in parentheses beside it. */
   readonly n?: number;
   readonly href?: string;
   readonly tone?: 'ct' | 't';
+  /** A map name such as `de_mirage`: the cell leads with its radar thumbnail. */
+  readonly map?: string;
+  /** A weapon or grenade: the cell leads with its silhouette. */
+  readonly icon?: EquipmentIconName | null;
 };
 
 export type HeatRow = { readonly id: string; readonly cells: Readonly<Record<string, HeatCell>> };
@@ -38,10 +45,12 @@ export type HeatTableProps = {
   empty: string;
   /** Header actions, such as a selector. */
   actions?: ReactNode;
+  /** What the tint compares with; default "la media de la tabla". */
+  reference?: string;
 };
 
-const WIN = ['', 'bg-outcome-win/10', 'bg-outcome-win/20', 'bg-outcome-win/30'] as const;
-const LOSS = ['', 'bg-outcome-loss/10', 'bg-outcome-loss/20', 'bg-outcome-loss/30'] as const;
+const WIN = ['', 'bg-outcome-win/8', 'bg-outcome-win/16', 'bg-outcome-win/24'] as const;
+const LOSS = ['', 'bg-outcome-loss/8', 'bg-outcome-loss/16', 'bg-outcome-loss/24'] as const;
 const TONE = { ct: 'text-side-ct', t: 'text-side-t' } as const;
 
 function tint(level: number): string {
@@ -50,14 +59,29 @@ function tint(level: number): string {
   return '';
 }
 
-function CellView({ cell, column, minSample, sampleNoun }: { cell: HeatCell | undefined; column: HeatColumn; minSample: number; sampleNoun: string }): ReactNode {
-  if (cell === undefined) return <td className="px-3 py-2" />;
+function CellView({
+  cell,
+  column,
+  first,
+  minSample,
+  sampleNoun,
+}: {
+  cell: HeatCell | undefined;
+  column: HeatColumn;
+  first: boolean;
+  minSample: number;
+  sampleNoun: string;
+}): ReactNode {
+  const sticky = first ? 'sticky left-0 z-10 bg-surface-2' : '';
+  if (cell === undefined) return <td className={cn('px-2.5 py-1.5', sticky)} />;
   const low = cell.n !== undefined && cell.n < minSample;
   const level =
     column.heat && !low && cell.value !== undefined && cell.value !== null
       ? heatLevel(cell.value, column.heat.baseline, column.heat.spread, column.heat.higherIsBetter ?? true)
       : 0;
-  const content = cell.href ? (
+  const arrow =
+    level !== 0 && column.heat && cell.value !== undefined && cell.value !== null ? deltaArrow(cell.value - column.heat.baseline) : '';
+  const text = cell.href ? (
     <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
       {cell.text}
     </Link>
@@ -67,48 +91,67 @@ function CellView({ cell, column, minSample, sampleNoun }: { cell: HeatCell | un
   return (
     <td
       className={cn(
-        'px-3 py-2 whitespace-nowrap',
+        'px-2.5 py-1.5 whitespace-nowrap',
         column.align === 'end' && 'text-right tabular-nums',
         low ? 'text-fg-3' : 'text-fg-1',
         cell.tone && !low && TONE[cell.tone],
-        tint(level),
+        first ? sticky : tint(level),
       )}
       title={low ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}` : undefined}
     >
-      {content}
-      {cell.n === undefined ? null : (
-        <>
-          <span aria-hidden className="ml-1.5 text-meta text-fg-3 tabular-nums">
-            {cell.n}
+      <span className={cn('inline-flex items-center gap-1.5', column.align === 'end' && 'justify-end')}>
+        {cell.map ? <MapThumb map={cell.map} className="h-5 w-8" crop={1.5} /> : null}
+        {cell.icon ? <EquipmentIcon name={cell.icon} height={12} className="text-fg-2" /> : null}
+        {text}
+        {arrow === '' ? null : (
+          <span aria-hidden className={cn('text-[0.7em]', level > 0 ? 'text-outcome-win' : 'text-outcome-loss')}>
+            {arrow}
           </span>
-          <span className="sr-only">, {cell.n} {sampleNoun}</span>
-        </>
-      )}
+        )}
+        {cell.n === undefined ? null : (
+          <>
+            <span aria-hidden className="text-meta text-fg-3 tabular-nums">
+              ({cell.n})
+            </span>
+            <span className="sr-only">, {cell.n} {sampleNoun}</span>
+          </>
+        )}
+      </span>
     </td>
   );
 }
 
 /**
- * A table whose numbers are tinted against a baseline, with the sample size
- * beside every number so a strong tint on three rounds is never mistaken for
- * a trend: cells under `minSample` are dimmed and never tinted.
+ * A dense table whose numbers are read against a baseline, "52 % ▲ (24)":
+ * tint and arrow say better or worse, n in parentheses the sample, so a strong
+ * tint on three rounds is never mistaken for a trend. Cells under `minSample`
+ * are dimmed and never tinted. Wide tables scroll inside with the first column
+ * pinned, so nothing is cut at the right edge.
  */
-export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, actions }: HeatTableProps): ReactNode {
+export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, actions, reference = 'la media de la tabla' }: HeatTableProps): ReactNode {
   return (
-    <section aria-label={label} className="studio-panel flex flex-col">
-      <header className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2">
+    <section aria-label={label} className="studio-panel flex min-w-0 flex-col">
+      <header className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-1.5">
         <h2 className="text-body-sm font-semibold text-fg-1">{label}</h2>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </header>
       {rows.length === 0 ? (
-        <p className="px-4 py-3 text-body-sm text-fg-2">{empty}</p>
+        <p className="px-3 py-2 text-body-sm text-fg-2">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
           <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
-            <thead className="bg-surface-2 text-fg-3">
+            <thead className="bg-surface-2 text-meta text-fg-3">
               <tr className="border-b border-border">
-                {columns.map((column) => (
-                  <th key={column.id} scope="col" className={cn('h-9 px-3 font-medium whitespace-nowrap', column.align === 'end' && 'text-right')}>
+                {columns.map((column, index) => (
+                  <th
+                    key={column.id}
+                    scope="col"
+                    className={cn(
+                      'h-8 px-2.5 font-medium whitespace-nowrap',
+                      column.align === 'end' && 'text-right',
+                      index === 0 && 'sticky left-0 z-10 bg-surface-2',
+                    )}
+                  >
                     {column.header}
                   </th>
                 ))}
@@ -117,8 +160,15 @@ export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, 
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-border-subtle last:border-b-0">
-                  {columns.map((column) => (
-                    <CellView key={column.id} cell={row.cells[column.id]} column={column} minSample={minSample} sampleNoun={sampleNoun} />
+                  {columns.map((column, index) => (
+                    <CellView
+                      key={column.id}
+                      cell={row.cells[column.id]}
+                      column={column}
+                      first={index === 0}
+                      minSample={minSample}
+                      sampleNoun={sampleNoun}
+                    />
                   ))}
                 </tr>
               ))}
@@ -126,9 +176,8 @@ export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, 
           </table>
         </div>
       )}
-      <p className="border-t border-border-subtle px-4 py-2 text-meta text-fg-3">
-        La cifra pequeña son las {sampleNoun} de cada dato. Verde es mejor que la media de la tabla y rojo, peor; con menos de {minSample}{' '}
-        {sampleNoun} el dato sale en gris y sin color.
+      <p className="border-t border-border-subtle px-3 py-1.5 text-meta text-fg-3">
+        ▲▼ y color frente a {reference}; entre paréntesis, las {sampleNoun}. Con menos de {minSample} {sampleNoun}, en gris.
       </p>
     </section>
   );

@@ -14,7 +14,7 @@ import {
   referenceLabel,
 } from '@/lib/analysis/reference';
 import { TREND_BASELINE, TREND_LABEL, TREND_METRICS, trendPoints, type MatchDamage, type TrendMetric } from '@/lib/analysis/player-trend';
-import { prettyMapName } from '@/lib/format';
+import { formatShortDate, prettyMapName } from '@/lib/format';
 import { dateText } from '@/lib/reports/scout-sections';
 import { LineChart } from '@/components/ui/line-chart';
 import { Segmented } from '@/components/ui/segmented';
@@ -71,21 +71,23 @@ export function PlayerIntro({
   details,
   map,
   bothSides,
+  reference,
 }: {
   report: MetricsReport;
   details: ReadonlyMap<string, LibraryMatch>;
   /** The scope's map; the reference reads the same map. */
   map: string;
   bothSides: boolean;
+  /** The context bar's choice; Pro falls back to the library when it has no players. */
+  reference: BaselineScope;
 }): ReactNode {
   const references = useReferences(map);
-  const [chosen, setChosen] = useState<BaselineScope>('library');
   const [trend, setTrend] = useState<TrendMetric>('kd');
   const player = report.players[0];
   if (!player) return null;
   const ready = references !== null && references !== 'failed' ? references : null;
   const proMissing = ready ? proUnavailableText(ready.pro) : null;
-  const scope: BaselineScope = proMissing === null ? chosen : 'library';
+  const scope: BaselineScope = proMissing === null ? reference : 'library';
   const baseline = ready ? ready[scope] : null;
   const values = playerReferenceValues(player);
   const damage = matchDamage(player.steamid64, details);
@@ -104,19 +106,9 @@ export function PlayerIntro({
   const chartReference = chartBaseline === null ? null : baselineValue(baseline, chartBaseline);
 
   return (
-    <div className="flex flex-col gap-5">
-      <section aria-label="Cifras frente a la referencia" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-body font-semibold text-fg-1">Frente a la referencia</h2>
-          {proMissing === null ? (
-            <Segmented
-              label="Referencia"
-              value={scope}
-              options={(['library', 'pro'] as const).map((value) => ({ value, label: SCOPE_LABEL[value] }))}
-              onChange={setChosen}
-            />
-          ) : null}
-        </div>
+    <div className="flex flex-col gap-3">
+      <section aria-label="Cifras frente a la referencia" className="flex flex-col gap-1.5">
+        <h2 className="text-body-sm font-semibold text-fg-1">Frente a la {referenceLabel(scope).toLowerCase()}</h2>
         {references === 'failed' ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo leer la media de la biblioteca. Las cifras salen sin comparar.
@@ -125,7 +117,7 @@ export function PlayerIntro({
         <StatCardGroup label="Cifras principales">
           {BASELINE_METRICS.map((metric) => {
             const info = METRIC_INFO[metric];
-            const reference = baselineValue(baseline, metric);
+            const mean = baselineValue(baseline, metric);
             return (
               <StatCard
                 key={metric}
@@ -134,7 +126,7 @@ export function PlayerIntro({
                 format={info.format}
                 higherIsBetter={info.higherIsBetter}
                 epsilon={info.epsilon}
-                comparison={reference === null ? undefined : { value: reference, label }}
+                comparison={mean === null ? undefined : { value: mean, label }}
                 trend={trends[metric]}
               />
             );
@@ -144,32 +136,32 @@ export function PlayerIntro({
           {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.
           {baseline ? ` La media sale de ${baselineSampleText(baseline)}${map === '' ? '' : ` en ${prettyMapName(map)}`}.` : ''}
           {references === null ? ' Leyendo la media.' : ''}
-          {proMissing ? ` ${proMissing}` : ''}
+          {proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
         </p>
       </section>
-      <section aria-label="Rendimiento reciente" className="studio-panel flex flex-col gap-3 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-body-sm font-semibold text-fg-1">Rendimiento reciente</h2>
-          <Segmented
-            label="Cifra del gráfico"
-            value={trend}
-            options={TREND_METRICS.map((value) => ({ value, label: TREND_LABEL[value] }))}
-            onChange={setTrend}
-          />
-        </div>
+      <section aria-label="Rendimiento reciente" className="studio-panel flex flex-col gap-2 px-3 py-2.5">
+        <h2 className="text-body-sm font-semibold text-fg-1">Rendimiento reciente</h2>
         {chartPoints.length < MIN_TREND_POINTS ? (
           <p className="text-body-sm text-fg-2">Hacen falta al menos dos partidas con este filtro para dibujar la evolución.</p>
         ) : (
           <LineChart
             label={`${TREND_LABEL[trend]} por partida, la más antigua primero`}
-            points={chartPoints.map((point) => ({
-              label: `${prettyMapName(point.map)}, ${dateText(point.playedAt)}`,
-              value: point.value,
-              detail: `${point.rounds} rondas`,
+            categories={chartPoints.map((point) => ({
+              label: `${prettyMapName(point.map)} ${formatShortDate(point.playedAt)}`,
+              detail: `${dateText(point.playedAt)} · ${point.rounds} rondas`,
             }))}
+            series={[{ id: trend, label: TREND_LABEL[trend], values: chartPoints.map((point) => point.value) }]}
             format={TREND_FORMAT[trend]}
             showAverage
-            reference={chartReference === null ? undefined : { value: chartReference, label: referenceLabel(scope) }}
+            reference={chartReference === null ? undefined : { value: chartReference, label: SCOPE_LABEL[scope] }}
+            toolbar={
+              <Segmented
+                label="Cifra del gráfico"
+                value={trend}
+                options={TREND_METRICS.map((value) => ({ value, label: TREND_LABEL[value] }))}
+                onChange={setTrend}
+              />
+            }
           />
         )}
       </section>
