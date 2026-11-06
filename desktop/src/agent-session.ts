@@ -5,6 +5,8 @@ export interface AgentSessionTarget {
   orchestratorUrl: string;
   token: string;
   webOrigin: string;
+  /** Lets an assistant cite the Studio release in a bug report. */
+  studioVersion: string;
 }
 
 /** File operations the session store uses; tests replace them to simulate Windows lock failures. */
@@ -58,10 +60,11 @@ export function writeAgentSession({
   orchestratorUrl,
   token,
   webOrigin,
+  studioVersion,
   fsOps = nodeFs,
 }: AgentSessionOptions): void {
   if (enabled) {
-    writeFileAtomic({ file: sessionFile, document: { version: 1, enabled, orchestratorUrl, token, webOrigin }, fsOps });
+    writeFileAtomic({ file: sessionFile, document: { version: 1, enabled, orchestratorUrl, token, webOrigin, studioVersion }, fsOps });
     return;
   }
   try {

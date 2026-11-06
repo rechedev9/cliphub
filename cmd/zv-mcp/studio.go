@@ -25,6 +25,8 @@ type agentSession struct {
 	Token           string `json:"token"`
 	// WebOrigin serves the Studio UI's public assets, such as the HUD previews.
 	WebOrigin string `json:"webOrigin,omitempty"`
+	// StudioVersion is the desktop release, cited in bug reports.
+	StudioVersion string `json:"studioVersion,omitempty"`
 }
 
 // uploadTimeout bounds one whole HTTP exchange of an import: a demo can be

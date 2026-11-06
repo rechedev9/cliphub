@@ -16,6 +16,7 @@ const maxGroupRefs = 5
 type teamReportIn struct {
 	TeamID string `json:"team_id" jsonschema:"team id from list_teams"`
 	analysisFilterIn
+	teamScopeIn
 }
 
 type teamPrepIn struct {
@@ -23,6 +24,7 @@ type teamPrepIn struct {
 	Map    string `json:"map" jsonschema:"the map to prepare, such as de_mirage; required"`
 	From   string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
 	To     string `json:"to,omitempty" jsonschema:"last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
+	teamScopeIn
 }
 
 type defenseOut struct {
@@ -152,7 +154,7 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_bombsites", Annotations: readOnly,
 		Description: "Read a team's record on each bombsite of each map: as CT how often the site is hit, held and retaken; " +
-			"as T how often the team attacks it, plants and wins. Filter by map, side and dates."},
+			"as T how often the team attacks it, plants and wins. Filter by map, side, dates, rivals (opponent_id) and matches (match_id)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamReportIn) (*mcp.CallToolResult, teamBombsitesOut, error) {
 			q, err := in.check(false)
 			if err != nil {
@@ -171,7 +173,7 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_playbook", Annotations: readOnly,
 		Description: "Read what a team does on one side of one map: the share and win rate of each round category " +
-			"(rush, execute, fake, stack, retake...), the tempo, the sites and the zones it takes early. map and side are required."},
+			"(rush, execute, fake, stack, retake...), the tempo, the sites and the zones it takes early. map and side are required; opponent_id and match_id narrow the matches."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamReportIn) (*mcp.CallToolResult, teamPlaybookOut, error) {
 			q, err := in.check(true)
 			if err != nil {
@@ -192,7 +194,8 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 		Description: "Prepare a match against a team on one map: how it fares in each buy matchup, how fast it plays per buy, " +
 			"and where each CT player stands in each time window. map is required; both sides are read."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, teamPrepOut, error) {
-			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To}}.check(false)
+			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
+				teamScopeIn: in.teamScopeIn}.check(false)
 			if err == nil && q.Map == "" {
 				err = errors.New("map is required, such as de_mirage")
 			}
@@ -216,7 +219,7 @@ func (in teamReportIn) check(playbook bool) (tuiclient.AnalysisQuery, error) {
 	if err := checkUUID("team_id", in.TeamID); err != nil {
 		return tuiclient.AnalysisQuery{}, err
 	}
-	q, err := in.query()
+	q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
 	if err != nil {
 		return q, err
 	}
