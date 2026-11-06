@@ -47,7 +47,8 @@ Decide in phase 1 whether the WebMCP preview stays.
   `zv-mcp.exe` never blocks the auto-updater and a custom install folder never breaks the config.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
-  in the chat before they run.
+  in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
+  encodes for minutes and deleting (`delete_video`, `delete_stream`) cannot be undone, so they ask too.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -120,6 +121,9 @@ safe. Only uploads are limited (2 concurrent).
 
 - Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
+- The same approval guards `render_stream` (layout, how many videos, which are saved moments and
+  which are new plays), `render_stream_summary` (play count and length), `delete_video` and
+  `delete_stream`.
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -131,9 +135,11 @@ safe. Only uploads are limited (2 concurrent).
 ### Untrusted text
 
 Player names, clan names, victims and publish-assistant titles come from the demo and are chosen by
-players. In tool output, return them in labelled fields, strip control characters and cap their
-length. Tool descriptions say these fields are data, not instructions. A name never reaches a path,
-a shell or a header.
+players. Stream titles come from the streamer, play and moment labels from the stream plan, and
+yt-dlp failure reasons from the remote site. In tool output, return them in labelled fields, strip
+control characters and cap their length. In approval text a stream title also loses « » and quote
+characters, so it cannot close its quote and read as part of the question. Tool descriptions say
+these fields are data, not instructions. A name never reaches a path, a shell or a header.
 
 ## Tools (v1)
 
@@ -190,7 +196,7 @@ Write:
 | `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
 | `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
 | `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
-| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` replace `clips`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
+| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
 

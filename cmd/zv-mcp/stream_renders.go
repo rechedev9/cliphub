@@ -62,7 +62,7 @@ type renderStreamSummaryIn struct {
 type renderStreamIn struct {
 	ID      string   `json:"id" jsonschema:"stream_id"`
 	Variant string   `json:"variant,omitempty" jsonschema:"layout name from list_stream_variants; empty keeps the stream's current layout"`
-	PlayIDs []string `json:"play_ids,omitempty" jsonschema:"plays from find_stream_plays, one video each; they replace the stream's moments. Empty renders the moments saved in Studio"`
+	PlayIDs []string `json:"play_ids,omitempty" jsonschema:"plays from find_stream_plays to add to the moments saved in Studio, one video each; a play that overlaps a saved moment is skipped. Empty renders the saved moments"`
 	Approve string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
@@ -98,6 +98,13 @@ type planClip struct {
 	StartSeconds float64 `json:"start_seconds"`
 	EndSeconds   float64 `json:"end_seconds"`
 	Title        string  `json:"title,omitempty"`
+}
+
+// planMoment is a saved clip kept as Studio sent it, so fields this server
+// does not model (the clip's edit) survive a save.
+type planMoment struct {
+	clip planClip
+	raw  json.RawMessage
 }
 
 // streamRenderRequest is what the user approves for render_stream.
@@ -192,7 +199,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream",
 		Description: "Render a stream's moments as videos in one layout from list_stream_variants, one MP4 per moment: vertical 9:16 Shorts or 16:9. " +
-			"play_ids from find_stream_plays become the moments; empty renders the moments the user saved in Studio. " +
+			"play_ids from find_stream_plays are added to the moments the user saved in Studio, as the Añadir button does: a play that overlaps a saved moment is skipped. Empty renders the saved moments. " +
 			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes, so the user must approve it: " +
 			"if the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_stream_render, passing the returned variant."},
@@ -216,7 +223,8 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamRenderStartOut{}, toolError(err)
 			}
-			if j.Status != tuiclient.StreamReady && j.Status != tuiclient.StreamRendered {
+			uploaded := j.Status == tuiclient.StreamUploaded
+			if !uploaded && j.Status != tuiclient.StreamReady && j.Status != tuiclient.StreamRendered {
 				return nil, streamRenderStartOut{}, fmt.Errorf("the stream is %s; it renders once it is ready (wait_for_stream) and no other render is running", cleanName(j.Status))
 			}
 			doc, err := c.GetStreamEditPlanDocument(ctx, in.ID)
@@ -231,26 +239,29 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
 			}
+			moments, err := planMoments(doc)
+			if err != nil {
+				return nil, streamRenderStartOut{}, err
+			}
+			saved, added := len(moments), 0
 			if len(in.PlayIDs) > 0 {
 				scan, err := c.GetStreamPlays(ctx, in.ID)
 				if err != nil {
 					return nil, streamRenderStartOut{}, toolError(err)
 				}
-				if body.Clips, err = clipsForPlays(scan, in.PlayIDs); err != nil {
+				if moments, added, err = addPlayMoments(moments, scan, in.PlayIDs); err != nil {
 					return nil, streamRenderStartOut{}, err
 				}
 			}
-			clips := body.Clips
-			if clips == nil {
-				if clips, err = planClips(doc); err != nil {
-					return nil, streamRenderStartOut{}, err
-				}
-			}
-			if len(clips) == 0 {
+			if len(moments) == 0 {
 				return nil, streamRenderStartOut{}, errors.New("the stream has no moments saved; pass play_ids from find_stream_plays")
 			}
-			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s: %s. FFmpeg trabajará durante varios minutos.",
-				plural(len(clips), "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants), describeClips(clips))
+			for _, m := range moments {
+				body.Clips = append(body.Clips, m.clip)
+			}
+			summary := fmt.Sprintf("Renderizar %s de %s con el diseño %s%s: %s. FFmpeg trabajará durante varios minutos.",
+				plural(len(moments), "vídeo", "vídeos"), streamName(j), variantLabel(body.Variant, variants),
+				momentOrigin(saved, added, len(in.PlayIDs)), describeClips(body.Clips))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream", JobID: in.ID, Request: body, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -261,7 +272,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if !ok.Approved {
 				return nil, streamRenderStartOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: summary}, nil
 			}
-			updatedAt, err := saveStreamRenderPlan(ctx, c, in.ID, doc, body)
+			updatedAt, err := saveStreamRenderPlan(ctx, c, streamPlanSave{ID: in.ID, Doc: doc, Body: body, Moments: moments, Force: uploaded || added > 0})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
 			}
@@ -397,35 +408,88 @@ func streamRenderPlan(doc map[string]json.RawMessage, variant string, variants [
 	return streamRenderRequest{Variant: variant, PlanUpdatedAt: updatedAt}, nil
 }
 
-// clipsForPlays turns plays into moments in source order, as Studio's "Añadir" does.
-func clipsForPlays(scan tuiclient.StreamPlayScan, ids []string) ([]planClip, error) {
+// addPlayMoments adds the plays to the saved moments as Studio's "Añadir" does
+// (clipsWithPlays): a play overlapping a moment is skipped, then all sort by start.
+func addPlayMoments(moments []planMoment, scan tuiclient.StreamPlayScan, ids []string) ([]planMoment, int, error) {
 	if scan.Status != playScanDone {
-		return nil, errors.New("the play scan is not done; run find_stream_plays first")
+		return nil, 0, errors.New("the play scan is not done; run find_stream_plays first")
 	}
 	byID := make(map[string]tuiclient.StreamPlay, len(scan.Plays))
 	for _, p := range scan.Plays {
 		byID[p.ID] = p
 	}
-	clips := make([]planClip, 0, len(ids))
+	next := slices.Clone(moments)
+	added := 0
 	for _, id := range ids {
 		p, ok := byID[id]
 		if !ok {
-			return nil, fmt.Errorf("play id %s is not a play of this stream; use the ids from find_stream_plays", id)
+			return nil, 0, fmt.Errorf("play id %s is not a play of this stream; use the ids from find_stream_plays", id)
 		}
-		clips = append(clips, planClip{ID: p.ID, StartSeconds: p.StartSeconds, EndSeconds: p.EndSeconds, Title: p.Label})
+		if slices.ContainsFunc(next, func(m planMoment) bool {
+			return m.clip.StartSeconds < p.EndSeconds && p.StartSeconds < m.clip.EndSeconds
+		}) {
+			continue
+		}
+		clip := planClip{ID: freeClipID(next, p.ID), StartSeconds: p.StartSeconds, EndSeconds: p.EndSeconds, Title: p.Label}
+		raw, err := json.Marshal(clip)
+		if err != nil {
+			return nil, 0, err
+		}
+		next = append(next, planMoment{clip: clip, raw: raw})
+		added++
 	}
-	slices.SortFunc(clips, func(a, b planClip) int { return cmp.Compare(a.StartSeconds, b.StartSeconds) })
-	return clips, nil
+	slices.SortStableFunc(next, func(a, b planMoment) int { return cmp.Compare(a.clip.StartSeconds, b.clip.StartSeconds) })
+	return next, added, nil
 }
 
-func planClips(doc map[string]json.RawMessage) ([]planClip, error) {
-	var clips []planClip
+// freeClipID keeps the play id unless a saved moment already uses it: Studio refuses duplicate clip ids.
+func freeClipID(moments []planMoment, id string) string {
+	taken := func(c string) bool {
+		return slices.ContainsFunc(moments, func(m planMoment) bool { return m.clip.ID == c })
+	}
+	candidate := id
+	for n := 2; taken(candidate); n++ {
+		candidate = fmt.Sprintf("%s-%d", id, n)
+	}
+	return candidate
+}
+
+func planMoments(doc map[string]json.RawMessage) ([]planMoment, error) {
+	var raws []json.RawMessage
 	if raw, ok := doc["clips"]; ok {
-		if err := json.Unmarshal(raw, &clips); err != nil {
+		if err := json.Unmarshal(raw, &raws); err != nil {
 			return nil, errors.New("Studio returned an edit plan with invalid clips")
 		}
 	}
-	return clips, nil
+	moments := make([]planMoment, 0, len(raws))
+	for _, raw := range raws {
+		var clip planClip
+		if err := json.Unmarshal(raw, &clip); err != nil {
+			return nil, errors.New("Studio returned an edit plan with invalid clips")
+		}
+		moments = append(moments, planMoment{clip: clip, raw: raw})
+	}
+	return moments, nil
+}
+
+// momentOrigin says which videos come from saved moments and which from new plays.
+func momentOrigin(saved, added, asked int) string {
+	if asked == 0 {
+		return ""
+	}
+	out := fmt.Sprintf(" (%s ya %s y %s %s", plural(saved, "momento", "momentos"), pluralWord(saved, "guardado", "guardados"),
+		plural(added, "jugada", "jugadas"), pluralWord(added, "nueva", "nuevas"))
+	if skipped := asked - added; skipped > 0 {
+		out += fmt.Sprintf("; %s ya %s un momento", plural(skipped, "jugada", "jugadas"), pluralWord(skipped, "tenía", "tenían"))
+	}
+	return out + ")"
+}
+
+func pluralWord(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 func countPlanClips(raw json.RawMessage) int {
@@ -438,31 +502,41 @@ func countPlanClips(raw json.RawMessage) int {
 	return len(plan.Clips)
 }
 
+type streamPlanSave struct {
+	ID      string
+	Doc     map[string]json.RawMessage
+	Body    streamRenderRequest
+	Moments []planMoment
+	Force   bool // an uploaded stream turns ready only when its plan is saved
+}
+
 // saveStreamRenderPlan saves the approved layout and moments, keeping every
 // other field of the plan, and returns the updated_at the render must match.
-func saveStreamRenderPlan(ctx context.Context, c *tuiclient.Client, id string, doc map[string]json.RawMessage, body streamRenderRequest) (string, error) {
+func saveStreamRenderPlan(ctx context.Context, c *tuiclient.Client, in streamPlanSave) (string, error) {
 	var current string
-	_ = json.Unmarshal(doc["variant"], &current)
-	if body.Clips == nil && current == body.Variant {
-		return body.PlanUpdatedAt, nil
+	_ = json.Unmarshal(in.Doc["variant"], &current)
+	if !in.Force && current == in.Body.Variant {
+		return in.Body.PlanUpdatedAt, nil
 	}
-	next := make(map[string]json.RawMessage, len(doc))
-	for k, v := range doc {
+	next := make(map[string]json.RawMessage, len(in.Doc))
+	for k, v := range in.Doc {
 		next[k] = v
 	}
-	variant, err := json.Marshal(body.Variant)
+	variant, err := json.Marshal(in.Body.Variant)
 	if err != nil {
 		return "", err
 	}
 	next["variant"] = variant
-	if body.Clips != nil {
-		clips, err := json.Marshal(body.Clips)
-		if err != nil {
-			return "", err
-		}
-		next["clips"] = clips
+	raws := make([]json.RawMessage, 0, len(in.Moments))
+	for _, m := range in.Moments {
+		raws = append(raws, m.raw)
 	}
-	saved, err := c.PutStreamEditPlanDocument(ctx, id, next)
+	clips, err := json.Marshal(raws)
+	if err != nil {
+		return "", err
+	}
+	next["clips"] = clips
+	saved, err := c.PutStreamEditPlanDocument(ctx, in.ID, next)
 	if err != nil {
 		return "", toolError(err)
 	}
@@ -502,8 +576,15 @@ func variantLabel(name string, variants []tuiclient.StreamVariant) string {
 	return name
 }
 
+// streamName drops guillemets and quotes so a title cannot close the quote and read as approval text.
 func streamName(j tuiclient.StreamJob) string {
-	if title := cleanName(j.Title); title != "" {
+	title := strings.Map(func(r rune) rune {
+		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
+			return -1
+		}
+		return r
+	}, j.Title)
+	if title = cleanName(title); title != "" {
 		return "«" + title + "»"
 	}
 	return "este stream"
