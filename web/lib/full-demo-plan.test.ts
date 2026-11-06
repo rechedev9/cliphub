@@ -319,7 +319,7 @@ test('planning and upload use same-origin endpoints with complete options and pr
   assert.deepEqual((await loadFullDemoPlan(job)).document, snapshot.document);
   assert.deepEqual(await saveFullDemoPlan(job, snapshot.document.options), snapshot.document);
   const provenance = { title: 'Owned clip', creator: 'Owner', source_url: 'local:owned', permission: 'Owned media', attribution: '' };
-  await uploadFullDemoAsset(new File(['test'], 'clip.wav', { type: 'audio/wav' }), provenance);
+  await uploadFullDemoAsset(new File(['test'], 'clip.wav', { type: 'audio/wav' }), { provenance });
   assert.equal(requests[0]?.url, `/api/demos/${job}/full-demo/plan`);
   assert.equal(requests[1]?.init?.body, JSON.stringify({ options: currentFullDemoOptions(snapshot.document.options) }));
   const body = requests[2]?.init?.body;
@@ -344,8 +344,8 @@ for (const [name, call, response, message, requests] of [
   ['save: envelope instead of document', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 201, body: { document: fixture().document, defaults: fixture().document.options, compatibility: 'editorial-v1' } }, INCOMPATIBLE, 1],
   ['save: conflict message', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 409, body: { code: 'full_demo_facts_insufficient', error: 'Vuelve a analizar el jugador' } }, { message: 'Vuelve a analizar el jugador' }, 1],
   ['save: invalid options never leave the client', () => saveFullDemoPlan(JOB, { ...fixture().document.options, profile_id: 'invalid' } as unknown as FullDemoOptions), { status: 201, body: fixture().document }, /Revisa los valores/, 0],
-  ['upload: invalid asset id', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: { id: 'not-a-uuid', sha256: 'c'.repeat(64) } }, /Referencia de archivo inválida/, 1],
-  ['upload: non-object body', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: [] }, /no certificó el archivo/, 1],
+  ['upload: invalid asset id', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), { provenance: PROVENANCE }), { status: 200, body: { id: 'not-a-uuid', sha256: 'c'.repeat(64) } }, /Referencia de archivo inválida/, 1],
+  ['upload: non-object body', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), { provenance: PROVENANCE }), { status: 200, body: [] }, /no certificó el archivo/, 1],
 ] satisfies [string, () => Promise<unknown>, { status: number; body: unknown }, RegExp | { message: string }, number][]) {
   test(`rejects ${name}`, async (context) => {
     let count = 0;
@@ -362,7 +362,7 @@ for (const [name, call, response] of [
   ['load: HTML body with 200', () => loadFullDemoPlan(JOB), () => new Response('<!doctype html><title>Proxy</title>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
   ['load: HTML body with 502', () => loadFullDemoPlan(JOB), () => new Response('<html>Bad Gateway</html>', { status: 502, headers: { 'Content-Type': 'text/html' } })],
   ['save: empty body with 204', () => saveFullDemoPlan(JOB, fixture().document.options), () => new Response(null, { status: 204 })],
-  ['upload: plain-text error with 413', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), () => new Response('Payload Too Large', { status: 413, headers: { 'Content-Type': 'text/plain' } })],
+  ['upload: plain-text error with 413', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), { provenance: PROVENANCE }), () => new Response('Payload Too Large', { status: 413, headers: { 'Content-Type': 'text/plain' } })],
 ] satisfies [string, () => Promise<unknown>, () => Response][]) {
   test(`rejects ${name} as a parse error, not a defaulted plan`, async (context) => {
     let count = 0;

@@ -1,4 +1,4 @@
-import type { ApiClient } from './client.ts';
+import type { ApiClient, ScanDemoOptions } from './client.ts';
 import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import {
   applyMusicChoice,
@@ -23,6 +23,7 @@ import {
   type EffectiveRenderMusic,
 } from './render-hydration.ts';
 import { dataPlane, type DataPlane } from './dataplane.ts';
+import { uploadForm } from './upload.ts';
 import { parsePublishAssistant, type PublishAssistant } from './publish-assistant.ts';
 import {
   listableJobs,
@@ -305,14 +306,14 @@ export class RealApiClient implements ApiClient {
     return this.sharedRead(`plan:${jobId}`, () => this.fetchPlan(jobId));
   }
 
-  async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }> {
+  async scanDemo(file: File, opts?: ScanDemoOptions): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }> {
     const dp = this.dp();
     const form = new FormData();
     form.append(dp.scanField, file);
     // series_id rides the multipart body so the orchestrator groups the scan.
     if (opts?.seriesId) form.append(dp.scanSeriesField, opts.seriesId);
     const scanned = await readJson<unknown>(
-      await this.send((d) => ({ url: d.scanUrl, init: { method: 'POST', body: form } })),
+      await uploadForm({ url: dp.scanUrl, body: form, headers: dp.headers, onProgress: opts?.onUploadProgress }),
     );
     const jobId = dp.scanJobId(scanned);
 

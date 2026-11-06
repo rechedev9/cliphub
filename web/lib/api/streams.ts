@@ -1,5 +1,6 @@
 import type { AffiliateFamily, KeyDropStyle } from './types.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
+import { uploadForm, type UploadProgress } from './upload.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -216,10 +217,11 @@ export type StreamSummary = {
 };
 
 type StreamImportInput = { title?: string; sourceKind: StreamSourceKind };
+export type StreamFileImportInput = StreamImportInput & { onUploadProgress?: (progress: UploadProgress) => void };
 
 export interface StreamsApiClient {
   createFromUrl(input: StreamImportInput & { sourceUrl: string }): Promise<StreamJob>;
-  createFromFile(file: File, input: StreamImportInput): Promise<StreamJob>;
+  createFromFile(file: File, input: StreamFileImportInput): Promise<StreamJob>;
   listJobs(): Promise<StreamJob[]>;
   getJob(id: string): Promise<StreamJob | null>;
   /** 404 is success; 409 (still acquiring/rendering) and 503 throw with `code`. */
@@ -272,11 +274,11 @@ export class RealStreamsApiClient implements StreamsApiClient {
     );
   }
 
-  async createFromFile(file: File, input: StreamImportInput): Promise<StreamJob> {
+  async createFromFile(file: File, input: StreamFileImportInput): Promise<StreamJob> {
     const form = new FormData();
     form.append('video', file, file.name);
     form.append('config', JSON.stringify({ title: input.title || undefined, source_kind: input.sourceKind }));
-    return readJson<StreamJob>(await fetch('/api/streams', { method: 'POST', body: form }));
+    return readJson<StreamJob>(await uploadForm({ url: '/api/streams', body: form, onProgress: input.onUploadProgress }));
   }
 
   async listJobs(): Promise<StreamJob[]> {

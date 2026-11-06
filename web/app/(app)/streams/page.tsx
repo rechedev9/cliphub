@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Clapperboard } from 'lucide-react';
 import { streamsApi, type StreamJob, type StreamSourceKind } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
+import { uploadProgress, type UploadProgress } from '@/lib/api/upload';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
 import { readIfCurrent } from '@/lib/streams/list-poll';
 import {
@@ -38,6 +39,7 @@ export default function StreamsPage(): ReactNode {
   const [title, setTitle] = useState('');
   const [sourceKind, setSourceKind] = useState<StreamSourceKind>('vod');
   const [submitting, setSubmitting] = useState(false);
+  const [upload, setUpload] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<StreamImportError | null>(null);
 
   useEffect(() => {
@@ -91,11 +93,13 @@ export default function StreamsPage(): ReactNode {
     async (file: File) => {
       setError(null);
       setSubmitting(true);
+      setUpload(uploadProgress(0, file.size));
       try {
-        open(await streamsApi.createFromFile(file, { title: title.trim() || undefined, sourceKind }));
+        open(await streamsApi.createFromFile(file, { title: title.trim() || undefined, sourceKind, onUploadProgress: setUpload }));
       } catch (err) {
         setError({ source: 'file', message: streamImportErrorMessage(err, 'file') });
         setSubmitting(false);
+        setUpload(null);
       }
     },
     [title, sourceKind, open],
@@ -159,6 +163,7 @@ export default function StreamsPage(): ReactNode {
         sourceUrl={sourceUrl}
         title={title}
         submitting={submitting}
+        upload={upload}
         error={error}
         onSourceUrlChange={(value) => {
           setSourceUrl(value);
