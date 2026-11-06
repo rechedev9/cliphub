@@ -326,25 +326,6 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/stratbook', label: 'Ir a Stratbook' },
   },
   {
-    id: 'collections',
-    kicker: 'Colecciones',
-    label: 'Colecciones',
-    title: 'Los momentos que quieres volver a ver',
-    lead:
-      'En la repetición 2D, Guardar momento apunta la partida, la ronda y el segundo exactos en una colección, con una nota si quieres.',
-    points: [
-      {
-        term: 'Como una lista de reproducción',
-        text: 'Reproducir abre los momentos uno tras otro, aunque sean de partidas distintas.',
-      },
-      {
-        term: 'A un Short',
-        text: 'Enviar a Short lleva las rondas de cada partida al flujo de Short con el jugador que elijas.',
-      },
-    ],
-    link: { href: '/colecciones', label: 'Ir a Colecciones' },
-  },
-  {
     id: 'reports',
     kicker: 'Informes',
     label: 'Informes',

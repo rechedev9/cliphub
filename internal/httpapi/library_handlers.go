@@ -68,7 +68,6 @@ type LibraryRepository interface {
 	UpdateAnnotation(ctx context.Context, id uuid.UUID, patch library.AnnotationPatch) (library.Annotation, error)
 	DeleteAnnotation(ctx context.Context, id uuid.UUID) error
 	libraryPlayRepository
-	libraryCollectionRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.

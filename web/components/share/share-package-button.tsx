@@ -5,13 +5,12 @@ import { Share2 } from 'lucide-react';
 import { isLibraryOffline, LibraryApiError } from '@/lib/api/library';
 import { exportSharePackage, savePackageFile, type SharePackageFile, type ShareTarget } from '@/lib/api/share-package';
 import { SHARE_NOTES_MAX, packageSizeLabel, shareErrorLabel } from '@/lib/library/share';
-import { NOTE_FIELD_CLASS } from '@/components/replay/bookmark-panel';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type SharePackageButtonProps = {
   target: ShareTarget;
-  /** What the file will carry, from `collectionShareSummary` or `reportShareSummary`. */
+  /** What the file will carry, from `reportShareSummary`. */
   summary: string;
   disabled?: boolean;
 };
@@ -58,9 +57,9 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
       <Dialog open={open} onOpenChange={close}>
         <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
           <DialogHeader>
-            <DialogTitle>{target.kind === 'collection' ? 'Compartir colección' : 'Compartir informe'}</DialogTitle>
+            <DialogTitle>Compartir informe</DialogTitle>
             <DialogDescription>
-              {summary} Quien lo abra con Importar paquete en su Studio ve las repeticiones sin conexión.
+              {summary} Quien lo abra con Importar demos, en Partidas de su Studio, ve las repeticiones sin conexión.
             </DialogDescription>
           </DialogHeader>
           <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
@@ -70,7 +69,7 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
               maxLength={SHARE_NOTES_MAX}
               disabled={busy || file !== null}
               onChange={(event) => setNotes(event.target.value)}
-              className={NOTE_FIELD_CLASS}
+              className="min-h-16 w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             />
           </label>
           {file !== null ? (

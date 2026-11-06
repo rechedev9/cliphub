@@ -1,11 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bookmark, Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
-import { replayHref } from '@/lib/analysis/replay-link';
+import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
-import type { CollectionItem } from '@/lib/api/collections';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
 import { teamScoreBefore } from '@/lib/library/rounds';
@@ -32,7 +29,6 @@ import type { RoundTimeline } from '@/lib/tactical-timeline';
 import { noteVisibleAt } from '@/lib/tactical-spatial';
 import { useMatchAnalyses } from '@/hooks/use-match-analyses';
 import type { MatchAnalysis } from '@/hooks/use-match-analyses';
-import { useCollections } from '@/hooks/use-collections';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
 import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
@@ -41,7 +37,6 @@ import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { BookmarkPanel, SaveMomentDialog } from './bookmark-panel';
 import type { ReplayCentreView } from './centre';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapHud } from './map-hud';
@@ -121,7 +116,6 @@ export function ReplayWorkspace({
   title,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
-  const router = useRouter();
   const clock = useMemo(() => new ReplayClock(), []);
   const rootRef = useRef<HTMLElement>(null);
   const scrubRef = useRef<HTMLInputElement>(null);
@@ -138,12 +132,10 @@ export function ReplayWorkspace({
   const [followSlot, setFollowSlot] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [uiTick, setUiTick] = useState(0);
-  const [saving, setSaving] = useState<CollectionItem | null>(null);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const fullscreen = useFullscreen(rootRef);
   const draft = useTelestratorDraft();
-  const collections = useCollections();
 
   const entry = entries[index];
   const focusKey = entry === undefined ? '' : entryKey(entry);
@@ -388,34 +380,6 @@ export function ReplayWorkspace({
     },
     [analyses, groupLabel],
   );
-  const momentLabel = useCallback(
-    (item: CollectionItem) => {
-      const state = analyses.get(item.match_id);
-      if (state?.state !== 'ready') return `${labelOf(item.match_id)} · R${item.round}`;
-      const found = state.analysis.round(item.round);
-      if (found === undefined) return `R${item.round}`;
-      const timeline = roundTimeline(found, state.analysis.doc.demo.tickrate);
-      return `${prettyMapName(state.analysis.doc.demo.map)} · R${item.round} · ${roundClockLabelFor(timeline, timelineSeconds(timeline, item.tick))}`;
-    },
-    [analyses, labelOf],
-  );
-
-  const openMoment = (item: CollectionItem): void => {
-    const at = entries.findIndex((candidate) => candidate.matchId === item.match_id && candidate.round === item.round);
-    if (at < 0) {
-      router.push(replayHref([{ matchId: item.match_id, round: item.round, tick: item.tick }]));
-      return;
-    }
-    setPlaying(false);
-    if (at === index && focusTimeline !== null) clock.set(clockSecondsOf(focusTimeline, item.tick));
-    else select(at, item.tick);
-  };
-
-  const currentMoment = (): CollectionItem | null => {
-    if (focused === null || entry === undefined) return null;
-    return { match_id: entry.matchId, round: focused.round.number, tick: Math.max(0, tickOf(focused, clock.seconds)), note: '' };
-  };
-
   const view = centreViews.find((option) => option.id === viewId) ?? centreViews[0] ?? RADAR_2D_VIEW;
   const selectView = useCallback((id: string) => {
     setViewId(id);
@@ -465,19 +429,6 @@ export function ReplayWorkspace({
 
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
-      <Button
-        type="button"
-        size="xs"
-        variant="outline"
-        disabled={focused === null}
-        onClick={() => {
-          setPlaying(false);
-          setSaving(currentMoment());
-        }}
-      >
-        <Bookmark aria-hidden />
-        Guardar momento
-      </Button>
       {focused !== null && entry !== undefined && !multi ? (
         <RoundPlayActions matchId={entry.matchId} doc={focused.doc} round={focused.round} currentTick={() => tickOf(focused, clock.seconds)} />
       ) : null}
@@ -582,21 +533,6 @@ export function ReplayWorkspace({
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           onShowAll={() => setLayers((value) => showAllPlayers(value))}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
-          bookmarks={
-            library
-              ? {
-                  count: collections.active?.items.length ?? 0,
-                  panel: (
-                    <BookmarkPanel
-                      store={collections}
-                      momentLabel={momentLabel}
-                      isCurrent={(item) => entry !== undefined && item.match_id === entry.matchId && item.round === entry.round}
-                      onOpen={openMoment}
-                    />
-                  ),
-                }
-              : null
-          }
         />
       </aside>
 
@@ -696,9 +632,6 @@ export function ReplayWorkspace({
       </div>
 
       <ShortcutHelp open={help} onOpenChange={setHelp} />
-      {saving === null || focused === null ? null : (
-        <SaveMomentDialog store={collections} moment={saving} momentLabel={momentLabel(saving)} onClose={() => setSaving(null)} />
-      )}
     </section>
   );
 }

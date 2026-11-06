@@ -1,5 +1,5 @@
 // Package sharepkg reads and writes a .cliphub share package: a zip with a
-// collection or a scouting report plus, for every match it names, the match
+// scouting report plus, for every match it names, the match
 // record, the tactical document and the position blob, so another Studio can
 // replay those rounds without the .dem file.
 //
@@ -28,8 +28,7 @@ const (
 	Extension = ".cliphub"
 	MediaType = "application/zip"
 
-	KindCollection = "collection"
-	KindReport     = "report"
+	KindReport = "report"
 
 	MaxTitleRunes = 120
 	MaxNotesRunes = 4000
@@ -42,8 +41,8 @@ const (
 // bad file from a failure of its own.
 var ErrInvalid = errors.New("invalid share package")
 
-// Manifest is manifest.json. Exactly one of Collection and Report is set, as
-// Kind says; every match id they name is one of Matches.
+// Manifest is manifest.json. Report is set, as Kind says; every match id it
+// names is one of Matches.
 type Manifest struct {
 	Format      string               `json:"format"`
 	Version     int                  `json:"version"`
@@ -51,7 +50,6 @@ type Manifest struct {
 	Kind        string               `json:"kind"`
 	Title       string               `json:"title"`
 	Notes       string               `json:"notes"`
-	Collection  *library.Collection  `json:"collection,omitempty"`
 	Report      *library.Report      `json:"report,omitempty"`
 	Matches     []Match              `json:"matches"`
 	Annotations []library.Annotation `json:"annotations"`
@@ -113,22 +111,15 @@ func (m Manifest) Validate() error {
 		matches[entry.Match.ID] = entry.Match
 	}
 	switch m.Kind {
-	case KindCollection:
-		if m.Collection == nil || m.Report != nil {
-			return invalidf("a collection package carries one collection")
-		}
-		if err := validateCollection(*m.Collection, matches); err != nil {
-			return err
-		}
 	case KindReport:
-		if m.Report == nil || m.Collection != nil {
+		if m.Report == nil {
 			return invalidf("a report package carries one report")
 		}
 		if err := validateReport(*m.Report, matches); err != nil {
 			return err
 		}
 	default:
-		return invalidf("kind must be %q or %q", KindCollection, KindReport)
+		return invalidf("kind must be %q", KindReport)
 	}
 	if len(m.Annotations) > MaxAnnotations {
 		return invalidf("a package carries at most %d notes", MaxAnnotations)
@@ -167,26 +158,6 @@ func (e Match) validate() error {
 		}
 		if len([]rune(t.TeamName)) > MaxTitleRunes || len([]rune(t.ClanName)) > MaxTitleRunes {
 			return errors.New("a team name is too long")
-		}
-	}
-	return nil
-}
-
-func validateCollection(c library.Collection, matches map[uuid.UUID]library.Match) error {
-	cleaned, err := library.CleanCollection(c)
-	if err != nil {
-		return invalidf("collection: %v", err)
-	}
-	if c.ID == uuid.Nil {
-		return invalidf("collection needs an id")
-	}
-	for i, item := range cleaned.Items {
-		m, ok := matches[item.MatchID]
-		if !ok {
-			return invalidf("moment %d names a match the package does not carry", i)
-		}
-		if item.Round > m.RoundCount {
-			return invalidf("moment %d names round %d of a %d-round match", i, item.Round, m.RoundCount)
 		}
 	}
 	return nil

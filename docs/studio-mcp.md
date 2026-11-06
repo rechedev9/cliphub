@@ -304,7 +304,7 @@ survives.
 `studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
 instead of failing halfway.
 
-Not covered yet (see the parity rule in AGENTS.md): the editor, collections, report exports (the
+Not covered yet (see the parity rule in AGENTS.md): the editor, report exports (the
 HTML page and the `.cliphub` package), `open_studio`, resources and prompts. Steam sign-in, the authentication code
 and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops

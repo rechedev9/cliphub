@@ -46,38 +46,41 @@ func (e libraryTestEnv) importPackage(raw []byte, wantStatus int) shareImportRes
 	return resp
 }
 
-func TestShareCollectionRoundTrip(t *testing.T) {
+// exportTestReport stores a report over m and returns its .cliphub export.
+func (e libraryTestEnv) exportTestReport(m library.Match, title, notes string) []byte {
+	e.t.Helper()
+	var report library.Report
+	e.json(http.MethodPost, "/api/library/reports",
+		map[string]any{"title": title, "team_id": m.Teams[0].TeamID, "match_ids": []any{m.ID}}, http.StatusCreated, &report)
+	rw := e.do(http.MethodPost, "/api/library/reports/"+report.ID.String()+"/export", []byte(`{"notes":"`+notes+`"}`), "application/json")
+	if rw.Code != http.StatusOK || rw.Header().Get("Content-Type") != sharepkg.MediaType {
+		e.t.Fatalf("export = %d %s", rw.Code, rw.Header())
+	}
+	if got := rw.Header().Get("Content-Disposition"); !strings.Contains(got, `filename="`+shareFileStem(title)+`.cliphub"`) {
+		e.t.Fatalf("Content-Disposition = %q", got)
+	}
+	return rw.Body.Bytes()
+}
+
+func TestSharedMatchRoundTrip(t *testing.T) {
 	sender := newLibraryTestEnv(t)
 	m := sender.seedLibraryMatch(sharedDemoSHA(), "Alpha", "Beta")
-	var c library.Collection
-	sender.json(http.MethodPost, "/api/library/collections",
-		map[string]any{"name": "Prueba Mirage", "items": []map[string]any{{"match_id": m.ID, "round": 2, "tick": 500, "note": "mirad"}}},
-		http.StatusCreated, &c)
 	sender.json(http.MethodPost, "/api/library/annotations",
 		map[string]any{"match_id": m.ID, "round": 2, "tick": 510, "text": "rotad antes"}, http.StatusCreated, nil)
-	sender.json(http.MethodPost, "/api/library/annotations",
-		map[string]any{"match_id": m.ID, "round": 1, "tick": 110, "text": "fuera de la colección"}, http.StatusCreated, nil)
+	raw := sender.exportTestReport(m, "Prueba Mirage", "Para el martes")
 
-	rw := sender.do(http.MethodPost, "/api/library/collections/"+c.ID.String()+"/export", []byte(`{"notes":"Para el martes"}`), "application/json")
-	if rw.Code != http.StatusOK || rw.Header().Get("Content-Type") != sharepkg.MediaType {
-		t.Fatalf("export = %d %s", rw.Code, rw.Header())
-	}
-	if got := rw.Header().Get("Content-Disposition"); !strings.Contains(got, `filename="prueba-mirage.cliphub"`) {
-		t.Fatalf("Content-Disposition = %q", got)
-	}
-	raw := rw.Body.Bytes()
 
 	receiver := newLibraryTestEnv(t)
 	resp := receiver.importPackage(raw, http.StatusOK)
-	if resp.Kind != sharepkg.KindCollection || resp.Notes != "Para el martes" || resp.MatchesImported != 1 || resp.Annotations != 1 || resp.CollectionID == nil {
+	if resp.Kind != sharepkg.KindReport || resp.Notes != "Para el martes" || resp.MatchesImported != 1 || resp.Annotations != 1 || resp.ReportID == nil {
 		t.Fatalf("import = %+v", resp)
 	}
-	var got collectionResponse
-	receiver.json(http.MethodGet, "/api/library/collections/"+resp.CollectionID.String(), nil, http.StatusOK, &got)
-	if len(got.Items) != 1 || len(got.MissingMatchIDs) != 0 || got.Items[0].Note != "mirad" {
-		t.Fatalf("imported collection = %+v", got)
+	var got library.Report
+	receiver.json(http.MethodGet, "/api/library/reports/"+resp.ReportID.String(), nil, http.StatusOK, &got)
+	if len(got.MatchIDs) != 1 {
+		t.Fatalf("imported report = %+v", got)
 	}
-	matchID := got.Items[0].MatchID
+	matchID := got.MatchIDs[0]
 	var match library.Match
 	receiver.json(http.MethodGet, "/api/library/matches/"+matchID.String(), nil, http.StatusOK, &match)
 	if match.Source != library.SourceShared || match.Map != "de_mirage" || len(match.Players) != 2 {
@@ -162,10 +165,7 @@ func TestImportPackageRefusesBrokenFiles(t *testing.T) {
 func TestImportingTheDemoOfASharedMatchAttachesIt(t *testing.T) {
 	sender := newLibraryTestEnv(t)
 	m := sender.seedLibraryMatch(sharedDemoSHA(), "Alpha", "Beta")
-	var c library.Collection
-	sender.json(http.MethodPost, "/api/library/collections",
-		map[string]any{"name": "x", "items": []map[string]any{{"match_id": m.ID, "round": 1, "tick": 100}}}, http.StatusCreated, &c)
-	raw := sender.do(http.MethodPost, "/api/library/collections/"+c.ID.String()+"/export", nil, "").Body.Bytes()
+	raw := sender.exportTestReport(m, "x", "")
 
 	receiver := newLibraryTestEnv(t)
 	receiver.importPackage(raw, http.StatusOK)
