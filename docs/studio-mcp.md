@@ -254,7 +254,7 @@ Short look and Full Demo HUD:
 | `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
 | `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
-| `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `render_full_demo`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
+| `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `render_full_demo`, `retry_video`, `change_video_music`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
 
 `import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
 paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real

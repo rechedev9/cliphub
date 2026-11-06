@@ -35,6 +35,12 @@ test("polls after a started capture keep its variant, which wait_for_job does no
   assert.equal(done?.variant, "short-9x16");
 });
 
+test("a retry_video or change_video_music start follows the re-render with its variant", () => {
+  const p = readProgress(ok({ summary: "Volver a renderizar", job_id: JOB, status: "recorded", variant: "short-9x16" }), { job_id: JOB, variant: "short-9x16" });
+  assert.equal(p?.phase, "rendering");
+  assert.deepEqual(p?.follow, { tool: "wait_for_job", args: { id: JOB, wait_seconds: 5, variant: "short-9x16" } });
+});
+
 test("a capture waiting for approval shows nothing", () => {
   assert.equal(readProgress(ok({ needs_approval: true, approval_code: "abc", summary: "…" }), {}), null);
 });

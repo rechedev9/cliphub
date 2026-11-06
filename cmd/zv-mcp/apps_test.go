@@ -104,7 +104,7 @@ func TestProgressToolsLinkTheProgressView(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{}
-	for _, name := range []string{"import_demo", "wait_for_demo", "wait_for_job", "generate_short", "render_full_demo", "render_stream", "render_stream_summary", "wait_for_stream_render"} {
+	for _, name := range []string{"import_demo", "wait_for_demo", "wait_for_job", "generate_short", "render_full_demo", "render_stream", "render_stream_summary", "wait_for_stream_render", "retry_video", "change_video_music"} {
 		want[name] = jobProgressAppURI
 	}
 	assertToolsLinkUI(t, listed.Tools, want)
