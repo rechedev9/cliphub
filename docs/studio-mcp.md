@@ -48,8 +48,8 @@ Decide in phase 1 whether the WebMCP preview stays.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
-  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`) or merging teams
-  (`merge_teams`) cannot be undone, so they ask too.
+  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`, `delete_captures`,
+  `delete_storage_file`) or merging teams (`merge_teams`) cannot be undone, so they ask too.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -124,7 +124,8 @@ safe. Only uploads are limited (2 concurrent).
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count and length), `delete_video`,
-  `delete_stream`, `delete_demo` and `merge_teams` (both team names and the match count of the one that goes).
+  `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
+  `delete_captures` (bytes freed) and `delete_storage_file` (file, kind and size).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -182,6 +183,10 @@ Read:
 | `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
 | `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
+| `storage_usage` | `GET /api/storage`: total bytes and the Full Demo captures a finished render covers (`freeable`), largest first |
+| `list_storage_files` | `GET /api/storage/files` (the first call starts the PC demo scan): PC demos, Studio demo copies and videos, newest first, 50 per list by default and at most 500, with totals; a path with control or format characters is left out |
+| `steam_matches` | `GET /api/steam/account`: recent matches and whether the history and a Steam session are set; secrets are never returned |
+| `job_players` | `GET /api/jobs/{id}/roster` of a job that `import_share_code` left `scanned` |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
 
 Write:
@@ -204,6 +209,13 @@ Write:
 | `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
+| `delete_captures` | `GET /api/storage` (the job must be `freeable`), then `DELETE /api/jobs/{id}/captures` | yes |
+| `rescan_storage_files` | `POST /api/storage/files/scan`, then `GET /api/storage/files` | no |
+| `delete_storage_file` | `GET /api/storage/files` (the server only accepts a path its last list returned; a `studio_demo` goes with `delete_demo`), then `POST /api/storage/files/delete` | yes |
+| `reveal_storage_file` | `GET /api/storage/files`, then `POST /api/storage/files/reveal` (File Explorer on this PC) | no |
+| `sync_steam_matches` | `POST /api/steam/matches/sync`; `history_not_configured` and `need_known_code` point the user to Ajustes | no |
+| `import_share_code` | `POST /api/steam/import` with `code` only: Studio downloads with the Steam session the user started in the UI, else `steam_credentials_required` asks the user to sign in there. Makes a Crear job | no |
+| `pick_player` | `POST /api/jobs/{id}/parse` with `target_steamid` | no |
 | `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
 | `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
 | `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
@@ -229,8 +241,8 @@ survives.
 instead of failing halfway.
 
 Not covered yet (see the parity rule in AGENTS.md): the editor, collections, the stratbook,
-scouting reports, library series, FACEIT follows, Steam import and account, storage, practice
-launch, community ranking, `open_studio`, resources and prompts.
+scouting reports, library series, FACEIT follows, practice launch, community ranking, `open_studio`, resources and prompts. Steam sign-in, the authentication code
+and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials.
 
 ## Spike results (2026-11-01)
 
