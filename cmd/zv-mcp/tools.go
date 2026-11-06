@@ -189,6 +189,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerPlayerTools(server, s)
 	registerReportTools(server, s)
 	registerStratbookTools(server, s)
+	registerMatchTacticalTools(server, s)
 	registerRoundTools(server, s)
 	registerTeamReportTools(server, s)
 	registerTeamGrenadesTool(server, s)

@@ -167,24 +167,29 @@ type scoutPlayerOut struct {
 	OpeningDeaths int     `json:"opening_deaths"`
 }
 
+// tendenciesOut is how a team played a set of rounds.
+type tendenciesOut struct {
+	Rounds           int              `json:"rounds"`
+	RoundWinPct      float64          `json:"round_win_pct"`
+	Buys             []shareOut       `json:"buys"`
+	Sites            []shareOut       `json:"sites" jsonschema:"bombsite the rounds went to"`
+	TPatterns        []shareOut       `json:"t_patterns" jsonschema:"T round shapes: execute, default, split, fast, eco_rush, save"`
+	CTPatterns       []shareOut       `json:"ct_patterns" jsonschema:"CT round shapes: hold, retake, aggression, stack, save"`
+	OpeningRounds    int              `json:"opening_rounds"`
+	OpeningWinPct    float64          `json:"opening_win_pct"`
+	OpeningTradedPct float64          `json:"opening_traded_on_loss_pct"`
+	Players          []scoutPlayerOut `json:"players" jsonschema:"most kills first, at most 10"`
+}
+
 type scoutTeamOut struct {
-	Team             string            `json:"team" jsonschema:"untrusted team name"`
-	Matches          int               `json:"matches"`
-	Rounds           int               `json:"rounds"`
-	RoundWinPct      float64           `json:"round_win_pct"`
-	Maps             []scoutMapOut     `json:"maps"`
-	RecentMatches    []scoutMatchOut   `json:"recent_matches" jsonschema:"newest first, at most 10"`
-	Buys             []shareOut        `json:"buys"`
-	Sites            []shareOut        `json:"sites" jsonschema:"bombsite the rounds went to"`
-	TPatterns        []shareOut        `json:"t_patterns" jsonschema:"T round shapes: execute, default, split, fast, eco_rush, save"`
-	CTPatterns       []shareOut        `json:"ct_patterns" jsonschema:"CT round shapes: hold, retake, aggression, stack, save"`
-	OpeningRounds    int               `json:"opening_rounds"`
-	OpeningWinPct    float64           `json:"opening_win_pct"`
-	OpeningTradedPct float64           `json:"opening_traded_on_loss_pct"`
-	Executes         []scoutExecuteOut `json:"executes"`
-	AWP              []scoutAWPOut     `json:"awp"`
-	Players          []scoutPlayerOut  `json:"players" jsonschema:"most kills first, at most 10"`
-	SkippedMatches   int               `json:"skipped_matches,omitempty" jsonschema:"matches whose analysis could not be read"`
+	Team    string `json:"team" jsonschema:"untrusted team name"`
+	Matches int    `json:"matches"`
+	tendenciesOut
+	Maps           []scoutMapOut     `json:"maps"`
+	RecentMatches  []scoutMatchOut   `json:"recent_matches" jsonschema:"newest first, at most 10"`
+	Executes       []scoutExecuteOut `json:"executes"`
+	AWP            []scoutAWPOut     `json:"awp"`
+	SkippedMatches int               `json:"skipped_matches,omitempty" jsonschema:"matches whose analysis could not be read"`
 }
 
 type playerMetricsIn struct {
@@ -345,13 +350,9 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 }
 
 func summarizeScout(r tuiclient.ScoutReport) scoutTeamOut {
-	t := r.Tendencies
 	out := scoutTeamOut{
-		Team: cleanName(r.TeamName), Matches: len(r.Matches), Rounds: t.RoundCount, RoundWinPct: pct(t.Wins, t.RoundCount),
-		Maps: []scoutMapOut{}, RecentMatches: []scoutMatchOut{}, Buys: shares(t.Buys), Sites: shares(t.Sites),
-		TPatterns: shares(t.TPatterns), CTPatterns: shares(t.CTPatterns), OpeningRounds: t.Openings.Rounds,
-		OpeningWinPct: t.Openings.Won.Pct, OpeningTradedPct: t.Openings.TradedOnLoss.Pct,
-		Executes: []scoutExecuteOut{}, AWP: []scoutAWPOut{}, Players: []scoutPlayerOut{}, SkippedMatches: len(r.Skipped),
+		Team: cleanName(r.TeamName), Matches: len(r.Matches), tendenciesOut: summarizeTendencies(r.Tendencies),
+		Maps: []scoutMapOut{}, RecentMatches: []scoutMatchOut{}, Executes: []scoutExecuteOut{}, AWP: []scoutAWPOut{}, SkippedMatches: len(r.Skipped),
 	}
 	for _, m := range r.Maps {
 		out.Maps = append(out.Maps, scoutMapOut{Map: cleanName(m.Map), Matches: m.Matches, MatchWins: m.MatchWins, Rounds: m.Rounds,
@@ -370,6 +371,13 @@ func summarizeScout(r tuiclient.ScoutReport) scoutTeamOut {
 	for _, a := range r.AWP.Sides {
 		out.AWP = append(out.AWP, scoutAWPOut{Side: a.Side, Rounds: a.Rounds, Kills: a.Kills, OpeningKills: a.OpeningKills})
 	}
+	return out
+}
+
+func summarizeTendencies(t tuiclient.Tendencies) tendenciesOut {
+	out := tendenciesOut{Rounds: t.RoundCount, RoundWinPct: pct(t.Wins, t.RoundCount), Buys: shares(t.Buys), Sites: shares(t.Sites),
+		TPatterns: shares(t.TPatterns), CTPatterns: shares(t.CTPatterns), OpeningRounds: t.Openings.Rounds,
+		OpeningWinPct: t.Openings.Won.Pct, OpeningTradedPct: t.Openings.TradedOnLoss.Pct, Players: []scoutPlayerOut{}}
 	for i, p := range t.Players {
 		if i == maxScoutPlayers {
 			break

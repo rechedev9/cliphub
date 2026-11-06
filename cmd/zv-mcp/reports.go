@@ -258,5 +258,5 @@ func reportNotes(raw *string) (*string, error) {
 
 func reportOf(r tuiclient.LibraryReport) reportOut {
 	return reportOut{ID: r.ID, Title: cleanName(r.Title), TeamID: r.TeamID, TeamName: cleanName(r.TeamName), MatchIDs: r.MatchIDs,
-		Side: r.Side, Notes: cleanNotes(r.Notes), Updated: r.UpdatedAt.Format(time.DateOnly)}
+		Side: r.Side, Notes: cleanText(r.Notes, maxReportNotesRunes), Updated: r.UpdatedAt.Format(time.DateOnly)}
 }
