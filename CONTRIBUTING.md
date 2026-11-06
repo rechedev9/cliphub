@@ -14,14 +14,15 @@ The bar is the same evidence our pull requests carry: what happened, who it hurt
    If one matches, add your evidence as a comment on it instead of opening a new one.
 2. File one issue per problem. Two unrelated failures are two issues.
 3. Collect the evidence below. If you drive Studio through its MCP server (`cliphub-studio`), call
-   `studio_status`: it returns `studio_version`, `support_code` and `log_path`. Otherwise ask the
-   user for them; the version and support code are in Studio, Ajustes.
+   `studio_status`: it returns `studio_version`, `support_code` and `log_path`. Without MCP, or
+   when `studio_status` fails because Studio is closed or assistant access is off, ask the user;
+   the version and support code are in Studio, Ajustes.
 
 ## Evidence
 
 - **Studio version**, such as `5.10.0`.
-- **Support code**, such as `CH-1A2B-3C4D-5E6F-7A8B-9C0D`. It lets the team read this
-  installation's diagnostics. It contains no personal data.
+- **Support code**, such as `CH-1A2B-3C4D-5E6F-7A8B-9C0D`. When Diagnósticos is on in
+  Ajustes, it lets the team read this installation's diagnostics. It contains no personal data.
 - **Exact error**: the text Studio or the MCP tool returned, copied, not paraphrased.
 - **studio.log excerpt**: the lines around the failure (its time, plus or minus a minute), not the
   whole file. The default path is `%APPDATA%\cliphub-studio\studio.log`.
@@ -40,8 +41,9 @@ The repository is public. Before you submit:
 
 ## Write the issue
 
-Use the template: `gh issue create --repo rechedev9/cliphub --template bug-report.md`, or pass
-`--title` and `--body-file` with the same sections. Write in English or Spanish.
+Copy the sections of `.github/ISSUE_TEMPLATE/bug-report.md` (without its front matter) into a
+file, fill them, and run `gh issue create --repo rechedev9/cliphub --title "<title>" --body-file <file>`.
+`--template` only works in an interactive terminal, so an agent cannot use it. Write in English or Spanish.
 
 The title says what fails in user terms: "Full Demo render stops at 0 % on Anubis", not "Bug in
 render". A feature request uses the same sections: the problem it solves goes under What
