@@ -195,6 +195,7 @@ Read:
 | `steam_matches` | `GET /api/steam/account`: recent matches and whether the history and a Steam session are set; secrets are never returned |
 | `job_players` | `GET /api/jobs/{id}/roster` of a job that `import_share_code` left `scanned` |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
+| `map_3d_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog, sky and post processing (exposure, tonemap and colour LUT), plus how to open the real map in the Táctica 3D view, the 2D Mapa real floor plan and full screen |
 
 Write:
 
