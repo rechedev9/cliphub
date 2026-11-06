@@ -33,7 +33,7 @@ func matchTacticalStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","name":"ZywOo","verdict":"clean","score":12,"confidence":0.8,"markdown":"# Dossier\n\nline",
-			"channels":[{"label":"Overwatch","instructions":"in game","effective":true}],"policy":{"summary":"no mass reports","rules":["one at a time"]}}`))
+			"channels":[{"label":"Overwatch","instructions":"in game","effective":true}],"policy":{"summary":"no mass reports","rules":["one at a time"],"rejected":"never sends reports"}}`))
 	})
 	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerMatchTacticalTools(server, s) })
 	return cs, rec
@@ -92,7 +92,7 @@ func TestMatchTendenciesAndDossier(t *testing.T) {
 
 	var d dossierOut
 	callTool(t, cs, "integrity_dossier", map[string]any{"job_id": testJobID, "steamid": testSteamID}, &d)
-	if d.Markdown != "# Dossier\n\nline" || len(d.Channels) != 1 || d.Policy != "no mass reports" {
+	if d.Markdown != "# Dossier\n\nline" || len(d.Channels) != 1 || d.Policy != "no mass reports" || d.PolicyRejected != "never sends reports" {
 		t.Errorf("dossier = %+v", d)
 	}
 	toolFails(t, cs, "integrity_dossier", map[string]any{"job_id": testMatchID, "steamid": testSteamID}, "call check_integrity until status is ready")

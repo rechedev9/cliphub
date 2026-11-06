@@ -29,7 +29,9 @@ type fakeStream struct {
 	planVariant string
 	planClips   string
 	savedPlan   map[string]json.RawMessage
+	putQuery    string
 	renderBody  string
+	summaryBody string
 }
 
 func (f *fakeStream) connect(t *testing.T) *mcp.ClientSession {
@@ -77,6 +79,7 @@ func (f *fakeStream) connect(t *testing.T) *mcp.ClientSession {
 		}
 		f.mu.Lock()
 		f.savedPlan = plan
+		f.putQuery = r.URL.RawQuery
 		f.mu.Unlock()
 		plan["updated_at"] = json.RawMessage(`"2026-11-06T10:05:00.123Z"`)
 		_ = json.NewEncoder(w).Encode(plan)
@@ -88,6 +91,17 @@ func (f *fakeStream) connect(t *testing.T) *mcp.ClientSession {
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"id":"` + testStreamID + `","variant":"` + r.PathValue("variant") + `","status":"queued"}`))
+	})
+	mux.HandleFunc("GET /api/songs", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"songs":[{"id":"song-7","title":"Siete"},{"id":"song-8","title":"Ocho"}]}`))
+	})
+	mux.HandleFunc("POST /api/stream-jobs/"+testStreamID+"/summary", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		f.mu.Lock()
+		f.summaryBody = string(body)
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"status":"running","progress":0}`))
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

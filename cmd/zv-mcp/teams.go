@@ -40,7 +40,7 @@ type teamDetailOut struct {
 type updateTeamIn struct {
 	TeamID  string    `json:"team_id" jsonschema:"team id from list_teams"`
 	Name    string    `json:"name,omitempty" jsonschema:"new team name; empty keeps it"`
-	Aliases *[]string `json:"aliases,omitempty" jsonschema:"the full new alias list (clan names that resolve to this team); omit to keep it, [] to clear it"`
+	Aliases *[]string `json:"aliases,omitempty" jsonschema:"the full new alias list (clan names that resolve to this team): start from get_team and keep the ones still used, or demos under a dropped clan name make a new team; omit to keep it"`
 }
 
 type mergeTeamsIn struct {
@@ -105,7 +105,8 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_team", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
 		Description: "Rename a team or replace its aliases, as the team page does. Aliases are the clan names that resolve to the team; " +
-			"matches whose clan name becomes an alias follow it. A name or alias another team owns is refused."},
+			"matches whose clan name becomes an alias follow it, and a demo whose clan name is no alias makes a new team. " +
+			"An alias another team owns is refused; a name is not checked, so two teams can share one."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateTeamIn) (*mcp.CallToolResult, teamOut, error) {
 			patch, err := in.patch()
 			if err != nil {

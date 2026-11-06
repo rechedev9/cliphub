@@ -341,6 +341,8 @@ type StreamRenderState struct {
 	Error     string             `json:"error,omitempty"`
 	UpdatedAt time.Time          `json:"updated_at"`
 	Videos    []StreamVideoEntry `json:"videos,omitempty"`
+	// Delivery lists the upload-ready files beside the videos (covers, captions).
+	Delivery []StreamDeliveryEntry `json:"delivery,omitempty"`
 	// RenderProgress is the live encode progress, sent only while the status is rendering.
 	RenderProgress *StreamRenderProgress `json:"render_progress,omitempty"`
 }
@@ -351,6 +353,12 @@ type StreamRenderProgress struct {
 	Percent float64 `json:"percent"`
 	Clip    int     `json:"clip"`
 	Clips   int     `json:"clips"`
+}
+
+// StreamDeliveryEntry is one file of a render's delivery pack (streamclips.DeliveryEntry).
+type StreamDeliveryEntry struct {
+	Name string `json:"name"`
+	Kind string `json:"kind"`
 }
 
 type StreamVideoEntry struct {
