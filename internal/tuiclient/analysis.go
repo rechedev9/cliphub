@@ -111,30 +111,8 @@ type ScoutReport struct {
 		CTWinRate Rate   `json:"ct_win_rate"`
 		TWinRate  Rate   `json:"t_win_rate"`
 	} `json:"maps"`
-	Tendencies struct {
-		RoundCount int           `json:"round_count"`
-		Wins       int           `json:"wins"`
-		Buys       []ScoutBucket `json:"buys"`
-		Sites      []ScoutBucket `json:"sites"`
-		TPatterns  []ScoutBucket `json:"t_patterns"`
-		CTPatterns []ScoutBucket `json:"ct_patterns"`
-		Openings   struct {
-			Rounds       int  `json:"rounds"`
-			Won          Rate `json:"won"`
-			TradedOnLoss Rate `json:"traded_on_loss"`
-		} `json:"openings"`
-		Players []struct {
-			SteamID64     string  `json:"steamid64"`
-			Name          string  `json:"name"`
-			Rounds        int     `json:"rounds"`
-			Kills         int     `json:"kills"`
-			Deaths        int     `json:"deaths"`
-			ADR           float64 `json:"adr"`
-			OpeningKills  int     `json:"opening_kills"`
-			OpeningDeaths int     `json:"opening_deaths"`
-		} `json:"players"`
-	} `json:"tendencies"`
-	Executes []struct {
+	Tendencies Tendencies `json:"tendencies"`
+	Executes   []struct {
 		Site    string `json:"site"`
 		Rounds  int    `json:"rounds"`
 		WinRate Rate   `json:"win_rate"`
@@ -148,6 +126,31 @@ type ScoutReport struct {
 			OpeningKills int    `json:"opening_kills"`
 		} `json:"sides"`
 	} `json:"awp"`
+}
+
+// Tendencies is how a team plays over a set of rounds (tacticalplan.Tendencies).
+type Tendencies struct {
+	RoundCount int           `json:"round_count"`
+	Wins       int           `json:"wins"`
+	Buys       []ScoutBucket `json:"buys"`
+	Sites      []ScoutBucket `json:"sites"`
+	TPatterns  []ScoutBucket `json:"t_patterns"`
+	CTPatterns []ScoutBucket `json:"ct_patterns"`
+	Openings   struct {
+		Rounds       int  `json:"rounds"`
+		Won          Rate `json:"won"`
+		TradedOnLoss Rate `json:"traded_on_loss"`
+	} `json:"openings"`
+	Players []struct {
+		SteamID64     string  `json:"steamid64"`
+		Name          string  `json:"name"`
+		Rounds        int     `json:"rounds"`
+		Kills         int     `json:"kills"`
+		Deaths        int     `json:"deaths"`
+		ADR           float64 `json:"adr"`
+		OpeningKills  int     `json:"opening_kills"`
+		OpeningDeaths int     `json:"opening_deaths"`
+	} `json:"players"`
 }
 
 // ScoutBucket is one buy, site or round pattern of a team's rounds. Exactly
@@ -238,11 +241,12 @@ func (c *Client) PlayerMetrics(ctx context.Context, steamID string, q AnalysisQu
 	return out, err
 }
 
-// TacticalDocument is the part of a match's tactical document that tells who
-// played which side and buy in each round.
+// TacticalDocument is the part of a match's tactical document the tools read:
+// who played which slot, and each round's sides, buys, classes and events.
 type TacticalDocument struct {
 	Demo struct {
-		Map string `json:"map"`
+		Map      string  `json:"map"`
+		Tickrate float64 `json:"tickrate"`
 	} `json:"demo"`
 	Players []struct {
 		Slot      uint8  `json:"slot"`
@@ -250,25 +254,63 @@ type TacticalDocument struct {
 		Name      string `json:"name"`
 		TeamKey   string `json:"team_key"`
 	} `json:"players"`
-	Rounds []struct {
-		Number  int    `json:"number"`
-		Winner  string `json:"winner"`
-		Economy struct {
-			CTBuy string `json:"ct_buy"`
-			TBuy  string `json:"t_buy"`
-		} `json:"economy"`
-		Class struct {
-			TSide  string `json:"t_side"`
-			CTSide string `json:"ct_side"`
-			Site   string `json:"site"`
-		} `json:"class"`
-		Players []struct {
-			Slot   uint8  `json:"slot"`
-			Side   string `json:"side"`
-			Kills  int    `json:"kills"`
-			Deaths int    `json:"deaths"`
-		} `json:"players"`
-	} `json:"rounds"`
+	Rounds []TacticalRound `json:"rounds"`
+}
+
+// TacticalRound is one round of a tactical document.
+type TacticalRound struct {
+	Number        int    `json:"number"`
+	TickFreezeEnd int    `json:"tick_freeze_end"`
+	TickEnd       int    `json:"tick_end"`
+	ScoreCTBefore int    `json:"score_ct_before"`
+	ScoreTBefore  int    `json:"score_t_before"`
+	Winner        string `json:"winner"`
+	EndReason     string `json:"end_reason"`
+	Bomb          *struct {
+		PlantTick   int    `json:"plant_tick"`
+		Site        string `json:"site"`
+		PlanterSlot *uint8 `json:"planter_slot"`
+		DefuseTick  int    `json:"defuse_tick"`
+		ExplodeTick int    `json:"explode_tick"`
+	} `json:"bomb"`
+	Economy struct {
+		CTEquipValue int    `json:"ct_equip_value"`
+		TEquipValue  int    `json:"t_equip_value"`
+		CTBuy        string `json:"ct_buy"`
+		TBuy         string `json:"t_buy"`
+	} `json:"economy"`
+	Class struct {
+		TSide   string   `json:"t_side"`
+		CTSide  string   `json:"ct_side"`
+		Site    string   `json:"site"`
+		Tags    []string `json:"tags"`
+		Reasons []string `json:"reasons"`
+	} `json:"class"`
+	Players []struct {
+		Slot         uint8  `json:"slot"`
+		Side         string `json:"side"`
+		Kills        int    `json:"kills"`
+		Deaths       int    `json:"deaths"`
+		Assists      int    `json:"assists"`
+		Damage       int    `json:"damage"`
+		EquipValue   int    `json:"equip_value"`
+		Survived     bool   `json:"survived"`
+		OpeningKill  bool   `json:"opening_kill"`
+		OpeningDeath bool   `json:"opening_death"`
+		Traded       bool   `json:"traded"`
+	} `json:"players"`
+	Events []struct {
+		Tick       int    `json:"tick"`
+		Kind       string `json:"kind"`
+		ActorSlot  *uint8 `json:"actor_slot"`
+		TargetSlot *uint8 `json:"target_slot"`
+		Weapon     string `json:"weapon"`
+		Place      string `json:"place"`
+		Headshot   bool   `json:"headshot"`
+		Wallbang   bool   `json:"wallbang"`
+		Opening    bool   `json:"opening"`
+		Traded     bool   `json:"traded"`
+	} `json:"events"`
 }
 
 // LibraryTactical returns a library match's tactical document.

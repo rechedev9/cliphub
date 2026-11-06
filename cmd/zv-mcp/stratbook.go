@@ -495,7 +495,7 @@ func playSummaryOf(p tuiclient.Play) playSummaryOut {
 }
 
 func playDetailOf(p tuiclient.Play) playDetailOut {
-	out := playDetailOut{playSummaryOut: playSummaryOf(p), Notes: cleanNotes(p.Notes), PositionsSeconds: p.PositionsSeconds,
+	out := playDetailOut{playSummaryOut: playSummaryOf(p), Notes: cleanText(p.Notes, maxReportNotesRunes), PositionsSeconds: p.PositionsSeconds,
 		GrenadeList: grenadesOf(p.Grenades), Positions: []playPositionOut{}, Refs: []string{}, MissingMatchIDs: p.MissingMatchIDs}
 	for _, pos := range p.Positions {
 		out.Positions = append(out.Positions, playPositionOut{Player: cleanName(pos.Player), Callout: cleanName(pos.Callout), SharePct: sharePct(pos.Share)})

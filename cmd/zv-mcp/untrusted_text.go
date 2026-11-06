@@ -26,25 +26,6 @@ func cleanName(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// cleanNotes keeps the line breaks of free text the user wrote, drops other
-// control and format characters, and caps it at maxReportNotesRunes.
-func cleanNotes(s string) string {
-	var b strings.Builder
-	n := 0
-	for _, r := range s {
-		if n == maxReportNotesRunes {
-			b.WriteRune('…')
-			break
-		}
-		if r != '\n' && (unicode.IsControl(r) || unicode.Is(unicode.Cf, r)) {
-			continue
-		}
-		b.WriteRune(r)
-		n++
-	}
-	return strings.TrimSpace(b.String())
-}
-
 // quotedName puts an untrusted name in «» for approval text, without the quote
 // characters that could close the quote early; empty falls back.
 func quotedName(raw, fallback string) string {

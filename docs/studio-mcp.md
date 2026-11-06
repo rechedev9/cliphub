@@ -189,6 +189,10 @@ Read:
 | `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
 | `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
+| `get_round` | `GET /api/library/matches/{id}/tactical` (the document without positions; the round endpoint carries megabytes of frames) and `GET .../metrics` for the round's win probability timeline; buys, patterns with reasons, bomb, player lines, kill feed, seconds from freeze end |
+| `match_metrics` | `GET /api/library/matches/{id}/metrics` and `/tactical` for slot names; every player's metrics and, per round, the CT win chance at freeze end and the kill that moved it most |
+| `match_tendencies` | `GET /api/library/matches/{id}/tactical/aggregate` (`team` required, `side`, repeatable `buy`, `outcome`, `round_from`, `round_to`) |
+| `integrity_dossier` | `GET /api/jobs/{id}/anticheat/dossier/{steamid}`: Markdown body, report channels and the reporting policy; a 409 says to wait for `check_integrity` |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
 
 Write:

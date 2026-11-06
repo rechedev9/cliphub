@@ -53,7 +53,10 @@ Scouting reports (Informes): list_reports, get_report (sections and players), cr
 update_report, delete_report. Stratbook: list_plays, get_play, save_round_as_play (a round ref and
 the team's side key), detect_team_plays then save_detected_play with a play's ref, update_play,
 delete_play, export_plays and import_plays (stratbook .json files on this PC).
-check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
+One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
+player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered).
+check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
+integrity_dossier is one screened player's evidence pack and the official ways to report them.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of every play; render_stream makes one video per play in a layout from
