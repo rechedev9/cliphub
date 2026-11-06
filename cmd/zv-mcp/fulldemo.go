@@ -158,7 +158,7 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			return nil, describeFullDemoPlan(in.JobID, doc), nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "render_full_demo",
+	mcp.AddTool(server, &mcp.Tool{Name: "render_full_demo", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Capture and render a planned Full Demo. This opens CS2 full screen and records for a long time, so the user must approve it. " +
 			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_job, passing the returned variant."},

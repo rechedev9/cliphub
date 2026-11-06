@@ -274,7 +274,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			return nil, out, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "import_demo",
+	mcp.AddTool(server, &mcp.Tool{Name: "import_demo", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Import a local CS2 demo into the Studio library. Analysis starts on its own; follow with wait_for_demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkDemoPath(in.Path); err != nil {
@@ -296,7 +296,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			return nil, out, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly,
+	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly, Meta: appToolMeta(jobProgressAppURI),
 		Description: "Wait until an imported demo is analysed (state ready or failed). Returns its match_id when ready."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
@@ -348,7 +348,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			return nil, jobOut{JobID: res.JobID, Status: cleanName(res.Status), Running: workerOwnsJob(res.Status), Reused: res.Reused}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_job", Annotations: readOnly,
+	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_job", Annotations: readOnly, Meta: appToolMeta(jobProgressAppURI),
 		Description: "Wait for a job to leave its running state (parsing, recording, rendering). Reports progress; call again while running is true. " +
 			"After generate_short or render_full_demo, pass the variant they returned: the capture ends before the render does, and only the variant tells when the video is finished."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitJobIn) (*mcp.CallToolResult, jobOut, error) {
@@ -456,7 +456,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			return nil, out, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "generate_short",
+	mcp.AddTool(server, &mcp.Tool{Name: "generate_short", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Capture and edit a Short from chosen plays of one job. For a series, the plays of one call must share one job_id (one map); a Short that mixes maps is not supported, so make one Short per map. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
 			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_job, passing the returned variant."},

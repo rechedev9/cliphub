@@ -41,6 +41,9 @@ A series (best of 3 or 5): import and wait for every demo, then create_series_jo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
+In hosts with MCP Apps, import_demo, wait_for_demo, wait_for_job, generate_short, render_full_demo
+and the stream renders show the user a live progress bar that updates on its own; keep calling the
+wait tools to learn when the job ends, without repeating each percent in chat.
 Analysis (read only): list_teams for team ids, scout_team for a team's tendencies, player_metrics for a
 player's numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.

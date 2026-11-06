@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+var networkLoad = regexp.MustCompile(`(?i)(src|href)\s*=\s*["']?(https?:)?//|url\(\s*["']?(https?:)?//|@import|fetch\(|new WebSocket|XMLHttpRequest`)
 
 func connectApps(t *testing.T, s *studio) *mcp.ClientSession {
 	t.Helper()
@@ -59,7 +62,11 @@ func TestAppResourcesAreListedAndReadable(t *testing.T) {
 			t.Fatalf("%s: contents %+v", p.uri, read.Contents)
 		}
 		html := read.Contents[0].Text
-		for _, want := range []string{"<!doctype html>", "ui/initialize", "ui/notifications/initialized", "tools/call", `content: [{ type: "text"`} {
+		wants := []string{"<!doctype html>", "ui/initialize", "ui/notifications/initialized", "tools/call"}
+		if !p.bundled {
+			wants = append(wants, `content: [{ type: "text"`)
+		}
+		for _, want := range wants {
 			if !strings.Contains(html, want) {
 				t.Errorf("%s lacks %q", p.uri, want)
 			}
@@ -67,8 +74,9 @@ func TestAppResourcesAreListedAndReadable(t *testing.T) {
 		if strings.Contains(html, "/*BASE_CSS*/") || strings.Contains(html, "/*BRIDGE_JS*/") {
 			t.Errorf("%s still holds a marker", p.uri)
 		}
-		if strings.Contains(html, "http://") || strings.Contains(html, "https://") {
-			t.Errorf("%s references the network, which the default CSP blocks", p.uri)
+		// React keeps XML namespace and error-doc URLs as plain strings; only a load needs the network.
+		if networkLoad.MatchString(html) {
+			t.Errorf("%s loads from the network, which the default CSP blocks: %q", p.uri, networkLoad.FindString(html))
 		}
 		if strings.ContainsAny(html, "—–") {
 			t.Errorf("%s has an em or en dash", p.uri)
@@ -83,7 +91,28 @@ func TestAppToolsLinkTheirUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{"choose_short_options": shortOptionsAppURI, "choose_hud": hudGalleryAppURI}
-	for _, tool := range listed.Tools {
+	assertToolsLinkUI(t, listed.Tools, want)
+}
+
+// The tools that start or follow a long job show the progress view.
+func TestProgressToolsLinkTheProgressView(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+	registerTools(server, closedStudio(t))
+	cs := connectWith(t, server, nil)
+	listed, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{}
+	for _, name := range []string{"import_demo", "wait_for_demo", "wait_for_job", "generate_short", "render_full_demo", "render_stream", "render_stream_summary", "wait_for_stream_render"} {
+		want[name] = jobProgressAppURI
+	}
+	assertToolsLinkUI(t, listed.Tools, want)
+}
+
+func assertToolsLinkUI(t *testing.T, tools []*mcp.Tool, want map[string]string) {
+	t.Helper()
+	for _, tool := range tools {
 		uri, ok := want[tool.Name]
 		if !ok {
 			continue

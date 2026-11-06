@@ -113,6 +113,20 @@ There is no event stream; the UI polls.
   failed is a failure, ready is done), never from the progress file alone. `generate_short` and
   `render_full_demo` return the variant to pass in.
 - Library demos have their own states (`queued`, `parsing`, `ready`, `failed`): `wait_for_demo`.
+- In a host with MCP Apps, the tools that start or follow a long job show the progress view
+  `ui://cliphub/job-progress`: a bar with the Spanish stage ("Montando corte 17 de 18"), the
+  percent, the time since the view opened and, once done, the video name from `list_videos` or
+  `list_stream_videos`. The view calls `wait_for_job`, `wait_for_demo` or `wait_for_stream_render`
+  itself with `wait_seconds` 5 until the job ends, so it keeps moving after the assistant's turn is
+  over. A view scrolled out of the chat stops polling until it is back in sight. Hosts without UI
+  get the same JSON as before.
+
+The React views live in `mcp-apps/` (its own pnpm package, like `web/` and `desktop/`).
+`pnpm --dir mcp-apps run build` bundles each view with esbuild into one self-contained HTML file in
+`cmd/zv-mcp/apps/` (script and style inline, no network, as the default MCP Apps CSP requires), and
+`zv-mcp` embeds that file with `go:embed`. The built file is committed, so the Go build needs no
+Node: rebuild and commit it with every change under `mcp-apps/src`. Checks:
+`pnpm --dir mcp-apps run typecheck`, `lint` and `test:unit`.
 
 The orchestrator rate limiter is a pass-through in Studio (`WithRateLimit(0, 0)`), so polling is
 safe. Only uploads are limited (2 concurrent).
@@ -190,8 +204,8 @@ Write:
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
-| `wait_for_job` | polls a job; takes the render `variant` | no |
-| `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
+| `wait_for_job` | polls a job; takes the render `variant`; shows the progress view | no |
+| `wait_for_demo` | polls a library demo until `ready` or `failed`; shows the progress view | no |
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
 | `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
 | `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
@@ -209,6 +223,7 @@ Short look and Full Demo HUD:
 | `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
 | `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
+| `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `render_full_demo`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
 
 `import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
 paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real
