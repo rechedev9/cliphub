@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { LIBRARY_ROLES } from '@/lib/api/library';
 import type { PrepPlayer, TeamPlaybook, TeamPrep } from '@/lib/api/playbook';
 import type { TacticalSide } from '@/lib/api/tactical';
+import { buyIcon } from '@/lib/analysis/icons';
 import { evidenceRefs } from '@/lib/analysis/playbook';
 import { matchupGrid, matchupKey, prepWindowLabel, secondsLabel, tempoRows } from '@/lib/analysis/prep';
 import { replayHref } from '@/lib/analysis/replay-link';
@@ -17,8 +18,8 @@ const SIDES: readonly TacticalSide[] = ['CT', 'T'];
 
 export function PrepSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <section aria-label={title} className="flex flex-col gap-3 print:break-inside-avoid">
-      <h2 className="text-body-lg font-semibold text-fg-1">{title}</h2>
+    <section aria-label={title} className="flex flex-col gap-2 print:break-inside-avoid">
+      <h2 className="text-body font-semibold text-fg-1">{title}</h2>
       {children}
     </section>
   );
@@ -31,7 +32,7 @@ function replayTitle(prep: Pick<TeamPrep, 'team_name' | 'map'>, what: string): s
 /** Each side's win rate per buy matchup: the team's buy per row, the rival's per column. */
 export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
   return (
-    <div className="grid gap-4 print:grid-cols-2">
+    <div className="grid gap-2 @[96rem]/content:grid-cols-2 print:grid-cols-2">
       {SIDES.map((side) => {
         const grid = matchupGrid(prep.matchups, side);
         const columns: HeatColumn[] = [
@@ -44,7 +45,7 @@ export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
           })),
         ];
         const rows: HeatRow[] = grid.buys.map((buy) => {
-          const cells: Record<string, HeatCell> = { buy: { text: buyLabel(buy), tone: side === 'CT' ? 'ct' : 't' } };
+          const cells: Record<string, HeatCell> = { buy: { text: buyLabel(buy), tone: side === 'CT' ? 'ct' : 't', icon: buyIcon(buy) } };
           for (const opponentBuy of grid.opponentBuys) {
             const cell = grid.cells.get(matchupKey(buy, opponentBuy));
             if (cell === undefined || cell.rounds === 0) continue;
@@ -79,11 +80,11 @@ export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
 /** Median tempo per buy on each side; T rows also give the plant. */
 export function TempoByBuy({ prep }: { prep: TeamPrep }): ReactNode {
   return (
-    <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2">
+    <div className="grid gap-2 lg:grid-cols-2 print:grid-cols-2">
       {SIDES.map((side) => {
         const rows = tempoRows(prep.tempo, side);
         return (
-          <div key={side} className="studio-panel flex flex-col gap-2 p-4">
+          <div key={side} className="studio-panel flex flex-col gap-1.5 px-3 py-2.5">
             <h3 className="text-body-sm font-semibold text-fg-1">
               {side === 'T' ? 'En T, segundos hasta pisar un sitio' : 'En CT, segundos hasta el primer duelo'}
             </h3>
@@ -95,6 +96,7 @@ export function TempoByBuy({ prep }: { prep: TeamPrep }): ReactNode {
                 items={rows.map((row) => ({
                   id: row.buy,
                   label: buyLabel(row.buy),
+                  icon: buyIcon(row.buy),
                   value: row.tempo.median,
                   text: secondsLabel(row.tempo.median),
                   detail:
@@ -120,7 +122,7 @@ function roleText(role: string): string {
 function PlayerPositions({ prep, player }: { prep: TeamPrep; player: PrepPlayer }): ReactNode {
   const role = roleText(player.role);
   return (
-    <article aria-label={player.name} className="studio-panel flex flex-col gap-3 p-4 print:break-inside-avoid">
+    <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5 print:break-inside-avoid">
       <header className="flex flex-wrap items-baseline gap-x-2">
         <h3 className="text-body font-semibold text-fg-1">{player.name}</h3>
         <p className="text-meta text-fg-3">
@@ -174,9 +176,11 @@ export function CtPositions({ prep }: { prep: TeamPrep }): ReactNode {
       <p className="text-meta text-fg-3">
         Por cada tramo, el sitio donde más estuvo en cada ronda y en qué parte de sus rondas. Leído en {prep.framed} rondas de CT con posiciones.
       </p>
-      {prep.ct_players.map((player) => (
-        <PlayerPositions key={player.steamid64} prep={prep} player={player} />
-      ))}
+      <div className="grid gap-2 @[90rem]/content:grid-cols-2 print:grid-cols-1">
+        {prep.ct_players.map((player) => (
+          <PlayerPositions key={player.steamid64} prep={prep} player={player} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -190,12 +194,12 @@ export function PlaybookBrief({ playbook }: { playbook: TeamPlaybook }): ReactNo
         Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas de {playbook.side}.
       </p>
       <CategoryGrid playbook={playbook} compact />
-      <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2">
-        <div className="studio-panel flex flex-col gap-2 p-4">
+      <div className="grid gap-2 lg:grid-cols-2 print:grid-cols-2">
+        <div className="studio-panel flex flex-col gap-1.5 px-3 py-2.5">
           <h3 className="text-body-sm font-semibold text-fg-1">Sitios</h3>
           <SiteBars playbook={playbook} />
         </div>
-        <div className="studio-panel flex flex-col gap-2 p-4">
+        <div className="studio-panel flex flex-col gap-1.5 px-3 py-2.5">
           <h3 className="text-body-sm font-semibold text-fg-1">Ritmo</h3>
           <TempoChart playbook={playbook} rounds={playbook.rounds} />
         </div>

@@ -15,9 +15,11 @@ import {
   type ReportSection,
   type ReportTable,
 } from '@/lib/reports/scout-sections';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';
 import { Button } from '@/components/ui/button';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
 
 /** Opens the video dialog on the example rounds of one table row. */
@@ -36,7 +38,7 @@ const TONE_CLASS = {
 
 function CellView({ cell, matches, minSample }: { cell: ReportCell; matches: ReadonlyMap<string, ScoutMatchSummary>; minSample: number }): ReactNode {
   const className = cn(
-    'px-3 py-2 align-top',
+    'px-2.5 py-1.5 align-top',
     cell.numeric && 'text-right whitespace-nowrap',
     cell.lowSample && 'text-fg-3 italic',
     cell.tone && TONE_CLASS[cell.tone],
@@ -61,13 +63,17 @@ function CellView({ cell, matches, minSample }: { cell: ReportCell; matches: Rea
   }
   return (
     <td className={className} title={cell.lowSample ? `Muestra pequeña: menos de ${minSample} rondas` : undefined}>
-      {cell.href ? (
-        <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
-          {cell.text}
-        </Link>
-      ) : (
-        cell.text
-      )}
+      <span className={cn('inline-flex items-center gap-1.5', cell.numeric && 'justify-end')}>
+        {cell.map ? <MapThumb map={cell.map} className="h-5 w-8" crop={1.5} /> : null}
+        {cell.icon ? <EquipmentIcon name={cell.icon} height={12} className="text-fg-2" /> : null}
+        {cell.href ? (
+          <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
+            {cell.text}
+          </Link>
+        ) : (
+          cell.text
+        )}
+      </span>
     </td>
   );
 }
@@ -91,15 +97,15 @@ function TableView({
       ) : (
         <div className="overflow-x-auto">
           <table aria-label={table.caption} className="w-full border-collapse text-left text-body-sm">
-            <thead className="bg-surface-2 text-fg-3">
+            <thead className="bg-surface-2 text-meta text-fg-3">
               <tr className="border-b border-border">
                 {table.columns.map((column) => (
-                  <th key={column} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
+                  <th key={column} scope="col" className="h-8 px-2.5 font-medium whitespace-nowrap">
                     {column}
                   </th>
                 ))}
                 {withVideo ? (
-                  <th scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
+                  <th scope="col" className="h-8 px-2.5 font-medium whitespace-nowrap">
                     Vídeo
                   </th>
                 ) : null}
@@ -112,7 +118,7 @@ function TableView({
                     <CellView key={column} cell={cell} matches={matches} minSample={minSample} />
                   ))}
                   {withVideo ? (
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-2.5 py-1.5 align-top">
                       {rowEvidence(row).length > 0 ? (
                         <Button type="button" size="xs" variant="ghost" onClick={() => onRowVideo?.(rowEvidence(row))}>
                           <Clapperboard aria-hidden />
@@ -144,10 +150,10 @@ export function SectionView({
   onRowVideo?: RowVideoHandler;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <p className="measure-read text-body-sm text-fg-2">{section.intro}</p>
       {section.facts.length > 0 ? (
-        <dl className="flex flex-wrap gap-x-8 gap-y-3">
+        <dl className="flex flex-wrap gap-x-6 gap-y-1.5">
           {section.facts.map((fact) => (
             <div key={fact.label} className="flex flex-col gap-0.5">
               <dt className="text-meta text-fg-3">{fact.label}</dt>

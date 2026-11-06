@@ -42,7 +42,7 @@ export function PracticeButton({
   const disabled = disabledReason !== undefined || busy;
   return (
     <span title={disabledReason}>
-      <Button type="button" variant="outline" size="xs" disabled={disabled} onClick={onClick}>
+      <Button type="button" variant="ghost" size="xs" disabled={disabled} onClick={onClick}>
         <Crosshair aria-hidden />
         {label}
       </Button>

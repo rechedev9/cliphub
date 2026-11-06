@@ -3,44 +3,61 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getBaseline, getLeaderboard, getLibraryPlayerRole, type LibraryRosterEntry } from '@/lib/api/library';
-import type { Baseline, BaselineMetric, LeaderboardRow } from '@/lib/api/baseline';
-import { METRIC_INFO, baselineValue, referenceLabel } from '@/lib/analysis/reference';
+import type { Baseline, BaselineMetric, BaselineScope, LeaderboardRow } from '@/lib/api/baseline';
+import { METRIC_INFO, baselineSampleText, baselineValue, proUnavailableText, referenceLabel } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
-import { formatShortDate } from '@/lib/format';
+import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
+import { DeltaValue } from '@/components/ui/delta-value';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatCard } from '@/components/ui/stat-card';
 
-/** The numbers each roster card shows, compared with the library. */
-const CARD_METRICS: readonly BaselineMetric[] = ['kpr', 'adr', 'kast'];
+/** The numbers each roster row shows, compared with the reference. */
+const ROW_METRICS: readonly BaselineMetric[] = ['kpr', 'dpr', 'adr', 'kast', 'opening_win_pct', 'trade_pct'];
+const SHORT_LABEL: Partial<Record<BaselineMetric, string>> = {
+  kpr: 'Bajas/r',
+  dpr: 'Muertes/r',
+  opening_win_pct: 'Aperturas',
+  trade_pct: 'Tradeadas',
+};
 /** The leaderboard is the only per-player source of these numbers; its cap bounds the lookup. */
 const LOOKUP_LIMIT = 500;
 
 type Values = ReadonlyMap<string, Partial<Record<BaselineMetric, LeaderboardRow>>>;
-type Loaded = { baseline: Baseline; values: Values };
+type Loaded = { baseline: Baseline; pro: Baseline; values: Values };
 
-async function loadValues(): Promise<Loaded> {
-  const [baseline, ...boards] = await Promise.all([
-    getBaseline({ scope: 'library' }),
-    ...CARD_METRICS.map((metric) => getLeaderboard({ metric, scope: 'library', min_rounds: 1, limit: LOOKUP_LIMIT })),
+async function loadValues(map: string): Promise<Loaded> {
+  const [baseline, pro, ...boards] = await Promise.all([
+    getBaseline({ scope: 'library', map }),
+    getBaseline({ scope: 'pro', map }),
+    ...ROW_METRICS.map((metric) => getLeaderboard({ metric, scope: 'library', map, min_rounds: 1, limit: LOOKUP_LIMIT })),
   ]);
   const values = new Map<string, Partial<Record<BaselineMetric, LeaderboardRow>>>();
   for (const board of boards) {
     for (const row of board.players) values.set(row.steamid64, { ...values.get(row.steamid64), [board.metric]: row });
   }
-  return { baseline, values };
+  return { baseline, pro, values };
 }
 
-/** The roster as one card per player, most recent first: role and key numbers against the library. */
-export function TeamRoster({ roster }: { roster: readonly LibraryRosterEntry[] }): ReactNode {
+/** The roster as one dense row per player, most recent first: role and key numbers against the chosen reference. */
+export function TeamRoster({
+  roster,
+  map,
+  reference,
+}: {
+  roster: readonly LibraryRosterEntry[];
+  /** The scope's map; numbers and reference read the same map. */
+  map: string;
+  reference: BaselineScope;
+}): ReactNode {
   const [data, setData] = useState<Loaded | null | 'failed'>(null);
   const [roles, setRoles] = useState<ReadonlyMap<string, string>>(new Map());
   const ids = roster.map((entry) => entry.steamid64).join(',');
 
   useEffect(() => {
     let active = true;
-    loadValues()
+    setData(null);
+    loadValues(map)
       .then((next) => {
         if (active) setData(next);
       })
@@ -50,7 +67,7 @@ export function TeamRoster({ roster }: { roster: readonly LibraryRosterEntry[] }
     return () => {
       active = false;
     };
-  }, []);
+  }, [map]);
 
   useEffect(() => {
     let active = true;
@@ -68,76 +85,98 @@ export function TeamRoster({ roster }: { roster: readonly LibraryRosterEntry[] }
 
   if (roster.length === 0) return <p className="text-body-sm text-fg-2">Sin jugadores en las partidas de este equipo.</p>;
   const sorted = [...roster].sort((a, b) => Date.parse(b.last_played_at) - Date.parse(a.last_played_at));
+  const ready = data !== null && data !== 'failed' ? data : null;
+  const proMissing = ready ? proUnavailableText(ready.pro) : null;
+  const scope: BaselineScope = reference === 'pro' && proMissing === null ? 'pro' : 'library';
+  let baseline: Baseline | null = null;
+  if (ready) baseline = scope === 'pro' ? ready.pro : ready.baseline;
+  const label = referenceLabel(scope);
+
   return (
-    <div className="flex flex-col gap-3">
+    <section aria-label="Plantilla" className="flex flex-col gap-2">
       {data === 'failed' ? (
         <p role="alert" className="text-body-sm text-destructive">
           No se pudieron leer las cifras de los jugadores. Comprueba que ClipHub Studio sigue abierto.
         </p>
       ) : null}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] gap-3">
-        {sorted.map((entry) => (
-          <RosterCard key={entry.steamid64} entry={entry} role={roles.get(entry.steamid64)} data={data} />
-        ))}
+      <div className="studio-panel overflow-x-auto">
+        <table aria-label="Plantilla" className="w-full border-collapse text-left text-body-sm">
+          <thead className="bg-surface-2 text-meta text-fg-3">
+            <tr className="border-b border-border">
+              <th scope="col" className="sticky left-0 z-10 h-8 bg-surface-2 px-3 font-medium">Jugador</th>
+              <th scope="col" className="h-8 px-3 font-medium">Rol</th>
+              <th scope="col" className="h-8 px-3 text-right font-medium">Partidas</th>
+              {ROW_METRICS.map((metric) => (
+                <th key={metric} scope="col" className="h-8 px-3 text-right font-medium whitespace-nowrap" title={METRIC_INFO[metric].label}>
+                  {SHORT_LABEL[metric] ?? METRIC_INFO[metric].label}
+                </th>
+              ))}
+              <th scope="col" className="h-8 px-3 text-right font-medium">Última</th>
+            </tr>
+            <tr className="border-b border-border text-fg-3">
+              <th scope="row" colSpan={3} className="sticky left-0 z-10 bg-surface-2 px-3 py-1 text-left font-normal">
+                {label}
+              </th>
+              {ROW_METRICS.map((metric) => {
+                const value = baselineValue(baseline, metric);
+                return (
+                  <td key={metric} className="px-3 py-1 text-right tabular-nums">
+                    {value === null ? '' : METRIC_INFO[metric].format(value)}
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((entry) => {
+              const name = entry.nick || entry.steamid64;
+              const own = ready?.values.get(entry.steamid64);
+              return (
+                <tr key={entry.steamid64} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3/50">
+                  <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-3 py-1.5 text-left font-medium">
+                    <span className="flex items-center gap-2">
+                      <PlayerAvatar nickname={name} playerID={entry.steamid64} size={24} />
+                      <Link href={playerHref(entry.steamid64)} className="truncate text-fg-1 hover:text-primary hover:underline">
+                        {name}
+                      </Link>
+                    </span>
+                  </th>
+                  <td className="px-3 py-1.5 whitespace-nowrap text-fg-2">{roles.get(entry.steamid64) ?? ''}</td>
+                  <td className="px-3 py-1.5 text-right text-fg-2 tabular-nums">{entry.matches}</td>
+                  {ROW_METRICS.map((metric) => {
+                    const info = METRIC_INFO[metric];
+                    const row = own?.[metric];
+                    return (
+                      <td key={metric} className="px-3 py-1.5 text-right">
+                        {data === null ? (
+                          <Skeleton className="ml-auto h-4 w-12" />
+                        ) : (
+                          <DeltaValue
+                            value={row?.value ?? null}
+                            format={info.format}
+                            reference={baselineValue(baseline, metric)}
+                            higherIsBetter={info.higherIsBetter}
+                            epsilon={info.epsilon}
+                            referenceLabel={label}
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap text-fg-3">{formatShortDate(entry.last_played_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      {data !== null && data !== 'failed' ? (
+      {ready ? (
         <p className="measure-read text-meta text-fg-3">
-          Cifras de cada jugador en todas sus partidas de la biblioteca, no solo con este equipo. La media es la de los jugadores con{' '}
-          {data.baseline.min_rounds} rondas o más.
+          Cifras de cada jugador en todas sus partidas de la biblioteca{map === '' ? '' : ` en ${prettyMapName(map)}`}, no solo con este equipo. La
+          referencia sale de {baselineSampleText(baseline ?? ready.baseline)}.{proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function RosterCard({
-  entry,
-  role,
-  data,
-}: {
-  entry: LibraryRosterEntry;
-  role: string | undefined;
-  data: Loaded | null | 'failed';
-}): ReactNode {
-  const name = entry.nick || entry.steamid64;
-  const own = data !== null && data !== 'failed' ? data.values.get(entry.steamid64) : undefined;
-  const rounds = own ? Object.values(own)[0]?.rounds : undefined;
-  return (
-    <article aria-label={name} className="studio-panel flex flex-col overflow-hidden">
-      <header className="flex items-center gap-3 px-4 py-3">
-        <PlayerAvatar nickname={name} playerID={entry.steamid64} size={40} />
-        <div className="flex min-w-0 flex-col">
-          <Link href={playerHref(entry.steamid64)} className="truncate text-body font-semibold text-fg-1 hover:text-primary hover:underline">
-            {name}
-          </Link>
-          <span className="text-meta text-fg-2">
-            {role ?? 'Rol sin leer'} · {entry.matches === 1 ? '1 partida' : `${entry.matches} partidas`} · última {formatShortDate(entry.last_played_at)}
-          </span>
-        </div>
-      </header>
-      {data === null ? (
-        <Skeleton className="mx-4 mb-3 h-20" />
-      ) : (
-        <dl className="grid grid-cols-3 gap-px border-t border-border-subtle bg-border-subtle">
-          {CARD_METRICS.map((metric) => {
-            const info = METRIC_INFO[metric];
-            const reference = data === 'failed' ? null : baselineValue(data.baseline, metric);
-            return (
-              <StatCard
-                key={metric}
-                label={metric === 'kpr' ? 'Bajas/ronda' : info.label}
-                value={own?.[metric]?.value ?? null}
-                format={info.format}
-                higherIsBetter={info.higherIsBetter}
-                epsilon={info.epsilon}
-                comparison={reference === null ? undefined : { value: reference, label: referenceLabel('library') }}
-                className="px-3"
-              />
-            );
-          })}
-        </dl>
-      )}
-      {rounds !== undefined ? <p className="border-t border-border-subtle px-4 py-2 text-meta text-fg-3">{rounds} rondas en la biblioteca</p> : null}
-    </article>
+    </section>
   );
 }

@@ -1,3 +1,4 @@
+import type { BaselineScope } from '../api/baseline.ts';
 import type { ReportSide } from '../api/scout.ts';
 import { TACTICAL_BUY_TYPES, TACTICAL_FILTER_PARAMS, type TacticalBuyType } from '../api/tactical.ts';
 
@@ -31,11 +32,13 @@ export type AnalysisScope = {
   readonly opponentBuy: TacticalBuyType | '';
   /** Rival team id; empty for every rival. */
   readonly opponent: string;
+  /** What every comparison on the page reads against: the library mean or the pros'. */
+  readonly reference: BaselineScope;
 };
 
 export type ScopeField = keyof AnalysisScope;
 
-export const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent'];
+export const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent', 'reference'];
 
 /** Query names. Side and buys share the tactical filter's names, so a link reads the same on every page. */
 export const SCOPE_PARAMS = {
@@ -48,6 +51,7 @@ export const SCOPE_PARAMS = {
   buy: TACTICAL_FILTER_PARAMS.buy,
   opponentBuy: TACTICAL_FILTER_PARAMS.opponentBuy,
   opponent: 'opponent',
+  reference: 'ref',
 } as const;
 
 export const SCOPE_LIMIT_MAX = 50;
@@ -69,6 +73,7 @@ export const DEFAULT_SCOPE: AnalysisScope = {
   buy: '',
   opponentBuy: '',
   opponent: '',
+  reference: 'library',
 };
 
 const MAP_RE = /^[a-z0-9_]{1,64}$/;
@@ -123,6 +128,7 @@ export function parseAnalysisScope(query: ScopeQuery): AnalysisScope {
     buy: parseBuy(query.get(SCOPE_PARAMS.buy)),
     opponentBuy: parseBuy(query.get(SCOPE_PARAMS.opponentBuy)),
     opponent: UUID_RE.test(opponent) ? opponent.toLowerCase() : '',
+    reference: query.get(SCOPE_PARAMS.reference) === 'pro' ? 'pro' : 'library',
   };
 }
 
@@ -147,6 +153,7 @@ export function writeAnalysisScope(scope: AnalysisScope, current: string | URLSe
   set(SCOPE_PARAMS.buy, scope.buy);
   set(SCOPE_PARAMS.opponentBuy, scope.opponentBuy);
   set(SCOPE_PARAMS.opponent, scope.opponent);
+  set(SCOPE_PARAMS.reference, scope.reference === 'pro' ? 'pro' : '');
   return params.toString();
 }
 
@@ -168,6 +175,7 @@ export function resetScopeFields(scope: AnalysisScope, fields: readonly ScopeFie
     buy: pick('buy'),
     opponentBuy: pick('opponentBuy'),
     opponent: pick('opponent'),
+    reference: pick('reference'),
   };
 }
 

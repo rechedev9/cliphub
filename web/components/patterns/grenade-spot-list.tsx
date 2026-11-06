@@ -7,10 +7,12 @@ import type { TeamGrenade } from '@/lib/api/grenades';
 import type { PracticeSpot } from '@/lib/api/practice';
 import { grenadeId, spotReplayRefs, type GrenadeSpot } from '@/lib/analysis/grenade-patterns';
 import { canPractice, NO_ORIGIN_REASON, practiceSpotFor, representativeThrow } from '@/lib/analysis/practice-spots';
+import { grenadeIcon } from '@/lib/analysis/icons';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { percentLabel } from '@/lib/library/partidas';
 import { elapsedLabel } from '@/lib/tactical-spatial';
 import { Button } from '@/components/ui/button';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
 import { GRENADE_KIND_TOKEN } from './grenade-radar';
 import { PracticeButton } from './practice-launch';
@@ -36,13 +38,12 @@ function throwersText(spot: GrenadeSpot): string {
   return spot.throwers.map((thrower) => (thrower.count > 1 ? `${thrower.name} ×${thrower.count}` : thrower.name)).join(', ');
 }
 
+/** The grenade's own silhouette in its kind's colour, the same colour as its tracer on the radar. */
 function Swatch({ spot }: { spot: GrenadeSpot }): ReactNode {
   return (
-    <span
-      aria-hidden
-      className="mt-1.5 size-2.5 shrink-0 rounded-full"
-      style={{ backgroundColor: `var(${GRENADE_KIND_TOKEN[spot.kind]})` }}
-    />
+    <span aria-hidden className="mt-0.5 flex w-4 shrink-0 justify-center" style={{ color: `var(${GRENADE_KIND_TOKEN[spot.kind]})` }}>
+      <EquipmentIcon name={grenadeIcon(spot.kind)} height={16} />
+    </span>
   );
 }
 
@@ -63,7 +64,7 @@ export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, f
             <li
               key={spot.key}
               onPointerEnter={() => onHover(spot.key)}
-              className={cn('flex flex-col gap-2 px-2 py-2.5', highlight === spot.key && 'bg-surface-3')}
+              className={cn('flex flex-col gap-1 px-2 py-1.5', highlight === spot.key && 'bg-surface-3')}
             >
               <div className="flex items-start gap-2">
                 <input
@@ -93,23 +94,23 @@ export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, f
                     {' · '}
                     <span className="text-fg-3">{throwersText(spot)}</span>
                   </p>
+                  <div className="-ml-2 flex flex-wrap items-center gap-1">
+                    <Button asChild variant="ghost" size="xs">
+                      <Link href={replayHref(refs, label)}>
+                        <Play aria-hidden />
+                        Reproducir {refs.length} {refs.length === 1 ? 'ronda' : 'rondas'}
+                      </Link>
+                    </Button>
+                    <PracticeButton
+                      busy={busy}
+                      disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
+                      onClick={() => {
+                        const practice = best === null ? null : practiceSpotFor(best, label);
+                        if (practice !== null) onPractice([practice]);
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 pl-11">
-                <Button asChild variant="ghost" size="xs">
-                  <Link href={replayHref(refs, label)}>
-                    <Play aria-hidden />
-                    Reproducir {refs.length} {refs.length === 1 ? 'ronda' : 'rondas'}
-                  </Link>
-                </Button>
-                <PracticeButton
-                  busy={busy}
-                  disabledReason={best === null ? NO_ORIGIN_REASON : undefined}
-                  onClick={() => {
-                    const practice = best === null ? null : practiceSpotFor(best, label);
-                    if (practice !== null) onPractice([practice]);
-                  }}
-                />
               </div>
               {isOpen ? <ThrowList grenades={spot.grenades} label={label} busy={busy} onPractice={onPractice} matchLabel={matchLabel} /> : null}
             </li>

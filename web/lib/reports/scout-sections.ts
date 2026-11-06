@@ -11,6 +11,8 @@ import type {
   ScoutSkipReason,
   ScoutUtilityRow,
 } from '../api/scout.ts';
+import { equipmentIconForWeapon, type EquipmentIconName } from '../api/game-assets.ts';
+import { buyIcon } from '../analysis/icons.ts';
 import { matchHref } from '../clips/routes.ts';
 import { prettyMapName } from '../format.ts';
 import { roundEvidenceHref } from '../library/rounds.ts';
@@ -34,6 +36,10 @@ export type ReportCell = {
   readonly href?: string;
   /** The example rounds behind the row, each a link to its round and tick. */
   readonly evidence?: readonly ScoutEvidence[];
+  /** A map name such as `de_mirage`: the cell leads with its radar thumbnail. */
+  readonly map?: string;
+  /** A weapon or grenade the cell names: it leads with its silhouette. */
+  readonly icon?: EquipmentIconName | null;
 };
 
 export type ReportTable = {
@@ -170,7 +176,7 @@ function utilityTable(caption: string, rows: readonly ScoutUtilityRow[], empty: 
     caption,
     columns: ['Granada', 'Zona donde cae', 'Rondas con ella', 'Granadas', 'Segundo (mediana)', 'Lanzadores', 'Rondas de ejemplo'],
     rows: rows.map((row) => [
-      text(eventKindLabel(row.kind)),
+      { ...text(eventKindLabel(row.kind)), icon: equipmentIconForWeapon(row.kind) },
       text(calloutText(row.callout)),
       rate(row.share),
       count(row.count),
@@ -213,7 +219,7 @@ function summarySection(report: ScoutReport): ReportSection {
         columns: ['Fecha', 'Mapa', 'Rival', 'Marcador', 'Rondas leídas', 'Rondas ganadas'],
         rows: report.matches.map((match) => [
           { text: dateText(match.played_at), href: matchHref(match.match_id) },
-          text(prettyMapName(match.map)),
+          { ...text(prettyMapName(match.map)), map: match.map },
           text(match.opponent || 'Rival sin nombre'),
           {
             text: `${match.score}-${match.opponent_score}`,
@@ -229,7 +235,7 @@ function summarySection(report: ScoutReport): ReportSection {
         caption: 'Por mapa',
         columns: ['Mapa', 'Partidas', 'Ganadas', 'Rondas', '% rondas', '% rondas CT', '% rondas T'],
         rows: report.maps.map((map) => [
-          text(prettyMapName(map.map)),
+          { ...text(prettyMapName(map.map)), map: map.map },
           count(map.matches),
           count(map.match_wins),
           count(map.rounds),
@@ -366,7 +372,7 @@ function economySection(report: ScoutReport): ReportSection {
         rows: report.economy.rows.map((row) => [
           text(ECONOMY_CONTEXT_LABEL[row.context]),
           side(row.side),
-          text(buyLabel(row.buy)),
+          { ...text(buyLabel(row.buy)), icon: buyIcon(row.buy) },
           count(row.rounds),
           rate(row.share),
           rate(row.win_rate),

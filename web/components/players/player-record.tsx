@@ -16,11 +16,12 @@ import {
   LibraryApiError,
   linkLibraryPlayerFaceit,
   listLibraryMatches,
+  listLibraryPlayers,
   type LibraryMatch,
   type LibraryPlayer,
   type LibraryPlayerRole,
 } from '@/lib/api/library';
-import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, matchHref, teamHref } from '@/lib/clips/routes';
+import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -34,7 +35,9 @@ import {
 } from '@/lib/library/partidas';
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
-import { ScopeBar, type ScopeCounts } from '@/components/analysis/scope-bar';
+import { lastResults } from '@/lib/analysis/context-bar';
+import { MapLabel } from '@/components/analysis/map-thumb';
+import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeOption } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -57,6 +60,7 @@ import { PlayerRoles } from '@/components/players/player-roles';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
+import { useRecordTab } from '@/hooks/use-record-tab';
 import { cn } from '@/lib/utils';
 
 /** How many of the player's most recent matches the record reads in full. */
@@ -165,7 +169,8 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
 /** The scope controls each tab reads; a tab missing here has no scope bar. */
 const REPORT_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit'];
 const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
-  intro: REPORT_FIELDS,
+  intro: [...REPORT_FIELDS, 'reference'],
+  faceit: [],
   roles: ['map', 'period'],
   compras: REPORT_FIELDS,
   mapas: REPORT_FIELDS,
@@ -174,10 +179,14 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
 };
 /** Tabs that read the shared metrics report; its sample is the count they show. */
 const REPORT_TABS = new Set(['intro', 'compras', 'mapas', 'metricas']);
+const PLAYER_TABS = ['intro', 'roles', 'compras', 'mapas', 'partidas', 'metricas', 'faceit'];
+/** The picker lists the most played; a library of thousands would not fit a menu. */
+const PICKER_PLAYERS = 200;
 
 function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   const [player, setPlayer] = useState(data.player);
-  const [tab, setTab] = useState('intro');
+  const [tab, setTab] = useRecordTab(PLAYER_TABS, 'intro');
+  const [others, setOthers] = useState<ScopeOption[]>([]);
   const [reported, setReported] = useState<ScopeCounts | null>(null);
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'player', id: data.player.steamid64 });
@@ -208,6 +217,24 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
     };
   }, [player.steamid64]);
 
+  useEffect(() => {
+    let active = true;
+    listLibraryPlayers()
+      .then((list) => {
+        if (!active) return;
+        const top = [...list].sort((a, b) => b.match_count - a.match_count).slice(0, PICKER_PLAYERS);
+        setOthers(
+          top
+            .map((entry) => ({ value: entry.steamid64, label: entry.nick || entry.steamid64 }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'es')),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const maps = [...new Set(data.rows.map((row) => row.match.map))].sort();
   const details = new Map(data.rows.map((row) => [row.match.id, row.match]));
   const scopedRows = data.rows.filter(
@@ -231,17 +258,30 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
     );
   }
 
+  const results = lastResults(
+    scopedRows.map((row) => ({ playedAt: row.match.played_at, outcome: row.outcome })),
+    10,
+  );
+  const entity: ScopeEntity = {
+    noun: 'Jugador',
+    id: player.steamid64,
+    options: [{ value: player.steamid64, label: name }, ...others.filter((option) => option.value !== player.steamid64)],
+    hrefFor: playerHref,
+  };
+
   function withScope(id: string, content: ReactNode): ReactNode {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <ScopeBar
           scope={scope}
           onChange={setScope}
           onReset={resetScope}
           fields={TAB_FIELDS[id] ?? []}
+          entity={entity}
           maps={maps}
           limits={{ options: PLAYER_METRICS_LIMITS, fallback: PLAYER_METRICS_LIMIT }}
-          counts={countsFor(id)}
+          counts={id === 'faceit' ? undefined : countsFor(id)}
+          results={id === 'faceit' ? undefined : results}
         />
         {content}
       </div>
@@ -281,12 +321,12 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
         actions={
           <>
             {player.faceit_player_id ? null : (
-              <Button type="button" variant="outline" size="sm" disabled={linking} onClick={() => void linkFaceit()}>
+              <Button type="button" variant="ghost" size="xs" disabled={linking} onClick={() => void linkFaceit()}>
                 <Link2 aria-hidden />
                 {linking ? 'Buscando en FACEIT' : 'Vincular FACEIT'}
               </Button>
             )}
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="xs">
               <Link href={PLAYERS_HREF}>
                 <ArrowLeft aria-hidden />
                 Todos los jugadores
@@ -309,7 +349,7 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
             content: (
               <div className="flex flex-col gap-5">
                 {withReport('intro', (report) => (
-                  <PlayerIntro report={report} details={details} map={scope.map} bothSides={scope.side === ''} />
+                  <PlayerIntro report={report} details={details} map={scope.map} bothSides={scope.side === ''} reference={scope.reference} />
                 ))}
                 <PlayerSummary player={player} />
               </div>
@@ -352,7 +392,7 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
           {
             id: 'faceit',
             label: 'FACEIT',
-            content: <PlayerFaceit player={player} linking={linking} onLink={() => void linkFaceit()} />,
+            content: withScope('faceit', <PlayerFaceit player={player} linking={linking} onLink={() => void linkFaceit()} />),
           },
         ]}
       />
@@ -415,7 +455,7 @@ function PlayerMatchesTable({ steamId, rows }: { steamId: string; rows: readonly
       cell: (row) => formatShortDate(row.match.played_at),
       sortValue: (row) => Date.parse(row.match.played_at) || null,
     },
-    { id: 'map', header: 'Mapa', cell: (row) => prettyMapName(row.match.map), sortValue: (row) => prettyMapName(row.match.map) },
+    { id: 'map', header: 'Mapa', cell: (row) => <MapLabel map={row.match.map} />, sortValue: (row) => prettyMapName(row.match.map) },
     { id: 'team', header: 'Equipo', cell: (row) => row.teamName, sortValue: (row) => row.teamName },
     { id: 'rival', header: 'Rival', cell: (row) => row.rivalName, sortValue: (row) => row.rivalName },
     {

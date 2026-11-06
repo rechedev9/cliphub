@@ -34,7 +34,7 @@ export function CategoryGrid({ playbook, compact = false }: { playbook: TeamPlay
   return (
     <ul
       aria-label="Tipos de ronda"
-      className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-px overflow-hidden rounded-lg border border-border bg-border-subtle print:grid-cols-3"
+      className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-px overflow-hidden rounded-md border border-border bg-border-subtle print:grid-cols-3"
     >
       {playbook.categories.map((category) => {
         const label = playbookCategoryLabel(category.category);
@@ -42,7 +42,7 @@ export function CategoryGrid({ playbook, compact = false }: { playbook: TeamPlay
         const body = (
           <>
             <span className="text-body-sm font-medium text-fg-1">{label}</span>
-            <span className={cn('text-stat font-semibold tabular-nums', empty ? 'text-fg-3' : 'text-fg-1')}>
+            <span className={cn('text-title font-semibold tabular-nums', empty ? 'text-fg-3' : 'text-fg-1')}>
               {Math.round(category.share.pct)} %
             </span>
             <span className="text-meta text-fg-2 tabular-nums">
@@ -55,11 +55,11 @@ export function CategoryGrid({ playbook, compact = false }: { playbook: TeamPlay
         return (
           <li key={category.category} className="bg-surface-2">
             {empty ? (
-              <div className="flex h-full flex-col gap-1 px-4 py-3">{body}</div>
+              <div className="flex h-full flex-col gap-0.5 px-3 py-2">{body}</div>
             ) : (
               <Link
                 href={replayHref(evidenceRefs(category.refs), playbookReplayTitle(playbook, label))}
-                className="flex h-full flex-col gap-1 px-4 py-3 outline-none transition-[background-color] hover:bg-surface-3 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50"
+                className="flex h-full flex-col gap-0.5 px-3 py-2 outline-none transition-[background-color] hover:bg-surface-3 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50"
               >
                 {body}
               </Link>
@@ -118,6 +118,7 @@ export function TempoChart({ playbook, rounds }: { playbook: TeamPlaybook; round
             label: span,
             value: bucket.items.length,
             title: `${span}: ${bucket.items.length} rondas${won === null ? '' : `, gana ${won} %`}`,
+            top: bucket.items.length > 0 ? `${Math.round((100 * bucket.items.length) / timed)} %` : undefined,
             href: bucket.items.length > 0 ? replayHref(roundRefs(bucket.items), playbookReplayTitle(playbook, `Ritmo ${span}`)) : undefined,
           };
         })}

@@ -59,7 +59,7 @@ export function ZoneExplorer({ teamId, playbook }: { teamId: string; playbook: T
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+    <div className="grid gap-3 md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
       <ZoneMap teamId={teamId} map={playbook.map} zones={playbook.zones.map((zone) => zone.zone)} labels={labels} selected={filter.zones} />
       <div className="flex min-w-0 flex-col gap-3">
         <div role="group" aria-label="Zonas controladas" className="flex flex-wrap gap-2">

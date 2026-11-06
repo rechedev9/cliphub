@@ -2,12 +2,15 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getLeaderboard } from '@/lib/api/library';
-import { BASELINE_METRICS, BASELINE_SCOPES, type BaselineMetric, type BaselineScope, type Leaderboard } from '@/lib/api/baseline';
+import { getBaseline, getLeaderboard } from '@/lib/api/library';
+import { BASELINE_METRICS, BASELINE_SCOPES, type Baseline, type BaselineMetric, type BaselineScope, type Leaderboard } from '@/lib/api/baseline';
 import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
-import { METRIC_INFO, SCOPE_LABEL, leaderboardEmptyText } from '@/lib/analysis/reference';
+import { scaleBars } from '@/lib/analysis/playbook';
+import { METRIC_INFO, SCOPE_LABEL, baselineSampleText, baselineValue, leaderboardEmptyText } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
+import { MapThumb } from '@/components/analysis/map-thumb';
+import { DeltaValue } from '@/components/ui/delta-value';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,29 +21,39 @@ const MAPS = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS].sort();
 const MIN_ROUNDS = [20, 50, 100, 200] as const;
 const DEFAULT_MIN_ROUNDS = 50;
 const LIMIT = 100;
+const TRIGGER = 'h-8 gap-1.5 px-2.5 text-body-sm';
+const SHORT_METRIC: Readonly<Record<BaselineMetric, string>> = {
+  kpr: 'Bajas/r',
+  dpr: 'Muertes/r',
+  adr: 'ADR',
+  kast: 'KAST',
+  opening_win_pct: 'Aperturas',
+  trade_pct: 'Tradeadas',
+  utility_damage_per_round: 'Daño util./r',
+  flash_assists_per_round: 'Flash asist./r',
+  wpa_per_round: 'WPA/r',
+};
 
 type Query = { metric: BaselineMetric; map: string; scope: BaselineScope; minRounds: number };
-
-function isMetric(value: string): value is BaselineMetric {
-  return BASELINE_METRICS.some((metric) => metric === value);
-}
+type Loaded = { board: Leaderboard; baseline: Baseline | null };
 
 /** The library's players ranked by one metric, with the map, the demos and the minimum rounds as controls. */
 export function RankingBoard(): ReactNode {
   const [query, setQuery] = useState<Query>({ metric: 'kpr', map: '', scope: 'library', minRounds: DEFAULT_MIN_ROUNDS });
-  const [board, setBoard] = useState<Leaderboard | null | 'failed'>(null);
+  const [data, setData] = useState<Loaded | null | 'failed'>(null);
   const [attempt, setAttempt] = useState(0);
   const update = (patch: Partial<Query>): void => setQuery((current) => ({ ...current, ...patch }));
 
   useEffect(() => {
     let active = true;
-    setBoard(null);
-    getLeaderboard({ metric: query.metric, map: query.map, scope: query.scope, min_rounds: query.minRounds, limit: LIMIT })
-      .then((next) => {
-        if (active) setBoard(next);
+    setData(null);
+    const base = { map: query.map, scope: query.scope, min_rounds: query.minRounds };
+    Promise.all([getLeaderboard({ ...base, metric: query.metric, limit: LIMIT }), getBaseline(base).catch(() => null)])
+      .then(([board, baseline]) => {
+        if (active) setData({ board, baseline });
       })
       .catch(() => {
-        if (active) setBoard('failed');
+        if (active) setData('failed');
       });
     return () => {
       active = false;
@@ -49,67 +62,78 @@ export function RankingBoard(): ReactNode {
 
   const info = METRIC_INFO[query.metric];
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={query.metric} onValueChange={(value) => (isMetric(value) ? update({ metric: value }) : undefined)}>
-          <SelectTrigger aria-label="Cifra" className="h-9 min-w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {BASELINE_METRICS.map((metric) => (
-              <SelectItem key={metric} value={metric}>
-                {METRIC_INFO[metric].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={query.map === '' ? ALL_MAPS : query.map} onValueChange={(value) => update({ map: value === ALL_MAPS ? '' : value })}>
-          <SelectTrigger aria-label="Mapa" className="h-9 min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_MAPS}>Todos los mapas</SelectItem>
-            {MAPS.map((map) => (
-              <SelectItem key={map} value={map}>
-                {prettyMapName(map)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="flex flex-col gap-3">
+      <div
+        role="group"
+        aria-label="Qué ranking"
+        className="sticky top-(--shell-strip-height) z-20 -mx-1 flex flex-col gap-1.5 border-b border-border bg-background px-1 py-1.5"
+      >
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Select value={query.map === '' ? ALL_MAPS : query.map} onValueChange={(value) => update({ map: value === ALL_MAPS ? '' : value })}>
+            <SelectTrigger aria-label="Mapa" className={TRIGGER}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_MAPS}>Todos los mapas</SelectItem>
+              {MAPS.map((map) => (
+                <SelectItem key={map} value={map}>
+                  <span className="flex items-center gap-2">
+                    <MapThumb map={map} className="h-4 w-6" crop={1.6} />
+                    {prettyMapName(map)}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(query.minRounds)} onValueChange={(value) => update({ minRounds: Number(value) })}>
+            <SelectTrigger aria-label="Mínimo de rondas" className={TRIGGER}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MIN_ROUNDS.map((rounds) => (
+                <SelectItem key={rounds} value={String(rounds)}>
+                  {rounds} rondas o más
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-meta whitespace-nowrap text-fg-3">Demos</span>
+            <Segmented
+              label="Demos"
+              value={query.scope}
+              options={BASELINE_SCOPES.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
+              onChange={(scope) => update({ scope })}
+            />
+            {data !== null && data !== 'failed' ? (
+              <p className="flex h-8 items-center rounded-md border border-border px-2.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums">
+                {data.board.matches} {data.board.matches === 1 ? 'partida' : 'partidas'} · {data.board.rounds} rondas
+              </p>
+            ) : null}
+          </div>
+        </div>
         <Segmented
-          label="Demos"
-          value={query.scope}
-          options={BASELINE_SCOPES.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
-          onChange={(scope) => update({ scope })}
+          label="Cifra"
+          value={query.metric}
+          options={BASELINE_METRICS.map((metric) => ({ value: metric, label: SHORT_METRIC[metric] }))}
+          onChange={(metric) => update({ metric })}
         />
-        <Select value={String(query.minRounds)} onValueChange={(value) => update({ minRounds: Number(value) })}>
-          <SelectTrigger aria-label="Mínimo de rondas" className="h-9 min-w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MIN_ROUNDS.map((rounds) => (
-              <SelectItem key={rounds} value={String(rounds)}>
-                {rounds} rondas o más
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
-      <RankingTable board={board} info={info} onRetry={() => setAttempt((n) => n + 1)} />
+      <RankingTable data={data} info={info} onRetry={() => setAttempt((n) => n + 1)} />
     </div>
   );
 }
 
 function RankingTable({
-  board,
+  data,
   info,
   onRetry,
 }: {
-  board: Leaderboard | null | 'failed';
+  data: Loaded | null | 'failed';
   info: (typeof METRIC_INFO)[BaselineMetric];
   onRetry: () => void;
 }): ReactNode {
-  if (board === 'failed') {
+  if (data === 'failed') {
     return (
       <p role="alert" className="text-body-sm text-destructive">
         No se pudo leer el ranking. Comprueba que ClipHub Studio sigue abierto y{' '}
@@ -120,49 +144,83 @@ function RankingTable({
       </p>
     );
   }
-  if (board === null) {
+  if (data === null) {
     return (
-      <div role="status" aria-label="Calculando el ranking" className="studio-panel flex flex-col gap-2 p-4">
-        {Array.from({ length: 8 }, (_, index) => (
-          <Skeleton key={index} className="h-7 w-full" />
+      <div role="status" aria-label="Calculando el ranking" className="studio-panel flex flex-col gap-1.5 p-3">
+        {Array.from({ length: 12 }, (_, index) => (
+          <Skeleton key={index} className="h-6 w-full" />
         ))}
       </div>
     );
   }
+  const { board, baseline } = data;
   if (board.players.length === 0) return <p className="text-body-sm text-fg-2">{leaderboardEmptyText(board)}</p>;
+  const metric = board.metric;
+  const mean = baselineValue(baseline, metric);
+  const widths = scaleBars(board.players.map((row) => row.value));
+  const label = `Media de ${board.scope === 'pro' ? 'los pros' : 'la biblioteca'}`;
   return (
     <section aria-label={`Ranking de ${info.label}`} className="studio-panel flex flex-col">
       <div className="overflow-x-auto">
         <table aria-label={`Ranking de ${info.label}`} className="w-full border-collapse text-left text-body-sm">
-          <thead className="bg-surface-2 text-fg-3">
+          <thead className="bg-surface-2 text-meta text-fg-3">
             <tr className="border-b border-border">
-              <th scope="col" className="h-9 w-12 px-3 text-right font-medium">#</th>
-              <th scope="col" className="h-9 px-3 font-medium">Jugador</th>
-              <th scope="col" className="h-9 px-3 text-right font-medium">{info.label}</th>
-              <th scope="col" className="h-9 px-3 text-right font-medium">Rondas</th>
-              <th scope="col" className="h-9 px-3 text-right font-medium">Partidas</th>
+              <th scope="col" className="h-8 w-10 px-2.5 text-right font-medium">#</th>
+              <th scope="col" className="sticky left-0 z-10 h-8 bg-surface-2 px-2.5 font-medium">Jugador</th>
+              <th scope="col" className="h-8 px-2.5 text-right font-medium whitespace-nowrap">{info.label}</th>
+              <th scope="col" className="h-8 w-[40%] px-2.5 font-medium">
+                <span className="sr-only">Barra</span>
+              </th>
+              <th scope="col" className="h-8 px-2.5 text-right font-medium">Rondas</th>
+              <th scope="col" className="h-8 px-2.5 text-right font-medium">Partidas</th>
             </tr>
+            {mean === null ? null : (
+              <tr className="border-b border-border">
+                <td />
+                <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-2.5 py-1 text-left font-normal">
+                  {label}
+                </th>
+                <td className="px-2.5 py-1 text-right font-medium text-fg-2 tabular-nums">{info.format(mean)}</td>
+                <td colSpan={3} className="px-2.5 py-1">
+                  {baseline ? baselineSampleText(baseline) : ''}
+                </td>
+              </tr>
+            )}
           </thead>
           <tbody>
-            {board.players.map((row) => (
-              <tr key={row.steamid64} className="border-b border-border-subtle last:border-b-0">
-                <td className="px-3 py-2 text-right text-fg-3 tabular-nums">{row.rank}</td>
-                <th scope="row" className="px-3 py-2 text-left font-medium">
+            {board.players.map((row, index) => (
+              <tr key={row.steamid64} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3/50">
+                <td className="px-2.5 py-1 text-right text-fg-3 tabular-nums">{row.rank}</td>
+                <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-2.5 py-1 text-left font-medium">
                   <Link href={playerHref(row.steamid64)} className="text-fg-1 hover:text-primary hover:underline">
                     {row.name || row.steamid64}
                   </Link>
                 </th>
-                <td className="px-3 py-2 text-right font-medium text-fg-1 tabular-nums">{info.format(row.value)}</td>
-                <td className="px-3 py-2 text-right text-fg-2 tabular-nums">{row.rounds}</td>
-                <td className="px-3 py-2 text-right text-fg-2 tabular-nums">{row.matches}</td>
+                <td className="px-2.5 py-1 text-right">
+                  <DeltaValue
+                    value={row.value}
+                    format={info.format}
+                    reference={mean}
+                    higherIsBetter={info.higherIsBetter}
+                    epsilon={info.epsilon}
+                    referenceLabel={label}
+                  />
+                </td>
+                <td className="px-2.5 py-1">
+                  <span aria-hidden className="block h-1.5 rounded-sm bg-surface-3">
+                    <span className="block h-full rounded-sm bg-primary/60" style={{ width: `${widths[index] ?? 0}%` }} />
+                  </span>
+                </td>
+                <td className="px-2.5 py-1 text-right text-fg-2 tabular-nums">{row.rounds}</td>
+                <td className="px-2.5 py-1 text-right text-fg-2 tabular-nums">{row.matches}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="border-t border-border-subtle px-4 py-2 text-meta text-fg-3">
-        {board.higher_is_better ? 'De mayor a menor' : 'De menor a mayor, porque morir menos es mejor'}. Leídas {board.matches}{' '}
-        {board.matches === 1 ? 'partida' : 'partidas'}
+      <p className="border-t border-border-subtle px-3 py-1.5 text-meta text-fg-3">
+        {board.higher_is_better ? 'De mayor a menor' : 'De menor a mayor, porque morir menos es mejor'}. ▲▼ frente a la media. Leídas{' '}
+        {board.matches} {board.matches === 1 ? 'partida' : 'partidas'}
         {board.skipped > 0 ? `; ${board.skipped} sin análisis no cuentan` : ''}. Solo entran jugadores con {board.min_rounds} rondas o más.
       </p>
     </section>

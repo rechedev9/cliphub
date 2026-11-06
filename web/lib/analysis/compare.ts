@@ -18,6 +18,12 @@ export function compareDelta(
   return { delta, tone: better ? 'better' : 'worse' };
 }
 
+/** ▲ when the value is above the reference, ▼ below, nothing when even. The colour, not the glyph, says if it is good. */
+export function deltaArrow(delta: number, epsilon = 1e-9): '▲' | '▼' | '' {
+  if (!Number.isFinite(delta) || Math.abs(delta) < epsilon) return '';
+  return delta > 0 ? '▲' : '▼';
+}
+
 /** Tint steps either side of the baseline. */
 export const HEAT_STEPS = 3;
 

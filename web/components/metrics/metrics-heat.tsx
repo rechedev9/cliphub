@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { MetricsReport } from '@/lib/api/metrics';
 import { weightedMean } from '@/lib/analysis/compare';
+import { buyIcon } from '@/lib/analysis/icons';
 import { prettyMapName } from '@/lib/format';
 import { ecoText, mapLines, percentText, ppText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
 import { buyLabel } from '@/lib/tactical-labels';
@@ -44,7 +45,7 @@ export function BuyHeatTable({ report, options }: { report: MetricsReport; optio
       id: `${player.steamid64}:${line.buy}`,
       cells: {
         player: { text: name, href: options.playerHref?.(player.steamid64) },
-        buy: { text: buyLabel(line.buy) },
+        buy: { text: buyLabel(line.buy), icon: buyIcon(line.buy) },
         won: { text: won === null ? '' : percentText(won), value: won, n },
         kills: { text: kills === null ? '' : decimal2.format(kills), value: kills, n },
         deaths: { text: deaths === null ? '' : decimal2.format(deaths), value: deaths, n },
@@ -85,7 +86,7 @@ export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
     return {
       id: line.map,
       cells: {
-        map: { text: prettyMapName(line.map) },
+        map: { text: prettyMapName(line.map), map: line.map },
         matches: { text: String(line.matches) },
         kd: { text: decimal2.format(lineKd), value: lineKd, n },
         eco: { text: eco === null ? '' : ecoText(eco), value: eco, n },

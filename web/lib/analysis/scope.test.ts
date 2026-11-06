@@ -30,6 +30,7 @@ test('a full scope survives a round trip through the URL', () => {
     buy: 'full',
     opponentBuy: 'eco',
     opponent: TEAM,
+    reference: 'pro',
   };
   assert.deepEqual(parseAnalysisScope(new URLSearchParams(writeAnalysisScope(scope))), scope);
   const preset: AnalysisScope = { ...DEFAULT_SCOPE, period: { kind: 'preset', preset: '90d' } };
@@ -46,6 +47,12 @@ test('values the URL cannot hold are dropped one by one', () => {
     new URLSearchParams('map=Mirage!&side=ct&limit=500&buy=unknown&opponent_buy=force&opponent=nope&from=2026-02-30'),
   );
   assert.deepEqual(scope, { ...DEFAULT_SCOPE, opponentBuy: 'force' });
+});
+
+test('the reference is the library unless the URL says pro', () => {
+  assert.equal(parseAnalysisScope(new URLSearchParams('ref=pro')).reference, 'pro');
+  assert.equal(parseAnalysisScope(new URLSearchParams('ref=hltv')).reference, 'library');
+  assert.equal(writeAnalysisScope({ ...DEFAULT_SCOPE, reference: 'library' }, 'ref=pro'), '');
 });
 
 test('a reversed date range is read in order', () => {

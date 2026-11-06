@@ -10,6 +10,7 @@ import { scopeCountText, scopeDateRange } from '@/lib/analysis/scope';
 import { PREP_QUERY, REPORTS_HREF, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { SkippedNote } from '@/components/playbook/playbook-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -112,9 +113,11 @@ export function PrepRecord(): ReactNode {
 
   const { prep, t, ct } = data;
   return (
-    <article className={`flex flex-col gap-8 print:gap-6 ${PRINT_PAPER}`}>
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
-        <div className="flex flex-col gap-1">
+    <article className={`flex flex-col gap-5 print:gap-6 ${PRINT_PAPER}`}>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="flex items-center gap-3">
+          <MapThumb map={prep.map} className="h-12 w-20 print:hidden" crop={1.3} />
+          <div className="flex flex-col gap-0.5">
           <h1 className="text-title font-semibold text-fg-1">
             <Link href={teamHref(prep.team_id)} className="hover:underline print:no-underline">
               {prep.team_name}
@@ -124,6 +127,7 @@ export function PrepRecord(): ReactNode {
           <p className="text-body-sm text-fg-2 tabular-nums">
             {periodText(fromDay, toDay)} · {scopeCountText(prep.matches, prep.round_count)}
           </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 print:hidden">
           {back}

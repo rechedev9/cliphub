@@ -7,9 +7,10 @@ import type { SpatialMatchRef } from '@/lib/api/spatial';
 import type { MapCount, MapRecord, SideRecord, TeamMaps, VetoCount } from '@/lib/api/veto';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { librarySeriesHref, matchesHref } from '@/lib/clips/routes';
-import { formatShortDate, prettyMapName } from '@/lib/format';
+import { formatShortDate } from '@/lib/format';
 import { countOf } from '@/lib/library/veto';
 import { MapCard, type MapRate } from '@/components/analysis/map-card';
+import { MapLabel } from '@/components/analysis/map-thumb';
 import { MapPreferenceScore } from '@/components/analysis/map-preference';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
@@ -128,7 +129,7 @@ export function TeamMapHistory({
   }
   if (data === null) {
     return (
-      <div role="status" aria-label="Leyendo el historial de mapas" className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
+      <div role="status" aria-label="Leyendo el historial de mapas" className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
         <Skeleton className="h-44 w-full" />
         <Skeleton className="h-44 w-full" />
         <Skeleton className="h-44 w-full" />
@@ -142,7 +143,7 @@ export function TeamMapHistory({
       {played.length === 0 ? (
         <p className="text-body-sm text-fg-2">Sin partidas con este filtro. Amplía las fechas o quita el mapa.</p>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
           {played.map((record) => {
             const ct = record.sides.find((s) => s.side === 'CT');
             const t = record.sides.find((s) => s.side === 'T');
@@ -182,13 +183,13 @@ export function TeamMapHistory({
         ) : (
           <div className="overflow-x-auto">
             <table aria-label="Pistolas y vetos por mapa" className="w-full border-collapse text-left text-body-sm">
-              <thead className="bg-surface-2 text-fg-3">
+              <thead className="bg-surface-2 text-meta text-fg-3">
                 <tr className="border-b border-border">
-                  <th scope="col" className="h-9 px-3 font-medium">
+                  <th scope="col" className="sticky left-0 z-10 h-8 bg-surface-2 px-2.5 font-medium">
                     Mapa
                   </th>
                   {columns.map((header) => (
-                    <th key={header} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
+                    <th key={header} scope="col" className="h-8 px-2.5 font-medium whitespace-nowrap">
                       {header}
                     </th>
                   ))}
@@ -200,17 +201,17 @@ export function TeamMapHistory({
                   const t = record.sides.find((s) => s.side === 'T');
                   return (
                     <tr key={record.map} className="border-b border-border-subtle align-top last:border-b-0">
-                      <th scope="row" className="px-3 py-2 text-left font-medium text-fg-1">
-                        {prettyMapName(record.map)}
+                      <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-2.5 py-1.5 text-left font-medium text-fg-1">
+                        <MapLabel map={record.map} />
                       </th>
-                      <td className="px-3 py-2">{ct ? <PistolCell won={ct.pistol_won} lost={ct.pistol_lost} refs={refs} /> : null}</td>
-                      <td className="px-3 py-2">{t ? <PistolCell won={t.pistol_won} lost={t.pistol_lost} refs={refs} /> : null}</td>
+                      <td className="px-2.5 py-1.5">{ct ? <PistolCell won={ct.pistol_won} lost={ct.pistol_lost} refs={refs} /> : null}</td>
+                      <td className="px-2.5 py-1.5">{t ? <PistolCell won={t.pistol_won} lost={t.pistol_lost} refs={refs} /> : null}</td>
                       {VETO_COLUMNS.map((column) => (
-                        <td key={column.key} className="px-3 py-2">
+                        <td key={column.key} className="px-2.5 py-1.5">
                           <VetoCell count={record.veto[column.key]} />
                         </td>
                       ))}
-                      <td className="px-3 py-2 whitespace-nowrap text-fg-2">{record.last_played_at ? formatShortDate(record.last_played_at) : 'Sin partidas'}</td>
+                      <td className="px-2.5 py-1.5 whitespace-nowrap text-fg-2">{record.last_played_at ? formatShortDate(record.last_played_at) : 'Sin partidas'}</td>
                     </tr>
                   );
                 })}
