@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, Link2, PlugZap, User } from 'lucide-react';
 import { FACEIT_NOT_CONFIGURED_CODE } from '@/lib/api/types';
+import type { MetricsReport } from '@/lib/api/metrics';
 import type { ScoutMatchSummary } from '@/lib/api/scout';
 import { lookupFaceitPlayer, type FaceitPlayer } from '@/lib/api/faceit';
 import {
@@ -15,27 +16,28 @@ import {
   LibraryApiError,
   linkLibraryPlayerFaceit,
   listLibraryMatches,
+  listLibraryPlayers,
   type LibraryMatch,
   type LibraryPlayer,
   type LibraryPlayerRole,
-  type LibraryRoleMetric,
 } from '@/lib/api/library';
-import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, matchHref, teamHref } from '@/lib/clips/routes';
+import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
   ROLE_LABEL,
   adrLabel,
   kdLabel,
-  percentLabel,
   playerLine,
   playerTotals,
   teamByKey,
   teamLabel,
-  utilityRatioLabel,
 } from '@/lib/library/partidas';
-import { roundEvidenceHref } from '@/lib/library/rounds';
+import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
+import { lastResults } from '@/lib/analysis/context-bar';
+import { MapLabel } from '@/components/analysis/map-thumb';
+import { ScopeBar, type ScopeCounts, type ScopeEntity, type ScopeOption } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -45,9 +47,21 @@ import { useTableView } from '@/components/records/use-table-view';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { LevelBadge } from '@/components/players/level-badge';
 import { PlayerMatches } from '@/components/players/player-matches';
-import { PlayerMetrics } from '@/components/metrics/player-metrics';
+import { BuyHeatTable, MapHeatTable } from '@/components/metrics/metrics-heat';
+import {
+  PLAYER_METRICS_LIMIT,
+  PLAYER_METRICS_LIMITS,
+  PlayerMetrics,
+  PlayerReportGate,
+  usePlayerReport,
+} from '@/components/metrics/player-metrics';
+import { PlayerIntro } from '@/components/players/player-intro';
+import { PlayerRoles } from '@/components/players/player-roles';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAnalysisScope } from '@/hooks/use-analysis-scope';
+import { useRecordTab } from '@/hooks/use-record-tab';
+import { useReferences } from '@/hooks/use-references';
 import { cn } from '@/lib/utils';
 
 /** How many of the player's most recent matches the record reads in full. */
@@ -153,8 +167,34 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
   return <PlayerRecordView data={state.data} />;
 }
 
+/** The scope controls each tab reads; a tab missing here has no scope bar. */
+const REPORT_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit'];
+const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
+  intro: [...REPORT_FIELDS, 'reference'],
+  faceit: [],
+  roles: ['map', 'period'],
+  compras: REPORT_FIELDS,
+  mapas: REPORT_FIELDS,
+  partidas: ['map', 'period'],
+  metricas: REPORT_FIELDS,
+};
+/** Tabs that read the shared metrics report; its sample is the count they show. */
+const REPORT_TABS = new Set(['intro', 'compras', 'mapas', 'metricas']);
+const PLAYER_TABS = ['intro', 'roles', 'compras', 'mapas', 'partidas', 'metricas', 'faceit'];
+/** The picker lists the most played; a library of thousands would not fit a menu. */
+const PICKER_PLAYERS = 200;
+
 function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   const [player, setPlayer] = useState(data.player);
+  const [tab, setTab] = useRecordTab(PLAYER_TABS, 'intro');
+  const [others, setOthers] = useState<ScopeOption[]>([]);
+  const [reported, setReported] = useState<ScopeCounts | null>(null);
+  const [now] = useState(() => Date.now());
+  const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'player', id: data.player.steamid64 });
+  const references = useReferences(scope.map);
+  const proReference = references !== null && references !== 'failed' ? references.pro : null;
+  const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
+  const { state: reportState, retry } = usePlayerReport(data.player.steamid64, scope);
   const [role, setRole] = useState<LibraryPlayerRole | null | undefined>(undefined);
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -179,6 +219,78 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
       active = false;
     };
   }, [player.steamid64]);
+
+  useEffect(() => {
+    let active = true;
+    listLibraryPlayers()
+      .then((list) => {
+        if (!active) return;
+        const top = [...list].sort((a, b) => b.match_count - a.match_count).slice(0, PICKER_PLAYERS);
+        setOthers(
+          top
+            .map((entry) => ({ value: entry.steamid64, label: entry.nick || entry.steamid64 }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'es')),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const maps = [...new Set(data.rows.map((row) => row.match.map))].sort();
+  const details = new Map(data.rows.map((row) => [row.match.id, row.match]));
+  const scopedRows = data.rows.filter(
+    (row) => (scope.map === '' || row.match.map === scope.map) && inScopePeriod(row.match.played_at, scope.period, now),
+  );
+
+  function countsFor(id: string): ScopeCounts | null {
+    if (id === 'roles') return reported;
+    if (REPORT_TABS.has(id)) {
+      return reportState.kind === 'ready' ? { maps: reportState.report.matches, rounds: reportState.report.rounds } : null;
+    }
+    return { maps: scopedRows.length, rounds: scopedRows.reduce((sum, row) => sum + row.match.round_count, 0) };
+  }
+
+  function withReport(id: string, body: (report: MetricsReport) => ReactNode): ReactNode {
+    return withScope(
+      id,
+      <PlayerReportGate state={reportState} retry={retry}>
+        {body}
+      </PlayerReportGate>,
+    );
+  }
+
+  const results = lastResults(
+    scopedRows.map((row) => ({ playedAt: row.match.played_at, outcome: row.outcome })),
+    10,
+  );
+  const entity: ScopeEntity = {
+    noun: 'Jugador',
+    id: player.steamid64,
+    options: [{ value: player.steamid64, label: name }, ...others.filter((option) => option.value !== player.steamid64)],
+    hrefFor: playerHref,
+  };
+
+  function withScope(id: string, content: ReactNode): ReactNode {
+    return (
+      <div className="flex flex-col gap-3">
+        <ScopeBar
+          scope={scope}
+          onChange={setScope}
+          onReset={resetScope}
+          proReference={proReference}
+          fields={TAB_FIELDS[id] ?? []}
+          entity={entity}
+          maps={maps}
+          limits={{ options: PLAYER_METRICS_LIMITS, fallback: PLAYER_METRICS_LIMIT }}
+          counts={id === 'faceit' ? undefined : countsFor(id)}
+          results={id === 'faceit' ? undefined : results}
+        />
+        {content}
+      </div>
+    );
+  }
 
   const linkFaceit = useCallback(async () => {
     setLinking(true);
@@ -213,12 +325,12 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
         actions={
           <>
             {player.faceit_player_id ? null : (
-              <Button type="button" variant="outline" size="sm" disabled={linking} onClick={() => void linkFaceit()}>
+              <Button type="button" variant="ghost" size="xs" disabled={linking} onClick={() => void linkFaceit()}>
                 <Link2 aria-hidden />
                 {linking ? 'Buscando en FACEIT' : 'Vincular FACEIT'}
               </Button>
             )}
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="xs">
               <Link href={PLAYERS_HREF}>
                 <ArrowLeft aria-hidden />
                 Todos los jugadores
@@ -229,33 +341,62 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
       />
       {linkError ? <p role="alert" className="text-body-sm text-destructive">{linkError}</p> : null}
       <RecordTabs
+        value={tab}
+        onValueChange={(next) => {
+          setReported(null);
+          setTab(next);
+        }}
         tabs={[
           {
-            id: 'resumen',
-            label: 'Resumen',
-            content: <PlayerSummary player={player} role={role} />,
+            id: 'intro',
+            label: 'Intro',
+            content: (
+              <div className="flex flex-col gap-5">
+                {withReport('intro', (report) => (
+                  <PlayerIntro report={report} details={details} map={scope.map} bothSides={scope.side === ''} reference={scope.reference} />
+                ))}
+                <PlayerSummary player={player} />
+              </div>
+            ),
+          },
+          {
+            id: 'roles',
+            label: 'Roles',
+            content: withScope('roles', <PlayerRoles steamId={player.steamid64} role={role} scope={scope} onCounts={onCounts} />),
+          },
+          {
+            id: 'compras',
+            label: 'Compras',
+            content: withReport('compras', (report) => (
+              <div className="flex flex-col gap-3">
+                <p className="measure-read text-body-sm text-fg-2">
+                  Cada ronda cuenta con la compra de su propio equipo. Una force es media compra tras perder sin dinero; una semi, media compra planeada.
+                </p>
+                <BuyHeatTable report={report} options={{}} />
+              </div>
+            )),
+          },
+          {
+            id: 'mapas',
+            label: 'Mapas',
+            count: maps.length,
+            content: withReport('mapas', (report) => <MapHeatTable report={report} />),
           },
           {
             id: 'partidas',
             label: 'Partidas',
             count: data.rows.length,
-            content: <PlayerMatchesTable steamId={player.steamid64} rows={data.rows} />,
+            content: withScope('partidas', <PlayerMatchesTable steamId={player.steamid64} rows={scopedRows} />),
           },
           {
             id: 'metricas',
             label: 'Métricas',
-            content: (
-              <PlayerMetrics
-                steamId={player.steamid64}
-                maps={[...new Set(data.rows.map((row) => row.match.map))].sort()}
-                matches={rowIndex(data.rows)}
-              />
-            ),
+            content: withReport('metricas', (report) => <PlayerMetrics report={report} matches={rowIndex(data.rows)} />),
           },
           {
             id: 'faceit',
             label: 'FACEIT',
-            content: <PlayerFaceit player={player} linking={linking} onLink={() => void linkFaceit()} />,
+            content: withScope('faceit', <PlayerFaceit player={player} linking={linking} onLink={() => void linkFaceit()} />),
           },
         ]}
       />
@@ -263,10 +404,9 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   );
 }
 
-function PlayerSummary({ player, role }: { player: LibraryPlayer; role: LibraryPlayerRole | null | undefined }): ReactNode {
+function PlayerSummary({ player }: { player: LibraryPlayer }): ReactNode {
   return (
     <div className="flex flex-col gap-5">
-      <RoleEvidence role={role} />
       <div className="grid gap-5 @[64rem]/content:grid-cols-2">
         <RelatedList title="Equipos" count={player.teams?.length ?? 0}>
           {(player.teams ?? []).length === 0 ? (
@@ -304,94 +444,6 @@ function PlayerSummary({ player, role }: { player: LibraryPlayer; role: LibraryP
   );
 }
 
-function RoleEvidence({ role }: { role: LibraryPlayerRole | null | undefined }): ReactNode {
-  if (role === undefined) {
-    return (
-      <div role="status" aria-label="Calculando el rol">
-        <Skeleton className="h-40 w-full" />
-      </div>
-    );
-  }
-  if (role === null) {
-    return (
-      <RelatedList title="Rol">
-        <p className="px-4 py-3 text-body-sm text-fg-2">No se pudo leer el rol de las partidas de este jugador.</p>
-      </RelatedList>
-    );
-  }
-  const { thresholds } = role;
-  const ratio = utilityRatioLabel(role.utility, role.team_utility);
-  return (
-    <RelatedList title={`Rol: ${ROLE_LABEL[role.role]}`}>
-      <p className="border-b border-border-subtle px-4 py-3 text-body-sm text-fg-2">
-        Leído de {role.rounds} rondas en {role.match_count === 1 ? '1 partida' : `${role.match_count} partidas`}. Se prueba en este orden: AWPer con al menos el{' '}
-        {Math.round(thresholds.awp_kill_share * 100)} % de sus kills con AWP, entry si abre el duelo en al menos el{' '}
-        {Math.round(thresholds.entry_opening_share * 100)} % de sus rondas de T, soporte si lanza {thresholds.support_utility_ratio} veces las granadas por ronda de sus compañeros; si no, rifler. Con menos de {thresholds.min_rounds} rondas no se lee rol.
-      </p>
-      <dl className="grid divide-y divide-border-subtle @[64rem]/content:grid-cols-3 @[64rem]/content:divide-x @[64rem]/content:divide-y-0">
-        <RoleMetricView
-          label="Kills con AWP"
-          metric={role.awp_kills}
-          value={percentLabel(role.awp_kills.count, role.awp_kills.total)}
-          summary={`${role.awp_kills.count} de ${role.awp_kills.total} kills`}
-        />
-        <RoleMetricView
-          label="Duelos de apertura en T"
-          metric={role.t_openings}
-          value={percentLabel(role.t_openings.count, role.t_openings.total)}
-          summary={`${role.t_openings.count} de ${role.t_openings.total} rondas de T`}
-        />
-        <RoleMetricView
-          label="Granadas frente a sus compañeros"
-          metric={role.utility}
-          value={ratio === '' ? '' : `${ratio} veces`}
-          summary={`${role.utility.count} granadas en ${role.utility.total} rondas`}
-          note={`Compañeros: ${role.team_utility.count} granadas en ${role.team_utility.total} rondas.`}
-        />
-      </dl>
-    </RelatedList>
-  );
-}
-
-function RoleMetricView({
-  label,
-  metric,
-  value,
-  summary,
-  note,
-}: {
-  label: string;
-  metric: LibraryRoleMetric;
-  value: string;
-  summary: string;
-  note?: string;
-}): ReactNode {
-  return (
-    <div className="flex flex-col gap-1.5 px-4 py-3">
-      <dt className="text-meta text-fg-3">{label}</dt>
-      <dd className="flex flex-col gap-1.5">
-        <span className="text-title font-semibold text-fg-1">{value || 'Sin dato'}</span>
-        <span className="text-meta text-fg-2">{summary}</span>
-        {note ? <span className="text-meta text-fg-3">{note}</span> : null}
-        {metric.examples.length > 0 ? (
-          <span className="flex flex-wrap gap-x-3 gap-y-1 text-meta">
-            {metric.examples.map((example) => (
-              <Link
-                key={`${example.match_id}-${example.round}-${example.tick}`}
-                href={roundEvidenceHref(matchHref(example.match_id), example.round, example.tick)}
-                className="font-mono text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1"
-                aria-label={`Abrir la ronda ${example.round}, tick ${example.tick}`}
-              >
-                R{example.round} t{example.tick}
-              </Link>
-            ))}
-          </span>
-        ) : null}
-      </dd>
-    </div>
-  );
-}
-
 function PlayerMatchesTable({ steamId, rows }: { steamId: string; rows: readonly PlayerMatchRow[] }): ReactNode {
   const view = useTableView('jugador-partidas', {
     sort: { column: 'date', direction: 'desc' },
@@ -407,7 +459,7 @@ function PlayerMatchesTable({ steamId, rows }: { steamId: string; rows: readonly
       cell: (row) => formatShortDate(row.match.played_at),
       sortValue: (row) => Date.parse(row.match.played_at) || null,
     },
-    { id: 'map', header: 'Mapa', cell: (row) => prettyMapName(row.match.map), sortValue: (row) => prettyMapName(row.match.map) },
+    { id: 'map', header: 'Mapa', cell: (row) => <MapLabel map={row.match.map} />, sortValue: (row) => prettyMapName(row.match.map) },
     { id: 'team', header: 'Equipo', cell: (row) => row.teamName, sortValue: (row) => row.teamName },
     { id: 'rival', header: 'Rival', cell: (row) => row.rivalName, sortValue: (row) => row.rivalName },
     {

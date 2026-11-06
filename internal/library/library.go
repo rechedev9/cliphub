@@ -24,7 +24,8 @@ var (
 )
 
 // Source is where a demo came from. Detection only ever proposes valve,
-// faceit, hltv or unknown; scrim is a fact only the user knows.
+// faceit, hltv or unknown; scrim is a fact only the user knows. A shared
+// match came in a share package without its demo file, so it is read only.
 type Source string
 
 const (
@@ -33,12 +34,13 @@ const (
 	SourceHLTV    Source = "hltv"
 	SourceScrim   Source = "scrim"
 	SourceUnknown Source = "unknown"
+	SourceShared  Source = "shared"
 )
 
 // ValidSource reports whether s is one of the known sources.
 func ValidSource(s Source) bool {
 	switch s {
-	case SourceValve, SourceFaceit, SourceHLTV, SourceScrim, SourceUnknown:
+	case SourceValve, SourceFaceit, SourceHLTV, SourceScrim, SourceUnknown, SourceShared:
 		return true
 	default:
 		return false
@@ -117,6 +119,14 @@ type DemoFilter struct {
 	Tag    string
 	Limit  int
 	Offset int
+}
+
+// DemoFile is the stored file a shared demo gets when its .dem is imported.
+type DemoFile struct {
+	Path      string
+	FileName  string
+	SizeBytes int64
+	Source    Source
 }
 
 // DemoPatch is a user edit of a demo. Nil fields are left unchanged.

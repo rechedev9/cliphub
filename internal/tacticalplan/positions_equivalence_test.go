@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// fullZeroGear is the gear block of a slot's first sample in a round when the
+// sample carries no gear: every field bit, level pitch, then zeros.
+var fullZeroGear = []byte{gearAll, 127, 0, 0, 0, 0, 0, 0, 0}
+
 // Keep the old scan-based wire writer here as an independent ordering oracle.
 func legacyFrameBytes(f Frame, origin [3]float64, quantum float64) []byte {
 	var mask uint16
@@ -26,6 +30,7 @@ func legacyFrameBytes(f Frame, origin [3]float64, quantum float64) []byte {
 			buf = appendSigned16(buf, quantizeAxis(s.Z, origin[2], quantum))
 			buf = binary.LittleEndian.AppendUint16(buf, encodeYaw(s.Yaw))
 			buf = append(buf, clampHealth(s.Health), byte(s.Flags))
+			buf = append(buf, fullZeroGear...)
 			break
 		}
 	}
@@ -42,9 +47,11 @@ func TestSparsePositionsReserveOnlyPresentSamples(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := positionsHeaderSize + 3*positionsFrameHead + 3*positionsSampleSize
-	if len(blob.Data) != want || cap(blob.Data) != want {
-		t.Fatalf("sparse blob len/cap = %d/%d, want %d", len(blob.Data), cap(blob.Data), want)
+	// Slot 15 repeats unchanged at tick 24, so it writes one gear byte.
+	want := positionsHeaderSize + 3*positionsFrameHead + 3*positionsSampleSize + 2*len(fullZeroGear) + 1
+	everySlot := positionsHeaderSize + 3*positionsFrameHead + 3*maxSlots*(positionsSampleSize+2)
+	if len(blob.Data) != want || cap(blob.Data) >= everySlot {
+		t.Fatalf("sparse blob len/cap = %d/%d, want len %d and cap below %d", len(blob.Data), cap(blob.Data), want, everySlot)
 	}
 	if blob.Descriptor.SlotCount != 16 {
 		t.Fatal("capacity optimization must not change the wire slot count")
@@ -72,7 +79,7 @@ func TestPositionCodecPreservesEverySlotMask(t *testing.T) {
 		}
 		rng.Shuffle(len(frame.Samples), func(i, j int) { frame.Samples[i], frame.Samples[j] = frame.Samples[j], frame.Samples[i] })
 		original := append([]Sample(nil), frame.Samples...)
-		got, err := appendFrame(nil, frame, origin, 0.25)
+		got, err := appendFrame(nil, frame, origin, 0.25, &gearEncoder{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,6 +90,7 @@ func TestPositionCodecPreservesEverySlotMask(t *testing.T) {
 			t.Fatalf("input mutated for mask %04x", mask)
 		}
 		data := append(make([]byte, positionsHeaderSize), got...)
+		binary.LittleEndian.PutUint16(data[6:], positionsVersion)
 		decoded, err := DecodeFrames(data, positionsHeaderSize, 1, Positions{Origin: origin, Quantum: 0.25})
 		if err != nil {
 			t.Fatal(err)

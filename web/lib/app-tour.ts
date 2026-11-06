@@ -281,6 +281,24 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/jugadores', label: 'Ir a Jugadores' },
   },
   {
+    id: 'ranking',
+    kicker: 'Ranking',
+    label: 'Ranking',
+    title: 'Quién destaca en tus demos',
+    lead: 'Ordena a los jugadores de la biblioteca por una cifra: bajas, ADR, KAST, aperturas, trades, utilidad o WPA por ronda.',
+    points: [
+      {
+        term: 'Biblioteca o Pro',
+        text: 'Pro lee solo las demos de HLTV. Es la misma media con la que se comparan las cifras de cada jugador.',
+      },
+      {
+        term: 'Mínimo de rondas',
+        text: 'Solo entra quien tiene las rondas que elijas, para que tres partidas buenas no encabecen la lista.',
+      },
+    ],
+    link: { href: '/ranking', label: 'Ir a Ranking' },
+  },
+  {
     id: 'stratbook',
     kicker: 'Stratbook',
     label: 'Stratbook',
@@ -306,6 +324,25 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
     ],
     link: { href: '/stratbook', label: 'Ir a Stratbook' },
+  },
+  {
+    id: 'collections',
+    kicker: 'Colecciones',
+    label: 'Colecciones',
+    title: 'Los momentos que quieres volver a ver',
+    lead:
+      'En la repetición 2D, Guardar momento apunta la partida, la ronda y el segundo exactos en una colección, con una nota si quieres.',
+    points: [
+      {
+        term: 'Como una lista de reproducción',
+        text: 'Reproducir abre los momentos uno tras otro, aunque sean de partidas distintas.',
+      },
+      {
+        term: 'A un Short',
+        text: 'Enviar a Short lleva las rondas de cada partida al flujo de Short con el jugador que elijas.',
+      },
+    ],
+    link: { href: '/colecciones', label: 'Ir a Colecciones' },
   },
   {
     id: 'reports',

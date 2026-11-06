@@ -74,6 +74,9 @@ type LibraryRepository interface {
 	ListDemos(ctx context.Context, filter library.DemoFilter) ([]library.Demo, error)
 	UpdateDemo(ctx context.Context, id uuid.UUID, patch library.DemoPatch) (library.Demo, error)
 	SetDemoState(ctx context.Context, id uuid.UUID, state library.ParseState, errorCode, message string) error
+	// AttachDemoFile gives a demo its stored file and detected source, as when
+	// the .dem of a shared match is imported; a missing id is ErrNotFound.
+	AttachDemoFile(ctx context.Context, id uuid.UUID, file library.DemoFile) (library.Demo, error)
 	// DeleteDemo removes the demo with its match; a missing id is not an error.
 	DeleteDemo(ctx context.Context, id uuid.UUID) error
 	// LinkDemoJob records that a Crear job was made from a demo. Linking a job
@@ -128,6 +131,15 @@ type LibraryRepository interface {
 	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
 	// DeletePlay removes a play; a missing id is ErrNotFound.
 	DeletePlay(ctx context.Context, id uuid.UUID) error
+	// CreateCollection stores a list of saved moments; an id that is already
+	// stored is ErrConflict. Items are not checked against the matches.
+	CreateCollection(ctx context.Context, c *library.Collection) error
+	GetCollection(ctx context.Context, id uuid.UUID) (library.Collection, error)
+	// ListCollections returns every collection by most recent edit.
+	ListCollections(ctx context.Context) ([]library.Collection, error)
+	UpdateCollection(ctx context.Context, id uuid.UUID, patch library.CollectionPatch) (library.Collection, error)
+	// DeleteCollection removes a collection; a missing id is ErrNotFound.
+	DeleteCollection(ctx context.Context, id uuid.UUID) error
 }
 
 type Repositories struct {

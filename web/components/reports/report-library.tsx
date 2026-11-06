@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FilePlus2, FileText, PlugZap, Shield } from 'lucide-react';
+import { ClipboardList, FilePlus2, FileText, PlugZap, Shield } from 'lucide-react';
 import { deleteLibraryReport, isLibraryNotFound, isLibraryOffline, listLibraryReports } from '@/lib/api/library';
 import type { LibraryReport } from '@/lib/api/scout';
 import { REPORTS_QUERY, TEAMS_HREF, reportHref, teamHref } from '@/lib/clips/routes';
@@ -17,6 +17,7 @@ import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PrepDialog } from '@/components/prep/prep-dialog';
 import { NewReportDialog } from './new-report-dialog';
 
 const COLUMNS: readonly DataTableColumn<LibraryReport>[] = [
@@ -70,6 +71,7 @@ export function ReportLibrary(): ReactNode {
   const [offline, setOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [creating, setCreating] = useState(requestedTeam !== undefined);
+  const [preparing, setPreparing] = useState(false);
   const view = useTableView('informes', {
     sort: { column: 'updated', direction: 'desc' },
     hidden: [],
@@ -106,10 +108,16 @@ export function ReportLibrary(): ReactNode {
 
   const dialog = <NewReportDialog open={creating} onOpenChange={setDialog} initialTeamId={requestedTeam} />;
   const newButton = (
-    <Button type="button" size="sm" onClick={() => setCreating(true)}>
-      <FilePlus2 aria-hidden />
-      Nuevo informe
-    </Button>
+    <span className="flex flex-wrap items-center gap-2">
+      <Button type="button" variant="outline" size="sm" onClick={() => setPreparing(true)}>
+        <ClipboardList aria-hidden />
+        Preparar rival
+      </Button>
+      <Button type="button" size="sm" onClick={() => setCreating(true)}>
+        <FilePlus2 aria-hidden />
+        Nuevo informe
+      </Button>
+    </span>
   );
 
   // The dialog stays at one place in the tree, so loading the list never remounts it mid-animation.
@@ -117,6 +125,7 @@ export function ReportLibrary(): ReactNode {
     <>
       <ReportListBody reports={reports} offline={offline} view={view} newButton={newButton} onReload={() => setAttempt((n) => n + 1)} />
       {dialog}
+      <PrepDialog open={preparing} onOpenChange={setPreparing} />
     </>
   );
 }

@@ -13,10 +13,9 @@ import {
   mergeLibraryTeam,
   patchLibraryTeam,
   type LibraryMatch,
-  type LibraryRosterEntry,
   type LibraryTeam,
 } from '@/lib/api/library';
-import { TEAMS_HREF, matchHref, playerHref, teamHref, teamStratbookHref } from '@/lib/clips/routes';
+import { TEAMS_HREF, matchHref, teamHref, teamStratbookHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -26,7 +25,12 @@ import {
   teamLabel,
   teamOutcome,
 } from '@/lib/library/partidas';
+import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
+import { lastResults } from '@/lib/analysis/context-bar';
+import { MapLabel } from '@/components/analysis/map-thumb';
+import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
+import { TeamGrenades } from '@/components/patterns/team-grenades';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -45,12 +49,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAnalysisScope } from '@/hooks/use-analysis-scope';
+import { useRecordTab } from '@/hooks/use-record-tab';
+import { useReferences } from '@/hooks/use-references';
 import { cn } from '@/lib/utils';
+import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
+import { TeamRoster } from './team-roster';
 import { TeamScout } from './team-scout';
+import { TeamPlaybook } from '@/components/playbook/team-playbook';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamSpatial } from './team-spatial';
+import { TeamTrend } from './team-trend';
 
 type Loaded = { team: LibraryTeam; matches: LibraryMatch[] };
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
@@ -119,10 +130,36 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   return <TeamRecordView data={state.data} onChanged={reload} />;
 }
 
+/** The scope controls each tab reads, in the order the bar shows them. */
+const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
+  plantilla: ['map', 'reference'],
+  series: [],
+  partidas: ['map', 'period', 'opponent'],
+  mapas: ['map', 'period'],
+  veto: ['opponent'],
+  sitios: ['map', 'period', 'opponent'],
+  scouting: ['map', 'side', 'period', 'opponent'],
+  playbook: ['map', 'side', 'period', 'opponent'],
+  radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
+  granadas: ['map', 'side', 'period', 'buy', 'opponent'],
+};
+/** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
+const REPORTING_TABS = new Set(['mapas', 'sitios', 'scouting', 'playbook', 'radar', 'granadas']);
+const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'series', 'veto', 'sitios', 'scouting', 'playbook', 'radar', 'granadas'];
+
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [tab, setTab] = useRecordTab(TEAM_TABS, 'plantilla');
+  const [reported, setReported] = useState<ScopeCounts | null>(null);
+  const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
+  const [now] = useState(() => Date.now());
+  const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
+  const references = useReferences(scope.map);
+  const proReference = references !== null && references !== 'failed' ? references.pro : null;
+  const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
+  const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -133,6 +170,68 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const maps = mapPerformance(matches, team.id);
   const last = matches[0];
   const aliases = team.aliases.filter((alias) => alias.toLowerCase() !== team.name.toLowerCase());
+
+  useEffect(() => {
+    let active = true;
+    listLibraryTeams()
+      .then((list) => {
+        if (active) setTeams(list.filter((entry) => entry.id !== team.id).sort((a, b) => a.name.localeCompare(b.name, 'es')));
+      })
+      .catch(() => {
+        if (active) setTeams([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [team.id]);
+
+  const scoped = matches.filter(
+    (match) =>
+      (scope.map === '' || match.map === scope.map) &&
+      inScopePeriod(match.played_at, scope.period, now) &&
+      (scope.opponent === '' || rivalOf(match, team.id)?.team_id === scope.opponent),
+  );
+  const rivals = new Map<string, string>();
+  for (const match of matches) {
+    const rival = rivalOf(match, team.id);
+    if (rival?.team_id) rivals.set(rival.team_id, teamLabel(rival));
+  }
+  const playedRivals = [...rivals].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
+  if (REPORTING_TABS.has(tab)) counts = reported;
+  else if (tab === 'veto') counts = undefined;
+  if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
+  const results = lastResults(
+    scoped.map((match) => ({ playedAt: match.played_at, outcome: teamOutcome(match, team.id) })),
+    10,
+  );
+  const entity: ScopeEntity = {
+    noun: 'Equipo',
+    id: team.id,
+    options: [{ value: team.id, label: team.name }, ...(teams ?? []).map((entry) => ({ value: entry.id, label: entry.name }))],
+    hrefFor: teamHref,
+  };
+
+  function withScope(id: string, content: ReactNode): ReactNode {
+    const fields = TAB_FIELDS[id] ?? [];
+    return (
+      <div className="flex flex-col gap-3">
+        <ScopeBar
+          scope={scope}
+          onChange={setScope}
+          onReset={resetScope}
+          proReference={proReference}
+          fields={fields}
+          entity={entity}
+          maps={[...new Set(matches.map((match) => match.map))].sort()}
+          opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
+          counts={counts}
+          results={id === 'veto' || id === 'series' ? undefined : results}
+        />
+        {content}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -150,21 +249,21 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         ]}
         actions={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button type="button" variant="ghost" size="xs" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
               Editar
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setMerging(true)}>
+            <Button type="button" variant="ghost" size="xs" onClick={() => setMerging(true)}>
               <GitMerge aria-hidden />
               Fusionar
             </Button>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="ghost" size="xs">
               <Link href={teamStratbookHref(team.id, true)}>
                 <BookMarked aria-hidden />
                 Jugadas repetidas
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="xs">
               <Link href={TEAMS_HREF}>
                 <ArrowLeft aria-hidden />
                 Todos los equipos
@@ -174,87 +273,82 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         }
       />
       <RecordTabs
+        value={tab}
+        onValueChange={(next) => {
+          setReported(null);
+          setTab(next);
+        }}
         tabs={[
           {
             id: 'plantilla',
             label: 'Plantilla',
             count: team.roster?.length ?? 0,
-            content: <TeamRoster roster={team.roster ?? []} />,
+            content: withScope(
+              'plantilla',
+              <div className="flex flex-col gap-3">
+                <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
+                <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
+              </div>,
+            ),
           },
           {
             id: 'partidas',
             label: 'Partidas',
             count: matches.length,
-            content: <TeamMatches team={team} matches={matches} />,
+            content: withScope('partidas', <TeamMatches team={team} matches={scoped} />),
           },
           {
             id: 'mapas',
             label: 'Mapas',
             count: maps.length,
-            content: <TeamMapHistory teamId={team.id} matches={matches} />,
+            content: withScope('mapas', <TeamMapHistory teamId={team.id} matches={matches} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'series',
             label: 'Series',
-            content: <TeamSeries team={team} />,
+            content: withScope('series', <TeamSeries team={team} />),
           },
           {
             id: 'veto',
             label: 'Veto',
-            content: <TeamVeto teamId={team.id} />,
+            content: withScope('veto', <TeamVeto teamId={team.id} opponent={scope.opponent} teams={teams} />),
+          },
+          {
+            id: 'sitios',
+            label: 'Bombsites',
+            content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'scouting',
             label: 'Scouting',
-            content: <TeamScout teamId={team.id} matches={matches} />,
+            content: withScope('scouting', <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />),
+          },
+          {
+            id: 'playbook',
+            label: 'Playbook',
+            content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} onCounts={onCounts} />),
           },
           {
             id: 'radar',
             label: 'Radar 2D',
-            content: <TeamSpatial teamId={team.id} matches={matches} />,
+            content: withScope(
+              'radar',
+              <TeamSpatial teamId={team.id} scope={scope} onMapChange={onMapChange} onCounts={onCounts} />,
+            ),
+          },
+          {
+            id: 'granadas',
+            label: 'Granadas',
+            content: withScope(
+              'granadas',
+              <TeamGrenades teamId={team.id} scope={scope} matches={matches} onMapChange={onMapChange} onCounts={onCounts} />,
+            ),
           },
         ]}
       />
       <EditTeamDialog open={editing} onOpenChange={setEditing} team={team} onSaved={onChanged} />
       <MergeTeamDialog open={merging} onOpenChange={setMerging} team={team} />
     </div>
-  );
-}
-
-const ROSTER_COLUMNS: readonly DataTableColumn<LibraryRosterEntry>[] = [
-  { id: 'nick', header: 'Jugador', required: true, cell: (entry) => entry.nick || entry.steamid64, sortValue: (entry) => entry.nick },
-  { id: 'matches', header: 'Partidas', align: 'end', cell: (entry) => entry.matches, sortValue: (entry) => entry.matches },
-  {
-    id: 'first',
-    header: 'Primera',
-    cell: (entry) => <span className="text-fg-2">{formatShortDate(entry.first_played_at)}</span>,
-    sortValue: (entry) => Date.parse(entry.first_played_at) || null,
-  },
-  {
-    id: 'last',
-    header: 'Última',
-    cell: (entry) => <span className="text-fg-2">{formatShortDate(entry.last_played_at)}</span>,
-    sortValue: (entry) => Date.parse(entry.last_played_at) || null,
-  },
-  { id: 'steamid', header: 'SteamID64', cell: (entry) => <span className="font-mono text-meta text-fg-3">{entry.steamid64}</span> },
-];
-
-function TeamRoster({ roster }: { roster: readonly LibraryRosterEntry[] }): ReactNode {
-  const view = useTableView('equipo-plantilla', {
-    sort: { column: 'last', direction: 'desc' },
-    hidden: [],
-    filters: { [SEARCH_FILTER]: FILTER_ANY },
-  });
-  return (
-    <DataTable
-      label="Plantilla"
-      rows={roster}
-      columns={ROSTER_COLUMNS}
-      rowKey={(entry) => entry.steamid64}
-      rowHref={(entry) => playerHref(entry.steamid64)}
-      view={view}
-      empty={<p className="text-body-sm text-fg-2">Sin jugadores en las partidas de este equipo.</p>}
-    />
   );
 }
 
@@ -272,7 +366,7 @@ function TeamMatches({ team, matches }: { team: LibraryTeam; matches: readonly L
       cell: (match) => formatShortDate(match.played_at),
       sortValue: (match) => Date.parse(match.played_at) || null,
     },
-    { id: 'map', header: 'Mapa', cell: (match) => prettyMapName(match.map), sortValue: (match) => prettyMapName(match.map) },
+    { id: 'map', header: 'Mapa', cell: (match) => <MapLabel map={match.map} />, sortValue: (match) => prettyMapName(match.map) },
     {
       id: 'rival',
       header: 'Rival',

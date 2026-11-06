@@ -9,6 +9,16 @@ import {
   TEAM_SPATIAL_QUERY,
 } from '../../../lib/api/spatial.ts';
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
+import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
+import { NORMS_KEYS, NORMS_QUERY } from '../../../lib/api/norms.ts';
+import {
+  COMMUNITY_SETTINGS_FIELDS,
+  COMMUNITY_SETTINGS_KEYS,
+  COMMUNITY_SUBMIT_KEYS,
+  GLOBAL_RANKINGS_KEYS,
+  GLOBAL_RANKINGS_QUERY,
+} from '../../../lib/api/community.ts';
+import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import {
   PLAY_CREATE_FIELDS,
   PLAY_DETAIL_KEYS,
@@ -20,7 +30,16 @@ import {
   STRATBOOK_FILE_KEYS,
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
+import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
+import { COLLECTION_DETAIL_KEYS, COLLECTION_FIELDS, COLLECTION_KEYS } from '../../../lib/api/collections.ts';
+import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
+import {
+  PLAYER_POSITIONS_KEYS,
+  PLAYER_POSITIONS_QUERY,
+  TEAM_BOMBSITES_KEYS,
+  TEAM_BOMBSITES_QUERY,
+} from '../../../lib/api/team-insights.ts';
 
 /**
  * The `/api/library/*` routes the browser may reach, as a whitelist. A request
@@ -41,8 +60,15 @@ export type LibraryRoute = {
    * (the 1 MiB control limit when unset); `multipart` streams the import.
    */
   readonly body?: { readonly kind: 'json'; readonly fields: readonly string[]; readonly maxBytes?: number } | { readonly kind: 'multipart' };
-  /** `json` copies these top-level keys; `stream` proxies bytes; `empty` is a 204. */
-  readonly response: { readonly kind: 'json'; readonly keys: readonly string[] } | { readonly kind: 'stream' } | { readonly kind: 'empty' };
+  /**
+   * `json` copies these top-level keys; `stream` proxies bytes; `empty` is a 204;
+   * `download` returns the bytes of a POST as a file with its name and length.
+   */
+  readonly response:
+    | { readonly kind: 'json'; readonly keys: readonly string[] }
+    | { readonly kind: 'stream' }
+    | { readonly kind: 'empty' }
+    | { readonly kind: 'download' };
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -76,6 +102,8 @@ const SCOUT_KEYS = [
   't_defaults', 'ct_setups', 'executes', 'economy', 'awp', 'openings',
 ];
 const REPORT_FIELDS = ['title', 'match_ids', 'side', 'notes'];
+/** The sender's optional message, written into the package manifest. */
+const SHARE_EXPORT_FIELDS = ['notes'];
 /** A note moves along its round but never to another round or match. */
 const ANNOTATION_FIELDS = ['tick', 'text', 'strokes'];
 
@@ -111,8 +139,12 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'heatmap'], query: [...TEAM_SPATIAL_QUERY, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'overlay'], query: [...TEAM_SPATIAL_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'playbook'], query: PLAYBOOK_QUERY, response: json(PLAYBOOK_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'prep'], query: PREP_QUERY, response: json(PREP_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },
   { method: 'GET', segments: ['series'], query: ['team_id', ...PAGING], response: json(['series']) },
   { method: 'POST', segments: ['series'], body: fields(SERIES_FIELDS), response: json(SERIES_KEYS) },
   { method: 'GET', segments: ['series', UUID], response: json(SERIES_KEYS) },
@@ -130,11 +162,19 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['plays', UUID], response: json(PLAY_DETAIL_KEYS) },
   { method: 'PATCH', segments: ['plays', UUID], body: fields(PLAY_PATCH_FIELDS), response: json(PLAY_KEYS) },
   { method: 'DELETE', segments: ['plays', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['collections'], response: json(['collections']) },
+  { method: 'POST', segments: ['collections'], body: fields(COLLECTION_FIELDS), response: json(COLLECTION_KEYS) },
+  { method: 'GET', segments: ['collections', UUID], response: json(COLLECTION_DETAIL_KEYS) },
+  { method: 'PATCH', segments: ['collections', UUID], body: fields(COLLECTION_FIELDS), response: json(COLLECTION_KEYS) },
+  { method: 'DELETE', segments: ['collections', UUID], response: { kind: 'empty' } },
+  { method: 'POST', segments: ['collections', UUID, 'export'], body: fields(SHARE_EXPORT_FIELDS), response: { kind: 'download' } },
+  { method: 'POST', segments: ['import-package'], body: { kind: 'multipart' }, response: json(SHARE_IMPORT_KEYS) },
   { method: 'GET', segments: ['reports'], query: ['team_id', ...PAGING], response: json(['reports']) },
   { method: 'POST', segments: ['reports'], body: fields(['team_id', ...REPORT_FIELDS]), response: json(REPORT_KEYS) },
   { method: 'GET', segments: ['reports', UUID], response: json(REPORT_KEYS) },
   { method: 'PATCH', segments: ['reports', UUID], body: fields(REPORT_FIELDS), response: json(REPORT_KEYS) },
   { method: 'DELETE', segments: ['reports', UUID], response: { kind: 'empty' } },
+  { method: 'POST', segments: ['reports', UUID, 'export'], body: fields(SHARE_EXPORT_FIELDS), response: { kind: 'download' } },
   { method: 'GET', segments: ['reports', UUID, 'scout'], response: json(SCOUT_KEYS) },
   { method: 'GET', segments: ['reports', UUID, 'metrics'], response: json(METRICS_KEYS) },
   { method: 'GET', segments: ['annotations'], query: ['match_id', 'round'], response: json(['annotations']) },
@@ -145,7 +185,16 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['players', STEAM_ID], response: json(PLAYER_KEYS) },
   { method: 'POST', segments: ['players', STEAM_ID, 'faceit'], response: json(PLAYER_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'role'], response: json(ROLE_KEYS) },
+  { method: 'GET', segments: ['players', STEAM_ID, 'positions'], query: PLAYER_POSITIONS_QUERY, response: json(PLAYER_POSITIONS_KEYS) },
   { method: 'GET', segments: ['players', STEAM_ID, 'metrics'], query: PLAYER_METRICS_QUERY, response: json(METRICS_KEYS) },
+  { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
+  { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
+  { method: 'GET', segments: ['norms'], query: NORMS_QUERY, response: json(NORMS_KEYS) },
+  { method: 'GET', segments: ['community', 'settings'], response: json(COMMUNITY_SETTINGS_KEYS) },
+  { method: 'PUT', segments: ['community', 'settings'], body: fields(COMMUNITY_SETTINGS_FIELDS), response: json(COMMUNITY_SETTINGS_KEYS) },
+  { method: 'GET', segments: ['community', 'rankings'], query: GLOBAL_RANKINGS_QUERY, response: json(GLOBAL_RANKINGS_KEYS) },
+  { method: 'POST', segments: ['community', 'rankings', 'submit'], response: json(COMMUNITY_SUBMIT_KEYS) },
+  { method: 'DELETE', segments: ['community', 'rankings'], response: json(COMMUNITY_SETTINGS_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },

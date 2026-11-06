@@ -203,6 +203,8 @@ type PlayerMetrics struct {
 	Utility    UtilityMetrics    `json:"utility"`
 	Positions  []PositionLine    `json:"positions"`
 	MatchLines []PlayerMatchLine `json:"match_lines"`
+	Buys       []BuyLine         `json:"buys"`
+	Box        BoxScore          `json:"box"`
 }
 
 // RoleLine adds up the players of one inferred role.
@@ -367,7 +369,7 @@ func (run *metricsRun) acc(p Player) *playerAcc {
 			role = "unknown"
 		}
 		a = &playerAcc{
-			m:         PlayerMetrics{SteamID64: p.SteamID64, Name: p.Name, Role: role, Positions: []PositionLine{}, MatchLines: []PlayerMatchLine{}},
+			m:         PlayerMetrics{SteamID64: p.SteamID64, Name: p.Name, Role: role, Positions: []PositionLine{}, MatchLines: []PlayerMatchLine{}, Buys: []BuyLine{}},
 			matches:   map[uuid.UUID]bool{},
 			positions: map[positionKey]*PositionLine{},
 		}
@@ -472,6 +474,7 @@ func (run *metricsRun) round(m MetricsMatch, r Round, report *MetricsReport) boo
 			}
 		}
 	}
+	start := buyStart(tracked)
 	roundWPA := map[uint8]float64{}
 	// After the round end the outcome is settled: late kills still count as
 	// kills, but move no probability and draw no point.
@@ -595,6 +598,8 @@ func (run *metricsRun) round(m MetricsMatch, r Round, report *MetricsReport) boo
 		for _, pr := range r.Players {
 			if pr.Slot == slot {
 				position(a, m, r, pr, roundWPA[slot])
+				addBuyRound(a, start[slot], r, pr.Side, roundWPA[slot])
+				addBoxRound(&a.m.Box, pr, doc.UtilityEffects)
 			}
 		}
 	}
@@ -816,6 +821,7 @@ func (run *metricsRun) finish() []PlayerMetrics {
 		p.Utility.HE.Examples = topDamage(a.he)
 		p.Utility.Molotov.Examples = topDamage(a.molotov)
 		p.Trades.UntradedDeaths = untraded(p)
+		p.Buys = finishBuys(p.Buys)
 		for i := range p.MatchLines {
 			p.MatchLines[i].EcoKills = round4(p.MatchLines[i].EcoKills)
 			p.MatchLines[i].WPA = round4(p.MatchLines[i].WPA)

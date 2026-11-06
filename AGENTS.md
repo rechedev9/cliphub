@@ -12,8 +12,9 @@ change for the installed Windows app. The UI is in Spanish.
   `lib/api/local-request-guard.ts` reject cross-origin and DNS-rebound requests.
 - `cmd/zv-orchestrator`: local HTTP API (`internal/httpapi`) and the job queue. Workers in
   `internal/workers` parse demos in process (`internal/parser`) and run `zv-recorder` (CS2 capture
-  through HLAE) and `zv-editor` (FFmpeg render) as subprocesses. The installer ships only these three
-  binaries; `zv` and the other `cmd/` tools are for development.
+  through HLAE) and `zv-editor` (FFmpeg render) as subprocesses. The installer ships these three
+  binaries plus `zv-mcp.exe`, the MCP server for assistants (`cmd/zv-mcp`); `zv` and the other
+  `cmd/` tools are for development.
 - State lives in SQLite through `internal/store`; memory repos share contract tests with it.
 - `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
   and command build targets.

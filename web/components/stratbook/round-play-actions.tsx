@@ -10,7 +10,7 @@ import { matchHref, playHref } from '@/lib/clips/routes';
 import { roundEvidenceHref, teamKeyOnSide } from '@/lib/library/rounds';
 import { LINEUP_STATUS_LABEL, playFromDraft, playSecondsLabel, playShapeLabel, suggestPlayTitle } from '@/lib/stratbook/plays';
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,16 +50,16 @@ export function RoundPlayActions({
   const [comparing, setComparing] = useState(false);
   const [video, setVideo] = useState(false);
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={() => setVideo(true)}>
+    <div className="flex flex-wrap gap-1">
+      <Button type="button" size="xs" variant="outline" onClick={() => setVideo(true)}>
         <Clapperboard aria-hidden />
         Crear vídeo
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => setSaving({ tick: currentTick() })}>
+      <Button type="button" size="xs" variant="outline" onClick={() => setSaving({ tick: currentTick() })}>
         <BookmarkPlus aria-hidden />
         Guardar como jugada
       </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setComparing(true)}>
+      <Button type="button" size="xs" variant="ghost" onClick={() => setComparing(true)}>
         <Crosshair aria-hidden />
         Lineups
       </Button>

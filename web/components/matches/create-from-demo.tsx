@@ -6,6 +6,7 @@ import { MonitorPlay, Smartphone } from 'lucide-react';
 import { api } from '@/lib/api';
 import { createJobFromLibraryDemo, type LibraryDemo } from '@/lib/api/library';
 import { PRODUCE_FORMAT, flowHref, type ProduceFormat } from '@/lib/clips/routes';
+import { SHARED_MATCH_REASON } from '@/lib/library/partidas';
 import { Button } from '@/components/ui/button';
 
 const FAILED_JOB_STATUS = 'failed';
@@ -38,6 +39,10 @@ export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
       setError(true);
       setBusy(null);
     }
+  }
+
+  if (demo.source === 'shared') {
+    return <span className="max-w-sm text-meta text-fg-3">{SHARED_MATCH_REASON}</span>;
   }
 
   return (

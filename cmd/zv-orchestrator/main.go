@@ -22,6 +22,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/importedvideos"
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/practice"
 	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/steamclient"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
@@ -316,6 +317,8 @@ func run() error {
 		httpapi.WithImportedVideos(imported),
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLineupCatalog(lineupCatalog),
+		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
+		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
@@ -330,6 +333,7 @@ func run() error {
 	// The Players ELOs are refreshed from FACEIT once per start, in the
 	// background; list reads never call FACEIT.
 	handlers.StartFaceitRosterRefresh()
+	handlers.StartCommunity(ctx)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {

@@ -1,5 +1,5 @@
 import type { ScoutEvidence } from './scout.ts';
-import type { TacticalSide } from './tactical.ts';
+import type { TacticalBuyType, TacticalSide } from './tactical.ts';
 
 /**
  * Browser-side contract of the advanced metrics (`tacticalplan.MetricsReport`
@@ -61,6 +61,16 @@ export type PlayerMatchLine = {
   wpa: number;
 };
 
+/** A player's rounds under one buy type of their own team. */
+export type BuyLine = {
+  buy: TacticalBuyType;
+  rounds: number;
+  won: number;
+  kills: number;
+  deaths: number;
+  wpa: number;
+};
+
 export type PlayerMetrics = {
   steamid64: string;
   name: string;
@@ -76,6 +86,18 @@ export type PlayerMetrics = {
   utility: UtilityMetrics;
   positions: PositionLine[];
   match_lines: PlayerMatchLine[];
+  buys: BuyLine[];
+  box: BoxScore;
+};
+
+/** Per-round box score; `utility_rounds` are the rounds of matches scanned with utility effects. */
+export type BoxScore = {
+  damage: number;
+  assists: number;
+  kast_rounds: number;
+  opening_kills: number;
+  opening_deaths: number;
+  utility_rounds: number;
 };
 
 export type RoleLine = {

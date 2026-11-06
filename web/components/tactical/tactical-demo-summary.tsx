@@ -1,114 +1,53 @@
 import type { ReactNode } from 'react';
-import { Info, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { RADAR_CALIBRATION_SOURCES, TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { TacticalDocument, TacticalTeam } from '@/lib/api/tactical';
+import type { TacticalDocument } from '@/lib/api/tactical';
 import { prettyMapName, timeAgo } from '@/lib/format';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-function StatCell({ label, value }: { label: string; value: string }): ReactNode {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <span className="text-meta text-fg-3">{label}</span>
-      <span className="truncate text-body-sm tabular-nums text-fg-1">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function TeamChip({ team }: { team: TacticalTeam }): ReactNode {
-  const ct = team.start_side === TACTICAL_SIDES.ct;
-  return (
-    <span className="inline-flex items-center gap-2 truncate">
-      <span
-        className={cn('size-2 shrink-0 rounded-full', ct ? 'bg-side-ct' : 'bg-side-t')}
-        aria-hidden
-      />
-      <span className="truncate font-display text-body-sm font-semibold text-fg-1">
-        {team.name || team.key}
-      </span>
-      <span className="shrink-0 text-meta text-fg-3">
-        Empieza {team.start_side}
-      </span>
-    </span>
-  );
-}
-
 /**
- * What the analysis was computed from: the demo's identity, the two rosters and
- * the sampling the replay is drawn at, plus every ambiguity the scan resolved by
- * convention. The warnings are part of the analysis, not decoration, so they are
- * on screen rather than in a log.
+ * What the analysis was computed from, in one line above the replay: the map,
+ * both teams with the side they started on, the sampling, and the scan's
+ * warnings behind a toggle so they stay one click away without pushing the
+ * replay down.
  */
-export function TacticalDemoSummary({
-  doc,
-  generatedAt,
-}: {
-  doc: TacticalDocument;
-  generatedAt: string;
-}): ReactNode {
+export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: TacticalDocument; generatedAt: string; actions?: ReactNode }): ReactNode {
   const derived = doc.geometry.calibration.source === RADAR_CALIBRATION_SOURCES.derived;
-  const warnings = doc.warnings ?? [];
-
+  const warnings = [
+    ...(derived ? ['Este mapa no trae calibración oficial: el encuadre se derivó de las posiciones de esta demo y no es comparable con otra.'] : []),
+    ...(doc.warnings ?? []),
+  ];
   return (
-    <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Demo analizada">
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h2 className="font-display text-section font-bold leading-none tracking-tight text-fg-1">
-            {prettyMapName(doc.demo.map)}
-          </h2>
-          <span className="text-meta text-fg-3">
-            Analizada {timeAgo(generatedAt)}
+    <section aria-label="Demo analizada" className="flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1">
+      <h2 className="font-display text-body font-bold text-fg-1">{prettyMapName(doc.demo.map)}</h2>
+      <p className="flex min-w-0 items-center gap-3 text-body-sm">
+        {doc.teams.map((team) => (
+          <span key={team.key} className="inline-flex min-w-0 items-center gap-1.5">
+            <span className={cn('size-2 shrink-0 rounded-full', team.start_side === TACTICAL_SIDES.ct ? 'bg-side-ct' : 'bg-side-t')} aria-hidden />
+            <span className="truncate font-medium text-fg-1">{team.name || team.key}</span>
           </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          {doc.teams.map((team) => (
-            <TeamChip key={team.key} team={team} />
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border-subtle pt-4 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCell label="Rondas" value={String(doc.rounds.length)} />
-          <StatCell label="Formato" value={`MR${Math.round(doc.demo.max_rounds / 2)}`} />
-          <StatCell label="Tickrate" value={`${doc.demo.tickrate}`} />
-          <StatCell label="Muestreo" value={`${doc.positions.hz} Hz`} />
-          <StatCell label="Muestras" value={doc.positions.frame_count.toLocaleString('es-ES')} />
-        </div>
-
-        {derived ? (
-          <p className="flex items-start gap-2 rounded-md border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning">
-            <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>
-              Este mapa no trae calibración oficial: el encuadre se derivó de las posiciones observadas. Es
-              estable dentro de esta demo, pero no comparable con otra.
-            </span>
-          </p>
-        ) : null}
-
-        {warnings.length > 0 ? (
-          <details className="group rounded-md border border-border-strong bg-surface-1">
-            <summary className={cn(
-                'flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-meta text-fg-3 outline-none hover:text-fg-1',
-                FOCUS_RING,
-              )}>
-              <TriangleAlert className="size-3.5 text-warning" aria-hidden />
-              {warnings.length} aviso{warnings.length === 1 ? '' : 's'} del escaneo
-            </summary>
-            <ul className="flex flex-col gap-1.5 border-t border-border-subtle px-3 py-3">
-              {warnings.map((warning) => (
-                <li
-                  key={warning}
-                  className="font-mono text-body-sm leading-5 text-fg-2"
-                >
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-      </div>
+        ))}
+      </p>
+      <p className="text-meta tabular-nums text-fg-3">
+        {doc.rounds.length} rondas · MR{Math.round(doc.demo.max_rounds / 2)} · {doc.positions.hz} Hz · analizada {timeAgo(generatedAt)}
+      </p>
+      {warnings.length === 0 ? null : (
+        <details className="group relative">
+          <summary className={cn('flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-sm px-1.5 text-meta text-warning outline-none hover:bg-surface-3', FOCUS_RING)}>
+            <TriangleAlert className="size-3.5" aria-hidden />
+            {warnings.length} aviso{warnings.length === 1 ? '' : 's'}
+          </summary>
+          <ul className="absolute top-8 left-0 z-20 flex w-[min(28rem,80vw)] flex-col gap-1.5 rounded-md border border-border-strong bg-surface-2 p-3 shadow-[var(--elev-4)]">
+            {warnings.map((warning) => (
+              <li key={warning} className="text-body-sm leading-5 text-fg-2">
+                {warning}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {actions === undefined ? null : <div className="ml-auto">{actions}</div>}
     </section>
   );
 }

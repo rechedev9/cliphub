@@ -1,3 +1,5 @@
+import type { CollectionInput, CollectionPatch, LibraryCollection, LibraryCollectionDetail } from './collections.ts';
+import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
 import type { Annotation, HeatmapGrenade, HeatmapKind, SpatialResponse, Stroke } from './spatial.ts';
@@ -15,6 +17,11 @@ import type {
 import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
+import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
+import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
+import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
+import type { CommunitySettings, GlobalRankings } from './community.ts';
+import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 
 /**
  * Browser-side contract of the shared demo library (`internal/library`). Every
@@ -22,7 +29,8 @@ import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type V
  * is the source of truth. All access is same-origin through `/api/library/*`.
  */
 
-export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown'] as const;
+/** `shared` is a match that came in a .cliphub package without its demo: read only. */
+export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown', 'shared'] as const;
 export type LibrarySource = (typeof LIBRARY_SOURCES)[number];
 
 export const LIBRARY_PARSE_STATES = ['queued', 'parsing', 'ready', 'failed'] as const;
@@ -328,8 +336,12 @@ export function deleteLibrarySeries(seriesId: string): Promise<void> {
 }
 
 /** A team's results, side rounds and known vetoes on every map. */
-export function getLibraryTeamMaps(teamId: string): Promise<TeamMaps> {
-  return request<TeamMaps>(`/teams/${id(teamId)}/maps`);
+export function getLibraryTeamMaps(teamId: string, range: { from?: string; to?: string } = {}): Promise<TeamMaps> {
+  const params = new URLSearchParams();
+  if (range.from) params.set('from', range.from);
+  if (range.to) params.set('to', range.to);
+  const search = params.toString();
+  return request<TeamMaps>(`/teams/${id(teamId)}/maps${search === '' ? '' : `?${search}`}`);
 }
 
 /** A simulated veto against a rival: the given steps kept, the rest recommended. */
@@ -439,13 +451,15 @@ export function getLibraryReportMetrics(reportId: string): Promise<MetricsReport
   return request<MetricsReport>(`/reports/${id(reportId)}/metrics`);
 }
 
-export type PlayerMetricsQuery = { map?: string; side?: ReportSide; limit?: number };
+export type PlayerMetricsQuery = { map?: string; side?: ReportSide; limit?: number; from?: string; to?: string };
 
 export function playerMetricsPath(steamId: string, query: PlayerMetricsQuery): string {
   const params = new URLSearchParams();
   if (query.map) params.set('map', query.map);
   if (query.side) params.set('side', query.side);
   if (query.limit) params.set('limit', String(query.limit));
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
   const search = params.toString();
   return `/players/${id(steamId)}/metrics${search ? `?${search}` : ''}`;
 }
@@ -486,9 +500,11 @@ export type TeamSpatialQuery = {
   map?: string;
   side?: ReportSide;
   from?: string;
+  to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
   buys?: readonly TacticalBuyType[];
+  opponent_buys?: readonly TacticalBuyType[];
 };
 
 export type HeatmapQuery = { kind: HeatmapKind; from?: number; to?: number; grenades?: readonly HeatmapGrenade[] };
@@ -501,9 +517,11 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
     if (q.map) params.set('map', q.map);
     if (q.side) params.set('side', q.side);
     if (q.from) params.set('from', q.from);
+    if (q.to) params.set('to', q.to);
     for (const opponent of q.opponent_ids ?? []) params.append('opponent_id', opponent);
     for (const match of q.match_ids ?? []) params.append('match_id', match);
     for (const buy of q.buys ?? []) params.append('buy', buy);
+    for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
   }
   for (const [key, value] of extra) params.append(key, value);
   const search = params.toString();
@@ -616,4 +634,148 @@ export function exportStratbook(query: PlayListQuery = {}): Promise<StratbookFil
 
 export function importStratbook(file: StratbookUpload): Promise<StratbookImport> {
   return request<StratbookImport>('/plays/import', jsonInit('POST', file));
+}
+
+/** Every collection, by most recent edit. */
+export async function listLibraryCollections(): Promise<LibraryCollection[]> {
+  const body = await request<{ collections?: LibraryCollection[] }>('/collections');
+  return body.collections ?? [];
+}
+
+export function getLibraryCollection(collectionId: string): Promise<LibraryCollectionDetail> {
+  return request<LibraryCollectionDetail>(`/collections/${id(collectionId)}`);
+}
+
+export function createLibraryCollection(input: CollectionInput): Promise<LibraryCollection> {
+  return request<LibraryCollection>('/collections', jsonInit('POST', input));
+}
+
+export function patchLibraryCollection(collectionId: string, patch: CollectionPatch): Promise<LibraryCollection> {
+  return request<LibraryCollection>(`/collections/${id(collectionId)}`, jsonInit('PATCH', patch));
+}
+
+export function deleteLibraryCollection(collectionId: string): Promise<void> {
+  return request<void>(`/collections/${id(collectionId)}`, { method: 'DELETE' });
+}
+
+export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKind[] };
+
+/** Every grenade a team threw on its matches, filtered like the scout and by kind. */
+export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): Promise<TeamGrenades> {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const kind of query.kinds ?? []) params.append('kind', kind);
+  const search = params.toString();
+  return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
+}
+
+/** A team's record on each bombsite of each map, as defender and attacker, with the scout filter. */
+export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Promise<TeamBombsites> {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  const search = params.toString();
+  return request<TeamBombsites>(`/teams/${id(teamId)}/bombsites${search === '' ? '' : `?${search}`}`);
+}
+
+export function playerPositionsPath(steamId: string, query: PlayerPositionsQuery): string {
+  const params = new URLSearchParams();
+  if (query.map) params.set('map', query.map);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const search = params.toString();
+  return `/players/${id(steamId)}/positions${search ? `?${search}` : ''}`;
+}
+
+/** Where a player stands early in rounds, per map and side, with their AWP share. */
+export function getPlayerPositions(steamId: string, query: PlayerPositionsQuery = {}): Promise<PlayerPositions> {
+  return request<PlayerPositions>(playerPositionsPath(steamId, query));
+}
+
+function baselineParams(query: BaselineQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.map) params.set('map', query.map);
+  if (query.min_rounds) params.set('min_rounds', String(query.min_rounds));
+  return params;
+}
+
+/** Per-player averages of the reference metrics over the library or its HLTV demos. */
+export function getBaseline(query: BaselineQuery = {}): Promise<Baseline> {
+  const search = baselineParams(query).toString();
+  return request<Baseline>(`/baseline${search === '' ? '' : `?${search}`}`);
+}
+
+/** The library's players ranked by one reference metric, best first. */
+export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
+  const params = baselineParams(query);
+  params.set('metric', query.metric);
+  if (query.limit) params.set('limit', String(query.limit));
+  return request<Leaderboard>(`/leaderboard?${params.toString()}`);
+}
+
+/** The rankings opt-in and whether Studio can reach the community server. */
+export function getCommunitySettings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/settings');
+}
+
+/** Turns rankings on (submitting right away) or off; off keeps what the server has until deleted. */
+export function putCommunitySettings(rankingsEnabled: boolean): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/settings', jsonInit('PUT', { rankings_enabled: rankingsEnabled }));
+}
+
+/** Sends the own player's per-map numbers now. */
+export function submitCommunityRankings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/rankings/submit', { method: 'POST' });
+}
+
+/** Deletes the submission on the server, turns rankings off and replaces the install id. */
+export function deleteCommunityRankings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/rankings', { method: 'DELETE' });
+}
+
+/** The own player's percentile on each metric among every opted-in Studio, on one map or all. */
+export function getGlobalRankings(map: string): Promise<GlobalRankings> {
+  return request<GlobalRankings>(`/community/rankings${map === '' ? '' : `?map=${encodeURIComponent(map)}`}`);
+}
+
+/** Team rates pooled over every library team: bombsites, buy matchups and, with a map, playbook categories. */
+export function getLibraryNorms(query: LibraryNormsQuery = {}): Promise<LibraryNorms> {
+  const params = new URLSearchParams();
+  if (query.map) params.set('map', query.map);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const search = params.toString();
+  return request<LibraryNorms>(`/norms${search === '' ? '' : `?${search}`}`);
+}
+
+/** Appends the scout filter shared by the playbook and the prep. */
+function framedParams(query: TeamPrepQuery): URLSearchParams {
+  const params = new URLSearchParams({ map: query.map });
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  return params;
+}
+
+/** Every round a team played on one side of one map, classified, with the counts per category, site, tempo and zone. */
+export function getTeamPlaybook(teamId: string, query: TeamPlaybookQuery): Promise<TeamPlaybook> {
+  const params = framedParams(query);
+  params.set('side', query.side);
+  return request<TeamPlaybook>(`/teams/${id(teamId)}/playbook?${params.toString()}`);
+}
+
+/** Buy matchups, tempo per buy and CT positions of a team on one map. */
+export function getTeamPrep(teamId: string, query: TeamPrepQuery): Promise<TeamPrep> {
+  return request<TeamPrep>(`/teams/${id(teamId)}/prep?${framedParams(query).toString()}`);
 }

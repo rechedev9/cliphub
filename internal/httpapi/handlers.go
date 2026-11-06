@@ -21,7 +21,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -42,6 +41,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/practice"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -167,6 +167,8 @@ type Handlers struct {
 	importedVideos      ImportedVideos
 	libraryRepo         LibraryRepository
 	lineups             lineups.Catalog
+	practiceGame        practice.Game
+	references          referenceCaches
 	// labBundleMu serializes bundle writes: two bundles of one job and variant
 	// share a directory, and each copies gigabytes of clips.
 	labBundleMu sync.Mutex
@@ -318,71 +320,6 @@ func NewHandlers(repo JobRepository, store storage.Storage, queue Enqueuer, opts
 type createJobConfig struct {
 	TargetSteamID string       `json:"target_steamid"`
 	Rules         *rules.Rules `json:"rules,omitempty"`
-}
-
-// maxDemoFileNameRunes caps the stored original demo file name so a hostile or
-// accidental upload cannot bloat the persisted job document.
-const maxDemoFileNameRunes = 128
-
-// sanitizeDemoFileName reduces an uploaded multipart file name to a safe display
-// name: it strips any directory prefix using either separator (a client may send
-// a Windows path or a URL-style one, so filepath.Base alone is not enough), drops
-// control characters and invisible format characters (Cf: RTL overrides,
-// zero-width runes, BOM) that could spoof the displayed name, and caps the
-// result at maxDemoFileNameRunes runes. It returns "" when nothing usable
-// remains, so the caller leaves the field empty.
-func sanitizeDemoFileName(name string) string {
-	if i := strings.LastIndexAny(name, `/\`); i >= 0 {
-		name = name[i+1:]
-	}
-	var b strings.Builder
-	for _, r := range name {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			continue
-		}
-		b.WriteRune(r)
-	}
-	cleaned := strings.TrimSpace(b.String())
-	if runes := []rune(cleaned); len(runes) > maxDemoFileNameRunes {
-		cleaned = strings.TrimSpace(string(runes[:maxDemoFileNameRunes]))
-	}
-	return cleaned
-}
-
-// Stable codes for a demo rejected at admission, so the web client can tell
-// the user why instead of a generic "could not scan" message.
-const (
-	codeCSGODemo       = "csgo_demo"
-	codeNotADemo       = "not_a_demo"
-	codeUnreadableDemo = "unreadable_demo"
-	codeTruncatedDemo  = "truncated_demo"
-)
-
-// isDemoHeader reports whether the leading bytes look like a CS2 (Source 2)
-// demo, the only format the parser (demoinfocs v5) can read.
-func isDemoHeader(header []byte) bool {
-	return bytes.HasPrefix(header, []byte("PBDEMS2"))
-}
-
-// isCSGODemoHeader reports whether the leading bytes belong to a legacy CS:GO
-// (Source 1) demo. demoinfocs v5 refuses those, so admitting one only queues a
-// scan that is certain to fail.
-func isCSGODemoHeader(header []byte) bool {
-	return bytes.HasPrefix(header, []byte("HL2DEMO"))
-}
-
-// rejectDemoHeader writes a coded 400 and returns true when header is not a
-// CS2 demo. subject names the file in the message ("uploaded", "downloaded").
-func rejectDemoHeader(w http.ResponseWriter, header []byte, subject string) bool {
-	switch {
-	case isDemoHeader(header):
-		return false
-	case isCSGODemoHeader(header):
-		writeCodedError(w, http.StatusBadRequest, codeCSGODemo, subject+" file is a CS:GO demo; only CS2 demos are supported")
-	default:
-		writeCodedError(w, http.StatusBadRequest, codeNotADemo, subject+" file is not a CS2 demo")
-	}
-	return true
 }
 
 // CreateJob handles POST /api/jobs.
@@ -2873,49 +2810,4 @@ func (h *Handlers) loadJobMeta(w http.ResponseWriter, r *http.Request) (job.Job,
 		return job.Job{}, false
 	}
 	return j, true
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-// Default error codes by HTTP status. Every error body carries a `code` so a
-// client can branch on it instead of grepping Spanish or English text; a
-// handler with a more specific class uses writeCodedError. 503 deliberately
-// has no default: the Studio proxy reserves `service_unavailable` for "the
-// orchestrator is unreachable", so a Go 503 must name what is missing.
-var defaultErrorCodes = map[int]string{
-	http.StatusBadRequest:            "invalid_request",
-	http.StatusUnauthorized:          "unauthorized",
-	http.StatusForbidden:             "forbidden",
-	http.StatusNotFound:              "not_found",
-	http.StatusConflict:              "conflict",
-	http.StatusRequestEntityTooLarge: "payload_too_large",
-	http.StatusMisdirectedRequest:    "misdirected_request",
-	http.StatusTooManyRequests:       "rate_limited",
-	http.StatusInternalServerError:   "internal_error",
-	http.StatusNotImplemented:        "not_implemented",
-	http.StatusServiceUnavailable:    "not_configured",
-	http.StatusGatewayTimeout:        "timeout",
-}
-
-func writeError(w http.ResponseWriter, status int, msg string) {
-	code, ok := defaultErrorCodes[status]
-	if !ok {
-		code = "error"
-	}
-	writeCodedError(w, status, code, msg)
-}
-
-func writeCodedError(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, map[string]string{"code": code, "error": msg})
-}
-
-// internalError logs the underlying error at the boundary and returns a generic
-// 500 to the client so driver/SQL/storage internals are not exposed.
-func internalError(w http.ResponseWriter, op string, err error) {
-	log.Printf("httpapi: %s: %v", op, err)
-	writeError(w, http.StatusInternalServerError, "internal error")
 }

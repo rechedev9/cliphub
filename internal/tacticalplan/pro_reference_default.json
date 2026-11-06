@@ -1,0 +1,1406 @@
+{
+  "id": "pro-2026-isog-lavked-tnc",
+  "description": "4 mapas profesionales de 2026: Iberian Soul contra OG (Anubis, Nuke e Inferno) y Lavked contra TNC (Nuke).",
+  "matches": [
+    {
+      "map": "de_anubis",
+      "teams": [
+        "OG.Dexsport",
+        "Iberian Soul"
+      ],
+      "rounds": 17
+    },
+    {
+      "map": "de_nuke",
+      "teams": [
+        "OG.Dexsport",
+        "Iberian Soul"
+      ],
+      "rounds": 23
+    },
+    {
+      "map": "de_inferno",
+      "teams": [
+        "OG.Dexsport",
+        "Iberian Soul"
+      ],
+      "rounds": 15
+    },
+    {
+      "map": "de_nuke",
+      "teams": [
+        "TNC",
+        "Lavked"
+      ],
+      "rounds": 17
+    }
+  ],
+  "baseline": {
+    "min_rounds": 15,
+    "players": 20,
+    "rounds": 72,
+    "matches": 4,
+    "metrics": {
+      "adr": {
+        "mean": 74.3056,
+        "players": 20,
+        "stddev": 15.7169,
+        "prior_stddev": 11.1135,
+        "round_stddev": 77.9752
+      },
+      "dpr": {
+        "mean": 0.6913,
+        "players": 20,
+        "stddev": 0.1475,
+        "prior_stddev": 0.1132,
+        "round_stddev": 0.4816
+      },
+      "flash_assists_per_round": {
+        "mean": 0.0166,
+        "players": 20,
+        "stddev": 0.0239,
+        "prior_stddev": 0.0169,
+        "round_stddev": 0.1475
+      },
+      "kast": {
+        "mean": 70.0535,
+        "players": 20,
+        "stddev": 14.366,
+        "prior_stddev": 11.2076
+      },
+      "kpr": {
+        "mean": 0.6678,
+        "players": 20,
+        "stddev": 0.1902,
+        "prior_stddev": 0.1345,
+        "round_stddev": 0.8611
+      },
+      "opening_win_pct": {
+        "mean": 45.282,
+        "players": 20,
+        "stddev": 22.122,
+        "prior_stddev": 15.6426
+      },
+      "trade_pct": {
+        "mean": 22.7959,
+        "players": 20,
+        "stddev": 10.0721,
+        "prior_stddev": 7.122
+      },
+      "utility_damage_per_round": {
+        "mean": 3.0895,
+        "players": 20,
+        "stddev": 2.5065,
+        "prior_stddev": 1.7724,
+        "round_stddev": 12.4938
+      },
+      "wpa_per_round": {
+        "mean": 0.0123,
+        "players": 20,
+        "stddev": 0.0318,
+        "prior_stddev": 0.0225,
+        "round_stddev": 0.2228
+      }
+    }
+  },
+  "players": [
+    {
+      "steamid64": "76561197991593267",
+      "name": "sausol",
+      "team": "Iberian Soul",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 63.8,
+        "dpr": 0.7091,
+        "flash_assists_per_round": 0,
+        "kast": 67.2727,
+        "kpr": 0.5636,
+        "opening_win_pct": 33.3333,
+        "trade_pct": 28.2051,
+        "utility_damage_per_round": 4.6,
+        "wpa_per_round": -0.0112
+      }
+    },
+    {
+      "steamid64": "76561197998197366",
+      "name": "mopoz",
+      "team": "Iberian Soul",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 68.4909,
+        "dpr": 0.6909,
+        "flash_assists_per_round": 0.0364,
+        "kast": 81.8182,
+        "kpr": 0.5818,
+        "opening_win_pct": 50,
+        "trade_pct": 31.5789,
+        "utility_damage_per_round": 6.5636,
+        "wpa_per_round": 0.0364
+      }
+    },
+    {
+      "steamid64": "76561198000984547",
+      "name": "alex",
+      "team": "Iberian Soul",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 72.3636,
+        "dpr": 0.6182,
+        "flash_assists_per_round": 0.0364,
+        "kast": 67.2727,
+        "kpr": 0.6727,
+        "opening_win_pct": 36.3636,
+        "trade_pct": 17.6471,
+        "utility_damage_per_round": 2.7455,
+        "wpa_per_round": 0.0669
+      }
+    },
+    {
+      "steamid64": "76561198013295375",
+      "name": "bodyy",
+      "team": "OG.Dexsport",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 69.5455,
+        "dpr": 0.6727,
+        "flash_assists_per_round": 0.0182,
+        "kast": 63.6364,
+        "kpr": 0.6,
+        "opening_win_pct": 52.9412,
+        "trade_pct": 21.6216,
+        "utility_damage_per_round": 5.1818,
+        "wpa_per_round": 0.0327
+      }
+    },
+    {
+      "steamid64": "76561198028522662",
+      "name": "Markoś",
+      "team": "TNC",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 94.9412,
+        "dpr": 0.5294,
+        "flash_assists_per_round": 0,
+        "kast": 82.3529,
+        "kpr": 0.9412,
+        "opening_win_pct": 50,
+        "trade_pct": 11.1111,
+        "utility_damage_per_round": 2.0588,
+        "wpa_per_round": 0.0486
+      }
+    },
+    {
+      "steamid64": "76561198079183361",
+      "name": "spooke",
+      "team": "OG.Dexsport",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 60.9636,
+        "dpr": 0.7455,
+        "flash_assists_per_round": 0,
+        "kast": 70.9091,
+        "kpr": 0.5455,
+        "opening_win_pct": 25,
+        "trade_pct": 19.5122,
+        "utility_damage_per_round": 3.8545,
+        "wpa_per_round": -0.0092
+      }
+    },
+    {
+      "steamid64": "76561198113182046",
+      "name": "yvro",
+      "team": "TNC",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 95.5882,
+        "dpr": 0.5882,
+        "flash_assists_per_round": 0,
+        "kast": 88.2353,
+        "kpr": 0.8235,
+        "opening_win_pct": 66.6667,
+        "trade_pct": 50,
+        "utility_damage_per_round": 4.6471,
+        "wpa_per_round": -0.0012
+      }
+    },
+    {
+      "steamid64": "76561198148986856",
+      "name": "maaryy",
+      "team": "TNC",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 99.2941,
+        "dpr": 0.4118,
+        "flash_assists_per_round": 0,
+        "kast": 88.2353,
+        "kpr": 1,
+        "opening_win_pct": 60,
+        "trade_pct": 14.2857,
+        "utility_damage_per_round": 5.1176,
+        "wpa_per_round": 0.0846
+      }
+    },
+    {
+      "steamid64": "76561198155303242",
+      "name": "nut nut",
+      "team": "OG.Dexsport",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 75.6,
+        "dpr": 0.6182,
+        "flash_assists_per_round": 0.0364,
+        "kast": 76.3636,
+        "kpr": 0.6545,
+        "opening_win_pct": 50,
+        "trade_pct": 11.7647,
+        "utility_damage_per_round": 3.4727,
+        "wpa_per_round": -0.0001
+      }
+    },
+    {
+      "steamid64": "76561198161194875",
+      "name": "Chucky",
+      "team": "OG.Dexsport",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 61.1091,
+        "dpr": 0.6364,
+        "flash_assists_per_round": 0.0545,
+        "kast": 72.7273,
+        "kpr": 0.5455,
+        "opening_win_pct": 53.8462,
+        "trade_pct": 20,
+        "utility_damage_per_round": 3.1818,
+        "wpa_per_round": 0.025
+      }
+    },
+    {
+      "steamid64": "76561198163633612",
+      "name": "Djon8",
+      "team": "Lavked",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 94.5882,
+        "dpr": 0.8824,
+        "flash_assists_per_round": 0,
+        "kast": 58.8235,
+        "kpr": 0.8235,
+        "opening_win_pct": 80,
+        "trade_pct": 33.3333,
+        "utility_damage_per_round": 0,
+        "wpa_per_round": 0.016
+      }
+    },
+    {
+      "steamid64": "76561198168198200",
+      "name": "Ex3rcice",
+      "team": "OG.Dexsport",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 85.0909,
+        "dpr": 0.6909,
+        "flash_assists_per_round": 0.0182,
+        "kast": 70.9091,
+        "kpr": 0.8545,
+        "opening_win_pct": 72.7273,
+        "trade_pct": 21.0526,
+        "utility_damage_per_round": 9.6182,
+        "wpa_per_round": 0.0301
+      }
+    },
+    {
+      "steamid64": "76561198168987887",
+      "name": "k4nfuz",
+      "team": "Lavked",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 55.7647,
+        "dpr": 1,
+        "flash_assists_per_round": 0,
+        "kast": 47.0588,
+        "kpr": 0.4118,
+        "opening_win_pct": 0,
+        "trade_pct": 23.5294,
+        "utility_damage_per_round": 0,
+        "wpa_per_round": -0.0312
+      }
+    },
+    {
+      "steamid64": "76561198169630290",
+      "name": "AdrieN",
+      "team": "TNC",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 78.4706,
+        "dpr": 0.5882,
+        "flash_assists_per_round": 0.0588,
+        "kast": 70.5882,
+        "kpr": 0.8235,
+        "opening_win_pct": 60,
+        "trade_pct": 20,
+        "utility_damage_per_round": 0.9412,
+        "wpa_per_round": -0.0076
+      }
+    },
+    {
+      "steamid64": "76561198186878873",
+      "name": "ag1l",
+      "team": "Iberian Soul",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 77.6545,
+        "dpr": 0.7455,
+        "flash_assists_per_round": 0,
+        "kast": 78.1818,
+        "kpr": 0.7273,
+        "opening_win_pct": 33.3333,
+        "trade_pct": 24.3902,
+        "utility_damage_per_round": 2.4182,
+        "wpa_per_round": 0.0237
+      }
+    },
+    {
+      "steamid64": "76561198191011338",
+      "name": "Nami",
+      "team": "TNC",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 86.2353,
+        "dpr": 0.5294,
+        "flash_assists_per_round": 0,
+        "kast": 82.3529,
+        "kpr": 0.8235,
+        "opening_win_pct": 50,
+        "trade_pct": 33.3333,
+        "utility_damage_per_round": 1.1176,
+        "wpa_per_round": 0.011
+      }
+    },
+    {
+      "steamid64": "76561198253155205",
+      "name": "xm1nd",
+      "team": "Lavked",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 40.1765,
+        "dpr": 0.9412,
+        "flash_assists_per_round": 0,
+        "kast": 41.1765,
+        "kpr": 0.2353,
+        "opening_win_pct": 0,
+        "trade_pct": 18.75,
+        "utility_damage_per_round": 0,
+        "wpa_per_round": -0.0364
+      }
+    },
+    {
+      "steamid64": "76561198309457929",
+      "name": "SoLb",
+      "team": "Lavked",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 71.2941,
+        "dpr": 0.8235,
+        "flash_assists_per_round": 0,
+        "kast": 64.7059,
+        "kpr": 0.4706,
+        "opening_win_pct": 20,
+        "trade_pct": 14.2857,
+        "utility_damage_per_round": 4.2353,
+        "wpa_per_round": -0.0251
+      }
+    },
+    {
+      "steamid64": "76561198347665147",
+      "name": "1NVISIBLEE",
+      "team": "Lavked",
+      "rounds": 17,
+      "matches": 1,
+      "values": {
+        "adr": 54.1765,
+        "dpr": 0.8235,
+        "flash_assists_per_round": 0,
+        "kast": 41.1765,
+        "kpr": 0.5294,
+        "opening_win_pct": 40,
+        "trade_pct": 7.1429,
+        "utility_damage_per_round": 0,
+        "wpa_per_round": -0.0124
+      }
+    },
+    {
+      "steamid64": "76561198417348056",
+      "name": "dav1g",
+      "team": "Iberian Soul",
+      "rounds": 55,
+      "matches": 3,
+      "values": {
+        "adr": 80.9636,
+        "dpr": 0.5818,
+        "flash_assists_per_round": 0.0727,
+        "kast": 87.2727,
+        "kpr": 0.7273,
+        "opening_win_pct": 71.4286,
+        "trade_pct": 34.375,
+        "utility_damage_per_round": 2.0364,
+        "wpa_per_round": 0.0051
+      }
+    }
+  ],
+  "maps": {
+    "de_anubis": {
+      "baseline": {
+        "min_rounds": 15,
+        "players": 10,
+        "rounds": 17,
+        "matches": 1,
+        "metrics": {
+          "adr": {
+            "mean": 70.1177,
+            "players": 10,
+            "stddev": 17.7502,
+            "prior_stddev": 12.5513,
+            "round_stddev": 77.9752
+          },
+          "dpr": {
+            "mean": 0.6353,
+            "players": 10,
+            "stddev": 0.1659,
+            "prior_stddev": 0.1178,
+            "round_stddev": 0.4816
+          },
+          "flash_assists_per_round": {
+            "mean": 0.0294,
+            "players": 10,
+            "stddev": 0.031,
+            "prior_stddev": 0.0219,
+            "round_stddev": 0.1475
+          },
+          "kast": {
+            "mean": 79.4118,
+            "players": 10,
+            "stddev": 14.9971,
+            "prior_stddev": 11.3464
+          },
+          "kpr": {
+            "mean": 0.6353,
+            "players": 10,
+            "stddev": 0.1917,
+            "prior_stddev": 0.1356,
+            "round_stddev": 0.8611
+          },
+          "opening_win_pct": {
+            "mean": 46.3333,
+            "players": 10,
+            "stddev": 32.1436,
+            "prior_stddev": 22.7289
+          },
+          "trade_pct": {
+            "mean": 25.796,
+            "players": 10,
+            "stddev": 14.0711,
+            "prior_stddev": 9.9497
+          },
+          "utility_damage_per_round": {
+            "mean": 4.7412,
+            "players": 10,
+            "stddev": 4.8355,
+            "prior_stddev": 3.7683,
+            "round_stddev": 12.4938
+          },
+          "wpa_per_round": {
+            "mean": 0.0149,
+            "players": 10,
+            "stddev": 0.048,
+            "prior_stddev": 0.0339,
+            "round_stddev": 0.2228
+          }
+        }
+      },
+      "players": [
+        {
+          "steamid64": "76561197991593267",
+          "name": "sausol",
+          "team": "Iberian Soul",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 69.6471,
+            "dpr": 0.9412,
+            "flash_assists_per_round": 0,
+            "kast": 52.9412,
+            "kpr": 0.4706,
+            "opening_win_pct": 50,
+            "trade_pct": 25,
+            "utility_damage_per_round": 7.3529,
+            "wpa_per_round": -0.0241
+          }
+        },
+        {
+          "steamid64": "76561197998197366",
+          "name": "mopoz",
+          "team": "Iberian Soul",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 40.5294,
+            "dpr": 0.7647,
+            "flash_assists_per_round": 0.0588,
+            "kast": 88.2353,
+            "kpr": 0.4118,
+            "opening_win_pct": 40,
+            "trade_pct": 30.7692,
+            "utility_damage_per_round": 0.8235,
+            "wpa_per_round": -0.0523
+          }
+        },
+        {
+          "steamid64": "76561198000984547",
+          "name": "alex",
+          "team": "Iberian Soul",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 57.4118,
+            "dpr": 0.7059,
+            "flash_assists_per_round": 0.0588,
+            "kast": 58.8235,
+            "kpr": 0.4118,
+            "opening_win_pct": 33.3333,
+            "trade_pct": 16.6667,
+            "utility_damage_per_round": 0.2941,
+            "wpa_per_round": -0.0017
+          }
+        },
+        {
+          "steamid64": "76561198013295375",
+          "name": "bodyy",
+          "team": "OG.Dexsport",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 72.2353,
+            "dpr": 0.4706,
+            "flash_assists_per_round": 0,
+            "kast": 82.3529,
+            "kpr": 0.6471,
+            "opening_win_pct": 80,
+            "trade_pct": 37.5,
+            "utility_damage_per_round": 6.3529,
+            "wpa_per_round": 0.0216
+          }
+        },
+        {
+          "steamid64": "76561198079183361",
+          "name": "spooke",
+          "team": "OG.Dexsport",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 82.3529,
+            "dpr": 0.6471,
+            "flash_assists_per_round": 0,
+            "kast": 100,
+            "kpr": 0.8235,
+            "opening_win_pct": 0,
+            "trade_pct": 18.1818,
+            "utility_damage_per_round": 4.8235,
+            "wpa_per_round": 0.0124
+          }
+        },
+        {
+          "steamid64": "76561198155303242",
+          "name": "nut nut",
+          "team": "OG.Dexsport",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 83.3529,
+            "dpr": 0.5294,
+            "flash_assists_per_round": 0.0588,
+            "kast": 82.3529,
+            "kpr": 0.7647,
+            "opening_win_pct": 33.3333,
+            "trade_pct": 11.1111,
+            "utility_damage_per_round": 0.0588,
+            "wpa_per_round": -0.0093
+          }
+        },
+        {
+          "steamid64": "76561198161194875",
+          "name": "Chucky",
+          "team": "OG.Dexsport",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 57.7647,
+            "dpr": 0.4118,
+            "flash_assists_per_round": 0.0588,
+            "kast": 94.1176,
+            "kpr": 0.5882,
+            "opening_win_pct": 100,
+            "trade_pct": 42.8571,
+            "utility_damage_per_round": 3.2353,
+            "wpa_per_round": 0.0912
+          }
+        },
+        {
+          "steamid64": "76561198168198200",
+          "name": "Ex3rcice",
+          "team": "OG.Dexsport",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 102.6471,
+            "dpr": 0.4706,
+            "flash_assists_per_round": 0,
+            "kast": 76.4706,
+            "kpr": 1,
+            "opening_win_pct": 60,
+            "trade_pct": 50,
+            "utility_damage_per_round": 16.1176,
+            "wpa_per_round": 0.0953
+          }
+        },
+        {
+          "steamid64": "76561198186878873",
+          "name": "ag1l",
+          "team": "Iberian Soul",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 56.5294,
+            "dpr": 0.7647,
+            "flash_assists_per_round": 0,
+            "kast": 70.5882,
+            "kpr": 0.5294,
+            "opening_win_pct": 0,
+            "trade_pct": 7.6923,
+            "utility_damage_per_round": 1.7647,
+            "wpa_per_round": -0.0187
+          }
+        },
+        {
+          "steamid64": "76561198417348056",
+          "name": "dav1g",
+          "team": "Iberian Soul",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 78.7059,
+            "dpr": 0.6471,
+            "flash_assists_per_round": 0.0588,
+            "kast": 88.2353,
+            "kpr": 0.7059,
+            "opening_win_pct": 66.6667,
+            "trade_pct": 18.1818,
+            "utility_damage_per_round": 6.5882,
+            "wpa_per_round": 0.0343
+          }
+        }
+      ]
+    },
+    "de_inferno": {
+      "baseline": {
+        "min_rounds": 15,
+        "players": 10,
+        "rounds": 15,
+        "matches": 1,
+        "metrics": {
+          "adr": {
+            "mean": 71.1533,
+            "players": 10,
+            "stddev": 26.9967,
+            "prior_stddev": 19.0896,
+            "round_stddev": 77.9752
+          },
+          "dpr": {
+            "mean": 0.7067,
+            "players": 10,
+            "stddev": 0.1546,
+            "prior_stddev": 0.1093,
+            "round_stddev": 0.4816
+          },
+          "flash_assists_per_round": {
+            "mean": 0.04,
+            "players": 10,
+            "stddev": 0.0644,
+            "prior_stddev": 0.0519,
+            "round_stddev": 0.1475
+          },
+          "kast": {
+            "mean": 68,
+            "players": 10,
+            "stddev": 15.6505,
+            "prior_stddev": 11.0666
+          },
+          "kpr": {
+            "mean": 0.6267,
+            "players": 10,
+            "stddev": 0.2397,
+            "prior_stddev": 0.1695,
+            "round_stddev": 0.8611
+          },
+          "opening_win_pct": {
+            "mean": 56.6667,
+            "players": 10,
+            "stddev": 37.8431,
+            "prior_stddev": 26.7591
+          },
+          "trade_pct": {
+            "mean": 18.2601,
+            "players": 10,
+            "stddev": 9.9304,
+            "prior_stddev": 7.0219
+          },
+          "utility_damage_per_round": {
+            "mean": 7.4067,
+            "players": 10,
+            "stddev": 4.9841,
+            "prior_stddev": 3.7993,
+            "round_stddev": 12.4938
+          },
+          "wpa_per_round": {
+            "mean": 0.0289,
+            "players": 10,
+            "stddev": 0.0974,
+            "prior_stddev": 0.0786,
+            "round_stddev": 0.2228
+          }
+        }
+      },
+      "players": [
+        {
+          "steamid64": "76561197991593267",
+          "name": "sausol",
+          "team": "Iberian Soul",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 52.6667,
+            "dpr": 0.6667,
+            "flash_assists_per_round": 0,
+            "kast": 73.3333,
+            "kpr": 0.4667,
+            "opening_win_pct": 0,
+            "trade_pct": 30,
+            "utility_damage_per_round": 5.9333,
+            "wpa_per_round": -0.0143
+          }
+        },
+        {
+          "steamid64": "76561197998197366",
+          "name": "mopoz",
+          "team": "Iberian Soul",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 132.5333,
+            "dpr": 0.5333,
+            "flash_assists_per_round": 0.0667,
+            "kast": 100,
+            "kpr": 1.1333,
+            "opening_win_pct": 100,
+            "trade_pct": 25,
+            "utility_damage_per_round": 19.4667,
+            "wpa_per_round": 0.232
+          }
+        },
+        {
+          "steamid64": "76561198000984547",
+          "name": "alex",
+          "team": "Iberian Soul",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 74,
+            "dpr": 0.6,
+            "flash_assists_per_round": 0.0667,
+            "kast": 73.3333,
+            "kpr": 0.6,
+            "opening_win_pct": 0,
+            "trade_pct": 33.3333,
+            "utility_damage_per_round": 4.6,
+            "wpa_per_round": 0.1278
+          }
+        },
+        {
+          "steamid64": "76561198013295375",
+          "name": "bodyy",
+          "team": "OG.Dexsport",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 63.8,
+            "dpr": 0.8667,
+            "flash_assists_per_round": 0,
+            "kast": 60,
+            "kpr": 0.6,
+            "opening_win_pct": 66.6667,
+            "trade_pct": 15.3846,
+            "utility_damage_per_round": 8.8667,
+            "wpa_per_round": 0.102
+          }
+        },
+        {
+          "steamid64": "76561198079183361",
+          "name": "spooke",
+          "team": "OG.Dexsport",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 48.8667,
+            "dpr": 0.8,
+            "flash_assists_per_round": 0,
+            "kast": 53.3333,
+            "kpr": 0.3333,
+            "opening_win_pct": 50,
+            "trade_pct": 8.3333,
+            "utility_damage_per_round": 8,
+            "wpa_per_round": -0.0692
+          }
+        },
+        {
+          "steamid64": "76561198155303242",
+          "name": "nut nut",
+          "team": "OG.Dexsport",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 88.9333,
+            "dpr": 0.6667,
+            "flash_assists_per_round": 0,
+            "kast": 73.3333,
+            "kpr": 0.6667,
+            "opening_win_pct": 100,
+            "trade_pct": 10,
+            "utility_damage_per_round": 7.2667,
+            "wpa_per_round": -0.0221
+          }
+        },
+        {
+          "steamid64": "76561198161194875",
+          "name": "Chucky",
+          "team": "OG.Dexsport",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 59.4667,
+            "dpr": 0.8667,
+            "flash_assists_per_round": 0.0667,
+            "kast": 46.6667,
+            "kpr": 0.4,
+            "opening_win_pct": 33.3333,
+            "trade_pct": 7.6923,
+            "utility_damage_per_round": 7.8,
+            "wpa_per_round": -0.0787
+          }
+        },
+        {
+          "steamid64": "76561198168198200",
+          "name": "Ex3rcice",
+          "team": "OG.Dexsport",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 37.2667,
+            "dpr": 0.9333,
+            "flash_assists_per_round": 0,
+            "kast": 53.3333,
+            "kpr": 0.4667,
+            "opening_win_pct": 66.6667,
+            "trade_pct": 14.2857,
+            "utility_damage_per_round": 7.9333,
+            "wpa_per_round": -0.0272
+          }
+        },
+        {
+          "steamid64": "76561198186878873",
+          "name": "ag1l",
+          "team": "Iberian Soul",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 66.4667,
+            "dpr": 0.6667,
+            "flash_assists_per_round": 0,
+            "kast": 66.6667,
+            "kpr": 0.7333,
+            "opening_win_pct": 50,
+            "trade_pct": 10,
+            "utility_damage_per_round": 4.2,
+            "wpa_per_round": 0.0229
+          }
+        },
+        {
+          "steamid64": "76561198417348056",
+          "name": "dav1g",
+          "team": "Iberian Soul",
+          "rounds": 15,
+          "matches": 1,
+          "values": {
+            "adr": 87.5333,
+            "dpr": 0.4667,
+            "flash_assists_per_round": 0.2,
+            "kast": 80,
+            "kpr": 0.8667,
+            "opening_win_pct": 100,
+            "trade_pct": 28.5714,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": 0.0156
+          }
+        }
+      ]
+    },
+    "de_nuke": {
+      "baseline": {
+        "min_rounds": 15,
+        "players": 20,
+        "rounds": 40,
+        "matches": 2,
+        "metrics": {
+          "adr": {
+            "mean": 74.9699,
+            "players": 20,
+            "stddev": 19.3419,
+            "prior_stddev": 13.6768,
+            "round_stddev": 77.9752
+          },
+          "dpr": {
+            "mean": 0.6928,
+            "players": 20,
+            "stddev": 0.1525,
+            "prior_stddev": 0.1078,
+            "round_stddev": 0.4816
+          },
+          "flash_assists_per_round": {
+            "mean": 0.0116,
+            "players": 20,
+            "stddev": 0.0209,
+            "prior_stddev": 0.0148,
+            "round_stddev": 0.1475
+          },
+          "kast": {
+            "mean": 69.757,
+            "players": 20,
+            "stddev": 15.822,
+            "prior_stddev": 11.9341
+          },
+          "kpr": {
+            "mean": 0.6789,
+            "players": 20,
+            "stddev": 0.2254,
+            "prior_stddev": 0.1594,
+            "round_stddev": 0.8611
+          },
+          "opening_win_pct": {
+            "mean": 47.125,
+            "players": 20,
+            "stddev": 24.7051,
+            "prior_stddev": 17.4691
+          },
+          "trade_pct": {
+            "mean": 24.3166,
+            "players": 20,
+            "stddev": 13.3144,
+            "prior_stddev": 9.4147
+          },
+          "utility_damage_per_round": {
+            "mean": 1.9602,
+            "players": 20,
+            "stddev": 1.9099,
+            "prior_stddev": 1.3505,
+            "round_stddev": 12.4938
+          },
+          "wpa_per_round": {
+            "mean": 0.0112,
+            "players": 20,
+            "stddev": 0.0354,
+            "prior_stddev": 0.025,
+            "round_stddev": 0.2228
+          }
+        }
+      },
+      "players": [
+        {
+          "steamid64": "76561197991593267",
+          "name": "sausol",
+          "team": "Iberian Soul",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 66.7391,
+            "dpr": 0.5652,
+            "flash_assists_per_round": 0,
+            "kast": 73.913,
+            "kpr": 0.6957,
+            "opening_win_pct": 50,
+            "trade_pct": 30.7692,
+            "utility_damage_per_round": 1.6957,
+            "wpa_per_round": 0.0005
+          }
+        },
+        {
+          "steamid64": "76561197998197366",
+          "name": "mopoz",
+          "team": "Iberian Soul",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 47.3913,
+            "dpr": 0.7391,
+            "flash_assists_per_round": 0,
+            "kast": 65.2174,
+            "kpr": 0.3478,
+            "opening_win_pct": 25,
+            "trade_pct": 35.2941,
+            "utility_damage_per_round": 2.3913,
+            "wpa_per_round": -0.0256
+          }
+        },
+        {
+          "steamid64": "76561198000984547",
+          "name": "alex",
+          "team": "Iberian Soul",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 82.3478,
+            "dpr": 0.5652,
+            "flash_assists_per_round": 0,
+            "kast": 69.5652,
+            "kpr": 0.913,
+            "opening_win_pct": 60,
+            "trade_pct": 7.6923,
+            "utility_damage_per_round": 3.3478,
+            "wpa_per_round": 0.0778
+          }
+        },
+        {
+          "steamid64": "76561198013295375",
+          "name": "bodyy",
+          "team": "OG.Dexsport",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 71.3043,
+            "dpr": 0.6957,
+            "flash_assists_per_round": 0.0435,
+            "kast": 52.1739,
+            "kpr": 0.5652,
+            "opening_win_pct": 33.3333,
+            "trade_pct": 18.75,
+            "utility_damage_per_round": 1.913,
+            "wpa_per_round": -0.0042
+          }
+        },
+        {
+          "steamid64": "76561198028522662",
+          "name": "Markoś",
+          "team": "TNC",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 94.9412,
+            "dpr": 0.5294,
+            "flash_assists_per_round": 0,
+            "kast": 82.3529,
+            "kpr": 0.9412,
+            "opening_win_pct": 50,
+            "trade_pct": 11.1111,
+            "utility_damage_per_round": 2.0588,
+            "wpa_per_round": 0.0486
+          }
+        },
+        {
+          "steamid64": "76561198079183361",
+          "name": "spooke",
+          "team": "OG.Dexsport",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 53.0435,
+            "dpr": 0.7826,
+            "flash_assists_per_round": 0,
+            "kast": 60.8696,
+            "kpr": 0.4783,
+            "opening_win_pct": 25,
+            "trade_pct": 27.7778,
+            "utility_damage_per_round": 0.4348,
+            "wpa_per_round": 0.0138
+          }
+        },
+        {
+          "steamid64": "76561198113182046",
+          "name": "yvro",
+          "team": "TNC",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 95.5882,
+            "dpr": 0.5882,
+            "flash_assists_per_round": 0,
+            "kast": 88.2353,
+            "kpr": 0.8235,
+            "opening_win_pct": 66.6667,
+            "trade_pct": 50,
+            "utility_damage_per_round": 4.6471,
+            "wpa_per_round": -0.0012
+          }
+        },
+        {
+          "steamid64": "76561198148986856",
+          "name": "maaryy",
+          "team": "TNC",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 99.2941,
+            "dpr": 0.4118,
+            "flash_assists_per_round": 0,
+            "kast": 88.2353,
+            "kpr": 1,
+            "opening_win_pct": 60,
+            "trade_pct": 14.2857,
+            "utility_damage_per_round": 5.1176,
+            "wpa_per_round": 0.0846
+          }
+        },
+        {
+          "steamid64": "76561198155303242",
+          "name": "nut nut",
+          "team": "OG.Dexsport",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 61.1739,
+            "dpr": 0.6522,
+            "flash_assists_per_round": 0.0435,
+            "kast": 73.913,
+            "kpr": 0.5652,
+            "opening_win_pct": 50,
+            "trade_pct": 13.3333,
+            "utility_damage_per_round": 3.5217,
+            "wpa_per_round": 0.021
+          }
+        },
+        {
+          "steamid64": "76561198161194875",
+          "name": "Chucky",
+          "team": "OG.Dexsport",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 64.6522,
+            "dpr": 0.6522,
+            "flash_assists_per_round": 0.0435,
+            "kast": 73.913,
+            "kpr": 0.6087,
+            "opening_win_pct": 60,
+            "trade_pct": 20,
+            "utility_damage_per_round": 0.1304,
+            "wpa_per_round": 0.0437
+          }
+        },
+        {
+          "steamid64": "76561198163633612",
+          "name": "Djon8",
+          "team": "Lavked",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 94.5882,
+            "dpr": 0.8824,
+            "flash_assists_per_round": 0,
+            "kast": 58.8235,
+            "kpr": 0.8235,
+            "opening_win_pct": 80,
+            "trade_pct": 33.3333,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": 0.016
+          }
+        },
+        {
+          "steamid64": "76561198168198200",
+          "name": "Ex3rcice",
+          "team": "OG.Dexsport",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 103.3043,
+            "dpr": 0.6957,
+            "flash_assists_per_round": 0.0435,
+            "kast": 78.2609,
+            "kpr": 1,
+            "opening_win_pct": 100,
+            "trade_pct": 12.5,
+            "utility_damage_per_round": 5.913,
+            "wpa_per_round": 0.0193
+          }
+        },
+        {
+          "steamid64": "76561198168987887",
+          "name": "k4nfuz",
+          "team": "Lavked",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 55.7647,
+            "dpr": 1,
+            "flash_assists_per_round": 0,
+            "kast": 47.0588,
+            "kpr": 0.4118,
+            "opening_win_pct": 0,
+            "trade_pct": 23.5294,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": -0.0312
+          }
+        },
+        {
+          "steamid64": "76561198169630290",
+          "name": "AdrieN",
+          "team": "TNC",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 78.4706,
+            "dpr": 0.5882,
+            "flash_assists_per_round": 0.0588,
+            "kast": 70.5882,
+            "kpr": 0.8235,
+            "opening_win_pct": 60,
+            "trade_pct": 20,
+            "utility_damage_per_round": 0.9412,
+            "wpa_per_round": -0.0076
+          }
+        },
+        {
+          "steamid64": "76561198186878873",
+          "name": "ag1l",
+          "team": "Iberian Soul",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 100.5652,
+            "dpr": 0.7826,
+            "flash_assists_per_round": 0,
+            "kast": 91.3043,
+            "kpr": 0.8696,
+            "opening_win_pct": 50,
+            "trade_pct": 44.4444,
+            "utility_damage_per_round": 1.7391,
+            "wpa_per_round": 0.0556
+          }
+        },
+        {
+          "steamid64": "76561198191011338",
+          "name": "Nami",
+          "team": "TNC",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 86.2353,
+            "dpr": 0.5294,
+            "flash_assists_per_round": 0,
+            "kast": 82.3529,
+            "kpr": 0.8235,
+            "opening_win_pct": 50,
+            "trade_pct": 33.3333,
+            "utility_damage_per_round": 1.1176,
+            "wpa_per_round": 0.011
+          }
+        },
+        {
+          "steamid64": "76561198253155205",
+          "name": "xm1nd",
+          "team": "Lavked",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 40.1765,
+            "dpr": 0.9412,
+            "flash_assists_per_round": 0,
+            "kast": 41.1765,
+            "kpr": 0.2353,
+            "opening_win_pct": 0,
+            "trade_pct": 18.75,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": -0.0364
+          }
+        },
+        {
+          "steamid64": "76561198309457929",
+          "name": "SoLb",
+          "team": "Lavked",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 71.2941,
+            "dpr": 0.8235,
+            "flash_assists_per_round": 0,
+            "kast": 64.7059,
+            "kpr": 0.4706,
+            "opening_win_pct": 20,
+            "trade_pct": 14.2857,
+            "utility_damage_per_round": 4.2353,
+            "wpa_per_round": -0.0251
+          }
+        },
+        {
+          "steamid64": "76561198347665147",
+          "name": "1NVISIBLEE",
+          "team": "Lavked",
+          "rounds": 17,
+          "matches": 1,
+          "values": {
+            "adr": 54.1765,
+            "dpr": 0.8235,
+            "flash_assists_per_round": 0,
+            "kast": 41.1765,
+            "kpr": 0.5294,
+            "opening_win_pct": 40,
+            "trade_pct": 7.1429,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": -0.0124
+          }
+        },
+        {
+          "steamid64": "76561198417348056",
+          "name": "dav1g",
+          "team": "Iberian Soul",
+          "rounds": 23,
+          "matches": 1,
+          "values": {
+            "adr": 78.3478,
+            "dpr": 0.6087,
+            "flash_assists_per_round": 0,
+            "kast": 91.3043,
+            "kpr": 0.6522,
+            "opening_win_pct": 62.5,
+            "trade_pct": 50,
+            "utility_damage_per_round": 0,
+            "wpa_per_round": -0.0235
+          }
+        }
+      ]
+    }
+  }
+}

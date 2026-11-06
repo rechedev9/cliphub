@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { RadarLevel, TacticalGeometry } from '@/lib/api/tactical';
+import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import { radarProjection, renderedToWorld } from '@/lib/tactical-spatial';
@@ -19,6 +19,10 @@ import type { RadarProjection } from '@/lib/tactical-spatial';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
+import { useRadarImage } from '@/hooks/use-radar-image';
+import { cn } from '@/lib/utils';
+import { useMapZoom } from '@/hooks/use-map-zoom';
+import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 
 /** What a paint callback draws with: the context already panned to the radar square. */
 export type RadarFrame = {
@@ -31,14 +35,45 @@ export type RadarFrame = {
 /** Lets the owner repaint the marks without React rendering, from an animation loop. */
 export type RadarSurfaceHandle = { repaint: () => void };
 
+const FULL_VIEW: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
+
 /** Same height ceiling as the round replay, so the two views share one plate size. */
 const RADAR_MAX_HEIGHT_VH = 74;
+/** Greys CS2's radar down so team colours and marks stay the loudest thing on it. */
+const RADAR_IMAGE_FILTER = 'grayscale(0.55) brightness(0.78) contrast(1.05)';
+
+/**
+ * The background bitmap from CS2's own radar image: the 1024 px overview covers
+ * the calibration's native square, so it scales by `size / calibration.size`.
+ */
+function renderImageBackground(
+  image: HTMLImageElement,
+  geometry: TacticalGeometry,
+  frame: { size: number; dpr: number; style: RadarStyle; view: RadarRect },
+): HTMLCanvasElement {
+  const { size, dpr, style, view } = frame;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(view.width * size * dpr));
+  canvas.height = Math.max(1, Math.round(view.height * size * dpr));
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) return canvas;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = style.panel;
+  ctx.fillRect(0, 0, view.width * size, view.height * size);
+  ctx.translate(-view.x * size, -view.y * size);
+  const scale = size / geometry.calibration.size;
+  ctx.filter = RADAR_IMAGE_FILTER;
+  ctx.drawImage(image, 0, 0, image.naturalWidth * scale, image.naturalHeight * scale);
+  ctx.filter = 'none';
+  return canvas;
+}
 
 /**
  * A radar plate for the multi-round views: the play-derived map of one level,
  * baked once per size, with the owner's marks painted over it. The canvas is
  * `aria-hidden`; each view lists the same facts as text beside it. `children`
- * receives the projection, for layers such as the telestrator that sit on top.
+ * receives the projection, for layers such as the telestrator that sit on top,
+ * and whether the map is zoomed, when a plain drag pans instead.
  */
 export function RadarSurface({
   geometry,
@@ -56,7 +91,7 @@ export function RadarSurface({
   /** A click on the plate, in world units. */
   onPoint?: (world: { x: number; y: number }) => void;
   label: string;
-  children?: (projection: RadarProjection) => ReactNode;
+  children?: (projection: RadarProjection, zoomed: boolean) => ReactNode;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,10 +99,24 @@ export function RadarSurface({
   const styleRef = useRef<RadarStyle | null>(null);
   const paintRef = useRef(paint);
   const repaintRef = useRef<() => void>(() => {});
-  const [projection, setProjection] = useState<RadarProjection>({ size: 1, offsetX: 0, offsetY: 0 });
+  const [box, setBox] = useState({ width: 1, height: 1 });
   const [dpr, setDpr] = useState(1);
-  const view = useMemo(() => radarViewRect(geometry), [geometry]);
   const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
+  // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
+  const image = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
+  // The whole map like the game's radar; only the play-derived cells are cropped to where people played.
+  const base = useMemo(() => (image === null ? radarViewRect(geometry) : FULL_VIEW), [geometry, image]);
+  const zoom = useMapZoom(base);
+  const view = zoom.view;
+  const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
+  const bindZoom = zoom.surface.ref;
+  const bindContainer = useCallback(
+    (element: HTMLDivElement | null) => {
+      containerRef.current = element;
+      return bindZoom(element);
+    },
+    [bindZoom],
+  );
 
   const repaint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -78,9 +127,12 @@ export function RadarSurface({
     const style = styleRef.current ?? readRadarStyle(canvas);
     styleRef.current = style;
     const { size, offsetX, offsetY } = projection;
-    const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}|${style.map}`;
+    const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}|${style.map}|${image ? 'cs2' : 'cells'}`;
     if (backgroundRef.current?.key !== key) {
-      backgroundRef.current = { key, canvas: renderRadarBackground(geometry, level, size, dpr, style, view) };
+      const canvas = image
+        ? renderImageBackground(image, geometry, { size, dpr, style, view })
+        : renderRadarBackground(geometry, level, size, dpr, style, view);
+      backgroundRef.current = { key, canvas };
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = style.background;
@@ -89,7 +141,7 @@ export function RadarSurface({
     ctx.drawImage(backgroundRef.current.canvas, view.x * size, view.y * size, view.width * size, view.height * size);
     paintRef.current({ ctx, size, view, style });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [drawable, dpr, geometry, level, projection, view]);
+  }, [drawable, dpr, geometry, image, level, projection, view]);
 
   useEffect(() => {
     paintRef.current = paint;
@@ -118,10 +170,7 @@ export function RadarSurface({
       if (canvas.height !== height) canvas.height = height;
       styleRef.current = readRadarStyle(canvas);
       setDpr(ratio);
-      setProjection((current) => {
-        const next = radarProjection({ width: box.width, height: box.height }, view);
-        return next.size === current.size && next.offsetX === current.offsetX && next.offsetY === current.offsetY ? current : next;
-      });
+      setBox((current) => (current.width === box.width && current.height === box.height ? current : { width: box.width, height: box.height }));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -140,7 +189,7 @@ export function RadarSurface({
       themeObserver.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [view]);
+  }, []);
 
   useEffect(() => {
     repaint();
@@ -155,22 +204,36 @@ export function RadarSurface({
   };
 
   const plateVars: CSSProperties & { '--radar-max': string } = {
-    '--radar-max': `min(100%, ${((RADAR_MAX_HEIGHT_VH * view.width) / view.height).toFixed(2)}vh)`,
+    '--radar-max': `min(100%, ${((RADAR_MAX_HEIGHT_VH * base.width) / base.height).toFixed(2)}vh)`,
   };
 
   return (
     <div className="mx-auto w-full max-w-(--radar-max)" style={plateVars}>
       <div
-        ref={containerRef}
+        {...zoom.surface}
+        ref={bindContainer}
         role="img"
         aria-label={label}
         onClick={onClick}
-        className="relative w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
-        style={{ aspectRatio: `${view.width} / ${view.height}` }}
+        className={cn(
+          'relative w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]',
+          zoom.zoomed && 'touch-none',
+          zoom.cursor,
+        )}
+        style={{ aspectRatio: `${base.width} / ${base.height}` }}
       >
         <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
         {drawable ? (
-          children?.(projection)
+          <>
+            {children?.(projection, zoom.zoomed)}
+            <MapZoomControls
+              zoom={zoom.zoom}
+              zoomed={zoom.zoomed}
+              onZoomBy={zoom.zoomBy}
+              onReset={zoom.reset}
+              className="absolute right-2 bottom-2"
+            />
+          </>
         ) : (
           <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
             Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar.

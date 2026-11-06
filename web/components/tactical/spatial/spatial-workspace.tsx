@@ -8,7 +8,7 @@ import { prettyMapName } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { HeatmapView } from './heatmap-view';
 import { OverlayView } from './overlay-view';
-import { Segmented } from './spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 
 export type SpatialView = 'overlay' | 'heatmap';
 
@@ -27,11 +27,17 @@ export function SpatialWorkspace({
   side = '',
   view: initialView = 'overlay',
   hideViewSwitch = false,
+  onMapChange,
+  onLoaded: onAnswer,
 }: {
   scope: SpatialScope;
   side?: TacticalSide | '';
   view?: SpatialView;
   hideViewSwitch?: boolean;
+  /** When set, the map select writes the owner's scope instead of local state. */
+  onMapChange?: (map: string) => void;
+  /** Every answer, so the owner can show its sample size. */
+  onLoaded?: (response: SpatialResponse) => void;
 }): ReactNode {
   const [chosen, setView] = useState<SpatialView>(initialView);
   // With the switch hidden the owner picks the view, so the prop wins.
@@ -40,12 +46,17 @@ export function SpatialWorkspace({
   const [maps, setMaps] = useState<{ map: string; matches: number }[]>([]);
   const [shownMap, setShownMap] = useState('');
 
-  const onLoaded = useCallback((response: SpatialResponse) => {
-    setMaps(response.maps);
-    setShownMap(response.map);
-  }, []);
+  const onLoaded = useCallback(
+    (response: SpatialResponse) => {
+      setMaps(response.maps);
+      setShownMap(response.map);
+      onAnswer?.(response);
+    },
+    [onAnswer],
+  );
 
-  const scoped: SpatialScope = scope.kind === 'team' ? { ...scope, query: { ...scope.query, map: map ?? scope.query.map } } : scope;
+  const scoped: SpatialScope =
+    scope.kind === 'team' && onMapChange === undefined ? { ...scope, query: { ...scope.query, map: map ?? scope.query.map } } : scope;
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,7 +64,7 @@ export function SpatialWorkspace({
         <div className="flex flex-wrap items-center gap-2">
           {hideViewSwitch ? null : <Segmented label="Vista" value={view} options={VIEWS} onChange={setView} />}
           {scope.kind === 'team' && maps.length > 0 ? (
-            <Select value={shownMap} onValueChange={setMap}>
+            <Select value={shownMap} onValueChange={onMapChange ?? setMap}>
               <SelectTrigger aria-label="Mapa" className="h-9 min-w-40">
                 <SelectValue />
               </SelectTrigger>

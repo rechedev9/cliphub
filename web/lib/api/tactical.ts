@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import type { TacticalEquipment, TacticalInventoryItem } from '../tactical-equipment.ts';
 
 /**
  * Browser-side contract for the deterministic tactical analysis of a demo.
@@ -190,13 +191,15 @@ export const TACTICAL_SAMPLE_HZ_FIELD = 'sample_hz';
 export const POSITIONS_FORMAT = 'zvpos1';
 /** First six bytes of the blob. */
 export const POSITIONS_MAGIC = 'ZVPOS1';
-/** Blob version this client decodes. */
-export const POSITIONS_VERSION = 1;
+/** Newest blob version this client decodes; 2 appends a gear block to each sample. */
+export const POSITIONS_VERSION = 2;
+/** Oldest blob version this client still decodes: samples without gear. */
+export const POSITIONS_VERSION_V1 = 1;
 /** Fixed header size in bytes. */
 export const POSITIONS_HEADER_SIZE = 32;
 /** Per-frame header: int32 tick + uint16 present mask. */
 export const POSITIONS_FRAME_HEAD_SIZE = 6;
-/** Per-sample record: int16 x/y/z + uint16 yaw + uint8 health + uint8 flags. */
+/** Per-sample base record: int16 x/y/z + uint16 yaw + uint8 health + uint8 flags. Version 2 follows it with gear. */
 export const POSITIONS_SAMPLE_SIZE = 10;
 /** Slots addressable by the 16-bit present mask. */
 export const POSITIONS_MAX_SLOTS = 16;
@@ -298,7 +301,12 @@ export type TacticalRound = {
   class: TacticalClass;
   players: TacticalPlayerRound[];
   events: TacticalEvent[];
+  /** Damage dealt to enemies in tick order; absent on analyses before version 6. */
+  hits?: TacticalHit[];
 };
+
+/** Damage one player dealt to an enemy (`tacticalplan.Hit`); a spray within 0.25 s is one hit. */
+export type TacticalHit = { tick: number; actor_slot: number; target_slot: number; damage: number; weapon?: string; headshot?: boolean };
 
 /** The bomb's fate (`tacticalplan.Bomb`). */
 type TacticalBomb = {
@@ -384,7 +392,21 @@ export type TacticalEvent = {
   no_scope?: boolean;
   traded?: boolean;
   opening?: boolean;
+  /** Where a grenade was thrown from; absent on analyses before version 4. */
+  throw?: TacticalThrow;
+  /** What a flash, HE or molotov did to players; absent when it touched nobody. */
+  effect?: TacticalUtilityEffect;
 };
+
+/** `tacticalplan.UtilityEffect`: who a flash blinded, and the damage a grenade dealt. */
+export type TacticalUtilityEffect = {
+  blinded?: { slot: number; seconds: number; enemy: boolean }[];
+  enemy_damage?: number;
+  team_damage?: number;
+};
+
+/** The thrower's state when a grenade left the hand (`tacticalplan.Throw`). */
+export type TacticalThrow = { tick: number; pos: [number, number, number]; yaw: number; pitch: number };
 
 /* -------------------------------------------------------------------------- */
 /* Geometry and radar calibration                                             */
@@ -486,9 +508,9 @@ export type TacticalRoundOffset = {
 };
 
 /**
- * One player's state at one sampled tick (`tacticalplan.Sample`). The Go struct
- * carries no JSON tags, so the wire names are its Go field names; the binary
- * decoder produces exactly this shape too, so both paths agree.
+ * One player's state at one sampled tick (`tacticalplan.Sample`), as the binary
+ * decoder produces it. The gear fields are undefined when the blob is version 1,
+ * which predates them.
  */
 export type TacticalSample = {
   slot: number;
@@ -499,6 +521,18 @@ export type TacticalSample = {
   yaw: number;
   health: number;
   flags: number;
+  /** Degrees below the horizon (CS2 sign: positive looks down), about 0.7 degree steps. */
+  pitch?: number;
+  /** The weapon in hand; null when none is known. */
+  activeWeapon?: TacticalEquipment | null;
+  /** Carried items in id order. Shared between samples while unchanged: do not mutate. */
+  inventory?: readonly TacticalInventoryItem[];
+  armor?: number;
+  helmet?: boolean;
+  defuser?: boolean;
+  money?: number;
+  /** Seconds of flash blindness left, at 0.1 s resolution. */
+  flashed?: number;
 };
 
 /** Every sampled player at one tick (`tacticalplan.Frame`). */

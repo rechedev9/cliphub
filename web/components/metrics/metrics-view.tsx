@@ -4,11 +4,39 @@ import { useState, type ReactNode } from 'react';
 import type { MetricsReport } from '@/lib/api/metrics';
 import type { ScoutMatchSummary } from '@/lib/api/scout';
 import { metricsMatchIndex, metricsSections, modelText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
-import { SKIP_REASON_LABEL } from '@/lib/reports/scout-sections';
+import { SKIP_REASON_LABEL, type ReportSection } from '@/lib/reports/scout-sections';
 import { SectionView } from '@/components/reports/scout-view';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
+import { BuyHeatTable, MapHeatTable } from './metrics-heat';
 
 const SKIP_TEXT: Record<string, string> = SKIP_REASON_LABEL;
+
+/**
+ * One section. Per buy and per map read as heat tables, since their rows are
+ * comparisons with very different sample sizes. The rest are the shared
+ * report tables.
+ */
+function SectionBody({
+  section,
+  report,
+  options,
+  matches,
+}: {
+  section: ReportSection;
+  report: MetricsReport;
+  options: MetricsSectionOptions;
+  matches: ReadonlyMap<string, ScoutMatchSummary>;
+}): ReactNode {
+  if (section.id === 'metricas-compra' || section.id === 'metricas-mapas') {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="measure-read text-body-sm text-fg-2">{section.intro}</p>
+        {section.id === 'metricas-compra' ? <BuyHeatTable report={report} options={options} /> : <MapHeatTable report={report} />}
+      </div>
+    );
+  }
+  return <SectionView section={section} matches={matches} minSample={0} />;
+}
 
 /**
  * The advanced metrics as one section at a time, picked from a segmented row,
@@ -19,6 +47,7 @@ export function MetricsView({
   options,
   matches,
   lead,
+  omit = [],
 }: {
   report: MetricsReport;
   options: MetricsSectionOptions;
@@ -26,8 +55,10 @@ export function MetricsView({
   matches?: ReadonlyMap<string, ScoutMatchSummary>;
   /** Content shown above the sections, such as a round's win probability. */
   lead?: ReactNode;
+  /** Section ids the page shows elsewhere. */
+  omit?: readonly string[];
 }): ReactNode {
-  const sections = metricsSections(report, options);
+  const sections = metricsSections(report, options).filter((s) => !omit.includes(s.id));
   const [active, setActive] = useState(sections[0]?.id ?? '');
   const section = sections.find((s) => s.id === active) ?? sections[0];
   const index = metricsMatchIndex(report, matches);
@@ -46,7 +77,7 @@ export function MetricsView({
         options={sections.map((s) => ({ value: s.id, label: s.title }))}
         onChange={setActive}
       />
-      {section ? <SectionView section={section} matches={index} minSample={0} /> : null}
+      {section ? <SectionBody section={section} report={report} options={options} matches={index} /> : null}
       <p className="measure-read text-meta text-fg-3">{modelText(report)}</p>
     </div>
   );

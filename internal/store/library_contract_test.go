@@ -731,6 +731,52 @@ func TestLibraryRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "collections keep their moments in order, list by last edit and outlive a deleted match",
+			run: func(t *testing.T, f libraryFixture) {
+				demo := f.demo("a", 0)
+				a := f.analyze(demo, "de_inferno", side{"Spirit", 13, []string{"1"}}, side{"MOUZ", 9, []string{"2"}})
+				clutches := &library.Collection{Name: "Clutches", Items: []library.CollectionItem{
+					{MatchID: a.ID, Round: 9, Tick: 4000, Note: "1v3"}, {MatchID: a.ID, Round: 2, Tick: 100},
+				}}
+				empty := &library.Collection{Name: "Para el lunes"}
+				for _, c := range []*library.Collection{clutches, empty} {
+					if err := f.repo.CreateCollection(f.ctx, c); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if empty.Items == nil || clutches.Items[0].Round != 9 || clutches.CreatedAt.IsZero() {
+					t.Fatalf("created = %+v / %+v", clutches, empty)
+				}
+				if err := f.repo.CreateCollection(f.ctx, &library.Collection{ID: empty.ID, Name: "x"}); !errors.Is(err, library.ErrConflict) {
+					t.Fatalf("CreateCollection(same id) = %v, want ErrConflict", err)
+				}
+				name, items := "Clutches de Spirit", []library.CollectionItem{{MatchID: a.ID, Round: 2, Tick: 100}}
+				patched, err := f.repo.UpdateCollection(f.ctx, clutches.ID, library.CollectionPatch{Name: &name, Items: &items})
+				if err != nil || patched.Name != name || len(patched.Items) != 1 || patched.Items[0].Round != 2 {
+					t.Fatalf("UpdateCollection = %+v, %v", patched, err)
+				}
+				list, err := f.repo.ListCollections(f.ctx)
+				if err != nil || len(list) != 2 || list[0].UpdatedAt.Before(list[1].UpdatedAt) {
+					t.Fatalf("ListCollections = %+v, %v; want the last edited first", list, err)
+				}
+				if err := f.repo.DeleteDemo(f.ctx, demo.ID); err != nil {
+					t.Fatal(err)
+				}
+				if kept, err := f.repo.GetCollection(f.ctx, clutches.ID); err != nil || len(kept.Items) != 1 {
+					t.Fatalf("collection after its match was deleted = %+v, %v; want its moment kept", kept, err)
+				}
+				if err := f.repo.DeleteCollection(f.ctx, empty.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.repo.DeleteCollection(f.ctx, empty.ID); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("second DeleteCollection = %v, want ErrNotFound", err)
+				}
+				if _, err := f.repo.UpdateCollection(f.ctx, empty.ID, library.CollectionPatch{Name: &name}); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("UpdateCollection(deleted) = %v, want ErrNotFound", err)
+				}
+			},
+		},
+		{
 			name: "plays keep their lists, filter by team, map and kind, and follow their team through a merge",
 			run: func(t *testing.T, f libraryFixture) {
 				a := f.analyze(f.demo("a", 0), "de_mirage", side{"team_apEX", 13, []string{"1"}}, side{"Spirit", 3, []string{"2"}})

@@ -399,12 +399,12 @@ func TestGetTacticalAggregateFiltersAndRejectsBadFilters(t *testing.T) {
 	}
 }
 
-func TestGetMapRadarValidatesAndLooksUpTheMap(t *testing.T) {
+func TestGetMapCalibrationValidatesAndLooksUpTheMap(t *testing.T) {
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{})
 	r := Routes(h)
 
 	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_mirage/radar", nil))
+	r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/de_mirage/calibration", nil))
 	if rw.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
 	}
@@ -428,7 +428,7 @@ func TestGetMapRadarValidatesAndLooksUpTheMap(t *testing.T) {
 	for name, want := range cases {
 		t.Run(name, func(t *testing.T) {
 			rw := httptest.NewRecorder()
-			r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/"+name+"/radar", nil))
+			r.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/maps/"+name+"/calibration", nil))
 			if rw.Code != want {
 				t.Fatalf("status = %d, want %d; body=%s", rw.Code, want, rw.Body.String())
 			}

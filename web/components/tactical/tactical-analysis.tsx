@@ -1,76 +1,65 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { TriangleAlert } from 'lucide-react';
-import {
-  fetchTacticalDocument,
-  fetchTacticalPositions,
-  fetchTacticalTendencies,
-  isServiceUnavailableError,
-} from '@/lib/api/tactical';
-import type {
-  TacticalDocument,
-  TacticalFilter,
-  TacticalFrame,
-  TacticalSource,
-  TacticalTendencies,
-} from '@/lib/api/tactical';
-import {
-  decodePositionsHeader,
-  decodeRoundFrames,
-  TacticalDecodeError,
-  tacticalDecodeErrorMessage,
-} from '@/lib/tactical-decode';
-import type { PositionsScale } from '@/lib/tactical-decode';
-import { LruCache } from '@/lib/lru-cache';
+import { fetchTacticalTendencies } from '@/lib/api/tactical';
+import type { TacticalFilter, TacticalSource, TacticalTendencies } from '@/lib/api/tactical';
+import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
+import { analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
+import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { RADAR_2D_VIEW } from '@/components/replay/radar-centre';
+import { ReplayWorkspace } from '@/components/replay/replay-workspace';
+import { THREE_D_VIEW } from '@/components/replay/three-centre';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
-import { TacticalReplay } from '@/components/tactical/tactical-replay';
-import { TacticalRoundList } from '@/components/tactical/tactical-round-list';
+import { ReplayFilters } from '@/components/replay/replay-filters';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
-import { Segmented } from '@/components/tactical/spatial/spatial-controls';
+import { Segmented } from '@/components/ui/segmented';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
 
-/** How the filtered rounds are read: one at a time, overlaid, or as heatmaps. */
-type AnalysisMode = 'round' | 'overlay' | 'heatmap';
+/** The radar first; the 3D view next to it. */
+const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
-const MODES: readonly { value: AnalysisMode; label: string }[] = [
-  { value: 'round', label: 'Ronda a ronda' },
-  { value: 'overlay', label: 'Superponer rondas' },
-  { value: 'heatmap', label: 'Mapas de calor' },
-];
-
-/** The document and the position bytes it describes, loaded once per demo. */
-type LoadedAnalysis = { doc: TacticalDocument; blob: ArrayBuffer; scale: PositionsScale };
+/** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
+/** Until the first measure: the tab list and the one-line summary over the replay. */
+const REPLAY_ABOVE: CSSProperties & { '--replay-above': string; '--replay-tabs': string } = { '--replay-above': '6.25rem', '--replay-tabs': '3.5rem' };
 
 /**
- * Verifies the blob against the digest the document recorded. A mismatch means
- * the index and the bytes came from different scans, and half a replay is worse
- * than none, so the workspace refuses to draw it. `crypto.subtle` exists in
- * every secure context Studio runs in; where it does not, the check is skipped
- * rather than failing a good analysis.
+ * Keeps `--replay-above` (everything between the top bar and the replay) and
+ * `--replay-tabs` (the tab list, the scroll margin) measured, so the replay
+ * fills the window exactly whatever the summary or the tab list wrap to.
  */
-async function positionsAreStale(doc: TacticalDocument, blob: ArrayBuffer): Promise<boolean> {
-  const expected = doc.positions.sha256;
-  if (!expected || typeof crypto === 'undefined' || crypto.subtle === undefined) return false;
-  const digest = await crypto.subtle.digest('SHA-256', blob);
-  const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return actual !== expected.toLowerCase();
+function measureReplayAbove(root: HTMLElement): () => void {
+  const tablist = root.closest('[data-slot="tabs"]')?.querySelector('[role="tablist"]') ?? null;
+  const measure = (): void => {
+    const workspace = root.querySelector('[data-replay-workspace]');
+    if (workspace === null) return;
+    const top = root.getBoundingClientRect().top;
+    const tabs = tablist === null ? 0 : Math.max(0, top - tablist.getBoundingClientRect().top);
+    const summary = Math.max(0, workspace.getBoundingClientRect().top - top);
+    root.style.setProperty('--replay-tabs', `${tabs}px`);
+    root.style.setProperty('--replay-above', `${tabs + summary}px`);
+  };
+  measure();
+  const observer = new ResizeObserver(measure);
+  observer.observe(root);
+  if (root.firstElementChild !== null) observer.observe(root.firstElementChild);
+  if (tablist !== null) observer.observe(tablist);
+  return () => observer.disconnect();
 }
 
-function errorMessage(error: unknown): string {
-  if (isServiceUnavailableError(error)) return 'El servicio de análisis local no está disponible.';
-  if (error instanceof TacticalDecodeError) return tacticalDecodeErrorMessage(error);
-  if (error instanceof UserFacingTacticalError) return error.message;
-  return 'No se pudo cargar el análisis táctico. Revisa el estado local y vuelve a intentarlo.';
-}
+/** How the filtered rounds are read: replayed, or as heatmaps. */
+type AnalysisMode = 'replay' | 'heatmap';
 
-class UserFacingTacticalError extends Error {}
+const MODES: readonly { value: AnalysisMode; label: string }[] = [
+  { value: 'replay', label: 'Repetición' },
+  { value: 'heatmap', label: 'Mapas de calor' },
+];
 
 function positiveIntParam(raw: string | null): number | null {
   if (raw === null || !/^[0-9]{1,9}$/.test(raw)) return null;
@@ -79,13 +68,9 @@ function positiveIntParam(raw: string | null): number | null {
 }
 
 /**
- * The ready workspace: the round index, the 2D replay and the tendencies of one
- * analysed demo.
- *
- * The position blob is fetched once, in parallel with the document, and every
- * round is decoded out of those same bytes through its recorded offset — so
- * changing round is a seek, never another request. `?round=` and `?tick=` open
- * it on the round and moment a number elsewhere links to.
+ * The ready workspace of one analysed demo: the replay of its filtered rounds
+ * and their tendencies. `?round=` and `?tick=` open it on the round and moment
+ * a number elsewhere links to.
  */
 export function TacticalAnalysis({
   source,
@@ -103,10 +88,18 @@ export function TacticalAnalysis({
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
   const [tendenciesError, setTendenciesError] = useState<string | null>(null);
-  const [mode, setMode] = useState<AnalysisMode>('round');
-  // Keep nearby rounds hot without retaining a whole match as JS objects.
-  // Evicted rounds are decoded again from the already verified local blob.
-  const frameCache = useRef(new LruCache<number, TacticalFrame[]>(4));
+  const [mode, setMode] = useState<AnalysisMode>('replay');
+  const rootRef = useRef<HTMLDivElement>(null);
+  const ready = loaded !== null;
+
+  // The replay is sized to the window under the tab list, so the tab list goes under the top bar once.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!ready || mode !== 'replay' || root === null) return;
+    const stop = measureReplayAbove(root);
+    root.scrollIntoView({ block: 'start' });
+    return stop;
+  }, [ready, mode]);
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
   const filterQuery = tacticalFilterToQuery(filter);
@@ -117,32 +110,19 @@ export function TacticalAnalysis({
   useEffect(() => {
     if (linkedRound === null) return;
     setSelectedRound(linkedRound);
-    // An evidence link names one round and tick, which only the round replay shows.
-    setMode('round');
+    setMode('replay');
   }, [linkedRound, linkedTick]);
 
   useEffect(() => {
     let active = true;
     setLoadError(null);
-
-    void (async () => {
-      try {
-        // Independent requests: the index and its sidecar always travel together.
-        const from: TacticalSource = { kind: sourceKind, id: sourceId };
-        const [doc, blob] = await Promise.all([fetchTacticalDocument(from), fetchTacticalPositions(from)]);
-        if (await positionsAreStale(doc, blob)) {
-          throw new UserFacingTacticalError(
-            'Las posiciones no coinciden con el índice (SHA-256 distinto): el análisis está desfasado y hay que repetirlo.',
-          );
-        }
-        if (!active) return;
-        frameCache.current.clear();
-        setLoaded({ doc, blob, scale: decodePositionsHeader(blob) });
-      } catch (error) {
-        if (active) setLoadError(errorMessage(error));
-      }
-    })();
-
+    loadAnalysis({ kind: sourceKind, id: sourceId })
+      .then((next) => {
+        if (active) setLoaded(next);
+      })
+      .catch((error: unknown) => {
+        if (active) setLoadError(analysisErrorMessage(error));
+      });
     return () => {
       active = false;
     };
@@ -151,21 +131,15 @@ export function TacticalAnalysis({
   useEffect(() => {
     let active = true;
     setTendenciesError(null);
-
-    void (async () => {
-      try {
-        const next = await fetchTacticalTendencies(
-          { kind: sourceKind, id: sourceId },
-          tacticalFilterFromQuery(new URLSearchParams(filterQuery)),
-        );
+    fetchTacticalTendencies({ kind: sourceKind, id: sourceId }, tacticalFilterFromQuery(new URLSearchParams(filterQuery)))
+      .then((next) => {
         if (active) setTendencies(next);
-      } catch (error) {
+      })
+      .catch((error: unknown) => {
         if (!active) return;
         setTendencies(null);
-        setTendenciesError(errorMessage(error));
-      }
-    })();
-
+        setTendenciesError(analysisErrorMessage(error));
+      });
     return () => {
       active = false;
     };
@@ -183,48 +157,26 @@ export function TacticalAnalysis({
     () => (loaded === null ? [] : filterTacticalRounds(loaded.doc.teams, filter, loaded.doc.rounds)),
     [loaded, filter],
   );
-
-  // Keep the selection inside the visible set: a filter that hides the open
-  // round moves to the first one it kept instead of leaving an orphan replay.
-  useEffect(() => {
-    if (rounds.length === 0) return;
-    setSelectedRound((current) =>
-      current !== null && rounds.some((round) => round.number === current) ? current : rounds[0].number,
-    );
-  }, [rounds]);
-
-  const round = useMemo(
-    () => rounds.find((candidate) => candidate.number === selectedRound) ?? rounds[0],
-    [rounds, selectedRound],
+  const entries = useMemo<ReplayRef[]>(
+    () =>
+      rounds.map((round) =>
+        round.number === linkedRound && linkedTick !== null
+          ? { matchId: sourceId, round: round.number, tick: linkedTick }
+          : { matchId: sourceId, round: round.number },
+      ),
+    [rounds, sourceId, linkedRound, linkedTick],
   );
-
-  const frames = useMemo<TacticalFrame[]>(() => {
-    if (loaded === null || round === undefined) return [];
-    const cached = frameCache.current.get(round.number);
-    if (cached !== undefined) return cached;
-    const offset = loaded.doc.positions.round_offsets.find((entry) => entry.round === round.number);
-    if (offset === undefined) return [];
-    try {
-      const decoded = decodeRoundFrames(loaded.blob, offset, loaded.scale);
-      frameCache.current.set(round.number, decoded);
-      return decoded;
-    } catch {
-      // A truncated or mis-offset round must not take the workspace down; the
-      // replay says it has no positions and the rest of the analysis stands.
-      return [];
-    }
-  }, [loaded, round]);
+  // A filter that hides the open round moves to the first one it kept.
+  const found = rounds.findIndex((round) => round.number === selectedRound);
+  const index = found < 0 ? 0 : found;
+  const seed = useMemo(() => (loaded === null ? undefined : { id: sourceId, analysis: loaded }), [loaded, sourceId]);
 
   if (loadError !== null) {
     return (
       <StudioEmptyState
         icon={TriangleAlert}
         title="No se pudo abrir el análisis"
-        description={
-          <span className="font-mono text-body-sm break-words text-destructive">
-            {loadError}
-          </span>
-        }
+        description={<span className="font-mono text-body-sm break-words text-destructive">{loadError}</span>}
         compact
       />
     );
@@ -232,59 +184,35 @@ export function TacticalAnalysis({
 
   if (loaded === null) return <TacticalWorkspaceSkeleton />;
 
+  const filterBar = (
+    <TacticalFilterBar doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />
+  );
+  const modes = sourceKind === 'library' ? <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} /> : undefined;
+
   return (
-    <div className="flex flex-col gap-6 sm:gap-8">
-      <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} />
+    <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
+      <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} actions={modes} />
 
-      <TacticalFilterBar
-        doc={loaded.doc}
-        filter={filter}
-        onChange={applyFilter}
-        matched={rounds.length}
-        total={loaded.doc.rounds.length}
-      />
-
-      {sourceKind === 'library' ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} />
-          {mode === 'round' ? null : (
-            <p className="text-body-sm text-fg-3">
-              {rounds.length} {rounds.length === 1 ? 'ronda filtrada' : 'rondas filtradas'}, sincronizadas desde el final del tiempo de compra.
-            </p>
-          )}
+      {mode === 'heatmap' && sourceKind === 'library' ? (
+        <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+          {filterBar}
+          <SpatialWorkspace scope={{ kind: 'match', matchId: sourceId, filter: filterQuery }} view="heatmap" hideViewSwitch />
         </div>
-      ) : null}
-
-      {sourceKind === 'library' && mode !== 'round' ? (
-        <SpatialWorkspace
-          scope={{ kind: 'match', matchId: sourceId, filter: filterQuery }}
-          view={mode}
-          hideViewSwitch
-        />
       ) : (
-        <div className="grid gap-6 sm:gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:items-start">
-          <TacticalRoundList
-            doc={loaded.doc}
-            rounds={rounds}
-            filter={filter}
-            selected={round?.number ?? null}
-            onSelect={setSelectedRound}
-          />
-          <TacticalReplay
-            doc={loaded.doc}
-            round={round}
-            frames={frames}
-            startTick={round !== undefined && round.number === linkedRound ? (linkedTick ?? undefined) : undefined}
-            notesMatchId={sourceKind === 'library' ? sourceId : undefined}
-          />
-        </div>
+        <ReplayWorkspace
+          source={sourceKind}
+          entries={entries}
+          index={index}
+          onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
+          seed={seed}
+          filters={<ReplayFilters doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />}
+          centreViews={CENTRE_VIEWS}
+        />
       )}
 
-      <TacticalTendenciesPanel
-        tendencies={tendencies}
-        error={tendenciesError}
-        roundCount={rounds.length}
-      />
+      <div className="mt-6">
+        <TacticalTendenciesPanel tendencies={tendencies} error={tendenciesError} roundCount={rounds.length} />
+      </div>
     </div>
   );
 }

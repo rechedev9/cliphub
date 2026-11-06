@@ -97,6 +97,8 @@
   --chart-3: oklch(0.5 0.1 292);
   --chart-4: oklch(0.6 0.01 264);
   --chart-5: oklch(0.75 0.008 264);
+  --chart-6: oklch(0.55 0.09 185);
+  --chart-7: oklch(0.62 0.12 75);
 
   /* FACEIT skill-level tiers, close to FACEIT's own gauge colours. */
   --faceit-level-1: oklch(0.55 0.01 250);
@@ -189,6 +191,8 @@
   --chart-3: oklch(0.68 0.11 292);
   --chart-4: oklch(0.55 0.008 264);
   --chart-5: oklch(0.4 0.006 264);
+  --chart-6: oklch(0.74 0.09 185);
+  --chart-7: oklch(0.78 0.12 75);
 
   --faceit-level-1: oklch(0.88 0.01 250);
   --faceit-level-2: oklch(0.8 0.21 142);
@@ -485,6 +489,8 @@ html[data-capture-active="true"] {
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);

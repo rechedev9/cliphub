@@ -12,6 +12,8 @@ export const TEAMS_HREF = '/equipos' as const;
 export const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const STRATBOOK_HREF = '/stratbook' as const;
+export const RANKING_HREF = '/ranking' as const;
+export const COLLECTIONS_HREF = '/colecciones' as const;
 /** The FACEIT follow list, under Jugadores beside the library players. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 
@@ -112,6 +114,11 @@ export function playHref(playId: string): string {
   return `${STRATBOOK_HREF}/${encodeURIComponent(playId)}`;
 }
 
+/** A collection of saved replay moments. */
+export function collectionHref(collectionId: string): string {
+  return `${COLLECTIONS_HREF}/${encodeURIComponent(collectionId)}`;
+}
+
 /** Query keys that open the stratbook on one team's plays, or on the detection tab. */
 export const STRATBOOK_QUERY = { team: 'equipo', tab: 'tab' } as const;
 export const STRATBOOK_DETECT_TAB = 'detectar';
@@ -127,6 +134,17 @@ export const REPORTS_QUERY = { team: 'equipo' } as const;
 
 export function newReportHref(teamId: string): string {
   return `${REPORTS_HREF}?${new URLSearchParams({ [REPORTS_QUERY.team]: teamId }).toString()}`;
+}
+
+/** Query keys of the printable rival prep: team id, map, and optional days `YYYY-MM-DD`. */
+export const PREP_QUERY = { team: 'team', map: 'map', from: 'from', to: 'to' } as const;
+
+/** The printable prep of a rival on one map. */
+export function prepHref(prep: { teamId: string; map: string; from?: string; to?: string }): string {
+  const params = new URLSearchParams({ [PREP_QUERY.team]: prep.teamId, [PREP_QUERY.map]: prep.map });
+  if (prep.from) params.set(PREP_QUERY.from, prep.from);
+  if (prep.to) params.set(PREP_QUERY.to, prep.to);
+  return `${REPORTS_HREF}/prep?${params.toString()}`;
 }
 
 /** A library player's record, by SteamID64. */

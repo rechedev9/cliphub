@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -35,10 +34,12 @@ type LibraryRepository interface {
 	GetDemo(ctx context.Context, id uuid.UUID) (library.Demo, error)
 	ListDemos(ctx context.Context, filter library.DemoFilter) ([]library.Demo, error)
 	UpdateDemo(ctx context.Context, id uuid.UUID, patch library.DemoPatch) (library.Demo, error)
+	AttachDemoFile(ctx context.Context, id uuid.UUID, file library.DemoFile) (library.Demo, error)
 	SetDemoState(ctx context.Context, id uuid.UUID, state library.ParseState, errorCode, message string) error
 	DeleteDemo(ctx context.Context, id uuid.UUID) error
 	LinkDemoJob(ctx context.Context, demoID, jobID uuid.UUID) error
 	DemoForJob(ctx context.Context, jobID uuid.UUID) (library.Demo, error)
+	SaveAnalysis(ctx context.Context, analysis library.Analysis) (library.Match, error)
 	GetMatch(ctx context.Context, id uuid.UUID) (library.Match, error)
 	ListMatches(ctx context.Context, filter library.MatchFilter) ([]library.Match, error)
 	UpdateMatch(ctx context.Context, id uuid.UUID, patch library.MatchPatch) (library.Match, error)
@@ -66,11 +67,8 @@ type LibraryRepository interface {
 	ListAnnotations(ctx context.Context, filter library.AnnotationFilter) ([]library.Annotation, error)
 	UpdateAnnotation(ctx context.Context, id uuid.UUID, patch library.AnnotationPatch) (library.Annotation, error)
 	DeleteAnnotation(ctx context.Context, id uuid.UUID) error
-	CreatePlay(ctx context.Context, p *library.Play) error
-	GetPlay(ctx context.Context, id uuid.UUID) (library.Play, error)
-	ListPlays(ctx context.Context, filter library.PlayFilter) ([]library.Play, error)
-	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
-	DeletePlay(ctx context.Context, id uuid.UUID) error
+	libraryPlayRepository
+	libraryCollectionRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.
@@ -333,10 +331,17 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 		PlayedAt:  playedAt,
 		Tags:      tags,
 	}
+	upload := demo
 	created, err := h.libraryRepo.CreateDemo(ctx, &demo)
 	if err != nil {
 		h.discardLibraryDemo(id)
 		return libraryImportResult{}, err
+	}
+	if !created && demo.Source == library.SourceShared {
+		demo, err = h.attachSharedDemo(ctx, demo, upload)
+		h.discardLibraryDemo(id)
+		result.Status, result.Demo = libraryImportImported, &demo
+		return result, err
 	}
 	if !created {
 		h.discardLibraryDemo(id)
@@ -385,54 +390,6 @@ func (h *Handlers) enqueueLibraryScan(ctx context.Context, id uuid.UUID) error {
 	return fmt.Errorf("enqueue library scan: %w", err)
 }
 
-// ResumeLibraryScans re-queues every demo a previous process left queued or
-// parsing, as the desktop queue lives in memory, and every ready demo whose
-// analysis an older scanner made.
-func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
-	if h.libraryRepo == nil {
-		return 0, nil
-	}
-	var pending []library.Demo
-	for offset := 0; ; offset += library.MaxListLimit {
-		page, err := h.libraryRepo.ListDemos(ctx, library.DemoFilter{
-			States: []library.ParseState{library.ParseQueued, library.ParseParsing, library.ParseReady},
-			Limit:  library.MaxListLimit, Offset: offset,
-		})
-		if err != nil {
-			return 0, err
-		}
-		for _, d := range page {
-			if d.State != library.ParseReady || h.libraryAnalysisStale(d.ID) {
-				pending = append(pending, d)
-			}
-		}
-		if len(page) < library.MaxListLimit {
-			break
-		}
-	}
-	// One demo the queue refuses (it is full) does not strand the rest; a ready
-	// demo it refused goes back to ready, keeping its older analysis usable.
-	resumed := 0
-	var firstErr error
-	for _, d := range pending {
-		if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseQueued, "", ""); err != nil {
-			firstErr = cmp.Or(firstErr, err)
-			continue
-		}
-		if err := h.enqueueLibraryScan(ctx, d.ID); err != nil {
-			firstErr = cmp.Or(firstErr, err)
-			if d.State == library.ParseReady {
-				if err := h.libraryRepo.SetDemoState(ctx, d.ID, library.ParseReady, "", ""); err != nil {
-					log.Printf("httpapi: restore library demo %s to ready: %v", d.ID, err)
-				}
-			}
-			continue
-		}
-		resumed++
-	}
-	return resumed, firstErr
-}
-
 // ListLibraryDemos handles GET /api/library/demos.
 func (h *Handlers) ListLibraryDemos(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
@@ -456,7 +413,7 @@ func (h *Handlers) ListLibraryDemos(w http.ResponseWriter, r *http.Request) {
 	if raw := q.Get("source"); raw != "" {
 		filter.Source = library.Source(raw)
 		if !library.ValidSource(filter.Source) {
-			writeError(w, http.StatusBadRequest, "source must be valve, faceit, hltv, scrim or unknown")
+			writeError(w, http.StatusBadRequest, "source must be valve, faceit, hltv, scrim, unknown or shared")
 			return
 		}
 	}
@@ -505,8 +462,11 @@ func (h *Handlers) PatchLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid demo JSON")
 		return
 	}
-	if req.Source != nil && !library.ValidSource(*req.Source) {
+	if req.Source != nil && (!library.ValidSource(*req.Source) || *req.Source == library.SourceShared) {
 		writeError(w, http.StatusBadRequest, "source must be valve, faceit, hltv, scrim or unknown")
+		return
+	}
+	if req.Source != nil && h.sharedDemo(w, r.Context(), id) {
 		return
 	}
 	d, err := h.libraryRepo.UpdateDemo(r.Context(), id, library.DemoPatch{Source: req.Source, Tags: req.Tags})
@@ -515,42 +475,6 @@ func (h *Handlers) PatchLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, d)
-}
-
-// AnalyzeLibraryDemo handles POST /api/library/demos/{id}/analyze, which
-// queues the scan again: after a failure, or to refresh a ready match with a
-// newer scanner. A demo already queued or parsing is left alone.
-func (h *Handlers) AnalyzeLibraryDemo(w http.ResponseWriter, r *http.Request) {
-	if !h.libraryReady(w) {
-		return
-	}
-	id, ok := libraryUUIDParam(w, r, "id")
-	if !ok {
-		return
-	}
-	d, err := h.libraryRepo.GetDemo(r.Context(), id)
-	if err != nil {
-		writeLibraryError(w, "get demo", err)
-		return
-	}
-	if d.State == library.ParseQueued || d.State == library.ParseParsing {
-		writeJSON(w, http.StatusAccepted, d)
-		return
-	}
-	if err := h.libraryRepo.SetDemoState(r.Context(), id, library.ParseQueued, "", ""); err != nil {
-		writeLibraryError(w, "queue demo", err)
-		return
-	}
-	if err := h.enqueueLibraryScan(r.Context(), id); err != nil {
-		internalError(w, "enqueue library scan", err)
-		return
-	}
-	d, err = h.libraryRepo.GetDemo(r.Context(), id)
-	if err != nil {
-		writeLibraryError(w, "get demo", err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, d)
 }
 
 // DeleteLibraryDemo handles DELETE /api/library/demos/{id}: the demo, its
@@ -617,7 +541,7 @@ func libraryMatchFilter(q url.Values) (library.MatchFilter, error) {
 	if raw := q.Get("source"); raw != "" {
 		filter.Source = library.Source(raw)
 		if !library.ValidSource(filter.Source) {
-			return filter, errors.New("source must be valve, faceit, hltv, scrim or unknown")
+			return filter, errors.New("source must be valve, faceit, hltv, scrim, unknown or shared")
 		}
 	}
 	filter.Tag = q.Get("tag")

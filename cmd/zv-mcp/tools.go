@@ -191,6 +191,11 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerShortOptions(server, s)
 	registerSeriesTools(server, s)
 	registerFindMomentsTool(server, s)
+	registerAnalysisTools(server, s)
+	registerRoundTools(server, s)
+	registerTeamReportTools(server, s)
+	registerTeamGrenadesTool(server, s)
+	registerPlayerReportTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},

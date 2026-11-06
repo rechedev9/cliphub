@@ -93,13 +93,12 @@ export function interpolatedSamples(
 function interpolateSample(sample: TacticalSample, ahead: TacticalSample | undefined, alpha: number): TacticalSample {
   if (ahead === undefined || isAlive(ahead) !== isAlive(sample)) return sample;
   return {
-    slot: sample.slot,
+    ...sample,
     x: lerp(sample.x, ahead.x, alpha),
     y: lerp(sample.y, ahead.y, alpha),
     z: lerp(sample.z, ahead.z, alpha),
     yaw: lerpAngleDegrees(sample.yaw, ahead.yaw, alpha),
-    health: sample.health,
-    flags: sample.flags,
+    pitch: sample.pitch === undefined || ahead.pitch === undefined ? sample.pitch : lerp(sample.pitch, ahead.pitch, alpha),
   };
 }
 
@@ -108,7 +107,7 @@ export function createInterpolatedSampleReader(
   frames: readonly TacticalFrame[],
 ): (cursor: FrameCursor) => TacticalSample[] {
   let index: number | undefined;
-  let deltas: ({ x: number; y: number; z: number; yaw: number | undefined } | undefined)[] = [];
+  let deltas: ({ x: number; y: number; z: number; yaw: number | undefined; pitch: number | undefined } | undefined)[] = [];
   return (cursor) => {
     const current = frames[cursor.index];
     if (current === undefined) return [];
@@ -122,6 +121,7 @@ export function createInterpolatedSampleReader(
           x: ahead.x - sample.x, y: ahead.y - sample.y, z: ahead.z - sample.z,
           yaw: Number.isFinite(sample.yaw) && Number.isFinite(ahead.yaw)
             ? ((ahead.yaw - sample.yaw + 540) % 360) - 180 : undefined,
+          pitch: sample.pitch === undefined || ahead.pitch === undefined ? undefined : ahead.pitch - sample.pitch,
         };
       });
       index = cursor.index;
@@ -130,13 +130,12 @@ export function createInterpolatedSampleReader(
       const delta = deltas[i];
       if (delta === undefined) return sample;
       return {
-        slot: sample.slot,
+        ...sample,
         x: sample.x + delta.x * cursor.alpha,
         y: sample.y + delta.y * cursor.alpha,
         z: sample.z + delta.z * cursor.alpha,
         yaw: normalizeDegrees(delta.yaw === undefined ? sample.yaw : sample.yaw + delta.yaw * cursor.alpha),
-        health: sample.health,
-        flags: sample.flags,
+        pitch: sample.pitch === undefined || delta.pitch === undefined ? sample.pitch : sample.pitch + delta.pitch * cursor.alpha,
       };
     });
   };

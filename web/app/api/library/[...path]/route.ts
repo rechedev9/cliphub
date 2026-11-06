@@ -48,6 +48,7 @@ async function handle(request: Request, { params }: Params): Promise<Response> {
   if (upstream === null) return serviceUnavailable();
   if (!upstream.ok) return forwardError(upstream);
   if (route.response.kind === 'empty') return new Response(null, { status: 204 });
+  if (route.response.kind === 'download') return downloadResponse(upstream);
   const body: unknown = await upstream.json();
   return NextResponse.json(pickLibraryKeys(body, route.response.keys), { status: upstream.status });
 }
@@ -64,6 +65,23 @@ async function upstreamInit(request: Request, route: LibraryRoute): Promise<Requ
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parsed.value),
   };
+}
+
+/** Only a plain package name reaches the save dialog, whatever the upstream header says. */
+const PACKAGE_DISPOSITION = /^attachment; filename="[a-z0-9-]{1,80}\.cliphub"$/;
+
+/** A built share package: its bytes, length and file name, never other upstream headers. */
+function downloadResponse(upstream: Response): Response {
+  const headers: Record<string, string> = {
+    'content-type': 'application/zip',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+  };
+  const length = upstream.headers.get('content-length');
+  if (length !== null && /^[0-9]+$/.test(length)) headers['content-length'] = length;
+  const disposition = upstream.headers.get('content-disposition') ?? '';
+  headers['content-disposition'] = PACKAGE_DISPOSITION.test(disposition) ? disposition : 'attachment; filename="cliphub.cliphub"';
+  return new Response(upstream.body, { status: 200, headers });
 }
 
 type ImportForward = { refused: Response } | { upstream: Response | null };

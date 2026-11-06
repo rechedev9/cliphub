@@ -199,6 +199,7 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 		Economy:       acc.economy,
 		Events:        make([]tacticalplan.Event, 0, len(acc.events)),
 		Players:       make([]tacticalplan.PlayerRound, 0, len(acc.stats)),
+		Hits:          remapHits(acc.hits, remap),
 	}
 	if acc.bomb != nil {
 		bomb := *acc.bomb

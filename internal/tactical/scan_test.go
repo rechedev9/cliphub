@@ -196,6 +196,60 @@ func TestScanRealDemo(t *testing.T) {
 		t.Fatal("no round in the demo was classified beyond unknown")
 	}
 
+	// Nearly every grenade must know where it was thrown from.
+	grenades, thrown := 0, 0
+	for _, r := range doc.Rounds {
+		for _, ev := range r.Events {
+			switch ev.Kind {
+			case tacticalplan.EventSmoke, tacticalplan.EventFlash, tacticalplan.EventHE, tacticalplan.EventMolotov, tacticalplan.EventDecoy:
+				grenades++
+				if ev.Throw != nil && ev.Throw.Tick <= ev.Tick && ev.Throw.Pos != [3]float64{} {
+					thrown++
+				}
+			}
+		}
+	}
+	t.Logf("%d of %d grenades carry their throw", thrown, grenades)
+	if grenades == 0 || thrown*10 < grenades*9 {
+		t.Fatalf("%d of %d grenades carry their throw", thrown, grenades)
+	}
+
+	// Hits are the per-shot side of the damage totals, so they must add up to them.
+	hits := 0
+	for _, r := range doc.Rounds {
+		dealt := map[uint8]int{}
+		for _, hit := range r.Hits {
+			dealt[hit.ActorSlot] += hit.Damage
+			hits++
+		}
+		for _, p := range r.Players {
+			if dealt[p.Slot] != p.Damage {
+				t.Fatalf("round %d slot %d: hits add up to %d, damage is %d", r.Number, p.Slot, dealt[p.Slot], p.Damage)
+			}
+		}
+	}
+	if hits == 0 {
+		t.Fatal("no damage hits were recorded")
+	}
+	defused := 0
+	for _, r := range doc.Rounds {
+		if r.Bomb != nil && r.Bomb.DefuseTick > 0 {
+			defused++
+		}
+	}
+	defusing := 0
+	for _, f := range realDemoFrames(t, result) {
+		for _, sample := range f.Samples {
+			if sample.Flags&tacticalplan.FlagDefusing != 0 {
+				defusing++
+			}
+		}
+	}
+	t.Logf("%d defused rounds, %d samples defusing", defused, defusing)
+	if defused > 0 && defusing == 0 {
+		t.Fatal("a round was defused but no sample shows anyone defusing")
+	}
+
 	// The position blob must decode, and every round must be seekable inside it.
 	if result.Positions.Descriptor.FrameCount == 0 {
 		t.Fatal("no positions were sampled")
@@ -211,6 +265,7 @@ func TestScanRealDemo(t *testing.T) {
 	if len(frames) != result.Positions.Descriptor.FrameCount {
 		t.Fatalf("decoded %d frames, descriptor says %d", len(frames), result.Positions.Descriptor.FrameCount)
 	}
+	checkRealDemoGear(t, frames, len(result.Positions.Data))
 	for _, r := range doc.Rounds {
 		offset, ok := doc.Positions.Offset(r.Number)
 		if !ok {
@@ -283,4 +338,17 @@ func TestScanRealDemoIsDeterministic(t *testing.T) {
 	if first.Positions.Descriptor.SHA256 != second.Positions.Descriptor.SHA256 {
 		t.Fatal("two scans of the same demo produced different position blobs")
 	}
+}
+
+func realDemoFrames(t *testing.T, result Result) []tacticalplan.Frame {
+	t.Helper()
+	desc, err := tacticalplan.DecodeHeader(result.Positions.Data)
+	if err != nil {
+		t.Fatalf("DecodeHeader: %v", err)
+	}
+	frames, err := tacticalplan.DecodeFrames(result.Positions.Data, tacticalplan.PositionsHeaderSize, desc.FrameCount, desc)
+	if err != nil {
+		t.Fatalf("DecodeFrames: %v", err)
+	}
+	return frames
 }

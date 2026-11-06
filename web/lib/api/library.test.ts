@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spatialPath } from './library.ts';
+import { playerPositionsPath, spatialPath } from './library.ts';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 
@@ -17,4 +17,9 @@ test('a team view carries the map, the side, the matches and the buys', () => {
     new URLSearchParams('limit=20'),
   );
   assert.equal(path, `/teams/${ID}/overlay?map=de_nuke&side=T&match_id=a&match_id=b&buy=full&limit=20`);
+});
+
+test('a player positions path carries only the map and the dates', () => {
+  assert.equal(playerPositionsPath('7656', {}), '/players/7656/positions');
+  assert.equal(playerPositionsPath('7656', { map: 'de_nuke', to: 'x' }), '/players/7656/positions?map=de_nuke&to=x');
 });
