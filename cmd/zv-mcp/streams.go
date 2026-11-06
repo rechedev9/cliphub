@@ -28,7 +28,7 @@ type listStreamsIn struct {
 type streamOut struct {
 	StreamID        string  `json:"stream_id"`
 	Title           string  `json:"title,omitempty" jsonschema:"untrusted title chosen by the user or the streamer"`
-	Status          string  `json:"status" jsonschema:"acquiring (downloading), uploaded, ready, rendering, rendered or failed"`
+	Status          string  `json:"status" jsonschema:"acquiring (downloading), uploaded, ready, queued or rendering (a render is waiting or running), rendered or failed"`
 	Kind            string  `json:"kind,omitempty" jsonschema:"vod (a full broadcast) or clip"`
 	SourceURL       string  `json:"source_url,omitempty"`
 	DurationSeconds float64 `json:"duration_seconds,omitempty"`
