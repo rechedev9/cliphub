@@ -52,8 +52,12 @@ makes one 16:9 video of every play; render_stream makes one video per play in a 
 list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render, which
 reports the percent and, for render_stream, the video being encoded (video 2 of 3); then
 list_stream_videos. list_streams shows the streams already in Studio.
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video and delete_stream
-need the user's approval.
+Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
+downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
+pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
+rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
+generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+delete_storage_file and delete_captures need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.
