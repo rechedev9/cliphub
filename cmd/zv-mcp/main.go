@@ -60,6 +60,7 @@ update_report, delete_report. Stratbook: list_plays, get_play, save_round_as_pla
 the team's side key), detect_team_plays then save_detected_play with a play's ref, update_play,
 delete_play, export_plays and import_plays (stratbook .json files on this PC).
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
+map_3d_status checks that the tactical replay can draw a map as CS2 does, in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a

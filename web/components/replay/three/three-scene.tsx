@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { MapGeometry } from '@/lib/api/map-geometry';
+import type { MapScene } from '@/lib/api/map-scene';
 import type { RadarCalibration } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
@@ -34,15 +35,18 @@ export type ThreeSceneProps = {
   radar: { image: HTMLImageElement; calibration: RadarCalibration } | null;
   /** Whether the overview is laid on the floors. */
   radarOn: boolean;
+  /** The map's real surfaces from CS2, once read. */
+  scene: MapScene | null;
+  /** Whether the real surfaces draw instead of the plain map. */
+  realOn: boolean;
 };
 
 /**
  * The WebGL canvas and the name tags over it. Three.js lives only in this
  * module's chunk, so pages that never open the 3D view never load it.
  */
-export function ThreeScene({ geometry, nav, radarOn, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar, auto, onAutoChange }: ThreeSceneProps): ReactNode {
+export function ThreeScene({ geometry, nav, radarOn, scene: realScene, realOn, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar, auto, onAutoChange }: ThreeSceneProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReplayScene | null>(null);
   const pickRef = useRef(onPick);
@@ -53,16 +57,24 @@ export function ThreeScene({ geometry, nav, radarOn, box, cut, mode, follow, rou
   failRef.current = onFailure;
   const boxRef = useRef(box);
   boxRef.current = box;
+  const labelRef = useRef(label);
+  labelRef.current = label;
 
   useEffect(() => {
     const container = containerRef.current;
-    const canvas = canvasRef.current;
     const overlay = overlayRef.current;
-    if (container === null || canvas === null || overlay === null) return;
+    if (container === null || overlay === null) return;
+    // A fresh canvas per mount: dispose loses the old context, and a remount must not reuse it.
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', labelRef.current);
+    canvas.className = 'block h-full w-full touch-none select-none';
+    container.prepend(canvas);
     let scene: ReplayScene;
     try {
       scene = new ReplayScene({ canvas, overlay, colors: readSceneColors(container), onPick: (slot) => slot !== null && pickRef.current(slot), onAutoChange: (on) => autoRef.current(on) });
     } catch {
+      canvas.remove();
       failRef.current();
       return;
     }
@@ -87,14 +99,27 @@ export function ThreeScene({ geometry, nav, radarOn, box, cut, mode, follow, rou
       theme.disconnect();
       sceneRef.current = null;
       scene.dispose();
+      canvas.remove();
     };
   }, []);
+
+  useEffect(() => {
+    containerRef.current?.querySelector('canvas')?.setAttribute('aria-label', label);
+  }, [label]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
     sceneRef.current?.setMap(geometry, nav, boxRef.current, readSceneColors(container));
   }, [geometry, nav]);
+
+  useEffect(() => {
+    sceneRef.current?.setScene(realScene);
+  }, [realScene, geometry]);
+
+  useEffect(() => {
+    sceneRef.current?.setRealOn(realOn);
+  }, [realOn]);
 
   useEffect(() => {
     sceneRef.current?.setRadar(radar?.image ?? null, radar?.calibration ?? null);
@@ -133,7 +158,6 @@ export function ThreeScene({ geometry, nav, radarOn, box, cut, mode, follow, rou
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
-      <canvas ref={canvasRef} role="img" aria-label={label} className="block h-full w-full touch-none select-none" />
       <div ref={overlayRef} aria-hidden="true" className="pointer-events-none absolute inset-0" />
     </div>
   );

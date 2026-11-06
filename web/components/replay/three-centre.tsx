@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { RefreshCw } from 'lucide-react';
 import { MapGeometryError } from '@/lib/api/map-geometry';
 import type { MapGeometry } from '@/lib/api/map-geometry';
+import type { MapScene } from '@/lib/api/map-scene';
 import { prettyMapName } from '@/lib/format';
 import { docNames } from '@/lib/replay/centre-round';
 import { playBox } from '@/lib/replay/three/scene-math';
@@ -14,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
 import type { CameraMode } from './three/camera-rig';
 import { ReplayChip } from './replay-chip';
-import { loadMapGeometry, loadNavGeometry } from './three/geometry-cache';
+import { loadMapGeometry, loadMapScene, loadNavGeometry } from './three/geometry-cache';
 import { loadRadarImage } from './radar/map-art';
 
 const ThreeScene = dynamic(() => import('./three/three-scene').then((module) => module.ThreeScene), {
@@ -31,6 +32,11 @@ const CAMERA_OPTIONS: readonly { value: CameraMode; label: string }[] = [
 const CAMERA_KEYS: Record<string, CameraMode> = { '1': 'orbit', '2': 'top', '3': 'player' };
 
 const SLIDER_CLASS = 'h-1 w-32 min-w-0 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary';
+
+type RealState =
+  | { map: string; state: 'loading'; share: number }
+  | { map: string; state: 'ready'; scene: MapScene }
+  | { map: string; state: 'failed' };
 
 type GeometryState =
   | { map: string; state: 'loading' }
@@ -88,6 +94,8 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   const [auto, setAuto] = useState(true);
   const [radarOn, setRadarOn] = useState(false);
   const [radarImage, setRadarImage] = useState<{ map: string; image: HTMLImageElement } | null>(null);
+  const [real, setReal] = useState<RealState | null>(null);
+  const [realOn, setRealOn] = useState(true);
 
   useEffect(() => setWebgl(webglAvailable()), []);
 
@@ -114,6 +122,26 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   useEffect(() => {
     if (map === '') return;
     let live = true;
+    setReal({ map, state: 'loading', share: 0 });
+    loadMapScene(map, (share) => {
+      if (live) setReal({ map, state: 'loading', share });
+    }).then(
+      (scene) => {
+        if (live) setReal({ map, state: 'ready', scene });
+      },
+      (error: unknown) => {
+        console.error('3D: the real map could not be read', error);
+        if (live) setReal({ map, state: 'failed' });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [map, attempt]);
+
+  useEffect(() => {
+    if (map === '') return;
+    let live = true;
     void loadRadarImage(map, 'upper').then((image) => {
       if (live) setRadarImage(image === null ? null : { map, image });
     });
@@ -128,6 +156,8 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   );
 
   const geometry = load?.map === map && load.state === 'ready' ? load.geometry : null;
+  const realScene = real?.map === map && real.state === 'ready' ? real.scene : null;
+  const realShare = real?.map === map && real.state === 'loading' ? real.share : null;
   const nav = load?.map === map && load.state === 'ready' ? load.nav : null;
   const focusedFrames = focused?.frames;
   const focusedBounds = focused?.doc.geometry.bounds;
@@ -197,6 +227,8 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
         geometry={geometry}
         nav={nav}
         radarOn={radarOn && radar !== null}
+        scene={realScene}
+        realOn={realOn}
         box={box}
         cut={cutZ}
         auto={auto}
@@ -229,6 +261,18 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
             </ReplayChip>
           </div>
         ) : null}
+        {realScene === null ? null : (
+          <div className="pointer-events-auto">
+            <ReplayChip pressed={realOn} onClick={() => setRealOn((value) => !value)} title="Dibuja el mapa con sus texturas y la luz de CS2, o el esquema por alturas">
+              Mapa real
+            </ReplayChip>
+          </div>
+        )}
+        {realShare === null ? null : (
+          <span role="status" className="rounded-md bg-surface-1/95 px-2 py-1 text-meta text-fg-2 tabular-nums">
+            Cargando el mapa real {Math.round(realShare * 100)} %
+          </span>
+        )}
         {radar === null ? null : (
           <div className="pointer-events-auto">
             <ReplayChip pressed={radarOn} onClick={() => setRadarOn((value) => !value)} title="Pinta el radar oficial del juego sobre los suelos">
