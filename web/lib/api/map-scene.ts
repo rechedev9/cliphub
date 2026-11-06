@@ -5,7 +5,7 @@ import { MapGeometryError } from './map-geometry.ts';
  * header length, the JSON header, zero padding to 16 bytes, then the binary arrays the header
  * points into by byte offset from the start of that section.
  */
-export const MAP_SCENE_VERSION = 4;
+export const MAP_SCENE_VERSION = 7;
 
 export type SceneTextureFormat = 'bc1' | 'bc3' | 'bc4' | 'bc5' | 'bc6h' | 'bc7' | 'rgba8' | 'bgra8';
 
@@ -59,7 +59,7 @@ export type SceneChunk = {
 export type SceneSun = { direction: [number, number, number]; color: [number, number, number]; sky: [number, number, number]; shadowChannel: number };
 export type SceneFog = { start: number; end: number; color: [number, number, number]; max: number };
 /** The sky cube, its brightness and linear tint, and its turn about z in degrees. */
-export type SceneSky = { texture: number; brightness: number; tint: [number, number, number]; yaw: number };
+export type SceneSky = { texture: number; brightness: number; tint: [number, number, number]; yaw: number; average: [number, number, number] };
 /** `average` is the irradiance's average linear colour: the ambient of surfaces without a lightmap. */
 export type SceneLightmap = { irradiance: number; directional: number; shadows: number; uvScale: [number, number]; average: [number, number, number] };
 
@@ -187,7 +187,7 @@ function sky(raw: unknown, textures: SceneTexture[]): SceneSky | null {
   const s = record(raw);
   const texture = textureIndex(s.texture, textures.length);
   if (texture < 0 || textures[texture]?.faces !== 6) throw new Error('scene: the sky is not a cube');
-  return { texture, brightness: num(s.brightness), tint: vec3(s.tint), yaw: num(s.yaw) };
+  return { texture, brightness: num(s.brightness), tint: vec3(s.tint), yaw: num(s.yaw), average: vec3(s.average) };
 }
 
 function faces(value: unknown): 1 | 6 {

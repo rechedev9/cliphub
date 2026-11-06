@@ -141,6 +141,8 @@ type Sky struct {
 	Brightness float64    `json:"brightness"`
 	Tint       [3]float64 `json:"tint"`
 	Yaw        float64    `json:"yaw"`
+	// Average is the cube's average linear colour, as the compiler stored it.
+	Average [3]float64 `json:"average"`
 }
 
 // Fog is the map's distance fog, from env_cubemap_fog or env_gradient_fog.

@@ -35,7 +35,10 @@ export type RealMapLook = { exposure: number; fogStrength: number; irradiance: n
 export const DEFAULT_LOOK: RealMapLook = { exposure: 1.0, fogStrength: 0.5, irradiance: 1.0 };
 
 /** The scene's light a mid exposure maps to mid grey, tuned on Inferno and Mirage. */
-const EXPOSURE_KEY = 2.2;
+const EXPOSURE_KEY = 2.4;
+
+/** The lightmaps store irradiance over pi; the sun's light is not divided, so it gains pi against them. */
+const SUN_SCALE = Math.PI;
 
 function luminance(c: readonly number[]): number {
   return 0.2126 * (c[0] ?? 0) + 0.7152 * (c[1] ?? 0) + 0.0722 * (c[2] ?? 0);
@@ -43,8 +46,8 @@ function luminance(c: readonly number[]): number {
 
 /** CS2 adapts exposure to each map's light; this sets it once from the sun and the baked average. */
 function autoExposure(scene: MapScene, ambient: Vector3): number {
-  const light = luminance(scene.sun?.color ?? [0, 0, 0]) + 1.5 * luminance([ambient.x, ambient.y, ambient.z]);
-  return Math.min(1.2, Math.max(0.3, EXPOSURE_KEY / Math.max(0.5, light)));
+  const light = SUN_SCALE * luminance(scene.sun?.color ?? [0, 0, 0]) + 1.5 * luminance([ambient.x, ambient.y, ambient.z]);
+  return Math.min(1.2, Math.max(0.1, EXPOSURE_KEY / Math.max(0.5, light)));
 }
 
 function chunkGeometry(chunk: SceneChunk): BufferGeometry {
@@ -89,6 +92,7 @@ export class RealMap {
   readonly #ambient: Vector3;
   readonly #exposure: number;
   readonly #fogLift = { value: 0 };
+  readonly #sunScale = { value: SUN_SCALE };
 
   constructor(scene: MapScene, cut: MapUniforms, renderer: WebGLRenderer) {
     this.#scene = scene;
@@ -99,11 +103,10 @@ export class RealMap {
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
     const lightmap = scene.lightmap;
-    const channel = scene.sun?.shadowChannel ?? -1;
     this.#shared = {
       irradiance: lightmap === null ? null : (this.#textures[lightmap.irradiance] ?? null),
       shadows: lightmap === null || lightmap.shadows < 0 ? null : (this.#textures[lightmap.shadows] ?? null),
-      shadowMask: new Vector4(channel === 0 ? 1 : 0, channel === 1 ? 1 : 0, channel === 2 ? 1 : 0, channel === 3 ? 1 : 0),
+      shadowMask: shadowMask(scene.sun?.shadowChannel ?? -1),
       sunDepth: null,
       sunMatrix: new Matrix4(),
       lightmapScale: new Vector2(lightmap?.uvScale[0] ?? 1, lightmap?.uvScale[1] ?? 1),
@@ -122,7 +125,7 @@ export class RealMap {
     }
     this.#bakeSunShadow(renderer);
     this.#sky = RealSky.build(scene, renderer);
-    this.#sky?.setExposure(this.#look.exposure * this.#exposure);
+    this.#sky?.setExposure(this.#look.exposure);
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
   }
 
@@ -141,11 +144,11 @@ export class RealMap {
   }
 
   /**
-   * How high the camera is over the map's top: the fog starts that much further
+   * How high the camera is over the map's floor: the fog starts that much further
    * out, so it hazes the distance from above as it does at eye level.
    */
   setCameraHeight(z: number): void {
-    this.#fogLift.value = Math.max(0, z - this.#scene.max[2]) * 1.5;
+    this.#fogLift.value = Math.max(0, z - this.#scene.min[2]) * 1.2;
   }
 
   setVisible(visible: boolean): void {
@@ -155,7 +158,7 @@ export class RealMap {
   setLook(look: RealMapLook): void {
     this.#look = look;
     for (const material of this.#materials.values()) this.#applyLook(material);
-    this.#sky?.setExposure(look.exposure * this.#exposure);
+    this.#sky?.setExposure(look.exposure);
   }
 
   dispose(): void {
@@ -210,11 +213,12 @@ export class RealMap {
         uBlendMod: { value: blendMod ?? blankTexture() },
         uIrradiance: { value: this.#shared.irradiance ?? blankTexture() },
         uShadows: { value: this.#shared.shadows ?? blankTexture() },
+        uShadowMask: { value: this.#shared.shadowMask },
+        uSunScale: this.#sunScale,
         uSunDepth: { value: blankTexture() },
         uUseSunDepth: { value: 0 },
         uSunDepthTexel: { value: 1 / SUN_DEPTH_SIZE },
         uSunMatrix: { value: this.#shared.sunMatrix },
-        uShadowMask: { value: this.#shared.shadowMask },
         uLightmapScale: { value: this.#shared.lightmapScale },
         uUvTransform: { value: new Vector4(material.uvScale[0], material.uvScale[1], material.uvOffset[0], material.uvOffset[1]) },
         uUv2Transform: { value: new Vector4(material.uv2Scale[0] * material.uvScale[0], material.uv2Scale[1] * material.uvScale[1], material.uv2Offset[0], material.uv2Offset[1]) },
@@ -328,6 +332,11 @@ export class RealMap {
 function renderOrder(material: SceneMaterial): number {
   if (material.overlay) return 1;
   return material.translucent ? 2 : 0;
+}
+
+/** The baked shadow map's channel of the sun as a mask; none when the sun bakes no shadow. */
+function shadowMask(channel: number): Vector4 {
+  return new Vector4(channel === 0 ? 1 : 0, channel === 1 ? 1 : 0, channel === 2 ? 1 : 0, channel === 3 ? 1 : 0);
 }
 
 function isSceneMaterial(value: unknown): value is SceneMaterial {

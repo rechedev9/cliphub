@@ -308,7 +308,9 @@ func (b *sceneBuilder) addSky(sky *skyEntity) {
 		return
 	}
 	b.scene.Textures = append(b.scene.Textures, SceneTexture{Path: info.Sky, Tex: tex})
-	b.scene.Sky = &Sky{Texture: len(b.scene.Textures) - 1, Brightness: sky.brightness, Tint: sky.tint, Yaw: sky.yaw}
+	r := tex.Reflectivity
+	b.scene.Sky = &Sky{Texture: len(b.scene.Textures) - 1, Brightness: sky.brightness, Tint: sky.tint, Yaw: sky.yaw,
+		Average: [3]float64{float64(r[0]), float64(r[1]), float64(r[2])}}
 }
 
 func (b *sceneBuilder) addLightmap(info map[string]any) {
@@ -319,13 +321,11 @@ func (b *sceneBuilder) addLightmap(info map[string]any) {
 	if s := floats(info["m_vLightmapUvScale"]); len(s) >= 2 {
 		lm.UVScale = [2]float64{s[0], s[1]}
 	}
+	// The sun's direct light is not in the irradiance: it is masked by its channel of the shadow map.
 	for _, path := range stringList(info["m_lightMaps"]) {
-		base := filepath.Base(path)
-		switch {
+		switch base := filepath.Base(path); {
 		case strings.HasPrefix(base, "irradiance"):
 			lm.Irradiance = b.texture(path, b.opts.LightmapSize)
-		case strings.HasPrefix(base, "directional_irradiance"):
-			lm.Directional = b.texture(path, b.opts.LightmapSize)
 		case strings.HasPrefix(base, "direct_light_shadows"):
 			lm.Shadows = b.texture(path, b.opts.LightmapSize)
 		}

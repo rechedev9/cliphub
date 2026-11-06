@@ -1,7 +1,11 @@
 import { BackSide, BoxGeometry, Matrix3, Mesh, ShaderMaterial, Vector3 } from 'three';
 import type { CompressedCubeTexture, WebGLRenderer } from 'three';
 import type { MapScene } from '@/lib/api/map-scene';
+import { TONEMAP } from './real-map-shader';
 import { toCubeTexture } from './scene-textures';
+
+/** The sky's average light the tonemap maps to a bright mid tone. */
+const SKY_KEY = 0.9;
 
 const SKY_VERTEX = `
 varying vec3 vDirection;
@@ -20,9 +24,7 @@ uniform vec3 uTint;
 uniform float uExposure;
 varying vec3 vDirection;
 
-vec3 filmic(vec3 x) {
-  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-}
+${TONEMAP}
 
 void main() {
   vec3 sky = textureCube(uSky, uBasis * normalize(vDirection)).rgb * uTint;
@@ -65,9 +67,12 @@ export class RealSky {
     const source = sky === null ? undefined : scene.textures[sky.texture];
     if (sky === null || source === undefined) return null;
     const cube = toCubeTexture(source, renderer);
-    return cube === null ? null : new RealSky(cube, scene, sky.brightness);
+    // CS2 adapts its exposure to where the eye looks; the sky gets its own so it reads as bright day.
+    const average = 0.2126 * sky.average[0] + 0.7152 * sky.average[1] + 0.0722 * sky.average[2];
+    return cube === null ? null : new RealSky(cube, scene, Math.sqrt(sky.brightness) * (SKY_KEY / Math.max(0.05, average)));
   }
 
+  /** `exposure` is the look's own factor, 1 by default. */
   setExposure(exposure: number): void {
     this.mesh.material.uniforms.uExposure.value = exposure * this.#brightness;
   }

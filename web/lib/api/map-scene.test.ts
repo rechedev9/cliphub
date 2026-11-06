@@ -28,7 +28,7 @@ function sceneFile(edit: (header: Record<string, unknown>) => void = () => {}, v
     sun: null,
     fog: null,
     lightmap: null,
-    sky: { texture: 1, brightness: 1, tint: [1, 1, 1], yaw: 0 },
+    sky: { texture: 1, brightness: 1, tint: [1, 1, 1], yaw: 0, average: [0.5, 0.6, 0.8] },
     textures: [
       { format: 'bc1', width: 4, height: 4, faces: 1, levels: [8], ...texture },
       { format: 'bc6h', width: 4, height: 4, faces: 6, levels: [96], ...sky },
@@ -104,7 +104,7 @@ test('parseMapScene refuses a sky that is not a cube', () => {
     () =>
       parseMapScene(
         sceneFile((h) => {
-          h.sky = { texture: 0, brightness: 1, tint: [1, 1, 1], yaw: 0 };
+          h.sky = { texture: 0, brightness: 1, tint: [1, 1, 1], yaw: 0, average: [1, 1, 1] };
         }),
       ),
     /cube/,

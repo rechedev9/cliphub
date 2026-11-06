@@ -9,6 +9,21 @@ import { MAP_DECLARE } from './map-shader';
  * USE_LIGHTMAP, ALPHA_TEST, UNLIT.
  */
 
+/**
+ * The ACES fit of Krzysztof Narkowicz on luminance, mostly: per channel it
+ * bleaches bright colours, as sunlit terracotta, which CS2 keeps saturated.
+ */
+export const TONEMAP = `
+vec3 aces(vec3 x) {
+  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+}
+vec3 filmic(vec3 x) {
+  float l = max(dot(x, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+  vec3 hue = clamp(x * (aces(vec3(l)).r / l), 0.0, 1.0);
+  return mix(aces(x), hue, 0.7);
+}
+`;
+
 /** The plain map's cutaway without its void: the real map keeps the scenery round the playable area. */
 const REAL_SURFACE_CUT = `
 vec3 mapFacet = normalize(cross(dFdx(vMapPos), dFdy(vMapPos)));
@@ -74,8 +89,9 @@ uniform sampler2D uColor2;
 uniform sampler2D uBlendMod;
 uniform sampler2D uIrradiance;
 uniform sampler2D uShadows;
-uniform sampler2D uSunDepth;
 uniform vec4 uShadowMask;
+uniform float uSunScale;
+uniform sampler2D uSunDepth;
 uniform vec3 uTint;
 uniform vec3 uTint2;
 uniform vec3 uAverage;
@@ -106,10 +122,7 @@ vec3 srgbToLinear(vec3 c) {
   return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
 }
 
-// The ACES fit of Krzysztof Narkowicz: a soft shoulder like the game's filmic curve.
-vec3 filmic(vec3 x) {
-  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-}
+${TONEMAP}
 
 float sunShadowMap(vec3 normal) {
   if (uUseSunDepth < 0.5) return 1.0;
@@ -166,7 +179,7 @@ ${REAL_SURFACE_CUT}
   vec3 irradiance = uAmbient * uIrradianceScale * (0.7 + 0.3 * normal.z);
   float visibility = sunShadowMap(normal);
 #endif
-  color = albedo.rgb * (irradiance + uSunColor * sunAngle * visibility);
+  color = albedo.rgb * (irradiance + uSunColor * uSunScale * sunAngle * visibility);
 #endif
   color = filmic(color * uExposure);
   float fog = clamp((vViewDepth - uFogLift - uFog.x) / max(1.0, uFog.y - uFog.x), 0.0, 1.0) * uFog.z;

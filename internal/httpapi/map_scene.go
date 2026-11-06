@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -86,7 +88,40 @@ func (h *Handlers) mapSceneKey(w http.ResponseWriter, r *http.Request) (string, 
 		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not store the 3D scene of map "+name)
 		return "", false
 	}
+	h.pruneStaleScenes(name, key)
 	return key, true
+}
+
+// sceneCachePruner is the storage capability that drops scenes a CS2 update or a format bump left behind.
+type sceneCachePruner interface {
+	List(key string) ([]string, error)
+	Delete(key string) error
+	DeleteTree(key string) error
+}
+
+// pruneStaleScenes removes the map's older scene files, which run to hundreds of MB each.
+func (h *Handlers) pruneStaleScenes(name, key string) {
+	store, ok := h.storage.(sceneCachePruner)
+	if !ok {
+		return
+	}
+	dir := path.Dir(key)
+	for v := 1; v < mapgeo.SceneFileVersion; v++ {
+		if err := store.DeleteTree(path.Join(path.Dir(dir), "v"+strconv.Itoa(v))); err != nil {
+			log.Printf("httpapi: prune map scenes v%d: %v", v, err)
+		}
+	}
+	files, err := store.List(dir)
+	if err != nil {
+		return
+	}
+	for _, file := range files {
+		if strings.HasPrefix(file, name+"-") && file != path.Base(key) {
+			if err := store.Delete(path.Join(dir, file)); err != nil {
+				log.Printf("httpapi: prune map scene %s: %v", file, err)
+			}
+		}
+	}
 }
 
 func (h *Handlers) sceneCached(key string) bool {
