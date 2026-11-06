@@ -44,6 +44,8 @@ A series (best of 3 or 5): import and wait for every demo, then create_series_jo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
+list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
+again from its last finished version and change_video_music changes a Short's music, both without a new capture.
 Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
@@ -67,7 +69,8 @@ downloads one by share code and makes a job: wait_for_job, and on "scanned" job_
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
-delete_demo, merge_teams, delete_storage_file and delete_captures need the user's approval.
+delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video and change_video_music
+need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

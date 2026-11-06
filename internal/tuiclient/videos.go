@@ -2,6 +2,7 @@ package tuiclient
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"path"
 	"strings"
@@ -12,6 +13,10 @@ import (
 type RenderVideos struct {
 	RenderVariantState
 	Videos []string `json:"videos"`
+	// SegmentIDs, Edit and Music are the effective choices of the last render, present once it wrote its edit document.
+	SegmentIDs []string        `json:"segment_ids,omitempty"`
+	Edit       json.RawMessage `json:"edit,omitempty"`
+	Music      *ShortMusic     `json:"music,omitempty"`
 }
 
 // GetRenderVideos returns one render variant with its video names, or a 404
