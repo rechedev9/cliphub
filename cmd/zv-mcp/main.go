@@ -46,10 +46,15 @@ for the plays of all maps in play order. generate_short still records one map pe
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
-Analysis (read only): list_teams for team ids, scout_team for a team's tendencies, player_metrics for a
-player's numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
-For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
+get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
+numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
+For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
+these and scout_team take opponent_id and match_id to narrow the matches.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
+Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
+assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
+a duplicate team into another.
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
@@ -59,8 +64,13 @@ reports the percent and, for render_stream, the video being encoded (video 2 of 
 list_stream_videos. list_streams shows the streams already in Studio.
 The library: import_demo takes tags; update_demo changes a demo's source or tags; reanalyze_demo
 analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay).
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream
-and delete_demo need the user's approval, and so do retry_video and change_video_music.
+Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
+downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
+pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,
+rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
+generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video and change_video_music
+need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

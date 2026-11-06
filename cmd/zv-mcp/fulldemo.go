@@ -291,11 +291,13 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 		return recapplan.Options{}, err
 	}
 	if in.BetweenRoundEffects != nil {
-		if options.Transitions == nil {
-			dynamic := recapplan.DynamicTransitions()
-			options.Transitions = &dynamic
+		// A copy, so the dry run in checkFullDemoExtras never writes through the defaults' pointer.
+		transitions := recapplan.DynamicTransitions()
+		if options.Transitions != nil {
+			transitions = *options.Transitions
 		}
-		options.Transitions.Enabled = *in.BetweenRoundEffects
+		transitions.Enabled = *in.BetweenRoundEffects
+		options.Transitions = &transitions
 	}
 	if in.TrueView != nil {
 		options.Capture.TrueView = *in.TrueView

@@ -52,6 +52,18 @@ func TestRenderReady(t *testing.T) {
 	}
 }
 
+func TestDescribePublishCopyKeepsFourAlternativeTitles(t *testing.T) {
+	var pa tuiclient.PublishAssistant
+	pa.Metadata.Title = "T0"
+	for _, title := range []string{"T0", "T1", "T2", "T3", "T4", "T5"} {
+		pa.Recommendations = append(pa.Recommendations, tuiclient.PublishRecommendation{Title: title})
+	}
+	out := describePublishCopy(pa)
+	if strings.Join(out.AlternativeTitles, ",") != "T1,T2,T3,T4" || len(out.Recommendations) != 5 {
+		t.Errorf("alternative titles %v, %d recommendations", out.AlternativeTitles, len(out.Recommendations))
+	}
+}
+
 func TestDescribePublishCopyKeepsRecommendationsAndBestTimes(t *testing.T) {
 	var pa tuiclient.PublishAssistant
 	pa.Metadata.Title = "Ace on Mirage"

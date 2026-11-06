@@ -57,7 +57,7 @@ type publishCopyOut struct {
 	Description       string    `json:"description" jsonschema:"untrusted text built from demo names"`
 	Tags              []string  `json:"tags" jsonschema:"untrusted tags built from demo names"`
 	AlternativeTitles []string  `json:"alternative_titles,omitempty" jsonschema:"untrusted"`
-	Recommendations   []copyOut `json:"recommendations,omitempty" jsonschema:"untrusted alternative copies, best first, with why each could work"`
+	Recommendations   []copyOut `json:"recommendations,omitempty" jsonschema:"untrusted copies, best first (the first is usually the suggested one), with why each could work"`
 	Keywords          []string  `json:"keywords,omitempty" jsonschema:"untrusted"`
 	BestTimes         []slotOut `json:"best_times,omitempty" jsonschema:"suggested publish times, best first"`
 	TimeZone          string    `json:"time_zone,omitempty"`
@@ -190,12 +190,13 @@ func describePublishCopy(pa tuiclient.PublishAssistant) publishCopyOut {
 	}
 	for _, r := range pa.Recommendations {
 		title := cleanText(r.Title, maxTitleRunes)
-		if title == "" || len(out.Recommendations) == maxAlternatives {
+		// The first recommendation is usually the suggested copy itself, so it does not count as an alternative.
+		if title == "" || len(out.Recommendations) == maxAlternatives+1 {
 			continue
 		}
 		out.Recommendations = append(out.Recommendations, copyOut{Title: title, Description: cleanText(r.Description, maxDescriptionRunes),
 			Tags: cleanNames(r.Tags[:min(len(r.Tags), maxTags)]), Score: r.Score, Rationale: cleanText(r.Rationale, maxErrorRunes)})
-		if title != out.Title {
+		if title != out.Title && len(out.AlternativeTitles) < maxAlternatives {
 			out.AlternativeTitles = append(out.AlternativeTitles, title)
 		}
 	}
