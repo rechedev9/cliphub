@@ -653,7 +653,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     childExited,
   });
   assertBootAttemptActive(attempt);
-  const running: AgentSessionTarget = { orchestratorUrl, token: security.mutationToken, webOrigin };
+  const running: AgentSessionTarget = { orchestratorUrl, token: security.mutationToken, webOrigin, studioVersion: app.getVersion() };
   activeAgentSession = running;
   const assistantEnabled = readAgentAccess(agentAccessFile);
   if (assistantEnabled) refreshStableMcp();

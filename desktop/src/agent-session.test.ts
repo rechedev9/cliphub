@@ -17,6 +17,7 @@ function tempDir(): string {
 
 const TOKEN = 'a'.repeat(64);
 const WEB = 'http://127.0.0.1:4200';
+const VERSION = '5.10.0';
 
 test('access is off without a file, with bad JSON, or without enabled true', () => {
   const dir = tempDir();
@@ -32,19 +33,20 @@ test('access is off without a file, with bad JSON, or without enabled true', () 
 
 test('a session with access off carries no token', () => {
   const file = path.join(tempDir(), 'agent-session.json');
-  writeAgentSession({ sessionFile: file, enabled: false, orchestratorUrl: 'http://127.0.0.1:1', token: TOKEN, webOrigin: WEB });
+  writeAgentSession({ sessionFile: file, enabled: false, orchestratorUrl: 'http://127.0.0.1:1', token: TOKEN, webOrigin: WEB, studioVersion: VERSION });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { version: 1, enabled: false });
 });
 
 test('a session with access on carries the url and token, and removal is idempotent', () => {
   const file = path.join(tempDir(), 'agent-session.json');
-  writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB });
+  writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), {
     version: 1,
     enabled: true,
     orchestratorUrl: 'http://127.0.0.1:4100',
     token: TOKEN,
     webOrigin: WEB,
+    studioVersion: VERSION,
   });
   removeAgentSession(file);
   removeAgentSession(file);
@@ -55,7 +57,7 @@ test('changing the switch rewrites a running session and only stores the choice 
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');
   const sessionFile = path.join(dir, 'agent-session.json');
-  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB };
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
 
   setAgentAccess({ accessFile, sessionFile, enabled: true, running: null });
   assert.equal(readAgentAccess(accessFile), true);
@@ -95,7 +97,7 @@ function flakyFs({ renameFailures, code = 'EPERM' }: FlakyFsOptions): AgentSessi
 test('a rename blocked by another process is retried and leaves no temp file', () => {
   const file = path.join(tempDir(), 'agent-session.json');
   const ops = flakyFs({ renameFailures: 2 });
-  writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, fsOps: ops });
+  writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION, fsOps: ops });
   assert.equal(ops.renames, 3);
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).token, TOKEN);
   assert.equal(fs.existsSync(`${file}.tmp`), false);
@@ -105,7 +107,7 @@ test('a rename that keeps failing removes the temp file and reports the error', 
   const file = path.join(tempDir(), 'agent-session.json');
   const ops = flakyFs({ renameFailures: Infinity });
   assert.throws(
-    () => writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, fsOps: ops }),
+    () => writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION, fsOps: ops }),
     /in use/,
   );
   assert.equal(ops.renames, 5);
@@ -116,7 +118,7 @@ test('a rename that keeps failing removes the temp file and reports the error', 
 test('an error that is not a lock is not retried', () => {
   const file = path.join(tempDir(), 'agent-session.json');
   const ops = flakyFs({ renameFailures: Infinity, code: 'ENOENT' });
-  assert.throws(() => writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, fsOps: ops }));
+  assert.throws(() => writeAgentSession({ sessionFile: file, enabled: true, orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION, fsOps: ops }));
   assert.equal(ops.renames, 1);
 });
 
@@ -124,7 +126,7 @@ test('disabling access removes the session when it cannot be rewritten, so no to
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');
   const sessionFile = path.join(dir, 'agent-session.json');
-  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB };
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
   setAgentAccess({ accessFile, sessionFile, enabled: true, running });
   assert.equal(JSON.parse(fs.readFileSync(sessionFile, 'utf8')).token, TOKEN);
 
@@ -146,7 +148,7 @@ test('a failure storing the choice never leaves a published token behind', () =>
   const dir = tempDir();
   const accessFile = path.join(dir, 'agent-access.json');
   const sessionFile = path.join(dir, 'agent-session.json');
-  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB };
+  const running = { orchestratorUrl: 'http://127.0.0.1:4100', token: TOKEN, webOrigin: WEB, studioVersion: VERSION };
   const ops = flakyFs({ renameFailures: 0 });
   const realRename = ops.renameSync;
   ops.renameSync = (from: string, to: string): void => {
