@@ -580,16 +580,7 @@ func variantLabel(name string, variants []tuiclient.StreamVariant) string {
 
 // streamName drops guillemets and quotes so a title cannot close the quote and read as approval text.
 func streamName(j tuiclient.StreamJob) string {
-	title := strings.Map(func(r rune) rune {
-		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
-			return -1
-		}
-		return r
-	}, j.Title)
-	if title = cleanName(title); title != "" {
-		return "«" + title + "»"
-	}
-	return "este stream"
+	return quotedName(j.Title, "este stream")
 }
 
 // clock spells seconds as m:ss, or h:mm:ss for a long VOD.
