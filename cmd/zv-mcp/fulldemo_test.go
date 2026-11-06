@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -115,5 +118,42 @@ func TestFetchPreview(t *testing.T) {
 		if _, err := fetchPreview(context.Background(), srv.URL, id); err == nil {
 			t.Errorf("%s: accepted", id)
 		}
+	}
+}
+
+// A zv-mcp older than Studio once dropped kills[].clutch_vs and reported every
+// plan as stale; an unknown field must say the assistant needs a restart.
+func TestDecodeFullDemoDocument(t *testing.T) {
+	doc := recapplan.Document{Options: recapplan.DefaultOptions(), Clock: recapplan.Clock{FPS: 60},
+		Rounds: []recapplan.Round{{ID: "r1", Kills: []killplan.Kill{{Tick: 100, Weapon: "ak47"}}}}}
+	hash, err := doc.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.PlanHash = hash
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := decodeFullDemoDocument(raw)
+	if err != nil {
+		t.Fatalf("Studio's own plan: %v", err)
+	}
+	if again, _ := got.Hash(); again != hash {
+		t.Fatalf("round trip changed the hash: %s != %s", again, hash)
+	}
+
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	kill := wire["rounds"].([]any)[0].(map[string]any)["kills"].([]any)[0].(map[string]any)
+	kill["field_from_a_newer_studio"] = 2
+	newer, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodeFullDemoDocument(newer); !errors.Is(err, errOutdatedMCP) || !strings.Contains(err.Error(), "restart the assistant") {
+		t.Fatalf("newer plan: err = %v", err)
 	}
 }
