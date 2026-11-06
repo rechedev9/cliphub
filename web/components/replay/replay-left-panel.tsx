@@ -114,10 +114,9 @@ export function ReplayLeftPanel({
   onTrailSeconds,
   onShowAll,
   moments,
-  bookmarks,
 }: {
   focused: CentreRound | null;
-  /** What can be made from this round: a saved moment, a video, a play. */
+  /** What can be made from this round: a video, a play. */
   actions: ReactNode;
   filters: ReactNode;
   layers: ReplayLayers;
@@ -126,7 +125,6 @@ export function ReplayLeftPanel({
   onShowAll: () => void;
   /** The round's key moments as jump buttons; null with the layer off. */
   moments: { count: number; list: ReactNode } | null;
-  bookmarks: { count: number; panel: ReactNode } | null;
 }): ReactNode {
   const reasons = focused?.round.class.reasons ?? [];
   return (
@@ -168,11 +166,6 @@ export function ReplayLeftPanel({
       {moments === null ? null : (
         <Fold title="Momentos clave" count={moments.count} defaultOpen>
           {moments.list}
-        </Fold>
-      )}
-      {bookmarks === null ? null : (
-        <Fold title="Momentos guardados" count={bookmarks.count} defaultOpen={false}>
-          {bookmarks.panel}
         </Fold>
       )}
       {reasons.length === 0 ? null : (

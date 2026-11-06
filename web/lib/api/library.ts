@@ -1,4 +1,3 @@
-import type { CollectionInput, CollectionPatch, LibraryCollection, LibraryCollectionDetail } from './collections.ts';
 import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
@@ -634,28 +633,6 @@ export function exportStratbook(query: PlayListQuery = {}): Promise<StratbookFil
 
 export function importStratbook(file: StratbookUpload): Promise<StratbookImport> {
   return request<StratbookImport>('/plays/import', jsonInit('POST', file));
-}
-
-/** Every collection, by most recent edit. */
-export async function listLibraryCollections(): Promise<LibraryCollection[]> {
-  const body = await request<{ collections?: LibraryCollection[] }>('/collections');
-  return body.collections ?? [];
-}
-
-export function getLibraryCollection(collectionId: string): Promise<LibraryCollectionDetail> {
-  return request<LibraryCollectionDetail>(`/collections/${id(collectionId)}`);
-}
-
-export function createLibraryCollection(input: CollectionInput): Promise<LibraryCollection> {
-  return request<LibraryCollection>('/collections', jsonInit('POST', input));
-}
-
-export function patchLibraryCollection(collectionId: string, patch: CollectionPatch): Promise<LibraryCollection> {
-  return request<LibraryCollection>(`/collections/${id(collectionId)}`, jsonInit('PATCH', patch));
-}
-
-export function deleteLibraryCollection(collectionId: string): Promise<void> {
-  return request<void>(`/collections/${id(collectionId)}`, { method: 'DELETE' });
 }
 
 export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKind[] };

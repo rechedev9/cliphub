@@ -34,6 +34,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV8LibrarySeriesVeto,
 	migrateV9LibraryCollections,
 	migrateV10StreamColumns,
+	migrateV11DropLibraryCollections,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -626,6 +627,15 @@ func migrateV9LibraryCollections(tx *sql.Tx) error {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("create library collections: %w", err)
 		}
+	}
+	return nil
+}
+
+// migrateV11DropLibraryCollections removes the saved-moment lists: Studio no
+// longer has collections.
+func migrateV11DropLibraryCollections(tx *sql.Tx) error {
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS library_collections`); err != nil {
+		return fmt.Errorf("drop library collections: %w", err)
 	}
 	return nil
 }

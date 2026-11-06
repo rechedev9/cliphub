@@ -65,8 +65,6 @@ test('the replay views and notes are reachable, and a note cannot change match o
 });
 
 test('the stratbook routes are reachable and a play patch cannot move its map, side or origin', () => {
-  assert.ok(matchLibraryRoute('PATCH', ['collections', ID]));
-  assert.equal(matchLibraryRoute('PUT', ['collections', ID]), undefined);
   assert.ok(matchLibraryRoute('GET', ['plays']));
   assert.ok(matchLibraryRoute('GET', ['plays', 'export']));
   assert.ok(matchLibraryRoute('DELETE', ['plays', ID]));
@@ -164,7 +162,7 @@ test('the norms are read only and forward only the map and the dates', () => {
 });
 
 test('share packages export as downloads with only a message, and import as multipart', () => {
-  for (const base of ['collections', 'reports']) {
+  for (const base of ['reports']) {
     const route = matchLibraryRoute('POST', [base, ID, 'export']);
     assert.equal(route?.response.kind, 'download');
     assert.ok(route?.body?.kind === 'json');
@@ -174,5 +172,5 @@ test('share packages export as downloads with only a message, and import as mult
   const imported = matchLibraryRoute('POST', ['import-package']);
   assert.equal(imported?.body?.kind, 'multipart');
   assert.ok(imported?.response.kind === 'json');
-  assert.ok(imported.response.keys.includes('collection_id'));
+  assert.ok(imported.response.keys.includes('report_id'));
 });

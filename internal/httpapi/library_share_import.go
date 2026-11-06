@@ -21,7 +21,6 @@ type shareImportResponse struct {
 	Kind            string     `json:"kind"`
 	Title           string     `json:"title"`
 	Notes           string     `json:"notes"`
-	CollectionID    *uuid.UUID `json:"collection_id,omitempty"`
 	ReportID        *uuid.UUID `json:"report_id,omitempty"`
 	Duplicate       bool       `json:"duplicate"`
 	MatchesImported int        `json:"matches_imported"`
@@ -130,7 +129,7 @@ func (h *Handlers) importSharePackage(ctx context.Context, pkg *sharepkg.Reader)
 	var stored []uuid.UUID
 	resp, err := h.importSharePackageInto(ctx, pkg, &stored)
 	if err != nil {
-		// All or nothing: a note, collection or report that fails drops the matches this import stored.
+		// All or nothing: a note or report that fails drops the matches this import stored.
 		h.dropSharedDemos(stored)
 	}
 	return resp, err
@@ -168,9 +167,7 @@ func (h *Handlers) importSharePackageInto(ctx context.Context, pkg *sharepkg.Rea
 		resp.Annotations++
 	}
 	var err error
-	if m.Collection != nil {
-		resp.CollectionID, resp.Duplicate, err = h.importSharedCollection(ctx, *m.Collection, matchIDs)
-	} else if m.Report != nil {
+	if m.Report != nil {
 		resp.ReportID, resp.Duplicate, err = h.importSharedReport(ctx, *m.Report, matchIDs)
 	}
 	return resp, err
@@ -249,25 +246,6 @@ func (h *Handlers) dropSharedDemos(ids []uuid.UUID) {
 		}
 		h.discardLibraryDemo(id)
 	}
-}
-
-func (h *Handlers) importSharedCollection(ctx context.Context, c library.Collection, matchIDs map[uuid.UUID]uuid.UUID) (*uuid.UUID, bool, error) {
-	if _, err := h.libraryRepo.GetCollection(ctx, c.ID); err == nil {
-		return &c.ID, true, nil
-	} else if !errors.Is(err, library.ErrNotFound) {
-		return nil, false, err
-	}
-	for i := range c.Items {
-		c.Items[i].MatchID = matchIDs[c.Items[i].MatchID]
-	}
-	c, err := library.CleanCollection(c)
-	if err == nil {
-		err = h.libraryRepo.CreateCollection(ctx, &c)
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("store collection: %w", err)
-	}
-	return &c.ID, false, nil
 }
 
 func (h *Handlers) importSharedReport(ctx context.Context, rep library.Report, matchIDs map[uuid.UUID]uuid.UUID) (*uuid.UUID, bool, error) {

@@ -3,12 +3,11 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { FileUp } from 'lucide-react';
-import { importLibraryDemo, isLibraryOffline, type LibraryImportResult } from '@/lib/api/library';
-import { matchHref } from '@/lib/clips/routes';
+import { importLibraryDemo, isLibraryOffline, LibraryApiError, type LibraryImportResult } from '@/lib/api/library';
+import { matchHref, reportHref } from '@/lib/clips/routes';
 import { importErrorLabel } from '@/lib/library/partidas';
 import { importSharePackage } from '@/lib/api/share-package';
-import { SHARE_FILE, shareImportSummary, type SharePackageImport } from '@/lib/library/share';
-import { importedHref, packageImportError } from '@/components/share/package-import-button';
+import { SHARE_FILE, shareErrorLabel, shareImportSummary, type SharePackageImport } from '@/lib/library/share';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +25,18 @@ const DEMO_FILE = /\.dem(\.zst)?$/i;
 
 type PackageResult = { readonly package: SharePackageImport } | { readonly packageError: string };
 type FileResult = { readonly name: string; readonly result: LibraryImportResult | PackageResult | 'pending' | 'error' };
+
+/** The page a finished package import opens: the report it brought. */
+function importedHref(result: SharePackageImport): string | null {
+  return result.report_id ? reportHref(result.report_id) : null;
+}
+
+/** The sentence a failed package import shows. */
+function packageImportError(failure: unknown): string {
+  if (isLibraryOffline(failure)) return 'El servicio local no responde. Comprueba que ClipHub Studio sigue abierto.';
+  const code = failure instanceof LibraryApiError ? failure.code : undefined;
+  return shareErrorLabel(code, 'No se pudo importar el paquete.');
+}
 
 async function importFile(file: File, tags: readonly string[]): Promise<FileResult['result']> {
   if (!SHARE_FILE.test(file.name)) return importLibraryDemo(file, tags);

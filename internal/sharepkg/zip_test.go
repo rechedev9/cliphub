@@ -49,8 +49,8 @@ func newMatchFixture(t *testing.T) matchFixture {
 func testManifest() Manifest {
 	matchID := uuid.New()
 	return Manifest{
-		Format: Format, Version: Version, CreatedAt: time.Now().UTC(), Kind: KindCollection, Title: "Prueba", Notes: "Mirad la 2",
-		Collection: &library.Collection{ID: uuid.New(), Name: "Prueba", Items: []library.CollectionItem{{MatchID: matchID, Round: 2, Tick: 500}}},
+		Format: Format, Version: Version, CreatedAt: time.Now().UTC(), Kind: KindReport, Title: "Prueba", Notes: "Mirad la 2",
+		Report: &library.Report{ID: uuid.New(), Title: "Prueba", TeamName: "Alpha", MatchIDs: []uuid.UUID{matchID}},
 		Matches: []Match{{
 			Match: library.Match{ID: matchID, Map: "de_mirage", RoundCount: 2, Teams: []library.MatchTeam{{Key: "ct-start", TeamName: "Alpha"}}},
 			Demo:  Demo{SHA256: testSHA, FileName: "match.dem"},
@@ -135,8 +135,8 @@ func TestOpenRefusesBadPackages(t *testing.T) {
 	newer.Version = Version + 1
 	notes := m
 	notes.Annotations = []library.Annotation{{ID: uuid.New(), MatchID: uuid.New(), Round: 1, Text: "x"}}
-	outOfRange := m
-	outOfRange.Collection = &library.Collection{ID: uuid.New(), Name: "x", Items: []library.CollectionItem{{MatchID: id, Round: 9}}}
+	foreignMatch := m
+	foreignMatch.Report = &library.Report{ID: uuid.New(), Title: "x", TeamName: "Alpha", MatchIDs: []uuid.UUID{uuid.New()}}
 
 	cases := map[string][]byte{
 		"not a zip":       []byte("hello"),
@@ -148,7 +148,7 @@ func TestOpenRefusesBadPackages(t *testing.T) {
 		"bad json":        with(func(files map[string][]byte) { files[manifestName] = []byte("{") }),
 		"newer version":   with(func(files map[string][]byte) { files[manifestName] = manifestJSON(t, newer) }),
 		"foreign note":    with(func(files map[string][]byte) { files[manifestName] = manifestJSON(t, notes) }),
-		"round past end":  with(func(files map[string][]byte) { files[manifestName] = manifestJSON(t, outOfRange) }),
+		"foreign match":   with(func(files map[string][]byte) { files[manifestName] = manifestJSON(t, foreignMatch) }),
 		// A manifest that inflates past its cap is refused while it is read.
 		"zip bomb": with(func(files map[string][]byte) { files[manifestName] = bytes.Repeat([]byte(" "), maxManifestBytes+1) }),
 	}

@@ -55,53 +55,6 @@ func readShareNotes(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return notes, true
 }
 
-// ExportLibraryCollection handles POST /api/library/collections/{id}/export:
-// the collection as a .cliphub package. Moments of deleted matches are left out.
-func (h *Handlers) ExportLibraryCollection(w http.ResponseWriter, r *http.Request) {
-	c, ok := h.loadLibraryCollection(w, r)
-	if !ok {
-		return
-	}
-	notes, ok := readShareNotes(w, r)
-	if !ok {
-		return
-	}
-	order := make([]uuid.UUID, 0, len(c.Items))
-	rounds := map[uuid.UUID]map[int]bool{}
-	for _, item := range c.Items {
-		if rounds[item.MatchID] == nil {
-			rounds[item.MatchID] = map[int]bool{}
-			order = append(order, item.MatchID)
-		}
-		rounds[item.MatchID][item.Round] = true
-	}
-	matches, err := h.shareMatches(r.Context(), order)
-	if err != nil {
-		writeShareExportError(w, err)
-		return
-	}
-	carried := map[uuid.UUID]bool{}
-	for _, m := range matches {
-		carried[m.Match.ID] = true
-	}
-	shared := c
-	shared.Items = make([]library.CollectionItem, 0, len(c.Items))
-	for _, item := range c.Items {
-		if carried[item.MatchID] {
-			shared.Items = append(shared.Items, item)
-		}
-	}
-	notesOf, err := h.shareAnnotations(r.Context(), matches, func(a library.Annotation) bool { return rounds[a.MatchID][a.Round] })
-	if err != nil {
-		internalError(w, "list collection notes", err)
-		return
-	}
-	h.writeSharePackage(w, sharepkg.Manifest{
-		Kind: sharepkg.KindCollection, Title: c.Name, Notes: notes, Collection: &shared,
-		Matches: matches, Annotations: notesOf,
-	})
-}
-
 // ExportLibraryReport handles POST /api/library/reports/{id}/export: the
 // report and every match it reads as a .cliphub package.
 func (h *Handlers) ExportLibraryReport(w http.ResponseWriter, r *http.Request) {

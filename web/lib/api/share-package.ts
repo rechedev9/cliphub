@@ -1,7 +1,7 @@
 import { LibraryApiError } from './library.ts';
 import { SHARE_PACKAGE_EXTENSION, type SharePackageImport } from '../library/share.ts';
 
-export type ShareTarget = { kind: 'collection' | 'report'; id: string };
+export type ShareTarget = { kind: 'report'; id: string };
 export type SharePackageFile = { blob: Blob; fileName: string };
 
 const FILE_NAME = /filename="([^"]+)"/;
@@ -17,10 +17,9 @@ async function failure(res: Response): Promise<LibraryApiError> {
   );
 }
 
-/** Builds the .cliphub package of a collection or a report. */
+/** Builds the .cliphub package of a report. */
 export async function exportSharePackage(target: ShareTarget, notes: string): Promise<SharePackageFile> {
-  const base = target.kind === 'collection' ? 'collections' : 'reports';
-  const res = await fetch(`/api/library/${base}/${encodeURIComponent(target.id)}/export`, {
+  const res = await fetch(`/api/library/reports/${encodeURIComponent(target.id)}/export`, {
     method: 'POST',
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
