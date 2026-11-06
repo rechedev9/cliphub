@@ -124,6 +124,9 @@ func TestChosenPlaysKeepSourceOrder(t *testing.T) {
 	if got := playIDs(chosenPlays(plays, []string{"c", "a", "zz"})); !slices.Equal(got, []string{"a", "c"}) {
 		t.Fatalf("chose %v, want [a c] in source order", got)
 	}
+	if got := chosenPlays(plays, []string{}); len(got) != 0 {
+		t.Fatalf("an empty choice chose %v, want none", playIDs(got))
+	}
 }
 
 func TestStreamPlayScanWaitsForTheSource(t *testing.T) {
