@@ -57,12 +57,16 @@ type PlayQuery struct {
 	Side   string
 	Kind   string
 	Limit  int
+	Offset int
 }
 
 func (q PlayQuery) encode() string {
 	params := map[string]string{"team_id": q.TeamID, "map": q.Map, "side": q.Side, "kind": q.Kind}
 	if q.Limit > 0 {
 		params["limit"] = strconv.Itoa(q.Limit)
+	}
+	if q.Offset > 0 {
+		params["offset"] = strconv.Itoa(q.Offset)
 	}
 	return query(params)
 }
@@ -176,7 +180,7 @@ func (c *Client) DetectTeamPlays(ctx context.Context, teamID string, q AnalysisQ
 
 // ExportPlays returns the stratbook file of the plays the query selects.
 func (c *Client) ExportPlays(ctx context.Context, q PlayQuery) (json.RawMessage, error) {
-	q.Limit = 0
+	q.Limit, q.Offset = 0, 0
 	var out json.RawMessage
 	err := c.getJSON(ctx, "/api/library/plays/export"+q.encode(), &out)
 	return out, err
