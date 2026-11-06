@@ -48,10 +48,13 @@ For a player: player_positions; leaderboard ranks the library's players on one g
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
-makes one 16:9 video of every play; render_stream makes one video per play in a layout from
-list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render, which
-reports the percent and, for render_stream, the video being encoded (video 2 of 3); then
-list_stream_videos. list_streams shows the streams already in Studio.
+makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
+layout from list_stream_variants (9:16 Shorts or 16:9). To edit before rendering, get_stream_edit_plan
+reads the moments and their speed, audio, fades and text, the banners, music, kill feed and effects;
+edit_stream_plan changes them with expected_updated_at set to the updated_at it read (read again if
+the save fails). Both renders return a variant for wait_for_stream_render, which reports the percent
+and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
+videos and extra files. list_streams shows the streams already in Studio.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video and delete_stream
 need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in

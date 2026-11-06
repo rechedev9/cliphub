@@ -56,8 +56,9 @@ type streamPlaysOut struct {
 }
 
 type renderStreamSummaryIn struct {
-	ID      string `json:"id" jsonschema:"stream_id whose plays find_stream_plays found"`
-	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	ID      string   `json:"id" jsonschema:"stream_id whose plays find_stream_plays found"`
+	PlayIDs []string `json:"play_ids,omitempty" jsonschema:"plays from find_stream_plays to put in the summary, kept in video order; empty uses every play"`
+	Approve string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
 type renderStreamIn struct {
@@ -153,11 +154,15 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "render_stream_summary",
-		Description: "Render one 16:9 video with every play find_stream_plays found, in order: the Resumen horizontal of a VOD in Studio. " +
+		Description: "Render one 16:9 video with the plays find_stream_plays found, in video order: the Resumen horizontal of a VOD in Studio. " +
+			"play_ids picks some of them, as the Jugadas del resumen list does; empty uses every play. " +
 			"It encodes for minutes, so the user must approve it. If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_stream_render and variant summary."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in renderStreamSummaryIn) (*mcp.CallToolResult, streamRenderStartOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
+				return nil, streamRenderStartOut{}, err
+			}
+			if err := checkStreamPlayIDs(in.PlayIDs); err != nil {
 				return nil, streamRenderStartOut{}, err
 			}
 			c, err := s.client(ctx)
@@ -175,12 +180,16 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if scan.Status != playScanDone || len(scan.Plays) == 0 {
 				return nil, streamRenderStartOut{}, errors.New("the stream has no plays yet; run find_stream_plays until it reports done with plays")
 			}
-			ids := make([]string, 0, len(scan.Plays))
-			for _, p := range scan.Plays {
+			plays, err := summaryPlays(scan.Plays, in.PlayIDs)
+			if err != nil {
+				return nil, streamRenderStartOut{}, err
+			}
+			ids := make([]string, 0, len(plays))
+			for _, p := range plays {
 				ids = append(ids, p.ID)
 			}
-			summary := fmt.Sprintf("Crear el resumen horizontal 16:9 de %s con %s seguidas, unos %s. FFmpeg trabajará durante varios minutos.",
-				streamName(j), plural(len(scan.Plays), "jugada", "jugadas"), clock(playsSeconds(scan.Plays)))
+			summary := fmt.Sprintf("Crear el resumen horizontal 16:9 de %s con %s seguidas%s, unos %s. FFmpeg trabajará durante varios minutos.",
+				streamName(j), plural(len(plays), "jugada", "jugadas"), summaryShare(len(plays), len(scan.Plays)), clock(playsSeconds(plays)))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_stream_summary", JobID: in.ID, Request: ids, Summary: summary, Given: in.Approve})
 			if err != nil {
 				return nil, streamRenderStartOut{}, err
@@ -191,7 +200,11 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			if !ok.Approved {
 				return nil, streamRenderStartOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: summary}, nil
 			}
-			res, err := c.StartStreamSummary(ctx, in.ID)
+			start := tuiclient.StreamSummaryStart{ID: in.ID}
+			if len(in.PlayIDs) > 0 {
+				start.PlayIDs = ids
+			}
+			res, err := c.StartStreamSummary(ctx, start)
 			if err != nil {
 				return nil, streamRenderStartOut{}, toolError(err)
 			}
@@ -363,6 +376,26 @@ func describePlayScan(scan tuiclient.StreamPlayScan, limit int) streamPlaysOut {
 	}
 	out.Duration = playsSeconds(scan.Plays)
 	return out
+}
+
+// summaryPlays keeps the chosen plays in scan (video) order, as Studio does; no ids means every play.
+func summaryPlays(plays []tuiclient.StreamPlay, ids []string) ([]tuiclient.StreamPlay, error) {
+	if len(ids) == 0 {
+		return plays, nil
+	}
+	for _, id := range ids {
+		if !slices.ContainsFunc(plays, func(p tuiclient.StreamPlay) bool { return p.ID == id }) {
+			return nil, fmt.Errorf("play id %s is not a play of this stream; use the ids from find_stream_plays", id)
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(plays), func(p tuiclient.StreamPlay) bool { return !slices.Contains(ids, p.ID) }), nil
+}
+
+func summaryShare(chosen, total int) string {
+	if chosen == total {
+		return ""
+	}
+	return fmt.Sprintf(" (de %d encontradas)", total)
 }
 
 func playsSeconds(plays []tuiclient.StreamPlay) float64 {
@@ -538,7 +571,7 @@ func saveStreamRenderPlan(ctx context.Context, c *tuiclient.Client, in streamPla
 		return "", err
 	}
 	next["clips"] = clips
-	saved, err := c.PutStreamEditPlanDocument(ctx, in.ID, next)
+	saved, err := c.PutStreamEditPlanDocument(ctx, tuiclient.StreamPlanPut{ID: in.ID, Plan: next, ExpectedUpdatedAt: in.Body.PlanUpdatedAt})
 	if err != nil {
 		return "", toolError(err)
 	}

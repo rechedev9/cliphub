@@ -122,7 +122,7 @@ safe. Only uploads are limited (2 concurrent).
 - Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
-  which are new plays), `render_stream_summary` (play count and length), `delete_video` and
+  which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video` and
   `delete_stream`.
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
@@ -176,7 +176,8 @@ Read:
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
 | `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
 | `list_stream_variants` | `GET /api/stream-variants`; aspect ratio and whether the layout shows the facecam |
-| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
+| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`), `GET /api/stream-jobs/{id}/summary`, and `GET .../renders/{variant}` per rendered layout for its `delivery` files other than MP4s ("Archivos adicionales": cover, metadata, plan, manifest); links through the UI origin |
+| `get_stream_edit_plan` | `GET /api/stream-jobs/{id}` and `GET .../edit-plan`: moments with their `edit`, banners, music, kill feed, effects, layout, crops and `face_crop_reviewed`, and `updated_at` |
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
 | `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
@@ -195,8 +196,9 @@ Write:
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
 | `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
 | `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
-| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
-| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
+| `edit_stream_plan` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan?expected_updated_at=` (raw fields; each part given replaces that part, the rest is kept; Studio answers 409 when another save landed after `expected_updated_at`); new moments get free `clip-NNN` ids; a music key is checked against `GET /api/songs` | no (saves the plan the UI also shows) |
+| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary` with `play_ids` when given: one 16:9 video of those plays (every play when empty) | yes |
+| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`; the save carries `expected_updated_at`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
 
