@@ -48,8 +48,8 @@ Decide in phase 1 whether the WebMCP preview stays.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
-  encodes for minutes and deleting (`delete_video`, `delete_stream`) or merging teams (`merge_teams`)
-  cannot be undone, so they ask too.
+  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`) or merging teams
+  (`merge_teams`) cannot be undone, so they ask too.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -124,7 +124,7 @@ safe. Only uploads are limited (2 concurrent).
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count and length), `delete_video`,
-  `delete_stream` and `merge_teams` (both team names and the match count of the one that goes).
+  `delete_stream`, `delete_demo` and `merge_teams` (both team names and the match count of the one that goes).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -161,7 +161,6 @@ Read:
 | `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first; same filters as `list_moments` |
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
-| `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags |
 | `list_teams` | `GET /api/library/teams` |
@@ -189,7 +188,9 @@ Write:
 
 | Tool | Orchestrator calls | Approval |
 | --- | --- | --- |
-| `import_demo` | `POST /api/library/demos` (multipart `demo`, `tag`) | no |
+| `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file, and a duplicate keeps its own tags) | no |
+| `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set | no |
+| `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map | yes |
@@ -203,6 +204,7 @@ Write:
 | `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
+| `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
 | `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
 | `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
 | `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |

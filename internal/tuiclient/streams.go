@@ -40,7 +40,7 @@ func (c *Client) GetStreamJob(ctx context.Context, id string) (StreamJob, error)
 func (c *Client) CreateStreamJobUpload(ctx context.Context, videoPath, title string) (StreamCreateResponse, error) {
 	config := configJSON(map[string]string{"title": title})
 	var out StreamCreateResponse
-	err := c.uploadMultipart(ctx, "/api/stream-jobs", "video", videoPath, config, &out)
+	err := c.uploadMultipart(ctx, upload{Path: "/api/stream-jobs", FileField: "video", FilePath: videoPath, Fields: configField(config)}, &out)
 	return out, err
 }
 

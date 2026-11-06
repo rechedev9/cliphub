@@ -57,8 +57,10 @@ makes one 16:9 video of every play; render_stream makes one video per play in a 
 list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render, which
 reports the percent and, for render_stream, the video being encoded (video 2 of 3); then
 list_stream_videos. list_streams shows the streams already in Studio.
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream and
-merge_teams need the user's approval.
+The library: import_demo takes tags; update_demo changes a demo's source or tags; reanalyze_demo
+analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay).
+generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
+delete_demo and merge_teams need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.
