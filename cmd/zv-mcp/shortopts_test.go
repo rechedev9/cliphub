@@ -82,10 +82,67 @@ func TestCheckMusic(t *testing.T) {
 
 func TestDescribeShortRequestNamesChoices(t *testing.T) {
 	edit, _ := resolveEdit(shortChoices{})
-	got := describeShortRequest(tuiclient.GenerateRequest{Music: "phonk-01", Edit: edit})
+	got := describeShortRequest(tuiclient.GenerateRequest{Music: &tuiclient.ShortMusic{Key: "phonk-01"}, Edit: edit})
 	for _, want := range []string{"short-9x16", "punch-in", "flash", "phonk-01", "cover"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("summary %q misses %q", got, want)
 		}
+	}
+}
+
+func TestEveryBannerStyleIsAcceptedByRenderplan(t *testing.T) {
+	for _, f := range bannerFamilies {
+		for _, st := range f.Styles {
+			edit, err := resolveEdit(shortChoices{BannerFamily: f.ID, BannerStyle: st.ID, BannerCode: "zack_1"})
+			if err != nil {
+				t.Fatalf("%s %s: %v", f.ID, st.ID, err)
+			}
+			got := decodeEdit(t, edit)
+			if err := got.Validate(); err != nil {
+				t.Errorf("%s %s rejected by renderplan: %v", f.ID, st.ID, err)
+			}
+			if got.KeyDropCode != "ZACK_1" || *got.KeyDropStartSeconds != 0 || *got.KeyDropEndSeconds != 4 {
+				t.Errorf("%s %s: code or window = %q %v %v", f.ID, st.ID, got.KeyDropCode, *got.KeyDropStartSeconds, *got.KeyDropEndSeconds)
+			}
+		}
+	}
+}
+
+func TestResolveEditRejectsBadBannerAndCardText(t *testing.T) {
+	end := 1.0
+	on := true
+	for name, c := range map[string]shortChoices{
+		"fields without a style":  {BannerCode: "ABC"},
+		"unknown style":           {BannerStyle: "tigerr", BannerFamily: "CSGOSKINS"},
+		"bad code":                {BannerStyle: "classic", BannerCode: "-bad"},
+		"window ends early":       {BannerStyle: "classic", BannerEnd: &end, BannerStart: &end},
+		"intro text without card": {IntroText: "Hola"},
+		"outro text too long":     {Outro: &on, OutroText: strings.Repeat("x", 81)},
+	} {
+		if _, err := resolveEdit(c); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	edit, err := resolveEdit(shortChoices{Intro: &on, IntroText: "  El ace de la final  "})
+	if err != nil || edit.IntroText != "El ace de la final" {
+		t.Errorf("intro text = %q, %v", edit.IntroText, err)
+	}
+}
+
+func TestResolveMusicMapsPercentsToGains(t *testing.T) {
+	full, half, mute := 100, 50, 0
+	music, err := resolveMusic(shortChoices{Music: "phonk-01", MusicVolume: &full, GameVolume: &mute})
+	if err != nil || music.Volume != 0 || music.GameVolume == nil || *music.GameVolume != 0 {
+		t.Fatalf("full music, muted game = %+v, %v", music, err)
+	}
+	music, err = resolveMusic(shortChoices{Music: "phonk-01", MusicVolume: &half})
+	if err != nil || music.Volume != 0.5 || music.GameVolume != nil {
+		t.Fatalf("half music = %+v, %v", music, err)
+	}
+	if _, err := resolveMusic(shortChoices{MusicVolume: &half}); err == nil {
+		t.Error("a volume without a track was accepted")
+	}
+	if music, _ := resolveMusic(shortChoices{}); music != nil {
+		t.Errorf("no track gave %+v", music)
 	}
 }
