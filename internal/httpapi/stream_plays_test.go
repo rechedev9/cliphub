@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/vodplays"
 )
 
 func TestStreamPlaysFindTheHighlightedKillAndSummarizeIt(t *testing.T) {
@@ -112,6 +114,16 @@ func requestSummary(t *testing.T, router http.Handler, method string, id uuid.UU
 		t.Fatal(err)
 	}
 	return summary
+}
+
+func TestChosenPlaysKeepSourceOrder(t *testing.T) {
+	plays := []vodplays.Play{{ID: "a"}, {ID: "b"}, {ID: "c"}}
+	if got := playIDs(chosenPlays(plays, nil)); !slices.Equal(got, []string{"a", "b", "c"}) {
+		t.Fatalf("no ids chose %v, want every play", got)
+	}
+	if got := playIDs(chosenPlays(plays, []string{"c", "a", "zz"})); !slices.Equal(got, []string{"a", "c"}) {
+		t.Fatalf("chose %v, want [a c] in source order", got)
+	}
 }
 
 func TestStreamPlayScanWaitsForTheSource(t *testing.T) {

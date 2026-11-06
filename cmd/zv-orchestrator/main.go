@@ -182,6 +182,7 @@ func run() error {
 	// races without serializing unrelated stream jobs.
 	streamJobLocks := streamclips.NewJobLocks()
 	streamRenderProgress := streamclips.NewRenderProgressBoard()
+	acquireProgress := streamclips.NewAcquireProgress()
 
 	taskHandlers := map[string]taskHandler{}
 	parserWorker := workers.NewParserWorker(repo, files)
@@ -255,6 +256,7 @@ func run() error {
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
 			FFprobePath: cfg.FFprobePath,
+			Progress:    acquireProgress,
 		})
 		taskHandlers[tasks.TypeStreamAcquire] = acquireWorker.HandleStreamAcquire
 		log.Printf("worker: stream acquire enabled")
@@ -305,6 +307,7 @@ func run() error {
 		httpapi.WithEditorRepositories(editorAssets, editorProjects),
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamRenderProgress(streamRenderProgress),
+		httpapi.WithStreamAcquireProgress(acquireProgress),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
 		httpapi.WithStreamPlayScanner(cfg.FFmpegPath),
 		httpapi.WithMusicDir(cfg.MusicDir),

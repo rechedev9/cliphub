@@ -47,7 +47,8 @@ Decide in phase 1 whether the WebMCP preview stays.
   `zv-mcp.exe` never blocks the auto-updater and a custom install folder never breaks the config.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
-  in the chat before they run.
+  in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
+  encodes for minutes and deleting (`delete_video`, `delete_stream`) cannot be undone, so they ask too.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -120,6 +121,9 @@ safe. Only uploads are limited (2 concurrent).
 
 - Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
+- The same approval guards `render_stream` (layout, how many videos, which are saved moments and
+  which are new plays), `render_stream_summary` (play count and length), `delete_video` and
+  `delete_stream`.
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -131,9 +135,11 @@ safe. Only uploads are limited (2 concurrent).
 ### Untrusted text
 
 Player names, clan names, victims and publish-assistant titles come from the demo and are chosen by
-players. In tool output, return them in labelled fields, strip control characters and cap their
-length. Tool descriptions say these fields are data, not instructions. A name never reaches a path,
-a shell or a header.
+players. Stream titles come from the streamer, play and moment labels from the stream plan, and
+yt-dlp failure reasons from the remote site. In tool output, return them in labelled fields, strip
+control characters and cap their length. In approval text a stream title also loses « » and quote
+characters, so it cannot close its quote and read as part of the question. Tool descriptions say
+these fields are data, not instructions. A name never reaches a path, a shell or a header.
 
 ## Tools (v1)
 
@@ -168,6 +174,12 @@ Read:
 | `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
+| `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
+| `list_stream_variants` | `GET /api/stream-variants`; aspect ratio and whether the layout shows the facecam |
+| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
+| `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
+| `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary` |
+| `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
 
 Write:
 
@@ -181,6 +193,12 @@ Write:
 | `wait_for_job` | polls a job; takes the render `variant` | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
+| `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
+| `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
+| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
+| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
+| `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
+| `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
 
 Short look and Full Demo HUD:
 
@@ -201,8 +219,9 @@ survives.
 `studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
 instead of failing halfway.
 
-Later, behind the same approval rule: deletes, stream jobs, the editor, Faceit and Steam account
-changes, `open_studio`, resources and prompts.
+Not covered yet (see the parity rule in AGENTS.md): the editor, collections, the stratbook,
+scouting reports, library series, FACEIT follows, Steam import and account, storage, practice
+launch, community ranking, `open_studio`, resources and prompts.
 
 ## Spike results (2026-11-01)
 

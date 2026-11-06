@@ -13,7 +13,7 @@ const POLL_MS = 2000;
 /**
  * Finds the streamer's kills in the source (the red kill-feed highlight of
  * CS2) and offers each run of kills as a moment. A full VOD scans on its own
- * and also offers the landscape summary of every play.
+ * and also offers a landscape summary of the plays the user picks.
  */
 export function StreamDetectedPlays({
   jobId,
@@ -69,7 +69,6 @@ export function StreamDetectedPlays({
   });
 
   const ranked = rankPlays(scan?.plays ?? []);
-  const playSeconds = (scan?.plays ?? []).reduce((total, play) => total + play.end_seconds - play.start_seconds, 0);
   const open = ranked.filter((play) => !playIsCovered(clips, play));
 
   return (
@@ -112,7 +111,7 @@ export function StreamDetectedPlays({
       ) : null}
 
       {vod && scan?.status === 'done' && ranked.length > 0 ? (
-        <StreamSummaryCard jobId={jobId} playCount={ranked.length} playSeconds={playSeconds} disabled={disabled} />
+        <StreamSummaryCard jobId={jobId} plays={scan.plays} disabled={disabled} />
       ) : null}
 
       {scan?.status === 'done' && ranked.length > 0 ? (

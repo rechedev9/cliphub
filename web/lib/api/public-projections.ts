@@ -17,6 +17,7 @@ const STREAM_JOB_PUBLIC_KEYS = [
   'rendered_outputs',
   'rendered_outputs_unavailable',
   'render_progress',
+  'download_progress',
   'created_at',
   'updated_at',
 ] as const;

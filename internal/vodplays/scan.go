@@ -68,7 +68,8 @@ func Scan(ctx context.Context, opts ScanOptions, onSample func(Sample)) error {
 }
 
 func scanArgs(opts ScanOptions, rate float64) []string {
-	filter := fmt.Sprintf("fps=%g,crop=iw*2/5:ih*3/10:iw*3/5:0,scale=%d:%d:flags=neighbor,format=rgb24", rate, FeedWidth, FeedHeight)
+	filter := fmt.Sprintf("fps=%g,crop=iw*%g:ih*%g:iw*%g:0,scale=%d:%d:flags=neighbor,format=rgb24",
+		rate, feedSpan, feedDepth, feedLeft, FeedWidth, FeedHeight)
 	// No -hwaccel: copying every GPU frame back costs more than decoding on the
 	// CPU, which ran a 1080p60 VOD about four times faster.
 	args := []string{"-hide_banner", "-nostdin", "-v", "error"}

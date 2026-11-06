@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } f
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
+import { formatUploadBytes, uploadProgress, uploadSent, type UploadProgress } from '@/lib/api/upload';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { getFaceitScoreboard, type FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
@@ -40,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
+import { LongOperation } from '@/components/studio/long-operation';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
@@ -94,6 +96,8 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   const [seriesId, setSeriesId] = useState<string | null>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
+  // Bytes of the single .dem sent so far; null once the server holds it.
+  const [upload, setUpload] = useState<UploadProgress | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [players, setPlayers] = useState<DemoPlayer[]>([]);
   const [match, setMatch] = useState<RosterMatch | null>(null);
@@ -113,6 +117,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     setStage('idle');
     setSeriesId(null);
     setFileName(null);
+    setUpload(null);
     setJobId(null);
     setPlayers([]);
     setMatch(null);
@@ -125,9 +130,11 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       setError(null);
       setWarning(null);
       setFileName(file.name);
+      setUpload(uploadProgress(0, file.size));
       setStage('scanning');
       try {
-        const scan = await api.scanDemo(file);
+        const scan = await api.scanDemo(file, { onUploadProgress: setUpload });
+        setUpload(null);
         if (scan.players.length === 0) {
           reset(DEMO_EMPTY_ROSTER_HINT);
           return;
@@ -406,7 +413,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       </Card>
     );
   } else if (stage === 'scanning') {
-    body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} />;
+    body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} upload={upload} />;
   } else if (stage === 'parsing') {
     body = <SingleDemoProgress label="Analizando las jugadas…" fileName={fileName} />;
   } else {
@@ -538,22 +545,27 @@ function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: R
   );
 }
 
-function SingleDemoProgress({ label, fileName }: { label: string; fileName: string | null }): ReactNode {
+function SingleDemoProgress({ label, fileName, upload = null }: { label: string; fileName: string | null; upload?: UploadProgress | null }): ReactNode {
+  const uploading = upload !== null && !uploadSent(upload);
   return (
-    <div role="status" aria-live="polite" className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
+    <div role={uploading ? undefined : 'status'} aria-live={uploading ? undefined : 'polite'} className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
       <span className="grid size-14 place-items-center border border-border-accent bg-surface-0 text-fg-2">
         <span aria-hidden className="studio-spinner size-6" />
       </span>
-      <p className="font-display text-title font-bold text-fg-1">{label}</p>
+      <p className="font-display text-title font-bold text-fg-1">{uploading ? 'Subiendo la demo…' : label}</p>
       {fileName ? (
         <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
           <FileVideo aria-hidden className="size-4 shrink-0" />
           <span className="truncate">{fileName}</span>
         </p>
       ) : null}
-      <span className="studio-bar w-full max-w-80 text-primary">
-        <span className="studio-indeterminate" />
-      </span>
+      {uploading ? (
+        <LongOperation stage="Subiendo" percent={upload.percent} detail={formatUploadBytes(upload)} className="w-full max-w-80 text-left" />
+      ) : (
+        <span className="studio-bar w-full max-w-80 text-primary">
+          <span className="studio-indeterminate" />
+        </span>
+      )}
     </div>
   );
 }

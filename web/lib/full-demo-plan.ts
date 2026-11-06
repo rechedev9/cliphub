@@ -1,6 +1,7 @@
 import type { EditConfig } from './api/types.ts';
 import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
+import { uploadForm, type UploadProgress } from './api/upload.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -367,11 +368,12 @@ export function localFileProvenance(file: File): FullDemoProvenance {
     permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
   };
 }
-export async function uploadFullDemoBumper(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+export type FullDemoUploadOptions = { signal?: AbortSignal; onProgress?: (progress: UploadProgress) => void };
+export async function uploadFullDemoBumper(file: File, options: FullDemoUploadOptions = {}): Promise<FullDemoAssetRef> {
   if (!/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Selecciona un vídeo MP4.');
   // Leave room for the multipart envelope under the existing 2 GiB proxy cap.
   if (file.size === 0 || file.size > 2 * 1024 ** 3 - 2 * 1024 ** 2) throw new Error('El MP4 está vacío o supera el límite de 2 GB.');
-  return uploadFullDemoAsset(file, localFileProvenance(file), signal);
+  return uploadFullDemoAsset(file, { ...options, provenance: localFileProvenance(file) });
 }
 export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('El retrato debe ocupar entre 1 byte y 10 MB.');
@@ -383,11 +385,12 @@ export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): 
   if (!assetRef(ref)) throw new Error('Referencia de retrato inválida.');
   return ref;
 }
-export async function uploadFullDemoAsset(file: File, provenance: FullDemoProvenance, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+export async function uploadFullDemoAsset(file: File, options: FullDemoUploadOptions & { provenance: FullDemoProvenance }): Promise<FullDemoAssetRef> {
+  const { provenance, signal, onProgress } = options;
   const form = new FormData();
   form.set('video', file);
   form.set('config', JSON.stringify({ provenance }));
-  const value = await responseJSON(await fetch('/api/editor/assets', { method: 'POST', body: form, signal }));
+  const value = await responseJSON(await uploadForm({ url: '/api/editor/assets', body: form, signal, onProgress }));
   if (!record(value)) throw new Error('El servidor no certificó el archivo subido.');
   // The guarded pair is independent from private storage fields in the upload response.
   const ref = { id: value.id, sha256: value.sha256 };

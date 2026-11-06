@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +24,7 @@ type streamSummary struct {
 	Status          string     `json:"status"`
 	Progress        float64    `json:"progress"`
 	PlayCount       int        `json:"play_count,omitempty"`
+	PlayIDs         []string   `json:"play_ids,omitempty"`
 	DurationSeconds float64    `json:"duration_seconds,omitempty"`
 	Error           string     `json:"error,omitempty"`
 	RenderedAt      *time.Time `json:"rendered_at,omitempty"`
@@ -56,7 +59,7 @@ func (s *streamSummaries) clear(id uuid.UUID) {
 	delete(s.items, id)
 }
 
-func (s *streamSummaries) startIfIdle(id uuid.UUID, playCount int) bool {
+func (s *streamSummaries) startIfIdle(id uuid.UUID, ids []string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.items[id].Status == playScanRunning {
@@ -65,7 +68,7 @@ func (s *streamSummaries) startIfIdle(id uuid.UUID, playCount int) bool {
 	if s.items == nil {
 		s.items = map[uuid.UUID]streamSummary{}
 	}
-	s.items[id] = streamSummary{Status: playScanRunning, PlayCount: playCount}
+	s.items[id] = streamSummary{Status: playScanRunning, PlayCount: len(ids), PlayIDs: ids}
 	return true
 }
 
@@ -84,10 +87,18 @@ func (h *Handlers) GetStreamSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartStreamSummary handles POST /api/stream-jobs/{id}/summary: it renders
-// every detected play into one landscape video in the background.
+// the chosen plays (every play when the body names none) into one landscape
+// video in the background.
 func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadStreamJob(w, r)
 	if !ok {
+		return
+	}
+	var body struct {
+		PlayIDs []string `json:"play_ids"`
+	}
+	if err := decodeSingleJSONBody(w, r, &body, true); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "no pudimos leer qué jugadas quieres en el resumen")
 		return
 	}
 	if !streamSourceIsReady(j.Status) {
@@ -107,6 +118,11 @@ func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "busca las jugadas antes de crear el resumen")
 		return
 	}
+	plays := chosenPlays(scan.Plays, body.PlayIDs)
+	if len(plays) == 0 {
+		writeError(w, http.StatusBadRequest, "elige al menos una jugada para el resumen")
+		return
+	}
 	resolver, ok := h.storage.(storagePathResolver)
 	if !ok {
 		writeError(w, http.StatusNotImplemented, "stream summary needs local storage")
@@ -117,11 +133,38 @@ func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "resolve stream source", err)
 		return
 	}
-	if h.summaries.startIfIdle(j.ID, len(scan.Plays)) {
-		go h.runStreamSummary(j.ID, source, scan.Plays, j.Probe.AudioCodec != "")
+	if h.summaries.startIfIdle(j.ID, playIDs(plays)) {
+		go h.runStreamSummary(j.ID, source, plays, j.Probe.AudioCodec != "")
 	}
 	summary, _ := h.summaries.get(j.ID)
 	writeJSON(w, http.StatusAccepted, summary)
+}
+
+// chosenPlays keeps the scan's plays named in ids, in source order; no ids
+// means every play. Unknown ids are ignored.
+func chosenPlays(plays []vodplays.Play, ids []string) []vodplays.Play {
+	if len(ids) == 0 {
+		return plays
+	}
+	wanted := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	var chosen []vodplays.Play
+	for _, p := range plays {
+		if wanted[p.ID] {
+			chosen = append(chosen, p)
+		}
+	}
+	return chosen
+}
+
+func playIDs(plays []vodplays.Play) []string {
+	ids := make([]string, len(plays))
+	for i, p := range plays {
+		ids[i] = p.ID
+	}
+	return ids
 }
 
 // GetStreamSummaryVideo handles GET /api/stream-jobs/{id}/summary/video.
@@ -145,7 +188,7 @@ func (h *Handlers) GetStreamSummaryVideo(w http.ResponseWriter, r *http.Request)
 func (h *Handlers) runStreamSummary(id uuid.UUID, source string, plays []vodplays.Play, hasAudio bool) {
 	fail := func(stage string, err error, message string) {
 		log.Printf("httpapi: stream %s summary %s: %v", id, stage, err)
-		h.summaries.set(id, streamSummary{Status: playScanFailed, PlayCount: len(plays), Error: message})
+		h.summaries.set(id, streamSummary{Status: playScanFailed, PlayCount: len(plays), PlayIDs: playIDs(plays), Error: message})
 	}
 	workDir, err := os.MkdirTemp("", "zv-stream-summary-*")
 	if err != nil {
@@ -165,7 +208,7 @@ func (h *Handlers) runStreamSummary(id uuid.UUID, source string, plays []vodplay
 		OnProgress: func(share float64) {
 			if share-lastReport >= 0.01 {
 				lastReport = share
-				h.summaries.set(id, streamSummary{Status: playScanRunning, Progress: share, PlayCount: len(plays)})
+				h.summaries.set(id, streamSummary{Status: playScanRunning, Progress: share, PlayCount: len(plays), PlayIDs: playIDs(plays)})
 			}
 		},
 	})
@@ -199,7 +242,7 @@ func (h *Handlers) publishStreamSummary(id uuid.UUID, output string, plays []vod
 	}
 	now := time.Now().UTC()
 	body, err := json.MarshalIndent(streamSummary{
-		Status: playScanDone, Progress: 1, PlayCount: len(plays), DurationSeconds: duration, RenderedAt: &now,
+		Status: playScanDone, Progress: 1, PlayCount: len(plays), PlayIDs: playIDs(plays), DurationSeconds: duration, RenderedAt: &now,
 	}, "", "  ")
 	if err != nil {
 		return err

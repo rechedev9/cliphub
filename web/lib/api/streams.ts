@@ -1,5 +1,6 @@
 import type { AffiliateFamily, KeyDropStyle } from './types.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
+import { uploadForm, type UploadProgress } from './upload.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -139,6 +140,19 @@ export type StreamJob = {
   rendered_outputs_unavailable?: boolean;
   /** Set only while a render is encoding. */
   render_progress?: StreamRenderProgress;
+  /** Live yt-dlp progress, only while `acquiring` and once the download reported any. */
+  download_progress?: StreamDownloadProgress;
+};
+
+/** One update for the track being downloaded; a YouTube source fetches video, then audio. */
+export type StreamDownloadProgress = {
+  audio_only?: boolean;
+  downloaded_bytes: number;
+  total_bytes?: number;
+  total_estimated?: boolean;
+  /** Absent when the length is unknown (a live stream): keep the bar indeterminate. */
+  percent?: number;
+  eta_seconds?: number;
 };
 
 type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
@@ -207,16 +221,19 @@ export type StreamSummary = {
   /** 0..1 of the summary encoded while running. */
   progress: number;
   play_count?: number;
+  /** The plays in the summary, in source order. */
+  play_ids?: string[];
   duration_seconds?: number;
   error?: string;
   rendered_at?: string;
 };
 
 type StreamImportInput = { title?: string; sourceKind: StreamSourceKind };
+export type StreamFileImportInput = StreamImportInput & { onUploadProgress?: (progress: UploadProgress) => void };
 
 export interface StreamsApiClient {
   createFromUrl(input: StreamImportInput & { sourceUrl: string }): Promise<StreamJob>;
-  createFromFile(file: File, input: StreamImportInput): Promise<StreamJob>;
+  createFromFile(file: File, input: StreamFileImportInput): Promise<StreamJob>;
   listJobs(): Promise<StreamJob[]>;
   getJob(id: string): Promise<StreamJob | null>;
   /** 404 is success; 409 (still acquiring/rendering) and 503 throw with `code`. */
@@ -231,8 +248,8 @@ export interface StreamsApiClient {
   /** Starts the kill-feed scan of the source; answers at once with the running state. */
   startPlayScan(id: string): Promise<StreamPlayScan>;
   getSummary(id: string): Promise<StreamSummary>;
-  /** Renders every detected play into one landscape video; answers at once. */
-  startSummary(id: string): Promise<StreamSummary>;
+  /** Renders the chosen plays into one landscape video; answers at once. */
+  startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary>;
   /** Same-origin URL for a <video>/download link to the summary. */
   summaryVideoUrl(id: string, renderedAt?: string): string;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
@@ -269,11 +286,11 @@ export class RealStreamsApiClient implements StreamsApiClient {
     );
   }
 
-  async createFromFile(file: File, input: StreamImportInput): Promise<StreamJob> {
+  async createFromFile(file: File, input: StreamFileImportInput): Promise<StreamJob> {
     const form = new FormData();
     form.append('video', file, file.name);
     form.append('config', JSON.stringify({ title: input.title || undefined, source_kind: input.sourceKind }));
-    return readJson<StreamJob>(await fetch('/api/streams', { method: 'POST', body: form }));
+    return readJson<StreamJob>(await uploadForm({ url: '/api/streams', body: form, onProgress: input.onUploadProgress }));
   }
 
   async listJobs(): Promise<StreamJob[]> {
@@ -344,8 +361,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
     return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { cache: 'no-store' }));
   }
 
-  async startSummary(id: string): Promise<StreamSummary> {
-    return readJson<StreamSummary>(await fetch(`/api/streams/${id}/summary`, { method: 'POST' }));
+  async startSummary(id: string, playIds: readonly string[]): Promise<StreamSummary> {
+    return readJson<StreamSummary>(
+      await fetch(`/api/streams/${id}/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ play_ids: playIds }),
+      }),
+    );
   }
 
   summaryVideoUrl(id: string, renderedAt?: string): string {

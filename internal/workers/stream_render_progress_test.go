@@ -50,7 +50,7 @@ func TestRenderStreamClipReportsProgressAcrossClips(t *testing.T) {
 			{ID: "b", StartSeconds: 20, EndSeconds: 30},
 		},
 	}
-	err := w.renderStreamClip(context.Background(), cfg, streamClipRender{jobID: jobID, plan: plan, index: 1, args: []string{"-i", "in.mp4", "out.mp4"}})
+	err := w.runClipWithProgress(context.Background(), cfg, streamClipProgress{jobID: jobID, plan: plan, index: 1, args: []string{"-i", "in.mp4", "out.mp4"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,16 +15,16 @@ type progressCommandRunner interface {
 	RunProgress(ctx context.Context, exe string, progress io.Writer, args ...string) ([]byte, error)
 }
 
-type streamClipRender struct {
+type streamClipProgress struct {
 	jobID uuid.UUID
 	plan  streamclips.EditPlan
 	index int
 	args  []string
 }
 
-// renderStreamClip runs one clip's FFmpeg render and posts the render's
+// runClipWithProgress runs one clip's FFmpeg render and posts the render's
 // progress on cfg.Progress while it encodes.
-func (w *StreamRenderWorker) renderStreamClip(ctx context.Context, cfg StreamRenderWorkerConfig, r streamClipRender) error {
+func (w *StreamRenderWorker) runClipWithProgress(ctx context.Context, cfg StreamRenderWorkerConfig, r streamClipProgress) error {
 	clips := len(r.plan.Clips)
 	report := func(fraction float64) {
 		cfg.Progress.Set(r.jobID, streamclips.NewRenderProgress(r.plan.Variant, r.index, clips, fraction))

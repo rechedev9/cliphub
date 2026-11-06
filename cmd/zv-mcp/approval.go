@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -21,7 +22,7 @@ var (
 	errApprovalDeclined = errors.New("the user declined; nothing was started")
 )
 
-// sessionApprovals is shared by every tool that starts CS2.
+// sessionApprovals is shared by every tool that starts a capture or a long render.
 var sessionApprovals = newApprover()
 
 // approver issues approval codes for clients without elicitation. A code is an
@@ -49,6 +50,8 @@ type approvalSpec struct {
 	Summary string
 	// Given is the approve argument of the call, if any.
 	Given string
+	// Question follows Summary in the elicitation; empty asks to start now.
+	Question string
 }
 
 // approval is the outcome of a call: Approved, a Code to offer for a retry, or
@@ -80,7 +83,7 @@ func (a *approver) approve(req *mcp.CallToolRequest, spec approvalSpec) (approva
 	answer, answered := answerTo(req, state)
 	if !answered {
 		ask := &mcp.ElicitParams{
-			Message:         spec.Summary + " ¿Empezar ahora?",
+			Message:         spec.Summary + " " + cmp.Or(spec.Question, "¿Empezar ahora?"),
 			RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 		}
 		return approval{Ask: &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{elicitKey: ask}, RequestState: state}}, nil

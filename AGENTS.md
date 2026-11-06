@@ -19,6 +19,13 @@ change for the installed Windows app. The UI is in Spanish.
 - `cmd/zv` is the CLI over the same pipeline. `zv check` validates the workflow catalog, usage text
   and command build targets.
 
+## MCP parity
+- Every user-facing feature in the Studio UI has a matching tool in `cmd/zv-mcp`: UI users and
+  assistant users are both first class.
+- A change that adds or changes a UI feature adds or updates its MCP tool and the server
+  instructions (`serverInstructions` in `cmd/zv-mcp/main.go`) in the same change, and the tool
+  table in `docs/studio-mcp.md`.
+
 ## Build and check
 - Go: `go vet ./...`, `go test ./...`, and `go run ./cmd/zv check`. One test:
   `go test ./internal/<pkg> -run TestName -count=1`. A few Full Demo editor tests depend on the

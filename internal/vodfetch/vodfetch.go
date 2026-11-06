@@ -257,15 +257,23 @@ type CommandRunner interface {
 	Run(ctx context.Context, dir, name string, args ...string) (stdout, stderr string, err error)
 }
 
-// execCommandRunner runs commands with os/exec.
-type execCommandRunner struct{}
+// execCommandRunner runs commands with os/exec. A non-nil onStdoutLine sees
+// each stdout line while the command runs.
+type execCommandRunner struct {
+	onStdoutLine func(string)
+}
 
-func (execCommandRunner) Run(ctx context.Context, dir, name string, args ...string) (string, string, error) {
+func (r execCommandRunner) Run(ctx context.Context, dir, name string, args ...string) (string, string, error) {
 	// #nosec G204 -- vodfetch executes a configured local yt-dlp binary with an argument slice, not a shell string.
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	onLine := r.onStdoutLine
+	if onLine == nil {
+		onLine = func(string) {}
+	}
+	stdout := &lineWriter{onLine: onLine}
+	var stderr bytes.Buffer
+	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	return stdout.String(), stderr.String(), err
@@ -281,6 +289,9 @@ type Fetcher struct {
 	MaxBytes int64
 	// Runner executes BinaryPath. Defaults to execCommandRunner when nil.
 	Runner CommandRunner
+	// OnProgress receives each parsed yt-dlp progress line from the default
+	// runner. It runs on the output goroutine, so it must not block.
+	OnProgress func(Progress)
 }
 
 // Result describes a downloaded (or already-present) file.
@@ -301,7 +312,14 @@ func (f Fetcher) runner() CommandRunner {
 	if f.Runner != nil {
 		return f.Runner
 	}
-	return execCommandRunner{}
+	return execCommandRunner{onStdoutLine: func(line string) {
+		if f.OnProgress == nil {
+			return
+		}
+		if p, ok := ParseProgressLine(line); ok {
+			f.OnProgress(p)
+		}
+	}}
 }
 
 func (f Fetcher) tooLarge(size int64) bool {
@@ -364,7 +382,8 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		"-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
 		"--merge-output-format", "mp4",
 		"--no-playlist",
-		"--no-progress",
+		"--progress", "--newline",
+		"--progress-template", progressTemplate,
 		"--socket-timeout", "30",
 		"--retries", "2",
 		"--fragment-retries", "2",
@@ -411,11 +430,12 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 }
 
 func downloadTitle(stdout string) string {
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) == 0 {
-		return ""
+	title := ""
+	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), progressPrefix) {
+			title = strings.TrimSpace(line)
+		}
 	}
-	title := strings.TrimSpace(lines[len(lines)-1])
 	if len(title) > 180 {
 		title = strings.ToValidUTF8(title[:180], "")
 	}

@@ -1,4 +1,4 @@
-import type { ApiClient } from './client';
+import type { ApiClient, ScanDemoOptions } from './client';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, ScannedDemo, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
@@ -326,7 +326,7 @@ export class MockApiClient implements ApiClient {
     return match ? { ...match, stats: { ...match.stats } } : null;
   }
 
-  async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match: RosterMatch }> {
+  async scanDemo(file: File, opts?: ScanDemoOptions): Promise<{ jobId: string; players: DemoPlayer[]; match: RosterMatch }> {
     await delay();
     uploadSeq += 1;
     const jobId = `m-upload-${uploadSeq}`;

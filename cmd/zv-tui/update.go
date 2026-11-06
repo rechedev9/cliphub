@@ -459,7 +459,7 @@ func (m model) submitPrompt(value string) (tea.Model, tea.Cmd) {
 		})
 	case promptStreamURL:
 		return m, runAction("stream source queued", func(c context.Context) error {
-			_, err := cl.CreateStreamJobFromURL(c, value, "")
+			_, err := cl.CreateStreamJobFromURL(c, value, "", "")
 			return err
 		})
 	}
