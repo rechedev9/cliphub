@@ -29,6 +29,7 @@ const (
 	maxTreeBytes   = 32 << 20
 	maxTreePages   = 50
 	maxAttempts    = 3
+	rebuildEvery   = 25
 	indexUserAgent = "ClipHub-community-indexer/1 (+https://cliphub.rechedev.cloud)"
 )
 
@@ -91,6 +92,12 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		log.Printf("community stage=index class=indexed path=%s map=%s rounds=%d seconds=%.0f", demo.path, summary.Match.Map, summary.Match.Rounds, time.Since(start).Seconds())
 		if err := ix.store.markIndexed(ctx, demo, summary); err != nil {
 			return err
+		}
+		// A long first run publishes as it goes instead of only at the end.
+		if done%rebuildEvery == 0 {
+			if _, err := rebuildReference(ctx, ix.store); err != nil {
+				log.Printf("community stage=index class=rebuild_failed error=%v", err)
+			}
 		}
 	}
 	index, err := rebuildReference(ctx, ix.store)
