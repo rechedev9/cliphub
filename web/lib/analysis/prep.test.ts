@@ -2,7 +2,35 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PrepMatchup, PrepTempo } from '../api/playbook.ts';
 import type { TacticalBuyType, TacticalSide } from '../api/tactical.ts';
-import { matchupGrid, matchupKey, prepWindowLabel, secondsLabel, tempoRows } from './prep.ts';
+import { matchupGrid, matchupKey, placeLabels, prepWindowLabel, secondsLabel, tempoRows, windowMarkers } from './prep.ts';
+
+test('CT markers keep the main spot, a strong second one, and fan out shared callouts', () => {
+  const spot = (callout: string, pct: number) => ({ callout, share: { pct } });
+  const players = [
+    { windows: [{ spots: [spot('BombsiteA', 60), spot('Jungle', 25), spot('CTSpawn', 10)] }] },
+    { windows: [{ spots: [spot('BombsiteA', 40), spot('Unknown', 30)] }] },
+  ];
+  const centers = new Map<string, readonly [number, number]>([
+    ['BombsiteA', [100, 200]],
+    ['Jungle', [50, 60]],
+    ['CTSpawn', [0, 0]],
+  ]);
+  const markers = windowMarkers(players, { window: 0, centers });
+  assert.deepEqual(
+    markers.map((m) => [m.player, m.callout, m.main, m.slot, m.slots]),
+    [
+      [0, 'BombsiteA', true, 0, 2],
+      [0, 'Jungle', false, 0, 1],
+      [1, 'BombsiteA', true, 1, 2],
+    ],
+  );
+  assert.deepEqual(windowMarkers(players, { window: 3, centers }), []);
+});
+
+test('labels of close dots move to a free side', () => {
+  const dot = (x: number, y: number) => ({ x, y, width: 6, height: 2 });
+  assert.deepEqual(placeLabels([dot(0, 0), dot(1, 0.5), dot(50, 50)], 1), ['right', 'left', 'right']);
+});
 
 const rate = (count: number, total: number): PrepMatchup['share'] => ({ count, total, pct: total > 0 ? (count / total) * 100 : 0, reliable: total >= 4 });
 

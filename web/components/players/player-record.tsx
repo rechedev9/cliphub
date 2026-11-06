@@ -61,6 +61,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { useReferences } from '@/hooks/use-references';
+import { proUnavailableText } from '@/lib/analysis/reference';
 import { cn } from '@/lib/utils';
 
 /** How many of the player's most recent matches the record reads in full. */
@@ -190,6 +192,8 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
   const [reported, setReported] = useState<ScopeCounts | null>(null);
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'player', id: data.player.steamid64 });
+  const references = useReferences(scope.map);
+  const proUnavailable = references !== null && references !== 'failed' ? proUnavailableText(references.pro) : null;
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const { state: reportState, retry } = usePlayerReport(data.player.steamid64, scope);
   const [role, setRole] = useState<LibraryPlayerRole | null | undefined>(undefined);
@@ -276,6 +280,7 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
           scope={scope}
           onChange={setScope}
           onReset={resetScope}
+          proUnavailable={proUnavailable}
           fields={TAB_FIELDS[id] ?? []}
           entity={entity}
           maps={maps}

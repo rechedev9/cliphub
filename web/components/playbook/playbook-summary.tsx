@@ -13,6 +13,7 @@ import {
   winPct,
 } from '@/lib/analysis/playbook';
 import { secondsLabel } from '@/lib/analysis/prep';
+import { categoryKey, type RatePool } from '@/lib/analysis/library-pool';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { prettyMapName } from '@/lib/format';
 import { SKIP_REASON_LABEL } from '@/lib/reports/scout-sections';
@@ -30,7 +31,32 @@ export function playbookReplayTitle(playbook: Pick<TeamPlaybook, 'team_name' | '
 }
 
 /** One card per category: its share of the side's rounds, the count and the win rate; a card opens its rounds. */
-export function CategoryGrid({ playbook, compact = false }: { playbook: TeamPlaybook; compact?: boolean }): ReactNode {
+/** Gaps under this many points read as even and get no arrow. */
+const EVEN_POINTS = 3;
+
+function Arrow({ value, reference, colored }: { value: number; reference: number | null; colored: boolean }): ReactNode {
+  if (reference === null || Math.abs(value - reference) < EVEN_POINTS) return null;
+  const up = value > reference;
+  let tone = 'text-fg-3';
+  if (colored) tone = up ? 'text-outcome-win' : 'text-outcome-loss';
+  return (
+    <span className={cn('ml-0.5 text-[0.7em]', tone)} title={`Biblioteca ${Math.round(reference)} %`}>
+      {up ? '▲' : '▼'}
+      <span className="sr-only">{`, biblioteca ${Math.round(reference)} %`}</span>
+    </span>
+  );
+}
+
+export function CategoryGrid({
+  playbook,
+  compact = false,
+  reference = null,
+}: {
+  playbook: TeamPlaybook;
+  compact?: boolean;
+  /** Use and success pooled over the library's teams on the same side and map: adds ▲▼ beside each number. */
+  reference?: RatePool | null;
+}): ReactNode {
   return (
     <ul
       aria-label="Tipos de ronda"
@@ -44,10 +70,14 @@ export function CategoryGrid({ playbook, compact = false }: { playbook: TeamPlay
             <span className="text-body-sm font-medium text-fg-1">{label}</span>
             <span className={cn('text-title font-semibold tabular-nums', empty ? 'text-fg-3' : 'text-fg-1')}>
               {Math.round(category.share.pct)} %
+              <Arrow value={category.share.pct} reference={reference?.pct(categoryKey('used', category.category), 10) ?? null} colored={false} />
             </span>
             <span className="text-meta text-fg-2 tabular-nums">
               {category.rounds} {category.rounds === 1 ? 'ronda' : 'rondas'}
               {empty ? '' : ` · gana ${Math.round(category.win_rate.pct)} %`}
+              {empty ? null : (
+                <Arrow value={category.win_rate.pct} reference={reference?.pct(categoryKey('won', category.category), 6) ?? null} colored />
+              )}
             </span>
             {compact ? null : <span className="text-meta text-fg-3">{playbookCategoryRule(category.category, playbook.side, playbook.thresholds)}</span>}
           </>

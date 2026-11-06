@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, Printer } from 'lucide-react';
-import { getTeamPlaybook, getTeamPrep } from '@/lib/api/library';
+import { getLibraryTeamScout, getTeamPlaybook, getTeamPrep } from '@/lib/api/library';
+import type { ScoutReport } from '@/lib/api/scout';
+import { minRoundsNote } from '@/lib/analysis/reference';
+import { poolCategories, poolMatchups, significantStats } from '@/lib/analysis/library-pool';
+import { prepStatInputs } from '@/lib/analysis/prep-stats';
 import type { TeamPlaybook, TeamPrep } from '@/lib/api/playbook';
 import { scopeCountText, scopeDateRange } from '@/lib/analysis/scope';
 import { PREP_QUERY, REPORTS_HREF, teamHref } from '@/lib/clips/routes';
@@ -15,6 +19,9 @@ import { SkippedNote } from '@/components/playbook/playbook-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CtPositions, MatchupTables, PlaybookBrief, PrepSection, TempoByBuy } from './prep-sections';
+import { SignificantStats } from './significant-stats';
+import { useLibraryPool } from '@/hooks/use-library-pool';
+import { useReferences } from '@/hooks/use-references';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAP_RE = /^[a-z0-9_]{1,64}$/;
@@ -28,7 +35,7 @@ const PRINT_PAPER = [
   'print:[--border:#d6d7db] print:[--border-subtle:#e6e7ea] print:[--primary:#16171a]',
 ].join(' ');
 
-type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook };
+type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook; scout: ScoutReport | null };
 
 function periodText(from: string, to: string): string {
   if (from !== '' && to !== '') return `Del ${formatShortDate(from)} al ${formatShortDate(to)}`;
@@ -49,6 +56,14 @@ export function PrepRecord(): ReactNode {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const title = data ? `Preparar a ${data.prep.team_name}` : 'Preparar rival';
+  const poolMap = valid ? map : '';
+  const readPreps = useCallback((id: string) => getTeamPrep(id, { map: poolMap }), [poolMap]);
+  const readT = useCallback((id: string) => getTeamPlaybook(id, { map: poolMap, side: 'T' }), [poolMap]);
+  const readCt = useCallback((id: string) => getTeamPlaybook(id, { map: poolMap, side: 'CT' }), [poolMap]);
+  const preps = useLibraryPool(`prep|${poolMap}`, readPreps);
+  const tPool = useLibraryPool(`playbook|${poolMap}|T`, readT);
+  const ctPool = useLibraryPool(`playbook|${poolMap}|CT`, readCt);
+  const references = useReferences(poolMap);
   useRouteTitle(title);
   useDocumentTitle(`${title} · Informes · ClipHub`);
 
@@ -59,9 +74,14 @@ export function PrepRecord(): ReactNode {
     setFailed(false);
     const { from, to } = scopeDateRange({ kind: 'range', from: fromDay, to: toDay }, Date.now());
     const base = { map, from, to };
-    Promise.all([getTeamPrep(teamId, base), getTeamPlaybook(teamId, { ...base, side: 'T' }), getTeamPlaybook(teamId, { ...base, side: 'CT' })])
-      .then(([prep, t, ct]) => {
-        if (active) setData({ prep, t, ct });
+    Promise.all([
+      getTeamPrep(teamId, base),
+      getTeamPlaybook(teamId, { ...base, side: 'T' }),
+      getTeamPlaybook(teamId, { ...base, side: 'CT' }),
+      getLibraryTeamScout(teamId, { maps: [map], from, to }).catch(() => null),
+    ])
+      .then(([prep, t, ct, scout]) => {
+        if (active) setData({ prep, t, ct, scout });
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -111,7 +131,11 @@ export function PrepRecord(): ReactNode {
     );
   }
 
-  const { prep, t, ct } = data;
+  const { prep, t, ct, scout } = data;
+  const matchupPool = preps === null ? null : poolMatchups(preps);
+  const baseline = references !== null && references !== 'failed' ? references.library : null;
+  const stats = significantStats(prepStatInputs({ prep, scout, library: matchupPool, baseline }));
+  const statsNote = `Frente a ${preps === null ? 'la biblioteca' : `los ${preps.filter((entry) => entry.round_count > 0).length} equipos de la biblioteca`} en ${prettyMapName(prep.map)}: la apertura, frente al 50 % que suman todos los equipos; ADR y bajas, frente a la media de sus jugadores; victorias, frente a sus equipos. Solo sale lo que se aleja de verdad: 5 puntos en aperturas, 6 en victorias.${baseline ? minRoundsNote(baseline.min_rounds) : ''}`;
   return (
     <article className={`flex flex-col gap-5 print:gap-6 ${PRINT_PAPER}`}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
@@ -143,8 +167,11 @@ export function PrepRecord(): ReactNode {
         </p>
       ) : (
         <>
+          <PrepSection title="Lo que destaca">
+            <SignificantStats stats={stats} loading={preps === null || references === null} note={statsNote} />
+          </PrepSection>
           <PrepSection title="Compras contra compras">
-            <MatchupTables prep={prep} />
+            <MatchupTables prep={prep} library={matchupPool} />
           </PrepSection>
           <PrepSection title="Ritmo por compra">
             <TempoByBuy prep={prep} />
@@ -153,10 +180,10 @@ export function PrepRecord(): ReactNode {
             <CtPositions prep={prep} />
           </PrepSection>
           <PrepSection title="Playbook en T">
-            <PlaybookBrief playbook={t} />
+            <PlaybookBrief playbook={t} library={tPool === null ? null : poolCategories(tPool)} />
           </PrepSection>
           <PrepSection title="Playbook en CT">
-            <PlaybookBrief playbook={ct} />
+            <PlaybookBrief playbook={ct} library={ctPool === null ? null : poolCategories(ctPool)} />
           </PrepSection>
         </>
       )}

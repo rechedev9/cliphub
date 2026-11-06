@@ -51,6 +51,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { useReferences } from '@/hooks/use-references';
+import { proUnavailableText } from '@/lib/analysis/reference';
 import { cn } from '@/lib/utils';
 import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
@@ -60,6 +62,7 @@ import { TeamPlaybook } from '@/components/playbook/team-playbook';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamSpatial } from './team-spatial';
+import { TeamTrend } from './team-trend';
 
 type Loaded = { team: LibraryTeam; matches: LibraryMatch[] };
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
@@ -154,6 +157,8 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
+  const references = useReferences(scope.map);
+  const proUnavailable = references !== null && references !== 'failed' ? proUnavailableText(references.pro) : null;
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(team.name);
@@ -216,6 +221,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           scope={scope}
           onChange={setScope}
           onReset={resetScope}
+          proUnavailable={proUnavailable}
           fields={fields}
           entity={entity}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
@@ -278,7 +284,13 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             id: 'plantilla',
             label: 'Plantilla',
             count: team.roster?.length ?? 0,
-            content: withScope('plantilla', <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />),
+            content: withScope(
+              'plantilla',
+              <div className="flex flex-col gap-3">
+                <TeamRoster roster={team.roster ?? []} map={scope.map} reference={scope.reference} />
+                <TeamTrend teamId={team.id} matches={matches.filter((match) => scope.map === '' || match.map === scope.map)} map={scope.map} />
+              </div>,
+            ),
           },
           {
             id: 'partidas',

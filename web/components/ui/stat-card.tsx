@@ -63,23 +63,21 @@ export function StatCard({
       : null;
   const deltaText = formatDelta ?? signed(format);
   return (
-    <div className={cn('flex min-w-0 flex-col gap-0.5 bg-surface-2 px-3 py-2', className)}>
-      <dt className="truncate text-meta text-fg-3" title={label}>
-        {label}
-      </dt>
-      <dd className="flex flex-col gap-0.5">
-        <span className="flex items-center justify-between gap-2">
+    <div className={cn('row-span-2 grid min-w-0 grid-rows-subgrid gap-y-0.5 bg-surface-2 px-3 py-2', className)}>
+      <dt className="self-end text-meta leading-tight text-balance text-fg-3">{label}</dt>
+      <dd className="flex flex-col justify-start gap-0.5">
+        <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
           <span className={cn('text-title font-semibold whitespace-nowrap text-fg-1 tabular-nums', value === null && 'text-body-sm font-normal text-fg-3')}>
             {value === null ? 'Sin dato' : format(value)}
           </span>
           {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} width={64} height={20} /> : null}
         </span>
         {result && comparison && comparison.value !== null ? (
-          <span className="truncate text-meta text-fg-3 tabular-nums" title={`${comparison.label}: ${format(comparison.value)}`}>
-            <span className={cn('font-medium', DELTA_TONE_CLASS[result.tone])}>
+          <span className="text-meta text-fg-3 tabular-nums" title={`${comparison.label}: ${format(comparison.value)}`}>
+            <span className={cn('font-medium whitespace-nowrap', DELTA_TONE_CLASS[result.tone])}>
               {result.tone === 'even' ? '= ' : `${deltaArrow(result.delta, epsilon)} ${deltaText(result.delta)}`}
             </span>{' '}
-            vs {format(comparison.value)}
+            <span className="whitespace-nowrap">vs {format(comparison.value)}</span>
             <span className="sr-only">, {comparison.label.toLowerCase()}</span>
           </span>
         ) : null}
@@ -89,12 +87,12 @@ export function StatCard({
   );
 }
 
-/** Stat cards on one surface, as many per row as fit. */
+/** Stat cards on one surface, as many per row as fit; labels share a row so the values line up. */
 export function StatCardGroup({ label, children, className }: { label: string; children: ReactNode; className?: string }): ReactNode {
   return (
     <dl
       aria-label={label}
-      className={cn('studio-panel grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-px overflow-hidden bg-border-subtle', className)}
+      className={cn('studio-panel grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-px overflow-hidden bg-border-subtle', className)}
     >
       {children}
     </dl>
