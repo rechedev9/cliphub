@@ -180,6 +180,7 @@ Read:
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
 | `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
+| `map_3d_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog and sky, plus how to open the real map and full screen in the Táctica 3D view |
 
 Write:
 

@@ -199,6 +199,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerPlayerReportTools(server, s)
 	registerStreamTools(server, s)
 	registerIntegrityTools(server, s)
+	registerMap3DTools(server, s)
 	registerDeleteTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,

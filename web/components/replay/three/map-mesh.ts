@@ -66,6 +66,11 @@ export class MapMesh {
     this.setColor(background);
   }
 
+  /** The cutaway uniforms, for another surface that must cut the same way. */
+  get uniforms(): MapUniforms {
+    return this.#uniforms;
+  }
+
   get objects(): (Mesh | LineSegments)[] {
     return [this.mesh, this.edges];
   }

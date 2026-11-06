@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bookmark, Keyboard, Layers, Radar, RefreshCw } from 'lucide-react';
+import { Bookmark, Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
 import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { CollectionItem } from '@/lib/api/collections';
@@ -51,6 +51,7 @@ import { RADAR_2D_VIEW } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { ShortcutHelp } from './shortcut-help';
+import { useFullscreen } from './use-fullscreen';
 import { useKeyMoments } from './use-key-moments';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
@@ -140,6 +141,7 @@ export function ReplayWorkspace({
   const [saving, setSaving] = useState<CollectionItem | null>(null);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
+  const fullscreen = useFullscreen(rootRef);
   const draft = useTelestratorDraft();
   const collections = useCollections();
 
@@ -310,7 +312,14 @@ export function ReplayWorkspace({
     }
     if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
       event.preventDefault();
+      // Dialogs open outside the full-screen layer, so leave it to show them.
+      if (fullscreen.active) fullscreen.toggle();
       setHelp((value) => !value);
+    } else if (event.key === 'p' || event.key === 'P') {
+      event.preventDefault();
+      fullscreen.toggle();
+    } else if (event.key === 'Escape' && fullscreen.active && followSlot === null && selectedSlot === null) {
+      fullscreen.toggle();
     } else if (event.key === 'm' || event.key === 'M') {
       event.preventDefault();
       toggleMulti();
@@ -479,25 +488,49 @@ export function ReplayWorkspace({
       ref={rootRef}
       data-replay-workspace=""
       aria-label="Repetición"
+      data-fullscreen={fullscreen.active ? '' : undefined}
       className={cn(
         'grid grid-cols-1 gap-2',
-        'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[620px]',
-        'min-[1180px]:grid-cols-[236px_minmax(0,1fr)_288px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
+        fullscreen.active
+          ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_288px] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
+          : [
+              'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[620px]',
+              'min-[1180px]:grid-cols-[236px_minmax(0,1fr)_288px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
+            ],
       )}
     >
-      <div className="flex h-[72vh] min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-0 min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto">
+      <div
+        className={cn(
+          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-0',
+          fullscreen.active ? 'col-start-1 row-start-1' : 'h-[72vh] min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto',
+        )}
+      >
         <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
           <h2 className="flex min-w-0 items-baseline gap-2 truncate">
             {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
-            <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => setHelp(true)}>
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => {
+                if (fullscreen.active) fullscreen.toggle();
+                setHelp(true);
+              }}>
               <Keyboard aria-hidden />
             </Button>
             {centreViews.length > 1 ? (
               <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
             ) : null}
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-pressed={fullscreen.active}
+              aria-label={fullscreen.active ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              title={fullscreen.active ? 'Salir de pantalla completa (P)' : 'Pantalla completa (P)'}
+              onClick={fullscreen.toggle}
+            >
+              {fullscreen.active ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
+            </Button>
           </div>
         </header>
         <div className="relative min-h-0 flex-1">
@@ -535,7 +568,10 @@ export function ReplayWorkspace({
 
       <aside
         aria-label="Ronda, filtros y capas"
-        className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1"
+        className={cn(
+          'min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
+          fullscreen.active && 'hidden',
+        )}
       >
         <ReplayLeftPanel
           focused={focused}
@@ -566,7 +602,10 @@ export function ReplayWorkspace({
 
       <aside
         aria-label="Jugadores y notas de la ronda"
-        className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2 min-[1180px]:col-start-3 min-[1180px]:row-start-1"
+        className={cn(
+          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2',
+          fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-3 min-[1180px]:row-start-1',
+        )}
       >
         <ReplaySidePanel
           focused={focused}
@@ -591,7 +630,12 @@ export function ReplayWorkspace({
         />
       </aside>
 
-      <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2 min-[1180px]:col-span-3 min-[1180px]:row-start-2">
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2',
+          fullscreen.active ? 'col-span-2 row-start-2' : 'min-[1180px]:col-span-3 min-[1180px]:row-start-2',
+        )}
+      >
         <div className="flex min-w-0 items-end gap-3">
           <Button
             type="button"
