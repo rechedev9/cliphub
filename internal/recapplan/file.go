@@ -17,9 +17,17 @@ func ReadDocumentFile(path string) (Document, error) {
 	if err != nil {
 		return Document{}, err
 	}
-	var d Document
-	if err := decodeStrict(b, &d); err != nil {
+	d, err := DecodeDocument(b)
+	if err != nil {
 		return d, err
 	}
 	return d, d.Validate()
+}
+
+// DecodeDocument rejects unknown and missing fields, so a reader built from
+// another version fails here instead of recomputing a different content hash.
+func DecodeDocument(b []byte) (Document, error) {
+	var d Document
+	err := decodeStrict(b, &d)
+	return d, err
 }

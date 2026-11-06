@@ -247,13 +247,11 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 var errOutdatedMCP = errors.New("Studio sent a Full Demo plan this zv-mcp cannot read. " +
 	"If ClipHub Studio was updated, restart the assistant so it loads the zv-mcp that came with the update")
 
-// decodeFullDemoDocument rejects unknown fields: a field this build drops would
-// change the recomputed content hash and pass as a stale plan.
+// decodeFullDemoDocument reads plans as strictly as Studio stores them: a field
+// one side lacks would change the recomputed content hash and pass as a stale plan.
 func decodeFullDemoDocument(raw []byte) (recapplan.Document, error) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	var doc recapplan.Document
-	if err := dec.Decode(&doc); err != nil {
+	doc, err := recapplan.DecodeDocument(raw)
+	if err != nil {
 		return recapplan.Document{}, fmt.Errorf("%w (%v)", errOutdatedMCP, err)
 	}
 	return doc, nil

@@ -122,15 +122,18 @@ func TestFetchPreview(t *testing.T) {
 }
 
 // A zv-mcp older than Studio once dropped kills[].clutch_vs and reported every
-// plan as stale; an unknown field must say the assistant needs a restart.
+// plan as stale. Skew either way must ask for a restart; a real stale plan must not.
 func TestDecodeFullDemoDocument(t *testing.T) {
-	doc := recapplan.Document{Options: recapplan.DefaultOptions(), Clock: recapplan.Clock{FPS: 60},
-		Rounds: []recapplan.Round{{ID: "r1", Kills: []killplan.Kill{{Tick: 100, Weapon: "ak47"}}}}}
-	hash, err := doc.Hash()
+	facts := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001",
+		ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
+		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events",
+			Kills: []killplan.Kill{{Tick: 600, Weapon: "ak47", ClutchVs: 2}}, Utility: []killplan.UtilityThrow{}}}}
+	options := recapplan.DefaultOptions()
+	options.Audio.Music.Enabled, options.Audio.Voice.Enabled, options.Editorial.KeepFreezeVoice = false, false, false
+	doc, err := recapplan.Plan(facts, options, recapplan.VoiceEvidence{Availability: "not_requested", Activity: []recapplan.TickRange{}}, nil, "facts.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc.PlanHash = hash
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		t.Fatal(err)
@@ -139,21 +142,40 @@ func TestDecodeFullDemoDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Studio's own plan: %v", err)
 	}
-	if again, _ := got.Hash(); again != hash {
-		t.Fatalf("round trip changed the hash: %s != %s", again, hash)
+	if err := got.Validate(); err != nil {
+		t.Fatalf("Studio's own plan does not validate: %v", err)
 	}
 
-	var wire map[string]any
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		t.Fatal(err)
+	edit := func(change func(wire map[string]any)) []byte {
+		var wire map[string]any
+		if err := json.Unmarshal(raw, &wire); err != nil {
+			t.Fatal(err)
+		}
+		change(wire)
+		b, err := json.Marshal(wire)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
 	}
-	kill := wire["rounds"].([]any)[0].(map[string]any)["kills"].([]any)[0].(map[string]any)
-	kill["field_from_a_newer_studio"] = 2
-	newer, err := json.Marshal(wire)
+	round := func(wire map[string]any) map[string]any { return wire["rounds"].([]any)[0].(map[string]any) }
+	skewed := map[string][]byte{
+		"newer Studio": edit(func(wire map[string]any) {
+			round(wire)["kills"].([]any)[0].(map[string]any)["field_from_a_newer_studio"] = 2
+		}),
+		"older Studio": edit(func(wire map[string]any) { delete(round(wire), "live_end_tick") }),
+	}
+	for name, b := range skewed {
+		if _, err := decodeFullDemoDocument(b); !errors.Is(err, errOutdatedMCP) || !strings.Contains(err.Error(), "restart the assistant") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+
+	stale, err := decodeFullDemoDocument(edit(func(wire map[string]any) { wire["plan_hash"] = strings.Repeat("0", 64) }))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("a stale plan must decode: %v", err)
 	}
-	if _, err := decodeFullDemoDocument(newer); !errors.Is(err, errOutdatedMCP) || !strings.Contains(err.Error(), "restart the assistant") {
-		t.Fatalf("newer plan: err = %v", err)
+	if err := stale.Validate(); err == nil || !strings.Contains(err.Error(), recapplan.ErrPlanStale) {
+		t.Errorf("stale plan: err = %v", err)
 	}
 }
