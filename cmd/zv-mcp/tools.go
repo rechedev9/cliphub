@@ -88,18 +88,6 @@ type matchOut struct {
 	Players []playerOut `json:"players"`
 }
 
-type importIn struct {
-	Path string `json:"path" jsonschema:"absolute path of a local .dem or .dem.zst file"`
-}
-
-type demoOut struct {
-	DemoID    string `json:"demo_id"`
-	State     string `json:"state" jsonschema:"queued, parsing, ready or failed"`
-	MatchID   string `json:"match_id,omitempty"`
-	Duplicate bool   `json:"duplicate,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
-
 type waitIn struct {
 	ID          string `json:"id"`
 	WaitSeconds int    `json:"wait_seconds,omitempty" jsonschema:"how long to wait, at most 55; call again if still running"`
@@ -203,6 +191,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerStreamTools(server, s)
 	registerIntegrityTools(server, s)
 	registerDeleteTools(server, s)
+	registerLibraryDemoTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs."},
@@ -272,52 +261,6 @@ func registerTools(server *mcp.Server, s *studio) {
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists, Damage: p.Damage})
 			}
 			return nil, out, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "import_demo",
-		Description: "Import a local CS2 demo into the Studio library. Analysis starts on its own; follow with wait_for_demo."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, demoOut, error) {
-			if err := checkDemoPath(in.Path); err != nil {
-				return nil, demoOut{}, err
-			}
-			c, err := s.uploadClient(ctx)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			res, err := c.ImportLibraryDemo(ctx, in.Path)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			if res.Demo == nil {
-				return nil, demoOut{}, fmt.Errorf("Studio rejected the demo (%s): %s", cleanName(res.ErrorCode), cleanText(res.Error, maxErrorRunes))
-			}
-			out := describeDemo(*res.Demo)
-			out.Duplicate = res.Status == "duplicate"
-			return nil, out, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly,
-		Description: "Wait until an imported demo is analysed (state ready or failed). Returns its match_id when ready."},
-		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, demoOut, error) {
-			if err := checkUUID("id", in.ID); err != nil {
-				return nil, demoOut{}, err
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			var out demoOut
-			err = poll(ctx, in.WaitSeconds, func() (bool, error) {
-				d, err := c.GetLibraryDemo(ctx, in.ID)
-				if err != nil {
-					return false, err
-				}
-				out = describeDemo(d)
-				done := d.State == "ready" || d.State == "failed"
-				notify(ctx, req, donePercent(done, 0), "analysing demo: "+d.State)
-				return done, nil
-			})
-			return nil, out, toolError(err)
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "create_job",
@@ -736,14 +679,6 @@ func jobMessage(j jobOut) string {
 		return fmt.Sprintf("%s: %s %d%%", j.Status, j.Stage, j.Percent)
 	}
 	return j.Status
-}
-
-func describeDemo(d tuiclient.LibraryDemo) demoOut {
-	out := demoOut{DemoID: d.ID, State: cleanName(d.State), Error: cleanText(d.Error, maxErrorRunes)}
-	if d.MatchID != nil {
-		out.MatchID = *d.MatchID
-	}
-	return out
 }
 
 func summarizeMatch(m tuiclient.LibraryMatch) matchSummary {

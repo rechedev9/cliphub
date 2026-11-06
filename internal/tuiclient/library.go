@@ -11,15 +11,19 @@ import (
 
 // LibraryDemo is one demo in the Analizar library.
 type LibraryDemo struct {
-	ID        string    `json:"id"`
-	FileName  string    `json:"file_name"`
-	State     string    `json:"state"`
-	ErrorCode string    `json:"error_code,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	MatchID   *string   `json:"match_id,omitempty"`
-	JobIDs    []string  `json:"job_ids"`
-	SizeBytes int64     `json:"size_bytes"`
-	Imported  time.Time `json:"imported_at"`
+	ID       string `json:"id"`
+	FileName string `json:"file_name"`
+	State    string `json:"state"`
+	Source   string `json:"source"`
+	// SourceManual is true once a person picked the source; re-analysis keeps it.
+	SourceManual bool      `json:"source_manual"`
+	Tags         []string  `json:"tags"`
+	ErrorCode    string    `json:"error_code,omitempty"`
+	Error        string    `json:"error,omitempty"`
+	MatchID      *string   `json:"match_id,omitempty"`
+	JobIDs       []string  `json:"job_ids"`
+	SizeBytes    int64     `json:"size_bytes"`
+	Imported     time.Time `json:"imported_at"`
 }
 
 // LibraryImportResult is one file's outcome of POST /api/library/demos.
@@ -145,18 +149,47 @@ func (c *Client) GetLibraryDemo(ctx context.Context, id string) (LibraryDemo, er
 	return out, err
 }
 
-// ImportLibraryDemo uploads one local demo file; the scan starts on its own.
-func (c *Client) ImportLibraryDemo(ctx context.Context, demoPath string) (LibraryImportResult, error) {
+// ImportLibraryDemo uploads one local demo file with its tags; the scan starts on its own.
+func (c *Client) ImportLibraryDemo(ctx context.Context, demoPath string, tags []string) (LibraryImportResult, error) {
 	var out struct {
 		Demos []LibraryImportResult `json:"demos"`
 	}
-	if err := c.uploadMultipart(ctx, "/api/library/demos", "demo", demoPath, "", &out); err != nil {
+	fields := make([]formField, 0, len(tags))
+	for _, tag := range tags {
+		fields = append(fields, formField{Name: "tag", Value: tag})
+	}
+	if err := c.uploadMultipart(ctx, upload{Path: "/api/library/demos", FileField: "demo", FilePath: demoPath, Fields: fields}, &out); err != nil {
 		return LibraryImportResult{}, err
 	}
 	if len(out.Demos) != 1 {
 		return LibraryImportResult{}, fmt.Errorf("import returned %d results for one demo", len(out.Demos))
 	}
 	return out.Demos[0], nil
+}
+
+// LibraryDemoPatch is the body of PATCH /api/library/demos/{id}; nil fields stay as they are.
+type LibraryDemoPatch struct {
+	Source *string   `json:"source,omitempty"`
+	Tags   *[]string `json:"tags,omitempty"`
+}
+
+// UpdateLibraryDemo sets a demo's source by hand or replaces its whole tag set.
+func (c *Client) UpdateLibraryDemo(ctx context.Context, id string, patch LibraryDemoPatch) (LibraryDemo, error) {
+	var out LibraryDemo
+	err := c.doJSON(ctx, http.MethodPatch, "/api/library/demos/"+url.PathEscape(id), patch, &out)
+	return out, err
+}
+
+// AnalyzeLibraryDemo queues the library scan of a demo again.
+func (c *Client) AnalyzeLibraryDemo(ctx context.Context, id string) (LibraryDemo, error) {
+	var out LibraryDemo
+	err := c.doJSON(ctx, http.MethodPost, "/api/library/demos/"+url.PathEscape(id)+"/analyze", nil, &out)
+	return out, err
+}
+
+// DeleteLibraryDemo removes a demo with its match and analysis; videos made from it stay.
+func (c *Client) DeleteLibraryDemo(ctx context.Context, id string) error {
+	return c.doJSON(ctx, http.MethodDelete, "/api/library/demos/"+url.PathEscape(id), nil, nil)
 }
 
 // CreatePlayerJob makes a job that parses one player's POV of a library demo.

@@ -91,6 +91,6 @@ func (c *Client) UploadFullDemoAsset(ctx context.Context, filePath string, prove
 		return nil, err
 	}
 	var result json.RawMessage
-	err = c.uploadMultipart(ctx, "/api/editor/assets", "video", filePath, string(config), &result)
+	err = c.uploadMultipart(ctx, upload{Path: "/api/editor/assets", FileField: "video", FilePath: filePath, Fields: configField(string(config))}, &result)
 	return result, err
 }

@@ -54,7 +54,7 @@ func (c *Client) GetJob(ctx context.Context, id string) (Job, error) {
 func (c *Client) CreateJob(ctx context.Context, demoPath, targetSteamID string) (CreateJobResponse, error) {
 	config := configJSON(map[string]string{"target_steamid": targetSteamID})
 	var out CreateJobResponse
-	err := c.uploadMultipart(ctx, "/api/jobs", "demo", demoPath, config, &out)
+	err := c.uploadMultipart(ctx, upload{Path: "/api/jobs", FileField: "demo", FilePath: demoPath, Fields: configField(config)}, &out)
 	return out, err
 }
 
@@ -184,10 +184,26 @@ func (c *Client) Presets(ctx context.Context) (PresetList, error) {
 	return list, err
 }
 
-// uploadMultipart posts a multipart form with a single file part plus a
-// "config" JSON field, the shape both POST /api/jobs and POST /api/stream-jobs
-// accept, decoding the JSON response into out.
-func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath, config string, out any) error {
+// formField is one text part of a multipart upload.
+type formField struct{ Name, Value string }
+
+// upload is one multipart POST: text Fields first, then the file part, since
+// the server reads fields such as a library tag before the file.
+type upload struct {
+	Path      string
+	FileField string
+	FilePath  string
+	Fields    []formField
+}
+
+// configField is the "config" JSON field POST /api/jobs and /api/stream-jobs accept.
+func configField(config string) []formField {
+	return []formField{{Name: "config", Value: config}}
+}
+
+// uploadMultipart posts u and decodes the JSON response into out.
+func (c *Client) uploadMultipart(ctx context.Context, u upload, out any) error {
+	path, filePath := u.Path, u.FilePath
 	f, err := os.Open(filePath) // #nosec G304 -- operator-chosen local upload path
 	if err != nil {
 		return fmt.Errorf("open %s: %w", filePath, err)
@@ -214,12 +230,12 @@ func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath,
 		defer close(done)
 		var werr error
 		defer func() { _ = pw.CloseWithError(werr) }()
-		if config != "" {
-			if werr = mw.WriteField("config", config); werr != nil {
+		for _, field := range u.Fields {
+			if werr = mw.WriteField(field.Name, field.Value); werr != nil {
 				return
 			}
 		}
-		part, err := mw.CreateFormFile(fileField, filepath.Base(filePath))
+		part, err := mw.CreateFormFile(u.FileField, filepath.Base(filePath))
 		if err != nil {
 			werr = err
 			return
