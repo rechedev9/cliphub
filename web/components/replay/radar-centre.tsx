@@ -1,59 +1,118 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { RadarLevel } from '@/lib/api/tactical';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Maximize2, Minus, Plus } from 'lucide-react';
+import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
-import { TacticalDrawCache } from '@/lib/tactical-draw-cache';
+import { paddedView, panView, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
 import { radarProjection } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { TRAIL_SECONDS, timelineSeconds } from '@/lib/tactical-timeline';
-import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
-import type { TacticalSample } from '@/lib/api/tactical';
-import { drawTacticalScene, renderRadarBackground } from '@/components/tactical/radar-draw';
+import { isCalibrationUsable, radarViewRect, worldRectToRadarRect } from '@/lib/tactical-transform';
+import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
 import { TelestratorLayer } from '@/components/tactical/spatial/telestrator';
+import { Segmented } from '@/components/ui/segmented';
+import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
+import { loadNavRadar, loadRadarImage } from './radar/map-art';
+import { PlayerTooltip } from './radar/player-tooltip';
+import { bakeMapPlate } from './radar/radar-bake';
+import type { MapArt } from './radar/radar-bake';
+import { discRadius, drawRoundFrame } from './radar/radar-round';
+import type { DrawnPlayer } from './radar/radar-round';
 
-type CanvasMetrics = { cssWidth: number; cssHeight: number; dpr: number; size: number; offsetX: number; offsetY: number };
-
-const INITIAL_METRICS: CanvasMetrics = { cssWidth: 1, cssHeight: 1, dpr: 1, size: 1, offsetX: 0, offsetY: 0 };
+type Box = { width: number; height: number; dpr: number };
 
 /** Superposed rounds sit under the focused one at this strength. */
 const OVERLAY_ALPHA = 0.42;
+/** Air round the nav mesh, as a share of its longer side. */
+const VIEW_MARGIN = 0.03;
+const WHEEL_STEP = 1.0015;
+/** A press that moves less than this is a click on a player, not a drag. */
+const CLICK_SLOP = 4;
 
-/** The plate's height ceiling, so the strip and the timeline stay on screen under it. */
-const RADAR_MAX_HEIGHT_VH = 62;
-
-type RoundReaders = {
+type Readers = {
   samples: (cursor: FrameCursor) => TacticalSample[];
   trails: (cursor: FrameCursor) => ReadonlyMap<number, readonly TrailPoint[]>;
 };
 
+type ArtSource = 'scheme' | 'official';
+
+function sameRect(a: RadarRect, b: RadarRect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
 /**
- * The 2D radar centre. The canvas mirrors the clock and is `aria-hidden`; the
- * event list and the player cards say the same in text.
+ * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
+ * radar image when Studio has it), the players, their names and the grenades.
+ * The wheel zooms on the cursor, a drag pans, a click highlights a player.
+ * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator }: ReplayCentreProps): ReactNode {
+function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
-  const metricsRef = useRef<CanvasMetrics>(INITIAL_METRICS);
   const styleRef = useRef<RadarStyle | null>(null);
-  const backgroundsRef = useRef(new Map<string, HTMLCanvasElement>());
-  const [projection, setProjection] = useState<RadarProjection>({ size: 1, offsetX: 0, offsetY: 0 });
+  const plateRef = useRef<{ key: string; canvas: HTMLCanvasElement } | null>(null);
+  const drawnRef = useRef<DrawnPlayer[]>([]);
+  const spotsRef = useRef(new Map<number, number>());
+  const samplesRef = useRef<TacticalSample[]>([]);
+  const [box, setBox] = useState<Box>({ width: 1, height: 1, dpr: 1 });
+  const [art, setArt] = useState<MapArt>({ kind: 'grid' });
+  const [navReady, setNavReady] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [official, setOfficial] = useState<{ upper: HTMLImageElement; lower: HTMLImageElement | null } | null>(null);
+  const [source, setSource] = useState<ArtSource>('official');
+  const [zoomed, setZoomed] = useState<RadarRect | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [grabbing, setGrabbing] = useState(false);
 
   const focused = rounds.find((round) => round.focused) ?? rounds.at(-1);
   const geometry = focused?.doc.geometry;
-  const view = useMemo(() => (geometry === undefined ? { x: 0, y: 0, width: 1, height: 1 } : radarViewRect(geometry)), [geometry]);
-  const drawable = geometry !== undefined && isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
-  const drawCache = useMemo(() => new TacticalDrawCache(), []);
+  const map = geometry?.map ?? '';
+  const drawable = geometry !== undefined && isCalibrationUsable(geometry.calibration);
+  const split = geometry?.calibration.lower_altitude_max !== undefined;
+
+  useEffect(() => {
+    if (map === '') return;
+    let active = true;
+    setNavReady('loading');
+    setZoomed(null);
+    void loadNavRadar(map).then((model) => {
+      if (!active) return;
+      setNavReady(model === null ? 'failed' : 'ready');
+      setArt(model === null ? { kind: 'grid' } : { kind: 'nav', model });
+    });
+    setOfficial(null);
+    void Promise.all([loadRadarImage(map, 'upper'), split ? loadRadarImage(map, 'lower') : Promise.resolve(null)]).then(([upper, lower]) => {
+      if (active) setOfficial(upper === null ? null : { upper, lower });
+    });
+    return () => {
+      active = false;
+    };
+  }, [map, split]);
+
+  const shownArt = useMemo<MapArt>(() => (source === 'official' && official !== null ? { kind: 'image', upper: official.upper, lower: official.lower } : art), [art, official, source]);
+
+  const base = useMemo<RadarRect>(() => {
+    if (geometry === undefined || !drawable) return { x: 0, y: 0, width: 1, height: 1 };
+    if (art.kind === 'nav') {
+      const { bounds } = art.model;
+      const rect = worldRectToRadarRect(geometry.calibration, { minX: bounds.minX, minY: bounds.minY, maxX: bounds.maxX, maxY: bounds.maxY }, 1);
+      return paddedView(rect, VIEW_MARGIN);
+    }
+    return radarViewRect(geometry);
+  }, [art, drawable, geometry]);
+  const view = zoomed ?? base;
+  const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
+  const zoom = zoomLevel(view, base);
 
   const readers = useMemo(() => {
-    const out = new Map<string, RoundReaders>();
+    const out = new Map<string, Readers>();
     for (const round of rounds) {
       out.set(round.key, {
         samples: createInterpolatedSampleReader(round.frames),
@@ -63,67 +122,76 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator }: Repla
     return out;
   }, [rounds]);
 
-  const background = useCallback(
-    (level: RadarLevel, size: number, dpr: number, style: RadarStyle): HTMLCanvasElement | null => {
+  const plate = useCallback(
+    (level: RadarLevel, style: RadarStyle): HTMLCanvasElement | null => {
       if (geometry === undefined) return null;
-      const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}`;
-      const cached = backgroundsRef.current.get(key);
-      if (cached !== undefined) return cached;
-      const baked = renderRadarBackground(geometry, level, size, dpr, style, view);
-      if (backgroundsRef.current.size > 8) backgroundsRef.current.clear();
-      backgroundsRef.current.set(key, baked);
-      return baked;
+      const key = `${shownArt.kind}|${level}|${projection.size}|${box.dpr}|${view.x},${view.y},${view.width},${view.height}|${map}`;
+      if (plateRef.current?.key === key) return plateRef.current.canvas;
+      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size: projection.size, dpr: box.dpr, view, style, zoom });
+      plateRef.current = { key, canvas };
+      return canvas;
     },
-    [geometry, view],
+    [box.dpr, geometry, map, projection.size, shownArt, view, zoom],
   );
 
   const drawRound = useCallback(
-    (context: CanvasRenderingContext2D, round: CentreRound, seconds: number, style: RadarStyle, size: number): TacticalSample[] => {
+    (ctx: CanvasRenderingContext2D, round: CentreRound, seconds: number, style: RadarStyle): DrawnPlayer[] => {
       const reader = readers.get(round.key);
       if (reader === undefined || geometry === undefined) return [];
       const tick = tickOf(round, seconds);
       const cursor = frameCursor(round.frames, tick);
       if (cursor === undefined) return [];
       const samples = reader.samples(cursor);
-      drawTacticalScene(context, {
-        size,
-        view,
-        // One calibration for every round: world coordinates of one map agree, the focused plate is the frame.
-        geometry,
-        activeLevel: dominantLevel(geometry.calibration, samples),
-        samples: layerSamples(samples, layers),
-        trails: layerTrails(reader.trails(cursor), layers),
-        events: round.events,
-        nowSeconds: timelineSeconds(round.timeline, tick),
-        labels: round.focused ? round.labels : new Map(),
-        style,
-      }, drawCache);
-      return samples;
+      if (round.focused) samplesRef.current = samples;
+      const nowSeconds = timelineSeconds(round.timeline, tick);
+      const deadFor = new Map<number, number>();
+      for (const player of round.round.players) {
+        if (player.death_tick !== undefined && player.death_tick <= tick) deadFor.set(player.slot, nowSeconds - timelineSeconds(round.timeline, player.death_tick));
+      }
+      const visible = { x: view.x * projection.size, y: view.y * projection.size, width: view.width * projection.size, height: view.height * projection.size };
+      return drawRoundFrame(
+        ctx,
+        {
+          calibration: geometry.calibration,
+          size: projection.size,
+          samples: layerSamples(samples, layers),
+          trails: layerTrails(reader.trails(cursor), layers),
+          events: round.events,
+          nowSeconds,
+          secondsOf: (at) => timelineSeconds(round.timeline, at),
+          deadFor,
+          labels: round.focused ? round.labels : new Map(),
+          selectedSlot: round.focused ? selectedSlot : null,
+          utility: layers.utility,
+          bomb: layers.bomb,
+          style,
+        },
+        round.focused ? { visible, spots: spotsRef.current } : null,
+      );
     },
-    [drawCache, geometry, layers, readers, tickOf, view],
+    [geometry, layers, projection.size, readers, selectedSlot, tickOf, view],
   );
 
   const render = useCallback(
     (seconds: number) => {
-      if (!drawable || geometry === undefined || focused === undefined) return;
       const canvas = canvasRef.current;
-      if (canvas === null) return;
-      const context = canvas.getContext('2d', { alpha: false });
-      if (context === null) return;
+      if (!drawable || geometry === undefined || focused === undefined || canvas === null) return;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (ctx === null) return;
       const style = styleRef.current ?? readRadarStyle(canvas);
-      const { cssWidth, cssHeight, dpr, size, offsetX, offsetY } = metricsRef.current;
+      styleRef.current = style;
+      const { dpr } = box;
+      const reader = readers.get(focused.key);
+      const cursor = frameCursor(focused.frames, tickOf(focused, seconds));
+      const level = dominantLevel(geometry.calibration, cursor === undefined || reader === undefined ? [] : reader.samples(cursor));
 
-      const focusTick = tickOf(focused, seconds);
-      const focusCursor = frameCursor(focused.frames, focusTick);
-      const focusSamples = focusCursor === undefined ? [] : (readers.get(focused.key)?.samples(focusCursor) ?? []);
-      const level = dominantLevel(geometry.calibration, focusSamples);
-
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.fillStyle = style.background;
-      context.fillRect(0, 0, cssWidth, cssHeight);
-      context.translate(offsetX, offsetY);
-      const baked = background(level, size, dpr, style);
-      if (baked !== null) context.drawImage(baked, view.x * size, view.y * size, view.width * size, view.height * size);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#0b0c0e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const baked = plate(level, style);
+      const left = projection.offsetX + view.x * projection.size;
+      const top = projection.offsetY + view.y * projection.size;
+      if (baked !== null) ctx.drawImage(baked, Math.round(left * dpr), Math.round(top * dpr));
 
       const others = rounds.filter((round) => round !== focused);
       if (others.length > 0) {
@@ -131,25 +199,22 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator }: Repla
         layerRef.current = layer;
         if (layer.width !== canvas.width) layer.width = canvas.width;
         if (layer.height !== canvas.height) layer.height = canvas.height;
-        const layerContext = layer.getContext('2d');
-        if (layerContext !== null) {
-          layerContext.setTransform(1, 0, 0, 1, 0, 0);
-          layerContext.clearRect(0, 0, layer.width, layer.height);
-          layerContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-          layerContext.translate(offsetX, offsetY);
-          for (const round of others) drawRound(layerContext, round, seconds, style, size);
-          context.setTransform(1, 0, 0, 1, 0, 0);
-          context.globalAlpha = OVERLAY_ALPHA;
-          context.drawImage(layer, 0, 0);
-          context.globalAlpha = 1;
-          context.setTransform(dpr, 0, 0, dpr, 0, 0);
-          context.translate(offsetX, offsetY);
+        const layerCtx = layer.getContext('2d');
+        if (layerCtx !== null) {
+          layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+          layerCtx.clearRect(0, 0, layer.width, layer.height);
+          layerCtx.setTransform(dpr, 0, 0, dpr, projection.offsetX * dpr, projection.offsetY * dpr);
+          for (const round of others) drawRound(layerCtx, round, seconds, style);
+          ctx.globalAlpha = OVERLAY_ALPHA;
+          ctx.drawImage(layer, 0, 0);
+          ctx.globalAlpha = 1;
         }
       }
-      drawRound(context, focused, seconds, style, size);
-      context.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, projection.offsetX * dpr, projection.offsetY * dpr);
+      drawnRef.current = drawRound(ctx, focused, seconds, style);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [background, drawRound, drawable, focused, geometry, readers, rounds, tickOf, view],
+    [box, drawRound, drawable, focused, geometry, plate, projection, readers, rounds, tickOf, view],
   );
 
   const renderRef = useRef(render);
@@ -157,90 +222,201 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator }: Repla
     renderRef.current = render;
     render(clock.seconds);
   }, [render, clock]);
-
   useEffect(() => clock.subscribe((seconds) => renderRef.current(seconds)), [clock]);
-
-  useEffect(() => {
-    backgroundsRef.current.clear();
-  }, [geometry]);
 
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (container === null || canvas === null) return;
     const measure = (): void => {
-      const box = container.getBoundingClientRect();
+      const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-      const cssWidth = Math.max(1, box.width);
-      const cssHeight = Math.max(1, box.height);
-      const width = Math.round(cssWidth * dpr);
-      const height = Math.round(cssHeight * dpr);
-      if (canvas.width !== width) canvas.width = width;
-      if (canvas.height !== height) canvas.height = height;
-      const fit = radarProjection({ width: cssWidth, height: cssHeight }, view);
-      metricsRef.current = { cssWidth, cssHeight, dpr, ...fit };
-      setProjection((current) =>
-        current.size === fit.size && current.offsetX === fit.offsetX && current.offsetY === fit.offsetY ? current : fit,
-      );
-      styleRef.current = readRadarStyle(canvas);
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      setBox((current) => (current.width === width && current.height === height && current.dpr === dpr ? current : { width, height, dpr }));
+    };
+    const restyle = (): void => {
+      styleRef.current = null;
+      plateRef.current = null;
       renderRef.current(clock.seconds);
     };
-    const stale = (): void => {
-      drawCache.clear();
-      backgroundsRef.current.clear();
-      measure();
-    };
     measure();
-    document.fonts.addEventListener('loadingdone', stale);
     const observer = new ResizeObserver(measure);
     observer.observe(container);
-    window.addEventListener('resize', measure);
-    const themeObserver = new MutationObserver(stale);
+    const themeObserver = new MutationObserver(restyle);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    document.fonts.addEventListener('loadingdone', restyle);
     return () => {
       observer.disconnect();
       themeObserver.disconnect();
-      document.fonts.removeEventListener('loadingdone', stale);
-      window.removeEventListener('resize', measure);
+      document.fonts.removeEventListener('loadingdone', restyle);
     };
-  }, [view, drawCache, clock]);
+  }, [clock]);
 
-  // Typed rather than cast: CSSProperties has no index signature for custom properties.
-  const radarVars = useMemo<CSSProperties & { '--radar-max': string }>(
-    () => ({ '--radar-max': `min(100%, ${((RADAR_MAX_HEIGHT_VH * view.width) / view.height).toFixed(2)}vh)` }),
-    [view],
-  );
+  // The wheel listener is not passive so the page does not scroll under the map.
+  const zoomStateRef = useRef({ box, view, base });
+  zoomStateRef.current = { box, view, base };
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null) return;
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const state = zoomStateRef.current;
+      const next = zoomViewAt({ box: state.box, view: state.view, base: state.base, cursor: { x: event.clientX - rect.left, y: event.clientY - rect.top }, factor: WHEEL_STEP ** -event.deltaY });
+      setZoomed(sameRect(next, state.base) ? null : next);
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
 
-  const label = mode === 'multi'
-    ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra`
-    : `Radar de la ronda ${focused?.round.number ?? ''}`;
+  const playerAt = (x: number, y: number): number | null => {
+    const reach = discRadius(projection.size) + 6;
+    let best: { slot: number; distance: number } | null = null;
+    for (const player of drawnRef.current) {
+      if (!player.alive) continue;
+      const distance = Math.hypot(player.x + projection.offsetX - x, player.y + projection.offsetY - y);
+      if (distance <= reach && (best === null || distance < best.distance)) best = { slot: player.slot, distance };
+    }
+    return best?.slot ?? null;
+  };
+
+  const dragRef = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
+  const local = (event: { clientX: number; clientY: number }): { x: number; y: number } => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    return rect === undefined ? { x: 0, y: 0 } : { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const zoomBy = (factor: number): void => {
+    const next = zoomViewAt({ box, view, base, cursor: { x: box.width / 2, y: box.height / 2 }, factor });
+    setZoomed(sameRect(next, base) ? null : next);
+  };
+
+  let cursorClass = 'cursor-grab';
+  if (grabbing) cursorClass = 'cursor-grabbing';
+  else if (hover !== null) cursorClass = 'cursor-pointer';
+  const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra` : `Mapa de la ronda ${focused?.round.number ?? ''}`;
+  const hovered = hover === null ? null : drawnRef.current.find((player) => player.slot === hover);
+  const hoveredSample = hover === null ? undefined : samplesRef.current.find((sample) => sample.slot === hover);
+  const hoveredName = hover === null || focused === undefined ? '' : (focused.doc.players.find((player) => player.slot === hover)?.name ?? '');
 
   return (
-    <div className="flex min-w-0 flex-col gap-2" style={radarVars}>
+    <div className="absolute inset-0 overflow-hidden bg-[#0b0c0e]">
       <div
         ref={containerRef}
         role="img"
         aria-label={label}
-        className="relative mx-auto w-full max-w-(--radar-max) overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
-        style={{ aspectRatio: `${view.width} / ${view.height}` }}
+        className={cn('absolute inset-0', cursorClass)}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const at = local(event);
+          dragRef.current = { ...at, moved: false, id: event.pointerId };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const at = local(event);
+          const drag = dragRef.current;
+          if (drag !== null && drag.id === event.pointerId) {
+            const dx = at.x - drag.x;
+            const dy = at.y - drag.y;
+            if (!drag.moved && Math.hypot(dx, dy) < CLICK_SLOP) return;
+            drag.moved = true;
+            setGrabbing(true);
+            setHover(null);
+            drag.x = at.x;
+            drag.y = at.y;
+            const next = panView({ box, view, base, dx, dy });
+            setZoomed(sameRect(next, base) ? null : next);
+            return;
+          }
+          const slot = playerAt(at.x, at.y);
+          setHover((current) => (current === slot ? current : slot));
+        }}
+        onPointerUp={(event) => {
+          const drag = dragRef.current;
+          dragRef.current = null;
+          setGrabbing(false);
+          if (drag === null || drag.moved) return;
+          const at = local(event);
+          const slot = playerAt(at.x, at.y);
+          if (slot !== null) onSelectSlot(slot === selectedSlot ? null : slot);
+        }}
+        onPointerLeave={() => setHover(null)}
+        onDoubleClick={() => setZoomed(null)}
       >
         <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
-        {drawable && telestrator !== null && geometry !== undefined ? (
-          <TelestratorLayer calibration={geometry.calibration} projection={projection} shown={telestrator.shown} draft={telestrator.draft} />
-        ) : null}
-        {drawable ? null : (
-          <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
-            Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la repetición. Los eventos
-            siguen en la lista.
-          </p>
-        )}
       </div>
+      {drawable && telestrator !== null && geometry !== undefined ? (
+        <TelestratorLayer calibration={geometry.calibration} projection={projection} shown={telestrator.shown} draft={telestrator.draft} />
+      ) : null}
+      {hovered === undefined || hovered === null || hoveredSample === undefined || grabbing ? null : (
+        <PlayerTooltip sample={hoveredSample} name={hoveredName} x={hovered.x + projection.offsetX} y={hovered.y + projection.offsetY} box={box} />
+      )}
+
+      <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between gap-2">
+        <div className="pointer-events-auto">
+          {official === null ? null : (
+            <Segmented
+              label="Dibujo del mapa"
+              value={source}
+              options={[
+                { value: 'scheme', label: 'Esquema' },
+                { value: 'official', label: 'Radar oficial' },
+              ]}
+              onChange={setSource}
+            />
+          )}
+        </div>
+        {navReady === 'failed' && (source === 'scheme' || official === null) ? (
+          <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
+            No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="absolute right-2 bottom-2 flex items-center gap-0.5 rounded-md border border-border-strong bg-surface-1/95 p-0.5">
+        <MapButton label="Alejar" disabled={zoom <= 1} onClick={() => zoomBy(1 / 1.5)}>
+          <Minus aria-hidden />
+        </MapButton>
+        <span className="w-10 text-center text-meta tabular-nums text-fg-2" aria-live="polite">
+          {Math.round(zoom * 100)}%
+        </span>
+        <MapButton label="Acercar" disabled={zoom >= 8} onClick={() => zoomBy(1.5)}>
+          <Plus aria-hidden />
+        </MapButton>
+        <MapButton label="Ver el mapa entero" disabled={zoomed === null} onClick={() => setZoomed(null)}>
+          <Maximize2 aria-hidden />
+        </MapButton>
+      </div>
+
+      {drawable ? null : (
+        <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
+          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la repetición. Los eventos siguen en la lista.
+        </p>
+      )}
       {drawable && focused !== undefined && focused.frames.length === 0 ? (
-        <p className="mx-auto w-full max-w-(--radar-max) rounded-md border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning">
-          Esta ronda no tiene posiciones guardadas: el radar queda vacío, los eventos no.
+        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-warning/45 bg-surface-0/90 px-3 py-2 text-body-sm text-warning">
+          Esta ronda no tiene posiciones guardadas: el mapa queda vacío, los eventos no.
         </p>
       ) : null}
     </div>
+  );
+}
+
+function MapButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: ReactNode }): ReactNode {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="grid size-8 place-items-center rounded-sm text-fg-2 outline-none hover:bg-surface-3 hover:text-fg-1 focus-visible:ring-2 focus-visible:ring-ring disabled:text-fg-4 motion-safe:active:scale-[0.97] [&_svg]:size-4"
+    >
+      {children}
+    </button>
   );
 }
 

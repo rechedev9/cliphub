@@ -74,7 +74,7 @@ export function unitsPerPixelAt(distance: number, fovDegrees: number, viewportHe
   return height / Math.max(1, viewportHeight);
 }
 
-/** The orbit that frames a box from the south-west at a 50 degree tilt. */
+/** The orbit that frames a box from the south-west at a 62 degree tilt, steep enough to see into the corridors. */
 export function framingOrbit(box: WorldBox, fovDegrees: number, aspect: number): OrbitState {
   const sx = box.max.x - box.min.x;
   const sy = box.max.y - box.min.y;
@@ -88,7 +88,7 @@ export function framingOrbit(box: WorldBox, fovDegrees: number, aspect: number):
     target: { x: box.min.x + sx / 2, y: box.min.y + sy / 2, z: box.min.z + sz * 0.25 },
     distance,
     azimuth: (-3 * Math.PI) / 4,
-    elevation: (50 * Math.PI) / 180,
+    elevation: (62 * Math.PI) / 180,
   };
 }
 

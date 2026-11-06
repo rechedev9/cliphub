@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../../api/tactical.ts';
 import type { TacticalFrame } from '../../api/tactical.ts';
-import { vertexColors, zRange } from './mesh.ts';
+import { mapPalette, surfaceColors, zRange } from './mesh.ts';
 import {
   DUCKING_EYE,
   STANDING_EYE,
@@ -43,17 +43,21 @@ test('view: without a recorded yaw the player looks where they move', () => {
   assert.equal(eyeHeight({ flags: 0 }), STANDING_EYE);
 });
 
-test('mesh: a synthetic two-floor mesh shades its upper floor brighter', () => {
+test('mesh: floors and walls take their own tone, darker lower down', () => {
   // Two stacked quads, z = 0 and z = 256, as the physics mesh delivers them.
   const vertices = new Float32Array([0, 0, 0, 64, 0, 0, 64, 64, 0, 0, 64, 0, 0, 0, 256, 64, 0, 256, 64, 64, 256, 0, 64, 256]);
   const range = zRange(vertices);
   assert.deepEqual(range, [0, 256]);
-  const colors = vertexColors(vertices, [1, 0.5, 0.25], range);
-  assert.equal(colors.length, vertices.length);
+  const palette = { floor: [1, 0.5, 0.25] as const, wall: [0.2, 0.2, 0.2] as const };
+  // One flat floor triangle and one vertical wall triangle.
+  const surfaces = Float32Array.from([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 256]);
+  const colors = surfaceColors(surfaces, palette, range);
+  assert.equal(colors.length, surfaces.length);
   close(colors[0], heightShade(0, 0, 256), 1e-6);
-  close(colors[12], 1, 1e-6);
-  close(colors[13], 0.5, 1e-6);
-  assert.ok(colors[12] > colors[0]);
+  close(colors[1], 0.5 * heightShade(0, 0, 256), 1e-6);
+  close(colors[15], 0.2, 1e-6);
+  assert.ok(colors[15] > colors[9]);
+  assert.ok(mapPalette([0.05, 0.05, 0.06]).floor[0] < mapPalette([0.98, 0.98, 0.98]).floor[0]);
   assert.deepEqual(zRange(new Float32Array()), [0, 0]);
 });
 

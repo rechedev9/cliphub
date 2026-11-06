@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
 import type { CameraMode } from './three/camera-rig';
 import { loadMapGeometry } from './three/geometry-cache';
+import { loadRadarImage } from './radar/map-art';
 
 const ThreeScene = dynamic(() => import('./three/three-scene').then((module) => module.ThreeScene), {
   ssr: false,
@@ -28,7 +29,7 @@ const CAMERA_OPTIONS: readonly { value: CameraMode; label: string }[] = [
 
 const CAMERA_KEYS: Record<string, CameraMode> = { '1': 'orbit', '2': 'top', '3': 'player' };
 
-const SLIDER_CLASS = 'h-1 w-40 min-w-0 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary';
+const SLIDER_CLASS = 'h-1 w-32 min-w-0 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary';
 
 type GeometryState =
   | { map: string; state: 'loading' }
@@ -83,6 +84,7 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   const [attempt, setAttempt] = useState(0);
   const [camera, setCamera] = useState<CameraMode>('orbit');
   const [cut, setCut] = useState<{ map: string; z: number } | null>(null);
+  const [radarImage, setRadarImage] = useState<{ map: string; image: HTMLImageElement } | null>(null);
 
   useEffect(() => setWebgl(webglAvailable()), []);
 
@@ -108,6 +110,22 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
       live = false;
     };
   }, [map, attempt]);
+
+  useEffect(() => {
+    if (map === '') return;
+    let live = true;
+    void loadRadarImage(map, 'upper').then((image) => {
+      if (live) setRadarImage(image === null ? null : { map, image });
+    });
+    return () => {
+      live = false;
+    };
+  }, [map]);
+  const calibration = focused?.doc.geometry.calibration ?? null;
+  const radar = useMemo(
+    () => (radarImage === null || radarImage.map !== map || calibration === null ? null : { image: radarImage.image, calibration }),
+    [calibration, map, radarImage],
+  );
 
   const geometry = load?.map === map && load.state === 'ready' ? load.geometry : null;
   const focusedFrames = focused?.frames;
@@ -187,16 +205,20 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
         onPick={pick}
         onFailure={fail}
         label={label}
+        radar={radar}
       />
     );
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <Segmented label="Cámara" value={camera} options={CAMERA_OPTIONS} onChange={selectCamera} />
-        {range === null ? null : (
-          <label className="flex items-center gap-2 text-body-sm text-fg-2">
+    <div className="absolute inset-0 overflow-hidden bg-surface-0">
+      {body}
+      <div className="pointer-events-none absolute inset-x-2 top-2 flex flex-wrap items-center gap-2">
+        <div className="pointer-events-auto">
+          <Segmented label="Cámara" value={camera} options={CAMERA_OPTIONS} onChange={selectCamera} />
+        </div>
+        {range === null || camera === 'top' ? null : (
+          <label className="pointer-events-auto flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-2">
             Cortar techos
             <input
               type="range"
@@ -210,15 +232,13 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
             />
           </label>
         )}
-        {camera === 'player' && followed !== null ? <span className="truncate text-body-sm text-fg-2">Ves lo que ve {followed}</span> : null}
+        {camera === 'player' && followed !== null ? (
+          <span className="rounded-md bg-surface-1/95 px-2 py-1 text-meta text-fg-1">Ves lo que ve {followed}</span>
+        ) : null}
       </div>
-      <div className="relative h-[min(62vh,640px)] min-h-72 w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0">{body}</div>
-      {geometry?.source === 'nav' ? (
-        <p className="text-body-sm text-fg-2">Solo se ve el suelo: las paredes de este mapa no se pudieron leer.</p>
-      ) : null}
-      <p className="text-meta text-fg-3">
-        Arrastra para girar, clic derecho para desplazar y rueda para acercar. Las teclas 1, 2 y 3 cambian de cámara; haz clic en un
-        jugador para ver con sus ojos.
+      <p className="pointer-events-none absolute bottom-2 left-2 max-w-[70%] rounded-md bg-surface-0/80 px-2 py-1 text-meta text-fg-3">
+        {geometry?.source === 'nav' ? 'Solo se ve el suelo: las paredes de este mapa no se pudieron leer. ' : ''}
+        Arrastra para girar, clic derecho para desplazar, rueda para acercar · 1, 2, 3 cambian de cámara · clic en un jugador para ver con sus ojos
       </p>
     </div>
   );

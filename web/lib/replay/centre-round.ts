@@ -3,6 +3,7 @@ import { roundTimeline, timelineEvents } from '../tactical-timeline.ts';
 import type { RoundTimeline, TimelineEvent } from '../tactical-timeline.ts';
 import { layerEvents, layerLabels } from './layers.ts';
 import type { ReplayLayers } from './layers.ts';
+import { tagName } from './tag-layout.ts';
 
 /** One round the centre draws: the focused one, plus the superposed ones in multi-round mode. */
 export type CentreRound = {
@@ -21,13 +22,11 @@ export type CentreRound = {
   focused: boolean;
 };
 
-/** The three-letter tag on a player's radar chip; the cards carry the full name. */
-function shortLabel(name: string): string {
-  return name.trim().slice(0, 3).toUpperCase();
-}
+/** Longest name tag on the map; longer names end in an ellipsis and the team panel has them whole. */
+const TAG_CHARS = 14;
 
 export function docLabels(doc: Pick<TacticalDocument, 'players'>): Map<number, string> {
-  return new Map(doc.players.map((player) => [player.slot, shortLabel(player.name)]));
+  return new Map(doc.players.map((player) => [player.slot, tagName(player.name, TAG_CHARS)]));
 }
 
 export function docNames(doc: Pick<TacticalDocument, 'players'>): Map<number, string> {

@@ -8,6 +8,7 @@ import {
   LineDashedMaterial,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   OctahedronGeometry,
   SphereGeometry,
 } from 'three';
@@ -35,7 +36,7 @@ function toneOf(kind: TacticalEventKind, colors: SceneColors): Rgb {
 
 /** One grenade's objects: the effect volume, the estimated path and the grenade in flight. */
 class GrenadeObject {
-  readonly effect: Mesh<SphereGeometry | CircleGeometry, MeshBasicMaterial>;
+  readonly effect: Mesh<SphereGeometry | CircleGeometry, MeshBasicMaterial | MeshLambertMaterial>;
   readonly arc: Line<BufferGeometry, LineDashedMaterial> | null = null;
   readonly projectile: Mesh<SphereGeometry, MeshBasicMaterial>;
   readonly #arcPoints: number;
@@ -43,7 +44,11 @@ class GrenadeObject {
 
   constructor(readonly kind: TacticalEventKind, visual: UtilityVisual, shared: { sphere: SphereGeometry; disc: CircleGeometry; dot: SphereGeometry }, tone: Color) {
     const flat = kind === TACTICAL_EVENT_KINDS.molotov;
-    this.effect = new Mesh(flat ? shared.disc : shared.sphere, new MeshBasicMaterial({ color: tone, transparent: true, depthWrite: false }));
+    // Smoke is lit so the cloud shades like a volume; fire and pops stay flat and bright.
+    const material = kind === TACTICAL_EVENT_KINDS.smoke
+      ? new MeshLambertMaterial({ color: tone, transparent: true, depthWrite: false, emissive: tone, emissiveIntensity: 0.25 })
+      : new MeshBasicMaterial({ color: tone, transparent: true, depthWrite: false });
+    this.effect = new Mesh(flat ? shared.disc : shared.sphere, material);
     this.effect.renderOrder = 3;
     this.projectile = new Mesh(shared.dot, new MeshBasicMaterial({ color: tone }));
     this.#arcPoints = ARC_STEPS + 1;
@@ -75,7 +80,7 @@ class GrenadeObject {
       if (this.kind === TACTICAL_EVENT_KINDS.smoke) {
         effect.position.set(visual.at.x, visual.at.y, visual.at.z + SMOKE_HEIGHT * 0.45 * grow);
         effect.scale.set(SMOKE_RADIUS * grow, SMOKE_RADIUS * grow, SMOKE_HEIGHT * grow);
-        effect.material.opacity = 0.42 * visual.effect.strength * strength;
+        effect.material.opacity = 0.62 * visual.effect.strength * strength;
       } else if (this.kind === TACTICAL_EVENT_KINDS.molotov) {
         effect.position.set(visual.at.x, visual.at.y, visual.at.z + 2);
         effect.scale.setScalar(FIRE_RADIUS * grow);
@@ -120,7 +125,7 @@ class GrenadeObject {
 /** Every round's grenades and the bomb on the ground, pooled by round and event. */
 export class UtilityLayer {
   readonly group = new Group();
-  readonly #sphere = new SphereGeometry(1, 20, 14);
+  readonly #sphere = new SphereGeometry(1, 32, 20);
   readonly #disc = new CircleGeometry(1, 40);
   readonly #dot = new SphereGeometry(5, 8, 6);
   readonly #bombGeometry = new OctahedronGeometry(14);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { MapGeometry } from '@/lib/api/map-geometry';
+import type { RadarCalibration } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
 import type { ReplayLayers } from '@/lib/replay/layers';
@@ -23,13 +24,15 @@ export type ThreeSceneProps = {
   onPick: (slot: number) => void;
   onFailure: () => void;
   label: string;
+  /** The official overview for the top-down camera, when CS2 serves it. */
+  radar: { image: HTMLImageElement; calibration: RadarCalibration } | null;
 };
 
 /**
  * The WebGL canvas and the name tags over it. Three.js lives only in this
  * module's chunk, so pages that never open the 3D view never load it.
  */
-export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label }: ThreeSceneProps): ReactNode {
+export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar }: ThreeSceneProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -82,6 +85,10 @@ export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, l
     if (container === null) return;
     sceneRef.current?.setMap(geometry, boxRef.current, readSceneColors(container));
   }, [geometry]);
+
+  useEffect(() => {
+    sceneRef.current?.setRadar(radar?.image ?? null, radar?.calibration ?? null, geometry.bounds.min[2]);
+  }, [radar, geometry]);
 
   useEffect(() => {
     sceneRef.current?.setCut(cut);

@@ -1,8 +1,8 @@
-import { AmbientLight, Color, DirectionalLight, HemisphereLight, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshBasicMaterial, PlaneGeometry, Raycaster, SRGBColorSpace, Scene, Texture, Vector2, Vector3, WebGLRenderer } from 'three';
 import type { Object3D } from 'three';
 import type { MapGeometry } from '@/lib/api/map-geometry';
 import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
-import type { TacticalSample } from '@/lib/api/tactical';
+import type { RadarCalibration, TacticalSample } from '@/lib/api/tactical';
 import { docNames } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
@@ -35,6 +35,9 @@ type RoundState = {
   names: Map<number, string>;
 };
 
+/** From straight above a player is only a disc, so the top-down camera draws it larger. */
+const TOP_ACTOR_SCALE = 2.4;
+
 /** Name tags this close to the screen edge or behind the camera are hidden. */
 const LABEL_EDGE = 4;
 
@@ -55,6 +58,7 @@ export class ReplayScene {
   readonly #raycaster = new Raycaster();
   readonly #projected = new Vector3();
   #map: MapMesh | null = null;
+  #radar: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
   #input: SceneInput = { rounds: [], tickOf: () => 0, layers: { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] } };
   #seconds = 0;
   #follow: number | null = null;
@@ -71,12 +75,13 @@ export class ReplayScene {
     this.#kit = new ActorKit(options.colors);
     this.#utility = new UtilityLayer(options.colors);
     this.#scene.add(this.#utility.group);
-    const sky = new HemisphereLight(0xffffff, 0x404858, 1.6);
+    // A cool sky over a warm bounce, and a low sun from the south-west so walls read apart.
+    const sky = new HemisphereLight(0xdfe8ff, 0x3a3428, 1.5);
     sky.position.set(0, 0, 1);
     this.#scene.add(sky);
-    this.#scene.add(new AmbientLight(0xffffff, 0.35));
-    const sun = new DirectionalLight(0xffffff, 1.4);
-    sun.position.set(-0.45, -0.7, 1);
+    this.#scene.add(new AmbientLight(0xffffff, 0.3));
+    const sun = new DirectionalLight(0xfff4e6, 1.6);
+    sun.position.set(-0.55, -0.8, 1);
     this.#scene.add(sun);
     this.#rig = new CameraRig(options.canvas, { onChange: () => this.requestRender(), onClick: (x, y) => this.#pick(x, y) });
     this.setColors(options.colors);
@@ -84,12 +89,39 @@ export class ReplayScene {
 
   setMap(geometry: MapGeometry, box: WorldBox, colors: SceneColors): void {
     if (this.#map !== null) {
-      this.#scene.remove(this.#map.mesh);
+      this.#scene.remove(...this.#map.objects);
       this.#map.dispose();
     }
-    this.#map = new MapMesh(geometry, colors.map);
-    this.#scene.add(this.#map.mesh);
+    this.#map = new MapMesh(geometry, colors.background);
+    this.#scene.add(...this.#map.objects);
     this.#rig.frame(box);
+    this.requestRender();
+  }
+
+  /**
+   * The game's overview laid flat under the map. The top-down camera shows it
+   * instead of the mesh, so that view reads like the radar players know.
+   */
+  setRadar(image: HTMLImageElement | null, calibration: RadarCalibration | null, floorZ: number): void {
+    if (this.#radar !== null) {
+      this.#scene.remove(this.#radar);
+      this.#radar.geometry.dispose();
+      this.#radar.material.map?.dispose();
+      this.#radar.material.dispose();
+      this.#radar = null;
+    }
+    if (image !== null && calibration !== null && calibration.scale > 0) {
+      const side = calibration.scale * image.naturalWidth;
+      const texture = new Texture(image);
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 4;
+      texture.needsUpdate = true;
+      const plane = new Mesh(new PlaneGeometry(side, side), new MeshBasicMaterial({ map: texture }));
+      plane.position.set(calibration.pos_x + side / 2, calibration.pos_y - side / 2, floorZ - 4);
+      plane.visible = false;
+      this.#radar = plane;
+      this.#scene.add(plane);
+    }
     this.requestRender();
   }
 
@@ -110,7 +142,7 @@ export class ReplayScene {
 
   setColors(colors: SceneColors): void {
     this.#scene.background = new Color().setRGB(colors.background[0], colors.background[1], colors.background[2], 'srgb');
-    this.#map?.setColor(colors.map);
+    this.#map?.setColor(colors.background);
     this.#kit.setColors(colors);
     this.#utility.setColors(colors);
     this.requestRender();
@@ -171,6 +203,7 @@ export class ReplayScene {
     this.#utility.dispose();
     this.#kit.dispose();
     this.#map?.dispose();
+    this.setRadar(null, null, 0);
     this.#renderer.dispose();
     this.#renderer.forceContextLoss();
   }
@@ -215,7 +248,7 @@ export class ReplayScene {
           const yaw = lookYaw(sample, previous?.find((candidate) => candidate.slot === sample.slot));
           const self = round.focused && this.#rig.mode === 'player' && this.#follow === sample.slot;
           const actor = this.#actor(state, sample.slot);
-          actor.update(sample, yaw, { self, bombLayer: layers.bomb });
+          actor.update(sample, yaw, { self, bombLayer: layers.bomb, scale: this.#rig.mode === 'top' ? TOP_ACTOR_SCALE : 1 });
           actor.setTrail(trails.get(sample.slot));
           if (self) {
             eye = { at: { x: sample.x, y: sample.y, z: sample.z + eyeHeight(sample) }, direction: viewDirection(yaw) };
@@ -228,6 +261,9 @@ export class ReplayScene {
     this.#utility.endFrame();
     if (eye !== null) this.#rig.placeEye(eye.at, eye.direction);
     const camera = this.#rig.active;
+    const flat = this.#radar !== null && this.#rig.mode === 'top';
+    if (this.#radar !== null) this.#radar.visible = flat;
+    this.#map?.setVisible(!flat);
     this.#renderer.render(this.#scene, camera);
     this.#placeLabels();
   }

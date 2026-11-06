@@ -13,6 +13,7 @@ import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { ReplayClock } from '@/lib/replay/clock';
 import { DEFAULT_LAYERS, showAllPlayers, toggleLayer, togglePlayer } from '@/lib/replay/layers';
+import { roundOutcome } from '@/lib/replay/round-outcome';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
@@ -28,22 +29,22 @@ import {
   timelineTick,
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
-import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { noteVisibleAt } from '@/lib/tactical-spatial';
 import { useMatchAnalyses } from '@/hooks/use-match-analyses';
 import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { useCollections } from '@/hooks/use-collections';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
-import { TacticalTimelineBar } from '@/components/tactical/tactical-timeline';
 import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { BookmarkPanel, SaveMomentDialog } from './bookmark-panel';
 import type { ReplayCentreView } from './centre';
-import { LayerPanel } from './layer-panel';
+import { ReplayLeftPanel } from './replay-left-panel';
+import { ReplayTimeline } from './replay-timeline';
 import { RADAR_2D_VIEW } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
@@ -130,6 +131,7 @@ export function ReplayWorkspace({
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
   const [viewId, setViewId] = useState(centreViews[0]?.id ?? RADAR_2D_VIEW.id);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [uiTick, setUiTick] = useState(0);
   const [saving, setSaving] = useState<CollectionItem | null>(null);
   const draft = useTelestratorDraft();
@@ -332,7 +334,8 @@ export function ReplayWorkspace({
       const state = analyses.get(candidate.matchId);
       if (state?.state !== 'ready') return null;
       const found = state.analysis.round(candidate.round);
-      return found === undefined ? null : { score: teamScoreBefore(state.analysis.doc, found).join(':'), winner: found.winner };
+      if (found === undefined) return null;
+      return { score: teamScoreBefore(state.analysis.doc, found).join(':'), winner: found.winner, outcome: roundOutcome(found.end_reason), half: found.half };
     },
     [analyses],
   );
@@ -424,55 +427,59 @@ export function ReplayWorkspace({
     );
   }
 
+  const score = focused === null ? null : teamScoreBefore(focused.doc, focused.round);
+  const roundActions = !library ? null : (
+    <div className="flex flex-wrap gap-1">
+      <Button
+        type="button"
+        size="xs"
+        variant="outline"
+        disabled={focused === null}
+        onClick={() => {
+          setPlaying(false);
+          setSaving(currentMoment());
+        }}
+      >
+        <Bookmark aria-hidden />
+        Guardar momento
+      </Button>
+      {focused !== null && entry !== undefined && !multi ? (
+        <RoundPlayActions matchId={entry.matchId} doc={focused.doc} round={focused.round} currentTick={() => tickOf(focused, clock.seconds)} />
+      ) : null}
+    </div>
+  );
   return (
-    <section ref={rootRef} className="studio-panel @container flex flex-col" aria-label="Repetición">
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border-subtle px-4 py-3 sm:px-5">
-        <div className="flex min-w-0 flex-col">
-          {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
-          <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
-            Ronda {entry?.round}
-            {focused === null ? null : (
-              <span className="pl-3 text-body-sm font-normal tabular-nums text-fg-3">{teamScoreBefore(focused.doc, focused.round).join(':')}</span>
+    <section
+      ref={rootRef}
+      data-replay-workspace=""
+      aria-label="Repetición"
+      className={cn(
+        'grid grid-cols-1 gap-2',
+        'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[620px]',
+        'min-[1180px]:grid-cols-[236px_minmax(0,1fr)_288px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
+      )}
+    >
+      <div className="flex h-[72vh] min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-0 min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto">
+        <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
+          <h2 className="flex min-w-0 items-baseline gap-2 truncate">
+            {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
+            <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
+            {score === null ? null : (
+              <span className="text-body-sm font-semibold tabular-nums">
+                <span className="sr-only">, marcador </span>
+                <span className="text-side-ct">{score[0]}</span>
+                <span className="text-fg-3">:</span>
+                <span className="text-side-t">{score[1]}</span>
+              </span>
             )}
           </h2>
-          {focused === null ? null : (
-            <p className="truncate text-meta text-fg-3">
-              {buyLabel(focused.round.economy.ct_buy)} vs {buyLabel(focused.round.economy.t_buy)} · {tPatternLabel(focused.round.class.t_side)} /{' '}
-              {ctPatternLabel(focused.round.class.ct_side)} · {siteLabel(focused.round.class.site)}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {centreViews.length > 1 ? (
-            <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
-          ) : null}
-          <Button type="button" size="sm" variant={multi ? 'outline-primary' : 'outline'} aria-pressed={multi} disabled={focused === null} onClick={toggleMulti}>
-            <Layers aria-hidden />
-            Multi ronda
-          </Button>
-          {library ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={focused === null}
-              onClick={() => {
-                setPlaying(false);
-                setSaving(currentMoment());
-              }}
-            >
-              <Bookmark aria-hidden />
-              Guardar momento
-            </Button>
-          ) : null}
-          {library && focused !== null && entry !== undefined && !multi ? (
-            <RoundPlayActions matchId={entry.matchId} doc={focused.doc} round={focused.round} currentTick={() => tickOf(focused, clock.seconds)} />
-          ) : null}
-        </div>
-      </header>
-
-      <div className="grid gap-5 p-4 sm:p-5 @[60rem]:grid-cols-[230px_minmax(0,1fr)_270px]">
-        <div className="flex min-w-0 flex-col gap-3">
+          <div className="ml-auto flex items-center gap-1.5">
+            {centreViews.length > 1 ? (
+              <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
+            ) : null}
+          </div>
+        </header>
+        <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (
@@ -486,47 +493,54 @@ export function ReplayWorkspace({
               onSelectView: selectView,
               followSlot,
               onFollowSlot: setFollowSlot,
+              selectedSlot,
+              onSelectSlot: setSelectedSlot,
             })
           )}
         </div>
-        <aside aria-label="Filtros, capas y momentos" className="flex min-w-0 flex-col gap-5 @[60rem]:order-first">
-          {filters}
-          <section className="flex flex-col gap-2">
-            <h3 className="text-meta text-fg-3">Capas</h3>
-            <LayerPanel
-              layers={layers}
-              onToggle={(key) => setLayers((value) => toggleLayer(value, key))}
-              onShowAll={() => setLayers((value) => showAllPlayers(value))}
-            />
-          </section>
-          {library ? (
-            <section className="flex flex-col gap-2">
-              <h3 className="text-meta text-fg-3">Momentos guardados</h3>
-              <BookmarkPanel
-                store={collections}
-                momentLabel={momentLabel}
-                isCurrent={(item) => entry !== undefined && item.match_id === entry.matchId && item.round === entry.round}
-                onOpen={openMoment}
-              />
-            </section>
-          ) : null}
-          {focused === null || focused.round.class.reasons.length === 0 ? null : (
-            <details className="text-body-sm text-fg-2">
-              <summary className="cursor-pointer text-meta text-fg-3 hover:text-fg-1">Por qué se clasificó así</summary>
-              <ul className="mt-2 flex flex-col gap-1 font-mono text-meta break-words">
-                {focused.round.class.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </aside>
+      </div>
+
+      <aside
+        aria-label="Ronda, filtros y capas"
+        className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1"
+      >
+        <ReplayLeftPanel
+          focused={focused}
+          actions={roundActions}
+          filters={filters}
+          layers={layers}
+          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onShowAll={() => setLayers((value) => showAllPlayers(value))}
+          bookmarks={
+            library
+              ? {
+                  count: collections.active?.items.length ?? 0,
+                  panel: (
+                    <BookmarkPanel
+                      store={collections}
+                      momentLabel={momentLabel}
+                      isCurrent={(item) => entry !== undefined && item.match_id === entry.matchId && item.round === entry.round}
+                      onOpen={openMoment}
+                    />
+                  ),
+                }
+              : null
+          }
+        />
+      </aside>
+
+      <aside
+        aria-label="Jugadores y eventos de la ronda"
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2 min-[1180px]:col-start-3 min-[1180px]:row-start-1"
+      >
         <ReplaySidePanel
           focused={focused}
           nowSeconds={nowSeconds}
           tickOf={tickOf}
           clockSecondsOf={clockSecondsOf}
           layers={layers}
+          selectedSlot={selectedSlot}
+          onSelectSlot={setSelectedSlot}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
           follow={view.followsPlayers === true ? { slot: followSlot, onFollow: setFollowSlot } : null}
           onSeek={(seconds) => {
@@ -545,31 +559,46 @@ export function ReplayWorkspace({
                 }
           }
         />
-      </div>
+      </aside>
 
-      <div className="flex flex-col gap-3 border-t border-border-subtle px-4 py-4 sm:px-5">
-        <RoundStrip
-          entries={entries}
-          index={index}
-          onSelect={(at) => select(at)}
-          groupLabel={labelOf}
-          roundInfo={roundInfo}
-          multi={
-            multi
-              ? {
-                  selected: selectedKeys,
-                  blocked: (candidate) => {
-                    const state = analyses.get(candidate.matchId);
-                    if (state?.state === 'failed') return 'Esta partida no tiene análisis';
-                    if (state?.state === 'ready' && focused !== null && state.analysis.doc.demo.map !== focused.doc.demo.map) return 'Es de otro mapa';
-                    return null;
-                  },
-                }
-              : null
-          }
-          onToggleMulti={(key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey))}
-        />
-        <TacticalTimelineBar
+      <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2 min-[1180px]:col-span-3 min-[1180px]:row-start-2">
+        <div className="flex min-w-0 items-end gap-3">
+          <Button
+            type="button"
+            size="xs"
+            variant={multi ? 'outline-primary' : 'outline'}
+            aria-pressed={multi}
+            disabled={focused === null}
+            onClick={toggleMulti}
+            className="h-10 shrink-0"
+            title={multi ? 'Pulsa una ronda para superponerla; doble clic para abrirla' : 'Superpone varias rondas desde el final del tiempo de compra'}
+          >
+            <Layers aria-hidden />
+            Multi ronda
+          </Button>
+          <RoundStrip
+            entries={entries}
+            index={index}
+            onSelect={(at) => select(at)}
+            groupLabel={labelOf}
+            roundInfo={roundInfo}
+            multi={
+              multi
+                ? {
+                    selected: selectedKeys,
+                    blocked: (candidate) => {
+                      const state = analyses.get(candidate.matchId);
+                      if (state?.state === 'failed') return 'Esta partida no tiene análisis';
+                      if (state?.state === 'ready' && focused !== null && state.analysis.doc.demo.map !== focused.doc.demo.map) return 'Es de otro mapa';
+                      return null;
+                    },
+                  }
+                : null
+            }
+            onToggleMulti={(key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey))}
+          />
+        </div>
+        <ReplayTimeline
           timeline={transport}
           events={transportEvents}
           playing={playing}
@@ -581,17 +610,12 @@ export function ReplayWorkspace({
           onSpeedChange={setSpeed}
           onToggleLoop={() => setLoop((value) => !value)}
           onSeek={seekTo}
+          below={winState === null ? undefined : <WinStrip state={winState} />}
         />
-        {winState === null ? null : <WinStrip state={winState} />}
       </div>
 
       {saving === null || focused === null ? null : (
-        <SaveMomentDialog
-          store={collections}
-          moment={saving}
-          momentLabel={momentLabel(saving)}
-          onClose={() => setSaving(null)}
-        />
+        <SaveMomentDialog store={collections} moment={saving} momentLabel={momentLabel(saving)} onClose={() => setSaving(null)} />
       )}
     </section>
   );
@@ -607,11 +631,11 @@ function CentreState({
   onRetry: () => void;
 }): ReactNode {
   if (state === undefined || state.state === 'loading') {
-    return <Skeleton role="status" aria-label="Cargando la partida" className="aspect-square w-full" />;
+    return <Skeleton role="status" aria-label="Cargando la partida" className="absolute inset-3" />;
   }
   if (state.state === 'failed') {
     return (
-      <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-lg border border-border-strong bg-surface-1 px-6 text-center">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
         <p className="text-body-sm text-fg-2">{state.message}</p>
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
           <RefreshCw aria-hidden />
@@ -621,7 +645,7 @@ function CentreState({
     );
   }
   return (
-    <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-lg border border-border-strong bg-surface-1 px-6 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
       <Radar className="size-6 text-fg-3" aria-hidden />
       <p className="text-body-sm text-fg-2">La ronda {round} no está en el análisis de esta partida.</p>
     </div>

@@ -1,5 +1,6 @@
 import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '../api/tactical.ts';
 import type { TacticalRound, TacticalSample, TacticalSide } from '../api/tactical.ts';
+import type { TacticalInventoryItem } from '../tactical-equipment.ts';
 import type { TimelineEvent } from '../tactical-timeline.ts';
 
 /** Grenades a player has used so far in the round, by kind. */
@@ -9,7 +10,8 @@ export type UtilityUsed = { smoke: number; flash: number; he: number; molotov: n
  * One player at the playhead, from what the tactical document records: health
  * and the bomb from the position samples, money and equipment value from the
  * buy sample, kills, grenades and the last kill's weapon from the events so far.
- * The document carries no inventory, so the weapon is only known after a kill.
+ * Inventory, armour and the kit come from the samples when the parser records
+ * them; without them the last kill's weapon is the only gun known.
  */
 export type PlayerCard = {
   slot: number;
@@ -24,6 +26,14 @@ export type PlayerCard = {
   kills: number;
   utility: UtilityUsed;
   lastWeapon: string | null;
+  /** Null when the samples carry no gear (analyses before version 5). */
+  inventory: readonly TacticalInventoryItem[] | null;
+  activeWeapon: string | null;
+  /** Seconds of flash blindness left; 0 when not blinded or unknown. */
+  flashed: number;
+  armor: number | null;
+  helmet: boolean | null;
+  defuser: boolean | null;
 };
 
 export type PlayerCardInput = {
@@ -80,11 +90,17 @@ export function playerCards(input: PlayerCardInput): { ct: PlayerCard[]; t: Play
       alive,
       health,
       hasBomb: alive && sample !== undefined && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb),
-      money: player.money,
+      money: alive && sample?.money !== undefined ? sample.money : player.money,
       equipValue: player.equip_value,
       kills: kills.get(player.slot) ?? 0,
       utility: utility.get(player.slot) ?? emptyUtility(),
       lastWeapon: weapons.get(player.slot) ?? null,
+      inventory: alive ? (sample?.inventory ?? null) : null,
+      activeWeapon: alive ? (sample?.activeWeapon ?? null) : null,
+      flashed: alive ? (sample?.flashed ?? 0) : 0,
+      armor: alive ? (sample?.armor ?? null) : null,
+      helmet: alive ? (sample?.helmet ?? null) : null,
+      defuser: alive ? (sample?.defuser ?? null) : null,
     };
   });
   return {

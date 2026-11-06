@@ -15,32 +15,24 @@ export type WinStripState =
 
 /**
  * The CT win probability under the timeline, on the same horizontal scale, so
- * each step sits under the kill, plant or defuse that moved it.
+ * each step sits under the kill, plant or defuse that moved it. CT wins up, T down.
  */
 export function WinStrip({ state }: { state: WinStripState }): ReactNode {
-  if (state.kind === 'none') return <p className="text-meta text-fg-3">{state.reason}</p>;
+  if (state.kind === 'none') return <p className="h-5 truncate px-[3px] text-meta leading-5 text-fg-3">{state.reason}</p>;
+  if (state.kind === 'loading') return <div role="status" aria-label="Calculando la probabilidad de victoria" className="mx-[3px] h-5 rounded-sm bg-surface-1" />;
+  const path = winStripPath(state.points, WIDTH, HEIGHT);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="h-10 px-[3px]">
-        {state.kind === 'loading' ? (
-          <div role="status" aria-label="Calculando la probabilidad de victoria" className="h-full rounded-sm bg-surface-2" />
-        ) : (
-          <svg
-            viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-            preserveAspectRatio="none"
-            className="h-full w-full overflow-visible"
-            role="img"
-            aria-label="Probabilidad de victoria del lado CT a lo largo de la ronda"
-          >
-            <line x1={0} x2={WIDTH} y1={HEIGHT / 2} y2={HEIGHT / 2} className="stroke-border" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
-            <path d={winStripPath(state.points, WIDTH, HEIGHT)} fill="none" className="stroke-primary" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-          </svg>
-        )}
-      </div>
-      <p className="flex justify-between text-meta text-fg-3">
-        <span>Probabilidad de victoria CT</span>
-        <span className="tabular-nums text-fg-1">{state.kind === 'ready' && state.now !== null ? percentText(state.now) : ''}</span>
-      </p>
+    <div className="relative h-5 px-[3px]">
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label="Probabilidad de victoria CT a lo largo de la ronda">
+        <rect x={0} y={0} width={WIDTH} height={HEIGHT / 2} className="fill-side-ct/8" />
+        <rect x={0} y={HEIGHT / 2} width={WIDTH} height={HEIGHT / 2} className="fill-side-t/8" />
+        <path d={path} fill="none" className="stroke-fg-2" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+      </svg>
+      {state.now === null ? null : (
+        <span className="pointer-events-none absolute top-0 right-1 rounded-sm bg-surface-0/85 px-1 text-meta leading-5 tabular-nums text-fg-2">
+          Victoria CT <span className="text-fg-1">{percentText(state.now)}</span>
+        </span>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  RingGeometry,
 } from 'three';
 import type { Object3D } from 'three';
 import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
@@ -20,7 +21,7 @@ import { STANDING_EYE, STANDING_HEIGHT, eyeHeight, hullHeight } from '@/lib/repl
 import type { Vec3 } from '@/lib/replay/three/orbit';
 import type { Rgb, SceneColors } from './scene-colors';
 
-const CAPSULE_RADIUS = 14;
+const CAPSULE_RADIUS = 18;
 const TRAIL_CAPACITY = 128;
 /** Superposed rounds sit under the focused one at this strength, as on the radar. */
 export const OVERLAY_OPACITY = 0.38;
@@ -41,6 +42,7 @@ export class ActorKit {
   readonly cone: ConeGeometry;
   readonly bar: BoxGeometry;
   readonly bombBox: BoxGeometry;
+  readonly ring: RingGeometry;
   readonly #lambert = new Map<string, MeshLambertMaterial>();
   readonly #basic = new Map<string, MeshBasicMaterial>();
   readonly #lines = new Map<string, LineBasicMaterial>();
@@ -52,11 +54,12 @@ export class ActorKit {
     this.capsule.rotateX(Math.PI / 2);
     this.capsule.translate(0, 0, STANDING_HEIGHT / 2);
     // A cone pointing along +X, starting at the capsule's edge.
-    this.cone = new ConeGeometry(9, 46, 14);
+    this.cone = new ConeGeometry(11, 56, 16);
     this.cone.rotateZ(-Math.PI / 2);
-    this.cone.translate(CAPSULE_RADIUS + 23, 0, 0);
+    this.cone.translate(CAPSULE_RADIUS + 28, 0, 0);
     this.bar = new BoxGeometry(44, 7, 3);
-    this.bombBox = new BoxGeometry(12, 8, 8);
+    this.bombBox = new BoxGeometry(14, 10, 10);
+    this.ring = new RingGeometry(CAPSULE_RADIUS + 6, CAPSULE_RADIUS + 13, 40);
   }
 
   body(side: Side, faded: boolean): MeshLambertMaterial {
@@ -75,6 +78,10 @@ export class ActorKit {
     return cached(this.#lines, `${side}|trail|${faded}`, () => new LineBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.25 : 0.7 }));
   }
 
+  ringMaterial(side: Side, faded: boolean): MeshBasicMaterial {
+    return cached(this.#basic, `${side}|ring|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.3 : 0.9, depthWrite: false }));
+  }
+
   bomb(faded: boolean): MeshBasicMaterial {
     return cached(this.#basic, `bomb|body|${faded}`, () => new MeshBasicMaterial({ color: this.#color('bomb'), transparent: faded, opacity: faded ? OVERLAY_OPACITY : 1 }));
   }
@@ -91,6 +98,7 @@ export class ActorKit {
     this.cone.dispose();
     this.bar.dispose();
     this.bombBox.dispose();
+    this.ring.dispose();
     for (const map of [this.#lambert, this.#basic, this.#lines]) {
       for (const material of map.values()) material.dispose();
       map.clear();
@@ -120,6 +128,7 @@ export class PlayerActor {
   readonly #cone: Mesh;
   readonly #cross: Group;
   readonly #bomb: Mesh;
+  readonly #ring: Mesh;
   readonly #trail: Line<BufferGeometry, LineBasicMaterial>;
   readonly #trailPositions = new Float32Array(TRAIL_CAPACITY * 3);
   readonly #anchor: Vec3 = { x: 0, y: 0, z: 0 };
@@ -144,13 +153,16 @@ export class PlayerActor {
     this.#cross.add(a, b);
     this.#cross.position.z = 2;
     this.#bomb = new Mesh(kit.bombBox, kit.bomb(faded));
-    this.group.add(this.body, this.#cone, this.#cross, this.#bomb);
+    this.#ring = new Mesh(kit.ring, kit.ringMaterial('ct', faded));
+    this.#ring.position.z = 1.5;
+    this.#ring.renderOrder = 2;
+    this.group.add(this.body, this.#cone, this.#cross, this.#bomb, this.#ring);
     const trailGeometry = new BufferGeometry();
     trailGeometry.setAttribute('position', new BufferAttribute(this.#trailPositions, 3));
     this.#trail = new Line(trailGeometry, kit.trail('ct', faded));
     this.#trail.frustumCulled = false;
     this.label = document.createElement('span');
-    this.label.className = 'absolute top-0 left-0 hidden max-w-36 truncate rounded-sm border-l-2 bg-surface-3/90 px-1.5 text-meta leading-5 font-medium text-fg-1 will-change-transform';
+    this.label.className = 'absolute top-0 left-0 hidden max-w-40 truncate rounded-sm border-l-2 bg-[#0b0c0e]/85 px-1.5 text-meta leading-5 font-semibold text-white shadow-[var(--elev-2)] will-change-transform';
     this.label.textContent = name;
     overlay.append(this.label);
     this.#setSide('ct');
@@ -179,7 +191,7 @@ export class PlayerActor {
   }
 
   /** Places the player at a sample; `self` hides the body for the first-person camera. */
-  update(sample: TacticalSample, yaw: number, options: { self: boolean; bombLayer: boolean }): void {
+  update(sample: TacticalSample, yaw: number, options: { self: boolean; bombLayer: boolean; scale: number }): void {
     this.#shown = true;
     const side = sideOf(sample);
     if (side !== this.#side) this.#setSide(side);
@@ -187,12 +199,14 @@ export class PlayerActor {
     this.group.visible = true;
     this.group.position.set(sample.x, sample.y, sample.z);
     this.group.rotation.z = (yaw * Math.PI) / 180;
+    this.group.scale.set(options.scale, options.scale, 1);
     const height = hullHeight(sample);
     this.body.visible = alive && !options.self;
     this.body.scale.set(1, 1, height / STANDING_HEIGHT);
     this.#cone.visible = alive && !options.self;
     this.#cone.position.z = eyeHeight(sample);
     this.#cross.visible = !alive;
+    this.#ring.visible = alive;
     this.#bomb.visible = alive && !options.self && options.bombLayer && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb);
     this.#bomb.position.set(-CAPSULE_RADIUS - 4, 0, height * 0.6);
     this.#anchor.x = sample.x;
@@ -228,6 +242,7 @@ export class PlayerActor {
     this.#side = side;
     this.body.material = this.kit.body(side, this.faded);
     this.#cone.material = this.kit.coneMaterial(side, this.faded);
+    this.#ring.material = this.kit.ringMaterial(side, this.faded);
     for (const child of this.#cross.children) if (child instanceof Mesh) child.material = this.kit.cross(side, this.faded);
     this.#trail.material = this.kit.trail(side, this.faded);
     this.label.style.borderLeftColor = side === 'ct' ? 'var(--side-ct)' : 'var(--side-t)';

@@ -26,6 +26,9 @@ export type ReplayCentreProps = {
   /** The player seen in first person, set from a player card or the view itself. */
   followSlot: number | null;
   onFollowSlot: (slot: number | null) => void;
+  /** The player highlighted on the map and in the team panels. */
+  selectedSlot: number | null;
+  onSelectSlot: (slot: number | null) => void;
 };
 
 /** A pluggable centre: the 2D radar by default, a 3D view next to it. */

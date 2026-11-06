@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { TriangleAlert } from 'lucide-react';
 import { fetchTacticalTendencies } from '@/lib/api/tactical';
@@ -16,6 +16,7 @@ import { ReplayWorkspace } from '@/components/replay/replay-workspace';
 import { THREE_D_VIEW } from '@/components/replay/three-centre';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
+import { ReplayFilters } from '@/components/replay/replay-filters';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Segmented } from '@/components/ui/segmented';
@@ -23,6 +24,9 @@ import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspac
 
 /** The radar first; the 3D view next to it. */
 const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
+
+/** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
+const REPLAY_ABOVE: CSSProperties & { '--replay-above': string } = { '--replay-above': '6.25rem' };
 
 /** How the filtered rounds are read: replayed, or as heatmaps. */
 type AnalysisMode = 'replay' | 'heatmap';
@@ -60,6 +64,14 @@ export function TacticalAnalysis({
   const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
   const [tendenciesError, setTendenciesError] = useState<string | null>(null);
   const [mode, setMode] = useState<AnalysisMode>('replay');
+  const rootRef = useRef<HTMLDivElement>(null);
+  const ready = loaded !== null;
+
+  // The replay is sized to the window under the tab list, so the tab list goes under the top bar once.
+  useEffect(() => {
+    if (!ready || mode !== 'replay') return;
+    rootRef.current?.scrollIntoView({ block: 'start' });
+  }, [ready, mode]);
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
   const filterQuery = tacticalFilterToQuery(filter);
@@ -147,12 +159,11 @@ export function TacticalAnalysis({
   const filterBar = (
     <TacticalFilterBar doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />
   );
+  const modes = sourceKind === 'library' ? <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} /> : undefined;
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8">
-      <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} />
-
-      {sourceKind === 'library' ? <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} /> : null}
+    <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+3.5rem)] flex-col gap-2">
+      <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} actions={modes} />
 
       {mode === 'heatmap' && sourceKind === 'library' ? (
         <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
@@ -166,12 +177,14 @@ export function TacticalAnalysis({
           index={index}
           onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
           seed={seed}
-          filters={filterBar}
+          filters={<ReplayFilters doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />}
           centreViews={CENTRE_VIEWS}
         />
       )}
 
-      <TacticalTendenciesPanel tendencies={tendencies} error={tendenciesError} roundCount={rounds.length} />
+      <div className="mt-6">
+        <TacticalTendenciesPanel tendencies={tendencies} error={tendenciesError} roundCount={rounds.length} />
+      </div>
     </div>
   );
 }
