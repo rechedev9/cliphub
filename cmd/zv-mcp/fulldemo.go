@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -90,8 +91,8 @@ type renderFullDemoIn struct {
 // fullDemoState is what GET /full-demo/plan returns: the saved plan, if any,
 // and the defaults a new plan starts from.
 type fullDemoState struct {
-	Document *recapplan.Document `json:"document"`
-	Defaults recapplan.Options   `json:"defaults"`
+	Document *recapplan.Document
+	Defaults recapplan.Options
 }
 
 func registerFullDemoTools(server *mcp.Server, s *studio) {
@@ -165,9 +166,9 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, fullDemoPlanOut{}, toolError(err)
 			}
-			var doc recapplan.Document
-			if err := json.Unmarshal(raw, &doc); err != nil {
-				return nil, fullDemoPlanOut{}, fmt.Errorf("Studio returned an unreadable plan: %w", err)
+			doc, err := decodeFullDemoDocument(raw)
+			if err != nil {
+				return nil, fullDemoPlanOut{}, err
 			}
 			if err := doc.Validate(); err != nil {
 				return nil, fullDemoPlanOut{}, fmt.Errorf("Studio returned a plan that does not validate: %w", err)
@@ -239,11 +240,41 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 	if err != nil {
 		return fullDemoState{}, err
 	}
-	var state fullDemoState
-	if err := json.Unmarshal(raw, &state); err != nil {
+	var wire struct {
+		Document json.RawMessage `json:"document"`
+		Defaults json.RawMessage `json:"defaults"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
 		return fullDemoState{}, fmt.Errorf("Studio returned an unreadable Full Demo state: %w", err)
 	}
+	var state fullDemoState
+	if err := json.Unmarshal(wire.Defaults, &state.Defaults); err != nil {
+		return fullDemoState{}, fmt.Errorf("%w (%v)", errOutdatedMCP, err)
+	}
+	if len(wire.Document) == 0 || bytes.Equal(bytes.TrimSpace(wire.Document), []byte("null")) {
+		return state, nil
+	}
+	doc, err := decodeFullDemoDocument(wire.Document)
+	if err != nil {
+		return fullDemoState{}, err
+	}
+	state.Document = &doc
 	return state, nil
+}
+
+// errOutdatedMCP: assistants keep zv-mcp running across Studio updates, so it can
+// be older than the orchestrator that wrote the plan.
+var errOutdatedMCP = errors.New("Studio sent Full Demo data this zv-mcp cannot read. " +
+	"If ClipHub Studio was updated, restart the assistant so it loads the zv-mcp that came with the update")
+
+// decodeFullDemoDocument reads plans as strictly as Studio stores them: a field
+// one side lacks would change the recomputed content hash and pass as a stale plan.
+func decodeFullDemoDocument(raw []byte) (recapplan.Document, error) {
+	doc, err := recapplan.DecodeDocument(raw)
+	if err != nil {
+		return recapplan.Document{}, fmt.Errorf("%w (%v)", errOutdatedMCP, err)
+	}
+	return doc, nil
 }
 
 // fullDemoEdit builds the generate body exactly as `zv full-demo execute` does,
