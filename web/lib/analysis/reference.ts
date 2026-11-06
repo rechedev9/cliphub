@@ -109,13 +109,25 @@ export function metricReliability(evidence: Evidence | undefined, value: Baselin
 
 /** Where the Pro numbers come from, said once beside the comparison. */
 export function proSourceText(baseline: Baseline): string {
+  if (baseline.source === 'server') return `${proSampleText(baseline)}. ${baseline.description ?? ''}`.trim();
   if (baseline.source === 'bundled') return `Referencia pro incluida en Studio: ${baseline.description ?? 'partidas profesionales'}`;
   return `Tus demos de HLTV: ${baselineSampleText(baseline)}.`;
+}
+
+const updatedDate = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** "Referencia pro: 283 mapas, 6120 rondas, actualizada 6 nov 2026", the sample behind the server reference. */
+export function proSampleText(baseline: Pick<Baseline, 'matches' | 'rounds' | 'updated_at'>): string {
+  const maps = `${baseline.matches} ${baseline.matches === 1 ? 'mapa' : 'mapas'}`;
+  const rounds = `${baseline.rounds.toLocaleString('es-ES')} rondas`;
+  const date = baseline.updated_at ? Date.parse(baseline.updated_at) : Number.NaN;
+  return `Referencia pro: ${maps}, ${rounds}${Number.isNaN(date) ? '' : `, actualizada ${updatedDate.format(date)}`}`;
 }
 
 /** "4 mapas pro incluidos" or "12 demos de HLTV": the source in the few words the context bar has room for. */
 export function proReferenceShort(baseline: Baseline): string {
   const n = baseline.matches;
+  if (baseline.source === 'server') return `${n} ${n === 1 ? 'mapa pro' : 'mapas pro'}`;
   if (baseline.source === 'bundled') return `${n} ${n === 1 ? 'mapa pro incluido' : 'mapas pro incluidos'}`;
   return `${n} ${n === 1 ? 'demo de HLTV' : 'demos de HLTV'}`;
 }

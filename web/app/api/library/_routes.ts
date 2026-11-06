@@ -11,6 +11,13 @@ import {
 import { METRICS_KEYS, PLAYER_METRICS_QUERY } from '../../../lib/api/metrics.ts';
 import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } from '../../../lib/api/baseline.ts';
 import { NORMS_KEYS, NORMS_QUERY } from '../../../lib/api/norms.ts';
+import {
+  COMMUNITY_SETTINGS_FIELDS,
+  COMMUNITY_SETTINGS_KEYS,
+  COMMUNITY_SUBMIT_KEYS,
+  GLOBAL_RANKINGS_KEYS,
+  GLOBAL_RANKINGS_QUERY,
+} from '../../../lib/api/community.ts';
 import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import {
   PLAY_CREATE_FIELDS,
@@ -183,6 +190,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
   { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
   { method: 'GET', segments: ['norms'], query: NORMS_QUERY, response: json(NORMS_KEYS) },
+  { method: 'GET', segments: ['community', 'settings'], response: json(COMMUNITY_SETTINGS_KEYS) },
+  { method: 'PUT', segments: ['community', 'settings'], body: fields(COMMUNITY_SETTINGS_FIELDS), response: json(COMMUNITY_SETTINGS_KEYS) },
+  { method: 'GET', segments: ['community', 'rankings'], query: GLOBAL_RANKINGS_QUERY, response: json(GLOBAL_RANKINGS_KEYS) },
+  { method: 'POST', segments: ['community', 'rankings', 'submit'], response: json(COMMUNITY_SUBMIT_KEYS) },
+  { method: 'DELETE', segments: ['community', 'rankings'], response: json(COMMUNITY_SETTINGS_KEYS) },
   { method: 'GET', segments: ['jobs'], response: json(['unlinked_job_ids']) },
   { method: 'POST', segments: ['jobs'], response: json(['demos']) },
   { method: 'GET', segments: ['jobs', UUID], response: json(LIBRARY_DEMO_KEYS) },

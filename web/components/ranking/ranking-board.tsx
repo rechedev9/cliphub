@@ -16,6 +16,7 @@ import { DeltaValue } from '@/components/ui/delta-value';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GlobalRanking } from '@/components/ranking/global-ranking';
 
 /** Radix Select reserves the empty string, so "every map" travels as this. */
 const ALL_MAPS = '__all__';
@@ -36,12 +37,13 @@ const SHORT_METRIC: Readonly<Record<BaselineMetric, string>> = {
   wpa_per_round: 'WPA/r',
 };
 
-/** Which players: the library, the pros, or both ranked together. */
-type BoardScope = BaselineScope | 'versus';
+/** Which players: the library, the pros, both ranked together, or the own player among every opted-in Studio. */
+type BoardScope = BaselineScope | 'versus' | 'global';
 const BOARD_SCOPES: readonly { value: BoardScope; label: string }[] = [
   { value: 'library', label: SCOPE_LABEL.library },
   { value: 'pro', label: SCOPE_LABEL.pro },
   { value: 'versus', label: 'Tú frente a profesionales' },
+  { value: 'global', label: 'Global' },
 ];
 
 type Query = { metric: BaselineMetric; map: string; scope: BoardScope; minRounds: number };
@@ -52,7 +54,7 @@ async function loadBoard(query: Query): Promise<Loaded> {
   const base = { map: query.map, min_rounds: query.minRounds };
   const reference: BaselineScope = query.scope === 'library' ? 'library' : 'pro';
   const baseline = getBaseline({ ...base, scope: reference }).catch(() => null);
-  if (query.scope !== 'versus') {
+  if (query.scope === 'library' || query.scope === 'pro') {
     const board = await getLeaderboard({ ...base, scope: query.scope, metric: query.metric, limit: LIMIT });
     const pro = query.scope === 'pro';
     return { board, rows: board.players.map((row) => ({ ...row, pro })), baseline: await baseline };
@@ -71,7 +73,9 @@ export function RankingBoard(): ReactNode {
   const [attempt, setAttempt] = useState(0);
   const update = (patch: Partial<Query>): void => setQuery((current) => ({ ...current, ...patch }));
 
+  const global = query.scope === 'global';
   useEffect(() => {
+    if (global) return undefined;
     let active = true;
     setData(null);
     loadBoard(query)
@@ -84,7 +88,7 @@ export function RankingBoard(): ReactNode {
     return () => {
       active = false;
     };
-  }, [query, attempt]);
+  }, [query, attempt, global]);
 
   const info = METRIC_INFO[query.metric];
   return (
@@ -111,6 +115,7 @@ export function RankingBoard(): ReactNode {
               ))}
             </SelectContent>
           </Select>
+          {global ? null : (
           <Select value={String(query.minRounds)} onValueChange={(value) => update({ minRounds: Number(value) })}>
             <SelectTrigger aria-label="Mínimo de rondas" className={TRIGGER}>
               <SelectValue />
@@ -123,24 +128,27 @@ export function RankingBoard(): ReactNode {
               ))}
             </SelectContent>
           </Select>
+          )}
           <div className="ml-auto flex items-center gap-1.5">
             <span className="text-meta whitespace-nowrap text-fg-3">Demos</span>
             <Segmented label="Demos" value={query.scope} options={BOARD_SCOPES} onChange={(scope) => update({ scope })} />
-            {data !== null && data !== 'failed' ? (
+            {!global && data !== null && data !== 'failed' ? (
               <p className="flex h-8 items-center rounded-md border border-border px-2.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums">
                 {data.board.matches} {data.board.matches === 1 ? 'partida' : 'partidas'} · {data.board.rounds} rondas
               </p>
             ) : null}
           </div>
         </div>
+        {global ? null : (
         <Segmented
           label="Cifra"
           value={query.metric}
           options={BASELINE_METRICS.map((metric) => ({ value: metric, label: SHORT_METRIC[metric] }))}
           onChange={(metric) => update({ metric })}
         />
+        )}
       </div>
-      <RankingTable data={data} info={info} onRetry={() => setAttempt((n) => n + 1)} />
+      {global ? <GlobalRanking map={query.map} /> : <RankingTable data={data} info={info} onRetry={() => setAttempt((n) => n + 1)} />}
     </div>
   );
 }

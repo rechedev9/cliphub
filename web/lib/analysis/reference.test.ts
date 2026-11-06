@@ -10,6 +10,7 @@ import {
   playerEvidence,
   playerReferenceValues,
   proReferenceShort,
+  proSampleText,
   proSourceText,
   roundReferences,
 } from './reference.ts';
@@ -84,6 +85,10 @@ test('reference: Pro says where its numbers come from', () => {
   const library: Baseline = { ...baseline(12, 9), source: 'library', description: undefined };
   assert.match(proSourceText(library), /^Tus demos de HLTV: 12 jugadores/);
   assert.equal(proReferenceShort(library), '9 demos de HLTV');
+  const server: Baseline = { ...baseline(180, 283), source: 'server', rounds: 6120, updated_at: '2026-11-06T09:00:00Z', description: '283 mapas profesionales.' };
+  assert.match(proSourceText(server), /^Referencia pro: 283 mapas, 6120 rondas, actualizada 6 nov 2026\. 283 mapas profesionales\.$/);
+  assert.equal(proReferenceShort(server), '283 mapas pro');
+  assert.equal(proSampleText({ matches: 1, rounds: 20 }), 'Referencia pro: 1 mapa, 20 rondas');
 });
 
 test('reference: a comparison is called only when the interval leaves the mean out', () => {

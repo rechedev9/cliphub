@@ -19,13 +19,15 @@ import (
 )
 
 // Baseline scopes: every library match, or professional play. Pro reads the
-// library's HLTV demos when they hold enough players, else the bundled reference.
+// library's HLTV demos when they hold enough players, else the community
+// server's reference when Studio has fetched one, else the bundled one.
 const (
 	baselineScopeLibrary = "library"
 	baselineScopePro     = "pro"
 
 	referenceSourceLibrary = "library"
 	referenceSourceBundled = "bundled"
+	referenceSourceServer  = "server"
 
 	baselineMaxMinRounds    = 10000
 	leaderboardDefaultLimit = 100
@@ -52,7 +54,9 @@ type baselineResponse struct {
 	Map         string `json:"map"`
 	Source      string `json:"source"`
 	Description string `json:"description,omitempty"`
-	Skipped     int    `json:"skipped"`
+	// UpdatedAt is when the server reference was measured.
+	UpdatedAt string `json:"updated_at,omitempty"`
+	Skipped   int    `json:"skipped"`
 	tacticalplan.Baseline
 }
 
@@ -61,6 +65,7 @@ type leaderboardResponse struct {
 	Map            string                        `json:"map"`
 	Source         string                        `json:"source"`
 	Description    string                        `json:"description,omitempty"`
+	UpdatedAt      string                        `json:"updated_at,omitempty"`
 	Metric         string                        `json:"metric"`
 	HigherIsBetter bool                          `json:"higher_is_better"`
 	MinRounds      int                           `json:"min_rounds"`
@@ -113,11 +118,11 @@ func (h *Handlers) GetLibraryBaseline(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "baseline", err)
 		return
 	}
-	ref := tacticalplan.DefaultProReference()
+	ref, source := h.proReference()
 	b := entry.sample.Baseline(q.minRounds, ref.Spread())
 	if q.scope == baselineScopePro && b.Players < tacticalplan.ProReferenceMinPlayers {
 		bundled, _, mapName := ref.For(q.mapName)
-		writeJSON(w, http.StatusOK, baselineResponse{Scope: q.scope, Map: mapName, Source: referenceSourceBundled, Description: ref.Description, Baseline: bundled})
+		writeJSON(w, http.StatusOK, baselineResponse{Scope: q.scope, Map: mapName, Source: source, Description: ref.Description, UpdatedAt: ref.UpdatedAt, Baseline: bundled})
 		return
 	}
 	writeJSON(w, http.StatusOK, baselineResponse{Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Skipped: entry.skipped, Baseline: b})
@@ -156,9 +161,9 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	}
 	// The baseline's rule, so a ranking and the mean above it read the same players.
 	if q.scope == baselineScopePro && entry.sample.Baseline(q.minRounds, tacticalplan.ReferenceSpread{}).Players < tacticalplan.ProReferenceMinPlayers {
-		ref := tacticalplan.DefaultProReference()
+		ref, source := h.proReference()
 		bundled, rows, mapName := ref.For(q.mapName)
-		out.Map, out.Source, out.Description, out.Skipped = mapName, referenceSourceBundled, ref.Description, 0
+		out.Map, out.Source, out.Description, out.UpdatedAt, out.Skipped = mapName, source, ref.Description, ref.UpdatedAt, 0
 		out.Matches, out.Rounds = bundled.Matches, bundled.Rounds
 		out.Players = tacticalplan.ProLeaderboard(rows, metric, q.minRounds, limit)
 	} else {

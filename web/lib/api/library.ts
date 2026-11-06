@@ -20,6 +20,7 @@ import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type V
 import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
+import type { CommunitySettings, GlobalRankings } from './community.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
 
 /**
@@ -720,6 +721,31 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
   params.set('metric', query.metric);
   if (query.limit) params.set('limit', String(query.limit));
   return request<Leaderboard>(`/leaderboard?${params.toString()}`);
+}
+
+/** The rankings opt-in and whether Studio can reach the community server. */
+export function getCommunitySettings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/settings');
+}
+
+/** Turns rankings on (submitting right away) or off; off keeps what the server has until deleted. */
+export function putCommunitySettings(rankingsEnabled: boolean): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/settings', jsonInit('PUT', { rankings_enabled: rankingsEnabled }));
+}
+
+/** Sends the own player's per-map numbers now. */
+export function submitCommunityRankings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/rankings/submit', { method: 'POST' });
+}
+
+/** Deletes the submission on the server, turns rankings off and replaces the install id. */
+export function deleteCommunityRankings(): Promise<CommunitySettings> {
+  return request<CommunitySettings>('/community/rankings', { method: 'DELETE' });
+}
+
+/** The own player's percentile on each metric among every opted-in Studio, on one map or all. */
+export function getGlobalRankings(map: string): Promise<GlobalRankings> {
+  return request<GlobalRankings>(`/community/rankings${map === '' ? '' : `?map=${encodeURIComponent(map)}`}`);
 }
 
 /** Team rates pooled over every library team: bombsites, buy matchups and, with a map, playbook categories. */

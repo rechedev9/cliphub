@@ -318,6 +318,7 @@ func run() error {
 		httpapi.WithLibrary(repos.Library),
 		httpapi.WithLineupCatalog(lineupCatalog),
 		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
+		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
@@ -332,6 +333,7 @@ func run() error {
 	// The Players ELOs are refreshed from FACEIT once per start, in the
 	// background; list reads never call FACEIT.
 	handlers.StartFaceitRosterRefresh()
+	handlers.StartCommunity(ctx)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {

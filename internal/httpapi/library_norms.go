@@ -12,10 +12,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// referenceCaches hold the library-wide references: player baselines and team norms.
+// referenceCaches hold the library-wide references: player baselines, team
+// norms, and the community server's pro reference and rankings.
 type referenceCaches struct {
 	baselines baselineCache
 	norms     normsCache
+	community CommunityDeps
 }
 
 // normsCache keeps one pass per map and date range, valid while the matches

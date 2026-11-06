@@ -45,12 +45,14 @@ type ProReferenceMap struct {
 // ProReference is the professional reference Studio ships, so the Pro
 // comparison works before any pro demo is imported.
 type ProReference struct {
-	ID          string                     `json:"id"`
-	Description string                     `json:"description"`
-	Matches     []ProReferenceMatch        `json:"matches"`
-	Baseline    Baseline                   `json:"baseline"`
-	Players     []ProReferenceRow          `json:"players"`
-	Maps        map[string]ProReferenceMap `json:"maps"`
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	// UpdatedAt is when a server-built reference was measured; empty when bundled.
+	UpdatedAt string                     `json:"updated_at,omitempty"`
+	Matches   []ProReferenceMatch        `json:"matches"`
+	Baseline  Baseline                   `json:"baseline"`
+	Players   []ProReferenceRow          `json:"players"`
+	Maps      map[string]ProReferenceMap `json:"maps"`
 }
 
 var loadProReference = sync.OnceValue(func() ProReference {
@@ -76,15 +78,22 @@ func DecodeProReference(b []byte) (ProReference, error) {
 	if err := dec.Decode(&ref); err != nil {
 		return ProReference{}, fmt.Errorf("decode pro reference: %w", err)
 	}
-	if ref.Description == "" || len(ref.Players) == 0 {
-		return ProReference{}, fmt.Errorf("pro reference has no description or no players")
-	}
-	for _, metric := range ReferenceMetrics {
-		if v := ref.Baseline.Metrics[metric]; v.Players == 0 || v.PriorStddev <= 0 {
-			return ProReference{}, fmt.Errorf("pro reference metric %s has no players or no spread", metric)
-		}
+	if err := ref.validate(); err != nil {
+		return ProReference{}, err
 	}
 	return ref, nil
+}
+
+func (r ProReference) validate() error {
+	if r.Description == "" || len(r.Players) == 0 {
+		return errEmptyProReference
+	}
+	for _, metric := range ReferenceMetrics {
+		if v := r.Baseline.Metrics[metric]; v.Players == 0 || v.PriorStddev <= 0 {
+			return fmt.Errorf("pro reference metric %s has no players or no spread", metric)
+		}
+	}
+	return nil
 }
 
 // Spread is what a library baseline borrows from the reference.

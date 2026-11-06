@@ -21,8 +21,8 @@ export type BaselineMetric = (typeof BASELINE_METRICS)[number];
 export const BASELINE_SCOPES = ['library', 'pro'] as const;
 export type BaselineScope = (typeof BASELINE_SCOPES)[number];
 
-/** Where a reference's numbers come from: the library, or the pro reference Studio ships. */
-export type BaselineSource = 'library' | 'bundled';
+/** Where a reference's numbers come from: the library, the pro reference Studio ships, or the one the ClipHub server measures. */
+export type BaselineSource = 'library' | 'bundled' | 'server';
 
 /**
  * The mean of one metric over the qualifying players that have it, with the
@@ -36,8 +36,10 @@ export type Baseline = {
   /** The map the numbers read; empty for every map, also when the bundled reference has no entry for the map asked for. */
   map: string;
   source: BaselineSource;
-  /** Names the matches of the bundled reference; absent for the library. */
+  /** Names the matches of the bundled or server reference; absent for the library. */
   description?: string;
+  /** When the server reference was measured, RFC 3339; absent otherwise. */
+  updated_at?: string;
   min_rounds: number;
   /** Players with at least `min_rounds` rounds. */
   players: number;
@@ -64,6 +66,7 @@ export type Leaderboard = {
   map: string;
   source: BaselineSource;
   description?: string;
+  updated_at?: string;
   metric: BaselineMetric;
   /** False for `dpr`, where the lowest value ranks first. */
   higher_is_better: boolean;
@@ -78,10 +81,10 @@ export type BaselineQuery = { scope?: BaselineScope; map?: string; min_rounds?: 
 
 export type LeaderboardQuery = BaselineQuery & { metric: BaselineMetric; limit?: number };
 
-export const BASELINE_KEYS = ['scope', 'map', 'source', 'description', 'min_rounds', 'players', 'rounds', 'matches', 'skipped', 'metrics'] as const;
+export const BASELINE_KEYS = ['scope', 'map', 'source', 'description', 'updated_at', 'min_rounds', 'players', 'rounds', 'matches', 'skipped', 'metrics'] as const;
 
 export const LEADERBOARD_KEYS = [
-  'scope', 'map', 'source', 'description', 'metric', 'higher_is_better', 'min_rounds', 'matches', 'rounds', 'skipped', 'players',
+  'scope', 'map', 'source', 'description', 'updated_at', 'metric', 'higher_is_better', 'min_rounds', 'matches', 'rounds', 'skipped', 'players',
 ] as const;
 
 export const BASELINE_QUERY = ['scope', 'map', 'min_rounds'] as const;
