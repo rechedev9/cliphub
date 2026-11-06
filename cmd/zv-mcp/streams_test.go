@@ -278,6 +278,42 @@ func TestStreamVideosBuildsUIURLsAndSkipsForeignPaths(t *testing.T) {
 	}
 }
 
+func TestDescribeStreamRenderReportsClipProgress(t *testing.T) {
+	progress := func(percent float64, clip, clips int) *tuiclient.StreamRenderProgress {
+		return &tuiclient.StreamRenderProgress{Variant: "short", Percent: percent, Clip: clip, Clips: clips}
+	}
+	for _, tc := range []struct {
+		name     string
+		status   string
+		progress *tuiclient.StreamRenderProgress
+		percent  int
+		text     string
+		message  string
+	}{
+		{"rendering", tuiclient.StreamRendering, progress(52.6, 2, 3), 53, "video 2 of 3", "render: rendering, video 2 of 3"},
+		{"clip clamped into range", tuiclient.StreamRendering, progress(10, 9, 3), 10, "video 3 of 3", "render: rendering, video 3 of 3"},
+		{"no clips yet", tuiclient.StreamRendering, progress(0, 0, 0), 0, "", "render: rendering"},
+		{"rendering without progress", tuiclient.StreamRendering, nil, 0, "", "render: rendering"},
+		{"stale progress after the render", tuiclient.StreamRendered, progress(99, 3, 3), 0, "", "render: rendered"},
+	} {
+		out := describeStreamRender("id", "short", tuiclient.StreamRenderState{Status: tc.status, RenderProgress: tc.progress})
+		if out.Percent != tc.percent || out.Progress != tc.text || streamRenderMessage(out) != tc.message {
+			t.Errorf("%s: percent=%d progress=%q message=%q", tc.name, out.Percent, out.Progress, streamRenderMessage(out))
+		}
+	}
+}
+
+func TestStreamRenderStateDecodesRenderProgress(t *testing.T) {
+	var state tuiclient.StreamRenderState
+	body := `{"status":"rendering","render_progress":{"variant":"short","percent":37.5,"clip":2,"clips":4}}`
+	if err := json.Unmarshal([]byte(body), &state); err != nil {
+		t.Fatal(err)
+	}
+	if p := state.RenderProgress; p == nil || p.Percent != 37.5 || p.Clip != 2 || p.Clips != 4 || p.Variant != "short" {
+		t.Fatalf("render_progress = %+v", state.RenderProgress)
+	}
+}
+
 func TestClockSpellsHours(t *testing.T) {
 	for in, want := range map[float64]string{0: "0:00", 59.6: "1:00", 905: "15:05", 3725: "1:02:05"} {
 		if got := clock(in); got != want {

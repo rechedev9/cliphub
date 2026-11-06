@@ -49,7 +49,8 @@ check_integrity screens a match's players for unusual aim: a statistical signal,
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of every play; render_stream makes one video per play in a layout from
-list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render; then
+list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render, which
+reports the percent and, for render_stream, the video being encoded (video 2 of 3); then
 list_stream_videos. list_streams shows the streams already in Studio.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video and delete_stream
 need the user's approval.
