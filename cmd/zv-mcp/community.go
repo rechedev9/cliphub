@@ -53,19 +53,18 @@ type faceitMatchesIn struct {
 }
 
 type faceitMatchOut struct {
-	ID            string  `json:"id"`
-	Finished      string  `json:"finished,omitempty" jsonschema:"YYYY-MM-DD"`
-	Competition   string  `json:"competition,omitempty"`
-	Map           string  `json:"map,omitempty"`
-	Result        string  `json:"result,omitempty"`
-	Score         string  `json:"score" jsonschema:"the player's team rounds, then the rival's"`
-	Kills         int     `json:"kills"`
-	Deaths        int     `json:"deaths"`
-	Assists       int     `json:"assists"`
-	ADR           float64 `json:"adr,omitempty"`
-	HeadshotPct   float64 `json:"headshot_pct,omitempty"`
-	RoomURL       string  `json:"room_url,omitempty"`
-	DemoAvailable bool    `json:"demo_available" jsonschema:"FACEIT still serves the demo"`
+	ID          string  `json:"id"`
+	Finished    string  `json:"finished,omitempty" jsonschema:"YYYY-MM-DD"`
+	Competition string  `json:"competition,omitempty"`
+	Map         string  `json:"map,omitempty"`
+	Result      string  `json:"result,omitempty"`
+	Score       string  `json:"score" jsonschema:"the player's team rounds, then the rival's"`
+	Kills       int     `json:"kills"`
+	Deaths      int     `json:"deaths"`
+	Assists     int     `json:"assists"`
+	ADR         float64 `json:"adr,omitempty"`
+	HeadshotPct float64 `json:"headshot_pct,omitempty"`
+	RoomURL     string  `json:"room_url,omitempty"`
 }
 
 type faceitMatchesOut struct {
@@ -170,7 +169,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "faceit_matches", Annotations: readOnly,
-		Description: "List a FACEIT player's recent matches with map, result, score, K/D/A, ADR and whether FACEIT still serves the demo."},
+		Description: "List a FACEIT player's recent matches with map, result, score, K/D/A, ADR and the match room link."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in faceitMatchesIn) (*mcp.CallToolResult, faceitMatchesOut, error) {
 			if !faceitIDPattern.MatchString(in.PlayerID) {
 				return nil, faceitMatchesOut{}, errors.New("player_id must be a FACEIT player id from faceit_player")
@@ -423,7 +422,7 @@ func faceitPlayerOf(p tuiclient.FaceitPlayer) faceitPlayerOut {
 
 func faceitMatchOf(m tuiclient.FaceitMatch) faceitMatchOut {
 	out := faceitMatchOut{ID: cleanName(m.ID), Competition: cleanName(m.Competition), Score: fmt.Sprintf("%d-%d", m.Score.For, m.Score.Against),
-		RoomURL: cleanText(m.RoomURL, maxErrorRunes), DemoAvailable: m.DemoAvailable}
+		RoomURL: cleanText(m.RoomURL, maxErrorRunes)}
 	if !m.FinishedAt.IsZero() {
 		out.Finished = m.FinishedAt.Format(time.DateOnly)
 	}

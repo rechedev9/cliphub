@@ -179,7 +179,7 @@ Read:
 | `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
 | `simulate_veto` | `GET /api/library/teams/{id}/veto` (`opponent_id`, `format`, `first`, repeatable `pool` and `done`): steps with their basis, the maps played and each map's edge |
 | `faceit_player` | `GET /api/faceit/players` (`nickname`, a nick or profile URL): id, level, ELO, country, SteamID64 |
-| `faceit_matches` | `GET /api/faceit/players/{id}/matches` (`limit` 10 by default and at most 20): map, result, score, K/D/A, ADR, whether the demo is still served |
+| `faceit_matches` | `GET /api/faceit/players/{id}/matches` (`limit` 10 by default and at most 20): map, result, score, K/D/A, ADR, match room link |
 | `list_faceit_follows` | `GET /api/faceit/followed`: followed and seeded players of the Jugadores page |
 | `community_ranking` | `GET /api/library/community/settings` and `GET /api/library/community/rankings` (`map`): sharing state and the percentile per metric |
 | `get_player` | `GET /api/library/players/{steamid}`: nicks and teams by date, linked FACEIT account |

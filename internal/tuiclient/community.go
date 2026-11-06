@@ -33,12 +33,11 @@ func (c *Client) LookupFaceitPlayer(ctx context.Context, nickname string) (Facei
 
 // FaceitMatch is one recent FACEIT match of a player.
 type FaceitMatch struct {
-	ID            string    `json:"id"`
-	RoomURL       string    `json:"room_url"`
-	FinishedAt    time.Time `json:"finished_at"`
-	Competition   string    `json:"competition"`
-	DemoAvailable bool      `json:"demo_available"`
-	Score         struct {
+	ID          string    `json:"id"`
+	RoomURL     string    `json:"room_url"`
+	FinishedAt  time.Time `json:"finished_at"`
+	Competition string    `json:"competition"`
+	Score       struct {
 		For     int `json:"for"`
 		Against int `json:"against"`
 	} `json:"score"`
