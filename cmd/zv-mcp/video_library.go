@@ -113,7 +113,7 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 			return nil, out, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "retry_video",
+	mcp.AddTool(server, &mcp.Tool{Name: "retry_video", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Render a failed Short again without a new capture, as Reintentar does in Mis vídeos. Studio keeps only the plays and options of the last " +
 			"finished version, so this renders that version again: after a failed change_video_music, call change_video_music again instead. " +
 			"A Short that never finished, a failed capture or a render that needs a new capture is redone with generate_short, and a Full Demo with render_full_demo. " +
@@ -135,7 +135,7 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 				func() (tuiclient.EnqueueResponse, error) { return c.Rerender(ctx, in.JobID, in.Variant, body) }, in.Variant)
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "change_video_music",
+	mcp.AddTool(server, &mcp.Tool{Name: "change_video_music", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Add, change or remove the music of a finished Short, or its volume, as Cambiar música does in Mis vídeos. The capture is not repeated; " +
 			"the Short is rendered again and the new MP4 replaces the current one. It also retries a failed music change. " +
 			"Rendering takes minutes, so the user must approve it. " + deleteApprovalHint},

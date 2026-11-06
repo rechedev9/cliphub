@@ -153,7 +153,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 			return nil, describePlayScan(scan, in.Limit), nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "render_stream_summary",
+	mcp.AddTool(server, &mcp.Tool{Name: "render_stream_summary", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Render one 16:9 video with the plays find_stream_plays found, in video order: the Resumen horizontal of a VOD in Studio. " +
 			"play_ids picks some of them, as the Jugadas del resumen list does; empty uses every play. " +
 			"It encodes for minutes, so the user must approve it. If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
@@ -212,7 +212,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 				StreamID: in.ID, Status: cleanName(res.Status), Variant: summaryVariant}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "render_stream",
+	mcp.AddTool(server, &mcp.Tool{Name: "render_stream", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Render a stream's moments as videos in one layout from list_stream_variants, one MP4 per moment: vertical 9:16 Shorts or 16:9. " +
 			"play_ids from find_stream_plays are added to the moments the user saved in Studio, as the Añadir button does: a play that overlaps a saved moment is skipped. Empty renders the saved moments. " +
 			"A facecam layout needs the facecam crop checked once in Studio first. It encodes for minutes, so the user must approve it: " +
@@ -299,7 +299,7 @@ func registerStreamRenderTools(server *mcp.Server, s *studio) {
 				StreamID: in.ID, Status: cleanName(res.Status), Variant: body.Variant}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_stream_render", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_stream_render", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}, Meta: appToolMeta(jobProgressAppURI),
 		Description: "Wait for a stream render or the 16:9 summary to finish. Reports progress; call again while running is true. Then list_stream_videos has the videos."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitStreamRenderIn) (*mcp.CallToolResult, streamRenderOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
