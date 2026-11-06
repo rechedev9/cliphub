@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -85,6 +86,30 @@ func TestRenderStreamSummaryRendersTheChosenPlays(t *testing.T) {
 	if f.summaryBody != "" {
 		t.Errorf("every play sent %q, want no body", f.summaryBody)
 	}
+}
+
+func TestEditStreamPlanKeepsTheSavedTextOfReturnedMoments(t *testing.T) {
+	long := strings.Repeat("Título largo ", 8)
+	f := &fakeStream{planClips: `[{"id":"clip-1","start_seconds":95,"end_seconds":105,"title":"` + long + `","edit":{"text_overlays":[{"text":"GG‍WP","position_y":0.2}]}},` +
+		`{"id":"clip-2","start_seconds":200,"end_seconds":210,"title":"viejo"}]`}
+	cs := f.connect(t)
+	var read streamPlanOut
+	callTool(t, cs, "get_stream_edit_plan", map[string]any{"id": testStreamID}, &read)
+	if read.Clips[0].Title == long || read.Clips[0].Edit.TextOverlays[0].Text != "GGWP" {
+		t.Fatalf("read was not cleaned: %+v", read.Clips[0])
+	}
+	read.Clips[0].StartSeconds = 96
+	read.Clips[1].Title = "nuevo"
+	callTool(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": read.UpdatedAt, "clips": read.Clips}, &streamPlanOut{})
+	var saved []planClipArg
+	if err := json.Unmarshal(f.savedPlan["clips"], &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved[0].Title != long || saved[0].StartSeconds != 96 || saved[0].Edit.TextOverlays[0].Text != "GG‍WP" || saved[1].Title != "nuevo" {
+		t.Errorf("saved clips %+v", saved)
+	}
+	tooLong := []map[string]any{{"start_seconds": 1, "end_seconds": 2, "title": strings.Repeat("x", maxTitleRunes+1)}}
+	toolFails(t, cs, "edit_stream_plan", map[string]any{"id": testStreamID, "expected_updated_at": read.UpdatedAt, "clips": tooLong}, "at most")
 }
 
 func TestStreamFilesListsTheDeliveryPack(t *testing.T) {

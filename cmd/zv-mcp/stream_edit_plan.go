@@ -187,7 +187,15 @@ func applyStreamPlanEdit(doc map[string]json.RawMessage, in editStreamPlanIn) (m
 		return nil
 	}
 	if in.Clips != nil {
-		clips, err := withClipIDs(*in.Clips)
+		var saved []planClipArg
+		if raw, ok := doc["clips"]; ok && json.Unmarshal(raw, &saved) != nil {
+			return nil, errors.New("Studio returned an edit plan with an invalid clips")
+		}
+		kept, err := keepSavedText(*in.Clips, saved)
+		if err != nil {
+			return nil, err
+		}
+		clips, err := withClipIDs(kept)
 		if err != nil {
 			return nil, err
 		}
@@ -214,6 +222,42 @@ func applyStreamPlanEdit(doc map[string]json.RawMessage, in editStreamPlanIn) (m
 	return next, nil
 }
 
+// keepSavedText puts back the saved id, title and overlay text of a moment the
+// caller returned as read, since get_stream_edit_plan shortens and cleans them.
+func keepSavedText(clips, saved []planClipArg) ([]planClipArg, error) {
+	out := slices.Clone(clips)
+	for i := range out {
+		c := &out[i]
+		j := slices.IndexFunc(saved, func(s planClipArg) bool { return c.ID != "" && cleanName(s.ID) == c.ID })
+		var old planClipArg
+		if j >= 0 {
+			old = saved[j]
+			c.ID = old.ID
+		}
+		if j >= 0 && c.Title == cleanName(old.Title) {
+			c.Title = old.Title
+		} else if len([]rune(c.Title)) > maxTitleRunes {
+			return nil, fmt.Errorf("a clip title takes at most %d characters", maxTitleRunes)
+		}
+		if c.Edit == nil || old.Edit == nil {
+			continue
+		}
+		overlays := slices.Clone(c.Edit.TextOverlays)
+		for k := range overlays {
+			for _, o := range old.Edit.TextOverlays {
+				if overlays[k].Text == cleanText(o.Text, maxErrorRunes) {
+					overlays[k].Text = o.Text
+					break
+				}
+			}
+		}
+		edit := *c.Edit
+		edit.TextOverlays = overlays
+		c.Edit = &edit
+	}
+	return out, nil
+}
+
 // withClipIDs names the new moments clip-001, clip-002... past the ids already taken.
 func withClipIDs(clips []planClipArg) ([]planClipArg, error) {
 	if len(clips) > maxSegmentIDs {
@@ -232,9 +276,6 @@ func withClipIDs(clips []planClipArg) ([]planClipArg, error) {
 	}
 	n := 1
 	for i := range out {
-		if len([]rune(out[i].Title)) > maxTitleRunes {
-			return nil, fmt.Errorf("a clip title takes at most %d characters", maxTitleRunes)
-		}
 		if out[i].ID != "" {
 			continue
 		}
