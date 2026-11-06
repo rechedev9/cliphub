@@ -7,7 +7,17 @@ import type { PlaybookCombo, TeamPlaybook as Playbook } from '@/lib/api/playbook
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { libraryMatchesText, normsCategories } from '@/lib/analysis/library-pool';
-import { EMPTY_COMBO, comboFromQuery, comboIsEmpty, narrowPlaybook, toggleTactic, writeComboQuery, type ComboMode } from '@/lib/analysis/playbook-combo';
+import {
+  EMPTY_COMBO,
+  comboFromQuery,
+  comboIsEmpty,
+  comboSummary,
+  narrowPlaybook,
+  positionsNote,
+  toggleTactic,
+  writeComboQuery,
+  type ComboMode,
+} from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,6 +128,7 @@ export function TeamPlaybook({
   }
 
   const narrowed = !comboIsEmpty(combo);
+  const note = positionsNote(view);
   return (
     <div className="flex flex-col gap-4">
       <section aria-label="Combinación" className="studio-panel flex flex-col gap-2 p-4">
@@ -127,7 +138,7 @@ export function TeamPlaybook({
       <Section title="Tipos de ronda" className="flex flex-col gap-3">
         <p className="text-body-sm text-fg-2">
           {narrowed
-            ? `Gana el ${Math.round(view.win_rate.pct)} % de las ${view.round_count} rondas de la combinación, de ${playbook.round_count}.`
+            ? comboSummary(view, playbook.round_count)
             : `Gana el ${Math.round(playbook.win_rate.pct)} % de sus ${playbook.round_count} rondas.`}{' '}
           Pulsa un tipo para ver sus rondas.
           {norms !== null && norms !== 'failed' && !narrowed ? ` ▲▼ frente a los dos equipos de ${libraryMatchesText(norms.matches)} en ${prettyMapName(map)}, de ${side}.` : ''}
@@ -143,6 +154,7 @@ export function TeamPlaybook({
         </Section>
       </div>
       <Section title="Tácticas">
+        {note === '' ? null : <p className="text-meta text-fg-3">{note}</p>}
         <TacticBoard teamId={teamId} playbook={playbook} view={view} onToggle={toggle} />
       </Section>
       <SkippedNote skipped={playbook.skipped} />

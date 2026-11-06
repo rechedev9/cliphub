@@ -7,7 +7,18 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
+
+func TestComboPlayNotesCountOneRound(t *testing.T) {
+	pb := tuiclient.TeamPlaybook{Side: "CT", Combo: tuiclient.PlaybookCombo{Without: []string{"site:A"}},
+		Rounds: []tuiclient.PlaybookRound{{MatchID: testMatchID, Round: 4, Pattern: "stack", Site: "B", Won: true}}}
+	p := comboPlay(pb, testTeamID, "Sin A")
+	if p.Notes != "Combinación del playbook: sin site:A. Gana el 100 % de 1 ronda." || p.Kind != "stack" || len(p.Examples) != 1 {
+		t.Errorf("play = %+v", p)
+	}
+}
 
 const testComboPlaybook = `{"team_name":"Vitality","skipped":[],"map":"de_mirage","side":"T","matches":1,"round_count":3,"win_rate":{"pct":66.7},
 	"framed":3,"categories":[],"tempo":{},"sites":[],"zones":[],

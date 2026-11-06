@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PlaybookRound, PlaybookTactic, TeamPlaybook } from '../api/playbook.ts';
-import { EMPTY_COMBO, comboFromQuery, comboSentence, writeComboQuery, narrowPlaybook, playFromCombo, tacticLabel, toggleTactic, withoutLabel } from './playbook-combo.ts';
+import {
+  EMPTY_COMBO,
+  comboFromQuery,
+  comboSentence,
+  comboSummary,
+  writeComboQuery,
+  narrowPlaybook,
+  playFromCombo,
+  positionsNote,
+  tacticLabel,
+  toggleTactic,
+  withoutLabel,
+} from './playbook-combo.ts';
 
 const MATCH = '11111111-1111-4111-8111-111111111111';
 const RATE = { count: 0, total: 0, pct: 0, reliable: false };
@@ -112,6 +124,20 @@ test('a combination saves as a play with the common pattern and site and its rou
   assert.equal(play.kind, 'fast');
   assert.deepEqual(play.examples.map((e) => e.round), [1, 3]);
   assert.equal(play.notes, 'Combinación del playbook: Ronda en B. Gana el 100 % de 2 rondas.');
+  const one = playFromCombo(narrowPlaybook(PLAYBOOK, { with: ['site:A'], without: [] }), { teamId: 't', title: 'A', sentence: 'Ronda en A' });
+  assert.equal(one.notes, 'Combinación del playbook: Ronda en A. Gana el 0 % de 1 ronda.');
+});
+
+test('a combination of only exclusions starts with a capital', () => {
+  assert.equal(comboSentence({ with: [], without: ['awp:Mid'] }, (key) => (key === 'awp:Mid' ? 'AWP en Mid' : key)), 'Sin AWP en Mid');
+});
+
+test('the narrowed summary and the positions note count rounds in Spanish', () => {
+  assert.equal(comboSummary(narrowPlaybook(PLAYBOOK, { with: ['awp:Mid'], without: [] }), 4), 'Gana el 100 % de 1 ronda de la combinación, de 4.');
+  assert.equal(comboSummary(narrowPlaybook(PLAYBOOK, { with: ['site:B', 'site:A'], without: [] }), 4), 'Ninguna de sus 4 rondas cumple la combinación.');
+  assert.equal(positionsNote(PLAYBOOK), 'Zonas y AWP leídas en 3 de 4 rondas; las demás no guardan posiciones.');
+  assert.equal(positionsNote({ round_count: 2, framed: 0 }).startsWith('Estas partidas no guardan posiciones'), true);
+  assert.equal(positionsNote(narrowPlaybook(PLAYBOOK, { with: ['site:B'], without: [] })), '');
 });
 
 test('the combination lives in the query beside the scope and drops keys the playbook does not know', () => {

@@ -135,11 +135,15 @@ func comboPlay(pb tuiclient.TeamPlaybook, teamID, title string) tuiclient.Play {
 		parts = append(parts, "sin "+strings.Join(pb.Combo.Without, ", "))
 	}
 	pct := int(math.Round(100 * float64(won) / float64(max(len(pb.Rounds), 1))))
+	rounds := fmt.Sprintf("%d rondas", len(pb.Rounds))
+	if len(pb.Rounds) == 1 {
+		rounds = "1 ronda"
+	}
 	return tuiclient.Play{
 		Title: title, TeamID: &teamID, Map: pb.Map, Side: pb.Side, Origin: "playbook",
 		Kind: mostCommon(patterns, fallback), Site: mostCommon(sites, "none"),
 		Grenades: []tuiclient.PlayGrenade{}, Positions: []tuiclient.PlayPosition{}, Examples: examples,
-		Notes: fmt.Sprintf("Combinación del playbook: %s. Gana el %d %% de %d rondas.", strings.Join(parts, "; "), pct, len(pb.Rounds)),
+		Notes: fmt.Sprintf("Combinación del playbook: %s. Gana el %d %% de %s.", strings.Join(parts, "; "), pct, rounds),
 	}
 }
 

@@ -235,12 +235,30 @@ export function withoutLabel(label: string): string {
   return `Sin ${afterSin(label)}`;
 }
 
-/** "Rush + Humo en Ventana, sin AWP en Mid"; empty for no combination. */
+/** "Rush + Humo en Ventana, sin AWP en Mid", or "Sin AWP en Mid" alone; empty for no combination. */
 export function comboSentence(combo: PlaybookCombo, labelOf: (key: string) => string): string {
   const parts: string[] = [];
   if (combo.with.length > 0) parts.push(combo.with.map(labelOf).join(' + '));
   if (combo.without.length > 0) parts.push(`sin ${combo.without.map((key) => afterSin(labelOf(key))).join(' ni ')}`);
-  return parts.join(', ');
+  const text = parts.join(', ');
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+function roundsText(n: number): string {
+  return `${n} ${n === 1 ? 'ronda' : 'rondas'}`;
+}
+
+/** The round types line while a combination is on: its win rate over the kept rounds, of `total`. */
+export function comboSummary(view: Pick<TeamPlaybook, 'round_count' | 'win_rate'>, total: number): string {
+  if (view.round_count === 0) return total === 1 ? 'Su única ronda no cumple la combinación.' : `Ninguna de sus ${total} rondas cumple la combinación.`;
+  return `Gana el ${Math.round(view.win_rate.pct)} % de ${roundsText(view.round_count)} de la combinación, de ${total}.`;
+}
+
+/** Why some rounds show no zones or AWP: they keep no positions. Empty when every round has them. */
+export function positionsNote(view: Pick<TeamPlaybook, 'round_count' | 'framed'>): string {
+  if (view.round_count === 0 || view.framed >= view.round_count) return '';
+  if (view.framed === 0) return 'Estas partidas no guardan posiciones, así que no se puede leer qué zonas controlan ni dónde está su AWP.';
+  return `Zonas y AWP leídas en ${view.framed} de ${roundsText(view.round_count)}; las demás no guardan posiciones.`;
 }
 
 function mostCommon<T>(values: readonly T[], fallback: T): T {
@@ -281,7 +299,7 @@ export function playFromCombo(
     positions_seconds: 0,
     grenades: [],
     positions: [],
-    notes: `Combinación del playbook: ${input.sentence}. Gana el ${pct} % de ${rounds.length} rondas.`,
+    notes: `Combinación del playbook: ${input.sentence}. Gana el ${pct} % de ${roundsText(rounds.length)}.`,
     examples: rounds.slice(0, MAX_PLAY_EXAMPLES).map((round) => ({ match_id: round.match_id, round: round.round, tick: round.tick })),
   };
 }
