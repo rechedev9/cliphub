@@ -18,6 +18,7 @@ vec4 mapCell = texture2D(uField, (vMapPos.xy - uFieldRect.xy) * uFieldRect.zw);
 float mapCutting = uUseField * uCutaway * (1.0 - step(0.5, mapCell.b));
 float mapRise = vMapPos.z - (mapCutting > 0.5 ? mapFloor(mapCell, vMapPos) : mapCell.r);
 if (vMapPos.z > uCeiling) discard;
+if (uUseField * uPlayableOnly > 0.5 && mapCell.b > 0.45) discard;
 if (mapCutting > 0.5 && (mapRise > uWallCut || (mapFlat > 0.5 && mapRise > uSlabCut))) discard;
 `;
 

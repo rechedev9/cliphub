@@ -46,7 +46,7 @@ player's numbers compared with get_baseline, and find_rounds for round refs (mat
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
-map_3d_status checks that the 3D tactical replay can draw a map as CS2 does and says how to open it full screen.
+map_3d_status checks that the tactical replay can draw a map as CS2 does, in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of every play; render_stream makes one video per play in a layout from

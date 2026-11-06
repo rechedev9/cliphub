@@ -35,6 +35,8 @@ export type MapUniforms = {
   uFeet: { value: Vector4[] };
   /** The page colour, in sRGB, that the far outside of the map fades into. */
   uVoid: { value: Vector3 };
+  /** 1 drops the real map's scenery outside the playable area, as the 2D floor plan wants. */
+  uPlayableOnly: { value: number };
 };
 
 export function blankTexture(): DataTexture {
@@ -76,6 +78,7 @@ export function mapUniforms(field: FloorField | null, cuts: { wall: number; slab
     uActionZ: { value: 1e9 },
     uFeet: { value: Array.from({ length: MAX_FEET }, () => new Vector4(0, 0, 0, 0)) },
     uVoid: { value: new Vector3(0, 0, 0) },
+    uPlayableOnly: { value: 0 },
   };
 }
 
@@ -94,6 +97,7 @@ uniform float uRadarMix;
 uniform float uActionZ;
 uniform vec4 uFeet[${MAX_FEET}];
 uniform vec3 uVoid;
+uniform float uPlayableOnly;
 varying vec3 vMapPos;
 
 float mapLevel(vec4 cell, float z) {

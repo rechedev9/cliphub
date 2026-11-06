@@ -153,6 +153,12 @@ export class RealMap {
     this.group.visible = visible;
   }
 
+  /** A view straight from above has no horizon: it leaves out the sky and the ground laid under the map. */
+  setSurroundingsVisible(visible: boolean): void {
+    if (this.#sky !== null) this.#sky.mesh.visible = visible;
+    this.#ground.visible = visible;
+  }
+
   setLook(look: RealMapLook): void {
     this.#look = look;
     for (const material of this.#materials.values()) this.#applyLook(material);
