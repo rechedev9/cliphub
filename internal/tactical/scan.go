@@ -517,6 +517,8 @@ func (s *scanner) onFrame() {
 			Yaw:    float64(pl.ViewDirectionX()),
 			Health: pl.Health(),
 			Flags:  sampleFlags(pl, side),
+			Pitch:  float64(pl.ViewDirectionY()),
+			Gear:   sampleGear(pl),
 		})
 		if pl.IsAlive() {
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())

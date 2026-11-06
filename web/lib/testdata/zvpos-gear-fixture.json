@@ -1,0 +1,291 @@
+{
+  "blob_base64": "WlZQT1MxAgAFAAgAAACAPgAAykIAAAAAAAAAAAQAAABkAAAAEQCU/gAAAAAAQGSBP20aBgEaYyQpKmQBTgwAjAEAAAAAAIBkAT+DHAQCHCUqVwKAPgBsAAAAEQCc/gAAAAC2QGSBAJABAAAAALaASQMBv3QAAAABAKT+AAAAAGxBZIEj+yMXhAMAAAEAbP4AAAAAAABkgT9/GgYBGmMkKSpkAU4MAA==",
+  "round_offsets": [
+    {
+      "round": 1,
+      "byte_offset": 32,
+      "byte_length": 103,
+      "frame_count": 3,
+      "first_tick": 100,
+      "last_tick": 116
+    },
+    {
+      "round": 2,
+      "byte_offset": 135,
+      "byte_length": 31,
+      "frame_count": 1,
+      "first_tick": 900,
+      "last_tick": 900
+    }
+  ],
+  "frames": [
+    {
+      "tick": 100,
+      "samples": [
+        {
+          "slot": 0,
+          "x": 10,
+          "y": 0,
+          "z": 0,
+          "yaw": 90,
+          "health": 100,
+          "flags": 129,
+          "pitch": -12.755905511811022,
+          "gear": {
+            "active_weapon": "ak47",
+            "inventory": [
+              {
+                "item": "glock",
+                "count": 1
+              },
+              {
+                "item": "ak47",
+                "count": 1
+              },
+              {
+                "item": "flashbang",
+                "count": 2
+              },
+              {
+                "item": "smokegrenade",
+                "count": 1
+              },
+              {
+                "item": "c4",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 100,
+            "helmet": true,
+            "defuser": false,
+            "money": 3150,
+            "flash_seconds": 0
+          }
+        },
+        {
+          "slot": 4,
+          "x": 200,
+          "y": 0,
+          "z": 0,
+          "yaw": 180,
+          "health": 100,
+          "flags": 1,
+          "pitch": 2.8346456692913335,
+          "gear": {
+            "active_weapon": "m4a1_silencer",
+            "inventory": [
+              {
+                "item": "usp_silencer",
+                "count": 1
+              },
+              {
+                "item": "m4a1_silencer",
+                "count": 1
+              },
+              {
+                "item": "hegrenade",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 87,
+            "helmet": false,
+            "defuser": true,
+            "money": 16000,
+            "flash_seconds": 0
+          }
+        }
+      ]
+    },
+    {
+      "tick": 108,
+      "samples": [
+        {
+          "slot": 0,
+          "x": 12,
+          "y": 0,
+          "z": 0,
+          "yaw": 90.999755859375,
+          "health": 100,
+          "flags": 129,
+          "pitch": -12.755905511811022,
+          "gear": {
+            "active_weapon": "ak47",
+            "inventory": [
+              {
+                "item": "glock",
+                "count": 1
+              },
+              {
+                "item": "ak47",
+                "count": 1
+              },
+              {
+                "item": "flashbang",
+                "count": 2
+              },
+              {
+                "item": "smokegrenade",
+                "count": 1
+              },
+              {
+                "item": "c4",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 100,
+            "helmet": true,
+            "defuser": false,
+            "money": 3150,
+            "flash_seconds": 0
+          }
+        },
+        {
+          "slot": 4,
+          "x": 201,
+          "y": 0,
+          "z": 0,
+          "yaw": 180.999755859375,
+          "health": 73,
+          "flags": 3,
+          "pitch": 45.35433070866142,
+          "gear": {
+            "active_weapon": "m4a1_silencer",
+            "inventory": [
+              {
+                "item": "usp_silencer",
+                "count": 1
+              },
+              {
+                "item": "m4a1_silencer",
+                "count": 1
+              },
+              {
+                "item": "hegrenade",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 87,
+            "helmet": false,
+            "defuser": true,
+            "money": 16000,
+            "flash_seconds": 0
+          }
+        }
+      ]
+    },
+    {
+      "tick": 116,
+      "samples": [
+        {
+          "slot": 0,
+          "x": 14,
+          "y": 0,
+          "z": 0,
+          "yaw": 91.99951171875,
+          "health": 100,
+          "flags": 129,
+          "pitch": 87.8740157480315,
+          "gear": {
+            "active_weapon": "flashbang",
+            "inventory": [
+              {
+                "item": "glock",
+                "count": 1
+              },
+              {
+                "item": "ak47",
+                "count": 1
+              },
+              {
+                "item": "flashbang",
+                "count": 2
+              },
+              {
+                "item": "smokegrenade",
+                "count": 1
+              },
+              {
+                "item": "c4",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 100,
+            "helmet": true,
+            "defuser": false,
+            "money": 3150,
+            "flash_seconds": 2.3
+          }
+        }
+      ]
+    },
+    {
+      "tick": 900,
+      "samples": [
+        {
+          "slot": 0,
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "yaw": 0,
+          "health": 100,
+          "flags": 129,
+          "pitch": 0,
+          "gear": {
+            "active_weapon": "ak47",
+            "inventory": [
+              {
+                "item": "glock",
+                "count": 1
+              },
+              {
+                "item": "ak47",
+                "count": 1
+              },
+              {
+                "item": "flashbang",
+                "count": 2
+              },
+              {
+                "item": "smokegrenade",
+                "count": 1
+              },
+              {
+                "item": "c4",
+                "count": 1
+              },
+              {
+                "item": "knife",
+                "count": 1
+              }
+            ],
+            "armor": 100,
+            "helmet": true,
+            "defuser": false,
+            "money": 3150,
+            "flash_seconds": 0
+          }
+        }
+      ]
+    }
+  ]
+}

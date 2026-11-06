@@ -23,9 +23,10 @@ const SchemaVersion = "1.0"
 // (2: zones per cell and floor, Train on one level, sites matched per level,
 // players on the team of their first live round, "Equipo CT/T" fallback names;
 // 3: rounds numbered by the game's count, as Crear numbers them;
-// 4: every grenade carries where it was thrown from).
+// 4: every grenade carries where it was thrown from;
+// 5: positions blob version 2, every sample carries pitch and gear).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 4
+const AnalysisVersion = 5
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string

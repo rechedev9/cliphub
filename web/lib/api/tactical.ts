@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import type { TacticalEquipment, TacticalInventoryItem } from '../tactical-equipment.ts';
 
 /**
  * Browser-side contract for the deterministic tactical analysis of a demo.
@@ -190,13 +191,15 @@ export const TACTICAL_SAMPLE_HZ_FIELD = 'sample_hz';
 export const POSITIONS_FORMAT = 'zvpos1';
 /** First six bytes of the blob. */
 export const POSITIONS_MAGIC = 'ZVPOS1';
-/** Blob version this client decodes. */
-export const POSITIONS_VERSION = 1;
+/** Newest blob version this client decodes; 2 appends a gear block to each sample. */
+export const POSITIONS_VERSION = 2;
+/** Oldest blob version this client still decodes: samples without gear. */
+export const POSITIONS_VERSION_V1 = 1;
 /** Fixed header size in bytes. */
 export const POSITIONS_HEADER_SIZE = 32;
 /** Per-frame header: int32 tick + uint16 present mask. */
 export const POSITIONS_FRAME_HEAD_SIZE = 6;
-/** Per-sample record: int16 x/y/z + uint16 yaw + uint8 health + uint8 flags. */
+/** Per-sample base record: int16 x/y/z + uint16 yaw + uint8 health + uint8 flags. Version 2 follows it with gear. */
 export const POSITIONS_SAMPLE_SIZE = 10;
 /** Slots addressable by the 16-bit present mask. */
 export const POSITIONS_MAX_SLOTS = 16;
@@ -491,9 +494,9 @@ export type TacticalRoundOffset = {
 };
 
 /**
- * One player's state at one sampled tick (`tacticalplan.Sample`). The Go struct
- * carries no JSON tags, so the wire names are its Go field names; the binary
- * decoder produces exactly this shape too, so both paths agree.
+ * One player's state at one sampled tick (`tacticalplan.Sample`), as the binary
+ * decoder produces it. The gear fields are undefined when the blob is version 1,
+ * which predates them.
  */
 export type TacticalSample = {
   slot: number;
@@ -504,6 +507,18 @@ export type TacticalSample = {
   yaw: number;
   health: number;
   flags: number;
+  /** Degrees below the horizon (CS2 sign: positive looks down), about 0.7 degree steps. */
+  pitch?: number;
+  /** The weapon in hand; null when none is known. */
+  activeWeapon?: TacticalEquipment | null;
+  /** Carried items in id order. Shared between samples while unchanged: do not mutate. */
+  inventory?: readonly TacticalInventoryItem[];
+  armor?: number;
+  helmet?: boolean;
+  defuser?: boolean;
+  money?: number;
+  /** Seconds of flash blindness left, at 0.1 s resolution. */
+  flashed?: number;
 };
 
 /** Every sampled player at one tick (`tacticalplan.Frame`). */

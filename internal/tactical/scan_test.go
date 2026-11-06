@@ -229,6 +229,7 @@ func TestScanRealDemo(t *testing.T) {
 	if len(frames) != result.Positions.Descriptor.FrameCount {
 		t.Fatalf("decoded %d frames, descriptor says %d", len(frames), result.Positions.Descriptor.FrameCount)
 	}
+	checkRealDemoGear(t, frames, len(result.Positions.Data))
 	for _, r := range doc.Rounds {
 		offset, ok := doc.Positions.Offset(r.Number)
 		if !ok {

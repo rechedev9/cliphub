@@ -276,21 +276,23 @@ func TestSampleFlagsHas(t *testing.T) {
 }
 
 // The blob is the largest artifact the feature produces, so its size per
-// sampled player-tick is a contract worth pinning: 10 bytes, plus 6 per frame.
-func TestBlobSizeIsTenBytesPerSample(t *testing.T) {
-	rounds := []RoundFrames{{Round: 1, Frames: []Frame{
-		{Tick: 1, Samples: []Sample{
-			{Slot: 0}, {Slot: 1}, {Slot: 2}, {Slot: 3}, {Slot: 4},
-			{Slot: 5}, {Slot: 6}, {Slot: 7}, {Slot: 8}, {Slot: 9},
-		}},
-	}}}
+// sampled player-tick is a contract worth pinning: 10 bytes and a gear byte
+// for a player whose gear did not change, plus 6 per frame.
+func TestBlobSizeIsElevenBytesPerUnchangedSample(t *testing.T) {
+	ten := []Sample{
+		{Slot: 0}, {Slot: 1}, {Slot: 2}, {Slot: 3}, {Slot: 4},
+		{Slot: 5}, {Slot: 6}, {Slot: 7}, {Slot: 8}, {Slot: 9},
+	}
+	rounds := []RoundFrames{{Round: 1, Frames: []Frame{{Tick: 1, Samples: ten}, {Tick: 2, Samples: ten}}}}
 	blob, err := EncodePositions(rounds, 8, 64)
 	if err != nil {
 		t.Fatalf("EncodePositions: %v", err)
 	}
-	// 32-byte header + 6-byte frame head (int32 tick, uint16 mask) + 10
-	// samples of 10 bytes (3x int16 axis, uint16 yaw, health, flags).
-	const want = 32 + 6 + 10*10
+	// 32-byte header, then per frame a 6-byte head (int32 tick, uint16 mask)
+	// and 10 samples of 10 bytes (3x int16 axis, uint16 yaw, health, flags).
+	// The first frame writes every gear field (9 bytes), the second only the
+	// field-bits byte.
+	const want = 32 + (6 + 10*(10+9)) + (6 + 10*(10+1))
 	if len(blob.Data) != want {
 		t.Fatalf("blob is %d bytes, want %d", len(blob.Data), want)
 	}

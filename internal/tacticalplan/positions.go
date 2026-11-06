@@ -20,7 +20,8 @@ const PositionsHeaderSize = positionsHeaderSize
 
 const (
 	positionsMagic      = "ZVPOS1"
-	positionsVersion    = 1
+	positionsVersion    = 2 // 2 appends the gear block of positions_gear.go to every sample
+	positionsVersionV1  = 1
 	positionsHeaderSize = 32
 	positionsSampleSize = 10
 	positionsFrameHead  = 6 // int32 tick + uint16 present mask
@@ -63,6 +64,10 @@ type Sample struct {
 	Yaw    float64     `json:"yaw"` // degrees counter-clockwise from +X, as CS2 reports it
 	Health int         `json:"health"`
 	Flags  SampleFlags `json:"flags"`
+	// Pitch is degrees below the horizon, as CS2 reports it; version 1 blobs read 0.
+	Pitch float64 `json:"pitch"`
+	// Gear is nil when the blob is version 1, which predates it.
+	Gear *Gear `json:"gear,omitempty"`
 }
 
 // Frame is every sampled player at one tick.
@@ -155,7 +160,7 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 		}
 	}
 
-	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*positionsFrameHead+sampleCount*positionsSampleSize)
+	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*positionsFrameHead+sampleCount*(positionsSampleSize+2))
 	copy(buf, positionsMagic)
 	binary.LittleEndian.PutUint16(buf[6:], positionsVersion)
 	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
@@ -169,7 +174,9 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 	binary.LittleEndian.PutUint32(buf[28:], uint32(frameCount))
 
 	offsets := make([]RoundOffset, 0, len(rounds))
+	var gear gearEncoder
 	for _, r := range rounds {
+		gear.reset()
 		start := int64(len(buf))
 		offset := RoundOffset{Round: r.Round, ByteOffset: start, FrameCount: len(r.Frames)}
 		for i, f := range r.Frames {
@@ -177,7 +184,7 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 				offset.FirstTick = f.Tick
 			}
 			offset.LastTick = f.Tick
-			buf, err = appendFrame(buf, f, origin, quantum)
+			buf, err = appendFrame(buf, f, origin, quantum, &gear)
 			if err != nil {
 				return Blob{}, fmt.Errorf("encode round %d: %w", r.Round, err)
 			}
@@ -208,7 +215,7 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 	}, nil
 }
 
-func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byte, error) {
+func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64, gear *gearEncoder) ([]byte, error) {
 	if f.Tick < math.MinInt32 || f.Tick > math.MaxInt32 {
 		return nil, fmt.Errorf("tick %d is outside the int32 position encoding", f.Tick)
 	}
@@ -240,6 +247,7 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 		buf = appendSigned16(buf, quantizeAxis(s.Z, origin[2], quantum))
 		buf = binary.LittleEndian.AppendUint16(buf, encodeYaw(s.Yaw))
 		buf = append(buf, clampHealth(s.Health), byte(s.Flags))
+		buf = gear.append(buf, s)
 	}
 	return buf, nil
 }
@@ -253,7 +261,7 @@ func DecodeHeader(data []byte) (Positions, error) {
 	if string(data[:6]) != positionsMagic {
 		return Positions{}, fmt.Errorf("decode positions: bad magic %q", data[:6])
 	}
-	if v := binary.LittleEndian.Uint16(data[6:]); v != positionsVersion {
+	if v := binary.LittleEndian.Uint16(data[6:]); v != positionsVersion && v != positionsVersionV1 {
 		return Positions{}, fmt.Errorf("decode positions: unsupported blob version %d", v)
 	}
 	slotCount := int(binary.LittleEndian.Uint16(data[8:]))
@@ -280,7 +288,9 @@ func DecodeHeader(data []byte) (Positions, error) {
 }
 
 // DecodeFrames decodes frameCount frames starting at byteOffset, which is what
-// a RoundOffset gives a caller that wants one round and nothing else.
+// a RoundOffset gives a caller that wants one round and nothing else. data
+// starts with the blob header, whose version selects the sample layout; a
+// version 2 decode must start at a round's first frame to see its full gear.
 func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions) ([]Frame, error) {
 	if desc.Quantum <= 0 {
 		return nil, fmt.Errorf("decode frames: descriptor has no quantum")
@@ -288,6 +298,8 @@ func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions)
 	if byteOffset < positionsHeaderSize || byteOffset > int64(len(data)) {
 		return nil, fmt.Errorf("decode frames: offset %d is outside the %d-byte blob", byteOffset, len(data))
 	}
+	withGear := binary.LittleEndian.Uint16(data[6:]) >= positionsVersion
+	var gear gearDecoder
 	frames := make([]Frame, 0, frameCount)
 	pos := int(byteOffset)
 	for i := 0; i < frameCount; i++ {
@@ -317,6 +329,12 @@ func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions)
 				Flags:  SampleFlags(data[pos+9]),
 			})
 			pos += positionsSampleSize
+			if withGear {
+				var err error
+				if pos, err = gear.read(data, pos, &frame.Samples[len(frame.Samples)-1]); err != nil {
+					return nil, err
+				}
+			}
 		}
 		frames = append(frames, frame)
 	}
