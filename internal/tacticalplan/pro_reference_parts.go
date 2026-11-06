@@ -26,8 +26,9 @@ func MergeProDemoParts(parts []ProDemoSummary) (ProDemoSummary, int) {
 		switch {
 		case p.FirstRound > 0 && last.LastRound > 0 && p.FirstRound > last.LastRound:
 			kept = append(kept, p)
-		case p.FirstRound > 0 && p.FirstRound == last.LastRound && len(last.LastRoundPlayers) > 0 && last.Match.Rounds > 1:
-			// The restart replays the round the server went down in: the later copy counts.
+		case p.FirstRound > 0 && p.FirstRound == last.LastRound && len(last.LastRoundPlayers) == len(last.Players) && last.Match.Rounds > 1:
+			// The restart replays the round the server went down in; the later copy counts.
+			// A final round that misses players was cut short, so the longer part wins instead.
 			*last = withoutLastRound(*last)
 			kept = append(kept, p)
 		case p.Match.Rounds > last.Match.Rounds:
