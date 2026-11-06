@@ -81,9 +81,11 @@ func (c *Client) BaseURL() string { return c.baseURL }
 // real failures.
 type APIError struct {
 	StatusCode int
-	Message    string
-	Method     string
-	Path       string
+	// Code is the orchestrator's machine-readable error code, when it sent one.
+	Code    string
+	Message string
+	Method  string
+	Path    string
 }
 
 func (e *APIError) Error() string {
@@ -101,6 +103,15 @@ func StatusCode(err error) int {
 		return apiErr.StatusCode
 	}
 	return 0
+}
+
+// ErrorCode returns the orchestrator error code of an APIError, or "".
+func ErrorCode(err error) string {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code
+	}
+	return ""
 }
 
 // getJSON performs a GET and decodes the JSON body into out.
@@ -167,12 +178,13 @@ func newAPIError(resp *http.Response, method, path string) *APIError {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 	msg := strings.TrimSpace(string(body))
 	var payload struct {
+		Code  string `json:"code"`
 		Error string `json:"error"`
 	}
 	if json.Unmarshal(body, &payload) == nil && payload.Error != "" {
 		msg = payload.Error
 	}
-	return &APIError{StatusCode: resp.StatusCode, Message: msg, Method: method, Path: path}
+	return &APIError{StatusCode: resp.StatusCode, Code: payload.Code, Message: msg, Method: method, Path: path}
 }
 
 // stream issues a GET and copies the raw (non-JSON) response body to dst, for

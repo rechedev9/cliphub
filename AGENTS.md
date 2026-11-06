@@ -69,6 +69,11 @@ Extend that test instead of adding another. When a change moves its output, run
 `go test ./internal/pipeline -update` and review the golden diff like code; never accept it blindly.
 It does not replace the manual check above. Unit tests are welcome where they test real logic.
 
+## Issues
+Outside contributors only file issues, through their own AI agent. `CONTRIBUTING.md` tells that
+agent what evidence to collect and `.github/ISSUE_TEMPLATE/bug-report.md` holds the sections.
+Keep both in step with the PR body sections and with what `studio_status` returns.
+
 ## Releases and domain rules
 Release steps are in `docs/incidents.md` (Releases). Before tagging, prove the release with
 `gh workflow run desktop-release.yml` from `main`: `dry_run` defaults to true, so it runs the checks
