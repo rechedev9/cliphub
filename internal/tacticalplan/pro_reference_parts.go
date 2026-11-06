@@ -23,9 +23,14 @@ func MergeProDemoParts(parts []ProDemoSummary) (ProDemoSummary, int) {
 			continue
 		}
 		last := &kept[len(kept)-1]
-		if p.FirstRound > 0 && last.LastRound > 0 && p.FirstRound > last.LastRound {
+		switch {
+		case p.FirstRound > 0 && last.LastRound > 0 && p.FirstRound > last.LastRound:
 			kept = append(kept, p)
-		} else if p.Match.Rounds > last.Match.Rounds {
+		case p.FirstRound > 0 && p.FirstRound == last.LastRound && len(last.LastRoundPlayers) > 0 && last.Match.Rounds > 1:
+			// The restart replays the round the server went down in: the later copy counts.
+			*last = withoutLastRound(*last)
+			kept = append(kept, p)
+		case p.Match.Rounds > last.Match.Rounds:
 			*last = p
 		}
 	}
@@ -51,6 +56,42 @@ func MergeProDemoParts(parts []ProDemoSummary) (ProDemoSummary, int) {
 		}
 	}
 	return out, len(parts) - len(kept)
+}
+
+// withoutLastRound subtracts the part's final round from its totals.
+func withoutLastRound(d ProDemoSummary) ProDemoSummary {
+	index := map[string]int{}
+	players := make([]ProDemoLine, len(d.Players))
+	for i, line := range d.Players {
+		line.RoundSums = copySums(line.RoundSums)
+		players[i] = line
+		index[line.SteamID64] = i
+	}
+	for _, last := range d.LastRoundPlayers {
+		if at, ok := index[last.SteamID64]; ok {
+			players[at].add(last.negated())
+		}
+	}
+	d.Players = players
+	d.Match.Rounds--
+	d.LastRound--
+	d.LastRoundPlayers = nil
+	return d
+}
+
+func (l ProDemoLine) negated() ProDemoLine {
+	out := ProDemoLine{
+		Rounds: -l.Rounds, Kills: -l.Kills, Deaths: -l.Deaths, TradedDeaths: -l.TradedDeaths, FlashAssists: -l.FlashAssists,
+		UtilityDamage: -l.UtilityDamage, WPA: -l.WPA, RoundSums: map[string]RoundSums{},
+		Box: BoxScore{
+			Damage: -l.Box.Damage, Assists: -l.Box.Assists, KASTRounds: -l.Box.KASTRounds, OpeningKills: -l.Box.OpeningKills,
+			OpeningDeaths: -l.Box.OpeningDeaths, UtilityRounds: -l.Box.UtilityRounds,
+		},
+	}
+	for metric, s := range l.RoundSums {
+		out.RoundSums[metric] = RoundSums{N: -s.N, Sum: -s.Sum, SumSq: -s.SumSq}
+	}
+	return out
 }
 
 func (l *ProDemoLine) add(o ProDemoLine) {

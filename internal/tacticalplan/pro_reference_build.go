@@ -45,13 +45,40 @@ type ProDemoLine struct {
 	RoundSums     map[string]RoundSums `json:"round_sums"`
 }
 
-// ProDemoSummary is what a pro reference keeps of one demo; FirstRound and
-// LastRound are game round numbers, so restart parts of one map can be joined.
+// ProDemoSummary is what a pro reference keeps of one demo. The round range
+// and the final round's own lines let MergeProDemoParts join restart parts.
 type ProDemoSummary struct {
 	Match      ProReferenceMatch `json:"match"`
 	FirstRound int               `json:"first_round,omitempty"`
 	LastRound  int               `json:"last_round,omitempty"`
 	Players    []ProDemoLine     `json:"players"`
+	// LastRoundPlayers is the final round alone, subtracted when the next part replays it.
+	LastRoundPlayers []ProDemoLine `json:"last_round_players,omitempty"`
+}
+
+// demoLine is one player's additive totals in a metrics report.
+func demoLine(p PlayerMetrics, team string) ProDemoLine {
+	var t playerTotals
+	t.add(p)
+	return ProDemoLine{
+		SteamID64: p.SteamID64, Name: p.Name, Team: team, Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths,
+		TradedDeaths: t.tradedDeaths, FlashAssists: t.flashAssists, UtilityDamage: t.utilityDamage, WPA: t.wpa, Box: t.box,
+		RoundSums: map[string]RoundSums{},
+	}
+}
+
+// addRoundValues adds a one-round line's rate values to its round sums.
+func (l *ProDemoLine) addRoundValues(p PlayerMetrics) {
+	var t playerTotals
+	t.add(p)
+	values := t.values()
+	for _, metric := range proRateMetrics {
+		if v, ok := values[metric]; ok {
+			s := l.RoundSums[metric]
+			s.add(RoundSums{N: 1, Sum: v, SumSq: v * v})
+			l.RoundSums[metric] = s
+		}
+	}
 }
 
 // SummarizeProDemo reduces a scanned demo to its players' additive totals and
@@ -68,22 +95,17 @@ func SummarizeProDemo(doc Document) ProDemoSummary {
 	for _, p := range doc.Players {
 		team[p.SteamID64] = teamName[p.TeamKey]
 	}
-	out := ProDemoSummary{Match: ProReferenceMatch{Map: doc.Demo.Map, Teams: names, Rounds: len(doc.Rounds)}}
-	if n := len(doc.Rounds); n > 0 {
-		out.FirstRound = gameRound(doc.Rounds[0])
+	n := len(doc.Rounds)
+	out := ProDemoSummary{Match: ProReferenceMatch{Map: doc.Demo.Map, Teams: names, Rounds: n}}
+	if n > 0 {
+		// The score after a restart can read 0-0 for one round, so the range counts back from the end.
 		out.LastRound = gameRound(doc.Rounds[n-1])
+		out.FirstRound = max(out.LastRound-n+1, 1)
 	}
 	index := map[string]int{}
-	report := Metrics([]MetricsMatch{{MatchID: id, Document: doc}}, MetricsOptions{})
-	for _, p := range report.Players {
-		var t playerTotals
-		t.add(p)
+	for _, p := range Metrics([]MetricsMatch{{MatchID: id, Document: doc}}, MetricsOptions{}).Players {
 		index[p.SteamID64] = len(out.Players)
-		out.Players = append(out.Players, ProDemoLine{
-			SteamID64: p.SteamID64, Name: p.Name, Team: team[p.SteamID64], Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths,
-			TradedDeaths: t.tradedDeaths, FlashAssists: t.flashAssists, UtilityDamage: t.utilityDamage, WPA: t.wpa, Box: t.box,
-			RoundSums: map[string]RoundSums{},
-		})
+		out.Players = append(out.Players, demoLine(p, team[p.SteamID64]))
 	}
 	for i := range doc.Rounds {
 		one := doc
@@ -93,15 +115,11 @@ func SummarizeProDemo(doc Document) ProDemoSummary {
 			if !ok {
 				continue
 			}
-			var t playerTotals
-			t.add(p)
-			values := t.values()
-			for _, metric := range proRateMetrics {
-				if v, ok := values[metric]; ok {
-					s := out.Players[at].RoundSums[metric]
-					s.add(RoundSums{N: 1, Sum: v, SumSq: v * v})
-					out.Players[at].RoundSums[metric] = s
-				}
+			out.Players[at].addRoundValues(p)
+			if i == n-1 {
+				last := demoLine(p, team[p.SteamID64])
+				last.addRoundValues(p)
+				out.LastRoundPlayers = append(out.LastRoundPlayers, last)
 			}
 		}
 	}
