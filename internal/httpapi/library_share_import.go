@@ -127,14 +127,22 @@ func checkSharedMatches(pkg *sharepkg.Reader) error {
 }
 
 func (h *Handlers) importSharePackage(ctx context.Context, pkg *sharepkg.Reader) (shareImportResponse, error) {
+	var stored []uuid.UUID
+	resp, err := h.importSharePackageInto(ctx, pkg, &stored)
+	if err != nil {
+		// All or nothing: a note, collection or report that fails drops the matches this import stored.
+		h.dropSharedDemos(stored)
+	}
+	return resp, err
+}
+
+func (h *Handlers) importSharePackageInto(ctx context.Context, pkg *sharepkg.Reader, stored *[]uuid.UUID) (shareImportResponse, error) {
 	m := pkg.Manifest
 	resp := shareImportResponse{Kind: m.Kind, Title: m.Title, Notes: m.Notes}
 	matchIDs := map[uuid.UUID]uuid.UUID{}
-	var stored []uuid.UUID
 	for _, entry := range m.Matches {
 		matchID, demoID, err := h.importSharedMatch(ctx, pkg, entry)
 		if err != nil {
-			h.dropSharedDemos(stored)
 			return resp, err
 		}
 		matchIDs[entry.Match.ID] = matchID
@@ -142,7 +150,7 @@ func (h *Handlers) importSharePackage(ctx context.Context, pkg *sharepkg.Reader)
 			resp.MatchesExisting++
 			continue
 		}
-		stored = append(stored, demoID)
+		*stored = append(*stored, demoID)
 		resp.MatchesImported++
 	}
 	for _, a := range m.Annotations {

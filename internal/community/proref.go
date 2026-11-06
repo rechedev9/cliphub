@@ -17,6 +17,8 @@ const (
 	etagFile      = "pro-reference.etag"
 	// refreshEvery is how often a running Studio asks for a newer reference.
 	refreshEvery = 12 * time.Hour
+	// retryEvery is the wait after a failed refresh, so a Studio started offline catches up soon.
+	retryEvery = 15 * time.Minute
 )
 
 // ProReferenceCache holds the server pro reference, kept on disk so an
@@ -95,7 +97,9 @@ func (c *ProReferenceCache) Run(ctx context.Context) {
 		return
 	}
 	for {
+		wait := refreshEvery
 		if err := c.Refresh(ctx); err != nil {
+			wait = retryEvery
 			log.Printf("community: pro reference from %s unavailable (%v); using the %s", c.client.Host(), err, c.describe())
 		} else {
 			log.Printf("community: pro reference from %s: %s", c.client.Host(), c.describe())
@@ -103,7 +107,7 @@ func (c *ProReferenceCache) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(refreshEvery):
+		case <-time.After(wait):
 		}
 	}
 }
