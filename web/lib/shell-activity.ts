@@ -1,6 +1,7 @@
 import type { StreamJob } from './api/streams.ts';
 import type { Match, Video } from './api/types.ts';
 import { RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
+import { streamRenderProgressView } from './streams/render-progress.ts';
 
 /** Live jobs for the command-strip transport and the html capture-active gate. */
 
@@ -27,7 +28,7 @@ export interface ShellJob {
   readonly stage: ShellJobStage;
   /** Epoch ms the job was created — real API data, used for elapsed time. */
   readonly startedAt: number;
-  /** Capture done/total/percent while recording or composing; null on every other stage. */
+  /** Done/total/percent while recording or composing (a reel's capture or render, a stream's render); null otherwise. */
   readonly progress: { readonly done: number; readonly total: number; readonly percent?: number; readonly stage?: string } | null;
   /** Where the job lives; the transport's row links there. */
   readonly href: string;
@@ -163,6 +164,9 @@ function streamJob(job: StreamJob): ShellJob[] {
   else if (job.status === 'rendering') stage = 'composing';
   else return [];
   const startedAt = Date.parse(job.updated_at ?? job.created_at);
+  const render = stage === 'composing' ? streamRenderProgressView(job.render_progress) : null;
+  const progress: ShellJob['progress'] =
+    render === null ? null : { done: render.clip - 1, total: render.clips, percent: render.percent, stage: render.clipLabel };
   return [
     {
       id: `stream:${job.id}`,
@@ -170,7 +174,7 @@ function streamJob(job: StreamJob): ShellJob[] {
       title: job.title?.trim() || 'Clip de stream',
       stage,
       startedAt: Number.isNaN(startedAt) ? 0 : startedAt,
-      progress: null,
+      progress,
       href: `/streams/${encodeURIComponent(job.id)}`,
     },
   ];

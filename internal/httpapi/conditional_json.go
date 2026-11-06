@@ -156,5 +156,8 @@ func writeStreamListFingerprint(b *strings.Builder, item *streamJobListItem) {
 	if raw, err := json.Marshal(item.RenderedOutputs); err == nil {
 		b.Write(raw)
 	}
+	if item.RenderProgress != nil {
+		b.WriteString(strconv.FormatFloat(item.RenderProgress.Percent, 'f', 1, 64))
+	}
 	b.WriteByte('\x1e')
 }

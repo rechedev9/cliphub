@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -181,72 +180,6 @@ func taskIsTerminal(ctx context.Context) bool {
 	return retried >= maxRetry
 }
 
-type commandRunner interface {
-	Run(ctx context.Context, exe string, args ...string) ([]byte, error)
-}
-
-type execCommandRunner struct{}
-
-func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([]byte, error) {
-	// #nosec G204 -- media workers execute configured local binaries with argument slices, not shell strings.
-	cmd := exec.CommandContext(ctx, exe, args...)
-	tool := filepath.Base(exe)
-	// Ending the tool alone would leave what it started (ffmpeg, the overlay
-	// renderer, CS2) working against whatever this machine does next.
-	cmd.Cancel = func() error { return killProcessTree(cmd.Process, tool) }
-	started := time.Now()
-	obs.EmitTrace(ctx, obs.TraceEntry{Event: "process.started", Message: tool + " started"})
-	var output commandOutputBuffer
-	stderr := obs.NewTraceWriter(ctx, tool)
-	cmd.Stdout = &output
-	cmd.Stderr = io.MultiWriter(&output, stderr)
-	err := cmd.Run()
-	_ = stderr.Close()
-	out := output.Bytes()
-	code := int64(-1)
-	if cmd.ProcessState != nil {
-		code = int64(cmd.ProcessState.ExitCode())
-	}
-	entry := obs.TraceEntry{Event: "process.finished", Message: tool + " completed", Outcome: "ok", DurationMS: time.Since(started).Milliseconds(), ExitCode: &code}
-	if err != nil {
-		entry.Level, entry.Outcome, entry.Message = "error", "error", tool+": "+err.Error()
-	}
-	if ctx.Err() != nil {
-		entry.Message += ": " + ctx.Err().Error()
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			entry.Outcome = "timeout"
-		} else {
-			entry.Outcome = "cancelled"
-		}
-	}
-	obs.EmitTrace(ctx, entry)
-	if err == nil {
-		return out, nil
-	}
-	if text := strings.TrimSpace(string(out)); text != "" {
-		return out, fmt.Errorf("%s failed: %w: %s", exe, err, text)
-	}
-	return out, fmt.Errorf("%s failed: %w", exe, err)
-}
-
-// stdout and stderr are copied concurrently by os/exec when stderr is also
-// streamed into diagnostics. Keep the returned combined output race-free.
-type commandOutputBuffer struct {
-	mu   sync.Mutex
-	data bytes.Buffer
-}
-
-func (b *commandOutputBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.data.Write(p)
-}
-func (b *commandOutputBuffer) Bytes() []byte {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return append([]byte(nil), b.data.Bytes()...)
-}
-
 type RecordWorkerConfig struct {
 	WorkDir      string
 	RecorderPath string
@@ -326,6 +259,8 @@ type StreamRenderWorkerConfig struct {
 	// MusicPlan can mix under the clip audio (same directory the songs API and
 	// the reel render worker use).
 	MusicDir string
+	// Progress, when set, receives each render's live encode progress.
+	Progress *streamclips.RenderProgressBoard
 }
 
 // RecordWorker handles the "record:demo" Asynq task.
@@ -1559,7 +1494,8 @@ func (w *StreamRenderWorker) render(
 			warnings = append(warnings, fmt.Sprintf("music %q not found, rendering without music", plan.Music.Key))
 		}
 	}
-	for _, clip := range plan.Clips {
+	defer cfg.Progress.Clear(j.ID)
+	for i, clip := range plan.Clips {
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
 			return err
@@ -1573,7 +1509,10 @@ func (w *StreamRenderWorker) render(
 		}
 		outPath := filepath.Join(outDir, clip.ID+".mp4")
 		renderStarted := time.Now()
-		warning, err := renderStreamClip(runCtx, streamClipRender{runner: w.runner, ffmpeg: cfg.FFmpegPath, plan: plan, clip: clip,
+		run := func(ctx context.Context, args []string) error {
+			return w.runClipWithProgress(ctx, cfg, streamClipProgress{jobID: j.ID, plan: plan, index: i, args: args})
+		}
+		warning, err := renderStreamClip(runCtx, streamClipRender{run: run, plan: plan, clip: clip,
 			in: streamclips.FFmpegInputs{
 				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
 				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,

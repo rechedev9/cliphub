@@ -5,6 +5,7 @@ import { Film } from 'lucide-react';
 import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { shortsWord, streamRenderQueued } from '@/lib/streams/editor';
+import { streamRenderProgressView } from '@/lib/streams/render-progress';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -20,9 +21,9 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
  * 9:16 `MediaFrame` the Library and the results grid use, so both pipelines
  * speak one visual language.
  *
- * The bar is indeterminate because the render reports a status, not a
- * percentage; the frames are the real clips from the plan, labelled with their
- * real output durations. Nothing here is invented to fill the grid.
+ * The bar fills with the encode progress the worker reads from FFmpeg, and
+ * stays indeterminate while queued; the frames are the real clips from the
+ * plan, labelled with their real output durations.
  */
 export function StreamRenderStage({
   clips,
@@ -34,7 +35,10 @@ export function StreamRenderStage({
   variantLabel: string;
 }): ReactNode {
   const elapsed = useElapsedSeconds(true);
-  const stage = streamRenderQueued(renderState) ? 'En cola' : 'Creando vídeos';
+  const queued = streamRenderQueued(renderState);
+  const stage = queued ? 'En cola' : 'Creando vídeos';
+  const progress = queued ? null : streamRenderProgressView(renderState?.render_progress);
+  const scope = `${variantLabel} · 1080×1920`;
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">
@@ -47,7 +51,8 @@ export function StreamRenderStage({
 
       <LongOperation
         stage={stage}
-        detail={`${shortsWord(clips.length)} · ${variantLabel} · 1080×1920`}
+        detail={progress ? `${progress.clipLabel} · ${scope}` : `${shortsWord(clips.length)} · ${scope}`}
+        percent={progress?.percent}
         elapsedSec={elapsed}
         tone="stream"
       />

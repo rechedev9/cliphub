@@ -65,11 +65,10 @@ func clipKillFeed(ctx context.Context, req killFeedRequest) ([]streamclips.KillF
 }
 
 type streamClipRender struct {
-	runner commandRunner
-	ffmpeg string
-	in     streamclips.FFmpegInputs
-	plan   streamclips.EditPlan
-	clip   streamclips.ClipRange
+	run  func(ctx context.Context, args []string) error
+	in   streamclips.FFmpegInputs
+	plan streamclips.EditPlan
+	clip streamclips.ClipRange
 }
 
 // renderStreamClip runs one clip render. When hiding the original feed breaks
@@ -80,7 +79,7 @@ func renderStreamClip(ctx context.Context, r streamClipRender) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, runErr := r.runner.Run(ctx, r.ffmpeg, args...)
+	runErr := r.run(ctx, args)
 	if runErr == nil || ctx.Err() != nil || !hasSourceMask(r.in.KillFeed) {
 		return "", runErr
 	}
@@ -88,7 +87,7 @@ func renderStreamClip(ctx context.Context, r streamClipRender) (string, error) {
 	if args, err = streamclips.BuildFFmpegArgs(r.in, r.plan, r.clip); err != nil {
 		return "", err
 	}
-	if _, err := r.runner.Run(ctx, r.ffmpeg, args...); err != nil {
+	if err := r.run(ctx, args); err != nil {
 		return "", err
 	}
 	// FFmpeg's whole stderr is in runErr; the warning keeps only the outcome.

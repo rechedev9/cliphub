@@ -11,13 +11,13 @@ import (
 
 type maskFailingRunner struct{ graphs []string }
 
-func (r *maskFailingRunner) Run(_ context.Context, _ string, args ...string) ([]byte, error) {
+func (r *maskFailingRunner) run(_ context.Context, args []string) error {
 	graph := argValue(args, "-filter_complex")
 	r.graphs = append(r.graphs, graph)
 	if strings.Contains(graph, "delogo") {
-		return nil, errors.New("exit status 127")
+		return errors.New("exit status 127")
 	}
-	return nil, nil
+	return nil
 }
 
 func TestStreamClipRendersUnmaskedWhenTheMaskBreaksFFmpeg(t *testing.T) {
@@ -25,7 +25,7 @@ func TestStreamClipRendersUnmaskedWhenTheMaskBreaksFFmpeg(t *testing.T) {
 	clip := streamclips.ClipRange{ID: "c1", StartSeconds: 10, EndSeconds: 20}
 	plan.Clips = []streamclips.ClipRange{clip}
 	runner := &maskFailingRunner{}
-	warning, err := renderStreamClip(context.Background(), streamClipRender{runner: runner, ffmpeg: "ffmpeg", plan: plan, clip: clip,
+	warning, err := renderStreamClip(context.Background(), streamClipRender{run: runner.run, plan: plan, clip: clip,
 		in: streamclips.FFmpegInputs{
 			SourcePath: "in.mp4", OutputPath: "out.mp4", SourceWidth: 1920, SourceHeight: 1080,
 			KillFeed: []streamclips.KillFeedNotice{{Path: "a.png", Width: 300, Height: 41, DisappearSeconds: 5,
