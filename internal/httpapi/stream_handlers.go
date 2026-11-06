@@ -607,111 +607,6 @@ func (h *Handlers) GetStreamSource(w http.ResponseWriter, r *http.Request) {
 	h.streamStorageKey(w, r, "", j.SourcePath)
 }
 
-func (h *Handlers) GetStreamEditPlan(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadStreamJob(w, r)
-	if !ok {
-		return
-	}
-	if len(j.EditPlan) > 0 {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(j.EditPlan)
-		return
-	}
-	key := streamclips.EditPlanKey(j.ID)
-	rc, err := h.storage.Open(key)
-	if err == nil {
-		defer rc.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, rc)
-		return
-	}
-	if !storageNotExist(err) {
-		internalError(w, "open stream edit plan", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, streamclips.DefaultEditPlan())
-}
-
-// currentStreamEditPlan returns the job's edit plan the same way
-// GetStreamEditPlan does (the job row, else the storage artifact, else the
-// default plan), so StartStreamRender validates the same plan the user last
-// saved without duplicating the fallback chain.
-func (h *Handlers) currentStreamEditPlan(j streamclips.Job) (streamclips.EditPlan, error) {
-	if len(j.EditPlan) > 0 {
-		var plan streamclips.EditPlan
-		if err := json.Unmarshal(j.EditPlan, &plan); err != nil {
-			return streamclips.EditPlan{}, err
-		}
-		return plan, nil
-	}
-	rc, err := h.storage.Open(streamclips.EditPlanKey(j.ID))
-	if err == nil {
-		defer rc.Close()
-		var plan streamclips.EditPlan
-		if err := json.NewDecoder(rc).Decode(&plan); err != nil {
-			return streamclips.EditPlan{}, err
-		}
-		return plan, nil
-	}
-	if !storageNotExist(err) {
-		return streamclips.EditPlan{}, err
-	}
-	return streamclips.DefaultEditPlan(), nil
-}
-
-func (h *Handlers) PutStreamEditPlan(w http.ResponseWriter, r *http.Request) {
-	// Serialize every edit-plan mutation with render admission so none can
-	// validate plan A and overwrite a newer plan B.
-	releaseJob := h.lockStreamJobRequest(r)
-	defer releaseJob()
-	h.streamPlanMu.Lock()
-	defer h.streamPlanMu.Unlock()
-	j, ok := h.loadStreamJob(w, r)
-	if !ok {
-		return
-	}
-	if j.Status == streamclips.StatusRendering {
-		writeError(w, http.StatusConflict, "stream edit plan cannot change while a render is running")
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			writeError(w, http.StatusRequestEntityTooLarge, "edit plan JSON is too large")
-			return
-		}
-		writeError(w, http.StatusBadRequest, "invalid edit plan JSON")
-		return
-	}
-	plan, err := streamclips.DecodeEditPlan(body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid edit plan JSON: "+err.Error())
-		return
-	}
-	plan = streamclips.NormalizeEditPlan(plan)
-	plan.UpdatedAt = time.Now().UTC()
-	if err := plan.ValidateForSourceDuration(j.Probe.DurationSeconds); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := h.streamRepo.SetEditPlan(r.Context(), j.ID, plan); err != nil {
-		if errors.Is(err, streamclips.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "stream job not found")
-			return
-		}
-		internalError(w, "save stream edit plan", err)
-		return
-	}
-	if err := h.writeStreamEditPlanArtifact(j.ID, plan); err != nil {
-		internalError(w, "write stream edit plan artifact", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, plan)
-}
-
 func (h *Handlers) StartStreamRender(w http.ResponseWriter, r *http.Request) {
 	expectedPlanUpdatedAt, hasExpectedPlanUpdatedAt, ok := decodeExpectedStreamPlanRevision(w, r)
 	if !ok {
@@ -1162,14 +1057,6 @@ func (h *Handlers) streamStorageKeyWithCache(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	serveArtifactWithCache(w, r, contentType, rc, cacheControl)
-}
-
-func (h *Handlers) writeStreamEditPlanArtifact(id uuid.UUID, plan streamclips.EditPlan) error {
-	b, err := json.MarshalIndent(plan, "", "  ")
-	if err != nil {
-		return err
-	}
-	return h.storage.Put(streamclips.EditPlanKey(id), bytes.NewReader(append(b, '\n')))
 }
 
 func (h *Handlers) writeStreamRenderState(state streamclips.RenderState) error {

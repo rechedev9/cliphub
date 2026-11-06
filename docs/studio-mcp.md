@@ -124,7 +124,7 @@ safe. Only uploads are limited (2 concurrent).
 - Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
-  which are new plays), `render_stream_summary` (play count and length), `delete_video`,
+  which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video` and `change_video_music`.
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
@@ -183,7 +183,8 @@ Read:
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
 | `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
 | `list_stream_variants` | `GET /api/stream-variants`; aspect ratio and whether the layout shows the facecam |
-| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
+| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`), `GET /api/stream-jobs/{id}/summary`, and `GET .../renders/{variant}` per rendered layout for its `delivery` files other than MP4s ("Archivos adicionales": cover, metadata, plan, manifest); links through the UI origin |
+| `get_stream_edit_plan` | `GET /api/stream-jobs/{id}` and `GET .../edit-plan`: moments with their `edit`, banners, music, kill feed, effects, layout, crops and `face_crop_reviewed`, and `updated_at` |
 | `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
 | `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary`; while `rendering`, `render_progress` gives the percent and the video being encoded (`progress`, such as `video 2 of 3`) |
 | `storage_usage` | `GET /api/storage`: total bytes and the Full Demo captures a finished render covers (`freeable`), largest first |
@@ -208,8 +209,9 @@ Write:
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash`. `pro_settings` resolves a catalog pro into the capture (or `none`); `hud_portrait` uploads a PNG or JPG to `POST /api/full-demo/overlay-images` (focus HUD only); `intro_bumper`, `sponsor_bumper` and `outro_bumper` upload an MP4 to `POST /api/editor/assets` with the UI's local-file provenance. Like every option, they start from the defaults, not from a plan saved in the UI | no (saves the plan the UI also shows) |
 | `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
 | `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
-| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
-| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
+| `edit_stream_plan` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan?expected_updated_at=` (raw fields; each part given replaces that part, the rest is kept; Studio answers 409 when another save landed after `expected_updated_at`); new moments get free `clip-NNN` ids; a music key is checked against `GET /api/songs` | no (saves the plan the UI also shows) |
+| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary` with `play_ids` when given: one 16:9 video of those plays (every play when empty) | yes |
+| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`; the save carries `expected_updated_at`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
 | `retry_video` | `GET /api/jobs/{id}?view=status` and `GET .../renders/{variant}` (a `failed` render with the effective `edit`, `music` and `segment_ids` of its edit document), then `POST .../renders/{variant}` with them. Studio keeps those choices only for the last finished version (a failed render points at it), so a Short that never finished cannot be retried this way and a failed replacement renders that version again. A failed capture, a failure that needs a new capture (`recording_not_reusable:` and the others of `requiresRecapture`) or a Full Demo is refused with a pointer to `generate_short` or `render_full_demo` | yes |
 | `change_video_music` | the same reads on a `ready` Short, or on a `failed` one that has a finished version (this retries a failed music change), then `POST .../renders/{variant}` with the new `music` (`{key, volume, game_volume}`, or none) and the stored `edit` and `segment_ids`; the same mix as now is refused, as in the UI | yes |
