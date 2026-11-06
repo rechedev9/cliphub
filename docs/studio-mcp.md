@@ -48,8 +48,8 @@ Decide in phase 1 whether the WebMCP preview stays.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
-  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_captures`,
-  `delete_storage_file`) cannot be undone, so they ask too.
+  encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`, `delete_captures`,
+  `delete_storage_file`) or merging teams (`merge_teams`) cannot be undone, so they ask too.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -124,7 +124,8 @@ safe. Only uploads are limited (2 concurrent).
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count and length), `delete_video`,
-  `delete_stream`, `delete_captures` (bytes freed) and `delete_storage_file` (file, kind and size).
+  `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
+  `delete_captures` (bytes freed) and `delete_storage_file` (file, kind and size).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -156,23 +157,25 @@ Read:
 | Tool | Orchestrator calls |
 | --- | --- |
 | `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state; Studio version (session file), support code (`telemetry.json`) and `studio.log` path for a bug report (`CONTRIBUTING.md`) |
-| `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs) |
+| `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs, side keys and their library team) |
 | `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total`; `weapon`, `kinds` (clutch, ace, multi_kill) and `side` (CT, T) filter the list |
 | `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first; same filters as `list_moments` |
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
-| `list_jobs`, `get_job` | `GET /api/jobs`, `GET /api/jobs/{id}?view=status` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags |
 | `list_teams` | `GET /api/library/teams` |
-| `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
+| `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
+| `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
+| `get_player` | `GET /api/library/players/{steamid}`: nicks and teams by date, linked FACEIT account |
+| `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`, repeatable `opponent_id` and `match_id`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
-| `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`) |
+| `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`, `min_rounds`) |
 | `find_rounds` | `GET /api/library/matches?team_id=` or `?steamid=`, then `GET /api/library/matches/{id}/tactical` per match (up to 20); round refs `match_id/round` filtered by side, buy and result |
-| `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
-| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`); category, site and zone shares with win rates, the tempo median, and up to 5 round refs per row |
-| `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
-| `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
+| `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
+| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`); category, site and zone shares with win rates, the tempo median, and up to 5 round refs per row |
+| `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides, `from`, `to`, `opponent_id`, `match_id`); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
+| `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
 | `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
@@ -190,7 +193,9 @@ Write:
 
 | Tool | Orchestrator calls | Approval |
 | --- | --- | --- |
-| `import_demo` | `POST /api/library/demos` (multipart `demo`, `tag`) | no |
+| `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file, and a duplicate keeps its own tags) | no |
+| `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set | no |
+| `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map | yes |
@@ -211,6 +216,10 @@ Write:
 | `sync_steam_matches` | `POST /api/steam/matches/sync`; `history_not_configured` and `need_known_code` point the user to Ajustes | no |
 | `import_share_code` | `POST /api/steam/import` with `code` only: Studio downloads with the Steam session the user started in the UI, else `steam_credentials_required` asks the user to sign in there. Makes a Crear job | no |
 | `pick_player` | `POST /api/jobs/{id}/parse` with `target_steamid` | no |
+| `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
+| `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
+| `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
+| `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |
 
 Short look and Full Demo HUD:
 
