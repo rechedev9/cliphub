@@ -94,3 +94,16 @@ func (c *Client) UploadFullDemoAsset(ctx context.Context, filePath string, prove
 	err = c.uploadMultipart(ctx, upload{Path: "/api/editor/assets", FileField: "video", FilePath: filePath, Fields: configField(string(config))}, &result)
 	return result, err
 }
+
+// FullDemoAsset names an uploaded file the way a Full Demo plan references it.
+type FullDemoAsset struct {
+	ID     string `json:"id"`
+	SHA256 string `json:"sha256"`
+}
+
+// UploadFullDemoImage stores a PNG or JPG for a Full Demo overlay, such as the Focus HUD portrait.
+func (c *Client) UploadFullDemoImage(ctx context.Context, filePath string) (FullDemoAsset, error) {
+	var out FullDemoAsset
+	err := c.uploadMultipart(ctx, upload{Path: "/api/full-demo/overlay-images", FileField: "image", FilePath: filePath}, &out)
+	return out, err
+}

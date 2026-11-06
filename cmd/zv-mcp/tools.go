@@ -179,6 +179,7 @@ type generateOut struct {
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	registerFullDemoTools(server, s)
+	registerProSettingsTool(server)
 	registerVideoTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
@@ -424,6 +425,10 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
+			music, err := resolveMusic(in.shortChoices)
+			if err != nil {
+				return nil, generateOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
@@ -458,7 +463,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
+			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: music, Edit: edit}
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
 				what, preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})

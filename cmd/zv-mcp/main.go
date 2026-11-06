@@ -36,7 +36,10 @@ wait_for_job until "parsed", list_moments, ask the user for the look with list_s
 choose_short_options for a picker), then generate_short with the chosen segment ids and options.
 A death reel (the seconds before each death of the player): list_moments with deaths, then
 generate_short with those segment ids and deaths set.
+generate_short also takes the music and game volume, the opening and closing text and an affiliate banner.
 A Full Demo (the whole match): choose_hud or list_hud_themes, plan_full_demo, then render_full_demo.
+plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for the focus HUD and intro,
+sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
