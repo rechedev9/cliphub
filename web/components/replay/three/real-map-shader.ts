@@ -96,6 +96,9 @@ uniform float uSunDepthTexel;
 uniform float uUseSunDepth;
 uniform float uIrradianceScale;
 uniform float uOpacity;
+// 1 where the texture's alpha is the surface's coverage: decals, overlays and glass.
+uniform float uUseAlpha;
+uniform float uMeter;
 varying vec3 vWorldNormal;
 varying vec2 vUv;
 varying vec2 vUv2;
@@ -168,6 +171,10 @@ ${REAL_SURFACE_CUT}
 #endif
   color = albedo.rgb * (irradiance + uSunColor * uSunScale * sunAngle * visibility);
 #endif
+  if (uMeter > 0.5) {
+    gl_FragColor = vec4(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), 1.0);
+    return;
+  }
   color = cs2Tone(color * uExposure);
   float fog = clamp((vViewDepth - uFogLift - uFog.x) / max(1.0, uFog.y - uFog.x), 0.0, 1.0) * uFog.z;
   color = mix(color, uFogColor, fog);
@@ -176,7 +183,7 @@ ${REAL_SURFACE_CUT}
     float rim = 1.5 * length(vec2(dFdx(vMapPos.z), dFdy(vMapPos.z)));
     if (mapRise > uWallCut - rim) color = vec3(0.62, 0.65, 0.7);
   }
-  gl_FragColor = vec4(cs2Grade(color), uOpacity);
+  gl_FragColor = vec4(cs2Grade(color), uOpacity * mix(1.0, albedo.a, uUseAlpha));
   #include <colorspace_fragment>
 }
 `;

@@ -358,6 +358,7 @@ export class ReplayScene {
     if (this.#rig.step(performance.now())) this.requestRender();
     const camera = this.#rig.active;
     this.#real?.setCameraHeight(camera.position.z);
+    if (this.#real !== null && this.realShown && this.#real.adaptExposure({ renderer: this.#renderer, scene: this.#scene, camera, now: performance.now() })) this.requestRender();
     this.#renderer.render(this.#scene, camera);
     this.#placeLabels();
   }

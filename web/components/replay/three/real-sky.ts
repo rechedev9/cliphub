@@ -20,12 +20,18 @@ uniform samplerCube uSky;
 uniform mat3 uBasis;
 uniform vec3 uTint;
 uniform float uExposure;
+uniform float uBrightness;
+uniform float uMeter;
 varying vec3 vDirection;
 
 ${CS2_POST}
 
 void main() {
   vec3 sky = textureCube(uSky, uBasis * normalize(vDirection)).rgb * uTint;
+  if (uMeter > 0.5) {
+    gl_FragColor = vec4(vec3(dot(sky * uBrightness, vec3(0.2126, 0.7152, 0.0722))), 1.0);
+    return;
+  }
   gl_FragColor = vec4(cs2Grade(cs2Tone(sky * uExposure)), 1.0);
   #include <colorspace_fragment>
 }
@@ -37,7 +43,8 @@ export class RealSky {
   readonly #cube: CompressedCubeTexture;
   readonly #brightness: number;
 
-  private constructor(cube: CompressedCubeTexture, scene: MapScene, post: Cs2PostUniforms) {
+  private constructor(cube: CompressedCubeTexture, options: { scene: MapScene; post: Cs2PostUniforms; meter: { value: number } }) {
+    const { scene, post, meter } = options;
     this.#cube = cube;
     const sky = scene.sky;
     this.#brightness = sky?.brightness ?? 1;
@@ -50,6 +57,8 @@ export class RealSky {
         uBasis: { value: skyBasis(yaw) },
         uTint: { value: new Vector3(...(sky?.tint ?? [1, 1, 1])) },
         uExposure: { value: this.#brightness },
+        uBrightness: { value: this.#brightness },
+        uMeter: meter,
         ...post,
       },
       side: BackSide,
@@ -61,13 +70,13 @@ export class RealSky {
   }
 
   /** The sky of `scene`, or null when it has none or the GPU cannot read it. */
-  static build(options: { scene: MapScene; renderer: WebGLRenderer; post: Cs2PostUniforms }): RealSky | null {
-    const { scene, renderer, post } = options;
+  static build(options: { scene: MapScene; renderer: WebGLRenderer; post: Cs2PostUniforms; meter: { value: number } }): RealSky | null {
+    const { scene, renderer, post, meter } = options;
     const sky = scene.sky;
     const source = sky === null ? undefined : scene.textures[sky.texture];
     if (sky === null || source === undefined) return null;
     const cube = toCubeTexture(source, renderer);
-    return cube === null ? null : new RealSky(cube, scene, post);
+    return cube === null ? null : new RealSky(cube, { scene, post, meter });
   }
 
   /** `exposure` is the map's exposure times the look's own factor. */
