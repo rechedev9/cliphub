@@ -16,7 +16,7 @@ import (
 const (
 	sceneMagic = "CHMS"
 	// SceneFileVersion versions the encoding; bump it when the header or arrays change.
-	SceneFileVersion = 9
+	SceneFileVersion = 10
 )
 
 type sceneRange struct {
@@ -40,6 +40,9 @@ type sceneMaterialHeader struct {
 	Color         int        `json:"color"`
 	Color2        int        `json:"color2"`
 	Blend         int        `json:"blend"`
+	Normal        int        `json:"normal"`
+	Normal2       int        `json:"normal2"`
+	Metalness     float32    `json:"metalness"`
 	Tint          [3]float32 `json:"tint"`
 	Tint2         [3]float32 `json:"tint2"`
 	UVScale       [2]float32 `json:"uvScale"`
@@ -76,19 +79,21 @@ type sceneChunkHeader struct {
 }
 
 type sceneHeader struct {
-	Version   int                   `json:"version"`
-	Map       string                `json:"map"`
-	Build     string                `json:"build"`
-	Min       [3]float32            `json:"min"`
-	Max       [3]float32            `json:"max"`
-	Sun       *Sun                  `json:"sun"`
-	Fog       *Fog                  `json:"fog"`
-	Sky       *Sky                  `json:"sky"`
-	Lightmap  *Lightmap             `json:"lightmap"`
-	Post      *scenePostHeader      `json:"post"`
-	Textures  []sceneTextureHeader  `json:"textures"`
-	Materials []sceneMaterialHeader `json:"materials"`
-	Chunks    []sceneChunkHeader    `json:"chunks"`
+	Version     int                   `json:"version"`
+	Map         string                `json:"map"`
+	Build       string                `json:"build"`
+	Min         [3]float32            `json:"min"`
+	Max         [3]float32            `json:"max"`
+	Sun         *Sun                  `json:"sun"`
+	Fog         *Fog                  `json:"fog"`
+	Sky         *Sky                  `json:"sky"`
+	Lightmap    *Lightmap             `json:"lightmap"`
+	Post        *scenePostHeader      `json:"post"`
+	Reflections *Reflections          `json:"reflections"`
+	Lights      []Light               `json:"lights"`
+	Textures    []sceneTextureHeader  `json:"textures"`
+	Materials   []sceneMaterialHeader `json:"materials"`
+	Chunks      []sceneChunkHeader    `json:"chunks"`
 }
 
 // scenePostHeader is the post processing with its LUT in the binary section.
@@ -203,7 +208,7 @@ func encodeChunk(w *blobWriter, c SceneChunk) sceneChunkHeader {
 // WriteScene encodes a scene into the scene file format.
 func WriteScene(out io.Writer, s *Scene) error {
 	w := &blobWriter{}
-	h := sceneHeader{Version: SceneFileVersion, Map: s.Map, Build: s.Build, Min: s.Min, Max: s.Max, Sun: s.Sun, Fog: s.Fog, Sky: s.Sky, Lightmap: s.Lightmap}
+	h := sceneHeader{Version: SceneFileVersion, Map: s.Map, Build: s.Build, Min: s.Min, Max: s.Max, Sun: s.Sun, Fog: s.Fog, Sky: s.Sky, Lightmap: s.Lightmap, Reflections: s.Reflections, Lights: s.Lights}
 	for _, t := range s.Textures {
 		name, ok := textureFormatNames[t.Tex.Format]
 		if !ok {
@@ -213,7 +218,7 @@ func WriteScene(out io.Writer, s *Scene) error {
 	}
 	for _, m := range s.Materials {
 		h.Materials = append(h.Materials, sceneMaterialHeader{
-			Name: m.Name, Shader: m.Shader, Color: m.ColorTex, Color2: m.Color2Tex, Blend: m.BlendTex,
+			Name: m.Name, Shader: m.Shader, Color: m.ColorTex, Color2: m.Color2Tex, Blend: m.BlendTex, Normal: m.NormalTex, Normal2: m.Normal2Tex, Metalness: m.Metalness,
 			Tint: m.Tint, Tint2: m.Tint2, UVScale: m.UVScale, UVOffset: m.UVOffset, UV2Scale: m.UV2Scale, UV2Offset: m.UV2Offset,
 			BlendSoftness: m.BlendSoftness, BlendMode: m.BlendMode, AlphaTest: m.AlphaTest, AlphaRef: m.AlphaRef, Translucent: m.Translucent,
 			DoubleSided: m.DoubleSided, Unlit: m.Unlit, Overlay: m.Overlay, Average: m.Average,
@@ -261,6 +266,10 @@ type SceneSummary struct {
 	Fog       bool   `json:"fog"`
 	Sky       bool   `json:"sky"`
 	Post      bool   `json:"post"`
+	// Reflections is how many baked reflection probes the scene has.
+	Reflections int `json:"reflections"`
+	// Lights is how many stationary lights CS2 shades at runtime the scene has.
+	Lights int `json:"lights"`
 }
 
 // maxSceneHeader bounds the JSON header a summary reads.
@@ -292,6 +301,10 @@ func ReadSceneSummary(r io.Reader) (SceneSummary, error) {
 	}
 	s := SceneSummary{Map: h.Map, Build: h.Build, Chunks: len(h.Chunks), Materials: len(h.Materials), Textures: len(h.Textures),
 		Lightmap: h.Lightmap != nil, Sun: h.Sun != nil, Fog: h.Fog != nil, Sky: h.Sky != nil, Post: h.Post != nil}
+	if h.Reflections != nil {
+		s.Reflections = len(h.Reflections.Probes)
+	}
+	s.Lights = len(h.Lights)
 	for _, c := range h.Chunks {
 		s.Triangles += c.Indices / 3
 	}

@@ -5,14 +5,17 @@ import { MapGeometryError } from './map-geometry.ts';
  * header length, the JSON header, zero padding to 16 bytes, then the binary arrays the header
  * points into by byte offset from the start of that section.
  */
-export const MAP_SCENE_VERSION = 9;
+export const MAP_SCENE_VERSION = 10;
 
 export type SceneTextureFormat = 'bc1' | 'bc3' | 'bc4' | 'bc5' | 'bc6h' | 'bc7' | 'rgba8' | 'bgra8';
 
 const TEXTURE_FORMATS: readonly SceneTextureFormat[] = ['bc1', 'bc3', 'bc4', 'bc5', 'bc6h', 'bc7', 'rgba8', 'bgra8'];
 
-/** `levels` is the mip chain, largest first: each level halves the last, down to 1 x 1. A cube's level holds its 6 faces, +X -X +Y -Y +Z -Z. */
-export type SceneTexture = { format: SceneTextureFormat; width: number; height: number; faces: 1 | 6; levels: Uint8Array[] };
+/**
+ * `levels` is the mip chain, largest first: each level halves the last, down to 1 x 1. A cube's level
+ * holds its 6 faces, +X -X +Y -Y +Z -Z; a cube array's holds 6 per cube, each cube's together.
+ */
+export type SceneTexture = { format: SceneTextureFormat; width: number; height: number; faces: number; levels: Uint8Array[] };
 
 export type SceneMaterial = {
   name: string;
@@ -21,6 +24,10 @@ export type SceneMaterial = {
   color: number;
   color2: number;
   blend: number;
+  /** Normal and roughness textures: a hemi-octahedral normal in RG, the roughness in B. */
+  normal: number;
+  normal2: number;
+  metalness: number;
   tint: [number, number, number];
   tint2: [number, number, number];
   uvScale: [number, number];
@@ -83,6 +90,48 @@ export type SceneTonemap = {
 /** The map's post processing: auto exposure's range, the tonemap and the colour LUT (RGBA, red fastest). */
 export type ScenePost = { exposureMin: number; exposureMax: number; tonemap: SceneTonemap; lutSize: number; lut: Uint8Array | null };
 
+/**
+ * A baked reflection probe: its cube in the array, the 3 x 4 transform into its axes, the box
+ * it lights and the box its reflections project on there, its edge fades and its radiance's
+ * luminance as an L1 harmonic. Probes come in the order CS2 takes them.
+ */
+export type SceneProbe = {
+  cube: number;
+  worldToLocal: number[];
+  min: [number, number, number];
+  max: [number, number, number];
+  projectMin: [number, number, number];
+  projectMax: [number, number, number];
+  box: boolean;
+  invFade: [number, number, number];
+  normalization: [number, number, number, number];
+};
+export type SceneReflections = { texture: number; probes: SceneProbe[] };
+
+/**
+ * A light CS2 shades at runtime with its shadow baked into a lightmap channel: a barn
+ * light lit through its frustum (near 0 is orthographic) or an omni point light. The
+ * colour falls off as falloff over the squared distance from eye.
+ */
+export type SceneLight = {
+  omni: boolean;
+  color: [number, number, number];
+  eye: [number, number, number];
+  falloff: number;
+  forward: [number, number, number];
+  right: [number, number, number];
+  up: [number, number, number];
+  frustum: [number, number, number, number];
+  near: number;
+  far: number;
+  skirt: [number, number];
+  fade: [number, number];
+  angle: [number, number];
+  shadow: number;
+  min: [number, number, number];
+  max: [number, number, number];
+};
+
 export type MapScene = {
   map: string;
   build: string;
@@ -93,6 +142,8 @@ export type MapScene = {
   lightmap: SceneLightmap | null;
   sky: SceneSky | null;
   post: ScenePost | null;
+  reflections: SceneReflections | null;
+  lights: SceneLight[];
   textures: SceneTexture[];
   materials: SceneMaterial[];
   chunks: SceneChunk[];
@@ -173,6 +224,9 @@ function parseMaterial(raw: unknown, textures: number): SceneMaterial {
     color: textureIndex(m.color, textures),
     color2: textureIndex(m.color2, textures),
     blend: textureIndex(m.blend, textures),
+    normal: textureIndex(m.normal, textures),
+    normal2: textureIndex(m.normal2, textures),
+    metalness: num(m.metalness),
     tint: vec3(m.tint),
     tint2: vec3(m.tint2),
     uvScale: vec2(m.uvScale),
@@ -245,10 +299,67 @@ function post(raw: unknown, blob: number, bytes: (r: Range) => Uint8Array): Scen
   return { exposureMin: num(p.exposureMin), exposureMax: num(p.exposureMax), tonemap, lutSize: lut === null ? 0 : lutSize, lut };
 }
 
-function faces(value: unknown): 1 | 6 {
-  if (value === undefined || value === 1) return 1;
-  if (value === 6) return 6;
-  throw new Error('scene: a texture has 1 or 6 faces');
+function faces(value: unknown): number {
+  if (value === undefined) return 1;
+  const n = int(value);
+  if (n !== 1 && (n < 6 || n % 6 !== 0)) throw new Error('scene: a texture has 1 face or 6 per cube');
+  return n;
+}
+
+function vec4(value: unknown): [number, number, number, number] {
+  if (!Array.isArray(value) || value.length !== 4) throw new Error('scene: vec4 expected');
+  return [num(value[0]), num(value[1]), num(value[2]), num(value[3])];
+}
+
+function reflections(raw: unknown, textures: SceneTexture[]): SceneReflections | null {
+  if (raw === null || raw === undefined) return null;
+  const r = record(raw);
+  const texture = textureIndex(r.texture, textures.length);
+  const cubes = (textures[texture]?.faces ?? 0) / 6;
+  if (texture < 0 || cubes < 1) throw new Error('scene: the reflections are not a cube array');
+  const probes = list(r.probes).map((item): SceneProbe => {
+    const p = record(item);
+    const cube = int(p.cube);
+    const worldToLocal = list(p.worldToLocal).map(num);
+    if (cube < 0 || cube >= cubes || worldToLocal.length !== 12) throw new Error('scene: bad reflection probe');
+    return {
+      cube,
+      worldToLocal,
+      min: vec3(p.min),
+      max: vec3(p.max),
+      projectMin: vec3(p.projectMin),
+      projectMax: vec3(p.projectMax),
+      box: bool(p.box),
+      invFade: vec3(p.invFade),
+      normalization: vec4(p.normalization),
+    };
+  });
+  return { texture, probes };
+}
+
+function lights(raw: unknown): SceneLight[] {
+  if (raw === null || raw === undefined) return [];
+  return list(raw).map((item): SceneLight => {
+    const l = record(item);
+    return {
+      omni: bool(l.omni),
+      color: vec3(l.color),
+      eye: vec3(l.eye),
+      falloff: num(l.falloff),
+      forward: vec3(l.forward),
+      right: vec3(l.right),
+      up: vec3(l.up),
+      frustum: vec4(l.frustum),
+      near: num(l.near),
+      far: num(l.far),
+      skirt: vec2(l.skirt),
+      fade: vec2(l.fade),
+      angle: vec2(l.angle),
+      shadow: int(l.shadow),
+      min: vec3(l.min),
+      max: vec3(l.max),
+    };
+  });
 }
 
 function lightmap(raw: unknown, textures: number): SceneLightmap | null {
@@ -339,6 +450,8 @@ export function parseMapScene(buffer: ArrayBuffer): MapScene {
     lightmap: lightmap(h.lightmap, textures.length),
     sky: sky(h.sky, textures),
     post: post(h.post, blob, bytes),
+    reflections: reflections(h.reflections, textures),
+    lights: lights(h.lights),
     textures,
     materials,
     chunks,

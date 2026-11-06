@@ -14,12 +14,13 @@ const maxChunkVertices = 65535
 
 // SceneOptions sets the texture budget of an extracted scene.
 type SceneOptions struct {
-	// ColorSize caps the side of albedo textures; LightmapSize that of the lightmaps.
-	ColorSize, LightmapSize int
+	// ColorSize caps the side of albedo textures, NormalSize that of normal and roughness
+	// textures, LightmapSize that of the lightmaps and ReflectionSize a face of the reflections.
+	ColorSize, NormalSize, LightmapSize, ReflectionSize int
 }
 
-// DefaultSceneOptions keeps a big map's scene near 150 MB.
-var DefaultSceneOptions = SceneOptions{ColorSize: 512, LightmapSize: 4096}
+// DefaultSceneOptions keeps a big map's scene near 200 MB.
+var DefaultSceneOptions = SceneOptions{ColorSize: 512, NormalSize: 256, LightmapSize: 4096, ReflectionSize: 128}
 
 // SceneTexture is a texture of the scene, still in its GPU block format.
 type SceneTexture struct {
@@ -31,6 +32,7 @@ type SceneTexture struct {
 type SceneMaterial struct {
 	MaterialInfo
 	ColorTex, Color2Tex, BlendTex int
+	NormalTex, Normal2Tex         int
 	// Average is the albedo's average colour, for draws without a texture.
 	Average [3]float32
 }
@@ -61,16 +63,19 @@ type Lightmap struct {
 
 // Scene is a map's render geometry with materials, textures and baked light.
 type Scene struct {
-	Map, Build string
-	Textures   []SceneTexture
-	Materials  []SceneMaterial
-	Chunks     []SceneChunk
-	Lightmap   *Lightmap
-	Sun        *Sun
-	Fog        *Fog
-	Sky        *Sky
-	Post       *Post
-	Min, Max   [3]float32
+	Map, Build  string
+	Textures    []SceneTexture
+	Materials   []SceneMaterial
+	Chunks      []SceneChunk
+	Lightmap    *Lightmap
+	Sun         *Sun
+	Fog         *Fog
+	Sky         *Sky
+	Post        *Post
+	Reflections *Reflections
+	// Lights are the lights CS2 shades at runtime besides the sun.
+	Lights   []Light
+	Min, Max [3]float32
 }
 
 // sceneFiles reads a path from the map package first, then the game's pak01.
@@ -96,6 +101,7 @@ type sceneBuilder struct {
 	materials map[string]int
 	textures  map[string]int
 	open      map[chunkKey]int
+	probes    []probeEntity
 	warnings  int
 }
 
@@ -152,6 +158,7 @@ func (b *sceneBuilder) build() error {
 		b.addEntities(lumpPath, 0)
 	}
 	b.addLightmap(object(wo["m_worldLightingInfo"]))
+	b.addReflections()
 	if len(b.scene.Chunks) == 0 {
 		return errors.New("no render geometry")
 	}
@@ -298,6 +305,8 @@ func (b *sceneBuilder) addEntities(path string, depth int) {
 	if lump.post != nil && b.scene.Post == nil {
 		b.addPost(lump.post)
 	}
+	b.probes = append(b.probes, lump.probes...)
+	b.scene.Lights = append(b.scene.Lights, lump.lights...)
 	for _, m := range lump.models {
 		for _, call := range b.modelCalls(m.model) {
 			b.addCall(call, m.at, m.tint)
@@ -392,6 +401,8 @@ func (b *sceneBuilder) material(path string) int {
 			m.ColorTex = b.texture(info.Color, b.opts.ColorSize)
 			m.Color2Tex = b.texture(info.Color2, b.opts.ColorSize)
 			m.BlendTex = b.texture(info.BlendMod, b.opts.ColorSize)
+			m.NormalTex = b.texture(info.Normal, b.opts.NormalSize)
+			m.Normal2Tex = b.texture(info.Normal2, b.opts.NormalSize)
 			m.Average = [3]float32{0.6, 0.6, 0.6}
 			if m.ColorTex >= 0 {
 				r := b.scene.Textures[m.ColorTex].Tex.Reflectivity

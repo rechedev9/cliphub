@@ -42,6 +42,9 @@ function sceneFile(edit: (header: Record<string, unknown>) => void = () => {}, v
         color: 0,
         color2: -1,
         blend: -1,
+        normal: -1,
+        normal2: -1,
+        metalness: 0,
         tint: [1, 1, 1],
         tint2: [1, 1, 1],
         uvScale: [1, 1],
@@ -147,4 +150,35 @@ test('parseMapScene reads both fog layers and leaves a missing one out', () => {
   assert.equal(scene.fog?.cube?.distance.end, 7000);
   assert.equal(scene.fog?.cube?.height.exponent, 1.5);
   assert.equal(scene.fog?.cube?.lodBias, 1);
+});
+
+test('parseMapScene reads the reflection probes of a cube array', () => {
+  const probe = { cube: 0, worldToLocal: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], min: [-1, -1, -1], max: [1, 1, 1], projectMin: [-1, -1, -1], projectMax: [1, 1, 1], box: true, invFade: [1, 1, 1], normalization: [0, 0, 0.1, 0.5] };
+  const scene = parseMapScene(
+    sceneFile((h) => {
+      h.reflections = { texture: 1, probes: [probe] };
+    }),
+  );
+  assert.equal(scene.reflections?.probes[0]?.normalization[3], 0.5);
+  assert.throws(
+    () =>
+      parseMapScene(
+        sceneFile((h) => {
+          h.reflections = { texture: 1, probes: [{ ...probe, cube: 1 }] };
+        }),
+      ),
+    /probe/,
+  );
+});
+
+test('parseMapScene reads the runtime lights and treats none as an empty list', () => {
+  const light = { omni: false, color: [2, 2, 1], eye: [0, 0, 64], falloff: 1, forward: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], frustum: [1, 1, 0, 0], near: 1, far: 257, skirt: [0.5, 9], fade: [1, 0], angle: [1, 0], shadow: 2, min: [-256, -256, -192], max: [256, 256, 64] };
+  const scene = parseMapScene(
+    sceneFile((h) => {
+      h.lights = [light];
+    }),
+  );
+  assert.equal(scene.lights[0]?.shadow, 2);
+  assert.equal(scene.lights[0]?.far, 257);
+  assert.deepEqual(parseMapScene(sceneFile()).lights, []);
 });

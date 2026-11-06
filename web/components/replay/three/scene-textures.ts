@@ -1,4 +1,6 @@
 import {
+  ClampToEdgeWrapping,
+  CompressedArrayTexture,
   CompressedCubeTexture,
   CompressedTexture,
   DataTexture,
@@ -58,6 +60,22 @@ export function toTexture(source: SceneTexture, renderer: WebGLRenderer, wrap: b
     texture.wrapS = RepeatWrapping;
     texture.wrapT = RepeatWrapping;
   }
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** A cube array as a 2D array of its faces, 6 layers per cube; null when the GPU cannot read its format. */
+export function toCubeArrayTexture(source: SceneTexture, renderer: WebGLRenderer): CompressedArrayTexture | null {
+  const info = COMPRESSED[source.format];
+  if (source.faces < 6 || source.faces % 6 !== 0 || info === undefined || !renderer.extensions.has(info.extension)) return null;
+  const mipmaps = source.levels.map((data, level) => ({ data, width: Math.max(1, source.width >> level), height: Math.max(1, source.height >> level) }));
+  const texture = new CompressedArrayTexture(mipmaps, source.width, source.height, source.faces, info.format);
+  texture.colorSpace = NoColorSpace;
+  texture.minFilter = mipmaps.length > 1 ? LinearMipmapLinearFilter : LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
+  texture.generateMipmaps = false;
   texture.needsUpdate = true;
   return texture;
 }

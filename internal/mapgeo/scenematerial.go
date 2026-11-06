@@ -14,6 +14,10 @@ type MaterialInfo struct {
 	Color, Color2 string
 	// BlendMod is the blend modulation texture of a two layer material.
 	BlendMod string
+	// Normal is the normal and roughness texture, a hemi-octahedral normal in RG and the roughness in B; Normal2 the second layer's.
+	Normal, Normal2 string
+	// Metalness is the material's constant metalness.
+	Metalness float32
 	// Tint multiplies the albedo; Tint2 the second layer.
 	Tint, Tint2 [3]float32
 	// Scale and offset of the layer texture coordinates, as the material sets them.
@@ -87,6 +91,8 @@ func ParseMaterial(name string, file []byte) (MaterialInfo, error) {
 			m.AlphaRef = float32(toFloat(po["m_flValue"]))
 		case "g_flBlendSoftness":
 			m.BlendSoftness = float32(toFloat(po["m_flValue"]))
+		case "g_flMetalness", "g_flMetalness1":
+			m.Metalness = float32(toFloat(po["m_flValue"]))
 		case "g_flBrightnessExposureBias", "g_flRenderOnlyExposureBias":
 			// CS2 draws the sky, and colours its fog, this many stops brighter.
 			m.SkyExposureBias += float32(toFloat(po["m_flValue"]))
@@ -125,6 +131,12 @@ func ParseMaterial(name string, file []byte) (MaterialInfo, error) {
 			m.Color2 = path
 		case "g_tBlendModulation":
 			m.BlendMod = path
+		case "g_tNormal", "g_tNormalRoughness", "g_tLayer1NormalRoughness", "g_tNormal1":
+			if m.Normal == "" {
+				m.Normal = path
+			}
+		case "g_tLayer2NormalRoughness", "g_tNormal2", "g_tNormalRoughness2":
+			m.Normal2 = path
 		case "g_tSkyTexture":
 			m.Sky = path
 		}

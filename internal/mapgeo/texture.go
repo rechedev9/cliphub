@@ -21,6 +21,7 @@ const (
 	vtexCubeFlag           = 1 << 4
 	vtexVolumeFlag         = 1 << 5
 	vtexExtraCompressedMip = 4
+	vtexExtraRadianceSH    = 5
 	mipCompressionLZ4      = 1
 )
 
@@ -28,7 +29,8 @@ const (
 type Texture struct {
 	Format        int
 	Width, Height int
-	// Faces is 6 for a cube texture, whose every level holds its faces in D3D order (+X -X +Y -Y +Z -Z).
+	// Faces is 6 for a cube texture, whose every level holds its faces in D3D order (+X -X +Y -Y +Z -Z),
+	// and 6 per cube for a cube array, each cube's faces together.
 	Faces int
 	// Data is the mip chain from Width x Height down, in 4x4 blocks for the
 	// block compressed formats; Levels holds each level's length in bytes.
@@ -38,6 +40,8 @@ type Texture struct {
 	Mips, Level int
 	// Reflectivity is the texture's average linear colour, as the compiler stored it.
 	Reflectivity [4]float32
+	// RadianceSH is a cube array's baked radiance: 27 floats per cube, L2 in RGB, channel by channel.
+	RadianceSH []float32
 }
 
 type vtexHeader struct {
@@ -49,6 +53,7 @@ type vtexHeader struct {
 	lz4                  bool
 	dataOffset           int
 	faces                int
+	radianceSH           []float32
 }
 
 func blockBytes(format int) (int, bool) {
@@ -116,6 +121,12 @@ func readVtexHeader(file []byte) (vtexHeader, error) {
 		if e.err != nil {
 			return h, e.err
 		}
+		if kind == vtexExtraRadianceSH {
+			if h.radianceSH, err = readRadianceSH(data.Data, fieldAt+offset); err != nil {
+				return h, err
+			}
+			continue
+		}
 		if kind != vtexExtraCompressedMip {
 			continue
 		}
@@ -140,28 +151,41 @@ func readVtexHeader(file []byte) (vtexHeader, error) {
 	return h, nil
 }
 
+// The kinds of compiled texture Studio reads.
+const (
+	texture2D = iota
+	textureCube
+	textureCubeArray
+)
+
 // ReadTexture returns a compiled 2D texture from the largest mip level no
 // wider or taller than maxSize down to its smallest level. Cube and volume
 // textures are refused.
 func ReadTexture(file []byte, maxSize int) (Texture, error) {
-	return readTexture(file, maxSize, false)
+	return readTexture(file, maxSize, texture2D)
 }
 
 // ReadCubeTexture is ReadTexture for a cube texture, such as a sky.
 func ReadCubeTexture(file []byte, maxSize int) (Texture, error) {
-	return readTexture(file, maxSize, true)
+	return readTexture(file, maxSize, textureCube)
 }
 
-func readTexture(file []byte, maxSize int, cube bool) (Texture, error) {
+// ReadCubeArrayTexture is ReadTexture for an array of cubes, such as a map's baked reflections.
+func ReadCubeArrayTexture(file []byte, maxSize int) (Texture, error) {
+	return readTexture(file, maxSize, textureCubeArray)
+}
+
+func readTexture(file []byte, maxSize int, kind int) (Texture, error) {
 	h, err := readVtexHeader(file)
 	if err != nil {
 		return Texture{}, err
 	}
-	if (h.flags&vtexCubeFlag != 0) != cube || h.flags&vtexVolumeFlag != 0 || h.depth > 1 {
+	cube := h.flags&vtexCubeFlag != 0
+	if cube != (kind != texture2D) || h.flags&vtexVolumeFlag != 0 || (h.depth > 1) != (kind == textureCubeArray) {
 		return Texture{}, errors.New("texture is not of the expected kind")
 	}
 	if cube {
-		h.faces = 6
+		h.faces = 6 * max(1, h.depth)
 	}
 	if _, ok := blockBytes(h.format); !ok {
 		return Texture{}, fmt.Errorf("texture format %d is not supported", h.format)
@@ -191,7 +215,7 @@ func readTexture(file []byte, maxSize int, cube bool) (Texture, error) {
 		}
 		levels[j] = raw
 	}
-	tex := Texture{Format: h.format, Width: mipSize(h.width, level), Height: mipSize(h.height, level), Faces: max(1, h.faces), Mips: mips, Level: level, Reflectivity: h.reflectivity}
+	tex := Texture{Format: h.format, Width: mipSize(h.width, level), Height: mipSize(h.height, level), Faces: max(1, h.faces), Mips: mips, Level: level, Reflectivity: h.reflectivity, RadianceSH: h.radianceSH}
 	for j := level; j < mips; j++ {
 		tex.Data = append(tex.Data, levels[j]...)
 		tex.Levels = append(tex.Levels, len(levels[j]))
@@ -205,4 +229,20 @@ func (h vtexHeader) storedBytes(level int) int {
 		return h.compressedMips[level]
 	}
 	return size
+}
+
+// readRadianceSH reads the radiance coefficients block at at: a uint32 offset from its own field and a uint32 count.
+func readRadianceSH(data []byte, at int) ([]float32, error) {
+	r := &byteReader{data: data, pos: at}
+	field := r.pos
+	offset, count := int(r.u32()), int(r.u32())
+	if r.err != nil || count < 0 || count > 1<<20 {
+		return nil, errors.New("vtex radiance coefficients")
+	}
+	r.pos = field + offset
+	out := make([]float32, count)
+	for i := range out {
+		out[i] = r.f32()
+	}
+	return out, r.err
 }

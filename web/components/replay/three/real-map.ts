@@ -25,15 +25,20 @@ import type { MapScene, SceneChunk, SceneMaterial } from '@/lib/api/map-scene';
 import { AutoExposure } from './auto-exposure';
 import { cs2FogUniforms } from './cs2-fog';
 import type { Cs2FogUniforms } from './cs2-fog';
+import { cs2LightsUniforms, disposeLights } from './cs2-lights';
+import type { Cs2LightsUniforms } from './cs2-lights';
+import { cs2ReflectUniforms, disposeReflect } from './cs2-reflect';
+import type { Cs2ReflectUniforms } from './cs2-reflect';
 import { Cs2Post, cs2Exposure } from './cs2-post';
 import { blankTexture } from './map-shader';
 import type { MapUniforms } from './map-shader';
 import { REAL_MAP_FRAGMENT, REAL_MAP_VERTEX, SUN_DEPTH_FRAGMENT, SUN_DEPTH_VERTEX } from './real-map-shader';
 import { RealSky } from './real-sky';
-import { toTexture } from './scene-textures';
+import { toCubeArrayTexture, toTexture } from './scene-textures';
 
 /** The albedo of the shaded ground laid under the map. */
 const GROUND_ALBEDO = 0.3;
+
 
 /** Side of the sun's shadow map, in texels. */
 const SUN_DEPTH_SIZE = 4096;
@@ -94,6 +99,8 @@ export class RealMap {
   readonly #post: Cs2Post;
   readonly #fogLift = { value: 0 };
   readonly #fog: Cs2FogUniforms;
+  readonly #reflect: Cs2ReflectUniforms;
+  readonly #lights: Cs2LightsUniforms;
   readonly #sunScale = { value: SUN_SCALE };
 
   constructor(scene: MapScene, cut: MapUniforms, renderer: WebGLRenderer) {
@@ -106,6 +113,9 @@ export class RealMap {
     this.#post = new Cs2Post(scene.post);
     this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms, meter: this.#meter });
     this.#fog = cs2FogUniforms({ scene, sky: this.#sky?.fogSource ?? null });
+    const probes = scene.reflections === null ? undefined : scene.textures[scene.reflections.texture];
+    this.#reflect = cs2ReflectUniforms({ scene, array: probes === undefined ? null : toCubeArrayTexture(probes, renderer) });
+    this.#lights = cs2LightsUniforms(scene);
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
     const lightmap = scene.lightmap;
@@ -198,6 +208,8 @@ export class RealMap {
     this.#shared.sunDepth?.dispose();
     this.#post.dispose();
     this.#auto.dispose();
+    disposeReflect(this.#reflect);
+    disposeLights(this.#lights);
   }
 
   #applyLook(material: ShaderMaterial): void {
@@ -210,6 +222,8 @@ export class RealMap {
     const color = material.color < 0 ? null : (this.#textures[material.color] ?? null);
     const color2 = material.color2 < 0 ? null : (this.#textures[material.color2] ?? null);
     const blendMod = material.blend < 0 ? null : (this.#textures[material.blend] ?? null);
+    const normalMap = material.normal < 0 ? null : (this.#textures[material.normal] ?? null);
+    const normalMap2 = material.normal2 < 0 ? null : (this.#textures[material.normal2] ?? null);
     const layered = color2 !== null && chunk.blend !== null;
     const lightmapped = chunk.uv2 !== null && this.#shared.irradiance !== null;
     const blended = material.translucent || material.overlay;
@@ -224,6 +238,8 @@ export class RealMap {
     if (layered && blendMod !== null && material.blendMode > 0) defines.USE_BLEND_MOD = '';
     if (tinted) defines.USE_TINT = '';
     if (lightmapped) defines.USE_LIGHTMAP = '';
+    if (normalMap !== null) defines.USE_NORMAL_MAP = '';
+    if (normalMap !== null && layered && normalMap2 !== null) defines.USE_NORMAL_MAP2 = '';
     if (material.alphaTest && color !== null) defines.ALPHA_TEST = '';
     if (material.unlit) defines.UNLIT = '';
     const sun = this.#scene.sun;
@@ -238,6 +254,9 @@ export class RealMap {
         uColor: { value: color ?? blankTexture() },
         uColor2: { value: color2 ?? blankTexture() },
         uBlendMod: { value: blendMod ?? blankTexture() },
+        uNormalMap: { value: normalMap ?? blankTexture() },
+        uNormalMap2: { value: normalMap2 ?? blankTexture() },
+        uMetalness: { value: material.metalness },
         uIrradiance: { value: this.#shared.irradiance ?? blankTexture() },
         uShadows: { value: this.#shared.shadows ?? blankTexture() },
         uShadowMask: { value: this.#shared.shadowMask },
@@ -262,6 +281,8 @@ export class RealMap {
         uExposure: { value: 1 },
         uIrradianceScale: { value: 1 },
         ...this.#fog,
+        ...this.#reflect,
+        ...this.#lights,
         uOpacity: { value: 1 },
         uMeter: this.#meter,
         uUseAlpha: { value: blended ? 1 : 0 },

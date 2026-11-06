@@ -1,14 +1,19 @@
 import { CS2_FOG } from './cs2-fog';
+import { CS2_LIGHTS } from './cs2-lights';
 import { CS2_POST } from './cs2-post';
+import { CS2_REFLECT } from './cs2-reflect';
 import { MAP_DECLARE } from './map-shader';
 
 /**
  * The shading of the map's real surfaces, after CS2's own: albedo times the
  * baked irradiance plus the sun through its baked shadow channel. Props carry
  * no lightmap, so they take the sky's ambient and the sun through a shadow
- * map rendered once from the sun. Then the map's fog, exposure and a filmic
- * curve. Defines: USE_COLOR_MAP, USE_LAYER2, USE_BLEND_MOD, USE_TINT,
- * USE_LIGHTMAP, ALPHA_TEST, UNLIT.
+ * map rendered once from the sun. The normal and roughness texture shapes the
+ * sun's highlight, the reflections (cs2-reflect.ts) and the stationary lights
+ * (cs2-lights.ts). Then the map's fog,
+ * exposure and a filmic curve. Defines: USE_COLOR_MAP, USE_LAYER2,
+ * USE_BLEND_MOD, USE_TINT, USE_LIGHTMAP, USE_NORMAL_MAP, USE_NORMAL_MAP2,
+ * ALPHA_TEST, UNLIT.
  */
 
 /** The plain map's cutaway without its void: the real map keeps the scenery round the playable area. */
@@ -72,6 +77,9 @@ ${MAP_DECLARE}
 uniform sampler2D uColor;
 uniform sampler2D uColor2;
 uniform sampler2D uBlendMod;
+uniform sampler2D uNormalMap;
+uniform sampler2D uNormalMap2;
+uniform float uMetalness;
 uniform sampler2D uIrradiance;
 uniform sampler2D uShadows;
 uniform vec4 uShadowMask;
@@ -109,6 +117,25 @@ vec3 srgbToLinear(vec3 c) {
 
 ${CS2_POST}
 ${CS2_FOG}
+${CS2_REFLECT}
+${CS2_LIGHTS}
+
+// A hemi-octahedral tangent normal (DirectX green) turned into world space along the uv's own axes.
+vec3 cs2NormalMap(vec2 rg, vec3 N, vec2 uv) {
+  vec2 e = vec2(rg.x + rg.y - 1.003922, rg.x - rg.y);
+  vec3 t = normalize(vec3(e, 1.0 - abs(e.x) - abs(e.y)));
+  t.y = -t.y;
+  vec3 dp1 = dFdx(vMapPos);
+  vec3 dp2 = dFdy(vMapPos);
+  vec2 duv1 = dFdx(uv);
+  vec2 duv2 = dFdy(uv);
+  vec3 dp2perp = cross(dp2, N);
+  vec3 dp1perp = cross(N, dp1);
+  vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+  vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+  float scale = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-20));
+  return normalize(mat3(T * scale, B * scale, N) * t);
+}
 
 float sunShadowMap(vec3 normal) {
   if (uUseSunDepth < 0.5) return 1.0;
@@ -137,6 +164,7 @@ ${REAL_SURFACE_CUT}
   if (albedo.a < uAlphaRef) discard;
 #endif
   albedo.rgb = srgbToLinear(albedo.rgb) * srgbToLinear(uTint);
+  float layerMix = 0.0;
 #ifdef USE_LAYER2
   vec4 layer2 = texture2D(uColor2, vUv2);
   float factor = vBlend;
@@ -147,11 +175,24 @@ ${REAL_SURFACE_CUT}
   factor = smoothstep(max(0.0, mask - softness), min(1.0, mask + softness), vBlend);
 #endif
   albedo.rgb = mix(albedo.rgb, srgbToLinear(layer2.rgb) * srgbToLinear(uTint2), factor);
+  layerMix = factor;
 #endif
   albedo.rgb *= srgbToLinear(vTint.rgb);
 
-  vec3 normal = normalize(vWorldNormal);
-  if (!gl_FrontFacing) normal = -normal;
+  vec3 geometric = normalize(vWorldNormal);
+  if (!gl_FrontFacing) geometric = -geometric;
+  vec3 normal = geometric;
+  float roughness = 1.0;
+#ifdef USE_NORMAL_MAP
+  vec4 normalRoughness = texture2D(uNormalMap, vUv);
+#ifdef USE_NORMAL_MAP2
+  normalRoughness = mix(normalRoughness, texture2D(uNormalMap2, vUv2), layerMix);
+#endif
+  normal = cs2NormalMap(normalRoughness.rg, geometric, vUv);
+  roughness = normalRoughness.b;
+#endif
+  // CS2 lights opaque surfaces no smoother than this.
+  roughness = max(roughness, 0.05);
   vec3 color;
 #ifdef UNLIT
   color = albedo.rgb;
@@ -159,13 +200,25 @@ ${REAL_SURFACE_CUT}
   float sunAngle = max(dot(normal, uSunDirection), 0.0);
 #ifdef USE_LIGHTMAP
   vec3 irradiance = texture2D(uIrradiance, vLightmapUv).rgb * uIrradianceScale;
-  float visibility = 1.0 - clamp(dot(texture2D(uShadows, vLightmapUv), uShadowMask), 0.0, 1.0);
+  vec4 baked = texture2D(uShadows, vLightmapUv);
+  float visibility = 1.0 - clamp(dot(baked, uShadowMask), 0.0, 1.0);
+  float lightmapped = 1.0;
 #else
   // The map's average baked light stands in for the light probes CS2 lights props with.
   vec3 irradiance = uAmbient * uIrradianceScale * (0.7 + 0.3 * normal.z);
-  float visibility = sunShadowMap(normal);
+  float visibility = sunShadowMap(geometric);
+  vec4 baked = vec4(0.0);
+  float lightmapped = 0.0;
 #endif
-  color = albedo.rgb * (irradiance + uSunColor * uSunScale * sunAngle * visibility);
+  vec3 sun = uSunColor * uSunScale * visibility;
+  vec3 view = normalize(cameraPosition - vMapPos);
+  vec3 f0 = mix(vec3(0.04), albedo.rgb, uMetalness);
+  vec3 specular;
+  cs2Indirect(irradiance, specular, vMapPos, normal, view, roughness, uMetalness, f0, lightmapped);
+  vec3 lightDiffuse = vec3(0.0);
+  vec3 lightSpecular = vec3(0.0);
+  cs2Lights(lightDiffuse, lightSpecular, vMapPos, normal, view, roughness, f0, baked);
+  color = albedo.rgb * (1.0 - uMetalness) * (irradiance + sun * sunAngle + lightDiffuse) + specular + lightSpecular + sun * cs2SunSpecular(normal, view, uSunDirection, roughness, f0);
 #endif
   color = cs2Fog(color, vMapPos, uFogLift);
   if (uMeter > 0.5) {

@@ -124,6 +124,8 @@ type entityLump struct {
 	fog    Fog
 	sky    *skyEntity
 	post   *postEntity
+	probes []probeEntity
+	lights []Light
 	// skyDisabled marks a sky that starts off.
 	skyDisabled bool
 }
@@ -220,6 +222,14 @@ func parseEntityLump(file []byte) (entityLump, error) {
 			// The master volume is the one the whole map uses.
 			if lump.post == nil || !lump.post.master && truthy(vals["master"]) {
 				lump.post = postFromEntity(vals)
+			}
+		case class == "env_combined_light_probe_volume" || class == "env_cubemap_box" || class == "env_cubemap":
+			if p, ok := probeFromEntity(class, vals); ok {
+				lump.probes = append(lump.probes, p)
+			}
+		case lightEntityClasses[class]:
+			if l, ok := lightFromEntity(class, vals); ok {
+				lump.lights = append(lump.lights, l)
 			}
 		case class == "env_sky":
 			// Some maps only ship skies a script turns on; one of those stands in for an enabled one.

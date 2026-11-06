@@ -56,7 +56,7 @@ Fix the library's teams: update_team renames or replaces the aliases (start from
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
-map_3d_status checks that the tactical replay can draw a map as CS2 does, in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
+map_3d_status checks that the tactical replay can draw a map as CS2 does (baked light, live lamps, reflections), in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a
