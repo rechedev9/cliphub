@@ -27,6 +27,7 @@ import { loadNavRadar, loadRadarImage } from './radar/map-art';
 import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
 import type { MapArt } from './radar/radar-bake';
+import { RealPlate } from './radar/real-plate';
 import type { FrameAnalysis } from './radar/radar-analysis';
 import { discRadius, drawRoundFrame, preloadGrenadeIcons } from './radar/radar-round';
 import type { DrawnPlayer } from './radar/radar-round';
@@ -50,7 +51,10 @@ type Readers = {
   trails: (cursor: FrameCursor) => ReadonlyMap<number, readonly TrailPoint[]>;
 };
 
-type ArtSource = 'scheme' | 'official';
+type ArtSource = 'scheme' | 'official' | 'real';
+
+/** The real map's plate for one map; `plate` is null while it loads or when it failed. */
+type RealArt = { map: string; plate: RealPlate | null; failed: boolean };
 
 /**
  * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
@@ -73,6 +77,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const [navReady, setNavReady] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [official, setOfficial] = useState<{ upper: HTMLImageElement; lower: HTMLImageElement | null } | null>(null);
   const [source, setSource] = useState<ArtSource>('official');
+  const [real, setReal] = useState<RealArt | null>(null);
   const [zoomed, setZoomed] = useState<RadarRect | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [grabbing, setGrabbing] = useState(false);
@@ -105,6 +110,32 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   }, [map, split]);
 
   useEffect(() => {
+    if (source !== 'real' || map === '') return;
+    let active = true;
+    let loaded: RealPlate | null = null;
+    setReal({ map, plate: null, failed: false });
+    RealPlate.load(map).then(
+      (plate) => {
+        if (!active) return plate.dispose();
+        loaded = plate;
+        plateRef.current = null;
+        setReal({ map, plate, failed: false });
+      },
+      (error: unknown) => {
+        console.error('2D: the real map could not be loaded', error);
+        if (active) setReal({ map, plate: null, failed: true });
+      },
+    );
+    return () => {
+      active = false;
+      loaded?.dispose();
+    };
+  }, [map, source]);
+  const realPlate = source === 'real' && real?.map === map ? real.plate : null;
+  const realLoading = source === 'real' && (real?.map !== map || (real.plate === null && !real.failed));
+  const realFailed = source === 'real' && real?.map === map && real.failed;
+
+  useEffect(() => {
     if (!layers.sight || map === '') return;
     let active = true;
     void loadSightGeometry(map).then((result) => {
@@ -116,7 +147,11 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   }, [layers.sight, map]);
   const sightBvh = layers.sight && sightGeometry?.map === map && sightGeometry.result.kind === 'ready' ? sightGeometry.result.bvh : null;
 
-  const shownArt = useMemo<MapArt>(() => (source === 'official' && official !== null ? { kind: 'image', upper: official.upper, lower: official.lower } : art), [art, official, source]);
+  const shownArt = useMemo<MapArt>(() => {
+    if (realPlate !== null) return { kind: 'real', plate: realPlate };
+    // While the real map loads, or when it failed, the official radar stands in for it.
+    return source !== 'scheme' && official !== null ? { kind: 'image', upper: official.upper, lower: official.lower } : art;
+  }, [art, official, realPlate, source]);
 
   const base = useMemo<RadarRect>(() => {
     if (geometry === undefined || !drawable) return { x: 0, y: 0, width: 1, height: 1 };
@@ -431,6 +466,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
               options={[
                 { value: 'scheme', label: 'Esquema' },
                 { value: 'official', label: 'Radar oficial' },
+                { value: 'real', label: 'Mapa real' },
               ]}
               onChange={setSource}
             />
@@ -446,6 +482,16 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
             <X className="size-3.5 text-fg-3" aria-label="Dejar de seguir" />
           </button>
         )}
+        {realLoading ? (
+          <p role="status" className="pointer-events-auto rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
+            Cargando el mapa real de CS2…
+          </p>
+        ) : null}
+        {realFailed ? (
+          <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
+            No se pudo cargar el mapa real de tu instalación de CS2: se muestra el radar oficial.
+          </p>
+        ) : null}
         {layers.sight && sightGeometry?.map === map && sightGeometry.result.kind === 'failed' ? (
           <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">{sightGeometry.result.message}</p>
         ) : null}
