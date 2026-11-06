@@ -1,5 +1,5 @@
 // Package sharepkg reads and writes a .cliphub share package: a zip with a
-// collection or a scouting report plus, for every match it names, the match
+// scouting report plus, for every match it names, the match
 // record, the tactical document and the position blob, so another Studio can
 // replay those rounds without the .dem file.
 //
