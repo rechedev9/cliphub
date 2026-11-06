@@ -140,10 +140,10 @@ func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, summary)
 }
 
-// chosenPlays keeps the scan's plays named in ids, in source order; no ids
-// means every play. Unknown ids are ignored.
+// chosenPlays keeps the scan's plays named in ids, in source order. A nil list
+// (no play_ids sent) means every play; an empty one chooses none.
 func chosenPlays(plays []vodplays.Play, ids []string) []vodplays.Play {
-	if len(ids) == 0 {
+	if ids == nil {
 		return plays
 	}
 	wanted := make(map[string]bool, len(ids))
