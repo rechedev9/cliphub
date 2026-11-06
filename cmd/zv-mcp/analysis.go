@@ -19,6 +19,10 @@ const (
 	maxScoutPlayers = 10
 	// maxPlayerMetricsMatches is the server's cap (library.MaxReportMatches).
 	maxPlayerMetricsMatches = 50
+	// maxScopeOpponents is the server's cap on opponent_id (library.MaxListLimit).
+	maxScopeOpponents = 200
+	// maxBaselineMinRounds is the server's cap on min_rounds.
+	maxBaselineMinRounds = 10000
 )
 
 // analysisFilterIn is the map, side and date filter the analysis tools share.
@@ -49,6 +53,38 @@ func (in analysisFilterIn) query() (tuiclient.AnalysisQuery, error) {
 	return tuiclient.AnalysisQuery{Map: strings.ToLower(in.Map), Side: side, From: from, To: to}, nil
 }
 
+// teamScopeIn narrows a team report to some rivals or to chosen matches.
+type teamScopeIn struct {
+	OpponentID []string `json:"opponent_id,omitempty" jsonschema:"only matches against these teams, ids from list_teams"`
+	MatchID    []string `json:"match_id,omitempty" jsonschema:"only these matches, ids from list_matches; at most 50"`
+}
+
+// teamQuery validates the filter and the scope of a team report.
+func teamQuery(filter analysisFilterIn, scope teamScopeIn) (tuiclient.AnalysisQuery, error) {
+	q, err := filter.query()
+	if err != nil {
+		return q, err
+	}
+	if len(scope.OpponentID) > maxScopeOpponents {
+		return q, fmt.Errorf("at most %d opponent_id values", maxScopeOpponents)
+	}
+	if len(scope.MatchID) > maxPlayerMetricsMatches {
+		return q, fmt.Errorf("at most %d match_id values", maxPlayerMetricsMatches)
+	}
+	for _, id := range scope.OpponentID {
+		if err := checkUUID("opponent_id", id); err != nil {
+			return q, err
+		}
+	}
+	for _, id := range scope.MatchID {
+		if err := checkUUID("match_id", id); err != nil {
+			return q, err
+		}
+	}
+	q.Opponents, q.Matches = scope.OpponentID, scope.MatchID
+	return q, nil
+}
+
 func parseSide(raw string) (string, error) {
 	switch side := strings.ToUpper(strings.TrimSpace(raw)); side {
 	case "", "CT", "T":
@@ -76,6 +112,7 @@ type listTeamsOut struct {
 type scoutTeamIn struct {
 	TeamID string `json:"team_id" jsonschema:"team id from list_teams"`
 	analysisFilterIn
+	teamScopeIn
 }
 
 // shareOut is one buy, site or round pattern: how often and how often won.
@@ -193,6 +230,8 @@ type playerMetricsOut struct {
 type baselineIn struct {
 	Scope string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the library's HLTV demos, or the pro reference Studio ships when they hold under 10 players"`
 	Map   string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
+	// MinRounds 0 keeps the server default.
+	MinRounds int `json:"min_rounds,omitempty" jsonschema:"only players with at least this many rounds; default 50, at most 10000"`
 }
 
 type baselineOut struct {
@@ -231,12 +270,12 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "scout_team", Annotations: readOnly,
 		Description: "Summarize a team's scouting report from its library matches: record per map, buys, bombsites, " +
-			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side and dates."},
+			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side, dates, rivals (opponent_id) and matches (match_id)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in scoutTeamIn) (*mcp.CallToolResult, scoutTeamOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, scoutTeamOut{}, err
 			}
-			q, err := in.query()
+			q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
 			if err != nil {
 				return nil, scoutTeamOut{}, err
 			}
@@ -289,11 +328,14 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 			if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
 				return nil, baselineOut{}, err
 			}
+			if in.MinRounds < 0 || in.MinRounds > maxBaselineMinRounds {
+				return nil, baselineOut{}, fmt.Errorf("min_rounds must be from 1 to %d", maxBaselineMinRounds)
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, baselineOut{}, toolError(err)
 			}
-			b, err := c.LibraryBaseline(ctx, scope, strings.ToLower(in.Map))
+			b, err := c.LibraryBaseline(ctx, tuiclient.BaselineQuery{Scope: scope, Map: strings.ToLower(in.Map), MinRounds: in.MinRounds})
 			if err != nil {
 				return nil, baselineOut{}, toolError(err)
 			}

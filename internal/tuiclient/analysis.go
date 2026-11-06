@@ -26,27 +26,54 @@ func (c *Client) ListLibraryTeams(ctx context.Context, search string) ([]Library
 }
 
 // AnalysisQuery filters a scouting report or a player's metrics; zero fields
-// are unset. Limit only applies to player metrics.
+// are unset. Limit only applies to player metrics; Opponents and Matches
+// (team ids and match ids) only to team reports.
 type AnalysisQuery struct {
-	Map   string
-	Side  string
-	From  time.Time
-	To    time.Time
-	Limit int
+	Map       string
+	Side      string
+	From      time.Time
+	To        time.Time
+	Limit     int
+	Opponents []string
+	Matches   []string
 }
 
-func (q AnalysisQuery) params() map[string]string {
-	params := map[string]string{"map": q.Map, "side": q.Side}
+// encode builds the "?k=v" suffix of the query.
+func (q AnalysisQuery) encode() string { return encodeValues(q.values()) }
+
+// values holds the set fields, with opponent_id and match_id repeated.
+func (q AnalysisQuery) values() url.Values {
+	values := url.Values{}
+	set := func(k, v string) {
+		if v != "" {
+			values.Set(k, v)
+		}
+	}
+	set("map", q.Map)
+	set("side", q.Side)
 	if !q.From.IsZero() {
-		params["from"] = q.From.UTC().Format(time.RFC3339)
+		set("from", q.From.UTC().Format(time.RFC3339))
 	}
 	if !q.To.IsZero() {
-		params["to"] = q.To.UTC().Format(time.RFC3339)
+		set("to", q.To.UTC().Format(time.RFC3339))
 	}
 	if q.Limit > 0 {
-		params["limit"] = strconv.Itoa(q.Limit)
+		set("limit", strconv.Itoa(q.Limit))
 	}
-	return params
+	for _, id := range q.Opponents {
+		values.Add("opponent_id", id)
+	}
+	for _, id := range q.Matches {
+		values.Add("match_id", id)
+	}
+	return values
+}
+
+func encodeValues(values url.Values) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return "?" + values.Encode()
 }
 
 // Rate is a count over a total, with its percentage.
@@ -138,7 +165,7 @@ type ScoutBucket struct {
 func (c *Client) TeamScout(ctx context.Context, teamID string, q AnalysisQuery) (ScoutReport, error) {
 	q.Limit = 0
 	var out ScoutReport
-	err := c.getJSON(ctx, "/api/library/teams/"+url.PathEscape(teamID)+"/scout"+query(q.params()), &out)
+	err := c.getJSON(ctx, "/api/library/teams/"+url.PathEscape(teamID)+"/scout"+q.encode(), &out)
 	return out, err
 }
 
@@ -204,7 +231,7 @@ type PlayerMetricsReport struct {
 // PlayerMetrics returns a player's advanced metrics over their recent matches.
 func (c *Client) PlayerMetrics(ctx context.Context, steamID string, q AnalysisQuery) (PlayerMetricsReport, error) {
 	var out PlayerMetricsReport
-	err := c.getJSON(ctx, "/api/library/players/"+url.PathEscape(steamID)+"/metrics"+query(q.params()), &out)
+	err := c.getJSON(ctx, "/api/library/players/"+url.PathEscape(steamID)+"/metrics"+q.encode(), &out)
 	return out, err
 }
 
@@ -269,9 +296,20 @@ type Baseline struct {
 	Metrics     map[string]BaselineValue `json:"metrics"`
 }
 
+// BaselineQuery selects the players a baseline averages; zero fields are unset.
+type BaselineQuery struct {
+	Scope     string
+	Map       string
+	MinRounds int
+}
+
 // LibraryBaseline returns the per-player averages of the reference metrics.
-func (c *Client) LibraryBaseline(ctx context.Context, scope, mapName string) (Baseline, error) {
+func (c *Client) LibraryBaseline(ctx context.Context, q BaselineQuery) (Baseline, error) {
+	params := map[string]string{"scope": q.Scope, "map": q.Map}
+	if q.MinRounds > 0 {
+		params["min_rounds"] = strconv.Itoa(q.MinRounds)
+	}
 	var out Baseline
-	err := c.getJSON(ctx, "/api/library/baseline"+query(map[string]string{"scope": scope, "map": mapName}), &out)
+	err := c.getJSON(ctx, "/api/library/baseline"+query(params), &out)
 	return out, err
 }
