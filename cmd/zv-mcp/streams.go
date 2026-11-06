@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -72,8 +74,17 @@ type streamVideoOut struct {
 	URL             string  `json:"url,omitempty"`
 }
 
+type streamFileOut struct {
+	Variant string `json:"variant"`
+	Name    string `json:"name" jsonschema:"file name, such as cover.jpg or metadata.txt"`
+	Kind    string `json:"kind" jsonschema:"cover, metadata, plan or manifest"`
+	Stale   bool   `json:"stale,omitempty" jsonschema:"the moments changed after this render"`
+	URL     string `json:"url,omitempty"`
+}
+
 type streamVideosOut struct {
 	Videos []streamVideoOut `json:"videos"`
+	Files  []streamFileOut  `json:"files,omitempty" jsonschema:"the extra files of each layout's render (Archivos adicionales in Studio): cover, YouTube metadata, plan and manifest"`
 	Note   string           `json:"note,omitempty"`
 }
 
@@ -176,7 +187,8 @@ func registerStreamTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_stream_videos", Annotations: readOnly,
-		Description: "List the finished videos of a stream: each rendered moment per layout and the 16:9 summary of every play, with a URL that plays each MP4. " +
+		Description: "List the finished videos of a stream: each rendered moment per layout and the 16:9 summary, with a URL that plays each MP4, " +
+			"plus the extra files of each layout's render (cover, YouTube metadata, plan and manifest). " +
 			"The URL is served by the Studio UI, so it only works while ClipHub Studio is open on this PC."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in idIn) (*mcp.CallToolResult, streamVideosOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
@@ -194,8 +206,18 @@ func registerStreamTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, streamVideosOut{}, toolError(err)
 			}
+			renders := map[string]tuiclient.StreamRenderState{}
+			for _, o := range j.RenderedOutputs {
+				if _, done := renders[o.Variant]; done || !artifactNamePattern.MatchString(o.Variant) {
+					continue
+				}
+				if renders[o.Variant], err = c.GetStreamRender(ctx, in.ID, o.Variant); err != nil {
+					return nil, streamVideosOut{}, toolError(err)
+				}
+			}
 			origin, originErr := s.webOrigin()
 			out := streamVideos(j, summary, origin, originErr == nil)
+			out.Files = streamFiles(j, renders, origin, originErr == nil)
 			if originErr != nil {
 				out.Note = "No playable URL: " + originErr.Error()
 			} else if len(out.Videos) == 0 {
@@ -205,6 +227,7 @@ func registerStreamTools(server *mcp.Server, s *studio) {
 		})
 
 	registerStreamRenderTools(server, s)
+	registerStreamPlanTools(server, s)
 }
 
 // checkStreamImport takes exactly one source. The link is checked against the
@@ -272,6 +295,29 @@ func streamVideos(j tuiclient.StreamJob, summary tuiclient.StreamSummary, origin
 			}
 		}
 		out.Videos = append(out.Videos, v)
+	}
+	return out
+}
+
+// streamFiles lists the delivery pack of each published render; the MP4s are already videos.
+func streamFiles(j tuiclient.StreamJob, renders map[string]tuiclient.StreamRenderState, origin string, withURLs bool) []streamFileOut {
+	stale := map[string]bool{}
+	for _, o := range j.RenderedOutputs {
+		stale[o.Variant] = stale[o.Variant] || o.Stale
+	}
+	variants := slices.Sorted(maps.Keys(renders))
+	var out []streamFileOut
+	for _, variant := range variants {
+		for _, d := range renders[variant].Delivery {
+			if strings.HasSuffix(d.Name, ".mp4") || d.Name != cleanName(d.Name) || strings.ContainsAny(d.Name, `/\`) || d.Name == ".." {
+				continue
+			}
+			f := streamFileOut{Variant: variant, Name: d.Name, Kind: cleanName(d.Kind), Stale: stale[variant]}
+			if withURLs {
+				f.URL = strings.TrimRight(origin, "/") + "/api/streams/" + url.PathEscape(j.ID) + "/renders/" + variant + "/delivery/" + url.PathEscape(d.Name)
+			}
+			out = append(out, f)
+		}
 	}
 	return out
 }

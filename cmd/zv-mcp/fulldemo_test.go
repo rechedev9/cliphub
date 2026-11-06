@@ -59,6 +59,16 @@ func TestApplyFullDemoChoicesDefaultsStay(t *testing.T) {
 	}
 }
 
+func TestApplyFullDemoChoicesLeavesDefaultsAlone(t *testing.T) {
+	defaults := recapplan.DefaultOptions()
+	if _, err := applyFullDemoChoices(defaults, planFullDemoIn{BetweenRoundEffects: ptrTo(false)}); err != nil {
+		t.Fatal(err)
+	}
+	if defaults.Transitions == nil || !defaults.Transitions.Enabled {
+		t.Errorf("the defaults were changed: %+v", defaults.Transitions)
+	}
+}
+
 func TestApplyFullDemoChoicesRejects(t *testing.T) {
 	cases := map[string]planFullDemoIn{
 		"unknown hud":     {HUD: "neon"},

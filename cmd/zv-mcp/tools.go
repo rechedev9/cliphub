@@ -85,19 +85,8 @@ type playerOut struct {
 
 type matchOut struct {
 	matchSummary
+	Sides   []sideOut   `json:"sides" jsonschema:"each side's key, clan name and library team; assign_match_team corrects one"`
 	Players []playerOut `json:"players"`
-}
-
-type importIn struct {
-	Path string `json:"path" jsonschema:"absolute path of a local .dem or .dem.zst file"`
-}
-
-type demoOut struct {
-	DemoID    string `json:"demo_id"`
-	State     string `json:"state" jsonschema:"queued, parsing, ready or failed"`
-	MatchID   string `json:"match_id,omitempty"`
-	Duplicate bool   `json:"duplicate,omitempty"`
-	Error     string `json:"error,omitempty"`
 }
 
 type waitIn struct {
@@ -190,12 +179,16 @@ type generateOut struct {
 func registerTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	registerFullDemoTools(server, s)
+	registerProSettingsTool(server)
 	registerVideoTools(server, s)
+	registerVideoLibraryTools(server, s)
 	registerApps(server, s)
 	registerShortOptions(server, s)
 	registerSeriesTools(server, s)
 	registerFindMomentsTool(server, s)
 	registerAnalysisTools(server, s)
+	registerTeamTools(server, s)
+	registerPlayerTools(server, s)
 	registerRoundTools(server, s)
 	registerTeamReportTools(server, s)
 	registerTeamGrenadesTool(server, s)
@@ -203,6 +196,9 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerStreamTools(server, s)
 	registerIntegrityTools(server, s)
 	registerDeleteTools(server, s)
+	registerLibraryDemoTools(server, s)
+	registerStorageTools(server, s)
+	registerSteamTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE). Also returns the Studio version, support code and studio.log path a bug report needs."},
@@ -266,58 +262,12 @@ func registerTools(server *mcp.Server, s *studio) {
 			for _, t := range m.Teams {
 				teams[t.Key] = cleanName(teamName(t))
 			}
-			out := matchOut{matchSummary: summarizeMatch(m), Players: make([]playerOut, 0, len(m.Players))}
+			out := matchOut{matchSummary: summarizeMatch(m), Sides: sidesOf(m), Players: make([]playerOut, 0, len(m.Players))}
 			for _, p := range m.Players {
 				out.Players = append(out.Players, playerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: teams[p.TeamKey],
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists, Damage: p.Damage})
 			}
 			return nil, out, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "import_demo",
-		Description: "Import a local CS2 demo into the Studio library. Analysis starts on its own; follow with wait_for_demo."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, demoOut, error) {
-			if err := checkDemoPath(in.Path); err != nil {
-				return nil, demoOut{}, err
-			}
-			c, err := s.uploadClient(ctx)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			res, err := c.ImportLibraryDemo(ctx, in.Path)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			if res.Demo == nil {
-				return nil, demoOut{}, fmt.Errorf("Studio rejected the demo (%s): %s", cleanName(res.ErrorCode), cleanText(res.Error, maxErrorRunes))
-			}
-			out := describeDemo(*res.Demo)
-			out.Duplicate = res.Status == "duplicate"
-			return nil, out, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly,
-		Description: "Wait until an imported demo is analysed (state ready or failed). Returns its match_id when ready."},
-		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, demoOut, error) {
-			if err := checkUUID("id", in.ID); err != nil {
-				return nil, demoOut{}, err
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, demoOut{}, toolError(err)
-			}
-			var out demoOut
-			err = poll(ctx, in.WaitSeconds, func() (bool, error) {
-				d, err := c.GetLibraryDemo(ctx, in.ID)
-				if err != nil {
-					return false, err
-				}
-				out = describeDemo(d)
-				done := d.State == "ready" || d.State == "failed"
-				notify(ctx, req, donePercent(done, 0), "analysing demo: "+d.State)
-				return done, nil
-			})
-			return nil, out, toolError(err)
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "create_job",
@@ -476,6 +426,10 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
+			music, err := resolveMusic(in.shortChoices)
+			if err != nil {
+				return nil, generateOut{}, err
+			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, generateOut{}, toolError(err)
@@ -510,7 +464,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: in.Music, Edit: edit}
+			body := tuiclient.GenerateRequest{Preset: preset, SegmentIDs: in.SegmentIDs, Music: music, Edit: edit}
 			summary := fmt.Sprintf("Grabar un Short con %s y el preset %s: %s. Opciones: %s. CS2 se abrirá a pantalla completa y grabará durante varios minutos.",
 				what, preset, plays, describeShortRequest(body))
 			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "generate_short", JobID: in.JobID, Request: body, Summary: summary, Given: in.Approve})
@@ -738,14 +692,6 @@ func jobMessage(j jobOut) string {
 	return j.Status
 }
 
-func describeDemo(d tuiclient.LibraryDemo) demoOut {
-	out := demoOut{DemoID: d.ID, State: cleanName(d.State), Error: cleanText(d.Error, maxErrorRunes)}
-	if d.MatchID != nil {
-		out.MatchID = *d.MatchID
-	}
-	return out
-}
-
 func summarizeMatch(m tuiclient.LibraryMatch) matchSummary {
 	teams := make([]string, 0, len(m.Teams))
 	for _, t := range m.Teams {
@@ -832,6 +778,21 @@ func cleanName(s string) string {
 		n++
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// quotedName puts an untrusted name in «» for approval text, without the quote
+// characters that could close the quote early; empty falls back.
+func quotedName(raw, fallback string) string {
+	name := strings.Map(func(r rune) rune {
+		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
+			return -1
+		}
+		return r
+	}, raw)
+	if name = cleanName(name); name != "" {
+		return "«" + name + "»"
+	}
+	return fallback
 }
 
 func cleanNames(names []string) []string {

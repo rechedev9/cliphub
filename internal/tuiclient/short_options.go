@@ -35,15 +35,32 @@ type ShortEdit struct {
 	DeathReel     bool   `json:"death_reel,omitempty"`
 	// CenteredKillfeed is omitted when off, like the server's own field.
 	CenteredKillfeed bool `json:"centered_killfeed,omitempty"`
+	// IntroText and OutroText replace the generated card text; empty keeps it.
+	IntroText string `json:"intro_text,omitempty"`
+	OutroText string `json:"outro_text,omitempty"`
+	// The affiliate banner (renderplan.EditRequest keydrop_*); an empty style means no banner.
+	KeyDropFamily       string   `json:"keydrop_family,omitempty"`
+	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
+	KeyDropCode         string   `json:"keydrop_code,omitempty"`
+	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+}
+
+// ShortMusic is the "music" object of a Short: a track id from ListSongs and its mix.
+// Volume is in (0,1], 0 keeps full volume; a nil GameVolume keeps the 0.70 game mix.
+type ShortMusic struct {
+	Key        string   `json:"key"`
+	Volume     float64  `json:"volume,omitempty"`
+	GameVolume *float64 `json:"game_volume,omitempty"`
 }
 
 // GenerateRequest is the body of POST /api/jobs/{id}/generate for a Short.
-// Music is a track id from ListSongs; empty renders without music.
+// A nil Music renders without music.
 type GenerateRequest struct {
-	Preset     string    `json:"preset"`
-	SegmentIDs []string  `json:"segment_ids"`
-	Music      string    `json:"music,omitempty"`
-	Edit       ShortEdit `json:"edit"`
+	Preset     string      `json:"preset"`
+	SegmentIDs []string    `json:"segment_ids"`
+	Music      *ShortMusic `json:"music,omitempty"`
+	Edit       ShortEdit   `json:"edit"`
 }
 
 // ErrAudioTooLarge is returned by SongAudio when a track exceeds the cap.
