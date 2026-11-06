@@ -171,3 +171,35 @@ func TestOpenSQLitePragmasSurviveConnectionReplacement(t *testing.T) {
 		t.Fatalf("after connection replacement foreign_keys=%d busy_timeout=%d, want 1 and 5000", foreignKeys, busyTimeout)
 	}
 }
+
+// A database that ran step 1 before 5.8.0 added source_kind to it opened with
+// "no such column: source_kind" and Studio could not start.
+func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	legacy, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`CREATE TABLE stream_jobs (id TEXT PRIMARY KEY, status TEXT NOT NULL, failure_reason TEXT, failure_code TEXT,
+			source_path TEXT NOT NULL, source_sha256 TEXT NOT NULL, source_url TEXT, public_source_url TEXT, title TEXT,
+			probe TEXT NOT NULL, edit_plan TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`PRAGMA user_version = 9`,
+	} {
+		if _, err := legacy.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := openSQLite(path)
+	if err != nil {
+		t.Fatalf("openSQLite: %v", err)
+	}
+	defer db.Close()
+	found, err := columnExists(db, "stream_jobs", "source_kind")
+	if err != nil || !found {
+		t.Fatalf("source_kind after migrate: found=%v err=%v", found, err)
+	}
+}
