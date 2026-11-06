@@ -1,14 +1,17 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
@@ -71,6 +74,34 @@ var toggleOptions = []shortToggle{
 	{ID: "cover", Label: "Portada", Description: "Genera candidatos de portada desde el gameplay", Default: true},
 }
 
+// bannerFamilies mirror AFFILIATE_FAMILY_CATALOG of the Studio UI (web/lib/api/types.ts).
+var bannerFamilies = []bannerFamily{
+	{ID: keydropbanner.FamilyKeyDrop, Label: "KeyDrop", Styles: []shortOption{
+		{ID: "operator", Label: "Operator", Description: "KeyDrop táctico"},
+		{ID: "classic", Label: "Classic", Description: "Promo con regalo"},
+		{ID: "tigerr", Label: "Tigerr", Description: "Tiger Tooth naranja"},
+		{ID: "jcorko", Label: "Jcorko", Description: "Cebra azul"},
+	}},
+	{ID: keydropbanner.FamilyCSGOSkins, Label: "CSGOSkins", Styles: []shortOption{
+		{ID: "classic", Label: "Classic", Description: "CSGOSkins promo"},
+		{ID: "operator", Label: "Operator", Description: "CSGOSkins táctico"},
+	}},
+}
+
+// Defaults of the Short editor: the banner shows from 0 to 4 s.
+const (
+	bannerStartDefault  = 0.0
+	bannerEndDefault    = 4.0
+	minMusicVolume      = 5
+	maxBookendTextBytes = 80
+)
+
+type bannerFamily struct {
+	ID     string        `json:"id" jsonschema:"value for banner_family"`
+	Label  string        `json:"label"`
+	Styles []shortOption `json:"styles" jsonschema:"values for banner_style"`
+}
+
 type musicOption struct {
 	ID              string `json:"id"`
 	Title           string `json:"title" jsonschema:"untrusted track title"`
@@ -80,11 +111,12 @@ type musicOption struct {
 }
 
 type shortOptionsOut struct {
-	Format     []shortOption `json:"format"`
-	KillEffect []shortOption `json:"kill_effect"`
-	Transition []shortOption `json:"transition"`
-	Music      []musicOption `json:"music" jsonschema:"track ids for the music field; leaving music unset renders without music"`
-	Toggles    []shortToggle `json:"toggles" jsonschema:"on/off extras; unset keeps each default"`
+	Format     []shortOption  `json:"format"`
+	KillEffect []shortOption  `json:"kill_effect"`
+	Transition []shortOption  `json:"transition"`
+	Music      []musicOption  `json:"music" jsonschema:"track ids for the music field; leaving music unset renders without music"`
+	Toggles    []shortToggle  `json:"toggles" jsonschema:"on/off extras; unset keeps each default"`
+	Banners    []bannerFamily `json:"banners" jsonschema:"affiliate banner (Banner afiliado) families and styles; no banner unless banner_style is set"`
 }
 
 // shortChoices are the optional edit fields of generate_short. Unset fields keep the product defaults.
@@ -102,7 +134,16 @@ type shortChoices struct {
 	VictimReplay *bool  `json:"victim_replay,omitempty" jsonschema:"after each play, replay its last kill in slow motion from the victim's view; default false"`
 	Cover        *bool  `json:"cover,omitempty" jsonschema:"generate cover candidates; default true"`
 	// CenteredKillfeed is rejected outside short-9x16, like the server does.
-	CenteredKillfeed *bool `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
+	CenteredKillfeed *bool    `json:"centered_killfeed,omitempty" jsonschema:"draw the kill feed centered near the top; short-9x16 only; default false"`
+	MusicVolume      *int     `json:"music_volume,omitempty" jsonschema:"music level in percent, 5 to 100; needs music; default 100"`
+	GameVolume       *int     `json:"game_volume,omitempty" jsonschema:"game sound level under the music in percent, 0 to 100; needs music; default 70"`
+	IntroText        string   `json:"intro_text,omitempty" jsonschema:"opening card title, at most 80 bytes; needs intro; empty uses the generated headline"`
+	OutroText        string   `json:"outro_text,omitempty" jsonschema:"closing card text such as the user handle, at most 80 bytes; needs outro; empty shows ClipHub"`
+	BannerFamily     string   `json:"banner_family,omitempty" jsonschema:"affiliate banner family from list_short_options; default KEYDROP when banner_style is set"`
+	BannerStyle      string   `json:"banner_style,omitempty" jsonschema:"affiliate banner style from list_short_options; empty means no banner"`
+	BannerCode       string   `json:"banner_code,omitempty" jsonschema:"affiliate code on the banner: letters, digits, _ or -, at most 16; empty uses Studio's default code"`
+	BannerStart      *float64 `json:"banner_start_seconds,omitempty" jsonschema:"second of the Short when the banner appears; default 0"`
+	BannerEnd        *float64 `json:"banner_end_seconds,omitempty" jsonschema:"second of the Short when the banner leaves; default 4"`
 }
 
 type songIn struct {
@@ -123,7 +164,7 @@ func registerShortOptions(server *mcp.Server, s *studio) {
 				return nil, shortOptionsOut{}, toolError(err)
 			}
 			return nil, shortOptionsOut{Format: formatOptions, KillEffect: killEffectOptions, Transition: transitionOptions,
-				Music: musicOptions(songs), Toggles: toggleOptions}, nil
+				Music: musicOptions(songs), Toggles: toggleOptions, Banners: bannerFamilies}, nil
 		})
 
 	// Only the Short picker app plays previews; MCP Apps hosts hide app-only tools from the model.
@@ -232,15 +273,110 @@ func resolveEdit(c shortChoices) (tuiclient.ShortEdit, error) {
 	if orDefault(c.Cover, true) {
 		edit.CoverStrategy = coverGenerated
 	}
-	return edit, nil
+	if err := resolveBookendText(&edit, c); err != nil {
+		return edit, err
+	}
+	return edit, resolveBanner(&edit, c)
+}
+
+func resolveBookendText(edit *tuiclient.ShortEdit, c shortChoices) error {
+	for _, t := range []struct {
+		field, card, text string
+		on                bool
+		dst               *string
+	}{{"intro_text", "intro", c.IntroText, edit.Intro, &edit.IntroText}, {"outro_text", "outro", c.OutroText, edit.Outro, &edit.OutroText}} {
+		text := strings.TrimSpace(t.text)
+		if text == "" {
+			continue
+		}
+		if !t.on {
+			return fmt.Errorf("%s needs %s set to true", t.field, t.card)
+		}
+		if len(text) > maxBookendTextBytes || strings.ContainsFunc(text, unicode.IsControl) {
+			return fmt.Errorf("%s must be one line of at most %d bytes", t.field, maxBookendTextBytes)
+		}
+		*t.dst = text
+	}
+	return nil
+}
+
+func resolveBanner(edit *tuiclient.ShortEdit, c shortChoices) error {
+	if c.BannerStyle == "" {
+		if c.BannerFamily != "" || c.BannerCode != "" || c.BannerStart != nil || c.BannerEnd != nil {
+			return errors.New("the banner fields need banner_style; leave them all empty for no banner")
+		}
+		return nil
+	}
+	family := cmp.Or(keydropbanner.NormalizeFamily(c.BannerFamily), keydropbanner.FamilyKeyDrop)
+	i := slices.IndexFunc(bannerFamilies, func(f bannerFamily) bool { return f.ID == family })
+	if i < 0 {
+		return fmt.Errorf("unknown banner_family %q; valid ids: %s, %s", cleanName(c.BannerFamily), keydropbanner.FamilyKeyDrop, keydropbanner.FamilyCSGOSkins)
+	}
+	style, err := pickOption("banner_style", strings.ToLower(strings.TrimSpace(c.BannerStyle)), bannerFamilies[i].Styles)
+	if err != nil {
+		return err
+	}
+	code := keydropbanner.NormalizeCode(c.BannerCode)
+	if err := keydropbanner.ValidateCode(code); err != nil {
+		return fmt.Errorf("banner_code: %w", err)
+	}
+	start, end := orDefaultFloat(c.BannerStart, bannerStartDefault), orDefaultFloat(c.BannerEnd, bannerEndDefault)
+	if start < 0 || end <= start {
+		return errors.New("the banner needs 0 <= banner_start_seconds < banner_end_seconds")
+	}
+	edit.KeyDropFamily, edit.KeyDropStyle, edit.KeyDropCode = family, style, code
+	edit.KeyDropStartSeconds, edit.KeyDropEndSeconds = &start, &end
+	return nil
+}
+
+func orDefaultFloat(chosen *float64, def float64) float64 {
+	if chosen == nil {
+		return def
+	}
+	return *chosen
+}
+
+// resolveMusic builds the music field: percents in the tool, gains on the wire.
+func resolveMusic(c shortChoices) (*tuiclient.ShortMusic, error) {
+	if c.Music == "" {
+		if c.MusicVolume != nil || c.GameVolume != nil {
+			return nil, errors.New("music_volume and game_volume need a music track")
+		}
+		return nil, nil
+	}
+	music := &tuiclient.ShortMusic{Key: c.Music}
+	if v := c.MusicVolume; v != nil {
+		if *v < minMusicVolume || *v > 100 {
+			return nil, fmt.Errorf("music_volume goes from %d to 100", minMusicVolume)
+		}
+		// Full volume stays unset, as the Studio UI sends it.
+		if *v < 100 {
+			music.Volume = float64(*v) / 100
+		}
+	}
+	if v := c.GameVolume; v != nil {
+		if *v < 0 || *v > 100 {
+			return nil, errors.New("game_volume goes from 0 to 100")
+		}
+		gain := float64(*v) / 100
+		music.GameVolume = &gain
+	}
+	return music, nil
 }
 
 // describeShortRequest is the part of the approval summary the user agrees to.
 func describeShortRequest(req tuiclient.GenerateRequest) string {
 	e := req.Edit
-	music := req.Music
-	if music == "" {
-		music = "ninguna"
+	music := "ninguna"
+	if m := req.Music; m != nil {
+		music = m.Key
+		if m.Volume > 0 || m.GameVolume != nil {
+			game := 70.0
+			if m.GameVolume != nil {
+				game = *m.GameVolume * 100
+			}
+			music += fmt.Sprintf(" (música %.0f %%, juego %.0f %%)", cmp.Or(m.Volume, 1)*100, game)
+		}
 	}
 	var extras []string
 	for _, x := range []struct {
@@ -255,6 +391,17 @@ func describeShortRequest(req tuiclient.GenerateRequest) string {
 	if len(extras) == 0 {
 		extras = []string{"ninguno"}
 	}
-	return fmt.Sprintf("formato %s, efecto de baja %s, transición %s, música %s, extras: %s",
+	out := fmt.Sprintf("formato %s, efecto de baja %s, transición %s, música %s, extras: %s",
 		e.Format, e.KillEffect, e.Transition, music, strings.Join(extras, ", "))
+	if e.IntroText != "" {
+		out += fmt.Sprintf(", apertura «%s»", e.IntroText)
+	}
+	if e.OutroText != "" {
+		out += fmt.Sprintf(", cierre «%s»", e.OutroText)
+	}
+	if e.KeyDropStyle != "" && e.KeyDropStartSeconds != nil && e.KeyDropEndSeconds != nil {
+		out += fmt.Sprintf(", banner %s %s «%s» de %g s a %g s", keydropbanner.FamilyLabel(e.KeyDropFamily), e.KeyDropStyle,
+			keydropbanner.DisplayLabelFor(e.KeyDropFamily, e.KeyDropStyle, e.KeyDropCode), *e.KeyDropStartSeconds, *e.KeyDropEndSeconds)
+	}
+	return out
 }

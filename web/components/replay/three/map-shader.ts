@@ -35,6 +35,8 @@ export type MapUniforms = {
   uFeet: { value: Vector4[] };
   /** The page colour, in sRGB, that the far outside of the map fades into. */
   uVoid: { value: Vector3 };
+  /** 1 drops the real map's scenery outside the playable area, as the 2D floor plan wants. */
+  uPlayableOnly: { value: number };
 };
 
 export function blankTexture(): DataTexture {
@@ -76,10 +78,12 @@ export function mapUniforms(field: FloorField | null, cuts: { wall: number; slab
     uActionZ: { value: 1e9 },
     uFeet: { value: Array.from({ length: MAX_FEET }, () => new Vector4(0, 0, 0, 0)) },
     uVoid: { value: new Vector3(0, 0, 0) },
+    uPlayableOnly: { value: 0 },
   };
 }
 
-const DECLARE = `
+/** The cutaway's uniforms, varying and floor lookup, for any map surface shader. */
+export const MAP_DECLARE = `
 uniform sampler2D uField;
 uniform vec4 uFieldRect;
 uniform float uUseField;
@@ -93,6 +97,7 @@ uniform float uRadarMix;
 uniform float uActionZ;
 uniform vec4 uFeet[${MAX_FEET}];
 uniform vec3 uVoid;
+uniform float uPlayableOnly;
 varying vec3 vMapPos;
 
 float mapLevel(vec4 cell, float z) {
@@ -116,7 +121,8 @@ float mapFloor(vec4 cell, vec3 at) {
 }
 `;
 
-const SURFACE_CUT = `
+/** Discards the fragment where the cutaway removes it; leaves mapFlat, mapCell, mapRise and mapVoid set. */
+export const MAP_SURFACE_CUT = `
 vec3 mapFacet = normalize(cross(dFdx(vMapPos), dFdy(vMapPos)));
 float mapFlat = step(0.7, abs(mapFacet.z));
 vec4 mapCell = texture2D(uField, (vMapPos.xy - uFieldRect.xy) * uFieldRect.zw);
@@ -168,8 +174,8 @@ export function patchSurface(material: Material, uniforms: MapUniforms): void {
     Object.assign(shader.uniforms, uniforms);
     patchVertex(shader, false);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${DECLARE}`)
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${SURFACE_CUT}`)
+      .replace('#include <common>', `#include <common>\n${MAP_DECLARE}`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${MAP_SURFACE_CUT}`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${SURFACE_TONE}`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>\n${SURFACE_FADE}`);
   };
@@ -182,7 +188,7 @@ export function patchLines(material: Material, uniforms: MapUniforms): void {
     Object.assign(shader.uniforms, uniforms);
     patchVertex(shader, true);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${DECLARE}\nvarying float vVertical;`)
+      .replace('#include <common>', `#include <common>\n${MAP_DECLARE}\nvarying float vVertical;`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${LINE_CUT}`);
   };
   material.customProgramCacheKey = () => 'map-lines';

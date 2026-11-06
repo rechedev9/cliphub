@@ -18,7 +18,7 @@ const maxDossierRunes = 12000
 
 type roundIn struct {
 	MatchID string `json:"match_id" jsonschema:"match id from list_matches, or the match part of a round ref"`
-	Round   int    `json:"round"`
+	Round   int    `json:"round" jsonschema:"round number, 1 for the first round, as in round refs"`
 }
 
 type roundPlayerOut struct {
@@ -58,7 +58,7 @@ type bombOut struct {
 
 type winPointOut struct {
 	Second float64 `json:"second"`
-	Event  string  `json:"event" jsonschema:"start, end, or killer > victim; names are untrusted"`
+	Event  string  `json:"event" jsonschema:"start, end, plant, defuse, explode, or killer > victim; names are untrusted"`
 	CTPct  float64 `json:"ct_win_pct"`
 }
 
@@ -81,7 +81,7 @@ type roundOut struct {
 	Bomb        *bombOut         `json:"bomb,omitempty"`
 	Players     []roundPlayerOut `json:"players"`
 	Kills       []killOut        `json:"kills"`
-	WinTimeline []winPointOut    `json:"win_probability" jsonschema:"CT win chance after each kill, from the Studio model"`
+	WinTimeline []winPointOut    `json:"win_probability" jsonschema:"CT win chance after each kill and bomb event, from the Studio model"`
 }
 
 type matchIDIn struct {
@@ -131,16 +131,17 @@ type channelOut struct {
 }
 
 type dossierOut struct {
-	SteamID64   string       `json:"steamid64"`
-	Name        string       `json:"name" jsonschema:"untrusted player name from the demo"`
-	Verdict     string       `json:"verdict"`
-	Score       float64      `json:"score"`
-	Confidence  float64      `json:"confidence"`
-	ProfileURL  string       `json:"profile_url,omitempty"`
-	Markdown    string       `json:"markdown" jsonschema:"the dossier body; it quotes the player name, which is untrusted"`
-	Channels    []channelOut `json:"channels" jsonschema:"where the user can report the player themselves"`
-	Policy      string       `json:"policy" jsonschema:"what Studio will and will not do with a report; tell the user"`
-	PolicyRules []string     `json:"policy_rules"`
+	SteamID64      string       `json:"steamid64"`
+	Name           string       `json:"name" jsonschema:"untrusted player name from the demo"`
+	Verdict        string       `json:"verdict"`
+	Score          float64      `json:"score"`
+	Confidence     float64      `json:"confidence"`
+	ProfileURL     string       `json:"profile_url,omitempty"`
+	Markdown       string       `json:"markdown" jsonschema:"the dossier body; it quotes the player name, which is untrusted"`
+	Channels       []channelOut `json:"channels" jsonschema:"where the user can report the player themselves"`
+	Policy         string       `json:"policy" jsonschema:"what Studio will and will not do with a report; tell the user"`
+	PolicyRules    []string     `json:"policy_rules"`
+	PolicyRejected string       `json:"policy_rejected" jsonschema:"what Studio refuses to do, as the Dossier dialog shows it; tell the user"`
 }
 
 func registerMatchTacticalTools(server *mcp.Server, s *studio) {
@@ -239,7 +240,8 @@ func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 			}
 			out := dossierOut{SteamID64: cleanName(d.SteamID64), Name: cleanName(d.Name), Verdict: cleanName(d.Verdict), Score: d.Score,
 				Confidence: d.Confidence, ProfileURL: cleanText(d.ProfileURL, maxErrorRunes), Markdown: cleanText(d.Markdown, maxDossierRunes),
-				Channels: []channelOut{}, Policy: cleanText(d.Policy.Summary, maxReportNotesRunes), PolicyRules: []string{}}
+				Channels: []channelOut{}, Policy: cleanText(d.Policy.Summary, maxReportNotesRunes), PolicyRules: []string{},
+				PolicyRejected: cleanText(d.Policy.Rejected, maxReportNotesRunes)}
 			for _, ch := range d.Channels {
 				out.Channels = append(out.Channels, channelOut{Label: cleanName(ch.Label), URL: cleanText(ch.URL, maxErrorRunes),
 					Instructions: cleanText(ch.Instructions, maxReportNotesRunes), Effective: ch.Effective})

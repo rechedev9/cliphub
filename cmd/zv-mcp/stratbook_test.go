@@ -23,7 +23,7 @@ func stratbookStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	t.Helper()
 	rec := &recorder{seen: map[string]string{}}
 	mux := http.NewServeMux()
-	rec.handle(mux, "GET /api/library/plays", `{"plays":[`+testPlayJSON+`]}`)
+	rec.handle(mux, "GET /api/library/plays", `{"plays":[`+testPlayJSON+`,`+testPlayJSON+`]}`)
 	rec.handle(mux, "GET /api/library/plays/{id}", testPlayJSON)
 	rec.handle(mux, "POST /api/library/plays", testPlayJSON)
 	rec.handle(mux, "PATCH /api/library/plays/{id}", testPlayJSON)
@@ -54,12 +54,20 @@ func TestPlaysReadCompactly(t *testing.T) {
 	cs, rec := stratbookStudio(t)
 	var list listPlaysOut
 	callTool(t, cs, "list_plays", map[string]any{"map": "DE_MIRAGE", "side": "t", "kind": "execute"}, &list)
-	if got := rec.get("GET /api/library/plays"); !strings.Contains(got, "map=de_mirage") || !strings.Contains(got, "side=T") || !strings.Contains(got, "limit=50") {
+	if got := rec.get("GET /api/library/plays"); !strings.Contains(got, "map=de_mirage") || !strings.Contains(got, "side=T") || !strings.Contains(got, "limit=51") {
 		t.Errorf("list query = %s", got)
 	}
-	if len(list.Plays) != 1 || list.Plays[0].Grenades != 1 || list.Plays[0].TeamID != testTeamID {
-		t.Fatalf("plays = %+v", list.Plays)
+	if len(list.Plays) != 2 || list.Truncated || list.Plays[0].Grenades != 1 || list.Plays[0].TeamID != testTeamID {
+		t.Fatalf("plays = %+v", list)
 	}
+	callTool(t, cs, "list_plays", map[string]any{"limit": 1, "offset": 3}, &list)
+	if got := rec.get("GET /api/library/plays"); !strings.Contains(got, "limit=2") || !strings.Contains(got, "offset=3") {
+		t.Errorf("page query = %s", got)
+	}
+	if len(list.Plays) != 1 || !list.Truncated {
+		t.Errorf("page = %+v, want one play and truncated", list)
+	}
+	toolFails(t, cs, "list_plays", map[string]any{"limit": 201}, "limit must be from 1 to 200")
 	toolFails(t, cs, "list_plays", map[string]any{"kind": "rush"}, "kind must be one of")
 
 	var p playDetailOut
@@ -87,9 +95,10 @@ func TestPlaysAreSavedFromRoundsAndDetections(t *testing.T) {
 
 	var det detectPlaysOut
 	callTool(t, cs, "detect_team_plays", map[string]any{"team_id": testTeamID, "map": "de_mirage"}, &det)
-	if len(det.Plays) != 1 || det.Plays[0].Ref != testMatchID+"/7" || det.Plays[0].Site != "B" {
+	if len(det.Plays) != 1 || det.Truncated || det.Plays[0].Ref != testMatchID+"/7" || det.Plays[0].Site != "B" {
 		t.Fatalf("detection = %+v", det)
 	}
+	toolFails(t, cs, "detect_team_plays", map[string]any{"team_id": testTeamID, "limit": 101}, "limit must be from 1 to 100")
 	callTool(t, cs, "save_detected_play", map[string]any{"team_id": testTeamID, "map": "de_mirage", "play_ref": det.Plays[0].Ref, "title": "B split"}, &p)
 	posted = rec.get("POST /api/library/plays")
 	for _, want := range []string{`"origin":"detected"`, `"positions_seconds":20`, `"site":"B"`, `"team_id":"` + testTeamID + `"`, `"round":9`} {
@@ -131,7 +140,7 @@ func TestUpdateDeleteExportImportPlays(t *testing.T) {
 	if got := rec.get("POST /api/library/plays/import"); !strings.Contains(got, `"format":"cliphub-stratbook"`) {
 		t.Errorf("import body = %s", got)
 	}
-	if imp.Imported != 1 || imp.Duplicates != 2 || len(imp.Rejected) != 1 || !strings.Contains(imp.Rejected[0], "kind is wrong") {
+	if imp.Imported != 1 || imp.Duplicates != 2 || imp.RejectedCount != 1 || len(imp.Rejected) != 1 || !strings.Contains(imp.Rejected[0], "kind is wrong") {
 		t.Errorf("import = %+v", imp)
 	}
 	bad := filepath.Join(dir, "bad.json")

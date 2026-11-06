@@ -18,8 +18,12 @@ import (
 
 const (
 	defaultPlayList = 50
-	// maxPlays is the server's cap on a list read and a stratbook file (library.MaxPlayList).
-	maxPlays = 1000
+	// maxPlayList caps one list_plays page so the answer stays small; offset reads the rest.
+	maxPlayList          = 200
+	defaultDetectedPlays = 20
+	maxDetectedPlays     = 100
+	// maxImportListed caps the plays and rejections import_plays lists; the counts cover all.
+	maxImportListed = 50
 	// maxPlayExamples is the server's cap on a play's example rounds.
 	maxPlayExamples = 50
 	// maxStratbookBytes is the server's cap on an imported stratbook file.
@@ -37,7 +41,8 @@ type listPlaysIn struct {
 	Map    string `json:"map,omitempty" jsonschema:"only plays on this map, such as de_mirage"`
 	Side   string `json:"side,omitempty" jsonschema:"CT or T"`
 	Kind   string `json:"kind,omitempty" jsonschema:"only plays of this kind: execute, default, split, fast, eco_rush, save (T) or hold, retake, aggression, stack, save (CT)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"default 50, at most 1000"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"default 50, at most 200"`
+	Offset int    `json:"offset,omitempty" jsonschema:"plays to skip, for the next page when truncated is true"`
 }
 
 type playSummaryOut struct {
@@ -55,7 +60,8 @@ type playSummaryOut struct {
 }
 
 type listPlaysOut struct {
-	Plays []playSummaryOut `json:"plays"`
+	Plays     []playSummaryOut `json:"plays"`
+	Truncated bool             `json:"truncated,omitempty" jsonschema:"true when more plays match; call again with offset"`
 }
 
 type playIDIn struct {
@@ -101,6 +107,11 @@ type detectPlaysIn struct {
 	teamScopeIn
 }
 
+type detectPlaysListIn struct {
+	detectPlaysIn
+	Limit int `json:"limit,omitempty" jsonschema:"most repeated plays first; default 20, at most 100"`
+}
+
 type detectedPlayOut struct {
 	Ref         string           `json:"ref" jsonschema:"the seed round (match_id/round); pass it to save_detected_play"`
 	Map         string           `json:"map"`
@@ -121,6 +132,7 @@ type detectPlaysOut struct {
 	Rounds         int               `json:"rounds"`
 	Compared       int               `json:"compared" jsonschema:"rounds with enough utility and a buy worth comparing"`
 	Plays          []detectedPlayOut `json:"plays"`
+	Truncated      bool              `json:"truncated,omitempty" jsonschema:"true when more plays were found; raise limit or narrow the filter"`
 	SkippedMatches int               `json:"skipped_matches,omitempty"`
 }
 
@@ -163,10 +175,11 @@ type importPlaysIn struct {
 }
 
 type importPlaysOut struct {
-	Imported   int              `json:"imported"`
-	Duplicates int              `json:"duplicates" jsonschema:"plays already in the stratbook"`
-	Rejected   []string         `json:"rejected" jsonschema:"plays that were not stored, with the reason"`
-	Plays      []playSummaryOut `json:"plays"`
+	Imported      int              `json:"imported"`
+	Duplicates    int              `json:"duplicates" jsonschema:"plays already in the stratbook"`
+	Rejected      []string         `json:"rejected" jsonschema:"plays that were not stored, with the reason; at most 50 listed"`
+	RejectedCount int              `json:"rejected_count"`
+	Plays         []playSummaryOut `json:"plays" jsonschema:"the imported plays, at most 50 listed"`
 }
 
 func registerStratbookTools(server *mcp.Server, s *studio) {
@@ -175,14 +188,18 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_plays", Annotations: readOnly,
 		Description: "List the plays saved in the stratbook, filtered by team, map, side and kind."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listPlaysIn) (*mcp.CallToolResult, listPlaysOut, error) {
-			if in.Limit < 0 || in.Limit > maxPlays {
-				return nil, listPlaysOut{}, fmt.Errorf("limit must be from 1 to %d", maxPlays)
+			if in.Limit < 0 || in.Limit > maxPlayList {
+				return nil, listPlaysOut{}, fmt.Errorf("limit must be from 1 to %d", maxPlayList)
+			}
+			if in.Offset < 0 {
+				return nil, listPlaysOut{}, errors.New("offset must not be negative")
 			}
 			q, err := playQuery(in.TeamID, in.Map, in.Side, in.Kind)
 			if err != nil {
 				return nil, listPlaysOut{}, err
 			}
-			q.Limit = cmp.Or(in.Limit, defaultPlayList)
+			limit := cmp.Or(in.Limit, defaultPlayList)
+			q.Limit, q.Offset = limit+1, in.Offset
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, listPlaysOut{}, toolError(err)
@@ -191,8 +208,8 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, listPlaysOut{}, toolError(err)
 			}
-			out := listPlaysOut{Plays: make([]playSummaryOut, 0, len(plays))}
-			for _, p := range plays {
+			out := listPlaysOut{Plays: make([]playSummaryOut, 0, min(len(plays), limit)), Truncated: len(plays) > limit}
+			for _, p := range plays[:min(len(plays), limit)] {
 				out.Plays = append(out.Plays, playSummaryOf(p))
 			}
 			return nil, out, nil
@@ -256,14 +273,18 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "detect_team_plays", Annotations: readOnly,
 		Description: "Find the plays a team repeats: its rounds grouped by shared utility and positions, per map and side, with how often and how well each runs. " +
 			"Filter like scout_team. save_detected_play stores one in the stratbook."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in detectPlaysIn) (*mcp.CallToolResult, detectPlaysOut, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in detectPlaysListIn) (*mcp.CallToolResult, detectPlaysOut, error) {
+			if in.Limit < 0 || in.Limit > maxDetectedPlays {
+				return nil, detectPlaysOut{}, fmt.Errorf("limit must be from 1 to %d", maxDetectedPlays)
+			}
+			limit := cmp.Or(in.Limit, defaultDetectedPlays)
 			det, err := in.detect(ctx, s)
 			if err != nil {
 				return nil, detectPlaysOut{}, err
 			}
 			out := detectPlaysOut{Team: cleanName(det.TeamName), Matches: det.Matches, Rounds: det.Rounds, Compared: det.Compared,
-				Plays: []detectedPlayOut{}, SkippedMatches: len(det.Skipped)}
-			for _, p := range det.Plays {
+				Plays: []detectedPlayOut{}, Truncated: len(det.Plays) > limit, SkippedMatches: len(det.Skipped)}
+			for _, p := range det.Plays[:min(len(det.Plays), limit)] {
 				out.Plays = append(out.Plays, detectedPlayOut{Ref: refString(p.Seed), Map: cleanName(p.Map), Side: p.Side, Kind: cleanName(p.Kind),
 					Site: cleanName(p.Site), Rounds: p.Rounds, SharePct: p.Share.Pct, WinPct: p.WinRate.Pct, Reliable: p.WinRate.Reliable,
 					GrenadeList: grenadesOf(p.Grenades), Refs: refStrings(p.Examples)})
@@ -388,11 +409,11 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, importPlaysOut{}, toolError(err)
 			}
-			out := importPlaysOut{Imported: res.Imported, Duplicates: res.Duplicates, Rejected: []string{}, Plays: []playSummaryOut{}}
-			for _, r := range res.Rejected {
+			out := importPlaysOut{Imported: res.Imported, Duplicates: res.Duplicates, Rejected: []string{}, RejectedCount: len(res.Rejected), Plays: []playSummaryOut{}}
+			for _, r := range res.Rejected[:min(len(res.Rejected), maxImportListed)] {
 				out.Rejected = append(out.Rejected, fmt.Sprintf("%d %s: %s", r.Index, quotedName(r.Title, "sin título"), cleanText(r.Error, maxErrorRunes)))
 			}
-			for _, p := range res.Plays {
+			for _, p := range res.Plays[:min(len(res.Plays), maxImportListed)] {
 				out.Plays = append(out.Plays, playSummaryOf(p))
 			}
 			return nil, out, nil
