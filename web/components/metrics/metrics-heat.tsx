@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react';
 import type { MetricsReport } from '@/lib/api/metrics';
 import { buyIcon } from '@/lib/analysis/icons';
-import { roundReferences } from '@/lib/analysis/reference';
+import { rateEstimate, reliability, roundPriors, roundReferences } from '@/lib/analysis/reference';
+import { ratioEstimate } from '@/lib/analysis/shrinkage';
 import { prettyMapName } from '@/lib/format';
 import { ecoText, mapLines, percentText, ppText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
 import { buyLabel } from '@/lib/tactical-labels';
@@ -43,6 +44,7 @@ export function BuyHeatTable({ report, options }: { report: MetricsReport; optio
   const baselines = useLibraryBaselines([map]);
   const baseline = baselines?.get(map) ?? null;
   const refs = roundReferences(baseline);
+  const priors = roundPriors(baseline);
   const lines = report.players.flatMap((player) => player.buys.map((line) => ({ player, line })));
   const many = report.players.length > 1;
   const columns: HeatColumn[] = [
@@ -60,15 +62,16 @@ export function BuyHeatTable({ report, options }: { report: MetricsReport; optio
     const deaths = ratio(line.deaths, n);
     const wpa = ratio(line.wpa, n);
     const name = player.name || player.steamid64;
+    const format2 = (v: number): string => decimal2.format(v);
     return {
       id: `${player.steamid64}:${line.buy}`,
       cells: {
         player: { text: name, href: options.playerHref?.(player.steamid64) },
         buy: { text: buyLabel(line.buy), icon: buyIcon(line.buy) },
         won: { text: won === null ? '' : percentText(won), value: won, n },
-        kills: { text: kills === null ? '' : decimal2.format(kills), value: kills, n },
-        deaths: { text: deaths === null ? '' : decimal2.format(deaths), value: deaths, n },
-        wpa: { text: wpa === null ? '' : ppText(wpa), value: wpa, n },
+        kills: { text: kills === null ? '' : decimal2.format(kills), value: kills, n, reliability: reliability(rateEstimate(kills, n, priors.kills), refs.kills, format2) },
+        deaths: { text: deaths === null ? '' : decimal2.format(deaths), value: deaths, n, reliability: reliability(rateEstimate(deaths, n, priors.deaths), refs.deaths, format2) },
+        wpa: { text: wpa === null ? '' : ppText(wpa), value: wpa, n, reliability: reliability(rateEstimate(wpa, n, priors.wpa), refs.wpa, ppText) },
       },
     };
   });
@@ -81,6 +84,7 @@ export function BuyHeatTable({ report, options }: { report: MetricsReport; optio
       sampleNoun="rondas"
       empty="Sin rondas en la selección."
       reference={referenceText(baseline?.min_rounds ?? null)}
+      reliableOnly
     />
   );
 }
@@ -105,15 +109,33 @@ export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
     const eco = ratio(line.ecoKills, n);
     const wpa = ratio(line.wpa, n);
     const refs = roundReferences(baselines?.get(line.map));
+    const priors = roundPriors(baselines?.get(line.map));
+    const killRate = rateEstimate(ratio(line.kills, n), n, priors.kills);
+    const deathRate = rateEstimate(ratio(line.deaths, n), n, priors.deaths);
+    const kd = killRate && deathRate ? ratioEstimate(killRate, deathRate) : null;
     const place = prettyMapName(line.map);
     return {
       id: line.map,
       cells: {
         map: { text: place, map: line.map },
         matches: { text: String(line.matches) },
-        kd: { text: decimal2.format(lineKd), value: lineKd, n, reference: refs.kd, referenceText: refs.kd === null ? undefined : `Biblioteca en ${place}: ${decimal2.format(refs.kd)}` },
+        kd: {
+          text: decimal2.format(lineKd),
+          value: lineKd,
+          n,
+          reference: refs.kd,
+          referenceText: refs.kd === null ? undefined : `Biblioteca en ${place}: ${decimal2.format(refs.kd)}`,
+          reliability: reliability(kd, refs.kd, (v) => decimal2.format(v)),
+        },
         eco: { text: eco === null ? '' : ecoText(eco), n },
-        wpa: { text: wpa === null ? '' : ppText(wpa), value: wpa, n, reference: refs.wpa, referenceText: refs.wpa === null ? undefined : `Biblioteca en ${place}: ${ppText(refs.wpa)}` },
+        wpa: {
+          text: wpa === null ? '' : ppText(wpa),
+          value: wpa,
+          n,
+          reference: refs.wpa,
+          referenceText: refs.wpa === null ? undefined : `Biblioteca en ${place}: ${ppText(refs.wpa)}`,
+          reliability: reliability(rateEstimate(wpa, n, priors.wpa), refs.wpa, ppText),
+        },
       },
     };
   });
@@ -127,6 +149,7 @@ export function MapHeatTable({ report }: { report: MetricsReport }): ReactNode {
       sampleNoun="rondas"
       empty="Sin partidas leídas."
       reference={minRounds === null ? 'la media de la biblioteca, que aún se está leyendo' : `la media de la biblioteca en cada mapa, sus jugadores con ${minRounds} rondas o más`}
+      reliableOnly
     />
   );
 }

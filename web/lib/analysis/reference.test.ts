@@ -2,7 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Baseline } from '../api/baseline.ts';
 import type { PlayerMetrics } from '../api/metrics.ts';
-import { METRIC_INFO, baselineValue, leaderboardEmptyText, playerReferenceValues, proUnavailableText, roundReferences } from './reference.ts';
+import {
+  METRIC_INFO,
+  baselineValue,
+  leaderboardEmptyText,
+  metricReliability,
+  playerEvidence,
+  playerReferenceValues,
+  proReferenceShort,
+  proSourceText,
+  roundReferences,
+} from './reference.ts';
 
 function player(overrides: Partial<PlayerMetrics>): PlayerMetrics {
   const count = (n: number) => ({ count: n, examples: [] });
@@ -47,12 +57,13 @@ test('reference: only deaths per round ranks lower first', () => {
   assert.deepEqual(lower, ['dpr']);
 });
 
+const value = (mean: number, players: number) => ({ mean, players, stddev: 0, prior_stddev: 0 });
 const baseline = (players: number, matches: number): Baseline => ({
-  scope: 'pro', map: '', min_rounds: 50, players, rounds: 0, matches, skipped: 0,
+  scope: 'pro', map: '', source: 'bundled', description: '4 mapas profesionales de 2026.', min_rounds: 15, players, rounds: 0, matches, skipped: 0,
   metrics: {
-    kpr: { mean: 0.7, players }, dpr: { mean: 0.6, players: 0 }, adr: { mean: 0, players }, kast: { mean: 0, players },
-    opening_win_pct: { mean: 0, players }, trade_pct: { mean: 0, players }, utility_damage_per_round: { mean: 0, players },
-    flash_assists_per_round: { mean: 0, players }, wpa_per_round: { mean: 0, players },
+    kpr: value(0.7, players), dpr: value(0.6, 0), adr: value(0, players), kast: value(0, players),
+    opening_win_pct: value(0, players), trade_pct: value(0, players), utility_damage_per_round: value(0, players),
+    flash_assists_per_round: value(0, players), wpa_per_round: value(0, players),
   },
 });
 
@@ -63,18 +74,32 @@ test('reference: a metric no player has gives no reference', () => {
 });
 
 test('reference: an empty ranking says what to change', () => {
-  assert.match(leaderboardEmptyText({ scope: 'pro', matches: 0, min_rounds: 50 }), /cambia a Biblioteca/);
-  assert.match(leaderboardEmptyText({ scope: 'library', matches: 3, min_rounds: 200 }), /200 rondas.*Baja el mínimo/);
+  assert.match(leaderboardEmptyText({ matches: 0, min_rounds: 50 }), /Importa demos/);
+  assert.match(leaderboardEmptyText({ matches: 3, min_rounds: 200 }), /200 rondas.*Baja el mínimo/);
 });
 
-test('reference: Pro says why it is missing', () => {
-  assert.equal(proUnavailableText(baseline(3, 2)), null);
-  assert.match(proUnavailableText(baseline(0, 0)) ?? '', /no tiene demos de HLTV/);
-  assert.match(proUnavailableText(baseline(0, 4)) ?? '', /llega a 50 rondas/);
+test('reference: Pro says where its numbers come from', () => {
+  assert.match(proSourceText(baseline(20, 4)), /^Referencia pro incluida en Studio: 4 mapas profesionales/);
+  assert.equal(proReferenceShort(baseline(20, 4)), '4 mapas pro incluidos');
+  const library: Baseline = { ...baseline(12, 9), source: 'library', description: undefined };
+  assert.match(proSourceText(library), /^Tus demos de HLTV: 12 jugadores/);
+  assert.equal(proReferenceShort(library), '9 demos de HLTV');
+});
+
+test('reference: a comparison is called only when the interval leaves the mean out', () => {
+  const kpr = { mean: 0.7, players: 20, stddev: 0.15, prior_stddev: 0.1, round_stddev: 0.85 };
+  const evidence = playerEvidence(player({ rounds: 20, kills: 16 }));
+  assert.deepEqual(evidence.kast, { kind: 'share', successes: 15, trials: 20 });
+  const few = metricReliability(evidence.kpr, kpr, 'kpr');
+  assert.ok(few !== null && !few.differs && few.weak, '0,80 over 20 rounds is noise against 0,70');
+  const many = metricReliability(playerEvidence(player({ rounds: 2000, kills: 1800 })).kpr, kpr, 'kpr');
+  assert.ok(many !== null && many.differs && !many.weak, '0,90 over 2000 rounds is a real difference');
+  assert.match(many.detail, /90 % de confianza/);
+  assert.equal(metricReliability(evidence.kpr, { ...kpr, players: 0 }, 'kpr'), null);
 });
 
 test('heat tables read the library per round, and nothing where the library has no players', () => {
-  const metric = (mean: number, players = 10) => ({ mean, players });
+  const metric = (mean: number, players = 10) => value(mean, players);
   const baseline = { metrics: { kpr: metric(0.7), dpr: metric(0.65), wpa_per_round: metric(0, 0) } } as unknown as Baseline;
   const refs = roundReferences(baseline);
   assert.equal(refs.kills, 0.7);

@@ -21,7 +21,7 @@ func TestBaselineAveragesPlayersReadOneMatchAtATime(t *testing.T) {
 	for _, m := range baselineMatches() {
 		sample.Add(Metrics([]MetricsMatch{m}, MetricsOptions{}))
 	}
-	b := sample.Baseline(2)
+	b := sample.Baseline(2, ReferenceSpread{})
 	if b.Players != 4 || b.Rounds != 2 || b.Matches != 2 {
 		t.Fatalf("baseline sample = %d players, %d rounds, %d matches", b.Players, b.Rounds, b.Matches)
 	}
@@ -46,10 +46,10 @@ func TestBaselineAveragesPlayersReadOneMatchAtATime(t *testing.T) {
 
 	var whole BaselineSample
 	whole.Add(Metrics(baselineMatches(), MetricsOptions{}))
-	if got, w := whole.Baseline(2).Metrics[MetricWPA], b.Metrics[MetricWPA]; !near(got.Mean, w.Mean) {
+	if got, w := whole.Baseline(2, ReferenceSpread{}).Metrics[MetricWPA], b.Metrics[MetricWPA]; !near(got.Mean, w.Mean) {
 		t.Errorf("wpa per round = %v match by match, %v at once", w.Mean, got.Mean)
 	}
-	if sample.Baseline(3).Players != 0 {
+	if sample.Baseline(3, ReferenceSpread{}).Players != 0 {
 		t.Error("players under the round minimum must not count")
 	}
 }

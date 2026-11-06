@@ -5,10 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, X } from 'lucide-react';
 import type { ReportSide } from '@/lib/api/scout';
 import type { TacticalBuyType } from '@/lib/api/tactical';
-import { BASELINE_SCOPES } from '@/lib/api/baseline';
+import { BASELINE_SCOPES, type Baseline } from '@/lib/api/baseline';
 import { switchEntityHref, resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
 import { buyIcon } from '@/lib/analysis/icons';
-import { SCOPE_LABEL } from '@/lib/analysis/reference';
+import { SCOPE_LABEL, proReferenceShort, proSourceText } from '@/lib/analysis/reference';
 import {
   PERIOD_PRESETS,
   SCOPE_BUYS,
@@ -72,8 +72,8 @@ export type ScopeBarProps = {
   /** Latest results in scope, oldest first, drawn as dots under the sample. */
   results?: readonly ResultDot[];
   entity?: ScopeEntity;
-  /** Why Pro cannot be chosen, from the pro baseline; null or absent leaves it enabled. */
-  proUnavailable?: string | null;
+  /** The pro reference the view reads, so the bar can say where Pro comes from; null while loading. */
+  proReference?: Baseline | null;
   /** Fixed context the person cannot change here, such as a report's rival and side. */
   context?: ReactNode;
   className?: string;
@@ -358,15 +358,15 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
               <span className="text-meta whitespace-nowrap text-fg-3">Comparando con</span>
               <Segmented
                 label="Comparando con"
-                value={props.proUnavailable ? 'library' : scope.reference}
-                options={BASELINE_SCOPES.map((value) => ({
-                  value,
-                  label: SCOPE_LABEL[value],
-                  disabled: value === 'pro' && Boolean(props.proUnavailable),
-                  reason: value === 'pro' ? (props.proUnavailable ?? undefined) : undefined,
-                }))}
+                value={scope.reference}
+                options={BASELINE_SCOPES.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
                 onChange={(reference) => onChange({ reference })}
               />
+              {scope.reference === 'pro' && props.proReference ? (
+                <span className="text-meta whitespace-nowrap text-fg-3" title={proSourceText(props.proReference)}>
+                  {proReferenceShort(props.proReference)}
+                </span>
+              ) : null}
             </div>
           ) : null}
           <SampleBox counts={counts} results={results} />

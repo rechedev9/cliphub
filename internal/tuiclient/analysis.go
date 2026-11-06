@@ -252,18 +252,21 @@ func (c *Client) LibraryTactical(ctx context.Context, matchID string) (TacticalD
 type BaselineValue struct {
 	Mean    float64 `json:"mean"`
 	Players int     `json:"players"`
+	Stddev  float64 `json:"stddev"`
 }
 
 // Baseline is GET /api/library/baseline.
 type Baseline struct {
-	Scope     string                   `json:"scope"`
-	Map       string                   `json:"map"`
-	MinRounds int                      `json:"min_rounds"`
-	Players   int                      `json:"players"`
-	Rounds    int                      `json:"rounds"`
-	Matches   int                      `json:"matches"`
-	Skipped   int                      `json:"skipped"`
-	Metrics   map[string]BaselineValue `json:"metrics"`
+	Scope       string                   `json:"scope"`
+	Map         string                   `json:"map"`
+	Source      string                   `json:"source"`
+	Description string                   `json:"description"`
+	MinRounds   int                      `json:"min_rounds"`
+	Players     int                      `json:"players"`
+	Rounds      int                      `json:"rounds"`
+	Matches     int                      `json:"matches"`
+	Skipped     int                      `json:"skipped"`
+	Metrics     map[string]BaselineValue `json:"metrics"`
 }
 
 // LibraryBaseline returns the per-player averages of the reference metrics.

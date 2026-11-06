@@ -2,16 +2,18 @@
 
 import { useState, type ReactNode } from 'react';
 import type { LibraryMatch } from '@/lib/api/library';
-import { BASELINE_METRICS, type BaselineMetric, type BaselineScope } from '@/lib/api/baseline';
+import { BASELINE_METRICS, type Baseline, type BaselineMetric, type BaselineScope } from '@/lib/api/baseline';
 import type { MetricsReport } from '@/lib/api/metrics';
 import {
   METRIC_INFO,
   SCOPE_LABEL,
   baselineSampleText,
   baselineValue,
+  metricReliability,
   minRoundsNote,
+  playerEvidence,
   playerReferenceValues,
-  proUnavailableText,
+  proSourceText,
   referenceLabel,
 } from '@/lib/analysis/reference';
 import { TREND_BASELINE, TREND_LABEL, TREND_METRICS, trendPoints, type MatchDamage, type TrendMetric } from '@/lib/analysis/player-trend';
@@ -43,6 +45,13 @@ function matchDamage(steamId: string, details: ReadonlyMap<string, LibraryMatch>
   return out;
 }
 
+/** Where the reference comes from; says so when the pros have no entry for the scope's map. */
+function sourceText(baseline: Baseline, map: string): string {
+  const otherMap = map !== '' && baseline.map !== map ? ` No hay referencia pro de ${prettyMapName(map)}: se compara con todos sus mapas.` : '';
+  if (baseline.scope === 'pro') return `${proSourceText(baseline)}${otherMap}`;
+  return `La media sale de ${baselineSampleText(baseline)}${map === '' ? '' : ` en ${prettyMapName(map)}`}.`;
+}
+
 /**
  * The player at a glance: the reference metrics against the library or the
  * pros, and the recent matches as a chart with its average.
@@ -59,7 +68,7 @@ export function PlayerIntro({
   /** The scope's map; the reference reads the same map. */
   map: string;
   bothSides: boolean;
-  /** The context bar's choice; Pro falls back to the library when it has no players. */
+  /** The context bar's choice. */
   reference: BaselineScope;
 }): ReactNode {
   const references = useReferences(map);
@@ -67,10 +76,10 @@ export function PlayerIntro({
   const player = report.players[0];
   if (!player) return null;
   const ready = references !== null && references !== 'failed' ? references : null;
-  const proMissing = ready ? proUnavailableText(ready.pro) : null;
-  const scope: BaselineScope = proMissing === null ? reference : 'library';
+  const scope = reference;
   const baseline = ready ? ready[scope] : null;
   const values = playerReferenceValues(player);
+  const evidence = playerEvidence(player);
   const damage = matchDamage(player.steamid64, details);
   const label = `${referenceLabel(scope)}${bothSides ? '' : ', ambos lados'}`;
   const sparkline = (metric: TrendMetric): number[] | undefined => {
@@ -108,17 +117,17 @@ export function PlayerIntro({
                 higherIsBetter={info.higherIsBetter}
                 epsilon={info.epsilon}
                 comparison={mean === null ? undefined : { value: mean, label }}
+                reliability={metricReliability(evidence[metric], baseline?.metrics[metric], metric)}
                 trend={trends[metric]}
               />
             );
           })}
         </StatCardGroup>
         <p className="measure-read text-meta text-fg-3">
-          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.
-          {baseline ? ` La media sale de ${baselineSampleText(baseline)}${map === '' ? '' : ` en ${prettyMapName(map)}`}.` : ''}
-          {ready ? minRoundsNote(ready.minRounds) : ''}
+          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}. ▲▼ solo cuando la diferencia es fiable.
+          {baseline ? ` ${sourceText(baseline, map)}` : ''}
+          {ready && scope === 'library' ? minRoundsNote(ready.minRounds) : ''}
           {references === null ? ' Leyendo la media.' : ''}
-          {proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
         </p>
       </section>
       <section aria-label="Rendimiento reciente" className="studio-panel flex flex-col gap-2 px-3 py-2.5">

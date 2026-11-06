@@ -39,17 +39,26 @@ func TestLibraryBaselineScopesAndCache(t *testing.T) {
 		t.Fatal("an unchanged library must be served from the cache")
 	}
 
+	if resp.Source != "library" || resp.Description != "" {
+		t.Fatalf("library baseline source = %q %q", resp.Source, resp.Description)
+	}
+	bundled := tacticalplan.DefaultProReference()
 	env.json(http.MethodGet, "/api/library/baseline?scope=pro", nil, http.StatusOK, &resp)
-	if resp.Scope != "pro" || resp.Matches != 0 {
-		t.Fatalf("pro baseline without HLTV demos = %+v", resp)
+	if resp.Scope != "pro" || resp.Source != "bundled" || resp.Description != bundled.Description || resp.Players != bundled.Baseline.Players || resp.Map != "" {
+		t.Fatalf("pro baseline without HLTV demos = %+v, want the bundled reference", resp)
 	}
 	hltv := library.SourceHLTV
 	if _, err := env.repo.UpdateDemo(context.Background(), first.DemoID, library.DemoPatch{Source: &hltv}); err != nil {
 		t.Fatal(err)
 	}
+	// One HLTV player is under ProReferenceMinPlayers: the bundled map entry, or every map when it has none.
 	env.json(http.MethodGet, "/api/library/baseline?scope=pro&map=de_mirage&min_rounds=1", nil, http.StatusOK, &resp)
-	if resp.Matches != 1 || resp.Players != 1 || resp.Map != "de_mirage" {
-		t.Fatalf("pro baseline after tagging one HLTV demo = %+v", resp)
+	if resp.Source != "bundled" || resp.Map != "" {
+		t.Fatalf("pro baseline on a map the reference lacks = %+v", resp)
+	}
+	env.json(http.MethodGet, "/api/library/baseline?scope=pro&map=de_nuke", nil, http.StatusOK, &resp)
+	if resp.Source != "bundled" || resp.Map != "de_nuke" || resp.Players != bundled.Maps["de_nuke"].Baseline.Players {
+		t.Fatalf("pro baseline on nuke = %+v", resp)
 	}
 	for _, bad := range []string{"?scope=faceit", "?map=Mirage!", "?min_rounds=0"} {
 		if rw := env.do(http.MethodGet, "/api/library/baseline"+bad, nil, ""); rw.Code != http.StatusBadRequest {
@@ -69,6 +78,10 @@ func TestLibraryLeaderboard(t *testing.T) {
 	}
 	if p := resp.Players[0]; p.Rank != 1 || p.SteamID64 != "76561198000000001" || p.Rounds != 2 || p.Matches != 1 {
 		t.Fatalf("row = %+v", p)
+	}
+	env.json(http.MethodGet, "/api/library/leaderboard?scope=pro&metric=kpr&min_rounds=1&limit=5", nil, http.StatusOK, &resp)
+	if resp.Source != "bundled" || len(resp.Players) != 5 || resp.Players[0].Team == "" || resp.Players[0].Value < resp.Players[4].Value {
+		t.Fatalf("pro leaderboard without HLTV demos = %+v, want the bundled pros best first", resp)
 	}
 	for _, bad := range []string{"", "?metric=rating", "?metric=kpr&limit=0", "?metric=kpr&min_rounds=x"} {
 		if rw := env.do(http.MethodGet, "/api/library/leaderboard"+bad, nil, ""); rw.Code != http.StatusBadRequest {

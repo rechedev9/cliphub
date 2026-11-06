@@ -1,5 +1,6 @@
-import type { Baseline, BaselineMetric, BaselineScope, Leaderboard } from '../api/baseline.ts';
+import type { Baseline, BaselineMetric, BaselineScope, BaselineValue, Leaderboard } from '../api/baseline.ts';
 import type { PlayerMetrics } from '../api/metrics.ts';
+import { differsFrom, estimate, estimateText, WEAK_WEIGHT, type Estimate, type Evidence, type Prior } from './shrinkage.ts';
 
 /**
  * The reference metrics as people read them: label, format and direction,
@@ -64,26 +65,70 @@ export function playerReferenceValues(p: PlayerMetrics): Partial<Record<Baseline
   return out;
 }
 
+/** The counts behind each reference value, for shrinkage; same denominators as `playerReferenceValues`. */
+export function playerEvidence(p: PlayerMetrics): Partial<Record<BaselineMetric, Evidence>> {
+  const out: Partial<Record<BaselineMetric, Evidence>> = {};
+  if (p.rounds <= 0) return out;
+  const rate = (value: number, rounds: number): Evidence => ({ kind: 'rate', value: value / rounds, rounds });
+  out.kpr = rate(p.kills, p.rounds);
+  out.dpr = rate(p.deaths, p.rounds);
+  out.adr = rate(p.box.damage, p.rounds);
+  out.wpa_per_round = rate(p.swing.wpa, p.rounds);
+  out.kast = { kind: 'share', successes: p.box.kast_rounds, trials: p.rounds };
+  const duels = p.box.opening_kills + p.box.opening_deaths;
+  if (duels > 0) out.opening_win_pct = { kind: 'share', successes: p.box.opening_kills, trials: duels };
+  if (p.deaths > 0) out.trade_pct = { kind: 'share', successes: p.trades.traded_deaths.count, trials: p.deaths };
+  if (p.box.utility_rounds > 0) {
+    out.utility_damage_per_round = rate(p.utility.he.enemy_damage + p.utility.molotov.enemy_damage, p.box.utility_rounds);
+    out.flash_assists_per_round = rate(p.utility.flash.assists.count, p.box.utility_rounds);
+  }
+  return out;
+}
+
+/** The prior a baseline value gives shrinkage; null when no player has the metric. */
+export function baselinePrior(value: BaselineValue | undefined): Prior | null {
+  if (!value || value.players <= 0) return null;
+  return { mean: value.mean, priorStddev: value.prior_stddev, roundStddev: value.round_stddev };
+}
+
+/** What a stat card or heat cell needs to call a comparison: whether it holds, the tooltip, and the weak-sample marker. */
+export type Reliability = { readonly differs: boolean; readonly detail: string; readonly weak: boolean };
+
+/** The reliability of a value against a reference mean; null when it cannot be estimated. */
+export function reliability(e: Estimate | null, reference: number | null, format: (value: number) => string): Reliability | null {
+  if (e === null || reference === null) return null;
+  return { differs: differsFrom(e, reference), detail: estimateText(e, format), weak: e.weight < WEAK_WEIGHT };
+}
+
+/** The reliability of a player's metric against a baseline. */
+export function metricReliability(evidence: Evidence | undefined, value: BaselineValue | undefined, metric: BaselineMetric): Reliability | null {
+  const prior = baselinePrior(value);
+  if (!evidence || prior === null) return null;
+  return reliability(estimate(evidence, prior), prior.mean, METRIC_INFO[metric].format);
+}
+
+/** Where the Pro numbers come from, said once beside the comparison. */
+export function proSourceText(baseline: Baseline): string {
+  if (baseline.source === 'bundled') return `Referencia pro incluida en Studio: ${baseline.description ?? 'partidas profesionales'}`;
+  return `Tus demos de HLTV: ${baselineSampleText(baseline)}.`;
+}
+
+/** "4 mapas pro incluidos" or "12 demos de HLTV": the source in the few words the context bar has room for. */
+export function proReferenceShort(baseline: Baseline): string {
+  const n = baseline.matches;
+  if (baseline.source === 'bundled') return `${n} ${n === 1 ? 'mapa pro incluido' : 'mapas pro incluidos'}`;
+  return `${n} ${n === 1 ? 'demo de HLTV' : 'demos de HLTV'}`;
+}
+
 /** The reference value of a metric, or null when no qualifying player has it. */
 export function baselineValue(baseline: Baseline | null, metric: BaselineMetric): number | null {
   const entry = baseline?.metrics[metric];
   return entry && entry.players > 0 ? entry.mean : null;
 }
 
-/** Why Pro cannot be chosen, in plain words; null when it can. */
-export function proUnavailableText(pro: Baseline | null): string | null {
-  if (pro === null || pro.players > 0) return null;
-  if (pro.matches === 0) return 'Pro no está disponible: la biblioteca no tiene demos de HLTV con este filtro.';
-  return `Pro no está disponible: ningún jugador de las demos de HLTV llega a ${pro.min_rounds} rondas con este filtro.`;
-}
-
 /** Why a ranking has no rows, in plain words. */
-export function leaderboardEmptyText(board: Pick<Leaderboard, 'scope' | 'matches' | 'min_rounds'>): string {
-  if (board.matches === 0) {
-    return board.scope === 'pro'
-      ? 'La biblioteca no tiene demos de HLTV con este mapa. Importa demos pro o cambia a Biblioteca.'
-      : 'No hay partidas analizadas con este mapa. Importa demos o elige otro mapa.';
-  }
+export function leaderboardEmptyText(board: Pick<Leaderboard, 'matches' | 'min_rounds'>): string {
+  if (board.matches === 0) return 'No hay partidas analizadas con este mapa. Importa demos o elige otro mapa.';
   return `Ningún jugador llega a ${board.min_rounds} rondas con este filtro. Baja el mínimo de rondas.`;
 }
 
@@ -96,6 +141,22 @@ export function baselineSampleText(baseline: Baseline): string {
 /** Says why the minimum is under 50 rounds; empty when it is not. */
 export function minRoundsNote(minRounds: number): string {
   return minRounds < 50 ? ` El mínimo baja de 50 a ${minRounds} rondas porque la biblioteca aún es pequeña.` : '';
+}
+
+/** The priors behind `roundReferences`, for the reliability of a per-round heat cell. */
+export type RoundPriors = { readonly kills: Prior | null; readonly deaths: Prior | null; readonly wpa: Prior | null };
+
+export function roundPriors(baseline: Baseline | null | undefined): RoundPriors {
+  return {
+    kills: baselinePrior(baseline?.metrics.kpr),
+    deaths: baselinePrior(baseline?.metrics.dpr),
+    wpa: baselinePrior(baseline?.metrics.wpa_per_round),
+  };
+}
+
+/** The estimate of a per-round rate over `rounds`; null without a value or a prior. */
+export function rateEstimate(value: number | null, rounds: number, prior: Prior | null): Estimate | null {
+  return value === null || prior === null ? null : estimate({ kind: 'rate', value, rounds }, prior);
 }
 
 /** Per-round references a heat table tints against: the library baseline's means, null where it has no players. */

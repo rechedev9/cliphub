@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { compareDelta, deltaArrow } from '@/lib/analysis/compare';
+import type { Reliability } from '@/lib/analysis/reference';
 import { cn } from '@/lib/utils';
 import { DELTA_TONE_CLASS } from './delta-value';
 import { Sparkline } from './sparkline';
@@ -27,6 +28,8 @@ export type StatCardProps = {
   trend?: readonly number[];
   /** Sample size under the value, such as "238 rondas". */
   sample?: string;
+  /** The shrunk estimate: arrow and colour only when its interval leaves the reference out. */
+  reliability?: Reliability | null;
   className?: string;
 };
 
@@ -55,12 +58,15 @@ export function StatCard({
   epsilon,
   trend,
   sample,
+  reliability,
   className,
 }: StatCardProps): ReactNode {
   const result =
     value !== null && comparison !== undefined && comparison.value !== null
       ? compareDelta(value, comparison.value, { higherIsBetter, epsilon })
       : null;
+  // A difference the interval cannot tell from noise keeps its number but loses the arrow and the colour.
+  const called = result !== null && result.tone !== 'even' && (reliability ? reliability.differs : true);
   const deltaText = formatDelta ?? signed(format);
   return (
     <div className={cn('row-span-2 grid min-w-0 grid-rows-subgrid gap-y-0.5 bg-surface-2 px-3 py-2', className)}>
@@ -73,14 +79,21 @@ export function StatCard({
           {trend ? <Sparkline values={trend} label={`${label} por partida`} format={format} width={64} height={20} /> : null}
         </span>
         {result && comparison && comparison.value !== null ? (
-          <span className="text-meta text-fg-3 tabular-nums" title={`${comparison.label}: ${format(comparison.value)}`}>
-            <span className={cn('font-medium whitespace-nowrap', DELTA_TONE_CLASS[result.tone])}>
-              {result.tone === 'even' ? '= ' : `${deltaArrow(result.delta, epsilon)} ${deltaText(result.delta)}`}
+          <span
+            className="text-meta text-fg-3 tabular-nums"
+            title={`${comparison.label}: ${format(comparison.value)}.${reliability ? ` ${reliability.detail}` : ''}`}
+          >
+            <span className={cn('font-medium whitespace-nowrap', called ? DELTA_TONE_CLASS[result.tone] : 'text-fg-2')}>
+              {result.tone === 'even' ? '= ' : `${called ? `${deltaArrow(result.delta, epsilon)} ` : ''}${deltaText(result.delta)}`}
             </span>{' '}
             <span className="whitespace-nowrap">vs {format(comparison.value)}</span>
-            <span className="sr-only">, {comparison.label.toLowerCase()}</span>
+            <span className="sr-only">
+              , {comparison.label.toLowerCase()}
+              {reliability ? `. ${reliability.detail}` : ''}
+            </span>
           </span>
         ) : null}
+        {reliability?.weak ? <span className="text-meta text-fg-3">Poca muestra</span> : null}
         {sample ? <span className="text-meta text-fg-3">{sample}</span> : null}
       </dd>
     </div>

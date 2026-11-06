@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getLibraryPlayerRole, type LibraryRosterEntry } from '@/lib/api/library';
 import type { Baseline, BaselineMetric, BaselineScope } from '@/lib/api/baseline';
-import { METRIC_INFO, baselineSampleText, baselineValue, minRoundsNote, proUnavailableText, referenceLabel } from '@/lib/analysis/reference';
+import { METRIC_INFO, baselineSampleText, baselineValue, minRoundsNote, proSourceText, referenceLabel } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
@@ -53,8 +53,7 @@ export function TeamRoster({
   if (roster.length === 0) return <p className="text-body-sm text-fg-2">Sin jugadores en las partidas de este equipo.</p>;
   const sorted = [...roster].sort((a, b) => Date.parse(b.last_played_at) - Date.parse(a.last_played_at));
   const ready = data !== null && data !== 'failed' ? data : null;
-  const proMissing = ready ? proUnavailableText(ready.pro) : null;
-  const scope: BaselineScope = reference === 'pro' && proMissing === null ? 'pro' : 'library';
+  const scope = reference;
   let baseline: Baseline | null = null;
   if (ready) baseline = scope === 'pro' ? ready.pro : ready.library;
   const label = referenceLabel(scope);
@@ -140,8 +139,8 @@ export function TeamRoster({
       </div>
       {ready ? (
         <p className="measure-read text-meta text-fg-3">
-          Cifras de cada jugador en todas sus partidas de la biblioteca{map === '' ? '' : ` en ${prettyMapName(map)}`}, no solo con este equipo. La
-          referencia sale de {baselineSampleText(baseline ?? ready.library)}.{minRoundsNote(ready.minRounds)}{proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
+          Cifras de cada jugador en todas sus partidas de la biblioteca{map === '' ? '' : ` en ${prettyMapName(map)}`}, no solo con este equipo.{' '}
+          {scope === 'pro' ? proSourceText(ready.pro) : `La referencia sale de ${baselineSampleText(ready.library)}.${minRoundsNote(ready.minRounds)}`}
         </p>
       ) : null}
     </section>

@@ -191,13 +191,15 @@ type playerMetricsOut struct {
 }
 
 type baselineIn struct {
-	Scope string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: only HLTV demos"`
+	Scope string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the library's HLTV demos, or the pro reference Studio ships when they hold under 10 players"`
 	Map   string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
 }
 
 type baselineOut struct {
 	Scope          string                             `json:"scope"`
 	Map            string                             `json:"map,omitempty"`
+	Source         string                             `json:"source" jsonschema:"library: read from the library; bundled: the pro reference Studio ships"`
+	Description    string                             `json:"description,omitempty"`
 	MinRounds      int                                `json:"min_rounds"`
 	Players        int                                `json:"players"`
 	Rounds         int                                `json:"rounds"`
@@ -295,7 +297,7 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, baselineOut{}, toolError(err)
 			}
-			return nil, baselineOut{Scope: b.Scope, Map: b.Map, MinRounds: b.MinRounds, Players: b.Players, Rounds: b.Rounds,
+			return nil, baselineOut{Scope: b.Scope, Map: b.Map, Source: b.Source, Description: cleanName(b.Description), MinRounds: b.MinRounds, Players: b.Players, Rounds: b.Rounds,
 				Matches: b.Matches, SkippedMatches: b.Skipped, Metrics: b.Metrics}, nil
 		})
 }

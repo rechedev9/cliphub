@@ -52,7 +52,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { useReferences } from '@/hooks/use-references';
-import { proUnavailableText } from '@/lib/analysis/reference';
 import { cn } from '@/lib/utils';
 import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
@@ -158,7 +157,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const [now] = useState(() => Date.now());
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'team', id: team.id });
   const references = useReferences(scope.map);
-  const proUnavailable = references !== null && references !== 'failed' ? proUnavailableText(references.pro) : null;
+  const proReference = references !== null && references !== 'failed' ? references.pro : null;
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   useRouteTitle(team.name);
@@ -221,7 +220,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           scope={scope}
           onChange={setScope}
           onReset={resetScope}
-          proUnavailable={proUnavailable}
+          proReference={proReference}
           fields={fields}
           entity={entity}
           maps={[...new Set(matches.map((match) => match.map))].sort()}

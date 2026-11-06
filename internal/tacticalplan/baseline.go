@@ -1,8 +1,8 @@
 package tacticalplan
 
 import (
+	"math"
 	"slices"
-	"sort"
 )
 
 // Reference metrics a player is compared on. Rates are per round; the _pct
@@ -151,10 +151,20 @@ func (s *BaselineSample) Add(r MetricsReport) {
 	}
 }
 
-// BaselineValue is the mean of one metric over the players that have it.
+// BaselineValue is the mean of one metric over the players that have it, and
+// how far players spread around it.
 type BaselineValue struct {
 	Mean    float64 `json:"mean"`
 	Players int     `json:"players"`
+	// Stddev is the spread of the players' values as measured.
+	Stddev float64 `json:"stddev"`
+	// PriorStddev is the spread of the players' true values: Stddev without
+	// the sampling noise of their rounds. Shrinkage pulls a small sample
+	// toward Mean by this much.
+	PriorStddev float64 `json:"prior_stddev"`
+	// RoundStddev is one round's spread for a per-round rate, the noise a
+	// player's own average carries; zero for the percentages.
+	RoundStddev float64 `json:"round_stddev,omitempty"`
 }
 
 // Baseline is the per-player average of each reference metric over the
@@ -168,25 +178,92 @@ type Baseline struct {
 	Metrics map[string]BaselineValue `json:"metrics"`
 }
 
-// Baseline averages each metric over the qualifying players.
-func (s *BaselineSample) Baseline(minRounds int) Baseline {
+// ReferenceSpread is measured once over pro demos and lent to every baseline:
+// the round spread of each rate, and the prior spread for a baseline with
+// too few players to measure its own.
+type ReferenceSpread struct {
+	RoundStddev map[string]float64
+	PriorStddev map[string]float64
+}
+
+// minSpreadPlayers is how many players a baseline needs to measure its own spread.
+const minSpreadPlayers = 5
+
+// percentDenominator is the count a percentage metric is a share of.
+func (t playerTotals) percentDenominator(metric string) (int, bool) {
+	switch metric {
+	case MetricKAST:
+		return t.rounds, true
+	case MetricOpeningWin:
+		return t.box.OpeningKills + t.box.OpeningDeaths, true
+	case MetricTrade:
+		return t.deaths, true
+	}
+	return 0, false
+}
+
+// samplingVariance is the noise in the player's value of a metric whose
+// population mean is mean: binomial for a percentage, the round spread over
+// the rounds for a rate.
+func (t playerTotals) samplingVariance(metric string, mean, roundStddev float64) float64 {
+	if n, ok := t.percentDenominator(metric); ok {
+		p := mean / 100
+		return 1e4 * p * (1 - p) / float64(max(n, 1))
+	}
+	n := t.rounds
+	if metric == MetricUtilityDamage || metric == MetricFlashAssists {
+		n = t.box.UtilityRounds
+	}
+	return roundStddev * roundStddev / float64(max(n, 1))
+}
+
+// Baseline averages each metric over the qualifying players and measures
+// their spread, the method-of-moments prior of empirical Bayes shrinkage.
+func (s *BaselineSample) Baseline(minRounds int, spread ReferenceSpread) Baseline {
 	out := Baseline{MinRounds: minRounds, Rounds: s.Rounds, Matches: s.Matches, Metrics: map[string]BaselineValue{}}
-	sums := map[string]float64{}
-	counts := map[string]int{}
+	type point struct {
+		value float64
+		t     *playerTotals
+	}
+	points := map[string][]point{}
 	for _, t := range s.players {
 		if t.rounds < minRounds {
 			continue
 		}
 		out.Players++
 		for metric, v := range t.values() {
-			sums[metric] += v
-			counts[metric]++
+			points[metric] = append(points[metric], point{v, t})
 		}
 	}
 	for _, metric := range ReferenceMetrics {
-		v := BaselineValue{Players: counts[metric]}
-		if v.Players > 0 {
-			v.Mean = round4(sums[metric] / float64(v.Players))
+		ps := points[metric]
+		v := BaselineValue{Players: len(ps), RoundStddev: spread.RoundStddev[metric], PriorStddev: spread.PriorStddev[metric]}
+		if v.Players == 0 {
+			out.Metrics[metric] = v
+			continue
+		}
+		var sum float64
+		for _, p := range ps {
+			sum += p.value
+		}
+		mean := sum / float64(len(ps))
+		v.Mean = round4(mean)
+		if len(ps) >= 2 {
+			var dev, noise float64
+			for _, p := range ps {
+				dev += (p.value - mean) * (p.value - mean)
+				noise += p.t.samplingVariance(metric, mean, v.RoundStddev)
+			}
+			observed := dev / float64(len(ps)-1)
+			v.Stddev = round4(math.Sqrt(observed))
+			if len(ps) >= minSpreadPlayers {
+				// Half the variance stays: with few rounds per player the noise term
+				// can swallow the spread and shrink everyone onto the mean.
+				v.PriorStddev = round4(math.Sqrt(max(observed-noise/float64(len(ps)), observed/2)))
+			}
+		}
+		if v.RoundStddev > 0 {
+			v.RoundStddev = round4(v.RoundStddev)
 		}
 		out.Metrics[metric] = v
 	}
@@ -195,12 +272,14 @@ func (s *BaselineSample) Baseline(minRounds int) Baseline {
 
 // LeaderboardRow is one player's place on a metric.
 type LeaderboardRow struct {
-	Rank      int     `json:"rank"`
-	SteamID64 string  `json:"steamid64"`
-	Name      string  `json:"name"`
-	Rounds    int     `json:"rounds"`
-	Matches   int     `json:"matches"`
-	Value     float64 `json:"value"`
+	Rank      int    `json:"rank"`
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name"`
+	// Team is set on the bundled pro rows, which have no library page.
+	Team    string  `json:"team,omitempty"`
+	Rounds  int     `json:"rounds"`
+	Matches int     `json:"matches"`
+	Value   float64 `json:"value"`
 }
 
 // Leaderboard ranks the players with at least minRounds rounds on one metric,
@@ -217,21 +296,5 @@ func (s *BaselineSample) Leaderboard(metric string, minRounds, limit int) []Lead
 		}
 		rows = append(rows, LeaderboardRow{SteamID64: t.steamID, Name: t.name, Rounds: t.rounds, Matches: t.matches, Value: v})
 	}
-	lower := LowerIsBetter(metric)
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].Value != rows[j].Value {
-			return (rows[i].Value < rows[j].Value) == lower
-		}
-		if rows[i].Rounds != rows[j].Rounds {
-			return rows[i].Rounds > rows[j].Rounds
-		}
-		return rows[i].SteamID64 < rows[j].SteamID64
-	})
-	if limit > 0 && len(rows) > limit {
-		rows = rows[:limit]
-	}
-	for i := range rows {
-		rows[i].Rank = i + 1
-	}
-	return rows
+	return rankRows(rows, metric, limit)
 }

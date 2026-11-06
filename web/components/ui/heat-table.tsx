@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { deltaArrow, heatLevel } from '@/lib/analysis/compare';
+import type { Reliability } from '@/lib/analysis/reference';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,8 @@ export type HeatCell = {
   readonly reference?: number | null;
   /** Hover text for the reference, such as "Biblioteca 48 %". */
   readonly referenceText?: string;
+  /** The shrunk estimate: the cell is tinted only when its interval leaves the reference out, and dimmed when the sample is weak. */
+  readonly reliability?: Reliability | null;
 };
 
 export type HeatRow = { readonly id: string; readonly cells: Readonly<Record<string, HeatCell>> };
@@ -51,6 +54,8 @@ export type HeatTableProps = {
   actions?: ReactNode;
   /** What the tint compares with; default "la media de la tabla". */
   reference?: string;
+  /** The cells carry a reliability, so the caption says only reliable differences are marked. */
+  reliableOnly?: boolean;
 };
 
 const WIN = ['', 'bg-outcome-win/8', 'bg-outcome-win/16', 'bg-outcome-win/24'] as const;
@@ -78,13 +83,18 @@ function CellView({
 }): ReactNode {
   const sticky = first ? 'sticky left-0 z-10 bg-surface-2' : '';
   if (cell === undefined) return <td className={cn('px-2.5 py-1.5', sticky)} />;
-  const low = cell.n !== undefined && cell.n < minSample;
+  const small = cell.n !== undefined && cell.n < minSample;
+  const low = small || cell.reliability?.weak === true;
   // An explicit null reference means the library is too thin here: no tint, never a silent fallback.
   const base = cell.reference === undefined ? (column.heat?.baseline ?? null) : cell.reference;
+  const called = cell.reliability ? cell.reliability.differs : !low;
   const level =
-    column.heat && base !== null && !low && cell.value !== undefined && cell.value !== null
+    column.heat && base !== null && !small && called && cell.value !== undefined && cell.value !== null
       ? heatLevel(cell.value, base, column.heat.spread, column.heat.higherIsBetter ?? true)
       : 0;
+  const title = small
+    ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}`
+    : [cell.referenceText, cell.reliability?.detail].filter(Boolean).join('. ') || undefined;
   const arrow = level !== 0 && base !== null && cell.value !== undefined && cell.value !== null ? deltaArrow(cell.value - base) : '';
   const text = cell.href ? (
     <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
@@ -102,7 +112,7 @@ function CellView({
         cell.tone && !low && TONE[cell.tone],
         first ? sticky : tint(level),
       )}
-      title={low ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}` : cell.referenceText}
+      title={title}
     >
       <span className={cn('inline-flex items-center gap-1.5', column.align === 'end' && 'justify-end')}>
         {cell.map ? <MapThumb map={cell.map} className="h-5 w-8" crop={1.5} /> : null}
@@ -133,7 +143,17 @@ function CellView({
  * are dimmed and never tinted. Wide tables scroll inside with the first column
  * pinned, so nothing is cut at the right edge.
  */
-export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, actions, reference = 'la media de la tabla' }: HeatTableProps): ReactNode {
+export function HeatTable({
+  label,
+  columns,
+  rows,
+  minSample,
+  sampleNoun,
+  empty,
+  actions,
+  reference = 'la media de la tabla',
+  reliableOnly = false,
+}: HeatTableProps): ReactNode {
   return (
     <section aria-label={label} className="studio-panel flex min-w-0 flex-col">
       <header className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-1.5">
@@ -182,7 +202,8 @@ export function HeatTable({ label, columns, rows, minSample, sampleNoun, empty, 
         </div>
       )}
       <p className="border-t border-border-subtle px-3 py-1.5 text-meta text-fg-3">
-        ▲▼ y color frente a {reference}; entre paréntesis, las {sampleNoun}. Con menos de {minSample} {sampleNoun}, en gris.
+        ▲▼ y color frente a {reference}{reliableOnly ? ', solo cuando la diferencia es fiable' : ''}; entre paréntesis, las {sampleNoun}. Con
+        menos de {minSample} {sampleNoun}{reliableOnly ? ' o poca muestra' : ''}, en gris.
       </p>
     </section>
   );

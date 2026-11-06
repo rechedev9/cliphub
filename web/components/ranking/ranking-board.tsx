@@ -3,13 +3,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { getBaseline, getLeaderboard } from '@/lib/api/library';
-import { BASELINE_METRICS, BASELINE_SCOPES, type Baseline, type BaselineMetric, type BaselineScope, type Leaderboard } from '@/lib/api/baseline';
+import { BASELINE_METRICS, type Baseline, type BaselineMetric, type BaselineScope, type Leaderboard } from '@/lib/api/baseline';
 import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
 import { scaleBars } from '@/lib/analysis/playbook';
-import { METRIC_INFO, SCOPE_LABEL, baselineSampleText, baselineValue, leaderboardEmptyText } from '@/lib/analysis/reference';
+import { METRIC_INFO, SCOPE_LABEL, baselineSampleText, baselineValue, leaderboardEmptyText, proSourceText } from '@/lib/analysis/reference';
+import { versusRows, type VersusRow } from '@/lib/analysis/versus-board';
 import { playerHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import { Badge } from '@/components/ui/badge';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,8 +36,33 @@ const SHORT_METRIC: Readonly<Record<BaselineMetric, string>> = {
   wpa_per_round: 'WPA/r',
 };
 
-type Query = { metric: BaselineMetric; map: string; scope: BaselineScope; minRounds: number };
-type Loaded = { board: Leaderboard; baseline: Baseline | null };
+/** Which players: the library, the pros, or both ranked together. */
+type BoardScope = BaselineScope | 'versus';
+const BOARD_SCOPES: readonly { value: BoardScope; label: string }[] = [
+  { value: 'library', label: SCOPE_LABEL.library },
+  { value: 'pro', label: SCOPE_LABEL.pro },
+  { value: 'versus', label: 'Tú frente a profesionales' },
+];
+
+type Query = { metric: BaselineMetric; map: string; scope: BoardScope; minRounds: number };
+/** `board` carries the counts; `rows` are the players shown, pros marked. `baseline` is the mean row's reference. */
+type Loaded = { board: Leaderboard; rows: readonly VersusRow[]; baseline: Baseline | null };
+
+async function loadBoard(query: Query): Promise<Loaded> {
+  const base = { map: query.map, min_rounds: query.minRounds };
+  const reference: BaselineScope = query.scope === 'library' ? 'library' : 'pro';
+  const baseline = getBaseline({ ...base, scope: reference }).catch(() => null);
+  if (query.scope !== 'versus') {
+    const board = await getLeaderboard({ ...base, scope: query.scope, metric: query.metric, limit: LIMIT });
+    const pro = query.scope === 'pro';
+    return { board, rows: board.players.map((row) => ({ ...row, pro })), baseline: await baseline };
+  }
+  const [library, pro] = await Promise.all([
+    getLeaderboard({ ...base, scope: 'library', metric: query.metric, limit: LIMIT }),
+    getLeaderboard({ ...base, scope: 'pro', metric: query.metric, limit: LIMIT }),
+  ]);
+  return { board: library, rows: versusRows(library, pro, LIMIT), baseline: await baseline };
+}
 
 /** The library's players ranked by one metric, with the map, the demos and the minimum rounds as controls. */
 export function RankingBoard(): ReactNode {
@@ -47,10 +74,9 @@ export function RankingBoard(): ReactNode {
   useEffect(() => {
     let active = true;
     setData(null);
-    const base = { map: query.map, scope: query.scope, min_rounds: query.minRounds };
-    Promise.all([getLeaderboard({ ...base, metric: query.metric, limit: LIMIT }), getBaseline(base).catch(() => null)])
-      .then(([board, baseline]) => {
-        if (active) setData({ board, baseline });
+    loadBoard(query)
+      .then((loaded) => {
+        if (active) setData(loaded);
       })
       .catch(() => {
         if (active) setData('failed');
@@ -99,12 +125,7 @@ export function RankingBoard(): ReactNode {
           </Select>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="text-meta whitespace-nowrap text-fg-3">Demos</span>
-            <Segmented
-              label="Demos"
-              value={query.scope}
-              options={BASELINE_SCOPES.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
-              onChange={(scope) => update({ scope })}
-            />
+            <Segmented label="Demos" value={query.scope} options={BOARD_SCOPES} onChange={(scope) => update({ scope })} />
             {data !== null && data !== 'failed' ? (
               <p className="flex h-8 items-center rounded-md border border-border px-2.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums">
                 {data.board.matches} {data.board.matches === 1 ? 'partida' : 'partidas'} · {data.board.rounds} rondas
@@ -153,12 +174,13 @@ function RankingTable({
       </div>
     );
   }
-  const { board, baseline } = data;
-  if (board.players.length === 0) return <p className="text-body-sm text-fg-2">{leaderboardEmptyText(board)}</p>;
+  const { board, rows, baseline } = data;
+  if (rows.length === 0) return <p className="text-body-sm text-fg-2">{leaderboardEmptyText(board)}</p>;
   const metric = board.metric;
   const mean = baselineValue(baseline, metric);
-  const widths = scaleBars(board.players.map((row) => row.value));
-  const label = `Media de ${board.scope === 'pro' ? 'los pros' : 'la biblioteca'}`;
+  const widths = scaleBars(rows.map((row) => row.value));
+  const label = `Media de ${baseline?.scope === 'pro' ? 'los pros' : 'la biblioteca'}`;
+  const mixed = rows.some((row) => row.pro) && rows.some((row) => !row.pro);
   return (
     <section aria-label={`Ranking de ${info.label}`} className="studio-panel flex flex-col">
       <div className="overflow-x-auto">
@@ -188,13 +210,21 @@ function RankingTable({
             )}
           </thead>
           <tbody>
-            {board.players.map((row, index) => (
+            {rows.map((row, index) => (
               <tr key={row.steamid64} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3/50">
                 <td className="px-2.5 py-1 text-right text-fg-3 tabular-nums">{row.rank}</td>
                 <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-2.5 py-1 text-left font-medium">
-                  <Link href={playerHref(row.steamid64)} className="text-fg-1 hover:text-primary hover:underline">
-                    {row.name || row.steamid64}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    {row.team === undefined ? (
+                      <Link href={playerHref(row.steamid64)} className="text-fg-1 hover:text-primary hover:underline">
+                        {row.name || row.steamid64}
+                      </Link>
+                    ) : (
+                      <span className="text-fg-1">{row.name || row.steamid64}</span>
+                    )}
+                    {mixed && row.pro ? <Badge variant="outline">Pro</Badge> : null}
+                    {row.team ? <span className="text-meta font-normal whitespace-nowrap text-fg-3">{row.team}</span> : null}
+                  </span>
                 </th>
                 <td className="px-2.5 py-1 text-right">
                   <DeltaValue
@@ -222,6 +252,7 @@ function RankingTable({
         {board.higher_is_better ? 'De mayor a menor' : 'De menor a mayor, porque morir menos es mejor'}. ▲▼ frente a la media. Leídas{' '}
         {board.matches} {board.matches === 1 ? 'partida' : 'partidas'}
         {board.skipped > 0 ? `; ${board.skipped} sin análisis no cuentan` : ''}. Solo entran jugadores con {board.min_rounds} rondas o más.
+        {baseline?.scope === 'pro' ? ` ${proSourceText(baseline)}` : ''}
       </p>
     </section>
   );
