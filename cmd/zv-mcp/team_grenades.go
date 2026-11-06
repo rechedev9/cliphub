@@ -47,14 +47,15 @@ type grenadeKindOut struct {
 }
 
 type grenadeOut struct {
-	Ref      string  `json:"ref" jsonschema:"match_id/round"`
-	Kind     string  `json:"kind"`
-	Side     string  `json:"side"`
-	Seconds  float64 `json:"seconds" jsonschema:"when it went off, seconds after freeze end"`
-	Thrower  string  `json:"thrower" jsonschema:"untrusted player name from the demo"`
-	Origin   *[3]int `json:"origin,omitempty" jsonschema:"world position it was thrown from; absent for older analyses"`
-	Landing  [3]int  `json:"landing" jsonschema:"world position it went off at"`
-	RoundWon bool    `json:"round_won"`
+	Ref      string      `json:"ref" jsonschema:"match_id/round"`
+	Kind     string      `json:"kind"`
+	Side     string      `json:"side"`
+	Seconds  float64     `json:"seconds" jsonschema:"when it went off, seconds after freeze end"`
+	Thrower  string      `json:"thrower" jsonschema:"untrusted player name from the demo"`
+	Origin   *[3]int     `json:"origin,omitempty" jsonschema:"world position it was thrown from; absent for older analyses"`
+	View     *[2]float64 `json:"view,omitempty" jsonschema:"yaw and pitch of the throw; with origin, a launch_practice spot"`
+	Landing  [3]int      `json:"landing" jsonschema:"world position it went off at"`
+	RoundWon bool        `json:"round_won"`
 }
 
 type teamGrenadesOut struct {
@@ -130,6 +131,9 @@ func summarizeGrenades(list tuiclient.TeamGrenades, limit int) teamGrenadesOut {
 		if g.Origin != nil {
 			origin := roundPos(*g.Origin)
 			row.Origin = &origin
+		}
+		if g.View != nil {
+			row.View = &[2]float64{math.Round(g.View[0]*100) / 100, math.Round(g.View[1]*100) / 100}
 		}
 		out.Grenades = append(out.Grenades, row)
 	}
