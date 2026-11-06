@@ -185,47 +185,50 @@ type PlayerMetricsReport struct {
 	Matches int               `json:"matches"`
 	Rounds  int               `json:"rounds"`
 	Skipped []AnalysisSkipped `json:"skipped"`
-	Players []struct {
-		SteamID64 string `json:"steamid64"`
-		Name      string `json:"name"`
-		Role      string `json:"role"`
-		Matches   int    `json:"matches"`
-		Rounds    int    `json:"rounds"`
-		Kills     int    `json:"kills"`
-		Deaths    int    `json:"deaths"`
-		Swing     struct {
-			WPA      float64 `json:"wpa"`
-			PerRound float64 `json:"per_round"`
-		} `json:"swing"`
-		Trades struct {
-			TradeKills   MetricCount `json:"trade_kills"`
-			TradedDeaths MetricCount `json:"traded_deaths"`
-		} `json:"trades"`
-		Utility struct {
-			Measured bool `json:"measured"`
-			Flash    struct {
-				Thrown  int         `json:"thrown"`
-				Assists MetricCount `json:"assists"`
-			} `json:"flash"`
-			HE      GrenadeDamage `json:"he"`
-			Molotov GrenadeDamage `json:"molotov"`
-		} `json:"utility"`
-		Box struct {
-			Damage        int `json:"damage"`
-			KASTRounds    int `json:"kast_rounds"`
-			OpeningKills  int `json:"opening_kills"`
-			OpeningDeaths int `json:"opening_deaths"`
-			UtilityRounds int `json:"utility_rounds"`
-		} `json:"box"`
-		Buys []struct {
-			Buy    string  `json:"buy"`
-			Rounds int     `json:"rounds"`
-			Won    int     `json:"won"`
-			Kills  int     `json:"kills"`
-			Deaths int     `json:"deaths"`
-			WPA    float64 `json:"wpa"`
-		} `json:"buys"`
-	} `json:"players"`
+	Players []PlayerMetrics   `json:"players"`
+}
+
+// PlayerMetrics is one player's line of a metrics report.
+type PlayerMetrics struct {
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	Matches   int    `json:"matches"`
+	Rounds    int    `json:"rounds"`
+	Kills     int    `json:"kills"`
+	Deaths    int    `json:"deaths"`
+	Swing     struct {
+		WPA      float64 `json:"wpa"`
+		PerRound float64 `json:"per_round"`
+	} `json:"swing"`
+	Trades struct {
+		TradeKills   MetricCount `json:"trade_kills"`
+		TradedDeaths MetricCount `json:"traded_deaths"`
+	} `json:"trades"`
+	Utility struct {
+		Measured bool `json:"measured"`
+		Flash    struct {
+			Thrown  int         `json:"thrown"`
+			Assists MetricCount `json:"assists"`
+		} `json:"flash"`
+		HE      GrenadeDamage `json:"he"`
+		Molotov GrenadeDamage `json:"molotov"`
+	} `json:"utility"`
+	Box struct {
+		Damage        int `json:"damage"`
+		KASTRounds    int `json:"kast_rounds"`
+		OpeningKills  int `json:"opening_kills"`
+		OpeningDeaths int `json:"opening_deaths"`
+		UtilityRounds int `json:"utility_rounds"`
+	} `json:"box"`
+	Buys []struct {
+		Buy    string  `json:"buy"`
+		Rounds int     `json:"rounds"`
+		Won    int     `json:"won"`
+		Kills  int     `json:"kills"`
+		Deaths int     `json:"deaths"`
+		WPA    float64 `json:"wpa"`
+	} `json:"buys"`
 }
 
 // PlayerMetrics returns a player's advanced metrics over their recent matches.

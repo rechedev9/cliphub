@@ -394,12 +394,18 @@ func shares(buckets []tuiclient.ScoutBucket) []shareOut {
 }
 
 func summarizePlayerMetrics(steamID string, r tuiclient.PlayerMetricsReport) playerMetricsOut {
-	out := playerMetricsOut{SteamID64: steamID, Matches: r.Matches, Rounds: r.Rounds, Buys: []buyOut{}, SkippedMatches: len(r.Skipped)}
 	if len(r.Players) == 0 {
-		out.Note = "No rounds of this player match the filter."
-		return out
+		return playerMetricsOut{SteamID64: steamID, Matches: r.Matches, Rounds: r.Rounds, Buys: []buyOut{}, SkippedMatches: len(r.Skipped),
+			Note: "No rounds of this player match the filter."}
 	}
-	p := r.Players[0]
+	out := metricsOf(r.Players[0])
+	out.SteamID64, out.SkippedMatches = steamID, len(r.Skipped)
+	return out
+}
+
+// metricsOf computes one player's rates with the get_baseline definitions.
+func metricsOf(p tuiclient.PlayerMetrics) playerMetricsOut {
+	out := playerMetricsOut{SteamID64: cleanName(p.SteamID64), Buys: []buyOut{}}
 	out.Name, out.Role, out.Matches, out.Rounds, out.Kills, out.Deaths = cleanName(p.Name), cleanName(p.Role), p.Matches, p.Rounds, p.Kills, p.Deaths
 	out.KPR, out.DPR = ratio(p.Kills, p.Rounds), ratio(p.Deaths, p.Rounds)
 	out.ADR, out.KAST = ratio(p.Box.Damage, p.Rounds), pct(p.Box.KASTRounds, p.Rounds)
