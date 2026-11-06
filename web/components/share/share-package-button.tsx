@@ -59,7 +59,7 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
           <DialogHeader>
             <DialogTitle>Compartir informe</DialogTitle>
             <DialogDescription>
-              {summary} Quien lo abra con Importar paquete en su Studio ve las repeticiones sin conexión.
+              {summary} Quien lo abra con Importar demos, en Partidas de su Studio, ve las repeticiones sin conexión.
             </DialogDescription>
           </DialogHeader>
           <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
