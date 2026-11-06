@@ -24,7 +24,7 @@ var editableSources = []string{"valve", "faceit", "hltv", "scrim", "unknown"}
 
 type importIn struct {
 	Path string   `json:"path" jsonschema:"absolute path of a local .dem or .dem.zst file"`
-	Tags []string `json:"tags,omitempty" jsonschema:"labels for the library, such as a tournament or scrim partner; at most 32 of 40 characters"`
+	Tags []string `json:"tags,omitempty" jsonschema:"labels for the library, such as a tournament or scrim partner; at most 32 of 40 characters, no commas"`
 }
 
 type demoOut struct {
@@ -42,7 +42,7 @@ type demoOut struct {
 type updateDemoIn struct {
 	ID     string    `json:"id" jsonschema:"demo_id from get_match, list_matches or import_demo"`
 	Source string    `json:"source,omitempty" jsonschema:"valve, faceit, hltv, scrim or unknown; empty keeps the source"`
-	Tags   *[]string `json:"tags,omitempty" jsonschema:"the whole new tag set, replacing the old one; an empty list clears it; omit to keep the tags"`
+	Tags   *[]string `json:"tags,omitempty" jsonschema:"the whole new tag set, replacing the old one (at most 32 of 40 characters, no commas); an empty list clears it; omit to keep the tags"`
 }
 
 type deleteDemoIn struct {
@@ -54,7 +54,8 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "import_demo",
-		Description: "Import a local CS2 demo into the Studio library, optionally with tags. Analysis starts on its own; follow with wait_for_demo."},
+		Description: "Import a local CS2 demo into the Studio library, optionally with tags. Analysis starts on its own; follow with wait_for_demo. " +
+			"A duplicate (the same file already in the library) keeps its own tags; change them with update_demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkDemoPath(in.Path); err != nil {
 				return nil, demoOut{}, err
@@ -182,6 +183,10 @@ func checkDemoTags(tags []string) error {
 	for _, tag := range tags {
 		if strings.TrimSpace(tag) == "" || utf8.RuneCountInString(tag) > maxDemoTagRunes {
 			return fmt.Errorf("each tag needs 1 to %d characters", maxDemoTagRunes)
+		}
+		// The Demo panel edits tags as one comma-separated text, so a comma would split the tag there.
+		if strings.Contains(tag, ",") {
+			return errors.New("a tag cannot contain a comma; pass each tag as its own item")
 		}
 	}
 	return nil

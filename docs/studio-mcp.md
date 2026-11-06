@@ -184,7 +184,7 @@ Write:
 
 | Tool | Orchestrator calls | Approval |
 | --- | --- | --- |
-| `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file) | no |
+| `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file, and a duplicate keeps its own tags) | no |
 | `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set | no |
 | `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
