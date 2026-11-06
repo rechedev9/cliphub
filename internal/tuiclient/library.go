@@ -47,11 +47,12 @@ type LibraryMatch struct {
 }
 
 type LibraryMatchTeam struct {
-	Key       string `json:"key"`
-	StartSide string `json:"start_side"`
-	ClanName  string `json:"clan_name"`
-	TeamName  string `json:"team_name,omitempty"`
-	TeamID    string `json:"team_id,omitempty"`
+	Key        string `json:"key"`
+	StartSide  string `json:"start_side"`
+	ClanName   string `json:"clan_name"`
+	TeamName   string `json:"team_name,omitempty"`
+	TeamID     string `json:"team_id,omitempty"`
+	Assignment string `json:"assignment"`
 }
 
 type LibraryMatchPlayer struct {
