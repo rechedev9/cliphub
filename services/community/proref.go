@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -36,26 +38,44 @@ type mapReference struct {
 	Players     []tacticalplan.ProReferenceRow   `json:"players"`
 }
 
-// rebuildReference measures the reference from every indexed demo and stores
-// the full document, the index and one payload per map.
+// minMapRounds drops a map whose parts add up to less than one half: a fragment, not a map.
+const minMapRounds = 13
+
+// partSuffix is what a dataset adds to the demos of one map split by a server
+// restart ("-p2") or uploaded twice ("(1)").
+var partSuffix = regexp.MustCompile(`(-p\d+|\(\d+\))?\.dem$`)
+
+// mapKey names the map a demo file belongs to, so its parts merge into one map.
+func mapKey(path string) string {
+	return partSuffix.ReplaceAllString(strings.ToLower(path), "")
+}
+
+// rebuildReference measures the reference from every indexed demo, with the
+// parts of one map joined, and stores the full document, the index and one payload per map.
 func rebuildReference(ctx context.Context, s *store) (community.ProReferenceIndex, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT event, summary FROM pro_demos WHERE status = 'ok' ORDER BY dataset, path`)
+	rows, err := s.db.QueryContext(ctx, `SELECT dataset, path, event, summary FROM pro_demos WHERE status = 'ok' ORDER BY dataset, path`)
 	if err != nil {
 		return community.ProReferenceIndex{}, err
 	}
 	defer rows.Close()
 	build := tacticalplan.ProReferenceBuild{UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	events := []string{}
+	keys := []string{}
+	parts := map[string][]tacticalplan.ProDemoSummary{}
 	for rows.Next() {
-		var event, raw string
-		if err := rows.Scan(&event, &raw); err != nil {
+		var dataset, path, event, raw string
+		if err := rows.Scan(&dataset, &path, &event, &raw); err != nil {
 			return community.ProReferenceIndex{}, err
 		}
 		var d tacticalplan.ProDemoSummary
 		if err := json.Unmarshal([]byte(raw), &d); err != nil {
 			return community.ProReferenceIndex{}, fmt.Errorf("decode summary: %w", err)
 		}
-		build.Demos = append(build.Demos, d)
+		key := dataset + "/" + mapKey(path)
+		if parts[key] == nil {
+			keys = append(keys, key)
+		}
+		parts[key] = append(parts[key], d)
 		if !slices.Contains(events, event) {
 			events = append(events, event)
 		}
@@ -63,9 +83,20 @@ func rebuildReference(ctx context.Context, s *store) (community.ProReferenceInde
 	if err := rows.Err(); err != nil {
 		return community.ProReferenceIndex{}, err
 	}
+	dropped, short := 0, 0
+	for _, key := range keys {
+		merged, n := tacticalplan.MergeProDemoParts(parts[key])
+		dropped += n
+		if merged.Match.Rounds < minMapRounds {
+			short++
+			continue
+		}
+		build.Demos = append(build.Demos, merged)
+	}
 	if len(build.Demos) == 0 {
 		return community.ProReferenceIndex{}, errors.New("no demo indexed yet")
 	}
+	log.Printf("community stage=rebuild class=maps maps=%d replayed_parts_dropped=%d fragments_skipped=%d", len(build.Demos), dropped, short)
 	build.ID = "server-" + time.Now().UTC().Format("20060102")
 	build.Description = fmt.Sprintf("%d %s de %s.", len(build.Demos), plural(len(build.Demos), "mapa profesional", "mapas profesionales"), joinSpanish(events))
 	ref, err := tacticalplan.BuildProReference(build)

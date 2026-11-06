@@ -33,6 +33,9 @@ const (
 	indexUserAgent = "ClipHub-community-indexer/1 (+https://cliphub.rechedev.cloud)"
 )
 
+// errNotAMatch marks a demo with no players, such as the one-round stub before a restart; it is never retried.
+var errNotAMatch = errors.New("demo holds no match")
+
 // datasetPattern is an owner/name Hugging Face dataset id.
 var datasetPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$`)
 
@@ -205,7 +208,7 @@ func (ix *indexer) indexDemo(ctx context.Context, demo pendingDemo) (tacticalpla
 	}
 	summary := tacticalplan.SummarizeProDemo(res.Document)
 	if summary.Match.Map == "" || summary.Match.Rounds == 0 || len(summary.Players) < 10 {
-		return tacticalplan.ProDemoSummary{}, fmt.Errorf("demo has map %q, %d rounds, %d players", summary.Match.Map, summary.Match.Rounds, len(summary.Players))
+		return tacticalplan.ProDemoSummary{}, fmt.Errorf("%w: map %q, %d rounds, %d players", errNotAMatch, summary.Match.Map, summary.Match.Rounds, len(summary.Players))
 	}
 	return summary, nil
 }
@@ -251,15 +254,19 @@ func (s *store) markIndexed(ctx context.Context, d pendingDemo, summary tactical
 }
 
 func (s *store) markFailed(ctx context.Context, d pendingDemo, cause error) error {
+	attempts := 1
+	if errors.Is(cause, errNotAMatch) {
+		attempts = maxAttempts
+	}
 	msg := cause.Error()
 	if len(msg) > 500 {
 		msg = msg[:500]
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO pro_demos (dataset, path, sha256, size, event, status, attempts, error, indexed_at)
-		VALUES (?, ?, ?, ?, ?, 'failed', 1, ?, ?)
+		VALUES (?, ?, ?, ?, ?, 'failed', ?, ?, ?)
 		ON CONFLICT (dataset, path) DO UPDATE SET sha256 = excluded.sha256, status = 'failed',
-			attempts = CASE WHEN pro_demos.sha256 = excluded.sha256 THEN pro_demos.attempts + 1 ELSE 1 END, error = excluded.error, indexed_at = excluded.indexed_at`,
-		d.dataset, d.path, d.sha256, d.size, d.event, msg, now())
+			attempts = CASE WHEN pro_demos.sha256 = excluded.sha256 THEN MAX(pro_demos.attempts + 1, excluded.attempts) ELSE excluded.attempts END, error = excluded.error, indexed_at = excluded.indexed_at`,
+		d.dataset, d.path, d.sha256, d.size, d.event, attempts, msg, now())
 	return err
 }
 

@@ -212,3 +212,29 @@ func TestEventNameReadsTheDatasetFolder(t *testing.T) {
 		}
 	}
 }
+
+func TestRebuildJoinsRestartPartsAndSkipsFragments(t *testing.T) {
+	a, _ := testAPI(t)
+	ctx := context.Background()
+	add := func(path string, rounds, first int) {
+		d := demoSummary("de_ancient")
+		d.Match.Rounds, d.FirstRound, d.LastRound = rounds, first, first+rounds-1
+		if err := a.store.markIndexed(ctx, pendingDemo{dataset: "o/d", path: path, sha256: "s", size: 1, event: "IEM Cologne Major 2026"}, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("ev/1-monte-vs-legacy/monte-vs-legacy-ancient-p2.dem", 3, 1)
+	add("ev/1-monte-vs-legacy/monte-vs-legacy-ancient-p3.dem", 21, 4)
+	add("ev/2-b8-vs-gl/b8-vs-gl-m1-ancient-p2.dem", 1, 1)
+	add("ev/3-a-vs-b/a-vs-b-ancient.dem", 20, 1)
+	index, err := rebuildReference(ctx, a.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index.Matches != 2 || index.Rounds != 44 || !strings.HasPrefix(index.Description, "2 mapas") {
+		t.Fatalf("index = %d maps, %d rounds, %q; want the parts as one map and no fragment", index.Matches, index.Rounds, index.Description)
+	}
+	if got := mapKey("x/a-vs-b-m1-anubis-p2.dem"); got != "x/a-vs-b-m1-anubis" || mapKey("x/a-overpass(1).dem") != "x/a-overpass" {
+		t.Fatalf("mapKey = %q", got)
+	}
+}

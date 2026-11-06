@@ -45,10 +45,13 @@ type ProDemoLine struct {
 	RoundSums     map[string]RoundSums `json:"round_sums"`
 }
 
-// ProDemoSummary is what a pro reference keeps of one demo.
+// ProDemoSummary is what a pro reference keeps of one demo; FirstRound and
+// LastRound are game round numbers, so restart parts of one map can be joined.
 type ProDemoSummary struct {
-	Match   ProReferenceMatch `json:"match"`
-	Players []ProDemoLine     `json:"players"`
+	Match      ProReferenceMatch `json:"match"`
+	FirstRound int               `json:"first_round,omitempty"`
+	LastRound  int               `json:"last_round,omitempty"`
+	Players    []ProDemoLine     `json:"players"`
 }
 
 // SummarizeProDemo reduces a scanned demo to its players' additive totals and
@@ -66,6 +69,10 @@ func SummarizeProDemo(doc Document) ProDemoSummary {
 		team[p.SteamID64] = teamName[p.TeamKey]
 	}
 	out := ProDemoSummary{Match: ProReferenceMatch{Map: doc.Demo.Map, Teams: names, Rounds: len(doc.Rounds)}}
+	if n := len(doc.Rounds); n > 0 {
+		out.FirstRound = gameRound(doc.Rounds[0])
+		out.LastRound = gameRound(doc.Rounds[n-1])
+	}
 	index := map[string]int{}
 	report := Metrics([]MetricsMatch{{MatchID: id, Document: doc}}, MetricsOptions{})
 	for _, p := range report.Players {
