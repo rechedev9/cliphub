@@ -11,6 +11,8 @@ import type { TimelineEvent } from '@/lib/tactical-timeline';
 import { worldToRendered, yawToRadarAngle } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
+import { drawHitLabels, drawHitLines, drawSightPairs, drawViewWedges } from './radar-analysis';
+import type { FrameAnalysis } from './radar-analysis';
 
 /** World radii of the grenade effects, in CS2 units. */
 const SMOKE_RADIUS = 144;
@@ -42,6 +44,8 @@ export type RoundFrame = {
   utility: boolean;
   bomb: boolean;
   style: RadarStyle;
+  /** Sight and hit lines; only the focused round carries them. */
+  analysis: FrameAnalysis | null;
 };
 
 /** Where a drawn player sits in the square's CSS pixels, for hover and click. */
@@ -287,18 +291,20 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const color = sideColor(style, side);
   const radius = discRadius(frame.size);
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
-  const reach = radius * 6;
-  const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
-  cone.addColorStop(0, color);
-  cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.globalAlpha = 0.42;
-  ctx.fillStyle = cone;
-  ctx.beginPath();
-  ctx.moveTo(at.x, at.y);
-  ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  if (frame.analysis?.sight?.wedges.has(sample.slot) !== true) {
+    const reach = radius * 6;
+    const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
+    cone.addColorStop(0, color);
+    cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = cone;
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y);
+    ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
   if (frame.selectedSlot === sample.slot) {
     ctx.strokeStyle = '#ffffff';
@@ -399,13 +405,18 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
 
 /**
  * Paints one round over the baked plate: smokes, fires and throws first, the
- * trails, the bomb on the ground, the dead, the living, and the name tags on
- * top. Answers where each player was drawn, for hover and click.
+ * view wedges and trails, the bomb on the ground, the dead, sight and hit
+ * lines, the living, and the name tags on top. Answers where each player was
+ * drawn, for hover and click.
  */
 export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame, tags: { visible: TagRect; spots: Map<number, number> } | null): DrawnPlayer[] {
   if (frame.utility) {
     for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) drawGrenade(ctx, frame, visual);
   }
+  const canvas = { ctx, calibration: frame.calibration, size: frame.size, style: frame.style, samples: frame.samples };
+  const sight = frame.analysis?.sight ?? null;
+  const hits = frame.analysis?.hits ?? [];
+  if (sight !== null) drawViewWedges(canvas, sight);
   drawTrails(ctx, frame);
   if (frame.bomb) drawBomb(ctx, frame);
   const players: DrawnPlayer[] = [];
@@ -415,10 +426,13 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     players.push({ slot: sample.slot, x: at.x, y: at.y, side: sampleSide(sample), alive });
     if (!alive) drawDead(ctx, frame, sample, at);
   }
+  if (sight !== null) drawSightPairs(canvas, sight);
+  drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);
     if (player !== undefined && player.alive) drawAlive(ctx, frame, sample, player);
   }
+  drawHitLabels(canvas, hits);
   if (tags !== null) drawTags(ctx, { frame, players, visible: tags.visible, spots: tags.spots });
   return players;
 }

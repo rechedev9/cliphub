@@ -7,19 +7,43 @@ export type ReplayLayers = {
   bomb: boolean;
   trails: boolean;
   names: boolean;
+  /** Lines between enemies who can see each other, and view wedges cut at the walls. */
+  sight: boolean;
+  /** Short lines from attacker to victim on each hit and enemy flash. */
+  hits: boolean;
+  /** The opening kill, trades, plant, defuses and clutch marked on the timeline. */
+  moments: boolean;
+  /** How far back the trails reach. */
+  trailSeconds: TrailSeconds;
   /** Slots of the players taken off the map. */
   hiddenSlots: readonly number[];
 };
 
-export type LayerToggle = 'utility' | 'bomb' | 'trails' | 'names';
+export type LayerToggle = 'utility' | 'bomb' | 'trails' | 'names' | 'sight' | 'hits' | 'moments';
 
-export const DEFAULT_LAYERS: ReplayLayers = { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] };
+export const TRAIL_LENGTHS = [2, 5, 10] as const;
+export type TrailSeconds = (typeof TRAIL_LENGTHS)[number];
+
+export const DEFAULT_LAYERS: ReplayLayers = {
+  utility: true,
+  bomb: true,
+  trails: true,
+  names: true,
+  sight: false,
+  hits: true,
+  moments: true,
+  trailSeconds: 2,
+  hiddenSlots: [],
+};
 
 export const LAYER_LABELS: Record<LayerToggle, string> = {
   utility: 'Utilidad',
   bomb: 'Bomba',
   trails: 'Rastros',
   names: 'Nombres',
+  sight: 'Quién ve a quién',
+  hits: 'Daño y flashes',
+  moments: 'Momentos clave',
 };
 
 const UTILITY_KINDS: ReadonlySet<TacticalEventKind> = new Set([

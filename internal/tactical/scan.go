@@ -205,6 +205,7 @@ type roundAcc struct {
 
 	kills          []killRecord
 	utilityHits    []utilityHit
+	hits           []tacticalplan.Hit
 	stats          map[uint8]*playerRoundAcc
 	sides          map[uint8]tacticalplan.Side
 	economySampled bool
@@ -715,6 +716,7 @@ func (s *scanner) onHurt(e events.PlayerHurt) {
 		return
 	}
 	s.recordUtilityDamage(e)
+	s.recordHit(e)
 	if e.Attacker.Team == e.Player.Team {
 		return
 	}
@@ -839,6 +841,9 @@ func sampleFlags(p *common.Player, side tacticalplan.Side) tacticalplan.SampleFl
 	}
 	if p.IsAirborne() {
 		flags |= tacticalplan.FlagAirborne
+	}
+	if p.IsDefusing {
+		flags |= tacticalplan.FlagDefusing
 	}
 	if side == tacticalplan.SideT {
 		flags |= tacticalplan.FlagSideT

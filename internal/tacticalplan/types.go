@@ -24,9 +24,11 @@ const SchemaVersion = "1.0"
 // players on the team of their first live round, "Equipo CT/T" fallback names;
 // 3: rounds numbered by the game's count, as Crear numbers them;
 // 4: every grenade carries where it was thrown from;
-// 5: positions blob version 2, every sample carries pitch and gear).
+// 5: positions blob version 2, every sample carries pitch and gear;
+// 6: every round lists the damage players dealt to enemies, and samples
+// mark a player defusing).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 5
+const AnalysisVersion = 6
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -233,6 +235,20 @@ type Round struct {
 	Class   Class         `json:"class"`
 	Players []PlayerRound `json:"players"`
 	Events  []Event       `json:"events"`
+	// Hits is the damage dealt to enemies, in tick order. Analyses before
+	// version 6 lack it.
+	Hits []Hit `json:"hits,omitempty"`
+}
+
+// Hit is damage one player dealt to an enemy. Hits of the same pair and weapon
+// that land within a quarter second, a spray or a burning fire, are summed.
+type Hit struct {
+	Tick       int    `json:"tick"`
+	ActorSlot  uint8  `json:"actor_slot"`
+	TargetSlot uint8  `json:"target_slot"`
+	Damage     int    `json:"damage"`
+	Weapon     string `json:"weapon,omitempty"`
+	Headshot   bool   `json:"headshot,omitempty"`
 }
 
 // Duration returns the round's live duration in seconds at the given tickrate,

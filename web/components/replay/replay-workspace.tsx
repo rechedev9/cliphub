@@ -43,6 +43,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { BookmarkPanel, SaveMomentDialog } from './bookmark-panel';
 import type { ReplayCentreView } from './centre';
+import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapHud } from './map-hud';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
@@ -50,6 +51,7 @@ import { RADAR_2D_VIEW } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { ShortcutHelp } from './shortcut-help';
+import { useKeyMoments } from './use-key-moments';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
 import type { WinStripState } from './win-strip';
@@ -233,6 +235,14 @@ export function ReplayWorkspace({
   }, [clock, transport]);
 
   const seekTo = useCallback((seconds: number) => clock.set(clampToTimeline(transport, seconds)), [clock, transport]);
+  const jumpTo = useCallback(
+    (seconds: number) => {
+      setPlaying(false);
+      seekTo(seconds);
+    },
+    [seekTo],
+  );
+  const moments = useKeyMoments({ focused, enabled: layers.moments, transport, clockSecondsOf, onJump: jumpTo });
 
   const select = useCallback(
     (next: number, tick?: number) => {
@@ -533,7 +543,9 @@ export function ReplayWorkspace({
           filters={filters}
           layers={layers}
           onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           onShowAll={() => setLayers((value) => showAllPlayers(value))}
+          moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
           bookmarks={
             library
               ? {
@@ -628,7 +640,14 @@ export function ReplayWorkspace({
           onSpeedChange={setSpeed}
           onToggleLoop={() => setLoop((value) => !value)}
           onSeek={seekTo}
-          below={winState === null ? undefined : <WinStrip state={winState} />}
+          below={
+            moments.length === 0 && winState === null ? undefined : (
+              <>
+                <KeyMomentMarks moments={moments} />
+                {winState === null ? null : <WinStrip state={winState} />}
+              </>
+            )
+          }
         />
       </div>
 

@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Bomb, ChevronRight, Footprints, Flame, Tag } from 'lucide-react';
+import { Bomb, ChevronRight, Eye, Flag, Footprints, Flame, Tag, Zap } from 'lucide-react';
 import type { CentreRound } from '@/lib/replay/centre-round';
-import { LAYER_LABELS } from '@/lib/replay/layers';
-import type { LayerToggle, ReplayLayers } from '@/lib/replay/layers';
+import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
+import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
+import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { ROUND_OUTCOME_LABEL, roundOutcome } from '@/lib/replay/round-outcome';
 import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { HIT_COLORS } from './radar/radar-analysis';
 import { ReplayChip, ReplayGroup } from './replay-chip';
 
 const LAYER_ICONS: Record<LayerToggle, ReactNode> = {
@@ -16,9 +18,39 @@ const LAYER_ICONS: Record<LayerToggle, ReactNode> = {
   bomb: <Bomb aria-hidden />,
   trails: <Footprints aria-hidden />,
   names: <Tag aria-hidden />,
+  sight: <Eye aria-hidden />,
+  hits: <Zap aria-hidden />,
+  moments: <Flag aria-hidden />,
 };
 
-const LAYER_ORDER: readonly LayerToggle[] = ['names', 'utility', 'bomb', 'trails'];
+const LAYER_ORDER: readonly LayerToggle[] = ['names', 'utility', 'bomb', 'trails', 'hits', 'sight', 'moments'];
+
+const LAYER_HINTS: Partial<Record<LayerToggle, string>> = {
+  sight: 'Une a los rivales que se ven, con las paredes y los humos reales del mapa, y recorta los conos de visión en las paredes',
+  hits: 'Una línea del atacante a la víctima en cada impacto y cada flash a un rival',
+  moments: 'Primera baja, intercambios, plant, desactivaciones y clutch en la línea de tiempo',
+};
+
+const HIT_LEGEND: readonly [HitLineKind, string][] = [
+  ['bullet', 'Bala'],
+  ['he', 'HE'],
+  ['fire', 'Fuego'],
+  ['flash', 'Flash'],
+];
+
+/** What each colour of the hit lines means, under the layer chips. */
+function HitLegend(): ReactNode {
+  return (
+    <ul className="flex flex-wrap gap-x-2.5 gap-y-1 text-meta text-fg-3" aria-label="Colores del daño">
+      {HIT_LEGEND.map(([kind, label]) => (
+        <li key={kind} className="flex items-center gap-1">
+          <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: HIT_COLORS[kind] }} aria-hidden />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** A section that folds; the count says what is inside while it is closed. */
 function Fold({ title, count, defaultOpen, children }: { title: string; count?: number; defaultOpen: boolean; children: ReactNode }): ReactNode {
@@ -79,7 +111,9 @@ export function ReplayLeftPanel({
   filters,
   layers,
   onToggleLayer,
+  onTrailSeconds,
   onShowAll,
+  moments,
   bookmarks,
 }: {
   focused: CentreRound | null;
@@ -88,7 +122,10 @@ export function ReplayLeftPanel({
   filters: ReactNode;
   layers: ReplayLayers;
   onToggleLayer: (key: LayerToggle) => void;
+  onTrailSeconds: (seconds: TrailSeconds) => void;
   onShowAll: () => void;
+  /** The round's key moments as jump buttons; null with the layer off. */
+  moments: { count: number; list: ReactNode } | null;
   bookmarks: { count: number; panel: ReactNode } | null;
 }): ReactNode {
   const reasons = focused?.round.class.reasons ?? [];
@@ -110,13 +147,29 @@ export function ReplayLeftPanel({
       >
         <div className="flex flex-wrap gap-1" role="group" aria-label="Capas del mapa">
           {LAYER_ORDER.map((key) => (
-            <ReplayChip key={key} pressed={layers[key]} onClick={() => onToggleLayer(key)}>
+            <ReplayChip key={key} pressed={layers[key]} onClick={() => onToggleLayer(key)} title={LAYER_HINTS[key]}>
               {LAYER_ICONS[key]}
               {LAYER_LABELS[key]}
             </ReplayChip>
           ))}
         </div>
+        {layers.trails ? (
+          <div className="flex items-center gap-1.5" role="group" aria-label="Largo de los rastros">
+            <span className="text-meta text-fg-3">Rastro</span>
+            {TRAIL_LENGTHS.map((seconds) => (
+              <ReplayChip key={seconds} pressed={layers.trailSeconds === seconds} onClick={() => onTrailSeconds(seconds)} className="h-6 px-1.5 tabular-nums">
+                {seconds} s
+              </ReplayChip>
+            ))}
+          </div>
+        ) : null}
+        {layers.hits ? <HitLegend /> : null}
       </ReplayGroup>
+      {moments === null ? null : (
+        <Fold title="Momentos clave" count={moments.count} defaultOpen>
+          {moments.list}
+        </Fold>
+      )}
       {bookmarks === null ? null : (
         <Fold title="Momentos guardados" count={bookmarks.count} defaultOpen={false}>
           {bookmarks.panel}

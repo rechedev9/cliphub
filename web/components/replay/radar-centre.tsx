@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
+import { hitLines } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
+import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
+import type { FrameSight } from '@/lib/replay/sight-lines';
 import { WHEEL_STEP, followView, paddedView, panView, sameRect, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
 import { radarProjection } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
-import { TRAIL_SECONDS, timelineSeconds } from '@/lib/tactical-timeline';
+import { timelineSeconds } from '@/lib/tactical-timeline';
 import { isCalibrationUsable, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
@@ -24,8 +27,11 @@ import { loadNavRadar, loadRadarImage } from './radar/map-art';
 import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
 import type { MapArt } from './radar/radar-bake';
+import type { FrameAnalysis } from './radar/radar-analysis';
 import { discRadius, drawRoundFrame, preloadGrenadeIcons } from './radar/radar-round';
 import type { DrawnPlayer } from './radar/radar-round';
+import { loadSightGeometry } from './radar/sight-geometry';
+import type { SightGeometry } from './radar/sight-geometry';
 
 type Box = { width: number; height: number; dpr: number };
 
@@ -35,6 +41,9 @@ const OVERLAY_ALPHA = 0.42;
 const VIEW_MARGIN = 0.03;
 /** A press that moves less than this is a click on a player, not a drag. */
 const CLICK_SLOP = 4;
+/** View wedges run this far in world units before they fade out, cast as this many rays each. */
+const WEDGE_REACH = 1800;
+const WEDGE_RAYS = 32;
 
 type Readers = {
   samples: (cursor: FrameCursor) => TacticalSample[];
@@ -67,6 +76,8 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const [zoomed, setZoomed] = useState<RadarRect | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [grabbing, setGrabbing] = useState(false);
+  const [sightGeometry, setSightGeometry] = useState<{ map: string; result: SightGeometry } | null>(null);
+  const sightMemo = useRef<{ key: string; value: FrameSight } | null>(null);
 
   const focused = rounds.find((round) => round.focused) ?? rounds.at(-1);
   const geometry = focused?.doc.geometry;
@@ -93,6 +104,18 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     };
   }, [map, split]);
 
+  useEffect(() => {
+    if (!layers.sight || map === '') return;
+    let active = true;
+    void loadSightGeometry(map).then((result) => {
+      if (active) setSightGeometry({ map, result });
+    });
+    return () => {
+      active = false;
+    };
+  }, [layers.sight, map]);
+  const sightBvh = layers.sight && sightGeometry?.map === map && sightGeometry.result.kind === 'ready' ? sightGeometry.result.bvh : null;
+
   const shownArt = useMemo<MapArt>(() => (source === 'official' && official !== null ? { kind: 'image', upper: official.upper, lower: official.lower } : art), [art, official, source]);
 
   const base = useMemo<RadarRect>(() => {
@@ -113,11 +136,11 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     for (const round of rounds) {
       out.set(round.key, {
         samples: createInterpolatedSampleReader(round.frames),
-        trails: createSampleTrailReader(round.frames, round.timeline.tickrate, TRAIL_SECONDS),
+        trails: createSampleTrailReader(round.frames, round.timeline.tickrate, layers.trailSeconds),
       });
     }
     return out;
-  }, [rounds]);
+  }, [layers.trailSeconds, rounds]);
 
   const plate = useCallback(
     (level: RadarLevel, style: RadarStyle): HTMLCanvasElement | null => {
@@ -146,27 +169,42 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         if (player.death_tick !== undefined && player.death_tick <= tick) deadFor.set(player.slot, nowSeconds - timelineSeconds(round.timeline, player.death_tick));
       }
       const visible = { x: view.x * projection.size, y: view.y * projection.size, width: view.width * projection.size, height: view.height * projection.size };
+      const shown = layerSamples(samples, layers);
+      const secondsOf = (at: number): number => timelineSeconds(round.timeline, at);
+      let analysis: FrameAnalysis | null = null;
+      if (round.focused) {
+        let sight: FrameSight | null = null;
+        if (sightBvh !== null) {
+          const smokes = blockingSmokes({ events: round.round.events, nowSeconds, secondsOf });
+          const key = `${smokes.length}|${shown.map((sample) => `${sample.slot}:${sample.flags}:${Math.round(sample.x)},${Math.round(sample.y)},${Math.round(sample.z)},${Math.round(sample.yaw)}`).join(';')}`;
+          if (sightMemo.current?.key !== key) sightMemo.current = { key, value: frameSight({ bvh: sightBvh, samples: shown, smokes, reach: WEDGE_REACH, rays: WEDGE_RAYS }) };
+          sight = sightMemo.current.value;
+        }
+        const hits = layers.hits ? hitLines({ hits: round.round.hits ?? [], events: round.round.events, nowSeconds, secondsOf, hiddenSlots: layers.hiddenSlots }) : [];
+        analysis = { sight, hits };
+      }
       return drawRoundFrame(
         ctx,
         {
           calibration: geometry.calibration,
           size: projection.size,
-          samples: layerSamples(samples, layers),
+          samples: shown,
           trails: layerTrails(reader.trails(cursor), layers),
           events: round.events,
           nowSeconds,
-          secondsOf: (at) => timelineSeconds(round.timeline, at),
+          secondsOf,
           deadFor,
           labels: round.focused ? round.labels : new Map(),
           selectedSlot: round.focused ? selectedSlot : null,
           utility: layers.utility,
           bomb: layers.bomb,
           style,
+          analysis,
         },
         round.focused ? { visible, spots: spotsRef.current } : null,
       );
     },
-    [geometry, layers, projection.size, readers, selectedSlot, tickOf, view],
+    [geometry, layers, projection.size, readers, selectedSlot, sightBvh, tickOf, view],
   );
 
   const render = useCallback(
@@ -408,6 +446,14 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
             <X className="size-3.5 text-fg-3" aria-label="Dejar de seguir" />
           </button>
         )}
+        {layers.sight && sightGeometry?.map === map && sightGeometry.result.kind === 'failed' ? (
+          <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">{sightGeometry.result.message}</p>
+        ) : null}
+        {layers.sight && sightGeometry?.map !== map ? (
+          <p role="status" className="pointer-events-auto rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
+            Leyendo las paredes del mapa…
+          </p>
+        ) : null}
         {navReady === 'failed' && (source === 'scheme' || official === null) ? (
           <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
             No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.

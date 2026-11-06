@@ -5,7 +5,7 @@ import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
 import type { RadarCalibration, TacticalSample } from '@/lib/api/tactical';
 import { docNames } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
-import { layerSamples, layerTrails } from '@/lib/replay/layers';
+import { DEFAULT_LAYERS, layerSamples, layerTrails } from '@/lib/replay/layers';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { Vec3, WorldBox } from '@/lib/replay/three/orbit';
 import { eyeHeight, lookYaw, viewDirection } from '@/lib/replay/three/scene-math';
@@ -64,7 +64,7 @@ export class ReplayScene {
   #map: MapMesh | null = null;
   #radar: { image: HTMLImageElement; calibration: RadarCalibration } | null = null;
   #radarOn = false;
-  #input: SceneInput = { rounds: [], tickOf: () => 0, layers: { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] } };
+  #input: SceneInput = { rounds: [], tickOf: () => 0, layers: DEFAULT_LAYERS };
   #seconds = 0;
   #cut: number | null = null;
   #meshZ = { minZ: 0, maxZ: 0 };

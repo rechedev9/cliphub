@@ -301,7 +301,12 @@ export type TacticalRound = {
   class: TacticalClass;
   players: TacticalPlayerRound[];
   events: TacticalEvent[];
+  /** Damage dealt to enemies in tick order; absent on analyses before version 6. */
+  hits?: TacticalHit[];
 };
+
+/** Damage one player dealt to an enemy (`tacticalplan.Hit`); a spray within 0.25 s is one hit. */
+export type TacticalHit = { tick: number; actor_slot: number; target_slot: number; damage: number; weapon?: string; headshot?: boolean };
 
 /** The bomb's fate (`tacticalplan.Bomb`). */
 type TacticalBomb = {
@@ -389,6 +394,15 @@ export type TacticalEvent = {
   opening?: boolean;
   /** Where a grenade was thrown from; absent on analyses before version 4. */
   throw?: TacticalThrow;
+  /** What a flash, HE or molotov did to players; absent when it touched nobody. */
+  effect?: TacticalUtilityEffect;
+};
+
+/** `tacticalplan.UtilityEffect`: who a flash blinded, and the damage a grenade dealt. */
+export type TacticalUtilityEffect = {
+  blinded?: { slot: number; seconds: number; enemy: boolean }[];
+  enemy_damage?: number;
+  team_damage?: number;
 };
 
 /** The thrower's state when a grenade left the hand (`tacticalplan.Throw`). */
