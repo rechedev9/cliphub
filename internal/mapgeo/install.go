@@ -32,7 +32,12 @@ type Source struct {
 }
 
 func (s Source) csgoDir() string {
-	return filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(s.CS2Exe))), "csgo")
+	return CSGODir(s.CS2Exe)
+}
+
+// CSGODir is game\csgo of the install that holds cs2Exe (game\bin\win64\cs2.exe).
+func CSGODir(cs2Exe string) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(cs2Exe))), "csgo")
 }
 
 func (s Source) vpkPath() string {
@@ -70,10 +75,14 @@ func (s Source) CacheKey(kind string) (string, error) {
 		meshFormat, kind, s.Map, s.build(), info.Size(), info.ModTime().Unix()), nil
 }
 
-// build is the ClientVersion from steam.inf, or "unknown".
 func (s Source) build() string {
+	return ClientVersion(s.csgoDir())
+}
+
+// ClientVersion is the ClientVersion from csgoDir's steam.inf, or "unknown".
+func ClientVersion(csgoDir string) string {
 	// #nosec G304 -- fixed file inside the detected CS2 install.
-	data, err := os.ReadFile(filepath.Join(s.csgoDir(), "steam.inf"))
+	data, err := os.ReadFile(filepath.Join(csgoDir, "steam.inf"))
 	if err != nil {
 		return "unknown"
 	}

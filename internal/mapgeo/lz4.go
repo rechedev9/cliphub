@@ -1,6 +1,9 @@
 package mapgeo
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var errLZ4 = errors.New("corrupt lz4 block")
 
@@ -70,4 +73,17 @@ func lz4Length(src []byte, i int) (int, int, error) {
 			return n, i, nil
 		}
 	}
+}
+
+// DecodeLZ4 decodes one raw LZ4 block that must expand to exactly size bytes.
+func DecodeLZ4(src []byte, size int) ([]byte, error) {
+	out := make([]byte, size)
+	n, err := lz4DecodeBlock(src, out, 0)
+	if err != nil {
+		return nil, err
+	}
+	if n != size {
+		return nil, fmt.Errorf("lz4 block expanded to %d bytes, want %d", n, size)
+	}
+	return out, nil
 }

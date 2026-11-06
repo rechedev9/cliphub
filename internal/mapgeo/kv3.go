@@ -108,6 +108,12 @@ type kv3Lanes struct {
 	b1, b2, b4, b8 []byte
 }
 
+// DecodeKV3 decodes a binary KV3 block, such as a resource's RED2 edit info,
+// into the Go values decodeKV3 documents.
+func DecodeKV3(data []byte) (any, error) {
+	return decodeKV3(data)
+}
+
 // decodeKV3 decodes a whole binary KV3 block into Go values: map[string]any,
 // []any, string, bool, nil, int64, uint64, float64, []byte for blobs and
 // []float64 for packed numeric arrays.

@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 )
 
 const (
@@ -29,12 +32,16 @@ type vpkEntry struct {
 	length  uint32
 }
 
-// VPK is an open single-file Valve package (versions 1 and 2). Entries split
-// into numbered _NNN.vpk archives are listed but cannot be read.
+// VPK is an open Valve package (versions 1 and 2). A directory file named
+// <prefix>_dir.vpk reads entries split into <prefix>_NNN.vpk archives.
 type VPK struct {
 	file     *os.File
+	path     string
 	dataBase int64
 	entries  map[string]vpkEntry
+
+	mu       sync.Mutex
+	archives map[uint16]*os.File
 }
 
 // OpenVPK reads the directory tree of a VPK file. Close releases the file.
@@ -49,6 +56,7 @@ func OpenVPK(path string) (*VPK, error) {
 		_ = f.Close()
 		return nil, fmt.Errorf("read vpk %s: %w", path, err)
 	}
+	v.path = path
 	return v, nil
 }
 
@@ -153,21 +161,57 @@ func (v *VPK) ReadFile(path string) ([]byte, error) {
 	if entry.length == 0 {
 		return bytes.Clone(entry.preload), nil
 	}
-	if entry.archive != vpkInline {
-		return nil, fmt.Errorf("%s lives in split archive %d, which is not supported", path, entry.archive)
-	}
 	if int64(entry.length)+int64(len(entry.preload)) > maxVPKEntryBytes {
 		return nil, fmt.Errorf("%s is %d bytes, over the %d byte limit", path, entry.length, maxVPKEntryBytes)
 	}
+	src, base := v.file, v.dataBase
+	if entry.archive != vpkInline {
+		archive, err := v.archive(entry.archive)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", path, err)
+		}
+		src, base = archive, 0
+	}
 	out := make([]byte, len(entry.preload)+int(entry.length))
 	copy(out, entry.preload)
-	if _, err := v.file.ReadAt(out[len(entry.preload):], v.dataBase+int64(entry.offset)); err != nil {
+	if _, err := src.ReadAt(out[len(entry.preload):], base+int64(entry.offset)); err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	return out, nil
 }
 
-// Close releases the underlying file.
+// archive opens <prefix>_NNN.vpk next to the directory file once and keeps it.
+func (v *VPK) archive(index uint16) (*os.File, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if f, ok := v.archives[index]; ok {
+		return f, nil
+	}
+	prefix, ok := strings.CutSuffix(v.path, "_dir.vpk")
+	if !ok {
+		return nil, fmt.Errorf("split archive %d needs a _dir.vpk directory file", index)
+	}
+	name := fmt.Sprintf("%s_%03d.vpk", prefix, index)
+	// #nosec G304 -- sibling archive of the opened directory file.
+	f, err := os.Open(filepath.Clean(name))
+	if err != nil {
+		return nil, fmt.Errorf("open split archive: %w", err)
+	}
+	if v.archives == nil {
+		v.archives = map[uint16]*os.File{}
+	}
+	v.archives[index] = f
+	return f, nil
+}
+
+// Close releases the directory file and every split archive it opened.
 func (v *VPK) Close() error {
-	return v.file.Close()
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	errs := []error{v.file.Close()}
+	for _, f := range v.archives {
+		errs = append(errs, f.Close())
+	}
+	v.archives = nil
+	return errors.Join(errs...)
 }
