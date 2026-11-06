@@ -29,6 +29,8 @@ const (
 var (
 	faceitIDPattern    = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 	practiceMapPattern = regexp.MustCompile(`^de_[a-z0-9_]{1,32}$`)
+	// rankingMapPattern is community.MapPattern without "all", which the empty map means.
+	rankingMapPattern = regexp.MustCompile(`^[a-z]{2,4}_[a-z0-9_]{1,32}$`)
 	practiceGrenades   = []string{"smoke", "flash", "he", "molotov", "decoy"}
 )
 
@@ -293,7 +295,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "community_ranking", Annotations: readOnly,
 		Description: "Read the community ranking: whether the user shares their numbers, and their percentile on each metric against every Studio install that shares, overall or on one map."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in communityIn) (*mcp.CallToolResult, communityOut, error) {
-			if in.Map != "" && !practiceMapPattern.MatchString(in.Map) {
+			if in.Map != "" && !rankingMapPattern.MatchString(in.Map) {
 				return nil, communityOut{}, errors.New("map must be a map name such as de_mirage")
 			}
 			c, err := s.client(ctx)

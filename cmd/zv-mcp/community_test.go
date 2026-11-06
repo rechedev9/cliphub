@@ -72,6 +72,8 @@ func TestCommunityRankingSharingNeedsApproval(t *testing.T) {
 	if got := rec.get("GET /api/library/community/rankings"); !strings.Contains(got, "?map=de_mirage") {
 		t.Errorf("rankings request = %s", got)
 	}
+	callTool(t, cs, "community_ranking", map[string]any{"map": "cs_office"}, &rk)
+	toolFails(t, cs, "community_ranking", map[string]any{"map": "all"}, "map")
 
 	var on rankingSettingsOut
 	callTool(t, cs, "set_community_ranking", map[string]any{"enabled": true}, &on)
