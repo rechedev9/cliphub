@@ -72,6 +72,8 @@ export type ScopeBarProps = {
   /** Latest results in scope, oldest first, drawn as dots under the sample. */
   results?: readonly ResultDot[];
   entity?: ScopeEntity;
+  /** Why Pro cannot be chosen, from the pro baseline; null or absent leaves it enabled. */
+  proUnavailable?: string | null;
   /** Fixed context the person cannot change here, such as a report's rival and side. */
   context?: ReactNode;
   className?: string;
@@ -356,8 +358,13 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
               <span className="text-meta whitespace-nowrap text-fg-3">Comparando con</span>
               <Segmented
                 label="Comparando con"
-                value={scope.reference}
-                options={BASELINE_SCOPES.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
+                value={props.proUnavailable ? 'library' : scope.reference}
+                options={BASELINE_SCOPES.map((value) => ({
+                  value,
+                  label: SCOPE_LABEL[value],
+                  disabled: value === 'pro' && Boolean(props.proUnavailable),
+                  reason: value === 'pro' ? (props.proUnavailable ?? undefined) : undefined,
+                }))}
                 onChange={(reference) => onChange({ reference })}
               />
             </div>

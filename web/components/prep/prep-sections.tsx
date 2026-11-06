@@ -13,6 +13,8 @@ import { buyLabel, placeLabel } from '@/lib/tactical-labels';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { BarList } from '@/components/playbook/bars';
 import { CategoryGrid, SiteBars, TempoChart } from '@/components/playbook/playbook-summary';
+import { CtPositionsMap, playerColor } from './ct-positions-map';
+import type { RatePool } from '@/lib/analysis/library-pool';
 
 const SIDES: readonly TacticalSide[] = ['CT', 'T'];
 
@@ -30,7 +32,7 @@ function replayTitle(prep: Pick<TeamPrep, 'team_name' | 'map'>, what: string): s
 }
 
 /** Each side's win rate per buy matchup: the team's buy per row, the rival's per column. */
-export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
+export function MatchupTables({ prep, library }: { prep: TeamPrep; library: RatePool | null }): ReactNode {
   return (
     <div className="grid gap-2 @[96rem]/content:grid-cols-2 print:grid-cols-2">
       {SIDES.map((side) => {
@@ -49,10 +51,13 @@ export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
           for (const opponentBuy of grid.opponentBuys) {
             const cell = grid.cells.get(matchupKey(buy, opponentBuy));
             if (cell === undefined || cell.rounds === 0) continue;
+            const reference = library ? library.pct(`${side}|${buy}|${opponentBuy}`, 6) : undefined;
             cells[opponentBuy] = {
               text: `${Math.round(cell.win_rate.pct)} %`,
               value: cell.win_rate.pct,
               n: cell.rounds,
+              reference,
+              referenceText: reference === null || reference === undefined ? undefined : `Biblioteca ${Math.round(reference)} %`,
               href:
                 cell.refs.length > 0
                   ? replayHref(evidenceRefs(cell.refs), replayTitle(prep, `${buyLabel(buy)} contra ${buyLabel(opponentBuy).toLowerCase()} en ${side}`))
@@ -70,6 +75,7 @@ export function MatchupTables({ prep }: { prep: TeamPrep }): ReactNode {
             minSample={4}
             sampleNoun="rondas"
             empty={`Sin rondas de ${side} con compra conocida.`}
+            reference={library ? 'la biblioteca en el mismo cruce de compras' : 'la media de la tabla'}
           />
         );
       })}
@@ -119,12 +125,15 @@ function roleText(role: string): string {
   return known === undefined || known === 'unknown' ? '' : ROLE_LABEL[known];
 }
 
-function PlayerPositions({ prep, player }: { prep: TeamPrep; player: PrepPlayer }): ReactNode {
+function PlayerPositions({ prep, player, index }: { prep: TeamPrep; player: PrepPlayer; index: number }): ReactNode {
   const role = roleText(player.role);
   return (
     <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5 print:break-inside-avoid">
       <header className="flex flex-wrap items-baseline gap-x-2">
-        <h3 className="text-body font-semibold text-fg-1">{player.name}</h3>
+        <h3 className="flex items-center gap-1.5 text-body font-semibold text-fg-1">
+          <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: playerColor(index) }} />
+          {player.name}
+        </h3>
         <p className="text-meta text-fg-3">
           {role === '' ? '' : `${role} · `}
           {player.rounds} rondas de CT
@@ -176,9 +185,10 @@ export function CtPositions({ prep }: { prep: TeamPrep }): ReactNode {
       <p className="text-meta text-fg-3">
         Por cada tramo, el sitio donde más estuvo en cada ronda y en qué parte de sus rondas. Leído en {prep.framed} rondas de CT con posiciones.
       </p>
+      <CtPositionsMap prep={prep} />
       <div className="grid gap-2 @[90rem]/content:grid-cols-2 print:grid-cols-1">
-        {prep.ct_players.map((player) => (
-          <PlayerPositions key={player.steamid64} prep={prep} player={player} />
+        {prep.ct_players.map((player, index) => (
+          <PlayerPositions key={player.steamid64} prep={prep} player={player} index={index} />
         ))}
       </div>
     </div>
@@ -186,14 +196,14 @@ export function CtPositions({ prep }: { prep: TeamPrep }): ReactNode {
 }
 
 /** One side's playbook in brief: round types, sites and tempo. */
-export function PlaybookBrief({ playbook }: { playbook: TeamPlaybook }): ReactNode {
+export function PlaybookBrief({ playbook, library }: { playbook: TeamPlaybook; library: RatePool | null }): ReactNode {
   if (playbook.round_count === 0) return <p className="text-body-sm text-fg-2">Sin rondas de {playbook.side} con este filtro.</p>;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-body-sm text-fg-2">
-        Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas de {playbook.side}.
+        Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas de {playbook.side}.{library ? ' En cada tipo, ▲▼ frente a la biblioteca en el mismo mapa y lado: cuánto lo usan y cuánto ganan.' : ''}
       </p>
-      <CategoryGrid playbook={playbook} compact />
+      <CategoryGrid playbook={playbook} compact reference={library} />
       <div className="grid gap-2 lg:grid-cols-2 print:grid-cols-2">
         <div className="studio-panel flex flex-col gap-1.5 px-3 py-2.5">
           <h3 className="text-body-sm font-semibold text-fg-1">Sitios</h3>

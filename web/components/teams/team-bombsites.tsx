@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { getTeamBombsites } from '@/lib/api/library';
 import type { ScoutEvidence } from '@/lib/api/scout';
 import type { TacticalRate } from '@/lib/api/tactical';
 import type { BombsiteMap, TeamBombsites as TeamBombsitesReport } from '@/lib/api/team-insights';
 import { weightedMean } from '@/lib/analysis/compare';
+import { RatePool, bombsiteKey, poolBombsites, type AttackField, type DefenseField } from '@/lib/analysis/library-pool';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
@@ -13,6 +14,7 @@ import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLibraryPool } from '@/hooks/use-library-pool';
 
 /** Points of rate that earn the strongest tint. */
 const SPREAD = 30;
@@ -48,9 +50,18 @@ function columns(report: TeamBombsitesReport): { ct: HeatColumn[]; t: HeatColumn
   };
 }
 
-function rateCell(rate: TacticalRate): HeatCell {
+/** Under this many library rounds a site's pooled rate is too thin to compare with. */
+const MIN_LIBRARY_ROUNDS = 8;
+
+function rateCell(rate: TacticalRate, reference?: number | null): HeatCell {
   if (rate.total === 0) return { text: 'Sin rondas' };
-  return { text: `${Math.round(rate.pct)} %`, value: rate.pct, n: rate.total };
+  return {
+    text: `${Math.round(rate.pct)} %`,
+    value: rate.pct,
+    n: rate.total,
+    reference,
+    referenceText: reference === null || reference === undefined ? undefined : `Biblioteca ${Math.round(reference)} %`,
+  };
 }
 
 function roundsCell(examples: readonly ScoutEvidence[], title: string): HeatCell {
@@ -63,11 +74,16 @@ function MapTables({
   entry,
   report,
   heads,
+  library,
 }: {
   entry: BombsiteMap;
   report: TeamBombsitesReport;
   heads: { ct: HeatColumn[]; t: HeatColumn[] };
+  library: RatePool | null;
 }): ReactNode {
+  const ref = (site: string, field: `ct.${DefenseField}` | `t.${AttackField}`): number | null | undefined =>
+    library ? library.pct(bombsiteKey(entry.map, site, field), MIN_LIBRARY_ROUNDS) : undefined;
+  const reference = library ? 'la biblioteca en el mismo sitio' : 'la media del equipo';
   const team = report.team_name;
   const minSample = report.min_reliable_sample;
   const name = prettyMapName(entry.map);
@@ -75,11 +91,11 @@ function MapTables({
     id: site.site,
     cells: {
       site: { text: site.site, tone: 'ct' },
-      hit: rateCell(site.ct.hit),
-      held: rateCell(site.ct.held),
-      plants: rateCell(site.ct.plants_allowed),
-      won: rateCell(site.ct.won),
-      retakes: rateCell(site.ct.retakes_won),
+      hit: rateCell(site.ct.hit, ref(site.site, 'ct.hit')),
+      held: rateCell(site.ct.held, ref(site.site, 'ct.held')),
+      plants: rateCell(site.ct.plants_allowed, ref(site.site, 'ct.plants_allowed')),
+      won: rateCell(site.ct.won, ref(site.site, 'ct.won')),
+      retakes: rateCell(site.ct.retakes_won, ref(site.site, 'ct.retakes_won')),
       rounds: roundsCell(site.ct.examples, `${team} defendiendo ${site.site} en ${name}`),
     },
   }));
@@ -87,10 +103,10 @@ function MapTables({
     id: site.site,
     cells: {
       site: { text: site.site, tone: 't' },
-      attacks: rateCell(site.t.attacks),
-      plants: rateCell(site.t.plants),
-      won: rateCell(site.t.won),
-      post: rateCell(site.t.post_plant_won),
+      attacks: rateCell(site.t.attacks, ref(site.site, 't.attacks')),
+      plants: rateCell(site.t.plants, ref(site.site, 't.plants')),
+      won: rateCell(site.t.won, ref(site.site, 't.won')),
+      post: rateCell(site.t.post_plant_won, ref(site.site, 't.post_plant_won')),
       rounds: roundsCell(site.t.examples, `${team} atacando ${site.site} en ${name}`),
     },
   }));
@@ -104,8 +120,8 @@ function MapTables({
         </span>
       </h2>
       <div className="grid gap-2 @[96rem]/content:grid-cols-2">
-        <HeatTable label={`Defendiendo en ${name}`} columns={heads.ct} rows={ct} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de CT." />
-        <HeatTable label={`Atacando en ${name}`} columns={heads.t} rows={t} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de T." />
+        <HeatTable label={`Defendiendo en ${name}`} columns={heads.ct} rows={ct} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de CT." reference={reference} />
+        <HeatTable label={`Atacando en ${name}`} columns={heads.t} rows={t} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de T." reference={reference} />
       </div>
     </section>
   );
@@ -125,6 +141,9 @@ export function TeamBombsites({
   const [now] = useState(() => Date.now());
   const { map, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
+  const readPool = useCallback((id: string) => getTeamBombsites(id, { maps: map === '' ? [] : [map] }), [map]);
+  const pool = useLibraryPool(`bombsites|${map}`, readPool);
+  const library = pool === null ? null : poolBombsites(pool);
 
   useEffect(() => {
     let active = true;
@@ -169,12 +188,12 @@ export function TeamBombsites({
   return (
     <div className="flex flex-col gap-4">
       {data.maps.map((entry) => (
-        <MapTables key={entry.map} entry={entry} report={data} heads={heads} />
+        <MapTables key={entry.map} entry={entry} report={data} heads={heads} library={library} />
       ))}
       <p className="measure-read text-meta text-fg-3">
         Defendiendo, &quot;Les atacan&quot; cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
         sitio; los retakes, sobre las plantas. Atacando, &quot;Atacan&quot; cuenta sobre sus rondas de T y &quot;Ganan tras plantar&quot;, sobre sus
-        plantas.
+        plantas. La referencia suma los {pool?.filter((entry) => entry.maps.length > 0).length ?? 0} equipos de la biblioteca en todas sus fechas, este incluido; cuenta desde {MIN_LIBRARY_ROUNDS} rondas.
         {data.skipped.length > 0
           ? ` ${data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}`
           : ''}

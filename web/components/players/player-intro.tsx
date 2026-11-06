@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { getBaseline, type LibraryMatch } from '@/lib/api/library';
-import { BASELINE_METRICS, type Baseline, type BaselineMetric, type BaselineScope } from '@/lib/api/baseline';
+import { useState, type ReactNode } from 'react';
+import type { LibraryMatch } from '@/lib/api/library';
+import { BASELINE_METRICS, type BaselineMetric, type BaselineScope } from '@/lib/api/baseline';
 import type { MetricsReport } from '@/lib/api/metrics';
 import {
   METRIC_INFO,
   SCOPE_LABEL,
   baselineSampleText,
   baselineValue,
+  minRoundsNote,
   playerReferenceValues,
   proUnavailableText,
   referenceLabel,
@@ -19,8 +20,7 @@ import { dateText } from '@/lib/reports/scout-sections';
 import { LineChart } from '@/components/ui/line-chart';
 import { Segmented } from '@/components/ui/segmented';
 import { StatCard, StatCardGroup } from '@/components/ui/stat-card';
-
-type References = { library: Baseline; pro: Baseline } | null | 'failed';
+import { useReferences } from '@/hooks/use-references';
 
 /** Trend points need a few matches to say anything. */
 const MIN_TREND_POINTS = 2;
@@ -41,25 +41,6 @@ function matchDamage(steamId: string, details: ReadonlyMap<string, LibraryMatch>
     if (own) out.set(id, { damage: own.damage, rounds: own.rounds });
   }
   return out;
-}
-
-function useReferences(map: string): References {
-  const [references, setReferences] = useState<References>(null);
-  useEffect(() => {
-    let active = true;
-    setReferences(null);
-    Promise.all([getBaseline({ scope: 'library', map }), getBaseline({ scope: 'pro', map })])
-      .then(([library, pro]) => {
-        if (active) setReferences({ library, pro });
-      })
-      .catch(() => {
-        if (active) setReferences('failed');
-      });
-    return () => {
-      active = false;
-    };
-  }, [map]);
-  return references;
 }
 
 /**
@@ -135,6 +116,7 @@ export function PlayerIntro({
         <p className="measure-read text-meta text-fg-3">
           {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.
           {baseline ? ` La media sale de ${baselineSampleText(baseline)}${map === '' ? '' : ` en ${prettyMapName(map)}`}.` : ''}
+          {ready ? minRoundsNote(ready.minRounds) : ''}
           {references === null ? ' Leyendo la media.' : ''}
           {proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
         </p>

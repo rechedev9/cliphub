@@ -29,6 +29,10 @@ export type HeatCell = {
   readonly map?: string;
   /** A weapon or grenade: the cell leads with its silhouette. */
   readonly icon?: EquipmentIconName | null;
+  /** This cell's own reference, such as the library's rate for the same site; overrides the column baseline, null leaves it plain. */
+  readonly reference?: number | null;
+  /** Hover text for the reference, such as "Biblioteca 48 %". */
+  readonly referenceText?: string;
 };
 
 export type HeatRow = { readonly id: string; readonly cells: Readonly<Record<string, HeatCell>> };
@@ -75,12 +79,13 @@ function CellView({
   const sticky = first ? 'sticky left-0 z-10 bg-surface-2' : '';
   if (cell === undefined) return <td className={cn('px-2.5 py-1.5', sticky)} />;
   const low = cell.n !== undefined && cell.n < minSample;
+  // An explicit null reference means the library is too thin here: no tint, never a silent fallback.
+  const base = cell.reference === undefined ? (column.heat?.baseline ?? null) : cell.reference;
   const level =
-    column.heat && !low && cell.value !== undefined && cell.value !== null
-      ? heatLevel(cell.value, column.heat.baseline, column.heat.spread, column.heat.higherIsBetter ?? true)
+    column.heat && base !== null && !low && cell.value !== undefined && cell.value !== null
+      ? heatLevel(cell.value, base, column.heat.spread, column.heat.higherIsBetter ?? true)
       : 0;
-  const arrow =
-    level !== 0 && column.heat && cell.value !== undefined && cell.value !== null ? deltaArrow(cell.value - column.heat.baseline) : '';
+  const arrow = level !== 0 && base !== null && cell.value !== undefined && cell.value !== null ? deltaArrow(cell.value - base) : '';
   const text = cell.href ? (
     <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
       {cell.text}
@@ -97,7 +102,7 @@ function CellView({
         cell.tone && !low && TONE[cell.tone],
         first ? sticky : tint(level),
       )}
-      title={low ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}` : undefined}
+      title={low ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}` : cell.referenceText}
     >
       <span className={cn('inline-flex items-center gap-1.5', column.align === 'end' && 'justify-end')}>
         {cell.map ? <MapThumb map={cell.map} className="h-5 w-8" crop={1.5} /> : null}

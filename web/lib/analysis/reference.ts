@@ -92,3 +92,8 @@ export function baselineSampleText(baseline: Baseline): string {
   const who = baseline.players === 1 ? '1 jugador' : `${baseline.players} jugadores`;
   return `${who} con ${baseline.min_rounds} rondas o más en ${baseline.matches} ${baseline.matches === 1 ? 'partida' : 'partidas'}`;
 }
+
+/** Says why the minimum is under 50 rounds; empty when it is not. */
+export function minRoundsNote(minRounds: number): string {
+  return minRounds < 50 ? ` El mínimo baja de 50 a ${minRounds} rondas porque la biblioteca aún es pequeña.` : '';
+}

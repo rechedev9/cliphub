@@ -2,15 +2,16 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getBaseline, getLeaderboard, getLibraryPlayerRole, type LibraryRosterEntry } from '@/lib/api/library';
-import type { Baseline, BaselineMetric, BaselineScope, LeaderboardRow } from '@/lib/api/baseline';
-import { METRIC_INFO, baselineSampleText, baselineValue, proUnavailableText, referenceLabel } from '@/lib/analysis/reference';
+import { getLibraryPlayerRole, type LibraryRosterEntry } from '@/lib/api/library';
+import type { Baseline, BaselineMetric, BaselineScope } from '@/lib/api/baseline';
+import { METRIC_INFO, baselineSampleText, baselineValue, minRoundsNote, proUnavailableText, referenceLabel } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useReferences } from '@/hooks/use-references';
 
 /** The numbers each roster row shows, compared with the reference. */
 const ROW_METRICS: readonly BaselineMetric[] = ['kpr', 'dpr', 'adr', 'kast', 'opening_win_pct', 'trade_pct'];
@@ -20,25 +21,6 @@ const SHORT_LABEL: Partial<Record<BaselineMetric, string>> = {
   opening_win_pct: 'Aperturas',
   trade_pct: 'Tradeadas',
 };
-/** The leaderboard is the only per-player source of these numbers; its cap bounds the lookup. */
-const LOOKUP_LIMIT = 500;
-
-type Values = ReadonlyMap<string, Partial<Record<BaselineMetric, LeaderboardRow>>>;
-type Loaded = { baseline: Baseline; pro: Baseline; values: Values };
-
-async function loadValues(map: string): Promise<Loaded> {
-  const [baseline, pro, ...boards] = await Promise.all([
-    getBaseline({ scope: 'library', map }),
-    getBaseline({ scope: 'pro', map }),
-    ...ROW_METRICS.map((metric) => getLeaderboard({ metric, scope: 'library', map, min_rounds: 1, limit: LOOKUP_LIMIT })),
-  ]);
-  const values = new Map<string, Partial<Record<BaselineMetric, LeaderboardRow>>>();
-  for (const board of boards) {
-    for (const row of board.players) values.set(row.steamid64, { ...values.get(row.steamid64), [board.metric]: row });
-  }
-  return { baseline, pro, values };
-}
-
 /** The roster as one dense row per player, most recent first: role and key numbers against the chosen reference. */
 export function TeamRoster({
   roster,
@@ -50,24 +32,9 @@ export function TeamRoster({
   map: string;
   reference: BaselineScope;
 }): ReactNode {
-  const [data, setData] = useState<Loaded | null | 'failed'>(null);
+  const data = useReferences(map, ROW_METRICS);
   const [roles, setRoles] = useState<ReadonlyMap<string, string>>(new Map());
   const ids = roster.map((entry) => entry.steamid64).join(',');
-
-  useEffect(() => {
-    let active = true;
-    setData(null);
-    loadValues(map)
-      .then((next) => {
-        if (active) setData(next);
-      })
-      .catch(() => {
-        if (active) setData('failed');
-      });
-    return () => {
-      active = false;
-    };
-  }, [map]);
 
   useEffect(() => {
     let active = true;
@@ -89,7 +56,7 @@ export function TeamRoster({
   const proMissing = ready ? proUnavailableText(ready.pro) : null;
   const scope: BaselineScope = reference === 'pro' && proMissing === null ? 'pro' : 'library';
   let baseline: Baseline | null = null;
-  if (ready) baseline = scope === 'pro' ? ready.pro : ready.baseline;
+  if (ready) baseline = scope === 'pro' ? ready.pro : ready.library;
   const label = referenceLabel(scope);
 
   return (
@@ -131,7 +98,7 @@ export function TeamRoster({
           <tbody>
             {sorted.map((entry) => {
               const name = entry.nick || entry.steamid64;
-              const own = ready?.values.get(entry.steamid64);
+              
               return (
                 <tr key={entry.steamid64} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3/50">
                   <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-3 py-1.5 text-left font-medium">
@@ -146,7 +113,7 @@ export function TeamRoster({
                   <td className="px-3 py-1.5 text-right text-fg-2 tabular-nums">{entry.matches}</td>
                   {ROW_METRICS.map((metric) => {
                     const info = METRIC_INFO[metric];
-                    const row = own?.[metric];
+                    const row = ready?.boards.get(metric)?.players.find((line) => line.steamid64 === entry.steamid64);
                     return (
                       <td key={metric} className="px-3 py-1.5 text-right">
                         {data === null ? (
@@ -174,7 +141,7 @@ export function TeamRoster({
       {ready ? (
         <p className="measure-read text-meta text-fg-3">
           Cifras de cada jugador en todas sus partidas de la biblioteca{map === '' ? '' : ` en ${prettyMapName(map)}`}, no solo con este equipo. La
-          referencia sale de {baselineSampleText(baseline ?? ready.baseline)}.{proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
+          referencia sale de {baselineSampleText(baseline ?? ready.library)}.{minRoundsNote(ready.minRounds)}{proMissing && reference === 'pro' ? ` ${proMissing}` : ''}
         </p>
       ) : null}
     </section>

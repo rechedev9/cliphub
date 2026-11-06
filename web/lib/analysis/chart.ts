@@ -97,3 +97,29 @@ export function mean(values: readonly number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
+
+export type PlotFrame = { readonly domain: readonly [number, number]; readonly width: number; readonly height: number };
+
+/** Like `seriesPoints`, but a missing value stays null so the line breaks there. */
+export function gappedPoints(values: readonly (number | null)[], frame: PlotFrame): (ChartPoint | null)[] {
+  const x = linearScale([0, Math.max(1, values.length - 1)], [0, frame.width]);
+  const y = linearScale(frame.domain, [frame.height, 0]);
+  return values.map((value, index) => {
+    if (value === null) return null;
+    return { x: values.length === 1 ? frame.width / 2 : x(index), y: y(value) };
+  });
+}
+
+/** The unbroken runs of a gapped series, each drawn as its own path. */
+export function segmentsOf(points: readonly (ChartPoint | null)[]): ChartPoint[][] {
+  const out: ChartPoint[][] = [];
+  let run: ChartPoint[] = [];
+  for (const point of points) {
+    if (point === null) {
+      if (run.length > 0) out.push(run);
+      run = [];
+    } else run.push(point);
+  }
+  if (run.length > 0) out.push(run);
+  return out;
+}

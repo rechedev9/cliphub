@@ -32,6 +32,8 @@ export type RadarFrame = {
 /** Lets the owner repaint the marks without React rendering, from an animation loop. */
 export type RadarSurfaceHandle = { repaint: () => void };
 
+const FULL_VIEW: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
+
 /** Same height ceiling as the round replay, so the two views share one plate size. */
 const RADAR_MAX_HEIGHT_VH = 74;
 /** Greys CS2's radar down so team colours and marks stay the loudest thing on it. */
@@ -95,10 +97,11 @@ export function RadarSurface({
   const repaintRef = useRef<() => void>(() => {});
   const [projection, setProjection] = useState<RadarProjection>({ size: 1, offsetX: 0, offsetY: 0 });
   const [dpr, setDpr] = useState(1);
-  const view = useMemo(() => radarViewRect(geometry), [geometry]);
   const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
   // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
   const image = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
+  // The whole map like the game's radar; only the play-derived cells are cropped to where people played.
+  const view = useMemo(() => (image === null ? radarViewRect(geometry) : FULL_VIEW), [geometry, image]);
 
   const repaint = useCallback(() => {
     const canvas = canvasRef.current;

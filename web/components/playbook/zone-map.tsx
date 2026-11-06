@@ -35,11 +35,15 @@ export function ZoneMap({
   const silhouette = geometry ? mapSilhouette(geometry, SIZE) : null;
   if (geometry === null || silhouette === null) return null;
   const shapes = zoneShapes(geometry, zones, SIZE);
-  const [, , width = SIZE] = silhouette.viewBox.split(' ').map(Number);
+  const imageWidth = radar ? (SIZE * radar.naturalWidth) / geometry.calibration.size : 0;
+  const imageHeight = radar ? (SIZE * radar.naturalHeight) / geometry.calibration.size : 0;
+  // The whole map like the game's radar; only the silhouette fallback is cropped to the played area.
+  const viewBox = radar ? `0 0 ${imageWidth} ${imageHeight}` : silhouette.viewBox;
+  const [, , width = SIZE] = viewBox.split(' ').map(Number);
   const font = Math.max(1.6, width / 32);
   return (
     <svg
-      viewBox={silhouette.viewBox}
+      viewBox={viewBox}
       role="img"
       aria-label={`Zonas controladas en ${prettyMapName(map)}`}
       className="aspect-square w-full max-w-[26rem] rounded-md bg-surface-3"
@@ -49,8 +53,8 @@ export function ZoneMap({
           href={radarImageUrl(map)}
           x={0}
           y={0}
-          width={(SIZE * radar.naturalWidth) / geometry.calibration.size}
-          height={(SIZE * radar.naturalHeight) / geometry.calibration.size}
+          width={imageWidth}
+          height={imageHeight}
           className="[filter:grayscale(0.55)_brightness(0.78)]"
         />
       ) : (
