@@ -133,15 +133,15 @@ function TacticRow({
   return (
     <li
       className={cn(
-        'flex min-h-10 items-center gap-2 rounded-sm px-2',
+        'flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-sm px-2 py-1.5 sm:flex-nowrap sm:py-0',
         mode === 'with' && 'bg-primary/15',
         mode === 'without' && 'bg-destructive/10',
       )}
     >
-      <span className={cn('min-w-0 flex-1 truncate text-body-sm', mode === 'without' ? 'text-fg-3 line-through' : 'text-fg-1')} title={label}>
+      <span className={cn('min-w-0 basis-full truncate text-body-sm sm:flex-1 sm:basis-0', mode === 'without' ? 'text-fg-3 line-through' : 'text-fg-1')} title={label}>
         {label}
       </span>
-      <span className="shrink-0 text-meta text-fg-2 tabular-nums" title={`${roundsText(tactic.rounds)}${empty ? '' : `, gana el ${Math.round(tactic.win_rate.pct)} %`}`}>
+      <span className="ml-auto shrink-0 text-meta text-fg-2 tabular-nums sm:ml-0" title={`${roundsText(tactic.rounds)}${empty ? '' : `, gana el ${Math.round(tactic.win_rate.pct)} %`}`}>
         {tactic.rounds}
         {empty ? '' : ` · gana ${Math.round(tactic.win_rate.pct)} %`}
       </span>
@@ -212,7 +212,7 @@ export function TacticBoard({
   const zoneLabels = useMemo(() => new Map(playbook.zones.map((zone) => [zone.zone, zone.label])), [playbook.zones]);
   const chosenZones = view.combo.with.flatMap((key) => (key.startsWith('zone:') ? [key.slice('zone:'.length)] : []));
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 lg:grid-cols-2 min-[110rem]:grid-cols-3">
       {kinds.map((kind) => {
         const list = rows.get(kind) ?? [];
         const hint = tacticKindHint(kind, AWP_START_SECONDS);

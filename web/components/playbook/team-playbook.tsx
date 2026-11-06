@@ -120,7 +120,7 @@ export function TeamPlaybook({
   const narrowed = !comboIsEmpty(combo);
   return (
     <div className="flex flex-col gap-4">
-      <section aria-label="Combinación" className="studio-panel sticky top-0 z-10 flex flex-col gap-2 p-4">
+      <section aria-label="Combinación" className="studio-panel flex flex-col gap-2 p-4">
         <h2 className="text-body font-semibold text-fg-1">Combina tácticas</h2>
         <ComboBar teamId={teamId} view={view} labelOf={labelOf} onToggle={toggle} onClear={clear} />
       </section>
