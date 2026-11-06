@@ -1,18 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { RefreshCw } from 'lucide-react';
 import { MapGeometryError } from '@/lib/api/map-geometry';
 import type { MapGeometry } from '@/lib/api/map-geometry';
 import { prettyMapName } from '@/lib/format';
 import { docNames } from '@/lib/replay/centre-round';
-import { defaultCut, playBox } from '@/lib/replay/three/scene-math';
+import { playBox } from '@/lib/replay/three/scene-math';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
 import type { CameraMode } from './three/camera-rig';
+import { ReplayChip } from './replay-chip';
 import { loadMapGeometry } from './three/geometry-cache';
 import { loadRadarImage } from './radar/map-art';
 
@@ -84,13 +85,12 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   const [attempt, setAttempt] = useState(0);
   const [camera, setCamera] = useState<CameraMode>('orbit');
   const [cut, setCut] = useState<{ map: string; z: number } | null>(null);
+  const [auto, setAuto] = useState(true);
   const [radarImage, setRadarImage] = useState<{ map: string; image: HTMLImageElement } | null>(null);
 
   useEffect(() => setWebgl(webglAvailable()), []);
 
   // The opening cut is chosen once per map from the round open at that moment.
-  const framesRef = useRef(focused?.frames ?? []);
-  framesRef.current = focused?.frames ?? [];
 
   useEffect(() => {
     if (map === '') return;
@@ -100,7 +100,6 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
       (loaded) => {
         if (!live) return;
         setLoad({ map, state: 'ready', geometry: loaded });
-        setCut((current) => current?.map === map ? current : { map, z: defaultCut({ minZ: loaded.bounds.min[2], maxZ: loaded.bounds.max[2] }, framesRef.current) });
       },
       (error: unknown) => {
         if (live) setLoad({ map, state: 'failed', code: error instanceof MapGeometryError ? error.code : undefined });
@@ -137,7 +136,7 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
     return playBox({ min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } }, focusedBounds, focusedFrames);
   }, [geometry, focusedBounds, focusedFrames]);
   const range = geometry === null ? null : { min: Math.floor(geometry.bounds.min[2]), max: Math.ceil(geometry.bounds.max[2]) };
-  const cutZ = cut?.map === map ? cut.z : (range?.max ?? 0);
+  const cutZ = cut?.map === map ? cut.z : null;
 
   const names = useMemo(() => (focused === undefined ? new Map<number, string>() : docNames(focused.doc)), [focused]);
   const followed = followSlot === null ? null : (names.get(followSlot) ?? null);
@@ -196,6 +195,8 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
         geometry={geometry}
         box={box}
         cut={cutZ}
+        auto={auto}
+        onAutoChange={setAuto}
         mode={camera}
         follow={followSlot}
         rounds={rounds}
@@ -213,33 +214,44 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   return (
     <div className="absolute inset-0 overflow-hidden bg-surface-0">
       {body}
-      <div className="pointer-events-none absolute inset-x-2 top-2 flex flex-wrap items-center gap-2">
+      <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-2">
         <div className="pointer-events-auto">
           <Segmented label="Cámara" value={camera} options={CAMERA_OPTIONS} onChange={selectCamera} />
         </div>
+        {camera === 'orbit' ? (
+          <div className="pointer-events-auto">
+            <ReplayChip pressed={auto} onClick={() => setAuto((value) => !value)} title="La cámara sigue a los jugadores vivos hasta que la mueves">
+              Seguir la acción
+            </ReplayChip>
+          </div>
+        ) : null}
         {range === null || camera === 'top' ? null : (
-          <label className="pointer-events-auto flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-2">
-            Cortar techos
+          <div className="pointer-events-auto flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-2">
+            <ReplayChip pressed={cutZ === null} onClick={() => setCut(null)} title="Quita los techos justo por encima de los jugadores vivos">
+              Techos auto
+            </ReplayChip>
             <input
               type="range"
+              aria-label="Cortar techos"
               min={range.min}
               max={range.max}
               step={8}
-              value={Math.min(range.max, Math.max(range.min, Math.round(cutZ)))}
-              aria-valuetext={cutZ >= range.max ? 'Sin cortar' : `Por encima de ${Math.round(cutZ)} unidades`}
+              value={Math.min(range.max, Math.max(range.min, Math.round(cutZ ?? range.max)))}
+              aria-valuetext={cutZ === null ? 'Automático' : `Por encima de ${Math.round(cutZ)} unidades`}
               className={SLIDER_CLASS}
               onChange={(event) => setCut({ map, z: Number(event.target.value) })}
             />
-          </label>
+          </div>
         )}
         {camera === 'player' && followed !== null ? (
           <span className="rounded-md bg-surface-1/95 px-2 py-1 text-meta text-fg-1">Ves lo que ve {followed}</span>
         ) : null}
       </div>
-      <p className="pointer-events-none absolute bottom-2 left-2 max-w-[70%] rounded-md bg-surface-0/80 px-2 py-1 text-meta text-fg-3">
-        {geometry?.source === 'nav' ? 'Solo se ve el suelo: las paredes de este mapa no se pudieron leer. ' : ''}
-        Arrastra para girar, clic derecho para desplazar, rueda para acercar · 1, 2, 3 cambian de cámara · clic en un jugador para ver con sus ojos
-      </p>
+      {geometry?.source === 'nav' ? (
+        <p className="pointer-events-none absolute top-16 left-2 max-w-80 rounded-md bg-surface-0/85 px-2 py-1 text-meta text-fg-2">
+          Solo se ve el suelo: las paredes de este mapa no se pudieron leer.
+        </p>
+      ) : null}
     </div>
   );
 }

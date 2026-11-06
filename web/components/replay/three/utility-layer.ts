@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
@@ -9,6 +10,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  NormalBlending,
   OctahedronGeometry,
   SphereGeometry,
 } from 'three';
@@ -23,6 +25,8 @@ const SMOKE_RADIUS = 144;
 const SMOKE_HEIGHT = 110;
 const FIRE_RADIUS = 120;
 const PULSE_RADIUS = 220;
+/** Fire reads as fire on any floor tone: a fixed orange, blended additively. */
+const FIRE_TONE: Rgb = [1, 0.45, 0.1];
 
 function color(rgb: Rgb): Color {
   return new Color().setRGB(rgb[0], rgb[1], rgb[2], 'srgb');
@@ -30,7 +34,8 @@ function color(rgb: Rgb): Color {
 
 function toneOf(kind: TacticalEventKind, colors: SceneColors): Rgb {
   if (kind === TACTICAL_EVENT_KINDS.flash) return colors.flash;
-  if (kind === TACTICAL_EVENT_KINDS.he || kind === TACTICAL_EVENT_KINDS.molotov) return colors.bomb;
+  if (kind === TACTICAL_EVENT_KINDS.molotov) return FIRE_TONE;
+  if (kind === TACTICAL_EVENT_KINDS.he) return colors.bomb;
   return colors.smoke;
 }
 
@@ -47,7 +52,7 @@ class GrenadeObject {
     // Smoke is lit so the cloud shades like a volume; fire and pops stay flat and bright.
     const material = kind === TACTICAL_EVENT_KINDS.smoke
       ? new MeshLambertMaterial({ color: tone, transparent: true, depthWrite: false, emissive: tone, emissiveIntensity: 0.25 })
-      : new MeshBasicMaterial({ color: tone, transparent: true, depthWrite: false });
+      : new MeshBasicMaterial({ color: tone, transparent: true, depthWrite: false, blending: flat ? AdditiveBlending : NormalBlending, polygonOffset: flat, polygonOffsetFactor: -2 });
     this.effect = new Mesh(flat ? shared.disc : shared.sphere, material);
     this.effect.renderOrder = 3;
     this.projectile = new Mesh(shared.dot, new MeshBasicMaterial({ color: tone }));
@@ -84,7 +89,7 @@ class GrenadeObject {
       } else if (this.kind === TACTICAL_EVENT_KINDS.molotov) {
         effect.position.set(visual.at.x, visual.at.y, visual.at.z + 2);
         effect.scale.setScalar(FIRE_RADIUS * grow);
-        effect.material.opacity = 0.5 * visual.effect.strength * strength;
+        effect.material.opacity = 0.85 * visual.effect.strength * strength;
       } else {
         effect.position.set(visual.at.x, visual.at.y, visual.at.z + 24);
         effect.scale.setScalar(PULSE_RADIUS * grow);

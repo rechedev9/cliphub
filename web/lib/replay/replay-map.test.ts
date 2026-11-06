@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_ZOOM, panView, zoomLevel, zoomViewAt } from './map-view.ts';
+import { FOLLOW_ZOOM, MAX_ZOOM, followView, panView, zoomLevel, zoomViewAt } from './map-view.ts';
 import { heightTone, navRadarModel, polygonLevel, toneColor } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
@@ -84,4 +84,13 @@ test('tags: a tag at the edge is kept inside the map', () => {
 test('tags: a free preferred spot is kept from the last frame', () => {
   const [placed] = layoutTags({ tags: [{ id: 1, x: 100, y: 100, width: 40, height: 16 }], discs: [], radius: 6, bounds: { x: 0, y: 0, width: 400, height: 400 }, prefer: new Map([[1, 3]]) });
   assert.equal(placed.spot, 3);
+});
+
+test('map view: following zooms in on the player and only moves once they near the edge', () => {
+  const start = followView({ view: base, base, point: { x: 0.5, y: 0.5 } });
+  assert.equal(zoomLevel(start, base), FOLLOW_ZOOM);
+  assert.ok(Math.abs(start.x + start.width / 2 - 0.5) < 1e-9);
+  assert.equal(followView({ view: start, base, point: { x: 0.52, y: 0.5 } }), start);
+  const moved = followView({ view: start, base, point: { x: 0.64, y: 0.5 } });
+  assert.ok(Math.abs(moved.x + moved.width / 2 - 0.64) < 1e-9);
 });

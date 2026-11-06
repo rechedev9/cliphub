@@ -26,7 +26,32 @@ import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspac
 const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
 /** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
-const REPLAY_ABOVE: CSSProperties & { '--replay-above': string } = { '--replay-above': '6.25rem' };
+/** Until the first measure: the tab list and the one-line summary over the replay. */
+const REPLAY_ABOVE: CSSProperties & { '--replay-above': string; '--replay-tabs': string } = { '--replay-above': '6.25rem', '--replay-tabs': '3.5rem' };
+
+/**
+ * Keeps `--replay-above` (everything between the top bar and the replay) and
+ * `--replay-tabs` (the tab list, the scroll margin) measured, so the replay
+ * fills the window exactly whatever the summary or the tab list wrap to.
+ */
+function measureReplayAbove(root: HTMLElement): () => void {
+  const tablist = root.closest('[data-slot="tabs"]')?.querySelector('[role="tablist"]') ?? null;
+  const measure = (): void => {
+    const workspace = root.querySelector('[data-replay-workspace]');
+    if (workspace === null) return;
+    const top = root.getBoundingClientRect().top;
+    const tabs = tablist === null ? 0 : Math.max(0, top - tablist.getBoundingClientRect().top);
+    const summary = Math.max(0, workspace.getBoundingClientRect().top - top);
+    root.style.setProperty('--replay-tabs', `${tabs}px`);
+    root.style.setProperty('--replay-above', `${tabs + summary}px`);
+  };
+  measure();
+  const observer = new ResizeObserver(measure);
+  observer.observe(root);
+  if (root.firstElementChild !== null) observer.observe(root.firstElementChild);
+  if (tablist !== null) observer.observe(tablist);
+  return () => observer.disconnect();
+}
 
 /** How the filtered rounds are read: replayed, or as heatmaps. */
 type AnalysisMode = 'replay' | 'heatmap';
@@ -69,8 +94,11 @@ export function TacticalAnalysis({
 
   // The replay is sized to the window under the tab list, so the tab list goes under the top bar once.
   useEffect(() => {
-    if (!ready || mode !== 'replay') return;
-    rootRef.current?.scrollIntoView({ block: 'start' });
+    const root = rootRef.current;
+    if (!ready || mode !== 'replay' || root === null) return;
+    const stop = measureReplayAbove(root);
+    root.scrollIntoView({ block: 'start' });
+    return stop;
   }, [ready, mode]);
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
@@ -162,7 +190,7 @@ export function TacticalAnalysis({
   const modes = sourceKind === 'library' ? <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} /> : undefined;
 
   return (
-    <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+3.5rem)] flex-col gap-2">
+    <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
       <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} actions={modes} />
 
       {mode === 'heatmap' && sourceKind === 'library' ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
 import type { TacticalSample } from '@/lib/api/tactical';
 import { equipmentItem, rowInventory } from '@/lib/replay/equipment';
@@ -10,11 +10,19 @@ import { EquipmentIcon } from '../equipment-icon';
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 const WIDTH = 208;
 
-/** The card a hovered player shows on the map: name, health, armour, the gun in hand and the rest of the gear. */
-export function PlayerTooltip({ sample, name, x, y, box }: { sample: TacticalSample; name: string; x: number; y: number; box: { width: number; height: number } }): ReactNode {
-  const ct = !hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT);
+/** Places the card beside a player at (x, y) inside the map box; the map calls it every frame. */
+export function placeTooltip(element: HTMLElement, x: number, y: number, box: { width: number; height: number }): void {
   const left = Math.min(box.width - WIDTH - 8, Math.max(8, x + 16));
   const below = y < 140;
+  element.style.transform = `translate(${left}px, ${below ? y + 16 : y - 16}px)${below ? '' : ' translateY(-100%)'}`;
+}
+
+/**
+ * The card a hovered player shows on the map: name, health, armour, the gun in
+ * hand and the rest of the gear. The map moves it with `placeTooltip`.
+ */
+export function PlayerTooltip({ sample, name, ref }: { sample: TacticalSample; name: string; ref: Ref<HTMLDivElement> }): ReactNode {
+  const ct = !hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT);
   const active = sample.activeWeapon === undefined || sample.activeWeapon === null ? null : equipmentItem(sample.activeWeapon);
   const rest = rowInventory(sample.inventory ?? []).filter((item) => active === null || item.id !== active.id);
   const facts = [
@@ -25,8 +33,9 @@ export function PlayerTooltip({ sample, name, x, y, box }: { sample: TacticalSam
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-10 flex flex-col gap-1.5 rounded-md border border-border-strong bg-surface-2 p-2.5 shadow-[var(--elev-4)]"
-      style={{ left, top: below ? y + 16 : y - 16, width: WIDTH, transform: below ? undefined : 'translateY(-100%)' }}
+      ref={ref}
+      className="pointer-events-none absolute top-0 left-0 z-10 flex flex-col gap-1.5 rounded-md border border-border-strong bg-surface-2 p-2.5 shadow-[var(--elev-4)] will-change-transform"
+      style={{ width: WIDTH }}
     >
       <p className="flex items-center gap-1.5">
         <span className={cn('size-2 shrink-0 rounded-full', ct ? 'bg-side-ct' : 'bg-side-t')} aria-hidden />

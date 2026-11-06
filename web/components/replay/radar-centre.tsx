@@ -1,16 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Maximize2, Minus, Plus } from 'lucide-react';
+import { Maximize2, Minus, Plus, X } from 'lucide-react';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
-import { paddedView, panView, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
+import { followView, paddedView, panView, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
 import { radarProjection } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { TRAIL_SECONDS, timelineSeconds } from '@/lib/tactical-timeline';
-import { isCalibrationUsable, radarViewRect, worldRectToRadarRect } from '@/lib/tactical-transform';
+import { isCalibrationUsable, radarViewRect, worldRectToRadarRect, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
@@ -20,10 +20,10 @@ import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
 import { loadNavRadar, loadRadarImage } from './radar/map-art';
-import { PlayerTooltip } from './radar/player-tooltip';
+import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
 import type { MapArt } from './radar/radar-bake';
-import { discRadius, drawRoundFrame } from './radar/radar-round';
+import { discRadius, drawRoundFrame, preloadGrenadeIcons } from './radar/radar-round';
 import type { DrawnPlayer } from './radar/radar-round';
 
 type Box = { width: number; height: number; dpr: number };
@@ -53,7 +53,7 @@ function sameRect(a: RadarRect, b: RadarRect): boolean {
  * The wheel zooms on the cursor, a drag pans, a click highlights a player.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot }: ReplayCentreProps): ReactNode {
+function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot, followSlot, onFollowSlot }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -62,6 +62,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const drawnRef = useRef<DrawnPlayer[]>([]);
   const spotsRef = useRef(new Map<number, number>());
   const samplesRef = useRef<TacticalSample[]>([]);
+  const tipRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<Box>({ width: 1, height: 1, dpr: 1 });
   const [art, setArt] = useState<MapArt>({ kind: 'grid' });
   const [navReady, setNavReady] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -213,8 +214,18 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
       ctx.setTransform(dpr, 0, 0, dpr, projection.offsetX * dpr, projection.offsetY * dpr);
       drawnRef.current = drawRound(ctx, focused, seconds, style);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      const tip = tipRef.current;
+      const hovered = hover === null ? undefined : drawnRef.current.find((player) => player.slot === hover);
+      if (tip !== null && hovered !== undefined) placeTooltip(tip, hovered.x + projection.offsetX, hovered.y + projection.offsetY, box);
+      const followed = followSlot === null ? undefined : samplesRef.current.find((sample) => sample.slot === followSlot);
+      if (followed !== undefined) {
+        const at = worldToRendered(geometry.calibration, followed.x, followed.y, 1);
+        const next = followView({ view, base, point: { x: at.x, y: at.y } });
+        if (!sameRect(next, view)) setZoomed(next);
+      }
     },
-    [box, drawRound, drawable, focused, geometry, plate, projection, readers, rounds, tickOf, view],
+    [base, box, drawRound, drawable, focused, followSlot, geometry, hover, plate, projection, readers, rounds, tickOf, view],
   );
 
   const renderRef = useRef(render);
@@ -223,6 +234,13 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     render(clock.seconds);
   }, [render, clock]);
   useEffect(() => clock.subscribe((seconds) => renderRef.current(seconds)), [clock]);
+  useEffect(() => {
+    let active = true;
+    void preloadGrenadeIcons().then(() => active && renderRef.current(clock.seconds));
+    return () => {
+      active = false;
+    };
+  }, [clock]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -233,8 +251,14 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
       const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
       const width = Math.max(1, Math.floor(rect.width));
       const height = Math.max(1, Math.floor(rect.height));
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      const pixelWidth = Math.round(width * dpr);
+      const pixelHeight = Math.round(height * dpr);
+      // Resizing a canvas clears it, so only resize on a real change and draw again at once.
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+        renderRef.current(clock.seconds);
+      }
       setBox((current) => (current.width === width && current.height === height && current.dpr === dpr ? current : { width, height, dpr }));
     };
     const restyle = (): void => {
@@ -300,6 +324,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra` : `Mapa de la ronda ${focused?.round.number ?? ''}`;
   const hovered = hover === null ? null : drawnRef.current.find((player) => player.slot === hover);
   const hoveredSample = hover === null ? undefined : samplesRef.current.find((sample) => sample.slot === hover);
+  const followedName = followSlot === null || focused === undefined ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const hoveredName = hover === null || focused === undefined ? '' : (focused.doc.players.find((player) => player.slot === hover)?.name ?? '');
 
   return (
@@ -323,6 +348,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
             const dy = at.y - drag.y;
             if (!drag.moved && Math.hypot(dx, dy) < CLICK_SLOP) return;
             drag.moved = true;
+            if (followSlot !== null) onFollowSlot(null);
             setGrabbing(true);
             setHover(null);
             drag.x = at.x;
@@ -352,12 +378,19 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         <TelestratorLayer calibration={geometry.calibration} projection={projection} shown={telestrator.shown} draft={telestrator.draft} />
       ) : null}
       {hovered === undefined || hovered === null || hoveredSample === undefined || grabbing ? null : (
-        <PlayerTooltip sample={hoveredSample} name={hoveredName} x={hovered.x + projection.offsetX} y={hovered.y + projection.offsetY} box={box} />
+        <PlayerTooltip
+          ref={(element) => {
+            tipRef.current = element;
+            if (element !== null) placeTooltip(element, hovered.x + projection.offsetX, hovered.y + projection.offsetY, box);
+          }}
+          sample={hoveredSample}
+          name={hoveredName}
+        />
       )}
 
-      <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between gap-2">
-        <div className="pointer-events-auto">
-          {official === null ? null : (
+      <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-12rem)] flex-wrap items-end gap-2">
+        {official === null ? null : (
+          <div className="pointer-events-auto">
             <Segmented
               label="Dibujo del mapa"
               value={source}
@@ -367,8 +400,18 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
               ]}
               onChange={setSource}
             />
-          )}
-        </div>
+          </div>
+        )}
+        {followedName === null ? null : (
+          <button
+            type="button"
+            onClick={() => onFollowSlot(null)}
+            className="pointer-events-auto flex h-9 items-center gap-1.5 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-1 outline-none hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Siguiendo a <span className="max-w-32 truncate font-semibold">{followedName}</span>
+            <X className="size-3.5 text-fg-3" aria-label="Dejar de seguir" />
+          </button>
+        )}
         {navReady === 'failed' && (source === 'scheme' || official === null) ? (
           <p className="pointer-events-auto max-w-72 rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
             No se pudo leer el mapa de tu instalación de CS2: se dibuja con las posiciones de la demo.

@@ -66,8 +66,13 @@ export class ActorKit {
     return cached(this.#lambert, `${side}|body|${faded}`, () => new MeshLambertMaterial({ color: this.#color(side), transparent: faded, opacity: faded ? OVERLAY_OPACITY : 1 }));
   }
 
+  /** The body seen through walls: flat, see-through, drawn after the map without a depth test. */
+  ghost(side: Side, faded: boolean): MeshBasicMaterial {
+    return cached(this.#basic, `${side}|ghost|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.12 : 0.4, depthTest: false, depthWrite: false }));
+  }
+
   coneMaterial(side: Side, faded: boolean): MeshBasicMaterial {
-    return cached(this.#basic, `${side}|cone|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.2 : 0.55, depthWrite: false }));
+    return cached(this.#basic, `${side}|cone|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.2 : 0.7, depthTest: false, depthWrite: false }));
   }
 
   cross(side: Side, faded: boolean): MeshBasicMaterial {
@@ -79,7 +84,7 @@ export class ActorKit {
   }
 
   ringMaterial(side: Side, faded: boolean): MeshBasicMaterial {
-    return cached(this.#basic, `${side}|ring|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.3 : 0.9, depthWrite: false }));
+    return cached(this.#basic, `${side}|ring|${faded}`, () => new MeshBasicMaterial({ color: this.#color(side), transparent: true, opacity: faded ? 0.3 : 0.9, depthTest: false, depthWrite: false }));
   }
 
   bomb(faded: boolean): MeshBasicMaterial {
@@ -125,6 +130,7 @@ export class PlayerActor {
   readonly group = new Group();
   readonly body: Mesh;
   readonly label: HTMLSpanElement;
+  readonly #ghost: Mesh;
   readonly #cone: Mesh;
   readonly #cross: Group;
   readonly #bomb: Mesh;
@@ -143,7 +149,10 @@ export class PlayerActor {
     name: string,
   ) {
     this.body = new Mesh(kit.capsule, kit.body('ct', faded));
+    this.#ghost = new Mesh(kit.capsule, kit.ghost('ct', faded));
+    this.#ghost.renderOrder = 10;
     this.#cone = new Mesh(kit.cone, kit.coneMaterial('ct', faded));
+    this.#cone.renderOrder = 11;
     this.#cone.position.z = STANDING_EYE;
     const a = new Mesh(kit.bar, kit.cross('ct', faded));
     const b = new Mesh(kit.bar, kit.cross('ct', faded));
@@ -155,8 +164,8 @@ export class PlayerActor {
     this.#bomb = new Mesh(kit.bombBox, kit.bomb(faded));
     this.#ring = new Mesh(kit.ring, kit.ringMaterial('ct', faded));
     this.#ring.position.z = 1.5;
-    this.#ring.renderOrder = 2;
-    this.group.add(this.body, this.#cone, this.#cross, this.#bomb, this.#ring);
+    this.#ring.renderOrder = 9;
+    this.group.add(this.body, this.#ghost, this.#cone, this.#cross, this.#bomb, this.#ring);
     const trailGeometry = new BufferGeometry();
     trailGeometry.setAttribute('position', new BufferAttribute(this.#trailPositions, 3));
     this.#trail = new Line(trailGeometry, kit.trail('ct', faded));
@@ -203,6 +212,8 @@ export class PlayerActor {
     const height = hullHeight(sample);
     this.body.visible = alive && !options.self;
     this.body.scale.set(1, 1, height / STANDING_HEIGHT);
+    this.#ghost.visible = this.body.visible;
+    this.#ghost.scale.copy(this.body.scale);
     this.#cone.visible = alive && !options.self;
     this.#cone.position.z = eyeHeight(sample);
     this.#cross.visible = !alive;
@@ -241,6 +252,7 @@ export class PlayerActor {
   #setSide(side: Side): void {
     this.#side = side;
     this.body.material = this.kit.body(side, this.faded);
+    this.#ghost.material = this.kit.ghost(side, this.faded);
     this.#cone.material = this.kit.coneMaterial(side, this.faded);
     this.#ring.material = this.kit.ringMaterial(side, this.faded);
     for (const child of this.#cross.children) if (child instanceof Mesh) child.material = this.kit.cross(side, this.faded);

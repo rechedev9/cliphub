@@ -14,7 +14,11 @@ import { readSceneColors } from './scene-colors';
 export type ThreeSceneProps = {
   geometry: MapGeometry;
   box: WorldBox;
-  cut: number;
+  /** A fixed roof cut, or null to keep it over the living players. */
+  cut: number | null;
+  /** Whether the orbit follows the living players. */
+  auto: boolean;
+  onAutoChange: (auto: boolean) => void;
   mode: CameraMode;
   follow: number | null;
   rounds: readonly CentreRound[];
@@ -32,13 +36,15 @@ export type ThreeSceneProps = {
  * The WebGL canvas and the name tags over it. Three.js lives only in this
  * module's chunk, so pages that never open the 3D view never load it.
  */
-export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar }: ThreeSceneProps): ReactNode {
+export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar, auto, onAutoChange }: ThreeSceneProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReplayScene | null>(null);
   const pickRef = useRef(onPick);
   pickRef.current = onPick;
+  const autoRef = useRef(onAutoChange);
+  autoRef.current = onAutoChange;
   const failRef = useRef(onFailure);
   failRef.current = onFailure;
   const boxRef = useRef(box);
@@ -51,7 +57,7 @@ export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, l
     if (container === null || canvas === null || overlay === null) return;
     let scene: ReplayScene;
     try {
-      scene = new ReplayScene({ canvas, overlay, colors: readSceneColors(container), onPick: (slot) => slot !== null && pickRef.current(slot) });
+      scene = new ReplayScene({ canvas, overlay, colors: readSceneColors(container), onPick: (slot) => slot !== null && pickRef.current(slot), onAutoChange: (on) => autoRef.current(on) });
     } catch {
       failRef.current();
       return;
@@ -97,6 +103,10 @@ export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, l
   useEffect(() => {
     sceneRef.current?.setMode(mode);
   }, [mode]);
+
+  useEffect(() => {
+    sceneRef.current?.setAuto(auto);
+  }, [auto]);
 
   useEffect(() => {
     sceneRef.current?.setFollow(follow);

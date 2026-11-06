@@ -101,7 +101,7 @@ const GRENADE_ICON: Partial<Record<TacticalEventKind, EquipmentIconName>> = {
   [TACTICAL_EVENT_KINDS.decoy]: 'decoy',
 };
 
-/** The game's grenade icons, loaded on first use; until one loads its badge is skipped. */
+/** The game's grenade icons; the map preloads them so a badge shows the moment its grenade lands. */
 const icons = new Map<EquipmentIconName, HTMLImageElement>();
 
 function iconImage(name: EquipmentIconName): HTMLImageElement | null {
@@ -112,6 +112,17 @@ function iconImage(name: EquipmentIconName): HTMLImageElement | null {
     icons.set(name, image);
   }
   return image.complete && image.naturalWidth > 0 ? image : null;
+}
+
+/** Starts loading every grenade icon; resolves once they all settled, so the map can redraw. */
+export function preloadGrenadeIcons(): Promise<void> {
+  const loads = Object.values(GRENADE_ICON).map((name) => {
+    iconImage(name);
+    const image = icons.get(name);
+    if (image === undefined || image.complete) return Promise.resolve();
+    return image.decode().catch(() => undefined);
+  });
+  return Promise.all(loads).then(() => undefined);
 }
 
 /** A small dark badge with the grenade's icon where it went off. */

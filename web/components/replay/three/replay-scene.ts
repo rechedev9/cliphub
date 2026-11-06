@@ -9,6 +9,8 @@ import { layerSamples, layerTrails } from '@/lib/replay/layers';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { Vec3, WorldBox } from '@/lib/replay/three/orbit';
 import { eyeHeight, lookYaw, viewDirection } from '@/lib/replay/three/scene-math';
+import { actionFocus, liveCut } from '@/lib/replay/three/action-camera';
+import { layoutTags } from '@/lib/replay/tag-layout';
 import { createTrail3dReader } from '@/lib/replay/three/trails';
 import { bombVisual, utilityVisuals } from '@/lib/replay/three/utility-visuals';
 import { createInterpolatedSampleReader, frameCursor } from '@/lib/tactical-replay';
@@ -35,9 +37,6 @@ type RoundState = {
   names: Map<number, string>;
 };
 
-/** From straight above a player is only a disc, so the top-down camera draws it larger. */
-const TOP_ACTOR_SCALE = 2.4;
-
 /** Name tags this close to the screen edge or behind the camera are hidden. */
 const LABEL_EDGE = 4;
 
@@ -61,13 +60,16 @@ export class ReplayScene {
   #radar: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
   #input: SceneInput = { rounds: [], tickOf: () => 0, layers: { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] } };
   #seconds = 0;
+  #cut: number | null = null;
+  #meshZ = { minZ: 0, maxZ: 0 };
+  readonly #labelSpots = new Map<number, number>();
   #follow: number | null = null;
   #frame = 0;
   #width = 1;
   #height = 1;
   readonly #onPick: (slot: number | null) => void;
 
-  constructor(options: { canvas: HTMLCanvasElement; overlay: HTMLElement; colors: SceneColors; onPick: (slot: number | null) => void }) {
+  constructor(options: { canvas: HTMLCanvasElement; overlay: HTMLElement; colors: SceneColors; onPick: (slot: number | null) => void; onAutoChange: (auto: boolean) => void }) {
     this.#renderer = new WebGLRenderer({ canvas: options.canvas, antialias: true, powerPreference: 'high-performance' });
     this.#renderer.localClippingEnabled = true;
     this.#overlay = options.overlay;
@@ -83,7 +85,7 @@ export class ReplayScene {
     const sun = new DirectionalLight(0xfff4e6, 1.6);
     sun.position.set(-0.55, -0.8, 1);
     this.#scene.add(sun);
-    this.#rig = new CameraRig(options.canvas, { onChange: () => this.requestRender(), onClick: (x, y) => this.#pick(x, y) });
+    this.#rig = new CameraRig(options.canvas, { onChange: () => this.requestRender(), onClick: (x, y) => this.#pick(x, y), onAutoChange: options.onAutoChange });
     this.setColors(options.colors);
   }
 
@@ -93,6 +95,7 @@ export class ReplayScene {
       this.#map.dispose();
     }
     this.#map = new MapMesh(geometry, colors.background);
+    this.#meshZ = { minZ: geometry.bounds.min[2], maxZ: geometry.bounds.max[2] };
     this.#scene.add(...this.#map.objects);
     this.#rig.frame(box);
     this.requestRender();
@@ -125,13 +128,21 @@ export class ReplayScene {
     this.requestRender();
   }
 
-  setCut(z: number): void {
-    this.#map?.setCut(z);
+  /** A fixed roof cut, or null to keep it just over the focused round's living players. */
+  setCut(z: number | null): void {
+    this.#cut = z;
+    if (z !== null) this.#map?.setCut(z);
     this.requestRender();
   }
 
   setMode(mode: CameraMode): void {
-    this.#rig.mode = mode;
+    this.#rig.setMode(mode);
+    this.requestRender();
+  }
+
+  /** Whether the orbit camera follows the living players. */
+  setAuto(auto: boolean): void {
+    this.#rig.setAuto(auto);
     this.requestRender();
   }
 
@@ -231,6 +242,7 @@ export class ReplayScene {
     const { layers, tickOf } = this.#input;
     this.#utility.beginFrame();
     let eye: { at: Vec3; direction: Vec3 } | null = null;
+    let focusedSamples: TacticalSample[] = [];
     for (const state of this.#rounds.values()) {
       const { round } = state;
       for (const actor of state.actors.values()) actor.hide();
@@ -241,6 +253,7 @@ export class ReplayScene {
       let carried = false;
       if (cursor !== undefined) {
         const samples = layerSamples(state.samples(cursor), layers);
+        if (round.focused) focusedSamples = samples;
         const trails = layerTrails(state.trails(cursor), layers);
         const previous = round.frames[cursor.index - 1]?.samples;
         for (const sample of samples) {
@@ -248,7 +261,7 @@ export class ReplayScene {
           const yaw = lookYaw(sample, previous?.find((candidate) => candidate.slot === sample.slot));
           const self = round.focused && this.#rig.mode === 'player' && this.#follow === sample.slot;
           const actor = this.#actor(state, sample.slot);
-          actor.update(sample, yaw, { self, bombLayer: layers.bomb, scale: this.#rig.mode === 'top' ? TOP_ACTOR_SCALE : 1 });
+          actor.update(sample, yaw, { self, bombLayer: layers.bomb, scale: this.#rig.actorScale });
           actor.setTrail(trails.get(sample.slot));
           if (self) {
             eye = { at: { x: sample.x, y: sample.y, z: sample.z + eyeHeight(sample) }, direction: viewDirection(yaw) };
@@ -260,6 +273,9 @@ export class ReplayScene {
     }
     this.#utility.endFrame();
     if (eye !== null) this.#rig.placeEye(eye.at, eye.direction);
+    if (this.#cut === null) this.#map?.setCut(liveCut(this.#meshZ, focusedSamples));
+    this.#rig.setFocus(actionFocus(focusedSamples));
+    if (this.#rig.step(performance.now())) this.requestRender();
     const camera = this.#rig.active;
     const flat = this.#radar !== null && this.#rig.mode === 'top';
     if (this.#radar !== null) this.#radar.visible = flat;
@@ -268,9 +284,11 @@ export class ReplayScene {
     this.#placeLabels();
   }
 
+  /** Name tags over the heads, laid out like the 2D tags so none covers another. */
   #placeLabels(): void {
     const { layers } = this.#input;
     const camera = this.#rig.active;
+    const shown: { actor: PlayerActor; x: number; y: number }[] = [];
     for (const state of this.#rounds.values()) {
       for (const actor of state.actors.values()) {
         const self = this.#rig.mode === 'player' && this.#follow === actor.slot && state.round.focused;
@@ -288,8 +306,21 @@ export class ReplayScene {
           continue;
         }
         actor.label.classList.remove('hidden');
-        actor.label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translate(-50%, -100%)`;
+        shown.push({ actor, x: sx, y: sy });
       }
+    }
+    const placed = layoutTags({
+      tags: shown.map(({ actor, x, y }) => ({ id: actor.slot, x, y, width: actor.label.offsetWidth, height: actor.label.offsetHeight })),
+      discs: shown,
+      radius: 3,
+      bounds: { x: 0, y: 0, width: this.#width, height: this.#height },
+      prefer: this.#labelSpots,
+    });
+    this.#labelSpots.clear();
+    for (const tag of placed) {
+      this.#labelSpots.set(tag.id, tag.spot);
+      const entry = shown.find((candidate) => candidate.actor.slot === tag.id);
+      entry?.actor.label.style.setProperty('transform', `translate(${tag.rect.x.toFixed(1)}px, ${tag.rect.y.toFixed(1)}px)`);
     }
   }
 

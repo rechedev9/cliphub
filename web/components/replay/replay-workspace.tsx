@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bookmark, Layers, Radar, RefreshCw } from 'lucide-react';
+import { Bookmark, Keyboard, Layers, Radar, RefreshCw } from 'lucide-react';
 import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { CollectionItem } from '@/lib/api/collections';
@@ -43,11 +43,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { BookmarkPanel, SaveMomentDialog } from './bookmark-panel';
 import type { ReplayCentreView } from './centre';
+import { MapHud } from './map-hud';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
 import { RADAR_2D_VIEW } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
+import { ShortcutHelp } from './shortcut-help';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
 import type { WinStripState } from './win-strip';
@@ -134,6 +136,8 @@ export function ReplayWorkspace({
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [uiTick, setUiTick] = useState(0);
   const [saving, setSaving] = useState<CollectionItem | null>(null);
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const [help, setHelp] = useState(false);
   const draft = useTelestratorDraft();
   const collections = useCollections();
 
@@ -294,7 +298,20 @@ export function ReplayWorkspace({
       if (event.key === ' ' && (target.tagName === 'BUTTON' || inputType === 'checkbox')) return;
       if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && inputType === 'range') return;
     }
-    if (event.key === ' ') {
+    if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+      event.preventDefault();
+      setHelp((value) => !value);
+    } else if (event.key === 'm' || event.key === 'M') {
+      event.preventDefault();
+      toggleMulti();
+    } else if (event.key === 'f' || event.key === 'F') {
+      event.preventDefault();
+      const slot = selectedSlot ?? followSlot;
+      setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
+    } else if (event.key === 'Escape' && (followSlot !== null || selectedSlot !== null)) {
+      setFollowSlot(null);
+      setSelectedSlot(null);
+    } else if (event.key === ' ') {
       event.preventDefault();
       togglePlay();
     } else if (event.key === '[' || event.key === ']') {
@@ -427,7 +444,6 @@ export function ReplayWorkspace({
     );
   }
 
-  const score = focused === null ? null : teamScoreBefore(focused.doc, focused.round);
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       <Button
@@ -464,16 +480,11 @@ export function ReplayWorkspace({
           <h2 className="flex min-w-0 items-baseline gap-2 truncate">
             {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
-            {score === null ? null : (
-              <span className="text-body-sm font-semibold tabular-nums">
-                <span className="sr-only">, marcador </span>
-                <span className="text-side-ct">{score[0]}</span>
-                <span className="text-fg-3">:</span>
-                <span className="text-side-t">{score[1]}</span>
-              </span>
-            )}
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => setHelp(true)}>
+              <Keyboard aria-hidden />
+            </Button>
             {centreViews.length > 1 ? (
               <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
             ) : null}
@@ -496,6 +507,18 @@ export function ReplayWorkspace({
               selectedSlot,
               onSelectSlot: setSelectedSlot,
             })
+          )}
+          {focused === null ? null : (
+            <MapHud
+              focused={focused}
+              roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
+              eventsOpen={eventsOpen}
+              onToggleEvents={() => setEventsOpen((value) => !value)}
+              onSeek={(seconds) => {
+                setPlaying(false);
+                seekTo(clockSecondsOf(focused.timeline, timelineTick(focused.timeline, seconds)));
+              }}
+            />
           )}
         </div>
       </div>
@@ -530,23 +553,18 @@ export function ReplayWorkspace({
       </aside>
 
       <aside
-        aria-label="Jugadores y eventos de la ronda"
+        aria-label="Jugadores y notas de la ronda"
         className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2 min-[1180px]:col-start-3 min-[1180px]:row-start-1"
       >
         <ReplaySidePanel
           focused={focused}
           nowSeconds={nowSeconds}
           tickOf={tickOf}
-          clockSecondsOf={clockSecondsOf}
           layers={layers}
           selectedSlot={selectedSlot}
           onSelectSlot={setSelectedSlot}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
           follow={view.followsPlayers === true ? { slot: followSlot, onFollow: setFollowSlot } : null}
-          onSeek={(seconds) => {
-            setPlaying(false);
-            seekTo(seconds);
-          }}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null
@@ -614,6 +632,7 @@ export function ReplayWorkspace({
         />
       </div>
 
+      <ShortcutHelp open={help} onOpenChange={setHelp} />
       {saving === null || focused === null ? null : (
         <SaveMomentDialog store={collections} moment={saving} momentLabel={momentLabel(saving)} onClose={() => setSaving(null)} />
       )}

@@ -72,3 +72,24 @@ export function paddedView(rect: RadarRect, margin: number): RadarRect {
   const pad = Math.max(rect.width, rect.height) * margin;
   return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
 }
+
+/** Zoom a followed player starts at, as a multiple of the whole map. */
+export const FOLLOW_ZOOM = 2.5;
+
+/**
+ * The view that keeps a followed player (a point on the radar square) in sight:
+ * zoomed in to at least `FOLLOW_ZOOM`, recentred once the player leaves the
+ * middle `keep` share of the view, so the map moves in steps instead of every frame.
+ */
+export function followView(options: { view: RadarRect; base: RadarRect; point: { x: number; y: number }; keep?: number }): RadarRect {
+  const { view, base, point } = options;
+  const keep = options.keep ?? 0.5;
+  let next = view;
+  if (zoomLevel(view, base) < FOLLOW_ZOOM) next = { x: 0, y: 0, width: base.width / FOLLOW_ZOOM, height: base.height / FOLLOW_ZOOM };
+  else {
+    const inner = { x: view.x + (view.width * (1 - keep)) / 2, y: view.y + (view.height * (1 - keep)) / 2, width: view.width * keep, height: view.height * keep };
+    const inside = point.x >= inner.x && point.x <= inner.x + inner.width && point.y >= inner.y && point.y <= inner.y + inner.height;
+    if (inside) return view;
+  }
+  return clampView({ x: point.x - next.width / 2, y: point.y - next.height / 2, width: next.width, height: next.height }, base);
+}
