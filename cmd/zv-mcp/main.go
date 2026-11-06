@@ -44,6 +44,8 @@ A series (best of 3 or 5): import and wait for every demo, then create_series_jo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
+list_all_videos lists the videos of every recent job (Mis vídeos); retry_video renders a failed one again
+and change_video_music changes a finished Short's music, both without a new capture.
 Analysis (read only): list_teams for team ids, scout_team for a team's tendencies, player_metrics for a
 player's numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
@@ -58,7 +60,7 @@ list_stream_videos. list_streams shows the streams already in Studio.
 The library: import_demo takes tags; update_demo changes a demo's source or tags; reanalyze_demo
 analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay).
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream
-and delete_demo need the user's approval.
+and delete_demo need the user's approval, and so do retry_video and change_video_music.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.

@@ -49,6 +49,7 @@ Decide in phase 1 whether the WebMCP preview stays.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
   encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`) cannot be undone, so they ask too.
+  So do `retry_video` and `change_video_music`, which render a Short again.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
 ## Architecture
@@ -161,6 +162,7 @@ Read:
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
+| `list_all_videos` | `GET /api/jobs` (newest 30 by default, at most 100), then `GET /api/jobs/batch-status` for every job and preset in calls of 100: finished videos with MP4 links, renders still running or failed, and jobs that failed before any video existed |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, up to 4 alternative copies with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
 | `list_pro_settings` | the `internal/prosettings` catalog (no orchestrator call): id, name, team, resolution and viewmodel FOV for `plan_full_demo` `pro_settings` |
 | `list_teams` | `GET /api/library/teams` |
@@ -200,6 +202,8 @@ Write:
 | `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
 | `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` are added to `clips` as "Añadir" does, skipping plays that overlap a saved moment; an `uploaded` stream's plan is always saved, which makes it `ready`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
 | `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
+| `retry_video` | `GET /api/jobs/{id}?view=status` and `GET .../renders/{variant}` (a `failed` render with the effective `edit`, `music` and `segment_ids` of its edit document), then `POST .../renders/{variant}` with them. A failed capture, a failure that needs a new capture (`recording_not_reusable:` and the others of `requiresRecapture`) or a Full Demo is refused with a pointer to `generate_short` or `render_full_demo` | yes |
+| `change_video_music` | the same reads on a `ready` Short, then `POST .../renders/{variant}` with the new `music` (`{key, volume, game_volume}`, or none) and the stored `edit` and `segment_ids`; the same mix as now is refused, as in the UI | yes |
 | `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
 | `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
 
@@ -224,7 +228,9 @@ instead of failing halfway.
 
 Not covered yet (see the parity rule in AGENTS.md): the editor, collections, the stratbook,
 scouting reports, library series, FACEIT follows, Steam import and account, storage, practice
-launch, community ranking, `open_studio`, resources and prompts.
+launch, community ranking, `open_studio`, resources and prompts. There is no tool to cancel a queued
+render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
+the UI's local record of it.
 
 ## Spike results (2026-11-01)
 
