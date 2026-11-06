@@ -15,6 +15,10 @@ const (
 	killFeedFadeSecs   = 0.15
 	killFeedSlideSecs  = 0.2
 	killFeedMinTopEdge = 8
+	// delogo needs a few pixels to interpolate from; the margin covers the
+	// frames where the notice fades in or out before the scan sees it.
+	killFeedMinMask        = 4
+	killFeedMaskMarginSecs = 0.2
 )
 
 // KillFeedNotice is one notice sprite already scaled to output pixels, with
@@ -24,6 +28,8 @@ type KillFeedNotice struct {
 	Width, Height    int
 	AppearSeconds    float64
 	DisappearSeconds float64
+	// SourceArea is where the streamer's own copy sat, so the render can hide it.
+	SourceArea CropRect
 }
 
 // panelScale is how many output pixels one source pixel of the game panel
@@ -102,6 +108,24 @@ func killFeedFilter(in killFeedGraph) string {
 	return b.String()
 }
 
+// killFeedMask hides the streamer's own copy of each notice on the source, so
+// the edge of the vertical crop does not show it next to the redrawn one.
+func killFeedMask(notices []KillFeedNotice, srcW, srcH int) string {
+	var parts []string
+	for _, n := range notices {
+		x := max(1, int(math.Floor(n.SourceArea.X*float64(srcW))))
+		y := max(1, int(math.Floor(n.SourceArea.Y*float64(srcH))))
+		w := min(srcW-1, int(math.Ceil((n.SourceArea.X+n.SourceArea.Width)*float64(srcW)))) - x
+		h := min(srcH-1, int(math.Ceil((n.SourceArea.Y+n.SourceArea.Height)*float64(srcH)))) - y
+		if w < killFeedMinMask || h < killFeedMinMask {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf(`delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t\,%s\,%s)'`, x, y, w, h,
+			floatArg(n.AppearSeconds-killFeedMaskMarginSecs), floatArg(n.DisappearSeconds+killFeedMaskMarginSecs)))
+	}
+	return strings.Join(parts, ",")
+}
+
 type killFeedGraph struct {
 	contentLabel string
 	notices      []KillFeedNotice
@@ -110,4 +134,6 @@ type killFeedGraph struct {
 	top          int
 	outputWidth  int
 	duration     float64
+	// sourceMask is the filter chain that hides the original notices.
+	sourceMask string
 }

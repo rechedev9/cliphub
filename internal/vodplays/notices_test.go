@@ -2,7 +2,9 @@ package vodplays
 
 import (
 	"context"
+	"image"
 	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,5 +65,12 @@ func TestExtractNoticesRecoversThePlateOpacityAndTheOpaqueText(t *testing.T) {
 	}
 	if a := float64(plateA>>8) / 255; a < 0.54 || a > 0.66 {
 		t.Fatalf("plate opacity = %.2f, want 0.6", a)
+	}
+}
+
+func TestNoticeSourceAreaMapsTheFeedCornerToSourceFractions(t *testing.T) {
+	x, y, w, h := NoticeSprite{Area: image.Rect(0, 0, FeedWidth, FeedHeight)}.SourceArea()
+	if x != 0.6 || y != 0 || math.Abs(w-0.4) > 1e-9 || math.Abs(h-0.3) > 1e-9 {
+		t.Fatalf("whole corner = %v %v %v %v, want 0.6 0 0.4 0.3", x, y, w, h)
 	}
 }

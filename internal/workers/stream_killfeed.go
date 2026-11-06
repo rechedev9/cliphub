@@ -48,8 +48,10 @@ func clipKillFeed(ctx context.Context, req killFeedRequest) ([]streamclips.KillF
 		if err != nil {
 			return nil, err
 		}
+		x, y, w, h := sprite.SourceArea()
 		notices = append(notices, streamclips.KillFeedNotice{
 			Path: scaled.Path, Width: scaled.Width, Height: scaled.Height,
+			SourceArea:       streamclips.CropRect{X: x, Y: y, Width: w, Height: h},
 			AppearSeconds:    scaled.AppearSeconds - req.clip.StartSeconds,
 			DisappearSeconds: math.Min(scaled.DisappearSeconds-req.clip.StartSeconds, duration),
 		})

@@ -18,7 +18,8 @@ func killFeedPlan(variant string) (EditPlan, ClipRange) {
 func TestKillFeedStacksTheNoticesCenteredBelowTheHUD(t *testing.T) {
 	plan, clip := killFeedPlan(VariantStreamer4060)
 	notices := []KillFeedNotice{
-		{Path: "a.png", Width: 300, Height: 41, AppearSeconds: -2, DisappearSeconds: 6},
+		{Path: "a.png", Width: 300, Height: 41, AppearSeconds: -2, DisappearSeconds: 6,
+			SourceArea: CropRect{X: 0.75, Y: 0.125, Width: 0.125, Height: 0.0625}},
 		{Path: "b.png", Width: 340, Height: 41, AppearSeconds: 4, DisappearSeconds: 20},
 	}
 	args, err := BuildFFmpegArgs(FFmpegInputs{
@@ -41,10 +42,15 @@ func TestKillFeedStacksTheNoticesCenteredBelowTheHUD(t *testing.T) {
 		"[2:v]format=rgba,fade=t=in:st=4.000000:d=0.150000:alpha=1[kf1]",
 		`overlay=x=370:y='933+37.333333*clip((6.200000-t)/0.200000\,0\,1)'`,
 		"[killfeed]fps=60",
+		// The streamer's own copy is hidden on the game panel only; b has no area.
+		`[gamein]delogo=x=1440:y=135:w=240:h=68:enable='between(t\,-2.200000\,6.200000)',crop=`,
 	} {
 		if !strings.Contains(graph, want) {
 			t.Fatalf("graph lacks %q:\n%s", want, graph)
 		}
+	}
+	if strings.Count(graph, "delogo") != 1 {
+		t.Fatalf("want one mask, for the notice with an area:\n%s", graph)
 	}
 	if strings.Contains(graph, "[2:v]format=rgba,fade=t=in:st=4.000000:d=0.150000:alpha=1,fade=t=out") {
 		t.Fatalf("a notice that outlasts the clip must not fade out:\n%s", graph)

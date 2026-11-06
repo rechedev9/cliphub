@@ -117,6 +117,7 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 			notices: in.KillFeed, firstInput: nextInput, scale: scale,
 			top:         killFeedTop(layout, plan, in.SourceWidth, in.SourceHeight),
 			outputWidth: layout.OutputWidth, duration: duration,
+			sourceMask: killFeedMask(in.KillFeed, in.SourceWidth, in.SourceHeight),
 		}
 	}
 
@@ -331,6 +332,12 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		outputLabel = "[content]"
 	}
 
+	// The game panel hides the streamer's own feed before it is cropped.
+	gameMask := ""
+	if extras.killFeed != nil && extras.killFeed.sourceMask != "" {
+		gameMask = extras.killFeed.sourceMask + ","
+	}
+
 	var content string
 	if layout.Name == VariantStreamerLandscape16x9 {
 		content = fmt.Sprintf(
@@ -342,8 +349,8 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		)
 	} else if layout.FullFrame {
 		content = fmt.Sprintf(
-			"[0:v]%s,%s,crop=%d:%d%s",
-			cropFilter(plan.GameplayCrop),
+			"[0:v]%s%s,%s,crop=%d:%d%s",
+			gameMask, cropFilter(plan.GameplayCrop),
 			highQualityScaleFilter(layout.OutputWidth, layout.GameOutputHeight, "increase"),
 			layout.OutputWidth, layout.GameOutputHeight,
 			outputLabel,
@@ -352,12 +359,12 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		content = fmt.Sprintf(
 			"[0:v]split=2[facein][gamein];"+
 				"[facein]%s,%s,crop=%d:%d[face];"+
-				"[gamein]%s,%s,crop=%d:%d[game];"+
+				"[gamein]%s%s,%s,crop=%d:%d[game];"+
 				"[face][game]vstack=inputs=2%s",
 			cropFilter(plan.FaceCrop),
 			highQualityScaleFilter(layout.OutputWidth, layout.FaceOutputHeight, "increase"),
 			layout.OutputWidth, layout.FaceOutputHeight,
-			cropFilter(plan.GameplayCrop),
+			gameMask, cropFilter(plan.GameplayCrop),
 			highQualityScaleFilter(layout.OutputWidth, layout.GameOutputHeight, "increase"),
 			layout.OutputWidth, layout.GameOutputHeight,
 			outputLabel,

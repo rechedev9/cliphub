@@ -14,6 +14,11 @@ import (
 const (
 	FeedWidth  = 768
 	FeedHeight = 324
+	// The corner is the right feedSpan of the width from feedLeft, and the top
+	// feedDepth of the height, all as fractions of the source frame.
+	feedLeft  = 0.6
+	feedSpan  = 0.4
+	feedDepth = 0.3
 
 	// Compression blends the thin border with what is behind it, so a border
 	// pixel is red relative to its other channels rather than pure red; green

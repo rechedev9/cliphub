@@ -127,6 +127,9 @@ func TestDefaultEditPlanUsesDefaultVariantAndIsValid(t *testing.T) {
 	if err := plan.Validate(); err != nil {
 		t.Fatalf("DefaultEditPlan().Validate() error = %v", err)
 	}
+	if !plan.KillFeedEnabled() {
+		t.Fatal("DefaultEditPlan() should redraw the kill feed centered")
+	}
 }
 
 func TestEditPlanValidateRejectsUnknownVariantWithValidList(t *testing.T) {
