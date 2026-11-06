@@ -199,7 +199,7 @@ func (in updateTeamIn) patch() (tuiclient.TeamPatch, error) {
 		return patch, errors.New("set name, aliases or both")
 	}
 	if in.Name != "" {
-		name, err := checkTeamText("name", in.Name)
+		name, err := checkUserText("name", in.Name)
 		if err != nil {
 			return patch, err
 		}
@@ -211,7 +211,7 @@ func (in updateTeamIn) patch() (tuiclient.TeamPatch, error) {
 		}
 		aliases := make([]string, 0, len(*in.Aliases))
 		for _, raw := range *in.Aliases {
-			alias, err := checkTeamText("alias", raw)
+			alias, err := checkUserText("alias", raw)
 			if err != nil {
 				return patch, err
 			}
@@ -247,7 +247,7 @@ func (in assignTeamIn) assignment() (tuiclient.MatchTeamAssignment, error) {
 		}
 		a.TeamID = &in.TeamID
 	case in.TeamName != "":
-		name, err := checkTeamText("team_name", in.TeamName)
+		name, err := checkUserText("team_name", in.TeamName)
 		if err != nil {
 			return a, err
 		}
@@ -256,8 +256,8 @@ func (in assignTeamIn) assignment() (tuiclient.MatchTeamAssignment, error) {
 	return a, nil
 }
 
-// checkTeamText trims a name the user gave and refuses empty, long or control text.
-func checkTeamText(field, raw string) (string, error) {
+// checkUserText trims a name or title the user gave and refuses empty, long or control text.
+func checkUserText(field, raw string) (string, error) {
 	text := strings.TrimSpace(raw)
 	if text == "" {
 		return "", fmt.Errorf("%s must not be empty", field)

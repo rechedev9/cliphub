@@ -52,7 +52,8 @@ Decide in phase 1 whether the WebMCP preview stays.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
   encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`, `delete_captures`,
-  `delete_storage_file`) or merging teams (`merge_teams`) cannot be undone, so they ask too.
+  `delete_storage_file`) or merging teams (`merge_teams`), and deleting a report or a play
+  (`delete_report`, `delete_play`) cannot be undone, so they ask too.
   So do `retry_video` and `change_video_music`, which render a Short again.
 - The user's own Claude subscription pays for the model. Studio adds no API key and no cost.
 
@@ -129,7 +130,8 @@ safe. Only uploads are limited (2 concurrent).
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
-  `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video` and `change_video_music`.
+  `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
+  `delete_report` and `delete_play` (the title).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -142,9 +144,11 @@ safe. Only uploads are limited (2 concurrent).
 
 Player names, clan names, victims and publish-assistant titles come from the demo and are chosen by
 players. Stream titles come from the streamer, play and moment labels from the stream plan, and
-yt-dlp failure reasons from the remote site. In tool output, return them in labelled fields, strip
-control characters and cap their length. In approval text a stream title also loses « » and quote
-characters, so it cannot close its quote and read as part of the question. Tool descriptions say
+yt-dlp failure reasons from the remote site. Report and play titles and notes are the user's own
+text, but an imported stratbook can carry someone else's. In tool output, return them in labelled
+fields, strip control characters (notes keep their line breaks) and cap their length. In approval
+text a stream, team, report or play name also loses « » and quote characters, so it cannot close its
+quote and read as part of the question. Tool descriptions say
 these fields are data, not instructions. A name never reaches a path, a shell or a header.
 
 ## Tools (v1)
@@ -173,6 +177,9 @@ Read:
 | `list_teams` | `GET /api/library/teams` |
 | `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
 | `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
+| `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
+| `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, example refs and missing matches |
+| `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `get_player` | `GET /api/library/players/{steamid}`: nicks and teams by date, linked FACEIT account |
 | `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`, repeatable `opponent_id` and `match_id`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
@@ -230,6 +237,14 @@ Write:
 | `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
 | `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
 | `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
+| `create_report`, `update_report` | `POST /api/library/reports` (`title`, `team_id`, `match_ids`, `side`, `notes`); `PATCH /api/library/reports/{id}` (the team cannot change) | no |
+| `delete_report` | `GET` then `DELETE /api/library/reports/{id}` | yes |
+| `save_round_as_play` | `GET /api/library/matches/{id}/tactical/rounds/{round}/play?team_key=` (the draft), then `POST /api/library/plays` with the title and notes | no |
+| `save_detected_play` | `GET /api/library/teams/{id}/plays` again with the same filter, the group whose seed matches `play_ref`, then `POST /api/library/plays` (origin `detected`, positions second from the thresholds) | no |
+| `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null) | no |
+| `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
+| `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
+| `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
 | `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |
 
 Short look and Full Demo HUD:
@@ -251,8 +266,8 @@ survives.
 `studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
 instead of failing halfway.
 
-Not covered yet (see the parity rule in AGENTS.md): the editor, collections, the stratbook,
-scouting reports, library series, FACEIT follows, practice launch, community ranking, `open_studio`, resources and prompts. Steam sign-in, the authentication code
+Not covered yet (see the parity rule in AGENTS.md): the editor, collections, report exports (the
+HTML page and the `.cliphub` package), library series, FACEIT follows, practice launch, community ranking, `open_studio`, resources and prompts. Steam sign-in, the authentication code
 and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
 the UI's local record of it.

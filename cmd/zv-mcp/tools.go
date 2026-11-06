@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -22,8 +21,7 @@ const (
 	pollInterval    = 2 * time.Second
 	defaultWaitSecs = 50
 	// Client tool calls time out around a minute; a longer wait returns "still running".
-	maxWaitSecs  = 55
-	maxNameRunes = 64
+	maxWaitSecs = 55
 	// defaultMomentsLimit keeps list_moments small; a match can have dozens of plays.
 	defaultMomentsLimit = 10
 	// maxErrorRunes caps server messages and failure reasons, which can quote demo content.
@@ -189,6 +187,8 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerAnalysisTools(server, s)
 	registerTeamTools(server, s)
 	registerPlayerTools(server, s)
+	registerReportTools(server, s)
+	registerStratbookTools(server, s)
 	registerRoundTools(server, s)
 	registerTeamReportTools(server, s)
 	registerTeamGrenadesTool(server, s)
@@ -761,45 +761,4 @@ func localDrivePath(path string) bool {
 	}
 	letter := path[0] | 0x20
 	return letter >= 'a' && letter <= 'z'
-}
-
-// cleanName keeps a player-chosen string printable and short before it reaches the model.
-func cleanName(s string) string {
-	var b strings.Builder
-	n := 0
-	for _, r := range s {
-		if n == maxNameRunes {
-			b.WriteRune('…')
-			break
-		}
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			continue
-		}
-		b.WriteRune(r)
-		n++
-	}
-	return strings.TrimSpace(b.String())
-}
-
-// quotedName puts an untrusted name in «» for approval text, without the quote
-// characters that could close the quote early; empty falls back.
-func quotedName(raw, fallback string) string {
-	name := strings.Map(func(r rune) rune {
-		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
-			return -1
-		}
-		return r
-	}, raw)
-	if name = cleanName(name); name != "" {
-		return "«" + name + "»"
-	}
-	return fallback
-}
-
-func cleanNames(names []string) []string {
-	out := make([]string, 0, len(names))
-	for _, n := range names {
-		out = append(out, cleanName(n))
-	}
-	return out
 }
