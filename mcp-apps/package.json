@@ -1,0 +1,26 @@
+{
+  "name": "cliphub-mcp-apps",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "description": "React views that zv-mcp serves as MCP Apps (ui:// resources)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src scripts",
+    "test:unit": "node --no-warnings --test --test-reporter=dot \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.72.0",
+    "oxlint-tsgolint": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

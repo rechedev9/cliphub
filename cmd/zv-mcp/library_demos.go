@@ -53,7 +53,7 @@ type deleteDemoIn struct {
 func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
-	mcp.AddTool(server, &mcp.Tool{Name: "import_demo",
+	mcp.AddTool(server, &mcp.Tool{Name: "import_demo", Meta: appToolMeta(jobProgressAppURI),
 		Description: "Import a local CS2 demo into the Studio library, optionally with tags. Analysis starts on its own; follow with wait_for_demo. " +
 			"A duplicate (the same file already in the library) keeps its own tags; change them with update_demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, demoOut, error) {
@@ -79,7 +79,7 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 			return nil, out, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly,
+	mcp.AddTool(server, &mcp.Tool{Name: "wait_for_demo", Annotations: readOnly, Meta: appToolMeta(jobProgressAppURI),
 		Description: "Wait until an imported demo is analysed (state ready or failed). Returns its match_id when ready."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in waitIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {

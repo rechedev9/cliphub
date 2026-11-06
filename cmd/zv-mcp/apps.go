@@ -17,6 +17,7 @@ const (
 	appMIMEType        = "text/html;profile=mcp-app"
 	shortOptionsAppURI = "ui://cliphub/short-options"
 	hudGalleryAppURI   = "ui://cliphub/hud-gallery"
+	jobProgressAppURI  = "ui://cliphub/job-progress"
 )
 
 //go:embed apps/*.html apps/*.js apps/*.css
@@ -24,11 +25,14 @@ var appFiles embed.FS
 
 type appPage struct {
 	uri, name, title, description, file string
+	// bundled pages come whole from mcp-apps/scripts/build.mjs and skip composeAppPage.
+	bundled bool
 }
 
 var appPages = []appPage{
-	{shortOptionsAppURI, "short-options", "Opciones del Short", "Picker for the format, effects, transition, music and extras of a Short.", "short-options.html"},
-	{hudGalleryAppURI, "hud-gallery", "HUD de la Demo completa", "Gallery of the HUD designs a Full Demo can use.", "hud-gallery.html"},
+	{shortOptionsAppURI, "short-options", "Opciones del Short", "Picker for the format, effects, transition, music and extras of a Short.", "short-options.html", false},
+	{hudGalleryAppURI, "hud-gallery", "HUD de la Demo completa", "Gallery of the HUD designs a Full Demo can use.", "hud-gallery.html", false},
+	{jobProgressAppURI, "job-progress", "Progreso de ClipHub Studio", "Live progress bar of a demo import, a parse, a capture or a render.", "job-progress.html", true},
 }
 
 type chooseShortIn struct {
@@ -59,7 +63,7 @@ type chooseHUDOut struct {
 
 func registerApps(server *mcp.Server, s *studio) {
 	for _, p := range appPages {
-		html, err := composeAppPage(p.file)
+		html, err := appPageHTML(p)
 		if err != nil {
 			// The files are embedded, so this is a build defect, not a runtime state.
 			panic(err)
@@ -110,6 +114,14 @@ func registerApps(server *mcp.Server, s *studio) {
 // in the spec, but the reference SDK still emits it beside _meta.ui for older hosts.
 func appToolMeta(uri string) mcp.Meta {
 	return mcp.Meta{"ui": map[string]any{"resourceUri": uri}, "ui/resourceUri": uri}
+}
+
+func appPageHTML(p appPage) (string, error) {
+	if !p.bundled {
+		return composeAppPage(p.file)
+	}
+	page, err := appFiles.ReadFile("apps/" + p.file)
+	return string(page), err
 }
 
 // composeAppPage inlines the shared stylesheet and bridge into a page, so each
