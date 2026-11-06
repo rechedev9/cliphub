@@ -33,6 +33,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV7LibraryPlays,
 	migrateV8LibrarySeriesVeto,
 	migrateV9LibraryCollections,
+	migrateV10StreamColumns,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -207,6 +208,14 @@ func migrateV1Baseline(tx *sql.Tx) error {
 	if err := migrateKillPlansOffJobsRow(tx); err != nil {
 		return err
 	}
+	if err := addStreamColumns(tx); err != nil {
+		return err
+	}
+	return migrateStreamSourceURLs(tx)
+}
+
+// addStreamColumns adds the stream_jobs columns a database may still lack.
+func addStreamColumns(tx *sql.Tx) error {
 	for _, column := range []string{"public_source_url", "failure_code", "source_kind"} {
 		found, err := columnExists(tx, "stream_jobs", column)
 		if err != nil {
@@ -218,7 +227,13 @@ func migrateV1Baseline(tx *sql.Tx) error {
 			}
 		}
 	}
-	return migrateStreamSourceURLs(tx)
+	return nil
+}
+
+// migrateV10StreamColumns repairs databases that ran step 1 before source_kind
+// was added to it: Studio 5.8.0 edited that step, so they never got the column.
+func migrateV10StreamColumns(tx *sql.Tx) error {
+	return addStreamColumns(tx)
 }
 
 // migrateKillPlansOffJobsRow moves a kill plan out of the jobs row — from a
