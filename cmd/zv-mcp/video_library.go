@@ -57,8 +57,14 @@ type failedCaptureOut struct {
 type listAllVideosOut struct {
 	Videos       []libraryVideoOut  `json:"videos" jsonschema:"finished videos, newest job first"`
 	OtherRenders []libraryRenderOut `json:"other_renders,omitempty" jsonschema:"renders still queued or rendering, and failed ones retry_video may fix"`
-	FailedJobs   []failedCaptureOut `json:"failed_jobs,omitempty" jsonschema:"jobs that failed before any video existed, while parsing or capturing; after a capture failure, generate_short records again"`
+	FailedJobs   []failedCaptureOut `json:"failed_jobs,omitempty" jsonschema:"jobs whose parse or CS2 capture failed; generate_short records again"`
+	StreamVideos []libraryStreamOut `json:"stream_videos" jsonschema:"rendered stream moments, newest stream first; list_stream_videos also has a stream's 16:9 summary"`
 	Note         string             `json:"note,omitempty"`
+}
+
+type libraryStreamOut struct {
+	StreamID string `json:"stream_id"`
+	streamVideoOut
 }
 
 type videoVariantIn struct {
@@ -91,8 +97,13 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, listAllVideosOut{}, toolError(err)
 			}
+			streams, err := c.ListStreamJobs(ctx, min(limit, maxStreamListLimit))
+			if err != nil {
+				return nil, listAllVideosOut{}, toolError(err)
+			}
 			origin, originErr := s.webOrigin()
 			out := describeVideoLibrary(rows, failed, origin)
+			out.StreamVideos = describeStreamLibrary(streams, origin, originErr == nil)
 			if originErr != nil {
 				out.Note = "No playable URL: " + originErr.Error()
 				for i := range out.Videos {
@@ -103,8 +114,9 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "retry_video",
-		Description: "Render a failed video again with the same plays and options, as Reintentar does in Mis vídeos. The capture is not repeated. " +
-			"A failed capture, or a render that needs a new capture, is redone with generate_short instead, and a Full Demo with render_full_demo. " +
+		Description: "Render a failed Short again without a new capture, as Reintentar does in Mis vídeos. Studio keeps only the plays and options of the last " +
+			"finished version, so this renders that version again: after a failed change_video_music, call change_video_music again instead. " +
+			"A Short that never finished, a failed capture or a render that needs a new capture is redone with generate_short, and a Full Demo with render_full_demo. " +
 			"Rendering takes minutes, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in videoVariantIn) (*mcp.CallToolResult, generateOut, error) {
 			c, state, err := loadShortRender(ctx, s, in)
@@ -118,14 +130,15 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 				return nil, generateOut{}, errors.New("this render needs a new capture: call generate_short again with the same plays and options")
 			}
 			body := tuiclient.RenderRequest{Music: state.Music, SegmentIDs: state.SegmentIDs, Edit: state.Edit}
-			summary := fmt.Sprintf("Volver a renderizar el vídeo %s con las mismas jugadas y opciones. La captura no se repite.", cleanName(in.Variant))
+			summary := fmt.Sprintf("Volver a renderizar el vídeo %s con las jugadas y opciones de su última versión terminada. La captura no se repite.", cleanName(in.Variant))
 			return approveAndRender(req, approvalSpec{Tool: "retry_video", JobID: in.JobID, Request: [2]any{in.Variant, state.UpdatedAt}, Summary: summary, Given: in.Approve},
 				func() (tuiclient.EnqueueResponse, error) { return c.Rerender(ctx, in.JobID, in.Variant, body) }, in.Variant)
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "change_video_music",
 		Description: "Add, change or remove the music of a finished Short, or its volume, as Cambiar música does in Mis vídeos. The capture is not repeated; " +
-			"the Short is rendered again and the new MP4 replaces the current one. Rendering takes minutes, so the user must approve it. " + deleteApprovalHint},
+			"the Short is rendered again and the new MP4 replaces the current one. It also retries a failed music change. " +
+			"Rendering takes minutes, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in changeMusicIn) (*mcp.CallToolResult, generateOut, error) {
 			music, err := resolveMusic(shortChoices{Music: in.Music, MusicVolume: in.MusicVolume, GameVolume: in.GameVolume})
 			if err != nil {
@@ -135,7 +148,9 @@ func registerVideoLibraryTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, generateOut{}, err
 			}
-			if !renderReady(state.Status) {
+			// A failed replacement keeps the last finished version's choices, so its music can be set again.
+			retryable := state.Status == tuiclient.RenderFailed && !needsRecapture(state.Error)
+			if !renderReady(state.Status) && !retryable {
 				return nil, generateOut{}, fmt.Errorf("the Short must be finished to change its music; this render is %s", cleanName(state.Status))
 			}
 			if music != nil {
@@ -185,7 +200,7 @@ func loadShortRender(ctx context.Context, s *studio, in videoVariantIn) (*tuicli
 		return nil, tuiclient.RenderVideos{}, toolError(err)
 	}
 	if len(state.Edit) == 0 || string(state.Edit) == "null" {
-		return nil, tuiclient.RenderVideos{}, errors.New("Studio kept no options for this render: make it again with generate_short")
+		return nil, tuiclient.RenderVideos{}, errors.New("this Short never finished, and Studio keeps the plays and options only of a finished render: make it again with generate_short")
 	}
 	var edit struct {
 		FullDemo json.RawMessage `json:"full_demo"`
@@ -300,7 +315,6 @@ var renderableStatuses = []string{tuiclient.StatusRecorded, "composing", tuiclie
 
 func describeVideoLibrary(rows []tuiclient.BatchStatusRow, failed []tuiclient.Job, origin string) listAllVideosOut {
 	out := listAllVideosOut{Videos: []libraryVideoOut{}}
-	failedRender := map[string]bool{}
 	for _, row := range rows {
 		r := row.Render
 		if row.Error != nil || row.Job == nil || r == nil {
@@ -308,7 +322,6 @@ func describeVideoLibrary(rows []tuiclient.BatchStatusRow, failed []tuiclient.Jo
 		}
 		if !renderReady(r.Status) {
 			out.OtherRenders = append(out.OtherRenders, libraryRenderOut{JobID: row.JobID, Variant: cleanName(row.Variant), Status: cleanName(r.Status), Error: cleanText(r.Error, maxErrorRunes)})
-			failedRender[row.JobID] = failedRender[row.JobID] || r.Status == tuiclient.RenderFailed
 			continue
 		}
 		for _, name := range r.Videos {
@@ -322,10 +335,22 @@ func describeVideoLibrary(rows []tuiclient.BatchStatusRow, failed []tuiclient.Jo
 			out.Videos = append(out.Videos, v)
 		}
 	}
+	// A render failure leaves the job status alone, so a failed job is a parse or capture failure.
 	for _, j := range failed {
-		// A job that failed on its render is listed with that render.
-		if !failedRender[j.ID] {
-			out.FailedJobs = append(out.FailedJobs, failedCaptureOut{JobID: j.ID, Reason: cleanText(j.FailureReason, maxErrorRunes)})
+		out.FailedJobs = append(out.FailedJobs, failedCaptureOut{JobID: j.ID, Reason: cleanText(j.FailureReason, maxErrorRunes)})
+	}
+	return out
+}
+
+// describeStreamLibrary lists the rendered stream moments Mis vídeos shows beside the demo videos.
+func describeStreamLibrary(streams []tuiclient.StreamJob, origin string, withURLs bool) []libraryStreamOut {
+	out := []libraryStreamOut{}
+	for _, j := range streams {
+		if checkUUID("id", j.ID) != nil {
+			continue
+		}
+		for _, v := range streamVideos(j, tuiclient.StreamSummary{}, origin, withURLs).Videos {
+			out = append(out, libraryStreamOut{StreamID: j.ID, streamVideoOut: v})
 		}
 	}
 	return out

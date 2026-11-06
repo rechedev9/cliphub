@@ -56,7 +56,23 @@ func TestDescribeVideoLibrarySplitsReadyRunningAndFailed(t *testing.T) {
 	if len(out.OtherRenders) != 1 || out.OtherRenders[0].JobID != b || out.OtherRenders[0].Error != "ffmpeg failed" {
 		t.Errorf("other renders: %+v", out.OtherRenders)
 	}
-	if len(out.FailedJobs) != 1 || out.FailedJobs[0].JobID != c || out.FailedJobs[0].Reason != "CS2 closed" {
+	// A render failure never fails the job, so b failed its capture after the render and is listed too.
+	if len(out.FailedJobs) != 2 || out.FailedJobs[0].JobID != b || out.FailedJobs[1].Reason != "CS2 closed" {
 		t.Errorf("failed captures: %+v", out.FailedJobs)
+	}
+}
+
+func TestDescribeStreamLibraryKeepsOnlyStudioVideos(t *testing.T) {
+	const id = "44444444-4444-4444-8444-444444444444"
+	streams := []tuiclient.StreamJob{
+		{ID: id, RenderedOutputs: []tuiclient.StreamRenderedOutput{
+			{Variant: "short-9x16", VideoURL: "/api/streams/" + id + "/videos/a.mp4"},
+			{Variant: "short-9x16", VideoURL: "https://evil.example/a.mp4"},
+		}},
+		{ID: "../bad", RenderedOutputs: []tuiclient.StreamRenderedOutput{{Variant: "short-9x16", VideoURL: "/api/streams/x/videos/a.mp4"}}},
+	}
+	out := describeStreamLibrary(streams, "http://127.0.0.1:3000", true)
+	if len(out) != 1 || out[0].StreamID != id || out[0].URL != "http://127.0.0.1:3000/api/streams/"+id+"/videos/a.mp4" {
+		t.Errorf("stream videos: %+v", out)
 	}
 }
