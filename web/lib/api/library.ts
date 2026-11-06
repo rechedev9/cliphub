@@ -28,7 +28,8 @@ import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from '.
  * is the source of truth. All access is same-origin through `/api/library/*`.
  */
 
-export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown'] as const;
+/** `shared` is a match that came in a .cliphub package without its demo: read only. */
+export const LIBRARY_SOURCES = ['valve', 'faceit', 'hltv', 'scrim', 'unknown', 'shared'] as const;
 export type LibrarySource = (typeof LIBRARY_SOURCES)[number];
 
 export const LIBRARY_PARSE_STATES = ['queued', 'parsing', 'ready', 'failed'] as const;

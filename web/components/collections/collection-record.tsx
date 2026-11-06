@@ -30,6 +30,8 @@ import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title'
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { SharePackageButton } from '@/components/share/share-package-button';
+import { collectionShareSummary } from '@/lib/library/share';
 import { RenameCollectionDialog } from './rename-collection-dialog';
 
 type Load = { kind: 'loading' } | { kind: 'ready'; collection: LibraryCollectionDetail } | { kind: 'missing' } | { kind: 'offline' };
@@ -149,6 +151,12 @@ export function CollectionRecord({ collectionId }: { collectionId: string }): Re
                 <Smartphone aria-hidden />
                 Enviar a Short
               </Button>
+            )}
+            {playable === 0 ? null : (
+              <SharePackageButton
+                target={{ kind: 'collection', id: collection.id }}
+                summary={collectionShareSummary(playable, new Set(refs.map((ref) => ref.matchId)).size)}
+              />
             )}
             <Button type="button" size="sm" variant="outline" onClick={() => setRenaming(true)}>
               <Pencil aria-hidden />

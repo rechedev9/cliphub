@@ -45,6 +45,8 @@ import { useRecordTab } from '@/hooks/use-record-tab';
 import { MAX_REPORT_MATCHES, ReportSideSelect } from './new-report-dialog';
 import { EMPTY_PICKER_FILTERS, ReportMatchPicker, type PickerFilters } from './report-match-picker';
 import { MetricsView } from '@/components/metrics/metrics-view';
+import { SharePackageButton } from '@/components/share/share-package-button';
+import { reportShareSummary } from '@/lib/library/share';
 import { ScoutView } from './scout-view';
 import { ReportSpatial } from './report-spatial';
 
@@ -214,6 +216,9 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
               <Printer aria-hidden />
               Guardar PDF
             </Button>
+            {scout.matches.length === 0 ? null : (
+              <SharePackageButton target={{ kind: 'report', id: report.id }} summary={reportShareSummary(scout.matches.length)} />
+            )}
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
               Editar

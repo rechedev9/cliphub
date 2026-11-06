@@ -19,7 +19,7 @@ import {
 } from '@/lib/api/library';
 import { MATCHES_HREF, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate } from '@/lib/format';
-import { PARSE_STATE_LABEL, SOURCE_LABEL, adrLabel, demoErrorLabel, teamLabel } from '@/lib/library/partidas';
+import { PARSE_STATE_LABEL, SHARED_MATCH_REASON, SOURCE_LABEL, adrLabel, demoErrorLabel, teamLabel } from '@/lib/library/partidas';
 import { tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
 import { RelatedList } from '@/components/records/related-list';
@@ -35,6 +35,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+
+/** A shared match keeps its source until its .dem is imported, so it is never offered. */
+const EDITABLE_SOURCES = LIBRARY_SOURCES.filter((source) => source !== 'shared');
 
 const ASSIGNMENT_NOTE: Record<LibraryMatchTeam['assignment'], string> = {
   auto: 'Asignado por el nombre de clan de la demo.',
@@ -308,6 +311,7 @@ function DemoPanel({ demo, onDemoChange }: { demo: LibraryDemo; onDemoChange: (d
         <Fact label="Huella SHA-256"><span className="font-mono text-meta" title={demo.sha256}>{demo.sha256.slice(0, 12)}</span></Fact>
         <Fact label="Build de CS2">{demo.cs2_build ?? 'Sin dato'}</Fact>
         <Fact label="Fuente">
+          {demo.source === 'shared' ? SOURCE_LABEL.shared : (
           <Select
             value={demo.source}
             disabled={busy}
@@ -321,14 +325,15 @@ function DemoPanel({ demo, onDemoChange }: { demo: LibraryDemo; onDemoChange: (d
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LIBRARY_SOURCES.map((source: LibrarySource) => (
+              {EDITABLE_SOURCES.map((source: LibrarySource) => (
                 <SelectItem key={source} value={source}>
                   {SOURCE_LABEL[source]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {demo.source_manual ? <span className="block text-meta text-fg-3">Elegida a mano</span> : null}
+          )}
+          {demo.source_manual && demo.source !== 'shared' ? <span className="block text-meta text-fg-3">Elegida a mano</span> : null}
         </Fact>
         <div className="flex flex-col gap-1 sm:col-span-2">
           <dt className="text-meta text-fg-3">Etiquetas, separadas por comas</dt>
@@ -351,7 +356,7 @@ function DemoPanel({ demo, onDemoChange }: { demo: LibraryDemo; onDemoChange: (d
           type="button"
           variant="outline"
           size="sm"
-          disabled={busy || demo.state === 'queued' || demo.state === 'parsing'}
+          disabled={busy || demo.state === 'queued' || demo.state === 'parsing' || demo.source === 'shared'}
           onClick={() => void act(async () => onDemoChange(await analyzeLibraryDemo(demo.id)), 'No se pudo poner la demo en cola.')}
         >
           <RefreshCw aria-hidden />
@@ -361,6 +366,7 @@ function DemoPanel({ demo, onDemoChange }: { demo: LibraryDemo; onDemoChange: (d
           <Trash2 aria-hidden />
           Quitar de la biblioteca
         </Button>
+        {demo.source === 'shared' ? <p className="text-body-sm text-fg-3">{SHARED_MATCH_REASON}</p> : null}
         {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
       </div>
       <Dialog open={confirmDelete} onOpenChange={(next) => !busy && setConfirmDelete(next)}>

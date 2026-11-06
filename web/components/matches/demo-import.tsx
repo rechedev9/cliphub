@@ -6,6 +6,9 @@ import { FileUp } from 'lucide-react';
 import { importLibraryDemo, isLibraryOffline, type LibraryImportResult } from '@/lib/api/library';
 import { matchHref } from '@/lib/clips/routes';
 import { importErrorLabel } from '@/lib/library/partidas';
+import { importSharePackage } from '@/lib/api/share-package';
+import { SHARE_FILE, shareImportSummary, type SharePackageImport } from '@/lib/library/share';
+import { importedHref, packageImportError } from '@/components/share/package-import-button';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +24,17 @@ import { cn } from '@/lib/utils';
 
 const DEMO_FILE = /\.dem(\.zst)?$/i;
 
-type FileResult = { readonly name: string; readonly result: LibraryImportResult | 'pending' | 'error' };
+type PackageResult = { readonly package: SharePackageImport } | { readonly packageError: string };
+type FileResult = { readonly name: string; readonly result: LibraryImportResult | PackageResult | 'pending' | 'error' };
+
+async function importFile(file: File, tags: readonly string[]): Promise<FileResult['result']> {
+  if (!SHARE_FILE.test(file.name)) return importLibraryDemo(file, tags);
+  try {
+    return { package: await importSharePackage(file) };
+  } catch (failure) {
+    return { packageError: packageImportError(failure) };
+  }
+}
 
 const RESULT_TAG: Record<LibraryImportResult['status'], { label: string; tone: StatusTagTone }> = {
   imported: { label: 'Importada', tone: 'success' },
@@ -41,7 +54,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
   const input = useRef<HTMLInputElement>(null);
 
   function choose(list: FileList | null): void {
-    const picked = Array.from(list ?? []).filter((file) => DEMO_FILE.test(file.name));
+    const picked = Array.from(list ?? []).filter((file) => DEMO_FILE.test(file.name) || SHARE_FILE.test(file.name));
     setFiles(picked);
     setResults([]);
     setOffline(false);
@@ -61,7 +74,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
     setResults([...done]);
     for (const [index, file] of files.entries()) {
       try {
-        done[index] = { name: file.name, result: await importLibraryDemo(file, tags) };
+        done[index] = { name: file.name, result: await importFile(file, tags) };
       } catch (error) {
         done[index] = { name: file.name, result: 'error' };
         if (isLibraryOffline(error)) setOffline(true);
@@ -83,7 +96,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
     }
   }
 
-  const imported = results.filter((entry) => entry.result !== 'pending' && entry.result !== 'error' && entry.result.status === 'imported').length;
+  const imported = results.filter((entry) => typeof entry.result === 'object' && 'status' in entry.result && entry.result.status === 'imported').length;
 
   return (
     <>
@@ -96,7 +109,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
           <DialogHeader>
             <DialogTitle>Importar demos</DialogTitle>
             <DialogDescription>
-              Demos de CS2 en .dem o .dem.zst. Una demo que ya está en la biblioteca no se duplica. Cada una se analiza en este PC al llegar.
+              Demos de CS2 en .dem o .dem.zst, o paquetes .cliphub que te haya pasado un compañero. Una demo que ya está en la biblioteca no se duplica. Cada una se analiza en este PC al llegar.
             </DialogDescription>
           </DialogHeader>
 
@@ -112,7 +125,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
               dragging && 'border-primary bg-primary/5',
             )}
           >
-            <p className="text-body-sm text-fg-2">Arrastra aquí las demos o elígelas en el PC.</p>
+            <p className="text-body-sm text-fg-2">Arrastra aquí las demos o los paquetes, o elígelos en el PC.</p>
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}>
               Elegir archivos
             </Button>
@@ -120,10 +133,10 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
               ref={input}
               type="file"
               multiple
-              accept=".dem,.zst"
+              accept=".dem,.zst,.cliphub"
               className="sr-only"
               tabIndex={-1}
-              aria-label="Demos para importar"
+              aria-label="Demos o paquetes para importar"
               onChange={(event) => {
                 choose(event.target.files);
                 event.target.value = '';
@@ -131,7 +144,7 @@ export function DemoImport({ onImported }: { onImported: () => void }): ReactNod
             />
             {files.length > 0 ? (
               <p className="text-body-sm font-medium text-fg-1">
-                {files.length === 1 ? '1 demo elegida' : `${files.length} demos elegidas`}
+                {files.length === 1 ? '1 archivo elegido' : `${files.length} archivos elegidos`}
               </p>
             ) : null}
           </div>
@@ -181,6 +194,22 @@ function ImportResultRow({ entry }: { entry: FileResult }): ReactNode {
   } else if (entry.result === 'error') {
     status = <StatusTag tone="danger">Error</StatusTag>;
     detail = 'No se pudo enviar el archivo.';
+  } else if ('package' in entry.result) {
+    status = <StatusTag tone="success">Importado</StatusTag>;
+    const href = importedHref(entry.result.package);
+    detail = (
+      <>
+        {shareImportSummary(entry.result.package)}{' '}
+        {href ? (
+          <Link href={href} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
+            Abrir
+          </Link>
+        ) : null}
+      </>
+    );
+  } else if ('packageError' in entry.result) {
+    status = <StatusTag tone="danger">Rechazado</StatusTag>;
+    detail = entry.result.packageError;
   } else {
     const tag = RESULT_TAG[entry.result.status];
     status = <StatusTag tone={tag.tone}>{tag.label}</StatusTag>;

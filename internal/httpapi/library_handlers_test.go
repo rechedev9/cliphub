@@ -25,6 +25,7 @@ type libraryTestEnv struct {
 	repo    *store.MemoryLibraryRepository
 	storage *fakeStorage
 	queue   *fakeQueue
+	h       *Handlers
 	router  http.Handler
 }
 
@@ -34,7 +35,7 @@ func newLibraryTestEnv(t *testing.T) libraryTestEnv {
 	files := newFakeStorage()
 	queue := &fakeQueue{}
 	h := NewHandlers(newFakeRepo(), files, queue, WithLibrary(repo))
-	return libraryTestEnv{t: t, repo: repo, storage: files, queue: queue, router: Routes(h)}
+	return libraryTestEnv{t: t, repo: repo, storage: files, queue: queue, h: h, router: Routes(h)}
 }
 
 func (e libraryTestEnv) do(method, path string, body []byte, contentType string) *httptest.ResponseRecorder {

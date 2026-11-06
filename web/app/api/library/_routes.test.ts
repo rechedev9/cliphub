@@ -162,3 +162,17 @@ test('the norms are read only and forward only the map and the dates', () => {
   assert.ok(norms.response.kind === 'json');
   assert.ok(norms.response.keys.includes('playbook'));
 });
+
+test('share packages export as downloads with only a message, and import as multipart', () => {
+  for (const base of ['collections', 'reports']) {
+    const route = matchLibraryRoute('POST', [base, ID, 'export']);
+    assert.equal(route?.response.kind, 'download');
+    assert.ok(route?.body?.kind === 'json');
+    assert.deepEqual(route.body.fields, ['notes']);
+    assert.equal(matchLibraryRoute('GET', [base, ID, 'export']), undefined);
+  }
+  const imported = matchLibraryRoute('POST', ['import-package']);
+  assert.equal(imported?.body?.kind, 'multipart');
+  assert.ok(imported?.response.kind === 'json');
+  assert.ok(imported.response.keys.includes('collection_id'));
+});
