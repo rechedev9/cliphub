@@ -98,7 +98,7 @@ func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 		PlayIDs []string `json:"play_ids"`
 	}
 	if err := decodeSingleJSONBody(w, r, &body, true); err != nil && !errors.Is(err, io.EOF) {
-		writeError(w, http.StatusBadRequest, "invalid summary request")
+		writeError(w, http.StatusBadRequest, "no pudimos leer qué jugadas quieres en el resumen")
 		return
 	}
 	if !streamSourceIsReady(j.Status) {
