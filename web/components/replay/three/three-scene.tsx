@@ -13,6 +13,8 @@ import { readSceneColors } from './scene-colors';
 
 export type ThreeSceneProps = {
   geometry: MapGeometry;
+  /** The walkable floor the roofs are cut over; null when it could not be read. */
+  nav: MapGeometry | null;
   box: WorldBox;
   /** A fixed roof cut, or null to keep it over the living players. */
   cut: number | null;
@@ -28,15 +30,17 @@ export type ThreeSceneProps = {
   onPick: (slot: number) => void;
   onFailure: () => void;
   label: string;
-  /** The official overview for the top-down camera, when CS2 serves it. */
+  /** The official overview, when CS2 serves it. */
   radar: { image: HTMLImageElement; calibration: RadarCalibration } | null;
+  /** Whether the overview is laid on the floors. */
+  radarOn: boolean;
 };
 
 /**
  * The WebGL canvas and the name tags over it. Three.js lives only in this
  * module's chunk, so pages that never open the 3D view never load it.
  */
-export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar, auto, onAutoChange }: ThreeSceneProps): ReactNode {
+export function ThreeScene({ geometry, nav, radarOn, box, cut, mode, follow, rounds, tickOf, layers, clock, onPick, onFailure, label, radar, auto, onAutoChange }: ThreeSceneProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -89,12 +93,16 @@ export function ThreeScene({ geometry, box, cut, mode, follow, rounds, tickOf, l
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
-    sceneRef.current?.setMap(geometry, boxRef.current, readSceneColors(container));
-  }, [geometry]);
+    sceneRef.current?.setMap(geometry, nav, boxRef.current, readSceneColors(container));
+  }, [geometry, nav]);
 
   useEffect(() => {
-    sceneRef.current?.setRadar(radar?.image ?? null, radar?.calibration ?? null, geometry.bounds.min[2]);
-  }, [radar, geometry]);
+    sceneRef.current?.setRadar(radar?.image ?? null, radar?.calibration ?? null);
+  }, [radar]);
+
+  useEffect(() => {
+    sceneRef.current?.setRadarOn(radarOn);
+  }, [radarOn]);
 
   useEffect(() => {
     sceneRef.current?.setCut(cut);

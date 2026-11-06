@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TacticalEvent, TacticalEventKind } from '../../api/tactical.ts';
 import type { TimelineEvent } from '../../tactical-timeline.ts';
-import { ARC_LINGER_SECONDS, bombVisual, grenadeArc, utilityEffect, utilityVisuals } from './utility-visuals.ts';
+import { ARC_LINGER_SECONDS, bombVisual, flicker, grenadeArc, puffLayout, utilityEffect, utilityVisuals } from './utility-visuals.ts';
 
 const TICKRATE = 64;
 const secondsOf = (tick: number): number => tick / TICKRATE;
@@ -78,4 +78,23 @@ test('bomb: planted until defused or exploded, a drop only while nobody carries 
   const blown = [entry('plant', 10), entry('explode', 50)];
   assert.equal(bombVisual(blown, 50.5, false)?.state, 'exploded');
   assert.equal(bombVisual(blown, 53, false), null);
+});
+
+test('smoke puffs: the same grenade always gets the same cloud, inside its dome', () => {
+  const puffs = puffLayout(7, 14);
+  assert.deepEqual(puffs, puffLayout(7, 14));
+  assert.notDeepEqual(puffs, puffLayout(8, 14));
+  for (const puff of puffs) {
+    assert.ok(Math.hypot(puff.x, puff.y) <= 0.78 + 1e-9);
+    assert.ok(puff.z >= 0 && puff.z <= 0.8);
+    assert.ok(puff.size > 0.7 && puff.size < 1.5);
+  }
+});
+
+test('fire: flames flicker within their range and differ by phase', () => {
+  for (let t = 0; t < 5; t += 0.05) {
+    const height = flicker(t, 1.3);
+    assert.ok(height >= 0.6 && height <= 1.2);
+  }
+  assert.notEqual(flicker(1, 0), flicker(1, 2));
 });

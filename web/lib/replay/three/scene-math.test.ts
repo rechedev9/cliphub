@@ -2,13 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../../api/tactical.ts';
 import type { TacticalFrame } from '../../api/tactical.ts';
-import { mapPalette, surfaceColors, zRange } from './mesh.ts';
+import { heightBand, mapPalette, srgbToLinear, surfaceColors, zRange } from './mesh.ts';
 import {
   DUCKING_EYE,
   STANDING_EYE,
   defaultCut,
   eyeHeight,
-  heightShade,
   lookYaw,
   movementYaw,
   playBox,
@@ -43,22 +42,29 @@ test('view: without a recorded yaw the player looks where they move', () => {
   assert.equal(eyeHeight({ flags: 0 }), STANDING_EYE);
 });
 
-test('mesh: floors and walls take their own tone, darker lower down', () => {
-  // Two stacked quads, z = 0 and z = 256, as the physics mesh delivers them.
-  const vertices = new Float32Array([0, 0, 0, 64, 0, 0, 64, 64, 0, 0, 64, 0, 0, 0, 256, 64, 0, 256, 64, 64, 256, 0, 64, 256]);
-  const range = zRange(vertices);
-  assert.deepEqual(range, [0, 256]);
-  const palette = { floor: [1, 0.5, 0.25] as const, wall: [0.2, 0.2, 0.2] as const };
-  // One flat floor triangle and one vertical wall triangle.
-  const surfaces = Float32Array.from([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 256]);
-  const colors = surfaceColors(surfaces, palette, range);
+test('mesh: floors take their height band, walls the band of their height a step darker', () => {
+  const vertices = new Float32Array([0, 0, 0, 64, 0, 0, 64, 64, 256]);
+  assert.deepEqual(zRange(vertices), [0, 256]);
+  const palette = { low: [0.2, 0.2, 0.2] as const, high: [1, 0.5, 0.25] as const, wall: 0.5 };
+  // One flat floor triangle at the top of the range and one vertical wall triangle.
+  const surfaces = Float32Array.from([0, 0, 256, 10, 0, 256, 0, 10, 256, 0, 0, 0, 10, 0, 0, 0, 0, 256]);
+  const colors = surfaceColors(surfaces, palette, [0, 256]);
   assert.equal(colors.length, surfaces.length);
-  close(colors[0], heightShade(0, 0, 256), 1e-6);
-  close(colors[1], 0.5 * heightShade(0, 0, 256), 1e-6);
-  close(colors[15], 0.2, 1e-6);
+  close(colors[0], srgbToLinear(1), 1e-6);
+  close(colors[1], srgbToLinear(0.5), 1e-6);
+  close(colors[9], srgbToLinear(0.2 * 0.5), 1e-6);
   assert.ok(colors[15] > colors[9]);
-  assert.ok(mapPalette([0.05, 0.05, 0.06]).floor[0] < mapPalette([0.98, 0.98, 0.98]).floor[0]);
+  assert.ok(mapPalette([0.05, 0.05, 0.06]).low[0] < mapPalette([0.98, 0.98, 0.98]).low[0]);
   assert.deepEqual(zRange(new Float32Array()), [0, 0]);
+});
+
+test('mesh: height bands step up with height and hold steady within a band', () => {
+  assert.equal(heightBand(-50, 0, 600), 0);
+  close(heightBand(900, 0, 600), 1);
+  assert.ok(heightBand(300, 0, 600) > heightBand(100, 0, 600));
+  const within = heightBand(5, 0, 600) - heightBand(1, 0, 600);
+  const across = heightBand(20, 0, 600) - heightBand(15, 0, 600);
+  assert.ok(across > within * 3, 'a band edge jumps more than the slope inside a band');
 });
 
 test('cut: opens just above the highest player and never leaves the mesh', () => {

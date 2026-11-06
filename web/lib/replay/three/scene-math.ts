@@ -43,16 +43,6 @@ export function eyeHeight(sample: Pick<TacticalSample, 'flags'>): number {
   return isDucking(sample) ? DUCKING_EYE : STANDING_EYE;
 }
 
-/**
- * Brightness of a vertex at height `z`: 0.62 at the lowest floor, 1 at the top,
- * so stacked floors and tall walls read apart even under flat light.
- */
-export function heightShade(z: number, minZ: number, maxZ: number): number {
-  const span = maxZ - minZ;
-  const t = span > 0 ? Math.min(1, Math.max(0, (z - minZ) / span)) : 0.5;
-  return 0.62 + 0.38 * Math.sqrt(t);
-}
-
 /** Room over the highest player before the cut, enough for a doorway and a box on top. */
 const CUT_HEADROOM = 190;
 

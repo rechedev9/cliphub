@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { ReplayCentreProps, ReplayCentreView } from './centre';
 import type { CameraMode } from './three/camera-rig';
 import { ReplayChip } from './replay-chip';
-import { loadMapGeometry } from './three/geometry-cache';
+import { loadMapGeometry, loadNavGeometry } from './three/geometry-cache';
 import { loadRadarImage } from './radar/map-art';
 
 const ThreeScene = dynamic(() => import('./three/three-scene').then((module) => module.ThreeScene), {
@@ -34,7 +34,7 @@ const SLIDER_CLASS = 'h-1 w-32 min-w-0 cursor-pointer appearance-none rounded-fu
 
 type GeometryState =
   | { map: string; state: 'loading' }
-  | { map: string; state: 'ready'; geometry: MapGeometry }
+  | { map: string; state: 'ready'; geometry: MapGeometry; nav: MapGeometry | null }
   | { map: string; state: 'failed'; code: string | undefined };
 
 /** What went wrong in the user's words, and whether trying again can help. */
@@ -86,6 +86,7 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   const [camera, setCamera] = useState<CameraMode>('orbit');
   const [cut, setCut] = useState<{ map: string; z: number } | null>(null);
   const [auto, setAuto] = useState(true);
+  const [radarOn, setRadarOn] = useState(false);
   const [radarImage, setRadarImage] = useState<{ map: string; image: HTMLImageElement } | null>(null);
 
   useEffect(() => setWebgl(webglAvailable()), []);
@@ -96,10 +97,10 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
     if (map === '') return;
     let live = true;
     setLoad({ map, state: 'loading' });
-    loadMapGeometry(map).then(
-      (loaded) => {
+    Promise.all([loadMapGeometry(map), loadNavGeometry(map)]).then(
+      ([loaded, nav]) => {
         if (!live) return;
-        setLoad({ map, state: 'ready', geometry: loaded });
+        setLoad({ map, state: 'ready', geometry: loaded, nav });
       },
       (error: unknown) => {
         if (live) setLoad({ map, state: 'failed', code: error instanceof MapGeometryError ? error.code : undefined });
@@ -127,6 +128,7 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
   );
 
   const geometry = load?.map === map && load.state === 'ready' ? load.geometry : null;
+  const nav = load?.map === map && load.state === 'ready' ? load.nav : null;
   const focusedFrames = focused?.frames;
   const focusedBounds = focused?.doc.geometry.bounds;
   const box = useMemo(() => {
@@ -193,6 +195,8 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
     body = (
       <ThreeScene
         geometry={geometry}
+        nav={nav}
+        radarOn={radarOn && radar !== null}
         box={box}
         cut={cutZ}
         auto={auto}
@@ -225,9 +229,16 @@ function ThreeCentre({ mode: roundMode, rounds, clock, tickOf, layers, onSelectV
             </ReplayChip>
           </div>
         ) : null}
+        {radar === null ? null : (
+          <div className="pointer-events-auto">
+            <ReplayChip pressed={radarOn} onClick={() => setRadarOn((value) => !value)} title="Pinta el radar oficial del juego sobre los suelos">
+              Textura de radar
+            </ReplayChip>
+          </div>
+        )}
         {range === null || camera === 'top' ? null : (
           <div className="pointer-events-auto flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-2">
-            <ReplayChip pressed={cutZ === null} onClick={() => setCut(null)} title="Quita los techos justo por encima de los jugadores vivos">
+            <ReplayChip pressed={cutZ === null} onClick={() => setCut(null)} title="Quita los techos y corta las paredes a poca altura sobre cada suelo">
               Techos auto
             </ReplayChip>
             <input

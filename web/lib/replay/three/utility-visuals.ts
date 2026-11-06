@@ -141,3 +141,45 @@ export function bombVisual(events: readonly TimelineEvent[], nowSeconds: number,
   if (state?.state === 'dropped' && carried) return null;
   return state;
 }
+
+/** One soft blob of a smoke or one tongue of a fire, in units of the effect's radius and height. */
+export type Puff = { x: number; y: number; z: number; size: number; phase: number };
+
+/** A small deterministic generator, so a grenade looks the same on every frame and every replay. */
+export function seededRandom(seed: number): () => number {
+  let state = (Math.floor(seed) ^ 0x9e3779b9) >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * `count` blobs filling a dome: x and y within the unit disc, z from 0 to 1,
+ * bigger and lower blobs near the middle so the cloud sits heavy on the floor.
+ */
+export function puffLayout(seed: number, count: number): Puff[] {
+  const random = seededRandom(seed);
+  const puffs: Puff[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const angle = (i / count) * Math.PI * 2 + random() * 0.9;
+    const reach = Math.sqrt(random()) * 0.78;
+    const dome = Math.sqrt(Math.max(0, 1 - reach * reach));
+    puffs.push({
+      x: Math.cos(angle) * reach,
+      y: Math.sin(angle) * reach,
+      z: (0.25 + random() * 0.55) * dome,
+      size: 0.75 + (1 - reach) * 0.45 + random() * 0.2,
+      phase: random() * Math.PI * 2,
+    });
+  }
+  return puffs;
+}
+
+/** How tall a flame stands at `seconds`, between 0.6 and 1.2: two out-of-step waves so it never pulses evenly. */
+export function flicker(seconds: number, phase: number): number {
+  return 0.9 + 0.2 * Math.sin(seconds * 9.1 + phase) + 0.1 * Math.sin(seconds * 23.7 + phase * 2.3);
+}

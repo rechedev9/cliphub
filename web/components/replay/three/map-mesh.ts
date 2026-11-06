@@ -1,26 +1,35 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, EdgesGeometry, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Plane, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, DoubleSide, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, SRGBColorSpace, Texture } from 'three';
 import type { MapGeometry } from '@/lib/api/map-geometry';
+import type { RadarCalibration } from '@/lib/api/tactical';
+import { creaseEdges } from '@/lib/replay/three/crease-edges';
+import { markWalls } from '@/lib/replay/three/floor-field';
+import type { FloorField } from '@/lib/replay/three/floor-field';
 import { mapPalette, surfaceColors, zRange } from '@/lib/replay/three/mesh';
+import { blankTexture, disposeUniforms, mapUniforms, patchLines, patchSurface } from './map-shader';
+import type { MapUniforms } from './map-shader';
 import type { Rgb } from './scene-colors';
 
 /** Faces meeting at more than this angle get an edge line: corners and ledges, not the tessellation. */
-const EDGE_ANGLE = 38;
+const EDGE_ANGLE = 42;
+const EDGE_MIN_LENGTH = 12;
+/** Walls stop this high over the floor under them; flat faces higher than `SLAB_CUT` go. */
+export const WALL_CUT = 160;
+export const SLAB_CUT = 100;
 
 /**
- * The map: floors and walls in two tones shaded by height, flat shaded so every
- * face reads from its slope, with soft edge lines on corners. Double sided
- * because the collision mesh's winding is not uniform, and cut by `plane` so
- * roofs can go while walls stay.
+ * The map: floors toned by height band like the 2D esquema, walls a step
+ * darker, flat shaded, with crease lines on corners and ledges. Double sided
+ * because the collision mesh's winding is not uniform. With a floor field it
+ * is cut per pixel over the local floor, so roofs go and rooms stay open.
  */
 export class MapMesh {
   readonly mesh: Mesh<BufferGeometry, MeshLambertMaterial>;
-  readonly edges: LineSegments<EdgesGeometry, LineBasicMaterial>;
-  readonly plane = new Plane(new Vector3(0, 0, -1), 0);
+  readonly edges: LineSegments<BufferGeometry, LineBasicMaterial>;
+  readonly #uniforms: MapUniforms;
   readonly #positions: Float32Array;
   readonly #range: [number, number];
 
-  constructor(geometry: MapGeometry, background: Rgb) {
-    this.#range = zRange(geometry.vertices);
+  constructor(geometry: MapGeometry, field: FloorField | null, background: Rgb) {
     const indexed = new BufferGeometry();
     indexed.setAttribute('position', new BufferAttribute(geometry.vertices, 3));
     indexed.setIndex(new BufferAttribute(geometry.triangles, 1));
@@ -29,20 +38,30 @@ export class MapMesh {
     indexed.dispose();
     const position = buffer.getAttribute('position');
     this.#positions = position instanceof BufferAttribute && position.array instanceof Float32Array ? position.array : new Float32Array();
+    this.#range = field === null ? zRange(geometry.vertices) : [field.lowZ, field.highZ];
+    if (field !== null) markWalls(field, this.#positions);
+    this.#uniforms = mapUniforms(field, { wall: WALL_CUT, slab: SLAB_CUT });
     buffer.setAttribute('color', new BufferAttribute(surfaceColors(this.#positions, mapPalette(background), this.#range), 3));
     buffer.computeBoundingSphere();
     const material = new MeshLambertMaterial({
       vertexColors: true,
       flatShading: true,
       side: DoubleSide,
-      clippingPlanes: [this.plane],
       polygonOffset: true,
       polygonOffsetFactor: 1,
       polygonOffsetUnits: 1,
     });
+    patchSurface(material, this.#uniforms);
     this.mesh = new Mesh(buffer, material);
     this.mesh.renderOrder = 0;
-    this.edges = new LineSegments(new EdgesGeometry(buffer, EDGE_ANGLE), new LineBasicMaterial({ transparent: true, depthWrite: false, clippingPlanes: [this.plane] }));
+    const crease = creaseEdges(this.#positions, { angle: EDGE_ANGLE, minLength: EDGE_MIN_LENGTH });
+    const lines = new BufferGeometry();
+    lines.setAttribute('position', new BufferAttribute(crease.positions, 3));
+    lines.setAttribute('aVertical', new BufferAttribute(crease.vertical, 1));
+    lines.computeBoundingSphere();
+    const lineMaterial = new LineBasicMaterial({ transparent: true, depthWrite: false });
+    patchLines(lineMaterial, this.#uniforms);
+    this.edges = new LineSegments(lines, lineMaterial);
     this.setColor(background);
   }
 
@@ -50,14 +69,44 @@ export class MapMesh {
     return [this.mesh, this.edges];
   }
 
+  /** Whether the map is cut over a floor field, or only by the global ceiling. */
+  get local(): boolean {
+    return this.#uniforms.uUseField.value > 0.5;
+  }
+
   setVisible(visible: boolean): void {
     this.mesh.visible = visible;
     this.edges.visible = visible;
   }
 
-  /** Hides everything above `z`. */
-  setCut(z: number): void {
-    this.plane.constant = z;
+  /** Hides everything above `z`; null lifts the ceiling. */
+  setCeiling(z: number | null): void {
+    this.#uniforms.uCeiling.value = z ?? 1e9;
+  }
+
+  /** Lays the official radar on the floors from above; `mix` 0 hides it. */
+  setRadar(image: HTMLImageElement | null, calibration: RadarCalibration | null): void {
+    this.#uniforms.uRadar.value.dispose();
+    if (image === null || calibration === null || !(calibration.scale > 0)) {
+      this.#uniforms.uRadar.value = blankTexture();
+      this.#uniforms.uRadarMix.value = 0;
+      return;
+    }
+    const texture = new Texture(image);
+    texture.colorSpace = SRGBColorSpace;
+    texture.anisotropy = 8;
+    texture.needsUpdate = true;
+    this.#uniforms.uRadar.value = texture;
+    this.#uniforms.uRadarRect.value.set(calibration.pos_x, calibration.pos_y, calibration.scale * image.naturalWidth, calibration.scale * image.naturalHeight);
+  }
+
+  /** Whether walls and roofs are cut over the floor; the first-person camera wants the whole map. */
+  setCutaway(on: boolean): void {
+    this.#uniforms.uCutaway.value = on ? 1 : 0;
+  }
+
+  setRadarMix(mix: number): void {
+    this.#uniforms.uRadarMix.value = mix;
   }
 
   /** Re-tones the map for the page behind it, after a theme change. */
@@ -68,9 +117,9 @@ export class MapMesh {
       attribute.set(surfaceColors(this.#positions, palette, this.#range));
       attribute.needsUpdate = true;
     }
-    const dark = palette.floor[0] < 0.6;
-    this.edges.material.color.setRGB(dark ? 0.04 : 0.18, dark ? 0.045 : 0.19, dark ? 0.05 : 0.22);
-    this.edges.material.opacity = dark ? 0.55 : 0.4;
+    const dark = palette.low[0] < 0.5;
+    this.edges.material.color.setRGB(dark ? 0.03 : 0.16, dark ? 0.035 : 0.17, dark ? 0.045 : 0.2);
+    this.edges.material.opacity = dark ? 0.6 : 0.45;
   }
 
   dispose(): void {
@@ -78,5 +127,6 @@ export class MapMesh {
     this.mesh.material.dispose();
     this.edges.geometry.dispose();
     this.edges.material.dispose();
+    disposeUniforms(this.#uniforms);
   }
 }

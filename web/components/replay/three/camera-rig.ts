@@ -1,6 +1,6 @@
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import type { Camera } from 'three';
-import { easeFactor, easeInOut, focusDistance } from '@/lib/replay/three/action-camera';
+import { easeInOut, focusDistance, smoothDamp } from '@/lib/replay/three/action-camera';
 import type { ActionFocus } from '@/lib/replay/three/action-camera';
 import {
   ORBIT_MAX_DISTANCE,
@@ -24,10 +24,13 @@ const ORBIT_FOV = 50;
 const PLAYER_FOV = 74;
 /** Movement under this many pixels between press and release is a click. */
 const CLICK_SLOP = 5;
-/** How long a switch between cameras glides, in milliseconds. */
-const TRANSITION_MS = 450;
-/** Time constant of the camera following the action, in seconds. */
-const FOLLOW_TAU = 0.45;
+/** A switch between cameras glides this long, a little longer the further it travels, in milliseconds. */
+const GLIDE_MIN_MS = 550;
+const GLIDE_MAX_MS = 1100;
+/** Seconds the follow takes to settle on the action: slow to pan, quicker to pull back than to push in. */
+const FOLLOW_PAN_SECONDS = 0.9;
+const FOLLOW_OUT_SECONDS = 0.8;
+const FOLLOW_IN_SECONDS = 1.8;
 
 /** Players draw this much wider in the top view, as on a radar. */
 const TOP_ACTOR_SCALE = 2.4;
@@ -57,7 +60,8 @@ export class CameraRig {
   #auto = true;
   #focus: ActionFocus | null = null;
   #lastStep = 0;
-  #glide: { from: Pose; start: number } | null = null;
+  #glide: { from: Pose; start: number; duration: number } | null = null;
+  #velocity = { x: 0, y: 0, z: 0, distance: 0 };
   #drag: { id: number; button: number; x: number; y: number; moved: number } | null = null;
   readonly #canvas: HTMLCanvasElement;
   readonly #onChange: () => void;
@@ -91,11 +95,13 @@ export class CameraRig {
   setMode(mode: CameraMode): void {
     if (mode === this.#mode) return;
     const current = this.active;
+    this.#mode = mode;
+    const travel = current.position.distanceTo(this.#modeCamera().position);
     this.#glide = {
       from: { position: current.position.clone(), quaternion: current.quaternion.clone(), fov: current instanceof PerspectiveCamera ? current.fov : ORBIT_FOV },
       start: performance.now(),
+      duration: Math.min(GLIDE_MAX_MS, GLIDE_MIN_MS + travel * 0.08),
     };
-    this.#mode = mode;
   }
 
   /** Whether the orbit follows the living players; any drag or wheel in the orbit turns it off. */
@@ -159,22 +165,21 @@ export class CameraRig {
     let moving = false;
     const focus = this.#focus;
     if (this.#auto && focus !== null && this.#mode === 'orbit') {
-      const k = easeFactor(dt, FOLLOW_TAU);
       const target = this.#orbit.target;
+      const v = this.#velocity;
       const distance = Math.min(ORBIT_MAX_DISTANCE, Math.max(ORBIT_MIN_DISTANCE, focusDistance(focus.radius, ORBIT_FOV)));
-      const next = {
-        x: target.x + (focus.centre.x - target.x) * k,
-        y: target.y + (focus.centre.y - target.y) * k,
-        z: target.z + (focus.centre.z - target.z) * k,
-      };
-      const nextDistance = this.#orbit.distance + (distance - this.#orbit.distance) * k;
-      moving = Math.hypot(next.x - focus.centre.x, next.y - focus.centre.y) > 4 || Math.abs(nextDistance - distance) > 4;
-      this.#orbit = { ...this.#orbit, target: next, distance: nextDistance };
+      const x = smoothDamp({ value: target.x, velocity: v.x }, focus.centre.x, FOLLOW_PAN_SECONDS, dt);
+      const y = smoothDamp({ value: target.y, velocity: v.y }, focus.centre.y, FOLLOW_PAN_SECONDS, dt);
+      const z = smoothDamp({ value: target.z, velocity: v.z }, focus.centre.z, FOLLOW_PAN_SECONDS, dt);
+      const zoom = smoothDamp({ value: this.#orbit.distance, velocity: v.distance }, distance, distance > this.#orbit.distance ? FOLLOW_OUT_SECONDS : FOLLOW_IN_SECONDS, dt);
+      this.#velocity = { x: x.velocity, y: y.velocity, z: z.velocity, distance: zoom.velocity };
+      moving = Math.hypot(x.value - focus.centre.x, y.value - focus.centre.y) > 2 || Math.abs(zoom.value - distance) > 2 || Math.hypot(x.velocity, y.velocity, zoom.velocity) > 1;
+      this.#orbit = { ...this.#orbit, target: { x: x.value, y: y.value, z: z.value }, distance: zoom.value };
       this.#apply();
-    }
+    } else this.#velocity = { x: 0, y: 0, z: 0, distance: 0 };
     const glide = this.#glide;
     if (glide !== null) {
-      const t = (now - glide.start) / TRANSITION_MS;
+      const t = (now - glide.start) / glide.duration;
       if (t >= 1) this.#glide = null;
       else {
         const to = this.#modeCamera();

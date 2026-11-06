@@ -61,14 +61,31 @@ export function liveCut(mesh: { minZ: number; maxZ: number }, samples: readonly 
   return Math.min(mesh.maxZ, Math.max(mesh.minZ, top + STANDING_HEIGHT + CUT_HEADROOM));
 }
 
-/** Exponential approach: how far to move toward a target in `dt` seconds with time constant `tau`. */
-export function easeFactor(dt: number, tau: number): number {
-  if (!(dt > 0)) return 0;
-  return 1 - Math.exp(-dt / Math.max(1e-3, tau));
-}
-
 /** Smooth in and out over 0..1, for camera transitions. */
 export function easeInOut(t: number): number {
   const x = Math.min(1, Math.max(0, t));
   return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+}
+
+export type Damped = { value: number; velocity: number };
+
+/**
+ * A critically damped spring toward `target`: starts and stops without a jolt
+ * and never overshoots, settling within about five times `smoothTime` seconds.
+ */
+export function smoothDamp(current: Damped, target: number, smoothTime: number, dt: number): Damped {
+  if (!(dt > 0)) return current;
+  const omega = 2 / Math.max(1e-3, smoothTime);
+  const x = omega * dt;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = current.value - target;
+  const temp = (current.velocity + omega * change) * dt;
+  let velocity = (current.velocity - omega * temp) * decay;
+  let value = target + (change + temp) * decay;
+  // Landing past the target would overshoot: stop on it instead.
+  if ((target - current.value > 0) === (value > target)) {
+    value = target;
+    velocity = 0;
+  }
+  return { value, velocity };
 }

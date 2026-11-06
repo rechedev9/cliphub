@@ -1,4 +1,4 @@
-import { heightShade } from './scene-math.ts';
+import { FLAT_NORMAL_Z } from './floor-field.ts';
 
 /** Lowest and highest Z of a flat x,y,z vertex array; `[0, 0]` when empty. */
 export function zRange(vertices: Float32Array): [number, number] {
@@ -14,8 +14,8 @@ export function zRange(vertices: Float32Array): [number, number] {
 
 type Rgb3 = readonly [number, number, number];
 
-/** Floor and wall tones of the 3D map; linear RGB in 0..1. */
-export type MapPalette = { floor: Rgb3; wall: Rgb3 };
+/** The floor tone at the lowest and the highest floor, sRGB 0..1, and how much darker walls sit. */
+export type MapPalette = { low: Rgb3; high: Rgb3; wall: number };
 
 /** Relative luminance of an sRGB colour, enough to tell a dark theme from a light one. */
 function luminance(rgb: Rgb3): number {
@@ -23,23 +23,36 @@ function luminance(rgb: Rgb3): number {
 }
 
 /**
- * The map's two tones for the page behind it: on a dark page light concrete
- * floors over darker walls, on a light page the same family one step lighter,
- * so the map always stands off its background.
+ * The map's tones for the page behind it, the 2D esquema's greys lifted for
+ * lighting: lower floors darker and cooler, higher floors lighter.
  */
 export function mapPalette(background: Rgb3): MapPalette {
   return luminance(background) < 0.5
-    ? { floor: [0.5, 0.52, 0.55], wall: [0.24, 0.26, 0.3] }
-    : { floor: [0.72, 0.73, 0.75], wall: [0.42, 0.44, 0.49] };
+    ? { low: [0.3, 0.34, 0.41], high: [0.78, 0.79, 0.81], wall: 0.56 }
+    : { low: [0.6, 0.63, 0.68], high: [0.9, 0.91, 0.93], wall: 0.7 };
 }
 
-/** A triangle whose normal leans less than this from straight up is floor. */
-const FLOOR_NORMAL_Z = 0.7;
+const BANDS = 6;
 
 /**
- * Per-vertex RGB for an unindexed triangle list: floors in the floor tone and
- * walls in the wall tone, both scaled by height so lower floors and the foot of
- * every wall sit darker, a cheap stand-in for ambient occlusion.
+ * 0 at the lowest floor and 1 at the highest, eased like the esquema and
+ * stepped into soft bands so each floor level reads as one tone.
+ */
+export function heightBand(z: number, low: number, high: number): number {
+  const span = high - low;
+  const t = span > 0 ? Math.sqrt(Math.min(1, Math.max(0, (z - low) / span))) : 0.5;
+  const band = Math.min(BANDS - 1, Math.floor(t * BANDS)) / (BANDS - 1);
+  return 0.7 * band + 0.3 * t;
+}
+
+/** sRGB channel to the linear value Three.js expects in vertex colours. */
+export function srgbToLinear(channel: number): number {
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+/**
+ * Per-vertex linear RGB for an unindexed triangle list: floors in their
+ * height band, walls the band of their own height a step darker.
  */
 export function surfaceColors(positions: Float32Array, palette: MapPalette, range: readonly [number, number]): Float32Array {
   const colors = new Float32Array(positions.length);
@@ -54,14 +67,11 @@ export function surfaceColors(positions: Float32Array, palette: MapPalette, rang
     const ny = az * bx - ax * bz;
     const nz = ax * by - ay * bx;
     const length = Math.hypot(nx, ny, nz);
-    const floor = length > 0 && Math.abs(nz / length) >= FLOOR_NORMAL_Z;
-    const base = floor ? palette.floor : palette.wall;
+    const scale = length > 0 && Math.abs(nz / length) >= FLAT_NORMAL_Z ? 1 : palette.wall;
     for (let v = 0; v < 3; v += 1) {
       const at = t + v * 3;
-      const shade = heightShade(positions[at + 2], range[0], range[1]);
-      colors[at] = base[0] * shade;
-      colors[at + 1] = base[1] * shade;
-      colors[at + 2] = base[2] * shade;
+      const tone = heightBand(positions[at + 2], range[0], range[1]);
+      for (let c = 0; c < 3; c += 1) colors[at + c] = srgbToLinear((palette.low[c] + (palette.high[c] - palette.low[c]) * tone) * scale);
     }
   }
   return colors;

@@ -1,4 +1,4 @@
-import { AmbientLight, Color, DirectionalLight, HemisphereLight, Mesh, MeshBasicMaterial, PlaneGeometry, Raycaster, SRGBColorSpace, Scene, Texture, Vector2, Vector3, WebGLRenderer } from 'three';
+import { AmbientLight, Color, DirectionalLight, HemisphereLight, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import type { Object3D } from 'three';
 import type { MapGeometry } from '@/lib/api/map-geometry';
 import { TACTICAL_SAMPLE_FLAGS, hasSampleFlags } from '@/lib/api/tactical';
@@ -11,6 +11,7 @@ import type { Vec3, WorldBox } from '@/lib/replay/three/orbit';
 import { eyeHeight, lookYaw, viewDirection } from '@/lib/replay/three/scene-math';
 import { actionFocus, liveCut } from '@/lib/replay/three/action-camera';
 import { layoutTags } from '@/lib/replay/tag-layout';
+import { buildFloorField } from '@/lib/replay/three/floor-field';
 import { createTrail3dReader } from '@/lib/replay/three/trails';
 import { bombVisual, utilityVisuals } from '@/lib/replay/three/utility-visuals';
 import { createInterpolatedSampleReader, frameCursor } from '@/lib/tactical-replay';
@@ -37,6 +38,9 @@ type RoundState = {
   names: Map<number, string>;
 };
 
+/** Side of a floor field cell, in world units. */
+const FIELD_CELL = 32;
+
 /** Name tags this close to the screen edge or behind the camera are hidden. */
 const LABEL_EDGE = 4;
 
@@ -57,7 +61,8 @@ export class ReplayScene {
   readonly #raycaster = new Raycaster();
   readonly #projected = new Vector3();
   #map: MapMesh | null = null;
-  #radar: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
+  #radar: { image: HTMLImageElement; calibration: RadarCalibration } | null = null;
+  #radarOn = false;
   #input: SceneInput = { rounds: [], tickOf: () => 0, layers: { utility: true, bomb: true, trails: true, names: true, hiddenSlots: [] } };
   #seconds = 0;
   #cut: number | null = null;
@@ -75,63 +80,56 @@ export class ReplayScene {
     this.#overlay = options.overlay;
     this.#onPick = options.onPick;
     this.#kit = new ActorKit(options.colors);
-    this.#utility = new UtilityLayer(options.colors);
+    this.#utility = new UtilityLayer(options.colors, () => this.requestRender());
     this.#scene.add(this.#utility.group);
     // A cool sky over a warm bounce, and a low sun from the south-west so walls read apart.
-    const sky = new HemisphereLight(0xdfe8ff, 0x3a3428, 1.5);
+    const sky = new HemisphereLight(0xdfe8ff, 0x3a3428, 1.2);
     sky.position.set(0, 0, 1);
     this.#scene.add(sky);
     this.#scene.add(new AmbientLight(0xffffff, 0.3));
-    const sun = new DirectionalLight(0xfff4e6, 1.6);
+    const sun = new DirectionalLight(0xfff4e6, 1.35);
     sun.position.set(-0.55, -0.8, 1);
     this.#scene.add(sun);
     this.#rig = new CameraRig(options.canvas, { onChange: () => this.requestRender(), onClick: (x, y) => this.#pick(x, y), onAutoChange: options.onAutoChange });
     this.setColors(options.colors);
   }
 
-  setMap(geometry: MapGeometry, box: WorldBox, colors: SceneColors): void {
+  /** The collision mesh, cut over the floor field of `nav` when the nav mesh could be read. */
+  setMap(geometry: MapGeometry, nav: MapGeometry | null, box: WorldBox, colors: SceneColors): void {
     if (this.#map !== null) {
       this.#scene.remove(...this.#map.objects);
       this.#map.dispose();
     }
-    this.#map = new MapMesh(geometry, colors.background);
+    const [minX, minY] = geometry.bounds.min;
+    const [maxX, maxY] = geometry.bounds.max;
+    const field = nav === null || geometry.source === 'nav' ? null : buildFloorField(nav, { minX, minY, maxX, maxY }, FIELD_CELL);
+    this.#map = new MapMesh(geometry, field, colors.background);
+    this.#map.setRadar(this.#radar?.image ?? null, this.#radar?.calibration ?? null);
+    this.#map.setRadarMix(this.#radarOn ? 1 : 0);
+    this.#map.setCeiling(this.#cut);
     this.#meshZ = { minZ: geometry.bounds.min[2], maxZ: geometry.bounds.max[2] };
     this.#scene.add(...this.#map.objects);
     this.#rig.frame(box);
     this.requestRender();
   }
 
-  /**
-   * The game's overview laid flat under the map. The top-down camera shows it
-   * instead of the mesh, so that view reads like the radar players know.
-   */
-  setRadar(image: HTMLImageElement | null, calibration: RadarCalibration | null, floorZ: number): void {
-    if (this.#radar !== null) {
-      this.#scene.remove(this.#radar);
-      this.#radar.geometry.dispose();
-      this.#radar.material.map?.dispose();
-      this.#radar.material.dispose();
-      this.#radar = null;
-    }
-    if (image !== null && calibration !== null && calibration.scale > 0) {
-      const side = calibration.scale * image.naturalWidth;
-      const texture = new Texture(image);
-      texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 4;
-      texture.needsUpdate = true;
-      const plane = new Mesh(new PlaneGeometry(side, side), new MeshBasicMaterial({ map: texture }));
-      plane.position.set(calibration.pos_x + side / 2, calibration.pos_y - side / 2, floorZ - 4);
-      plane.visible = false;
-      this.#radar = plane;
-      this.#scene.add(plane);
-    }
+  /** The game's overview, laid on the floors from above while `setRadarOn` is on. */
+  setRadar(image: HTMLImageElement | null, calibration: RadarCalibration | null): void {
+    this.#radar = image === null || calibration === null ? null : { image, calibration };
+    this.#map?.setRadar(image, calibration);
     this.requestRender();
   }
 
-  /** A fixed roof cut, or null to keep it just over the focused round's living players. */
+  setRadarOn(on: boolean): void {
+    this.#radarOn = on;
+    this.#map?.setRadarMix(on ? 1 : 0);
+    this.requestRender();
+  }
+
+  /** A fixed ceiling, or null to cut only over the local floor. */
   setCut(z: number | null): void {
     this.#cut = z;
-    if (z !== null) this.#map?.setCut(z);
+    this.#map?.setCeiling(z);
     this.requestRender();
   }
 
@@ -214,7 +212,6 @@ export class ReplayScene {
     this.#utility.dispose();
     this.#kit.dispose();
     this.#map?.dispose();
-    this.setRadar(null, null, 0);
     this.#renderer.dispose();
     this.#renderer.forceContextLoss();
   }
@@ -264,22 +261,21 @@ export class ReplayScene {
           actor.update(sample, yaw, { self, bombLayer: layers.bomb, scale: this.#rig.actorScale });
           actor.setTrail(trails.get(sample.slot));
           if (self) {
-            eye = { at: { x: sample.x, y: sample.y, z: sample.z + eyeHeight(sample) }, direction: viewDirection(yaw) };
+            eye = { at: { x: sample.x, y: sample.y, z: sample.z + eyeHeight(sample) }, direction: viewDirection(yaw, sample.pitch ?? 0) };
           }
         }
       }
-      if (layers.utility) this.#utility.grenades(round.key, utilityVisuals(round.events, nowSeconds, (at) => timelineSeconds(round.timeline, at)), strength);
+      if (layers.utility) this.#utility.grenades(round.key, utilityVisuals(round.events, nowSeconds, (at) => timelineSeconds(round.timeline, at)), strength, nowSeconds);
       if (layers.bomb) this.#utility.bomb(round.key, bombVisual(round.events, nowSeconds, carried), strength);
     }
     this.#utility.endFrame();
     if (eye !== null) this.#rig.placeEye(eye.at, eye.direction);
-    if (this.#cut === null) this.#map?.setCut(liveCut(this.#meshZ, focusedSamples));
+    // Without a floor field the old global cut over the living players stands in.
+    if (this.#cut === null && this.#map !== null && !this.#map.local) this.#map.setCeiling(liveCut(this.#meshZ, focusedSamples));
+    this.#map?.setCutaway(this.#rig.mode !== 'player');
     this.#rig.setFocus(actionFocus(focusedSamples));
     if (this.#rig.step(performance.now())) this.requestRender();
     const camera = this.#rig.active;
-    const flat = this.#radar !== null && this.#rig.mode === 'top';
-    if (this.#radar !== null) this.#radar.visible = flat;
-    this.#map?.setVisible(!flat);
     this.#renderer.render(this.#scene, camera);
     this.#placeLabels();
   }
@@ -293,7 +289,7 @@ export class ReplayScene {
       for (const actor of state.actors.values()) {
         const self = this.#rig.mode === 'player' && this.#follow === actor.slot && state.round.focused;
         if (!actor.shown || !state.round.focused || !layers.names || self) {
-          actor.label.classList.add('hidden');
+          actor.showLabel(false);
           continue;
         }
         const { x, y, z } = actor.anchor;
@@ -302,10 +298,10 @@ export class ReplayScene {
         const sy = ((1 - projected.y) / 2) * this.#height;
         const outside = projected.z > 1 || projected.z < -1 || sx < LABEL_EDGE || sy < LABEL_EDGE || sx > this.#width - LABEL_EDGE || sy > this.#height;
         if (outside) {
-          actor.label.classList.add('hidden');
+          actor.showLabel(false);
           continue;
         }
-        actor.label.classList.remove('hidden');
+        actor.showLabel(true);
         shown.push({ actor, x: sx, y: sy });
       }
     }
