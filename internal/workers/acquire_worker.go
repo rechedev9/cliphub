@@ -42,6 +42,8 @@ type AcquireWorkerConfig struct {
 	FFprobePath string
 	Timeout     string
 	MaxBytes    int64
+	// Progress receives live download progress for the API; nil drops it.
+	Progress *streamclips.AcquireProgress
 }
 
 // AcquireWorker handles the "stream:acquire" Asynq task: it downloads a
@@ -132,7 +134,10 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 			return err
 		}
 		defer cancel()
-		result, err := w.fetcher.Download(runCtx, j.SourceURL, destPath)
+		fetcher := w.fetcher
+		fetcher.OnProgress = func(p vodfetch.Progress) { cfg.Progress.Set(j.ID, p) }
+		defer cfg.Progress.Clear(j.ID)
+		result, err := fetcher.Download(runCtx, j.SourceURL, destPath)
 		if err != nil {
 			return err
 		}

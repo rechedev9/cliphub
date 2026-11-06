@@ -46,6 +46,7 @@ import type { StreamAutosaveState } from '@/components/streams/stream-steps-rail
 import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
+import { acquireProgressView } from '@/lib/streams/acquire-progress';
 
 const STREAMS_HREF = '/streams';
 
@@ -140,7 +141,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   const pollAcquiring = useCallback(
     async (jobId: string) => {
       const gen = ++pollGen.current;
-      for (let attempt = 0; attempt < 200; attempt++) {
+      // No attempt cap: a full VOD downloads for longer than any fixed budget.
+      for (;;) {
         await sleep(1200);
         if (pollGen.current !== gen) return; // superseded by a reset or unmount
         try {
@@ -160,6 +162,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
             void loadEditor(j);
             return;
           }
+          setJob(j);
         } catch (err) {
           if (isServiceUnavailable(err)) {
             fail(STREAM_OFFLINE_MESSAGE);
@@ -168,7 +171,6 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           // transient network hiccup; keep polling
         }
       }
-      fail('Se agotó el tiempo esperando a que el vídeo de origen estuviera listo.');
     },
     [loadEditor, fail],
   );
@@ -494,7 +496,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         <p className="text-body text-fg-2">
           Descargando el vídeo en este PC. El editor se abre solo en cuanto termine; puedes esperar aquí o volver más tarde.
         </p>
-        <LongOperation stage="Descargando" detail="El editor se abre al terminar" elapsedSec={acquiringElapsed} tone="stream" />
+        <LongOperation {...acquireProgressView(job?.download_progress)} elapsedSec={acquiringElapsed} tone="stream" />
         <Button type="button" variant="outline" size="sm" onClick={goBack} className="self-start">
           Mis proyectos
         </Button>

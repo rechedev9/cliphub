@@ -370,20 +370,6 @@ func streamClipCount(plan json.RawMessage) int {
 	return len(doc.Clips)
 }
 
-func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadStreamJob(w, r)
-	if !ok {
-		return
-	}
-	j.FailureCode = jobFailureCode(j.FailureReason, j.FailureCode)
-	outputs, unavailable := h.streamJobRenderedOutputs(j, true)
-	writeJSON(w, http.StatusOK, struct {
-		streamclips.Job
-		RenderedOutputs            []streamRenderedOutput `json:"rendered_outputs"`
-		RenderedOutputsUnavailable bool                   `json:"rendered_outputs_unavailable,omitempty"`
-	}{Job: j, RenderedOutputs: outputs, RenderedOutputsUnavailable: unavailable})
-}
-
 // streamJobRenderedOutputs isolates catalog failures so a damaged status.json
 // cannot take down the job. List skips statuses that never publish, because
 // the hub polls this path; detail always probes so an editor can still open.

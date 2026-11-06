@@ -131,6 +131,7 @@ type Handlers struct {
 	streamListJSON      cachedJSON
 	anticheatJobLocks   *anticheat.JobLocks
 	streamJobLocks      *streamclips.JobLocks
+	acquireProgress     *streamclips.AcquireProgress
 	storage             storage.Storage
 	storageFiles        storageFileIndex
 	generateIntents     *generateintent.Store
@@ -169,8 +170,7 @@ type Handlers struct {
 	lineups             lineups.Catalog
 	practiceGame        practice.Game
 	references          referenceCaches
-	// labBundleMu serializes bundle writes: two bundles of one job and variant
-	// share a directory, and each copies gigabytes of clips.
+	// labBundleMu serializes bundle writes: bundles of one job share a directory.
 	labBundleMu sync.Mutex
 }
 
