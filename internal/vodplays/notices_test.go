@@ -69,8 +69,18 @@ func TestExtractNoticesRecoversThePlateOpacityAndTheOpaqueText(t *testing.T) {
 }
 
 func TestNoticeSourceAreaMapsTheFeedCornerToSourceFractions(t *testing.T) {
-	x, y, w, h := NoticeSprite{Area: image.Rect(0, 0, FeedWidth, FeedHeight)}.SourceArea()
+	x, y, w, h := NoticeSpot{Area: image.Rect(0, 0, FeedWidth, FeedHeight)}.SourceArea()
 	if x != 0.6 || y != 0 || math.Abs(w-0.4) > 1e-9 || math.Abs(h-0.3) > 1e-9 {
 		t.Fatalf("whole corner = %v %v %v %v, want 0.6 0 0.4 0.3", x, y, w, h)
+	}
+}
+
+func TestNoticeTrackStartsANewSpotWhenTheNoticeChangesRow(t *testing.T) {
+	tr := &noticeTrack{}
+	tr.addSpot(image.Rect(500, 40, 760, 75), 1)
+	tr.addSpot(image.Rect(500, 41, 760, 76), 2)
+	tr.addSpot(image.Rect(500, 5, 760, 40), 3)
+	if len(tr.spots) != 2 || tr.spots[0].From != 1 || tr.spots[1].From != 3 || tr.spots[0].To >= 3 {
+		t.Fatalf("spots = %+v, want one per row with its own times", tr.spots)
 	}
 }

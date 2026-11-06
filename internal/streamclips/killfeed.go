@@ -28,8 +28,15 @@ type KillFeedNotice struct {
 	Width, Height    int
 	AppearSeconds    float64
 	DisappearSeconds float64
-	// SourceArea is where the streamer's own copy sat, so the render can hide it.
-	SourceArea CropRect
+	// Masks are where the streamer's own copy sat, so the render can hide it.
+	Masks []KillFeedMask
+}
+
+// KillFeedMask is one source rectangle with the seconds, relative to the clip
+// start, that the original notice held it.
+type KillFeedMask struct {
+	Area     CropRect
+	From, To float64
 }
 
 // panelScale is how many output pixels one source pixel of the game panel
@@ -113,15 +120,17 @@ func killFeedFilter(in killFeedGraph) string {
 func killFeedMask(notices []KillFeedNotice, srcW, srcH int) string {
 	var parts []string
 	for _, n := range notices {
-		x := max(1, int(math.Floor(n.SourceArea.X*float64(srcW))))
-		y := max(1, int(math.Floor(n.SourceArea.Y*float64(srcH))))
-		w := min(srcW-1, int(math.Ceil((n.SourceArea.X+n.SourceArea.Width)*float64(srcW)))) - x
-		h := min(srcH-1, int(math.Ceil((n.SourceArea.Y+n.SourceArea.Height)*float64(srcH)))) - y
-		if w < killFeedMinMask || h < killFeedMinMask {
-			continue
+		for _, m := range n.Masks {
+			x := max(1, int(math.Floor(m.Area.X*float64(srcW))))
+			y := max(1, int(math.Floor(m.Area.Y*float64(srcH))))
+			w := min(srcW-1, int(math.Ceil((m.Area.X+m.Area.Width)*float64(srcW)))) - x
+			h := min(srcH-1, int(math.Ceil((m.Area.Y+m.Area.Height)*float64(srcH)))) - y
+			if w < killFeedMinMask || h < killFeedMinMask {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf(`delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t\,%s\,%s)'`, x, y, w, h,
+				floatArg(m.From-killFeedMaskMarginSecs), floatArg(m.To+killFeedMaskMarginSecs)))
 		}
-		parts = append(parts, fmt.Sprintf(`delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t\,%s\,%s)'`, x, y, w, h,
-			floatArg(n.AppearSeconds-killFeedMaskMarginSecs), floatArg(n.DisappearSeconds+killFeedMaskMarginSecs)))
 	}
 	return strings.Join(parts, ",")
 }

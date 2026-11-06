@@ -19,7 +19,7 @@ func TestKillFeedStacksTheNoticesCenteredBelowTheHUD(t *testing.T) {
 	plan, clip := killFeedPlan(VariantStreamer4060)
 	notices := []KillFeedNotice{
 		{Path: "a.png", Width: 300, Height: 41, AppearSeconds: -2, DisappearSeconds: 6,
-			SourceArea: CropRect{X: 0.75, Y: 0.125, Width: 0.125, Height: 0.0625}},
+			Masks: []KillFeedMask{{Area: CropRect{X: 0.75, Y: 0.125, Width: 0.125, Height: 0.0625}, From: -2, To: 6}}},
 		{Path: "b.png", Width: 340, Height: 41, AppearSeconds: 4, DisappearSeconds: 20},
 	}
 	args, err := BuildFFmpegArgs(FFmpegInputs{

@@ -47,12 +47,18 @@ type NoticeSprite struct {
 	AppearSeconds    float64
 	DisappearSeconds float64
 	Width, Height    int
-	// Area is the feed rectangle the notice covered, row slides included.
-	Area image.Rectangle
+	// Spots are where the notice sat on the feed, one per row it held.
+	Spots []NoticeSpot
+}
+
+// NoticeSpot is one feed rectangle a notice held, with the source seconds.
+type NoticeSpot struct {
+	Area     image.Rectangle
+	From, To float64
 }
 
 // SourceArea is Area as fractions of the source frame: x, y, width, height.
-func (s NoticeSprite) SourceArea() (float64, float64, float64, float64) {
+func (s NoticeSpot) SourceArea() (float64, float64, float64, float64) {
 	fx := func(px int) float64 { return feedLeft + float64(px)/FeedWidth*feedSpan }
 	fy := func(py int) float64 { return float64(py) / FeedHeight * feedDepth }
 	return fx(s.Area.Min.X), fy(s.Area.Min.Y), fx(s.Area.Max.X) - fx(s.Area.Min.X), fy(s.Area.Max.Y) - fy(s.Area.Min.Y)
@@ -60,7 +66,7 @@ func (s NoticeSprite) SourceArea() (float64, float64, float64, float64) {
 
 type noticeTrack struct {
 	minX, maxX int
-	area       image.Rectangle
+	spots      []NoticeSpot
 	first      float64
 	last       float64
 	size       map[image.Point]int
@@ -86,10 +92,10 @@ func ExtractNotices(ctx context.Context, opts NoticeOptions) ([]NoticeSprite, er
 		for _, ring := range s.Rings {
 			tr := matchNoticeTrack(tracks, ring.Bounds, s.Seconds)
 			if tr == nil {
-				tr = &noticeTrack{minX: ring.Bounds.Min.X, maxX: ring.Bounds.Max.X, area: ring.Bounds, first: s.Seconds, size: map[image.Point]int{}}
+				tr = &noticeTrack{minX: ring.Bounds.Min.X, maxX: ring.Bounds.Max.X, first: s.Seconds, size: map[image.Point]int{}}
 				tracks = append(tracks, tr)
 			}
-			tr.area = tr.area.Union(ring.Bounds)
+			tr.addSpot(ring.Bounds, s.Seconds)
 			tr.last = s.Seconds
 			tr.size[ring.Bounds.Size()]++
 			tr.crops = append(tr.crops, cropNotice(s.Frame, ring.Bounds))
@@ -115,11 +121,24 @@ func ExtractNotices(ctx context.Context, opts NoticeOptions) ([]NoticeSprite, er
 		sprites = append(sprites, NoticeSprite{
 			Path: path, AppearSeconds: tr.first, DisappearSeconds: end,
 			Width: img.Bounds().Dx(), Height: img.Bounds().Dy(),
-			Area: tr.area.Inset(-noticePad).Intersect(image.Rect(0, 0, FeedWidth, FeedHeight)),
+			Spots: tr.spots,
 		})
 	}
 	sort.Slice(sprites, func(a, b int) bool { return sprites[a].AppearSeconds < sprites[b].AppearSeconds })
 	return sprites, nil
+}
+
+// addSpot extends the current row of the track, or starts a new one when the
+// notice moved to another row, so a mask never covers a row it left.
+func (tr *noticeTrack) addSpot(b image.Rectangle, at float64) {
+	area := b.Inset(-noticePad).Intersect(image.Rect(0, 0, FeedWidth, FeedHeight))
+	end := at + 1/noticeSamplesPerSecond
+	if n := len(tr.spots); n > 0 && absInt(tr.spots[n-1].Area.Min.Y-area.Min.Y) <= noticeMatchSlack {
+		tr.spots[n-1].Area = tr.spots[n-1].Area.Union(area)
+		tr.spots[n-1].To = end
+		return
+	}
+	tr.spots = append(tr.spots, NoticeSpot{Area: area, From: at, To: end})
 }
 
 // matchNoticeTrack finds the notice a ring continues. A notice keeps its
