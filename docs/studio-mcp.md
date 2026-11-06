@@ -46,8 +46,8 @@ Decide in phase 1 whether the WebMCP preview stays.
   `claude mcp add` command. Both point at a stable copy, `<userData>\mcp\zv-mcp.exe`, so a running
   `zv-mcp.exe` never blocks the auto-updater and a custom install folder never breaks the config.
   A `zv-mcp` the assistant kept running through an update keeps the old build in memory. It reads
-  Full Demo plans strictly, so a plan with fields it does not know asks for an assistant restart
-  instead of passing as a stale plan.
+  Full Demo plans and options as strictly as Studio stores them, so a field one side lacks asks
+  for an assistant restart instead of passing as a stale plan.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
 - Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)

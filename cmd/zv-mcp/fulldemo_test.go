@@ -13,6 +13,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func ptrTo[T any](v T) *T { return &v }
@@ -177,5 +178,30 @@ func TestDecodeFullDemoDocument(t *testing.T) {
 	}
 	if err := stale.Validate(); err == nil || !strings.Contains(err.Error(), recapplan.ErrPlanStale) {
 		t.Errorf("stale plan: err = %v", err)
+	}
+}
+
+// The defaults are strict recapplan.Options too, so a newer Studio's option must
+// ask for a restart as well instead of an unreadable-state error.
+func TestLoadFullDemoStateSkewedDefaults(t *testing.T) {
+	defaults, err := json.Marshal(recapplan.DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer := strings.Replace(string(defaults), "{", `{"option_from_a_newer_studio":true,`, 1)
+	for name, body := range map[string]string{"same Studio": string(defaults), "newer Studio": newer} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"document":null,"compatibility":"legacy-until-planned-and-approved","defaults":` + body + `}`))
+		}))
+		c := tuiclient.New(tuiclient.Config{BaseURL: srv.URL, HTTPClient: srv.Client()})
+		state, err := loadFullDemoState(t.Context(), c, "e16560b4-6ee2-48a6-8e40-15e5d712856d")
+		srv.Close()
+		if name == "same Studio" && (err != nil || state.Document != nil || state.Defaults.Overlays.HUDTheme != "arena") {
+			t.Errorf("%s: state = %+v, err = %v", name, state, err)
+		}
+		if name == "newer Studio" && !errors.Is(err, errOutdatedMCP) {
+			t.Errorf("%s: err = %v", name, err)
+		}
 	}
 }

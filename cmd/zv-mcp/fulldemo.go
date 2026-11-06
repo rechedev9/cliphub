@@ -224,13 +224,16 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 		return fullDemoState{}, err
 	}
 	var wire struct {
-		Document json.RawMessage   `json:"document"`
-		Defaults recapplan.Options `json:"defaults"`
+		Document json.RawMessage `json:"document"`
+		Defaults json.RawMessage `json:"defaults"`
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return fullDemoState{}, fmt.Errorf("Studio returned an unreadable Full Demo state: %w", err)
 	}
-	state := fullDemoState{Defaults: wire.Defaults}
+	var state fullDemoState
+	if err := json.Unmarshal(wire.Defaults, &state.Defaults); err != nil {
+		return fullDemoState{}, fmt.Errorf("%w (%v)", errOutdatedMCP, err)
+	}
 	if len(wire.Document) == 0 || bytes.Equal(bytes.TrimSpace(wire.Document), []byte("null")) {
 		return state, nil
 	}
@@ -244,7 +247,7 @@ func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (
 
 // errOutdatedMCP: assistants keep zv-mcp running across Studio updates, so it can
 // be older than the orchestrator that wrote the plan.
-var errOutdatedMCP = errors.New("Studio sent a Full Demo plan this zv-mcp cannot read. " +
+var errOutdatedMCP = errors.New("Studio sent Full Demo data this zv-mcp cannot read. " +
 	"If ClipHub Studio was updated, restart the assistant so it loads the zv-mcp that came with the update")
 
 // decodeFullDemoDocument reads plans as strictly as Studio stores them: a field
