@@ -48,6 +48,8 @@ type DrawCall struct {
 	Indices []uint32
 	Tint    [3]float32
 	Alpha   float32
+	// Mesh and Index address the call as a world node's material override does: the model's mesh and its draw call in it.
+	Mesh, Index int
 }
 
 // ModelDrawCalls decodes every embedded render mesh of a compiled model
@@ -77,7 +79,7 @@ func ModelDrawCalls(data []byte) ([]DrawCall, error) {
 		if mesh == nil {
 			continue
 		}
-		if index := int(toFloat(mesh["m_nMeshIndex"])); lod0 != nil && index < len(lod0) && !lod0[index] {
+		if index := meshInt(mesh, "m_nMeshIndex", "mesh_index"); lod0 != nil && index < len(lod0) && !lod0[index] {
 			continue
 		}
 		got, err := embeddedMeshCalls(blocks, mesh)
@@ -121,10 +123,7 @@ func blockAt(blocks []ResourceBlock, index int) ([]byte, error) {
 }
 
 func embeddedMeshCalls(blocks []ResourceBlock, mesh map[string]any) ([]DrawCall, error) {
-	if _, legacy := mesh["vbib_block"]; legacy {
-		return nil, errors.New("legacy VBIB meshes are not supported")
-	}
-	dataBlock, err := blockAt(blocks, int(toFloat(mesh["m_nDataBlock"])))
+	dataBlock, err := blockAt(blocks, meshInt(mesh, "m_nDataBlock", "data_block"))
 	if err != nil {
 		return nil, err
 	}
@@ -132,15 +131,12 @@ func embeddedMeshCalls(blocks []ResourceBlock, mesh map[string]any) ([]DrawCall,
 	if err != nil {
 		return nil, fmt.Errorf("mesh data: %w", err)
 	}
-	vertexBuffers, err := readBuffers(blocks, list(mesh["m_vertexBuffers"]), true)
-	if err != nil {
-		return nil, err
-	}
-	indexBuffers, err := readBuffers(blocks, list(mesh["m_indexBuffers"]), false)
+	vertexBuffers, indexBuffers, err := meshBuffers(blocks, mesh)
 	if err != nil {
 		return nil, err
 	}
 	var calls []DrawCall
+	meshIndex := meshInt(mesh, "m_nMeshIndex", "mesh_index")
 	for _, so := range list(object(meshData)["m_sceneObjects"]) {
 		for _, dc := range list(object(so)["m_drawCalls"]) {
 			call, ok, err := drawCall(object(dc), vertexBuffers, indexBuffers)
@@ -151,10 +147,37 @@ func embeddedMeshCalls(blocks []ResourceBlock, mesh map[string]any) ([]DrawCall,
 			if !ok {
 				call = DrawCall{}
 			}
+			call.Mesh, call.Index = meshIndex, len(calls)
 			calls = append(calls, call)
 		}
 	}
 	return calls, nil
+}
+
+// meshInt reads an embedded mesh's field under its current name or the one older models use.
+func meshInt(mesh map[string]any, name, legacy string) int {
+	if v, ok := mesh[name]; ok {
+		return int(toFloat(v))
+	}
+	return int(toFloat(mesh[legacy]))
+}
+
+// meshBuffers reads a mesh's GPU buffers, from its own blocks or from the binary VBIB block older models use.
+func meshBuffers(blocks []ResourceBlock, mesh map[string]any) (vertex, index []gpuBuffer, err error) {
+	if _, legacy := mesh["vbib_block"]; legacy {
+		block, err := blockAt(blocks, int(toFloat(mesh["vbib_block"])))
+		if err != nil {
+			return nil, nil, err
+		}
+		return readVBIB(block)
+	}
+	if vertex, err = readBuffers(blocks, list(mesh["m_vertexBuffers"]), true); err != nil {
+		return nil, nil, err
+	}
+	if index, err = readBuffers(blocks, list(mesh["m_indexBuffers"]), false); err != nil {
+		return nil, nil, err
+	}
+	return vertex, index, nil
 }
 
 func readBuffers(blocks []ResourceBlock, items []any, vertex bool) ([]gpuBuffer, error) {

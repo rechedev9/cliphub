@@ -19,12 +19,13 @@ type map3DOut struct {
 	Sun       bool   `json:"sun"`
 	Fog       bool   `json:"fog"`
 	Sky       bool   `json:"sky"`
+	Post      bool   `json:"post" jsonschema:"the map's own exposure, tonemap curve and colour grading from CS2"`
 	HowToOpen string `json:"how_to_open"`
 }
 
 func registerMap3DTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "map_3d_status",
-		Description: "Check that Studio can draw a map as CS2 does in the 3D tactical replay: its real surfaces, textures, baked light, sun, fog and sky, read from the CS2 install on this PC. " +
+		Description: "Check that Studio can draw a map as CS2 does in the 3D tactical replay: its real surfaces, textures, baked light, sun, fog, sky and colour grading, read from the CS2 install on this PC. " +
 			"The first call for a map reads it from CS2 and can take some seconds. The answer says how the user opens it, full screen included."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in map3DIn) (*mcp.CallToolResult, map3DOut, error) {
 			if !mapNamePattern.MatchString(in.Map) {
@@ -40,7 +41,7 @@ func registerMap3DTools(server *mcp.Server, s *studio) {
 			}
 			return nil, map3DOut{
 				Map: sum.Map, Triangles: sum.Triangles, Textures: sum.Textures,
-				Lightmap: sum.Lightmap, Sun: sum.Sun, Fog: sum.Fog, Sky: sum.Sky,
+				Lightmap: sum.Lightmap, Sun: sum.Sun, Fog: sum.Fog, Sky: sum.Sky, Post: sum.Post,
 				HowToOpen: "In Studio open the match, the Táctica tab, the 3D view and the Mapa real chip; the Pantalla completa button or the P key fills the screen.",
 			}, nil
 		})

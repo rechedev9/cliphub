@@ -5,7 +5,7 @@ import { MapGeometryError } from './map-geometry.ts';
  * header length, the JSON header, zero padding to 16 bytes, then the binary arrays the header
  * points into by byte offset from the start of that section.
  */
-export const MAP_SCENE_VERSION = 7;
+export const MAP_SCENE_VERSION = 8;
 
 export type SceneTextureFormat = 'bc1' | 'bc3' | 'bc4' | 'bc5' | 'bc6h' | 'bc7' | 'rgba8' | 'bgra8';
 
@@ -63,6 +63,20 @@ export type SceneSky = { texture: number; brightness: number; tint: [number, num
 /** `average` is the irradiance's average linear colour: the ambient of surfaces without a lightmap. */
 export type SceneLightmap = { irradiance: number; directional: number; shadows: number; uvScale: [number, number]; average: [number, number, number] };
 
+/** The Uncharted filmic curve of the map's .vpost; `whitePoint` is in stops. */
+export type SceneTonemap = {
+  exposureBias: number;
+  shoulder: number;
+  linearStrength: number;
+  linearAngle: number;
+  toeStrength: number;
+  toeNum: number;
+  toeDenom: number;
+  whitePoint: number;
+};
+/** The map's post processing: auto exposure's range, the tonemap and the colour LUT (RGBA, red fastest). */
+export type ScenePost = { exposureMin: number; exposureMax: number; tonemap: SceneTonemap; lutSize: number; lut: Uint8Array | null };
+
 export type MapScene = {
   map: string;
   build: string;
@@ -72,6 +86,7 @@ export type MapScene = {
   fog: SceneFog | null;
   lightmap: SceneLightmap | null;
   sky: SceneSky | null;
+  post: ScenePost | null;
   textures: SceneTexture[];
   materials: SceneMaterial[];
   chunks: SceneChunk[];
@@ -190,6 +205,30 @@ function sky(raw: unknown, textures: SceneTexture[]): SceneSky | null {
   return { texture, brightness: num(s.brightness), tint: vec3(s.tint), yaw: num(s.yaw), average: vec3(s.average) };
 }
 
+function post(raw: unknown, blob: number, bytes: (r: Range) => Uint8Array): ScenePost | null {
+  if (raw === null || raw === undefined) return null;
+  const p = record(raw);
+  const t = record(p.tonemap);
+  const lutSize = int(p.lutSize);
+  let lut: Uint8Array | null = null;
+  if (lutSize > 0 && p.lut !== undefined && p.lut !== null) {
+    const r = range(p.lut, blob);
+    if (lutSize > 64 || r.length !== lutSize ** 3 * 4) throw new Error('scene: colour LUT does not match its size');
+    lut = bytes(r);
+  }
+  const tonemap: SceneTonemap = {
+    exposureBias: num(t.exposureBias),
+    shoulder: num(t.shoulder),
+    linearStrength: num(t.linearStrength),
+    linearAngle: num(t.linearAngle),
+    toeStrength: num(t.toeStrength),
+    toeNum: num(t.toeNum),
+    toeDenom: num(t.toeDenom),
+    whitePoint: num(t.whitePoint),
+  };
+  return { exposureMin: num(p.exposureMin), exposureMax: num(p.exposureMax), tonemap, lutSize: lut === null ? 0 : lutSize, lut };
+}
+
 function faces(value: unknown): 1 | 6 {
   if (value === undefined || value === 1) return 1;
   if (value === 6) return 6;
@@ -283,6 +322,7 @@ export function parseMapScene(buffer: ArrayBuffer): MapScene {
     fog: fog(h.fog),
     lightmap: lightmap(h.lightmap, textures.length),
     sky: sky(h.sky, textures),
+    post: post(h.post, blob, bytes),
     textures,
     materials,
     chunks,

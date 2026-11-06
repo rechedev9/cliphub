@@ -22,6 +22,7 @@ import {
 } from 'three';
 import type { WebGLRenderer } from 'three';
 import type { MapScene, SceneChunk, SceneMaterial } from '@/lib/api/map-scene';
+import { Cs2Post, cs2Exposure } from './cs2-post';
 import { blankTexture } from './map-shader';
 import type { MapUniforms } from './map-shader';
 import { REAL_MAP_FRAGMENT, REAL_MAP_VERTEX, SUN_DEPTH_FRAGMENT, SUN_DEPTH_VERTEX } from './real-map-shader';
@@ -39,21 +40,8 @@ export type RealMapLook = { exposure: number; fogStrength: number; irradiance: n
 
 export const DEFAULT_LOOK: RealMapLook = { exposure: 1.0, fogStrength: 0.5, irradiance: 1.0 };
 
-/** The scene's light a mid exposure maps to mid grey, tuned on Inferno and Mirage. */
-const EXPOSURE_KEY = 2.4;
-
-/** The lightmaps store irradiance over pi; the sun's light is not divided, so it gains pi against them. */
-const SUN_SCALE = Math.PI;
-
-function luminance(c: readonly number[]): number {
-  return 0.2126 * (c[0] ?? 0) + 0.7152 * (c[1] ?? 0) + 0.0722 * (c[2] ?? 0);
-}
-
-/** CS2 adapts exposure to each map's light; this sets it once from the sun and the baked average. */
-function autoExposure(scene: MapScene, ambient: Vector3): number {
-  const light = SUN_SCALE * luminance(scene.sun?.color ?? [0, 0, 0]) + 1.5 * luminance([ambient.x, ambient.y, ambient.z]);
-  return Math.min(1.2, Math.max(0.1, EXPOSURE_KEY / Math.max(0.5, light)));
-}
+/** CS2's diffuse sun is albedo times light times N.L, in the units of the baked irradiance. */
+const SUN_SCALE = 1;
 
 function chunkGeometry(chunk: SceneChunk): BufferGeometry {
   const geometry = new BufferGeometry();
@@ -97,6 +85,7 @@ export class RealMap {
   #look: RealMapLook = DEFAULT_LOOK;
   readonly #ambient: Vector3;
   readonly #exposure: number;
+  readonly #post: Cs2Post;
   readonly #fogLift = { value: 0 };
   readonly #sunScale = { value: SUN_SCALE };
 
@@ -105,7 +94,8 @@ export class RealMap {
     this.#cut = cut;
     const sky = scene.sun?.sky ?? [0.55, 0.62, 0.75];
     this.#ambient = new Vector3(...(scene.lightmap?.average ?? [sky[0] * 0.55, sky[1] * 0.55, sky[2] * 0.55]));
-    this.#exposure = autoExposure(scene, this.#ambient);
+    this.#exposure = cs2Exposure(scene, [this.#ambient.x, this.#ambient.y, this.#ambient.z]);
+    this.#post = new Cs2Post(scene.post);
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
     const lightmap = scene.lightmap;
@@ -132,8 +122,8 @@ export class RealMap {
     this.#bakeSunShadow(renderer);
     this.#ground = groundUnder(scene, this.#ambient.clone().multiplyScalar(GROUND_ALBEDO * this.#exposure));
     this.group.add(this.#ground);
-    this.#sky = RealSky.build(scene, renderer);
-    this.#sky?.setExposure(this.#look.exposure);
+    this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms });
+    this.#sky?.setExposure(this.#look.exposure * this.#exposure);
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
   }
 
@@ -166,7 +156,7 @@ export class RealMap {
   setLook(look: RealMapLook): void {
     this.#look = look;
     for (const material of this.#materials.values()) this.#applyLook(material);
-    this.#sky?.setExposure(look.exposure);
+    this.#sky?.setExposure(look.exposure * this.#exposure);
   }
 
   dispose(): void {
@@ -179,6 +169,7 @@ export class RealMap {
     this.#ground.geometry.dispose();
     this.#ground.material.dispose();
     this.#shared.sunDepth?.dispose();
+    this.#post.dispose();
   }
 
   #applyLook(material: ShaderMaterial): void {
@@ -247,6 +238,7 @@ export class RealMap {
         uFogColor: { value: new Vector3(...fogColor(sky)) },
         uFog: { value: new Vector3() },
         uOpacity: { value: 1 },
+        ...this.#post.uniforms,
       },
       side: material.doubleSided || !lightmapped ? DoubleSide : FrontSide,
       transparent: material.translucent || material.overlay,

@@ -16,7 +16,7 @@ import (
 const (
 	sceneMagic = "CHMS"
 	// SceneFileVersion versions the encoding; bump it when the header or arrays change.
-	SceneFileVersion = 7
+	SceneFileVersion = 8
 )
 
 type sceneRange struct {
@@ -85,9 +85,16 @@ type sceneHeader struct {
 	Fog       *Fog                  `json:"fog"`
 	Sky       *Sky                  `json:"sky"`
 	Lightmap  *Lightmap             `json:"lightmap"`
+	Post      *scenePostHeader      `json:"post"`
 	Textures  []sceneTextureHeader  `json:"textures"`
 	Materials []sceneMaterialHeader `json:"materials"`
 	Chunks    []sceneChunkHeader    `json:"chunks"`
+}
+
+// scenePostHeader is the post processing with its LUT in the binary section.
+type scenePostHeader struct {
+	Post
+	LUT *sceneRange `json:"lut"`
 }
 
 var textureFormatNames = map[int]string{
@@ -215,6 +222,13 @@ func WriteScene(out io.Writer, s *Scene) error {
 	for _, c := range s.Chunks {
 		h.Chunks = append(h.Chunks, encodeChunk(w, c))
 	}
+	if s.Post != nil {
+		h.Post = &scenePostHeader{Post: *s.Post}
+		if len(s.Post.LUT) > 0 {
+			r := w.add(s.Post.LUT)
+			h.Post.LUT = &r
+		}
+	}
 	header, err := json.Marshal(h)
 	if err != nil {
 		return err
@@ -246,6 +260,7 @@ type SceneSummary struct {
 	Sun       bool   `json:"sun"`
 	Fog       bool   `json:"fog"`
 	Sky       bool   `json:"sky"`
+	Post      bool   `json:"post"`
 }
 
 // maxSceneHeader bounds the JSON header a summary reads.
@@ -276,7 +291,7 @@ func ReadSceneSummary(r io.Reader) (SceneSummary, error) {
 		return SceneSummary{}, err
 	}
 	s := SceneSummary{Map: h.Map, Build: h.Build, Chunks: len(h.Chunks), Materials: len(h.Materials), Textures: len(h.Textures),
-		Lightmap: h.Lightmap != nil, Sun: h.Sun != nil, Fog: h.Fog != nil, Sky: h.Sky != nil}
+		Lightmap: h.Lightmap != nil, Sun: h.Sun != nil, Fog: h.Fog != nil, Sky: h.Sky != nil, Post: h.Post != nil}
 	for _, c := range h.Chunks {
 		s.Triangles += c.Indices / 3
 	}

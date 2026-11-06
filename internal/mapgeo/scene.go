@@ -69,6 +69,7 @@ type Scene struct {
 	Sun        *Sun
 	Fog        *Fog
 	Sky        *Sky
+	Post       *Post
 	Min, Max   [3]float32
 }
 
@@ -210,7 +211,8 @@ func (b *sceneBuilder) addNode(path string) error {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	node := object(root)
-	for _, so := range list(node["m_sceneObjects"]) {
+	overrides := materialOverrides(node)
+	for i, so := range list(node["m_sceneObjects"]) {
 		o := object(so)
 		model, _ := o["m_renderableModel"].(string)
 		if model == "" {
@@ -219,6 +221,9 @@ func (b *sceneBuilder) addNode(path string) error {
 		at, _ := affineFromKV(o["m_vTransform"])
 		tint := tintOf(o["m_vTintColor"], 1)
 		for _, call := range b.modelCalls(model) {
+			if material, ok := overrides[overrideKey{object: i, mesh: call.Mesh, call: call.Index}]; ok {
+				call.Material = material
+			}
 			b.addCall(call, at, tint)
 		}
 	}
@@ -226,6 +231,22 @@ func (b *sceneBuilder) addNode(path string) error {
 		b.addAggregate(object(agg))
 	}
 	return nil
+}
+
+type overrideKey struct{ object, mesh, call int }
+
+// materialOverrides maps a scene object's draw call to the material the map gives it instead of the model's own.
+func materialOverrides(node map[string]any) map[overrideKey]string {
+	out := map[overrideKey]string{}
+	for _, item := range list(node["m_materialOverrides"]) {
+		o := object(item)
+		material, _ := o["m_pMaterial"].(string)
+		if material == "" {
+			continue
+		}
+		out[overrideKey{object: int(toFloat(o["m_nSceneObjectIndex"])), mesh: int(toFloat(o["m_nSubSceneObject"])), call: int(toFloat(o["m_nDrawCallIndex"]))}] = material
+	}
+	return out
 }
 
 func (b *sceneBuilder) addAggregate(agg map[string]any) {
@@ -272,6 +293,9 @@ func (b *sceneBuilder) addEntities(path string, depth int) {
 	}
 	if lump.sky != nil && b.scene.Sky == nil {
 		b.addSky(lump.sky)
+	}
+	if lump.post != nil && b.scene.Post == nil {
+		b.addPost(lump.post)
 	}
 	for _, m := range lump.models {
 		for _, call := range b.modelCalls(m.model) {

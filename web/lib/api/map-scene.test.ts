@@ -20,6 +20,7 @@ function sceneFile(edit: (header: Record<string, unknown>) => void = () => {}, v
   const normal = add(new Uint8Array(9));
   const uv = add(new Uint8Array(12));
   const index = add(new Uint8Array(new Uint16Array([0, 1, 2]).buffer));
+  const lut = add(new Uint8Array(2 ** 3 * 4).fill(128));
   const header: Record<string, unknown> = {
     map: 'de_test',
     build: '1',
@@ -29,6 +30,7 @@ function sceneFile(edit: (header: Record<string, unknown>) => void = () => {}, v
     fog: null,
     lightmap: null,
     sky: { texture: 1, brightness: 1, tint: [1, 1, 1], yaw: 0, average: [0.5, 0.6, 0.8] },
+    post: { exposureMin: 0.8, exposureMax: 1, tonemap: { exposureBias: 0, shoulder: 0, linearStrength: 0.001, linearAngle: 0.001, toeStrength: 1, toeNum: 1, toeDenom: 1, whitePoint: 1.5 }, lutSize: 2, lut },
     textures: [
       { format: 'bc1', width: 4, height: 4, faces: 1, levels: [8], ...texture },
       { format: 'bc6h', width: 4, height: 4, faces: 6, levels: [96], ...sky },
@@ -108,5 +110,26 @@ test('parseMapScene refuses a sky that is not a cube', () => {
         }),
       ),
     /cube/,
+  );
+});
+
+test('parseMapScene reads the post processing and its colour LUT', () => {
+  const scene = parseMapScene(sceneFile());
+  assert.equal(scene.post?.exposureMin, 0.8);
+  assert.equal(scene.post?.tonemap.whitePoint, 1.5);
+  assert.equal(scene.post?.lutSize, 2);
+  assert.equal(scene.post?.lut?.length, 32);
+  assert.equal(scene.post?.lut?.[5], 128);
+});
+
+test('parseMapScene refuses a colour LUT that does not match its size', () => {
+  assert.throws(
+    () =>
+      parseMapScene(
+        sceneFile((h) => {
+          h.post = { exposureMin: 1, exposureMax: 1, tonemap: {}, lutSize: 3, lut: { offset: 0, length: 32 } };
+        }),
+      ),
+    /LUT/,
   );
 });

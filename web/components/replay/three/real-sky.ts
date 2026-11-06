@@ -1,11 +1,9 @@
 import { BackSide, BoxGeometry, Matrix3, Mesh, ShaderMaterial, Vector3 } from 'three';
 import type { CompressedCubeTexture, WebGLRenderer } from 'three';
 import type { MapScene } from '@/lib/api/map-scene';
-import { TONEMAP } from './real-map-shader';
+import { CS2_POST } from './cs2-post';
+import type { Cs2PostUniforms } from './cs2-post';
 import { toCubeTexture } from './scene-textures';
-
-/** The sky's average light the tonemap maps to a bright mid tone. */
-const SKY_KEY = 0.9;
 
 const SKY_VERTEX = `
 varying vec3 vDirection;
@@ -24,11 +22,11 @@ uniform vec3 uTint;
 uniform float uExposure;
 varying vec3 vDirection;
 
-${TONEMAP}
+${CS2_POST}
 
 void main() {
   vec3 sky = textureCube(uSky, uBasis * normalize(vDirection)).rgb * uTint;
-  gl_FragColor = vec4(filmic(sky * uExposure), 1.0);
+  gl_FragColor = vec4(cs2Grade(cs2Tone(sky * uExposure)), 1.0);
   #include <colorspace_fragment>
 }
 `;
@@ -39,10 +37,10 @@ export class RealSky {
   readonly #cube: CompressedCubeTexture;
   readonly #brightness: number;
 
-  private constructor(cube: CompressedCubeTexture, scene: MapScene, brightness: number) {
+  private constructor(cube: CompressedCubeTexture, scene: MapScene, post: Cs2PostUniforms) {
     this.#cube = cube;
-    this.#brightness = brightness;
     const sky = scene.sky;
+    this.#brightness = sky?.brightness ?? 1;
     const yaw = ((sky?.yaw ?? 0) * Math.PI) / 180;
     const material = new ShaderMaterial({
       vertexShader: SKY_VERTEX,
@@ -51,7 +49,8 @@ export class RealSky {
         uSky: { value: cube },
         uBasis: { value: skyBasis(yaw) },
         uTint: { value: new Vector3(...(sky?.tint ?? [1, 1, 1])) },
-        uExposure: { value: brightness },
+        uExposure: { value: this.#brightness },
+        ...post,
       },
       side: BackSide,
       depthWrite: false,
@@ -62,17 +61,16 @@ export class RealSky {
   }
 
   /** The sky of `scene`, or null when it has none or the GPU cannot read it. */
-  static build(scene: MapScene, renderer: WebGLRenderer): RealSky | null {
+  static build(options: { scene: MapScene; renderer: WebGLRenderer; post: Cs2PostUniforms }): RealSky | null {
+    const { scene, renderer, post } = options;
     const sky = scene.sky;
     const source = sky === null ? undefined : scene.textures[sky.texture];
     if (sky === null || source === undefined) return null;
     const cube = toCubeTexture(source, renderer);
-    // CS2 adapts its exposure to where the eye looks; the sky gets its own so it reads as bright day.
-    const average = 0.2126 * sky.average[0] + 0.7152 * sky.average[1] + 0.0722 * sky.average[2];
-    return cube === null ? null : new RealSky(cube, scene, Math.sqrt(sky.brightness) * (SKY_KEY / Math.max(0.05, average)));
+    return cube === null ? null : new RealSky(cube, scene, post);
   }
 
-  /** `exposure` is the look's own factor, 1 by default. */
+  /** `exposure` is the map's exposure times the look's own factor. */
   setExposure(exposure: number): void {
     this.mesh.material.uniforms.uExposure.value = exposure * this.#brightness;
   }
@@ -84,11 +82,9 @@ export class RealSky {
   }
 }
 
-/** Turns a z-up world direction, less the sky's yaw, into the cube's own axes. */
+/** The world direction less the sky's yaw; the cube is sampled in Source's z-up axes, as CS2 does. */
 function skyBasis(yaw: number): Matrix3 {
   const c = Math.cos(-yaw);
   const s = Math.sin(-yaw);
-  const turn = new Matrix3().set(c, -s, 0, s, c, 0, 0, 0, 1);
-  // The cube keeps Source's axes: +X forward, +Y left, +Z up.
-  return new Matrix3().set(1, 0, 0, 0, 0, 1, 0, -1, 0).multiply(turn);
+  return new Matrix3().set(c, -s, 0, s, c, 0, 0, 0, 1);
 }
