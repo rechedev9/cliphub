@@ -24,7 +24,7 @@ type map3DOut struct {
 }
 
 func registerMap3DTools(server *mcp.Server, s *studio) {
-	mcp.AddTool(server, &mcp.Tool{Name: "map_3d_status",
+	mcp.AddTool(server, &mcp.Tool{Name: "map_3d_status", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Check that Studio can draw a map as CS2 does in the tactical replay, in 3D and as the 2D view's Mapa real floor plan: its real surfaces, textures, baked light, sun, fog, sky and colour grading, read from the CS2 install on this PC. " +
 			"The first call for a map reads it from CS2 and can take some seconds. The answer says how the user opens it, full screen included."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in map3DIn) (*mcp.CallToolResult, map3DOut, error) {
