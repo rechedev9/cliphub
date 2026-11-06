@@ -161,7 +161,8 @@ Read:
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
-| `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags |
+| `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, up to 4 alternative copies with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
+| `list_pro_settings` | the `internal/prosettings` catalog (no orchestrator call): id, name, team, resolution and viewmodel FOV for `plan_full_demo` `pro_settings` |
 | `list_teams` | `GET /api/library/teams` |
 | `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
@@ -189,11 +190,11 @@ Write:
 | `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
-| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map | yes |
+| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map. `music` goes as `{key, volume, game_volume}` when `music_volume` or `game_volume` is set (percents in the tool, gains on the wire, full music volume left unset like the UI); `intro_text`/`outro_text` and the affiliate banner (`keydrop_family`, `keydrop_style`, `keydrop_code`, a 0 to 4 s window by default) go in `edit` | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
 | `wait_for_job` | polls a job; takes the render `variant` | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
-| `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
+| `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash`. `pro_settings` resolves a catalog pro into the capture (or `none`); `hud_portrait` uploads a PNG or JPG to `POST /api/full-demo/overlay-images` (focus HUD only); `intro_bumper`, `sponsor_bumper` and `outro_bumper` upload an MP4 to `POST /api/editor/assets` with the UI's local-file provenance. Like every option, they start from the defaults, not from a plan saved in the UI | no (saves the plan the UI also shows) |
 | `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
 | `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
 | `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
@@ -206,7 +207,7 @@ Short look and Full Demo HUD:
 
 | Tool | What it does |
 | --- | --- |
-| `list_short_options` | format, kill effect, transition, music and extras, each with a one-line Spanish description and the default |
+| `list_short_options` | format, kill effect, transition, music, extras and the affiliate banner families and styles, each with a one-line Spanish description and the default |
 | `get_song_audio` | one track as audio content, app-only (`_meta.ui.visibility: ["app"]`) |
 | `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |

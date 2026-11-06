@@ -51,3 +51,30 @@ func TestRenderReady(t *testing.T) {
 		}
 	}
 }
+
+func TestDescribePublishCopyKeepsRecommendationsAndBestTimes(t *testing.T) {
+	var pa tuiclient.PublishAssistant
+	pa.Metadata.Title = "Ace on Mirage"
+	pa.Recommendations = []tuiclient.PublishRecommendation{
+		{Title: "Ace on Mirage", Score: 0.9, Rationale: "names the map"},
+		{Title: "1v5\x00 clutch", Description: "Watch", Tags: []string{"clutch"}, Score: 0.7},
+	}
+	pa.Schedule.Days = []tuiclient.PublishScheduleDay{
+		{Date: "2026-11-07", Weekday: "sábado", Slots: []tuiclient.PublishScheduleSlot{{LocalTime: "12:00", Score: 0.4}, {LocalTime: "19:00", Score: 0.95}}},
+		{Date: "2026-11-08", Weekday: "domingo", Slots: []tuiclient.PublishScheduleSlot{{LocalTime: "18:00", Score: 0.8}}},
+	}
+	pa.Trends.Reason = "sin conexión"
+	out := describePublishCopy(pa)
+	if len(out.Recommendations) != 2 || out.Recommendations[1].Title != "1v5 clutch" || out.Recommendations[0].Rationale != "names the map" {
+		t.Errorf("recommendations: %+v", out.Recommendations)
+	}
+	if len(out.AlternativeTitles) != 1 || out.AlternativeTitles[0] != "1v5 clutch" {
+		t.Errorf("alternative titles: %v", out.AlternativeTitles)
+	}
+	if len(out.BestTimes) != 3 || out.BestTimes[0].LocalTime != "19:00" || out.BestTimes[1].Weekday != "domingo" {
+		t.Errorf("best times: %+v", out.BestTimes)
+	}
+	if out.TrendingTerms != nil || out.TrendsNote != "sin conexión" {
+		t.Errorf("trends: %v %q", out.TrendingTerms, out.TrendsNote)
+	}
+}
