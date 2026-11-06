@@ -288,8 +288,9 @@ func (b *sceneBuilder) addEntities(path string, depth int) {
 	if lump.sun != nil && b.scene.Sun == nil {
 		b.scene.Sun = lump.sun
 	}
-	if lump.fog != nil && b.scene.Fog == nil {
-		b.scene.Fog = lump.fog
+	if b.scene.Fog == nil && (lump.fog.Cube != nil || lump.fog.Gradient != nil) {
+		fog := lump.fog
+		b.scene.Fog = &fog
 	}
 	if lump.sky != nil && b.scene.Sky == nil {
 		b.addSky(lump.sky)
@@ -333,7 +334,7 @@ func (b *sceneBuilder) addSky(sky *skyEntity) {
 	}
 	b.scene.Textures = append(b.scene.Textures, SceneTexture{Path: info.Sky, Tex: tex})
 	r := tex.Reflectivity
-	b.scene.Sky = &Sky{Texture: len(b.scene.Textures) - 1, Brightness: sky.brightness, Tint: sky.tint, Yaw: sky.yaw,
+	b.scene.Sky = &Sky{Texture: len(b.scene.Textures) - 1, Brightness: sky.brightness * exposureScale(info.SkyExposureBias), Tint: sky.tint, Yaw: sky.yaw,
 		Average: [3]float64{float64(r[0]), float64(r[1]), float64(r[2])}}
 }
 

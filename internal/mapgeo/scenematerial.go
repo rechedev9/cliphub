@@ -32,8 +32,9 @@ type MaterialInfo struct {
 	Overlay bool
 	// Skip marks tool, effect and sky materials, which CS2 never draws as world surfaces.
 	Skip bool
-	// Sky is the cube texture of a sky material.
-	Sky string
+	// Sky is the cube texture of a sky material; SkyExposureBias brightens it by that many stops.
+	Sky             string
+	SkyExposureBias float32
 }
 
 // skippedShaders are drawn by CS2 as effects, decals or sky, not as surfaces.
@@ -86,6 +87,9 @@ func ParseMaterial(name string, file []byte) (MaterialInfo, error) {
 			m.AlphaRef = float32(toFloat(po["m_flValue"]))
 		case "g_flBlendSoftness":
 			m.BlendSoftness = float32(toFloat(po["m_flValue"]))
+		case "g_flBrightnessExposureBias", "g_flRenderOnlyExposureBias":
+			// CS2 draws the sky, and colours its fog, this many stops brighter.
+			m.SkyExposureBias += float32(toFloat(po["m_flValue"]))
 		}
 	}
 	for _, p := range list(o["m_vectorParams"]) {

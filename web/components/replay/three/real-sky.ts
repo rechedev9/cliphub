@@ -42,19 +42,22 @@ export class RealSky {
   readonly mesh: Mesh<BoxGeometry, ShaderMaterial>;
   readonly #cube: CompressedCubeTexture;
   readonly #brightness: number;
+  /** What the cubemap fog samples: the cube, its turn and its side in texels. */
+  readonly fogSource: { cube: CompressedCubeTexture; basis: Matrix3; size: number };
 
-  private constructor(cube: CompressedCubeTexture, options: { scene: MapScene; post: Cs2PostUniforms; meter: { value: number } }) {
-    const { scene, post, meter } = options;
+  private constructor(cube: CompressedCubeTexture, options: { scene: MapScene; post: Cs2PostUniforms; meter: { value: number }; size: number }) {
+    const { scene, post, meter, size } = options;
     this.#cube = cube;
     const sky = scene.sky;
     this.#brightness = sky?.brightness ?? 1;
     const yaw = ((sky?.yaw ?? 0) * Math.PI) / 180;
+    this.fogSource = { cube, basis: skyBasis(yaw), size };
     const material = new ShaderMaterial({
       vertexShader: SKY_VERTEX,
       fragmentShader: SKY_FRAGMENT,
       uniforms: {
         uSky: { value: cube },
-        uBasis: { value: skyBasis(yaw) },
+        uBasis: { value: this.fogSource.basis },
         uTint: { value: new Vector3(...(sky?.tint ?? [1, 1, 1])) },
         uExposure: { value: this.#brightness },
         uBrightness: { value: this.#brightness },
@@ -76,7 +79,7 @@ export class RealSky {
     const source = sky === null ? undefined : scene.textures[sky.texture];
     if (sky === null || source === undefined) return null;
     const cube = toCubeTexture(source, renderer);
-    return cube === null ? null : new RealSky(cube, { scene, post, meter });
+    return cube === null ? null : new RealSky(cube, { scene, post, meter, size: source.width });
   }
 
   /** `exposure` is the map's exposure times the look's own factor. */

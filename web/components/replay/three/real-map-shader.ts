@@ -1,3 +1,4 @@
+import { CS2_FOG } from './cs2-fog';
 import { CS2_POST } from './cs2-post';
 import { MAP_DECLARE } from './map-shader';
 
@@ -5,8 +6,8 @@ import { MAP_DECLARE } from './map-shader';
  * The shading of the map's real surfaces, after CS2's own: albedo times the
  * baked irradiance plus the sun through its baked shadow channel. Props carry
  * no lightmap, so they take the sky's ambient and the sun through a shadow
- * map rendered once from the sun. Then exposure, a filmic curve and the map's
- * fog. Defines: USE_COLOR_MAP, USE_LAYER2, USE_BLEND_MOD, USE_TINT,
+ * map rendered once from the sun. Then the map's fog, exposure and a filmic
+ * curve. Defines: USE_COLOR_MAP, USE_LAYER2, USE_BLEND_MOD, USE_TINT,
  * USE_LIGHTMAP, ALPHA_TEST, UNLIT.
  */
 
@@ -37,7 +38,6 @@ varying vec2 vUv2;
 varying vec2 vLightmapUv;
 varying vec4 vTint;
 varying float vBlend;
-varying float vViewDepth;
 varying vec4 vSunCoord;
 
 void main() {
@@ -63,9 +63,7 @@ void main() {
   vBlend = 0.0;
 #endif
   vSunCoord = uSunMatrix * world;
-  vec4 view = viewMatrix * world;
-  vViewDepth = -view.z;
-  gl_Position = projectionMatrix * view;
+  gl_Position = projectionMatrix * viewMatrix * world;
 }
 `;
 
@@ -90,8 +88,6 @@ uniform vec3 uSunColor;
 uniform vec3 uAmbient;
 uniform float uFogLift;
 uniform float uExposure;
-uniform vec3 uFogColor;
-uniform vec3 uFog;
 uniform float uSunDepthTexel;
 uniform float uUseSunDepth;
 uniform float uIrradianceScale;
@@ -105,7 +101,6 @@ varying vec2 vUv2;
 varying vec2 vLightmapUv;
 varying vec4 vTint;
 varying float vBlend;
-varying float vViewDepth;
 varying vec4 vSunCoord;
 
 vec3 srgbToLinear(vec3 c) {
@@ -113,6 +108,7 @@ vec3 srgbToLinear(vec3 c) {
 }
 
 ${CS2_POST}
+${CS2_FOG}
 
 float sunShadowMap(vec3 normal) {
   if (uUseSunDepth < 0.5) return 1.0;
@@ -171,13 +167,12 @@ ${REAL_SURFACE_CUT}
 #endif
   color = albedo.rgb * (irradiance + uSunColor * uSunScale * sunAngle * visibility);
 #endif
+  color = cs2Fog(color, vMapPos, uFogLift);
   if (uMeter > 0.5) {
     gl_FragColor = vec4(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), 1.0);
     return;
   }
   color = cs2Tone(color * uExposure);
-  float fog = clamp((vViewDepth - uFogLift - uFog.x) / max(1.0, uFog.y - uFog.x), 0.0, 1.0) * uFog.z;
-  color = mix(color, uFogColor, fog);
   // A pale rim where the cutaway opens a wall, as on the plain map.
   if (uUseField > 0.5 && mapCutting > 0.5 && mapFlat < 0.5) {
     float rim = 1.5 * length(vec2(dFdx(vMapPos.z), dFdy(vMapPos.z)));

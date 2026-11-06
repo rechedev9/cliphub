@@ -121,7 +121,7 @@ type entityModel struct {
 type entityLump struct {
 	sun    *Sun
 	models []entityModel
-	fog    *Fog
+	fog    Fog
 	sky    *skyEntity
 	post   *postEntity
 	// skyDisabled marks a sky that starts off.
@@ -144,14 +144,6 @@ type Sky struct {
 	Yaw        float64    `json:"yaw"`
 	// Average is the cube's average linear colour, as the compiler stored it.
 	Average [3]float64 `json:"average"`
-}
-
-// Fog is the map's distance fog, from env_cubemap_fog or env_gradient_fog.
-type Fog struct {
-	Start float64    `json:"start"`
-	End   float64    `json:"end"`
-	Color [3]float64 `json:"color"`
-	Max   float64    `json:"max"`
 }
 
 // modelEntityClasses place a visible model in the world.
@@ -220,8 +212,10 @@ func parseEntityLump(file []byte) (entityLump, error) {
 		switch {
 		case class == "light_environment":
 			lump.sun = sunFromEntity(vals)
-		case class == "env_cubemap_fog" && lump.fog == nil:
-			lump.fog = fogFromEntity(vals)
+		case class == "env_cubemap_fog" && lump.fog.Cube == nil && !truthy(vals["StartDisabled"]):
+			lump.fog.Cube = cubeFogFromEntity(vals)
+		case class == "env_gradient_fog" && lump.fog.Gradient == nil && !truthy(vals["StartDisabled"]):
+			lump.fog.Gradient = gradientFogFromEntity(vals)
 		case class == "post_processing_volume" && !truthy(vals["StartDisabled"]):
 			// The master volume is the one the whole map uses.
 			if lump.post == nil || !lump.post.master && truthy(vals["master"]) {
@@ -280,19 +274,6 @@ func skyFromEntity(vals map[string]any) *skyEntity {
 		sky.yaw = a[1]
 	}
 	return sky
-}
-
-func fogFromEntity(vals map[string]any) *Fog {
-	f := &Fog{
-		Start: numberValue(vals["cubemapfogstartdistance"], 0),
-		End:   numberValue(vals["cubemapfogenddistance"], 0),
-		Max:   numberValue(vals["cubemapfogmaxopacity"], 1),
-	}
-	if f.End <= f.Start {
-		return nil
-	}
-	f.Color = [3]float64{0.7, 0.75, 0.8}
-	return f
 }
 
 func modelFromEntity(class string, vals map[string]any) (entityModel, bool) {

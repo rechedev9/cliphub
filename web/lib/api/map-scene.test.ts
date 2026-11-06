@@ -133,3 +133,18 @@ test('parseMapScene refuses a colour LUT that does not match its size', () => {
     /LUT/,
   );
 });
+
+test('parseMapScene reads both fog layers and leaves a missing one out', () => {
+  const scene = parseMapScene(
+    sceneFile((h) => {
+      h.fog = {
+        gradient: null,
+        cube: { distance: { start: 128, end: 7000, exponent: 1.1 }, height: { start: 2413, end: -3327, exponent: 1.5 }, max: 0.9, lodBias: 1 },
+      };
+    }),
+  );
+  assert.equal(scene.fog?.gradient, null);
+  assert.equal(scene.fog?.cube?.distance.end, 7000);
+  assert.equal(scene.fog?.cube?.height.exponent, 1.5);
+  assert.equal(scene.fog?.cube?.lodBias, 1);
+});

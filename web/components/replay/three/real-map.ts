@@ -23,6 +23,8 @@ import {
 import type { Camera, Object3D, WebGLRenderer } from 'three';
 import type { MapScene, SceneChunk, SceneMaterial } from '@/lib/api/map-scene';
 import { AutoExposure } from './auto-exposure';
+import { cs2FogUniforms } from './cs2-fog';
+import type { Cs2FogUniforms } from './cs2-fog';
 import { Cs2Post, cs2Exposure } from './cs2-post';
 import { blankTexture } from './map-shader';
 import type { MapUniforms } from './map-shader';
@@ -39,7 +41,7 @@ const SUN_DEPTH_SIZE = 4096;
 /** The look of the scene that does not come from the map file. */
 export type RealMapLook = { exposure: number; fogStrength: number; irradiance: number };
 
-export const DEFAULT_LOOK: RealMapLook = { exposure: 1.0, fogStrength: 0.5, irradiance: 1.0 };
+export const DEFAULT_LOOK: RealMapLook = { exposure: 1.0, fogStrength: 1.0, irradiance: 1.0 };
 
 /** CS2's diffuse sun is albedo times light times N.L, in the units of the baked irradiance. */
 const SUN_SCALE = 1;
@@ -91,6 +93,7 @@ export class RealMap {
   readonly #meter = { value: 0 };
   readonly #post: Cs2Post;
   readonly #fogLift = { value: 0 };
+  readonly #fog: Cs2FogUniforms;
   readonly #sunScale = { value: SUN_SCALE };
 
   constructor(scene: MapScene, cut: MapUniforms, renderer: WebGLRenderer) {
@@ -101,6 +104,8 @@ export class RealMap {
     this.#exposure = cs2Exposure(scene, [this.#ambient.x, this.#ambient.y, this.#ambient.z]);
     this.#auto = new AutoExposure({ renderer, post: scene.post, start: this.#exposure });
     this.#post = new Cs2Post(scene.post);
+    this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms, meter: this.#meter });
+    this.#fog = cs2FogUniforms({ scene, sky: this.#sky?.fogSource ?? null });
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
     const lightmap = scene.lightmap;
@@ -127,7 +132,6 @@ export class RealMap {
     this.#bakeSunShadow(renderer);
     this.#ground = groundUnder(scene, this.#ambient.clone().multiplyScalar(GROUND_ALBEDO * this.#exposure));
     this.group.add(this.#ground);
-    this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms, meter: this.#meter });
     this.#sky?.setExposure(this.#look.exposure * this.#exposure);
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
   }
@@ -166,6 +170,7 @@ export class RealMap {
 
   setLook(look: RealMapLook): void {
     this.#look = look;
+    this.#fog.uFogStrength.value = look.fogStrength;
     for (const material of this.#materials.values()) this.#applyLook(material);
     this.#sky?.setExposure(look.exposure * this.#auto.value);
   }
@@ -196,11 +201,9 @@ export class RealMap {
   }
 
   #applyLook(material: ShaderMaterial): void {
-    const fog = this.#scene.fog;
     const u = material.uniforms;
     u.uExposure.value = this.#look.exposure * this.#auto.value;
     u.uIrradianceScale.value = this.#look.irradiance;
-    u.uFog.value.set(fog?.start ?? 0, fog?.end ?? 1, (fog?.max ?? 0) * this.#look.fogStrength);
   }
 
   #material(material: SceneMaterial, chunk: SceneChunk): ShaderMaterial {
@@ -224,7 +227,6 @@ export class RealMap {
     if (material.alphaTest && color !== null) defines.ALPHA_TEST = '';
     if (material.unlit) defines.UNLIT = '';
     const sun = this.#scene.sun;
-    const sky = sun?.sky ?? [0.55, 0.62, 0.75];
     const sunColor = sun?.color ?? [2.2, 2.0, 1.8];
     const sunDirection = new Vector3(...(sun?.direction ?? [-0.4, -0.4, 0.8])).normalize();
     const shader = new ShaderMaterial({
@@ -259,8 +261,7 @@ export class RealMap {
         uFogLift: this.#fogLift,
         uExposure: { value: 1 },
         uIrradianceScale: { value: 1 },
-        uFogColor: { value: new Vector3(...fogColor(sky)) },
-        uFog: { value: new Vector3() },
+        ...this.#fog,
         uOpacity: { value: 1 },
         uMeter: this.#meter,
         uUseAlpha: { value: blended ? 1 : 0 },
@@ -369,11 +370,6 @@ function shadowMask(channel: number): Vector4 {
 
 function isSceneMaterial(value: unknown): value is SceneMaterial {
   return typeof value === 'object' && value !== null && 'translucent' in value && 'overlay' in value && 'name' in value;
-}
-
-/** A hazy horizon: the sky lightened toward white, in linear light. */
-function fogColor(sky: readonly number[]): [number, number, number] {
-  return [Math.min(1, sky[0] * 0.75 + 0.18), Math.min(1, sky[1] * 0.75 + 0.18), Math.min(1, sky[2] * 0.75 + 0.2)];
 }
 
 /**

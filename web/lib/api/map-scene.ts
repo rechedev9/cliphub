@@ -5,7 +5,7 @@ import { MapGeometryError } from './map-geometry.ts';
  * header length, the JSON header, zero padding to 16 bytes, then the binary arrays the header
  * points into by byte offset from the start of that section.
  */
-export const MAP_SCENE_VERSION = 8;
+export const MAP_SCENE_VERSION = 9;
 
 export type SceneTextureFormat = 'bc1' | 'bc3' | 'bc4' | 'bc5' | 'bc6h' | 'bc7' | 'rgba8' | 'bgra8';
 
@@ -57,7 +57,13 @@ export type SceneChunk = {
 };
 
 export type SceneSun = { direction: [number, number, number]; color: [number, number, number]; sky: [number, number, number]; shadowChannel: number };
-export type SceneFog = { start: number; end: number; color: [number, number, number]; max: number };
+/** One fade of a fog, raised to `exponent`: over distance 0 at `start` to 1 at `end`; over height 1 at `start` to 0 at `end`. */
+export type SceneFogRamp = { start: number; end: number; exponent: number };
+/** env_gradient_fog; `color` is linear and already times its strength. */
+export type SceneGradientFog = { distance: SceneFogRamp; height: SceneFogRamp; color: [number, number, number]; max: number };
+/** env_cubemap_fog, coloured by the sky; `lodBias` sharpens the sky where the fog is thick. */
+export type SceneCubeFog = { distance: SceneFogRamp; height: SceneFogRamp; max: number; lodBias: number };
+export type SceneFog = { gradient: SceneGradientFog | null; cube: SceneCubeFog | null };
 /** The sky cube, its brightness and linear tint, and its turn about z in degrees. */
 export type SceneSky = { texture: number; brightness: number; tint: [number, number, number]; yaw: number; average: [number, number, number] };
 /** `average` is the irradiance's average linear colour: the ambient of surfaces without a lightmap. */
@@ -191,10 +197,20 @@ function sun(raw: unknown): SceneSun | null {
   return { direction: vec3(s.direction), color: vec3(s.color), sky: vec3(s.sky), shadowChannel: int(s.shadowChannel) };
 }
 
+function ramp(raw: unknown): SceneFogRamp {
+  const r = record(raw);
+  return { start: num(r.start), end: num(r.end), exponent: num(r.exponent) };
+}
+
 function fog(raw: unknown): SceneFog | null {
   if (raw === null || raw === undefined) return null;
   const f = record(raw);
-  return { start: num(f.start), end: num(f.end), color: vec3(f.color), max: num(f.max) };
+  const g = f.gradient === null || f.gradient === undefined ? null : record(f.gradient);
+  const c = f.cube === null || f.cube === undefined ? null : record(f.cube);
+  return {
+    gradient: g === null ? null : { distance: ramp(g.distance), height: ramp(g.height), color: vec3(g.color), max: num(g.max) },
+    cube: c === null ? null : { distance: ramp(c.distance), height: ramp(c.height), max: num(c.max), lodBias: num(c.lodBias) },
+  };
 }
 
 function sky(raw: unknown, textures: SceneTexture[]): SceneSky | null {

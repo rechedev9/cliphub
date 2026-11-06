@@ -16,7 +16,7 @@ import (
 const (
 	sceneMagic = "CHMS"
 	// SceneFileVersion versions the encoding; bump it when the header or arrays change.
-	SceneFileVersion = 8
+	SceneFileVersion = 9
 )
 
 type sceneRange struct {
