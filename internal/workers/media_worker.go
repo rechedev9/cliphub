@@ -1572,24 +1572,18 @@ func (w *StreamRenderWorker) render(
 			warnings = append(warnings, fmt.Sprintf("clip %s: kill feed not redrawn: %v", clip.ID, err))
 		}
 		outPath := filepath.Join(outDir, clip.ID+".mp4")
-		args, err := streamclips.BuildFFmpegArgs(streamclips.FFmpegInputs{
-			SourcePath:       sourcePath,
-			OutputPath:       outPath,
-			MusicPath:        musicPath,
-			BannerFontPath:   bannerFontPath,
-			KeyDropImagePath: keyDropImagePath,
-			SourceHasAudio:   j.Probe.AudioCodec != "",
-			TextOverlayPaths: textPaths,
-			KillFeed:         killFeed,
-			SourceWidth:      j.Probe.Width,
-			SourceHeight:     j.Probe.Height,
-		}, plan, clip)
-		if err != nil {
-			return err
-		}
 		renderStarted := time.Now()
-		if _, err := w.runner.Run(runCtx, cfg.FFmpegPath, args...); err != nil {
+		warning, err := renderStreamClip(runCtx, streamClipRender{runner: w.runner, ffmpeg: cfg.FFmpegPath, plan: plan, clip: clip,
+			in: streamclips.FFmpegInputs{
+				SourcePath: sourcePath, OutputPath: outPath, MusicPath: musicPath, BannerFontPath: bannerFontPath,
+				KeyDropImagePath: keyDropImagePath, SourceHasAudio: j.Probe.AudioCodec != "", TextOverlayPaths: textPaths,
+				KillFeed: killFeed, SourceWidth: j.Probe.Width, SourceHeight: j.Probe.Height,
+			}})
+		if err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
+		}
+		if warning != "" {
+			warnings = append(warnings, warning)
 		}
 		renderElapsed := time.Since(renderStarted)
 		var outputBytes int64

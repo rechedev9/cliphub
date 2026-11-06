@@ -44,7 +44,7 @@ var oversizedGoFiles = map[string]int{
 	"internal/store/memory_library_repo.go":                1056,
 	"internal/store/sqlite_library_repo.go":                1279,
 	"internal/tacticalplan/scout.go":                       1393,
-	"internal/workers/media_worker.go":                     4250,
+	"internal/workers/media_worker.go":                     4244,
 	"internal/workers/media_worker_segment_select_test.go": 1174,
 	"internal/workers/media_worker_test.go":                3140,
 }

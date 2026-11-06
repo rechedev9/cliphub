@@ -454,7 +454,9 @@ func DefaultEditPlan() EditPlan {
 		FaceCrop:      variant.DefaultFaceCrop,
 		GameplayCrop:  variant.DefaultGameplayCrop,
 		Clips:         []ClipRange{},
-		UpdatedAt:     time.Now().UTC(),
+		// The vertical crop cuts the streamer's own feed, so new plans redraw it.
+		KillFeed:  KillFeedPlan{Centered: true},
+		UpdatedAt: time.Now().UTC(),
 	}
 }
 
