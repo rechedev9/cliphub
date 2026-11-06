@@ -28,7 +28,7 @@ func TestCheckFullDemoExtras(t *testing.T) {
 		{fullDemoExtrasIn: fullDemoExtrasIn{ProSettings: noneChoice, HUDPortrait: noneChoice}},
 	}
 	for _, in := range ok {
-		if err := checkFullDemoExtras(in, recapplan.Options{}); err != nil {
+		if err := checkFullDemoExtras(in, recapplan.DefaultOptions()); err != nil {
 			t.Errorf("%+v refused: %v", in.fullDemoExtrasIn, err)
 		}
 	}
@@ -38,9 +38,11 @@ func TestCheckFullDemoExtras(t *testing.T) {
 		"bumper not mp4":         {fullDemoExtrasIn: fullDemoExtrasIn{SponsorBumper: portrait}},
 		"missing bumper":         {fullDemoExtrasIn: fullDemoExtrasIn{IntroBumper: filepath.Join(dir, "gone.mp4")}},
 		"relative portrait":      {HUD: "focus", fullDemoExtrasIn: fullDemoExtrasIn{HUDPortrait: "me.png"}},
+		"bad round with a clip":  {Rounds: []int{0}, fullDemoExtrasIn: fullDemoExtrasIn{IntroBumper: clip}},
+		"bad level with a clip":  {GameLevel: ptrTo(500), fullDemoExtrasIn: fullDemoExtrasIn{OutroBumper: clip}},
 	}
 	for name, in := range bad {
-		if err := checkFullDemoExtras(in, recapplan.Options{}); err == nil {
+		if err := checkFullDemoExtras(in, recapplan.DefaultOptions()); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}

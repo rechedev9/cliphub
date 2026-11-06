@@ -66,8 +66,11 @@ func registerProSettingsTool(server *mcp.Server) {
 		})
 }
 
-// checkFullDemoExtras validates the extras before anything is uploaded.
+// checkFullDemoExtras validates the extras and the other choices before anything is uploaded.
 func checkFullDemoExtras(in planFullDemoIn, defaults recapplan.Options) error {
+	if _, err := applyFullDemoChoices(defaults, in); err != nil {
+		return err
+	}
 	if in.ProSettings != "" && in.ProSettings != noneChoice {
 		if _, ok := prosettings.Find(in.ProSettings); !ok {
 			return fmt.Errorf("unknown pro_settings %q; list_pro_settings has the ids", cleanName(in.ProSettings))
