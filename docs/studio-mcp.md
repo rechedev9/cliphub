@@ -168,6 +168,12 @@ Read:
 | `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
+| `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
+| `list_stream_variants` | `GET /api/stream-variants`; aspect ratio and whether the layout shows the facecam |
+| `list_stream_videos` | `GET /api/stream-jobs/{id}` (`rendered_outputs`) and `GET /api/stream-jobs/{id}/summary`; MP4 links through the UI origin |
+| `wait_for_stream` | polls `GET /api/stream-jobs/{id}` until it leaves `acquiring` |
+| `wait_for_stream_render` | polls `GET /api/stream-jobs/{id}/renders/{variant}`, or `GET .../summary` for variant `summary` |
+| `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
 
 Write:
 
@@ -181,6 +187,12 @@ Write:
 | `wait_for_job` | polls a job; takes the render `variant` | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed` | no |
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash` | no (saves the plan the UI also shows) |
+| `import_stream` | `POST /api/stream-jobs`: JSON `source_url` (Twitch, Kick or YouTube, checked with `vodfetch.ValidateSource` first), `title`, `source_kind`; or multipart `video` for a local `.mp4` | no |
+| `find_stream_plays` | `GET /api/stream-jobs/{id}/plays`, `POST` when idle or with `rescan`; plays ranked by score, 20 by default | no |
+| `render_stream_summary` | `POST /api/stream-jobs/{id}/summary`: one 16:9 video of every play | yes |
+| `render_stream` | `GET` and `PUT /api/stream-jobs/{id}/edit-plan` (raw fields, so banners, music and effects survive; `play_ids` replace `clips`), then `POST .../renders/{variant}` with `expected_edit_plan_updated_at`; a facecam layout with an unchecked crop is refused before the approval | yes |
+| `delete_video` | `DELETE /api/jobs/{id}/renders/{variant}/videos/{name}` | yes |
+| `delete_stream` | `DELETE /api/stream-jobs/{id}` | yes |
 
 Short look and Full Demo HUD:
 
@@ -201,8 +213,9 @@ survives.
 `studio_status` reports whether capture is enabled, so Claude says so before it starts a Short
 instead of failing halfway.
 
-Later, behind the same approval rule: deletes, stream jobs, the editor, Faceit and Steam account
-changes, `open_studio`, resources and prompts.
+Not covered yet (see the parity rule in AGENTS.md): the editor, collections, the stratbook,
+scouting reports, library series, FACEIT follows, Steam import and account, storage, practice
+launch, community ranking, `open_studio`, resources and prompts.
 
 ## Spike results (2026-11-01)
 

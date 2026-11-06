@@ -44,6 +44,7 @@ type statusOut struct {
 	Running        bool   `json:"running"`
 	CaptureEnabled bool   `json:"capture_enabled" jsonschema:"false means Steam, CS2 or HLAE is missing, so generate_short will fail"`
 	RenderEnabled  bool   `json:"render_enabled"`
+	StreamLinks    bool   `json:"stream_links" jsonschema:"false means import_stream cannot download Twitch, Kick or YouTube links (yt-dlp is missing); a local .mp4 still works"`
 	DefaultPreset  string `json:"default_preset"`
 }
 
@@ -196,6 +197,9 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerTeamReportTools(server, s)
 	registerTeamGrenadesTool(server, s)
 	registerPlayerReportTools(server, s)
+	registerStreamTools(server, s)
+	registerIntegrityTools(server, s)
+	registerDeleteTools(server, s)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "studio_status", Annotations: readOnly,
 		Description: "Check that ClipHub Studio is open and whether it can capture (needs Steam, CS2 and HLAE)."},
@@ -212,7 +216,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, statusOut{}, toolError(err)
 			}
-			return nil, statusOut{Running: true, CaptureEnabled: caps.Record.Enabled, RenderEnabled: caps.Render.Enabled, DefaultPreset: presets.Default}, nil
+			return nil, statusOut{Running: true, CaptureEnabled: caps.Record.Enabled, RenderEnabled: caps.Render.Enabled, StreamLinks: caps.Stream.YtdlpEnabled, DefaultPreset: presets.Default}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
@@ -760,12 +764,18 @@ func teamName(t tuiclient.LibraryMatchTeam) string {
 }
 
 // checkDemoPath accepts only a regular .dem or .dem.zst file on a local drive.
-// A UNC path would make Windows authenticate to whatever host the model names.
 func checkDemoPath(path string) error {
 	lower := strings.ToLower(path)
 	if !strings.HasSuffix(lower, ".dem") && !strings.HasSuffix(lower, ".dem.zst") {
 		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
 	}
+	return checkLocalFile(path, "demo", maxDemoBytes)
+}
+
+// checkLocalFile accepts only an absolute regular file on a local drive, of at
+// most maxBytes (0 means no cap). A UNC path would make Windows authenticate to
+// whatever host the model names.
+func checkLocalFile(path, what string, maxBytes int64) error {
 	if strings.HasPrefix(path, `\\`) || strings.HasPrefix(path, "//") {
 		return errors.New("network (UNC) paths are not accepted; use a file on a local drive")
 	}
@@ -773,11 +783,11 @@ func checkDemoPath(path string) error {
 		return errors.New(`path must start with a local drive letter, such as C:\`)
 	}
 	if !filepath.IsAbs(path) {
-		return errors.New("path must be an absolute path to a .dem or .dem.zst file")
+		return fmt.Errorf("path must be an absolute path to the %s file", what)
 	}
 	// A link on C: could still point at a network share; other reparse points (OneDrive) are fine.
 	if link, err := os.Lstat(path); err == nil && link.Mode()&os.ModeSymlink != 0 {
-		return errors.New("links are not accepted; use the demo file itself")
+		return fmt.Errorf("links are not accepted; use the %s file itself", what)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -786,8 +796,8 @@ func checkDemoPath(path string) error {
 	if !info.Mode().IsRegular() {
 		return errors.New("path is not a regular file")
 	}
-	if info.Size() > maxDemoBytes {
-		return fmt.Errorf("the demo is %d MiB; Studio accepts at most %d MiB", info.Size()>>20, maxDemoBytes>>20)
+	if maxBytes > 0 && info.Size() > maxBytes {
+		return fmt.Errorf("the %s is %d MiB; Studio accepts at most %d MiB", what, info.Size()>>20, maxBytes>>20)
 	}
 	return nil
 }

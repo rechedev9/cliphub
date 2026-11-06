@@ -2,6 +2,7 @@ package tuiclient
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 )
@@ -43,19 +44,6 @@ func (c *Client) CreateStreamJobUpload(ctx context.Context, videoPath, title str
 	return out, err
 }
 
-// CreateStreamJobFromURL creates a stream-clip job that downloads its source
-// from a URL (requires yt-dlp on the orchestrator host). The job starts in
-// "acquiring".
-func (c *Client) CreateStreamJobFromURL(ctx context.Context, sourceURL, title string) (StreamCreateResponse, error) {
-	body := map[string]string{"source_url": sourceURL}
-	if title != "" {
-		body["title"] = title
-	}
-	var out StreamCreateResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs", body, &out)
-	return out, err
-}
-
 // GetStreamEditPlan returns the job's edit plan (or the default plan when none
 // has been saved yet).
 func (c *Client) GetStreamEditPlan(ctx context.Context, id string) (StreamEditPlan, error) {
@@ -90,4 +78,122 @@ func (c *Client) GetStreamRender(ctx context.Context, id, variant string) (Strea
 	var state StreamRenderState
 	err := c.getJSON(ctx, "/api/stream-jobs/"+id+"/renders/"+variant, &state)
 	return state, err
+}
+
+// CreateStreamJobFromURL creates a stream-clip job that downloads its source
+// from a URL (requires yt-dlp on the orchestrator host). The job starts in
+// "acquiring". kind is "vod" or "clip"; empty lets Studio infer it from the URL.
+func (c *Client) CreateStreamJobFromURL(ctx context.Context, sourceURL, title, kind string) (StreamCreateResponse, error) {
+	body := map[string]string{"source_url": sourceURL}
+	if title != "" {
+		body["title"] = title
+	}
+	if kind != "" {
+		body["source_kind"] = kind
+	}
+	var out StreamCreateResponse
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs", body, &out)
+	return out, err
+}
+
+// StreamPlay is one run of the streamer's kills found in the kill feed (internal/vodplays.Play).
+type StreamPlay struct {
+	ID           string    `json:"id"`
+	Label        string    `json:"label"`
+	StartSeconds float64   `json:"start_seconds"`
+	EndSeconds   float64   `json:"end_seconds"`
+	KillSeconds  []float64 `json:"kill_seconds"`
+	Score        int       `json:"score"`
+}
+
+// StreamPlayScan mirrors GET /api/stream-jobs/{id}/plays.
+type StreamPlayScan struct {
+	Status   string       `json:"status"`
+	Progress float64      `json:"progress"`
+	Plays    []StreamPlay `json:"plays"`
+	Error    string       `json:"error,omitempty"`
+}
+
+// StreamSummary mirrors GET /api/stream-jobs/{id}/summary: the 16:9 video of every play.
+type StreamSummary struct {
+	Status          string  `json:"status"`
+	Progress        float64 `json:"progress"`
+	PlayCount       int     `json:"play_count,omitempty"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	Error           string  `json:"error,omitempty"`
+	RenderedAt      string  `json:"rendered_at,omitempty"`
+}
+
+// StreamVariant is one stream layout from GET /api/stream-variants.
+type StreamVariant struct {
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Default     bool   `json:"default"`
+	FullFrame   bool   `json:"full_frame"`
+	OutputWidth int    `json:"output_width"`
+	// GameOutputHeight plus FaceOutputHeight is the output height.
+	GameOutputHeight int `json:"game_output_height"`
+	FaceOutputHeight int `json:"face_output_height,omitempty"`
+}
+
+// GetStreamPlays reads the kill-feed scan of a stream job.
+func (c *Client) GetStreamPlays(ctx context.Context, id string) (StreamPlayScan, error) {
+	var out StreamPlayScan
+	err := c.getJSON(ctx, "/api/stream-jobs/"+id+"/plays", &out)
+	return out, err
+}
+
+// StartStreamPlayScan starts the kill-feed scan; a running scan is left alone.
+func (c *Client) StartStreamPlayScan(ctx context.Context, id string) (StreamPlayScan, error) {
+	var out StreamPlayScan
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/plays", nil, &out)
+	return out, err
+}
+
+// GetStreamSummary reads the state of the 16:9 summary of a stream job.
+func (c *Client) GetStreamSummary(ctx context.Context, id string) (StreamSummary, error) {
+	var out StreamSummary
+	err := c.getJSON(ctx, "/api/stream-jobs/"+id+"/summary", &out)
+	return out, err
+}
+
+// StartStreamSummary renders every found play into one 16:9 video.
+func (c *Client) StartStreamSummary(ctx context.Context, id string) (StreamSummary, error) {
+	var out StreamSummary
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/summary", nil, &out)
+	return out, err
+}
+
+// ListStreamVariants returns the stream layouts the render accepts.
+func (c *Client) ListStreamVariants(ctx context.Context) ([]StreamVariant, error) {
+	var out struct {
+		Variants []StreamVariant `json:"variants"`
+	}
+	err := c.getJSON(ctx, "/api/stream-variants", &out)
+	return out.Variants, err
+}
+
+// GetStreamEditPlanDocument returns the edit plan as raw fields, so a caller
+// that changes some of them saves the rest (banners, music, effects) unchanged.
+func (c *Client) GetStreamEditPlanDocument(ctx context.Context, id string) (map[string]json.RawMessage, error) {
+	var out map[string]json.RawMessage
+	err := c.getJSON(ctx, "/api/stream-jobs/"+id+"/edit-plan", &out)
+	return out, err
+}
+
+// PutStreamEditPlanDocument saves a raw edit plan and returns the saved one.
+func (c *Client) PutStreamEditPlanDocument(ctx context.Context, id string, plan map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+	var out map[string]json.RawMessage
+	err := c.doJSON(ctx, http.MethodPut, "/api/stream-jobs/"+id+"/edit-plan", plan, &out)
+	return out, err
+}
+
+// StartStreamRenderOfPlan renders variant only if the edit plan is still the
+// one saved at planUpdatedAt (RFC 3339), so a later edit cannot slip in.
+func (c *Client) StartStreamRenderOfPlan(ctx context.Context, id, variant, planUpdatedAt string) (EnqueueResponse, error) {
+	var out EnqueueResponse
+	body := map[string]string{"expected_edit_plan_updated_at": planUpdatedAt}
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/renders/"+variant, body, &out)
+	return out, err
 }
