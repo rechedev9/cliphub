@@ -13,16 +13,16 @@ import (
 )
 
 const libraryPlayColumns = `SELECT p.id, p.title, p.team_id, COALESCE(t.name, ''), p.map, p.side, p.kind, p.site, p.origin,
-	p.positions_seconds, p.grenades, p.positions, p.examples, p.notes, p.created_at, p.updated_at
+	p.positions_seconds, p.grenades, p.positions, p.examples, p.notes, p.status, p.tags, p.created_at, p.updated_at
 	FROM library_plays p LEFT JOIN library_teams t ON t.id = p.team_id`
 
 func scanLibraryPlay(row sqlScanner) (library.Play, error) {
 	var p library.Play
-	var id, grenades, positions, examples string
+	var id, grenades, positions, examples, tags string
 	var teamID sql.NullString
 	var created, updated int64
 	if err := row.Scan(&id, &p.Title, &teamID, &p.TeamName, &p.Map, &p.Side, &p.Kind, &p.Site, &p.Origin,
-		&p.PositionsSeconds, &grenades, &positions, &examples, &p.Notes, &created, &updated); err != nil {
+		&p.PositionsSeconds, &grenades, &positions, &examples, &p.Notes, &p.Status, &tags, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Play{}, library.ErrNotFound
 		}
@@ -38,7 +38,7 @@ func scanLibraryPlay(row sqlScanner) (library.Play, error) {
 	for _, field := range []struct {
 		raw string
 		dst any
-	}{{grenades, &p.Grenades}, {positions, &p.Positions}, {examples, &p.Examples}} {
+	}{{grenades, &p.Grenades}, {positions, &p.Positions}, {examples, &p.Examples}, {tags, &p.Tags}} {
 		if err := json.Unmarshal([]byte(field.raw), field.dst); err != nil {
 			return library.Play{}, fmt.Errorf("decode play %s: %w", id, err)
 		}
@@ -49,7 +49,7 @@ func scanLibraryPlay(row sqlScanner) (library.Play, error) {
 
 // encodedPlay is a play's JSON columns.
 type encodedPlay struct {
-	grenades, positions, examples string
+	grenades, positions, examples, tags string
 }
 
 func encodePlay(p library.Play) (encodedPlay, error) {
@@ -58,7 +58,7 @@ func encodePlay(p library.Play) (encodedPlay, error) {
 	for _, field := range []struct {
 		src any
 		dst *string
-	}{{p.Grenades, &out.grenades}, {p.Positions, &out.positions}, {p.Examples, &out.examples}} {
+	}{{p.Grenades, &out.grenades}, {p.Positions, &out.positions}, {p.Examples, &out.examples}, {p.Tags, &out.tags}} {
 		raw, err := json.Marshal(field.src)
 		if err != nil {
 			return encodedPlay{}, fmt.Errorf("encode play: %w", err)
@@ -91,10 +91,10 @@ func (r *SQLiteLibraryRepository) CreatePlay(ctx context.Context, p *library.Pla
 			return library.ErrConflict
 		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO library_plays (id, title, team_id, map, side, kind, site, origin,
-			positions_seconds, grenades, positions, examples, notes, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			positions_seconds, grenades, positions, examples, notes, status, tags, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			p.ID.String(), p.Title, nullableUUID(p.TeamID), p.Map, p.Side, p.Kind, p.Site, p.Origin,
-			p.PositionsSeconds, enc.grenades, enc.positions, enc.examples, p.Notes, now, now)
+			p.PositionsSeconds, enc.grenades, enc.positions, enc.examples, p.Notes, playStatus(p.Status), enc.tags, now, now)
 		return err
 	})
 	if err != nil {
@@ -119,11 +119,21 @@ func (r *SQLiteLibraryRepository) ListPlays(ctx context.Context, filter library.
 		query += ` AND p.team_id = ?`
 		args = append(args, filter.TeamID.String())
 	}
-	for _, f := range []struct{ column, value string }{{"p.map", filter.Map}, {"p.side", filter.Side}, {"p.kind", filter.Kind}} {
+	for _, f := range []struct{ column, value string }{
+		{"p.map", filter.Map}, {"p.side", filter.Side}, {"p.kind", filter.Kind}, {"p.status", filter.Status},
+	} {
 		if f.value != "" {
 			query += ` AND ` + f.column + ` = ?`
 			args = append(args, f.value)
 		}
+	}
+	if filter.ExcludeArchived {
+		query += ` AND p.status <> ?`
+		args = append(args, library.StatusArchived)
+	}
+	if filter.Tag != "" {
+		query += ` AND EXISTS (SELECT 1 FROM json_each(p.tags) WHERE lower(json_each.value) = lower(?))`
+		args = append(args, filter.Tag)
 	}
 	query += ` ORDER BY p.updated_at DESC, p.id ASC LIMIT ? OFFSET ?`
 	args = append(args, clampPlayLimit(filter.Limit), max(filter.Offset, 0))
@@ -160,8 +170,8 @@ func (r *SQLiteLibraryRepository) UpdatePlay(ctx context.Context, id uuid.UUID, 
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE library_plays SET title = ?, team_id = ?, kind = ?, site = ?, notes = ?,
-			grenades = ?, positions = ?, examples = ?, updated_at = ? WHERE id = ?`,
-			next.Title, nullableUUID(next.TeamID), next.Kind, next.Site, next.Notes,
+			status = ?, tags = ?, grenades = ?, positions = ?, examples = ?, updated_at = ? WHERE id = ?`,
+			next.Title, nullableUUID(next.TeamID), next.Kind, next.Site, next.Notes, playStatus(next.Status), enc.tags,
 			enc.grenades, enc.positions, enc.examples, millis(libraryNow()), id.String())
 		return err
 	})

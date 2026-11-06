@@ -46,22 +46,30 @@ type Play struct {
 	Positions        []PlayPosition `json:"positions"`
 	Notes            string         `json:"notes"`
 	Examples         []Evidence     `json:"examples"`
+	Status           string         `json:"status,omitempty"`
+	Tags             []string       `json:"tags,omitempty"`
 	UpdatedAt        time.Time      `json:"updated_at,omitzero"`
 	MissingMatchIDs  []string       `json:"missing_match_ids,omitempty"`
 }
 
 // PlayQuery filters the stratbook; zero fields are unset.
 type PlayQuery struct {
-	TeamID string
-	Map    string
-	Side   string
-	Kind   string
-	Limit  int
-	Offset int
+	TeamID          string
+	Map             string
+	Side            string
+	Kind            string
+	Status          string
+	Tag             string
+	IncludeArchived bool
+	Limit           int
+	Offset          int
 }
 
 func (q PlayQuery) encode() string {
-	params := map[string]string{"team_id": q.TeamID, "map": q.Map, "side": q.Side, "kind": q.Kind}
+	params := map[string]string{"team_id": q.TeamID, "map": q.Map, "side": q.Side, "kind": q.Kind, "status": q.Status, "tag": q.Tag}
+	if q.IncludeArchived {
+		params["include_archived"] = "true"
+	}
 	if q.Limit > 0 {
 		params["limit"] = strconv.Itoa(q.Limit)
 	}
@@ -103,17 +111,24 @@ type PlayPatch struct {
 	Kind      *string
 	Site      *string
 	Notes     *string
+	Status    *string
+	Tags      *[]string
 	TeamID    *string
 	ClearTeam bool
 }
 
-// UpdatePlay edits a play's title, kind, site, notes or team.
+// UpdatePlay edits a play's title, kind, site, notes, status, tags or team.
 func (c *Client) UpdatePlay(ctx context.Context, id string, patch PlayPatch) (Play, error) {
 	body := map[string]any{}
-	for k, v := range map[string]*string{"title": patch.Title, "kind": patch.Kind, "site": patch.Site, "notes": patch.Notes, "team_id": patch.TeamID} {
+	for k, v := range map[string]*string{
+		"title": patch.Title, "kind": patch.Kind, "site": patch.Site, "notes": patch.Notes, "status": patch.Status, "team_id": patch.TeamID,
+	} {
 		if v != nil {
 			body[k] = *v
 		}
+	}
+	if patch.Tags != nil {
+		body["tags"] = *patch.Tags
 	}
 	if patch.ClearTeam {
 		body["team_id"] = nil

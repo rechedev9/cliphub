@@ -15,7 +15,7 @@ import {
   type LibraryMatch,
   type LibraryTeam,
 } from '@/lib/api/library';
-import { TEAMS_HREF, matchHref, teamHref, teamStratbookHref } from '@/lib/clips/routes';
+import { TEAMS_HREF, matchHref, teamHref, teamLibretaHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -258,7 +258,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
               Fusionar
             </Button>
             <Button asChild variant="ghost" size="xs">
-              <Link href={teamStratbookHref(team.id, true)}>
+              <Link href={teamLibretaHref(team.id, true)}>
                 <BookMarked aria-hidden />
                 Jugadas repetidas
               </Link>

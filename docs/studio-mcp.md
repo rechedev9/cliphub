@@ -194,7 +194,7 @@ Read:
 | `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
 | `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
 | `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
-| `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, example refs and missing matches |
+| `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `status`, `tag`, `include_archived` (archived plays are left out by default, as in the Jugadas tab), `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, status, tags, example refs and missing matches |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
 | `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
@@ -268,9 +268,10 @@ Write:
 | `delete_report` | `GET` then `DELETE /api/library/reports/{id}` | yes |
 | `save_round_as_play` | `GET /api/library/matches/{id}/tactical/rounds/{round}/play?team_key=` (the draft), then `POST /api/library/plays` with the title and notes | no |
 | `save_detected_play` | `GET /api/library/teams/{id}/plays` again with the same filter, the group whose seed matches `play_ref`, then `POST /api/library/plays` (origin `detected`, positions second from the thresholds) | no |
-| `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null) | no |
+| `create_play` | `POST /api/library/plays` with origin `manual` (title, map, side, kind, site, team, notes, status, tags), as Nueva jugada does | no |
+| `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null, `status`, `tags` as the whole set) | no |
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
-| `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
+| `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`, `include_archived`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
 | `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
 | `delete_library_series` | `GET` then `DELETE /api/library/series/{id}`; its matches stay | yes |

@@ -9,20 +9,16 @@ import {
   getLibraryPlay,
   isLibraryNotFound,
   listLibraryMatches,
-  listLibraryTeams,
   patchLibraryPlay,
   type LibraryMatch,
-  type LibraryTeam,
 } from '@/lib/api/library';
 import { STRATBOOK_FORMAT, STRATBOOK_VERSION, type LibraryPlay, type LibraryPlayDetail } from '@/lib/api/stratbook';
-import { TACTICAL_SITE_ORDER, type TacticalSite } from '@/lib/api/tactical';
-import { STRATBOOK_HREF, teamHref } from '@/lib/clips/routes';
+import { LIBRETA_HREF, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { rivalOf, teamLabel } from '@/lib/library/partidas';
 import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-video';
 import { dateText, evidencePath } from '@/lib/reports/scout-sections';
-import { PLAY_ORIGIN_LABEL, playKindLabel, playKinds, playSecondsLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
-import { siteLabel } from '@/lib/tactical-labels';
+import { PLAY_ORIGIN_LABEL, playSecondsLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -37,15 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EditPlayDialog } from '@/components/libreta/edit-play-dialog';
+import { StatusBadge } from '@/components/libreta/status-badge';
 import { PlayRadar } from './play-radar';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
 
 type LoadState = { kind: 'loading' } | { kind: 'ready'; play: LibraryPlayDetail } | { kind: 'missing' } | { kind: 'offline' };
-
-const NO_TEAM = '__none__';
 
 /** One saved play: what it is, its grenades and positions on the radar, and the rounds it comes from. */
 export function PlayRecord({ playId }: { playId: string }): ReactNode {
@@ -85,7 +79,7 @@ export function PlayRecord({ playId }: { playId: string }): ReactNode {
         description="Puede que se haya eliminado o que el enlace sea antiguo."
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link href={STRATBOOK_HREF}>Ver el stratbook</Link>
+            <Link href={LIBRETA_HREF}>Ver la Libreta</Link>
           </Button>
         }
       />
@@ -149,13 +143,14 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
     const stored: LibraryPlay = {
       id: play.id, title: play.title, team_id: play.team_id, team_name: play.team_name, map: play.map, side: play.side,
       kind: play.kind, site: play.site, origin: play.origin, positions_seconds: play.positions_seconds, grenades: play.grenades,
-      positions: play.positions, notes: play.notes, examples: play.examples, created_at: play.created_at, updated_at: play.updated_at,
+      positions: play.positions, notes: play.notes, examples: play.examples, status: play.status, tags: play.tags,
+      created_at: play.created_at, updated_at: play.updated_at,
     };
     downloadJson(
       { format: STRATBOOK_FORMAT, version: STRATBOOK_VERSION, exported_at: new Date().toISOString(), plays: [stored] },
       stratbookFileName(new Date(), play.title),
     );
-    setMessage('Jugada exportada como fichero de stratbook.');
+    setMessage('Jugada exportada como fichero de la Libreta.');
   }
 
   async function removeExample(index: number): Promise<void> {
@@ -191,6 +186,8 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
           { label: 'Tipo', value: playShapeLabel(play) },
           { label: 'Granadas', value: play.grenades.length },
           { label: 'Rondas de ejemplo', value: play.examples.length },
+          { label: 'Estado', value: <StatusBadge status={play.status} /> },
+          { label: 'Etiquetas', value: play.tags.length > 0 ? play.tags.join(', ') : 'Ninguna' },
           { label: 'Origen', value: PLAY_ORIGIN_LABEL[play.origin] },
           { label: 'Actualizada', value: formatShortDate(play.updated_at) },
         ]}
@@ -219,9 +216,9 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
               Eliminar
             </Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href={STRATBOOK_HREF}>
+              <Link href={LIBRETA_HREF}>
                 <ArrowLeft aria-hidden />
-                Todo el stratbook
+                Toda la Libreta
               </Link>
             </Button>
           </>
@@ -296,7 +293,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Eliminar {play.title}</DialogTitle>
-            <DialogDescription>Se borra la jugada del stratbook. Las partidas y sus rondas siguen en la biblioteca.</DialogDescription>
+            <DialogDescription>Se borra la jugada de la Libreta. Las partidas y sus rondas siguen en la biblioteca.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleting(false)}>
@@ -307,7 +304,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
               variant="destructive"
               onClick={() => {
                 deleteLibraryPlay(play.id)
-                  .then(() => router.push(STRATBOOK_HREF))
+                  .then(() => router.push(LIBRETA_HREF))
                   .catch(() => {
                     setDeleting(false);
                     setMessage('No se pudo eliminar la jugada.');
@@ -410,123 +407,5 @@ function ExampleList({
         );
       })}
     </ul>
-  );
-}
-
-function EditPlayDialog({ play, onClose, onSaved }: { play: LibraryPlayDetail; onClose: () => void; onSaved: () => void }): ReactNode {
-  const [title, setTitle] = useState(play.title);
-  const [kind, setKind] = useState(play.kind);
-  const [site, setSite] = useState<TacticalSite>(play.site);
-  const [teamId, setTeamId] = useState(play.team_id ?? NO_TEAM);
-  const [teams, setTeams] = useState<LibraryTeam[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    listLibraryTeams()
-      .then((list) => {
-        if (active) setTeams(list.sort((a, b) => a.name.localeCompare(b.name, 'es')));
-      })
-      .catch(() => {
-        if (active) setTeams([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await patchLibraryPlay(play.id, { title: title.trim(), kind, site, team_id: teamId === NO_TEAM ? null : teamId });
-      onSaved();
-      onClose();
-    } catch {
-      setError('No se pudo guardar la jugada.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const isSite = (value: string): value is TacticalSite => TACTICAL_SITE_ORDER.some((entry) => entry === value);
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!busy}>
-        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Editar la jugada</DialogTitle>
-            <DialogDescription>El mapa y el lado son los de las rondas de las que sale, así que no cambian.</DialogDescription>
-          </DialogHeader>
-          <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-            Título
-            <Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-              Tipo
-              <Select value={kind} onValueChange={setKind}>
-                <SelectTrigger aria-label="Tipo" className="h-9 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {playKinds(play.side).map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {playKindLabel(value)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-              Sitio
-              <Select value={site} onValueChange={(value) => isSite(value) && setSite(value)}>
-                <SelectTrigger aria-label="Sitio" className="h-9 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TACTICAL_SITE_ORDER.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {siteLabel(value)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-          </div>
-          <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-            Equipo
-            <Select value={teamId} onValueChange={setTeamId}>
-              <SelectTrigger aria-label="Equipo" className="h-9 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_TEAM}>Sin equipo</SelectItem>
-                {teams.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-                {play.team_id && !teams.some((team) => team.id === play.team_id) ? (
-                  <SelectItem value={play.team_id}>{play.team_name ?? 'Equipo actual'}</SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </label>
-          {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={busy || title.trim() === ''}>
-              Guardar
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

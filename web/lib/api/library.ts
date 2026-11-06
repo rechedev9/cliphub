@@ -568,7 +568,14 @@ export function deleteAnnotation(annotationId: string): Promise<void> {
   return request<void>(`/annotations/${id(annotationId)}`, { method: 'DELETE' });
 }
 
-export type PlayListQuery = { team_id?: string; map?: string; side?: ReportSide; kind?: string };
+export type PlayListQuery = {
+  team_id?: string;
+  map?: string;
+  side?: ReportSide;
+  kind?: string;
+  /** Archived plays are left out unless this is true. */
+  include_archived?: boolean;
+};
 
 function playListParams(query: PlayListQuery): URLSearchParams {
   const params = new URLSearchParams();
@@ -576,6 +583,7 @@ function playListParams(query: PlayListQuery): URLSearchParams {
   if (query.map) params.set('map', query.map);
   if (query.side) params.set('side', query.side);
   if (query.kind) params.set('kind', query.kind);
+  if (query.include_archived) params.set('include_archived', 'true');
   return params;
 }
 

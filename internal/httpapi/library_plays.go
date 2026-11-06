@@ -29,7 +29,7 @@ import (
 // team ids mean nothing on another PC; the play ids make a reimport idempotent.
 const (
 	stratbookFormat       = "cliphub-stratbook"
-	stratbookVersion      = 1
+	stratbookVersion      = 2
 	maxStratbookFileBytes = 8 << 20
 )
 
@@ -114,6 +114,19 @@ func playFilterQuery(q url.Values) (library.PlayFilter, error) {
 		!library.ValidPlayKind(string(tacticalplan.SideCT), f.Kind) {
 		return f, errors.New("kind must be a round pattern")
 	}
+	if f.Status = q.Get("status"); f.Status != "" && !library.ValidStatus(f.Status) {
+		return f, errors.New("status must be active, practice, draft, review or archived")
+	}
+	if f.Tag = library.CleanName(q.Get("tag")); len([]rune(f.Tag)) > library.MaxTagRunes {
+		return f, fmt.Errorf("tag must be at most %d characters", library.MaxTagRunes)
+	}
+	switch q.Get("include_archived") {
+	case "", "false":
+		f.ExcludeArchived = f.Status == ""
+	case "true":
+	default:
+		return f, errors.New("include_archived must be true or false")
+	}
 	if raw := q.Get("limit"); raw != "" {
 		f.Limit, err = strconv.Atoi(raw)
 		if err != nil || f.Limit < 1 || f.Limit > library.MaxPlayList {
@@ -144,6 +157,8 @@ type libraryPlayRequest struct {
 	Positions        *[]tacticalplan.PlayPosition `json:"positions"`
 	Notes            *string                      `json:"notes"`
 	Examples         *[]tacticalplan.Evidence     `json:"examples"`
+	Status           *string                      `json:"status"`
+	Tags             *[]string                    `json:"tags"`
 }
 
 // teamField reads team_id: set is false when absent, id is nil for null.
@@ -176,6 +191,10 @@ func (req libraryPlayRequest) apply(p library.Play) library.Play {
 	set(&p.Site, req.Site)
 	set(&p.Origin, req.Origin)
 	set(&p.Notes, req.Notes)
+	set(&p.Status, req.Status)
+	if req.Tags != nil {
+		p.Tags = *req.Tags
+	}
 	if req.PositionsSeconds != nil {
 		p.PositionsSeconds = *req.PositionsSeconds
 	}
@@ -359,6 +378,12 @@ func (h *Handlers) PatchLibraryPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Notes != nil {
 		patch.Notes = &next.Notes
+	}
+	if req.Status != nil {
+		patch.Status = &next.Status
+	}
+	if req.Tags != nil {
+		patch.Tags = &next.Tags
 	}
 	if req.Grenades != nil {
 		patch.Grenades = &next.Grenades
@@ -671,9 +696,9 @@ func (h *Handlers) ImportLibraryPlays(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusBadRequest, codeStratbookFormat, "the file is not a ClipHub stratbook")
 		return
 	}
-	if file.Format != stratbookFormat || file.Version != stratbookVersion {
+	if file.Format != stratbookFormat || file.Version < 1 || file.Version > stratbookVersion {
 		writeCodedError(w, http.StatusBadRequest, codeStratbookFormat,
-			fmt.Sprintf("expected format %q version %d", stratbookFormat, stratbookVersion))
+			fmt.Sprintf("expected format %q version 1 to %d", stratbookFormat, stratbookVersion))
 		return
 	}
 	if len(file.Plays) > library.MaxPlayList {
@@ -701,6 +726,7 @@ func (h *Handlers) importPlay(ctx context.Context, in library.Play) (library.Pla
 		ID: in.ID, Title: in.Title, Map: in.Map, Side: in.Side, Kind: in.Kind, Site: in.Site,
 		Origin: library.PlayOriginImport, PositionsSeconds: in.PositionsSeconds,
 		Grenades: in.Grenades, Positions: in.Positions, Notes: in.Notes, Examples: in.Examples,
+		Status: in.Status, Tags: in.Tags,
 	})
 	if err != nil {
 		return library.Play{}, err

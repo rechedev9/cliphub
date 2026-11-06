@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"testing/fstest"
@@ -156,9 +157,27 @@ func TestLibraryPlaysLifecycleExportAndImport(t *testing.T) {
 	}
 	env.json(http.MethodPatch, "/api/library/plays/"+play.ID.String(), map[string]any{"team_id": vitality}, http.StatusOK, &patched)
 
+	env.json(http.MethodPatch, "/api/library/plays/"+play.ID.String(),
+		map[string]any{"status": "archived", "tags": []string{" Ventana ", "ventana", "eco"}}, http.StatusOK, &patched)
+	if patched.Status != library.StatusArchived || len(patched.Tags) != 2 || patched.Tags[0] != "eco" || patched.Tags[1] != "Ventana" {
+		t.Fatalf("patched status and tags = %+v", patched)
+	}
+	var listed struct {
+		Plays []library.Play `json:"plays"`
+	}
+	for query, want := range map[string]int{"": 0, "?include_archived=true": 1, "?status=archived": 1, "?tag=VENTANA&include_archived=true": 1} {
+		env.json(http.MethodGet, "/api/library/plays"+query, nil, http.StatusOK, &listed)
+		if len(listed.Plays) != want {
+			t.Fatalf("GET plays%s = %d plays, want %d", query, len(listed.Plays), want)
+		}
+	}
+	if rw := env.do(http.MethodPatch, "/api/library/plays/"+play.ID.String(), []byte(`{"status":"lost"}`), "application/json"); rw.Code != http.StatusBadRequest {
+		t.Fatalf("PATCH unknown status = %d, want 400", rw.Code)
+	}
+
 	var file stratbookFile
-	env.json(http.MethodGet, "/api/library/plays/export", nil, http.StatusOK, &file)
-	if file.Format != stratbookFormat || file.Version != 1 || len(file.Plays) != 1 || file.Plays[0].TeamName != "Vitality" {
+	env.json(http.MethodGet, "/api/library/plays/export?include_archived=true", nil, http.StatusOK, &file)
+	if file.Format != stratbookFormat || file.Version != stratbookVersion || len(file.Plays) != 1 || file.Plays[0].TeamName != "Vitality" {
 		t.Fatalf("export = %+v", file)
 	}
 
@@ -182,8 +201,9 @@ func TestLibraryPlaysLifecycleExportAndImport(t *testing.T) {
 	if imported.Imported != 2 || imported.Duplicates != 0 || len(imported.Rejected) != 1 || imported.Rejected[0].Index != 2 {
 		t.Fatalf("import = %+v, want two plays in and the CT execute rejected", imported)
 	}
-	if imported.Plays[1].TeamName != "Team Falcons" || imported.Plays[1].Origin != library.PlayOriginImport {
-		t.Fatalf("imported play = %+v, want its team created by name", imported.Plays[1])
+	if imported.Plays[1].TeamName != "Team Falcons" || imported.Plays[1].Origin != library.PlayOriginImport ||
+		imported.Plays[1].Status != library.StatusArchived || len(imported.Plays[1].Tags) != 2 {
+		t.Fatalf("imported play = %+v, want its team created by name and its status and tags kept", imported.Plays[1])
 	}
 	var got playResponse
 	env.json(http.MethodGet, "/api/library/plays/"+other.ID.String(), nil, http.StatusOK, &got)
@@ -192,6 +212,16 @@ func TestLibraryPlaysLifecycleExportAndImport(t *testing.T) {
 	}
 	if rw := env.do(http.MethodPost, "/api/library/plays/import", []byte(`{"format":"other","version":1,"plays":[]}`), "application/json"); rw.Code != http.StatusBadRequest {
 		t.Fatalf("import of another format = %d, want 400", rw.Code)
+	}
+	for _, version := range []int{1, stratbookVersion} {
+		body := fmt.Sprintf(`{"format":%q,"version":%d,"plays":[]}`, stratbookFormat, version)
+		if rw := env.do(http.MethodPost, "/api/library/plays/import", []byte(body), "application/json"); rw.Code != http.StatusOK {
+			t.Fatalf("import of version %d = %d, want 200", version, rw.Code)
+		}
+	}
+	newer := fmt.Sprintf(`{"format":%q,"version":%d,"plays":[]}`, stratbookFormat, stratbookVersion+1)
+	if rw := env.do(http.MethodPost, "/api/library/plays/import", []byte(newer), "application/json"); rw.Code != http.StatusBadRequest {
+		t.Fatalf("import of a newer version = %d, want 400", rw.Code)
 	}
 }
 

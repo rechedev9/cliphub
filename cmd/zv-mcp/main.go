@@ -60,9 +60,10 @@ Fix the library's teams: update_team renames or replaces the aliases (start from
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
-update_report, delete_report. Stratbook: list_plays, get_play, save_round_as_play (a round ref and
-the team's side key), detect_team_plays then save_detected_play with a play's ref, update_play,
-delete_play, export_plays and import_plays (stratbook .json files on this PC).
+update_report, delete_report. Libreta (the team's playbook; its Jugadas tab was the Stratbook): list_plays
+(archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
+round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
+update_play (also status and tags), delete_play, export_plays and import_plays (.json files on this PC).
 Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. team_maps reads a team's map record
 and simulate_veto recommends a veto against a rival.

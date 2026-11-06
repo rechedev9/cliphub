@@ -24,8 +24,13 @@ func TestCleanPlayNormalizesAndFillsLists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Site != "none" || p.Grenades == nil || p.Positions == nil || p.Examples == nil {
-		t.Fatalf("clean play = %+v, want site none and empty lists", p)
+	if p.Site != "none" || p.Grenades == nil || p.Positions == nil || p.Examples == nil || p.Status != StatusActive || p.Tags == nil {
+		t.Fatalf("clean play = %+v, want site none, active and empty lists", p)
+	}
+	manual := Play{Title: "Mía", Map: "de_nuke", Side: "CT", Kind: "hold", Origin: PlayOriginManual,
+		Status: StatusReview, Tags: []string{" fast ", "Fast", "eco"}}
+	if p, err = CleanPlay(manual); err != nil || p.Status != StatusReview || len(p.Tags) != 2 || p.Tags[0] != "eco" {
+		t.Fatalf("manual play = %+v, %v; want review and the tags deduped", p, err)
 	}
 	p, err = CleanPlay(validPlay())
 	if err != nil {
@@ -45,6 +50,7 @@ func TestCleanPlayRejectsOutOfVocabularyFields(t *testing.T) {
 		"CT kind on T":     func(p *Play) { p.Kind = "retake" },
 		"bad site":         func(p *Play) { p.Site = "C" },
 		"bad origin":       func(p *Play) { p.Origin = "" },
+		"bad status":       func(p *Play) { p.Status = "lost" },
 		"decoy":            func(p *Play) { p.Grenades[0].Kind = tacticalplan.EventDecoy },
 		"NaN grenade":      func(p *Play) { p.Grenades[0].Pos[0] = math.NaN() },
 		"share over one":   func(p *Play) { p.Grenades[0].Share = 2 },

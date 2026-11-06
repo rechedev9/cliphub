@@ -1,3 +1,4 @@
+import type { LibretaStatus } from './libreta.ts';
 import type { ScoutEvidence, ScoutSkipReason } from './scout.ts';
 import type { TacticalBuyType, TacticalEventKind, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
 
@@ -10,7 +11,7 @@ import type { TacticalBuyType, TacticalEventKind, TacticalRate, TacticalSide, Ta
 export const PLAY_GRENADES = ['smoke', 'flash', 'molotov', 'he'] as const;
 export type PlayGrenadeKind = (typeof PLAY_GRENADES)[number];
 
-export type PlayOrigin = 'round' | 'detected' | 'import';
+export type PlayOrigin = 'round' | 'detected' | 'import' | 'manual';
 
 /** One grenade of a play: when it landed after freeze end and where (world units). */
 export type PlayGrenade = {
@@ -50,6 +51,8 @@ export type LibraryPlay = {
   positions: PlayPosition[];
   notes: string;
   examples: ScoutEvidence[];
+  status: LibretaStatus;
+  tags: string[];
   created_at: string;
   updated_at: string;
 };
@@ -58,9 +61,12 @@ export type LibraryPlay = {
 export type LibraryPlayDetail = LibraryPlay & { missing_match_ids: string[] };
 
 /** What a new play sends; the server fills the id, the team name and the dates. */
-export type PlayInput = Omit<LibraryPlay, 'id' | 'team_name' | 'created_at' | 'updated_at'>;
+export type PlayInput = Omit<LibraryPlay, 'id' | 'team_name' | 'created_at' | 'updated_at' | 'status' | 'tags'> &
+  Partial<Pick<LibraryPlay, 'status' | 'tags'>>;
 
-export type PlayPatch = Partial<Pick<LibraryPlay, 'title' | 'team_id' | 'kind' | 'site' | 'notes' | 'grenades' | 'positions' | 'examples'>>;
+export type PlayPatch = Partial<
+  Pick<LibraryPlay, 'title' | 'team_id' | 'kind' | 'site' | 'notes' | 'grenades' | 'positions' | 'examples' | 'status' | 'tags'>
+>;
 
 export type PlayThresholds = {
   position_seconds: number;
@@ -136,11 +142,12 @@ export type RoundLineups = {
 
 /** The exported stratbook (`stratbookFile` in the orchestrator). */
 export const STRATBOOK_FORMAT = 'cliphub-stratbook';
-export const STRATBOOK_VERSION = 1;
+/** The version Studio writes; it still reads every older one. */
+export const STRATBOOK_VERSION = 2;
 
 export type StratbookFile = {
   format: typeof STRATBOOK_FORMAT;
-  version: typeof STRATBOOK_VERSION;
+  version: number;
   exported_at: string;
   plays: LibraryPlay[];
 };
@@ -158,15 +165,18 @@ export type StratbookImport = {
 /** Response keys the library proxy lets through, per route. */
 export const PLAY_KEYS = [
   'id', 'title', 'team_id', 'team_name', 'map', 'side', 'kind', 'site', 'origin', 'positions_seconds',
-  'grenades', 'positions', 'notes', 'examples', 'created_at', 'updated_at',
+  'grenades', 'positions', 'notes', 'examples', 'status', 'tags', 'created_at', 'updated_at',
 ] as const;
 export const PLAY_DETAIL_KEYS = [...PLAY_KEYS, 'missing_match_ids'] as const;
 /** Fields a new play may send. */
 export const PLAY_CREATE_FIELDS = [
   'title', 'team_id', 'map', 'side', 'kind', 'site', 'origin', 'positions_seconds', 'grenades', 'positions', 'notes', 'examples',
+  'status', 'tags',
 ] as const;
 /** Map, side and origin are what a play is: a patch cannot change them. */
-export const PLAY_PATCH_FIELDS = ['title', 'team_id', 'kind', 'site', 'notes', 'grenades', 'positions', 'examples'] as const;
+export const PLAY_PATCH_FIELDS = [
+  'title', 'team_id', 'kind', 'site', 'notes', 'grenades', 'positions', 'examples', 'status', 'tags',
+] as const;
 export const PLAY_DETECTION_KEYS = [
   'team_id', 'team_name', 'skipped', 'thresholds', 'matches', 'rounds', 'compared', 'plays',
 ] as const;
@@ -175,4 +185,4 @@ export const ROUND_LINEUPS_KEYS = [
 ] as const;
 export const STRATBOOK_FILE_KEYS = ['format', 'version', 'exported_at', 'plays'] as const;
 export const STRATBOOK_IMPORT_KEYS = ['imported', 'duplicates', 'rejected', 'plays'] as const;
-export const PLAY_LIST_QUERY = ['team_id', 'map', 'side', 'kind'] as const;
+export const PLAY_LIST_QUERY = ['team_id', 'map', 'side', 'kind', 'status', 'tag', 'include_archived'] as const;

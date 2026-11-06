@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
-  BookMarked,
+  NotebookPen,
   Clapperboard,
   FileText,
   Film,
@@ -50,7 +50,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind }
   '/equipos': { icon: Shield },
   '/jugadores': { icon: Users, trailing: 'faceit' },
   '/ranking': { icon: Trophy },
-  '/stratbook': { icon: BookMarked },
+  '/libreta': { icon: NotebookPen },
   '/informes': { icon: FileText },
   '/integridad': { icon: ShieldCheck },
   '/almacenamiento': { icon: HardDrive },

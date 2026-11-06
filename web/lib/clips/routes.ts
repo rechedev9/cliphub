@@ -11,7 +11,7 @@ export const MATCHES_HREF = '/partidas' as const;
 export const TEAMS_HREF = '/equipos' as const;
 export const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
-export const STRATBOOK_HREF = '/stratbook' as const;
+export const LIBRETA_HREF = '/libreta' as const;
 export const RANKING_HREF = '/ranking' as const;
 /** The FACEIT follow list, under Jugadores beside the library players. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
@@ -108,19 +108,36 @@ export function reportHref(reportId: string): string {
   return `${REPORTS_HREF}/${encodeURIComponent(reportId)}`;
 }
 
-/** A saved stratbook play. */
+/** A saved play of the Libreta. */
 export function playHref(playId: string): string {
-  return `${STRATBOOK_HREF}/${encodeURIComponent(playId)}`;
+  return `${LIBRETA_HREF}/${encodeURIComponent(playId)}`;
 }
 
-/** Query keys that open the stratbook on one team's plays, or on the detection tab. */
-export const STRATBOOK_QUERY = { team: 'equipo', tab: 'tab' } as const;
-export const STRATBOOK_DETECT_TAB = 'detectar';
+/** The Libreta's tabs, by their `?tab=` value. */
+export const LIBRETA_TABS = {
+  plays: 'jugadas',
+  detect: 'detectar',
+  table: 'tabla',
+  lineups: 'lineups',
+  roles: 'roles',
+  calls: 'llamadas',
+  callouts: 'callouts',
+} as const;
+export type LibretaTab = (typeof LIBRETA_TABS)[keyof typeof LIBRETA_TABS];
 
-export function teamStratbookHref(teamId: string, detect = false): string {
-  const params = new URLSearchParams({ [STRATBOOK_QUERY.team]: teamId });
-  if (detect) params.set(STRATBOOK_QUERY.tab, STRATBOOK_DETECT_TAB);
-  return `${STRATBOOK_HREF}?${params.toString()}`;
+/** Query keys that open the Libreta on one tab, team or map. */
+export const LIBRETA_QUERY = { team: 'equipo', tab: 'tab', map: 'mapa' } as const;
+export const LIBRETA_DETECT_TAB = LIBRETA_TABS.detect;
+
+export function libretaTabHref(tab: LibretaTab, params: Readonly<Record<string, string>> = {}): string {
+  const search = new URLSearchParams({ [LIBRETA_QUERY.tab]: tab, ...params });
+  return `${LIBRETA_HREF}?${search.toString()}`;
+}
+
+export function teamLibretaHref(teamId: string, detect = false): string {
+  const params = new URLSearchParams({ [LIBRETA_QUERY.team]: teamId });
+  if (detect) params.set(LIBRETA_QUERY.tab, LIBRETA_DETECT_TAB);
+  return `${LIBRETA_HREF}?${params.toString()}`;
 }
 
 /** Query keys that open Informes with the new-report dialog on one team. */

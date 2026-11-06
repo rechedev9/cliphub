@@ -14,7 +14,7 @@ import (
 // Tag limits keep a demo's labels short enough for a list cell.
 const (
 	maxTags     = 32
-	maxTagRunes = 40
+	MaxTagRunes = 40
 )
 
 // NormalizeName is the key a team name or alias is matched by: case folded,
@@ -41,8 +41,8 @@ func NormalizeTags(tags []string) []string {
 	out := make([]string, 0, len(tags))
 	for _, raw := range tags {
 		tag := CleanName(raw)
-		if runes := []rune(tag); len(runes) > maxTagRunes {
-			tag = strings.TrimSpace(string(runes[:maxTagRunes]))
+		if runes := []rune(tag); len(runes) > MaxTagRunes {
+			tag = strings.TrimSpace(string(runes[:MaxTagRunes]))
 		}
 		key := strings.ToLower(tag)
 		if tag == "" || seen[key] {

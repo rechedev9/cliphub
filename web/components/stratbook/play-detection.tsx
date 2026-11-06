@@ -218,7 +218,7 @@ function DetectedPlayCard({ play, labels, onSave }: { play: DetectedPlay; labels
         </div>
         <Button type="button" size="sm" onClick={onSave}>
           <BookmarkPlus aria-hidden />
-          Guardar en el stratbook
+          Guardar en la Libreta
         </Button>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -274,7 +274,7 @@ function SaveDetectedDialog({
           <>
             <DialogHeader>
               <DialogTitle>Jugada guardada</DialogTitle>
-              <DialogDescription>{saved.title} ya está en el stratbook con sus {saved.examples.length} rondas de ejemplo.</DialogDescription>
+              <DialogDescription>{saved.title} ya está en la Libreta con sus {saved.examples.length} rondas de ejemplo.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>

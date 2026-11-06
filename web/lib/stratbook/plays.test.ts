@@ -29,6 +29,8 @@ const draft: LibraryPlay = {
   positions: [{ player: 'apEX', steamid64: '1', pos: [4, 5, 6] }],
   notes: '',
   examples: [{ match_id: MATCH, round: 7, tick: 9000 }],
+  status: 'active',
+  tags: [],
   created_at: '',
   updated_at: '',
 };
@@ -75,13 +77,14 @@ test('a stratbook file is recognised by its format and version', () => {
   assert.equal(parsed.file.plays.length, 1);
   assert.equal(parseStratbookFile('nope').ok, false);
   assert.equal(parseStratbookFile(JSON.stringify({ format: 'other', version: 1, plays: [] })).ok, false);
-  const newer = parseStratbookFile(JSON.stringify({ ...file, version: 2 }));
+  assert.ok(parseStratbookFile(JSON.stringify({ ...file, version: 2 })).ok);
+  const newer = parseStratbookFile(JSON.stringify({ ...file, version: 3 }));
   assert.equal(newer.ok, false);
-  assert.match(newer.ok ? '' : newer.error, /versión 2/);
+  assert.match(newer.ok ? '' : newer.error, /versión 3/);
 });
 
 test('the export file name carries the team and the day', () => {
   const day = new Date('2026-10-30T22:00:00.000Z');
-  assert.equal(stratbookFileName(day, 'Team Vitality á'), 'stratbook-team-vitality-a-2026-10-30.json');
-  assert.equal(stratbookFileName(day), 'stratbook-2026-10-30.json');
+  assert.equal(stratbookFileName(day, 'Team Vitality á'), 'libreta-team-vitality-a-2026-10-30.json');
+  assert.equal(stratbookFileName(day), 'libreta-2026-10-30.json');
 });

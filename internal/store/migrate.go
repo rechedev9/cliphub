@@ -35,6 +35,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV9LibraryCollections,
 	migrateV10StreamColumns,
 	migrateV11DropLibraryCollections,
+	migrateV12PlayStatus,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -636,6 +637,20 @@ func migrateV9LibraryCollections(tx *sql.Tx) error {
 func migrateV11DropLibraryCollections(tx *sql.Tx) error {
 	if _, err := tx.Exec(`DROP TABLE IF EXISTS library_collections`); err != nil {
 		return fmt.Errorf("drop library collections: %w", err)
+	}
+	return nil
+}
+
+// migrateV12PlayStatus gives a play the Libreta status and the user's tags,
+// a JSON list like grenades. Existing plays stay active.
+func migrateV12PlayStatus(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`ALTER TABLE library_plays ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`,
+		`ALTER TABLE library_plays ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("add play status: %w", err)
+		}
 	}
 	return nil
 }

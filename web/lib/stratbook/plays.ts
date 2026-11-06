@@ -24,6 +24,7 @@ export const PLAY_ORIGIN_LABEL: Record<PlayOrigin, string> = {
   round: 'Guardada de una ronda',
   detected: 'Detectada como repetida',
   import: 'Importada de un fichero',
+  manual: 'Escrita a mano',
 };
 
 export const GRENADE_LABEL: Record<PlayGrenadeKind, string> = {
@@ -125,22 +126,22 @@ export function parseStratbookFile(text: string): StratbookParse {
   if (format !== STRATBOOK_FORMAT || !Array.isArray(plays)) {
     return { ok: false, error: 'El fichero no es un stratbook de ClipHub.' };
   }
-  if (version !== STRATBOOK_VERSION) {
-    return { ok: false, error: `Este stratbook es de la versión ${String(version)} y Studio lee la ${STRATBOOK_VERSION}.` };
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > STRATBOOK_VERSION) {
+    return { ok: false, error: `Este fichero es de la versión ${String(version)} y Studio lee hasta la ${STRATBOOK_VERSION}. Actualiza Studio.` };
   }
   const exportedAt: unknown = Reflect.get(value, 'exported_at');
   return {
     ok: true,
     file: {
       format: STRATBOOK_FORMAT,
-      version: STRATBOOK_VERSION,
+      version,
       exported_at: typeof exportedAt === 'string' ? exportedAt : new Date(0).toISOString(),
       plays,
     },
   };
 }
 
-/** "stratbook-vitality-2026-10-30.json": the team when the export is one team's, and the day. */
+/** "libreta-vitality-2026-10-30.json": the team when the export is one team's, and the day. */
 export function stratbookFileName(date: Date, teamName?: string): string {
   const slug = (teamName ?? '')
     .normalize('NFD')
@@ -151,5 +152,5 @@ export function stratbookFileName(date: Date, teamName?: string): string {
     .slice(0, 40)
     .replace(/-+$/g, '');
   const day = date.toISOString().slice(0, 10);
-  return slug === '' ? `stratbook-${day}.json` : `stratbook-${slug}-${day}.json`;
+  return slug === '' ? `libreta-${day}.json` : `libreta-${slug}-${day}.json`;
 }

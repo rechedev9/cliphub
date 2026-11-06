@@ -30,6 +30,7 @@ const (
 	PlayOriginRound    = "round"    // saved from one round of the replay
 	PlayOriginDetected = "detected" // saved from a repeated play the detection found
 	PlayOriginImport   = "import"   // read from a stratbook file
+	PlayOriginManual   = "manual"   // written by hand in the Libreta
 )
 
 var playMapPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
@@ -52,18 +53,23 @@ type Play struct {
 	Positions        []tacticalplan.PlayPosition `json:"positions"`
 	Notes            string                      `json:"notes"`
 	Examples         []tacticalplan.Evidence     `json:"examples"`
+	Status           string                      `json:"status"`
+	Tags             []string                    `json:"tags"`
 	CreatedAt        time.Time                   `json:"created_at"`
 	UpdatedAt        time.Time                   `json:"updated_at"`
 }
 
 // PlayFilter selects plays for a list read. Zero fields do not filter.
 type PlayFilter struct {
-	TeamID *uuid.UUID
-	Map    string
-	Side   string
-	Kind   string
-	Limit  int
-	Offset int
+	TeamID          *uuid.UUID
+	Map             string
+	Side            string
+	Kind            string
+	Status          string
+	Tag             string // matched case-insensitively
+	ExcludeArchived bool
+	Limit           int
+	Offset          int
 }
 
 // PlayPatch is a user edit of a play. Nil fields are left unchanged; ClearTeam
@@ -75,6 +81,8 @@ type PlayPatch struct {
 	Kind      *string
 	Site      *string
 	Notes     *string
+	Status    *string
+	Tags      *[]string
 	Grenades  *[]tacticalplan.PlayGrenade
 	Positions *[]tacticalplan.PlayPosition
 	Examples  *[]tacticalplan.Evidence
@@ -149,6 +157,10 @@ func CleanPlay(p Play) (Play, error) {
 	if p.Examples == nil {
 		p.Examples = []tacticalplan.Evidence{}
 	}
+	if p.Status == "" {
+		p.Status = StatusActive
+	}
+	p.Tags = NormalizeTags(p.Tags)
 	switch {
 	case p.Title == "":
 		return p, errors.New("title must not be empty")
@@ -164,8 +176,10 @@ func CleanPlay(p Play) (Play, error) {
 		return p, fmt.Errorf("kind %q is not a %s round pattern", p.Kind, p.Side)
 	case !validPlaySite(p.Site):
 		return p, errors.New("site must be A, B, mid or none")
-	case p.Origin != PlayOriginRound && p.Origin != PlayOriginDetected && p.Origin != PlayOriginImport:
-		return p, errors.New("origin must be round, detected or import")
+	case !validPlayOrigin(p.Origin):
+		return p, errors.New("origin must be round, detected, import or manual")
+	case !ValidStatus(p.Status):
+		return p, errors.New("status must be active, practice, draft, review or archived")
 	case math.IsNaN(p.PositionsSeconds) || p.PositionsSeconds < 0 || p.PositionsSeconds > 300:
 		return p, errors.New("positions_seconds must be from 0 to 300")
 	case len(p.Grenades) > MaxPlayGrenades:
@@ -203,6 +217,15 @@ func CleanPlay(p Play) (Play, error) {
 		}
 	}
 	return p, nil
+}
+
+func validPlayOrigin(origin string) bool {
+	switch origin {
+	case PlayOriginRound, PlayOriginDetected, PlayOriginImport, PlayOriginManual:
+		return true
+	default:
+		return false
+	}
 }
 
 // cleanPlayLabel bounds a short label such as a callout or a nick.

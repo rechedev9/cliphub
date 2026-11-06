@@ -187,3 +187,34 @@ func TestReportTools(t *testing.T) {
 		t.Errorf("approved delete = %+v", del)
 	}
 }
+
+func TestPlaysCarryStatusAndTags(t *testing.T) {
+	cs, rec := stratbookStudio(t)
+	var list listPlaysOut
+	callTool(t, cs, "list_plays", map[string]any{"status": "practice", "tag": " eco ", "include_archived": true}, &list)
+	if got := rec.get("GET /api/library/plays"); !strings.Contains(got, "status=practice") || !strings.Contains(got, "tag=eco") ||
+		!strings.Contains(got, "include_archived=true") {
+		t.Errorf("list query = %s", got)
+	}
+	toolFails(t, cs, "list_plays", map[string]any{"status": "lost"}, "status must be one of")
+
+	var p playDetailOut
+	callTool(t, cs, "update_play", map[string]any{"play_id": testPlayID, "status": "archived", "tags": []string{"lento", "B"}}, &p)
+	if got := rec.get("PATCH /api/library/plays/{id}"); !strings.Contains(got, `"status":"archived"`) || !strings.Contains(got, `"tags":["lento","B"]`) {
+		t.Errorf("patch body = %s", got)
+	}
+	callTool(t, cs, "update_play", map[string]any{"play_id": testPlayID, "tags": []string{}}, &p)
+	if got := rec.get("PATCH /api/library/plays/{id}"); !strings.Contains(got, `"tags":[]`) {
+		t.Errorf("clear tags body = %s", got)
+	}
+	toolFails(t, cs, "update_play", map[string]any{"play_id": testPlayID, "tags": []string{strings.Repeat("x", 41)}}, "at most 40 characters")
+
+	callTool(t, cs, "create_play", map[string]any{"title": " Rush B ", "map": "DE_MIRAGE", "side": "t", "kind": "fast", "tags": []string{"eco"}}, &p)
+	got := rec.get("POST /api/library/plays")
+	for _, want := range []string{`"title":"Rush B"`, `"map":"de_mirage"`, `"side":"T"`, `"site":"none"`, `"origin":"manual"`, `"tags":["eco"]`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("create body = %s, want %s", got, want)
+		}
+	}
+	toolFails(t, cs, "create_play", map[string]any{"title": "x", "map": "de_mirage", "side": "T", "kind": ""}, "map, side and kind are required")
+}
