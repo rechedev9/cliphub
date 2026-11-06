@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
@@ -40,7 +41,7 @@ func (c *Client) GetStreamJob(ctx context.Context, id string) (StreamJob, error)
 func (c *Client) CreateStreamJobUpload(ctx context.Context, videoPath, title string) (StreamCreateResponse, error) {
 	config := configJSON(map[string]string{"title": title})
 	var out StreamCreateResponse
-	err := c.uploadMultipart(ctx, "/api/stream-jobs", "video", videoPath, config, &out)
+	err := c.uploadMultipart(ctx, upload{Path: "/api/stream-jobs", FileField: "video", FilePath: videoPath, Fields: configField(config)}, &out)
 	return out, err
 }
 
@@ -158,10 +159,20 @@ func (c *Client) GetStreamSummary(ctx context.Context, id string) (StreamSummary
 	return out, err
 }
 
-// StartStreamSummary renders every found play into one 16:9 video.
-func (c *Client) StartStreamSummary(ctx context.Context, id string) (StreamSummary, error) {
+// StreamSummaryStart picks the plays of a 16:9 summary; empty PlayIDs means every play.
+type StreamSummaryStart struct {
+	ID      string
+	PlayIDs []string
+}
+
+// StartStreamSummary renders the chosen plays into one 16:9 video.
+func (c *Client) StartStreamSummary(ctx context.Context, in StreamSummaryStart) (StreamSummary, error) {
+	var body any
+	if len(in.PlayIDs) > 0 {
+		body = map[string][]string{"play_ids": in.PlayIDs}
+	}
 	var out StreamSummary
-	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+id+"/summary", nil, &out)
+	err := c.doJSON(ctx, http.MethodPost, "/api/stream-jobs/"+in.ID+"/summary", body, &out)
 	return out, err
 }
 
@@ -182,10 +193,22 @@ func (c *Client) GetStreamEditPlanDocument(ctx context.Context, id string) (map[
 	return out, err
 }
 
+// StreamPlanPut is a raw edit plan to save. A non-empty ExpectedUpdatedAt makes
+// Studio refuse the save (409) when another save landed after that revision.
+type StreamPlanPut struct {
+	ID                string
+	Plan              map[string]json.RawMessage
+	ExpectedUpdatedAt string
+}
+
 // PutStreamEditPlanDocument saves a raw edit plan and returns the saved one.
-func (c *Client) PutStreamEditPlanDocument(ctx context.Context, id string, plan map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+func (c *Client) PutStreamEditPlanDocument(ctx context.Context, in StreamPlanPut) (map[string]json.RawMessage, error) {
+	path := "/api/stream-jobs/" + in.ID + "/edit-plan"
+	if in.ExpectedUpdatedAt != "" {
+		path += "?expected_updated_at=" + url.QueryEscape(in.ExpectedUpdatedAt)
+	}
 	var out map[string]json.RawMessage
-	err := c.doJSON(ctx, http.MethodPut, "/api/stream-jobs/"+id+"/edit-plan", plan, &out)
+	err := c.doJSON(ctx, http.MethodPut, path, in.Plan, &out)
 	return out, err
 }
 
