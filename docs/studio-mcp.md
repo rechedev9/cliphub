@@ -161,7 +161,7 @@ Read:
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
 | `list_videos` | `GET /api/jobs/{id}/renders/{variant}` per preset; MP4 links through the UI origin, since a URL cannot carry the token header |
-| `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, up to 4 alternative copies with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
+| `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, `alternative_titles` (up to 4), the recommended copies (the suggested one and up to 4 alternatives) with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
 | `list_pro_settings` | the `internal/prosettings` catalog (no orchestrator call): id, name, team, resolution and viewmodel FOV for `plan_full_demo` `pro_settings` |
 | `list_teams` | `GET /api/library/teams` |
 | `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
