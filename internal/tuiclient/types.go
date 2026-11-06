@@ -254,11 +254,27 @@ type StreamJob struct {
 	SourcePath    string          `json:"source_path"`
 	SourceSHA256  string          `json:"source_sha256"`
 	SourceURL     string          `json:"source_url,omitempty"`
+	SourceKind    string          `json:"source_kind,omitempty"`
+	FailureCode   string          `json:"failure_code,omitempty"`
 	Title         string          `json:"title,omitempty"`
 	Probe         SourceProbe     `json:"probe"`
 	EditPlan      json.RawMessage `json:"edit_plan,omitempty"`
+	ClipCount     int             `json:"clip_count,omitempty"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
+	// RenderedOutputs lists the published MP4s; the video URLs are relative to the Studio UI.
+	RenderedOutputs []StreamRenderedOutput `json:"rendered_outputs,omitempty"`
+}
+
+// StreamRenderedOutput is one published stream MP4 (httpapi streamRenderedOutput).
+type StreamRenderedOutput struct {
+	Variant         string  `json:"variant"`
+	ClipID          string  `json:"clip_id"`
+	Title           string  `json:"title,omitempty"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	AspectRatio     string  `json:"aspect_ratio"`
+	VideoURL        string  `json:"video_url"`
+	Stale           bool    `json:"stale"`
 }
 
 // Stream job statuses (internal/streamclips/types.go).
