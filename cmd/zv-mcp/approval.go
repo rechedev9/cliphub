@@ -159,3 +159,23 @@ func (a *approver) consume(given, expected string) bool {
 	delete(a.issued, expected)
 	return ok && a.now().Before(expires)
 }
+
+// pendingOut is what a gated tool returns while the user has not approved.
+type pendingOut struct {
+	NeedsApproval bool   `json:"needs_approval,omitempty"`
+	ApprovalCode  string `json:"approval_code,omitempty"`
+	Summary       string `json:"summary,omitempty"`
+}
+
+// gate asks for approval: it returns the question to hand the client, or the
+// pending result for the code path, or neither once the user approved.
+func gate(req *mcp.CallToolRequest, spec approvalSpec) (*mcp.CallToolResult, *pendingOut, error) {
+	ok, err := sessionApprovals.approve(req, spec)
+	if err != nil || ok.Ask != nil {
+		return ok.Ask, nil, err
+	}
+	if !ok.Approved {
+		return nil, &pendingOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: spec.Summary}, nil
+	}
+	return nil, nil, nil
+}
