@@ -89,8 +89,17 @@ func (h *Handlers) framedRequest(w http.ResponseWriter, r *http.Request) (framed
 	return framedQuery{team: team, matchIDs: matchIDs, filter: filter}, true
 }
 
+// playbookCombo reads the with and without tactic keys of a playbook request.
+func playbookCombo(r *http.Request) (tacticalplan.PlaybookCombo, error) {
+	combo := tacticalplan.PlaybookCombo{With: r.URL.Query()["with"], Without: r.URL.Query()["without"]}
+	if err := tacticalplan.CheckTacticKeys("with", combo.With); err != nil {
+		return combo, err
+	}
+	return combo, tacticalplan.CheckTacticKeys("without", combo.Without)
+}
+
 // GetLibraryTeamPlaybook handles GET /api/library/teams/{id}/playbook with the
-// scout filter; map and side are required.
+// scout filter and the tactic combination (with, without); map and side are required.
 func (h *Handlers) GetLibraryTeamPlaybook(w http.ResponseWriter, r *http.Request) {
 	q, ok := h.framedRequest(w, r)
 	if !ok {
@@ -100,13 +109,18 @@ func (h *Handlers) GetLibraryTeamPlaybook(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "side is required")
 		return
 	}
+	combo, err := playbookCombo(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	loaded, skipped, err := h.loadFramedMatches(r.Context(), q)
 	if err != nil {
 		internalError(w, "team playbook", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, playbookResponse{
-		TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Playbook: tacticalplan.BuildPlaybook(loaded, q.filter),
+		TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Playbook: tacticalplan.BuildPlaybook(loaded, tacticalplan.PlaybookOptions{Filter: q.filter, Combo: combo}),
 	})
 }
 

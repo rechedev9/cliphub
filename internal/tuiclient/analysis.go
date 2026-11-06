@@ -36,6 +36,9 @@ type AnalysisQuery struct {
 	Limit     int
 	Opponents []string
 	Matches   []string
+	// With and Without are the playbook's tactic combination.
+	With    []string
+	Without []string
 }
 
 // encode builds the "?k=v" suffix of the query.
@@ -65,6 +68,12 @@ func (q AnalysisQuery) values() url.Values {
 	}
 	for _, id := range q.Matches {
 		values.Add("match_id", id)
+	}
+	for _, key := range q.With {
+		values.Add("with", key)
+	}
+	for _, key := range q.Without {
+		values.Add("without", key)
 	}
 	return values
 }

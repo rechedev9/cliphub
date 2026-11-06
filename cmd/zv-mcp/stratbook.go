@@ -54,7 +54,7 @@ type playSummaryOut struct {
 	Side     string `json:"side"`
 	Kind     string `json:"kind"`
 	Site     string `json:"site"`
-	Origin   string `json:"origin" jsonschema:"round, detected or import"`
+	Origin   string `json:"origin" jsonschema:"round, detected, import or playbook"`
 	Grenades int    `json:"grenades"`
 	Examples int    `json:"examples" jsonschema:"rounds the play was read from"`
 }
