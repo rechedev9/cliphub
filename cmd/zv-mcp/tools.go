@@ -85,6 +85,7 @@ type playerOut struct {
 
 type matchOut struct {
 	matchSummary
+	Sides   []sideOut   `json:"sides" jsonschema:"each side's key, clan name and library team; assign_match_team corrects one"`
 	Players []playerOut `json:"players"`
 }
 
@@ -196,6 +197,8 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerSeriesTools(server, s)
 	registerFindMomentsTool(server, s)
 	registerAnalysisTools(server, s)
+	registerTeamTools(server, s)
+	registerPlayerTools(server, s)
 	registerRoundTools(server, s)
 	registerTeamReportTools(server, s)
 	registerTeamGrenadesTool(server, s)
@@ -266,7 +269,7 @@ func registerTools(server *mcp.Server, s *studio) {
 			for _, t := range m.Teams {
 				teams[t.Key] = cleanName(teamName(t))
 			}
-			out := matchOut{matchSummary: summarizeMatch(m), Players: make([]playerOut, 0, len(m.Players))}
+			out := matchOut{matchSummary: summarizeMatch(m), Sides: sidesOf(m), Players: make([]playerOut, 0, len(m.Players))}
 			for _, p := range m.Players {
 				out.Players = append(out.Players, playerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: teams[p.TeamKey],
 					Kills: p.Kills, Deaths: p.Deaths, Assists: p.Assists, Damage: p.Damage})
@@ -832,6 +835,21 @@ func cleanName(s string) string {
 		n++
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// quotedName puts an untrusted name in «» for approval text, without the quote
+// characters that could close the quote early; empty falls back.
+func quotedName(raw, fallback string) string {
+	name := strings.Map(func(r rune) rune {
+		if strings.ContainsRune("«»‹›\"'`“”„‘’‚", r) {
+			return -1
+		}
+		return r
+	}, raw)
+	if name = cleanName(name); name != "" {
+		return "«" + name + "»"
+	}
+	return fallback
 }
 
 func cleanNames(names []string) []string {

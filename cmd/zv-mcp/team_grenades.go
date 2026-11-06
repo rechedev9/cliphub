@@ -27,6 +27,7 @@ type teamGrenadesIn struct {
 	Kind   []string `json:"kind,omitempty" jsonschema:"only these kinds: smoke, flash, he, molotov or decoy; empty means all"`
 	Limit  int      `json:"limit,omitempty" jsonschema:"how many grenade rows to list, newest match first; default 30, at most 100"`
 	analysisFilterIn
+	teamScopeIn
 }
 
 type throwerOut struct {
@@ -69,7 +70,7 @@ type teamGrenadesOut struct {
 func registerTeamGrenadesTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "team_grenades", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the grenades a team threw: per kind how many, on which side, when and by whom, then compact rows with " +
-			"the round ref and the world positions they were thrown from and went off at. Filter by kind, map, side and dates."},
+			"the round ref and the world positions they were thrown from and went off at. Filter by kind, map, side, dates, rivals (opponent_id) and matches (match_id)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamGrenadesIn) (*mcp.CallToolResult, teamGrenadesOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, teamGrenadesOut{}, err
@@ -85,7 +86,7 @@ func registerTeamGrenadesTool(server *mcp.Server, s *studio) {
 			if in.Limit < 0 || in.Limit > maxGrenadeRows {
 				return nil, teamGrenadesOut{}, fmt.Errorf("limit must be from 1 to %d", maxGrenadeRows)
 			}
-			q, err := in.query()
+			q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
 			if err != nil {
 				return nil, teamGrenadesOut{}, err
 			}

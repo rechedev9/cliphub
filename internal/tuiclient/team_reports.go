@@ -74,7 +74,7 @@ type BombsiteReport struct {
 func (c *Client) TeamBombsites(ctx context.Context, teamID string, q AnalysisQuery) (BombsiteReport, error) {
 	q.Limit = 0
 	var out BombsiteReport
-	err := c.getJSON(ctx, teamPath(teamID, "bombsites")+query(q.params()), &out)
+	err := c.getJSON(ctx, teamPath(teamID, "bombsites")+q.encode(), &out)
 	return out, err
 }
 
@@ -107,7 +107,7 @@ type TeamPlaybook struct {
 func (c *Client) TeamPlaybookReport(ctx context.Context, teamID string, q AnalysisQuery) (TeamPlaybook, error) {
 	q.Limit = 0
 	var out TeamPlaybook
-	err := c.getJSON(ctx, teamPath(teamID, "playbook")+query(q.params()), &out)
+	err := c.getJSON(ctx, teamPath(teamID, "playbook")+q.encode(), &out)
 	return out, err
 }
 
@@ -156,7 +156,7 @@ type TeamPrep struct {
 func (c *Client) TeamPrepReport(ctx context.Context, teamID string, q AnalysisQuery) (TeamPrep, error) {
 	q.Limit, q.Side = 0, ""
 	var out TeamPrep
-	err := c.getJSON(ctx, teamPath(teamID, "prep")+query(q.params()), &out)
+	err := c.getJSON(ctx, teamPath(teamID, "prep")+q.encode(), &out)
 	return out, err
 }
 
@@ -184,20 +184,12 @@ type TeamGrenades struct {
 
 // TeamGrenadeList returns the team's grenades of the given kinds, all when none.
 func (c *Client) TeamGrenadeList(ctx context.Context, teamID string, q AnalysisQuery, kinds []string) (TeamGrenades, error) {
-	values := url.Values{}
 	q.Limit = 0
-	for k, v := range q.params() {
-		if v != "" {
-			values.Set(k, v)
-		}
-	}
+	values := q.values()
 	for _, kind := range kinds {
 		values.Add("kind", kind)
 	}
-	path := teamPath(teamID, "grenades")
-	if len(values) > 0 {
-		path += "?" + values.Encode()
-	}
+	path := teamPath(teamID, "grenades") + encodeValues(values)
 	var out TeamGrenades
 	err := c.getJSON(ctx, path, &out)
 	return out, err
@@ -236,7 +228,7 @@ type PlayerPositions struct {
 func (c *Client) PlayerPositionsReport(ctx context.Context, steamID string, q AnalysisQuery) (PlayerPositions, error) {
 	q.Limit, q.Side = 0, ""
 	var out PlayerPositions
-	err := c.getJSON(ctx, "/api/library/players/"+url.PathEscape(steamID)+"/positions"+query(q.params()), &out)
+	err := c.getJSON(ctx, "/api/library/players/"+url.PathEscape(steamID)+"/positions"+q.encode(), &out)
 	return out, err
 }
 

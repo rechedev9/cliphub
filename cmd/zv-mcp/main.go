@@ -44,10 +44,15 @@ generate_short and render_full_demo return a variant: pass it to wait_for_job to
 In hosts with MCP Apps, import_demo, wait_for_demo, wait_for_job, generate_short, render_full_demo
 and the stream renders show the user a live progress bar that updates on its own; keep calling the
 wait tools to learn when the job ends, without repeating each percent in chat.
-Analysis (read only): list_teams for team ids, scout_team for a team's tendencies, player_metrics for a
-player's numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
-For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
+get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
+numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
+For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
+these and scout_team take opponent_id and match_id to narrow the matches.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
+Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
+assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
+a duplicate team into another.
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
@@ -55,8 +60,8 @@ makes one 16:9 video of every play; render_stream makes one video per play in a 
 list_stream_variants (9:16 Shorts or 16:9). Both return a variant for wait_for_stream_render, which
 reports the percent and, for render_stream, the video being encoded (video 2 of 3); then
 list_stream_videos. list_streams shows the streams already in Studio.
-generate_short, render_full_demo, render_stream, render_stream_summary, delete_video and delete_stream
-need the user's approval.
+generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream and
+merge_teams need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
 version, support code and studio.log path the report needs.
