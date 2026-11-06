@@ -2,6 +2,7 @@ package tuiclient
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"path"
 	"strings"
@@ -12,6 +13,10 @@ import (
 type RenderVideos struct {
 	RenderVariantState
 	Videos []string `json:"videos"`
+	// SegmentIDs, Edit and Music are the effective choices of the last render, present once it wrote its edit document.
+	SegmentIDs []string        `json:"segment_ids,omitempty"`
+	Edit       json.RawMessage `json:"edit,omitempty"`
+	Music      *ShortMusic     `json:"music,omitempty"`
 }
 
 // GetRenderVideos returns one render variant with its video names, or a 404
@@ -54,12 +59,46 @@ type PublishAssistant struct {
 		Tags        []string `json:"tags"`
 	} `json:"metadata"`
 	Recommendations []PublishRecommendation `json:"recommendations"`
+	Keywords        []string                `json:"keywords"`
+	Schedule        PublishSchedule         `json:"schedule"`
+	Trends          PublishTrends           `json:"trends"`
 }
 
-// PublishRecommendation is one alternative title template.
+// PublishRecommendation is one alternative copy built from a title template.
 type PublishRecommendation struct {
-	Template string `json:"template,omitempty"`
-	Title    string `json:"title"`
+	Template    string   `json:"template,omitempty"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+	Score       float64  `json:"score"`
+	Rationale   string   `json:"rationale"`
+}
+
+// PublishSchedule suggests when to publish, per day, in the user's time zone.
+type PublishSchedule struct {
+	TimeZone string               `json:"time_zone"`
+	Days     []PublishScheduleDay `json:"days"`
+	Caveat   string               `json:"caveat"`
+}
+
+type PublishScheduleDay struct {
+	Date    string                `json:"date"`
+	Weekday string                `json:"weekday"`
+	Slots   []PublishScheduleSlot `json:"slots"`
+}
+
+type PublishScheduleSlot struct {
+	LocalTime  string  `json:"local_time"`
+	Confidence float64 `json:"confidence"`
+	Score      float64 `json:"score"`
+	Rationale  string  `json:"rationale"`
+}
+
+// PublishTrends are the YouTube search terms trending for CS2, when Studio could fetch them.
+type PublishTrends struct {
+	Available bool     `json:"available"`
+	Terms     []string `json:"terms"`
+	Reason    string   `json:"reason,omitempty"`
 }
 
 // GetPublishAssistant returns the suggested title, description and tags of a

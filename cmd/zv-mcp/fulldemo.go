@@ -56,6 +56,7 @@ type planFullDemoIn struct {
 	BetweenRoundEffects *bool  `json:"between_round_effects,omitempty" jsonschema:"dynamic transition effects between rounds; default on"`
 	TrueView            *bool  `json:"true_view,omitempty" jsonschema:"original 1:1 POV (CS2 TrueView) instead of the standard view; default off"`
 	Rounds              []int  `json:"rounds,omitempty" jsonschema:"only these round numbers; empty means every round"`
+	fullDemoExtrasIn
 }
 
 type fullDemoPlanOut struct {
@@ -73,6 +74,9 @@ type fullDemoPlanOut struct {
 	GameLevel           int      `json:"game_level_percent"`
 	BetweenRoundEffects bool     `json:"between_round_effects"`
 	TrueView            bool     `json:"true_view"`
+	ProSettings         string   `json:"pro_settings,omitempty" jsonschema:"the pro whose resolution and viewmodel the capture uses; empty is the user's own 1920x1080"`
+	HUDPortrait         bool     `json:"hud_portrait,omitempty"`
+	Bumpers             []string `json:"bumpers,omitempty" jsonschema:"the added clips: intro, sponsor, outro"`
 	Warnings            []string `json:"warnings,omitempty"`
 	Blockers            []string `json:"blockers,omitempty" jsonschema:"why the video cannot be rendered yet"`
 }
@@ -136,7 +140,20 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, fullDemoPlanOut{}, toolError(err)
 			}
-			options, err := applyFullDemoChoices(state.Defaults, in)
+			if err := checkFullDemoExtras(in, state.Defaults); err != nil {
+				return nil, fullDemoPlanOut{}, err
+			}
+			options := state.Defaults
+			if in.fullDemoExtrasIn != (fullDemoExtrasIn{}) {
+				uploader, err := s.uploadClient(ctx)
+				if err != nil {
+					return nil, fullDemoPlanOut{}, toolError(err)
+				}
+				if err := applyFullDemoExtras(ctx, uploader, &options, in); err != nil {
+					return nil, fullDemoPlanOut{}, err
+				}
+			}
+			options, err = applyFullDemoChoices(options, in)
 			if err != nil {
 				return nil, fullDemoPlanOut{}, err
 			}
@@ -274,11 +291,13 @@ func applyFullDemoChoices(options recapplan.Options, in planFullDemoIn) (recappl
 		return recapplan.Options{}, err
 	}
 	if in.BetweenRoundEffects != nil {
-		if options.Transitions == nil {
-			dynamic := recapplan.DynamicTransitions()
-			options.Transitions = &dynamic
+		// A copy, so the dry run in checkFullDemoExtras never writes through the defaults' pointer.
+		transitions := recapplan.DynamicTransitions()
+		if options.Transitions != nil {
+			transitions = *options.Transitions
 		}
-		options.Transitions.Enabled = *in.BetweenRoundEffects
+		transitions.Enabled = *in.BetweenRoundEffects
+		options.Transitions = &transitions
 	}
 	if in.TrueView != nil {
 		options.Capture.TrueView = *in.TrueView
@@ -364,6 +383,7 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 		VoiceLevel: percent(o.Audio.Voice.Gain), GameLevel: percent(o.Audio.Game.Gain), BetweenRoundEffects: effects,
 		TrueView: o.Capture.TrueView, Warnings: noticeMessages(doc.Warnings), Blockers: noticeMessages(doc.Blockers),
 	}
+	out.ProSettings, out.HUDPortrait, out.Bumpers = describeExtras(o)
 	voices := "sin voces del equipo"
 	if out.TeamVoices {
 		voices = fmt.Sprintf("voces del equipo al %d%%", out.VoiceLevel)
@@ -374,6 +394,15 @@ func describeFullDemoPlan(jobID string, doc recapplan.Document) fullDemoPlanOut 
 	}
 	out.Summary = fmt.Sprintf("Demo completa: %s, unos %d min, HUD %s, datos de la partida de %s, %s, sonido del juego al %d%%, %s.",
 		plural(out.Rounds, "ronda", "rondas"), (seconds+30)/60, hudName, sourceLabel(source), voices, out.GameLevel, effectsText)
+	if out.ProSettings != "" {
+		out.Summary += fmt.Sprintf(" Graba con la configuración de %s.", out.ProSettings)
+	}
+	if out.HUDPortrait {
+		out.Summary += " Con tu retrato en el HUD."
+	}
+	if len(out.Bumpers) > 0 {
+		out.Summary += fmt.Sprintf(" Clips añadidos: %s.", strings.Join(out.Bumpers, ", "))
+	}
 	return out
 }
 
