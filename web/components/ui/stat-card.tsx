@@ -38,7 +38,8 @@ function signed(format: (value: number) => string): (delta: number) => string {
     let sign = '';
     if (delta > 0) sign = '+';
     else if (delta < 0) sign = '-';
-    return `${sign}${format(Math.abs(delta))}`;
+    // Formats like `pp` already sign their output; keep one sign only.
+    return `${sign}${format(Math.abs(delta)).replace(/^[+-]/, '')}`;
   };
 }
 
