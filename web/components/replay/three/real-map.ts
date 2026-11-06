@@ -20,8 +20,9 @@ import {
   Vector4,
   WebGLRenderTarget,
 } from 'three';
-import type { WebGLRenderer } from 'three';
+import type { Camera, Object3D, WebGLRenderer } from 'three';
 import type { MapScene, SceneChunk, SceneMaterial } from '@/lib/api/map-scene';
+import { AutoExposure } from './auto-exposure';
 import { Cs2Post, cs2Exposure } from './cs2-post';
 import { blankTexture } from './map-shader';
 import type { MapUniforms } from './map-shader';
@@ -85,6 +86,9 @@ export class RealMap {
   #look: RealMapLook = DEFAULT_LOOK;
   readonly #ambient: Vector3;
   readonly #exposure: number;
+  readonly #auto: AutoExposure;
+  /** 1 while the auto exposure meters the frame: every surface writes its unexposed luminance. */
+  readonly #meter = { value: 0 };
   readonly #post: Cs2Post;
   readonly #fogLift = { value: 0 };
   readonly #sunScale = { value: SUN_SCALE };
@@ -95,6 +99,7 @@ export class RealMap {
     const sky = scene.sun?.sky ?? [0.55, 0.62, 0.75];
     this.#ambient = new Vector3(...(scene.lightmap?.average ?? [sky[0] * 0.55, sky[1] * 0.55, sky[2] * 0.55]));
     this.#exposure = cs2Exposure(scene, [this.#ambient.x, this.#ambient.y, this.#ambient.z]);
+    this.#auto = new AutoExposure({ renderer, post: scene.post, start: this.#exposure });
     this.#post = new Cs2Post(scene.post);
     const lightmapTextures = new Set([scene.lightmap?.irradiance, scene.lightmap?.shadows, scene.lightmap?.directional]);
     this.#textures = scene.textures.map((texture, index) => toTexture(texture, renderer, !lightmapTextures.has(index)));
@@ -122,7 +127,7 @@ export class RealMap {
     this.#bakeSunShadow(renderer);
     this.#ground = groundUnder(scene, this.#ambient.clone().multiplyScalar(GROUND_ALBEDO * this.#exposure));
     this.group.add(this.#ground);
-    this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms });
+    this.#sky = RealSky.build({ scene, renderer, post: this.#post.uniforms, meter: this.#meter });
     this.#sky?.setExposure(this.#look.exposure * this.#exposure);
     if (this.#sky !== null) this.group.add(this.#sky.mesh);
   }
@@ -162,7 +167,18 @@ export class RealMap {
   setLook(look: RealMapLook): void {
     this.#look = look;
     for (const material of this.#materials.values()) this.#applyLook(material);
-    this.#sky?.setExposure(look.exposure * this.#exposure);
+    this.#sky?.setExposure(look.exposure * this.#auto.value);
+  }
+
+  /**
+   * Meters the frame `camera` sees and eases the exposure towards CS2's, as its
+   * auto exposure does; true while it is still adapting, so the caller draws again.
+   */
+  adaptExposure(options: { renderer: WebGLRenderer; scene: Object3D; camera: Camera; now: number }): boolean {
+    const moving = this.#auto.step({ ...options, meter: this.#meter });
+    for (const material of this.#materials.values()) material.uniforms.uExposure.value = this.#look.exposure * this.#auto.value;
+    this.#sky?.setExposure(this.#look.exposure * this.#auto.value);
+    return moving;
   }
 
   dispose(): void {
@@ -176,12 +192,13 @@ export class RealMap {
     this.#ground.material.dispose();
     this.#shared.sunDepth?.dispose();
     this.#post.dispose();
+    this.#auto.dispose();
   }
 
   #applyLook(material: ShaderMaterial): void {
     const fog = this.#scene.fog;
     const u = material.uniforms;
-    u.uExposure.value = this.#look.exposure * this.#exposure;
+    u.uExposure.value = this.#look.exposure * this.#auto.value;
     u.uIrradianceScale.value = this.#look.irradiance;
     u.uFog.value.set(fog?.start ?? 0, fog?.end ?? 1, (fog?.max ?? 0) * this.#look.fogStrength);
   }
@@ -192,6 +209,7 @@ export class RealMap {
     const blendMod = material.blend < 0 ? null : (this.#textures[material.blend] ?? null);
     const layered = color2 !== null && chunk.blend !== null;
     const lightmapped = chunk.uv2 !== null && this.#shared.irradiance !== null;
+    const blended = material.translucent || material.overlay;
     // Foliage keeps wind weights in its vertex colour, not a tint.
     const tinted = chunk.color !== null && !material.shader.includes('foliage');
     const key = `${material.name}|${lightmapped}|${tinted}|${layered}`;
@@ -244,16 +262,18 @@ export class RealMap {
         uFogColor: { value: new Vector3(...fogColor(sky)) },
         uFog: { value: new Vector3() },
         uOpacity: { value: 1 },
+        uMeter: this.#meter,
+        uUseAlpha: { value: blended ? 1 : 0 },
         ...this.#post.uniforms,
       },
       side: material.doubleSided || !lightmapped ? DoubleSide : FrontSide,
-      transparent: material.translucent || material.overlay,
-      depthWrite: !(material.translucent || material.overlay),
-      polygonOffset: material.overlay,
-      polygonOffsetFactor: material.overlay ? -2 : 0,
-      polygonOffsetUnits: material.overlay ? -2 : 0,
+      transparent: blended,
+      depthWrite: !blended,
+      // Translucent world meshes are mostly decals laid flush on a wall or floor; the offset keeps them over it.
+      polygonOffset: blended,
+      polygonOffsetFactor: blended ? -2 : 0,
+      polygonOffsetUnits: blended ? -2 : 0,
     });
-    if (material.translucent) shader.uniforms.uOpacity.value = 0.55;
     this.#applyLook(shader);
     this.#materials.set(key, shader);
     return shader;
