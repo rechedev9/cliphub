@@ -31,15 +31,34 @@ export function loadNavGeometry(map: string): Promise<MapGeometry | null> {
 }
 
 /** The last map's render scene only: one weighs up to 200 MB, so switching maps drops the previous one. */
-let sceneCache: { map: string; pending: Promise<MapScene> } | null = null;
+let sceneCache: { map: string; pending: Promise<MapScene>; share: number; listeners: Set<(share: number) => void> } | null = null;
 
+/** Every caller hears the read's progress, including one that joins a read already under way. */
 export function loadMapScene(map: string, onProgress?: (share: number) => void): Promise<MapScene> {
-  if (sceneCache?.map === map) return sceneCache.pending;
-  const pending = getMapScene(map, onProgress);
-  const entry = { map, pending };
+  if (sceneCache?.map === map) {
+    if (onProgress !== undefined) {
+      sceneCache.listeners.add(onProgress);
+      onProgress(sceneCache.share);
+    }
+    return sceneCache.pending;
+  }
+  const listeners = new Set<(share: number) => void>(onProgress === undefined ? [] : [onProgress]);
+  const entry = {
+    map,
+    share: 0,
+    listeners,
+    pending: getMapScene(map, (share) => {
+      entry.share = share;
+      for (const listener of listeners) listener(share);
+    }),
+  };
   sceneCache = entry;
-  pending.catch(() => {
-    if (sceneCache === entry) sceneCache = null;
-  });
-  return pending;
+  entry.pending.then(
+    () => listeners.clear(),
+    () => {
+      listeners.clear();
+      if (sceneCache === entry) sceneCache = null;
+    },
+  );
+  return entry.pending;
 }
