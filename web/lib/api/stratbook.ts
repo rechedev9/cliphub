@@ -1,4 +1,5 @@
 import type { LibretaStatus } from './libreta.ts';
+import type { RoleSlot } from './roles.ts';
 import type { ScoutEvidence, ScoutSkipReason } from './scout.ts';
 import type { TacticalBuyType, TacticalEventKind, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
 
@@ -53,6 +54,8 @@ export type LibraryPlay = {
   examples: ScoutEvidence[];
   status: LibretaStatus;
   tags: string[];
+  /** Who does what in the play, at most `MAX_ROLE_SLOTS`. */
+  roles: RoleSlot[];
   created_at: string;
   updated_at: string;
 };
@@ -61,11 +64,11 @@ export type LibraryPlay = {
 export type LibraryPlayDetail = LibraryPlay & { missing_match_ids: string[] };
 
 /** What a new play sends; the server fills the id, the team name and the dates. */
-export type PlayInput = Omit<LibraryPlay, 'id' | 'team_name' | 'created_at' | 'updated_at' | 'status' | 'tags'> &
-  Partial<Pick<LibraryPlay, 'status' | 'tags'>>;
+export type PlayInput = Omit<LibraryPlay, 'id' | 'team_name' | 'created_at' | 'updated_at' | 'status' | 'tags' | 'roles'> &
+  Partial<Pick<LibraryPlay, 'status' | 'tags' | 'roles'>>;
 
 export type PlayPatch = Partial<
-  Pick<LibraryPlay, 'title' | 'team_id' | 'kind' | 'site' | 'notes' | 'grenades' | 'positions' | 'examples' | 'status' | 'tags'>
+  Pick<LibraryPlay, 'title' | 'team_id' | 'kind' | 'site' | 'notes' | 'grenades' | 'positions' | 'examples' | 'status' | 'tags' | 'roles'>
 >;
 
 export type PlayThresholds = {
@@ -165,17 +168,17 @@ export type StratbookImport = {
 /** Response keys the library proxy lets through, per route. */
 export const PLAY_KEYS = [
   'id', 'title', 'team_id', 'team_name', 'map', 'side', 'kind', 'site', 'origin', 'positions_seconds',
-  'grenades', 'positions', 'notes', 'examples', 'status', 'tags', 'created_at', 'updated_at',
+  'grenades', 'positions', 'notes', 'examples', 'status', 'tags', 'roles', 'created_at', 'updated_at',
 ] as const;
 export const PLAY_DETAIL_KEYS = [...PLAY_KEYS, 'missing_match_ids'] as const;
 /** Fields a new play may send. */
 export const PLAY_CREATE_FIELDS = [
   'title', 'team_id', 'map', 'side', 'kind', 'site', 'origin', 'positions_seconds', 'grenades', 'positions', 'notes', 'examples',
-  'status', 'tags',
+  'status', 'tags', 'roles',
 ] as const;
 /** Map, side and origin are what a play is: a patch cannot change them. */
 export const PLAY_PATCH_FIELDS = [
-  'title', 'team_id', 'kind', 'site', 'notes', 'grenades', 'positions', 'examples', 'status', 'tags',
+  'title', 'team_id', 'kind', 'site', 'notes', 'grenades', 'positions', 'examples', 'status', 'tags', 'roles',
 ] as const;
 export const PLAY_DETECTION_KEYS = [
   'team_id', 'team_name', 'skipped', 'thresholds', 'matches', 'rounds', 'compared', 'plays',

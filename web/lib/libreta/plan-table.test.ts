@@ -20,6 +20,7 @@ function play(over: Partial<LibraryPlay>): LibraryPlay {
     examples: [],
     status: 'active',
     tags: [],
+    roles: [],
     created_at: '',
     updated_at: '',
     ...over,

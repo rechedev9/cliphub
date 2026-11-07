@@ -8,7 +8,9 @@ import { PlayDetection } from '@/components/stratbook/play-detection';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { LineupList, useLibretaLineups } from './lineup-list';
 import { PlanTable } from './plan-table';
+import { NO_TEAM } from './play-fields';
 import { PlayList, useLibretaPlays } from './play-list';
+import { RoleSheet } from './role-sheet';
 
 const TABS = Object.values(LIBRETA_TABS);
 
@@ -51,9 +53,14 @@ export function LibretaHub(): ReactNode {
           content: <LineupList lineups={lineups.lineups} offline={lineups.offline} onReload={lineups.reload} />,
         },
         {
+          id: LIBRETA_TABS.roles,
+          label: 'Roles',
+          content: <RoleSheet plays={plays} />,
+        },
+        {
           id: LIBRETA_TABS.detect,
           label: 'Detectar repetidas',
-          content: <PlayDetection initialTeamId={requestedTeam} onSaved={reload} />,
+          content: <PlayDetection initialTeamId={requestedTeam === NO_TEAM ? undefined : requestedTeam} onSaved={reload} />,
         },
       ]}
     />

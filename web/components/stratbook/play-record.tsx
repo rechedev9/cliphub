@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EditPlayDialog } from '@/components/libreta/edit-play-dialog';
 import { StatusBadge } from '@/components/libreta/status-badge';
 import { PlayRadar } from './play-radar';
+import { PlayRoles } from './play-roles';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
 
 type LoadState = { kind: 'loading' } | { kind: 'ready'; play: LibraryPlayDetail } | { kind: 'missing' } | { kind: 'offline' };
@@ -143,7 +144,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
     const stored: LibraryPlay = {
       id: play.id, title: play.title, team_id: play.team_id, team_name: play.team_name, map: play.map, side: play.side,
       kind: play.kind, site: play.site, origin: play.origin, positions_seconds: play.positions_seconds, grenades: play.grenades,
-      positions: play.positions, notes: play.notes, examples: play.examples, status: play.status, tags: play.tags,
+      positions: play.positions, notes: play.notes, examples: play.examples, status: play.status, tags: play.tags, roles: play.roles,
       created_at: play.created_at, updated_at: play.updated_at,
     };
     downloadJson(
@@ -255,6 +256,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
                   </h2>
                   <PlayPositionTable positions={play.positions} showShare={play.origin === 'detected'} />
                 </section>
+                <PlayRoles play={play} onSaved={onChanged} />
               </div>
             ),
           },

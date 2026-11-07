@@ -77,6 +77,7 @@ test('the stratbook routes are reachable and a play patch cannot move its map, s
   const patch = matchLibraryRoute('PATCH', ['plays', ID]);
   assert.ok(patch?.body?.kind === 'json');
   for (const field of ['map', 'side', 'origin', 'positions_seconds']) assert.equal(patch.body.fields.includes(field), false);
+  assert.ok(patch.body.fields.includes('roles'));
   const imported = matchLibraryRoute('POST', ['plays', 'import']);
   assert.ok(imported?.body?.kind === 'json');
   assert.equal(imported.body.maxBytes, 8 * 1024 * 1024);
@@ -195,4 +196,19 @@ test('the lineup routes are reachable and a lineup patch cannot move its map, si
   for (const field of ['from', 'map', 'side', 'grenade', 'source']) assert.equal(patch.body.fields.includes(field), false);
   assert.ok(patch.response.kind === 'json');
   assert.ok(patch.response.keys.includes('technique_estimated'));
+});
+
+test('the team role sheet is read without a side and written whole, map and both sides only', () => {
+  assert.equal(matchLibraryRoute('DELETE', ['teams', ID, 'roles']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['teams', 'all', 'roles']), undefined);
+  const read = matchLibraryRoute('GET', ['teams', ID, 'roles']);
+  assert.ok(read?.response.kind === 'json');
+  assert.ok(read.response.keys.includes('suggested'));
+  assert.equal(
+    libraryUpstreamQuery(read, new URLSearchParams(`map=de_mirage&side=T&opponent_id=${ID}&team_id=x`)),
+    `map=de_mirage&opponent_id=${ID}`,
+  );
+  const write = matchLibraryRoute('PUT', ['teams', ID, 'roles']);
+  assert.ok(write?.body?.kind === 'json');
+  assert.deepEqual(write.body.fields, ['map', 't', 'ct']);
 });

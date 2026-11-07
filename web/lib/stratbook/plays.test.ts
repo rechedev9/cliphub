@@ -31,6 +31,7 @@ const draft: LibraryPlay = {
   examples: [{ match_id: MATCH, round: 7, tick: 9000 }],
   status: 'active',
   tags: [],
+  roles: [],
   created_at: '',
   updated_at: '',
 };
