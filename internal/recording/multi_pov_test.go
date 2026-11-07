@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -75,6 +76,26 @@ func TestScriptFiltersTheKillfeedPerPOV(t *testing.T) {
 			t.Errorf("script lacks %s", want)
 		}
 	}
+	// The first replay runs after the rewind: its filter must fire in that pass, before it records.
+	stream.VictimReplay = true
+	withReplays, err := NewPlanFromKillPlan(multiPOVKillPlan(30000), `C:\demos\x.dem`, `C:\out`, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, _, _ := buildRuntimeSchedule(withReplays)
+	tickOf := func(key string) (int, int) {
+		i := slices.IndexFunc(commands, func(c scheduledCommand) bool { return c.Key == key })
+		if i < 0 {
+			t.Fatalf("schedule lacks %s", key)
+		}
+		return commands[i].Pass, commands[i].Tick
+	}
+	filterPass, filterTick := tickOf("killfeed-pov-seg-001-victim")
+	recordPass, recordTick := tickOf("record-start-seg-001-victim")
+	if filterPass != recordPass || filterTick > recordTick {
+		t.Errorf("seg-001 replay filter at pass %d tick %d, want pass %d by tick %d", filterPass, filterTick, recordPass, recordTick)
+	}
+	stream.VictimReplay = false
 	single, err := NewPlanFromKillPlan(victimReplayKillPlan(), `C:\demos\x.dem`, `C:\out`, stream)
 	if err != nil {
 		t.Fatal(err)

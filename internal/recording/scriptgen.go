@@ -583,7 +583,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		}
 
 		killfeedTick := window.LockFrom
-		if i > 0 {
+		if i > 0 && i != firstReplay {
 			killfeedTick = max(killfeedTick, EffectiveRecordEndTick(captures[i-1], plan)+1)
 		}
 		commands = append(commands, povKillfeedCommands(plan, s, pass, killfeedTick)...)
