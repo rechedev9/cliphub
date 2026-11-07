@@ -226,7 +226,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
 
   const musicSummary = songTitle ? `♪ ${songTitle}` : 'Sin música';
   // A created Short lands in Mis vídeos; from a series map card it returns to the series.
-  const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
+  const flow = landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short;
+  const doneHref = seriesId ? seriesHref(seriesId, flow) : RESULTS_HREF;
+  const backHref = seriesId ? seriesHref(seriesId, flow) : flowHref(flow);
   const summary = selectedPlays.length > 0 ? (
     <>
       <span className={overTarget ? 'text-warning' : undefined}>{formatClock(estimatedSeconds)} aprox.</span>
@@ -376,7 +378,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         }
         onHintAction={!musicDecided && selectedPlays.length > 0 && selectedPreset !== null ? focusMusicDecision : undefined}
         briefItems={briefItems}
-        backHref={seriesId ? seriesHref(seriesId) : flowHref(landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short)}
+        backHref={backHref}
         error={createError}
         cta={
           <Button

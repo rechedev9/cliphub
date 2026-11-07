@@ -72,6 +72,12 @@ const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
 const IMPORT_POLL_MS = 1500;
 const IMPORT_RETRY_MS = 10000;
 
+/** What a series offers per map once analyzed, in the flow the demos were dropped into. */
+const SERIES_NEXT_STEP: Record<ProduceFormat, string> = {
+  [PRODUCE_FORMAT.short]: 'En una serie elegirás las jugadas de cada mapa después del análisis.',
+  [PRODUCE_FORMAT.full]: 'En una serie prepararás la demo completa de cada mapa después del análisis.',
+};
+
 const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
 
 function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
@@ -260,12 +266,12 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       );
 
       if (finished.some((row) => row.status === 'done')) {
-        router.push(seriesHref(seriesId));
+        router.push(seriesHref(seriesId, format));
       } else {
         setError('No se pudo completar el análisis de ningún mapa. Consulta el estado de la serie o vuelve a cargar las demos.');
       }
     },
-    [stage, seriesMode, seriesId, scannedRows, router],
+    [stage, seriesMode, seriesId, scannedRows, router, format],
   );
 
   const onFiles = useCallback(
@@ -401,7 +407,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
             <ErrorBanner message={error} />
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => reset(null)}>Volver a cargar demos</Button>
-              <Button variant="outline" onClick={() => seriesId && router.push(seriesHref(seriesId))}>Ver estado de la serie</Button>
+              <Button variant="outline" onClick={() => seriesId && router.push(seriesHref(seriesId, format))}>Ver estado de la serie</Button>
             </div>
           </>
         ) : null}
@@ -410,7 +416,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   } else if (seriesMode) {
     body = (
       <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-        <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} />
+        <PlayerPicker players={aggregated} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} />
       </Card>
     );
   } else if (stage === 'scanning') {
@@ -435,7 +441,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
       <StudioPageHeader title={title} description={description} />
       <CreateFlowSteps flow={format} step={progressStep} />
-      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás demo completa o Short para cada mapa después del análisis.</p> : null}
+      {seriesMode ? <p className="text-body-sm text-fg-2">{SERIES_NEXT_STEP[format]}</p> : null}
       {warning ? (
         <div
           role="alert"

@@ -19,7 +19,8 @@ import {
   seriesTitle,
   type SeriesStatusTone,
 } from '@/lib/series-status';
-import { PRODUCE_FORMAT, produceHref, SHORTS_HREF } from '@/lib/clips/routes';
+import { outputType } from '@/lib/clips/hub';
+import { FLOW_HREF, parseSeriesFormat, PRODUCE_FORMAT, produceHref, SERIES_QUERY, type ProduceFormat } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -70,13 +71,15 @@ function seriesDescription(statuses: readonly string[]): string {
 /**
  * Each map's newest reel: the Library reels that belong to this series' jobs,
  * keyed by job. listVideos returns reels newest-first, so the first hit per
- * job is the one the map card should describe.
+ * job is the one the map card should describe. A Demo completa series counts
+ * only full-demo renders, so a map's Short never reads as its full demo.
  */
-function latestReelPerJob(demos: readonly SeriesDemo[], videos: readonly Video[]): ReadonlyMap<string, Video> {
+function latestReelPerJob(demos: readonly SeriesDemo[], videos: readonly Video[], format: ProduceFormat): ReadonlyMap<string, Video> {
   const jobIds = new Set(demos.map((d) => d.jobId));
   const byJob = new Map<string, Video>();
   for (const video of videos) {
     if (video.jobId === undefined || !jobIds.has(video.jobId)) continue;
+    if (format === PRODUCE_FORMAT.full && outputType(video) !== PRODUCE_FORMAT.full) continue;
     if (!byJob.has(video.jobId)) byJob.set(video.jobId, video);
   }
   return byJob;
@@ -141,10 +144,19 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * lists every map with its map/score and live status, links each ready map into
  * its highlight picker, and polls the local orchestrator until every map has
  * settled. Reached from a creation flow's series upload after the picked player is
- * parsed on each map.
+ * parsed on each map; `?formato=full` (Demo completa) makes each map prepare its
+ * full demo instead of a Short.
  */
-export default function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
+export default function SeriesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = use(params);
+  const format = parseSeriesFormat(use(searchParams)[SERIES_QUERY.format]);
+  const loadHref = FLOW_HREF[format];
   const valid = isSeriesId(id);
 
   const [demos, setDemos] = useState<SeriesDemo[] | null>(null);
@@ -177,7 +189,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
           // the user never has to visit the Library for the queue to advance.
           const [list, videos] = await Promise.all([api.getSeries(id), api.listVideos()]);
           if (!active) return 'idle';
-          const reels = latestReelPerJob(list, videos);
+          const reels = latestReelPerJob(list, videos, format);
           demosRef.current = list;
           setDemos(list);
           setReelByJob(reels);
@@ -211,7 +223,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
       active = false;
       stop();
     };
-  }, [id, valid]);
+  }, [id, valid, format]);
 
   if (!valid) {
     return (
@@ -221,7 +233,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         description="Ese enlace de serie no es válido. Carga varias demos a la vez para empezar una serie nueva."
         actions={
           <Button asChild variant="hero">
-            <Link href={SHORTS_HREF}>Cargar demos</Link>
+            <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
       />
@@ -246,7 +258,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
-            <Link href={SHORTS_HREF}>Cargar demos</Link>
+            <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
       />
@@ -262,7 +274,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         description="Puede que sus demos se hayan borrado o que el enlace sea de una sola partida. Carga las demos de tu bo3/bo5 para crear una serie."
         actions={
           <Button asChild variant="hero">
-            <Link href={SHORTS_HREF}>Cargar demos</Link>
+            <Link href={loadHref}>Cargar demos</Link>
           </Button>
         }
       />
@@ -310,6 +322,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
             index={i}
             last={i === groups.length - 1}
             seriesId={id}
+            format={format}
             reelByJob={reelByJob}
           />
         ))}
@@ -329,12 +342,14 @@ function SeriesSpineItem({
   index,
   last,
   seriesId,
+  format,
   reelByJob,
 }: {
   group: SeriesGroup<SeriesDemo>;
   index: number;
   last: boolean;
   seriesId: string;
+  format: ProduceFormat;
   reelByJob: ReadonlyMap<string, Video>;
 }): ReactNode {
   const lead = representativeDemo(group.demos);
@@ -356,7 +371,7 @@ function SeriesSpineItem({
           <span aria-hidden className={cn('absolute inset-x-0 top-12 -bottom-4 mx-auto w-px', RAIL_TONE_CLASS[tone])} />
         )}
       </div>
-      <SeriesMapCard group={group} index={index} seriesId={seriesId} reelByJob={reelByJob} />
+      <SeriesMapCard group={group} index={index} seriesId={seriesId} format={format} reelByJob={reelByJob} />
     </li>
   );
 }
@@ -371,11 +386,13 @@ function SeriesMapCard({
   group,
   index,
   seriesId,
+  format,
   reelByJob,
 }: {
   group: SeriesGroup<SeriesDemo>;
   index: number;
   seriesId: string;
+  format: ProduceFormat;
   reelByJob: ReadonlyMap<string, Video>;
 }): ReactNode {
   // Title from the first part that has a roster match; fall back to the first
@@ -412,7 +429,7 @@ function SeriesMapCard({
               <StatusTag tone={TAG_TONE[demoTone(single, singleReel)]} dot>
                 {demoLabel(single, singleReel)}
               </StatusTag>
-              <ForgeLink demo={single} seriesId={seriesId} reel={singleReel} />
+              <ForgeLink demo={single} seriesId={seriesId} format={format} reel={singleReel} />
             </>
           ) : null}
         </div>
@@ -430,6 +447,7 @@ function SeriesMapCard({
                 demo={demo}
                 partIndex={partIndex}
                 seriesId={seriesId}
+                format={format}
                 reel={reelByJob.get(demo.jobId)}
               />
             </li>
@@ -449,11 +467,13 @@ function SeriesPart({
   demo,
   partIndex,
   seriesId,
+  format,
   reel,
 }: {
   demo: SeriesDemo;
   partIndex: number;
   seriesId: string;
+  format: ProduceFormat;
   reel: Video | undefined;
 }): ReactNode {
   const tone = demoTone(demo, reel);
@@ -471,7 +491,7 @@ function SeriesPart({
             <StatusTag tone={TAG_TONE[tone]} dot>
               {demoLabel(demo, reel)}
             </StatusTag>
-            <ForgeLink demo={demo} seriesId={seriesId} reel={reel} />
+            <ForgeLink demo={demo} seriesId={seriesId} format={format} reel={reel} />
           </>
         }
       />
@@ -480,21 +500,30 @@ function SeriesPart({
   );
 }
 
+/** Each flow's map CTA: before the map has a video, and once it has one. */
+const FORGE_LABEL: Record<ProduceFormat, { first: string; again: string }> = {
+  [PRODUCE_FORMAT.short]: { first: 'Elegir jugadas', again: 'Otro reel' },
+  [PRODUCE_FORMAT.full]: { first: 'Preparar demo completa', again: 'Volver a preparar' },
+};
+
 /** The forge CTA, present only once a map actually has a kill plan. */
 function ForgeLink({
   demo,
   seriesId,
+  format,
   reel,
 }: {
   demo: SeriesDemo;
   seriesId: string;
+  format: ProduceFormat;
   reel: Video | undefined;
 }): ReactNode {
   if (!seriesStatusIsForgeable(demo.status)) return null;
+  const label = FORGE_LABEL[format];
   return (
     <Button asChild size="sm" variant={reel ? 'outline' : 'hero'}>
-      <Link href={produceHref(demo.jobId, PRODUCE_FORMAT.short, seriesId)}>
-        {reel ? 'Otro reel' : 'Elegir jugadas'}
+      <Link href={produceHref(demo.jobId, format, seriesId)}>
+        {reel ? label.again : label.first}
         <ChevronRight className="size-4" />
       </Link>
     </Button>

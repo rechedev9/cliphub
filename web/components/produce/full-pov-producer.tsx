@@ -39,8 +39,8 @@ export type FullPovProducerProps = {
 
 export function FullPovProducer({ active, matchId, match, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
   const router = useRouter();
-  const backHref = seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.full);
-  const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
+  const backHref = seriesId ? seriesHref(seriesId, PRODUCE_FORMAT.full) : flowHref(PRODUCE_FORMAT.full);
+  const doneHref = seriesId ? seriesHref(seriesId, PRODUCE_FORMAT.full) : RESULTS_HREF;
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
   const [proPlayers, setProPlayers] = useState<readonly FullDemoProPlayer[]>([]);

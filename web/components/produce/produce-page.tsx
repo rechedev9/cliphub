@@ -146,7 +146,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
 
   if (!loaded) return <ProduceLoading format={format} seriesId={seriesId} />;
 
-  const backHref = seriesId ? seriesHref(seriesId) : flowHref(format);
+  const backHref = seriesId ? seriesHref(seriesId, format) : flowHref(format);
   const backLabel = seriesId ? 'Serie' : FLOW_TITLE[format];
 
   if (!match) {
@@ -291,7 +291,7 @@ function matchEmptyState(failure: FullDemoLoadFailure): { icon: typeof SearchX; 
 export function ProduceLoading({ format, seriesId }: { format: ProduceFormat; seriesId: string | null }): ReactNode {
   return (
     <div className="flex min-h-[calc(100dvh-7rem)] w-full flex-col">
-      <StudioBackLink href={seriesId ? seriesHref(seriesId) : flowHref(format)}>{seriesId ? 'Serie' : FLOW_TITLE[format]}</StudioBackLink>
+      <StudioBackLink href={seriesId ? seriesHref(seriesId, format) : flowHref(format)}>{seriesId ? 'Serie' : FLOW_TITLE[format]}</StudioBackLink>
       <div className="mb-2">
         <CreateFlowSteps flow={format} step={2} />
       </div>

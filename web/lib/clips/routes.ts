@@ -175,8 +175,19 @@ export function librarySeriesHref(seriesId: string): string {
 
 export const LIBRARY_SERIES_HREF = `${MATCHES_HREF}/series` as const;
 
-export function seriesHref(seriesId: string): string {
-  return `/series/${encodeURIComponent(seriesId)}`;
+/** `?formato=` keeps the flow a series came from; a Short series carries none. */
+export const SERIES_QUERY = { format: 'formato' } as const;
+
+/** A bo3/bo5 series; from Demo completa each map prepares its full demo instead of a Short. */
+export function seriesHref(seriesId: string, format: ProduceFormat = PRODUCE_FORMAT.short): string {
+  const base = `/series/${encodeURIComponent(seriesId)}`;
+  if (format === PRODUCE_FORMAT.short) return base;
+  return `${base}?${new URLSearchParams({ [SERIES_QUERY.format]: format }).toString()}`;
+}
+
+/** The flow a series page serves: Demo completa only when `?formato=full`, else Short. */
+export function parseSeriesFormat(value: string | string[] | null | undefined): ProduceFormat {
+  return value === PRODUCE_FORMAT.full ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short;
 }
 
 export function publishHref(matchId: string, clipId: string): string {
