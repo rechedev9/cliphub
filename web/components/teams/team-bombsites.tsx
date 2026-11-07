@@ -12,6 +12,7 @@ import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
@@ -196,14 +197,20 @@ export function TeamBombsites({
       {data.maps.map((entry) => (
         <MapTables key={entry.map} entry={entry} report={data} heads={heads} library={library} />
       ))}
-      <p className="measure-read text-meta text-fg-3">
-        Defendiendo, «Les atacan» cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
-        sitio; los retakes, sobre las plantas. Atacando, «Atacan» cuenta sobre sus rondas de T y «Ganan tras plantar», sobre sus
-        plantas. {referenceText(norms)}
-        {data.skipped.length > 0
-          ? ` ${data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}`
-          : ''}
-      </p>
+      {norms === 'failed' ? <p className="text-body-sm text-fg-2">{referenceText(norms)}</p> : null}
+      {data.skipped.length > 0 ? (
+        <p className="text-body-sm text-fg-2">
+          {data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}
+        </p>
+      ) : null}
+      <details className="measure-read text-meta text-fg-3">
+        <DisclosureSummary className="min-h-10 text-body-sm text-fg-2">Cómo se cuenta</DisclosureSummary>
+        <p className="pb-2">
+          Defendiendo, «Les atacan» cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
+          sitio; los retakes, sobre las plantas. Atacando, «Atacan» cuenta sobre sus rondas de T y «Ganan tras plantar», sobre sus
+          plantas. {norms === 'failed' ? null : referenceText(norms)}
+        </p>
+      </details>
     </div>
   );
 }
