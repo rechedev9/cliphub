@@ -7,16 +7,16 @@ export function playClock(seconds: number): string {
 
 export function playSourceRange(play: Play): string | null {
   if (play.startSeconds === undefined || play.endSeconds === undefined) return null;
-  return `${playClock(play.startSeconds)} – ${playClock(play.endSeconds)}`;
+  return `${playClock(play.startSeconds)} a ${playClock(play.endSeconds)}`;
 }
 
 export function playDescription(play: Play): string {
   if (play.death) {
     const { killer, weapon, headshot } = play.death;
-    return [killer ? `Muere ante ${killer}` : 'Muere', weapon, headshot ? 'a la cabeza' : undefined].filter(Boolean).join(' · ');
+    return [killer ? `Muere ante ${killer}` : 'Muere', weapon, headshot ? 'HS' : undefined].filter(Boolean).join(' · ');
   }
-  const parts = [`${play.kills} ${play.kills === 1 ? 'baja' : 'bajas'}`];
+  const parts = [`${play.kills} ${play.kills === 1 ? 'kill' : 'kills'}`];
   if (play.weapon) parts.push(play.weapon);
-  if (play.headshots) parts.push(`${play.headshots} a la cabeza`);
+  if (play.headshots) parts.push(`${play.headshots} HS`);
   return parts.join(' · ');
 }

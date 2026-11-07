@@ -1,14 +1,15 @@
 'use client';
 
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { ArrowRight, Info, Link2, Twitch, UploadCloud, Youtube } from 'lucide-react';
+import { ArrowRight, Info, Link2, UploadCloud } from 'lucide-react';
 import type { StreamSourceKind } from '@/lib/api/streams';
 import { formatUploadBytes, uploadSent, type UploadProgress } from '@/lib/api/upload';
 import { isStreamURLValidationError } from '@/lib/streams/plan';
-import { Button, buttonVariants, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { LongOperation } from '@/components/studio/long-operation';
 import { cn } from '@/lib/utils';
 
@@ -22,11 +23,18 @@ const KIND_COPY: Record<StreamSourceKind, { placeholder: string; result: string 
   },
   vod: {
     placeholder: 'Pega el enlace del VOD de Twitch, YouTube o Kick',
-    result: 'Un stream entero: buscamos tus kills y sacas un resumen horizontal de todas y Shorts verticales de las que elijas.',
+    result: 'Un directo entero: detectamos tus kills y sacas un resumen horizontal de las que elijas y Shorts verticales.',
   },
 };
 
-/** Both source choices share the optional title. Keep #stream-url stable for integrations. */
+// Brand marks of each platform; they stay literal in both themes.
+const PLATFORMS = [
+  { name: 'Twitch', dot: '#9146ff' },
+  { name: 'YouTube', dot: '#ff0033' },
+  { name: 'Kick', dot: '#53fc18' },
+] as const;
+
+/** The import hero. Both source choices share the optional title. Keep #stream-url stable for integrations. */
 export function StreamSourcePanel({
   sourceKind,
   sourceUrl,
@@ -58,7 +66,7 @@ export function StreamSourcePanel({
   const urlError = error !== null && isStreamURLValidationError(error.message) ? error.message : null;
   const importError = error !== null && urlError === null ? error : null;
 
-  const handleDrop = (event: DragEvent<HTMLButtonElement>): void => {
+  const handleDrop = (event: DragEvent<HTMLElement>): void => {
     event.preventDefault();
     setDragging(false);
     if (submitting) return;
@@ -67,17 +75,33 @@ export function StreamSourcePanel({
   };
 
   return (
+    // The whole band takes a dropped MP4, so the drop target is not a small button.
     <section
       aria-labelledby="stream-source-title"
-      className="studio-panel flex flex-col gap-6 bg-surface-3 bg-none p-5 @[40rem]/content:p-6"
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!submitting) setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false);
+      }}
+      onDrop={handleDrop}
+      className={cn(
+        'flex flex-col gap-4.5 rounded-3xl border p-5 transition-colors duration-(--dur-fast) ease-standard @[40rem]/content:p-7',
+        FORMAT_TONE.stream.tint,
+        dragging ? 'border-dashed border-format-stream' : FORMAT_TONE.stream.border,
+      )}
     >
-      <div>
-        <h2 id="stream-source-title" className="font-display text-title font-semibold text-fg-1">Importa tu vídeo</h2>
-        <p className="mt-1.5 text-body text-fg-2">Pega un enlace o sube una grabación para empezar.</p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span id="stream-kind-label" className="text-label text-fg-2">Qué vas a importar</span>
+      <div className="flex flex-wrap items-end gap-4.5">
+        <div className="flex min-w-0 flex-[1_1_26rem] flex-col gap-2">
+          <h1 id="stream-source-title" className="font-display text-[2.5rem] leading-[1.05] font-extrabold tracking-[-0.025em] text-fg-1">
+            De tu directo a Shorts
+          </h1>
+          <p className="measure-read text-body text-fg-2">
+            Pega el enlace de un VOD o de un clip, o sube tu grabación. Cada momento que elijas sale como un Short vertical.
+          </p>
+        </div>
+        <span id="stream-kind-label" className="sr-only">Qué vas a importar</span>
         <ToggleGroup
           type="single"
           variant="filter"
@@ -95,112 +119,95 @@ export function StreamSourcePanel({
         </ToggleGroup>
       </div>
 
-      <div className="grid gap-6 @[48rem]/content:grid-cols-[minmax(0,1.1fr)_auto_minmax(0,1fr)] @[48rem]/content:gap-8">
-        <form
-          className="flex min-w-0 flex-col gap-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!submitting) onSubmitUrl();
-          }}
+      <form
+        className="flex min-w-0 flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!submitting) onSubmitUrl();
+        }}
+      >
+        <Label htmlFor="stream-url" className="sr-only">Enlace del vídeo</Label>
+        <div
+          className={cn(
+            'flex min-w-0 flex-wrap items-center gap-2.5 rounded-2xl border-2 bg-surface-0 py-2 pr-2 pl-4.5',
+            urlError ? 'border-destructive' : 'border-format-stream/70',
+          )}
         >
-          <ul aria-label="Plataformas compatibles" className="flex flex-wrap items-center gap-x-7 gap-y-3 pb-1 text-body text-fg-1">
-            <li className="flex items-center gap-2"><Twitch aria-hidden className="size-5 text-chart-3" />Twitch</li>
-            <li className="flex items-center gap-2"><Youtube aria-hidden className="size-6 text-destructive" />YouTube</li>
-            <li className="flex items-center gap-2"><span aria-hidden className="font-display text-section font-bold leading-none text-success">K</span>Kick</li>
-          </ul>
-          <div className="flex min-w-0 flex-col gap-2">
-            <Label htmlFor="stream-url" className="text-label text-fg-2">Enlace del vídeo</Label>
-            <div className="relative">
-              <Link2 aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-fg-3" />
-              <Input
-                id="stream-url"
-                aria-label="Enlace del vídeo de Twitch, YouTube o Kick"
-                placeholder={KIND_COPY[sourceKind].placeholder}
-                autoComplete="off"
-                spellCheck={false}
-                inputMode="url"
-                value={sourceUrl}
-                disabled={submitting}
-                aria-invalid={urlError !== null || undefined}
-                aria-describedby={urlError ? 'stream-url-error stream-source-hint' : 'stream-source-hint'}
-                onChange={(e) => onSourceUrlChange(e.target.value)}
-                className="h-12 bg-surface-2 pl-11"
-              />
-            </div>
-            {urlError ? (
-              <p id="stream-url-error" role="alert" className="text-body-sm text-destructive">{urlError}</p>
-            ) : null}
-          </div>
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="stream-title" className="text-label text-fg-2">Nombre del proyecto</Label>
-              <span id="stream-title-hint" className="text-body-sm text-fg-3">Opcional</span>
-            </div>
-            <Input
-              id="stream-title"
-              aria-describedby="stream-title-hint"
-              placeholder="Ej. Clutch 1v4"
-              value={title}
-              disabled={submitting}
-              onChange={(e) => onTitleChange(e.target.value)}
-              className="h-12 bg-surface-2"
-            />
-            <Button
-              type="submit"
-              variant="stream"
-              size="lg"
-              className="mt-1 w-full shadow-sm hover:shadow-md"
-              disabled={submitting}
-              loading={submitting}
-              loadingText="Importando…"
-            >
-              Importar vídeo<ArrowRight aria-hidden className="size-5" />
-            </Button>
-            {importError?.source === 'url' ? (
-              <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
-            ) : null}
-          </div>
-        </form>
-
-        <div aria-hidden className="flex items-center gap-3 text-body-sm text-fg-3 @[48rem]/content:flex-col">
-          <span className="h-px flex-1 bg-border @[48rem]/content:h-auto @[48rem]/content:w-px" />
-          <span>o</span>
-          <span className="h-px flex-1 bg-border @[48rem]/content:h-auto @[48rem]/content:w-px" />
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-2">
-          <button
-            type="button"
-            aria-label="Seleccionar archivo MP4"
-            aria-describedby="stream-source-hint"
+          <Link2 aria-hidden className={cn('size-5 shrink-0', FORMAT_TONE.stream.text)} />
+          <Input
+            id="stream-url"
+            aria-label="Enlace del vídeo de Twitch, YouTube o Kick"
+            placeholder={KIND_COPY[sourceKind].placeholder}
+            autoComplete="off"
+            spellCheck={false}
+            inputMode="url"
+            value={sourceUrl}
             disabled={submitting}
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(event) => {
-              event.preventDefault();
-              if (!submitting) setDragging(true);
-            }}
-            onDragLeave={(event) => {
-              if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false);
-            }}
-            onDrop={handleDrop}
-            className={cn(
-              'group/upload flex min-h-60 w-full flex-1 flex-col items-center justify-center rounded-lg border border-dashed bg-surface-2 px-5 py-8 text-center transition-colors duration-(--dur-fast) ease-standard',
-              'hover:border-primary hover:bg-surface-4 disabled:pointer-events-none disabled:opacity-50',
-              FOCUS_RING,
-              dragging ? 'border-primary bg-surface-4' : 'border-border-strong',
-            )}
+            aria-invalid={urlError !== null || undefined}
+            aria-describedby={urlError ? 'stream-url-error stream-source-hint' : 'stream-source-hint'}
+            onChange={(e) => onSourceUrlChange(e.target.value)}
+            className="h-11 min-w-48 flex-1 border-0 bg-transparent px-1 text-body-lg shadow-none focus-visible:bg-transparent"
+          />
+          <Button
+            type="submit"
+            variant="stream"
+            className="rounded-xl px-5 font-extrabold"
+            disabled={submitting}
+            loading={submitting}
+            loadingText="Importando…"
           >
-            <UploadCloud aria-hidden className="mb-5 size-10 text-fg-3 group-hover/upload:text-fg-1" strokeWidth={1.5} />
-            <span className="font-display text-body-lg font-semibold text-fg-1">{dragging ? 'Suelta tu vídeo aquí' : 'Arrastra tu vídeo aquí'}</span>
-            <span className="mt-1.5 text-body-sm text-fg-2">Archivo MP4</span>
-            <span className={buttonVariants({ variant: 'outline', className: 'mt-5 bg-surface-2' })}>Seleccionar archivo</span>
-          </button>
-          {upload ? <FileUploadProgress upload={upload} /> : null}
-          {importError?.source === 'file' ? (
-            <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
-          ) : null}
+            Importar<ArrowRight aria-hidden />
+          </Button>
         </div>
+        {urlError ? (
+          <p id="stream-url-error" role="alert" className="text-body-sm text-destructive">{urlError}</p>
+        ) : null}
+        {importError?.source === 'url' ? (
+          <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
+        ) : null}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Label htmlFor="stream-title" className="text-label text-fg-2">Nombre del proyecto</Label>
+          <Input
+            id="stream-title"
+            aria-describedby="stream-title-hint"
+            placeholder="Ej. Clutch 1v4"
+            value={title}
+            disabled={submitting}
+            onChange={(e) => onTitleChange(e.target.value)}
+            className="h-9 max-w-72 min-w-40 flex-1 bg-surface-1"
+          />
+          <span id="stream-title-hint" className="text-body-sm text-fg-3">Opcional</span>
+        </div>
+      </form>
+
+      <div className="flex flex-wrap items-center gap-x-4.5 gap-y-3">
+        <ul aria-label="Plataformas compatibles" className="flex flex-wrap items-center gap-4.5 text-body-sm text-fg-2">
+          {PLATFORMS.map((platform) => (
+            <li key={platform.name} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-2.5 rounded-[3px]" style={{ backgroundColor: platform.dot }} />
+              {platform.name}
+            </li>
+          ))}
+        </ul>
+        <span aria-hidden className="flex-1" />
+        <span className="text-body-sm text-fg-2">{dragging ? 'Suelta tu vídeo aquí' : '¿Lo tienes en el PC?'}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Seleccionar archivo MP4"
+          aria-describedby="stream-source-hint"
+          disabled={submitting}
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-surface-1"
+        >
+          <UploadCloud aria-hidden />Subir un MP4
+        </Button>
       </div>
+      {upload ? <FileUploadProgress upload={upload} /> : null}
+      {importError?.source === 'file' ? (
+        <p role="alert" className="text-body-sm text-destructive">{importError.message}</p>
+      ) : null}
 
       <input
         ref={fileInputRef}
@@ -215,9 +222,9 @@ export function StreamSourcePanel({
         }}
       />
 
-      <p id="stream-source-hint" className="flex items-start gap-2.5 border-t border-border pt-4 text-body-sm text-fg-2">
+      <p id="stream-source-hint" className="flex items-start gap-2.5 border-t border-format-stream/25 pt-4 text-body-sm text-fg-2">
         <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-        <span>{KIND_COPY[sourceKind].result}</span>
+        <span>{KIND_COPY[sourceKind].result} También puedes arrastrar un MP4 hasta aquí.</span>
       </p>
     </section>
   );

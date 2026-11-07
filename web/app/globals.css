@@ -89,6 +89,16 @@
   /* Sides and outcomes, the only other colours with a job. */
   --side-ct: oklch(0.52 0.15 255);
   --side-t: oklch(0.53 0.12 65); /* 4.5:1 on white for 12px labels */
+
+  /* Each Crear format keeps one colour across its flow and Mis vídeos; text on a fill uses its foreground. */
+  --format-short: oklch(0.55 0.2 25);
+  --format-short-foreground: oklch(1 0 0);
+  --format-full: var(--side-ct);
+  --format-full-foreground: oklch(1 0 0);
+  --format-stream: var(--stream);
+  --format-stream-foreground: var(--stream-foreground);
+  --format-summary: oklch(0.5 0.09 185);
+  --format-summary-foreground: oklch(1 0 0);
   --outcome-win: var(--success);
   --outcome-loss: var(--destructive);
 
@@ -185,6 +195,14 @@
 
   --side-ct: oklch(0.72 0.13 250);
   --side-t: oklch(0.8 0.14 75);
+  --format-short: oklch(0.68 0.2 25);
+  --format-short-foreground: oklch(0.17 0.035 25);
+  --format-full: var(--side-ct);
+  --format-full-foreground: oklch(0.17 0.03 250);
+  --format-stream: var(--stream);
+  --format-stream-foreground: var(--stream-foreground);
+  --format-summary: oklch(0.7 0.1 185);
+  --format-summary-foreground: oklch(0.17 0.03 185);
 
   --chart-1: oklch(0.74 0.07 250);
   --chart-2: oklch(0.68 0.15 6.9);
@@ -463,6 +481,14 @@ html[data-capture-active="true"] {
   --color-panel-raised: var(--panel-raised);
   --color-side-ct: var(--side-ct);
   --color-side-t: var(--side-t);
+  --color-format-short: var(--format-short);
+  --color-format-short-foreground: var(--format-short-foreground);
+  --color-format-full: var(--format-full);
+  --color-format-full-foreground: var(--format-full-foreground);
+  --color-format-stream: var(--format-stream);
+  --color-format-stream-foreground: var(--format-stream-foreground);
+  --color-format-summary: var(--format-summary);
+  --color-format-summary-foreground: var(--format-summary-foreground);
   --color-outcome-win: var(--outcome-win);
   --color-outcome-loss: var(--outcome-loss);
   --color-surface: var(--surface);
@@ -562,17 +588,7 @@ html[data-capture-active="true"] {
     @apply w-full max-w-work;
   }
 
-  /* Row rail: from 44rem the trailing state and actions reserve a column so
-   * every row parks its controls at the same x. A shrinkable basis, never a
-   * fixed width, so a narrower nested column gets the space back. */
-  .row-state {
-    @apply flex min-w-0 flex-[0_1_auto] flex-col justify-center gap-1.5 self-center @min-[44rem]/content:basis-70;
-  }
-
-  .row-state-block {
-    @apply w-full @min-[44rem]/content:w-auto;
-  }
-
+  /* From 44rem the trailing actions reserve a column so every row parks them at the same x. */
   .row-actions {
     @apply flex min-w-min flex-[0_1_auto] items-center justify-end gap-2 @min-[44rem]/content:basis-50;
   }

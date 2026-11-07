@@ -47,8 +47,7 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 import { acquireProgressView } from '@/lib/streams/acquire-progress';
-
-const STREAMS_HREF = '/streams';
+import { STREAMS_HREF } from '@/lib/clips/routes';
 
 type Stage = 'loading' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed' | 'missing' | 'error';
 
@@ -133,7 +132,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       return editorPlan;
     } catch (err) {
       if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return null;
-      fail(errorMessage(err, 'No se pudo cargar el plan guardado. Vuelve a abrir el trabajo para reintentarlo.'));
+      fail(errorMessage(err, 'No se pudo abrir el proyecto. Vuelve a intentarlo.'));
       return null;
     }
   }, [fail]);
@@ -285,7 +284,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     const needsFaceCrop =
       STREAM_VARIANTS.find((variant) => variant.value === fittedPlan.variant)?.needsFaceCrop ?? false;
     if (needsFaceCrop && fittedPlan.face_crop_reviewed !== true) {
-      setError('Confirma manualmente el recorte de facecam antes de renderizar; no asumimos que el recorte automático contenga una cara.');
+      setError('Ajusta y confirma el encuadre de tu cámara en «Ajustar aspecto» antes de exportar.');
       return;
     }
     if (!STREAMER_NICK_RE.test(fittedPlan.streamer_banner?.nick?.trim() ?? '')) {
@@ -334,7 +333,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       setPlan(saved);
       setAutosave('saved');
       if (!saved.updated_at) {
-        setError('El plan guardado no incluye una revisión verificable. Vuelve a exportar.');
+        setError('No se pudieron verificar los cambios guardados. Vuelve a exportar.');
         return;
       }
       setStage('rendering');
@@ -352,7 +351,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       // The render never actually started; the optimistic "queued" state was
       // a lie the POST just disproved, so put the prior render state back.
       if (appliedOptimisticRenderState) setRenderState(priorRenderState);
-      setError(errorMessage(err, 'No se pudo iniciar el render.'));
+      setError(errorMessage(err, 'No se pudo iniciar la exportación.'));
     } finally {
       setSaving(false);
     }
@@ -454,7 +453,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro clip."
         actions={
           <Button asChild>
-            <Link href={STREAMS_HREF}>Volver a Stream clips</Link>
+            <Link href={STREAMS_HREF}>Volver a Clips de stream</Link>
           </Button>
         }
       />

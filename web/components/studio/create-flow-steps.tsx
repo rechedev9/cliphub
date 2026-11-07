@@ -1,40 +1,27 @@
 import type { ReactNode } from 'react';
-import { Check } from 'lucide-react';
-import { createFlowPhases, type CreateFlow } from '@/lib/produce/create-flow';
+import { createFlowSteps, type CreateFlow } from '@/lib/produce/create-flow';
+import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
-/**
- * The shared progress rail of the Crear flows: source, settings, result. Each
- * flow passes the index of its own step; the rail names the phase and the step.
- */
-export function CreateFlowSteps({ flow, step }: { flow: CreateFlow; step: number }): ReactNode {
-  const phases = createFlowPhases(flow, step);
+/** The progress track of a Crear flow in the flow's colour: one segment per step, its name under it. */
+export function CreateFlowSteps({ flow, step, className }: { flow: CreateFlow; step: number; className?: string }): ReactNode {
+  const steps = createFlowSteps(flow, step);
+  const tone = FORMAT_TONE[flow];
   return (
-    <ol aria-label="Pasos de creación" className="grid grid-cols-3 gap-2">
-      {phases.map((phase, index) => (
-        <li
-          key={phase.label}
-          aria-current={phase.state === 'current' ? 'step' : undefined}
-          className={cn(
-            'flex min-w-0 flex-col gap-0.5 border-t-2 pt-2',
-            phase.state === 'pending' ? 'border-border' : 'border-primary',
-          )}
-        >
+    <ol
+      aria-label="Pasos"
+      className={cn('grid max-w-120 gap-x-1.5 gap-y-2', className)}
+      style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+    >
+      {steps.map((entry, index) => (
+        <li key={entry.label} aria-current={entry.state === 'current' ? 'step' : undefined} className="flex min-w-0 flex-col gap-2">
           <span
-            className={cn(
-              'flex items-center gap-1.5 text-meta font-medium',
-              phase.state === 'pending' ? 'text-fg-3' : 'text-fg-1',
-            )}
-          >
-            {phase.state === 'done' ? (
-              <Check aria-label="Completado" className="size-3.5 text-fg-1" />
-            ) : (
-              <span aria-hidden>{index + 1}</span>
-            )}
-            {phase.label}
-          </span>
-          <span className={cn('truncate text-body-sm', phase.state === 'current' ? 'text-fg-1' : 'text-fg-3')}>
-            {phase.detail}
+            aria-hidden
+            className={cn('h-1.5 rounded-full', entry.state === 'pending' ? 'bg-surface-4' : tone.bg, entry.state === 'done' && 'opacity-50')}
+          />
+          <span className={cn('truncate text-meta', entry.state === 'current' ? 'font-bold text-fg-1' : 'text-fg-2')}>
+            {index + 1} · {entry.label}
+            {entry.state === 'done' ? <span className="sr-only"> (hecho)</span> : null}
           </span>
         </li>
       ))}

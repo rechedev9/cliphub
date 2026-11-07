@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { Play } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
+import type { FormatTone } from '@/components/studio/format-tone';
 import { roundOrdinals } from '@/lib/produce/round-ordinals';
 import { PlayRow } from './play-row';
 
@@ -22,13 +23,15 @@ export type PlayListProps = {
   emptyFiltered?: ReactNode;
   /** Multi-POV only: play id → the player whose chosen play it overlaps. */
   clashes?: ReadonlyMap<string, string>;
+  /** The format colour of the flow, for the selected cards. */
+  tone?: FormatTone;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
 };
 
 /**
- * One bordered row per highlight (PlayRow) under a mono header with the
+ * One selectable card per highlight (PlayRow) under a heading with the
  * selection counter plus Seleccionar todo / Limpiar; no horizontal scroll.
  * The list owns `@container/reel` because PlayRow keys its breakpoints to the
  * list's width, not the viewport's.
@@ -43,6 +46,7 @@ export function PlayList({
   visibleIds,
   emptyFiltered,
   clashes,
+  tone = 'short',
   onToggle,
   onSelectAll,
   onClear,
@@ -58,15 +62,15 @@ export function PlayList({
   }
 
   return (
-    <div className="studio-panel @container/reel flex flex-col overflow-hidden">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border-subtle bg-surface-3 p-4 @[80rem]/content:p-5">
-        <span className="text-body-sm font-semibold text-fg-2">{title}</span>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-body-sm text-fg-2">
+    <section aria-label={title} className="@container/reel flex min-w-0 flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="flex-1 font-display text-title font-extrabold text-fg-1">
+          {title}{' '}
+          <span className="text-body-sm font-medium text-fg-3">
             {counter ?? `${selectedIds.size} ${selectedIds.size === 1 ? 'elegido' : 'elegidos'}`}
           </span>
-        </div>
-        <div className="flex w-full flex-wrap items-center gap-2">
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
           {toolbar}
           <Button
             type="button"
@@ -87,10 +91,10 @@ export function PlayList({
             Limpiar
           </Button>
         </div>
-        {filters}
       </div>
+      {filters}
 
-      <div role="region" aria-label="Jugadas disponibles">
+      <div role="region" aria-label="Jugadas disponibles" className="flex flex-col gap-1.5">
         {rows.length === 0 && plays.length > 0 ? emptyFiltered : null}
         {rows.map((play) => (
           <PlayRow
@@ -100,10 +104,11 @@ export function PlayList({
             reelPosition={positions.get(play.id) ?? null}
             ordinal={ordinals.get(play.id)}
             clashWith={clashes?.get(play.id)}
+            tone={tone}
             onToggle={() => onToggle(play.id)}
           />
         ))}
       </div>
-    </div>
+    </section>
   );
 }

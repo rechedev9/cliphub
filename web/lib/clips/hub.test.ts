@@ -4,14 +4,11 @@ import type { StreamJob } from '../api/streams.ts';
 import type { Match, Video } from '../api/types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import {
-  activeJobCount,
   buildHubModel,
-  clipFilterCounts,
   fullChipLabel,
   matchMetaParts,
   HUB_ROW_STAGE,
   hubTransitions,
-  matchesClipFilter,
   matchRowStage,
   outputState,
   outputTagLabel,
@@ -200,21 +197,7 @@ test('buildHubModel lists the newest output first inside a row', () => {
   assert.deepEqual(model.rows[0].shorts.map((o) => o.id), ['new', 'old']);
 });
 
-test('clip filters and counts agree with each other', () => {
-  const outputs = [
-    toOutput(reel({ id: 'a', status: 'ready' })),
-    toOutput(reel({ id: 'b', status: 'composing' })),
-    toOutput(reel({ id: 'c', status: 'ready', editConfig: FULL_DEMO_EDIT })),
-    toOutput(reel({ id: 'd', status: 'failed' })),
-  ];
-  // A failed output is done, not "en marcha": it must not count as working.
-  assert.deepEqual(clipFilterCounts(outputs), { all: 4, short: 3, full: 1, ready: 2, working: 1 });
-  assert.equal(matchesClipFilter(outputs[1], 'working'), true);
-  assert.equal(matchesClipFilter(outputs[3], 'working'), false);
-  assert.equal(matchesClipFilter(outputs[2], 'short'), false);
-});
-
-test('recBusy and activeJobCount count what is actually moving', () => {
+test('recBusy is true while an output is on REC', () => {
   const model = buildHubModel(
     [match('m1', 'parsing'), match('m2', 'scanned'), match('m3')],
     [
@@ -224,15 +207,6 @@ test('recBusy and activeJobCount count what is actually moving', () => {
     ],
   );
   assert.equal(recBusy(model), true);
-  // m1 parsing + 'a' on REC; the queued 'b' and unpicked m2 are backlog.
-  assert.equal(activeJobCount(model), 2);
-  assert.equal(
-    activeJobCount(model, [
-      { id: 's1', status: 'rendering', created_at: '' },
-      { id: 's2', status: 'ready', created_at: '' },
-    ]),
-    3,
-  );
 });
 
 test('fullChipLabel follows the latest Full POV state', () => {
@@ -245,10 +219,10 @@ test('fullChipLabel follows the latest Full POV state', () => {
 test('outputTagLabel: one tag per state, with progress when reported', () => {
   const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
     [{ state: 'ready', percent: null, rounds: null }, 'Listo'],
-    [{ state: 'render', percent: 41, rounds: null }, 'Render 41%'],
-    [{ state: 'render', percent: null, rounds: null }, 'Render'],
-    [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'REC R3/20'],
-    [{ state: 'rec', percent: null, rounds: null }, 'REC'],
+    [{ state: 'render', percent: 41, rounds: null }, 'Editando 41%'],
+    [{ state: 'render', percent: null, rounds: null }, 'Editando'],
+    [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'Grabando 3/20'],
+    [{ state: 'rec', percent: null, rounds: null }, 'Grabando'],
     [{ state: 'queue', percent: null, rounds: null }, 'En cola'],
     [{ state: 'failed', percent: null, rounds: null }, 'Falló'],
   ];
@@ -291,11 +265,11 @@ test('a failed partida keeps its clips on the row', () => {
   assert.deepEqual(model.orphans.map((output) => output.id), ['v2']);
 });
 
-test('matchMetaParts keeps player, K/D and highlights, and always ends with the date', () => {
+test('matchMetaParts keeps player, K/D and plays, and always ends with the date', () => {
   assert.deepEqual(matchMetaParts({ ...match('m1'), player: 'donk' }, 'hace 2 h'), [
     'donk',
     '20/10 K/D',
-    '5 highlights',
+    '5 jugadas',
     'hace 2 h',
   ]);
   const bare: Match = {

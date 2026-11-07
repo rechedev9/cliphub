@@ -21,7 +21,7 @@ export function StreamSourceTimeline({
   onSelect: (clip: StreamClipRange) => void;
 }): ReactNode {
   return (
-    <section className="rounded-md border border-border-subtle bg-surface-1 p-3" aria-label="Timeline de la fuente">
+    <section className="rounded-md border border-border-subtle bg-surface-1 p-3" aria-label="Línea de tiempo del vídeo original">
       <label className="flex flex-col gap-2 text-label text-fg-2">
         Recorrer el vídeo original
         <input
@@ -36,7 +36,7 @@ export function StreamSourceTimeline({
           className="h-5 w-full cursor-pointer accent-stream"
         />
       </label>
-      <div className="relative mt-2 h-8 rounded bg-surface-3" aria-label="Momentos seleccionados">
+      <div className="relative mt-2 h-8 rounded bg-surface-2" aria-label="Momentos seleccionados">
         {clips.map((clip, index) => {
           const geometry = clipTimelineGeometry(clip, sourceDuration);
           if (!geometry) return null;
@@ -46,12 +46,14 @@ export function StreamSourceTimeline({
               type="button"
               disabled={disabled}
               aria-pressed={clip.id === selectedClipId}
-              aria-label={`Seleccionar el corte ${index + 1}: ${formatStreamClock(clip.start_seconds)} a ${formatStreamClock(clip.end_seconds)}`}
+              aria-label={`Seleccionar el momento ${index + 1}: ${formatStreamClock(clip.start_seconds)} a ${formatStreamClock(clip.end_seconds)}`}
               onClick={() => onSelect(clip)}
               style={{ left: `${geometry.startPercent}%`, width: `${geometry.widthPercent}%` }}
               className={cn(
                 'absolute inset-y-0 min-w-1 overflow-hidden rounded border text-label focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-ring',
-                clip.id === selectedClipId ? 'border-stream bg-stream/30' : 'border-stream/40 bg-stream/10',
+                clip.id === selectedClipId
+                  ? 'border-fg-1 bg-format-stream text-format-stream-foreground'
+                  : 'border-format-stream bg-format-stream/60 text-format-stream-foreground',
               )}
             >
               {index + 1}

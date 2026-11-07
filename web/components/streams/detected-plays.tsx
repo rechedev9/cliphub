@@ -106,7 +106,7 @@ export function StreamDetectedPlays({
 
       {scan?.status === 'done' && ranked.length === 0 ? (
         <p className="text-body-sm text-fg-2">
-          No encontramos kills tuyas. El kill feed tiene que verse arriba a la derecha.
+          No hemos detectado kills en la kill feed (debe verse arriba a la derecha). Puedes marcar tus momentos a mano abajo.
         </p>
       ) : null}
 

@@ -97,7 +97,7 @@ export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogPro
   } else if (songs.length === 0) {
     list = (
       <p className="px-2 py-8 text-center text-body-sm text-fg-2">
-        No hay temas disponibles. Añade audio al directorio de música y recarga.
+        No se encontró el catálogo de música. Reinicia ClipHub Studio o continúa sin música.
       </p>
     );
   } else {
