@@ -8,6 +8,7 @@ import { buyLabel, patternLabel, siteLabel } from '@/lib/tactical-labels';
 import { HistogramChart, RateBar, RateRow, RateValue, SmallSampleChip } from '@/components/tactical/tactical-charts';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatDecimal } from '@/lib/format';
 
 const HEAD_CELL = 'px-3 py-2 text-left text-meta font-normal text-fg-3';
 const BODY_CELL = 'px-3 py-2 align-middle';
@@ -26,7 +27,7 @@ function CrossCell({ rounds, pct, reliable }: { rounds: number; pct: number; rel
   return (
     <span className="flex flex-col gap-1">
       <span className="flex items-baseline gap-2">
-        <span className={cn('text-meta tracking-normal tabular-nums', reliable ? 'text-fg-1' : 'text-fg-3')}>{pct.toFixed(1)} %</span>
+        <span className={cn('text-meta tracking-normal tabular-nums', reliable ? 'text-fg-1' : 'text-fg-3')}>{formatDecimal(pct, 1)} %</span>
         <span className="text-meta tracking-normal tabular-nums text-fg-3">n={rounds}</span>
       </span>
       {reliable ? null : <SmallSampleChip className="self-start" />}

@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { formatDecimal } from '@/lib/format';
 
 export function StreamKeyDropBannerControls({
   family,
@@ -154,7 +155,7 @@ export function StreamKeyDropBannerControls({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-label text-fg-2">Visible en el clip</Label>
               <output className="text-label tabular-nums text-fg-1">
-                {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
+                {formatDecimal(startSeconds, 1)} s → {formatDecimal(endSeconds, 1)} s
               </output>
             </div>
             <p className="text-body-sm text-fg-3">
@@ -226,7 +227,7 @@ export function StreamKeyDropBannerControls({
             {rangeValid ? null : (
               <p role="alert" className="text-body-sm text-destructive">
                 La salida debe ser mayor que la entrada
-                {clipDurationSeconds > 0 ? ` y como máximo ${clipDurationSeconds.toFixed(1)}s` : ''}.
+                {clipDurationSeconds > 0 ? ` y como máximo ${formatDecimal(clipDurationSeconds, 1)} s` : ''}.
               </p>
             )}
           </div>

@@ -6,6 +6,18 @@ export function prettyMapName(map: string): string {
   return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
+const DECIMAL_FORMATS = new Map<number, Intl.NumberFormat>();
+
+/** A number with a fixed count of decimals and the Spanish decimal comma: `formatDecimal(1.5, 2)` is "1,50". */
+export function formatDecimal(value: number, digits: number): string {
+  let format = DECIMAL_FORMATS.get(digits);
+  if (format === undefined) {
+    format = new Intl.NumberFormat('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    DECIMAL_FORMATS.set(digits, format);
+  }
+  return format.format(value);
+}
+
 /** 0-100 fill for a rating bar, scaled so a 2.0 rating (an elite pace) fills it. */
 export function ratingBarPct(rating: number): number {
   return Math.min(100, Math.max(0, (rating / 2) * 100));

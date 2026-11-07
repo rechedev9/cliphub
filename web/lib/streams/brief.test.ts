@@ -36,7 +36,7 @@ test('the brief names the catalog track and reads the affiliate window without d
   );
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
   assert.equal(byLabel['Música'], 'Night Drive · 25%');
-  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · de 0.0 s a 4.0 s');
+  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · de 0,0 s a 4,0 s');
 });
 
 test('stream creative brief names Kick when the banner platform is kick', () => {

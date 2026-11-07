@@ -1,5 +1,6 @@
 import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
+import { formatDecimal } from './format.ts';
 import { resolvedReelFormat } from './reel-format.ts';
 
 export type CreativeBriefItem = {
@@ -132,7 +133,7 @@ export function reelCreativeBrief(
     {
       label: 'Afiliado',
       value: edit.keyDropStyle
-        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${(edit.keyDropStartSeconds ?? 0).toFixed(1)} s a ${edit.keyDropEndSeconds != null ? `${edit.keyDropEndSeconds.toFixed(1)} s` : 'el final'}`
+        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${formatDecimal(edit.keyDropStartSeconds ?? 0, 1)} s a ${edit.keyDropEndSeconds != null ? `${formatDecimal(edit.keyDropEndSeconds, 1)} s` : 'el final'}`
         : 'No',
     },
     { label: 'Música', value: musicBriefValue(music) },

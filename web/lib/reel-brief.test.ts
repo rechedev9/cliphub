@@ -226,8 +226,8 @@ test('creative brief names Tigerr and Jcorko affiliate styles', () => {
       (item) => [item.label, item.value],
     ),
   );
-  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0.0 s a 4.0 s');
-  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0.0 s a 4.0 s');
+  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0,0 s a 4,0 s');
+  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0,0 s a 4,0 s');
 });
 
 test('creative brief names CSGOSkins when that family is selected', () => {
@@ -255,7 +255,7 @@ test('creative brief names CSGOSkins when that family is selected', () => {
       { status: 'none' },
     ).map((item) => [item.label, item.value]),
   );
-  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0.0 s a 4.0 s');
+  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0,0 s a 4,0 s');
   assert.equal(skins.KeyDrop, undefined);
 });
 

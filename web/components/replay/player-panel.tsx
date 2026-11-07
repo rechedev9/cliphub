@@ -9,6 +9,7 @@ import type { PlayerCard } from '@/lib/replay/player-cards';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EquipmentIcon, GearGlyph } from './equipment-icon';
+import { formatDecimal } from '@/lib/format';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
@@ -125,7 +126,7 @@ function PlayerRow({
             <GearGlyph kind="c4" label="Lleva la bomba" className="text-destructive" />
           ) : null}
           {card.flashed > 0 ? (
-            <span className="rounded-sm bg-fg-1 px-1 text-meta leading-4 font-semibold text-surface-0" title={`Cegado ${card.flashed.toFixed(1)} s`}>
+            <span className="rounded-sm bg-fg-1 px-1 text-meta leading-4 font-semibold text-surface-0" title={`Cegado ${formatDecimal(card.flashed, 1)} s`}>
               Cegado
             </span>
           ) : null}

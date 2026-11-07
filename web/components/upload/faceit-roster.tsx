@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { FaceitScoreboard, FaceitScoreboardPlayer, FaceitScoreboardTeam } from '@/lib/api/faceit-scoreboard';
-import { prettyMapName } from '@/lib/format';
+import { formatDecimal, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -78,11 +78,11 @@ const COLUMNS: Column[] = [
   { key: 'k', label: 'K', tier: 0, width: '2.5rem', value: (p) => `${p.kills}` },
   { key: 'd', label: 'D', tier: 0, width: '2.5rem', value: (p) => `${p.deaths}` },
   { key: 'a', label: 'A', tier: 0, width: '2.5rem', value: (p) => `${p.assists}` },
-  { key: 'adr', label: 'ADR', title: 'Daño medio por ronda', tier: 0, width: '3.25rem', value: (p) => p.adr.toFixed(1) },
-  { key: 'kd', label: 'K/D', tier: 1, width: '3rem', value: (p) => p.kd.toFixed(2) },
-  { key: 'kr', label: 'K/R', title: 'Kills por ronda', tier: 1, width: '3rem', value: (p) => p.kr.toFixed(2) },
+  { key: 'adr', label: 'ADR', title: 'Daño medio por ronda', tier: 0, width: '3.25rem', value: (p) => formatDecimal(p.adr, 1) },
+  { key: 'kd', label: 'K/D', tier: 1, width: '3rem', value: (p) => formatDecimal(p.kd, 2) },
+  { key: 'kr', label: 'K/R', title: 'Kills por ronda', tier: 1, width: '3rem', value: (p) => formatDecimal(p.kr, 2) },
   { key: 'hs', label: 'HS', title: 'Kills por headshot', tier: 2, width: '2.5rem', value: (p) => `${p.headshots}` },
-  { key: 'hsp', label: 'HS %', tier: 1, width: '3.5rem', value: (p) => `${p.hsPct.toFixed(1)}%` },
+  { key: 'hsp', label: 'HS %', tier: 1, width: '3.5rem', value: (p) => `${formatDecimal(p.hsPct, 1)} %` },
   { key: '5k', label: '5K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds5k}`, tone: (p) => dimZero(p.rounds5k) },
   { key: '4k', label: '4K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds4k}`, tone: (p) => dimZero(p.rounds4k) },
   { key: '3k', label: '3K', tier: 2, width: '2.25rem', value: (p) => `${p.rounds3k}`, tone: (p) => dimZero(p.rounds3k) },

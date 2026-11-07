@@ -4,6 +4,7 @@ import {
   type StreamVariant,
 } from '../api/streams.ts';
 import { affiliateFamilyLabel, affiliateStyleLabel } from '../api/types.ts';
+import { formatDecimal } from '../format.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { clipOutputDuration, formatStreamClock } from './plan.ts';
 
@@ -49,7 +50,7 @@ export function streamCreativeBrief(plan: StreamEditPlan, musicLabel?: string): 
     const end = plan.keydrop_banner?.end_seconds;
     const window =
       typeof start === 'number' || typeof end === 'number'
-        ? ` · de ${typeof start === 'number' ? `${start.toFixed(1)} s` : 'inicio'} a ${typeof end === 'number' ? `${end.toFixed(1)} s` : 'fin'}`
+        ? ` · de ${typeof start === 'number' ? `${formatDecimal(start, 1)} s` : 'inicio'} a ${typeof end === 'number' ? `${formatDecimal(end, 1)} s` : 'fin'}`
         : '';
     affiliate = plan.keydrop_banner?.slide_enabled
       ? `${familyLabel} · ${styleLabel} · ${kdCode}${window} · deslizante`
