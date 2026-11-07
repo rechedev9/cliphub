@@ -28,7 +28,9 @@ var searchGrenades = map[string]string{
 // SearchQuery is a parsed search: the words every result holds and the map
 // and grenade the query narrows to.
 type SearchQuery struct {
-	Words   []string
+	Words []string
+	// Typed is each of Words as typed, lowercased with its accents, for lookups that do not fold.
+	Typed   []string
 	Map     string
 	Grenade string
 }
@@ -52,15 +54,17 @@ func FoldSearch(text string) string {
 // ParseSearch splits a query into words, taking out a map name and a grenade.
 func ParseSearch(raw string) SearchQuery {
 	var q SearchQuery
-	for _, word := range strings.Fields(FoldSearch(raw)) {
-		name := strings.TrimPrefix(word, "de_")
-		switch {
-		case q.Map == "" && searchMaps[name]:
-			q.Map = "de_" + name
-		case q.Grenade == "" && searchGrenades[word] != "":
-			q.Grenade = searchGrenades[word]
-		default:
-			q.Words = append(q.Words, word)
+	for _, field := range strings.Fields(strings.ToLower(raw)) {
+		for _, word := range strings.Fields(FoldSearch(field)) {
+			name := strings.TrimPrefix(word, "de_")
+			switch {
+			case q.Map == "" && searchMaps[name]:
+				q.Map = "de_" + name
+			case q.Grenade == "" && searchGrenades[word] != "":
+				q.Grenade = searchGrenades[word]
+			default:
+				q.Words, q.Typed = append(q.Words, word), append(q.Typed, field)
+			}
 		}
 	}
 	return q

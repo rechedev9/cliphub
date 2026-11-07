@@ -1,8 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func TestSearchLibraryFindsEveryKind(t *testing.T) {
@@ -50,5 +56,24 @@ func TestSearchLibraryFindsEveryKind(t *testing.T) {
 	}
 	if rw := env.do(http.MethodGet, "/api/library/search?q=x&limit=99", nil, ""); rw.Code != http.StatusBadRequest {
 		t.Fatalf("limit 99 = %d, want 400", rw.Code)
+	}
+}
+
+func TestSearchLibraryFindsAPlayerByAnAccentedNick(t *testing.T) {
+	env := newPlaysTestEnv(t)
+	doc := tacticalplan.Document{Teams: []tacticalplan.Team{{Key: "ct-start", Name: "Ñu", StartSide: tacticalplan.SideCT}},
+		Players: []tacticalplan.Player{{SteamID64: "76561198000000009", Name: "Peña", TeamKey: "ct-start", StartSide: tacticalplan.SideCT}}}
+	doc.Demo.Map = "de_nuke"
+	d := library.Demo{ID: uuid.New(), SHA256: "accent", FileName: "accent.dem"}
+	if _, err := env.repo.CreateDemo(context.Background(), &d); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.repo.SaveAnalysis(context.Background(), library.AnalysisFromDocument(d.ID, doc)); err != nil {
+		t.Fatal(err)
+	}
+	var resp searchResponse
+	env.json(http.MethodGet, "/api/library/search?q=Pe%C3%B1a", nil, http.StatusOK, &resp)
+	if len(resp.Results) == 0 || resp.Results[0].Kind != searchPlayer || resp.Results[0].Title != "Peña" {
+		t.Fatalf("search Peña = %+v, want the player Peña", resp.Results)
 	}
 }

@@ -166,14 +166,29 @@ func (h *Handlers) searchTeams(ctx context.Context, q library.SearchQuery, limit
 }
 
 // searchPlayers asks the repository for nicks holding the first word, then
-// keeps the players holding every word.
+// keeps the players holding every word. Nicks are stored with their accents,
+// so a word typed with one is also looked up as typed.
 func (h *Handlers) searchPlayers(ctx context.Context, q library.SearchQuery, limit int) ([]searchResult, error) {
 	if q.Narrowed() || len(q.Words) == 0 {
 		return nil, nil
 	}
-	players, err := h.libraryRepo.ListPlayers(ctx, library.PlayerFilter{Query: q.Words[0], Limit: library.MaxListLimit})
-	if err != nil {
-		return nil, err
+	lookups := []string{q.Words[0]}
+	if q.Typed[0] != q.Words[0] {
+		lookups = append(lookups, q.Typed[0])
+	}
+	var players []library.Player
+	seen := map[string]bool{}
+	for _, lookup := range lookups {
+		found, err := h.libraryRepo.ListPlayers(ctx, library.PlayerFilter{Query: lookup, Limit: library.MaxListLimit})
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range found {
+			if !seen[p.SteamID64] {
+				seen[p.SteamID64] = true
+				players = append(players, p)
+			}
+		}
 	}
 	out := []searchResult{}
 	for _, p := range players {

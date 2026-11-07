@@ -16,9 +16,17 @@ func TestParseSearchNarrowsMapAndGrenade(t *testing.T) {
 		"molotov molotov bancos":   {Words: []string{"molotov", "bancos"}, Grenade: "molotov"},
 		"cegadora a B por palacio": {Words: []string{"a", "b", "por", "palacio"}, Grenade: "flash"},
 	} {
-		if got := ParseSearch(raw); !reflect.DeepEqual(got, want) {
+		got := ParseSearch(raw)
+		if got = (SearchQuery{Words: got.Words, Map: got.Map, Grenade: got.Grenade}); !reflect.DeepEqual(got, want) {
 			t.Errorf("ParseSearch(%q) = %+v, want %+v", raw, got, want)
 		}
+	}
+}
+
+func TestParseSearchKeepsEachWordAsTyped(t *testing.T) {
+	q := ParseSearch("humo Peña  Ñu")
+	if !reflect.DeepEqual(q.Words, []string{"pena", "nu"}) || !reflect.DeepEqual(q.Typed, []string{"peña", "ñu"}) {
+		t.Fatalf("ParseSearch = %+v, want folded words and the typed ones beside them", q)
 	}
 }
 
