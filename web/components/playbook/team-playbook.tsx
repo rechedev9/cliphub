@@ -20,7 +20,7 @@ import {
 } from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
-import { MapPinned, Swords } from 'lucide-react';
+import { Map as MapIcon, Swords } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ function ChooseScope({ scope, maps, onScopeChange }: { scope: AnalysisScope; map
   if (scope.map === '') {
     return (
       <EmptyState
-        icon={MapPinned}
+        icon={MapIcon}
         title="Elige un mapa"
         description={scope.side === '' ? 'El playbook se lee mapa a mapa y lado a lado.' : 'El playbook se lee mapa a mapa.'}
         actions={
