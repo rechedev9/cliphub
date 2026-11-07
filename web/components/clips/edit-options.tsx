@@ -254,7 +254,7 @@ export function EditOptions({
             label="Título de apertura"
             value={value.introText ?? ''}
             visible={value.intro}
-            placeholder="Título de apertura (vacío = titular generado)"
+            placeholder="Ej. ACE en Mirage (si lo dejas vacío, se genera solo)"
             disabled={disabled}
             onChange={(introText) => onChange({ ...value, introText })}
           />
@@ -262,7 +262,7 @@ export function EditOptions({
             label="Texto de cierre"
             value={value.outroText ?? ''}
             visible={value.outro}
-            placeholder="Texto de cierre (tu handle; vacío = ClipHub)"
+            placeholder="Ej. @tunick (por defecto: ClipHub)"
             disabled={disabled}
             onChange={(outroText) => onChange({ ...value, outroText })}
           />
@@ -280,9 +280,9 @@ export function EditOptions({
           variant="outline"
           className="flex-wrap"
         >
-          <ToggleGroupItem value="generated-gameplay" aria-label="Generar candidatos de gameplay">
+          <ToggleGroupItem value="generated-gameplay" aria-label="Fotograma del vídeo">
             <ImageIcon className="size-4" />
-            Candidatos de gameplay
+            Fotograma del vídeo
           </ToggleGroupItem>
           <ToggleGroupItem value="no-cover" aria-label="No generar portada">
             Sin portada
@@ -417,7 +417,7 @@ export function EditOptions({
               </div>
             </div>
             <p className="text-body-sm text-fg-3">
-              La placa solo se ve entre esos segundos del short (por defecto 0–4s).
+              La placa solo se ve entre esos segundos del vídeo (por defecto, de 0 a 4 s).
             </p>
           </div>
         ) : null}

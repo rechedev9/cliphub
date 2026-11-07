@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamEditPlan, StreamRenderState } from '../api/streams.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
+import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import {
-  STREAM_STEP_LABEL,
   STREAM_WORKFLOW_STEPS,
   streamCtaLabel,
   streamEditorSteps,
@@ -12,21 +12,11 @@ import {
 } from './editor.ts';
 
 test('the editor rail continues the landing workflow with the same names and numbers', () => {
-  assert.deepEqual(STREAM_WORKFLOW_STEPS, [
-    'Importar vídeo',
-    'Elegir momentos',
-    'Ajustar aspecto',
-    'Revisar y exportar',
-    'Guardar vídeos',
-  ]);
-  const steps = streamEditorSteps({ plan: plan(), renderState: null, stale: false, rendering: true });
+  assert.deepEqual(STREAM_WORKFLOW_STEPS, CREATE_FLOW_STEPS.stream);
+  const steps = streamEditorSteps({ plan: plan(), renderState: null, stale: false });
   assert.deepEqual(
     steps.map((step) => [step.number, step.label]),
     STREAM_WORKFLOW_STEPS.slice(1).map((label, index) => [String(index + 2), label]),
-  );
-  assert.deepEqual(
-    steps.map((step) => step.label),
-    steps.map((step) => STREAM_STEP_LABEL[step.key]),
   );
 });
 
@@ -51,18 +41,19 @@ function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
     ...overrides,
   };
 }
-test('the editor starts with moments, then aspect and review; results appear only for an export', () => {
+test('the editor shows every step; saving opens only once there is an export', () => {
   const state = { plan: plan(), renderState: null, stale: false };
   assert.deepEqual(
-    streamEditorSteps(state).map((s) => s.key),
-    ['cuts', 'layout', 'review'],
-  );
-  assert.deepEqual(
-    streamEditorSteps(state).map((s) => s.done),
-    [true, true, false],
+    streamEditorSteps(state).map((s) => [s.key, s.done, s.disabled]),
+    [
+      ['cuts', true, false],
+      ['layout', true, false],
+      ['review', false, false],
+      ['results', false, true],
+    ],
   );
   const rendering = streamEditorSteps({ ...state, rendering: true });
-  assert.equal(rendering.at(-1)?.key, 'results');
+  assert.equal(rendering.at(-1)?.disabled, false);
   assert.equal(rendering.at(-1)?.done, false);
   const rendered = { ...state, renderState: { status: 'rendered' as const, videos: [{ clip_id: 'c1', key: 'v' }] } };
   assert.equal(streamEditorSteps(rendered).at(-1)?.done, true);

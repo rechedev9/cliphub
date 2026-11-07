@@ -16,7 +16,7 @@ export const CLIP_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
 
 /** Immediate, localized range validation shared by editing and submission. */
 export function streamRangeIssue(clip: StreamClipRange, durationSeconds: number, index: number): string | null {
-  const label = clip.title?.trim() || `Clip ${index + 1}`;
+  const label = clip.title?.trim() || `Momento ${index + 1}`;
   if (!Number.isFinite(clip.start_seconds) || clip.start_seconds < 0) {
     return `${label}: el inicio debe ser un número igual o mayor que 0.`;
   }
@@ -50,9 +50,9 @@ export function streamRangesIssue(clips: StreamClipRange[], durationSeconds: num
   const overlap = findOverlap(clips);
   if (overlap !== null) {
     const [i, j] = overlap;
-    const labelA = clips[i].title?.trim() || `Clip ${i + 1}`;
-    const labelB = clips[j].title?.trim() || `Clip ${j + 1}`;
-    return `${labelA} y ${labelB} se solapan en la fuente.`;
+    const labelA = clips[i].title?.trim() || `Momento ${i + 1}`;
+    const labelB = clips[j].title?.trim() || `Momento ${j + 1}`;
+    return `${labelA} y ${labelB} se solapan en el vídeo original.`;
   }
   return null;
 }
@@ -64,8 +64,8 @@ export function streamRangeOverlapIssue(clips: readonly StreamClipRange[], index
   for (const [otherIndex, other] of clips.entries()) {
     if (otherIndex === index) continue;
     if (clip.start_seconds < other.end_seconds && other.start_seconds < clip.end_seconds) {
-      const label = other.title?.trim() || `Clip ${otherIndex + 1}`;
-      return `Se solapa con ${label} en la fuente.`;
+      const label = other.title?.trim() || `Momento ${otherIndex + 1}`;
+      return `Se solapa con ${label} en el vídeo original.`;
     }
   }
   return null;
@@ -90,7 +90,7 @@ export function clipEditIssue(clips: StreamClipRange[]): string | null {
   for (const [index, clip] of clips.entries()) {
     const edit = clip.edit;
     if (!edit) continue;
-    const label = clip.title?.trim() || `Clip ${index + 1}`;
+    const label = clip.title?.trim() || `Momento ${index + 1}`;
     const fadeIn = edit.fade_in_seconds ?? 0;
     const fadeOut = edit.fade_out_seconds ?? 0;
     if (fadeIn < 0 || fadeIn > MAX_CLIP_FADE_SECONDS || fadeOut < 0 || fadeOut > MAX_CLIP_FADE_SECONDS) {
@@ -99,7 +99,7 @@ export function clipEditIssue(clips: StreamClipRange[]): string | null {
     const speed = edit.speed ?? 1;
     const clipDuration = clip.end_seconds - clip.start_seconds;
     if (fadeIn + fadeOut > clipDuration / speed) {
-      return `${label}: los fundidos no caben en la duración del clip a ${speed}x.`;
+      return `${label}: los fundidos no caben en la duración del momento a ${speed}x.`;
     }
     for (const overlay of edit.text_overlays ?? []) {
       if (overlay.text.trim() === '') {
@@ -116,10 +116,10 @@ export function clipEditIssue(clips: StreamClipRange[]): string | null {
       const start = overlay.start_seconds;
       const end = overlay.end_seconds;
       if (start !== undefined && (start < 0 || start >= clipDuration)) {
-        return `${label}: el inicio de un texto queda fuera del clip.`;
+        return `${label}: el inicio de un texto queda fuera del momento.`;
       }
       if (end !== undefined && (end <= 0 || end > clipDuration)) {
-        return `${label}: el fin de un texto queda fuera del clip.`;
+        return `${label}: el fin de un texto queda fuera del momento.`;
       }
       if (start !== undefined && end !== undefined && end <= start) {
         return `${label}: un texto termina antes de empezar.`;

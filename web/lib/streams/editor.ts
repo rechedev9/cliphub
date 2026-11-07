@@ -1,4 +1,5 @@
 import { STREAM_VARIANTS, type StreamEditPlan, type StreamRenderState } from '../api/streams.ts';
+import { CREATE_FLOW_STEPS } from '../produce/create-flow.ts';
 import { clipOutputDuration, formatStreamClock } from './plan.ts';
 
 export const STREAM_STEP = { cuts: 'cuts', layout: 'layout', review: 'review', results: 'results' } as const;
@@ -9,20 +10,12 @@ export const STREAM_STEP_LABEL = {
   review: 'Revisar y exportar',
   results: 'Guardar vídeos',
 } as const satisfies Record<StreamStep, string>;
-export const STREAM_IMPORT_STEP_LABEL = 'Importar vídeo';
-/**
- * The whole stream workflow as the /streams landing numbers it. Import is step
- * 1 there, so the editor rail continues at 2 with the same names.
- */
-export const STREAM_WORKFLOW_STEPS: readonly string[] = [
-  STREAM_IMPORT_STEP_LABEL,
-  STREAM_STEP_LABEL.cuts,
-  STREAM_STEP_LABEL.layout,
-  STREAM_STEP_LABEL.review,
-  STREAM_STEP_LABEL.results,
-];
-function workflowNumber(step: StreamStep): string {
-  return String(STREAM_WORKFLOW_STEPS.indexOf(STREAM_STEP_LABEL[step]) + 1);
+/** The /streams landing rail and the editor rail share these names; import is step 1. */
+export const STREAM_WORKFLOW_STEPS: readonly string[] = CREATE_FLOW_STEPS.stream;
+const STREAM_STEP_ORDER: readonly StreamStep[] = ['cuts', 'layout', 'review', 'results'];
+function workflowEntry(step: StreamStep): { number: string; label: string } {
+  const index = STREAM_STEP_ORDER.indexOf(step) + 1;
+  return { number: String(index + 1), label: STREAM_WORKFLOW_STEPS[index] ?? STREAM_STEP_LABEL[step] };
 }
 export type StreamStepEntry = {
   key: StreamStep;
@@ -31,6 +24,7 @@ export type StreamStepEntry = {
   detail: string;
   done: boolean;
   optional: boolean;
+  disabled: boolean;
 };
 export function streamVariantNeedsFaceCrop(plan: StreamEditPlan): boolean {
   return STREAM_VARIANTS.find((entry) => entry.value === plan.variant)?.needsFaceCrop ?? false;
@@ -66,42 +60,43 @@ export function streamEditorSteps({
   const steps: StreamStepEntry[] = [
     {
       key: 'cuts',
-      number: workflowNumber('cuts'),
-      label: STREAM_STEP_LABEL.cuts,
+      ...workflowEntry('cuts'),
       detail: shortsWord(plan.clips.length),
       done: plan.clips.length > 0,
       optional: false,
+      disabled: false,
     },
     {
       key: 'layout',
-      number: workflowNumber('layout'),
-      label: STREAM_STEP_LABEL.layout,
+      ...workflowEntry('layout'),
       detail: faceReady ? streamVariantLabel(plan) : 'Ajusta la cámara',
       done: faceReady,
       optional: false,
+      disabled: false,
     },
     {
       key: 'review',
-      number: workflowNumber('review'),
-      label: STREAM_STEP_LABEL.review,
+      ...workflowEntry('review'),
       detail: 'Un vídeo por momento',
       done: videoCount > 0 && !stale,
       optional: false,
+      disabled: false,
     },
   ];
-  if (rendering || renderState?.status === 'rendered' || renderState?.published) {
-    let resultDetail = shortsWord(videoCount);
-    if (!videoCount) resultDetail = 'Sin vídeos · vuelve a exportar';
-    else if (stale) resultDetail = 'Hay cambios sin exportar';
-    steps.push({
-      key: 'results',
-      number: workflowNumber('results'),
-      label: STREAM_STEP_LABEL.results,
-      detail: rendering ? streamRenderBusyLabel(streamRenderQueued(renderState)) : resultDetail,
-      done: videoCount > 0 && !rendering && !stale,
-      optional: false,
-    });
-  }
+  const hasResults = rendering || renderState?.status === 'rendered' || renderState?.published === true;
+  let resultDetail = shortsWord(videoCount);
+  if (!hasResults) resultDetail = 'Después de exportar';
+  else if (rendering) resultDetail = streamRenderBusyLabel(streamRenderQueued(renderState));
+  else if (!videoCount) resultDetail = 'Sin vídeos · vuelve a exportar';
+  else if (stale) resultDetail = 'Hay cambios sin exportar';
+  steps.push({
+    key: 'results',
+    ...workflowEntry('results'),
+    detail: resultDetail,
+    done: hasResults && videoCount > 0 && !rendering && !stale,
+    optional: false,
+    disabled: !hasResults,
+  });
   return steps;
 }
 export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): string {

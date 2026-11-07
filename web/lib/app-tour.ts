@@ -60,7 +60,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       'Cada formato tiene su sección en la barra lateral: «Demo completa» y «Short». Las dos empiezan igual: cargas una demo y eliges el jugador desde cuya vista se grabará el vídeo.',
     points: [
       {
-        term: 'Archivo en mi PC',
+        term: 'Suelta tu demo',
         text: 'Arrastra una demo .dem, .dem.zst, .zip o .rar. Si juegas en FACEIT, descarga la demo desde la sala de la partida y cárgala aquí.',
       },
       {
@@ -76,7 +76,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Si cargas varias demos de un mismo bo3 o bo5, se agrupan en una serie: eliges al jugador una vez y creas un vídeo por mapa.',
       },
       {
-        term: 'Demos cargadas',
+        term: 'Elige una demo',
         text: 'Las demos que ya analizaste quedan en la lista de cada sección, para crear otro vídeo sin volver a cargarlas.',
       },
     ],
@@ -118,7 +118,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'Elige las jugadas',
-        text: '«Auto: mejores 60 s» selecciona el mejor minuto por ti. Las rondas de cinco kills llevan la etiqueta ACE.',
+        text: '«Elegir las mejores (1 min)» selecciona el mejor minuto por ti. Las rondas de cinco kills llevan la etiqueta ACE.',
       },
       {
         term: 'Estilo',

@@ -5,6 +5,7 @@
  */
 
 export const SHORTS_HREF = '/shorts' as const;
+export const STREAMS_HREF = '/streams' as const;
 export const LONG_VIDEOS_HREF = '/videos-largos' as const;
 export const RESULTS_HREF = '/mis-videos' as const;
 export const MATCHES_HREF = '/partidas' as const;

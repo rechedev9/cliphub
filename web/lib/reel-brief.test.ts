@@ -26,12 +26,11 @@ test('library music rerender needs a changed mix and no active operation', () =>
 });
 
 test('forging starts with configured options and no separate approval', () => {
-  const ready = { creating: false, hasPreset: true, selectionCount: 1, musicDecided: true };
+  const ready = { creating: false, hasPreset: true, selectionCount: 1 };
   assert.equal(canForgeReel(ready), true);
   assert.equal(canForgeReel({ ...ready, creating: true }), false);
   assert.equal(canForgeReel({ ...ready, hasPreset: false }), false);
   assert.equal(canForgeReel({ ...ready, selectionCount: 0 }), false);
-  assert.equal(canForgeReel({ ...ready, musicDecided: false }), false);
 });
 
 test('creative brief resolves every required production choice', () => {
@@ -63,7 +62,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },
     { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },
-    { label: 'Portada', value: 'Generar candidatos de gameplay para revisión' },
+    { label: 'Portada', value: 'Automática (fotograma del vídeo)' },
   ]);
 });
 
@@ -87,15 +86,13 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Formato'], 'Horizontal 16:9 · 1920×1080');
   assert.equal(brief['Entrega'], 'Compilado de jugadas');
   assert.equal(brief['Comms'], 'Sin comms');
-  assert.equal(brief['HUD / killfeed'], 'Pendiente de preset');
+  assert.equal(brief['HUD / killfeed'], 'Pendiente de estilo');
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
   assert.equal(brief['Intro'], 'No');
   assert.equal(brief['Outro'], 'Sí · firma ClipHub');
   assert.equal(brief['Afiliado'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
-  const pending = reelCreativeBrief(edit, null, { status: 'pending' }).find((item) => item.label === 'Música');
-  assert.equal(pending?.value, 'Pendiente de decisión');
 });
 
 test('9:16 shorts brief never claims a landscape recap even if those flags leak in', () => {
@@ -229,8 +226,8 @@ test('creative brief names Tigerr and Jcorko affiliate styles', () => {
       (item) => [item.label, item.value],
     ),
   );
-  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · 0.0s–4.0s');
-  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · 0.0s–4.0s');
+  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0.0 s a 4.0 s');
+  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0.0 s a 4.0 s');
 });
 
 test('creative brief names CSGOSkins when that family is selected', () => {
@@ -258,7 +255,7 @@ test('creative brief names CSGOSkins when that family is selected', () => {
       { status: 'none' },
     ).map((item) => [item.label, item.value]),
   );
-  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · 0.0s–4.0s');
+  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0.0 s a 4.0 s');
   assert.equal(skins.KeyDrop, undefined);
 });
 

@@ -3,6 +3,11 @@
 import type { ReactNode, Ref } from 'react';
 import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
+import { cn } from '@/lib/utils';
+
+/** Bar heights of the decorative waveform, in px: a fixed shape, not the track's audio. */
+const WAVE_BARS = Array.from({ length: 40 }, (_, i) => 6 + Math.round(Math.abs(Math.sin(i * 1.7) * 18 + Math.cos(i * 0.6) * 4)));
 
 /** Music volume slider, in UI percent. 100 renders the legacy full-volume form. */
 export const MUSIC_VOLUME = { min: 5, max: 100, step: 5, default: 100 } as const;
@@ -12,8 +17,10 @@ const SLIDER_CLASS =
   'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50';
 
 export type MusicCardProps = {
-  /** Card eyebrow; the Short constructor numbers it as a step. */
-  eyebrow?: string;
+  /** Card heading. */
+  title?: string;
+  /** The format colour of the flow, for the track tile and the waveform. */
+  tone?: FormatTone;
   decided: boolean;
   songTitle: string | null;
   musicVolume: number;
@@ -29,12 +36,12 @@ export type MusicCardProps = {
 };
 
 /** The Short music decision: a track with its mix, explicit "sin música", or still pending. */
-export function MusicCard({ eyebrow = 'Música', ...props }: MusicCardProps): ReactNode {
+export function MusicCard({ title = 'Música', ...props }: MusicCardProps): ReactNode {
   return (
-    <div className="studio-panel flex flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
-      <span className="text-body-sm font-semibold text-fg-2">{eyebrow}</span>
+    <section aria-label={title} className="flex flex-col gap-3 rounded-2xl bg-surface-2 p-4">
+      <h2 className="font-display text-body font-bold text-fg-1">{title}</h2>
       <MusicDecision {...props} />
-    </div>
+    </section>
   );
 }
 
@@ -44,6 +51,7 @@ function MusicDecision({
   musicVolume,
   gameVolume,
   busy,
+  tone = 'short',
   pickerRef,
   onOpenPicker,
   onChooseNone,
@@ -55,8 +63,10 @@ function MusicDecision({
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Music className="size-4 shrink-0 text-fg-2" aria-hidden />
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className={cn('grid size-10 shrink-0 place-items-center rounded-xl', FORMAT_TONE[tone].fill)}>
+              <Music className="size-4" />
+            </span>
             <p className="truncate font-display text-body-sm font-semibold text-fg-1">{songTitle}</p>
           </div>
           <div className="flex shrink-0 gap-1">
@@ -67,6 +77,11 @@ function MusicDecision({
               Quitar
             </Button>
           </div>
+        </div>
+        <div aria-hidden className="flex h-7 items-center gap-0.5 overflow-hidden">
+          {WAVE_BARS.map((height, index) => (
+            <span key={index} style={{ height }} className={cn('w-0.75 shrink-0 rounded-full', FORMAT_TONE[tone].bg)} />
+          ))}
         </div>
         <div className="flex flex-col gap-2.5 border-t border-border-subtle pt-3">
           <div className="flex min-w-0 items-center gap-3">

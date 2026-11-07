@@ -1,7 +1,7 @@
 /** Produce-screen empty state when `getMatch` returns nothing (404 / gone from disk). */
 export const PRODUCE_MATCH_MISSING = {
   title: 'Partida no encontrada',
-  description: 'Esta partida ya no está en este PC. Puede que se haya borrado con sus artefactos.',
+  description: 'Esta partida ya no está en este PC. Puede que se haya borrado junto con sus vídeos.',
 } as const;
 
 /** Browser titles of the producer route, one per format. */
@@ -9,14 +9,10 @@ export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nueva demo 
 
 /** Each format is its own flow: the section name, its home copy and its steps. */
 export const FLOW_TITLE = { short: 'Short', full: 'Demo completa' } as const;
-export const FLOW_HOME_TITLE = { short: 'Crea un Short', full: 'Crea una demo completa' } as const;
+export const FLOW_HOME_TITLE = { short: 'Tu mejor minuto, en vertical', full: 'La partida entera, con su vista' } as const;
 export const FLOW_HOME_DESCRIPTION = {
-  short: 'Vídeo vertical 9:16 con las mejores jugadas de un jugador. Carga una demo de CS2, elige el jugador y revisa las jugadas antes de grabar.',
-  full: 'Vídeo horizontal 16:9 con todas las rondas desde la vista de un jugador, o con las mejores jugadas de varios jugadores del equipo. Carga una demo de CS2, elige los jugadores y revisa los ajustes antes de grabar.',
-} as const;
-export const FLOW_STEPS = {
-  short: ['Cargar demo', 'Elegir jugador', 'Preparar Short', 'Grabar y descargar'],
-  full: ['Cargar demo', 'Elegir jugador', 'Preparar demo completa', 'Grabar y descargar'],
+  short: 'Elige una demo y un jugador. ClipHub encuentra sus jugadas y las monta en un Short de 9:16.',
+  full: 'Todas las rondas desde la vista de un jugador, o las mejores jugadas de varios del equipo, en 16:9.',
 } as const;
 export const FLOW_PRODUCE_CTA = {
   short: { first: 'Crear Short', again: 'Crear otro Short' },
@@ -58,4 +54,4 @@ export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
 
 /** Creating a Short failed in transport or on the server; domain errors keep their own text. */
 export const PRODUCE_SHORT_CREATE_OFFLINE = 'El servicio local no responde. Comprueba que ClipHub sigue abierto y vuelve a intentarlo.';
-export const PRODUCE_SHORT_CREATE_ERROR = 'No se pudo crear el Short. Vuelve a intentarlo.';
+export const PRODUCE_SHORT_CREATE_ERROR = 'No se pudo crear el vídeo. Vuelve a intentarlo.';

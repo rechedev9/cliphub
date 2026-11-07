@@ -231,42 +231,7 @@ export function sameHubProps(a: unknown, b: unknown): boolean {
   return keys.every((key) => Object.hasOwn(b, key) && sameHubProps(a[key], b[key]));
 }
 
-/** Clips lens filters, with the label the chip shows. */
-export const CLIP_FILTER = {
-  all: 'all',
-  short: 'short',
-  full: 'full',
-  ready: 'ready',
-  working: 'working',
-} as const;
-export type ClipFilter = (typeof CLIP_FILTER)[keyof typeof CLIP_FILTER];
-
-export function matchesClipFilter(output: MatchOutput, filter: ClipFilter): boolean {
-  switch (filter) {
-    case CLIP_FILTER.all:
-      return true;
-    case CLIP_FILTER.short:
-      return output.type === OUTPUT_TYPE.short;
-    case CLIP_FILTER.full:
-      return output.type === OUTPUT_TYPE.full;
-    case CLIP_FILTER.ready:
-      return output.state === OUTPUT_STATE.ready;
-    case CLIP_FILTER.working:
-      return isWorking(output.state);
-  }
-}
-
-export function clipFilterCounts(outputs: readonly MatchOutput[]): Record<ClipFilter, number> {
-  const counts: Record<ClipFilter, number> = { all: 0, short: 0, full: 0, ready: 0, working: 0 };
-  for (const output of outputs) {
-    for (const filter of Object.values(CLIP_FILTER)) {
-      if (matchesClipFilter(output, filter)) counts[filter] += 1;
-    }
-  }
-  return counts;
-}
-
-/** Card grid density. S hides the action row. */
+/** Card size of the Mis vídeos grid. */
 export const CLIP_SIZE = { s: 'S', m: 'M', l: 'L' } as const;
 export type ClipSize = (typeof CLIP_SIZE)[keyof typeof CLIP_SIZE];
 
@@ -276,24 +241,13 @@ export function recBusy(model: Pick<HubModel, 'rows' | 'orphans'>): boolean {
   return all.some((output) => output.state === OUTPUT_STATE.rec);
 }
 
-/** Hub summary count: partidas being parsed plus outputs and streams on REC/render. Queued is backlog, not work. */
-export function activeJobCount(model: HubModel, streams: readonly StreamJob[] = []): number {
-  const outputs = [...model.rows.flatMap((row) => [...row.shorts, ...row.fulls]), ...model.orphans];
-  const parsing = model.rows.filter((row) => row.stage === HUB_ROW_STAGE.parsing).length;
-  const running = outputs.filter(
-    (output) => output.state === OUTPUT_STATE.rec || output.state === OUTPUT_STATE.render,
-  ).length;
-  const streaming = streams.filter((job) => job.status === 'acquiring' || job.status === 'rendering').length;
-  return parsing + running + streaming;
-}
-
 /** Row subtitle: the facts that tell five same-map partidas apart. `dateLabel` is already formatted. */
 export function matchMetaParts(match: Match, dateLabel: string): string[] {
   const parts: string[] = [];
   if (match.player !== undefined && match.player !== '') parts.push(match.player);
   const { kills, deaths } = match.stats;
   if (kills > 0 || deaths > 0) parts.push(`${kills}/${deaths} K/D`);
-  if (match.decentPlays > 0) parts.push(`${match.decentPlays} highlights`);
+  if (match.decentPlays > 0) parts.push(`${match.decentPlays} ${match.decentPlays === 1 ? 'jugada' : 'jugadas'}`);
   parts.push(dateLabel);
   return parts;
 }
@@ -332,7 +286,7 @@ export const OUTPUT_TONE = {
 } as const satisfies Record<OutputState, string>;
 export type OutputTone = (typeof OUTPUT_TONE)[OutputState];
 
-/** The tag an output item shows: Listo, Render 41%, REC R3/20, En cola, Falló. */
+/** The tag an output item shows: Listo, Editando 41%, Grabando 3/20, En cola, Falló. */
 export function outputTagLabel(
   output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'>,
 ): string {
@@ -340,9 +294,9 @@ export function outputTagLabel(
     case OUTPUT_STATE.ready:
       return 'Listo';
     case OUTPUT_STATE.render:
-      return output.percent === null ? 'Render' : `Render ${output.percent}%`;
+      return output.percent === null ? 'Editando' : `Editando ${output.percent}%`;
     case OUTPUT_STATE.rec:
-      return output.rounds === null ? 'REC' : `REC R${output.rounds.done}/${output.rounds.total}`;
+      return output.rounds === null ? 'Grabando' : `Grabando ${output.rounds.done}/${output.rounds.total}`;
     case OUTPUT_STATE.queue:
       return 'En cola';
     case OUTPUT_STATE.failed:

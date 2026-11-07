@@ -8,22 +8,20 @@ export type CreativeBriefItem = {
 };
 
 export type MusicBrief =
-  | { status: 'pending' }
   | { status: 'none' }
   | { status: 'track'; title: string; volumePercent: number; gameVolumePercent: number };
 
+/** Music is optional: a Short without a track goes out "Sin música". */
 export function canForgeReel({
   creating,
   hasPreset,
   selectionCount,
-  musicDecided,
 }: {
   creating: boolean;
   hasPreset: boolean;
   selectionCount: number;
-  musicDecided: boolean;
 }): boolean {
-  return !creating && hasPreset && selectionCount > 0 && musicDecided;
+  return !creating && hasPreset && selectionCount > 0;
 }
 
 /** Library music rerender: the capture already exists; only a changed mix may proceed. */
@@ -72,7 +70,6 @@ function bookendLabel(enabled: boolean, text: string | undefined, generatedFallb
 }
 
 function musicBriefValue(music: MusicBrief): string {
-  if (music.status === 'pending') return 'Pendiente de decisión';
   if (music.status === 'none') return 'Sin música';
   return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;
 }
@@ -108,7 +105,7 @@ export function reelCreativeBrief(
   music: MusicBrief,
 ): CreativeBriefItem[] {
   const edit = constrainEditConfig(raw);
-  let hud = 'Pendiente de preset';
+  let hud = 'Pendiente de estilo';
   if (edit.nativeHud) {
     hud = NATIVE_HUD_LABEL;
   } else if (preset?.hudMode) {
@@ -135,14 +132,14 @@ export function reelCreativeBrief(
     {
       label: 'Afiliado',
       value: edit.keyDropStyle
-        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · ${(edit.keyDropStartSeconds ?? 0).toFixed(1)}s–${edit.keyDropEndSeconds != null ? edit.keyDropEndSeconds.toFixed(1) : 'fin'}s`
+        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${(edit.keyDropStartSeconds ?? 0).toFixed(1)} s a ${edit.keyDropEndSeconds != null ? `${edit.keyDropEndSeconds.toFixed(1)} s` : 'el final'}`
         : 'No',
     },
     { label: 'Música', value: musicBriefValue(music) },
     {
       label: 'Portada',
       value: edit.coverStrategy === 'generated-gameplay'
-        ? 'Generar candidatos de gameplay para revisión'
+        ? 'Automática (fotograma del vídeo)'
         : 'No generar portada',
     },
   ];
