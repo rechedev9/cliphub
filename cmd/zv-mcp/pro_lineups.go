@@ -243,7 +243,7 @@ func registerProLineupTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "save_pro_lineup", Annotations: &mcp.ToolAnnotations{},
-		Description: "Save a pro lineup into the Libreta, tagged pro with its technique estimated, as Guardar en la Libreta does on Lineups pro. delete_lineup undoes it."},
+		Description: "Save a pro lineup into the Libreta, tagged pro with its technique estimated, as Guardar en la Libreta does on Lineups pro. Saving it again returns the copy already there. delete_lineup undoes it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in proLineupIn) (*mcp.CallToolResult, lineupOut, error) {
 			mapName, err := proMapName(in.Map)
 			if err != nil {

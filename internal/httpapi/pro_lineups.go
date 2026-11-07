@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -100,6 +101,15 @@ func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		existing, err := h.savedProLineup(r, lineup)
+		if err != nil {
+			writeLibraryError(w, "save pro lineup", err)
+			return
+		}
+		if existing != nil {
+			writeJSON(w, http.StatusOK, existing)
+			return
+		}
 		if err := h.libraryRepo.CreateLineup(r.Context(), &lineup); err != nil {
 			writeLibraryError(w, "save pro lineup", err)
 			return
@@ -108,6 +118,21 @@ func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeCodedError(w, http.StatusNotFound, codeNoProLineups, "no pro lineup with this id on the map")
+}
+
+// savedProLineup is the Libreta copy of this pro lineup, matched by spot and aim, so a second save adds nothing.
+func (h *Handlers) savedProLineup(r *http.Request, want library.Lineup) (*library.Lineup, error) {
+	saved, err := h.libraryRepo.ListLineups(r.Context(), library.LineupFilter{Map: want.Map, Side: want.Side, Grenade: want.Grenade, Tag: "pro"})
+	if err != nil {
+		return nil, err
+	}
+	for i := range saved {
+		l := &saved[i]
+		if l.Origin == want.Origin && math.Abs(l.Yaw-want.Yaw) < 0.01 && math.Abs(l.Pitch-want.Pitch) < 0.01 {
+			return l, nil
+		}
+	}
+	return nil, nil
 }
 
 // libretaLineup is a pro lineup as a Libreta lineup; its technique is estimated.

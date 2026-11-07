@@ -291,7 +291,7 @@ Write:
 | `delete_call` | `GET` then `DELETE /api/library/calls/{id}` | yes |
 | `rename_callout` | `PUT /api/library/maps/{map}/callouts/{token}` with `name`, or `DELETE` for an empty name (back to CS2's name) | no |
 | `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade`, as Guardar lineup and Nuevo lineup do | no |
-| `save_pro_lineup` | `POST /api/library/pro-lineups/{map}/lineups/{id}/save` (a slug is turned into its id with `GET /api/library/pro-lineups/{map}` first): a Libreta lineup tagged `pro` with its technique estimated, as Guardar en la Libreta does on Lineups pro; `delete_lineup` undoes it | no |
+| `save_pro_lineup` | `POST /api/library/pro-lineups/{map}/lineups/{id}/save` (a slug is turned into its id with `GET /api/library/pro-lineups/{map}` first): a Libreta lineup tagged `pro` with its technique estimated, as Guardar en la Libreta does on Lineups pro; a second save returns the copy already there; `delete_lineup` undoes it | no |
 | `update_lineup` | `PATCH /api/library/lineups/{id}` (`title`, `status`, `tags`, `notes`, `movement`, `jump`, `click`); map, side, grenade and the spot cannot change | no |
 | `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
