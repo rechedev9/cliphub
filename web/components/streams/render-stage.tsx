@@ -6,7 +6,6 @@ import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { shortsWord, streamRenderQueued } from '@/lib/streams/editor';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -43,7 +42,7 @@ export function StreamRenderStage({
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionEyebrow label="Exportación" accent="magenta" />
+        <h2 className="text-body-sm font-semibold text-fg-1">Exportación</h2>
         <StatusTag tone="stream" dot>
           {stage}
         </StatusTag>

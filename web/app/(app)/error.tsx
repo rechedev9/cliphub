@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { RotateCcw, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { recordRendererError } from '@/lib/desktop-telemetry';
 import { RESULTS_HREF } from '@/lib/clips/routes';
@@ -45,7 +44,6 @@ export default function AppError({
         role="alert"
         className="studio-panel studio-panel-raised flex w-full max-w-[42rem] flex-col gap-5 p-7"
       >
-        <SectionEyebrow label="Error de la aplicación" />
         <div className="flex items-start gap-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-md border border-destructive/45 bg-destructive/10 text-destructive">
             <TriangleAlert className="size-5" aria-hidden />

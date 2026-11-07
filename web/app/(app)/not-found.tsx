@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { RESULTS_HREF } from '@/lib/clips/routes';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
@@ -18,7 +17,6 @@ export default function AppNotFound(): ReactElement {
   return (
     <div className="flex min-h-[60svh] items-center">
       <section className="studio-panel flex w-full max-w-[42rem] flex-col gap-5 p-7">
-        <SectionEyebrow label="Ruta desconocida" />
         <div className="flex items-start gap-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-md border border-border-strong bg-surface-3 text-fg-2">
             <Compass className="size-5" aria-hidden />

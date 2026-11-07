@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { MonitorPlay, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CaptureReadiness as CaptureReadinessData, CaptureStatus } from '@/lib/api/types';
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { SettingsSection } from '@/components/settings/settings-section';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -120,18 +121,13 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
   let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
   if (recording !== undefined) settingsTag = { text: pillText, tone: 'stream' };
 
-  return (
+  const dialog = (
     <Dialog>
       <DialogTrigger asChild>
         {variant === 'settings' ? (
-          <button type="button" className={`studio-panel studio-panel-interactive flex w-full flex-col gap-3 p-5 text-left ${FOCUS_RING}`}>
-            <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-fg-2" />Grabación de demos</span>
-            <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para grabar Shorts y demos completas.</span>
-            <span className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
-              <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
-              <span className="font-semibold text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar requisitos →</span>
-            </span>
-          </button>
+          <Button type="button" variant="outline" size="sm" className="self-start">
+            Revisar requisitos
+          </Button>
         ) : (
         <button
           type="button"
@@ -213,6 +209,18 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
         </div>
       </DialogContent>
     </Dialog>
+  );
+
+  if (variant === 'sidebar') return dialog;
+  return (
+    <SettingsSection
+      id="capture"
+      title="Grabación de demos"
+      description="CS2, HLAE y el grabador en este PC. Hacen falta para grabar Shorts y demos completas; los clips de stream no los necesitan."
+      status={<StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>}
+    >
+      {dialog}
+    </SettingsSection>
   );
 }
 

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { loadSteamAccount, type SteamStoredMatch } from '@/lib/api/steam-account';
@@ -48,7 +47,7 @@ export function RecentSteamMatches({ format }: { format: ProduceFormat }): React
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-4 @[34rem]/content:p-6">
-      <SectionEyebrow label="Tus partidas recientes" />
+      <h2 className="text-body font-semibold text-fg-1">Tus partidas recientes</h2>
       <ol className="flex flex-col gap-2">
         {matches.map((match) => (
           <li key={match.shareCode} className="flex flex-col gap-2 border border-border bg-surface-1 px-3 py-3 @[34rem]/content:flex-row @[34rem]/content:items-center">

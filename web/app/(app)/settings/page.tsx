@@ -12,14 +12,13 @@ import { PlaybackDiagnostics } from '@/components/settings/playback-diagnostics'
 /** Desktop-only application settings. */
 export default function SettingsPage(): ReactNode {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-7">
       <StudioPageHeader
         title="Ajustes"
         description="Prepara este PC para grabar y gestiona tus conexiones opcionales."
       />
-      <div className="measure-read flex flex-col gap-8">
-        <section id="capture" className="scroll-mt-20"><CaptureReadiness variant="settings" /></section>
-        <p className="text-body-sm text-fg-2">Conectar Steam solo es necesario para importar partidas desde tu cuenta. Puedes cargar demos y archivos MP4 sin configurarlo.</p>
+      <div className="measure-work flex flex-col gap-7">
+        <CaptureReadiness variant="settings" />
         <SteamAccount />
         <AppearanceSettings />
         <StudioInfo />

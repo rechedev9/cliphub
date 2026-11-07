@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity } from 'lucide-react';
 import { getDesktopSettingsBridge, type StudioTelemetryStatus } from '@/lib/desktop-settings';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SettingsSection } from './settings-section';
 
 /** The readouts, in the order an operator reads them; the skeleton reserves the same block. */
 const TELEMETRY_ROWS: ReadonlyArray<{ label: string; value: (status: StudioTelemetryStatus) => string }> = [
@@ -64,10 +62,6 @@ export function TelemetrySettings(): ReactNode {
             <StudioDataRow key={row.label} label={row.label} value={row.value(status)} className="flex-col items-start @[34rem]/content:flex-row @[34rem]/content:items-center" />
           ))}
         </div>
-        <p className="text-body-sm text-fg-2">
-          Se envían logs técnicos filtrados, errores con su contexto y el recorrido de cada intento de trabajo, junto con tiempos de ejecución. Se ocultan rutas,
-          credenciales, correos y SteamID. No se adjuntan demos, vídeos ni otros archivos multimedia.
-        </p>
         {status.logDelivery?.lastError ? (
           <p role="status" className="text-body-sm text-warning">
             No se ha confirmado la entrega de todos los logs. Consulta la última recepción y los registros perdidos o rechazados.
@@ -112,18 +106,13 @@ export function TelemetrySettings(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="telemetry-settings-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={Activity} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Privacidad" />
-          <h2 id="telemetry-settings-title" className="font-display text-title font-bold text-fg-1">
-            Diagnósticos
-          </h2>
-        </div>
-        {headerStatus ? <div className="ml-auto shrink-0">{headerStatus}</div> : null}
-      </div>
+    <SettingsSection
+      id="telemetry-settings"
+      title="Diagnósticos"
+      description="Logs técnicos filtrados, errores con su contexto y tiempos de cada trabajo. Se ocultan rutas, credenciales, correos y SteamID, y no se adjuntan demos ni vídeos."
+      status={headerStatus}
+    >
       {body}
-    </section>
+    </SettingsSection>
   );
 }

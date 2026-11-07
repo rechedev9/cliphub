@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bot, Check, Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import {
   claudeCodeCommand,
   claudeDesktopConfigSnippet,
@@ -11,10 +11,9 @@ import {
 } from '@/lib/desktop-settings';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { cn } from '@/lib/utils';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SettingsSection } from './settings-section';
 
 type AssistantState =
   | { kind: 'loading' }
@@ -75,10 +74,6 @@ export function AssistantSettings(): ReactNode {
             onCheckedChange={update}
           />
         </div>
-        <p className="text-body-sm text-fg-2">
-          Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar te pide tu aprobación
-          en el chat. Solo funciona mientras Studio está abierto.
-        </p>
         {failure ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo guardar el cambio. Inténtalo de nuevo.
@@ -111,18 +106,13 @@ export function AssistantSettings(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="assistant-settings-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={Bot} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Conexiones" />
-          <h2 id="assistant-settings-title" className="font-display text-title font-bold text-fg-1">
-            Asistentes (Claude, ChatGPT)
-          </h2>
-        </div>
-      </div>
+    <SettingsSection
+      id="assistants"
+      title="Asistentes (Claude, ChatGPT)"
+      description="Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar te pide tu aprobación en el chat. Solo funciona mientras Studio está abierto."
+    >
       {body}
-    </section>
+    </SettingsSection>
   );
 }
 

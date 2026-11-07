@@ -3,15 +3,13 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { KeyRound } from 'lucide-react';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
+import { SettingsSection } from './settings-section';
 import {
   clearSteamAccount,
   loadSteamAccount,
@@ -172,22 +170,17 @@ export function SteamAccount(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="steam-account-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={KeyRound} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Cuenta con la que juegas" />
-          <h2 id="steam-account-title" className="font-display text-title font-bold text-fg-1">
-            Steam
-          </h2>
-        </div>
-        <div className="ml-auto shrink-0">{status}</div>
-      </div>
-
-      <p className="text-body-sm text-fg-2">
-        El código de autenticación lista tus partidas recientes. No es tu contraseña y se revoca desde
-        Steam. La contraseña solo se pide al descargar una demo, y no se guarda en este PC.
-      </p>
+    <SettingsSection
+      id="steam"
+      title="Steam"
+      description={
+        <>
+          Solo hace falta para importar partidas desde tu cuenta; puedes cargar demos y MP4 sin configurarlo. El código de autenticación lista tus
+          partidas recientes: no es tu contraseña y se revoca desde Steam.
+        </>
+      }
+      status={status}
+    >
 
       <form key={account?.steamId ?? 'empty'} onSubmit={(event) => { void onSave(event); }} className="flex flex-col gap-4">
         <Field label="SteamID64" hint="El número de 17 cifras de tu perfil, o la URL /profiles/…" error={fieldErrors.steamId}>
@@ -339,6 +332,6 @@ export function SteamAccount(): ReactNode {
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
         onQueued={() => { router.push(SHORTS_HREF); }}
       />
-    </section>
+    </SettingsSection>
   );
 }
