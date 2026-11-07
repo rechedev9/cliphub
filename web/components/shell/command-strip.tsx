@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useSyncExternalStore, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -11,11 +11,6 @@ import { GlobalSearch } from '@/components/shell/global-search';
 import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
-import {
-  serverShellActivitySnapshot,
-  shellActivitySnapshot,
-  subscribeToShellActivity,
-} from '@/lib/shell-activity';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { sectionForPath, type NavSection } from '@/lib/nav';
 
@@ -38,11 +33,6 @@ export function CommandStrip(): ReactElement {
   const section = sectionForPath(pathname);
   const routeTitle = useCurrentRouteTitle();
   const trail = routeTitle ?? trailForPath(pathname, section);
-  const activity = useSyncExternalStore(
-    subscribeToShellActivity,
-    shellActivitySnapshot,
-    serverShellActivitySnapshot,
-  );
 
   return (
     <header
@@ -75,7 +65,6 @@ export function CommandStrip(): ReactElement {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GlobalSearch />
         <JobTransport />
-        {activity.capturing ? <CapturePip /> : null}
         <Button
           type="button"
           variant="ghost"
@@ -93,21 +82,6 @@ export function CommandStrip(): ReactElement {
         <AppUpdateControl />
       </div>
     </header>
-  );
-}
-
-// Magenta REC pip: visible counterpart of data-capture-active silencing ambient GPU work.
-function CapturePip(): ReactElement {
-  return (
-    <span
-      role="status"
-      className="hidden h-9 items-center gap-2 rounded-md border border-stream/45 bg-stream/10 px-2.5 sm:flex"
-    >
-      <span className="live-pulse size-2 rounded-full bg-stream" aria-hidden />
-      <span className="text-meta font-medium text-stream-text">
-        Captura
-      </span>
-    </span>
   );
 }
 

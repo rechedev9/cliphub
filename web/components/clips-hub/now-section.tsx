@@ -96,7 +96,7 @@ function NowHero({ clip, onChange }: { clip: HubClip; onChange: () => void }): R
         <div className="flex flex-wrap items-center gap-3">
           <span aria-hidden className="size-3 shrink-0 rounded-full bg-format-stream ring-4 ring-format-stream/30" />
           <h2 id={HEADING_ID} className="text-label font-bold text-fg-2">
-            {recording ? 'Grabando en este PC' : 'Editando en este PC'}
+            {recording ? 'Grabando en este PC' : 'Montando el vídeo en este PC'}
           </h2>
           <span className="ml-auto flex items-center gap-1.5">
             <CreateAnotherLink clip={clip} />
