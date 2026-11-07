@@ -28,6 +28,14 @@ export function ProLoadProblem({ load, onRetry, map }: { load: ProLoad<unknown>;
           actions={retry}
         />
       );
+    case 'disabled':
+      return (
+        <EmptyState
+          icon={CloudOff}
+          title="El servidor de ClipHub está desactivado"
+          description="Este Studio está configurado para no conectarse al servidor de ClipHub, de donde vienen los lineups pro."
+        />
+      );
     case 'missing':
       return (
         <EmptyState

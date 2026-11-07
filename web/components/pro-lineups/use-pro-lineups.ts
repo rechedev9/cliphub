@@ -10,6 +10,7 @@ export type ProLoad<T> =
   | { kind: 'missing' }
   | { kind: 'offline' }
   | { kind: 'server_down' }
+  | { kind: 'disabled' }
   | { kind: 'failed' };
 
 // The list and a lineup page share one download per map for a while; Studio's own
@@ -20,9 +21,8 @@ const mapCache = new Map<string, { at: number; data: Promise<ProLineupMap> }>();
 function failure<T>(error: unknown): ProLoad<T> {
   if (isLibraryOffline(error)) return { kind: 'offline' };
   if (error instanceof LibraryApiError && error.status === 404) return { kind: 'missing' };
-  if (error instanceof LibraryApiError && (error.code === 'community_unavailable' || error.code === 'community_disabled')) {
-    return { kind: 'server_down' };
-  }
+  if (error instanceof LibraryApiError && error.code === 'community_disabled') return { kind: 'disabled' };
+  if (error instanceof LibraryApiError && error.code === 'community_unavailable') return { kind: 'server_down' };
   return { kind: 'failed' };
 }
 
