@@ -31,7 +31,7 @@ func victimReplayFor(segment RecordingSegment, plan RecordingPlan) *VictimReplay
 	var kill *killplan.Kill
 	for i := range segment.Kills {
 		candidate := &segment.Kills[i]
-		if candidate.Victim.SteamID64 == plan.TargetSteamID64 {
+		if candidate.Victim.SteamID64 == plan.ObservedSteamID(segment) {
 			continue
 		}
 		if _, err := AccountIDFromSteamID64(candidate.Victim.SteamID64); err != nil {
@@ -92,6 +92,7 @@ func (p RecordingPlan) CaptureSegments() []RecordingSegment {
 			TickEnd:      replay.TickEnd,
 			Kills:        replayKills(segment, *replay),
 			POVSteamID64: replay.SteamID64,
+			Observe:      segment.Observe,
 		})
 	}
 	var out, tail []RecordingSegment
@@ -161,7 +162,7 @@ func (p RecordingPlan) validateVictimReplays(ids map[string]bool) error {
 		if ids[id] {
 			return fmt.Errorf("victim replay id %q collides with a segment id", id)
 		}
-		if _, err := AccountIDFromSteamID64(replay.SteamID64); err != nil || replay.SteamID64 == p.TargetSteamID64 {
+		if _, err := AccountIDFromSteamID64(replay.SteamID64); err != nil || replay.SteamID64 == p.ObservedSteamID(segment) {
 			return fmt.Errorf("segment %s victim_replay steamid64 %q is not another player", segment.ID, replay.SteamID64)
 		}
 		if replay.TickStart < segment.TickStart || replay.TickEnd > segment.TickEnd ||

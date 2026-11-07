@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, MonitorPlay, Smartphone, Swords } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
-import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
+import { OUTPUT_STATE, outputLabel, outputState, type OutputState } from '@/lib/clips/hub';
 import { MATCHES_HREF, PRODUCE_FORMAT, produceHref, publishHref } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName, timeAgo } from '@/lib/format';
 import { matchSourceLabel } from '@/lib/records/matches';
@@ -132,7 +132,7 @@ export function MatchVideos({ matchId, videos }: { matchId: string; videos: read
                 className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-body-sm hover:bg-surface-3"
               >
                 <span className="min-w-0 flex-1 truncate font-medium text-fg-1">{video.title}</span>
-                <span className="text-fg-2">{outputType(video) === OUTPUT_TYPE.full ? 'Demo completa' : 'Short'}</span>
+                <span className="text-fg-2">{outputLabel(video)}</span>
                 <span className="text-fg-3">{timeAgo(video.createdAt)}</span>
                 <StatusTag tone={state.tone} dot>
                   {state.label}

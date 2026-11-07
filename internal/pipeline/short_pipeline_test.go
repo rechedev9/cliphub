@@ -44,27 +44,36 @@ const (
 var fixedClock = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 type parsedFixture struct {
-	Map           string `json:"map"`
-	Tickrate      int    `json:"tickrate"`
-	DurationTicks int    `json:"duration_ticks"`
-	Target        struct {
-		SteamID64   string `json:"steamid64"`
-		NameInDemo  string `json:"name_in_demo"`
-		TeamAtStart string `json:"team_at_start"`
-	} `json:"target"`
-	RoundStarts []parser.RoundStart `json:"round_starts"`
-	RoundEnds   []parser.RoundEnd   `json:"round_ends"`
-	Kills       []struct {
-		Tick       int             `json:"tick"`
-		Round      int             `json:"round"`
-		Weapon     string          `json:"weapon"`
-		Headshot   bool            `json:"headshot"`
-		Wallbang   bool            `json:"wallbang"`
-		KillerTeam string          `json:"killer_team"`
-		Victim     killplan.Player `json:"victim"`
-		KillerPos  [3]float64      `json:"killer_pos"`
-		VictimPos  [3]float64      `json:"victim_pos"`
-	} `json:"kills"`
+	Map           string              `json:"map"`
+	Tickrate      int                 `json:"tickrate"`
+	DurationTicks int                 `json:"duration_ticks"`
+	Target        fixturePlayer       `json:"target"`
+	RoundStarts   []parser.RoundStart `json:"round_starts"`
+	RoundEnds     []parser.RoundEnd   `json:"round_ends"`
+	Kills         []fixtureKill       `json:"kills"`
+	// Teammate is a second CT player of the same match for the multi-POV case.
+	Teammate struct {
+		Target fixturePlayer `json:"target"`
+		Kills  []fixtureKill `json:"kills"`
+	} `json:"teammate"`
+}
+
+type fixturePlayer struct {
+	SteamID64   string `json:"steamid64"`
+	NameInDemo  string `json:"name_in_demo"`
+	TeamAtStart string `json:"team_at_start"`
+}
+
+type fixtureKill struct {
+	Tick       int             `json:"tick"`
+	Round      int             `json:"round"`
+	Weapon     string          `json:"weapon"`
+	Headshot   bool            `json:"headshot"`
+	Wallbang   bool            `json:"wallbang"`
+	KillerTeam string          `json:"killer_team"`
+	Victim     killplan.Player `json:"victim"`
+	KillerPos  [3]float64      `json:"killer_pos"`
+	VictimPos  [3]float64      `json:"victim_pos"`
 }
 
 // TestShortPipelineGolden walks one Short through every stage that runs
@@ -261,6 +270,102 @@ func TestDeathReelPipelineGolden(t *testing.T) {
 	assertGolden(t, "11-death-edit-manifest.json", normalizedJSON(t, work, manifest))
 }
 
+// TestMultiPOVShortPipelineGolden walks a Short that mixes two teammates of
+// one demo: the merged plan, a clash-free pick, one capture that switches POV
+// per window, and the compiled edit in 9:16 and 16:9.
+func TestMultiPOVShortPipelineGolden(t *testing.T) {
+	work := t.TempDir()
+	// The player tags draw text, so the font lands under $WORK, not the user's cache.
+	t.Setenv("LocalAppData", filepath.Join(work, "cache"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(work, "cache"))
+	fixture := readFixture(t)
+	teammate := fixture
+	teammate.Target, teammate.Kills = fixture.Teammate.Target, fixture.Teammate.Kills
+	plan, err := killplan.MergePOVs([]killplan.Plan{buildKillPlan(t, fixture), buildKillPlan(t, teammate)})
+	if err != nil {
+		t.Fatalf("merge POVs: %v", err)
+	}
+	ranked := moments.Rank(plan)
+	assertGolden(t, "12-multi-pov-moments.json", normalizedJSON(t, work, ranked))
+	ids := clashFreePick(plan, ranked, 4)
+	selected, err := killplan.Select(plan, ids)
+	if err != nil {
+		t.Fatalf("select plays: %v", err)
+	}
+	if !selected.IsMultiPOV() {
+		t.Fatalf("pick %v films one player; the fixture should yield both", ids)
+	}
+	selectedPath := filepath.Join(work, "selected-plan.json")
+	writeJSON(t, selectedPath, selected)
+
+	stream := recording.DefaultStreamConfig()
+	stream.VictimReplay, stream.PortraitSafeKillfeed = true, true
+	recPlan, err := recording.NewPlanFromKillPlan(selected, filepath.Join(work, "match.dem"), filepath.Join(work, "recording"), stream)
+	if err != nil {
+		t.Fatalf("recording plan: %v", err)
+	}
+	script, err := recording.GenerateHLAEJavaScript(recPlan)
+	if err != nil {
+		t.Fatalf("HLAE script: %v", err)
+	}
+	assertGolden(t, "13-multi-pov-recording-plan.json", normalizedJSON(t, work, recPlan))
+	capture := simulateCapture(t, work, script, fixture.Target.SteamID64, recPlan)
+	assertGolden(t, "14-multi-pov-capture.json", normalizedJSON(t, work, capture))
+
+	resultPath := writeRecordingResult(t, recPlan)
+	for _, format := range []struct{ name, output, preset string }{
+		{"15-multi-pov-short", editor.OutputFormatShort9x16, ""},
+		{"16-multi-pov-landscape", editor.OutputFormatLandscape16x9, editor.PresetGameplayPOV60},
+	} {
+		outDir := filepath.Join(work, "render-"+format.name)
+		if _, err := editor.Run(context.Background(), editor.Config{
+			RecordingResultPath: resultPath,
+			KillPlanPath:        selectedPath,
+			OutputDir:           outDir,
+			PublishDir:          filepath.Join(work, "publish"),
+			FFmpegPath:          "ffmpeg",
+			FFprobePath:         "ffprobe",
+			Preset:              format.preset,
+			OutputFormat:        format.output,
+			KillCounter:         true,
+			CompileSegments:     true,
+			SegmentIDs:          ids,
+			VictimReplay:        true,
+			DryRun:              true,
+		}); err != nil {
+			t.Fatalf("%s editor dry run: %v", format.name, err)
+		}
+		var manifest editor.Manifest
+		readJSON(t, filepath.Join(outDir, "edit-manifest.json"), &manifest)
+		manifestGolden := normalizedJSON(t, work, manifest)
+		var normalized editor.Manifest
+		if err := json.Unmarshal([]byte(manifestGolden), &normalized); err != nil {
+			t.Fatalf("decode normalized manifest: %v", err)
+		}
+		assertGolden(t, format.name+"-manifest.json", manifestGolden)
+		assertGolden(t, format.name+"-ffmpeg-commands.txt", formatCommands(normalized))
+	}
+}
+
+// clashFreePick takes the best moments that one capture can film, the way the
+// Studio auto pick does: a play that clashes with an earlier pick is skipped.
+func clashFreePick(plan killplan.Plan, ranked []moments.Moment, limit int) []string {
+	byID := map[string]killplan.Segment{}
+	for _, s := range plan.Segments {
+		byID[s.ID] = s
+	}
+	var ids []string
+	for _, m := range ranked {
+		if len(ids) == limit {
+			break
+		}
+		if !slices.ContainsFunc(ids, func(id string) bool { return plan.POVClash(byID[id], byID[m.SegmentID]) }) {
+			ids = append(ids, m.SegmentID)
+		}
+	}
+	return ids
+}
+
 type captureView struct {
 	Outcome          string   `json:"outcome"`
 	RecordedSegments []string `json:"recorded_segments"`
@@ -284,8 +389,10 @@ func simulateCapture(t *testing.T, work, script, target string, plan recording.R
 	scenarioPath := filepath.Join(work, "scenario.json")
 	victims := []string{}
 	for _, segment := range plan.CaptureSegments() {
-		if segment.POVSteamID64 != "" && !slices.Contains(victims, segment.POVSteamID64) {
-			victims = append(victims, segment.POVSteamID64)
+		for _, id := range []string{segment.POVSteamID64, plan.ObservedSteamID(segment)} {
+			if id != "" && id != target && !slices.Contains(victims, id) {
+				victims = append(victims, id)
+			}
 		}
 	}
 	writeJSON(t, scenarioPath, map[string]any{
@@ -468,7 +575,8 @@ func normalizePaths(text, work string) string {
 	tail:
 		for end < len(text) {
 			c := text[end]
-			escapedQuote := c == '\\' && end+1 < len(text) && (text[end+1] == '"' || text[end+1] == '\'')
+			// JSON spells FFmpeg's escaped quote \' as \\'.
+			escapedQuote := c == '\\' && end+1 < len(text) && (text[end+1] == '"' || text[end+1] == '\'') || strings.HasPrefix(text[end:], `\\'`)
 			switch {
 			case strings.IndexByte("\"' \n,;:|", c) >= 0 || escapedQuote:
 				break tail

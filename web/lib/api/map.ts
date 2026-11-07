@@ -1,4 +1,5 @@
-import type { Match, Play, PlaySide, DemoPlayer } from './types';
+import type { Match, Play, PlaySide, DemoPlayer, PlayPlayer } from './types';
+import { povPlayersLabel } from '../produce/multi-pov.ts';
 
 /**
  * Minimal mirror of the killplan JSON (github.com/rechedev9/cliphub
@@ -20,7 +21,21 @@ type KillPlanSegment = {
   tick_end?: number;
   kills?: { weapon?: string; headshot?: boolean; clutch_vs?: number; killer?: { team_at_kill?: string }; victim?: { steamid64?: string } }[];
   utility?: { thrower?: { team_at_kill?: string } }[];
+  /** Multi-POV plans only: the player the segment films. */
+  pov?: { steamid64?: string; name_in_demo?: string };
 };
+
+/** The filmed players of a multi-POV plan, anchor first; empty for a single-POV plan. */
+export function planPovPlayers(plan: KillPlan): PlayPlayer[] {
+  const anchor = plan.target?.steamid64 ?? '';
+  const players: PlayPlayer[] = [];
+  const add = (steamId: string | undefined, name: string | undefined): void => {
+    if (steamId && !players.some((p) => p.steamId === steamId)) players.push({ steamId, name: name || steamId });
+  };
+  add(anchor, plan.target?.name_in_demo);
+  for (const segment of plan.segments ?? []) add(segment.pov?.steamid64, segment.pov?.name_in_demo);
+  return players.length > 1 ? players : [];
+}
 
 /** Lowest individual-account SteamID64; bots and empty ids fall below it. */
 const STEAMID64_ACCOUNT_BASE = 76561197960265728n;
@@ -160,7 +175,16 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment, plan: KillPlan):
     ...withSide(segmentSide(segment)),
     ...withClutch(Math.max(0, ...(segment.kills ?? []).map((kill) => kill.clutch_vs ?? 0))),
     victimReplay: hasVictimReplay(segment, plan),
+    ...withPlayer(segment, plan),
   };
+}
+
+function withPlayer(segment: KillPlanSegment, plan: KillPlan): Pick<Play, 'player'> {
+  const players = planPovPlayers(plan);
+  if (players.length === 0) return {};
+  const steamId = segment.pov?.steamid64 ?? plan.target?.steamid64;
+  const player = players.find((p) => p.steamId === steamId);
+  return player ? { player } : {};
 }
 
 function withSide(side: PlaySide | undefined): Pick<Play, 'side'> {
@@ -245,5 +269,10 @@ export function planToMatch(jobId: string, plan: KillPlan, player: DemoPlayer): 
   // built from) titles the match; omit it when unknown so no blank label shows.
   const name = player.name || plan.target?.name_in_demo;
   if (name) match.player = name;
+  const povPlayers = planPovPlayers(plan);
+  if (povPlayers.length > 0) {
+    match.povPlayers = povPlayers;
+    match.player = povPlayersLabel(povPlayers.map((p) => p.name));
+  }
   return match;
 }

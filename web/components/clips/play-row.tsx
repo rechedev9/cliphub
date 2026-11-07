@@ -5,7 +5,7 @@ import { PlayThumbnail } from './play-thumbnail';
 import { playDescription, playSourceRange } from '@/lib/produce/play-details';
 import { StatusTag } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
-import { roundTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
+import { playTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
 import { SelectionMark } from './selection-mark';
 
 export type PlayRowProps = {
@@ -15,21 +15,26 @@ export type PlayRowProps = {
   reelPosition: number | null;
   /** Set when the round has several plays, so repeated rows stay distinguishable. */
   ordinal?: RoundOrdinal;
+  /** Name of the player whose chosen play happens at the same time; the row cannot be picked. */
+  clashWith?: string;
   onToggle: () => void;
 };
 
 /** Compact highlight selector; each selected row shows its output position. */
-export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: PlayRowProps) {
+export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, onToggle }: PlayRowProps) {
+  const blocked = !selected && clashWith !== undefined;
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={selected}
+      disabled={blocked}
       className={cn(
         'group/play flex w-full items-center gap-3 border-b border-border-subtle px-4 py-3 @[80rem]/content:px-5 text-left last:border-b-0',
         'transition-colors duration-(--dur-fast) ease-standard',
         'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
         selected ? 'bg-primary/8' : 'bg-surface-2 hover:bg-surface-3',
+        blocked && 'cursor-not-allowed hover:bg-surface-2',
       )}
     >
       <SelectionMark selected={selected} />
@@ -43,11 +48,14 @@ export function PlayRow({ play, selected, reelPosition, ordinal, onToggle }: Pla
             selected ? 'text-fg-1' : 'text-fg-2',
           )}
         >
-          {roundTitle(play.round, ordinal)}
+          {playTitle(play, ordinal)}
         </span>
         <span className="text-body-sm text-fg-2">
           {playDescription(play)}
         </span>
+        {blocked ? (
+          <span className="text-body-sm text-fg-3">A la vez que la jugada elegida de {clashWith}</span>
+        ) : null}
         {playSourceRange(play) ? <span className="text-label tabular-nums text-fg-2">Demo {playSourceRange(play)}</span> : null}
       </span>
 

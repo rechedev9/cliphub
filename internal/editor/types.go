@@ -412,6 +412,8 @@ type ShortPart struct {
 	CaptureTickStart     int                         `json:"capture_tick_start,omitempty"`
 	CaptureTickEnd       int                         `json:"capture_tick_end,omitempty"`
 	Kills                []KillCue                   `json:"kills,omitempty"`
+	// Player names the part's POV in a multi-POV Short; empty otherwise.
+	Player string `json:"player,omitempty"`
 	// Speed below 1 plays the part in slow motion (the victim replay).
 	Speed float64 `json:"speed,omitempty"`
 }

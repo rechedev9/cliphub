@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deathMomentsToPlays, planToPlays, prettifyWeapon } from './map.ts';
+import { deathMomentsToPlays, planPovPlayers, planToPlays, prettifyWeapon } from './map.ts';
 
 test('planToPlays removes duplicate timeline segments but preserves distinct plays', () => {
   const plays = planToPlays('job-1', {
@@ -79,4 +79,21 @@ test('planToPlays reads the side and the clutch the filters use', () => {
     ['smoke', 'T', undefined, []],
     ['spectator', undefined, undefined, ['ak47']],
   ]);
+});
+
+test('planToPlays names the player of each segment only in a multi-POV plan', () => {
+  const target = { steamid64: '76561198000000001', name_in_demo: 'ropz' };
+  const mate = { steamid64: '76561198000000002', name_in_demo: 'b1t' };
+  const plan = {
+    target,
+    segments: [
+      { id: 'seg-001', round: 1, tick_start: 0, tick_end: 64, pov: target },
+      { id: 'seg-002', round: 2, tick_start: 640, tick_end: 704, pov: mate },
+    ],
+  };
+  assert.deepEqual(planPovPlayers(plan), [{ steamId: target.steamid64, name: 'ropz' }, { steamId: mate.steamid64, name: 'b1t' }]);
+  assert.deepEqual(planToPlays('job', plan).map((p) => p.player?.name), ['ropz', 'b1t']);
+  const single = { target, segments: [{ id: 'seg-001', round: 1, tick_start: 0, tick_end: 64 }] };
+  assert.deepEqual(planPovPlayers(single), []);
+  assert.equal(planToPlays('job', single)[0].player, undefined);
 });

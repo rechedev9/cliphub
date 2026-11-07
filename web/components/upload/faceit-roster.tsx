@@ -7,7 +7,8 @@ import { prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PlayerAvatar } from '@/components/players/player-avatar';
 import { StatusTag } from '@/components/studio/status-tag';
-import { FOCUS_RING } from '@/components/ui/button';
+import { SelectionMark } from '@/components/clips/selection-mark';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 
 // FACEIT CS2 level floors: level n starts at LEVEL_FLOORS[n - 1] ELO.
 const LEVEL_FLOORS = [100, 501, 751, 901, 1051, 1201, 1351, 1531, 1751, 2001] as const;
@@ -113,8 +114,10 @@ const TEAM_TINTS = [
 
 export type FaceitRosterProps = {
   board: FaceitScoreboard;
-  selected: string | null;
+  selected: ReadonlySet<string>;
   onSelect: (steamId: string) => void;
+  /** Set when several players can be picked: each row shows its mark and each team a "Todo el equipo" button. */
+  onSelectTeam?: (steamIds: string[]) => void;
   /** Steam IDs present in the parsed demo; any other row cannot be picked. */
   selectable: ReadonlySet<string>;
   recommended?: string;
@@ -122,7 +125,7 @@ export type FaceitRosterProps = {
 };
 
 /** The FACEIT room scoreboard as a POV picker: one table per team, winner first. */
-export function FaceitRoster({ board, selected, onSelect, selectable, recommended, recommendedLabel }: FaceitRosterProps): ReactNode {
+export function FaceitRoster({ board, selected, onSelect, onSelectTeam, selectable, recommended, recommendedLabel }: FaceitRosterProps): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3 border border-border bg-surface-2 px-3.5 py-2.5">
@@ -145,6 +148,7 @@ export function FaceitRoster({ board, selected, onSelect, selectable, recommende
           tint={TEAM_TINTS[i % TEAM_TINTS.length]}
           selected={selected}
           onSelect={onSelect}
+          onSelectTeam={onSelectTeam}
           selectable={selectable}
           recommended={recommended}
           recommendedLabel={recommendedLabel}
@@ -159,6 +163,7 @@ function TeamTable({
   tint,
   selected,
   onSelect,
+  onSelectTeam,
   selectable,
   recommended,
   recommendedLabel,
@@ -191,6 +196,12 @@ function TeamTable({
               Prórroga <span className="font-bold tabular-nums text-fg-1">{team.overtime}</span>
             </span>
           ) : null}
+          {onSelectTeam ? (
+            <Button type="button" variant="outline" size="sm"
+              onClick={() => onSelectTeam(team.players.flatMap((p) => (p.steamId && selectable.has(p.steamId) ? [p.steamId] : [])))}>
+              Todo el equipo
+            </Button>
+          ) : null}
         </span>
       </header>
 
@@ -210,7 +221,7 @@ function TeamTable({
 
         {team.players.map((p) => {
           const pickable = p.steamId !== undefined && selectable.has(p.steamId);
-          const active = pickable && p.steamId === selected;
+          const active = pickable && p.steamId !== undefined && selected.has(p.steamId);
           const isRecommended = pickable && p.steamId === recommended;
           return (
             <button
@@ -232,6 +243,7 @@ function TeamTable({
               )}
             >
               <span className={cn('flex min-w-0 items-center gap-2.5 px-3 py-2.5', tint.cell)}>
+                {onSelectTeam ? <SelectionMark selected={active} /> : null}
                 <PlayerAvatar nickname={p.nickname} playerID={p.playerId} avatar={p.avatar} size={32} />
                 <span className="min-w-0 truncate text-body-sm font-bold text-fg-1">{p.nickname}</span>
                 {isRecommended ? (

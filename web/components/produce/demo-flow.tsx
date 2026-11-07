@@ -150,14 +150,15 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
     [reset],
   );
 
-  const onPickSingle = useCallback(
-    async (steamId: string) => {
-      if (stage !== 'picking' || seriesMode || !jobId) return;
+  // The first player leads a multi-POV job; the rest are teammates.
+  const onPickPlayers = useCallback(
+    async ([steamId, ...teammates]: string[]) => {
+      if (stage !== 'picking' || seriesMode || !jobId || !steamId) return;
       setError(null);
       setStage('parsing');
       try {
-        const parsed = await api.parseDemo({ jobId, steamId });
-        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, { description: `Jugador: ${parsed.player ?? '—'}` });
+        const parsed = await api.parseDemo({ jobId, steamId, teammates });
+        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, { description: `${teammates.length > 0 ? 'Jugadores' : 'Jugador'}: ${parsed.player ?? '—'}` });
         router.push(produceHref(parsed.id, format));
       } catch (err) {
         setStage('picking');
@@ -346,10 +347,10 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   let title: string = FLOW_HOME_TITLE[format];
   let description: string = FLOW_HOME_DESCRIPTION[format];
   if (resuming) {
-    title = 'Elige el jugador';
+    title = 'Elige uno o varios jugadores';
     if (resumeFailure !== null) description = 'No pudimos recuperar los jugadores de esta partida.';
     else if (stage === 'scanning') description = 'Cargando los jugadores de la partida…';
-    else description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
+    else description = 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.';
   } else if (seriesMode) {
     if (stage === 'scanning') {
       title = 'Escaneando la serie';
@@ -362,8 +363,8 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
           : 'Analizando las jugadas del jugador en cada mapa…';
     }
   } else if (stage === 'picking' || stage === 'parsing') {
-    title = 'Elige el jugador';
-    description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
+    title = 'Elige uno o varios jugadores';
+    description = 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.';
   }
 
   if (stage === 'parsing') {
@@ -422,7 +423,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
         <ScannedDemoRow fileName={fileName} match={match} />
         {error ? <ErrorBanner message={error} /> : null}
         <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
+          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
         </Card>
       </div>
     );

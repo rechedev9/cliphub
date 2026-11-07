@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import {
+  isHighlightsVideo,
   isWorking,
   OUTPUT_STATE,
   OUTPUT_TYPE,
@@ -144,7 +145,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
 export const OutputItem = memo(OutputItemCard, sameHubProps);
 
 function FailureLine({ output }: { output: MatchOutput }): ReactNode {
-  const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: output.video.editConfig?.fullDemo?.document.planner_version });
+  const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full && !isHighlightsVideo(output.video), fullDemoPlannerVersion: output.video.editConfig?.fullDemo?.document.planner_version });
   return (
     <span className="text-body-sm text-destructive">{failure.message}</span>
   );
@@ -199,7 +200,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
   }
 
   if (output.state === OUTPUT_STATE.failed) {
-    const failure = parseFailureReason(video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version });
+    const failure = parseFailureReason(video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full && !isHighlightsVideo(video), fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version });
     const canRetry = video.unrecoverable !== true && failure.retryCanHelp;
     return (
       <span className={rowClass}>

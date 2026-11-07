@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
+import type { EditConfig, Match, Play, Preset, RenderFormat } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import { forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
-import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
+import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
+import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
 import { defaultShortSettings } from '@/lib/produce/short-draft';
 import { filterPlays, NO_PLAY_FILTER, playFilterOptions, type PlayFilter } from '@/lib/produce/play-filter';
 import { useShortDraft } from '@/hooks/use-short-draft';
@@ -40,10 +41,6 @@ import { playsInRounds, roundListLabel } from '@/lib/library/analysis-video';
 import { PresetPreview } from './preset-preview';
 import { PlayFilters } from './play-filters';
 
-const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
-const CLOCK_TARGET = formatClock(SHORT_TARGET_SECONDS);
-const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
-
 /** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
 const STEP = {
   highlights: '01 · Elige las jugadas',
@@ -65,18 +62,29 @@ export type ShortProducerProps = {
   seriesId: string | null;
   /** From the analysis area: the plays of these rounds open selected. */
   focusRounds?: readonly number[] | null;
+  /** 16:9 makes the best-moments video of a multi-POV match; a Short is 9:16. */
+  format?: RenderFormat;
 };
 
 /** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
-export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [], seriesId, focusRounds = null }: ShortProducerProps): ReactNode {
+export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: allDeathPlays = [], seriesId, focusRounds = null, format = 'short-9x16' }: ShortProducerProps): ReactNode {
   const router = useRouter();
+  const landscape = format === 'landscape-16x9';
+  const multiPov = (match.povPlayers?.length ?? 0) > 1;
+  // A multi-POV video mixes plays only: the death list is the anchor's alone.
+  const deathPlays = multiPov ? [] : allDeathPlays;
+  const targetSeconds = landscape ? BEST_MOMENTS_TARGET_SECONDS : SHORT_TARGET_SECONDS;
+  const shape = (edit: EditConfig, deaths: boolean): EditConfig => landscape
+    ? bestMomentsEdit(constrainEditConfig({ ...edit, format }))
+    : constrainEditConfig({ ...edit, format, deathReel: deaths, ...(multiPov ? { killCounter: false } : {}) });
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [presetAttempt, setPresetAttempt] = useState(0);
   const focusIds = focusRounds ? playsInRounds(killPlays, focusRounds) : [];
-  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds });
-  const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume, editConfig } = settings;
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft({ matchId, plays: killPlays, deathPlays, focusIds, targetSeconds });
+  const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume } = settings;
   // A player without kills can still make a reel of their deaths.
-  const deathReel = deathPlays.length > 0 && (editConfig.deathReel === true || killPlays.length === 0);
+  const deathReel = deathPlays.length > 0 && (settings.editConfig.deathReel === true || killPlays.length === 0);
+  const editConfig = shape(settings.editConfig, deathReel);
   const plays = deathReel ? deathPlays : killPlays;
   const selectedIds = useMemo(() => new Set(settings.selectedIds), [settings.selectedIds]);
   const [songOpen, setSongOpen] = useState(false);
@@ -98,7 +106,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
         if (!active) return;
         setPresets(list);
         // An unavailable catalog must not overwrite a saved preset with null.
-        if (list.length > 0) updateSettings((cur) => ({ variant: selectShortsFormat(SHORT_FORMAT, cur.variant, list).variant }), false);
+        if (list.length > 0) updateSettings((cur) => ({ variant: selectShortsFormat(format, cur.variant, list).variant }), false);
       } catch {
         if (active) setPresets([]);
       }
@@ -106,15 +114,24 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
     return () => {
       active = false;
     };
-  }, [updateSettings, presetAttempt]);
+  }, [updateSettings, presetAttempt, format]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
   const cues = selectionTimeline(plays, { selectedIds, victimReplay: editConfig.victimReplay === true });
   const estimatedSeconds = estimatedSelectionSeconds(selectedPlays, { victimReplay: editConfig.victimReplay === true });
-  const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
+  const overTarget = estimatedSeconds > targetSeconds;
   // No tilde: beside the figures it reads as a minus sign ("-0:00").
-  const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;
-  const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, SHORT_FORMAT);
+  const clock = `${formatClock(estimatedSeconds)} / ${formatClock(targetSeconds)} aprox.`;
+  const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, format);
+  // Multi-POV: a play overlapping a chosen play of another player cannot be filmed with it.
+  const clashes = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const play of plays) {
+      const other = selectedIds.has(play.id) ? undefined : clashingPlay(play, plays.filter((p) => selectedIds.has(p.id)));
+      if (other?.player) out.set(play.id, other.player.name);
+    }
+    return out;
+  }, [plays, selectedIds]);
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(musicDecided, songTitle, musicVolume, gameVolume));
@@ -130,14 +147,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
     updateSettings((prev) => {
       const next = new Set(prev.selectedIds);
       if (next.has(playId)) next.delete(playId);
-      else next.add(playId);
+      else if (!clashes.has(playId)) next.add(playId);
       return { selectedIds: [...next] };
     });
   }
 
   function changeEditConfig(next: EditConfig): void {
     if (busy) return;
-    updateSettings({ editConfig: constrainEditConfig({ ...next, format: SHORT_FORMAT, deathReel }) });
+    updateSettings({ editConfig: shape(next, deathReel) });
   }
 
   function chooseDeathReel(next: boolean): void {
@@ -145,15 +162,15 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
     // A reel is either kills or deaths, so the selection starts over: every death, or the best kills.
     setPlayFilter(NO_PLAY_FILTER);
     updateSettings((cur) => ({
-      editConfig: constrainEditConfig({ ...cur.editConfig, format: SHORT_FORMAT, deathReel: next }),
+      editConfig: shape(cur.editConfig, next),
       selectedIds: next ? deathPlays.map((play) => play.id) : [...autoPickBestPlays(killPlays)],
     }));
   }
 
   function chooseVariant(nextVariant: string): void {
-    // A landscape preset is never offered here, so only the variant travels.
+    // Only presets of this format are offered, so only the variant travels.
     if (busy) return;
-    updateSettings({ variant: selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant });
+    updateSettings({ variant: selectShortsPreset(nextVariant, format, presets ?? []).variant });
   }
 
   function focusMusicDecision(): void {
@@ -177,7 +194,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
 
   function startOver(): void {
     if (busy) return;
-    resetSettings({ ...defaultShortSettings(killPlays, deathPlays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
+    resetSettings({ ...defaultShortSettings(killPlays, { deathPlays, targetSeconds }), variant: selectShortsFormat(format, null, presets ?? []).variant });
     setCreateError(null);
     setSongOpen(false);
   }
@@ -196,10 +213,10 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
         musicVolume: songId && musicVolume < MUSIC_VOLUME.max ? musicVolume / 100 : undefined,
         gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
-        editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT, deathReel }),
+        editConfig: shape(editConfig, deathReel),
       });
       discardDraft();
-      toast('Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
+      toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
       setCreateError(shortCreateErrorMessage(err));
@@ -227,7 +244,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
           {match.map}
           {match.player ? ` · ${match.player}` : ''}
         </p>
-        <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
+        <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{landscape ? PRODUCE_SUMMARY_TITLE : PRODUCE_SHORT_TITLE}</h1>
         {focusRounds && focusRounds.length > 0 ? (
           <p role="status" className="w-full text-body-sm text-fg-2">
             {focusIds.length > 0
@@ -255,7 +272,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
             selectedIds={selectedIds}
             title={deathReel ? STEP.deaths : STEP.highlights}
             toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || visiblePlays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true })] })}>{deathReel ? 'Auto: 60 s' : AUTO_PICK_LABEL}</Button>}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(visiblePlays, { victimReplay: !deathReel && editConfig.victimReplay === true, targetSeconds })] })}>{deathReel ? 'Auto: 60 s' : `Auto: mejores ${landscape ? '3 min' : '60 s'}`}</Button>}
             filters={<PlayFilters options={filterOptions} value={playFilter} disabled={busy} onChange={setPlayFilter} />}
             visibleIds={visibleIds}
             emptyFiltered={
@@ -266,13 +283,14 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
                 {selectedPlays.length} de {plays.length} elegidos · {clock}
               </span>
             }
+            clashes={multiPov ? clashes : undefined}
             onToggle={toggleSelect}
-            onSelectAll={() => !busy && updateSettings((prev) => ({ selectedIds: [...new Set([...prev.selectedIds, ...visiblePlays.map((play) => play.id)])] }))}
+            onSelectAll={() => !busy && updateSettings({ selectedIds: addWithoutClashes(selectedPlays, visiblePlays).map((play) => play.id) })}
             onClear={() => !busy && updateSettings({ selectedIds: [] })}
           />
         </section>
 
-        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} ordinals={roundOrdinals(plays)} />
+        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} ordinals={roundOrdinals(plays)} {...(landscape ? { title: 'Guion del resumen', targetSeconds, videoLabel: 'Resumen' } : {})} />
         <aside className="flex min-w-0 flex-col gap-4 @[80rem]/content:gap-5">
           <div className="studio-panel flex min-w-0 items-start gap-4 p-4 @[80rem]/content:p-5">
             {selectedPreset ? <PresetPreview preset={selectedPreset} className="w-14 shrink-0 @[80rem]/content:w-16" /> : null}
@@ -338,6 +356,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
                 value={editConfig}
                 onChange={changeEditConfig}
                 disabled={busy}
+                killCounter={!multiPov}
               />
             </div>
           </details>
@@ -348,7 +367,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
         ready={ready}
         busy={creating}
         tone="short"
-        eyebrow="Short"
+        eyebrow={landscape ? 'Resumen 16:9' : 'Short'}
         summary={summary}
         hint={
           selectedPlays.length === 0
@@ -357,7 +376,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
         }
         onHintAction={!musicDecided && selectedPlays.length > 0 && selectedPreset !== null ? focusMusicDecision : undefined}
         briefItems={briefItems}
-        backHref={seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.short)}
+        backHref={seriesId ? seriesHref(seriesId) : flowHref(landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short)}
         error={createError}
         cta={
           <Button
@@ -369,7 +388,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays = [
             onClick={() => void onCreate()}
             className="shrink-0"
           >
-            {PRODUCE_SHORT_CTA}
+            {landscape ? PRODUCE_SUMMARY_CTA : PRODUCE_SHORT_CTA}
           </Button>
         }
       />

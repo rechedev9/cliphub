@@ -30,6 +30,8 @@ type Filter struct {
 	Kinds []string
 	// Side keeps the moments the player made on CT or on T.
 	Side string
+	// Player keeps one player's moments of a multi-POV job, by SteamID64 or name.
+	Player string
 }
 
 // ParseFilter checks and normalizes raw filter values from a request.
@@ -58,12 +60,15 @@ func ParseFilter(weapon string, kinds []string, side string) (Filter, error) {
 
 // Empty reports whether the filter keeps every moment.
 func (f Filter) Empty() bool {
-	return f.Weapon == "" && len(f.Kinds) == 0 && f.Side == ""
+	return f.Weapon == "" && len(f.Kinds) == 0 && f.Side == "" && f.Player == ""
 }
 
 // Match reports whether one moment passes the filter.
 func (f Filter) Match(m Moment) bool {
 	if f.Side != "" && m.Side != f.Side {
+		return false
+	}
+	if f.Player != "" && m.SteamID64 != f.Player && !strings.EqualFold(m.Player, f.Player) {
 		return false
 	}
 	if f.Weapon != "" {

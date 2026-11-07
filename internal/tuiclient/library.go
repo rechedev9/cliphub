@@ -201,6 +201,15 @@ func (c *Client) CreatePlayerJob(ctx context.Context, demoID, steamID string) (P
 	return out, err
 }
 
+// CreateMultiPOVJob makes one job that parses several teammates of a library
+// demo, so one Short can mix their plays; the first SteamID is the anchor.
+func (c *Client) CreateMultiPOVJob(ctx context.Context, demoID string, steamIDs []string) (PlayerJobResponse, error) {
+	var out PlayerJobResponse
+	err := c.doJSON(ctx, http.MethodPost, "/api/library/demos/"+url.PathEscape(demoID)+"/jobs",
+		map[string][]string{"target_steamids": steamIDs}, &out)
+	return out, err
+}
+
 // GetJobStatus returns the lightweight status view of a job.
 func (c *Client) GetJobStatus(ctx context.Context, id string) (JobStatus, error) {
 	var out JobStatus

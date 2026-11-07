@@ -76,7 +76,7 @@ type JobRepository interface {
 	List(ctx context.Context, limit int) ([]job.Job, error)
 	ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, s job.Status, failureReason string) error
-	SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, r rules.Rules) error
+	SetParseInputs(ctx context.Context, id uuid.UUID, in job.ParseInputs) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -744,8 +744,8 @@ func (h *Handlers) GetRecapPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, plan)
 }
 
-// GetMoments handles GET /api/jobs/{id}/moments. Optional weapon, kind (repeatable)
-// and side query parameters narrow the list; see moments.Filter.
+// GetMoments handles GET /api/jobs/{id}/moments. Optional weapon, kind (repeatable),
+// side and player query parameters narrow the list; see moments.Filter.
 func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter, err := moments.ParseFilter(q.Get("weapon"), q["kind"], q.Get("side"))
@@ -753,6 +753,7 @@ func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	filter.Player = strings.TrimSpace(q.Get("player"))
 	j, ok := h.loadJob(w, r)
 	if !ok {
 		return
@@ -817,82 +818,6 @@ func (h *Handlers) GetRoster(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, rc)
-}
-
-// startParseRequest is the JSON body for POST /api/jobs/{id}/parse.
-type startParseRequest struct {
-	TargetSteamID string       `json:"target_steamid"`
-	Rules         *rules.Rules `json:"rules,omitempty"`
-}
-
-// StartParse handles POST /api/jobs/{id}/parse. After a roster scan it records
-// the picked target (and optional rules) and enqueues the full parse.
-func (h *Handlers) StartParse(w http.ResponseWriter, r *http.Request) {
-	// Metadata only: parse reads the status and the stored rules, never the
-	// kill plan a previous parse left behind.
-	j, ok := h.loadJobMeta(w, r)
-	if !ok {
-		return
-	}
-	// Friendly early-out with the current status. The race-safe guard is the
-	// status-gated SetParseInputs below, which atomically claims the job, so a
-	// second concurrent request that slips past this check still conflicts there.
-	if j.Status != job.StatusScanned && j.Status != job.StatusParsed {
-		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to parse (status=%s)", j.Status))
-		return
-	}
-
-	var req startParseRequest
-	if err := decodeSingleJSONBody(w, r, &req, false); err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			writeError(w, http.StatusRequestEntityTooLarge, "parse request JSON is too large")
-			return
-		}
-		writeError(w, http.StatusBadRequest, "invalid parse request JSON")
-		return
-	}
-	if _, err := strconv.ParseUint(req.TargetSteamID, 10, 64); err != nil {
-		writeError(w, http.StatusBadRequest, "target_steamid must be a 64-bit unsigned integer")
-		return
-	}
-
-	effectiveRules := j.Rules
-	if req.Rules != nil {
-		effectiveRules = *req.Rules
-		if err := effectiveRules.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid rules: "+err.Error())
-			return
-		}
-	}
-
-	if err := h.repo.SetParseInputs(r.Context(), j.ID, req.TargetSteamID, effectiveRules); err != nil {
-		switch {
-		case errors.Is(err, job.ErrNotFound):
-			writeError(w, http.StatusNotFound, "job not found")
-		case errors.Is(err, job.ErrConflict):
-			writeError(w, http.StatusConflict, "job is no longer ready to parse")
-		default:
-			internalError(w, "set parse inputs", err)
-		}
-		return
-	}
-
-	task, err := tasks.NewParseDemoTask(j.ID)
-	if err != nil {
-		internalError(w, "build parse task", err)
-		return
-	}
-	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
-		return h.persistJobQueueDecision(j.ID, "parse", decision)
-	}); err != nil {
-		internalError(w, "enqueue parse task", err)
-		return
-	}
-
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"id":     j.ID,
-		"status": job.StatusParsing,
-	})
 }
 
 // claimQueueStage builds the EnqueueWithTransition callback for a stage whose
@@ -968,6 +893,9 @@ func (h *Handlers) GetFinal(w http.ResponseWriter, r *http.Request) {
 // validateSegmentSelection checks ids against the job's kill plan, or its
 // death plan for a death reel.
 func (h *Handlers) validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string, deathReel bool) bool {
+	if !h.validateMultiPOVSelection(w, j, ids, deathReel) {
+		return false
+	}
 	if len(ids) == 0 {
 		if deathReel {
 			writeError(w, http.StatusBadRequest, "a death reel needs the segment ids of its deaths")
@@ -1037,6 +965,9 @@ func applyCaptureOverrides(hudMode string, edit renderplan.EditRequest) (string,
 }
 
 func (h *Handlers) requireRecapPlan(w http.ResponseWriter, j job.Job) bool {
+	if rejectMultiPOVFullDemo(w, j) {
+		return false
+	}
 	plan, found, err := recapplan.Load(h.storage, j.ID)
 	if err != nil {
 		internalError(w, "load recap plan", err)

@@ -43,6 +43,10 @@ sponsor and outro clips from local files. publish_copy gives upload copy, altern
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
+A match summary with the best plays of several teammates (multi-POV): get_match, then
+create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
+(each play names its player; player filters one), then generate_short with plays whose times do not
+overlap. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.

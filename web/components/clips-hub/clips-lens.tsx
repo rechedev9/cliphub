@@ -14,6 +14,7 @@ import {
   matchesClipFilter,
   OUTPUT_STATE,
   OUTPUT_TYPE,
+  outputLabel,
   type ClipFilter,
   type ClipSize,
   type HubModel,
@@ -203,7 +204,7 @@ function ClipCard({
   const isShort = clip.type === OUTPUT_TYPE.short;
   const { video } = clip;
   const player = clip.match?.player ?? video.targetName ?? '—';
-  const sub = isShort ? 'Short · 9:16' : 'Demo completa · 16:9';
+  const sub = `${outputLabel(video)} · ${isShort ? '9:16' : '16:9'}`;
   const matchId = clip.match?.id ?? null;
   const playback = demoPlaybackItem(video);
 

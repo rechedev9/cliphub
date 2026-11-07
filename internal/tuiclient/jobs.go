@@ -94,6 +94,8 @@ type MomentsQuery struct {
 	Weapon string
 	Kinds  []string
 	Side   string
+	// Player keeps one player's plays of a multi-POV job, by SteamID64 or name.
+	Player string
 }
 
 // FilterMoments returns the scored moments that pass the query's filter.
@@ -107,6 +109,9 @@ func (c *Client) FilterMoments(ctx context.Context, q MomentsQuery) (MomentsDocu
 	}
 	if q.Side != "" {
 		values.Set("side", q.Side)
+	}
+	if q.Player != "" {
+		values.Set("player", q.Player)
 	}
 	path := jobPath(q.JobID) + "/moments"
 	if len(values) > 0 {

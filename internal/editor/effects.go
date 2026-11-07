@@ -219,7 +219,7 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	var effects []Effect
 	effects = append(effects, generatedKillEffects(short)...)
 	effects = append(effects, generatedTransitionEffects(short)...)
-	effects = append(effects, generatedHookEffect(short)...)
+	effects = append(append(effects, generatedHookEffect(short)...), generatedPlayerTagEffects(short)...)
 	effects = append(effects, generatedKillCounterEffects(short)...)
 	effects = append(effects, generatedKillfeedEffects(short)...)
 	effects = append(effects, generatedBookendEffects(short)...)
@@ -427,7 +427,7 @@ func generatedHookEffect(short ShortEdit) []Effect {
 // kill of a multi-kill. Pops end at the next kill when kills land closer than
 // the pop window, so labels never stack.
 func generatedKillCounterEffects(short ShortEdit) []Effect {
-	if !short.KillCounter || len(short.Kills) == 0 {
+	if !short.KillCounter || len(short.Kills) == 0 || short.MultiPOV() {
 		return nil
 	}
 	effects := make([]Effect, 0, len(short.Kills))

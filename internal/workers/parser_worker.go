@@ -173,7 +173,34 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	if err := recapplan.StoreFacts(w.storage, j.ID, dual.Facts); err != nil {
 		return killplan.Plan{}, fmt.Errorf("store full demo facts: %w", err)
 	}
-	return dual.Kills, nil
+	if !j.IsMultiPOV() {
+		return dual.Kills, nil
+	}
+	plans := []killplan.Plan{dual.Kills}
+	for _, steamID := range j.POVSteamIDs()[1:] {
+		plan, err := w.parseKills(ctx, j, steamID)
+		if err != nil {
+			return killplan.Plan{}, err
+		}
+		plans = append(plans, plan)
+	}
+	return killplan.MergePOVs(plans)
+}
+
+// parseKills runs one more kills pass for an extra player of a multi-POV job.
+func (w *ParserWorker) parseKills(ctx context.Context, j job.Job, steamID string) (killplan.Plan, error) {
+	demo, cleanup, err := w.openDemo(j.DemoPath)
+	if err != nil {
+		return killplan.Plan{}, err
+	}
+	defer cleanup()
+	p := demoinfocs.NewParser(demo)
+	defer p.Close()
+	plan, err := parser.RunKillsWithContext(ctx, p, steamID, j.Rules, parser.PlanMeta{DemoPath: j.DemoPath, SHA256: j.DemoSHA256})
+	if errors.Is(err, parser.ErrTargetNotFound) {
+		return killplan.Plan{}, fmt.Errorf("target steamid %s not found in demo", steamID)
+	}
+	return plan, err
 }
 
 // ensureRoster scans the roster of a job created with its target, which skips

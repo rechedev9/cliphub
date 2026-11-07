@@ -27,8 +27,8 @@ export type DataPlane = {
   jobsUrl: string;
   seriesUrl(seriesId: string): string;
   parseUrl(jobId: string): string;
-  /** Parse request body. */
-  parseBody(steamId: string): Record<string, string>;
+  /** Parse request body; teammates make it a multi-POV parse anchored on steamId. */
+  parseBody(steamId: string, teammates?: readonly string[]): Record<string, string | string[]>;
   planUrl(jobId: string): string;
   recapPlanUrl(jobId: string): string;
   /** One clip per death of the job's player (death reel). */
@@ -71,7 +71,7 @@ export function dataPlane(): DataPlane {
     jobsUrl: '/api/demos/jobs',
     seriesUrl: (seriesId) => `/api/demos/series/${seriesId}`,
     parseUrl: (jobId) => `/api/demos/${jobId}/parse`,
-    parseBody: (steamId) => ({ steamId }),
+    parseBody: (steamId, teammates = []): Record<string, string | string[]> => (teammates.length > 0 ? { steamIds: [steamId, ...teammates] } : { steamId }),
     planUrl: (jobId) => `/api/demos/${jobId}/plan`,
     recapPlanUrl: (jobId) => `/api/demos/${jobId}/recap-plan`,
     deathsUrl: (jobId) => `/api/demos/${jobId}/deaths`,

@@ -204,6 +204,9 @@ type RecordingSegment struct {
 	// POVSteamID64 overrides the plan target. Only CaptureSegments sets it,
 	// on the synthetic replay windows; plan segments never carry it.
 	POVSteamID64 string `json:"pov_steamid64,omitempty"`
+	// Observe is the player a multi-POV plan segment films; nil means the
+	// plan target, so single-POV plans and their stored captures are unchanged.
+	Observe *killplan.Target `json:"observe,omitempty"`
 	// AfterReplays records the last play after the replay pass: it reaches the
 	// demo end, so no rewind could follow it.
 	AfterReplays bool `json:"after_replays,omitempty"`
@@ -370,6 +373,7 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 			// Recap sidecars can list buy-time nades after the live window was clamped.
 			Kills:   killsInsideWindow(s.Kills, s.TickStart, s.TickEnd),
 			Utility: utilityInsideWindow(s.Utility, s.TickStart, s.TickEnd),
+			Observe: observedPOV(s, plan.Target),
 		})
 	}
 	// Kill-plan order is editorial: a top-moments selection is deliberately
@@ -456,6 +460,7 @@ func (p RecordingPlan) ToKillPlan() killplan.Plan {
 			LiveEndTick: segment.LiveEndTick,
 			Kills:       append([]killplan.Kill(nil), segment.Kills...),
 			Utility:     append([]killplan.UtilityThrow(nil), segment.Utility...),
+			POV:         segment.Observe,
 		}
 		out.Segments = append(out.Segments, converted)
 		out.Stats.TotalKillsTarget += len(converted.Kills)
@@ -612,6 +617,9 @@ func (p RecordingPlan) Validate() error {
 		recordStart := EffectiveRecordStartTick(s, p.Tickrate)
 		if i > 0 && recordStart < previousEnd {
 			return fmt.Errorf("segment %s capture window overlaps or is out of order", s.ID)
+		}
+		if err := p.validateObserve(i); err != nil {
+			return err
 		}
 		if s.TickEnd > p.DemoDurationTicks {
 			return fmt.Errorf("segment %s tick_end %d exceeds demo duration %d", s.ID, s.TickEnd, p.DemoDurationTicks)

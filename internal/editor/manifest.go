@@ -282,6 +282,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		smokeCount := len(smokes)
 		primaryWeapon := primaryWeapon(segment.Kills)
 		primarySmoke := primarySmoke(smokes)
+		player := segmentPlayer(result.Plan, segment, player)
 		label := shortLabel(player, mapName, killCount)
 		headline := premiumHeadline(mapName, killCount, primaryWeapon)
 		title, caption, hashtags := publishText(player, mapName, killCount, primaryWeapon)
@@ -515,7 +516,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 			TickEnd:              segment.TickEnd,
 			CaptureTickStart:     recording.EffectiveRecordStartTick(recSeg, result.Plan.Tickrate),
 			CaptureTickEnd:       recording.EffectiveRecordEndTick(recSeg, result.Plan),
-			Kills:                partKills,
+			Kills:                partKills, Player: partPlayer(result.Plan, segment),
 		})
 		cursor = partStart + duration
 		// Beat-synced timelines place every part themselves; a replay would shift them.
@@ -1056,16 +1057,6 @@ func shortLabel(player, mapName string, killCount int) string {
 		return "CS2 highlight"
 	}
 	return strings.Join(parts, " | ")
-}
-
-func playerName(plan recording.RecordingPlan) string {
-	if plan.TargetNameInDemo != "" {
-		return plan.TargetNameInDemo
-	}
-	if plan.TargetSteamID64 != "" {
-		return plan.TargetSteamID64
-	}
-	return "target player"
 }
 
 func mapName(plan recording.RecordingPlan, kp *killplan.Plan) (string, string) {

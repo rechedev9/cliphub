@@ -297,7 +297,7 @@ func (f *fakeRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(f.jobs, id)
 	return nil
 }
-func (f *fakeRepo) SetParseInputs(_ context.Context, id uuid.UUID, steamID string, r rules.Rules) error {
+func (f *fakeRepo) SetParseInputs(_ context.Context, id uuid.UUID, in job.ParseInputs) error {
 	j, ok := f.jobs[id]
 	if !ok {
 		return job.ErrNotFound
@@ -305,8 +305,7 @@ func (f *fakeRepo) SetParseInputs(_ context.Context, id uuid.UUID, steamID strin
 	if j.Status != job.StatusScanned && j.Status != job.StatusParsed {
 		return job.ErrConflict
 	}
-	j.TargetSteamID = steamID
-	j.Rules = r
+	j.TargetSteamID, j.MultiPOV, j.Rules = in.TargetSteamID, in.MultiPOV, in.Rules
 	j.Status = job.StatusParsing
 	f.jobs[id] = j
 	return nil
