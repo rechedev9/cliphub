@@ -246,9 +246,11 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
             content: (
               <div className="flex flex-col gap-5">
                 <PlayNotes key={play.updated_at} play={play} onSaved={onChanged} />
-                {play.origin === 'playbook' && play.grenades.length === 0 && play.positions.length === 0 ? (
+                {(play.origin === 'playbook' || play.origin === 'manual') && play.grenades.length === 0 && play.positions.length === 0 ? (
                   <p className="text-body-sm text-fg-2">
-                    Esta jugada es una combinación del playbook: no guarda granadas ni posiciones. Ábrelas en sus rondas de ejemplo.
+                    {play.origin === 'manual'
+                      ? 'Esta jugada está escrita a mano: no guarda granadas ni posiciones. Apunta el plan en las notas y los roles.'
+                      : 'Esta jugada es una combinación del playbook: no guarda granadas ni posiciones. Ábrelas en sus rondas de ejemplo.'}
                   </p>
                 ) : (
                   <>
