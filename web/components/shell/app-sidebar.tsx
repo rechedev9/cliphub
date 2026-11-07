@@ -40,10 +40,11 @@ import { cn } from '@/lib/utils';
 
 type NavTrailingKind = 'stream' | 'faceit';
 
-const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind }> = {
-  '/videos-largos': { icon: MonitorPlay },
-  '/shorts': { icon: Smartphone },
-  '/streams': { icon: Clapperboard, trailing: 'stream' },
+// The Crear formats tint their icon with the colour their flow uses.
+const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind; tone?: string }> = {
+  '/videos-largos': { icon: MonitorPlay, tone: 'text-format-full' },
+  '/shorts': { icon: Smartphone, tone: 'text-format-short' },
+  '/streams': { icon: Clapperboard, trailing: 'stream', tone: 'text-format-stream' },
   '/mis-videos': { icon: Film },
   '/ideas': { icon: Lightbulb },
   '/partidas': { icon: Swords },
@@ -133,7 +134,7 @@ function NavRow({ section, active }: { section: NavSection; active: boolean }): 
       >
         <Link href={section.href} aria-current={active ? 'page' : undefined}>
           <Icon
-            className={cn('size-4 shrink-0', active ? 'text-fg-1' : 'text-fg-3')}
+            className={cn('size-4 shrink-0', meta.tone ?? (active ? 'text-fg-1' : 'text-fg-3'))}
             aria-hidden
           />
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">{section.label}</span>

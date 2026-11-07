@@ -46,7 +46,7 @@ export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
 export const STREAM_LIST_FAIL_MESSAGE =
   'No se pudo cargar la lista de streams. Reintenta o revisa el servicio local.';
 export const STREAM_OFFLINE_MESSAGE =
-  'El servicio de Clips de stream está offline. Arráncalo y vuelve a intentarlo.';
+  'ClipHub perdió la conexión interna. Cierra y vuelve a abrir la aplicación.';
 export const STREAM_INVALID_URL_MESSAGE =
   'Esa URL no es un clip o VOD compatible. Usa un enlace HTTPS de Twitch, YouTube o Kick sin credenciales ni redirecciones.';
 
@@ -87,7 +87,7 @@ export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   'stream edit plan requires migration after approval; save and review the migrated plan before rendering':
     'El plan necesita actualizarse tras la aprobación. Guárdalo y revísalo antes de renderizar.',
   'facecam crop requires explicit review before rendering':
-    'Confirma manualmente el recorte de facecam antes de renderizar.',
+    'Ajusta y confirma el encuadre de tu cámara en «Ajustar aspecto» antes de exportar.',
   [MUTATION_CAPABILITY_ERROR]:
     'La sesión de ClipHub caducó y no se puede guardar ni exportar. Cierra y vuelve a abrir Studio; tu borrador local se conserva.',
 };

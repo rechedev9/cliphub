@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { LibraryMatchPlayer } from '@/lib/api/library';
@@ -8,39 +8,19 @@ import type { RoundTimeline, WinPoint } from '@/lib/api/metrics';
 import { matchHref } from '@/lib/clips/routes';
 import { roundEvidenceHref } from '@/lib/library/rounds';
 import { percentText, ppText, winChart } from '@/lib/metrics/advanced';
+import { winPointText } from '@/lib/metrics/match-view';
 import { secondsText } from '@/lib/reports/scout-sections';
 import { RelatedList } from '@/components/records/related-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 const WIDTH = 640;
+const HEIGHT = 160;
 
 function deltaClass(delta: number): string {
   if (delta > 0) return 'text-side-ct';
   if (delta < 0) return 'text-side-t';
   return 'text-fg-3';
-}
-const HEIGHT = 160;
-
-function pointText(point: WinPoint, names: ReadonlyMap<number, string>): string {
-  const actor = point.actor_slot === undefined ? '' : (names.get(point.actor_slot) ?? `Jugador ${point.actor_slot}`);
-  const target = point.target_slot === undefined ? '' : (names.get(point.target_slot) ?? `Jugador ${point.target_slot}`);
-  switch (point.kind) {
-    case 'start':
-      return 'Fin del tiempo de compra';
-    case 'end':
-      return 'Fin de la ronda';
-    case 'kill':
-      return actor ? `${actor} mata a ${target}` : `${target} muere`;
-    case 'plant':
-      return actor ? `${actor} planta la bomba` : 'Bomba plantada';
-    case 'defuse':
-      return actor ? `${actor} desactiva la bomba` : 'Bomba desactivada';
-    case 'explode':
-      return 'Explota la bomba';
-    default:
-      return point.kind;
-  }
 }
 
 /**
@@ -51,24 +31,33 @@ export function WinProbability({
   matchId,
   timelines,
   players,
+  round,
+  onRoundChange,
+  onOpenTactical,
 }: {
   matchId: string;
   timelines: readonly RoundTimeline[];
   players: readonly LibraryMatchPlayer[];
+  round: number;
+  onRoundChange: (round: number) => void;
+  /** Called before a link opens the replay, so the page can switch to its tab. */
+  onOpenTactical?: () => void;
 }): ReactNode {
   const router = useRouter();
-  const [round, setRound] = useState(String(timelines[0]?.round ?? ''));
-  const timeline = timelines.find((t) => String(t.round) === round) ?? timelines[0];
+  const timeline = timelines.find((t) => t.round === round) ?? timelines[0];
   if (!timeline) return null;
   const names = new Map(players.map((p) => [p.slot, p.name || p.steamid64]));
   const chart = winChart(timeline, WIDTH, HEIGHT);
   const href = (point: WinPoint): string => roundEvidenceHref(matchHref(matchId), timeline.round, point.tick);
+  const pick = (value: string): void => {
+    const next = timelines.find((t) => String(t.round) === value);
+    if (next) onRoundChange(next.round);
+  };
   return (
     <RelatedList
-      title="Probabilidad de victoria por ronda"
-      count={timelines.length}
+      title="Segundo a segundo"
       actions={
-        <Select value={String(timeline.round)} onValueChange={setRound}>
+        <Select value={String(timeline.round)} onValueChange={pick}>
           <SelectTrigger aria-label="Ronda" className="h-8 min-w-28">
             <SelectValue />
           </SelectTrigger>
@@ -110,9 +99,12 @@ export function WinProbability({
               r={4}
               className="cursor-pointer fill-surface-1 stroke-primary"
               strokeWidth={2}
-              onClick={() => router.push(href(point))}
+              onClick={() => {
+                onOpenTactical?.();
+                router.push(href(point));
+              }}
             >
-              <title>{`${secondsText(point.seconds)} ${pointText(point, names)}: CT ${percentText(point.probability_ct)}`}</title>
+              <title>{`${secondsText(point.seconds)} ${winPointText(point, names)}: CT ${percentText(point.probability_ct)}`}</title>
             </circle>
           ))}
         </svg>
@@ -123,8 +115,8 @@ export function WinProbability({
             return (
               <li key={`${point.tick}:${i}`} className="flex flex-wrap items-baseline gap-x-3 py-1.5">
                 <span className="w-10 text-fg-3">{secondsText(point.seconds)}</span>
-                <Link href={href(point)} className="min-w-48 flex-1 text-fg-1 hover:text-primary hover:underline">
-                  {pointText(point, names)}
+                <Link href={href(point)} onClick={onOpenTactical} className="min-w-48 flex-1 text-fg-1 hover:text-primary hover:underline">
+                  {winPointText(point, names)}
                 </Link>
                 <span className="text-fg-3">
                   {point.alive_ct}v{point.alive_t}

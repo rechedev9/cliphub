@@ -15,21 +15,24 @@ import { proSettingsSummary } from '@/lib/produce/full-demo-pro-settings';
 import { availableFullDemoBumpers, recallFullDemoBumpers, rememberFullDemoBumpers, withRememberedBumpers } from '@/lib/produce/full-demo-bumper-memory';
 import { fullDemoQueueToast } from '@/lib/produce/full-demo-queue-toast';
 import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
-import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
+import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE, PRODUCE_READY_HINT } from '@/lib/produce/copy';
+import { formatVideoDuration, fullDemoDurationSeconds, fullDemoOrderRounds } from '@/lib/produce/full-demo-order';
+import { prettyMapName } from '@/lib/format';
 import { Button } from '@/components/ui/button';
-import { ProduceFooter } from './produce-footer';
-import { FullDemoGroup } from './full-demo-fields';
+import { FORMAT_TONE } from '@/components/studio/format-tone';
+import { FullDemoGroup, FullDemoPart } from './full-demo-fields';
 import { FullDemoAudio } from './full-demo-audio';
 import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoProSettings } from './full-demo-pro-settings';
-import { FullDemoHud } from './full-demo-hud';
+import { FullDemoHud, FullDemoHudPreview } from './full-demo-hud';
+import { FullDemoActionBar, FullDemoSummary } from './full-demo-summary';
 import { customHudLabel } from '@/lib/custom-hud';
 import { roundListLabel } from '@/lib/library/analysis-video';
 
 /** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
-const OVERLAYS_NOTE = 'Jugadores y marcador con el diseño de ClipHub, independiente del HUD. El origen de la demo decide su formato.';
+const OVERLAYS_NOTE = 'Pantalla de jugadores al empezar y marcador final, con el diseño de ClipHub. El origen de la demo decide qué datos salen: con FACEIT, nivel y ELO.';
 
 export type FullPovProducerProps = {
   active: boolean; matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
@@ -37,7 +40,7 @@ export type FullPovProducerProps = {
   selectedRounds?: readonly number[] | null;
 };
 
-export function FullPovProducer({ active, matchId, match, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
+export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy, seriesId, selectedRounds = null }: FullPovProducerProps): ReactNode {
   const router = useRouter();
   const backHref = seriesId ? seriesHref(seriesId) : flowHref(PRODUCE_FORMAT.full);
   const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
@@ -124,8 +127,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
   const ready = options !== null && busy === null && isFullDemoOptions(options);
   const missingFiles = options !== null && hasMissingFullDemoFiles(options);
   const dirty = options !== null && (document === null || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(options));
-  const rounds = document?.rounds ?? [];
-  const savedPlanStatus = recBusy ? 'CS2 ocupado: entrará en cola' : 'Plan guardado';
 
   async function saveCurrentPlan(signal?: AbortSignal): Promise<FullDemoDocument> {
     if (!options) throw new Error('No se pudo preparar el plan.');
@@ -164,21 +165,39 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
     { label: 'Rondas', value: chosenRounds.length > 0 ? roundListLabel(chosenRounds) : 'Todas' },
     { label: 'HUD', value: customHudLabel(options.overlays.hud_theme) },
     { label: 'POV', value: options.capture.trueview ? 'Original 1:1' : 'Estándar' },
-    { label: 'Settings', value: proSettingsSummary(options.capture.pro_settings) },
+    { label: 'Configuración', value: proSettingsSummary(options.capture.pro_settings) },
     { label: 'Voces', value: options.audio.voice.enabled ? 'Incluidas' : 'Sin voces' },
     { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
     { label: FULL_DEMO_BUMPERS_LABEL, value: bumperSummary(options) },
-    { label: 'Overlays', value: fullDemoOverlayLabel(fullDemoOverlaySource(options)) },
+    { label: 'Presentación', value: fullDemoOverlayLabel(fullDemoOverlaySource(options)) },
   ] : [];
 
+  const orderRounds = fullDemoOrderRounds({ chosen: chosenRounds, planned: document ? document.rounds.map((round) => round.source_round_number) : null, recap: recap.map((play) => play.round) });
+  // A timeline only describes the saved options; once they change it no longer tells the length.
+  const durationSeconds = document && !dirty ? fullDemoDurationSeconds(document) : null;
+  const assetBusy = (value: boolean): void => setBusy(value ? 'asset' : null);
+  const blockers = document?.blockers ?? [];
+  // Blockers or missing files only surface on create, so the ready text would promise too much.
+  const canCreate = ready && !missingFiles && blockers.length === 0;
+  const planRounds = orderRounds.length > 0 ? orderRounds.length : document?.rounds.length ?? 0;
+  const planState = document ? `${planRounds} ${planRounds === 1 ? 'ronda' : 'rondas'} · ${dirty ? 'Se aplicarán al crear' : 'Ajustes guardados'}` : null;
+  const readyStatus = recBusy ? 'CS2 ocupado: entrará en cola. Lo encontrarás en Mis vídeos.' : PRODUCE_READY_HINT;
+  const nextStep = canCreate ? readyStatus : 'Al crear, ClipHub comprueba las rondas y avisa si falta algo.';
+  const status = busy === null ? nextStep : '';
+  const cta = <Button size="lg" disabled={!ready} loading={busy === 'create'} loadingText="Preparando demo completa…" onClick={() => void create()}
+    className={`w-full font-extrabold ${FORMAT_TONE.full.fill}`}>{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>;
+  const shownError = error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null);
+  const title = match.player ? `POV de ${match.player} en ${prettyMapName(match.map)}` : PRODUCE_FULL_TITLE;
+
   return <>
-    <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+    <div className="mb-4 flex min-w-0 flex-col gap-1.5">
       <p className="wrap-anywhere text-meta text-fg-3">Nueva demo completa · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
-      <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
-      <p className="w-full text-body-sm text-fg-2">
+      <h1 className="font-display text-display-sm font-extrabold tracking-tight text-fg-1">{title}</h1>
+      <p className="text-body-sm text-fg-2">
         {chosenRounds.length > 0
-          ? `${chosenRounds.length === 1 ? 'La ronda' : 'Las rondas'} ${roundListLabel(chosenRounds)} con la mira del jugador y el audio de la partida.`
-          : 'Todas las rondas con la mira del jugador y el audio de la partida.'}
+          ? `${chosenRounds.length === 1 ? 'La ronda' : 'Las rondas'} ${roundListLabel(chosenRounds)} desde la vista del jugador, con el audio de la partida.`
+          : 'Todas las rondas desde la vista del jugador, con el audio de la partida.'}
+        {durationSeconds !== null ? ` Unos ${formatVideoDuration(durationSeconds)} de vídeo.` : null}
         {chosenRounds.length > 0 && options ? (
           <>
             {' '}
@@ -190,7 +209,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
         ) : null}
       </p>
       {restored ? (
-        <p role="status" className="w-full text-body-sm text-fg-3">
+        <p role="status" className="text-body-sm text-fg-3">
           {PRODUCE_FULL_DRAFT_RESTORED}{' '}
           <button type="button" disabled={busy !== null} onClick={startOver} className="text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
             {PRODUCE_DRAFT_RESET}
@@ -200,37 +219,28 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId, sel
     </div>
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando la preparación guardada…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
-    {/*
-      The HUD leads full-width. The fixed cards (sound, transitions, overlays) stack in one
-      column; the intro/sponsor/outro uploads, which grow with their previews, fill the rest.
-      2 columns: HUD on top, fixed cards | added videos.
-      3 columns: HUD (2) with the fixed cards beside it, added videos (2) right under the HUD.
-    */}
-    {options ? <fieldset disabled={busy !== null} inert={busy !== null}
-      className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2 @[64rem]/content:grid-cols-3 @[64rem]/content:grid-rows-[auto_1fr]">
-      <div className="min-w-0 @[40rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></div>
-      <div className="min-w-0 space-y-4 @[64rem]/content:col-start-3 @[64rem]/content:row-span-2 @[64rem]/content:row-start-1">
-        <FullDemoAudio options={options} document={document} onChange={change} />
-        <FullDemoTransitions options={options} onChange={change} />
-        <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
-        <FullDemoGroup title="Overlays" note={OVERLAYS_NOTE}>
-          <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
-        </FullDemoGroup>
-      </div>
-      <div className="min-w-0 @[64rem]/content:col-span-2">
-        <FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
-      </div>
-    </fieldset> : null}
-    <div className="space-y-3">
-      {busy === 'asset' ? <p role="status" className="text-body-sm text-fg-2">Subiendo y verificando el archivo…</p> : null}
-      {(document?.blockers ?? []).map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{item.message}{item.round_id ? ` (${item.round_id})` : ''}</p>)}
-      {!dirty ? (document?.warnings ?? []).map((item, index) => <p key={`${item.code}-${index}`} className="text-body-sm text-fg-2">{item.message}</p>) : null}
+    <div className="grid min-w-0 items-start gap-6 @[64rem]/content:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="flex min-w-0 flex-col gap-4">
+        <FullDemoHudPreview options={options} map={match.map} />
+        <FullDemoBumpers options={options} document={document} rounds={orderRounds} onChange={change} onAssetBusy={assetBusy} />
+        <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
+        <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
+          <FullDemoAudio options={options} document={document} onChange={change} />
+          <FullDemoGroup step={4} title="Grabación">
+            <div className="flex flex-col gap-3.5">
+              <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
+              <FullDemoPart title="Presentación y marcador" note={OVERLAYS_NOTE}>
+                <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={assetBusy} />
+              </FullDemoPart>
+              <FullDemoTransitions options={options} onChange={change} />
+            </div>
+          </FullDemoGroup>
+        </div>
+      </fieldset> : <div className="min-w-0" />}
+      <FullDemoSummary durationSeconds={durationSeconds} roundCount={orderRounds.length} briefItems={briefItems} planState={planState} status={status}
+        blockers={blockers} warnings={dirty ? [] : document?.warnings ?? []} assetBusy={busy === 'asset'}
+        error={shownError} backHref={backHref} cta={cta} />
     </div>
-    <ProduceFooter tone="full" eyebrow="Demo completa · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
-      hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
-      readyHint={dirty ? 'Se preparará al crear.' : undefined}
-      ready={ready} backHref={backHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
-      cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando demo completa…" onClick={() => void create()}
-        className="shrink-0">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
+    <FullDemoActionBar planState={planState} status={status} error={shownError} backHref={backHref} cta={cta} />
   </>;
 }

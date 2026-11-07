@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Download, Play, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import type { Video } from '@/lib/api/types';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import {
@@ -144,11 +145,22 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
 /** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const OutputItem = memo(OutputItemCard, sameHubProps);
 
-function FailureLine({ output }: { output: MatchOutput }): ReactNode {
+export function FailureLine({ output, className }: { output: MatchOutput; className?: string }): ReactNode {
   const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full && !isHighlightsVideo(output.video), fullDemoPlannerVersion: output.video.editConfig?.fullDemo?.document.planner_version });
   return (
-    <span className="text-body-sm text-destructive">{failure.message}</span>
+    <span className={cn('text-body-sm text-destructive', className)}>{failure.message}</span>
   );
+}
+
+/** Saves the MP4 with the video's title as its name and says so in a toast. */
+export function downloadMP4(url: string, title: string): void {
+  downloadPublishMP4(url, title);
+  toast(DOWNLOAD_TOAST, { description: title });
+}
+
+export function downloadVideoMP4(video: Video): void {
+  if (video.downloadUrl === undefined) return;
+  downloadMP4(video.downloadUrl, video.title);
 }
 
 /**
@@ -180,11 +192,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
           size="xs"
           variant="outline-primary"
           disabled={url === undefined}
-          onClick={() => {
-            if (url === undefined) return;
-            downloadPublishMP4(url, video.title);
-            toast(DOWNLOAD_TOAST, { description: video.title });
-          }}
+          onClick={() => downloadVideoMP4(video)}
         >
           <Download aria-hidden />
           MP4

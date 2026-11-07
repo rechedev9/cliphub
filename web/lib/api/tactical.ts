@@ -852,11 +852,22 @@ export type TacticalByteRange = { start: number; endInclusive: number };
 /* Typed fetches                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** Throws an Error carrying any upstream `code` for a non-2xx proxy response. */
+/** A non-2xx proxy response: its HTTP status and any upstream `code`. */
+class TacticalRequestError extends Error {
+  readonly status: number;
+  code?: string;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** Throws a TacticalRequestError for a non-2xx proxy response. */
 async function throwResponseError(res: Response): Promise<never> {
   const body = (await res.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
   const message = body && typeof body.error === 'string' ? body.error : `request failed (${res.status})`;
-  const err = new Error(message) as Error & { code?: string };
+  const err = new TacticalRequestError(message, res.status);
   if (body && typeof body.code === 'string') err.code = body.code;
   throw err;
 }
@@ -864,6 +875,11 @@ async function throwResponseError(res: Response): Promise<never> {
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) await throwResponseError(res);
   return (await res.json()) as T;
+}
+
+/** True when the orchestrator answered 409: the tactical analysis has not finished yet. */
+export function isTacticalNotReadyError(error: unknown): boolean {
+  return error instanceof TacticalRequestError && error.status === 409;
 }
 
 /** True when an error thrown by this module means the local orchestrator is down. */

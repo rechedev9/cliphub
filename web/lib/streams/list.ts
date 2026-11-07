@@ -1,7 +1,7 @@
 import type { StreamJob } from '../api/streams.ts';
 import type { PollCadence } from '../poll-loop.ts';
 
-export type StreamJobTagTone = 'warning' | 'success' | 'stream' | 'danger';
+export type StreamJobTagTone = 'neutral' | 'success' | 'stream' | 'danger';
 
 export type StreamJobTag = { label: string; tone: StreamJobTagTone; busy: boolean };
 
@@ -13,15 +13,15 @@ export type StreamJobTag = { label: string; tone: StreamJobTagTone; busy: boolea
 export function streamJobTag(job: StreamJob): StreamJobTag {
   switch (job.status) {
     case 'rendered':
-      return { label: 'Renderizado', tone: 'success', busy: false };
+      return { label: 'Listo', tone: 'success', busy: false };
     case 'rendering':
-      return { label: 'Render', tone: 'stream', busy: true };
+      return { label: 'Exportando', tone: 'stream', busy: true };
     case 'failed':
-      return { label: 'Falló', tone: 'danger', busy: false };
+      return { label: 'Error', tone: 'danger', busy: false };
     case 'acquiring':
-      return { label: 'Trayendo el vídeo', tone: 'stream', busy: true };
+      return { label: 'Descargando', tone: 'stream', busy: true };
     default:
-      return { label: 'Borrador', tone: 'warning', busy: false };
+      return { label: 'En edición', tone: 'neutral', busy: false };
   }
 }
 
@@ -41,4 +41,21 @@ export function sortStreamJobs(jobs: readonly StreamJob[]): StreamJob[] {
 export function streamClipCount(job: Pick<StreamJob, 'clip_count' | 'edit_plan'>): number {
   if (typeof job.clip_count === 'number') return job.clip_count;
   return job.edit_plan?.clips.length ?? 0;
+}
+
+/** One cut of a project, as percents of the source so a poster bar can place it. */
+export type StreamCutMark = { id: string; leftPercent: number; widthPercent: number };
+
+/** Null when the job lacks the plan or the source length: the list endpoint sends only `clip_count`. */
+export function streamCutMarks(job: Pick<StreamJob, 'edit_plan' | 'probe'>): StreamCutMark[] | null {
+  const duration = job.probe?.duration_seconds;
+  const clips = job.edit_plan?.clips;
+  if (clips === undefined || clips.length === 0 || duration === undefined || !Number.isFinite(duration) || duration <= 0) {
+    return null;
+  }
+  const percent = (seconds: number): number => Math.min(100, Math.max(0, (seconds / duration) * 100));
+  return clips.map((clip) => {
+    const leftPercent = percent(clip.start_seconds);
+    return { id: clip.id, leftPercent, widthPercent: Math.max(0, percent(clip.end_seconds) - leftPercent) };
+  });
 }

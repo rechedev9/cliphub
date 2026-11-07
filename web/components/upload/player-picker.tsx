@@ -1,22 +1,19 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { Users } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ArrowRight, Users } from 'lucide-react';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import type { FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
-import { FaceitRoster } from '@/components/upload/faceit-roster';
-import { cn } from '@/lib/utils';
-import { ratingBarPct, prettyMapName } from '@/lib/format';
-import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
-import { StudioDataRow } from '@/components/studio/data-row';
-import { Badge } from '@/components/ui/badge';
-import { Button, FOCUS_RING } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
-import { SelectionMark } from '@/components/clips/selection-mark';
+import { prettyMapName } from '@/lib/format';
 import { MAX_POV_PLAYERS, MIN_POV_PLAYERS, togglePovPick } from '@/lib/produce/multi-pov';
-
-// Series rows add mapsPresent; single-match callers keep plain DemoPlayer values.
-type PickerPlayer = DemoPlayer & { mapsPresent?: number };
+import { cn } from '@/lib/utils';
+import { FaceitRoster } from '@/components/upload/faceit-roster';
+import { RosterTeam, type PickerPlayer } from '@/components/upload/roster-team';
+import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
+import { StatusTag } from '@/components/studio/status-tag';
+import { StudioDataRow } from '@/components/studio/data-row';
+import { Button } from '@/components/ui/button';
+import { Segmented } from '@/components/ui/segmented';
 
 export type PlayerPickerProps = {
   /** Roster from the scan (single match) or aggregated across a series, sorted by kills desc. */
@@ -36,35 +33,17 @@ export type PlayerPickerProps = {
   faceit?: FaceitScoreboard | null;
   /** Offers "Varios del equipo": 2 to 5 teammates for one video, the first pick leading. */
   onPickMany?: (steamIds: string[]) => void;
+  /** The flow colour of the selection and the CTA; defaults from `purpose`. */
+  tone?: FormatTone;
 };
 
 type PickMode = 'one' | 'team';
 const PICK_MODES = [{ value: 'one', label: 'Un jugador' }, { value: 'team', label: 'Varios del equipo' }] as const;
 
-/** Tooltip copy for the abbreviated stat column headers. */
-const STAT_TOOLTIPS: Record<string, string> = {
-  rating: 'Rating HLTV 1.0',
-  adr: 'Daño medio por ronda',
-  kast: '% de rondas con kill/asistencia/sobrevivir/trade',
-  hs: '% de kills por headshot',
-};
-
-// Token-mapped HLTV 1.0 bands keep the scoreboard aligned with the navy theme.
-const RATING_BANDS = [
-  { min: 1.15, text: 'text-success', bar: 'bg-success' },
-  { min: 0.95, text: 'text-fg-1', bar: 'bg-fg-2' },
-  { min: 0.8, text: 'text-warning', bar: 'bg-warning' },
-  { min: Number.NEGATIVE_INFINITY, text: 'text-destructive', bar: 'bg-destructive' },
-] as const;
-
-function ratingBand(rating: number): (typeof RATING_BANDS)[number] {
-  return RATING_BANDS.find((band) => rating >= band.min) ?? RATING_BANDS[RATING_BANDS.length - 1];
-}
-
-/** First one or two glyphs of a name, uppercased, for the row's monogram avatar. */
-function initials(name: string): string {
-  return Array.from(name.trim()).slice(0, 2).join('').toUpperCase();
-}
+const MODE_HINT = {
+  one: 'El vídeo sigue sus jugadas desde su vista.',
+  team: 'De 2 a 5 del mismo equipo: sus mejores jugadas, cada una desde su vista.',
+} as const satisfies Record<PickMode, string>;
 
 /** Clip-worthiness weights higher multi-kill rounds most strongly. */
 function clipScore(p: DemoPlayer): number {
@@ -91,76 +70,6 @@ function pickPovRecommended(players: DemoPlayer[]): DemoPlayer | undefined {
   }, undefined);
 }
 
-type HighlightChip = { key: string; label: string; tone: StatusTagTone };
-
-/** Nonzero multi-kill chips in ACE -> 4K -> 3K order; ACE gets the strongest (cyan) treatment. */
-function highlightChips(p: DemoPlayer): HighlightChip[] {
-  const chips: HighlightChip[] = [];
-  if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, tone: 'primary' });
-  if (p.rounds4k) chips.push({ key: '4k', label: `4K ×${p.rounds4k}`, tone: 'warning' });
-  if (p.rounds3k) chips.push({ key: '3k', label: `3K ×${p.rounds3k}`, tone: 'neutral' });
-  return chips;
-}
-
-/** A scoreboard column: label, the value to render, and an optional colour tone. */
-type Column = {
-  key: string;
-  label: string;
-  value: (p: DemoPlayer) => string;
-  tone?: (p: DemoPlayer) => string;
-  /** Secondary columns hide on a narrow column so the player name never collapses. */
-  secondary?: boolean;
-  /** Overrides the default text cell, e.g. the rating column's value-plus-bar. */
-  render?: (p: DemoPlayer) => ReactNode;
-};
-
-/** Rating cell: the number plus a bar showing it against a 2.0 (elite-pace) ceiling. */
-function RatingCell({ rating }: { rating: number }) {
-  const band = ratingBand(rating);
-  return (
-    <span className="flex flex-col items-end gap-1">
-      <span className={band.text}>{rating.toFixed(2)}</span>
-      <span aria-hidden className="h-[3px] w-10 bg-surface-0">
-        <span className={cn('block h-full', band.bar)} style={{ width: `${ratingBarPct(rating)}%` }} />
-      </span>
-    </span>
-  );
-}
-
-function signed(n: number): string {
-  return n > 0 ? `+${n}` : `${n}`;
-}
-
-const TEAM_META = {
-  T: { label: 'Terroristas', text: 'text-side-t', chip: 'border-side-t/45 bg-side-t/10 text-side-t' },
-  CT: { label: 'Antiterroristas', text: 'text-side-ct', chip: 'border-side-ct/45 bg-side-ct/10 text-side-ct' },
-  '': { label: 'Otros', text: 'text-fg-2', chip: 'border-border-strong bg-surface-3 text-fg-2' },
-} as const;
-
-/** Compact match summary (map, final score, rounds) shown above the roster tables. */
-function MatchHeader({ match }: { match: RosterMatch }) {
-  const tWon = match.scoreT > match.scoreCt;
-  const ctWon = match.scoreCt > match.scoreT;
-  return (
-    <StudioDataRow
-      label={prettyMapName(match.map)}
-      value={
-        <span
-          className="inline-flex items-baseline gap-1.5 text-body-lg"
-          aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`}
-        >
-          <span className={tWon ? 'font-bold text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
-          {/* A rule, not a hyphen: a literal separator inside a tabular-nums run
-              renders at digit width and jitters against the figures. */}
-          <span aria-hidden className="h-4 w-px self-center bg-border-strong" />
-          <span className={ctWon ? 'font-bold text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
-        </span>
-      }
-      status={<StatusTag>{match.rounds} rondas</StatusTag>}
-    />
-  );
-}
-
 // Series has no single score, so its header shows map and roster counts instead.
 function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCount: number }) {
   return (
@@ -173,8 +82,24 @@ function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCoun
   );
 }
 
-// CS-style roster picker: Highlights recommends multi-kill potential, while
-// Full Demo recommends the strongest match rating for a continuous POV.
+/** The match above the two sides: map, final score in the winner's colour, rounds played. */
+function MatchHeader({ match }: { match: RosterMatch }): ReactNode {
+  const tWon = match.scoreT > match.scoreCt;
+  const ctWon = match.scoreCt > match.scoreT;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-[14px] bg-surface-2 px-4 py-3">
+      <span className="min-w-0 truncate font-display text-title font-extrabold text-fg-1">{prettyMapName(match.map)}</span>
+      <span role="img" aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`} className="text-title font-extrabold tabular-nums">
+        <span className={tWon ? 'text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
+        <span className="text-fg-3"> : </span>
+        <span className={ctWon ? 'text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
+      </span>
+      <span className="text-meta text-fg-3">{match.rounds} rondas</span>
+    </div>
+  );
+}
+
+// Highlights recommends multi-kill potential; Full Demo recommends the strongest match rating for a continuous POV.
 export function PlayerPicker({
   players,
   onPick,
@@ -185,6 +110,7 @@ export function PlayerPicker({
   onCancel,
   faceit,
   onPickMany,
+  tone = purpose === 'full-demo' ? 'full' : 'short',
 }: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
@@ -221,7 +147,8 @@ export function PlayerPicker({
   };
   // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
   const faceitBoard = !isSeries && faceit ? faceit : null;
-  const faceitSelected = faceitBoard?.teams.flatMap((t) => t.players).find((p) => p.steamId === selected);
+  const faceitPlayers = faceitBoard?.teams.flatMap((t) => t.players) ?? [];
+  const faceitSelected = faceitPlayers.find((p) => p.steamId === selected);
   const selectable = new Set(players.map((p) => p.steamId));
   const recommendedLabel = purpose === 'full-demo' ? 'Mejor rendimiento' : 'Recomendado';
   let contextLabel = 'Demo';
@@ -230,63 +157,44 @@ export function PlayerPicker({
   let ctaLabel = purpose === 'full-demo' ? 'Continuar a la demo completa' : 'Continuar al Short';
   if (isSeries) ctaLabel = 'Continuar con la serie';
   if (multi) ctaLabel = team.length >= MIN_POV_PLAYERS ? `Analizar ${team.length} jugadores` : 'Analizar jugadores';
-  const nameOf = (p: PickerPlayer) => faceitBoard?.teams.flatMap((t) => t.players).find((f) => f.steamId === p.steamId)?.nickname ?? p.name;
-  let teamSummary = 'Elige de 2 a 5 jugadores del mismo equipo';
-  if (team.length === 1) teamSummary = `${nameOf(team[0])} · añade otro jugador de su equipo`;
-  else if (team.length > 1) teamSummary = `${contextLabel} · ${team.map(nameOf).join(', ')}`;
-  let pickSummary: ReactNode = 'Elige un jugador para continuar';
-  if (multi) pickSummary = teamSummary;
-  else if (selectedPlayer) {
-    pickSummary = (
-      <>
-        {contextLabel} <span className="text-fg-3">·</span>{' '}
-        <span className="font-medium text-fg-1">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
-        <span className="text-fg-3">
-          · {faceitSelected?.kills ?? selectedPlayer.kills}K / {faceitSelected?.deaths ?? selectedPlayer.deaths}D
-        </span>
-      </>
-    );
-  }
+  const nameOf = (p: PickerPlayer) => faceitPlayers.find((f) => f.steamId === p.steamId)?.nickname ?? p.name;
 
+  let footLabel = 'Jugador elegido';
+  let footName = 'Elige un jugador para continuar';
+  let footHint: string | null = null;
+  if (multi) {
+    footLabel = team.length > 0 ? `${team.length} ${team.length === 1 ? 'jugador' : 'jugadores'}` : 'Jugadores elegidos';
+    footName = team.length > 0 ? team.map(nameOf).join(', ') : 'Elige de 2 a 5 jugadores del mismo equipo';
+    if (team.length === 1) footHint = 'Añade otro jugador de su equipo';
+  } else if (selectedPlayer) {
+    footName = faceitSelected?.nickname ?? selectedPlayer.name;
+  }
+  const footStats = !multi && selectedPlayer ? (
+    <div className="flex gap-7">
+      <FootStat value={faceitSelected?.kills ?? selectedPlayer.kills} label="kills" className={FORMAT_TONE[tone].text} />
+      <FootStat value={faceitSelected?.deaths ?? selectedPlayer.deaths} label="muertes" />
+      {selectedPlayer.rounds5k ? <FootStat value={selectedPlayer.rounds5k} label="ACE" /> : null}
+    </div>
+  ) : null;
 
   const showMvp = players.some((p) => p.mvps > 0);
-  const columns: Column[] = [
-    { key: 'rating', label: 'RAT', value: (p) => p.rating.toFixed(2), render: (p) => <RatingCell rating={p.rating} /> },
-    { key: 'k', label: 'K', value: (p) => `${p.kills}` },
-    { key: 'd', label: 'D', value: (p) => `${p.deaths}` },
-    { key: 'a', label: 'A', value: (p) => `${p.assists}` },
-    { key: 'pm', label: '+/-', secondary: true, value: (p) => signed(p.kills - p.deaths), tone: (p) => (p.kills - p.deaths >= 0 ? 'text-fg-1' : 'text-fg-3') },
-    { key: 'adr', label: 'ADR', secondary: true, value: (p) => `${Math.round(p.adr)}` },
-    { key: 'kast', label: 'KAST', secondary: true, value: (p) => `${Math.round(p.kast)}%` },
-    { key: 'hs', label: 'HS', secondary: true, value: (p) => `${Math.round(p.hsPct)}%` },
-    ...(showMvp ? [{ key: 'mvp', label: 'MVP', secondary: true, value: (p: DemoPlayer) => `${p.mvps}` }] : []),
-  ];
-
-  // Narrow containers hide secondary stats instead of crushing the player name.
-  // CSSProperties lacks an index signature for these custom grid variables.
-  const coreCount = columns.filter((c) => !c.secondary).length;
-  const gridStyle: CSSProperties & { '--pp-cols': string; '--pp-cols-wide': string } = {
-    '--pp-cols': `minmax(0,1fr) repeat(${coreCount}, minmax(2.5rem,2.75rem))`,
-    '--pp-cols-wide': `minmax(0,1fr) repeat(${columns.length}, minmax(2.5rem,2.75rem))`,
-  };
-  const gridClass = '[grid-template-columns:var(--pp-cols)] @[44rem]/content:[grid-template-columns:var(--pp-cols-wide)]';
-  const cellClass = (c: Column) => (c.secondary ? 'hidden @[44rem]/content:block' : undefined);
-
   const sides: Array<DemoPlayer['team']> = ['T', 'CT', ''];
   const groups = sides
-    .map((side) => players.filter((p) => p.team === side))
-    .map((roster, i) => ({ side: sides[i], roster }))
+    .map((side) => ({ side, roster: players.filter((p) => p.team === side) }))
     .filter((g) => g.roster.length > 0);
-
-  // Series mode shows the combined-stats strip; a single match shows its
-  // score header when the scan reported one; otherwise neither.
-  let header: ReactNode = null;
-  if (isSeries) header = <SeriesSummary mapCount={seriesMapCount ?? 0} playerCount={players.length} />;
-  else if (match) header = <MatchHeader match={match} />;
+  const sideScore = (side: DemoPlayer['team']): number | null => {
+    if (isSeries || !match || side === '') return null;
+    return side === 'T' ? match.scoreT : match.scoreCt;
+  };
 
   return (
     <div className="flex flex-col gap-5">
-      {canPickMany ? <Segmented label="Jugadores del vídeo" value={mode} options={PICK_MODES} onChange={switchMode} /> : null}
+      {canPickMany ? (
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+          <Segmented label="Jugadores del vídeo" value={mode} options={PICK_MODES} onChange={switchMode} />
+          <span className="text-body-sm text-fg-2">{MODE_HINT[mode]}</span>
+        </div>
+      ) : null}
       {faceitBoard ? (
         <FaceitRoster
           board={faceitBoard}
@@ -298,173 +206,80 @@ export function PlayerPicker({
           recommendedLabel={recommendedLabel}
         />
       ) : null}
-      {faceitBoard ? null : header}
-      {faceitBoard ? null : groups.map(({ side, roster }) => {
-        const meta = TEAM_META[side];
-        const avg = roster.reduce((s, p) => s + p.rating, 0) / roster.length;
-        return (
-          <section key={side || 'other'}>
-            <div className="mb-2 flex items-center justify-between gap-3 px-1">
-              <span className={cn('font-display text-label font-bold', meta.text)}>
-                {meta.label}
-              </span>
-              <span className="ml-auto text-meta tabular-nums text-fg-3">
-                media {avg.toFixed(2)}
-              </span>
-              {multi && side !== '' ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => pickTeam(roster.map((p) => p.steamId))}>
-                  Todo el equipo
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="overflow-hidden border border-border">
-              <div
-                className={cn(
-                  'grid items-center gap-x-1 border-b border-border bg-surface-3 px-3 py-2 text-meta text-fg-3',
-                  gridClass,
-                )}
-                style={gridStyle}
-              >
-                <span>Jugador</span>
-                {columns.map((c) => (
-                  <span key={c.key} className={cn('text-right', cellClass(c))} title={STAT_TOOLTIPS[c.key]}>
-                    {c.label}
-                  </span>
-                ))}
-              </div>
-
-              {roster.map((p) => {
-                const active = chosen.has(p.steamId);
-                const isRecommended = p.steamId === recommended?.steamId;
-                const chips = highlightChips(p);
-                // In series mode, flag only players missing from at least one map.
-                const showMapsChip =
-                  isSeries && typeof p.mapsPresent === 'number' && p.mapsPresent < (seriesMapCount ?? 0);
-                const mapsChip = showMapsChip ? (
-                  <StatusTag className="tabular-nums">
-                    {p.mapsPresent}/{seriesMapCount} mapas
-                  </StatusTag>
-                ) : null;
-                let chipRow: ReactNode;
-                if (chips.length > 0) {
-                  chipRow = chips.map((c) => (
-                    <StatusTag key={c.key} tone={c.tone} className="tabular-nums">
-                      {c.label}
-                    </StatusTag>
-                  ));
-                } else if (!isRecommended && !showMapsChip) {
-                  chipRow = <span className="text-meta text-fg-3">—</span>;
-                } else {
-                  chipRow = null;
-                }
-                return (
-                  <button
-                    key={p.steamId}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => choose(p.steamId)}
-                    style={gridStyle}
-                    className={cn(
-                      'grid w-full cursor-pointer items-center gap-x-1 border-b border-border-subtle px-3 py-2.5 text-left last:border-b-0',
-                      'transition-[background-color,box-shadow] duration-(--dur-fast) ease-standard',
-                      // Draw the focus ring inside the overflow-hidden table so edge rows keep it.
-                      FOCUS_RING,
-                      'focus-visible:-outline-offset-2',
-                      gridClass,
-                      // Recommendation stays tinted; the ring marks the current pointer/focus target.
-                      isRecommended && 'bg-primary/10 shadow-[inset_3px_0_0_0_var(--primary)]',
-                      active
-                        ? 'bg-primary/10 ring-1 ring-inset ring-primary/60'
-                        : !isRecommended && 'hover:bg-surface-3',
-                    )}
-                  >
-                    <span className="flex min-w-0 flex-col gap-1">
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        {multi ? <SelectionMark selected={active} /> : null}
-                        <span
-                          data-testid="player-avatar"
-                          className={cn(
-                            'inline-flex size-7 shrink-0 items-center justify-center border font-display text-meta font-bold leading-none tracking-normal',
-                            active ? 'border-primary/55 bg-primary/15 text-primary' : meta.chip,
-                          )}
-                        >
-                          {initials(p.name)}
-                        </span>
-                        {/* min-w-0 lets this shrink inside the flex row without evicting the name;
-                            the name never has to share a row with the Recommended badge, which
-                            keeps this row narrow-window-safe like the rest of the scoreboard. */}
-                        <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-fg-1">{p.name}</span>
-                      </span>
-                      {/* Second line, indented under the name: the Recommended tag and the
-                          Highlights chips. Always rendered (never just for narrow windows) so
-                          it never competes with the player name for horizontal space. */}
-                      <span className={cn('flex flex-wrap items-center gap-1.5', multi ? 'pl-[4.5rem]' : 'pl-[2.375rem]')}>
-                        {isRecommended ? (
-                          <Badge shape="square" className="min-h-7 px-2">
-                            {recommendedLabel}
-                          </Badge>
-                        ) : null}
-                        {mapsChip}
-                        {chipRow}
-                      </span>
-                    </span>
-                    {columns.map((c) => (
-                      <span
-                        key={c.key}
-                        className={cn(
-                          'text-right text-body-sm tabular-nums',
-                          cellClass(c),
-                          c.tone?.(p) ?? 'text-fg-1',
-                        )}
-                      >
-                        {c.render ? c.render(p) : c.value(p)}
-                      </span>
-                    ))}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-
-      <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[40rem]/content:-mx-6 @[40rem]/content:-mb-6 @[40rem]/content:px-6">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-meta text-fg-3">{multi ? 'Jugadores elegidos' : 'Jugador elegido'}</span>
-          <p className={cn('truncate text-body', multi && team.length < MIN_POV_PLAYERS ? 'text-fg-2' : 'text-fg-1')}>
-            {pickSummary}
-          </p>
+      {!faceitBoard && isSeries ? <SeriesSummary mapCount={seriesMapCount ?? 0} playerCount={players.length} /> : null}
+      {!faceitBoard && !isSeries && match ? <MatchHeader match={match} /> : null}
+      {faceitBoard ? null : (
+        <div className="grid items-start gap-5 @[60rem]/content:grid-cols-2">
+          {groups.map(({ side, roster }) => (
+            <RosterTeam
+              key={side || 'other'}
+              side={side}
+              roster={roster}
+              score={sideScore(side)}
+              tone={tone}
+              chosen={chosen}
+              recommendedId={recommended?.steamId}
+              recommendedLabel={recommendedLabel}
+              seriesMapCount={isSeries ? (seriesMapCount ?? 0) : null}
+              multi={multi}
+              showMvp={showMvp}
+              onChoose={choose}
+              onPickTeam={multi && side !== '' ? () => pickTeam(roster.map((p) => p.steamId)) : undefined}
+            />
+          ))}
         </div>
-        {onCancel !== undefined ? (
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            Cancelar
-          </Button>
-        ) : null}
-        {allowDestinationSwitch && purpose === 'highlights' && !isSeries && !multi ? (
+      )}
+
+      <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-border bg-surface-1 px-5 py-4 shadow-[var(--elev-4)]">
+        <div className="flex min-w-44 flex-1 flex-col gap-0.5 @[48rem]/content:flex-none">
+          <span className="text-meta text-fg-3">{contextLabel} · {footLabel}</span>
+          <p className={cn('truncate font-display text-title font-extrabold', multi && team.length < MIN_POV_PLAYERS ? 'text-fg-2' : 'text-fg-1')}>
+            {footName}
+          </p>
+          {footHint ? <span className="text-meta text-fg-3">{footHint}</span> : null}
+        </div>
+        {footStats}
+        <span aria-hidden className="hidden flex-1 @[48rem]/content:block" />
+        <div className="flex flex-wrap items-center gap-2">
+          {onCancel !== undefined ? (
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancelar
+            </Button>
+          ) : null}
+          {allowDestinationSwitch && purpose === 'highlights' && !isSeries && !multi ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={selected === null}
+              onClick={() => selected && onPick(selected, 'full-demo')}
+            >
+              Preparar demo completa
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="outline-primary"
-            size="sm"
-            disabled={selected === null}
-            onClick={() => selected && onPick(selected, 'full-demo')}
+            size="lg"
+            className={cn('rounded-xl font-bold', FORMAT_TONE[tone].fill)}
+            disabled={multi ? team.length < MIN_POV_PLAYERS : selected === null}
+            onClick={() => {
+              if (multi) onPickMany?.(team.map((p) => p.steamId));
+              else if (selected) onPick(selected, purpose);
+            }}
           >
-            Preparar demo completa
+            {ctaLabel}
+            <ArrowRight aria-hidden />
           </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="hero"
-          size="lg"
-          disabled={multi ? team.length < MIN_POV_PLAYERS : selected === null}
-          onClick={() => {
-            if (multi) onPickMany?.(team.map((p) => p.steamId));
-            else if (selected) onPick(selected, purpose);
-          }}
-        >
-          {ctaLabel}
-        </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function FootStat({ value, label, className }: { value: number; label: string; className?: string }): ReactNode {
+  return (
+    <span className="flex flex-col">
+      <span className={cn('font-display text-[1.875rem] font-extrabold leading-none tracking-[-0.02em] tabular-nums text-fg-1', className)}>{value}</span>
+      <span className="text-meta text-fg-3">{label}</span>
+    </span>
   );
 }

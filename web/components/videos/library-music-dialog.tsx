@@ -216,10 +216,10 @@ export function LibraryMusicDialog({
           className="w-full"
           disabled={!ready}
           loading={busy}
-          loadingText="Renderizando de nuevo…"
+          loadingText="Aplicando música…"
           onClick={() => void apply()}
         >
-          <Music className="size-4" aria-hidden /> VOLVER A RENDERIZAR
+          <Music className="size-4" aria-hidden /> Aplicar música
         </Button>
       </DialogContent>
     </Dialog>

@@ -30,7 +30,7 @@ test('clips without edits or with valid edits pass', () => {
 
 test('empty overlay text is reported with the clip label', () => {
   const issue = clipEditIssue(clip({ text_overlays: [{ text: '   ', position_y: 0.5 }] }));
-  assert.match(issue ?? '', /Clip 1: hay un texto en pantalla vacío/);
+  assert.match(issue ?? '', /Momento 1: hay un texto en pantalla vacío/);
 });
 
 test('fractional or out-of-range font size is rejected before the PUT', () => {
@@ -86,7 +86,7 @@ test('streamRangesIssue reports overlapping cuts', () => {
   for (const [name, clips, wantsIssue] of overlapCases) {
     const issue = streamRangesIssue(clips, 0);
     if (wantsIssue) {
-      assert.match(issue ?? '', /se solapan en la fuente/, name);
+      assert.match(issue ?? '', /se solapan en el vídeo original/, name);
     } else {
       assert.equal(issue, null, name);
     }
@@ -98,7 +98,7 @@ test('streamRangeOverlapIssue flags the card that overlaps another cut', () => {
     { id: 'c1', start_seconds: 0, end_seconds: 6, title: 'Ace' },
     { id: 'c2', start_seconds: 5, end_seconds: 10 },
   ];
-  assert.match(streamRangeOverlapIssue(clips, 0) ?? '', /Se solapa con Clip 2/);
+  assert.match(streamRangeOverlapIssue(clips, 0) ?? '', /Se solapa con Momento 2/);
   assert.match(streamRangeOverlapIssue(clips, 1) ?? '', /Se solapa con Ace/);
   assert.equal(
     streamRangeOverlapIssue([{ id: 'c1', start_seconds: 0, end_seconds: 5 }, { id: 'c2', start_seconds: 5, end_seconds: 10 }], 0),

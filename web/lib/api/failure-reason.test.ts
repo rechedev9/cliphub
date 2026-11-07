@@ -193,7 +193,7 @@ test('Full Demo respawn acquisition requires a fresh plan, not the same retry', 
     const result = parseFailureReason(reason, { fullDemo: true });
     assert.equal(result.kind, 'pov-acquisition');
     assert.equal(result.retryCanHelp, false);
-    assert.match(result.message, /preparar y aprobar/);
+    assert.match(result.message, /Vuelve a preparar el vídeo/);
     assert.doesNotMatch(result.message, /765611|600 frames|round-004|No es un error de pipeline/);
   }
 });

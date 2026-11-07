@@ -29,7 +29,7 @@ export function StreamRenderResults({
   if (!renderState) return null;
   const videos = renderState.videos ?? [];
   const empty = videos.length === 0;
-  let message = 'Tus vídeos están listos. Elige un Short y guárdalo en tu equipo con «Guardar vídeo».';
+  let message = 'Tus Shorts están listos. Descárgalos aquí con «Descargar MP4» o encuéntralos cuando quieras en Mis vídeos.';
   if (empty) message = 'No se generó ningún vídeo. Vuelve a exportar para intentarlo de nuevo.';
   else if (stale) message = 'Hay cambios sin exportar. Exporta de nuevo para aplicarlos.';
   const playbackEntries = (job.rendered_outputs ?? [])
@@ -68,7 +68,7 @@ export function StreamRenderResults({
               >
                 {label} · {formatStreamClock(v.duration_seconds ?? 0)}
               </Button>
-              {/* The footer's "Guardar vídeo" saves the selected Short; a second
+              {/* The footer's "Descargar MP4" saves the selected Short; a second
                   save button per row duplicated that primary action. */}
               {playback ? (
                 <Button
@@ -94,7 +94,7 @@ export function StreamRenderResults({
           <Button variant="outline" disabled={stale} onClick={openYouTubeStudio}>
             Abrir YouTube Studio
           </Button>
-          <p className="mt-2 text-label text-fg-3">Guarda el vídeo y súbelo desde tu cuenta de YouTube.</p>
+          <p className="mt-2 text-label text-fg-3">Descarga el MP4 y súbelo desde tu cuenta de YouTube.</p>
         </div>
       ) : null}
       {renderState.delivery?.length ? (

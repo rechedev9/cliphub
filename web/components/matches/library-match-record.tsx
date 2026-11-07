@@ -9,11 +9,10 @@ import type { Video } from '@/lib/api/types';
 import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { SOURCE_LABEL, matchScoreLabel, matchTitle } from '@/lib/library/partidas';
+import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
 import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
-import { RecordHeader, type RecordField } from '@/components/records/record-header';
+import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
-import { StatusTag } from '@/components/studio/status-tag';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { CreateFromDemo } from '@/components/matches/create-from-demo';
 import { MatchVideos } from '@/components/matches/match-record';
@@ -30,31 +29,35 @@ function tabFromQuery(raw: string | null): MatchTab | null {
   return TABS.find((tab) => tab === raw) ?? null;
 }
 
-function durationLabel(match: LibraryMatch): string {
-  if (!(match.tickrate > 0)) return 'Sin dato';
-  const minutes = Math.round(match.duration_ticks / match.tickrate / 60);
-  return `${minutes} min`;
+/** Minutes of play, or null when the demo carries no tickrate to count them with. */
+function durationLabel(match: LibraryMatch): string | null {
+  if (!(match.tickrate > 0)) return null;
+  return `${Math.round(match.duration_ticks / match.tickrate / 60)} min`;
 }
 
-function matchFields(match: LibraryMatch, demo: LibraryDemo): RecordField[] {
-  return [
-    { label: 'Fecha', value: formatShortDate(match.played_at) },
-    { label: 'Marcador', value: <span>{matchScoreLabel(match)}</span> },
-    { label: 'Rondas', value: match.round_count },
-    { label: 'Duración', value: durationLabel(match) },
-    { label: 'Fuente', value: demo.source === 'shared' ? <StatusTag tone="neutral">{SOURCE_LABEL.shared}</StatusTag> : SOURCE_LABEL[demo.source] },
-    { label: 'Build de CS2', value: demo.cs2_build ?? 'Sin dato' },
-    {
-      label: 'Serie',
-      value: match.series_id ? (
-        <Link href={librarySeriesHref(match.series_id)} className="text-fg-1 hover:text-primary hover:underline">
+/** The score, date, duration, rounds, source and series as one line under the map. */
+function matchMeta(match: LibraryMatch, demo: LibraryDemo): ReactNode {
+  const [left, right] = scoreline(match);
+  const parts = [
+    `${left.name} ${left.score} : ${right.score} ${right.name}`,
+    formatShortDate(match.played_at),
+    durationLabel(match),
+    `${match.round_count} ${match.round_count === 1 ? 'ronda' : 'rondas'}`,
+    SOURCE_LABEL[demo.source],
+  ].filter((part) => part !== null);
+  return (
+    <>
+      {parts.join(' · ')}
+      {' · '}
+      {match.series_id ? (
+        <Link href={librarySeriesHref(match.series_id)} className="text-fg-2 underline decoration-fg-4 underline-offset-2 hover:text-fg-1">
           Ver serie
         </Link>
       ) : (
         'Sin serie'
-      ),
-    },
-  ];
+      )}
+    </>
+  );
 }
 
 /**
@@ -105,8 +108,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
         kind="Partida"
         icon={Swords}
         title={map}
-        subtitle={matchTitle(match)}
-        fields={matchFields(match, demo)}
+        subtitle={matchMeta(match, demo)}
         actions={
           <>
             <CreateFromDemo demo={demo} />
@@ -151,13 +153,21 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
           {
             id: 'metricas',
             label: 'Métricas',
-            content: <MatchMetrics match={match} />,
+            content: <MatchMetrics match={match} onOpenTactical={openTactical} />,
           },
           {
             id: 'videos',
             label: 'Vídeos',
             count: videos?.length ?? undefined,
-            content: <MatchVideos matchId={demo.job_ids.at(-1) ?? match.id} videos={videos} />,
+            content: (
+              <MatchVideos
+                matchId={demo.job_ids.at(-1) ?? match.id}
+                videos={videos}
+                onVideosChange={setVideos}
+                demo={demo}
+                onOpenRounds={() => setTab('rondas')}
+              />
+            ),
           },
         ]}
       />

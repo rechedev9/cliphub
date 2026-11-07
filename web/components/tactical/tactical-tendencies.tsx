@@ -1,435 +1,149 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { MIN_RELIABLE_SAMPLE, TACTICAL_BUY_TYPE_ORDER, TACTICAL_SITE_ORDER } from '@/lib/api/tactical';
-import type { TacticalBuyType, TacticalSite, TacticalTendencies } from '@/lib/api/tactical';
-import { buyLabel, patternLabel, siteLabel } from '@/lib/tactical-labels';
-import {
-  HistogramChart,
-  RateBar,
-  RateRow,
-  RateValue,
-  SmallSampleChip,
-} from '@/components/tactical/tactical-charts';
+import { useId, type ReactNode } from 'react';
+import { MIN_RELIABLE_SAMPLE } from '@/lib/api/tactical';
+import type { TacticalTendencies } from '@/lib/api/tactical';
+import { teamSummaryLine } from '@/lib/tactical-tendency-view';
+import { TendencyCards } from '@/components/tactical/tactical-tendency-cards';
+import { SideAgnosticTendencies, TendencyDetail } from '@/components/tactical/tactical-tendency-detail';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 
-const HEAD_CELL =
-  'px-3 py-2 text-left text-meta font-normal text-fg-3';
-const BODY_CELL = 'px-3 py-2 align-middle';
+/** The panel's team toggle: which team it reads, and whether the replay filter already fixed it. */
+export type TendencyTeamChoice = {
+  teams: readonly { key: string; name: string }[];
+  selected: string;
+  locked: boolean;
+  onSelect: (key: string) => void;
+};
 
-function SectionTitle({ children }: { children: ReactNode }): ReactNode {
+function TeamToggle({ team }: { team: TendencyTeamChoice }): ReactNode {
   return (
-    <h3 className="text-meta text-fg-3">
-      {children}
-    </h3>
+    <div title={team.locked ? 'El filtro del replay ya elige el equipo' : undefined}>
+      <ToggleGroup
+        type="single"
+        variant="filter"
+        spacing={2}
+        aria-label="Equipo"
+        value={team.selected}
+        disabled={team.locked}
+        onValueChange={(next: string) => {
+          if (next !== '') team.onSelect(next);
+        }}
+      >
+        {team.teams.map((option) => (
+          <ToggleGroupItem key={option.key} value={option.key} className="max-w-56">
+            <span className="min-w-0 truncate">{option.name}</span>
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }
 
-/** A cross-tab cell: the rate, its denominator, and nothing implied by colour alone. */
-function CrossCell({
-  rounds,
-  pct,
-  reliable,
+function Subline({
+  tendencies,
+  teamName,
+  filtered,
+  roundCount,
+  stale,
 }: {
-  rounds: number;
-  pct: number;
-  reliable: boolean;
+  tendencies: TacticalTendencies | null;
+  teamName: string | undefined;
+  filtered: boolean;
+  roundCount: number;
+  stale: boolean;
 }): ReactNode {
-  if (rounds === 0) {
-    return <span className="text-meta text-fg-3">—</span>;
+  if (teamName === undefined) {
+    return <p className="text-body-sm text-fg-2">Calculadas sobre las {roundCount} rondas filtradas.</p>;
   }
+  if (tendencies === null || tendencies.round_count === 0) return null;
   return (
-    <span className="flex flex-col gap-1">
-      <span className="flex items-baseline gap-2">
-        <span
-          className={cn(
-            'text-meta tracking-normal tabular-nums',
-            reliable ? 'text-fg-1' : 'text-fg-3',
-          )}
-        >
-          {pct.toFixed(1)} %
-        </span>
-        <span className="text-meta tracking-normal tabular-nums text-fg-3">
-          n={rounds}
-        </span>
-      </span>
-      {reliable ? null : <SmallSampleChip className="self-start" />}
-    </span>
+    <p className={cn('text-body-sm text-fg-2 transition-opacity duration-(--dur-fast)', stale && 'opacity-60')}>
+      {teamSummaryLine({ rounds: tendencies.round_count, wins: tendencies.wins, filtered })}
+      {tendencies.round_count < MIN_RELIABLE_SAMPLE ? <span className="ml-1.5 text-meta text-fg-3">pocas</span> : null}
+    </p>
+  );
+}
+
+function Body({ tendencies, teamName }: { tendencies: TacticalTendencies; teamName: string | undefined }): ReactNode {
+  if (tendencies.round_count === 0) {
+    return (
+      <p className="text-body leading-6 text-fg-2">
+        {teamName === undefined
+          ? 'El filtro actual no selecciona ninguna ronda, así que no hay nada que agregar.'
+          : `Con los filtros del replay, ${teamName} no tiene ninguna ronda en esta partida.`}
+      </p>
+    );
+  }
+  if (tendencies.perspective === undefined) return <SideAgnosticTendencies tendencies={tendencies} />;
+  return (
+    <>
+      <TendencyCards tendencies={tendencies} />
+      <p className="text-meta text-fg-3">
+        “Pocas” marca una cifra con menos de {MIN_RELIABLE_SAMPLE} rondas: es un dato, todavía no una tendencia.
+      </p>
+      <TendencyDetail tendencies={tendencies} />
+    </>
   );
 }
 
 /**
- * The aggregate answer to "what does this team do", over exactly the rounds the
- * filter selected.
- *
- * Every rate on this panel carries its denominator, and anything the aggregate
- * flagged below `MIN_RELIABLE_SAMPLE` rounds is marked as a small sample instead
- * of being presented as a tendency.
+ * What one team did in the rounds the replay filter selected. Without two teams
+ * in the demo there is no toggle and the panel reads the filter as it is.
  */
 export function TacticalTendenciesPanel({
   tendencies,
   error,
   roundCount,
+  stale = false,
+  team,
+  filtered = true,
 }: {
   tendencies: TacticalTendencies | null;
   error: string | null;
   roundCount: number;
+  /** The numbers on screen belong to an earlier filter or team while the next answer loads. */
+  stale?: boolean;
+  team?: TendencyTeamChoice;
+  /** The replay filter narrows the rounds. */
+  filtered?: boolean;
 }): ReactNode {
+  const titleId = useId();
+  const teamName = team === undefined ? undefined : (team.teams.find((option) => option.key === team.selected)?.name ?? team.selected);
+
   return (
-    <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Tendencias">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle pb-4">
-        <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
-          Tendencias
-        </h2>
-        <p className="text-meta text-fg-3">
-          Calculadas sobre las {roundCount} rondas filtradas · tasas con menos de {MIN_RELIABLE_SAMPLE} rondas
-          marcadas
-        </p>
+    <section className="studio-panel flex flex-col gap-4.5 p-5" aria-labelledby={titleId}>
+      <header className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-[1_1_22.5rem] flex-col gap-0.5">
+          <h2 id={titleId} className="font-display text-title font-semibold text-fg-1">
+            {teamName === undefined ? 'Tendencias' : `Qué hizo ${teamName}`}
+          </h2>
+          <Subline tendencies={tendencies} teamName={teamName} filtered={filtered} roundCount={roundCount} stale={stale} />
+        </div>
+        {team === undefined ? null : <TeamToggle team={team} />}
       </header>
 
-      {error !== null ? (
-        <p className="mt-5 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-body-sm leading-5 break-words text-destructive">
+      {error === null ? null : (
+        <p className="rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-body-sm leading-5 break-words text-destructive">
           No se pudieron calcular las tendencias: {error}
         </p>
-      ) : null}
+      )}
 
       {error === null && tendencies === null ? (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2" aria-hidden>
-          <Skeleton className="h-56 w-full rounded-lg" />
-          <Skeleton className="h-56 w-full rounded-lg" />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(18.75rem,100%),1fr))] gap-4" aria-hidden>
+          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-44 w-full" />
         </div>
       ) : null}
 
-      {tendencies !== null && tendencies.round_count === 0 ? (
-        <p className="mt-5 text-body leading-6 text-fg-2">
-          El filtro actual no selecciona ninguna ronda, así que no hay nada que agregar.
-        </p>
-      ) : null}
-
-      {tendencies !== null && tendencies.round_count > 0 ? (
-        <TendenciesBody tendencies={tendencies} />
-      ) : null}
+      {tendencies === null ? null : (
+        <div aria-busy={stale} className={cn('flex flex-col gap-4.5 transition-opacity duration-(--dur-fast)', stale && 'opacity-60')}>
+          <Body tendencies={tendencies} teamName={teamName} />
+        </div>
+      )}
     </section>
-  );
-}
-
-function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): ReactNode {
-  const buys = tendencies.buys.filter((bucket) => bucket.rounds > 0);
-  const ownBuys = TACTICAL_BUY_TYPE_ORDER.filter((buy) =>
-    tendencies.matchups.some((bucket) => bucket.buy === buy && bucket.rounds > 0),
-  );
-  const opponentBuys = TACTICAL_BUY_TYPE_ORDER.filter((buy) =>
-    tendencies.matchups.some((bucket) => bucket.opponent_buy === buy && bucket.rounds > 0),
-  );
-  const buySiteBuys = TACTICAL_BUY_TYPE_ORDER.filter((buy) =>
-    tendencies.buy_sites.some((bucket) => bucket.buy === buy && bucket.rounds > 0),
-  );
-  const sites = TACTICAL_SITE_ORDER.filter((site) =>
-    tendencies.buy_sites.some((bucket) => bucket.site === site && bucket.rounds > 0),
-  );
-  const winPct = tendencies.round_count > 0 ? (tendencies.wins / tendencies.round_count) * 100 : 0;
-  // Without a perspective the aggregate cannot attribute a buy, a win or a duel
-  // to anybody: every economy bucket collapses into "unknown" and every win rate
-  // is zero by construction. Showing those numbers would be showing zeroes as
-  // findings, so the panel asks for a side instead and keeps only what a
-  // side-agnostic pass can honestly answer.
-  const perspective = tendencies.perspective;
-
-  const matchup = (buy: TacticalBuyType, opponent: TacticalBuyType) =>
-    tendencies.matchups.find((bucket) => bucket.buy === buy && bucket.opponent_buy === opponent);
-  const buySite = (buy: TacticalBuyType, site: TacticalSite) =>
-    tendencies.buy_sites.find((bucket) => bucket.buy === buy && bucket.site === site);
-
-  return (
-    <div className="mt-5 flex flex-col gap-8">
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-        <Headline label="Rondas" value={String(tendencies.round_count)} />
-        <Headline
-          label="Ganadas"
-          value={
-            perspective === undefined
-              ? '—'
-              : `${tendencies.wins}/${tendencies.round_count} (${winPct.toFixed(1)} %)`
-          }
-          warn={perspective !== undefined && tendencies.round_count < MIN_RELIABLE_SAMPLE}
-        />
-        <Headline label="Perspectiva" value={perspective ?? 'sin fijar'} />
-      </div>
-
-      {perspective === undefined ? (
-        <p className="rounded-md border border-primary/45 bg-primary/10 px-3 py-2.5 text-body-sm leading-5 text-fg-1">
-          Elige un equipo o un lado en el filtro para ver economía, victorias y duelos de apertura: sin
-          perspectiva el agregado no puede atribuir una compra ni una ronda ganada a nadie. El reparto de
-          formas y los tiempos sí son válidos tal cual.
-        </p>
-      ) : null}
-
-      {perspective === undefined ? null : (
-      <section className="flex flex-col gap-3">
-        <SectionTitle>Economía</SectionTitle>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse">
-            <thead>
-              <tr className="border-b border-border-subtle">
-                <th scope="col" className={HEAD_CELL}>
-                  Compra
-                </th>
-                <th scope="col" className={cn(HEAD_CELL, 'w-16')}>
-                  Rondas
-                </th>
-                <th scope="col" className={cn(HEAD_CELL, 'w-[34%]')}>
-                  Reparto
-                </th>
-                <th scope="col" className={cn(HEAD_CELL, 'w-[34%]')}>
-                  Victorias
-                </th>
-                <th scope="col" className={HEAD_CELL}>
-                  Plantada o desactivación
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {buys.map((bucket) => (
-                <tr key={bucket.buy} className="border-b border-border-subtle last:border-b-0">
-                  <th
-                    scope="row"
-                    className={cn(
-                      BODY_CELL,
-                      'text-left text-meta font-normal text-fg-1',
-                    )}
-                  >
-                    {buyLabel(bucket.buy)}
-                  </th>
-                  <td className={cn(BODY_CELL, 'text-meta tracking-normal tabular-nums text-fg-3')}>
-                    {bucket.rounds}
-                  </td>
-                  <td className={BODY_CELL}>
-                    <div className="flex flex-col gap-1.5">
-                      <RateBar rate={bucket.share} className="text-fg-2" />
-                      <RateValue rate={bucket.share} />
-                    </div>
-                  </td>
-                  <td className={BODY_CELL}>
-                    <div className="flex flex-col gap-1.5">
-                      <RateBar rate={bucket.win_rate} className="text-success" />
-                      <RateValue rate={bucket.win_rate} />
-                    </div>
-                  </td>
-                  <td className={BODY_CELL}>
-                    <RateValue rate={bucket.conversion} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      )}
-
-      {perspective !== undefined && ownBuys.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <SectionTitle>Compra propia contra compra rival · victorias</SectionTitle>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse">
-              <thead>
-                <tr className="border-b border-border-subtle">
-                  <th scope="col" className={HEAD_CELL}>
-                    Propia \ rival
-                  </th>
-                  {opponentBuys.map((buy) => (
-                    <th key={buy} scope="col" className={HEAD_CELL}>
-                      {buyLabel(buy)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ownBuys.map((buy) => (
-                  <tr key={buy} className="border-b border-border-subtle last:border-b-0">
-                    <th
-                      scope="row"
-                      className={cn(
-                        BODY_CELL,
-                        'text-left text-meta font-normal text-fg-1',
-                      )}
-                    >
-                      {buyLabel(buy)}
-                    </th>
-                    {opponentBuys.map((opponent) => {
-                      const bucket = matchup(buy, opponent);
-                      return (
-                        <td key={opponent} className={BODY_CELL}>
-                          <CrossCell
-                            rounds={bucket?.rounds ?? 0}
-                            pct={bucket?.win_rate.pct ?? 0}
-                            reliable={bucket?.win_rate.reliable ?? false}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {perspective !== undefined && buySiteBuys.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <SectionTitle>Con cada economía, a qué sitio van · reparto</SectionTitle>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse">
-              <thead>
-                <tr className="border-b border-border-subtle">
-                  <th scope="col" className={HEAD_CELL}>
-                    Economía \ sitio
-                  </th>
-                  {sites.map((site) => (
-                    <th key={site} scope="col" className={HEAD_CELL}>
-                      {siteLabel(site)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {buySiteBuys.map((buy) => (
-                  <tr key={buy} className="border-b border-border-subtle last:border-b-0">
-                    <th
-                      scope="row"
-                      className={cn(
-                        BODY_CELL,
-                        'text-left text-meta font-normal text-fg-1',
-                      )}
-                    >
-                      {buyLabel(buy)}
-                    </th>
-                    {sites.map((site) => {
-                      const bucket = buySite(buy, site);
-                      return (
-                        <td key={site} className={BODY_CELL}>
-                          <CrossCell
-                            rounds={bucket?.rounds ?? 0}
-                            pct={bucket?.share.pct ?? 0}
-                            reliable={bucket?.share.reliable ?? false}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        <section className="flex min-w-0 flex-col gap-3">
-          <SectionTitle>
-            Formas en T · reparto{perspective === undefined ? '' : ' y victorias'}
-          </SectionTitle>
-          <div className="flex flex-col gap-3">
-            {tendencies.t_patterns
-              .filter((bucket) => bucket.rounds > 0)
-              .map((bucket) => (
-                <RateRow
-                  key={bucket.pattern}
-                  label={patternLabel(bucket.pattern)}
-                  rate={bucket.share}
-                  meta={
-                    perspective === undefined ? undefined : (
-                      <WinRateNote pct={bucket.win_rate.pct} total={bucket.win_rate.total} />
-                    )
-                  }
-                />
-              ))}
-          </div>
-        </section>
-
-        <section className="flex min-w-0 flex-col gap-3">
-          <SectionTitle>
-            Formas en CT · reparto{perspective === undefined ? '' : ' y victorias'}
-          </SectionTitle>
-          <div className="flex flex-col gap-3">
-            {tendencies.ct_patterns
-              .filter((bucket) => bucket.rounds > 0)
-              .map((bucket) => (
-                <RateRow
-                  key={bucket.pattern}
-                  label={patternLabel(bucket.pattern)}
-                  rate={bucket.share}
-                  meta={
-                    perspective === undefined ? undefined : (
-                      <WinRateNote pct={bucket.win_rate.pct} total={bucket.win_rate.total} />
-                    )
-                  }
-                />
-              ))}
-          </div>
-        </section>
-      </div>
-
-      {perspective === undefined ? null : (
-        <section className="flex flex-col gap-3">
-          <SectionTitle>Duelo de apertura · {tendencies.openings.rounds} rondas con duelo</SectionTitle>
-          <div className="flex flex-col gap-3">
-            <RateRow label="Aperturas ganadas" rate={tendencies.openings.won} />
-            <RateRow label="Tradeadas al perderla" rate={tendencies.openings.traded_on_loss} tone="muted" />
-            <RateRow
-              label="Ronda ganada tras ganarla"
-              rate={tendencies.openings.round_win_after_opening_win}
-              tone="success"
-            />
-            <RateRow
-              label="Ronda ganada tras perderla"
-              rate={tendencies.openings.round_win_after_opening_loss}
-              tone="success"
-            />
-          </div>
-        </section>
-      )}
-
-      <section className="flex flex-col gap-3">
-        <SectionTitle>Tiempos · segundos desde el fin del congelado</SectionTitle>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <HistogramChart histogram={tendencies.timings.first_contact} title="Primer contacto" />
-          <HistogramChart histogram={tendencies.timings.plant} title="Plantada" />
-          <HistogramChart histogram={tendencies.timings.round_duration} title="Duración de ronda" />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Headline({
-  label,
-  value,
-  warn = false,
-}: {
-  label: string;
-  value: string;
-  warn?: boolean;
-}): ReactNode {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-meta text-fg-3">
-        {label}
-      </span>
-      <span className="flex items-center gap-2">
-        <span className="text-body-sm tabular-nums text-fg-1">{value}</span>
-        {warn ? <SmallSampleChip /> : null}
-      </span>
-    </div>
-  );
-}
-
-/** The win rate that belongs next to a share, with its own denominator. */
-function WinRateNote({ pct, total }: { pct: number; total: number }): ReactNode {
-  return (
-    <span className="text-meta tabular-nums text-fg-3">
-      Gana {total > 0 ? `${pct.toFixed(1)} %` : '—'} (n={total})
-    </span>
   );
 }

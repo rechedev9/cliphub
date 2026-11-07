@@ -50,12 +50,12 @@ export function StreamSaveButton({
   return (
     <div className="flex flex-wrap gap-2">
       {disabled ? (
-        <Button disabled>Guardar vídeo</Button>
+        <Button disabled>Descargar MP4</Button>
       ) : (
         <Button asChild variant={prominent ? 'stream' : 'outline'}>
-          <a href={url} download={streamVideoFilename(title)} aria-label={`Guardar vídeo: ${title}`}>
+          <a href={url} download={streamVideoFilename(title)} aria-label={`Descargar MP4: ${title}`}>
             <Download aria-hidden />
-            Guardar vídeo
+            Descargar MP4
           </a>
         </Button>
       )}

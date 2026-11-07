@@ -25,6 +25,7 @@ import {
   PRODUCE_POLL_OFFLINE,
 } from '@/lib/produce/copy';
 import { isSeriesId } from '@/lib/series-status';
+import { cn } from '@/lib/utils';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -35,6 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
+import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
 
@@ -177,7 +179,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         compact
         actions={
           <>
-            <Button onClick={() => router.push(flowHref(format, { job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
+            <Button className={FORMAT_TONE[format].fill} onClick={() => router.push(flowHref(format, { job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
             <Button variant="outline" onClick={() => router.push(backHref)}>
               Volver
             </Button>
@@ -212,7 +214,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         description={MATCH_PLAYS_ANALYZING_DESCRIPTION}
         note={
           <span className="inline-flex items-center gap-2">
-            <span className="studio-spinner text-primary" aria-hidden />
+            <span className={cn('studio-spinner', FORMAT_TONE[format].text)} aria-hidden />
             Analizando jugadas{match.player ? ` de ${match.player}` : ''}
           </span>
         }

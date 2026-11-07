@@ -3,21 +3,22 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Layers, Link2, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
+import { Clapperboard, Layers, Link2, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
   analyzeLibraryDemo,
   deleteLibraryDemo,
+  isLibraryNotFound,
   isLibraryOffline,
   linkAllLibraryJobs,
   listLibraryDemos,
   listLibraryMatches,
   listUnlinkedLibraryJobs,
-  type LibraryParseState,
+  type LibraryMatch,
 } from '@/lib/api/library';
+import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRODUCE_FORMAT, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
-import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   DATE_RANGES,
@@ -26,14 +27,16 @@ import {
   buildPartidaRows,
   demoErrorLabel,
   inDateRange,
-  matchScoreLabel,
+  mapChips,
   matchScoreMargin,
   matchTitle,
   partidaDate,
+  scoreline,
   teamFilterOptions,
+  type MapChip,
+  type Outcome,
   type PartidaRow,
 } from '@/lib/library/partidas';
-import { mapFilterOptions } from '@/lib/records/matches';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
 import { cn } from '@/lib/utils';
@@ -42,19 +45,14 @@ import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { SelectionBar } from '@/components/records/selection-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { DemoImport } from '@/components/matches/demo-import';
+import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
 import { StudioPageHeader } from '@/components/studio/page-header';
-import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-const STATE_TONE: Record<LibraryParseState, StatusTagTone> = {
-  queued: 'neutral',
-  parsing: 'primary',
-  ready: 'success',
-  failed: 'danger',
-};
 
 const STATE_OPTIONS = LIBRARY_PARSE_STATES.map((state) => ({ value: state, label: PARSE_STATE_LABEL[state] }));
 const SOURCE_OPTIONS = LIBRARY_SOURCES.map((source) => ({ value: source, label: SOURCE_LABEL[source] }));
@@ -63,19 +61,117 @@ const DATE_OPTIONS = DATE_RANGES.map((range) => ({ value: range.value, label: ra
 const FAST_POLL_MS = 3_000;
 const IDLE_POLL_MS = 30_000;
 
+// Radix refuses an empty item value, so "every map" travels as this sentinel inside the chips only.
+const ALL_MAPS = '__all__';
+
+const OUTCOME_CLASS: Record<Outcome, string> = {
+  win: 'font-semibold text-fg-1',
+  loss: 'text-fg-3',
+  draw: 'text-fg-2',
+};
+
 function isPending(row: PartidaRow): boolean {
   return row.demo.state === 'queued' || row.demo.state === 'parsing';
 }
 
-function columns(onRetry: (demoId: string) => void): DataTableColumn<PartidaRow>[] {
+/** "Vitality 13 : 7 MOUZ", the winner in full ink and the loser dimmed. */
+function Scoreline({ match }: { match: LibraryMatch }): ReactNode {
+  const [left, right] = scoreline(match);
+  return (
+    <span title={matchTitle(match)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+      <span className={cn('truncate text-right', OUTCOME_CLASS[left.outcome])}>{left.name}</span>
+      <span className="text-body whitespace-nowrap tabular-nums">
+        <span className={OUTCOME_CLASS[left.outcome]}>{left.score}</span>
+        <span aria-hidden className="px-1.5 text-fg-3">:</span>
+        <span className="sr-only"> a </span>
+        <span className={OUTCOME_CLASS[right.outcome]}>{right.score}</span>
+      </span>
+      <span className={cn('truncate', OUTCOME_CLASS[right.outcome])}>{right.name}</span>
+    </span>
+  );
+}
+
+/** Why a row has no score yet: still in the queue, being analysed, or the reason the scan failed. */
+function DemoStatus({ row }: { row: PartidaRow }): ReactNode {
+  const { demo } = row;
+  if (demo.state !== 'failed') return <span className="text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
+  const reason = demoErrorLabel(demo.error_code);
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* Focusable so the full reason also opens from the keyboard. */}
+        <span tabIndex={0} className={cn('block truncate rounded-sm text-destructive', FOCUS_RING)}>
+          {reason}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="start" className="max-w-sm">
+        {reason}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+type RowHandlers = { onRetry: (demoId: string) => void; onRemoved: () => void };
+
+/** A demo already gone counts as removed: the row only has to leave the list. */
+async function removeDemo(demoId: string): Promise<void> {
+  try {
+    await deleteLibraryDemo(demoId);
+  } catch (error) {
+    if (!isLibraryNotFound(error)) throw error;
+  }
+}
+
+/** A ready row offers its Short; a failed one, a new try or its removal; a match still re-analysing says so. */
+function RowActions({ row, handlers }: { row: PartidaRow; handlers: RowHandlers }): ReactNode {
+  const { demo, match } = row;
+  if (demo.state === 'failed') {
+    return (
+      <span className="flex items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="xs" onClick={() => handlers.onRetry(demo.id)}>
+          <RefreshCw aria-hidden />
+          Reintentar
+        </Button>
+        <DeleteMatchButton label={match ? prettyMapName(match.map) : demo.file_name} onConfirm={() => removeDemo(demo.id)} onDeleted={handlers.onRemoved} />
+      </span>
+    );
+  }
+  if (match === null || demo.source === 'shared') return null;
+  if (demo.state !== 'ready') return <span className="block text-right whitespace-nowrap text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
+  return (
+    <span className="flex justify-end">
+      <OpenInCrearButton request={{ demo, format: PRODUCE_FORMAT.short }} variant="ghost" size="xs">
+        <Clapperboard aria-hidden />
+        Crear Short
+      </OpenInCrearButton>
+    </span>
+  );
+}
+
+function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
   return [
     {
       id: 'map',
       header: 'Mapa',
       required: true,
       // Until the scan yields a match, the file name is the only handle the row has.
-      cell: ({ match, demo }) =>
-        match ? prettyMapName(match.map) : <span className="block max-w-40 truncate text-fg-2" title={demo.file_name}>{demo.file_name}</span>,
+      cell: ({ match, demo }) => {
+        const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
+        if (match) {
+          return (
+            <span className="flex items-center gap-2 font-semibold">
+              {failed}
+              {prettyMapName(match.map)}
+            </span>
+          );
+        }
+        return (
+          <span className="flex max-w-48 items-center gap-2 text-fg-2" title={demo.file_name}>
+            {failed}
+            <span className="truncate">{demo.file_name}</span>
+          </span>
+        );
+      },
       sortValue: ({ match, demo }) => (match ? prettyMapName(match.map) : demo.file_name),
     },
     {
@@ -85,39 +181,13 @@ function columns(onRetry: (demoId: string) => void): DataTableColumn<PartidaRow>
       sortValue: (row) => Date.parse(partidaDate(row)) || null,
     },
     {
-      id: 'teams',
-      header: 'Equipos',
-      // A row without a match has no teams to show, so the cell says why: still pending, or what the scan hit.
-      cell: ({ match, demo }) => {
-        if (match) {
-          const title = matchTitle(match);
-          return <span className="block truncate" title={title}>{title}</span>;
-        }
-        if (demo.state !== 'failed') return <span className="text-fg-3">Pendiente</span>;
-        const reason = demoErrorLabel(demo.error_code);
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* Focusable so the full reason also opens from the keyboard. */}
-              <span tabIndex={0} className={cn('block truncate rounded-sm text-meta text-destructive', FOCUS_RING)}>
-                {reason}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" align="start" className="max-w-sm">
-              {reason}
-            </TooltipContent>
-          </Tooltip>
-        );
-      },
-      sortValue: ({ match }) => (match ? matchTitle(match) : null),
-      // The flexible column: it takes the width the others leave and truncates, so the table never outgrows the page.
-      className: 'w-full max-w-0',
-    },
-    {
       id: 'score',
       header: 'Marcador',
-      cell: ({ match }) => (match ? <span className="whitespace-nowrap tabular-nums">{matchScoreLabel(match)}</span> : null),
+      // A failed scan says why even over the match of an earlier analysis; a row without a match says why it has none.
+      cell: (row) => (row.match && row.demo.state !== 'failed' ? <Scoreline match={row.match} /> : <DemoStatus row={row} />),
       sortValue: ({ match }) => (match ? matchScoreMargin(match) : null),
+      // The flexible column: it takes the width the others leave and truncates, so the table never outgrows the page.
+      className: 'w-full max-w-0',
     },
     {
       id: 'rounds',
@@ -132,24 +202,6 @@ function columns(onRetry: (demoId: string) => void): DataTableColumn<PartidaRow>
         <span className={cn('whitespace-nowrap', demo.source === 'unknown' ? 'text-fg-3' : 'text-fg-2')}>{SOURCE_LABEL[demo.source]}</span>
       ),
       sortValue: ({ demo }) => SOURCE_LABEL[demo.source],
-    },
-    {
-      id: 'state',
-      header: 'Estado',
-      cell: ({ demo }) => (
-        <span className="flex items-center gap-2">
-          <StatusTag tone={STATE_TONE[demo.state]} dot>
-            {PARSE_STATE_LABEL[demo.state]}
-          </StatusTag>
-          {demo.state === 'failed' ? (
-            <Button type="button" variant="ghost" size="xs" onClick={() => onRetry(demo.id)}>
-              <RefreshCw aria-hidden />
-              Reintentar
-            </Button>
-          ) : null}
-        </span>
-      ),
-      sortValue: ({ demo }) => PARSE_STATE_LABEL[demo.state],
     },
     {
       id: 'tags',
@@ -170,7 +222,39 @@ function columns(onRetry: (demoId: string) => void): DataTableColumn<PartidaRow>
       ),
       sortValue: ({ demo }) => demo.file_name,
     },
+    {
+      id: 'actions',
+      header: '',
+      required: true,
+      className: 'w-px',
+      cell: (row) => <RowActions row={row} handlers={handlers} />,
+    },
   ];
+}
+
+/** "Todos los mapas 7", then one chip per map with the partidas the other filters leave on it. */
+function MapChips({ chips, total, value, onChange }: { chips: readonly MapChip[]; total: number; value: string; onChange: (map: string) => void }): ReactNode {
+  return (
+    <ToggleGroup
+      type="single"
+      variant="filter"
+      spacing={2}
+      aria-label="Mapa"
+      className="flex-wrap"
+      value={value === FILTER_ANY ? ALL_MAPS : value}
+      // Pressing the chosen chip again deselects it, which reads as going back to every map.
+      onValueChange={(next: string) => onChange(next === ALL_MAPS ? FILTER_ANY : next)}
+    >
+      <ToggleGroupItem value={ALL_MAPS}>
+        Todos los mapas <span className="font-normal text-fg-3">{total}</span>
+      </ToggleGroupItem>
+      {chips.map((chip) => (
+        <ToggleGroupItem key={chip.value} value={chip.value}>
+          {chip.label} <span className="font-normal text-fg-3">{chip.count}</span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
 }
 
 function initialView(search: URLSearchParams): TableViewState {
@@ -206,7 +290,7 @@ function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
   return (
     <StudioPageHeader
       title="Partidas"
-      description="La biblioteca común de demos: la misma partida sirve para crear vídeos y para analizarla ronda a ronda."
+      description="Las demos que has importado. Abre una para ver cómo fue, ronda a ronda, y sacar sus vídeos."
       actions={
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
@@ -277,7 +361,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   async function deleteChosen(ids: readonly string[]): Promise<void> {
     setDeleting(true);
-    const results = await Promise.allSettled(ids.map((demoId) => deleteLibraryDemo(demoId)));
+    const results = await Promise.allSettled(ids.map((demoId) => removeDemo(demoId)));
     const failedIds = new Set(ids.filter((_, index) => results[index]?.status === 'rejected'));
     const firstFailure = results.find((result) => result.status === 'rejected');
     setNotice(
@@ -386,9 +470,10 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   }
 
   const now = Date.now();
-  const shown = filterRows(rows, view.state.filters, {
+  const selectedMap = view.state.filters.map ?? FILTER_ANY;
+  // Every filter but the map: the chips count over these rows, and the map chip then narrows them.
+  const facet = filterRows(rows, { ...view.state.filters, map: FILTER_ANY }, {
     fields: {
-      map: ({ match }) => match?.map ?? '',
       team: ({ match }) => match?.teams.map((team) => team.team_id ?? '') ?? [],
       source: ({ demo }) => demo.source,
       state: ({ demo }) => demo.state,
@@ -396,7 +481,10 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     searchText: ({ demo, match }) =>
       [match ? prettyMapName(match.map) : '', match ? matchTitle(match) : '', demo.file_name, ...demo.tags].join(' '),
   }).filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now));
+  const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
+  const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
+  const handlers: RowHandlers = { onRetry: (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
   // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
   const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
 
@@ -422,6 +510,9 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               : 'El servicio local respondió con un error; la tabla muestra la última lectura.'}
           </p>
         ) : null}
+        {chips.length > 1 || selectedMap !== FILTER_ANY ? (
+          <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
+        ) : null}
         {chosenIds.length > 0 ? (
           <SelectionBar
             count={chosenIds.length}
@@ -436,7 +527,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           label="Partidas"
           rows={shown}
           selection={{ selected, onChange: setSelected }}
-          columns={columns((demoId) => void retry(demoId))}
+          columns={columns(handlers)}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
@@ -449,7 +540,6 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               onReset={view.resetFilters}
               searchPlaceholder="Buscar por mapa, equipo, archivo o etiqueta"
               filters={[
-                { id: 'map', label: 'Mapa', options: mapFilterOptions(rows.flatMap(({ match }) => (match ? [match] : []))) },
                 { id: 'team', label: 'Equipo', options: teamFilterOptions(rows.map(({ match }) => match)) },
                 { id: 'date', label: 'Fecha', options: DATE_OPTIONS },
                 { id: 'source', label: 'Fuente', options: SOURCE_OPTIONS },
@@ -482,10 +572,11 @@ function CrearBacklog({ count, busy, onLink }: { count: number; busy: boolean; o
   );
 }
 
-const SKELETON_FILTERS = ['map', 'team', 'date', 'source', 'state'] as const;
+const SKELETON_CHIPS = ['w-36', 'w-24', 'w-24', 'w-20'] as const;
+const SKELETON_FILTERS = ['team', 'date', 'source', 'state'] as const;
 const SKELETON_ROWS = 3;
-// One width per column of the loaded table: Mapa, Fecha, Equipos, Marcador, Rondas, Fuente, Estado.
-const SKELETON_CELLS = ['w-14', 'w-10', 'w-56', 'w-12', 'w-8', 'w-16', 'w-12'] as const;
+// One width per column of the loaded table: Mapa, Fecha, Marcador, Rondas, Fuente and the row action.
+const SKELETON_CELLS = ['w-14', 'w-10', 'w-72', 'w-8', 'w-16', 'w-20'] as const;
 
 /** The page while the route or its first read loads: the real header, the importer slot and the table skeleton. */
 export function PartidasSkeleton(): ReactNode {
@@ -501,6 +592,11 @@ export function PartidasSkeleton(): ReactNode {
 function LibrarySkeleton(): ReactNode {
   return (
     <div role="status" aria-label="Cargando partidas" className="flex flex-col gap-2">
+      <div className="mb-1 flex flex-wrap gap-2">
+        {SKELETON_CHIPS.map((width, index) => (
+          <Skeleton key={index} className={cn('h-11', width)} />
+        ))}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Skeleton className="h-9 w-80 max-w-full" />
         <div className="flex gap-2">

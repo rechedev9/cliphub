@@ -48,6 +48,8 @@ export function MetricsView({
   matches,
   lead,
   omit = [],
+  leading = [],
+  title,
 }: {
   report: MetricsReport;
   options: MetricsSectionOptions;
@@ -57,11 +59,24 @@ export function MetricsView({
   lead?: ReactNode;
   /** Section ids the page shows elsewhere. */
   omit?: readonly string[];
+  /** Views picked before the sections, such as one match's table of every player. */
+  leading?: readonly { id: string; label: string; content: ReactNode }[];
+  /** A heading beside the section picker. */
+  title?: string;
 }): ReactNode {
   const sections = metricsSections(report, options).filter((s) => !omit.includes(s.id));
-  const [active, setActive] = useState(sections[0]?.id ?? '');
-  const section = sections.find((s) => s.id === active) ?? sections[0];
+  const [active, setActive] = useState(leading[0]?.id ?? sections[0]?.id ?? '');
+  const view = leading.find((v) => v.id === active);
+  const section = view ? undefined : (sections.find((s) => s.id === active) ?? sections[0]);
   const index = metricsMatchIndex(report, matches);
+  const picker = (
+    <Segmented
+      label="Sección de métricas"
+      value={view?.id ?? section?.id ?? ''}
+      options={[...leading.map((v) => ({ value: v.id, label: v.label })), ...sections.map((s) => ({ value: s.id, label: s.title }))]}
+      onChange={setActive}
+    />
+  );
   return (
     <div className="flex flex-col gap-5">
       {lead}
@@ -71,12 +86,15 @@ export function MetricsView({
           {[...new Set(report.skipped.map((skip) => SKIP_TEXT[skip.reason] ?? skip.reason))].join(' ')}
         </p>
       ) : null}
-      <Segmented
-        label="Sección de métricas"
-        value={section?.id ?? ''}
-        options={sections.map((s) => ({ value: s.id, label: s.title }))}
-        onChange={setActive}
-      />
+      {title ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="flex-[1_1_12.5rem] text-title font-semibold text-fg-1">{title}</h2>
+          {picker}
+        </div>
+      ) : (
+        picker
+      )}
+      {view?.content}
       {section ? <SectionBody section={section} report={report} options={options} matches={index} /> : null}
       <p className="measure-read text-meta text-fg-3">{modelText(report)}</p>
     </div>
