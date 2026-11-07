@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StorageFile } from './api/storage.ts';
-import { groupByFolder, groupByKind, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
+import { bulkDeleteWarning, groupByFolder, groupByKind, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
 
 const file = (path: string, sizeBytes: number, kind: StorageFile['kind'] = 'demo'): StorageFile => ({
   path,
@@ -49,4 +49,12 @@ test('libraryVideoFor finds the Mis vídeos card of a render MP4', () => {
   assert.equal(libraryVideoFor(videos, reel), 'mine');
   assert.equal(libraryVideoFor(videos, { ...reel, kind: 'stream' }), null);
   assert.equal(libraryVideoFor([], reel), null);
+});
+
+test('bulkDeleteWarning only mentions what the selection holds', () => {
+  assert.equal(bulkDeleteWarning([file('a.dem', 1)]), 'Los .dem elegidos se borran de tu PC.');
+  assert.equal(
+    bulkDeleteWarning([file('c.dem', 1, 'studio_demo'), file('v.mp4', 1, 'short')]),
+    'Cada copia de Studio se borra con su partida, sus vídeos y sus capturas. Los vídeos elegidos se borran.',
+  );
 });

@@ -18,6 +18,7 @@ import {
   type LibraryMatch,
 } from '@/lib/api/library';
 import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRODUCE_FORMAT, matchHref } from '@/lib/clips/routes';
+import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   DATE_RANGES,
@@ -38,10 +39,12 @@ import {
 } from '@/lib/library/partidas';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
+import { SelectionBar } from '@/components/records/selection-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { DemoImport } from '@/components/matches/demo-import';
@@ -317,6 +320,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [readError, setReadError] = useState<'offline' | 'error' | null>(null);
   const [linking, setLinking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const view = useTableView('partidas', initialView(search));
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
@@ -354,6 +359,23 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     }
     pollRef.current();
   }, []);
+
+  async function deleteChosen(ids: readonly string[]): Promise<void> {
+    setDeleting(true);
+    const { done, failed } = await settleEach(ids, removeDemo);
+    setNotice(
+      bulkDeleteSummary({
+        deleted: done.length,
+        failed: failed.length,
+        noun: { one: 'partida', many: 'partidas', feminine: true },
+        reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
+      }),
+    );
+    // Failures and rows picked during the delete stay chosen.
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item)));
+    setDeleting(false);
+    pollRef.current();
+  }
 
   async function linkCrearDemos(): Promise<void> {
     setLinking(true);
@@ -462,6 +484,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
   const handlers: RowHandlers = { onRetry: (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
+  // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
+  const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
 
   return (
     <>
@@ -488,9 +512,20 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
           <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
         ) : null}
+        {chosenIds.length > 0 ? (
+          <SelectionBar
+            count={chosenIds.length}
+            noun={chosenIds.length === 1 ? 'partida' : 'partidas'}
+            busy={deleting}
+            confirmDescription="Se borran la copia de la demo en la biblioteca, su análisis y sus correcciones. Los vídeos ya creados y las demos de Crear no se tocan."
+            onDelete={() => void deleteChosen(chosenIds)}
+            onClear={() => setSelected(new Set())}
+          />
+        ) : null}
         <DataTable
           label="Partidas"
           rows={shown}
+          selection={{ selected, onChange: setSelected }}
           columns={columns(handlers)}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}

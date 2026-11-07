@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
+  bulkDeleteSummary,
   CAPTURES_JOB_BUSY_MESSAGE,
   CAPTURES_JOB_GONE_MESSAGE,
   CAPTURES_NO_RENDER_MESSAGE,
@@ -125,4 +126,16 @@ test('a captures delete on an unknown job or offline service gets its own line',
   const offline = Object.assign(new Error('analysis service unavailable'), { code: SERVICE_UNAVAILABLE_CODE });
   assert.equal(deleteCapturesErrorMessage(offline), DELETE_OFFLINE_MESSAGE);
   assert.equal(deleteCapturesErrorMessage(new Error('request failed (500)')), DELETE_GENERIC_MESSAGE);
+});
+
+test('a bulk delete line names what went, what freed and why the rest stayed', () => {
+  const partidas = { one: 'partida', many: 'partidas', feminine: true };
+  const archivos = { one: 'archivo', many: 'archivos', feminine: false };
+  assert.equal(bulkDeleteSummary({ deleted: 1, failed: 0, noun: partidas }), 'Borrada 1 partida.');
+  assert.equal(bulkDeleteSummary({ deleted: 3, failed: 0, noun: archivos, freed: '1,2 GB' }), 'Borrados 3 archivos: se han liberado 1,2 GB.');
+  assert.equal(
+    bulkDeleteSummary({ deleted: 2, failed: 1, noun: partidas, reason: DELETE_JOB_BUSY_MESSAGE }),
+    `Borradas 2 partidas. No se pudo borrar 1. ${DELETE_JOB_BUSY_MESSAGE}`,
+  );
+  assert.equal(bulkDeleteSummary({ deleted: 0, failed: 2, noun: archivos }), 'No se pudieron borrar 2.');
 });
