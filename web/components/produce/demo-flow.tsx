@@ -566,7 +566,6 @@ function ScannedDemoLine({ fileName, match, withScore }: { fileName: string | nu
       </span>
       {fileName === null ? null : <span className="min-w-0 truncate font-mono text-fg-1">{fileName}</span>}
       {line === null ? null : <span className="tabular-nums">{line}</span>}
-      <StatusTag tone="success" dot>Escaneada</StatusTag>
     </div>
   );
 }
