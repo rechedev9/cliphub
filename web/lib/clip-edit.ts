@@ -1,4 +1,5 @@
 import type { StreamClipRange, StreamTextOverlay } from './api/streams';
+import { formatDecimal } from './format.ts';
 
 /**
  * Client-side mirror of the clip-edit limits in internal/streamclips/types.go
@@ -24,7 +25,7 @@ export function streamRangeIssue(clip: StreamClipRange, durationSeconds: number,
     return `${label}: el fin debe ser posterior al inicio.`;
   }
   if (durationSeconds > 0 && clip.end_seconds > durationSeconds) {
-    return `${label}: el fin supera la duración del vídeo (${durationSeconds.toFixed(2)} s).`;
+    return `${label}: el fin supera la duración del vídeo (${formatDecimal(durationSeconds, 2)} s).`;
   }
   return null;
 }

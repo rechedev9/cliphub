@@ -39,18 +39,16 @@ import { RESULTS_HREF } from '@/lib/clips/routes';
 import { NAV_AREA_LABEL, NAV_SECTIONS, sectionForPath, type NavArea, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
-type NavTrailingKind = 'stream' | 'faceit';
-
 // The Crear formats tint their icon with the colour their flow uses.
-const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind; tone?: string }> = {
+const NAV_META: Record<NavHref, { icon: LucideIcon; tone?: string }> = {
   '/videos-largos': { icon: MonitorPlay, tone: 'text-format-full' },
   '/shorts': { icon: Smartphone, tone: 'text-format-short' },
-  '/streams': { icon: Clapperboard, trailing: 'stream', tone: 'text-format-stream' },
+  '/streams': { icon: Clapperboard, tone: 'text-format-stream' },
   '/mis-videos': { icon: Film },
   '/ideas': { icon: Lightbulb },
   '/partidas': { icon: Swords },
   '/equipos': { icon: Shield },
-  '/jugadores': { icon: Users, trailing: 'faceit' },
+  '/jugadores': { icon: Users },
   '/ranking': { icon: Trophy },
   '/libreta': { icon: NotebookPen },
   '/lineups': { icon: Crosshair },
@@ -140,31 +138,11 @@ function NavRow({ section, active }: { section: NavSection; active: boolean }): 
             aria-hidden
           />
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">{section.label}</span>
-          <NavTrailing kind={meta.trailing} />
           <NavPending />
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
-}
-
-function NavTrailing({ kind }: { kind: NavTrailingKind | undefined }): ReactElement | null {
-  if (kind === 'stream') {
-    return (
-      <span
-        className="size-1.5 shrink-0 rounded-full bg-stream group-data-[collapsible=icon]:hidden"
-        aria-hidden
-      />
-    );
-  }
-  if (kind === 'faceit') {
-    return (
-      <span className="shrink-0 [font-size:var(--text-meta)] font-normal text-fg-3 group-data-[collapsible=icon]:hidden">
-        FACEIT
-      </span>
-    );
-  }
-  return null;
 }
 
 /** Route-transition feedback so a click is visible before the new page mounts. */

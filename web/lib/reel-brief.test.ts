@@ -58,10 +58,10 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Efecto de kill', value: 'Impacto / punch-in' },
     { label: 'Transición', value: 'Destello' },
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
-    { label: 'Intro', value: 'Sí · “Entrada”' },
+    { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },
-    { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },
+    { label: 'Música', value: 'Tema CC0 · música 35 % · juego 20 %' },
     { label: 'Portada', value: 'Automática (fotograma del vídeo)' },
   ]);
 });
@@ -134,7 +134,7 @@ test('creative brief names the optional recap extras when they are on', () => {
   };
   const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Entrega'], 'POV landscape · rondas en vivo (sin freeze)');
-  assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
+  assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85 %');
   assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
   assert.equal(isLandscapeRecap(edit), true);
   assert.equal(constrainEditConfig(edit), edit);
@@ -226,8 +226,8 @@ test('creative brief names Tigerr and Jcorko affiliate styles', () => {
       (item) => [item.label, item.value],
     ),
   );
-  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0.0 s a 4.0 s');
-  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0.0 s a 4.0 s');
+  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · de 0,0 s a 4,0 s');
+  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · de 0,0 s a 4,0 s');
 });
 
 test('creative brief names CSGOSkins when that family is selected', () => {
@@ -255,7 +255,7 @@ test('creative brief names CSGOSkins when that family is selected', () => {
       { status: 'none' },
     ).map((item) => [item.label, item.value]),
   );
-  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0.0 s a 4.0 s');
+  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · de 0,0 s a 4,0 s');
   assert.equal(skins.KeyDrop, undefined);
 });
 

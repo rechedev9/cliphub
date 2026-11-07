@@ -21,7 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
-import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { StreamStepCard } from '@/components/streams/step-card';
+import { Switch } from '@/components/ui/switch';
+import { formatDecimal } from '@/lib/format';
 
 export function StreamKeyDropBannerControls({
   family,
@@ -75,11 +77,12 @@ export function StreamKeyDropBannerControls({
     <StreamStepCard
       title={`${familyLabel} · afiliado`}
       control={
-        <StreamSwitch
-          label="Banner afiliado"
+        <Switch
+          tone="stream"
+          aria-label="Banner afiliado"
           checked={enabled}
           disabled={busy}
-          onChange={(next) => {
+          onCheckedChange={(next) => {
             if (!next) onStyleChange('');
             else if (isKeyDropStyle(firstStyle)) onStyleChange(firstStyle);
           }}
@@ -141,7 +144,7 @@ export function StreamKeyDropBannerControls({
             />
             {codeValid ? (
               <p className="text-body-sm text-fg-3">
-                Se renderiza como <span className="font-mono text-fg-1">{affiliateDisplayLabel(family, style, code)}</span>
+                En el Short se lee <span className="font-mono text-fg-1">{affiliateDisplayLabel(family, style, code)}</span>
               </p>
             ) : (
               <p role="alert" className="text-body-sm text-destructive">
@@ -154,7 +157,7 @@ export function StreamKeyDropBannerControls({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-label text-fg-2">Visible en el clip</Label>
               <output className="text-label tabular-nums text-fg-1">
-                {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
+                {formatDecimal(startSeconds, 1)} s → {formatDecimal(endSeconds, 1)} s
               </output>
             </div>
             <p className="text-body-sm text-fg-3">
@@ -226,7 +229,7 @@ export function StreamKeyDropBannerControls({
             {rangeValid ? null : (
               <p role="alert" className="text-body-sm text-destructive">
                 La salida debe ser mayor que la entrada
-                {clipDurationSeconds > 0 ? ` y como máximo ${clipDurationSeconds.toFixed(1)}s` : ''}.
+                {clipDurationSeconds > 0 ? ` y como máximo ${formatDecimal(clipDurationSeconds, 1)} s` : ''}.
               </p>
             )}
           </div>
@@ -239,7 +242,7 @@ export function StreamKeyDropBannerControls({
               htmlFor="keydrop-banner-position"
               className="text-label tabular-nums text-fg-1"
             >
-              {Math.round(position * 100)}%
+              {Math.round(position * 100)} %
             </output>
           </div>
           <input
@@ -251,7 +254,7 @@ export function StreamKeyDropBannerControls({
             value={position}
             disabled={busy}
             aria-label="Posición vertical del banner"
-            aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
+            aria-valuetext={`${Math.round(position * 100)} % desde arriba`}
             onChange={(event) => onPositionChange(Number(event.target.value))}
             className={STREAM_SLIDER_CLASS}
           />
@@ -274,7 +277,7 @@ export function StreamKeyDropBannerControls({
               disabled={busy || !hasExplicitPosition}
               onClick={onResetPosition}
             >
-              Restablecer posición ({Math.round(KEYDROP_BANNER_DEFAULT_POSITION * 100)}%)
+              Restablecer posición ({Math.round(KEYDROP_BANNER_DEFAULT_POSITION * 100)} %)
             </Button>
           </div>
         </div>

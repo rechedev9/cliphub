@@ -3,10 +3,9 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import type { FaceitMatch, FaceitMatchStats } from '@/lib/api/faceit';
-import { formatShortDate, prettyMapName } from '@/lib/format';
+import { formatDecimal, formatShortDate, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
-import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -24,10 +23,11 @@ const COLUMNS = [
   ['Partida', 'text-left'], ['Resultado', 'text-left'],
   ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'],
 ] as const;
+// Coloured words, as in a team's Partidas tab: a pill on every row would shout what the score already says.
 const RESULTS = {
-  win: { label: 'Victoria', tone: 'success' },
-  loss: { label: 'Derrota', tone: 'danger' },
-  unknown: { label: 'Sin resultado', tone: 'neutral' },
+  win: { label: 'Victoria', tone: 'text-outcome-win' },
+  loss: { label: 'Derrota', tone: 'text-outcome-loss' },
+  unknown: { label: 'Sin resultado', tone: 'text-fg-3' },
 } as const;
 
 export function MatchHistory({ matches, refreshing, onRefresh }: {
@@ -101,7 +101,7 @@ export function MatchHistory({ matches, refreshing, onRefresh }: {
       </ul>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p role="status" className="text-body-sm tabular-nums text-fg-3">
-          Mostrando {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} de {filtered.length} partidas
+          Mostrando {filtered.length === 0 ? 0 : start + 1}-{Math.min(start + PAGE_SIZE, filtered.length)} de {filtered.length} partidas
         </p>
         <nav aria-label="Paginación de partidas" className="flex items-center gap-1">
           <Button variant="outline" size="icon-sm" aria-label="Página anterior" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft aria-hidden className="size-4" /></Button>
@@ -120,26 +120,26 @@ export function MatchHistory({ matches, refreshing, onRefresh }: {
 function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   const stats = match.stats;
   const map = prettyMapName(stats?.map ?? '') || 'Sin mapa';
-  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
+  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}-${match.score.against}` : '-';
   return (
     <tr className="group h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
       {/* Date under the map, as on the mobile card: a column of its own cost ~100px the room link needed. */}
       <td className={CELL}><div className="flex items-center gap-2.5">
         <MapCover map={stats?.map ?? ''} className="h-8 w-11 shrink-0 rounded-sm" />
         <div><p className="font-semibold text-fg-1">{map}</p>
-          <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '—'}</p>
+          <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '-'}</p>
         </div>
       </div></td>
       {/* The score is the result's evidence, so it shares its column; a fixed right-aligned box keeps both the
-          scores and the badges in line whatever their widths. */}
+          scores and the results in line whatever their widths. */}
       <td className={CELL}><div className="flex items-center gap-2">
         <span className="min-w-[5ch] text-right font-semibold text-fg-1">{score}</span>
         <ResultBadge result={stats?.result} />
       </div></td>
-      <td className={cn(CELL, 'text-right')}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</td>
-      <td className={cn(CELL, 'text-right', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</td>
-      <td className={cn(CELL, 'text-right', adrTone(stats?.adr))}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
-      <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
+      <td className={cn(CELL, 'text-right')}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '-'}</td>
+      <td className={cn(CELL, 'text-right', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio === undefined ? '-' : formatDecimal(stats.kd_ratio, 2)}</td>
+      <td className={cn(CELL, 'text-right', adrTone(stats?.adr))}>{stats?.adr !== undefined ? Math.round(stats.adr) : '-'}</td>
+      <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)} %` : '-'}</td>
       <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm"
         // Ten bright links in a column outshouted the stats; the row that is pointed at lights its own.
         className="min-w-8 justify-end px-0 text-fg-2 group-hover:text-primary group-focus-within:text-primary has-[>svg]:px-0">
@@ -165,26 +165,26 @@ function adrTone(adr: number | undefined): string {
 
 function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): ReactNode {
   const { label, tone } = RESULTS[result ?? UNKNOWN];
-  return <StatusTag tone={tone} className="rounded-sm">{label}</StatusTag>;
+  return <span className={cn('text-body-sm font-medium', tone)}>{label}</span>;
 }
 
 function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {
   const stats = match.stats;
   const map = prettyMapName(stats?.map ?? '') || 'Sin mapa';
-  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
+  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}-${match.score.against}` : '-';
   return (
     <li className="rounded-lg border border-border p-3">
       <div className="flex items-center gap-2.5">
         <MapCover map={stats?.map ?? ''} className="h-9 w-12 shrink-0 rounded-sm" />
         <div className="min-w-0 flex-1"><p className="text-body-sm font-semibold text-fg-1">{map}</p>
-          <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '—'}</p>
+          <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '-'}</p>
         </div>
         <ResultBadge result={stats?.result} />
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2 border-y border-border-subtle py-3 text-meta tracking-normal tabular-nums">
-        <div><dt className="text-fg-3">K / D / A</dt><dd className="mt-1 text-fg-1">{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</dd></div>
-        <div><dt className="text-fg-3">K/D</dt><dd className={cn('mt-1 text-fg-1', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</dd></div>
-        <div><dt className="text-fg-3">ADR · HS</dt><dd className="mt-1 text-fg-1"><span className={adrTone(stats?.adr)}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</span> · {stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</dd></div>
+        <div><dt className="text-fg-3">K / D / A</dt><dd className="mt-1 text-fg-1">{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '-'}</dd></div>
+        <div><dt className="text-fg-3">K/D</dt><dd className={cn('mt-1 text-fg-1', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio === undefined ? '-' : formatDecimal(stats.kd_ratio, 2)}</dd></div>
+        <div><dt className="text-fg-3">ADR · HS</dt><dd className="mt-1 text-fg-1"><span className={adrTone(stats?.adr)}>{stats?.adr !== undefined ? Math.round(stats.adr) : '-'}</span> · {stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)} %` : '-'}</dd></div>
       </dl>
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-body-sm font-semibold tabular-nums text-fg-1">{score}</span>

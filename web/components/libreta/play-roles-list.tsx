@@ -97,23 +97,24 @@ export function PlayRolesList({
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar
-        values={view.state.filters}
-        onChange={view.setFilter}
-        onReset={view.resetFilters}
-        searchPlaceholder="Buscar por jugada, rol, jugador o tarea"
-        filters={[
-          { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
-          { id: 'kind', label: 'Tipo', options: kinds },
-          { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-        ]}
-        count={{ shown: shown.length, total: rows.length, noun: rows.length === 1 ? 'rol' : 'roles' }}
-        className="flex flex-wrap items-center gap-2"
-      />
       {anyStatus && filtered.length > shown.length ? (
         <p className="text-meta text-fg-3">Los roles de las jugadas archivadas no se muestran. Elige Estado: Archivo para verlos.</p>
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por jugada, rol, jugador o tarea"
+            filters={[
+              { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
+              { id: 'kind', label: 'Tipo', options: kinds },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+            ]}
+            count={{ shown: shown.length, total: rows.length, noun: rows.length === 1 ? 'rol' : 'roles' }}
+          />
+        }
         label="Roles de las jugadas"
         rows={shown}
         columns={columns}

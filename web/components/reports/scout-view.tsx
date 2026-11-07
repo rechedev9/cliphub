@@ -179,6 +179,7 @@ export function ScoutView({
   onRowVideo,
   tab,
   onTabChange,
+  actions,
 }: {
   scout: ScoutReport;
   leading?: readonly { id: string; label: string; content: ReactNode }[];
@@ -187,6 +188,8 @@ export function ScoutView({
   /** The open tab, when the page needs to know it. */
   tab?: string;
   onTabChange?: (tab: string) => void;
+  /** Buttons at the right end of the section tabs. */
+  actions?: ReactNode;
 }): ReactNode {
   const matches = matchIndex(scout);
   const minSample = scout.thresholds.min_reliable_sample;
@@ -196,16 +199,21 @@ export function ScoutView({
       <RecordTabs
         value={tab}
         onValueChange={onTabChange}
+        actions={actions}
         tabs={[
           ...leading,
           ...sections.map((section) => ({
             id: section.id,
             label: section.title,
-            content: <SectionView section={section} matches={matches} minSample={minSample} onRowVideo={onRowVideo} />,
+            content: (
+              <div className="flex flex-col gap-3">
+                <SectionView section={section} matches={matches} minSample={minSample} onRowVideo={onRowVideo} />
+                <p className="measure-read text-meta text-fg-3">{thresholdsText(scout)}</p>
+              </div>
+            ),
           })),
         ]}
       />
-      <p className="measure-read text-meta text-fg-3">{thresholdsText(scout)}</p>
     </div>
   );
 }

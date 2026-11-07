@@ -1,6 +1,8 @@
+import type { LibraryMatch } from './api/library.ts';
 import type { StorageFile, StorageFileKind } from './api/storage.ts';
 import type { Match, Video } from './api/types.ts';
 import { prettyMapName } from './format.ts';
+import { teamLabel } from './library/partidas.ts';
 
 export const STORAGE_FILE_KIND_LABEL = {
   demo: 'Demo',
@@ -56,6 +58,21 @@ export function matchLabel(jobId: string | undefined, matches: ReadonlyMap<strin
   if (match === undefined) return null;
   const map = prettyMapName(match.map);
   return match.player ? `${map} · ${match.player}` : map;
+}
+
+export type LibraryCopyMatch = Pick<LibraryMatch, 'demo_id' | 'map' | 'teams'>;
+
+/** "Mirage · Vitality 13-9 NAVI" for a library copy (`…/library/<demo id>/demo.dem`) of a known match, else null. */
+export function libraryCopyLabel(path: string, matches: readonly LibraryCopyMatch[]): string | null {
+  const parts = path.split(/[\\/]/);
+  const at = parts.lastIndexOf('library');
+  const demoId = at >= 0 ? parts[at + 1] : undefined;
+  const match = demoId === undefined ? undefined : matches.find((entry) => entry.demo_id === demoId);
+  if (match === undefined) return null;
+  const map = prettyMapName(match.map);
+  const [a, b] = match.teams;
+  if (a === undefined || b === undefined) return map;
+  return `${map} · ${teamLabel(a)} ${a.score}-${b.score} ${teamLabel(b)}`;
 }
 
 const DATE = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });

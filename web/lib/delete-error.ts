@@ -10,13 +10,13 @@ export const DELETE_OFFLINE_MESSAGE = 'Servicio de análisis local desconectado.
 export const DELETE_GENERIC_MESSAGE = 'No se pudo borrar. Inténtalo de nuevo.';
 
 /** A stream project cannot be deleted while it downloads or renders (409 from DeleteStreamJob). */
-export const DELETE_STREAM_BUSY_MESSAGE = 'Espera a que termine la descarga o el render para borrar este proyecto.';
+export const DELETE_STREAM_BUSY_MESSAGE = 'Espera a que termine la descarga o la exportación para borrar este proyecto.';
 
 /** A demo cannot be deleted while parse, scan, or capture still holds its files. */
 export const DELETE_JOB_BUSY_MESSAGE = 'Espera a que termine el análisis o la captura para borrar esta partida.';
 
 /** A demo cannot be deleted while a render or generate run is still writing its tree. */
-export const DELETE_RENDER_BUSY_MESSAGE = 'Espera a que termine el render para borrar esta partida.';
+export const DELETE_RENDER_BUSY_MESSAGE = 'Espera a que termine el montaje para borrar esta partida.';
 
 const STREAM_BUSY_RE = /^stream (job|render \S+) is \w+; wait for it to settle before deleting$/;
 /** DeleteJob refuses queued/scanning/parsing/recording/composing with this sentence. */
@@ -49,8 +49,8 @@ export function deleteErrorMessage(err: unknown): string {
 }
 
 export const CAPTURES_JOB_BUSY_MESSAGE = 'Espera a que termine el análisis o la captura para borrar las capturas.';
-export const CAPTURES_RENDER_BUSY_MESSAGE = 'Espera a que termine el render para borrar las capturas.';
-export const CAPTURES_NO_RENDER_MESSAGE = 'Esta demo completa aún no tiene el render final. Sus capturas siguen haciendo falta.';
+export const CAPTURES_RENDER_BUSY_MESSAGE = 'Espera a que termine el montaje para borrar las capturas.';
+export const CAPTURES_NO_RENDER_MESSAGE = 'Esta demo completa aún no tiene el vídeo final. Sus capturas siguen haciendo falta.';
 export const CAPTURES_JOB_GONE_MESSAGE = 'Este vídeo ya no está en Studio.';
 
 const CAPTURES_ERROR_MESSAGES: Record<string, string> = {

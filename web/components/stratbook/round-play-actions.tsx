@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
 
 function isTeamKey(key: string): key is LibraryTeamKey {
@@ -194,12 +195,11 @@ function SavePlayDialog({
                 </label>
                 <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
                   Notas
-                  <textarea
+                  <Textarea
                     value={notes}
                     maxLength={4000}
                     rows={3}
                     onChange={(event) => setNotes(event.target.value)}
-                    className="rounded-md border border-input bg-transparent px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   />
                 </label>
                 <div className="flex max-h-[36vh] flex-col gap-3 overflow-y-auto">

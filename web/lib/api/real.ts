@@ -633,7 +633,7 @@ export class RealApiClient implements ApiClient {
   /** Recovered renders have no intent to drive, so edits are refused with a reason. */
   private unknownReel(id: string): Error {
     if (this.recovered.has(id)) {
-      return new Error('Este vídeo se recuperó de un render anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
+      return new Error('Este vídeo se recuperó de un montaje anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
     }
     if (this.imported?.some((video) => importedVideoId(video) === id)) {
       return new Error('Este Short se grabó en la antigua nube de ClipHub: solo se puede ver, descargar o borrar.');
@@ -705,10 +705,10 @@ export class RealApiClient implements ApiClient {
     if (!intent) throw this.unknownReel(id);
     const current = this.reels.get(id);
     if (!current || current.status !== 'ready') {
-      throw new Error('El reel tiene que estar listo para añadir o cambiar la música.');
+      throw new Error('El Short tiene que estar listo para añadir o cambiar la música.');
     }
     if (current.unrecoverable) {
-      throw new Error('Este reel ya no se puede volver a renderizar.');
+      throw new Error('Este vídeo ya no se puede volver a montar.');
     }
     const nextChoice: MusicChoice = choice.songId
       ? { songId: choice.songId, musicVolume: choice.musicVolume, gameVolume: choice.gameVolume }
@@ -717,7 +717,7 @@ export class RealApiClient implements ApiClient {
       throw new Error('Elige una pista o un volumen distinto al actual.');
     }
     if (this.driving.has(intent.videoId)) {
-      throw new Error('Ya hay una operación activa para este reel.');
+      throw new Error('Ya hay un cambio en marcha para este vídeo.');
     }
 
     this.driving.add(intent.videoId);
@@ -744,7 +744,7 @@ export class RealApiClient implements ApiClient {
         })),
       );
       if (accepted.duplicate && accepted.accepted !== true) {
-        throw new Error('No se pudo encolar un render nuevo. Espera o cambia pista o volumen.');
+        throw new Error('No se pudo volver a montar el vídeo. Espera o cambia la pista o el volumen.');
       }
       this.forgetDriveState(intent.videoId);
       this.artifactNames.delete(intent.videoId);
@@ -772,7 +772,7 @@ export class RealApiClient implements ApiClient {
     const names = this.artifactNames.get(id);
     const candidates = names?.covers ?? (names?.cover ? [names.cover] : []);
     if (!candidates.includes(coverName)) {
-      throw new Error('Esa portada ya no está entre las candidatas de este reel.');
+      throw new Error('Esa portada ya no está entre las candidatas de este vídeo.');
     }
     intent.selectedCoverName = coverName;
     saveReelIntents(Array.from(this.intents.values()));

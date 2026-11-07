@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookMarked, GitMerge, Pencil, PlugZap, Shield } from 'lucide-react';
@@ -160,6 +160,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const proReference = references !== null && references !== 'failed' ? references.pro : null;
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
+  const teamMaps = useMemo(() => [...new Set(matches.map((match) => match.map))].sort(), [matches]);
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -200,7 +201,9 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
   if (REPORTING_TABS.has(tab)) counts = reported;
   else if (tab === 'veto') counts = undefined;
+  // Until a map (and for Playbook a side) is picked there is nothing counted yet: no 0 mapas · 0 rondas.
   if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
+  if (tab === 'granadas' && scope.map === '') counts = undefined;
   const results = lastResults(
     scoped.map((match) => ({ playedAt: match.played_at, outcome: teamOutcome(match, team.id) })),
     10,
@@ -326,7 +329,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           {
             id: 'playbook',
             label: 'Playbook',
-            content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} onCounts={onCounts} />),
+            content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />),
           },
           {
             id: 'radar',

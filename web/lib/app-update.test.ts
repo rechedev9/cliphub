@@ -40,7 +40,7 @@ test('hides current builds and labels the actionable states', () => {
   );
   assert.equal(
     appUpdateLabel({ state: APP_UPDATE_STATE.downloading, version: '2.4.29', received: 41, total: 100 }),
-    '41%',
+    '41 %',
   );
   assert.equal(
     appUpdatePercent({ state: APP_UPDATE_STATE.downloading, version: '2.4.29', received: 10, total: null }),

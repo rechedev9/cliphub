@@ -37,7 +37,7 @@ export function RoundFilters({
 }): ReactNode {
   const kinds = ROUND_KIND_FILTERS.filter((kind) => kind !== 'upset' || upsets);
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col gap-2">
       <ToggleGroup
         type="single"
         variant="filter"
@@ -54,7 +54,6 @@ export function RoundFilters({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <span aria-hidden className="h-6 w-px bg-border" />
       <ToggleGroup
         type="single"
         variant="filter"

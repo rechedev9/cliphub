@@ -1,5 +1,6 @@
 import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
+import { formatDecimal } from './format.ts';
 import { resolvedReelFormat } from './reel-format.ts';
 
 export type CreativeBriefItem = {
@@ -66,12 +67,12 @@ const HUD_LABEL: Record<string, string> = {
 
 function bookendLabel(enabled: boolean, text: string | undefined, generatedFallback: string): string {
   if (!enabled) return 'No';
-  return text?.trim() ? `Sí · “${text.trim()}”` : `Sí · ${generatedFallback}`;
+  return text?.trim() ? `Sí · «${text.trim()}»` : `Sí · ${generatedFallback}`;
 }
 
 function musicBriefValue(music: MusicBrief): string {
   if (music.status === 'none') return 'Sin música';
-  return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;
+  return `${music.title} · música ${music.volumePercent} % · juego ${music.gameVolumePercent} %`;
 }
 
 export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>): boolean {
@@ -120,7 +121,7 @@ export function reelCreativeBrief(
     {
       label: 'Comms',
       value: edit.voiceComms
-        ? `Mezclar comms del equipo · ${Math.round((edit.voiceVolume ?? 0.85) * 100)}%`
+        ? `Mezclar comms del equipo · ${Math.round((edit.voiceVolume ?? 0.85) * 100)} %`
         : 'Sin comms',
     },
     { label: 'HUD / killfeed', value: hud },
@@ -132,7 +133,7 @@ export function reelCreativeBrief(
     {
       label: 'Afiliado',
       value: edit.keyDropStyle
-        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${(edit.keyDropStartSeconds ?? 0).toFixed(1)} s a ${edit.keyDropEndSeconds != null ? `${edit.keyDropEndSeconds.toFixed(1)} s` : 'el final'}`
+        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · de ${formatDecimal(edit.keyDropStartSeconds ?? 0, 1)} s a ${edit.keyDropEndSeconds != null ? `${formatDecimal(edit.keyDropEndSeconds, 1)} s` : 'el final'}`
         : 'No',
     },
     { label: 'Música', value: musicBriefValue(music) },

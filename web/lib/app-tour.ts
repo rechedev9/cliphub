@@ -447,7 +447,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Progreso en la barra superior',
-        text: 'Ahí ves cada trabajo en marcha: descarga, parseo, REC, edición y cola.',
+        text: 'Ahí ves cada trabajo en marcha: descarga, lectura de la demo, REC, edición y cola.',
       },
       {
         term: 'No toques el juego',

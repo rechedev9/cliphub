@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { Wordmark } from '@/components/brand/wordmark';
 import { AutomaticBootstrap } from '@/components/bootstrap/automatic-bootstrap';
 
@@ -57,7 +56,6 @@ export default async function BootstrapPage({
       >
         <AutomaticBootstrap formId="local-bootstrap-form" inputId="capability" />
         <div className="flex flex-col gap-3">
-          <SectionEyebrow label="Sesión local" />
           <h1 className="font-display text-title font-bold text-fg-1">Autoriza este navegador</h1>
           <p className="text-body text-fg-2">
             Introduce la capacidad que muestra Local Studio. Se guarda solo como una cookie HttpOnly de esta

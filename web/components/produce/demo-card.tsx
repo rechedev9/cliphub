@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
-import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
+import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT } from '@/lib/clips/copy';
 import { fullChipLabel, HUB_ROW_STAGE, matchMetaParts, OUTPUT_TONE, shortsChipTone, type HubMatch } from '@/lib/clips/hub';
 import { flowHref, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
@@ -86,7 +86,7 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
         {meta.length > 0 ? <p className="text-body-sm wrap-anywhere text-fg-2">{meta.join(' · ')}</p> : null}
         <StateLine row={row} format={format} />
-        <div className="mt-auto flex items-center gap-2">
+        <div className="mt-auto flex flex-wrap items-center gap-2">
           {ready ? (
             <Button asChild size="sm" className={cn('min-w-0 flex-1 shrink font-bold', FORMAT_TONE[format].fill)}>
               <Link href={produceHref(match.id, format)} className="truncate">{made === 0 ? FLOW_PRODUCE_CTA[format].first : FLOW_PRODUCE_CTA[format].again}</Link>
@@ -99,7 +99,7 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
           ) : null}
           {parsing ? <span className="flex-1 text-body-sm text-fg-3">Podrás crear al terminar</span> : null}
           {stage === HUB_ROW_STAGE.failed ? <span className="flex-1" /> : null}
-          <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} />
+          <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} messageBelow />
         </div>
       </div>
     </article>
@@ -146,12 +146,7 @@ function StateLine({ row, format }: { row: DemoRowGroup; format: ProduceFormat }
     );
   }
   if (stage === HUB_ROW_STAGE.unpicked) {
-    return (
-      <span className="flex flex-col gap-0.5">
-        <span className="text-meta text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
-        <span className="text-meta text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
-      </span>
-    );
+    return <span className="text-body-sm text-fg-2">{MATCH_ROW_UNPICKED_HINT}</span>;
   }
   if (stage === HUB_ROW_STAGE.failed) {
     return (

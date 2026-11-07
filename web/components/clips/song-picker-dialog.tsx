@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export type SongPickerDialogProps = {
@@ -194,7 +195,7 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
 
       {playing ? <Equalizer /> : null}
 
-      <Button type="button" size="sm" variant={selected ? 'secondary' : 'default'} onClick={onUse} className="shrink-0">
+      <Button type="button" size="sm" variant={selected ? 'default' : 'outline'} onClick={onUse} className="shrink-0">
         {selected ? <Check /> : null}
         {selected ? 'Elegido' : 'Usar este tema'}
       </Button>
@@ -233,15 +234,15 @@ const EQ_KEYFRAMES = `
 
 function SongRowSkeletons() {
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul role="status" aria-label="Cargando canciones" className="flex flex-col gap-1.5">
       {[0, 1, 2, 3].map((i) => (
         <li key={i} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-          <div className="size-8 shrink-0 animate-pulse rounded-md bg-accent" />
+          <Skeleton className="size-8 shrink-0 shadow-none" />
           <div className="flex-1 space-y-1.5">
-            <div className="h-3.5 w-24 animate-pulse rounded bg-accent" />
-            <div className="h-3 w-16 animate-pulse rounded bg-accent" />
+            <Skeleton className="h-3.5 w-24 shadow-none" />
+            <Skeleton className="h-3 w-16 shadow-none" />
           </div>
-          <div className="h-8 w-28 animate-pulse rounded-md bg-accent" />
+          <Skeleton className="h-8 w-28 shadow-none" />
         </li>
       ))}
     </ul>

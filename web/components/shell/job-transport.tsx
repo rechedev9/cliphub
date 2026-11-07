@@ -16,8 +16,8 @@ import { cn } from '@/lib/utils';
 
 const STAGE_META: Record<ShellJobStage, { tag: string; sub: string; tone: string }> = {
   recording: { tag: 'REC', sub: 'CS2 + HLAE grabando · no toques el juego', tone: 'text-stream-text' },
-  composing: { tag: 'Render', sub: 'Edición · FFmpeg', tone: 'text-fg-1' },
-  parsing: { tag: 'Parseo', sub: 'Parseando la demo', tone: 'text-fg-1' },
+  composing: { tag: 'Montaje', sub: 'Montando el vídeo', tone: 'text-fg-1' },
+  parsing: { tag: 'Lectura', sub: 'Leyendo la demo', tone: 'text-fg-1' },
   acquiring: { tag: 'Descarga', sub: 'Descargando el vídeo de origen', tone: 'text-fg-1' },
   queued: { tag: 'En cola', sub: 'Empieza al acabar el REC actual', tone: 'text-fg-3' },
 };
@@ -186,6 +186,6 @@ function pillTag(job: ShellJob): string {
   const { tag } = STAGE_META[job.stage];
   if (job.progress === null) return tag;
   if (job.stage === 'recording') return `${tag} R${job.progress.done}/${job.progress.total}`;
-  if (job.stage === 'composing') return `${tag} ${captureProgressPercent(job.progress)}%`;
+  if (job.stage === 'composing') return `${tag} ${captureProgressPercent(job.progress)} %`;
   return tag;
 }

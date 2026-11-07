@@ -291,15 +291,15 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
   if (counts === undefined) return null;
   const dots = (results ?? []).slice(-MAX_DOTS);
   return (
-    <div aria-live="polite" className="flex h-8 flex-col justify-center rounded-md border border-border px-2.5">
-      <p className="text-meta leading-tight font-medium whitespace-nowrap text-fg-1 tabular-nums">
+    <div aria-live="polite" className="flex h-8 items-center gap-2.5 pl-1">
+      <p className="text-meta whitespace-nowrap text-fg-2 tabular-nums">
         {counts === null ? <span className="text-fg-3">Contando</span> : scopeCountText(counts.maps, counts.rounds)}
       </p>
       {dots.length > 0 ? (
-        <p className="flex items-center gap-0.5 pt-0.5" title={`Últimos resultados: ${resultRecord(dots)}`}>
+        <p className="flex items-center gap-1" title={`Últimos resultados: ${resultRecord(dots)}`}>
           <span className="sr-only">Últimos resultados: {resultRecord(dots)}</span>
           {dots.map((dot, index) => (
-            <span key={index} aria-hidden title={DOT_WORD[dot]} className={cn('size-1.5 rounded-full', DOT[dot])} />
+            <span key={index} aria-hidden title={DOT_WORD[dot]} className={cn('size-2 rounded-full', DOT[dot])} />
           ))}
         </p>
       ) : null}

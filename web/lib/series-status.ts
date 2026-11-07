@@ -26,11 +26,11 @@ const SERIES_STATUS_LABELS: Record<JobStatus, string> = {
   scanning: 'analizando',
   scanned: 'sin jugador elegido',
   parsing: 'analizando',
-  parsed: 'lista para forjar',
+  parsed: 'lista para montar',
   recording: 'grabando',
   recorded: 'grabando',
-  composing: 'renderizando',
-  composed: 'renderizando',
+  composing: 'montando',
+  composed: 'montando',
   review_required: 'completada con avisos',
   done: 'completada',
   failed: 'fallida',
@@ -119,11 +119,11 @@ export function summarizeSeriesStatuses(statuses: readonly string[]): SeriesStat
  * serial capture lane, plus the terminal ready/failed outcome of the artifact.
  */
 const SERIES_REEL_STATES: Record<VideoStatus, { label: string; tone: SeriesStatusTone; active: boolean }> = {
-  queued: { label: 'reel en cola', tone: 'pending', active: true },
-  recording: { label: 'grabando reel', tone: 'progress', active: true },
-  composing: { label: 'renderizando reel', tone: 'progress', active: true },
-  ready: { label: 'reel listo', tone: 'done', active: false },
-  failed: { label: 'reel fallido', tone: 'failed', active: false },
+  queued: { label: 'vídeo en cola', tone: 'pending', active: true },
+  recording: { label: 'grabando vídeo', tone: 'progress', active: true },
+  composing: { label: 'montando vídeo', tone: 'progress', active: true },
+  ready: { label: 'vídeo listo', tone: 'done', active: false },
+  failed: { label: 'vídeo fallido', tone: 'failed', active: false },
 };
 
 /** The Spanish pill label for a map's reel state. */

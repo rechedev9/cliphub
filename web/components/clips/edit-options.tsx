@@ -1,6 +1,6 @@
 'use client';
 
-import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Sparkles, Type, Zap } from 'lucide-react';
+import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -57,7 +57,7 @@ export function EditOptions({
   killCounter = true,
 }: EditOptionsProps) {
   return (
-    <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
+    <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
       {showFullDemoDelivery ? (
         <OptionBlock label="Entrega opcional" className="md:col-span-2">
           <ToggleGroup
@@ -98,7 +98,7 @@ export function EditOptions({
                 htmlFor="voice-volume"
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Comms <span className="text-fg-1">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
+                Comms <span className="text-fg-1">· {Math.round((value.voiceVolume ?? 0.85) * 100)} %</span>
               </label>
               <input
                 id="voice-volume"
@@ -149,7 +149,6 @@ export function EditOptions({
         >
           {transitionItems.map((item) => (
             <ToggleGroupItem key={item.value} value={item.value} aria-label={item.label}>
-              <Sparkles className="size-4" />
               {item.label}
             </ToggleGroupItem>
           ))}
@@ -376,7 +375,7 @@ export function EditOptions({
                 aria-label={`Código ${affiliateFamilyLabel(value.keyDropFamily ?? '', value.keyDropStyle)}`}
               />
               <p className="text-body-sm text-fg-3">
-                Se renderiza como{' '}
+                En el vídeo se lee{' '}
                 <span className="font-mono text-fg-1">
                   {affiliateDisplayLabel(value.keyDropFamily ?? '', value.keyDropStyle ?? '', value.keyDropCode ?? '')}
                 </span>

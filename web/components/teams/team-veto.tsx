@@ -121,7 +121,7 @@ export function TeamVeto({
   const slotNames: Record<string, string> = { a: 'Nosotros', b: opponentName, '': 'Ninguno' };
   const minPool = { bo1: 2, bo3: 3, bo5: 5 }[format];
   let notice: ReactNode = null;
-  if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige el rival en el filtro Rival para simular el veto.</p>;
+  if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige un rival en el filtro de arriba para simular el veto.</p>;
   else if (!fits) {
     notice = (
       <p role="alert" className="text-body-sm text-warning">
@@ -157,7 +157,7 @@ export function TeamVeto({
         </Button>
       </div>
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1 text-meta text-fg-3">Pool de mapas (editable: Valve rota el pool activo)</legend>
+        <legend className="mb-1 text-meta text-fg-3">Pool de mapas. Valve lo cambia de vez en cuando: marca los que se juegan ahora.</legend>
         <div className="flex flex-wrap gap-1.5">
           {POOL_CHOICES.map((map) => (
             <label

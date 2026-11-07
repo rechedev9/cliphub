@@ -10,11 +10,12 @@ import { CALL_FILTER_FIELDS, CALL_SIDE_LABEL, callSearchText, tagOptions } from 
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { BulkBar } from './bulk-bar';
 import { CallDialog } from './call-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
@@ -58,7 +59,7 @@ function callColumns(onEdit: (call: LibraryCall) => void): DataTableColumn<Libra
     {
       id: 'tags',
       header: 'Etiquetas',
-      cell: (call) => (call.tags.length > 0 ? call.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+      cell: (call) => (call.tags.length > 0 ? call.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
       sortValue: (call) => call.tags.join(','),
     },
     {
@@ -154,10 +155,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
 
   if (calls === null) {
     return (
-      <div role="status" aria-label="Cargando llamadas" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando llamadas" columns={4} filters={3} />
     );
   }
   if (calls.length === 0) {
@@ -201,22 +199,6 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   return (
     <div className="flex flex-col gap-3">
       {status}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por llamada, significado o etiqueta"
-          filters={[
-            { id: 'side', label: 'Lado', options: SIDE_OPTIONS },
-            { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-            { id: 'tag', label: 'Etiqueta', options: tagOptions(calls) },
-          ]}
-          count={{ shown: shown.length, total: calls.length, noun: calls.length === 1 ? 'llamada' : 'llamadas' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        <div className="flex flex-wrap gap-2">{newButton}</div>
-      </div>
       {hiddenArchived > 0 ? (
         <p className="text-meta text-fg-3">
           {hiddenArchived === 1 ? 'Una llamada archivada no se muestra.' : `${hiddenArchived} llamadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
@@ -233,6 +215,21 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
         />
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por llamada, significado o etiqueta"
+            filters={[
+              { id: 'side', label: 'Lado', options: SIDE_OPTIONS },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+              { id: 'tag', label: 'Etiqueta', options: tagOptions(calls) },
+            ]}
+            count={{ shown: shown.length, total: calls.length, noun: calls.length === 1 ? 'llamada' : 'llamadas' }}
+          />
+        }
+        actions={newButton}
         label="Llamadas"
         rows={shown}
         columns={columns}

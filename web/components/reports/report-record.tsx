@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { MAX_REPORT_MATCHES, ReportSideSelect } from './new-report-dialog';
@@ -80,8 +81,10 @@ export function ReportRecord({ reportId }: { reportId: string }): ReactNode {
   if (state.kind === 'loading') {
     return (
       <div role="status" aria-label="Cargando informe" className="flex flex-col gap-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-96 w-full" />
+        <Skeleton className="h-16 w-96 max-w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-10 w-full max-w-3xl" />
+        <Skeleton className="h-80 w-full" />
       </div>
     );
   }
@@ -344,25 +347,22 @@ function ReportNotes({ report, onSaved }: { report: LibraryReport; onSaved: () =
   }
 
   return (
-    <form onSubmit={(event) => void save(event)} className="flex flex-col gap-3">
-      <p className="measure-read text-body-sm text-fg-2">
-        La lectura del coach: el plan contra este rival y lo que hay que vigilar. Las notas salen al principio del informe exportado.
-      </p>
+    <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-3">
       <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-        Notas
-        <textarea
+        El plan contra este rival y lo que hay que vigilar
+        <Textarea
           value={notes}
           maxLength={4000}
           rows={8}
           onChange={(event) => setNotes(event.target.value)}
-          className="min-h-40 rounded-md border border-input bg-transparent px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
       </label>
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
-      <div>
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={busy || !dirty}>
           Guardar notas
         </Button>
+        <span className="text-meta text-fg-3">Salen al principio del informe exportado.</span>
       </div>
     </form>
   );

@@ -9,7 +9,7 @@ import type { OverlayRound, SpatialMatchRef, SpatialResponse } from '@/lib/api/s
 import { RADAR_LEVELS, TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSide } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
-import { formatShortDate, prettyMapName } from '@/lib/format';
+import { formatRate, formatShortDate, prettyMapName } from '@/lib/format';
 import { roundEvidenceHref } from '@/lib/library/rounds';
 import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import {
@@ -401,7 +401,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
             <Segmented
               label="Velocidad"
               value={String(speed)}
-              options={TACTICAL_REPLAY_SPEEDS.filter((s) => s >= 0.5).map((s) => ({ value: String(s), label: `${s}x` }))}
+              options={TACTICAL_REPLAY_SPEEDS.filter((s) => s >= 0.5).map((s) => ({ value: String(s), label: formatRate(s) }))}
               onChange={(value) => setSpeed(Number(value))}
             />
             {isMultiLevelMap(geometry.calibration) ? (

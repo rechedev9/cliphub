@@ -26,12 +26,12 @@ export function StreamLayoutStep({
   faceCropReviewed: boolean;
 }): ReactNode {
   if (!needsFaceCrop) {
-    return <p className="text-body-sm text-fg-2">Gameplay a pantalla completa, sin cámara.</p>;
+    return null;
   }
   return (
     <>
       <p className="text-body-sm text-fg-2">
-        Ajusta el marco sobre la cámara del streamer. La vista del Short muestra cómo quedará el vídeo.
+        Ajusta el marco sobre la cámara del streamer.
       </p>
       {faceCropReviewed ? (
         <p role="status" className="flex items-center gap-2 text-body-sm text-success">

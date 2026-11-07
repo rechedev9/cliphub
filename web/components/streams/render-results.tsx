@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Play } from 'lucide-react';
+import { CircleCheck, Play } from 'lucide-react';
 import { streamsApi, type StreamEditPlan, type StreamJob, type StreamRenderState } from '@/lib/api/streams';
 import { PLAYBACK_REVIEW, streamPlaybackItem, type MediaPlaybackItem } from '@/lib/api/playback';
 import { openYouTubeStudio } from '@/lib/publish-actions';
 import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { MediaPlayer } from '@/components/studio/media-player';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 export function StreamRenderResults({
   renderState,
   job,
@@ -29,7 +30,7 @@ export function StreamRenderResults({
   if (!renderState) return null;
   const videos = renderState.videos ?? [];
   const empty = videos.length === 0;
-  let message = 'Tus Shorts están listos. Descárgalos aquí con «Descargar MP4» o encuéntralos cuando quieras en Mis vídeos.';
+  let message = '';
   if (empty) message = 'No se generó ningún vídeo. Vuelve a exportar para intentarlo de nuevo.';
   else if (stale) message = 'Hay cambios sin exportar. Exporta de nuevo para aplicarlos.';
   const playbackEntries = (job.rendered_outputs ?? [])
@@ -48,7 +49,18 @@ export function StreamRenderResults({
   const playbackByClip = new Map(playbackEntries.map((entry) => [entry.clipId, entry.item]));
   return (
     <div className="flex flex-col gap-4">
-      <p className={empty || stale ? 'text-warning' : 'text-success'}>{message}</p>
+      {empty || stale ? (
+        <p className="text-warning">{message}</p>
+      ) : (
+        // The state in colour, the next step in body text: a whole green paragraph reads poorly.
+        <div className="flex flex-col gap-1">
+          <p className="flex items-center gap-2 font-semibold text-success">
+            <CircleCheck aria-hidden className="size-4 shrink-0" />
+            Tus Shorts están listos.
+          </p>
+          <p className="text-body-sm text-fg-2">Descárgalos con «Descargar MP4» o encuéntralos cuando quieras en Mis vídeos.</p>
+        </div>
+      )}
       {renderState.warnings?.map((warning, i) => (
         <p key={i} className="text-warning text-body-sm">
           {warning}
@@ -99,7 +111,7 @@ export function StreamRenderResults({
       ) : null}
       {renderState.delivery?.length ? (
         <details className="rounded-md border border-border-subtle p-3">
-          <summary className="cursor-pointer text-body-sm text-fg-3">Archivos adicionales</summary>
+          <DisclosureSummary className="text-body-sm text-fg-3">Archivos adicionales</DisclosureSummary>
           <div className="mt-3 flex flex-wrap gap-2">
             {renderState.delivery
               .filter((a) => !a.name.endsWith('.mp4'))

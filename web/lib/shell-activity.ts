@@ -1,6 +1,7 @@
 import type { StreamJob } from './api/streams.ts';
 import type { Match, Video } from './api/types.ts';
 import { RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
+import { prettyMapName } from './format.ts';
 import { streamRenderProgressView } from './streams/render-progress.ts';
 
 /** Live jobs for the command-strip transport and the html capture-active gate. */
@@ -142,7 +143,8 @@ function reelStage(status: Video['status']): ShellJobStage | null {
 
 function parseJob(match: Match): ShellJob[] {
   if (match.status === undefined || !PARSING_STATUSES.has(match.status)) return [];
-  const title = match.player ? `${match.map} · parseo POV ${match.player}` : `${match.map} · parseo`;
+  const map = prettyMapName(match.map) || 'Demo';
+  const title = match.player ? `${map} · ${match.player}` : map;
   const startedAt = Date.parse(match.playedAt);
   return [
     {

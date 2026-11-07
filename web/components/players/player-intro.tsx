@@ -91,23 +91,28 @@ export function PlayerIntro({
     adr: sparkline('adr'),
     wpa_per_round: sparkline('wpa'),
   };
+  const reliabilities = BASELINE_METRICS.map((metric) => metricReliability(evidence[metric], baseline?.metrics[metric], metric));
+  // When every figure is thin, the note under the cards says it once instead of each card.
+  const allWeak = reliabilities.length > 0 && reliabilities.every((r) => r?.weak === true);
   const chartPoints = trendPoints(player.match_lines, trend, damage);
   const chartBaseline = TREND_BASELINE[trend];
   const chartReference = chartBaseline === null ? null : baselineValue(baseline, chartBaseline);
 
   return (
     <div className="flex flex-col gap-3">
-      <section aria-label="Cifras frente a la referencia" className="flex flex-col gap-1.5">
+      <section aria-label="Cifras frente a la referencia" className="@container flex flex-col gap-1.5">
         <h2 className="text-body-sm font-semibold text-fg-1">Frente a la {referenceLabel(scope).toLowerCase()}</h2>
         {references === 'failed' ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo leer la media de la biblioteca. Las cifras salen sin comparar.
           </p>
         ) : null}
-        <StatCardGroup label="Cifras principales">
-          {BASELINE_METRICS.map((metric) => {
+        {/* The nine figures as 3×3, 5 + 4 (the last one twice as wide) or one row: no card alone, no empty cell. */}
+        <StatCardGroup label="Cifras principales" className="grid-cols-3 @min-[34rem]:grid-cols-5 @min-[34rem]:[&>:last-child]:col-span-2 @min-[60rem]:grid-cols-9 @min-[60rem]:[&>:last-child]:col-span-1">
+          {BASELINE_METRICS.map((metric, index) => {
             const info = METRIC_INFO[metric];
             const mean = baselineValue(baseline, metric);
+            const cardReliability = reliabilities[index] ?? null;
             return (
               <StatCard
                 key={metric}
@@ -117,14 +122,14 @@ export function PlayerIntro({
                 higherIsBetter={info.higherIsBetter}
                 epsilon={info.epsilon}
                 comparison={mean === null ? undefined : { value: mean, label }}
-                reliability={metricReliability(evidence[metric], baseline?.metrics[metric], metric)}
+                reliability={cardReliability && allWeak ? { ...cardReliability, weak: false } : cardReliability}
                 trend={trends[metric]}
               />
             );
           })}
         </StatCardGroup>
         <p className="measure-read text-meta text-fg-3">
-          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}. ▲▼ solo cuando la diferencia es fiable.
+          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.{allWeak ? ' Poca muestra en todas las cifras: pesa más la media que sus rondas.' : ''} ▲▼ solo cuando la diferencia es fiable.
           {baseline ? ` ${sourceText(baseline, map)}` : ''}
           {ready && scope === 'library' ? minRoundsNote(ready.minRounds) : ''}
           {references === null ? ' Leyendo la media.' : ''}

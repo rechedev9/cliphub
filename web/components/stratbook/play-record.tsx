@@ -20,6 +20,7 @@ import { groupEvidenceByMatch, type VideoSource } from '@/lib/library/analysis-v
 import { dateText, evidencePath } from '@/lib/reports/scout-sections';
 import { PLAY_ORIGIN_LABEL, playSecondsLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
@@ -34,6 +35,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { EditPlayDialog } from '@/components/libreta/edit-play-dialog';
 import { StatusBadge } from '@/components/libreta/status-badge';
 import { PlayRadar } from './play-radar';
@@ -121,7 +123,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
   const [matches, setMatches] = useState<ReadonlyMap<string, LibraryMatch>>(new Map());
   const [message, setMessage] = useState<string | null>(null);
   useRouteTitle(play.title);
-  useDocumentTitle(`${play.title} · Stratbook · ClipHub`);
+  useDocumentTitle(`${play.title} · Jugada · ClipHub`);
 
   useEffect(() => {
     let active = true;
@@ -185,10 +187,8 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
           { label: 'Mapa', value: prettyMapName(play.map) },
           { label: 'Lado', value: play.side },
           { label: 'Tipo', value: playShapeLabel(play) },
-          { label: 'Granadas', value: play.grenades.length },
-          { label: 'Rondas de ejemplo', value: play.examples.length },
           { label: 'Estado', value: <StatusBadge status={play.status} /> },
-          { label: 'Etiquetas', value: play.tags.length > 0 ? play.tags.join(', ') : 'Ninguna' },
+          { label: 'Etiquetas', value: play.tags.length > 0 ? play.tags.join(', ') : <EmptyCell label="Sin etiquetas" /> },
           { label: 'Origen', value: PLAY_ORIGIN_LABEL[play.origin] },
           { label: 'Actualizada', value: formatShortDate(play.updated_at) },
         ]}
@@ -352,15 +352,14 @@ function PlayNotes({ play, onSaved }: { play: LibraryPlayDetail; onSaved: () => 
   }
 
   return (
-    <form onSubmit={(event) => void save(event)} className="flex flex-col gap-2">
+    <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-2">
       <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
         Notas
-        <textarea
+        <Textarea
           value={notes}
           maxLength={4000}
           rows={4}
           onChange={(event) => setNotes(event.target.value)}
-          className="rounded-md border border-input bg-transparent px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
       </label>
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}

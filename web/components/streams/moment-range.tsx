@@ -43,11 +43,11 @@ export function MomentRange({
           invalid={invalid}
           onChange={(value) => onChange({ end_seconds: value })}
         />
-        <Button variant="outline" size="sm" disabled={disabled} onClick={() => onChange({ start_seconds: playhead })}>
-          Marcar inicio aquí
+        <Button variant="outline" size="sm" disabled={disabled} title="Pon el inicio donde va el vídeo original" onClick={() => onChange({ start_seconds: playhead })}>
+          Marcar inicio
         </Button>
-        <Button variant="outline" size="sm" disabled={disabled} onClick={() => onChange({ end_seconds: playhead })}>
-          Marcar final aquí
+        <Button variant="outline" size="sm" disabled={disabled} title="Pon el final donde va el vídeo original" onClick={() => onChange({ end_seconds: playhead })}>
+          Marcar final
         </Button>
       </div>
       <label className="flex items-center gap-2 text-label text-fg-3">

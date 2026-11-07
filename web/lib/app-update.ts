@@ -73,7 +73,7 @@ export function appUpdateLabel(status: AppUpdateStatus): string | null {
       return 'Actualizar';
     case APP_UPDATE_STATE.downloading: {
       const percent = appUpdatePercent(status);
-      return percent === undefined ? 'Descargando' : `${percent}%`;
+      return percent === undefined ? 'Descargando' : `${percent} %`;
     }
     case APP_UPDATE_STATE.ready:
       return 'Reiniciar';

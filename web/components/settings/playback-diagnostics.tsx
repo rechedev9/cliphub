@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { CircleGauge } from 'lucide-react';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SettingsSection } from './settings-section';
 import { getDesktopSettingsBridge, type StudioPlaybackInfo } from '@/lib/desktop-settings';
 
 const VIDEO_DECODE_LABEL: Record<Extract<StudioPlaybackInfo, { available: true }>['videoDecode'], string> = {
@@ -31,9 +29,9 @@ export function PlaybackDiagnostics(): ReactNode {
   let body: ReactNode;
   if (info?.available) {
     body = (
-      <div className="flex flex-col gap-2">
-        <StudioDataRow label="Aceleración gráfica" value={info.hardwareAcceleration === 'enabled' ? 'Activada' : 'Desactivada'} />
-        <StudioDataRow label="Decodificación de vídeo" value={VIDEO_DECODE_LABEL[info.videoDecode]} />
+      <div className="flex flex-col divide-y divide-border border border-border bg-surface-2">
+        <StudioDataRow label="Aceleración gráfica" value={info.hardwareAcceleration === 'enabled' ? 'Activada' : 'Desactivada'} className="border-0 bg-transparent" />
+        <StudioDataRow label="Decodificación de vídeo" value={VIDEO_DECODE_LABEL[info.videoDecode]} className="border-0 bg-transparent" />
       </div>
     );
   } else if (info?.state === 'initializing') {
@@ -50,7 +48,7 @@ export function PlaybackDiagnostics(): ReactNode {
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo diagnóstico de reproducción" className="flex flex-col gap-2">
+      <div role="status" aria-label="Leyendo diagnóstico de reproducción" className="flex flex-col gap-px">
         <Skeleton className="h-11 w-full rounded-none" />
         <Skeleton className="h-11 w-full rounded-none" />
       </div>
@@ -58,21 +56,12 @@ export function PlaybackDiagnostics(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="playback-diagnostics-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={CircleGauge} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Reproducción" />
-          <h2 id="playback-diagnostics-title" className="font-display text-title font-bold text-fg-1">
-            Motor de vídeo
-          </h2>
-        </div>
-      </div>
-
-      <p className="text-body-sm text-fg-2">
-        Estado general del motor incluido. Un vídeo concreto puede usar otra ruta de decodificación.
-      </p>
+    <SettingsSection
+      id="playback"
+      title="Motor de vídeo"
+      description="Estado general del motor incluido. Un vídeo concreto puede usar otra ruta de decodificación."
+    >
       {body}
-    </section>
+    </SettingsSection>
   );
 }

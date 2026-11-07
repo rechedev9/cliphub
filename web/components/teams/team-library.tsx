@@ -11,8 +11,8 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 
 /** The aliases a team is known by besides its own name. */
 function otherAliases(team: LibraryTeam): string[] {
@@ -66,10 +66,7 @@ export function TeamLibrary(): ReactNode {
 
   if (teams === null) {
     return (
-      <div role="status" aria-label="Cargando equipos" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando equipos" columns={4} />
     );
   }
 
@@ -107,6 +104,8 @@ export function TeamLibrary(): ReactNode {
     );
   }
 
+  // A column that is empty on every row only pushes the numbers away from the names.
+  const columns = teams.some((team) => otherAliases(team).length > 0) ? COLUMNS : COLUMNS.filter((column) => column.id !== 'aliases');
   const shown = filterRows(teams, view.state.filters, {
     fields: {},
     searchText: (team) => [team.name, ...team.aliases].join(' '),
@@ -114,17 +113,19 @@ export function TeamLibrary(): ReactNode {
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar
-        values={view.state.filters}
-        onChange={view.setFilter}
-        onReset={view.resetFilters}
-        searchPlaceholder="Buscar por nombre o alias"
-        count={{ shown: shown.length, total: teams.length, noun: teams.length === 1 ? 'equipo' : 'equipos' }}
-      />
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por nombre o alias"
+            count={{ shown: shown.length, total: teams.length, noun: teams.length === 1 ? 'equipo' : 'equipos' }}
+          />
+        }
         label="Equipos"
         rows={shown}
-        columns={COLUMNS}
+        columns={columns}
         rowKey={(team) => team.id}
         rowHref={(team) => teamHref(team.id)}
         view={view}

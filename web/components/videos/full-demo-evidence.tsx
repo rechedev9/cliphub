@@ -4,6 +4,7 @@ import type { Video } from '@/lib/api/types';
 import { pinRenderRevision } from '@/lib/api/render-revision';
 import { PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { bumperSummary } from '@/lib/full-demo-plan';
+import { formatRate } from '@/lib/format';
 
 export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
   const snapshot = video.editConfig?.fullDemo;
@@ -12,7 +13,7 @@ export function FullDemoEvidence({ video }: { video: Video }): ReactNode {
   const complete = video.status === 'ready';
   return <section className="studio-panel space-y-3 p-4" aria-label="Plan y verificación de Full Demo">
     <h2 className="font-display text-body-lg font-semibold text-fg-1">Plan y verificación</h2>
-    <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · vídeos añadidos: {bumperSummary(options).toLowerCase()}.</p>
+    <p className="text-body-sm text-fg-2">{snapshot.document.rounds.length} rondas · voces {options.audio.voice.enabled ? formatRate(options.audio.voice.gain) : 'desactivadas'} · música {options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'desactivada'} · vídeos añadidos: {bumperSummary(options).toLowerCase()}.</p>
     <p className="font-mono text-meta text-fg-3">Plan aprobado: {snapshot.approval.approved_plan_hash.slice(0, 12)}</p>
     <div className="flex flex-wrap gap-x-4 gap-y-2 text-body-sm text-fg-1">
       <Link href={produceHref(video.jobId, PRODUCE_FORMAT.full)} className="underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar ajustes y crear otra revisión</Link>

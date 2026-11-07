@@ -42,14 +42,21 @@ export function DeltaValue({
     result !== null && reference !== undefined && reference !== null
       ? `${referenceLabel ?? 'Referencia'}: ${format(reference)}`
       : undefined;
+  // An even result keeps the arrow's width, so values in a compared column stay aligned.
+  let arrowMark: ReactNode = null;
+  if (arrow !== '') {
+    arrowMark = (
+      <span aria-hidden className={cn('text-[0.7em]', result ? DELTA_TONE_CLASS[result.tone] : '')}>
+        {arrow}
+      </span>
+    );
+  } else if (result !== null) {
+    arrowMark = <span aria-hidden className="invisible text-[0.7em]">▲</span>;
+  }
   return (
     <span className={cn('inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums', className)} title={title}>
       <span className="font-medium text-fg-1">{format(value)}</span>
-      {arrow === '' ? null : (
-        <span aria-hidden className={cn('text-[0.7em]', result ? DELTA_TONE_CLASS[result.tone] : '')}>
-          {arrow}
-        </span>
-      )}
+      {arrowMark}
       {n === undefined ? null : <span className="text-meta text-fg-3">({n})</span>}
       {title && result ? <span className="sr-only">, {TONE_WORD[result.tone]} que {title}</span> : null}
     </span>

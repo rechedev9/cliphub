@@ -21,11 +21,11 @@ type Props = {
 type Slot = FullDemoBumperSlot;
 const EMPTY_BUMPERS: FullDemoBumperOptions = { intro: { enabled: false, video: null }, outro: { enabled: false, video: null } };
 const SLOTS: readonly Slot[] = ['intro', 'sponsor', 'outro'];
-const SLOT_COPY: Record<Slot, { title: string; named: string; number: string; placement: string; hint: string }> = {
-  intro: { title: 'Intro', named: 'la intro', number: '01', placement: 'Antes de la demo', hint: 'Selecciona tu clip de apertura' },
+const SLOT_COPY: Record<Slot, { title: string; named: string; placement: string; hint: string }> = {
+  intro: { title: 'Intro', named: 'la intro', placement: 'Antes de la demo', hint: 'Selecciona tu clip de apertura' },
   // Fixed by the planner: after the second round, or after the only one.
-  sponsor: { title: 'Sponsor', named: 'el sponsor', number: '02', placement: 'Tras la ronda 2', hint: 'Selecciona el anuncio del sponsor' },
-  outro: { title: 'Outro', named: 'el outro', number: '03', placement: 'Después de la demo', hint: 'Selecciona tu clip de cierre' },
+  sponsor: { title: 'Sponsor', named: 'el sponsor', placement: 'Tras la ronda 2', hint: 'Selecciona el anuncio del sponsor' },
+  outro: { title: 'Outro', named: 'el outro', placement: 'Después de la demo', hint: 'Selecciona tu clip de cierre' },
 };
 
 export function FullDemoBumpers({ options, document, onChange, onAssetBusy, rounds }: Props): ReactNode {
@@ -38,10 +38,7 @@ export function FullDemoBumpers({ options, document, onChange, onAssetBusy, roun
   return <section aria-labelledby={headingId} className="studio-panel flex min-w-0 flex-col gap-3.5 rounded-2xl p-4">
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={headingId} className="flex items-center gap-2.5 font-display text-body-lg font-bold text-fg-1">
-          <span aria-hidden className={`grid size-6 shrink-0 place-items-center rounded-lg text-meta font-extrabold text-format-full-foreground ${FORMAT_TONE.full.bg}`}>1</span>
-          Intro, sponsor y outro
-        </h2>
+        <h2 id={headingId} className="font-display text-body-lg font-bold text-fg-1">Intro, sponsor y outro</h2>
         <Badge variant="outline" className="text-fg-2">Opcional</Badge>
       </div>
       <p className="mt-1.5 text-body-sm text-fg-2">Tu marca al principio y al final, y tu sponsor tras la ronda 2. Se quedan guardados para tus próximas demos.</p>
@@ -127,7 +124,6 @@ function BumperUpload({ slot, asset, savedName, inputRef, onBusy, onChange }: {
   return <div data-bumper={slot} data-loaded={!!asset} className={styles.card} role="group" aria-labelledby={id}>
     <div className={styles.cardHeader}>
       <div className={styles.cardTitle}>
-        <span className={styles.number} aria-hidden>{copy.number}</span>
         <div><h3 id={id}>{title}</h3><p>{copy.placement}</p></div>
       </div>
       {asset ? <span className={styles.ready}><Check aria-hidden />Listo</span> : null}

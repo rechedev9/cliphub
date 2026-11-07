@@ -117,7 +117,7 @@ export function LibraryMusicDialog({
       onOpenChange(false);
       onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo volver a renderizar con música.');
+      setError(err instanceof Error ? err.message : 'No se pudo volver a montar el vídeo con la música.');
     } finally {
       setBusy(false);
     }
@@ -129,7 +129,7 @@ export function LibraryMusicDialog({
         <DialogHeader>
           <DialogTitle>{video.songId ? 'Cambiar música' : 'Añadir música'}</DialogTitle>
           <DialogDescription>
-            La captura no se repite. El montaje se vuelve a renderizar y sustituye el MP4 actual.
+            La captura no se repite. El vídeo se vuelve a montar y sustituye al MP4 actual.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +146,7 @@ export function LibraryMusicDialog({
                 htmlFor={`library-music-volume-${video.id}`}
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Música <span className="text-fg-1">· {volumePercent}%</span>
+                Música <span className="text-fg-1">· {volumePercent} %</span>
               </label>
               <input
                 id={`library-music-volume-${video.id}`}
@@ -165,7 +165,7 @@ export function LibraryMusicDialog({
                 htmlFor={`library-game-volume-${video.id}`}
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Juego <span className="text-fg-1">· {gameVolumePercent}%</span>
+                Juego <span className="text-fg-1">· {gameVolumePercent} %</span>
               </label>
               <input
                 id={`library-game-volume-${video.id}`}

@@ -138,10 +138,10 @@ export function baselineValue(baseline: Baseline | null, metric: BaselineMetric)
   return entry && entry.players > 0 ? entry.mean : null;
 }
 
-/** Why a ranking has no rows, in plain words. */
+/** Why a ranking has no rows, in plain words; the board puts the way out beside it as a button. */
 export function leaderboardEmptyText(board: Pick<Leaderboard, 'matches' | 'min_rounds'>): string {
   if (board.matches === 0) return 'No hay partidas analizadas con este mapa. Importa demos o elige otro mapa.';
-  return `Ningún jugador llega a ${board.min_rounds} rondas con este filtro. Baja el mínimo de rondas.`;
+  return `Ningún jugador llega a ${board.min_rounds} rondas con este filtro.`;
 }
 
 /** "238 jugadores con 50 rondas o más", the sample behind a reference. */

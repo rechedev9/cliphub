@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useSyncExternalStore, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -11,20 +11,15 @@ import { GlobalSearch } from '@/components/shell/global-search';
 import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
-import {
-  serverShellActivitySnapshot,
-  shellActivitySnapshot,
-  subscribeToShellActivity,
-} from '@/lib/shell-activity';
 import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
-  newShort: 'nuevo short',
-  newFull: 'demo completa',
-  publish: 'publicar',
-  series: 'serie',
+  newShort: 'Nuevo Short',
+  newFull: 'Nueva demo completa',
+  publish: 'Publicar',
+  series: 'Serie',
 } as const;
 
 /** Short series live outside /shorts; Demo completa series live under /videos-largos/serie. */
@@ -39,11 +34,6 @@ export function CommandStrip(): ReactElement {
   const section = sectionForPath(pathname);
   const routeTitle = useCurrentRouteTitle();
   const trail = routeTitle ?? trailForPath(pathname, section);
-  const activity = useSyncExternalStore(
-    subscribeToShellActivity,
-    shellActivitySnapshot,
-    serverShellActivitySnapshot,
-  );
 
   return (
     <header
@@ -76,7 +66,6 @@ export function CommandStrip(): ReactElement {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GlobalSearch />
         <JobTransport />
-        {activity.capturing ? <CapturePip /> : null}
         <Button
           type="button"
           variant="ghost"
@@ -97,21 +86,6 @@ export function CommandStrip(): ReactElement {
   );
 }
 
-// Magenta REC pip: visible counterpart of data-capture-active silencing ambient GPU work.
-function CapturePip(): ReactElement {
-  return (
-    <span
-      role="status"
-      className="hidden h-9 items-center gap-2 rounded-md border border-stream/45 bg-stream/10 px-2.5 sm:flex"
-    >
-      <span className="live-pulse size-2 rounded-full bg-stream" aria-hidden />
-      <span className="text-meta font-medium text-stream-text">
-        Captura
-      </span>
-    </span>
-  );
-}
-
 // Screen names for the creation flows and Mis vídeos; other sections show a readable nested segment.
 function trailForPath(pathname: string, section: NavSection | null): string | null {
   if (section === null) return null;
@@ -125,5 +99,14 @@ function trailForPath(pathname: string, section: NavSection | null): string | nu
   if (section.href === LONG_VIDEOS_HREF) return segments[0] === FULL_SERIES_SEGMENT ? TRAIL.series : TRAIL.newFull;
   if (section.href === RESULTS_HREF && segments[1] === 'publicar') return TRAIL.publish;
   const segment = decodeURIComponent(segments[0] ?? '');
-  return OPAQUE_ID.test(segment) ? null : segment;
+  if (OPAQUE_ID.test(segment)) return null;
+  return SEGMENT_LABEL[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1);
 }
+
+// Static sub-routes read as screen names, not URL slugs.
+const SEGMENT_LABEL: Readonly<Record<string, string>> = {
+  series: 'Series',
+  faceit: 'FACEIT',
+  lineups: 'Lineups',
+  prep: 'Preparar rival',
+};

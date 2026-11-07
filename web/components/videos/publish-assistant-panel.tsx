@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Check, Clock3, Copy, ExternalLink, RefreshCw, Sparkles, Tags, Youtube } from 'lucide-react';
+import { Check, Clock3, Copy, ExternalLink, RefreshCw, Tags, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import {
@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const YOUTUBE_TITLE_MAX_LENGTH = 100;
 const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
@@ -224,8 +225,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
       {!loading && assistant ? (
         <>
           <section className="flex flex-col gap-2" aria-labelledby="publish-title-recommendations">
-            <h3 id="publish-title-recommendations" className="flex items-center gap-2 text-meta text-fg-3">
-              <Sparkles className="size-3.5 text-fg-2" aria-hidden /> {hasTemplates ? 'Plantillas para demo completa' : 'Títulos recomendados'}
+            <h3 id="publish-title-recommendations" className="text-meta text-fg-3">{hasTemplates ? 'Plantillas para demo completa' : 'Títulos recomendados'}
             </h3>
             {hasTemplates ? (
               <p className="text-meta leading-relaxed text-fg-3">
@@ -286,13 +286,12 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
                 <Copy className="size-3" /> Copiar
               </Button>
             </div>
-            <textarea
+            <Textarea
               id="publish-description"
               value={description}
               onChange={(event) => setDescription(event.currentTarget.value)}
               maxLength={YOUTUBE_DESCRIPTION_MAX_LENGTH}
               rows={5}
-              className="w-full resize-y rounded-md border border-border-strong bg-surface-3 px-3.5 py-3 text-body-sm text-fg-1 shadow-[var(--elev-0)] outline-none transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard placeholder:text-fg-3 focus-visible:border-primary focus-visible:bg-surface-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
           </div>
 

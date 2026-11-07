@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Printer } from 'lucide-react';
 import { getLibraryTeamScout, getTeamPlaybook, getTeamPrep } from '@/lib/api/library';
 import type { ScoutReport } from '@/lib/api/scout';
 import { minRoundsNote } from '@/lib/analysis/reference';
@@ -16,6 +16,7 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { SkippedNote } from '@/components/playbook/playbook-summary';
+import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CtPositions, MatchupTables, PlaybookBrief, PrepSection, TempoByBuy } from './prep-sections';
@@ -98,10 +99,16 @@ export function PrepRecord(): ReactNode {
 
   if (!valid) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p className="text-body text-fg-2">Falta el rival o el mapa. Vuelve a Informes y pulsa Preparar rival.</p>
-        {back}
-      </div>
+      <EmptyState
+        icon={ClipboardList}
+        title="Falta el rival o el mapa"
+        description="Esta preparación se abre desde Informes: elige allí el rival y el mapa con Preparar rival."
+        actions={
+          <Button asChild size="sm">
+            <Link href={REPORTS_HREF}>Ir a Informes</Link>
+          </Button>
+        }
+      />
     );
   }
   if (failed) {

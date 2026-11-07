@@ -83,6 +83,7 @@ import { StreamDetectedPlays } from '@/components/streams/detected-plays';
 import { clipsWithPlays } from '@/lib/streams/plays';
 import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
 import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -471,7 +472,7 @@ export function StreamEditor({
           onResetPosition={resetKillFeedPosition}
         />
         <details className="rounded-md border border-border-subtle p-3">
-          <summary className="cursor-pointer font-semibold text-body-sm">Banners · opcional</summary>
+          <DisclosureSummary className="font-semibold text-body-sm">Banners · opcional</DisclosureSummary>
           <div className="mt-3 flex flex-col gap-3">
             <StreamBannerControls
               nick={plan.streamer_banner?.nick ?? ''}
@@ -511,7 +512,7 @@ export function StreamEditor({
           </div>
         </details>
         <details className="rounded-md border border-border-subtle p-3">
-          <summary className="cursor-pointer font-semibold text-body-sm">Música y efectos · opcional</summary>
+          <DisclosureSummary className="font-semibold text-body-sm">Música y efectos · opcional</DisclosureSummary>
           <div className="mt-3 flex flex-col gap-3">
             <StreamMusicCard
               songs={songs}
@@ -641,7 +642,7 @@ export function StreamEditor({
           Ver este Short
         </Button>
         <details className="rounded border border-border-subtle p-3">
-          <summary className="cursor-pointer text-body-sm">Detalles de la exportación</summary>
+          <DisclosureSummary className="text-body-sm">Detalles de la exportación</DisclosureSummary>
           <CreativeBriefList items={briefItems} />
         </details>
       </>

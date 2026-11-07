@@ -259,6 +259,9 @@ function MakeVideos(props: Omit<MatchVideosProps, 'videos' | 'onVideosChange'>):
   const headingId = useId();
   // A shared match came without its .dem, so no video can be made until the demo is imported.
   const shared = props.demo?.source === 'shared';
+  const paths = makePaths(props);
+  // Three choices share one row; two or four sit in two columns, so none is left alone.
+  const grid = paths.length === 3 ? 'grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]' : 'sm:grid-cols-2';
   return (
     <section aria-labelledby={headingId} className="studio-panel flex flex-col gap-4 p-5">
       <div className="flex flex-col gap-1">
@@ -270,8 +273,8 @@ function MakeVideos(props: Omit<MatchVideosProps, 'videos' | 'onVideosChange'>):
         </p>
       </div>
       {shared ? null : (
-        <ul className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3">
-          {makePaths(props).map(({ id, icon: Icon, title, format, description, action }) => (
+        <ul className={cn('grid gap-3', grid)}>
+          {paths.map(({ id, icon: Icon, title, format, description, action }) => (
             <li key={id} className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-2 p-4">
               <div className="flex items-center gap-2.5">
                 <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-3 text-fg-1">

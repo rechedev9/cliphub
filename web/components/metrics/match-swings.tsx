@@ -40,13 +40,13 @@ export function MatchSwings({
           return (
             <li key={`${swing.round}:${swing.tick}`} className="flex min-w-0 flex-col gap-1.5 rounded-md border border-border-subtle bg-surface-1 p-3">
               <span className={cn('text-stat font-bold', side === 'CT' ? 'text-side-ct' : 'text-side-t')}>{ppText(Math.abs(swing.delta))}</span>
-              <span className="truncate text-body-sm font-semibold text-fg-1" title={kill}>
+              <span className="line-clamp-2 text-body-sm font-semibold [overflow-wrap:anywhere] text-fg-1" title={kill}>
                 {kill}
               </span>
-              <span className="text-meta text-fg-3">
+              <span className="text-meta [overflow-wrap:anywhere] text-fg-3">
                 Ronda {swing.round} · {secondsText(swing.seconds)} · a favor de {teamLabel(teamByKey(match, favouredTeam(ctTeams, swing)))} ({side})
               </span>
-              <Button asChild variant="ghost" size="xs" className="-ml-2 self-start">
+              <Button asChild variant="ghost" size="xs" className="-ml-2 mt-auto self-start">
                 <Link href={roundEvidenceHref(matchHref(match.id), swing.round, swing.tick)} onClick={onOpenTactical}>
                   Ver en Táctica
                 </Link>

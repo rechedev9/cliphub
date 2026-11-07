@@ -191,7 +191,6 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
 
   return <>
     <div className="mb-4 flex min-w-0 flex-col gap-1.5">
-      <p className="wrap-anywhere text-meta text-fg-3">Nueva demo completa · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="font-display text-display-sm font-extrabold tracking-tight text-fg-1">{title}</h1>
       <p className="text-body-sm text-fg-2">
         {chosenRounds.length > 0
@@ -226,7 +225,7 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
         <FullDemoHud options={options} onChange={change} onAssetBusy={assetBusy} />
         <div className="grid min-w-0 items-start gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))]">
           <FullDemoAudio options={options} document={document} onChange={change} />
-          <FullDemoGroup step={4} title="Grabación">
+          <FullDemoGroup title="Grabación">
             <div className="flex flex-col gap-3.5">
               <FullDemoProSettings options={options} players={proPlayers} onChange={change} />
               <FullDemoPart title="Presentación y marcador" note={OVERLAYS_NOTE}>

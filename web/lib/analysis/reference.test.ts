@@ -76,7 +76,7 @@ test('reference: a metric no player has gives no reference', () => {
 
 test('reference: an empty ranking says what to change', () => {
   assert.match(leaderboardEmptyText({ matches: 0, min_rounds: 50 }), /Importa demos/);
-  assert.match(leaderboardEmptyText({ matches: 3, min_rounds: 200 }), /200 rondas.*Baja el mínimo/);
+  assert.match(leaderboardEmptyText({ matches: 3, min_rounds: 200 }), /llega a 200 rondas/);
 });
 
 test('reference: Pro says where its numbers come from', () => {

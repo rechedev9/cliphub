@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
+import { cn } from '@/lib/utils';
 
 /** How long the armed "¿Borrar?" state waits before reverting on its own. */
 const REVERT_MS = 8000;
@@ -26,8 +27,11 @@ export function DeleteMatchButton({
   confirmText = DEFAULT_CONFIRM,
   onConfirm,
   onDeleted,
+  messageBelow = false,
 }: {
   label: string;
+  /** In a wrapping flex row, the message takes its own full-width line instead of widening the button column. */
+  messageBelow?: boolean;
   /** The armed button's text; name there what else the delete takes with it. */
   confirmText?: string | undefined;
   onConfirm: () => Promise<void>;
@@ -77,7 +81,7 @@ export function DeleteMatchButton({
   }
 
   return (
-    <div className="flex shrink-0 flex-col items-end gap-1">
+    <div className={messageBelow ? 'contents' : 'flex shrink-0 flex-col items-end gap-1'}>
       {armed || deleting ? (
         <Button
           type="button"
@@ -96,17 +100,23 @@ export function DeleteMatchButton({
       ) : (
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
           onClick={arm}
           aria-label={`Borrar ${label}`}
-          className="text-fg-3 hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+          className="text-fg-3 hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 aria-hidden />
         </Button>
       )}
       {error ? (
-        <p role="status" className={`max-w-[13rem] text-right text-meta leading-tight ${deleteFeedbackTone(error) === 'notice' ? 'text-fg-2' : 'text-destructive'}`}>
+        <p
+          role="status"
+          className={cn(
+            messageBelow ? 'basis-full text-body-sm' : 'max-w-[13rem] text-right text-meta leading-tight',
+            deleteFeedbackTone(error) === 'notice' ? 'text-fg-2' : 'text-destructive',
+          )}
+        >
           {error}
         </p>
       ) : null}

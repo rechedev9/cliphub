@@ -18,6 +18,7 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 type LoadState = 'loading' | 'ready' | 'offline' | 'unconfigured';
 
@@ -149,7 +150,7 @@ export default function FaceitPlayersPage(): ReactNode {
     body = <StudioEmptyState icon={Users} title="FACEIT no está configurado" description={FACEIT_UNCONFIGURED_HINT}
       actions={<Button asChild><Link href="/shorts">Cargar una demo</Link></Button>}
       note={<details className="text-left normal-case tracking-normal">
-        <summary className="min-h-10 cursor-pointer py-2">Configuración avanzada de FACEIT</summary>
+        <DisclosureSummary className="min-h-10 py-2">Configuración avanzada de FACEIT</DisclosureSummary>
         <p className="break-words text-body-sm">Configura FACEIT_API_KEY en el servicio local y reinicia ClipHub para consultar perfiles e historial.</p>
       </details>} compact />;
   } else if (players.length === 0 && state === 'offline') {

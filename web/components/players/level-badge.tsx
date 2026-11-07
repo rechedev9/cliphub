@@ -14,7 +14,7 @@ function levelColor(level: number): string {
 /**
  * FACEIT-style level gauge: the ring fills level/10 in the tier colour and the
  * number stays in text ink. A solid red disc read as an error next to the red
- * "Derrota" tags, and every followed pro is level 10.
+ * "Derrota" results, and every followed pro is level 10.
  */
 export function LevelBadge({ level, className }: { level?: number; className?: string }): ReactNode {
   const known = level !== undefined && Number.isFinite(level);
@@ -30,7 +30,7 @@ export function LevelBadge({ level, className }: { level?: number; className?: s
         {known && fraction > 0 ? <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--level-color)" strokeWidth="3"
           strokeLinecap={fraction < 1 ? 'round' : 'butt'} pathLength={100} strokeDasharray={`${fraction * 100} 100`} /> : null}
       </svg>
-      <span className="relative">{level ?? '—'}</span>
+      <span className="relative">{level ?? '-'}</span>
     </span>
   );
 }

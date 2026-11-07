@@ -82,7 +82,7 @@ function Body({ tendencies, teamName }: { tendencies: TacticalTendencies; teamNa
     <>
       <TendencyCards tendencies={tendencies} />
       <p className="text-meta text-fg-3">
-        “Pocas” marca una cifra con menos de {MIN_RELIABLE_SAMPLE} rondas: es un dato, todavía no una tendencia.
+        «Pocas» marca una cifra con menos de {MIN_RELIABLE_SAMPLE} rondas: es un dato, todavía no una tendencia.
       </p>
       <TendencyDetail tendencies={tendencies} />
     </>

@@ -59,7 +59,7 @@ export function FollowedPlayerList({ players, tab, onTabChange, selectedID, onSe
             </div>
             <Select value={sort} onValueChange={setSort}>
               <SelectTrigger aria-label="Ordenar jugadores" className="w-24 shrink-0"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value={SORT.elo}>ELO ↓</SelectItem><SelectItem value={SORT.name}>A–Z</SelectItem></SelectContent>
+              <SelectContent><SelectItem value={SORT.elo}>ELO ↓</SelectItem><SelectItem value={SORT.name}>A-Z</SelectItem></SelectContent>
             </Select>
           </div>
         </div>
@@ -75,7 +75,7 @@ export function FollowedPlayerList({ players, tab, onTabChange, selectedID, onSe
                 <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-fg-1" title={player.nickname}>{player.nickname}</span>
                 <LevelBadge level={player.skill_level} />
                 <span className="w-16 shrink-0 text-right text-body-sm tabular-nums text-fg-1">
-                  {player.elo ?? '—'} <span className="text-meta tracking-normal text-fg-3">ELO</span>
+                  {player.elo ?? '-'} <span className="text-meta tracking-normal text-fg-3">ELO</span>
                 </span>
               </button>
             ))}

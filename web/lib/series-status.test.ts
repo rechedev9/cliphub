@@ -23,11 +23,11 @@ test('maps every known status to its Spanish label', () => {
   // parks at 'scanned' forever, so it must not read as active work.
   assert.equal(seriesStatusLabel('scanned'), 'sin jugador elegido');
   assert.equal(seriesStatusLabel('parsing'), 'analizando');
-  assert.equal(seriesStatusLabel('parsed'), 'lista para forjar');
+  assert.equal(seriesStatusLabel('parsed'), 'lista para montar');
   assert.equal(seriesStatusLabel('recording'), 'grabando');
   assert.equal(seriesStatusLabel('recorded'), 'grabando');
-  assert.equal(seriesStatusLabel('composing'), 'renderizando');
-  assert.equal(seriesStatusLabel('composed'), 'renderizando');
+  assert.equal(seriesStatusLabel('composing'), 'montando');
+  assert.equal(seriesStatusLabel('composed'), 'montando');
   assert.equal(seriesStatusLabel('review_required'), 'completada con avisos');
   assert.equal(seriesStatusLabel('done'), 'completada');
   assert.equal(seriesStatusLabel('failed'), 'fallida');
@@ -107,11 +107,11 @@ test('isSeriesId accepts client-minted UUIDs and rejects other route values', ()
 
 test('labels every reel status in Spanish with its tone', () => {
   const cases: Array<[VideoStatus, string, string]> = [
-    ['queued', 'reel en cola', 'pending'],
-    ['recording', 'grabando reel', 'progress'],
-    ['composing', 'renderizando reel', 'progress'],
-    ['ready', 'reel listo', 'done'],
-    ['failed', 'reel fallido', 'failed'],
+    ['queued', 'vídeo en cola', 'pending'],
+    ['recording', 'grabando vídeo', 'progress'],
+    ['composing', 'montando vídeo', 'progress'],
+    ['ready', 'vídeo listo', 'done'],
+    ['failed', 'vídeo fallido', 'failed'],
   ];
   for (const [status, label, tone] of cases) {
     assert.equal(seriesReelLabel(status), label, status);

@@ -132,14 +132,14 @@ test('player totals add the match lines and derive ADR and K/D from the sums', (
   });
   const totals = playerTotals([line(20, 18, 12, 1700), line(24, 20, 20, 2100)]);
   assert.deepEqual(totals, { matches: 2, rounds: 44, kills: 38, deaths: 32, assists: 2, damage: 3800 });
-  assert.equal(adrLabel(totals.damage, totals.rounds), '86.4');
-  assert.equal(kdLabel(totals.kills, totals.deaths), '1.19');
+  assert.equal(adrLabel(totals.damage, totals.rounds), '86,4');
+  assert.equal(kdLabel(totals.kills, totals.deaths), '1,19');
   assert.equal(adrLabel(0, 0), '');
-  assert.equal(kdLabel(5, 0), '5.00');
+  assert.equal(kdLabel(5, 0), '5,00');
 });
 
 test('the utility ratio compares grenades per round with the teammates', () => {
-  assert.equal(utilityRatioLabel({ count: 60, total: 40 }, { count: 160, total: 160 }), '1.50');
+  assert.equal(utilityRatioLabel({ count: 60, total: 40 }, { count: 160, total: 160 }), '1,50');
   assert.equal(utilityRatioLabel({ count: 3, total: 4 }, { count: 0, total: 16 }), '');
   assert.equal(utilityRatioLabel({ count: 0, total: 0 }, { count: 4, total: 4 }), '');
 });

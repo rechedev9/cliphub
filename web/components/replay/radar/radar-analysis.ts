@@ -5,6 +5,7 @@ import type { FrameSight } from '@/lib/replay/sight-lines';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
+import { formatDecimal } from '@/lib/format';
 
 /** Colours of the hit lines; the left panel's legend reads them too. */
 export const HIT_COLORS: Record<HitLineKind, string> = {
@@ -130,7 +131,7 @@ export function drawHitLabels(canvas: Canvas, lines: readonly HitLine[]): void {
     if (to === undefined) continue;
     const row = stacked.get(line.to) ?? 0;
     stacked.set(line.to, row + 1);
-    const text = line.kind === 'flash' ? `${line.amount.toFixed(1)} s` : `-${line.amount}${line.headshot ? ' HS' : ''}`;
+    const text = line.kind === 'flash' ? `${formatDecimal(line.amount, 1)} s` : `-${line.amount}${line.headshot ? ' HS' : ''}`;
     const x = to.at.x + 13;
     const y = to.at.y - 12 - row * 13;
     ctx.globalAlpha = line.alpha;

@@ -1,31 +1,35 @@
 import type { ReactNode } from 'react';
-import type { ProduceFormat } from '@/lib/clips/routes';
-import { cn } from '@/lib/utils';
-import { FORMAT_TONE } from '@/components/studio/format-tone';
 
-/** Where a first demo comes from, as two short cards beside the empty drop zone. */
-export function DemoSourceHelp({ format }: { format: ProduceFormat }): ReactNode {
-  const number = cn('font-display text-section font-extrabold leading-none', FORMAT_TONE[format].text);
+const SOURCES = [
+  {
+    name: 'FACEIT',
+    how: 'Descarga la demo desde la sala de la partida y suelta aquí el archivo.',
+  },
+  {
+    name: 'Matchmaking y Premier',
+    how: 'Descarga la repetición en CS2, o pega su código de compartir en «Importar desde Steam». No hace falta conectar Steam si ya tienes el archivo.',
+  },
+] as const;
+
+/**
+ * Where a first demo comes from: two alternative sources on one surface. `titled`
+ * is false where a disclosure summary already asks the question.
+ */
+export function DemoSourceHelp({ titled = true }: { titled?: boolean }): ReactNode {
   return (
-    <ol aria-label="Dónde consigo una demo" className="flex flex-col gap-2.5">
-      <li className="flex gap-3 rounded-[14px] bg-surface-2 p-4">
-        <span aria-hidden className={number}>1</span>
-        <div className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-          <p>
-            <strong className="font-semibold text-fg-1">FACEIT:</strong> descarga la demo desde la sala de la partida y suelta aquí el archivo.
-          </p>
-          <p className="text-meta text-fg-3">Una demo es el archivo .dem de una partida de CS2: guarda todas sus rondas, y ClipHub graba desde la vista del jugador que elijas.</p>
-        </div>
-      </li>
-      <li className="flex gap-3 rounded-[14px] bg-surface-2 p-4">
-        <span aria-hidden className={number}>2</span>
-        <div className="flex flex-col gap-1.5 text-body-sm text-fg-2">
-          <p>
-            <strong className="font-semibold text-fg-1">Matchmaking y Premier:</strong> descarga la repetición en CS2, o pega su código de compartir en «Importar desde Steam».
-          </p>
-          <p className="text-meta text-fg-3">No necesitas conectar Steam si ya tienes el archivo.</p>
-        </div>
-      </li>
-    </ol>
+    <section aria-label="Dónde consigo una demo" className="flex flex-col gap-3 self-start rounded-[14px] bg-surface-2 p-4">
+      <div className="flex flex-col gap-1">
+        {titled ? <h2 className="text-body font-semibold text-fg-1">Dónde consigo una demo</h2> : null}
+        <p className="text-meta text-fg-3">El archivo .dem de una partida de CS2 guarda todas sus rondas.</p>
+      </div>
+      <ul className="flex flex-col divide-y divide-border-subtle">
+        {SOURCES.map((source) => (
+          <li key={source.name} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+            <span className="text-body-sm font-semibold text-fg-1">{source.name}</span>
+            <span className="text-body-sm text-fg-2">{source.how}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

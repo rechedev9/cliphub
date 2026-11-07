@@ -8,7 +8,7 @@ import type {
   LibrarySource,
 } from '../api/library.ts';
 import { TRUNCATED_DEMO_MESSAGE } from '../api/failure-reason.ts';
-import { prettyMapName } from '../format.ts';
+import { formatDecimal, prettyMapName } from '../format.ts';
 
 /**
  * Pure reads over the library records: how a partida, a team and a player are
@@ -288,13 +288,13 @@ export function playerTotals(lines: readonly LibraryMatchPlayer[]): PlayerTotals
 /** Average damage per round, one decimal; empty when no round was played. */
 export function adrLabel(damage: number, rounds: number): string {
   if (rounds <= 0) return '';
-  return (damage / rounds).toFixed(1);
+  return formatDecimal(damage / rounds, 1);
 }
 
 /** Kills over deaths, two decimals; with no deaths the kills stand alone. */
 export function kdLabel(kills: number, deaths: number): string {
-  if (deaths <= 0) return kills.toFixed(2);
-  return (kills / deaths).toFixed(2);
+  if (deaths <= 0) return formatDecimal(kills, 2);
+  return formatDecimal(kills / deaths, 2);
 }
 
 /**
@@ -303,5 +303,5 @@ export function kdLabel(kills: number, deaths: number): string {
  */
 export function utilityRatioLabel(utility: { count: number; total: number }, team: { count: number; total: number }): string {
   if (utility.total <= 0 || team.total <= 0 || team.count <= 0) return '';
-  return ((utility.count / utility.total) / (team.count / team.total)).toFixed(2);
+  return formatDecimal((utility.count / utility.total) / (team.count / team.total), 2);
 }
