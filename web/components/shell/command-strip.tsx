@@ -97,5 +97,14 @@ function trailForPath(pathname: string, section: NavSection | null): string | nu
   if (section.href === LONG_VIDEOS_HREF) return segments[0] === FULL_SERIES_SEGMENT ? TRAIL.series : TRAIL.newFull;
   if (section.href === RESULTS_HREF && segments[1] === 'publicar') return TRAIL.publish;
   const segment = decodeURIComponent(segments[0] ?? '');
-  return OPAQUE_ID.test(segment) ? null : segment;
+  if (OPAQUE_ID.test(segment)) return null;
+  return SEGMENT_LABEL[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1);
 }
+
+// Static sub-routes read as screen names, not URL slugs.
+const SEGMENT_LABEL: Readonly<Record<string, string>> = {
+  series: 'Series',
+  faceit: 'FACEIT',
+  lineups: 'Lineups',
+  prep: 'Preparar rival',
+};

@@ -57,9 +57,9 @@ export function TelemetrySettings(): ReactNode {
   if (status?.available) {
     body = (
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col divide-y divide-border border border-border bg-surface-2">
           {TELEMETRY_ROWS.map((row) => (
-            <StudioDataRow key={row.label} label={row.label} value={row.value(status)} className="flex-col items-start @[34rem]/content:flex-row @[34rem]/content:items-center" />
+            <StudioDataRow key={row.label} label={row.label} value={row.value(status)} className="flex-col items-start border-0 bg-transparent @[34rem]/content:flex-row @[34rem]/content:items-center" />
           ))}
         </div>
         {status.logDelivery?.lastError ? (

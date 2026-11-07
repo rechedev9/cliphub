@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
-import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { StreamStepCard } from '@/components/streams/step-card';
+import { Switch } from '@/components/ui/switch';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
 
 /** Redraws the streamer's own kill feed notices centered on the Short. */
@@ -29,7 +30,7 @@ export function StreamKillFeedControls({
   return (
     <StreamStepCard
       title="Kill feed centrada"
-      control={<StreamSwitch label="Kill feed centrada" checked={centered} disabled={busy} onChange={onCenteredChange} />}
+      control={<Switch tone="stream" aria-label="Kill feed centrada" checked={centered} disabled={busy} onCheckedChange={onCenteredChange} />}
     >
       {centered ? (
         <>

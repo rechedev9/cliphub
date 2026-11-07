@@ -35,9 +35,9 @@ export function StudioInfo(): ReactNode {
   let body: ReactNode;
   if (info) {
     body = (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col divide-y divide-border border border-border bg-surface-2">
         {INFO_ROWS.map((row) => (
-          <StudioDataRow key={row.key} label={row.label} value={info[row.key]} />
+          <StudioDataRow key={row.key} label={row.label} value={info[row.key]} className="border-0 bg-transparent" />
         ))}
       </div>
     );
@@ -49,7 +49,7 @@ export function StudioInfo(): ReactNode {
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo versión instalada" className="flex flex-col gap-2">
+      <div role="status" aria-label="Leyendo versión instalada" className="flex flex-col gap-px">
         {INFO_ROWS.map((row) => (
           <Skeleton key={row.key} className="h-11 w-full rounded-none" />
         ))}

@@ -29,9 +29,9 @@ export function PlaybackDiagnostics(): ReactNode {
   let body: ReactNode;
   if (info?.available) {
     body = (
-      <div className="flex flex-col gap-2">
-        <StudioDataRow label="Aceleración gráfica" value={info.hardwareAcceleration === 'enabled' ? 'Activada' : 'Desactivada'} />
-        <StudioDataRow label="Decodificación de vídeo" value={VIDEO_DECODE_LABEL[info.videoDecode]} />
+      <div className="flex flex-col divide-y divide-border border border-border bg-surface-2">
+        <StudioDataRow label="Aceleración gráfica" value={info.hardwareAcceleration === 'enabled' ? 'Activada' : 'Desactivada'} className="border-0 bg-transparent" />
+        <StudioDataRow label="Decodificación de vídeo" value={VIDEO_DECODE_LABEL[info.videoDecode]} className="border-0 bg-transparent" />
       </div>
     );
   } else if (info?.state === 'initializing') {
@@ -48,7 +48,7 @@ export function PlaybackDiagnostics(): ReactNode {
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo diagnóstico de reproducción" className="flex flex-col gap-2">
+      <div role="status" aria-label="Leyendo diagnóstico de reproducción" className="flex flex-col gap-px">
         <Skeleton className="h-11 w-full rounded-none" />
         <Skeleton className="h-11 w-full rounded-none" />
       </div>

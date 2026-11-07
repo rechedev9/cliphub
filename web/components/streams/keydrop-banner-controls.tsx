@@ -21,7 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
-import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { StreamStepCard } from '@/components/streams/step-card';
+import { Switch } from '@/components/ui/switch';
 import { formatDecimal } from '@/lib/format';
 
 export function StreamKeyDropBannerControls({
@@ -76,11 +77,12 @@ export function StreamKeyDropBannerControls({
     <StreamStepCard
       title={`${familyLabel} · afiliado`}
       control={
-        <StreamSwitch
-          label="Banner afiliado"
+        <Switch
+          tone="stream"
+          aria-label="Banner afiliado"
           checked={enabled}
           disabled={busy}
-          onChange={(next) => {
+          onCheckedChange={(next) => {
             if (!next) onStyleChange('');
             else if (isKeyDropStyle(firstStyle)) onStyleChange(firstStyle);
           }}

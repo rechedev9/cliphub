@@ -10,9 +10,9 @@ import {
   type StudioAssistantAccess,
 } from '@/lib/desktop-settings';
 import { writeClipboardText } from '@/lib/clipboard-write';
-import { cn } from '@/lib/utils';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { SettingsSection } from './settings-section';
 
 type AssistantState =
@@ -70,7 +70,7 @@ export function AssistantSettings(): ReactNode {
           <Switch
             checked={access.enabled}
             disabled={pending}
-            labelledBy="assistant-switch-label"
+            aria-labelledby="assistant-switch-label"
             onCheckedChange={update}
           />
         </div>
@@ -113,40 +113,6 @@ export function AssistantSettings(): ReactNode {
     >
       {body}
     </SettingsSection>
-  );
-}
-
-type SwitchProps = {
-  checked: boolean;
-  disabled: boolean;
-  labelledBy: string;
-  onCheckedChange: (checked: boolean) => void;
-};
-
-function Switch({ checked, disabled, labelledBy, onCheckedChange }: SwitchProps): ReactNode {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelledBy}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-(--dur-fast) ease-standard',
-        'disabled:pointer-events-none disabled:opacity-50',
-        checked ? 'border-primary bg-primary' : 'border-border-strong bg-surface-4',
-        FOCUS_RING,
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          'block size-4 transition-transform duration-(--dur-fast) ease-standard',
-          checked ? 'translate-x-6 bg-primary-foreground' : 'translate-x-1 bg-fg-1',
-        )}
-      />
-    </button>
   );
 }
 

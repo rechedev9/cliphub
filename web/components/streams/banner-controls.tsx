@@ -6,7 +6,8 @@ import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/li
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { StreamStepCard } from '@/components/streams/step-card';
+import { Switch } from '@/components/ui/switch';
 
 /** Magenta accent for every range input in the stream editor. */
 export const STREAM_SLIDER_CLASS = 'min-h-10 w-full accent-stream disabled:opacity-50';
@@ -50,11 +51,12 @@ export function StreamBannerControls({
     <StreamStepCard
       title="Banner del streamer"
       control={
-        <StreamSwitch
-          label="Banner del streamer"
+        <Switch
+          tone="stream"
+          aria-label="Banner del streamer"
           checked={enabled}
           disabled={busy}
-          onChange={(next) => {
+          onCheckedChange={(next) => {
             setArmed(next);
             if (!next && nick !== '') onNickChange('');
           }}
