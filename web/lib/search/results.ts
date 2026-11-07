@@ -58,6 +58,14 @@ function mapLabel(map: string | undefined): string | null {
   return map === undefined ? null : map.replace(/^de_/, '').replace(/^./, (c) => c.toLocaleUpperCase('es'));
 }
 
+const MATCH_DAY = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** "2026-11-07" from the server as "7 nov 2026"; anything else passes through. */
+function dayLabel(day: string): string {
+  const time = /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(`${day}T00:00:00Z`) : Number.NaN;
+  return Number.isNaN(time) ? day : MATCH_DAY.format(time);
+}
+
 function hrefFor(result: SearchResult): string {
   switch (result.kind) {
     case 'play':
@@ -86,9 +94,9 @@ function detailFor(result: SearchResult): string | null {
       return detail === '' ? null : detail.split('\n')[0] ?? null;
     case 'team':
     case 'player':
-      return detail === '' ? null : `${detail} partidas`;
+      return detail === '' ? null : `${detail} ${detail === '1' ? 'partida' : 'partidas'}`;
     case 'match':
-      return detail === '' ? null : detail;
+      return detail === '' ? null : dayLabel(detail);
   }
 }
 

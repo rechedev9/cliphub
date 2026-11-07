@@ -705,7 +705,7 @@ export class RealApiClient implements ApiClient {
     if (!intent) throw this.unknownReel(id);
     const current = this.reels.get(id);
     if (!current || current.status !== 'ready') {
-      throw new Error('El reel tiene que estar listo para añadir o cambiar la música.');
+      throw new Error('El Short tiene que estar listo para añadir o cambiar la música.');
     }
     if (current.unrecoverable) {
       throw new Error('Este reel ya no se puede volver a renderizar.');
@@ -717,7 +717,7 @@ export class RealApiClient implements ApiClient {
       throw new Error('Elige una pista o un volumen distinto al actual.');
     }
     if (this.driving.has(intent.videoId)) {
-      throw new Error('Ya hay una operación activa para este reel.');
+      throw new Error('Ya hay un cambio en marcha para este vídeo.');
     }
 
     this.driving.add(intent.videoId);
@@ -772,7 +772,7 @@ export class RealApiClient implements ApiClient {
     const names = this.artifactNames.get(id);
     const candidates = names?.covers ?? (names?.cover ? [names.cover] : []);
     if (!candidates.includes(coverName)) {
-      throw new Error('Esa portada ya no está entre las candidatas de este reel.');
+      throw new Error('Esa portada ya no está entre las candidatas de este vídeo.');
     }
     intent.selectedCoverName = coverName;
     saveReelIntents(Array.from(this.intents.values()));

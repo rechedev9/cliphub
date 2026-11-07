@@ -24,7 +24,7 @@ export default function AppNotFound(): ReactElement {
           <div className="min-w-0">
             <h1 className="font-display text-title font-bold text-fg-1">Aquí no hay nada</h1>
             <p className="mt-2 text-body text-fg-2">
-              Esa dirección no corresponde a ninguna pantalla de Studio. Puede que el reel o la partida se
+              Esa dirección no corresponde a ninguna pantalla de Studio. Puede que el vídeo o la partida se
               hayan borrado, o que el enlace esté incompleto.
             </p>
           </div>

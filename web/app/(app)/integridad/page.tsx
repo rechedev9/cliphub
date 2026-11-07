@@ -148,7 +148,7 @@ function AnalysisPanel({
         description={
           importFailed
             ? 'La preparación de esta demo para clips falló, pero el análisis solo necesita el archivo de la demo, así que puedes intentarlo. Si el archivo está dañado o no llegó a descargarse, el análisis te dirá por qué.'
-            : 'El análisis lee la demo una vez y puntúa a los diez jugadores. No abre CS2 ni HLAE, no toca la partida y no cambia nada del reel.'
+            : 'El análisis lee la demo una vez y puntúa a los diez jugadores. No abre CS2 ni HLAE, no toca la partida y no cambia ningún vídeo.'
         }
         compact
         actions={
