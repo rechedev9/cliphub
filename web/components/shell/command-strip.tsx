@@ -20,10 +20,10 @@ import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from
 import { sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
-  newShort: 'nuevo short',
-  newFull: 'demo completa',
-  publish: 'publicar',
-  series: 'serie',
+  newShort: 'Nuevo Short',
+  newFull: 'Nueva demo completa',
+  publish: 'Publicar',
+  series: 'Serie',
 } as const;
 
 /** Short series live outside /shorts; Demo completa series live under /videos-largos/serie. */

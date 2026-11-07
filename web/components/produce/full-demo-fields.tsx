@@ -2,17 +2,13 @@
 
 import { useId, type ReactNode } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FORMAT_TONE } from '@/components/studio/format-tone';
 
-/** A numbered settings panel; the number is the step's place in the editor, in the Demo completa colour. */
-export function FullDemoGroup({ step, title, note, children }: { step: number; title: string; note?: string; children: ReactNode }): ReactNode {
+/** One settings panel of the Demo completa editor; panels are optional and done in any order, so they are not numbered. */
+export function FullDemoGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactNode {
   const headingId = useId();
   return <section aria-labelledby={headingId} className="studio-panel flex min-w-0 flex-col gap-3.5 rounded-2xl p-4">
     <div>
-      <h2 id={headingId} className="flex items-center gap-2.5 font-display text-body-lg font-bold text-fg-1">
-        <span aria-hidden className={`grid size-6 shrink-0 place-items-center rounded-lg text-meta font-extrabold text-format-full-foreground ${FORMAT_TONE.full.bg}`}>{step}</span>
-        {title}
-      </h2>
+      <h2 id={headingId} className="font-display text-body-lg font-bold text-fg-1">{title}</h2>
       {note ? <p className="mt-1.5 text-body-sm text-fg-2">{note}</p> : null}
     </div>
     {children}

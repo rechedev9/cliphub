@@ -86,7 +86,7 @@ export function FullDemoHud({ options, onChange, onAssetBusy }: {
     onChange({ ...options, capture: enabled ? { ...capture, trueview: true } : capture });
   }
 
-  return <FullDemoGroup step={2} title="HUD" note="Qué HUD aparece en el vídeo y desde qué vista se graba al jugador.">
+  return <FullDemoGroup title="HUD" note="Qué HUD aparece en el vídeo y desde qué vista se graba al jugador.">
     <div className="@container/hud grid min-w-0 gap-4">
       <fieldset className="min-w-0">
         <legend className="sr-only">HUD</legend>
