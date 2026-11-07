@@ -14,7 +14,7 @@ export function TableSkeleton({ label, columns = 4, rows = 6, filters = 0 }: { l
   return (
     <div role="status" aria-label={label} className="flex flex-col gap-2">
       <div className="flex h-9 items-center gap-2">
-        <Skeleton className="h-9 w-80 max-w-full" />
+        <Skeleton className="h-9 w-96 max-w-full" />
         <Skeleton className="ml-auto h-9 w-20" />
         <Skeleton className="h-9 w-24" />
       </div>

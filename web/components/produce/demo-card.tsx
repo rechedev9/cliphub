@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
-import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
+import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT } from '@/lib/clips/copy';
 import { fullChipLabel, HUB_ROW_STAGE, matchMetaParts, OUTPUT_TONE, shortsChipTone, type HubMatch } from '@/lib/clips/hub';
 import { flowHref, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
@@ -146,12 +146,7 @@ function StateLine({ row, format }: { row: DemoRowGroup; format: ProduceFormat }
     );
   }
   if (stage === HUB_ROW_STAGE.unpicked) {
-    return (
-      <span className="flex flex-col gap-0.5">
-        <span className="text-meta text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
-        <span className="text-meta text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
-      </span>
-    );
+    return <span className="text-body-sm text-fg-2">{MATCH_ROW_UNPICKED_HINT}</span>;
   }
   if (stage === HUB_ROW_STAGE.failed) {
     return (

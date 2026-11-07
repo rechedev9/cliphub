@@ -227,12 +227,10 @@ function ReadyBody({
 
       <Section
         title="Demos en tu PC"
-        description={files.scanning
-          ? 'Studio está buscando archivos .dem en todos tus discos. La lista se completa sola.'
-          : 'Todos los archivos .dem de tus discos, agrupados por carpeta.'}
+        description="Todos los archivos .dem de tus discos, agrupados por carpeta."
       >
         {demoGroups.length === 0 ? (
-          <EmptyLine>{files.scanning ? 'Buscando demos…' : 'No hay demos en tu PC fuera de Studio.'}</EmptyLine>
+          <EmptyLine>{files.scanning ? 'Buscando en todos tus discos. La lista se completa sola.' : 'No hay demos en tu PC fuera de Studio.'}</EmptyLine>
         ) : (
           demoGroups.map((group) => (
             <Group key={group.key} group={group} {...groupProps(group)}>
@@ -291,7 +289,7 @@ function Summary({ label, files, pending = false }: { label: string; files: read
     <div className="flex flex-col gap-1 bg-surface-1 px-4 py-3">
       <dt className="text-body-sm text-fg-2">{label}</dt>
       <dd className="font-display text-title font-bold tabular-nums text-fg-1">
-        {pending ? '…' : formatBytes(totalBytes(files))}
+        {pending ? <span className="text-body-sm font-normal text-fg-3">Buscando…</span> : formatBytes(totalBytes(files))}
         <span className="ml-2 text-body-sm font-normal text-fg-2">
           {pending ? '' : `${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`}
         </span>
@@ -479,7 +477,8 @@ function StudioDemoRow({
     <li className="flex flex-col gap-2 border border-border bg-surface-1 px-3.5 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          {jobId === undefined ? null : <RowCheckbox name={title} checked={checked} onToggle={onToggle} />}
+          {/* A copy Studio cannot delete keeps the checkbox column, so names line up. */}
+          {jobId === undefined ? <span aria-hidden className="size-4 shrink-0" /> : <RowCheckbox name={title} checked={checked} onToggle={onToggle} />}
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-body-sm font-semibold text-fg-1" title={file.path}>{title}</span>
             <span className="text-meta tabular-nums text-fg-2">{formatBytes(file.sizeBytes)} · {formatFileDate(file.modifiedAt)}</span>

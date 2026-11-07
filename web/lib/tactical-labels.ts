@@ -183,7 +183,7 @@ export function opponentSide(side: TacticalSide): TacticalSide {
  * `-6.2` reads as six seconds before the round went live.
  */
 export function roundClockLabel(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '—';
+  if (!Number.isFinite(seconds)) return '-';
   const sign = seconds < 0 ? '-' : '';
   const total = Math.abs(seconds);
   const minutes = Math.floor(total / 60);

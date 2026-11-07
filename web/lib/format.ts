@@ -46,7 +46,7 @@ export function timeAgo(value: string | number): string {
 
 export function formatShortDate(value: string | number): string {
   const date = typeof value === 'number' ? new Date(value) : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return '-';
   const now = new Date();
   const madridYear = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Madrid' });
   const sameYear = madridYear.format(date) === madridYear.format(now);

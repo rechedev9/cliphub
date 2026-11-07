@@ -109,5 +109,5 @@ test('formatShortDate uses a calendar day, not a relative phrase', () => {
 });
 
 test('formatShortDate rejects unparseable input', () => {
-  assert.equal(formatShortDate('not-a-date'), '—');
+  assert.equal(formatShortDate('not-a-date'), '-');
 });

@@ -30,7 +30,7 @@ export function LevelBadge({ level, className }: { level?: number; className?: s
         {known && fraction > 0 ? <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--level-color)" strokeWidth="3"
           strokeLinecap={fraction < 1 ? 'round' : 'butt'} pathLength={100} strokeDasharray={`${fraction * 100} 100`} /> : null}
       </svg>
-      <span className="relative">{level ?? '—'}</span>
+      <span className="relative">{level ?? '-'}</span>
     </span>
   );
 }

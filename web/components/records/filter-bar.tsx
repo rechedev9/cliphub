@@ -76,7 +76,7 @@ export function FilterBar({
   ) : null;
   return (
     <div role="search" className="contents">
-      <label className="relative min-w-48 flex-1 basis-56 sm:max-w-80">
+      <label className="relative min-w-48 flex-1 basis-72 sm:max-w-96">
         <span className="sr-only">{searchPlaceholder}</span>
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden />
         <Input

@@ -4,8 +4,10 @@ import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LIBRETA_QUERY, LIBRETA_TABS } from '@/lib/clips/routes';
 import { RecordTabs } from '@/components/records/record-tabs';
+import { StudioPageHeader } from '@/components/studio/page-header';
 import { PlayDetection } from '@/components/stratbook/play-detection';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { LIBRETA_DESCRIPTION, LIBRETA_TITLE } from '@/lib/libreta/copy';
 import { CallList, useLibretaCalls } from './call-list';
 import { CalloutSheet } from './callout-sheet';
 import { LibretaFileActions } from './libreta-file-actions';
@@ -35,8 +37,12 @@ export function LibretaHub(): ReactNode {
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <LibretaFileActions onImported={reloadAll} />
+    <>
+      <StudioPageHeader
+        title={LIBRETA_TITLE}
+        description={LIBRETA_DESCRIPTION}
+        actions={<LibretaFileActions onImported={reloadAll} />}
+      />
       <RecordTabs
         value={tab}
         onValueChange={setTab}
@@ -90,6 +96,6 @@ export function LibretaHub(): ReactNode {
           },
         ]}
       />
-    </div>
+    </>
   );
 }
