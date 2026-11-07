@@ -86,7 +86,7 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
         {meta.length > 0 ? <p className="text-body-sm wrap-anywhere text-fg-2">{meta.join(' · ')}</p> : null}
         <StateLine row={row} format={format} />
-        <div className="mt-auto flex items-center gap-2">
+        <div className="mt-auto flex flex-wrap items-center gap-2">
           {ready ? (
             <Button asChild size="sm" className={cn('min-w-0 flex-1 shrink font-bold', FORMAT_TONE[format].fill)}>
               <Link href={produceHref(match.id, format)} className="truncate">{made === 0 ? FLOW_PRODUCE_CTA[format].first : FLOW_PRODUCE_CTA[format].again}</Link>
@@ -99,7 +99,7 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
           ) : null}
           {parsing ? <span className="flex-1 text-body-sm text-fg-3">Podrás crear al terminar</span> : null}
           {stage === HUB_ROW_STAGE.failed ? <span className="flex-1" /> : null}
-          <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} />
+          <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} messageBelow />
         </div>
       </div>
     </article>

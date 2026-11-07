@@ -137,7 +137,7 @@ export function StreamProjectCard({ job, onOpen, onDeleted }: { job: StreamJob; 
           <Button type="button" variant="outline" size="sm" onClick={onOpen} aria-label={`${actionLabel}: ${title}`} className="bg-surface-2">
             {actionLabel}<ArrowRight aria-hidden />
           </Button>
-          <DeleteMatchButton label={title} onConfirm={() => streamsApi.deleteJob(job.id)} onDeleted={onDeleted} />
+          <DeleteMatchButton label={title} onConfirm={() => streamsApi.deleteJob(job.id)} onDeleted={onDeleted} messageBelow />
         </div>
       </div>
     </li>
