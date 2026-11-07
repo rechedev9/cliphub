@@ -1,6 +1,6 @@
 'use client';
 
-import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Sparkles, Type, Zap } from 'lucide-react';
+import { Crosshair, Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Rewind, Type, Zap } from 'lucide-react';
 import {
   AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
@@ -149,7 +149,6 @@ export function EditOptions({
         >
           {transitionItems.map((item) => (
             <ToggleGroupItem key={item.value} value={item.value} aria-label={item.label}>
-              <Sparkles className="size-4" />
               {item.label}
             </ToggleGroupItem>
           ))}

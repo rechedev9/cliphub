@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Hourglass, PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
   TACTICAL_STATES,
   fetchTacticalStatus,
@@ -222,22 +222,15 @@ function TacticalStartPanel({
 }
 
 function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode {
+  // Same frame as the not-started and failed states, so the panel does not jump as the state moves on.
   return (
-    <section
-      className="studio-panel studio-panel-raised flex flex-col items-center gap-4 px-6 py-14 text-center sm:px-10"
-      aria-live="polite"
-    >
-      <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-fg-2 shadow-[var(--elev-0)]">
-        <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
-      </span>
-      <h2 className="font-display text-title font-bold tracking-tight text-fg-1">
-        {stateLabel(status.state)}
-      </h2>
-      <p className="max-w-xl text-body leading-6 text-fg-2">
-        Se está leyendo la demo para clasificar las rondas y reconstruir las posiciones. Esta página se actualiza
-        sola al terminar.
-      </p>
-    </section>
+    <div aria-live="polite">
+      <StudioEmptyState
+        icon={Hourglass}
+        title={stateLabel(status.state)}
+        description="Se está leyendo la demo para clasificar las rondas y reconstruir las posiciones. Esta página se actualiza sola al terminar."
+      />
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Check, Clock3, Copy, ExternalLink, RefreshCw, Sparkles, Tags, Youtube } from 'lucide-react';
+import { Check, Clock3, Copy, ExternalLink, RefreshCw, Tags, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import {
@@ -225,8 +225,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
       {!loading && assistant ? (
         <>
           <section className="flex flex-col gap-2" aria-labelledby="publish-title-recommendations">
-            <h3 id="publish-title-recommendations" className="flex items-center gap-2 text-meta text-fg-3">
-              <Sparkles className="size-3.5 text-fg-2" aria-hidden /> {hasTemplates ? 'Plantillas para demo completa' : 'Títulos recomendados'}
+            <h3 id="publish-title-recommendations" className="text-meta text-fg-3">{hasTemplates ? 'Plantillas para demo completa' : 'Títulos recomendados'}
             </h3>
             {hasTemplates ? (
               <p className="text-meta leading-relaxed text-fg-3">
@@ -292,7 +291,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
               value={description}
               onChange={(event) => setDescription(event.currentTarget.value)}
               maxLength={YOUTUBE_DESCRIPTION_MAX_LENGTH}
-              rows={5}
+              rows={5}
             />
           </div>
 
