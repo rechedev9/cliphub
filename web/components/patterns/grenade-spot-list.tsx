@@ -4,15 +4,18 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Play } from 'lucide-react';
 import type { TeamGrenade } from '@/lib/api/grenades';
+import type { LineupThrow } from '@/lib/api/lineups';
 import type { PracticeSpot } from '@/lib/api/practice';
 import { grenadeId, spotReplayRefs, type GrenadeSpot } from '@/lib/analysis/grenade-patterns';
 import { canPractice, NO_ORIGIN_REASON, practiceSpotFor, representativeThrow } from '@/lib/analysis/practice-spots';
 import { grenadeIcon } from '@/lib/analysis/icons';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { percentLabel } from '@/lib/library/partidas';
+import { lineupThrow } from '@/lib/libreta/lineups';
 import { elapsedLabel } from '@/lib/tactical-spatial';
 import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
+import { SaveLineupButton, SaveLineupDialog } from '@/components/libreta/save-lineup-dialog';
 import { cn } from '@/lib/utils';
 import { GRENADE_KIND_TOKEN } from './grenade-radar';
 import { PracticeButton } from './practice-launch';
@@ -34,6 +37,8 @@ type Props = {
 
 const PAGE = 40;
 
+type SaveRequest = { from: LineupThrow; label: string };
+
 function throwersText(spot: GrenadeSpot): string {
   return spot.throwers.map((thrower) => (thrower.count > 1 ? `${thrower.name} ×${thrower.count}` : thrower.name)).join(', ');
 }
@@ -51,6 +56,7 @@ function Swatch({ spot }: { spot: GrenadeSpot }): ReactNode {
 export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, full, busy, onPractice, matchLabel }: Props): ReactNode {
   const [open, setOpen] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
+  const [saving, setSaving] = useState<SaveRequest | null>(null);
 
   return (
     <div className="flex flex-col">
@@ -58,6 +64,7 @@ export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, f
         {spots.slice(0, shown).map(({ spot, label }) => {
           const refs = spotReplayRefs(spot.grenades);
           const best = representativeThrow(spot);
+          const bestThrow = best === null ? null : lineupThrow(best);
           const isOpen = open === spot.key;
           const isChosen = chosen.has(spot.key);
           return (
@@ -109,10 +116,23 @@ export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, f
                         if (practice !== null) onPractice([practice]);
                       }}
                     />
+                    <SaveLineupButton
+                      disabledReason={bestThrow === null ? NO_ORIGIN_REASON : undefined}
+                      onClick={() => bestThrow !== null && setSaving({ from: bestThrow, label })}
+                    />
                   </div>
                 </div>
               </div>
-              {isOpen ? <ThrowList grenades={spot.grenades} label={label} busy={busy} onPractice={onPractice} matchLabel={matchLabel} /> : null}
+              {isOpen ? (
+                <ThrowList
+                  grenades={spot.grenades}
+                  label={label}
+                  busy={busy}
+                  onPractice={onPractice}
+                  onSave={(from, title) => setSaving({ from, label: title })}
+                  matchLabel={matchLabel}
+                />
+              ) : null}
             </li>
           );
         })}
@@ -122,6 +142,7 @@ export function GrenadeSpotList({ spots, highlight, onHover, chosen, onChoose, f
           Mostrar {Math.min(PAGE, spots.length - shown)} más
         </Button>
       ) : null}
+      {saving ? <SaveLineupDialog from={saving.from} label={saving.label} onClose={() => setSaving(null)} /> : null}
     </div>
   );
 }
@@ -131,18 +152,21 @@ function ThrowList({
   label,
   busy,
   onPractice,
+  onSave,
   matchLabel,
 }: {
   grenades: readonly TeamGrenade[];
   label: string;
   busy: boolean;
   onPractice: (spots: PracticeSpot[]) => void;
+  onSave: (from: LineupThrow, title: string) => void;
   matchLabel: (matchId: string) => string;
 }): ReactNode {
   return (
     <ul className="ml-11 flex flex-col gap-1 border-l border-border-subtle pl-3">
       {grenades.map((grenade) => {
         const title = `${matchLabel(grenade.match_id)} · ronda ${grenade.round}`;
+        const from = lineupThrow(grenade);
         return (
           <li key={grenadeId(grenade)} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-fg-2">
             <span className="min-w-0 flex-1">
@@ -166,6 +190,10 @@ function ThrowList({
                 const practice = practiceSpotFor(grenade, `${label} (${grenade.thrower_name})`);
                 if (practice !== null) onPractice([practice]);
               }}
+            />
+            <SaveLineupButton
+              disabledReason={from === null ? NO_ORIGIN_REASON : undefined}
+              onClick={() => from !== null && onSave(from, `${label} (${grenade.thrower_name})`)}
             />
           </li>
         );

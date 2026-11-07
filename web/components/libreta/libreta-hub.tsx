@@ -6,6 +6,7 @@ import { LIBRETA_QUERY, LIBRETA_TABS } from '@/lib/clips/routes';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { PlayDetection } from '@/components/stratbook/play-detection';
 import { useRecordTab } from '@/hooks/use-record-tab';
+import { LineupList, useLibretaLineups } from './lineup-list';
 import { PlanTable } from './plan-table';
 import { PlayList, useLibretaPlays } from './play-list';
 
@@ -17,6 +18,7 @@ export function LibretaHub(): ReactNode {
   const requestedTeam = search.get(LIBRETA_QUERY.team) ?? undefined;
   const [tab, setTab] = useRecordTab(TABS, LIBRETA_TABS.plays);
   const { plays, offline, reload } = useLibretaPlays();
+  const lineups = useLibretaLineups();
 
   return (
     <RecordTabs
@@ -41,6 +43,12 @@ export function LibretaHub(): ReactNode {
           id: LIBRETA_TABS.table,
           label: 'Tabla',
           content: <PlanTable plays={plays} onReload={reload} />,
+        },
+        {
+          id: LIBRETA_TABS.lineups,
+          label: 'Lineups',
+          count: lineups.lineups?.filter((lineup) => lineup.status !== 'archived').length,
+          content: <LineupList lineups={lineups.lineups} offline={lineups.offline} onReload={lineups.reload} />,
         },
         {
           id: LIBRETA_TABS.detect,

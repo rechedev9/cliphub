@@ -207,7 +207,7 @@ export function isLibraryNotFound(error: unknown): boolean {
   return error instanceof LibraryApiError && error.status === 404;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${LIBRARY_API_BASE}${path}`, { cache: 'no-store', ...init });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
@@ -218,7 +218,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-function jsonInit(method: string, body?: unknown): RequestInit {
+export function jsonInit(method: string, body?: unknown): RequestInit {
   return {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -231,7 +231,7 @@ function id(value: string): string {
 }
 
 /** Reads every page of a list endpoint into one array, in the server's order. */
-async function readAll<T>(path: string, key: string, params: URLSearchParams = new URLSearchParams()): Promise<T[]> {
+export async function readAll<T>(path: string, key: string, params: URLSearchParams = new URLSearchParams()): Promise<T[]> {
   const out: T[] = [];
   for (let page = 0; page < LIBRARY_MAX_PAGES; page++) {
     const query = new URLSearchParams(params);

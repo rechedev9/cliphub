@@ -31,6 +31,7 @@ import {
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
 import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
+import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
@@ -161,6 +162,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['plays', UUID], response: json(PLAY_DETAIL_KEYS) },
   { method: 'PATCH', segments: ['plays', UUID], body: fields(PLAY_PATCH_FIELDS), response: json(PLAY_KEYS) },
   { method: 'DELETE', segments: ['plays', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['lineups'], query: [...LINEUP_LIST_QUERY, ...PAGING], response: json(['lineups']) },
+  { method: 'POST', segments: ['lineups'], body: fields(LINEUP_FIELDS), response: json(LINEUP_KEYS) },
+  { method: 'GET', segments: ['lineups', UUID], response: json(LINEUP_KEYS) },
+  { method: 'PATCH', segments: ['lineups', UUID], body: fields(LINEUP_PATCH_FIELDS), response: json(LINEUP_KEYS) },
+  { method: 'DELETE', segments: ['lineups', UUID], response: { kind: 'empty' } },
   { method: 'POST', segments: ['import-package'], body: { kind: 'multipart' }, response: json(SHARE_IMPORT_KEYS) },
   { method: 'GET', segments: ['reports'], query: ['team_id', ...PAGING], response: json(['reports']) },
   { method: 'POST', segments: ['reports'], body: fields(['team_id', ...REPORT_FIELDS]), response: json(REPORT_KEYS) },

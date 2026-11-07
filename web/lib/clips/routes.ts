@@ -113,6 +113,11 @@ export function playHref(playId: string): string {
   return `${LIBRETA_HREF}/${encodeURIComponent(playId)}`;
 }
 
+/** A saved lineup of the Libreta. */
+export function lineupHref(lineupId: string): string {
+  return `${LIBRETA_HREF}/lineups/${encodeURIComponent(lineupId)}`;
+}
+
 /** The Libreta's tabs, by their `?tab=` value. */
 export const LIBRETA_TABS = {
   plays: 'jugadas',

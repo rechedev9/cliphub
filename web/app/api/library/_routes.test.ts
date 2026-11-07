@@ -174,3 +174,25 @@ test('share packages export as downloads with only a message, and import as mult
   assert.ok(imported?.response.kind === 'json');
   assert.ok(imported.response.keys.includes('report_id'));
 });
+
+test('the lineup routes are reachable and a lineup patch cannot move its map, side or grenade', () => {
+  for (const method of ['GET', 'PATCH', 'DELETE']) assert.ok(matchLibraryRoute(method, ['lineups', ID]));
+  assert.ok(matchLibraryRoute('GET', ['lineups']));
+  assert.equal(matchLibraryRoute('DELETE', ['lineups']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['lineups', 'all']), undefined);
+  const list = matchLibraryRoute('GET', ['lineups']);
+  assert.ok(list);
+  assert.equal(
+    libraryUpstreamQuery(list, new URLSearchParams('map=de_mirage&side=T&grenade=smoke&include_archived=true&limit=1000&team_id=x')),
+    'map=de_mirage&side=T&grenade=smoke&include_archived=true&limit=1000',
+  );
+  const created = matchLibraryRoute('POST', ['lineups']);
+  assert.ok(created?.body?.kind === 'json');
+  for (const field of ['from', 'map', 'side', 'grenade', 'origin', 'pitch', 'yaw', 'movement']) assert.ok(created.body.fields.includes(field));
+  assert.equal(created.body.fields.includes('technique_estimated'), false);
+  const patch = matchLibraryRoute('PATCH', ['lineups', ID]);
+  assert.ok(patch?.body?.kind === 'json');
+  for (const field of ['from', 'map', 'side', 'grenade', 'source']) assert.equal(patch.body.fields.includes(field), false);
+  assert.ok(patch.response.kind === 'json');
+  assert.ok(patch.response.keys.includes('technique_estimated'));
+});
