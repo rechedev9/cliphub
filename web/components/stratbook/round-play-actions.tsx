@@ -146,7 +146,7 @@ function SavePlayDialog({
           <>
             <DialogHeader>
               <DialogTitle>Jugada guardada</DialogTitle>
-              <DialogDescription>{saved.title} ya está en el stratbook, con esta ronda como ejemplo.</DialogDescription>
+              <DialogDescription>{saved.title} ya está en la Libreta, con esta ronda como ejemplo.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
@@ -203,8 +203,8 @@ function SavePlayDialog({
                   />
                 </label>
                 <div className="flex max-h-[36vh] flex-col gap-3 overflow-y-auto">
-                  <PlayGrenadeTable grenades={draft.grenades} />
-                  <PlayPositionTable positions={draft.positions} />
+                  <PlayGrenadeTable map={draft.map} grenades={draft.grenades} />
+                  <PlayPositionTable map={draft.map} positions={draft.positions} />
                 </div>
               </>
             ) : null}

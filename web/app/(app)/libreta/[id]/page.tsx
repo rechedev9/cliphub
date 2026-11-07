@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { PlayRecord } from '@/components/stratbook/play-record';
 
-/** One saved stratbook play. */
+/** One saved play of the Libreta. */
 export default async function PlayPage({ params }: { params: Promise<{ id: string }> }): Promise<ReactNode> {
   const { id } = await params;
   return (

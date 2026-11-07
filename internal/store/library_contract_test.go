@@ -807,6 +807,51 @@ func TestLibraryRepositoryContract(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "plays keep their status and tags and filter by them",
+			run: func(t *testing.T, f libraryFixture) {
+				plain := &library.Play{Title: "Default", Map: "de_nuke", Side: "CT", Kind: "hold", Origin: "manual"}
+				if err := f.repo.CreatePlay(f.ctx, plain); err != nil {
+					t.Fatal(err)
+				}
+				if plain.Status != library.StatusActive || plain.Tags == nil || len(plain.Tags) != 0 {
+					t.Fatalf("play without status = %+v, want active and no tags", plain)
+				}
+				old := &library.Play{Title: "Old", Map: "de_nuke", Side: "CT", Kind: "hold", Origin: "manual",
+					Status: library.StatusArchived, Tags: []string{"Eco", "lento"}}
+				if err := f.repo.CreatePlay(f.ctx, old); err != nil {
+					t.Fatal(err)
+				}
+				if old.Status != library.StatusArchived || len(old.Tags) != 2 || old.Tags[0] != "Eco" {
+					t.Fatalf("created play = %+v", old)
+				}
+				for _, tc := range []struct {
+					filter library.PlayFilter
+					want   int
+				}{
+					{library.PlayFilter{}, 2},
+					{library.PlayFilter{ExcludeArchived: true}, 1},
+					{library.PlayFilter{Status: library.StatusArchived}, 1},
+					{library.PlayFilter{Tag: "eco"}, 1},
+					{library.PlayFilter{Tag: "ec"}, 0},
+				} {
+					if got, err := f.repo.ListPlays(f.ctx, tc.filter); err != nil || len(got) != tc.want {
+						t.Fatalf("ListPlays(%+v) = %d plays, %v; want %d", tc.filter, len(got), err, tc.want)
+					}
+				}
+				status, tags := library.StatusPractice, []string{"rápida"}
+				patched, err := f.repo.UpdatePlay(f.ctx, old.ID, library.PlayPatch{Status: &status, Tags: &tags})
+				if err != nil || patched.Status != status || len(patched.Tags) != 1 || patched.Tags[0] != "rápida" {
+					t.Fatalf("UpdatePlay(status, tags) = %+v, %v", patched, err)
+				}
+				if got, _ := f.repo.ListPlays(f.ctx, library.PlayFilter{ExcludeArchived: true}); len(got) != 2 {
+					t.Fatalf("plays after unarchiving = %d, want 2", len(got))
+				}
+				if got, err := f.repo.ListPlays(f.ctx, library.PlayFilter{Tag: "RÁPIDA"}); err != nil || len(got) != 1 {
+					t.Fatalf("ListPlays(tag RÁPIDA) = %d plays, %v; want the play tagged rápida", len(got), err)
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		for name, repo := range libraryRepositoriesUnderTest(t) {

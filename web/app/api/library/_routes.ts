@@ -31,7 +31,17 @@ import {
   STRATBOOK_IMPORT_KEYS,
 } from '../../../lib/api/stratbook.ts';
 import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
+import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
+import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
+import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
+import {
+  CALLOUT_NAME_FIELDS,
+  CALLOUT_NAME_KEYS,
+  MAP_CALLOUTS_KEYS,
+  MAP_CALLOUTS_QUERY,
+} from '../../../lib/api/callouts.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
+import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
   PLAYER_POSITIONS_KEYS,
@@ -74,9 +84,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STEAM_ID = /^[0-9]{1,20}$/;
 const TEAM_KEY = /^(ct-start|t-start)$/;
 const ROUND = /^[1-9][0-9]{0,2}$/;
+const MAP = /^[a-z0-9_]{1,64}$/;
+/** A CS2 place name (`m_szLastPlaceName`) such as `BombsiteA` or `TopofMid`. */
+const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 
 const PAGING = ['limit', 'offset'];
-/** A stratbook file holds up to 1000 plays, so its import gets the 8 MiB the orchestrator reads. */
+/** A Libreta file holds up to 1000 plays and its other sections, so its import gets the 8 MiB the orchestrator reads. */
 const STRATBOOK_FILE_BYTES = 8 * 1024 * 1024;
 
 export const LIBRARY_DEMO_KEYS = [
@@ -141,6 +154,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'playbook'], query: PLAYBOOK_QUERY, response: json(PLAYBOOK_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'prep'], query: PREP_QUERY, response: json(PREP_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'roles'], query: PREP_QUERY, response: json(TEAM_ROLES_KEYS) },
+  { method: 'PUT', segments: ['teams', UUID, 'roles'], body: fields(ROLE_SHEET_FIELDS), response: json(ROLE_SHEET_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'veto'], query: VETO_QUERY, response: json(VETO_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'bombsites'], query: TEAM_BOMBSITES_QUERY, response: json(TEAM_BOMBSITES_KEYS) },
@@ -161,6 +176,21 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['plays', UUID], response: json(PLAY_DETAIL_KEYS) },
   { method: 'PATCH', segments: ['plays', UUID], body: fields(PLAY_PATCH_FIELDS), response: json(PLAY_KEYS) },
   { method: 'DELETE', segments: ['plays', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['lineups'], query: [...LINEUP_LIST_QUERY, ...PAGING], response: json(['lineups']) },
+  { method: 'POST', segments: ['lineups'], body: fields(LINEUP_FIELDS), response: json(LINEUP_KEYS) },
+  { method: 'GET', segments: ['lineups', UUID], response: json(LINEUP_KEYS) },
+  { method: 'PATCH', segments: ['lineups', UUID], body: fields(LINEUP_PATCH_FIELDS), response: json(LINEUP_KEYS) },
+  { method: 'DELETE', segments: ['lineups', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['calls'], query: [...CALL_LIST_QUERY, ...PAGING], response: json(['calls']) },
+  { method: 'POST', segments: ['calls'], body: fields(CALL_FIELDS), response: json(CALL_KEYS) },
+  { method: 'GET', segments: ['calls', UUID], response: json(CALL_KEYS) },
+  { method: 'PATCH', segments: ['calls', UUID], body: fields(CALL_FIELDS), response: json(CALL_KEYS) },
+  { method: 'DELETE', segments: ['calls', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['maps', MAP, 'callouts'], query: MAP_CALLOUTS_QUERY, response: json(MAP_CALLOUTS_KEYS) },
+  { method: 'PUT', segments: ['maps', MAP, 'callouts', PLACE], body: fields(CALLOUT_NAME_FIELDS), response: json(CALLOUT_NAME_KEYS) },
+  { method: 'DELETE', segments: ['maps', MAP, 'callouts', PLACE], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['libreta', 'export'], response: json(STRATBOOK_FILE_KEYS) },
+  { method: 'GET', segments: ['search'], query: SEARCH_QUERY_KEYS, response: json(SEARCH_RESPONSE_KEYS) },
   { method: 'POST', segments: ['import-package'], body: { kind: 'multipart' }, response: json(SHARE_IMPORT_KEYS) },
   { method: 'GET', segments: ['reports'], query: ['team_id', ...PAGING], response: json(['reports']) },
   { method: 'POST', segments: ['reports'], body: fields(['team_id', ...REPORT_FIELDS]), response: json(REPORT_KEYS) },

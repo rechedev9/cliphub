@@ -51,14 +51,31 @@ export type DataTableProps<Row> = {
   empty?: ReactNode;
   /** Controls that share the row of the views and columns menus, such as the list's FilterBar. */
   toolbar?: ReactNode;
+  /** Adds a checkbox column; the header box selects every shown row. */
+  selection?: DataTableSelection;
+};
+
+export type DataTableSelection = {
+  selected: ReadonlySet<string>;
+  onChange: (next: Set<string>) => void;
 };
 
 /** Dense, sortable record list with configurable columns and saved views. */
-export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar }: DataTableProps<Row>): ReactNode {
+export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, selection }: DataTableProps<Row>): ReactNode {
   const router = useRouter();
   const { sort, hidden } = view.state;
   const visible = columns.filter((column) => column.required === true || !hidden.includes(column.id));
   const sorted = sortRows(rows, sort, (row, id) => columns.find((column) => column.id === id)?.sortValue?.(row) ?? null);
+  const shownKeys = sorted.map(rowKey);
+  const allChosen = selection !== undefined && shownKeys.length > 0 && shownKeys.every((key) => selection.selected.has(key));
+
+  function toggleRow(key: string): void {
+    if (selection === undefined) return;
+    const next = new Set(selection.selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    selection.onChange(next);
+  }
 
   // A click anywhere on the row opens it; clicks on the row's own controls keep their meaning.
   function openRow(event: MouseEvent<HTMLTableRowElement>, href: string): void {
@@ -80,6 +97,18 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
         <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
           <thead className="sticky top-0 bg-surface-2">
             <tr className="border-b border-border">
+              {selection ? (
+                <th scope="col" className="h-9 w-9 px-3">
+                  <input
+                    type="checkbox"
+                    aria-label={allChosen ? 'Quitar la selección' : 'Elegir todas las filas'}
+                    checked={allChosen}
+                    disabled={shownKeys.length === 0}
+                    onChange={() => selection.onChange(allChosen ? new Set() : new Set(shownKeys))}
+                    className="size-4 accent-primary"
+                  />
+                </th>
+              ) : null}
               {visible.map((column) => {
                 const direction = sort?.column === column.id ? sort.direction : null;
                 let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
@@ -113,15 +142,27 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
             <tbody>
               {sorted.map((row) => {
                 const href = rowHref?.(row);
+                const key = rowKey(row);
                 return (
                   <tr
-                    key={rowKey(row)}
+                    key={key}
                     onClick={href === undefined ? undefined : (event) => openRow(event, href)}
                     className={cn(
                       'border-b border-border-subtle last:border-b-0',
                       href !== undefined && 'cursor-pointer hover:bg-surface-3',
                     )}
                   >
+                    {selection ? (
+                      <td className="h-10 w-9 px-3 align-middle">
+                        <input
+                          type="checkbox"
+                          aria-label="Elegir esta fila"
+                          checked={selection.selected.has(key)}
+                          onChange={() => toggleRow(key)}
+                          className="size-4 accent-primary"
+                        />
+                      </td>
+                    ) : null}
                     {visible.map((column, index) => (
                       <td
                         key={column.id}

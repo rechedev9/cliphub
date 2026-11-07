@@ -145,7 +145,7 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report` and `delete_play` (the title), `delete_library_series` (format and teams),
+  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_library_series` (format and teams),
   `launch_practice` (map and spot count), turning `set_community_ranking` on and
   `delete_community_ranking` (what leaves or is erased on the community server).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
@@ -190,11 +190,17 @@ Read:
 | `list_all_videos` | `GET /api/jobs` (newest 30 by default, at most 100), then `GET /api/jobs/batch-status` for every job and preset in calls of 100, and `GET /api/stream-jobs` for the same number of streams: finished videos with MP4 links, renders still running or failed, jobs whose parse or capture failed, and rendered stream moments |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, `alternative_titles` (up to 4), the recommended copies (the suggested one and up to 4 alternatives) with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
 | `list_pro_settings` | the `internal/prosettings` catalog (no orchestrator call): id, name, team, resolution and viewmodel FOV for `plan_full_demo` `pro_settings` |
+| `search_studio` | `GET /api/library/search?q=` (`limit` per kind, 8 by default and at most 25): plays, lineups, calls, teams, players and matches holding every word, with accents dropped and `&` read as `y`; a map name (mirage, de_nuke...) keeps that map's plays, lineups and matches, a grenade word (humo, flash, molotov...) keeps those lineups |
 | `list_teams` | `GET /api/library/teams` |
 | `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
 | `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
 | `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
-| `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, example refs and missing matches |
+| `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `status`, `tag`, `include_archived` (archived plays are left out by default, as in the Jugadas tab), `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, status, tags, example refs and missing matches |
+| `plan_table` | `GET /api/library/plays` (`map`, `side`, `team_id`, `limit` 1000; archived plays left out), grouped as the Tabla: a column per round type of the side in the UI's order, plays by title; `no_team` keeps only plays without a team |
+| `list_lineups`, `get_lineup` | `GET /api/library/lineups` (`map`, `side`, `grenade`, `status`, `tag`, `include_archived`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/lineups/{id}`: origin, angles, callouts, technique (`technique_estimated` when read from 8 Hz samples), the `setpos` command and the round it came from |
+| `get_team_roles` | `GET /api/library/teams/{id}/roles?map=`: the saved sheet (T and CT, up to 5 roles each with name, player, callout and task) and the suggestion, T roles from `InferPlayerRole` and CT ones from where each player sets up in the prep (awp, anchor or rotator) |
+| `list_calls` | `GET /api/library/calls` (`side`, which also keeps the calls of both sides, `status`, `tag`, `include_archived`, `limit` 100 by default and at most 1000, `offset`): name, side, meaning, status and tags, by name |
+| `list_callouts` | `GET /api/library/maps/{map}/callouts`: the places of the map's newest analysed match (calibrated from the overview first), each with its token, CS2's name and the team's name, plus places the team named that the geometry lacks |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
 | `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
@@ -211,7 +217,7 @@ Read:
 | `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
 | `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`, `with`, `without`); category, site, zone and tactic shares with win rates over the rounds the combination keeps, the tempo median, and up to 5 round refs per row. Tactic keys read `kind:value`: `category`, `site`, `buy`, `opponent_buy`, `opening` (callout), `opening_result` (`won`, `lost`), `awp` (callout at 12 s), `zone`, `utility` (`smoke@Callout`, `molotov@Callout`) |
 | `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides, `from`, `to`, `opponent_id`, `match_id`); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
-| `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
+| `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per kind the count, sides, median second and top throwers, then compact rows with the round ref, rounded world positions and the `throw_tick` `save_lineup` reads, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
 | `leaderboard` | `GET /api/library/leaderboard` (`metric` required, `scope`, `map`, `min_rounds`, `limit` 20 by default and at most 100) |
 | `list_streams` | `GET /api/stream-jobs` (`limit` 20 by default and at most 100) |
@@ -269,17 +275,26 @@ Write:
 | `delete_report` | `GET` then `DELETE /api/library/reports/{id}` | yes |
 | `save_round_as_play` | `GET /api/library/matches/{id}/tactical/rounds/{round}/play?team_key=` (the draft), then `POST /api/library/plays` with the title and notes | no |
 | `save_detected_play` | `GET /api/library/teams/{id}/plays` again with the same filter, the group whose seed matches `play_ref`, then `POST /api/library/plays` (origin `detected`, positions second from the thresholds) | no |
+| `create_play` | `POST /api/library/plays` with origin `manual` (title, map, side, kind, site, team, notes, status, tags), as Nueva jugada does | no |
 | `save_playbook_combo` | `GET /api/library/teams/{id}/playbook` with the same filter, `with` and `without`, then `POST /api/library/plays` (origin `playbook`, the kept rounds' most common pattern and site, the combination in the notes, up to 50 kept rounds as examples) | no |
-| `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null) | no |
+| `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null, `status`, `tags` as the whole set, `roles` as the whole list) | no |
+| `set_team_roles` | `PUT /api/library/teams/{id}/roles` (`map`, `t`, `ct`): replaces the map's sheet; a merge moves it with the team | no |
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
-| `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
-| `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
+| `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`, `include_archived`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
+| `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed, and the counts of each other section a whole Libreta file holds (lineups, role sheets, calls, callout names; a sheet or name the Libreta already has is a duplicate) | no |
+| `export_libreta` | `GET /api/library/libreta/export` (plays, lineups, role sheets by team name, calls and callout names, archived ones too), written to a new `.json` file on a local drive | no |
+| `save_call`, `update_call` | `POST /api/library/calls`; `PATCH /api/library/calls/{id}` (`name`, `side` T, CT or both, `meaning`, `status`, `tags`) | no |
+| `delete_call` | `GET` then `DELETE /api/library/calls/{id}` | yes |
+| `rename_callout` | `PUT /api/library/maps/{map}/callouts/{token}` with `name`, or `DELETE` for an empty name (back to CS2's name) | no |
+| `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade`, as Guardar lineup and Nuevo lineup do | no |
+| `update_lineup` | `PATCH /api/library/lineups/{id}` (`title`, `status`, `tags`, `notes`, `movement`, `jump`, `click`); map, side, grenade and the spot cannot change | no |
+| `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
 | `delete_library_series` | `GET` then `DELETE /api/library/series/{id}`; its matches stay | yes |
 | `set_match_series` | `PATCH /api/library/matches/{id}` with `series_id` or null | no |
 | `follow_faceit_player`, `unfollow_faceit_player` | `POST /api/faceit/followed` (`nickname`); `DELETE /api/faceit/followed/{id}` (a seeded player is hidden) | no |
 | `link_player_faceit` | `POST /api/library/players/{steamid}/faceit` | no |
-| `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page | yes |
+| `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page. With `lineup_ids`, `GET /api/library/lineups/{id}` for each, all on `map`, as Practicar selección does in the Libreta | yes |
 | `set_community_ranking` | `PUT /api/library/community/settings` (`rankings_enabled`); turning it on submits right away | yes, to turn it on |
 | `submit_community_ranking` | `POST /api/library/community/rankings/submit` | no (sharing must be on) |
 | `delete_community_ranking` | `DELETE /api/library/community/rankings`: the server forgets this install, sharing turns off | yes |
@@ -306,7 +321,8 @@ survives.
 instead of failing halfway.
 
 Not covered yet (see the parity rule in AGENTS.md): the editor, report exports (the
-HTML page and the `.cliphub` package), `open_studio`, resources and prompts. Steam sign-in, the authentication code
+HTML page and the `.cliphub` package), `open_studio`, the Libreta's Modo partida window (its data is `plan_table` and
+`list_lineups`), resources and prompts. Steam sign-in, the authentication code
 and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
 the UI's local record of it.

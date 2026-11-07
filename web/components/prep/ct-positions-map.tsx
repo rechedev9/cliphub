@@ -4,8 +4,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { TeamPrep } from '@/lib/api/playbook';
 import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import { radarImageUrl } from '@/lib/api/game-assets';
-import { mapSilhouette } from '@/lib/analysis/map-silhouette';
 import { placeLabels, prepWindowLabel, spotLevel, windowMarkers, type LabelSide, type SpotMarker } from '@/lib/analysis/prep';
+import { RADAR_PLATE_SIZE, radarPlateFrame, type RadarPlateFrame } from '@/lib/analysis/radar-plate';
 import { prettyMapName } from '@/lib/format';
 import { placeLabel } from '@/lib/tactical-labels';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
@@ -17,27 +17,13 @@ import { useMapZoom } from '@/hooks/use-map-zoom';
 import { useRadarImage } from '@/hooks/use-radar-image';
 import { cn } from '@/lib/utils';
 
-const SIZE = 100;
+const SIZE = RADAR_PLATE_SIZE;
 export const PLAYER_COLORS = ['--chart-1', '--chart-2', '--chart-3', '--chart-6', '--chart-7'];
 /** Markers on one callout fan out on a ring this wide, in radar units. */
 const FAN = 2.6;
 
 export function playerColor(index: number): string {
   return `var(${PLAYER_COLORS[index % PLAYER_COLORS.length] ?? '--fg-1'})`;
-}
-
-type Frame = { viewBox: string; width: number; height: number; image: boolean; silhouette: string | null };
-
-function frameOf(geometry: TacticalGeometry, radar: HTMLImageElement | null): Frame | null {
-  if (radar) {
-    const width = (SIZE * radar.naturalWidth) / geometry.calibration.size;
-    const height = (SIZE * radar.naturalHeight) / geometry.calibration.size;
-    return { viewBox: `0 0 ${width} ${height}`, width, height, image: true, silhouette: null };
-  }
-  const silhouette = mapSilhouette(geometry, SIZE);
-  if (silhouette === null) return null;
-  const [, , width = SIZE, height = SIZE] = silhouette.viewBox.split(' ').map(Number);
-  return { viewBox: silhouette.viewBox, width, height, image: false, silhouette: silhouette.path };
 }
 
 type Placed = { marker: SpotMarker; x: number; y: number; side: LabelSide; text: string };
@@ -106,7 +92,7 @@ export function CtPositionsMap({ prep }: { prep: TeamPrep }): ReactNode {
     return <div aria-hidden className="h-96 rounded-md bg-surface-3" />;
   }
   if (geometry === null) return null;
-  const frame = frameOf(geometry, radar);
+  const frame = radarPlateFrame(geometry, radar);
   if (frame === null) return null;
   return <CtPositionsPlates prep={prep} geometry={geometry} frame={frame} level={level} onLevel={setLevel} />;
 }
@@ -120,7 +106,7 @@ function CtPositionsPlates({
 }: {
   prep: TeamPrep;
   geometry: TacticalGeometry;
-  frame: Frame;
+  frame: RadarPlateFrame;
   level: RadarLevel;
   onLevel: (level: RadarLevel) => void;
 }): ReactNode {

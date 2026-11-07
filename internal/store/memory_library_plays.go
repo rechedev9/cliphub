@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -22,7 +23,41 @@ func fillPlayLists(p library.Play) library.Play {
 	if p.Examples == nil {
 		p.Examples = []tacticalplan.Evidence{}
 	}
+	if p.Tags == nil {
+		p.Tags = []string{}
+	}
+	if p.Roles == nil {
+		p.Roles = []library.RoleSlot{}
+	}
+	p.Status = playStatus(p.Status)
 	return p
+}
+
+// playStatus stores a play without a status as active, the column default.
+func playStatus(status string) string {
+	if status == "" {
+		return library.StatusActive
+	}
+	return status
+}
+
+// playMatches reports whether p passes the filter's value fields; team and
+// paging are the caller's.
+func playMatches(p library.Play, filter library.PlayFilter) bool {
+	switch {
+	case filter.Map != "" && p.Map != filter.Map, filter.Side != "" && p.Side != filter.Side,
+		filter.Kind != "" && p.Kind != filter.Kind, filter.Status != "" && p.Status != filter.Status,
+		filter.ExcludeArchived && p.Status == library.StatusArchived:
+		return false
+	case filter.Tag == "":
+		return true
+	}
+	for _, tag := range p.Tags {
+		if strings.EqualFold(tag, filter.Tag) {
+			return true
+		}
+	}
+	return false
 }
 
 func clampPlayLimit(limit int) int {
@@ -51,6 +86,15 @@ func applyPlayPatch(p library.Play, patch library.PlayPatch) library.Play {
 	}
 	if patch.Notes != nil {
 		p.Notes = *patch.Notes
+	}
+	if patch.Status != nil {
+		p.Status = *patch.Status
+	}
+	if patch.Tags != nil {
+		p.Tags = append([]string{}, *patch.Tags...)
+	}
+	if patch.Roles != nil {
+		p.Roles = append([]library.RoleSlot{}, *patch.Roles...)
 	}
 	if patch.Grenades != nil {
 		p.Grenades = append([]tacticalplan.PlayGrenade{}, *patch.Grenades...)
@@ -85,7 +129,7 @@ func (r *MemoryLibraryRepository) playView(p library.Play) library.Play {
 			p.TeamID = nil
 		}
 	}
-	p = applyPlayPatch(p, library.PlayPatch{Grenades: &p.Grenades, Positions: &p.Positions, Examples: &p.Examples})
+	p = applyPlayPatch(p, library.PlayPatch{Grenades: &p.Grenades, Positions: &p.Positions, Examples: &p.Examples, Tags: &p.Tags})
 	return fillPlayLists(p)
 }
 
@@ -139,8 +183,7 @@ func (r *MemoryLibraryRepository) ListPlays(ctx context.Context, filter library.
 		if filter.TeamID != nil && (p.TeamID == nil || *p.TeamID != *filter.TeamID) {
 			continue
 		}
-		if (filter.Map != "" && p.Map != filter.Map) || (filter.Side != "" && p.Side != filter.Side) ||
-			(filter.Kind != "" && p.Kind != filter.Kind) {
+		if !playMatches(p, filter) {
 			continue
 		}
 		out = append(out, p)

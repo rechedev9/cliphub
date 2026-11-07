@@ -8,6 +8,7 @@ const STUDIO_REPORT_PDF_CHANNEL = 'cliphub:report-pdf';
 const STUDIO_UPDATE_CHANNEL = 'cliphub:app-update';
 const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
 const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
+const STUDIO_MATCH_MODE_CHANNEL = 'cliphub:match-mode';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -83,6 +84,21 @@ contextBridge.exposeInMainWorld('cliphubClipboard', {
         throw new Error('clipboard write rejected');
       }
     });
+  },
+});
+
+function userIsActive(): boolean {
+  const nav: unknown = Reflect.get(globalThis, 'navigator');
+  if (typeof nav !== 'object' || nav === null || !('userActivation' in nav)) return false;
+  const activation: unknown = nav.userActivation;
+  return typeof activation === 'object' && activation !== null && 'isActive' in activation && activation.isActive === true;
+}
+
+contextBridge.exposeInMainWorld('cliphubMatchMode', {
+  open: (request: unknown): Promise<boolean> => {
+    if (!userIsActive()) return Promise.resolve(false);
+    return ipcRenderer.invoke(STUDIO_MATCH_MODE_CHANNEL, request).then((result: unknown) =>
+      typeof result === 'object' && result !== null && 'ok' in result && result.ok === true);
   },
 });
 

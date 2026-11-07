@@ -95,7 +95,7 @@ export function ComboBar({
           </Button>
           <Button type="button" variant="outline" size="sm" disabled={view.round_count === 0} onClick={() => setSaving(true)}>
             <BookmarkPlus aria-hidden />
-            Guardar en el stratbook
+            Guardar en la Libreta
           </Button>
           {view.round_count > 0 ? (
             <Button asChild size="sm">
@@ -280,7 +280,7 @@ function SaveComboDialog({
             <DialogHeader>
               <DialogTitle>Combinación guardada</DialogTitle>
               <DialogDescription>
-                {saved.title} ya está en el stratbook con {roundsText(saved.examples.length)} de ejemplo.
+                {saved.title} ya está en la Libreta con {roundsText(saved.examples.length)} de ejemplo.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

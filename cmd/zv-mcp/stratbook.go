@@ -29,34 +29,43 @@ const (
 	// maxStratbookBytes is the server's cap on an imported stratbook file.
 	maxStratbookBytes = 8 << 20
 	maxPlayRound      = 99
+	// maxEntryTags and maxTagRunes are the server's caps on a Libreta entry's tags.
+	maxEntryTags = 32
+	maxTagRunes  = 40
 )
 
 var (
 	playSites = []string{"A", "B", "mid", "none"}
 	playKinds = []string{"execute", "default", "split", "fast", "eco_rush", "save", "hold", "retake", "aggression", "stack", "unknown"}
+	statuses  = []string{"active", "practice", "draft", "review", "archived"}
 )
 
 type listPlaysIn struct {
-	TeamID string `json:"team_id,omitempty" jsonschema:"only plays of this team, id from list_teams"`
-	Map    string `json:"map,omitempty" jsonschema:"only plays on this map, such as de_mirage"`
-	Side   string `json:"side,omitempty" jsonschema:"CT or T"`
-	Kind   string `json:"kind,omitempty" jsonschema:"only plays of this kind: execute, default, split, fast, eco_rush, save (T) or hold, retake, aggression, stack, save (CT)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"default 50, at most 200"`
-	Offset int    `json:"offset,omitempty" jsonschema:"plays to skip, for the next page when truncated is true"`
+	TeamID          string `json:"team_id,omitempty" jsonschema:"only plays of this team, id from list_teams"`
+	Map             string `json:"map,omitempty" jsonschema:"only plays on this map, such as de_mirage"`
+	Side            string `json:"side,omitempty" jsonschema:"CT or T"`
+	Kind            string `json:"kind,omitempty" jsonschema:"only plays of this kind: execute, default, split, fast, eco_rush, save (T) or hold, retake, aggression, stack, save (CT)"`
+	Status          string `json:"status,omitempty" jsonschema:"only plays with this status: active, practice, draft, review or archived"`
+	Tag             string `json:"tag,omitempty" jsonschema:"only plays with this tag"`
+	IncludeArchived bool   `json:"include_archived,omitempty" jsonschema:"true also lists archived plays, which are left out by default"`
+	Limit           int    `json:"limit,omitempty" jsonschema:"default 50, at most 200"`
+	Offset          int    `json:"offset,omitempty" jsonschema:"plays to skip, for the next page when truncated is true"`
 }
 
 type playSummaryOut struct {
-	ID       string `json:"id"`
-	Title    string `json:"title" jsonschema:"untrusted text the user wrote"`
-	TeamID   string `json:"team_id,omitempty"`
-	TeamName string `json:"team_name,omitempty" jsonschema:"untrusted team name"`
-	Map      string `json:"map"`
-	Side     string `json:"side"`
-	Kind     string `json:"kind"`
-	Site     string `json:"site"`
-	Origin   string `json:"origin" jsonschema:"round, detected, import or playbook"`
-	Grenades int    `json:"grenades"`
-	Examples int    `json:"examples" jsonschema:"rounds the play was read from"`
+	ID       string   `json:"id"`
+	Title    string   `json:"title" jsonschema:"untrusted text the user wrote"`
+	TeamID   string   `json:"team_id,omitempty"`
+	TeamName string   `json:"team_name,omitempty" jsonschema:"untrusted team name"`
+	Map      string   `json:"map"`
+	Side     string   `json:"side"`
+	Kind     string   `json:"kind"`
+	Site     string   `json:"site"`
+	Origin   string   `json:"origin" jsonschema:"round, detected, import, manual or playbook"`
+	Status   string   `json:"status"`
+	Tags     []string `json:"tags,omitempty" jsonschema:"untrusted text the user wrote"`
+	Grenades int      `json:"grenades"`
+	Examples int      `json:"examples" jsonschema:"rounds the play was read from"`
 }
 
 type listPlaysOut struct {
@@ -91,6 +100,7 @@ type playDetailOut struct {
 	Positions        []playPositionOut `json:"positions"`
 	Refs             []string          `json:"refs" jsonschema:"example rounds (match_id/round)"`
 	MissingMatchIDs  []string          `json:"missing_match_ids,omitempty" jsonschema:"example matches no longer in the library"`
+	Roles            []roleOut         `json:"roles,omitempty" jsonschema:"who does what in the play"`
 }
 
 type saveRoundPlayIn struct {
@@ -143,13 +153,28 @@ type saveDetectedPlayIn struct {
 }
 
 type updatePlayIn struct {
-	PlayID     string  `json:"play_id" jsonschema:"play id from list_plays"`
-	Title      string  `json:"title,omitempty" jsonschema:"new name; empty keeps it"`
-	Kind       string  `json:"kind,omitempty" jsonschema:"new kind, a round pattern of the play's side; empty keeps it"`
-	Site       string  `json:"site,omitempty" jsonschema:"A, B, mid or none; empty keeps it"`
-	Notes      *string `json:"notes,omitempty" jsonschema:"the full new notes; omit to keep them"`
-	TeamID     string  `json:"team_id,omitempty" jsonschema:"the team that runs it, id from list_teams"`
-	DetachTeam bool    `json:"detach_team,omitempty" jsonschema:"true leaves the play without a team"`
+	PlayID     string    `json:"play_id" jsonschema:"play id from list_plays"`
+	Title      string    `json:"title,omitempty" jsonschema:"new name; empty keeps it"`
+	Kind       string    `json:"kind,omitempty" jsonschema:"new kind, a round pattern of the play's side; empty keeps it"`
+	Site       string    `json:"site,omitempty" jsonschema:"A, B, mid or none; empty keeps it"`
+	Notes      *string   `json:"notes,omitempty" jsonschema:"the full new notes; omit to keep them"`
+	TeamID     string    `json:"team_id,omitempty" jsonschema:"the team that runs it, id from list_teams"`
+	DetachTeam bool      `json:"detach_team,omitempty" jsonschema:"true leaves the play without a team"`
+	Status     string    `json:"status,omitempty" jsonschema:"active, practice, draft, review or archived; empty keeps it"`
+	Tags       *[]string `json:"tags,omitempty" jsonschema:"the full new tag list; omit to keep them, [] clears them"`
+	Roles      *[]roleIn `json:"roles,omitempty" jsonschema:"up to 5 roles, the whole list; omit to keep them, [] clears them"`
+}
+
+type createPlayIn struct {
+	Title  string   `json:"title" jsonschema:"the play's name"`
+	Map    string   `json:"map" jsonschema:"such as de_mirage"`
+	Side   string   `json:"side" jsonschema:"CT or T"`
+	Kind   string   `json:"kind" jsonschema:"a round pattern of the side: execute, default, split, fast, eco_rush, save (T) or hold, retake, aggression, stack, save (CT)"`
+	Site   string   `json:"site,omitempty" jsonschema:"A, B, mid or none (the default)"`
+	TeamID string   `json:"team_id,omitempty" jsonschema:"the team that runs it, id from list_teams"`
+	Notes  string   `json:"notes,omitempty"`
+	Status string   `json:"status,omitempty" jsonschema:"active (the default), practice, draft, review or archived"`
+	Tags   []string `json:"tags,omitempty"`
 }
 
 type deletePlayIn struct {
@@ -158,11 +183,12 @@ type deletePlayIn struct {
 }
 
 type exportPlaysIn struct {
-	Path   string `json:"path" jsonschema:"absolute path of the new .json file on a local drive; an existing file is not overwritten"`
-	TeamID string `json:"team_id,omitempty" jsonschema:"only plays of this team"`
-	Map    string `json:"map,omitempty"`
-	Side   string `json:"side,omitempty"`
-	Kind   string `json:"kind,omitempty"`
+	Path            string `json:"path" jsonschema:"absolute path of the new .json file on a local drive; an existing file is not overwritten"`
+	TeamID          string `json:"team_id,omitempty" jsonschema:"only plays of this team"`
+	Map             string `json:"map,omitempty"`
+	Side            string `json:"side,omitempty"`
+	Kind            string `json:"kind,omitempty"`
+	IncludeArchived bool   `json:"include_archived,omitempty" jsonschema:"true also exports archived plays"`
 }
 
 type exportPlaysOut struct {
@@ -180,13 +206,14 @@ type importPlaysOut struct {
 	Rejected      []string         `json:"rejected" jsonschema:"plays that were not stored, with the reason; at most 50 listed"`
 	RejectedCount int              `json:"rejected_count"`
 	Plays         []playSummaryOut `json:"plays" jsonschema:"the imported plays, at most 50 listed"`
+	Sections      []string         `json:"sections,omitempty" jsonschema:"what the file's other sections did, such as lineups: 3 imported, 1 duplicate, 0 rejected"`
 }
 
 func registerStratbookTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_plays", Annotations: readOnly,
-		Description: "List the plays saved in the stratbook, filtered by team, map, side and kind."},
+		Description: "List the plays of the Libreta (its Jugadas tab), filtered by team, map, side, kind, status and tag. Archived plays are left out unless include_archived is true."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listPlaysIn) (*mcp.CallToolResult, listPlaysOut, error) {
 			if in.Limit < 0 || in.Limit > maxPlayList {
 				return nil, listPlaysOut{}, fmt.Errorf("limit must be from 1 to %d", maxPlayList)
@@ -198,6 +225,17 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, listPlaysOut{}, err
 			}
+			if q.Status, err = checkStatus(in.Status); err != nil {
+				return nil, listPlaysOut{}, err
+			}
+			if in.Tag != "" {
+				tags, err := checkTags([]string{in.Tag})
+				if err != nil {
+					return nil, listPlaysOut{}, err
+				}
+				q.Tag = tags[0]
+			}
+			q.IncludeArchived = in.IncludeArchived
 			limit := cmp.Or(in.Limit, defaultPlayList)
 			q.Limit, q.Offset = limit+1, in.Offset
 			c, err := s.client(ctx)
@@ -327,7 +365,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_play", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Edit a stratbook play's title, kind, site, notes or team. Its map and side are what the play is and do not change."},
+		Description: "Edit a Libreta play's title, kind, site, notes, team, status or tags. Its map and side are what the play is and do not change."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatePlayIn) (*mcp.CallToolResult, playDetailOut, error) {
 			patch, err := in.patch()
 			if err != nil {
@@ -338,6 +376,25 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 				return nil, playDetailOut{}, toolError(err)
 			}
 			p, err := c.UpdatePlay(ctx, in.PlayID, patch)
+			if err != nil {
+				return nil, playDetailOut{}, toolError(err)
+			}
+			return nil, playDetailOf(p), nil
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "create_play", Annotations: &mcp.ToolAnnotations{},
+		Description: "Write a new play by hand in the Libreta, as Nueva jugada does: a name, map, side and kind, with no grenades or positions yet. " +
+			"Plays read from a round or a detection come from save_round_as_play and save_detected_play."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in createPlayIn) (*mcp.CallToolResult, playDetailOut, error) {
+			play, err := in.play()
+			if err != nil {
+				return nil, playDetailOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, playDetailOut{}, toolError(err)
+			}
+			p, err := c.CreatePlay(ctx, play)
 			if err != nil {
 				return nil, playDetailOut{}, toolError(err)
 			}
@@ -358,7 +415,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, deleteOut{}, toolError(err)
 			}
-			summary := fmt.Sprintf("Borrar la jugada %s (%s, %s) del stratbook. No se puede deshacer.", quotedName(p.Title, "sin título"), cleanName(p.Map), p.Side)
+			summary := fmt.Sprintf("Borrar la jugada %s (%s, %s) de la Libreta. No se puede deshacer.", quotedName(p.Title, "sin título"), cleanName(p.Map), p.Side)
 			return approveAndDelete(req, approvalSpec{Tool: "delete_play", JobID: in.PlayID, Request: p.UpdatedAt, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
 				func() error { return c.DeletePlay(ctx, in.PlayID) })
 		})
@@ -373,6 +430,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, exportPlaysOut{}, err
 			}
+			q.IncludeArchived = in.IncludeArchived
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, exportPlaysOut{}, toolError(err)
@@ -388,8 +446,9 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "import_plays", Annotations: &mcp.ToolAnnotations{},
-		Description: "Import a ClipHub stratbook .json file into the stratbook, as Importar does. Each play is stored on its own: " +
-			"plays already there count as duplicates, bad ones are rejected with the reason, and teams are found by name or created."},
+		Description: "Import a ClipHub Libreta (stratbook) .json file, as Importar does: its plays and, from a whole Libreta file, its lineups, " +
+			"role sheets, calls and callout names. Each record is stored on its own: ones already there count as duplicates, " +
+			"bad ones are rejected, and teams are found by name or created."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importPlaysIn) (*mcp.CallToolResult, importPlaysOut, error) {
 			if !strings.EqualFold(filepath.Ext(in.Path), ".json") {
 				return nil, importPlaysOut{}, errors.New("path must be a .json stratbook file")
@@ -415,6 +474,11 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			}
 			for _, p := range res.Plays[:min(len(res.Plays), maxImportListed)] {
 				out.Plays = append(out.Plays, playSummaryOf(p))
+			}
+			for _, key := range []string{"lineups", "team_roles", "calls", "callout_names"} {
+				if sec, ok := res.Sections[key]; ok {
+					out.Sections = append(out.Sections, fmt.Sprintf("%s: %d imported, %d duplicate, %d rejected", key, sec.Imported, sec.Duplicates, sec.Rejected))
+				}
 			}
 			return nil, out, nil
 		})
@@ -444,8 +508,8 @@ func (in updatePlayIn) patch() (tuiclient.PlayPatch, error) {
 	if err := checkUUID("play_id", in.PlayID); err != nil {
 		return patch, err
 	}
-	if in.Title == "" && in.Kind == "" && in.Site == "" && in.Notes == nil && in.TeamID == "" && !in.DetachTeam {
-		return patch, errors.New("set title, kind, site, notes, team_id or detach_team")
+	if in.Title == "" && in.Kind == "" && in.Site == "" && in.Notes == nil && in.TeamID == "" && !in.DetachTeam && in.Status == "" && in.Tags == nil && in.Roles == nil {
+		return patch, errors.New("set title, kind, site, notes, team_id, detach_team, status, tags or roles")
 	}
 	if in.TeamID != "" && in.DetachTeam {
 		return patch, errors.New("set team_id or detach_team, not both")
@@ -483,7 +547,94 @@ func (in updatePlayIn) patch() (tuiclient.PlayPatch, error) {
 		patch.TeamID = &in.TeamID
 	}
 	patch.ClearTeam = in.DetachTeam
+	if in.Status != "" {
+		status, err := checkStatus(in.Status)
+		if err != nil {
+			return patch, err
+		}
+		patch.Status = &status
+	}
+	if in.Tags != nil {
+		tags, err := checkTags(*in.Tags)
+		if err != nil {
+			return patch, err
+		}
+		patch.Tags = &tags
+	}
+	if in.Roles != nil {
+		roles, err := checkRoles("roles", *in.Roles)
+		if err != nil {
+			return patch, err
+		}
+		patch.Roles = &roles
+	}
 	return patch, nil
+}
+
+func (in createPlayIn) play() (tuiclient.Play, error) {
+	title, err := checkUserText("title", in.Title)
+	if err != nil {
+		return tuiclient.Play{}, err
+	}
+	if in.Map == "" || in.Side == "" || in.Kind == "" {
+		return tuiclient.Play{}, errors.New("map, side and kind are required")
+	}
+	q, err := playQuery(in.TeamID, in.Map, in.Side, in.Kind)
+	if err != nil {
+		return tuiclient.Play{}, err
+	}
+	site := cmp.Or(in.Site, "none")
+	if !slices.Contains(playSites, site) {
+		return tuiclient.Play{}, errors.New("site must be A, B, mid or none")
+	}
+	notes, err := reportNotes(&in.Notes)
+	if err != nil {
+		return tuiclient.Play{}, err
+	}
+	status, err := checkStatus(in.Status)
+	if err != nil {
+		return tuiclient.Play{}, err
+	}
+	tags, err := checkTags(in.Tags)
+	if err != nil {
+		return tuiclient.Play{}, err
+	}
+	p := tuiclient.Play{Title: title, Map: q.Map, Side: q.Side, Kind: q.Kind, Site: site, Origin: "manual",
+		Status: status, Tags: tags}
+	if notes != nil {
+		p.Notes = *notes
+	}
+	if q.TeamID != "" {
+		p.TeamID = &q.TeamID
+	}
+	return p, nil
+}
+
+// checkStatus accepts an empty status (unset) or one of statuses.
+func checkStatus(raw string) (string, error) {
+	if raw != "" && !slices.Contains(statuses, raw) {
+		return "", fmt.Errorf("status must be one of %s", strings.Join(statuses, ", "))
+	}
+	return raw, nil
+}
+
+// checkTags refuses empty, long or control-character tags; the server dedupes and sorts them.
+func checkTags(raw []string) ([]string, error) {
+	if len(raw) > maxEntryTags {
+		return nil, fmt.Errorf("at most %d tags", maxEntryTags)
+	}
+	out := make([]string, 0, len(raw))
+	for _, tag := range raw {
+		clean, err := checkUserText("tag", tag)
+		if err != nil {
+			return nil, err
+		}
+		if len([]rune(clean)) > maxTagRunes {
+			return nil, fmt.Errorf("a tag has at most %d characters", maxTagRunes)
+		}
+		out = append(out, clean)
+	}
+	return out, nil
 }
 
 func playQuery(teamID, mapName, side, kind string) (tuiclient.PlayQuery, error) {
@@ -508,7 +659,11 @@ func playQuery(teamID, mapName, side, kind string) (tuiclient.PlayQuery, error) 
 
 func playSummaryOf(p tuiclient.Play) playSummaryOut {
 	out := playSummaryOut{ID: p.ID, Title: cleanName(p.Title), TeamName: cleanName(p.TeamName), Map: cleanName(p.Map), Side: p.Side,
-		Kind: cleanName(p.Kind), Site: cleanName(p.Site), Origin: p.Origin, Grenades: len(p.Grenades), Examples: len(p.Examples)}
+		Kind: cleanName(p.Kind), Site: cleanName(p.Site), Origin: p.Origin, Status: cleanName(p.Status),
+		Grenades: len(p.Grenades), Examples: len(p.Examples)}
+	for _, tag := range p.Tags {
+		out.Tags = append(out.Tags, cleanName(tag))
+	}
 	if p.TeamID != nil {
 		out.TeamID = *p.TeamID
 	}
@@ -524,6 +679,7 @@ func playDetailOf(p tuiclient.Play) playDetailOut {
 	for _, e := range p.Examples {
 		out.Refs = append(out.Refs, refString(e))
 	}
+	out.Roles = rolesOf(p.Roles)
 	return out
 }
 

@@ -35,6 +35,10 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV9LibraryCollections,
 	migrateV10StreamColumns,
 	migrateV11DropLibraryCollections,
+	migrateV12PlayStatus,
+	migrateV13LibraryLineups,
+	migrateV14LibraryRoles,
+	migrateV15LibraryCalls,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -636,6 +640,96 @@ func migrateV9LibraryCollections(tx *sql.Tx) error {
 func migrateV11DropLibraryCollections(tx *sql.Tx) error {
 	if _, err := tx.Exec(`DROP TABLE IF EXISTS library_collections`); err != nil {
 		return fmt.Errorf("drop library collections: %w", err)
+	}
+	return nil
+}
+
+// migrateV12PlayStatus gives a play the Libreta status and the user's tags,
+// a JSON list like grenades. Existing plays stay active.
+func migrateV12PlayStatus(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`ALTER TABLE library_plays ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`,
+		`ALTER TABLE library_plays ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("add play status: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV13LibraryLineups stores the Libreta's lineups. Map, side, grenade,
+// status and tags are columns because lists filter on them; the rest is JSON.
+func migrateV13LibraryLineups(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_lineups (
+			id         TEXT    PRIMARY KEY,
+			title      TEXT    NOT NULL,
+			map        TEXT    NOT NULL,
+			side       TEXT    NOT NULL CHECK (side IN ('CT', 'T')),
+			grenade    TEXT    NOT NULL,
+			status     TEXT    NOT NULL DEFAULT 'active',
+			tags       TEXT    NOT NULL DEFAULT '[]',
+			notes      TEXT    NOT NULL DEFAULT '',
+			detail     TEXT    NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX library_lineups_updated ON library_lineups(updated_at, id)`,
+		`CREATE INDEX library_lineups_map ON library_lineups(map, side)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("create library lineups: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV14LibraryRoles gives plays their roles and teams a role sheet per map.
+// A team's sheet goes with the team when it is deleted.
+func migrateV14LibraryRoles(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`ALTER TABLE library_plays ADD COLUMN roles TEXT NOT NULL DEFAULT '[]'`,
+		`CREATE TABLE library_team_roles (
+			team_id    TEXT    NOT NULL REFERENCES library_teams(id) ON DELETE CASCADE,
+			map        TEXT    NOT NULL,
+			t          TEXT    NOT NULL DEFAULT '[]',
+			ct         TEXT    NOT NULL DEFAULT '[]',
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (team_id, map)
+		)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library roles: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV15LibraryCalls stores the team's calls and its own names for CS2 places.
+func migrateV15LibraryCalls(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_calls (
+			id         TEXT    PRIMARY KEY,
+			name       TEXT    NOT NULL,
+			side       TEXT    NOT NULL CHECK (side IN ('CT', 'T', 'both')),
+			meaning    TEXT    NOT NULL DEFAULT '',
+			status     TEXT    NOT NULL DEFAULT 'active',
+			tags       TEXT    NOT NULL DEFAULT '[]',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE TABLE library_callout_names (
+			map        TEXT    NOT NULL,
+			token      TEXT    NOT NULL,
+			name       TEXT    NOT NULL,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (map, token)
+		)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library calls: %w", err)
+		}
 	}
 	return nil
 }

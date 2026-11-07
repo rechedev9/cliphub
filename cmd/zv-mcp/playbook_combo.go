@@ -149,7 +149,7 @@ func comboPlay(pb tuiclient.TeamPlaybook, teamID, title string) tuiclient.Play {
 
 func registerPlaybookComboTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "save_playbook_combo", Annotations: &mcp.ToolAnnotations{},
-		Description: "Save a team_playbook tactic combination to the stratbook as a play, as Guardar en el stratbook does in Combina tácticas: " +
+		Description: "Save a team_playbook tactic combination to the Libreta as a play, as Guardar en la Libreta does in Combina tácticas: " +
 			"the kept rounds' common pattern and site, the combination in the notes and up to 50 kept rounds as examples. " +
 			"Pass the same team, map, side, filter, with and without as the team_playbook call."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in savePlaybookComboIn) (*mcp.CallToolResult, playDetailOut, error) {

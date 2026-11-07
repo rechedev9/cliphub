@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,14 +22,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
-)
-
-// Stratbook file format. A file carries plays with their team by name, since
-// team ids mean nothing on another PC; the play ids make a reimport idempotent.
-const (
-	stratbookFormat       = "cliphub-stratbook"
-	stratbookVersion      = 1
-	maxStratbookFileBytes = 8 << 20
 )
 
 // Error codes of the stratbook routes.
@@ -114,6 +105,19 @@ func playFilterQuery(q url.Values) (library.PlayFilter, error) {
 		!library.ValidPlayKind(string(tacticalplan.SideCT), f.Kind) {
 		return f, errors.New("kind must be a round pattern")
 	}
+	if f.Status = q.Get("status"); f.Status != "" && !library.ValidStatus(f.Status) {
+		return f, errors.New("status must be active, practice, draft, review or archived")
+	}
+	if f.Tag = library.CleanName(q.Get("tag")); len([]rune(f.Tag)) > library.MaxTagRunes {
+		return f, fmt.Errorf("tag must be at most %d characters", library.MaxTagRunes)
+	}
+	switch q.Get("include_archived") {
+	case "", "false":
+		f.ExcludeArchived = f.Status == ""
+	case "true":
+	default:
+		return f, errors.New("include_archived must be true or false")
+	}
 	if raw := q.Get("limit"); raw != "" {
 		f.Limit, err = strconv.Atoi(raw)
 		if err != nil || f.Limit < 1 || f.Limit > library.MaxPlayList {
@@ -144,6 +148,9 @@ type libraryPlayRequest struct {
 	Positions        *[]tacticalplan.PlayPosition `json:"positions"`
 	Notes            *string                      `json:"notes"`
 	Examples         *[]tacticalplan.Evidence     `json:"examples"`
+	Status           *string                      `json:"status"`
+	Tags             *[]string                    `json:"tags"`
+	Roles            *[]library.RoleSlot          `json:"roles"`
 }
 
 // teamField reads team_id: set is false when absent, id is nil for null.
@@ -176,6 +183,13 @@ func (req libraryPlayRequest) apply(p library.Play) library.Play {
 	set(&p.Site, req.Site)
 	set(&p.Origin, req.Origin)
 	set(&p.Notes, req.Notes)
+	set(&p.Status, req.Status)
+	if req.Tags != nil {
+		p.Tags = *req.Tags
+	}
+	if req.Roles != nil {
+		p.Roles = *req.Roles
+	}
 	if req.PositionsSeconds != nil {
 		p.PositionsSeconds = *req.PositionsSeconds
 	}
@@ -359,6 +373,15 @@ func (h *Handlers) PatchLibraryPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Notes != nil {
 		patch.Notes = &next.Notes
+	}
+	if req.Status != nil {
+		patch.Status = &next.Status
+	}
+	if req.Tags != nil {
+		patch.Tags = &next.Tags
+	}
+	if req.Roles != nil {
+		patch.Roles = &next.Roles
 	}
 	if req.Grenades != nil {
 		patch.Grenades = &next.Grenades
@@ -611,116 +634,4 @@ func (h *Handlers) DetectLibraryTeamPlays(w http.ResponseWriter, r *http.Request
 		h.annotateLineups(det.Plays[i].Map, det.Plays[i].Grenades)
 	}
 	writeJSON(w, http.StatusOK, playDetectionResponse{TeamID: team.ID, TeamName: team.Name, Skipped: skipped, PlayDetection: det})
-}
-
-// stratbookFile is an exported stratbook.
-type stratbookFile struct {
-	Format     string         `json:"format"`
-	Version    int            `json:"version"`
-	ExportedAt time.Time      `json:"exported_at"`
-	Plays      []library.Play `json:"plays"`
-}
-
-// ExportLibraryPlays handles GET /api/library/plays/export: the plays the list
-// filter selects, as a stratbook file.
-func (h *Handlers) ExportLibraryPlays(w http.ResponseWriter, r *http.Request) {
-	if !h.libraryReady(w) {
-		return
-	}
-	filter, err := playFilterQuery(r.URL.Query())
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	filter.Limit, filter.Offset = library.MaxPlayList, 0
-	plays, err := h.libraryRepo.ListPlays(r.Context(), filter)
-	if err != nil {
-		internalError(w, "export plays", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, stratbookFile{
-		Format: stratbookFormat, Version: stratbookVersion, ExportedAt: time.Now().UTC().Truncate(time.Millisecond), Plays: plays,
-	})
-}
-
-// stratbookRejected is a play of an imported file that was not stored.
-type stratbookRejected struct {
-	Index int    `json:"index"`
-	Title string `json:"title"`
-	Error string `json:"error"`
-}
-
-type stratbookImportResponse struct {
-	Imported   int                 `json:"imported"`
-	Duplicates int                 `json:"duplicates"`
-	Rejected   []stratbookRejected `json:"rejected"`
-	Plays      []library.Play      `json:"plays"`
-}
-
-// ImportLibraryPlays handles POST /api/library/plays/import with a stratbook
-// file. Each play is stored on its own: a play whose id is already stored is a
-// duplicate, a bad one is rejected, and the rest are kept. Teams are found by
-// name or alias and created when missing. Examples are kept even when their
-// match is not in this library; the play page lists them as missing.
-func (h *Handlers) ImportLibraryPlays(w http.ResponseWriter, r *http.Request) {
-	if !h.libraryReady(w) {
-		return
-	}
-	var file stratbookFile
-	if err := decodeJSONBody(w, r, &file, false, maxStratbookFileBytes); err != nil {
-		writeCodedError(w, http.StatusBadRequest, codeStratbookFormat, "the file is not a ClipHub stratbook")
-		return
-	}
-	if file.Format != stratbookFormat || file.Version != stratbookVersion {
-		writeCodedError(w, http.StatusBadRequest, codeStratbookFormat,
-			fmt.Sprintf("expected format %q version %d", stratbookFormat, stratbookVersion))
-		return
-	}
-	if len(file.Plays) > library.MaxPlayList {
-		writeCodedError(w, http.StatusBadRequest, codeStratbookFormat, fmt.Sprintf("a stratbook holds at most %d plays", library.MaxPlayList))
-		return
-	}
-	resp := stratbookImportResponse{Rejected: []stratbookRejected{}, Plays: []library.Play{}}
-	for i, in := range file.Plays {
-		play, err := h.importPlay(r.Context(), in)
-		switch {
-		case errors.Is(err, library.ErrConflict):
-			resp.Duplicates++
-		case err != nil:
-			resp.Rejected = append(resp.Rejected, stratbookRejected{Index: i, Title: in.Title, Error: err.Error()})
-		default:
-			resp.Imported++
-			resp.Plays = append(resp.Plays, play)
-		}
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (h *Handlers) importPlay(ctx context.Context, in library.Play) (library.Play, error) {
-	play, err := library.CleanPlay(library.Play{
-		ID: in.ID, Title: in.Title, Map: in.Map, Side: in.Side, Kind: in.Kind, Site: in.Site,
-		Origin: library.PlayOriginImport, PositionsSeconds: in.PositionsSeconds,
-		Grenades: in.Grenades, Positions: in.Positions, Notes: in.Notes, Examples: in.Examples,
-	})
-	if err != nil {
-		return library.Play{}, err
-	}
-	if in.ID != uuid.Nil {
-		if _, err := h.libraryRepo.GetPlay(ctx, in.ID); err == nil {
-			return library.Play{}, library.ErrConflict
-		} else if !errors.Is(err, library.ErrNotFound) {
-			return library.Play{}, err
-		}
-	}
-	if name := cleanLibraryText(in.TeamName); name != "" {
-		team, err := h.teamByName(ctx, name)
-		if err != nil {
-			return library.Play{}, fmt.Errorf("team %q: %w", name, err)
-		}
-		play.TeamID = &team.ID
-	}
-	if err := h.libraryRepo.CreatePlay(ctx, &play); err != nil {
-		return library.Play{}, err
-	}
-	return play, nil
 }

@@ -19,6 +19,7 @@ import { practiceSpotsForSpots, spotLabel } from '@/lib/analysis/practice-spots'
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap, levelForAltitude } from '@/lib/tactical-transform';
 import { Button } from '@/components/ui/button';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 import { Segmented } from '@/components/ui/segmented';
 import { Toggle } from '@/components/ui/toggle';
 import { GRENADE_KIND_TOKEN, GrenadeRadar } from './grenade-radar';
@@ -50,6 +51,7 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
   const [hover, setHover] = useState<string | null>(null);
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const practice = usePracticeLaunch(map);
+  const calloutLabel = useCalloutNames([map]);
   const { calibration } = geometry;
   const multiLevel = isMultiLevelMap(calibration);
 
@@ -71,11 +73,16 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
 
   const spots = useMemo((): LabelledSpot[] => {
     const callouts = geometry.callouts.filter((callout) => callout.level === level);
+    const place = (token: string): string => calloutLabel(map, token);
     return clusterGrenades(matching).map((spot) => ({
       spot,
-      label: spotLabel(spot.kind, nearestCallout(callouts, spot.landing), spot.origin === null ? null : nearestCallout(callouts, spot.origin)),
+      label: spotLabel(
+        spot.kind,
+        { landing: nearestCallout(callouts, spot.landing), origin: spot.origin === null ? null : nearestCallout(callouts, spot.origin) },
+        place,
+      ),
     }));
-  }, [matching, geometry.callouts, level]);
+  }, [matching, geometry.callouts, level, calloutLabel, map]);
   const spotOf = useMemo(() => {
     const out = new Map<string, string>();
     for (const { spot } of spots) for (const grenade of spot.grenades) out.set(grenadeId(grenade), spot.key);

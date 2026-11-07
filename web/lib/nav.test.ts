@@ -12,7 +12,7 @@ const RAIL = [
   ['analyze', 'Equipos', '/equipos'],
   ['analyze', 'Jugadores', '/jugadores'],
   ['analyze', 'Ranking', '/ranking'],
-  ['analyze', 'Stratbook', '/stratbook'],
+  ['analyze', 'Libreta', '/libreta'],
   ['analyze', 'Informes', '/informes'],
   ['analyze', 'Integridad', '/integridad'],
   ['chrome', 'Almacenamiento', '/almacenamiento'],

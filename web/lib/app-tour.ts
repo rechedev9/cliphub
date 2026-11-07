@@ -299,20 +299,16 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/ranking', label: 'Ir a Ranking' },
   },
   {
-    id: 'stratbook',
-    kicker: 'Stratbook',
-    label: 'Stratbook',
-    title: 'Las jugadas que quieres recordar',
+    id: 'libreta',
+    kicker: 'Libreta',
+    label: 'Libreta',
+    title: 'El plan de tu equipo, en un sitio',
     lead:
-      'Guarda una ronda, propia o del rival, como jugada: mapa, lado, granadas, posiciones y notas.',
+      'Jugadas, lineups, roles, llamadas y callouts propios. Studio rellena lo que sale de las demos y tú decides qué se usa.',
     points: [
       {
-        term: 'Guardar como jugada',
-        text: 'En la repetición 2D de una partida, el botón Guardar como jugada toma las granadas y las posiciones del momento en que estás.',
-      },
-      {
-        term: 'Jugadas repetidas',
-        text: 'Detectar repetidas agrupa las rondas de un equipo con la misma utilidad y las mismas posiciones, con los umbrales a la vista.',
+        term: 'Jugadas',
+        text: 'Guarda una ronda como jugada, deja que Studio encuentre las que un equipo repite o escribe una a mano. Cada una lleva su estado y sus etiquetas.',
       },
       {
         term: 'Con su evidencia',
@@ -320,10 +316,10 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Compartir',
-        text: 'Exporta el stratbook como fichero JSON e impórtalo en otro PC con Studio.',
+        text: 'Exporta la Libreta como fichero JSON e impórtala en el PC de un compañero con Studio.',
       },
     ],
-    link: { href: '/stratbook', label: 'Ir a Stratbook' },
+    link: { href: '/libreta', label: 'Ir a la Libreta' },
   },
   {
     id: 'reports',

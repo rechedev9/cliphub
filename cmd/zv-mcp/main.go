@@ -60,21 +60,33 @@ numbers compared with get_baseline, and find_rounds for round refs (match_id/rou
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
 these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
-kept rounds), and save_playbook_combo stores a combination in the stratbook.
+kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
-update_report, delete_report. Stratbook: list_plays, get_play, save_round_as_play (a round ref and
-the team's side key), detect_team_plays then save_detected_play with a play's ref, update_play,
-delete_play, export_plays and import_plays (stratbook .json files on this PC).
+update_report, delete_report. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
+(archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
+round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
+update_play (also status, tags and roles), delete_play, export_plays and import_plays (.json files on this PC).
+plan_table reads the Libreta's Tabla: one map and side, a column per round type with its plays.
+Lineups of the Libreta: list_lineups, get_lineup (with its setpos), save_lineup (match_id, round and
+throw_tick of a team_grenades row, or a pasted setpos with map, side and grenade), update_lineup (a
+technique set by hand is no longer estimated) and delete_lineup. Roles: get_team_roles reads a
+team's role sheet on a map with a suggestion from its matches; set_team_roles saves both sides.
+Calls (the team's words): list_calls, save_call, update_call, delete_call. Callouts: list_callouts
+reads a map's places with the team's own names, rename_callout names one or resets it.
+export_libreta writes the whole Libreta to a file; import_plays reads any Libreta file back.
+search_studio finds plays, lineups, calls, teams, players and matches by words, as Ctrl+K does;
+a map name or grenade word in the query narrows it.
 Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. team_maps reads a team's map record
 and simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
-launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades.
+launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
+or lineup_ids of Libreta lineups on one map.
 community_ranking reads the user's percentile against other installs; set_community_ranking,
 submit_community_ranking and delete_community_ranking manage sharing.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
@@ -99,7 +111,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_play, delete_library_series, launch_practice, delete_community_ranking and
+delete_report, delete_play, delete_lineup, delete_call, delete_library_series, launch_practice, delete_community_ranking and
 turning set_community_ranking on need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
