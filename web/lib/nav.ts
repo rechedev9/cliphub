@@ -27,7 +27,7 @@ export const NAV_SECTIONS = [
 export type NavSection = (typeof NAV_SECTIONS)[number];
 export type NavHref = NavSection['href'];
 
-/** Routes outside the rail that belong to a section: a series produces one Short per map. */
+/** Routes outside the rail that belong to a section: a Short series (Demo completa ones live under /videos-largos). */
 const SECTION_PREFIXES: ReadonlyArray<readonly [prefix: string, href: NavHref]> = [['/series/', '/shorts']];
 
 /** The rail section a pathname lives in, including nested routes under it. */

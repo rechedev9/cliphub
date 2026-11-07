@@ -20,7 +20,7 @@ import {
   type SeriesStatusTone,
 } from '@/lib/series-status';
 import { outputType } from '@/lib/clips/hub';
-import { FLOW_HREF, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
+import { flowHref, PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -74,7 +74,7 @@ function seriesDescription(statuses: readonly string[]): string {
  * job is the one the map card should describe. A Demo completa series counts
  * only full-demo renders, so a map's Short never reads as its full demo.
  */
-function latestReelPerJob(demos: readonly SeriesDemo[], videos: readonly Video[], format: ProduceFormat): ReadonlyMap<string, Video> {
+function latestReelPerJob({ demos, videos, format }: { demos: readonly SeriesDemo[]; videos: readonly Video[]; format: ProduceFormat }): ReadonlyMap<string, Video> {
   const jobIds = new Set(demos.map((d) => d.jobId));
   const byJob = new Map<string, Video>();
   for (const video of videos) {
@@ -148,7 +148,7 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * serves Demo completa, where each map prepares its full demo.
  */
 export function SeriesProgress({ id, format }: { id: string; format: ProduceFormat }): ReactNode {
-  const loadHref = FLOW_HREF[format];
+  const loadHref = flowHref(format);
   const valid = isSeriesId(id);
 
   const [demos, setDemos] = useState<SeriesDemo[] | null>(null);
@@ -181,7 +181,7 @@ export function SeriesProgress({ id, format }: { id: string; format: ProduceForm
           // the user never has to visit the Library for the queue to advance.
           const [list, videos] = await Promise.all([api.getSeries(id), api.listVideos()]);
           if (!active) return 'idle';
-          const reels = latestReelPerJob(list, videos, format);
+          const reels = latestReelPerJob({ demos: list, videos, format });
           demosRef.current = list;
           setDemos(list);
           setReelByJob(reels);

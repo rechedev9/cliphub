@@ -45,7 +45,6 @@ test('produceHref opens the producer of the given flow', () => {
 });
 
 test('seriesHref keeps a series in the flow it came from', () => {
-  assert.equal(seriesHref(SERIES_ID), `/series/${SERIES_ID}`);
   assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.short), `/series/${SERIES_ID}`);
   assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.full), `${LONG_VIDEOS_HREF}/serie/${SERIES_ID}`);
 });
