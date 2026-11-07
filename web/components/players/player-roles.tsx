@@ -8,7 +8,7 @@ import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { awpText, rateText, roleSentence } from '@/lib/analysis/positions';
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
-import { prettyMapName } from '@/lib/format';
+import { formatDecimal, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL, percentLabel, utilityRatioLabel } from '@/lib/library/partidas';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
@@ -185,7 +185,7 @@ function RoleEvidence({ role }: { role: LibraryPlayerRole | null | undefined }):
       <p className="border-b border-border-subtle px-4 py-3 text-body-sm text-fg-2">
         Leído de {role.rounds} rondas en {role.match_count === 1 ? '1 partida' : `${role.match_count} partidas`}. Se prueba en este orden: AWPer con al menos el{' '}
         {Math.round(thresholds.awp_kill_share * 100)} % de sus kills con AWP, entry si abre el duelo en al menos el{' '}
-        {Math.round(thresholds.entry_opening_share * 100)} % de sus rondas de T, soporte si lanza {thresholds.support_utility_ratio} veces las granadas por ronda de sus compañeros; si no, rifler. Con menos de {thresholds.min_rounds} rondas no se lee rol.
+        {Math.round(thresholds.entry_opening_share * 100)} % de sus rondas de T, soporte si lanza {formatDecimal(thresholds.support_utility_ratio, 2)} veces las granadas por ronda de sus compañeros; si no, rifler. Con menos de {thresholds.min_rounds} rondas no se lee rol.
       </p>
       <dl className="grid divide-y divide-border-subtle @[64rem]/content:grid-cols-3 @[64rem]/content:divide-x @[64rem]/content:divide-y-0">
         <RoleMetricView
