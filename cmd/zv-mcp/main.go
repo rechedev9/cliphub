@@ -58,7 +58,9 @@ Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64,
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
-these and scout_team take opponent_id and match_id to narrow the matches.
+these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
+tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
+kept rounds), and save_playbook_combo stores a combination in the stratbook.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds

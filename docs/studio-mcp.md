@@ -209,7 +209,7 @@ Read:
 | `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`, `min_rounds`) |
 | `find_rounds` | `GET /api/library/matches?team_id=` or `?steamid=`, then `GET /api/library/matches/{id}/tactical` per match (up to 20); round refs `match_id/round` filtered by side, buy and result |
 | `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
-| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`); category, site and zone shares with win rates, the tempo median, and up to 5 round refs per row |
+| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`, `with`, `without`); category, site, zone and tactic shares with win rates over the rounds the combination keeps, the tempo median, and up to 5 round refs per row. Tactic keys read `kind:value`: `category`, `site`, `buy`, `opponent_buy`, `opening` (callout), `opening_result` (`won`, `lost`), `awp` (callout at 12 s), `zone`, `utility` (`smoke@Callout`, `molotov@Callout`) |
 | `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides, `from`, `to`, `opponent_id`, `match_id`); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
 | `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
@@ -269,6 +269,7 @@ Write:
 | `delete_report` | `GET` then `DELETE /api/library/reports/{id}` | yes |
 | `save_round_as_play` | `GET /api/library/matches/{id}/tactical/rounds/{round}/play?team_key=` (the draft), then `POST /api/library/plays` with the title and notes | no |
 | `save_detected_play` | `GET /api/library/teams/{id}/plays` again with the same filter, the group whose seed matches `play_ref`, then `POST /api/library/plays` (origin `detected`, positions second from the thresholds) | no |
+| `save_playbook_combo` | `GET /api/library/teams/{id}/playbook` with the same filter, `with` and `without`, then `POST /api/library/plays` (origin `playbook`, the kept rounds' most common pattern and site, the combination in the notes, up to 50 kept rounds as examples) | no |
 | `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null) | no |
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
 | `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |

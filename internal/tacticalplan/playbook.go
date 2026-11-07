@@ -93,6 +93,8 @@ type PlaybookRound struct {
 	TempoSeconds *float64   `json:"tempo_seconds"`
 	Framed       bool       `json:"framed"`
 	Zones        []ZoneHold `json:"zones"`
+	// Tactics is every tactic key the round shows, such as "zone:Middle".
+	Tactics []string `json:"tactics"`
 }
 
 // Playbook is what a team does on one side of one map, round by round.
@@ -109,7 +111,18 @@ type Playbook struct {
 	Tempo      Histogram          `json:"tempo"`
 	Sites      []PlaybookSite     `json:"sites"`
 	Zones      []PlaybookZone     `json:"zones"`
-	Rounds     []PlaybookRound    `json:"rounds"`
+	// Tactics counts each tactic over the rounds the combination kept.
+	Tactics []PlaybookTactic `json:"tactics"`
+	// Combo is the combination applied; RoundCount counts the rounds it kept.
+	Combo  PlaybookCombo   `json:"combo"`
+	Rounds []PlaybookRound `json:"rounds"`
+}
+
+// PlaybookOptions is what a playbook reads: the scout filter, then the
+// tactic combination that narrows its rounds.
+type PlaybookOptions struct {
+	Filter ScoutFilter
+	Combo  PlaybookCombo
 }
 
 type refGroup struct {
@@ -243,11 +256,15 @@ func (p playbookRead) fakeSite() Site {
 	return ""
 }
 
-// BuildPlaybook classifies the team's rounds on the filter's side and counts
-// categories, sites, tempo and zones. Refs follow Select order.
-func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
+// BuildPlaybook classifies the team's rounds on the filter's side, keeps those
+// the combination allows and counts categories, sites, tempo, zones and
+// tactics. Refs follow Select order.
+func BuildPlaybook(matches []FramedMatch, o PlaybookOptions) Playbook {
+	f := o.Filter
+	combo := PlaybookCombo{With: nonNil(o.Combo.With), Without: nonNil(o.Combo.Without)}
 	pb := Playbook{
-		Side: f.Side,
+		Combo: combo,
+		Side:  f.Side,
 		Thresholds: PlaybookThresholds{
 			RushSeconds: PlaybookRushSeconds, FakeUtility: PlaybookFakeUtility, SiteContactPlayers: SiteContactPlayers,
 			MapControlPlayers: MapControlPlayers, MapControlSeconds: MapControlSeconds,
@@ -261,6 +278,7 @@ func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
 	categories := map[string]*refGroup{}
 	sites := map[Site]*refGroup{}
 	zones := map[string]*refGroup{}
+	tactics := map[string]*refGroup{}
 	tempo := []float64{}
 	wins := 0
 	selected := selectFramed(matches, f)
@@ -269,7 +287,8 @@ func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
 		src := openFrames(m)
 		for _, r := range f.rounds(m.ScoutMatch) {
 			side := m.Document.TeamSide(m.TeamKey, r)
-			read, framed := readPlaybookRound(m.Document, r, side, src.round(r.Number))
+			frames := src.round(r.Number)
+			read, framed := readPlaybookRound(m.Document, r, side, frames)
 			category, fake := read.category()
 			won := r.Winner == side
 			ref := evidence(m.ScoutMatch, r, 0)
@@ -277,6 +296,10 @@ func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
 				MatchID: m.MatchID, Round: r.Number, Tick: ref.Tick, Category: category, Pattern: sidePattern(r, side),
 				Site: r.Class.Site, FakeSite: fake, Won: won, Buy: r.Economy.Buy(side), OpponentBuy: r.Economy.Buy(side.Opponent()),
 				Framed: framed, Zones: read.zones,
+			}
+			row.Tactics = read.roundTactics(row, frames)
+			if !combo.keeps(row.Tactics) {
+				continue
 			}
 			if read.hasTempo {
 				secs := read.tempo
@@ -296,6 +319,9 @@ func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
 			for _, hold := range read.zones {
 				groupOf(zones, hold.Zone).add(won, ref)
 			}
+			for _, key := range row.Tactics {
+				groupOf(tactics, key).add(won, ref)
+			}
 		}
 	}
 	pb.WinRate = newRate(wins, pb.RoundCount)
@@ -312,6 +338,7 @@ func BuildPlaybook(matches []FramedMatch, f ScoutFilter) Playbook {
 	for zone, g := range zones {
 		pb.Zones = append(pb.Zones, PlaybookZone{Zone: zone, Label: placename.Label(zone), PlaybookGroup: g.result(pb.Framed)})
 	}
+	pb.Tactics = sortedTactics(tactics, pb.RoundCount)
 	sort.Slice(pb.Zones, func(i, j int) bool {
 		if pb.Zones[i].Rounds != pb.Zones[j].Rounds {
 			return pb.Zones[i].Rounds > pb.Zones[j].Rounds
@@ -328,4 +355,11 @@ func groupOf[K comparable](groups map[K]*refGroup, key K) *refGroup {
 		groups[key] = g
 	}
 	return g
+}
+
+func nonNil(keys []string) []string {
+	if keys == nil {
+		return []string{}
+	}
+	return keys
 }

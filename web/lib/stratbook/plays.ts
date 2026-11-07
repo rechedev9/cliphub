@@ -24,6 +24,7 @@ export const PLAY_ORIGIN_LABEL: Record<PlayOrigin, string> = {
   round: 'Guardada de una ronda',
   detected: 'Detectada como repetida',
   import: 'Importada de un fichero',
+  playbook: 'Combinación del playbook',
 };
 
 export const GRENADE_LABEL: Record<PlayGrenadeKind, string> = {

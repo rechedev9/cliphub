@@ -86,18 +86,21 @@ type tempoOut struct {
 }
 
 type teamPlaybookOut struct {
-	Team           string     `json:"team" jsonschema:"untrusted team name"`
-	Map            string     `json:"map"`
-	Side           string     `json:"side"`
-	Matches        int        `json:"matches"`
-	Rounds         int        `json:"rounds"`
-	WinPct         float64    `json:"win_pct"`
-	FramedRounds   int        `json:"framed_rounds" jsonschema:"rounds with positions; zones are read from these only"`
-	Categories     []groupOut `json:"categories" jsonschema:"T: save, fake, rush, execute, map_control, default; CT: save, stack, aggression, retake, default"`
-	Tempo          tempoOut   `json:"tempo" jsonschema:"T: site contact or plant; CT: first duel"`
-	Sites          []groupOut `json:"sites"`
-	Zones          []groupOut `json:"zones" jsonschema:"zones the team held early; name is the callout label from the map"`
-	SkippedMatches int        `json:"skipped_matches,omitempty"`
+	Team           string      `json:"team" jsonschema:"untrusted team name"`
+	Map            string      `json:"map"`
+	Side           string      `json:"side"`
+	Matches        int         `json:"matches"`
+	Rounds         int         `json:"rounds"`
+	WinPct         float64     `json:"win_pct"`
+	FramedRounds   int         `json:"framed_rounds" jsonschema:"rounds with positions; zones are read from these only"`
+	Categories     []groupOut  `json:"categories" jsonschema:"T: save, fake, rush, execute, map_control, default; CT: save, stack, aggression, retake, default"`
+	Tempo          tempoOut    `json:"tempo" jsonschema:"T: site contact or plant; CT: first duel"`
+	Sites          []groupOut  `json:"sites"`
+	Zones          []groupOut  `json:"zones" jsonschema:"zones the team held early; name is the callout label from the map"`
+	Tactics        []tacticOut `json:"tactics" jsonschema:"every tactic the kept rounds show; pass a key in with or without to combine"`
+	With           []string    `json:"with" jsonschema:"the tactic keys every kept round shows"`
+	Without        []string    `json:"without" jsonschema:"the tactic keys no kept round shows"`
+	SkippedMatches int         `json:"skipped_matches,omitempty"`
 }
 
 type matchupOut struct {
@@ -173,19 +176,14 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_playbook", Annotations: readOnly,
 		Description: "Read what a team does on one side of one map: the share and win rate of each round category " +
-			"(rush, execute, fake, stack, retake...), the tempo, the sites and the zones it takes early. map and side are required; opponent_id and match_id narrow the matches."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in teamReportIn) (*mcp.CallToolResult, teamPlaybookOut, error) {
-			q, err := in.check(true)
+			"(rush, execute, fake, stack, retake...), the tempo, the sites, the zones it takes early and every tactic its rounds show " +
+			"(buys, opening duel spot and result, AWP spot, key smokes and molotovs). Combine tactics as Combina tácticas does: " +
+			"with keeps the rounds that show every key, without drops those that show any, and every count is over the kept rounds. " +
+			"map and side are required; opponent_id and match_id narrow the matches."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPlaybookIn) (*mcp.CallToolResult, teamPlaybookOut, error) {
+			pb, err := in.read(ctx, s)
 			if err != nil {
 				return nil, teamPlaybookOut{}, err
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, teamPlaybookOut{}, toolError(err)
-			}
-			pb, err := c.TeamPlaybookReport(ctx, in.TeamID, q)
-			if err != nil {
-				return nil, teamPlaybookOut{}, toolError(err)
 			}
 			return nil, summarizePlaybook(pb), nil
 		})
@@ -270,6 +268,7 @@ func summarizePlaybook(pb tuiclient.TeamPlaybook) teamPlaybookOut {
 		}
 		out.Zones = append(out.Zones, groupOf(name, g.ReportGroup))
 	}
+	out.Tactics, out.With, out.Without = tacticsOf(pb)
 	return out
 }
 
