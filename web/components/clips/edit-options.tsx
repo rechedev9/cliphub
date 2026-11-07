@@ -57,7 +57,7 @@ export function EditOptions({
   killCounter = true,
 }: EditOptionsProps) {
   return (
-    <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
+    <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
       {showFullDemoDelivery ? (
         <OptionBlock label="Entrega opcional" className="md:col-span-2">
           <ToggleGroup

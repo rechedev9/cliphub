@@ -1,9 +1,7 @@
 import type { ReactElement } from 'react';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Compass } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { RESULTS_HREF } from '@/lib/clips/routes';
+import { NotFoundAction } from '@/components/shell/not-found-action';
 
 export const metadata: Metadata = { title: 'Ruta desconocida' };
 
@@ -22,7 +20,7 @@ export default function AppNotFound(): ReactElement {
             <Compass className="size-5" aria-hidden />
           </span>
           <div className="min-w-0">
-            <h1 className="font-display text-title font-bold text-fg-1">Aquí no hay nada</h1>
+            <h1 className="font-display text-title font-bold text-fg-1">Esta página no existe</h1>
             <p className="mt-2 text-body text-fg-2">
               Esa dirección no corresponde a ninguna pantalla de Studio. Puede que el vídeo o la partida se
               hayan borrado, o que el enlace esté incompleto.
@@ -30,9 +28,7 @@ export default function AppNotFound(): ReactElement {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button asChild>
-            <Link href={RESULTS_HREF}>Ir a Mis vídeos</Link>
-          </Button>
+          <NotFoundAction />
         </div>
       </section>
     </div>
