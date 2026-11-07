@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { MonitorCog } from 'lucide-react';
 import { getDesktopSettingsBridge, type StudioAppInfo } from '@/lib/desktop-settings';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SettingsSection } from './settings-section';
 
 /** The build facts, in the order an operator reads them. */
 const INFO_ROWS: ReadonlyArray<{ key: keyof StudioAppInfo; label: string }> = [
@@ -37,9 +35,9 @@ export function StudioInfo(): ReactNode {
   let body: ReactNode;
   if (info) {
     body = (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col divide-y divide-border border border-border bg-surface-2">
         {INFO_ROWS.map((row) => (
-          <StudioDataRow key={row.key} label={row.label} value={info[row.key]} />
+          <StudioDataRow key={row.key} label={row.label} value={info[row.key]} className="border-0 bg-transparent" />
         ))}
       </div>
     );
@@ -51,7 +49,7 @@ export function StudioInfo(): ReactNode {
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo versión instalada" className="flex flex-col gap-2">
+      <div role="status" aria-label="Leyendo versión instalada" className="flex flex-col gap-px">
         {INFO_ROWS.map((row) => (
           <Skeleton key={row.key} className="h-11 w-full rounded-none" />
         ))}
@@ -60,19 +58,8 @@ export function StudioInfo(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="studio-info-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={MonitorCog} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Aplicación" />
-          <h2 id="studio-info-title" className="font-display text-title font-bold text-fg-1">
-            ClipHub Studio
-          </h2>
-        </div>
-
-      </div>
-
+    <SettingsSection id="studio" title="Versión de Studio" description="Lo que pide el soporte cuando algo falla.">
       {body}
-    </section>
+    </SettingsSection>
   );
 }

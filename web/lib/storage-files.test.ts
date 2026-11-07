@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { LibraryMatchTeam } from './api/library.ts';
 import type { StorageFile } from './api/storage.ts';
-import { bulkDeleteWarning, groupByFolder, groupByKind, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
+import { bulkDeleteWarning, groupByFolder, groupByKind, libraryCopyLabel, libraryVideoFor, matchLabel, splitPath } from './storage-files.ts';
 
 const file = (path: string, sizeBytes: number, kind: StorageFile['kind'] = 'demo'): StorageFile => ({
   path,
@@ -57,4 +58,22 @@ test('bulkDeleteWarning only mentions what the selection holds', () => {
     bulkDeleteWarning([file('c.dem', 1, 'studio_demo'), file('v.mp4', 1, 'short')]),
     'Cada copia de Studio se borra con su partida, sus vídeos y sus capturas. Los vídeos elegidos se borran.',
   );
+});
+
+test('libraryCopyLabel names a library copy by its match, and gives up on unknown copies', () => {
+  const team = (clan: string, score: number, teamName?: string): LibraryMatchTeam => ({
+    key: 'ct-start',
+    start_side: 'CT',
+    clan_name: clan,
+    team_id: null,
+    team_name: teamName,
+    assignment: 'auto',
+    score,
+  });
+  const matches = [{ demo_id: 'd1', map: 'de_mirage', teams: [team('clanA', 13, 'Vitality'), team('clanB', 9)] }];
+  assert.equal(libraryCopyLabel('C:\\data\\library\\d1\\demo.dem', matches), 'Mirage · Vitality 13-9 clanB');
+  const unnamed = [{ demo_id: 'd3', map: 'de_inferno', teams: [team('', 10), { ...team('', 13), start_side: 'T' as const }] }];
+  assert.equal(libraryCopyLabel('/data/library/d3/demo.dem', unnamed), 'Inferno · Equipo CT 10-13 Equipo T');
+  assert.equal(libraryCopyLabel('/data/library/d2/demo.dem', matches), null);
+  assert.equal(libraryCopyLabel('C:\\data\\jobs\\d1\\demo.dem', matches), null);
 });

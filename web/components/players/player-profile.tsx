@@ -37,14 +37,14 @@ export function PlayerProfile({ player, onUnfollow, unfollowing, onFollow }: {
       <div className="min-w-0 flex-1 basis-40">
         <h2 className="break-words text-section font-bold text-fg-1">{player.nickname}</h2>
         <p className="mt-1 text-body-sm text-fg-2">
-          FACEIT · Nivel {player.skill_level ?? '—'}
+          FACEIT · Nivel {player.skill_level ?? '-'}
           {player.country ? <> · <span className="uppercase">{player.country}</span></> : null}
         </p>
         <p className="mt-1 text-stat font-semibold tabular-nums text-fg-1">
-          {player.elo ?? '—'} <span className="text-body-sm font-normal text-fg-3">ELO</span>
+          {player.elo ?? '-'} <span className="text-body-sm font-normal text-fg-3">ELO</span>
         </p>
         <div className="mt-1 flex min-w-0 items-center gap-1 text-body-sm text-fg-3">
-          <span className="flex min-w-0 gap-1"><span className="shrink-0 whitespace-nowrap">Steam ID</span> <span className="truncate select-all tabular-nums text-fg-2" title={player.steam_id64}>{player.steam_id64 ?? '—'}</span></span>
+          <span className="flex min-w-0 gap-1"><span className="shrink-0 whitespace-nowrap">Steam ID</span> <span className="truncate select-all tabular-nums text-fg-2" title={player.steam_id64}>{player.steam_id64 ?? '-'}</span></span>
           {player.steam_id64 ? <Button variant="ghost" size="icon-xs" aria-label="Copiar Steam ID" onClick={() => void copySteamID()}>
             <Copy aria-hidden className="size-3.5" />
           </Button> : null}

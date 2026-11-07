@@ -40,29 +40,31 @@ export function LibretaFileActions({ onImported }: { onImported: () => void }): 
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-col items-start gap-2 lg:items-end">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <FileUp aria-hidden />
+          Importar libreta
+        </Button>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void exportAll()}>
+          <FileDown aria-hidden />
+          Exportar libreta
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          aria-label="Fichero de la Libreta entera"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(event) => void importFile(event)}
+        />
+      </div>
       {message ? (
-        <p role="status" className="mr-auto text-body-sm text-fg-2">
+        <p role="status" className="max-w-80 text-body-sm text-fg-2 lg:text-right">
           {message}
         </p>
       ) : null}
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()}>
-        <FileUp aria-hidden />
-        Importar libreta
-      </Button>
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void exportAll()}>
-        <FileDown aria-hidden />
-        Exportar libreta
-      </Button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".json,application/json"
-        aria-label="Fichero de la Libreta entera"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => void importFile(event)}
-      />
     </div>
   );
 }

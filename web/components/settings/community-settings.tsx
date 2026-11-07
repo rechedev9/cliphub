@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Globe } from 'lucide-react';
 import { deleteCommunityRankings, getCommunitySettings, putCommunitySettings, submitCommunityRankings } from '@/lib/api/library';
 import type { CommunitySettings as Settings } from '@/lib/api/community';
-import { IconTile } from '@/components/studio/icon-tile';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SettingsSection } from './settings-section';
 
 type Pending = 'toggle' | 'submit' | 'delete' | null;
 
@@ -120,14 +119,8 @@ export function CommunitySettings(): ReactNode {
   }
 
   return (
-    <section id="community" className="studio-panel flex scroll-mt-20 flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="community-settings-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={Globe} size="md" depth="inset" />
-        <h2 id="community-settings-title" className="font-display text-title font-bold text-fg-1">
-          Ranking global
-        </h2>
-      </div>
+    <SettingsSection id="community" title="Ranking global" description="Compara tu jugador con el de otras instalaciones de Studio, sin nombres ni SteamID.">
       {body}
-    </section>
+    </SettingsSection>
   );
 }

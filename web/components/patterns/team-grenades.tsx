@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { MapPinned, PlugZap } from 'lucide-react';
+import { Map as MapIcon, PlugZap } from 'lucide-react';
 import { isLibraryOffline, listTeamGrenades, type LibraryMatch } from '@/lib/api/library';
 import type { TeamGrenades as TeamGrenadesData } from '@/lib/api/grenades';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
@@ -92,7 +92,7 @@ export function TeamGrenades({
     const maps = [...new Set(matches.map((match) => match.map))].sort();
     return (
       <EmptyState
-        icon={MapPinned}
+        icon={MapIcon}
         title="Elige un mapa"
         description="Las granadas se dibujan sobre el radar de un mapa."
         actions={
@@ -127,7 +127,7 @@ export function TeamGrenades({
   if (geometry === null) {
     return (
       <EmptyState
-        icon={MapPinned}
+        icon={MapIcon}
         title="Sin radar para este mapa"
         description={`Ninguna partida de ${prettyMapName(map)} tiene un análisis con el que dibujar el radar.`}
       />

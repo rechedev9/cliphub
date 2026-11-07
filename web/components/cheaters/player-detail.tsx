@@ -4,19 +4,23 @@ import type { ReactNode } from 'react';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerdictBadge } from '@/components/cheaters/verdict-badge';
-import { isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
+import { ANTICHEAT_VERDICT, VERDICT_LABEL, isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
 import { cn } from '@/lib/utils';
 
-/** Formats a metric value the same way the CLI and the dossier do. */
+const decimal1 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const decimal2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const signed2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
+
+/** A metric value in the CLI's units, with the Spanish decimal comma the rest of Studio uses. */
 function formatValue(metric: AnticheatMetric): string {
   switch (metric.unit) {
     case '%':
-      return `${metric.value.toFixed(1)} %`;
+      return `${decimal1.format(metric.value)} %`;
     case 'ms':
     case '°/s':
       return `${Math.round(metric.value)} ${metric.unit}`;
     default:
-      return metric.value.toFixed(2);
+      return decimal2.format(metric.value);
   }
 }
 
@@ -24,12 +28,12 @@ function formatBaseline(metric: AnticheatMetric): string {
   const { mean, stddev } = metric.baseline;
   switch (metric.unit) {
     case '%':
-      return `${mean.toFixed(1)} ± ${stddev.toFixed(1)} %`;
+      return `${decimal1.format(mean)} ± ${decimal1.format(stddev)} %`;
     case 'ms':
     case '°/s':
       return `${Math.round(mean)} ± ${Math.round(stddev)} ${metric.unit}`;
     default:
-      return `${mean.toFixed(2)} ± ${stddev.toFixed(2)}`;
+      return `${decimal2.format(mean)} ± ${decimal2.format(stddev)}`;
   }
 }
 
@@ -58,8 +62,7 @@ function MetricRow({ metric }: { metric: AnticheatMetric }) {
             <span style={{ width: `${Math.max(2, Math.min(100, metric.suspicion))}%` }} />
           </span>
           <span className="w-24 shrink-0 text-right text-meta text-fg-2">
-            z {metric.z >= 0 ? '+' : ''}
-            {metric.z.toFixed(2)}
+            z {signed2.format(metric.z)}
           </span>
         </div>
       ) : (
@@ -100,10 +103,10 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
           <ul className="flex flex-col gap-1.5">
             {player.evidence.map((e) => (
               <li key={`${e.tick}-${e.kind}`} className="text-body-sm text-fg-2">
-                <span className="font-mono text-meta text-fg-1">
-                  R{e.round} · tick {e.tick}
+                <span className="font-medium text-fg-1">
+                  Ronda {e.round} · tick <span className="font-mono text-meta tabular-nums">{e.tick}</span>:
                 </span>{' '}
-                — {e.detail}
+                {e.detail}
               </li>
             ))}
           </ul>
@@ -147,17 +150,23 @@ export function PlayerSummaryRow({
       aria-expanded={expanded}
       className="flex w-full flex-wrap items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-surface-3 @[44rem]/content:flex-nowrap sm:px-5"
     >
-      <span className="w-12 shrink-0 text-title font-semibold tabular-nums text-fg-1">
-        {player.score.toFixed(0)}
+      <span className="flex w-14 shrink-0 flex-col" title="Índice de sospecha, de 0 a 100">
+        <span className="text-title leading-tight font-semibold tabular-nums text-fg-1">{player.score.toFixed(0)}</span>
+        <span className="text-meta text-fg-3">sospecha</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium text-fg-1">{player.name || player.steamid64}</span>
-        <span className="font-mono text-meta text-fg-3">
-          {player.steamid64} · {player.gun_kills} bajas · confianza {Math.round(player.confidence * 100)} %
+        <span className="text-meta text-fg-3">
+          <span className="font-mono">{player.steamid64}</span> · {player.gun_kills} bajas · confianza {Math.round(player.confidence * 100)} %
         </span>
       </span>
+      {/* A badge marks what needs a look; a clean line stays plain text. */}
       <span className="shrink-0 self-center">
-        <VerdictBadge verdict={player.verdict} />
+        {player.verdict === ANTICHEAT_VERDICT.clean ? (
+          <span className="text-body-sm text-fg-3">{VERDICT_LABEL[player.verdict]}</span>
+        ) : (
+          <VerdictBadge verdict={player.verdict} />
+        )}
       </span>
     </button>
   );

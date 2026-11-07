@@ -88,40 +88,49 @@ export function TeamScout({
   }, [teamId, map, side, opponent, from, to, onCounts]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <ScoutResult
+      failed={failed}
+      scout={scout}
+      teamId={teamId}
+      actions={
         <Button asChild size="sm">
           <Link href={newReportHref(teamId)}>
             <FilePlus2 aria-hidden />
             Crear informe
           </Link>
         </Button>
-      </div>
-      <ScoutResult failed={failed} scout={scout} teamId={teamId} />
-    </div>
+      }
+    />
   );
 }
 
-function ScoutResult({ failed, scout, teamId }: { failed: boolean; scout: ScoutReport | null; teamId: string }): ReactNode {
+function ScoutResult({ failed, scout, teamId, actions }: { failed: boolean; scout: ScoutReport | null; teamId: string; actions: ReactNode }): ReactNode {
   const [video, setVideo] = useState<VideoSource[] | null>(null);
   if (failed) {
     return (
-      <p role="alert" className="text-body-sm text-destructive">
-        No se pudo leer el scouting de este equipo. Comprueba que ClipHub Studio sigue abierto.
-      </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-end">{actions}</div>
+        <p role="alert" className="text-body-sm text-destructive">
+          No se pudo leer el scouting de este equipo. Comprueba que ClipHub Studio sigue abierto.
+        </p>
+      </div>
     );
   }
   if (scout === null) {
+    // The tab bar's shape, with the real button: a report can be started before the read ends.
     return (
-      <div role="status" aria-label="Leyendo las partidas" className="flex flex-col gap-3">
-        <Skeleton className="h-10 w-full" />
+      <div role="status" aria-label="Leyendo las partidas" className="flex flex-col gap-4">
+        <div className="flex items-center gap-3 border-b border-border py-1">
+          <Skeleton className="h-6 flex-1" />
+          {actions}
+        </div>
         <Skeleton className="h-64 w-full" />
       </div>
     );
   }
   return (
     <>
-      <ScoutView scout={scout} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />
+      <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />
       {video ? <AnalysisVideoDialog title="Crear vídeo de estas rondas" sources={video} teamId={teamId} onClose={() => setVideo(null)} /> : null}
     </>
   );

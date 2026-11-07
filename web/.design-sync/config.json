@@ -14,7 +14,6 @@
     "Sidebar": { "cardMode": "single", "viewport": "340x540" },
     "SongPickerDialog": { "cardMode": "single", "viewport": "600x560" },
     "RecDot": { "cardMode": "column" },
-    "SectionEyebrow": { "cardMode": "column" },
     "CreateReelBar": { "cardMode": "column" },
     "Input": { "cardMode": "column" },
     "Label": { "cardMode": "column" },

@@ -86,7 +86,7 @@ function MusicDecision({
         <div className="flex flex-col gap-2.5 border-t border-border-subtle pt-3">
           <div className="flex min-w-0 items-center gap-3">
             <label htmlFor="music-volume" className="w-24 shrink-0 text-meta text-fg-2">
-              Música <span className="text-fg-1">· {musicVolume}%</span>
+              Música <span className="text-fg-1">· {musicVolume} %</span>
             </label>
             <input
               id="music-volume"
@@ -102,7 +102,7 @@ function MusicDecision({
           </div>
           <div className="flex min-w-0 items-center gap-3">
             <label htmlFor="game-volume" className="w-24 shrink-0 text-meta text-fg-2">
-              Juego <span className="text-fg-1">· {gameVolume}%</span>
+              Juego <span className="text-fg-1">· {gameVolume} %</span>
             </label>
             <input
               id="game-volume"

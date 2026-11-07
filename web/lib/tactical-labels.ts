@@ -10,6 +10,7 @@ import {
   TACTICAL_STATES,
   TACTICAL_T_PATTERNS,
 } from './api/tactical.ts';
+import { formatDecimal } from './format.ts';
 import type {
   TacticalBuyType,
   TacticalCTPattern,
@@ -183,21 +184,21 @@ export function opponentSide(side: TacticalSide): TacticalSide {
  * `-6.2` reads as six seconds before the round went live.
  */
 export function roundClockLabel(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '—';
+  if (!Number.isFinite(seconds)) return '-';
   const sign = seconds < 0 ? '-' : '';
   const total = Math.abs(seconds);
   const minutes = Math.floor(total / 60);
   const rest = total - minutes * 60;
-  return `${sign}${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
+  return `${sign}${minutes}:${rest.toFixed(1).padStart(4, '0').replace('.', ',')}`;
 }
 
 /**
  * A rate as a percentage with its denominator, never one without the other:
- * `43.5 % (n=23)`. An empty sample reads as a dash rather than `0 %`.
+ * `43,5 % (n=23)`. An empty sample says so rather than `0 %`.
  */
 export function rateLabel(pct: number, total: number): string {
-  if (total <= 0) return '— (n=0)';
-  return `${pct.toFixed(1)} % (n=${total})`;
+  if (total <= 0) return 'Sin rondas (n=0)';
+  return `${formatDecimal(pct, 1)} % (n=${total})`;
 }
 
 /** CS2 place tokens whose English name is not their CamelCase split (`csgo_english.txt`). */

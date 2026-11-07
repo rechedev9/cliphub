@@ -6,6 +6,7 @@ import type { TacticalSample } from '@/lib/api/tactical';
 import { equipmentItem, rowInventory } from '@/lib/replay/equipment';
 import { cn } from '@/lib/utils';
 import { EquipmentIcon } from '../equipment-icon';
+import { formatDecimal } from '@/lib/format';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 const WIDTH = 208;
@@ -56,7 +57,7 @@ export function PlayerTooltip({ sample, name, ref }: { sample: TacticalSample; n
           ))}
         </p>
       )}
-      {(sample.flashed ?? 0) > 0 ? <p className="text-meta font-medium text-fg-1">Cegado {(sample.flashed ?? 0).toFixed(1)} s</p> : null}
+      {(sample.flashed ?? 0) > 0 ? <p className="text-meta font-medium text-fg-1">Cegado {formatDecimal(sample.flashed ?? 0, 1)} s</p> : null}
     </div>
   );
 }

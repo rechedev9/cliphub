@@ -8,10 +8,11 @@ import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
 import { scaleBars } from '@/lib/analysis/playbook';
 import { METRIC_INFO, SCOPE_LABEL, baselineSampleText, baselineValue, leaderboardEmptyText, proSourceText } from '@/lib/analysis/reference';
 import { versusRows, type VersusRow } from '@/lib/analysis/versus-board';
-import { playerHref } from '@/lib/clips/routes';
+import { MATCHES_HREF, playerHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -133,7 +134,7 @@ export function RankingBoard(): ReactNode {
             <span className="text-meta whitespace-nowrap text-fg-3">Demos</span>
             <Segmented label="Demos" value={query.scope} options={BOARD_SCOPES} onChange={(scope) => update({ scope })} />
             {!global && data !== null && data !== 'failed' ? (
-              <p className="flex h-8 items-center rounded-md border border-border px-2.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums">
+              <p className="pl-1 text-meta whitespace-nowrap text-fg-3 tabular-nums">
                 {data.board.matches} {data.board.matches === 1 ? 'partida' : 'partidas'} · {data.board.rounds} rondas
               </p>
             ) : null}
@@ -148,7 +149,16 @@ export function RankingBoard(): ReactNode {
         />
         )}
       </div>
-      {global ? <GlobalRanking map={query.map} /> : <RankingTable data={data} info={info} onRetry={() => setAttempt((n) => n + 1)} />}
+      {global ? (
+        <GlobalRanking map={query.map} />
+      ) : (
+        <RankingTable
+          data={data}
+          info={info}
+          onRetry={() => setAttempt((n) => n + 1)}
+          onLowerMinRounds={query.minRounds > MIN_ROUNDS[0] ? () => update({ minRounds: MIN_ROUNDS[0] }) : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -157,10 +167,13 @@ function RankingTable({
   data,
   info,
   onRetry,
+  onLowerMinRounds,
 }: {
   data: Loaded | null | 'failed';
   info: (typeof METRIC_INFO)[BaselineMetric];
   onRetry: () => void;
+  /** Present while a lower minimum exists, so an empty board offers it as a button. */
+  onLowerMinRounds?: () => void;
 }): ReactNode {
   if (data === 'failed') {
     return (
@@ -183,7 +196,28 @@ function RankingTable({
     );
   }
   const { board, rows, baseline } = data;
-  if (rows.length === 0) return <p className="text-body-sm text-fg-2">{leaderboardEmptyText(board)}</p>;
+  if (rows.length === 0) {
+    let action: ReactNode = null;
+    if (board.matches === 0) {
+      action = (
+        <Button asChild variant="outline" size="sm">
+          <Link href={MATCHES_HREF}>Importar demos</Link>
+        </Button>
+      );
+    } else if (onLowerMinRounds) {
+      action = (
+        <Button type="button" variant="outline" size="sm" onClick={onLowerMinRounds}>
+          Ver con {MIN_ROUNDS[0]} rondas o más
+        </Button>
+      );
+    }
+    return (
+      <div className="studio-panel flex flex-col items-start gap-3 px-4 py-4">
+        <p className="text-body-sm text-fg-2">{leaderboardEmptyText(board)}</p>
+        {action}
+      </div>
+    );
+  }
   const metric = board.metric;
   const mean = baselineValue(baseline, metric);
   const widths = scaleBars(rows.map((row) => row.value));

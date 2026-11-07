@@ -8,9 +8,12 @@ import { cn } from "@/lib/utils"
 import { FOCUS_RING } from "@/components/ui/button"
 
 function Select({
+  onValueChange,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  // No item can hold '', so an empty value is Radix's hidden form select resetting while the options swap, never a pick.
+  const pick = onValueChange === undefined ? undefined : (next: string) => { if (next !== "") onValueChange(next) }
+  return <SelectPrimitive.Root data-slot="select" onValueChange={pick} {...props} />
 }
 
 function SelectValue({

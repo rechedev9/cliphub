@@ -84,12 +84,12 @@ export function WinProbability({
         >
           <line x1={0} x2={WIDTH} y1={HEIGHT / 2} y2={HEIGHT / 2} className="stroke-border" strokeDasharray="4 4" />
           <line x1={0} x2={WIDTH} y1={HEIGHT} y2={HEIGHT} className="stroke-border-strong" />
-          <text x={0} y={HEIGHT + 14} className="fill-fg-3 text-[10px]">0:00</text>
-          <text x={WIDTH} y={HEIGHT + 14} textAnchor="end" className="fill-fg-3 text-[10px]">
+          <text x={0} y={HEIGHT + 14} className="fill-fg-3 text-meta">0:00</text>
+          <text x={WIDTH} y={HEIGHT + 14} textAnchor="end" className="fill-fg-3 text-meta">
             {secondsText(chart.maxSeconds)}
           </text>
-          <text x={WIDTH} y={-1} textAnchor="end" className="fill-side-ct text-[10px]">CT 100 %</text>
-          <text x={WIDTH} y={HEIGHT - 3} textAnchor="end" className="fill-side-t text-[10px]">T 100 %</text>
+          <text x={WIDTH} y={-1} textAnchor="end" className="fill-side-ct text-meta">CT 100 %</text>
+          <text x={WIDTH} y={HEIGHT - 3} textAnchor="end" className="fill-side-t text-meta">T 100 %</text>
           <path d={chart.path} fill="none" className="stroke-primary" strokeWidth={2} />
           {chart.points.map(({ x, y, point }, i) => (
             <circle

@@ -12,7 +12,7 @@ export const STREAM_IMPORT_URL_FAIL_MESSAGE =
 export const STREAM_IMPORT_FILE_FAIL_MESSAGE = 'No se pudo procesar ese archivo. Prueba con otro MP4.';
 
 export const STREAM_IMPORT_YTDLP_MISSING_MESSAGE =
-  'Este equipo no puede descargar vídeos desde un enlace. Usa “Subir un MP4” o reinstala ClipHub Studio.';
+  'Este equipo no puede descargar vídeos desde un enlace. Usa «Subir un MP4» o reinstala ClipHub Studio.';
 
 export const STREAM_VOD_LINK_AS_CLIP_MESSAGE =
   'Esa URL es de un VOD completo. Elige «VOD completo» o pega el enlace de un clip.';
@@ -77,7 +77,7 @@ export function streamSourceUrlError(raw: string, kind?: StreamSourceKind): stri
   if (!trimmed) return STREAM_URL_REQUIRED_MESSAGE;
   const badExt = nonVideoExtension(trimmed);
   if (badExt) {
-    return `Esa URL apunta a un archivo .${badExt}, no a un vídeo. Pega el enlace de un clip o VOD de Twitch, YouTube o Kick, o usa “Subir un MP4”.`;
+    return `Esa URL apunta a un archivo .${badExt}, no a un vídeo. Pega el enlace de un clip o VOD de Twitch, YouTube o Kick, o usa «Subir un MP4».`;
   }
   let url: URL;
   try {

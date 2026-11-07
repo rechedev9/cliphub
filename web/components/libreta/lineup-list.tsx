@@ -15,12 +15,13 @@ import { lineupSpot, practiceBlockReason, techniqueLabel } from '@/lib/libreta/l
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useCalloutNames } from '@/hooks/use-callout-names';
 import { BulkBar } from './bulk-bar';
 import { GrenadeName, TechniqueText } from './lineup-fields';
@@ -54,7 +55,7 @@ function lineupColumns(calloutLabel: CalloutLabel): DataTableColumn<LibraryLineu
     {
       id: 'tags',
       header: 'Etiquetas',
-      cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+      cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
       sortValue: (lineup) => lineup.tags.join(','),
     },
     {
@@ -170,10 +171,7 @@ export function LineupList({
 
   if (lineups === null) {
     return (
-      <div role="status" aria-label="Cargando lineups" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando lineups" columns={5} filters={4} />
     );
   }
   if (lineups.length === 0) {
@@ -224,23 +222,6 @@ export function LineupList({
   return (
     <div className="flex flex-col gap-3">
       {status}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por título, callout, etiqueta o notas"
-          filters={[
-            { id: 'map', label: 'Mapa', options: maps },
-            { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
-            { id: 'grenade', label: 'Granada', options: TEAM_GRENADE_KINDS.map((kind) => ({ value: kind, label: GRENADE_KIND_LABEL[kind] })) },
-            { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-          ]}
-          count={{ shown: shown.length, total: lineups.length, noun: lineups.length === 1 ? 'lineup' : 'lineups' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        <div className="flex flex-wrap gap-2">{newButton}</div>
-      </div>
       {hiddenArchived > 0 ? (
         <p className="text-meta text-fg-3">
           {hiddenArchived === 1 ? 'Un lineup archivado no se muestra.' : `${hiddenArchived} lineups archivados no se muestran.`} Elige Estado: Archivo para verlos.
@@ -272,6 +253,22 @@ export function LineupList({
       ) : null}
       <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por título, callout, etiqueta o notas"
+            filters={[
+              { id: 'map', label: 'Mapa', options: maps },
+              { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
+              { id: 'grenade', label: 'Granada', options: TEAM_GRENADE_KINDS.map((kind) => ({ value: kind, label: GRENADE_KIND_LABEL[kind] })) },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+            ]}
+            count={{ shown: shown.length, total: lineups.length, noun: lineups.length === 1 ? 'lineup' : 'lineups' }}
+          />
+        }
+        actions={newButton}
         label="Lineups"
         rows={shown}
         columns={columns}

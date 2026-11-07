@@ -9,8 +9,8 @@ const PAGE_DESCRIPTION = 'Qué hacer para que tus Shorts y demos completas llegu
 const BLOCKS = parseMarkdown(guideSource);
 
 const HEADING_CLASS = {
-  2: 'mt-4 font-display text-section font-bold text-fg-1',
-  3: 'mt-2 font-display text-title font-bold text-fg-1',
+  2: 'mt-6 text-title font-semibold text-fg-1',
+  3: 'mt-2 text-body font-semibold text-fg-1',
 } as const;
 
 export function AlgorithmsGuide(): ReactNode {

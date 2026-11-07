@@ -15,8 +15,8 @@ import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { PrepDialog } from '@/components/prep/prep-dialog';
 import { NewReportDialog } from './new-report-dialog';
 
@@ -145,10 +145,7 @@ function ReportListBody({
 }): ReactNode {
   if (reports === null) {
     return (
-      <div role="status" aria-label="Cargando informes" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando informes" columns={4} />
     );
   }
 
@@ -196,18 +193,17 @@ function ReportListBody({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por título o rival"
-          count={{ shown: shown.length, total: reports.length, noun: reports.length === 1 ? 'informe' : 'informes' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        {newButton}
-      </div>
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por título o rival"
+            count={{ shown: shown.length, total: reports.length, noun: reports.length === 1 ? 'informe' : 'informes' }}
+          />
+        }
+        actions={newButton}
         label="Informes"
         rows={shown}
         columns={[...COLUMNS, deleteColumn(onReload)]}

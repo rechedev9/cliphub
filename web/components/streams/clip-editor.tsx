@@ -24,6 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
+import { formatRate } from '@/lib/format';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
@@ -209,8 +211,11 @@ function ClipCard({
               {clip.title?.trim() || `Momento ${index + 1}`}
             </span>
             <span className="truncate text-meta text-fg-3">
-              {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)} → Short de{' '}
-              {formatStreamClock(clipOutputDuration(clip))}
+              {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)}
+              {/* The Short's length only when speed edits make it differ from the range above. */}
+              {formatStreamClock(clipOutputDuration(clip)) === formatStreamClock(clip.end_seconds - clip.start_seconds)
+                ? null
+                : ` · Short de ${formatStreamClock(clipOutputDuration(clip))}`}
             </span>
           </span>
         </button>
@@ -256,9 +261,9 @@ function ClipCard({
         Ver este Short
       </Button>
       <details className="flex flex-col gap-3">
-        <summary className="min-h-10 cursor-pointer py-2 text-body-sm text-fg-2">
+        <DisclosureSummary className="min-h-10 py-2 text-body-sm text-fg-2">
           Texto, velocidad y audio · opcional
-        </summary>
+        </DisclosureSummary>
         <div className="grid grid-cols-2 gap-1.5">
           <Select
             value={String(speed)}
@@ -274,7 +279,7 @@ function ClipCard({
             <SelectContent>
               {CLIP_SPEEDS.map((value) => (
                 <SelectItem key={value} value={String(value)}>
-                  {value}×
+                  {formatRate(value)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -289,7 +294,7 @@ function ClipCard({
             onClick={toggleMute}
             className={cn(sourceVolume === 0 && 'border-destructive/45 text-destructive')}
           >
-            {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
+            {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)} %`}
           </Button>
           <Button
             type="button"
@@ -346,7 +351,7 @@ function ClipCard({
                 Volumen original
               </Label>
               <output htmlFor={`${clip.id}-source-volume`} className="text-label tabular-nums text-fg-1">
-                {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`}
+                {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)} %`}
               </output>
             </div>
             <input
@@ -572,7 +577,7 @@ function OverlayRow({
           step="0.005"
           value={overlay.position_y}
           disabled={disabled}
-          aria-valuetext={`${Math.round(overlay.position_y * 100)}% desde arriba`}
+          aria-valuetext={`${Math.round(overlay.position_y * 100)} % desde arriba`}
           onChange={(e) => onChange({ position_y: Number(e.target.value) })}
           className={STREAM_SLIDER_CLASS}
         />
@@ -580,7 +585,7 @@ function OverlayRow({
           htmlFor={`${idBase}-position`}
           className="w-11 shrink-0 text-right text-label tabular-nums text-fg-1"
         >
-          {Math.round(overlay.position_y * 100)}%
+          {Math.round(overlay.position_y * 100)} %
         </output>
       </div>
     </div>

@@ -70,8 +70,10 @@ export type ClipsLensProps = {
   onChange: () => void;
 };
 
-function chipClass(active: boolean): string {
-  return cn(CHIP_CLASS, active ? 'border-fg-1 bg-fg-1 font-bold text-background' : 'border-border text-fg-2 hover:text-fg-1');
+/** An unpressed chip with nothing behind it reads quieter than its siblings. */
+function chipClass(active: boolean, count: number): string {
+  if (active) return cn(CHIP_CLASS, 'border-fg-1 bg-fg-1 font-bold text-background');
+  return cn(CHIP_CLASS, 'border-border hover:text-fg-1', count === 0 ? 'text-fg-3' : 'text-fg-2');
 }
 
 /** Every video recorded on this PC: what is in progress on top, the ready ones as a filtered grid. */
@@ -133,46 +135,47 @@ export function ClipsLens({ clips, streams, onChange }: ClipsLensProps): ReactNo
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-col gap-2.5">
         <div role="group" aria-label="Tipo de vídeo" className="flex flex-wrap gap-1.5">
           {Object.values(LIBRARY_FILTER).map((key) => (
-            <button key={key} type="button" aria-pressed={format === key} onClick={() => setFormat(key)} className={chipClass(format === key)}>
+            <button key={key} type="button" aria-pressed={format === key} onClick={() => setFormat(key)} className={chipClass(format === key, counts.format[key])}>
               <span aria-hidden className={cn('size-2.5 rounded-[3px]', key === LIBRARY_FILTER.all ? 'bg-fg-3' : FORMAT_TONE[key].bg)} />
               {FILTER_LABEL[key]}
               <span className="opacity-70">{counts.format[key]}</span>
             </button>
           ))}
         </div>
-        <span aria-hidden className="mx-1 h-6 w-px bg-border" />
-        <div role="group" aria-label="Estado" className="flex flex-wrap gap-1.5">
-          {Object.values(LIBRARY_STAGE).map((key) => (
-            <button key={key} type="button" aria-pressed={stage === key} onClick={() => setStage(key)} className={chipClass(stage === key)}>
-              {STAGE_LABEL[key]}
-              <span className="opacity-70">{counts.stage[key]}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span id={SIZE_LABEL_ID} className="text-meta text-fg-3">
-            Tamaño
-          </span>
-          <div role="group" aria-labelledby={SIZE_LABEL_ID} className="inline-flex h-10 rounded-full border border-border p-1">
-            {Object.values(CLIP_SIZE).map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={size === key}
-                title={SIZE_TITLE[key]}
-                onClick={() => setSize(key)}
-                className={cn(
-                  'min-w-8 rounded-full px-2.5 text-body-sm transition-colors duration-(--dur-fast)',
-                  FOCUS_RING,
-                  size === key ? 'bg-fg-1 font-bold text-background' : 'text-fg-2 hover:text-fg-1',
-                )}
-              >
-                {key}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div role="group" aria-label="Estado" className="flex flex-wrap gap-1.5">
+            {Object.values(LIBRARY_STAGE).map((key) => (
+              <button key={key} type="button" aria-pressed={stage === key} onClick={() => setStage(key)} className={chipClass(stage === key, counts.stage[key])}>
+                {STAGE_LABEL[key]}
+                <span className="opacity-70">{counts.stage[key]}</span>
               </button>
             ))}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <span id={SIZE_LABEL_ID} className="text-meta text-fg-3">
+              Tamaño
+            </span>
+            <div role="group" aria-labelledby={SIZE_LABEL_ID} className="inline-flex h-10 rounded-full border border-border p-1">
+              {Object.values(CLIP_SIZE).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={size === key}
+                  title={SIZE_TITLE[key]}
+                  onClick={() => setSize(key)}
+                  className={cn(
+                    'min-w-8 rounded-full px-2.5 text-body-sm transition-colors duration-(--dur-fast)',
+                    FOCUS_RING,
+                    size === key ? 'bg-fg-1 font-bold text-background' : 'text-fg-2 hover:text-fg-1',
+                  )}
+                >
+                  {key}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

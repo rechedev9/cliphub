@@ -6,7 +6,6 @@ import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
 import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { shortsWord, streamRenderQueued } from '@/lib/streams/editor';
 import { streamRenderProgressView } from '@/lib/streams/render-progress';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -42,12 +41,7 @@ export function StreamRenderStage({
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionEyebrow label="Exportación" accent="magenta" />
-        <StatusTag tone="stream" dot>
-          {stage}
-        </StatusTag>
-      </div>
+      <h2 className="text-body-sm font-semibold text-fg-1">Exportación</h2>
 
       <LongOperation
         stage={stage}
@@ -60,9 +54,7 @@ export function StreamRenderStage({
       <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
-            {/* The header above already says Creando vídeos three ways; a magenta
-                edge, badge, wash and glyph on every pending tile spends the
-                accent N more times and says nothing new. */}
+            {/* The progress bar above already names the stage; pending tiles stay neutral. */}
             <MediaFrame
               aspect="9:16"
               scanline

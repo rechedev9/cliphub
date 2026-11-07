@@ -15,8 +15,6 @@
 .card[data-loaded="true"] { border-color: color-mix(in oklch, var(--format-full) 28%, var(--border-subtle)); }
 .cardHeader { padding: 12px; }
 .cardTitle { gap: 9px; min-width: 0; }
-.number { display: grid; place-items: center; width: 28px; height: 32px; flex-shrink: 0; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--surface-2); font: 12px var(--font-sans); color: var(--fg-3); }
-.card[data-loaded="true"] .number { color: var(--format-full); border-color: color-mix(in oklch, var(--format-full) 30%, transparent); }
 .cardTitle h3 { font-size: 14px; line-height: 1.3; font-weight: 600; color: var(--fg-1); }
 .cardTitle p { margin-top: 3px; font-size: 12px; line-height: 1.3; color: var(--fg-2); }
 .ready { gap: 4px; font: 12px var(--font-sans); color: var(--format-full); }
@@ -56,7 +54,6 @@
 
 @container bumpers (max-width: 17rem) {
   .cardHeader { padding-inline: 10px; }
-  .number { display: none; }
   .replace .uploadCopy { display: none; }
   .transitionNote { font-size: 12px; }
 }

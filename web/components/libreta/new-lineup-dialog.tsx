@@ -11,12 +11,10 @@ import { parseSetpos, setposCommand } from '@/lib/libreta/lineups';
 import { parseTags } from '@/lib/libreta/status';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { GrenadeField, TechniqueFields, type LineupTechnique } from './lineup-fields';
 import { Field, MapField, SideField, TagsField, TitleField, mapChoices } from './play-fields';
 import { StatusSelect } from './status-badge';
-
-const TEXTAREA =
-  'rounded-md border border-input bg-transparent px-3 py-2 font-mono text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 /** A lineup written by hand from what `getpos` prints in the CS2 console. Saving opens it. */
 export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: readonly string[]; onClose: () => void }): ReactNode {
@@ -76,14 +74,14 @@ export function NewLineupDialog({ knownMaps = [], onClose }: { knownMaps?: reado
             <GrenadeField value={grenade} onChange={setGrenade} />
           </div>
           <Field label="Posición y mira">
-            <textarea
+            <Textarea
               value={setpos}
               rows={2}
               maxLength={400}
               spellCheck={false}
               placeholder="setpos -1012.03 -2233.97 -167.97;setang 7.38 -68.11 0.00"
               onChange={(event) => setSetpos(event.target.value)}
-              className={TEXTAREA}
+              className="font-mono"
             />
             {aim !== null ? (
               <span className="text-meta text-fg-3">

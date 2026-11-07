@@ -51,6 +51,8 @@ export type DataTableProps<Row> = {
   empty?: ReactNode;
   /** Controls that share the row of the views and columns menus, such as the list's FilterBar. */
   toolbar?: ReactNode;
+  /** The list's own buttons, such as Nuevo, at the end of that row after the menus. */
+  actions?: ReactNode;
   /** Adds a checkbox column; the header box selects every shown row. */
   selection?: DataTableSelection;
 };
@@ -61,7 +63,7 @@ export type DataTableSelection = {
 };
 
 /** Dense, sortable record list with configurable columns and saved views. */
-export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, selection }: DataTableProps<Row>): ReactNode {
+export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, actions, selection }: DataTableProps<Row>): ReactNode {
   const router = useRouter();
   const { sort, hidden } = view.state;
   const visible = columns.filter((column) => column.required === true || !hidden.includes(column.id));
@@ -88,9 +90,10 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
       <div className="flex flex-wrap items-start gap-2">
         {toolbar}
         {/* As tall as one FilterBar row, so the menus stay level with its first line when it wraps. */}
-        <div className="ml-auto flex h-9 shrink-0 items-center gap-2">
+        <div className="ml-auto flex h-9 shrink-0 items-center gap-2 [&_button]:h-9 [&>a]:h-9">
           <SavedViewsMenu view={view} />
           <ColumnsMenu columns={columns} hidden={hidden} onToggle={view.toggleColumn} />
+          {actions}
         </div>
       </div>
       <div className="studio-panel overflow-x-auto">
@@ -209,7 +212,7 @@ function ColumnsMenu<Row>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="xs">
+        <Button type="button" variant="outline" size="sm">
           <Columns3 aria-hidden />
           Columnas
         </Button>
@@ -250,7 +253,7 @@ function SavedViewsMenu({ view }: { view: TableViewControl }): ReactNode {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="xs">
+          <Button type="button" variant="outline" size="sm">
             <Eye aria-hidden />
             {active ? active.name : 'Vistas'}
           </Button>

@@ -13,13 +13,13 @@ const TONE_FILL_CLASS = {
   stream: 'bg-stream',
 } as const satisfies Record<LongOperationTone, string>;
 
-/** Elapsed clock (01:30). */
+/** Elapsed clock in the m:ss form the rest of Studio uses (1:30, 1:02:05). */
 function formatElapsed(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
-  const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const minutes = Math.floor((total % 3600) / 60);
   const secs = String(total % 60).padStart(2, '0');
-  return hours > 0 ? `${hours}:${minutes}:${secs}` : `${minutes}:${secs}`;
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
 }
 
 export type LongOperationProps = {
@@ -67,8 +67,8 @@ export function LongOperation({
           <span className="min-w-0 truncate">{stage}</span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2.5 text-meta tabular-nums">
-          {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
-          {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
+          {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct} %</span> : null}
+          {elapsedSec !== undefined ? <span className="text-fg-3" title="Tiempo transcurrido">{formatElapsed(elapsedSec)}</span> : null}
         </span>
       </div>
 

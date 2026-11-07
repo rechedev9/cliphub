@@ -118,10 +118,9 @@ function ChapterPanel({
         {/* Below md the chapter rail is hidden, so the dialog title moves here. */}
         <p className="mb-3 text-meta font-medium text-fg-3 md:hidden">{TOUR_TITLE}</p>
         <div aria-live="polite">
-          <p className="text-meta font-medium text-fg-2">
-            {chapter.kicker} · {chapter.label}
-          </p>
-          <h3 className="mt-2 pr-8 font-display text-title font-bold text-fg-1">{chapter.title}</h3>
+          {/* The rail names the chapter on a wide dialog; only a narrow one needs it here. */}
+          <p className="mb-2 text-meta font-medium text-fg-2 md:hidden">{chapter.label}</p>
+          <h3 className="pr-8 font-display text-title font-bold text-fg-1">{chapter.title}</h3>
           <DialogDescription id="app-tour-lead" className="mt-2 text-body text-fg-2">
             {chapter.lead}
           </DialogDescription>

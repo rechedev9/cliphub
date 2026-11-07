@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FolderOpen, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { listLibraryMatches } from '@/lib/api/library';
 import type { StorageFile, StorageFiles } from '@/lib/api/storage';
 import type { Match, Video } from '@/lib/api/types';
 import { bulkDeleteSummary, deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
@@ -14,11 +15,13 @@ import {
   formatFileDate,
   groupByFolder,
   groupByKind,
+  libraryCopyLabel,
   libraryVideoFor,
   matchLabel,
   splitPath,
   totalBytes,
   type FileGroup,
+  type LibraryCopyMatch,
 } from '@/lib/storage-files';
 import { SelectionBar } from '@/components/records/selection-bar';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -26,6 +29,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const SCAN_POLL_MS = 2000;
+/** A folder with more files than this opens folded, so one big folder does not bury the rest of the page. */
+const GROUP_PREVIEW_ROWS = 6;
 
 type MatchIndex = ReadonlyMap<string, Pick<Match, 'map' | 'player'>>;
 
@@ -40,6 +45,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
   const [notice, setNotice] = useState<string | null>(null);
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [childrenKey, setChildrenKey] = useState(0);
+  const [libraryMatches, setLibraryMatches] = useState<readonly LibraryCopyMatch[]>([]);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -50,9 +56,15 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
     }
   }, []);
 
+  // Only labels library copies, which a disk scan does not change, so it stays out of the scan poll.
+  const loadLibrary = useCallback(async (): Promise<void> => {
+    setLibraryMatches(await listLibraryMatches().catch(() => []));
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadLibrary();
+  }, [load, loadLibrary]);
 
   const scanning = state.kind === 'ready' && state.files.scanning;
   useEffect(() => {
@@ -87,7 +99,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 
   let body: ReactNode;
   if (state.kind === 'ready') {
-    body = <ReadyBody files={state.files} matches={state.matches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); }} />;
+    body = <ReadyBody files={state.files} matches={state.matches} libraryMatches={libraryMatches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); void loadLibrary(); }} />;
   } else if (state.kind === 'error') {
     body = (
       <div className="flex flex-col items-start gap-3">
@@ -129,11 +141,13 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 function ReadyBody({
   files,
   matches,
+  libraryMatches,
   onRemoved,
   onReload,
 }: {
   files: StorageFiles;
   matches: MatchIndex;
+  libraryMatches: readonly LibraryCopyMatch[];
   onRemoved: (path: string, freedBytes: number, label: string) => void;
   onReload: () => void;
 }): ReactNode {
@@ -216,12 +230,10 @@ function ReadyBody({
 
       <Section
         title="Demos en tu PC"
-        description={files.scanning
-          ? 'Studio está buscando archivos .dem en todos tus discos. La lista se completa sola.'
-          : 'Todos los archivos .dem de tus discos, agrupados por carpeta.'}
+        description="Todos los archivos .dem de tus discos, agrupados por carpeta."
       >
         {demoGroups.length === 0 ? (
-          <EmptyLine>{files.scanning ? 'Buscando demos…' : 'No hay demos en tu PC fuera de Studio.'}</EmptyLine>
+          <EmptyLine>{files.scanning ? 'Buscando en todos tus discos. La lista se completa sola.' : 'No hay demos en tu PC fuera de Studio.'}</EmptyLine>
         ) : (
           demoGroups.map((group) => (
             <Group key={group.key} group={group} {...groupProps(group)}>
@@ -266,7 +278,7 @@ function ReadyBody({
         ) : (
           <ul className="flex flex-col gap-2">
             {files.studioDemos.map((file) => (
-              <StudioDemoRow key={file.path} file={file} label={matchLabel(file.jobId, matches)} onDeleted={onReload} {...rowProps(file)} />
+              <StudioDemoRow key={file.path} file={file} label={matchLabel(file.jobId, matches) ?? libraryCopyLabel(file.path, libraryMatches)} onDeleted={onReload} {...rowProps(file)} />
             ))}
           </ul>
         )}
@@ -280,7 +292,7 @@ function Summary({ label, files, pending = false }: { label: string; files: read
     <div className="flex flex-col gap-1 bg-surface-1 px-4 py-3">
       <dt className="text-body-sm text-fg-2">{label}</dt>
       <dd className="font-display text-title font-bold tabular-nums text-fg-1">
-        {pending ? '…' : formatBytes(totalBytes(files))}
+        {pending ? <span className="text-body-sm font-normal text-fg-3">Buscando…</span> : formatBytes(totalBytes(files))}
         <span className="ml-2 text-body-sm font-normal text-fg-2">
           {pending ? '' : `${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`}
         </span>
@@ -310,8 +322,10 @@ function Group({
   group: FileGroup;
   allChosen: boolean;
   onToggle: (on: boolean) => void;
-  children: ReactNode;
+  children: ReactNode[];
 }): ReactNode {
+  const [open, setOpen] = useState(false);
+  const hidden = open ? 0 : Math.max(0, children.length - GROUP_PREVIEW_ROWS);
   return (
     <div className="flex flex-col border border-border bg-surface-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-3.5 py-2.5">
@@ -329,7 +343,16 @@ function Group({
           {formatBytes(group.totalBytes)} · {group.files.length} {group.files.length === 1 ? 'archivo' : 'archivos'}
         </span>
       </div>
-      <ul className="flex flex-col divide-y divide-border">{children}</ul>
+      <ul className="flex flex-col divide-y divide-border">{hidden > 0 ? children.slice(0, GROUP_PREVIEW_ROWS) : children}</ul>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="h-10 border-t border-border px-3.5 text-left text-body-sm text-fg-2 transition-[color,background-color] duration-(--dur-fast) hover:bg-surface-3 hover:text-fg-1"
+        >
+          Mostrar {hidden === 1 ? 'el archivo restante' : `los ${hidden} archivos restantes`}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -457,7 +480,8 @@ function StudioDemoRow({
     <li className="flex flex-col gap-2 border border-border bg-surface-1 px-3.5 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          {jobId === undefined ? null : <RowCheckbox name={title} checked={checked} onToggle={onToggle} />}
+          {/* A copy Studio cannot delete keeps the checkbox column, so names line up. */}
+          {jobId === undefined ? <span aria-hidden className="size-4 shrink-0" /> : <RowCheckbox name={title} checked={checked} onToggle={onToggle} />}
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-body-sm font-semibold text-fg-1" title={file.path}>{title}</span>
             <span className="text-meta tabular-nums text-fg-2">{formatBytes(file.sizeBytes)} · {formatFileDate(file.modifiedAt)}</span>

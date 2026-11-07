@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bot, Check, Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import {
   claudeCodeCommand,
   claudeDesktopConfigSnippet,
@@ -10,11 +10,10 @@ import {
   type StudioAssistantAccess,
 } from '@/lib/desktop-settings';
 import { writeClipboardText } from '@/lib/clipboard-write';
-import { cn } from '@/lib/utils';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { IconTile } from '@/components/studio/icon-tile';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { SettingsSection } from './settings-section';
 
 type AssistantState =
   | { kind: 'loading' }
@@ -71,14 +70,10 @@ export function AssistantSettings(): ReactNode {
           <Switch
             checked={access.enabled}
             disabled={pending}
-            labelledBy="assistant-switch-label"
+            aria-labelledby="assistant-switch-label"
             onCheckedChange={update}
           />
         </div>
-        <p className="text-body-sm text-fg-2">
-          Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar te pide tu aprobación
-          en el chat. Solo funciona mientras Studio está abierto.
-        </p>
         {failure ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo guardar el cambio. Inténtalo de nuevo.
@@ -111,52 +106,13 @@ export function AssistantSettings(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="assistant-settings-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={Bot} size="md" depth="inset" />
-        <div className="flex min-w-0 flex-col gap-1">
-          <SectionEyebrow label="Conexiones" />
-          <h2 id="assistant-settings-title" className="font-display text-title font-bold text-fg-1">
-            Asistentes (Claude, ChatGPT)
-          </h2>
-        </div>
-      </div>
-      {body}
-    </section>
-  );
-}
-
-type SwitchProps = {
-  checked: boolean;
-  disabled: boolean;
-  labelledBy: string;
-  onCheckedChange: (checked: boolean) => void;
-};
-
-function Switch({ checked, disabled, labelledBy, onCheckedChange }: SwitchProps): ReactNode {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelledBy}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-(--dur-fast) ease-standard',
-        'disabled:pointer-events-none disabled:opacity-50',
-        checked ? 'border-primary bg-primary' : 'border-border-strong bg-surface-4',
-        FOCUS_RING,
-      )}
+    <SettingsSection
+      id="assistants"
+      title="Asistentes (Claude, ChatGPT)"
+      description="Un asistente conectado puede importar demos, crear Shorts y consultar tus partidas y vídeos. Antes de grabar te pide tu aprobación en el chat. Solo funciona mientras Studio está abierto."
     >
-      <span
-        aria-hidden
-        className={cn(
-          'block size-4 transition-transform duration-(--dur-fast) ease-standard',
-          checked ? 'translate-x-6 bg-primary-foreground' : 'translate-x-1 bg-fg-1',
-        )}
-      />
-    </button>
+      {body}
+    </SettingsSection>
   );
 }
 

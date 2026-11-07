@@ -4,6 +4,7 @@ import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { deltaArrow, heatLevel } from '@/lib/analysis/compare';
 import type { Reliability } from '@/lib/analysis/reference';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,8 @@ export type HeatColumn = {
 
 export type HeatCell = {
   readonly text: string;
+  /** No value to show: the cell draws a quiet dash and gives this reason on hover and to screen readers. */
+  readonly emptyLabel?: string;
   /** The number the tint reads; null or absent leaves the cell untinted. */
   readonly value?: number | null;
   /** Sample size behind the value, shown in parentheses beside it. */
@@ -56,6 +59,8 @@ export type HeatTableProps = {
   reference?: string;
   /** The cells carry a reliability, so the caption says only reliable differences are marked. */
   reliableOnly?: boolean;
+  /** False when a sibling table on the same screen already carries the caption. */
+  legend?: boolean;
 };
 
 const WIN = ['', 'bg-outcome-win/8', 'bg-outcome-win/16', 'bg-outcome-win/24'] as const;
@@ -96,13 +101,15 @@ function CellView({
     ? `Muestra pequeña: menos de ${minSample} ${sampleNoun}`
     : [cell.referenceText, cell.reliability?.detail].filter(Boolean).join('. ') || undefined;
   const arrow = level !== 0 && base !== null && cell.value !== undefined && cell.value !== null ? deltaArrow(cell.value - base) : '';
-  const text = cell.href ? (
-    <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
-      {cell.text}
-    </Link>
-  ) : (
-    cell.text
-  );
+  let text: ReactNode = cell.text;
+  if (cell.emptyLabel) text = <EmptyCell label={cell.emptyLabel} />;
+  else if (cell.href) {
+    text = (
+      <Link href={cell.href} className="font-medium text-fg-1 hover:text-primary hover:underline">
+        {cell.text}
+      </Link>
+    );
+  }
   return (
     <td
       className={cn(
@@ -153,6 +160,7 @@ export function HeatTable({
   actions,
   reference = 'la media de la tabla',
   reliableOnly = false,
+  legend = true,
 }: HeatTableProps): ReactNode {
   return (
     <section aria-label={label} className="studio-panel flex min-w-0 flex-col">
@@ -201,10 +209,12 @@ export function HeatTable({
           </table>
         </div>
       )}
-      <p className="border-t border-border-subtle px-3 py-1.5 text-meta text-fg-3">
-        ▲▼ y color frente a {reference}{reliableOnly ? ', solo cuando la diferencia es fiable' : ''}; entre paréntesis, las {sampleNoun}. Con
-        menos de {minSample} {sampleNoun}{reliableOnly ? ' o poca muestra' : ''}, en gris.
-      </p>
+      {legend ? (
+        <p className="border-t border-border-subtle px-3 py-1.5 text-meta text-fg-3">
+          ▲▼ y color frente a {reference}{reliableOnly ? ', solo cuando la diferencia es fiable' : ''}; entre paréntesis, las {sampleNoun}. Con
+          menos de {minSample} {sampleNoun}{reliableOnly ? ' o poca muestra' : ''}, en gris.
+        </p>
+      ) : null}
     </section>
   );
 }

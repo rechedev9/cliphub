@@ -97,7 +97,7 @@ test('the known error bodies from the stream handlers and the local guard are tr
   );
   assert.equal(
     errorMessage(new Error('stream edit plan cannot change while a render is running'), 'fallback'),
-    'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
+    'El plan no se puede editar mientras se exporta. Espera a que termine y vuelve a intentarlo.',
   );
 });
 

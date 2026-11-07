@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { MonitorPlay, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CaptureReadiness as CaptureReadinessData, CaptureStatus } from '@/lib/api/types';
 import {
@@ -12,14 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { SettingsSection } from '@/components/settings/settings-section';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
 import { cn } from '@/lib/utils';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 /** `label` is the short aria name; `text` is the one-line pill copy. */
 const STATUS_META: Record<
@@ -120,18 +122,13 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
   let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
   if (recording !== undefined) settingsTag = { text: pillText, tone: 'stream' };
 
-  return (
+  const dialog = (
     <Dialog>
       <DialogTrigger asChild>
         {variant === 'settings' ? (
-          <button type="button" className={`studio-panel studio-panel-interactive flex w-full flex-col gap-3 p-5 text-left ${FOCUS_RING}`}>
-            <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-fg-2" />Grabación de demos</span>
-            <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para grabar Shorts y demos completas.</span>
-            <span className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
-              <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
-              <span className="font-semibold text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">Revisar requisitos →</span>
-            </span>
-          </button>
+          <Button type="button" variant="outline" size="sm" className="self-start">
+            Revisar requisitos
+          </Button>
         ) : (
         <button
           type="button"
@@ -192,7 +189,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
         <p className="text-body-sm text-fg-2">Los clips de stream parten de un vídeo ya grabado y no necesitan CS2 ni HLAE. La conexión de Steam en Ajustes es opcional si ya tienes el archivo de la demo.</p>
         <details className="group/setup border-t border-border-subtle pt-2 text-body-sm text-fg-2">
-          <summary className={`min-h-10 cursor-pointer py-2 ${FOCUS_RING}`}>Rutas personalizadas · configuración avanzada</summary>
+          <DisclosureSummary className="min-h-10 py-2">Rutas personalizadas · configuración avanzada</DisclosureSummary>
           <p className="py-2">Si una herramienta está en otra carpeta, configura su variable de entorno y reinicia el servicio local.</p>
           <dl className="flex flex-col gap-3">
             {TOOL_GUIDE.map(tool => <div key={tool.name}><dt className="font-mono text-meta text-fg-1">{tool.name}</dt><dd className="break-all text-body-sm">{tool.example}</dd></div>)}
@@ -213,6 +210,18 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
         </div>
       </DialogContent>
     </Dialog>
+  );
+
+  if (variant === 'sidebar') return dialog;
+  return (
+    <SettingsSection
+      id="capture"
+      title="Grabación de demos"
+      description="CS2, HLAE y el grabador en este PC. Hacen falta para grabar Shorts y demos completas; los clips de stream no los necesitan."
+      status={<StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>}
+    >
+      {dialog}
+    </SettingsSection>
   );
 }
 

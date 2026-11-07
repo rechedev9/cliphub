@@ -137,7 +137,10 @@ export function TeamMapHistory({
     );
   }
   const refs = matchRefs(matches);
-  const columns = ['Pistola CT', 'Pistola T', ...VETO_COLUMNS.map((c) => c.label), 'Última'];
+  // Without a single veto on record, five columns of zeros say less than the note below.
+  const showVeto = records.some((record) => VETO_COLUMNS.some((column) => record.veto[column.key].count > 0));
+  const vetoColumns = showVeto ? VETO_COLUMNS : [];
+  const columns = ['Pistola CT', 'Pistola T', ...vetoColumns.map((c) => c.label), 'Última'];
   return (
     <div className="flex flex-col gap-4">
       {played.length === 0 ? (
@@ -174,7 +177,7 @@ export function TeamMapHistory({
         </div>
       )}
       <RelatedList
-        title="Pistolas y vetos por mapa"
+        title={showVeto ? 'Pistolas y vetos por mapa' : 'Pistolas por mapa'}
         count={records.length}
         viewAll={{ href: matchesHref({ team: teamId }), label: 'Ver sus partidas en Partidas' }}
       >
@@ -182,7 +185,7 @@ export function TeamMapHistory({
           <p className="px-4 py-3 text-body-sm text-fg-2">Sin partidas ni vetos todavía.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table aria-label="Pistolas y vetos por mapa" className="w-full border-collapse text-left text-body-sm">
+            <table aria-label={showVeto ? 'Pistolas y vetos por mapa' : 'Pistolas por mapa'} className="w-full border-collapse text-left text-body-sm">
               <thead className="bg-surface-2 text-meta text-fg-3">
                 <tr className="border-b border-border">
                   <th scope="col" className="sticky left-0 z-10 h-8 bg-surface-2 px-2.5 font-medium">
@@ -206,7 +209,7 @@ export function TeamMapHistory({
                       </th>
                       <td className="px-2.5 py-1.5">{ct ? <PistolCell won={ct.pistol_won} lost={ct.pistol_lost} refs={refs} /> : null}</td>
                       <td className="px-2.5 py-1.5">{t ? <PistolCell won={t.pistol_won} lost={t.pistol_lost} refs={refs} /> : null}</td>
-                      {VETO_COLUMNS.map((column) => (
+                      {vetoColumns.map((column) => (
                         <td key={column.key} className="px-2.5 py-1.5">
                           <VetoCell count={record.veto[column.key]} />
                         </td>
@@ -223,8 +226,10 @@ export function TeamMapHistory({
       <p className="measure-read text-meta text-fg-3">
         Leídas: {data.matches} {data.matches === 1 ? 'partida' : 'partidas'} y {data.series} {data.series === 1 ? 'serie' : 'series'}. Las
         rondas por lado salen del documento táctico de cada partida
-        {data.skipped.length > 0 ? `; ${data.skipped.length} ${data.skipped.length === 1 ? 'partida sin análisis no cuenta' : 'partidas sin análisis no cuentan'} en los lados` : ''}. Los picks y bans
-        solo cuentan en series con los dos equipos y el veto apuntados.
+        {data.skipped.length > 0 ? `; ${data.skipped.length} ${data.skipped.length === 1 ? 'partida sin análisis no cuenta' : 'partidas sin análisis no cuentan'} en los lados` : ''}.{' '}
+        {showVeto
+          ? 'Los picks y bans solo cuentan en series con los dos equipos y el veto apuntados.'
+          : 'Los picks y bans aparecen al apuntar una serie con los dos equipos y su veto.'}
       </p>
     </div>
   );

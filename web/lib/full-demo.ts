@@ -35,7 +35,7 @@ export const FULL_DEMO_PRESET: Preset = {
 export const FULL_DEMO_CONTRACT = [
   { label: 'Formato', value: 'Horizontal 16:9 · 1920×1080' },
   { label: 'Entrega', value: 'Rondas en vivo · sin freeze' },
-  { label: 'Datos', value: 'FACEIT obligatorio · roster completo' },
+  { label: 'Datos', value: 'FACEIT obligatorio · los diez jugadores' },
   { label: 'Comms', value: 'Comms del equipo del POV · 85%' },
   { label: 'HUD', value: NATIVE_HUD_LABEL },
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },

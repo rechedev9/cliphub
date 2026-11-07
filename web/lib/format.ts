@@ -6,6 +6,23 @@ export function prettyMapName(map: string): string {
   return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
+const DECIMAL_FORMATS = new Map<number, Intl.NumberFormat>();
+
+/** A number with a fixed count of decimals and the Spanish decimal comma: `formatDecimal(1.5, 2)` is "1,50". */
+export function formatDecimal(value: number, digits: number): string {
+  let format = DECIMAL_FORMATS.get(digits);
+  if (format === undefined) {
+    format = new Intl.NumberFormat('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    DECIMAL_FORMATS.set(digits, format);
+  }
+  return format.format(value);
+}
+
+/** A playback rate or gain such as 0,25× with as many decimals as it has. */
+export function formatRate(value: number): string {
+  return `${String(value).replace('.', ',')}×`;
+}
+
 /** 0-100 fill for a rating bar, scaled so a 2.0 rating (an elite pace) fills it. */
 export function ratingBarPct(rating: number): number {
   return Math.min(100, Math.max(0, (rating / 2) * 100));
@@ -34,7 +51,7 @@ export function timeAgo(value: string | number): string {
 
 export function formatShortDate(value: string | number): string {
   const date = typeof value === 'number' ? new Date(value) : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return '-';
   const now = new Date();
   const madridYear = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Madrid' });
   const sameYear = madridYear.format(date) === madridYear.format(now);

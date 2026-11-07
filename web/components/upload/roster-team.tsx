@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { DemoPlayer } from '@/lib/api/types';
-import { ratingBarPct } from '@/lib/format';
+import { formatDecimal, ratingBarPct } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
 import { SelectionMark } from '@/components/clips/selection-mark';
@@ -99,7 +99,7 @@ export function RosterTeam(props: RosterTeamProps): ReactNode {
       <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[14px] px-3.5 py-3', meta.tint)}>
         {side === '' ? null : <span className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-meta font-extrabold', meta.chip)}>{side}</span>}
         <span className="min-w-0 flex-1 truncate font-display text-body font-extrabold text-fg-1">{meta.label}</span>
-        <span className="text-meta tabular-nums text-fg-3">media {avg.toFixed(2)}</span>
+        <span className="text-meta tabular-nums text-fg-3">media {formatDecimal(avg, 2)}</span>
         {onPickTeam ? (
           <Button type="button" variant="outline" size="xs" onClick={onPickTeam}>
             Todo el equipo
@@ -127,8 +127,8 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
     { key: 'a', text: `${p.assists} A` },
     { key: 'pm', text: signed(plusMinus), className: plusMinus >= 0 ? 'text-fg-1' : undefined },
     { key: 'adr', text: `${Math.round(p.adr)} ADR` },
-    { key: 'kast', text: `KAST ${Math.round(p.kast)}%` },
-    { key: 'hs', text: `HS ${Math.round(p.hsPct)}%` },
+    { key: 'kast', text: `KAST ${Math.round(p.kast)} %` },
+    { key: 'hs', text: `HS ${Math.round(p.hsPct)} %` },
     ...(showMvp ? [{ key: 'mvp' as const, text: `${p.mvps} MVP` }] : []),
   ];
   return (
@@ -171,7 +171,7 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
       </span>
       <span className="flex flex-col gap-1.5" title={STAT_TOOLTIPS.rating}>
         <span className="text-meta text-fg-2">
-          Rating <b className={cn('font-bold tabular-nums', band.text)}>{p.rating.toFixed(2)}</b>
+          Rating <b className={cn('font-bold tabular-nums', band.text)}>{formatDecimal(p.rating, 2)}</b>
         </span>
         <span aria-hidden className="h-1.5 rounded-full bg-surface-4">
           <span className={cn('block h-full rounded-full', band.bar)} style={{ width: `${ratingBarPct(p.rating)}%` }} />

@@ -18,6 +18,7 @@ import { placeLabel } from '@/lib/tactical-labels';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
@@ -192,7 +193,7 @@ function calloutColumns({ multiLevel, onPick }: { multiLevel: boolean; onPick: (
     {
       id: 'team',
       header: 'Nombre del equipo',
-      cell: (callout) => callout.name ?? <span className="text-fg-3">Sin nombre propio</span>,
+      cell: (callout) => callout.name ?? <EmptyCell label="Sin nombre propio" />,
       sortValue: (callout) => callout.name ?? '',
     },
   ];
@@ -242,21 +243,22 @@ function CalloutList({
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar
-        values={view.state.filters}
-        onChange={view.setFilter}
-        onReset={view.resetFilters}
-        searchPlaceholder="Buscar por nombre de CS2 o del equipo"
-        filters={[{ id: 'named', label: 'Nombre', options: NAMED_OPTIONS }]}
-        count={{ shown: shown.length, total: callouts.length, noun: callouts.length === 1 ? 'callout' : 'callouts' }}
-        className="flex flex-wrap items-center gap-2"
-      />
       {named < callouts.length ? (
         <p className="text-meta text-fg-3">
           {named === 0 ? 'Tu equipo aún no ha nombrado ninguna zona de este mapa.' : `Tu equipo ha nombrado ${named} de ${callouts.length}.`}
         </p>
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por nombre de CS2 o del equipo"
+            filters={[{ id: 'named', label: 'Nombre', options: NAMED_OPTIONS }]}
+            count={{ shown: shown.length, total: callouts.length, noun: callouts.length === 1 ? 'callout' : 'callouts' }}
+          />
+        }
         label="Callouts"
         rows={shown}
         columns={columns}

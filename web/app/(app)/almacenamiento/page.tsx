@@ -6,9 +6,7 @@ import { StorageFilesScreen } from '@/components/storage/storage-files';
 export default function StoragePage(): ReactNode {
   return (
     <StorageFilesScreen>
-      <div className="measure-read">
-        <CaptureStorage />
-      </div>
+      <CaptureStorage />
     </StorageFilesScreen>
   );
 }

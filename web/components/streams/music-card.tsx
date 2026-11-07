@@ -8,7 +8,8 @@ import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
+import { StreamStepCard } from '@/components/streams/step-card';
+import { Switch } from '@/components/ui/switch';
 
 /**
  * Background music and the viral grade. The music bed is mixed under the
@@ -187,7 +188,7 @@ export function StreamMusicCard({
               <ToggleGroupItem
                 key={v.value}
                 value={String(v.value)}
-                aria-label={`${v.label}, ${Math.round(v.value * 100)}%`}
+                aria-label={`${v.label}, ${Math.round(v.value * 100)} %`}
               >
                 {v.label}
               </ToggleGroupItem>
@@ -198,7 +199,7 @@ export function StreamMusicCard({
 
       <StreamStepCard
         title="Realce de color"
-        control={<StreamSwitch label="Realce de color" checked={grade} disabled={busy} onChange={onGrade} />}
+        control={<Switch tone="stream" aria-label="Realce de color" checked={grade} disabled={busy} onCheckedChange={onGrade} />}
       >
         <p className="font-display text-body-sm font-semibold text-fg-1">
           {grade ? 'Activado' : 'Desactivado'}

@@ -30,6 +30,7 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchScoreLabel, matchTitle } from '@/lib/library/partidas';
 import { SERIES_FORMAT_LABEL, VETO_ACTION_LABEL, seriesVetoTemplate, vetoStepsProblem } from '@/lib/library/veto';
 import { EmptyState } from '@/components/records/empty-state';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { RelatedList } from '@/components/records/related-list';
@@ -40,6 +41,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { SeriesTeamSelect, useLibraryTeams } from './new-series-dialog';
 import { seriesName } from './series-library';
 
@@ -159,14 +161,12 @@ function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
         }
         fields={[
           { label: 'Formato', value: SERIES_FORMAT_LABEL[series.format] },
-          { label: 'Evento', value: series.event || 'Sin evento' },
-          { label: 'Mapas', value: matches.length },
-          { label: 'Pasos de veto', value: series.vetoes.length },
+          { label: 'Evento', value: series.event || <EmptyCell label="Sin evento" /> },
           { label: 'Creada', value: formatShortDate(series.created_at) },
         ]}
         actions={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setDeleting(true)}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(true)}>
               <Trash2 aria-hidden />
               Eliminar
             </Button>
@@ -236,7 +236,7 @@ function SeriesMatches({
     <div className="flex flex-col gap-3">
       <RelatedList title="Mapas de la serie" count={matches.length}>
         {ordered.length === 0 ? (
-          <p className="px-4 py-3 text-body-sm text-fg-2">Añade las partidas de la serie desde la lista de abajo.</p>
+          <p className="px-4 py-3 text-body-sm text-fg-2">Elige abajo las partidas que se jugaron en esta serie. Se ordenan solas por fecha.</p>
         ) : (
           <ol className="flex flex-col divide-y divide-border-subtle">
             {ordered.map((match, index) => (
@@ -398,14 +398,13 @@ function SeriesVeto({ series, matches, onChanged }: { series: LibrarySeries; mat
           </ol>
         )}
       </RelatedList>
-      <label className="flex flex-col gap-1.5 text-meta text-fg-3">
+      <label className="flex max-w-3xl flex-col gap-1.5 text-meta text-fg-3">
         Notas del veto
-        <textarea
+        <Textarea
           value={notes}
           maxLength={480}
           onChange={(event) => setNotes(event.target.value)}
           rows={3}
-          className="rounded-md border border-border bg-surface-1 px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
       </label>
       <div className="flex flex-wrap items-center gap-3">
@@ -451,12 +450,15 @@ function SeriesDetails({ series, onChanged }: { series: LibrarySeries; onChanged
 
   return (
     <div className="flex max-w-xl flex-col gap-4">
-      <Segmented
-        label="Formato"
-        value={format}
-        options={SERIES_FORMATS.map((value) => ({ value, label: SERIES_FORMAT_LABEL[value] }))}
-        onChange={setFormat}
-      />
+      <div className="flex flex-col items-start gap-1.5">
+        <span aria-hidden className="text-meta text-fg-3">Formato</span>
+        <Segmented
+          label="Formato"
+          value={format}
+          options={SERIES_FORMATS.map((value) => ({ value, label: SERIES_FORMAT_LABEL[value] }))}
+          onChange={setFormat}
+        />
+      </div>
       <label className="flex flex-col gap-1.5 text-meta text-fg-3">
         Evento
         <Input value={event} maxLength={120} onChange={(e) => setEvent(e.target.value)} />
@@ -464,9 +466,15 @@ function SeriesDetails({ series, onChanged }: { series: LibrarySeries; onChanged
       {teams === null ? (
         <Skeleton className="h-9 w-full" />
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <SeriesTeamSelect label="Equipo A" value={teamA} teams={teams} exclude={teamB} onChange={setTeamA} />
-          <SeriesTeamSelect label="Equipo B" value={teamB} teams={teams} exclude={teamA} onChange={setTeamB} />
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span aria-hidden className="text-meta text-fg-3">Equipo A</span>
+            <SeriesTeamSelect label="Equipo A" value={teamA} teams={teams} exclude={teamB} onChange={setTeamA} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span aria-hidden className="text-meta text-fg-3">Equipo B</span>
+            <SeriesTeamSelect label="Equipo B" value={teamB} teams={teams} exclude={teamA} onChange={setTeamB} />
+          </div>
         </div>
       )}
       {halfTeams ? <p className="text-meta text-warning">Elige los dos equipos o ninguno.</p> : null}

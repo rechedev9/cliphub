@@ -11,7 +11,7 @@ export type PublishAssistantAvailability = 'ready' | 'waiting' | 'failed';
 export const PUBLISH_ASSISTANT_WAITING_COPY =
   'La preparación para YouTube estará disponible cuando el vídeo esté listo.';
 export const PUBLISH_ASSISTANT_FAILED_COPY =
-  'No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.';
+  'No se pudo preparar la publicación porque el vídeo falló. Vuelve a montarlo desde Mis vídeos.';
 
 /** Ready videos get the assistant. Failed videos stay failed. Everything else waits. */
 export function publishAssistantAvailability(status: VideoStatus): PublishAssistantAvailability {

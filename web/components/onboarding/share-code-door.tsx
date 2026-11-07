@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -81,7 +80,7 @@ export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactEleme
 
   return (
     <section className="studio-panel flex flex-col gap-4 p-4 @[34rem]/content:p-6">
-      <SectionEyebrow label="¿Ya tienes el código de una partida?" />
+      <h2 className="text-body font-semibold text-fg-1">¿Ya tienes el código de una partida?</h2>
 
       <p className="text-body-sm text-fg-2">
         Ese código identifica una partida concreta de CS2; ClipHub lo lee aquí.

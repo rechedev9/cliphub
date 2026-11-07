@@ -5,6 +5,7 @@ import { MIN_RELIABLE_SAMPLE } from '@/lib/api/tactical';
 import type { TacticalHistogram, TacticalRate } from '@/lib/api/tactical';
 import { rateLabel } from '@/lib/tactical-labels';
 import { cn } from '@/lib/utils';
+import { formatDecimal } from '@/lib/format';
 
 /**
  * The small charts of the tendencies panel, in SVG.
@@ -145,7 +146,7 @@ export function HistogramChart({
         <span className="text-meta text-fg-3">{title}</span>
         <span className="flex items-center gap-2">
           <span className="text-meta tracking-normal tabular-nums text-fg-1">
-            mediana {histogram.median.toFixed(1)} s (n={histogram.samples})
+            mediana {formatDecimal(histogram.median, 1)} s (n={histogram.samples})
           </span>
           {histogram.samples > 0 && histogram.samples < MIN_RELIABLE_SAMPLE ? <SmallSampleChip /> : null}
         </span>
@@ -160,7 +161,7 @@ export function HistogramChart({
           width="100%"
           height={HISTOGRAM_HEIGHT}
           role="img"
-          aria-label={`${title}: mediana ${histogram.median.toFixed(1)} segundos sobre ${histogram.samples} muestras`}
+          aria-label={`${title}: mediana ${formatDecimal(histogram.median, 1)} segundos sobre ${histogram.samples} muestras`}
           className="block"
         >
           <line

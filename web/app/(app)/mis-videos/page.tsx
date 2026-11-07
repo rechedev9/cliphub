@@ -33,6 +33,7 @@ import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
 import { EmptyState } from '@/components/records/empty-state';
 import { FORMAT_TONE, type FormatTone } from '@/components/studio/format-tone';
+import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -210,36 +211,38 @@ export default function ResultsPage(): ReactNode {
   );
 }
 
-/** Big title, the one-line count and the Nuevo vídeo menu. `live` announces count changes. */
+/** The title on the Studio type scale, the one-line count and the Nuevo vídeo menu. `live` announces count changes. */
 function LibraryHeader({ summary, live = false }: { summary: string; live?: boolean }): ReactNode {
   return (
-    <header className="flex flex-wrap items-end gap-4">
-      <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-2">
-        <h1 className="font-display text-display font-extrabold text-fg-1">{PAGE_TITLE}</h1>
-        <p role={live ? 'status' : undefined} className="text-body text-fg-2">
-          {summary}
-        </p>
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button">
-            <Plus aria-hidden />
-            Nuevo vídeo
-            <ChevronDown aria-hidden />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
-          {NEW_VIDEO_OPTIONS.map((option) => (
-            <DropdownMenuItem key={option.href} asChild>
-              <Link href={option.href}>
-                <span aria-hidden className={cn('size-2.5 rounded-[3px]', FORMAT_TONE[option.tone].bg)} />
-                {option.label}
-              </Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </header>
+    <StudioPageHeader
+      title={PAGE_TITLE}
+      description={<span role={live ? 'status' : undefined}>{summary}</span>}
+      actions={<NewVideoMenu />}
+    />
+  );
+}
+
+function NewVideoMenu(): ReactNode {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button">
+          <Plus aria-hidden />
+          Nuevo vídeo
+          <ChevronDown aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48">
+        {NEW_VIDEO_OPTIONS.map((option) => (
+          <DropdownMenuItem key={option.href} asChild>
+            <Link href={option.href}>
+              <span aria-hidden className={cn('size-2.5 rounded-[3px]', FORMAT_TONE[option.tone].bg)} />
+              {option.label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -248,7 +251,7 @@ function ResultsSkeleton(): ReactNode {
   return (
     <div role="status" aria-label="Cargando tus vídeos" className="measure-list flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-8 w-48" />
         <Skeleton className="measure-read h-5 w-full" />
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4.5">

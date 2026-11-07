@@ -504,7 +504,7 @@ function IdleHome({ format, error, onFiles }: IdleHomeProps): ReactNode {
             <ChevronDown aria-hidden className="size-4 shrink-0 transition-transform group-open/source:rotate-180" />
           </summary>
           <div className="mt-2 max-w-md">
-            <DemoSourceHelp format={format} />
+            <DemoSourceHelp titled={false} />
           </div>
         </details>
       ) : null}
@@ -518,7 +518,7 @@ function IdleHome({ format, error, onFiles }: IdleHomeProps): ReactNode {
       {demoCount === 0 ? (
         <section aria-label="Tu primera demo" className="grid gap-4 @[48rem]/content:grid-cols-[minmax(0,1.4fr)_minmax(16rem,1fr)]">
           <DemoDropzone onFiles={onFiles} minHeightClass="min-h-80" tile={{ tone: format, title: 'Suelta aquí tu demo de CS2', strong: true, actions: steamToggle }} />
-          <DemoSourceHelp format={format} />
+          <DemoSourceHelp />
         </section>
       ) : null}
       {error ? <ErrorBanner message={error} /> : null}
@@ -566,7 +566,6 @@ function ScannedDemoLine({ fileName, match, withScore }: { fileName: string | nu
       </span>
       {fileName === null ? null : <span className="min-w-0 truncate font-mono text-fg-1">{fileName}</span>}
       {line === null ? null : <span className="tabular-nums">{line}</span>}
-      <StatusTag tone="success" dot>Escaneada</StatusTag>
     </div>
   );
 }

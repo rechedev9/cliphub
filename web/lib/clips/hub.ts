@@ -286,7 +286,7 @@ export const OUTPUT_TONE = {
 } as const satisfies Record<OutputState, string>;
 export type OutputTone = (typeof OUTPUT_TONE)[OutputState];
 
-/** The tag an output item shows: Listo, Editando 41%, Grabando 3/20, En cola, Falló. */
+/** The tag an output item shows: Listo, Montando 41%, Grabando 3/20, En cola, Falló. */
 export function outputTagLabel(
   output: Pick<MatchOutput, 'state' | 'percent' | 'rounds'>,
 ): string {
@@ -294,7 +294,7 @@ export function outputTagLabel(
     case OUTPUT_STATE.ready:
       return 'Listo';
     case OUTPUT_STATE.render:
-      return output.percent === null ? 'Editando' : `Editando ${output.percent}%`;
+      return output.percent === null ? 'Montando' : `Montando ${output.percent} %`;
     case OUTPUT_STATE.rec:
       return output.rounds === null ? 'Grabando' : `Grabando ${output.rounds.done}/${output.rounds.total}`;
     case OUTPUT_STATE.queue:

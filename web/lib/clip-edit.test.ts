@@ -55,7 +55,7 @@ test('overlay windows must stay inside the clip and be ordered', () => {
 
 test('range validation reports source bounds immediately in Spanish', () => {
   assert.match(streamRangeIssue({ id: 'clip-1', start_seconds: 2, end_seconds: 1 }, 15.112, 0) ?? '', /fin debe ser posterior/);
-  assert.match(streamRangeIssue({ id: 'clip-1', start_seconds: 0, end_seconds: 20 }, 15.112, 0) ?? '', /15\.11 s/);
+  assert.match(streamRangeIssue({ id: 'clip-1', start_seconds: 0, end_seconds: 20 }, 15.112, 0) ?? '', /15,11 s/);
   assert.equal(streamRangeIssue({ id: 'clip-1', start_seconds: 0, end_seconds: 15.112 }, 15.112, 0), null);
 });
 

@@ -21,12 +21,15 @@ export function RecordTabs({
   defaultTab,
   value,
   onValueChange,
+  actions,
   className,
 }: {
   tabs: readonly RecordTab[];
   defaultTab?: string;
   value?: string;
   onValueChange?: (tab: string) => void;
+  /** Buttons that act on the whole record, at the right end of the tab bar. */
+  actions?: ReactNode;
   className?: string;
 }): ReactNode {
   return (
@@ -36,16 +39,23 @@ export function RecordTabs({
       onValueChange={onValueChange}
       className={cn('gap-4', className)}
     >
-      <TabsList variant="line" className="h-auto w-full justify-start gap-4 rounded-none border-b border-border p-0">
-        {tabs.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} className="h-10 flex-none rounded-none px-1">
-            {tab.label}
-            {tab.count === undefined ? null : (
-              <span className="rounded-sm bg-surface-3 px-1.5 text-meta font-normal text-fg-2">{tab.count}</span>
-            )}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      {/* Many tabs on a narrow window scroll sideways inside the bar instead of widening the page. */}
+      <div className="flex items-end gap-3 border-b border-border">
+        <TabsList
+          variant="line"
+          className="h-auto min-w-0 flex-1 justify-start gap-4 overflow-x-auto overflow-y-hidden rounded-none p-0 [scrollbar-width:thin]"
+        >
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.id} value={tab.id} className="h-10 flex-none rounded-none px-1 after:bottom-0! focus-visible:outline-offset-[-2px]">
+              {tab.label}
+              {tab.count === undefined ? null : (
+                <span className="rounded-sm bg-surface-3 px-1.5 text-meta font-normal text-fg-2">{tab.count}</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {actions ? <div className="flex shrink-0 items-center gap-2 pb-1">{actions}</div> : null}
+      </div>
       {tabs.map((tab) => (
         <TabsContent key={tab.id} value={tab.id}>
           {tab.content}

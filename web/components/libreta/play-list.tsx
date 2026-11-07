@@ -13,11 +13,12 @@ import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { PLAY_ORIGIN_LABEL, playKindLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { BulkBar } from './bulk-bar';
 import { NewPlayDialog } from './new-play-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
@@ -46,7 +47,7 @@ const COLUMNS: readonly DataTableColumn<LibraryPlay>[] = [
   {
     id: 'tags',
     header: 'Etiquetas',
-    cell: (play) => (play.tags.length > 0 ? play.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+    cell: (play) => (play.tags.length > 0 ? play.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
     sortValue: (play) => play.tags.join(','),
   },
   { id: 'grenades', header: 'Granadas', align: 'end', cell: (play) => play.grenades.length, sortValue: (play) => play.grenades.length },
@@ -181,6 +182,7 @@ export function PlayList({
     onReload();
   }
 
+  const hasPlays = (plays?.length ?? 0) > 0;
   const fileActions = (
     <>
       <Button type="button" size="sm" disabled={busy} onClick={() => setCreating(true)}>
@@ -191,10 +193,13 @@ export function PlayList({
         <FileUp aria-hidden />
         Importar
       </Button>
-      <Button type="button" variant="outline" size="sm" disabled={busy || (plays?.length ?? 0) === 0} onClick={() => void exportPlays(null)}>
-        <FileDown aria-hidden />
-        Exportar
-      </Button>
+      {/* An empty Libreta has nothing to export, so the button only appears once there is. */}
+      {hasPlays ? (
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void exportPlays(null)}>
+          <FileDown aria-hidden />
+          Exportar
+        </Button>
+      ) : null}
       <input
         ref={fileRef}
         type="file"
@@ -216,10 +221,7 @@ export function PlayList({
 
   if (plays === null) {
     return (
-      <div role="status" aria-label="Cargando jugadas" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando jugadas" columns={6} filters={6} />
     );
   }
   if (plays.length === 0) {
@@ -248,16 +250,16 @@ export function PlayList({
           ]}
           actions={
             <>
+              {fileActions}
               <Button type="button" variant="outline" size="sm" onClick={onDetect}>
                 Detectar jugadas repetidas
               </Button>
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="ghost" size="sm">
                 <Link href={MATCHES_HREF}>
                   <Swords aria-hidden />
                   Ver partidas
                 </Link>
               </Button>
-              {fileActions}
             </>
           }
         />
@@ -285,33 +287,6 @@ export function PlayList({
   return (
     <div className="flex flex-col gap-3">
       {status}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por título, equipo, notas o etiqueta"
-          filters={[
-            {
-              id: 'team',
-              label: 'Equipo',
-              options: options(plays.map((play) => [play.team_id ?? NO_TEAM, play.team_name ?? 'Sin equipo'])),
-            },
-            { id: 'map', label: 'Mapa', options: options(plays.map((play) => [play.map, prettyMapName(play.map)])) },
-            { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
-            { id: 'kind', label: 'Tipo', options: options(plays.map((play) => [play.kind, playKindLabel(play.kind)])) },
-            { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-            {
-              id: 'origin',
-              label: 'Origen',
-              options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
-            },
-          ]}
-          count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        <div className="flex flex-wrap gap-2">{fileActions}</div>
-      </div>
       {hiddenArchived > 0 ? (
         <p className="text-meta text-fg-3">
           {hiddenArchived === 1 ? 'Una jugada archivada no se muestra.' : `${hiddenArchived} jugadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
@@ -329,6 +304,32 @@ export function PlayList({
         />
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por título, notas o etiqueta"
+            filters={[
+              {
+                id: 'team',
+                label: 'Equipo',
+                options: options(plays.map((play) => [play.team_id ?? NO_TEAM, play.team_name ?? 'Sin equipo'])),
+              },
+              { id: 'map', label: 'Mapa', options: options(plays.map((play) => [play.map, prettyMapName(play.map)])) },
+              { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
+              { id: 'kind', label: 'Tipo', options: options(plays.map((play) => [play.kind, playKindLabel(play.kind)])) },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+              {
+                id: 'origin',
+                label: 'Origen',
+                options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
+              },
+            ]}
+            count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}
+          />
+        }
+        actions={fileActions}
         label="Jugadas"
         rows={shown}
         columns={COLUMNS}

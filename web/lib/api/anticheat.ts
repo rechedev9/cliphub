@@ -219,7 +219,7 @@ export function anticheatErrorMessage(err: unknown, action: 'start' | 'load' | '
       if (err.code === 'http_404') return 'Ese jugador no aparece en el análisis de esta demo.';
     } else {
       if (action === 'start' && err.code === 'http_409') {
-        return 'Esta demo aún se está importando. Vuelve a intentarlo cuando termine de leerse el roster.';
+        return 'Esta demo aún se está importando. Vuelve a intentarlo cuando Studio lea sus jugadores.';
       }
       if (err.code === 'http_404') return 'Esta demo ya no está en este PC.';
     }
