@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { FolderOpen, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageFile, StorageFiles } from '@/lib/api/storage';
-import type { Match } from '@/lib/api/types';
+import type { Match, Video } from '@/lib/api/types';
 import { bulkDeleteSummary, deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { formatBytes, storageLoadErrorMessage } from '@/lib/storage';
 import {
   STORAGE_FILE_KIND_LABEL,
@@ -159,28 +160,25 @@ function ReadyBody({
   const deleteChosen = async (): Promise<void> => {
     setBulkBusy(true);
     setBulkResult(null);
-    const videos = chosen.some((file) => file.kind === 'short' || file.kind === 'full_demo') ? await api.listVideos().catch(() => []) : [];
+    const videos = chosen.some(hasVideoCard) ? await api.listVideos().catch(() => []) : [];
     // Copies go last: deleting a partida also removes the videos of its job.
-    const loose = chosen.filter((file) => file.kind !== 'studio_demo');
-    const copies = chosen.filter((file) => file.kind === 'studio_demo');
-    const looseResults = await Promise.allSettled(loose.map((file) => deleteStorageEntry(file, videos)));
-    const copyResults = await Promise.allSettled(copies.map((file) => deleteStorageEntry(file, videos)));
-    const tried = [...loose, ...copies];
-    const results = [...looseResults, ...copyResults];
-    const failedPaths = new Set(tried.filter((_, index) => results[index]?.status === 'rejected').map((file) => file.path));
-    const firstFailure = results.find((result) => result.status === 'rejected');
-    const freed = results.reduce((sum, result) => sum + (result.status === 'fulfilled' ? result.value : 0), 0);
+    const loose = await settleEach(chosen.filter((file) => file.kind !== 'studio_demo'), (file) => deleteStorageEntry(file, videos));
+    const copies = await settleEach(chosen.filter((file) => file.kind === 'studio_demo'), (file) => deleteStorageEntry(file, videos));
+    const done = [...loose.done, ...copies.done];
+    const failed = [...loose.failed, ...copies.failed];
+    const freed = done.reduce((sum, { value }) => sum + value, 0);
     setBulkResult({
-      failed: failedPaths.size > 0,
+      failed: failed.length > 0,
       text: bulkDeleteSummary({
-        deleted: tried.length - failedPaths.size,
-        failed: failedPaths.size,
+        deleted: done.length,
+        failed: failed.length,
         noun: { one: 'archivo', many: 'archivos', feminine: false },
         freed: freed > 0 ? formatBytes(freed) : undefined,
-        reason: firstFailure?.status === 'rejected' ? deleteErrorMessage(firstFailure.reason) : undefined,
+        reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
       }),
     });
-    setSelected(failedPaths);
+    // Failures and files picked during the delete stay chosen.
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item.path)));
     setBulkBusy(false);
     onReload();
   };
@@ -366,7 +364,7 @@ function FileRow({
     setDeleting(true);
     setError(null);
     try {
-      const freed = await deleteStorageEntry(file, await api.listVideos().catch(() => []));
+      const freed = await deleteStorageEntry(file, hasVideoCard(file) ? await api.listVideos().catch(() => []) : []);
       onRemoved(file.path, freed, title);
     } catch (err) {
       setError(deleteErrorMessage(err));
@@ -528,8 +526,13 @@ function hasJob(file: StorageFile): boolean {
   return file.jobId !== undefined;
 }
 
+/** Only Short and Demo completa renders have a Mis vídeos card to drop with the file. */
+function hasVideoCard(file: StorageFile): boolean {
+  return file.kind === 'short' || file.kind === 'full_demo';
+}
+
 /** Deletes one listed file and returns the bytes it freed. A Studio copy goes with its partida. */
-async function deleteStorageEntry(file: StorageFile, videos: Parameters<typeof libraryVideoFor>[0]): Promise<number> {
+async function deleteStorageEntry(file: StorageFile, videos: readonly Video[]): Promise<number> {
   if (file.kind === 'studio_demo') {
     if (file.jobId === undefined) throw new Error('Esta copia no tiene partida que borrar.');
     await api.deleteMatch(file.jobId);

@@ -39,6 +39,7 @@ import {
 } from '@/lib/library/partidas';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
+import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
@@ -361,19 +362,17 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   async function deleteChosen(ids: readonly string[]): Promise<void> {
     setDeleting(true);
-    const results = await Promise.allSettled(ids.map((demoId) => removeDemo(demoId)));
-    const failedIds = new Set(ids.filter((_, index) => results[index]?.status === 'rejected'));
-    const firstFailure = results.find((result) => result.status === 'rejected');
+    const { done, failed } = await settleEach(ids, removeDemo);
     setNotice(
       bulkDeleteSummary({
-        deleted: ids.length - failedIds.size,
-        failed: failedIds.size,
+        deleted: done.length,
+        failed: failed.length,
         noun: { one: 'partida', many: 'partidas', feminine: true },
-        reason: firstFailure?.status === 'rejected' ? deleteErrorMessage(firstFailure.reason) : undefined,
+        reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
       }),
     );
-    // What could not be deleted stays chosen, so a retry is one click.
-    setSelected(failedIds);
+    // Failures and rows picked during the delete stay chosen.
+    setSelected((current) => withoutKeys(current, done.map(({ item }) => item)));
     setDeleting(false);
     pollRef.current();
   }
