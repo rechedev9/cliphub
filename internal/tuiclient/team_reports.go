@@ -200,6 +200,7 @@ type TeamGrenade struct {
 	ThrowerSteamID64 string      `json:"thrower_steamid64"`
 	ThrowerName      string      `json:"thrower_name"`
 	Origin           *[3]float64 `json:"origin"`
+	ThrowTick        *int        `json:"throw_tick"`
 	View             *[2]float64 `json:"view"`
 	Landing          [3]float64  `json:"landing"`
 	RoundWon         bool        `json:"round_won"`

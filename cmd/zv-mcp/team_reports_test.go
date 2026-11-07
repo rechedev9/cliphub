@@ -55,7 +55,7 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			return fmt.Sprintf(g, round, secs, kind, thrower)
 		}
 		_, _ = w.Write([]byte(`{"rounds":4,"skipped":[],"grenades":[` + row("1", "5", "smoke", "a") + `,` + row("1", "7", "smoke", "b") + `,` +
-			row("2", "9", "smoke", "a") + `,` + row("2", "3", "flash", "a") + `]}`))
+			row("2", "3", "flash", "a") + `,` + strings.Replace(row("2", "9", "smoke", "a"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1) + `]}`))
 	})
 	mux.HandleFunc("GET /api/library/players/"+testSteamID+"/positions", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","match_count":2,"window_seconds":25,"min_reliable_sample":5,"skipped":[],
@@ -134,8 +134,13 @@ func TestTeamGrenadesGroupsByKind(t *testing.T) {
 	if len(smoke.Throwers) != 2 || smoke.Throwers[0].SteamID64 != "a" || smoke.Throwers[0].Count != 2 {
 		t.Errorf("throwers = %+v", smoke.Throwers)
 	}
-	if g := out.Grenades[0]; g.Ref != testMatchID+"/1" || g.Landing != [3]int{10, 21, -3} || g.Origin != nil {
+	if g := out.Grenades[0]; g.Ref != testMatchID+"/1" || g.Landing != [3]int{10, 21, -3} || g.Origin != nil || g.ThrowTick != nil {
 		t.Errorf("first row = %+v", g)
+	}
+	var all teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"smoke", "flash"}}, &all)
+	if g := all.Grenades[3]; g.ThrowTick == nil || *g.ThrowTick != 640 || g.Origin == nil {
+		t.Errorf("a recorded throw = %+v, want the throw_tick save_lineup reads", g)
 	}
 	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"c4"}}, "kind must be one of")
 }
