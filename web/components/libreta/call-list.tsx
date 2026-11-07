@@ -14,8 +14,8 @@ import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { BulkBar } from './bulk-bar';
 import { CallDialog } from './call-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
@@ -155,10 +155,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
 
   if (calls === null) {
     return (
-      <div role="status" aria-label="Cargando llamadas" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando llamadas" columns={4} />
     );
   }
   if (calls.length === 0) {

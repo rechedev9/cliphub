@@ -12,8 +12,8 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { NewSeriesDialog } from './new-series-dialog';
 
 /** `A vs B`, or the event, or the format when the series names nothing. */
@@ -72,10 +72,7 @@ export function SeriesLibrary(): ReactNode {
   let body: ReactNode;
   if (series === null) {
     body = (
-      <div role="status" aria-label="Cargando series" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando series" columns={5} />
     );
   } else if (series.length === 0) {
     body = offline ? (

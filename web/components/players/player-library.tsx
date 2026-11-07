@@ -11,8 +11,8 @@ import { DataTable, type DataTableColumn } from '@/components/records/data-table
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const FACEIT_OPTIONS = [
   { value: 'linked', label: 'Con FACEIT' },
@@ -68,10 +68,7 @@ export function PlayerLibrary(): ReactNode {
 
   if (players === null) {
     return (
-      <div role="status" aria-label="Cargando jugadores" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando jugadores" columns={4} />
     );
   }
 

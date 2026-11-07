@@ -19,9 +19,9 @@ import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useCalloutNames } from '@/hooks/use-callout-names';
 import { BulkBar } from './bulk-bar';
 import { GrenadeName, TechniqueText } from './lineup-fields';
@@ -171,10 +171,7 @@ export function LineupList({
 
   if (lineups === null) {
     return (
-      <div role="status" aria-label="Cargando lineups" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando lineups" columns={5} />
     );
   }
   if (lineups.length === 0) {

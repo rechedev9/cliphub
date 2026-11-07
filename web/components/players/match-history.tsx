@@ -6,7 +6,6 @@ import type { FaceitMatch, FaceitMatchStats } from '@/lib/api/faceit';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
-import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -24,10 +23,11 @@ const COLUMNS = [
   ['Partida', 'text-left'], ['Resultado', 'text-left'],
   ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'],
 ] as const;
+// Coloured words, as in a team's Partidas tab: a pill on every row would shout what the score already says.
 const RESULTS = {
-  win: { label: 'Victoria', tone: 'success' },
-  loss: { label: 'Derrota', tone: 'danger' },
-  unknown: { label: 'Sin resultado', tone: 'neutral' },
+  win: { label: 'Victoria', tone: 'text-outcome-win' },
+  loss: { label: 'Derrota', tone: 'text-outcome-loss' },
+  unknown: { label: 'Sin resultado', tone: 'text-fg-3' },
 } as const;
 
 export function MatchHistory({ matches, refreshing, onRefresh }: {
@@ -131,7 +131,7 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
         </div>
       </div></td>
       {/* The score is the result's evidence, so it shares its column; a fixed right-aligned box keeps both the
-          scores and the badges in line whatever their widths. */}
+          scores and the results in line whatever their widths. */}
       <td className={CELL}><div className="flex items-center gap-2">
         <span className="min-w-[5ch] text-right font-semibold text-fg-1">{score}</span>
         <ResultBadge result={stats?.result} />
@@ -165,7 +165,7 @@ function adrTone(adr: number | undefined): string {
 
 function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): ReactNode {
   const { label, tone } = RESULTS[result ?? UNKNOWN];
-  return <StatusTag tone={tone} className="rounded-sm">{label}</StatusTag>;
+  return <span className={cn('text-body-sm font-medium', tone)}>{label}</span>;
 }
 
 function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {

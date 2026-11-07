@@ -15,8 +15,8 @@ import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
+import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { PrepDialog } from '@/components/prep/prep-dialog';
 import { NewReportDialog } from './new-report-dialog';
 
@@ -145,10 +145,7 @@ function ReportListBody({
 }): ReactNode {
   if (reports === null) {
     return (
-      <div role="status" aria-label="Cargando informes" className="flex flex-col gap-3">
-        <Skeleton className="h-9 w-full max-w-xl" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <TableSkeleton label="Cargando informes" columns={4} />
     );
   }
 
