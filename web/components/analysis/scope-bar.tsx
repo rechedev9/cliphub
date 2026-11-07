@@ -291,8 +291,8 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
   if (counts === undefined) return null;
   const dots = (results ?? []).slice(-MAX_DOTS);
   return (
-    <div aria-live="polite" className="flex h-8 flex-col justify-center rounded-md border border-border px-2.5">
-      <p className="text-meta leading-tight font-medium whitespace-nowrap text-fg-1 tabular-nums">
+    <div aria-live="polite" className="flex h-8 flex-col justify-center pl-1">
+      <p className="text-meta leading-tight whitespace-nowrap text-fg-2 tabular-nums">
         {counts === null ? <span className="text-fg-3">Contando</span> : scopeCountText(counts.maps, counts.rounds)}
       </p>
       {dots.length > 0 ? (
