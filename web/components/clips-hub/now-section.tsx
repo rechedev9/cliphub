@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, Film, TriangleAlert } from 'lucide-react';
 import { prettifyMap } from '@/lib/api/map';
 import { isHighlightsVideo, OUTPUT_STATE, OUTPUT_TYPE, outputLabel, outputTagLabel, type HubModel } from '@/lib/clips/hub';
-import type { StreamActivity } from '@/lib/clips/results';
+import { CREATE_AGAIN_LABEL, videoKind, type StreamActivity } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
@@ -79,12 +79,8 @@ function CreateAnotherLink({ clip }: { clip: HubClip }): ReactNode {
   if (matchId === undefined) return null;
   const isShort = clip.type === OUTPUT_TYPE.short;
   return (
-    <Link
-      href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)}
-      aria-label={isShort ? 'Crear otro Short de esta demo' : 'Crear otra demo completa de esta partida'}
-      className={LINK_CLASS}
-    >
-      Crear otro
+    <Link href={produceHref(matchId, isShort ? PRODUCE_FORMAT.short : PRODUCE_FORMAT.full)} className={LINK_CLASS}>
+      {CREATE_AGAIN_LABEL[videoKind(clip.video)]}
       <ArrowRight aria-hidden className="size-3" />
     </Link>
   );

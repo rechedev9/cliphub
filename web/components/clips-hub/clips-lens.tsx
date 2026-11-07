@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaPlayer } from '@/components/studio/media-player';
+import { FOCUS_RING } from '@/components/ui/button';
 import { ClipCard, StreamClipCard } from '@/components/clips-hub/clip-card';
 import { NowSection } from '@/components/clips-hub/now-section';
 
@@ -52,7 +53,6 @@ const GRID_CLASS = {
   L: 'grid-cols-[repeat(auto-fill,minmax(23rem,1fr))] gap-4.5',
 } as const satisfies Record<ClipSize, string>;
 
-const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 const CHIP_CLASS = cn(
   'inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-body-sm transition-colors duration-(--dur-fast)',

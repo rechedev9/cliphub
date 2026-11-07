@@ -1,7 +1,7 @@
 import type { FullDemoOptions } from '../full-demo-plan.ts';
 
 /** Footer error when a create attempt is blocked by an enabled option without its file. */
-export const FULL_DEMO_MISSING_FILES = 'Falta el vídeo de la intro, el sponsor o el cierre. Vuelve a subirlo o quítalo en el paso 1 antes de crear.';
+export const FULL_DEMO_MISSING_FILES = 'Falta el vídeo de la intro, el sponsor o el outro. Vuelve a subirlo o quítalo en el paso 1 antes de crear.';
 
 /**
  * True when the intro, sponsor or outro slot is switched on without its video.

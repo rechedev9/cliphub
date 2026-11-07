@@ -30,6 +30,14 @@ export function videoKind(video: Video): Exclude<VideoKind, 'stream'> {
   return isHighlightsVideo(video) ? LIBRARY_FILTER.summary : OUTPUT_TYPE.full;
 }
 
+/** The "create another" action of a video, named by its format. */
+export const CREATE_AGAIN_LABEL = {
+  short: 'Crear otro Short',
+  full: 'Crear otra demo completa',
+  summary: 'Crear otro resumen',
+  stream: 'Crear otro clip',
+} as const satisfies Record<VideoKind, string>;
+
 export function itemStage(state: OutputState): ItemStage {
   if (state === OUTPUT_STATE.ready) return 'ready';
   return state === OUTPUT_STATE.failed ? 'failed' : 'working';

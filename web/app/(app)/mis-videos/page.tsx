@@ -21,7 +21,7 @@ import {
   type HubSnapshot,
 } from '@/lib/clips/hub';
 import { librarySummary, outputStateCount, streamActivity } from '@/lib/clips/results';
-import { LONG_VIDEOS_HREF, ORPHAN_MATCH_SEGMENT, SHORTS_HREF, publishHref } from '@/lib/clips/routes';
+import { LONG_VIDEOS_HREF, ORPHAN_MATCH_SEGMENT, SHORTS_HREF, STREAMS_HREF, publishHref } from '@/lib/clips/routes';
 import { createCoalescedCall } from '@/lib/coalesced-call';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
@@ -47,8 +47,6 @@ const IDLE_POLL_MS = 10000;
 
 const PAGE_TITLE = 'Mis vídeos';
 const PAGE_DESCRIPTION = 'Todos tus vídeos, en preparación o listos para descargar.';
-const STREAMS_HREF = '/streams';
-
 const NEW_VIDEO_OPTIONS = [
   { tone: 'short', label: 'Short', href: SHORTS_HREF },
   { tone: 'full', label: 'Demo completa', href: LONG_VIDEOS_HREF },

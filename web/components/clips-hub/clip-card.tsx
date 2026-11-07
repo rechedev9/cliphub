@@ -6,7 +6,7 @@ import { Download, Ellipsis, FolderOpen, Music, Play, UploadCloud } from 'lucide
 import { prettifyMap } from '@/lib/api/map';
 import { PLAYBACK_REVIEW, demoPlaybackItem, type MediaPlaybackItem, type PlaybackFormat } from '@/lib/api/playback';
 import { CLIP_SIZE, OUTPUT_TYPE, type ClipSize, type HubModel } from '@/lib/clips/hub';
-import { videoKind, type VideoKind } from '@/lib/clips/results';
+import { CREATE_AGAIN_LABEL, videoKind, type VideoKind } from '@/lib/clips/results';
 import { ORPHAN_MATCH_SEGMENT, PRODUCE_FORMAT, matchHref, produceHref, publishHref } from '@/lib/clips/routes';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ import { CoverImage } from '@/components/studio/cover-image';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,13 +36,6 @@ const KIND_LABEL = {
   stream: 'Clip de stream',
 } as const satisfies Record<VideoKind, string>;
 
-const CREATE_AGAIN_LABEL = {
-  short: 'Crear otro Short',
-  full: 'Crear otra demo completa',
-  summary: 'Crear otro resumen',
-  stream: 'Crear otro clip',
-} as const satisfies Record<VideoKind, string>;
-
 // FORMAT_TONE.fill carries a hover for buttons; a static pill only needs the colour and its text.
 const PILL_CLASS = {
   short: 'bg-format-short text-format-short-foreground',
@@ -51,7 +44,6 @@ const PILL_CLASS = {
   stream: 'bg-format-stream text-format-stream-foreground',
 } as const satisfies Record<VideoKind, string>;
 
-const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 // One stage height per size; both frame widths are capped so a 9:16 and a 16:9 poster fit it with the same margin.
 const STAGE_CLASS = {

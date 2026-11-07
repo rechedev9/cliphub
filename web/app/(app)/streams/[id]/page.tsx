@@ -47,8 +47,7 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 import { acquireProgressView } from '@/lib/streams/acquire-progress';
-
-const STREAMS_HREF = '/streams';
+import { STREAMS_HREF } from '@/lib/clips/routes';
 
 type Stage = 'loading' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed' | 'missing' | 'error';
 
