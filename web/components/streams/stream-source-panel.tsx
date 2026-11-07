@@ -27,13 +27,6 @@ const KIND_COPY: Record<StreamSourceKind, { placeholder: string; result: string 
   },
 };
 
-// Brand marks of each platform; they stay literal in both themes.
-const PLATFORMS = [
-  { name: 'Twitch', dot: '#9146ff' },
-  { name: 'YouTube', dot: '#ff0033' },
-  { name: 'Kick', dot: '#53fc18' },
-] as const;
-
 /** The import hero. Both source choices share the optional title. Keep #stream-url stable for integrations. */
 export function StreamSourcePanel({
   sourceKind,
@@ -180,16 +173,7 @@ export function StreamSourcePanel({
         </div>
       </form>
 
-      <div className="flex flex-wrap items-center gap-x-4.5 gap-y-3">
-        <ul aria-label="Plataformas compatibles" className="flex flex-wrap items-center gap-4.5 text-body-sm text-fg-2">
-          {PLATFORMS.map((platform) => (
-            <li key={platform.name} className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-[3px]" style={{ backgroundColor: platform.dot }} />
-              {platform.name}
-            </li>
-          ))}
-        </ul>
-        <span aria-hidden className="flex-1" />
+      <div className="flex flex-wrap items-center justify-end gap-x-4.5 gap-y-3">
         <span className="text-body-sm text-fg-2">{dragging ? 'Suelta tu vídeo aquí' : '¿Lo tienes en el PC?'}</span>
         <Button
           type="button"
