@@ -2,7 +2,7 @@ import type { SearchKind, SearchResult } from '../api/search.ts';
 import { GRENADE_KIND_LABEL } from '../analysis/grenade-patterns.ts';
 import { isLineupGrenade } from '../api/lineups.ts';
 import { isLibretaStatus } from '../api/libreta.ts';
-import { LIBRETA_TABS, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
+import { LIBRETA_TAB_LABEL, LIBRETA_TABS, libretaTabHref, lineupHref, matchHref, playerHref, playHref, teamHref } from '../clips/routes.ts';
 import { STATUS_LABEL } from '../libreta/status.ts';
 import { NAV_SECTIONS } from '../nav.ts';
 import { playKindLabel } from '../stratbook/plays.ts';
@@ -32,15 +32,20 @@ export function foldSearch(text: string): string {
     .join(' ');
 }
 
-/** The sections of the rail whose name holds every word of the query. */
+const SECTIONS: readonly { label: string; href: string; subtitle: string }[] = [
+  ...NAV_SECTIONS.map((section) => ({ label: section.label, href: section.href, subtitle: 'Ir a la sección' })),
+  ...Object.values(LIBRETA_TABS).map((tab) => ({ label: LIBRETA_TAB_LABEL[tab], href: libretaTabHref(tab), subtitle: 'Pestaña de la Libreta' })),
+];
+
+/** The rail sections and Libreta tabs whose name holds every word of the query. */
 export function sectionRows(query: string): SearchRow[] {
   const words = foldSearch(query).split(' ').filter((word) => word !== '');
   if (words.length === 0) return [];
-  return NAV_SECTIONS.filter((section) => words.every((word) => foldSearch(section.label).includes(word))).map((section) => ({
+  return SECTIONS.filter((section) => words.every((word) => foldSearch(section.label).includes(word))).map((section) => ({
     key: `section:${section.href}`,
     group: 'section',
     title: section.label,
-    subtitle: 'Ir a la sección',
+    subtitle: section.subtitle,
     href: section.href,
   }));
 }

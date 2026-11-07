@@ -134,9 +134,13 @@ export function PlanTable({
           description="Cada columna es un tipo de ronda. Añade jugadas con el botón + de cada columna o guarda rondas desde la repetición 2D."
         />
       ) : null}
-      <div className="grid auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1">
+      <div className={compact ? 'flex flex-col gap-2' : 'grid auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1'}>
         {columns.map((column) => (
-          <section key={column.kind} aria-label={playKindLabel(column.kind)} className="studio-panel flex min-h-40 flex-col gap-2 p-2">
+          <section
+            key={column.kind}
+            aria-label={playKindLabel(column.kind)}
+            className={cn('studio-panel flex flex-col gap-2 p-2', !compact && 'min-h-40')}
+          >
             <header className="flex items-center justify-between gap-2">
               <h3 className="text-body-sm font-semibold text-fg-1">
                 {playKindLabel(column.kind)} <span className="font-normal text-fg-3 tabular-nums">{column.plays.length}</span>
@@ -156,20 +160,31 @@ export function PlanTable({
             <ul className="flex flex-col gap-1.5">
               {column.plays.map((play) => {
                 const tone = STATUS_TONE[play.status];
+                const card = {
+                  title: `${play.title} (${STATUS_LABEL[play.status]})`,
+                  className: cn(
+                    'flex items-center gap-2 rounded-md border px-2 py-1.5 text-body-sm text-fg-1',
+                    !compact && 'hover:border-primary',
+                    tint ? TONE_CLASS[tone] : 'border-border bg-surface-1',
+                  ),
+                };
+                const body = (
+                  <>
+                    <span aria-hidden className={cn('size-2 shrink-0 rounded-full', DOT_CLASS[tone])} />
+                    <span className="line-clamp-2 min-w-0 flex-1 break-words">{play.title}</span>
+                    {play.site === 'none' ? null : <span className="text-meta text-fg-3">{siteLabel(play.site)}</span>}
+                  </>
+                );
+                // The Modo partida window has no way back from a play page, so its cards are not links.
                 return (
                   <li key={play.id}>
-                    <Link
-                      href={playHref(play.id)}
-                      title={STATUS_LABEL[play.status]}
-                      className={cn(
-                        'flex items-center gap-2 rounded-md border px-2 py-1.5 text-body-sm text-fg-1 hover:border-primary',
-                        tint ? TONE_CLASS[tone] : 'border-border bg-surface-1',
-                      )}
-                    >
-                      <span aria-hidden className={cn('size-2 shrink-0 rounded-full', DOT_CLASS[tone])} />
-                      <span className="min-w-0 flex-1 truncate">{play.title}</span>
-                      {play.site === 'none' ? null : <span className="text-meta text-fg-3">{siteLabel(play.site)}</span>}
-                    </Link>
+                    {compact ? (
+                      <div {...card}>{body}</div>
+                    ) : (
+                      <Link href={playHref(play.id)} {...card}>
+                        {body}
+                      </Link>
+                    )}
                   </li>
                 );
               })}

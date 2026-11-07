@@ -130,6 +130,16 @@ export const LIBRETA_TABS = {
 } as const;
 export type LibretaTab = (typeof LIBRETA_TABS)[keyof typeof LIBRETA_TABS];
 
+export const LIBRETA_TAB_LABEL: Record<LibretaTab, string> = {
+  jugadas: 'Jugadas',
+  tabla: 'Tabla',
+  lineups: 'Lineups',
+  roles: 'Roles',
+  llamadas: 'Llamadas',
+  callouts: 'Callouts',
+  detectar: 'Detectar repetidas',
+};
+
 /** Query keys that open the Libreta on one tab, team or map. */
 export const LIBRETA_QUERY = { team: 'equipo', tab: 'tab', map: 'mapa', side: 'lado' } as const;
 export const LIBRETA_DETECT_TAB = LIBRETA_TABS.detect;

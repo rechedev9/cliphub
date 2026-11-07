@@ -10,6 +10,7 @@ test('foldSearch drops accents and reads & as y, like the server', () => {
 test('sectionRows finds the rail sections holding every word', () => {
   assert.deepEqual(sectionRows('libre').map((row) => row.href), ['/libreta']);
   assert.deepEqual(sectionRows('mis videos').map((row) => row.href), ['/mis-videos']);
+  assert.deepEqual(sectionRows('callouts').map((row) => [row.href, row.subtitle]), [['/libreta?tab=callouts', 'Pestaña de la Libreta']]);
   assert.deepEqual(sectionRows('   '), []);
 });
 

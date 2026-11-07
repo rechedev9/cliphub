@@ -123,13 +123,13 @@ export function parseStratbookFile(text: string): StratbookParse {
     return { ok: false, error: 'El fichero no es JSON válido.' };
   }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return { ok: false, error: 'El fichero no es un stratbook de ClipHub.' };
+    return { ok: false, error: 'El fichero no es una Libreta de ClipHub.' };
   }
   const format: unknown = Reflect.get(value, 'format');
   const version: unknown = Reflect.get(value, 'version');
   const plays: unknown = Reflect.get(value, 'plays');
   if (format !== STRATBOOK_FORMAT || !Array.isArray(plays)) {
-    return { ok: false, error: 'El fichero no es un stratbook de ClipHub.' };
+    return { ok: false, error: 'El fichero no es una Libreta de ClipHub.' };
   }
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > STRATBOOK_VERSION) {
     return { ok: false, error: `Este fichero es de la versión ${String(version)} y Studio lee hasta la ${STRATBOOK_VERSION}. Actualiza Studio.` };

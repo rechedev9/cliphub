@@ -121,7 +121,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
   const [matches, setMatches] = useState<ReadonlyMap<string, LibraryMatch>>(new Map());
   const [message, setMessage] = useState<string | null>(null);
   useRouteTitle(play.title);
-  useDocumentTitle(`${play.title} · Stratbook · ClipHub`);
+  useDocumentTitle(`${play.title} · Libreta · ClipHub`);
 
   useEffect(() => {
     let active = true;

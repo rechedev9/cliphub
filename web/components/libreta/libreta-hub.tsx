@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LIBRETA_QUERY, LIBRETA_TABS } from '@/lib/clips/routes';
+import { LIBRETA_QUERY, LIBRETA_TAB_LABEL, LIBRETA_TABS } from '@/lib/clips/routes';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { PlayDetection } from '@/components/stratbook/play-detection';
 import { useRecordTab } from '@/hooks/use-record-tab';
@@ -43,7 +43,7 @@ export function LibretaHub(): ReactNode {
         tabs={[
           {
             id: LIBRETA_TABS.plays,
-            label: 'Jugadas',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.plays],
             count: plays?.filter((play) => play.status !== 'archived').length,
             content: (
               <PlayList
@@ -58,34 +58,34 @@ export function LibretaHub(): ReactNode {
           },
           {
             id: LIBRETA_TABS.table,
-            label: 'Tabla',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.table],
             content: <PlanTable plays={plays} onReload={reload} />,
           },
           {
             id: LIBRETA_TABS.lineups,
-            label: 'Lineups',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.lineups],
             count: lineups.lineups?.filter((lineup) => lineup.status !== 'archived').length,
             content: <LineupList lineups={lineups.lineups} offline={lineups.offline} onReload={lineups.reload} />,
           },
           {
             id: LIBRETA_TABS.roles,
-            label: 'Roles',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.roles],
             content: <RoleSheet key={imports} plays={plays} />,
           },
           {
             id: LIBRETA_TABS.calls,
-            label: 'Llamadas',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.calls],
             count: calls.calls?.filter((call) => call.status !== 'archived').length,
             content: <CallList calls={calls.calls} offline={calls.offline} onReload={calls.reload} />,
           },
           {
             id: LIBRETA_TABS.callouts,
-            label: 'Callouts',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.callouts],
             content: <CalloutSheet key={imports} plays={plays} lineups={lineups.lineups} />,
           },
           {
             id: LIBRETA_TABS.detect,
-            label: 'Detectar repetidas',
+            label: LIBRETA_TAB_LABEL[LIBRETA_TABS.detect],
             content: <PlayDetection initialTeamId={requestedTeam === NO_TEAM ? undefined : requestedTeam} onSaved={reload} />,
           },
         ]}
