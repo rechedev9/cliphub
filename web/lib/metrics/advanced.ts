@@ -106,7 +106,6 @@ function countWithChips(metric: MetricCount): ReportCell[] {
 }
 
 function impactSection(report: MetricsReport, options: MetricsSectionOptions): ReportSection {
-  const m = report.model;
   const table: ReportTable = {
     caption: 'Impacto en la probabilidad de victoria',
     columns: ['Jugador', 'Rol', 'Rondas', 'WPA', 'Por ronda', 'Mejores momentos', 'Peores momentos'],
@@ -144,7 +143,6 @@ function impactSection(report: MetricsReport, options: MetricsSectionOptions): R
     facts: [
       { label: 'Partidas', value: String(report.matches) },
       { label: 'Rondas', value: String(report.rounds) },
-      { label: 'Modelo', value: `${m.version}, regresión logística con coeficientes fijos` },
     ],
     tables: [table, swings],
   };
