@@ -16,7 +16,7 @@ import {
   shellActivitySnapshot,
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
-import { LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
+import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { sectionForPath, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
@@ -26,7 +26,7 @@ const TRAIL = {
   series: 'serie',
 } as const;
 
-/** Series belong to the Shorts journey but live outside /shorts. */
+/** Short series live outside /shorts; Demo completa series live under /videos-largos/serie. */
 const SERIES_PREFIX = '/series/';
 
 /** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
@@ -120,7 +120,7 @@ function trailForPath(pathname: string, section: NavSection | null): string | nu
   const segments = rest.split('/');
   if (section.href === '/streams') return 'Editar stream';
   if (section.href === SHORTS_HREF) return TRAIL.newShort;
-  if (section.href === LONG_VIDEOS_HREF) return TRAIL.newFull;
+  if (section.href === LONG_VIDEOS_HREF) return segments[0] === FULL_SERIES_SEGMENT ? TRAIL.series : TRAIL.newFull;
   if (section.href === RESULTS_HREF && segments[1] === 'publicar') return TRAIL.publish;
   const segment = decodeURIComponent(segments[0] ?? '');
   return OPAQUE_ID.test(segment) ? null : segment;

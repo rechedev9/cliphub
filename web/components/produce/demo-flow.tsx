@@ -274,12 +274,12 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       );
 
       if (finished.some((row) => row.status === 'done')) {
-        router.push(seriesHref(seriesId));
+        router.push(seriesHref(seriesId, format));
       } else {
         setError('No se pudo completar el análisis de ningún mapa. Consulta el estado de la serie o vuelve a cargar las demos.');
       }
     },
-    [stage, seriesMode, seriesId, scannedRows, router],
+    [stage, seriesMode, seriesId, scannedRows, router, format],
   );
 
   const onFiles = useCallback(
@@ -415,14 +415,14 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
             <ErrorBanner message={error} />
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => reset(null)}>Volver a cargar demos</Button>
-              <Button variant="outline" onClick={() => seriesId && router.push(seriesHref(seriesId))}>Ver estado de la serie</Button>
+              <Button variant="outline" onClick={() => seriesId && router.push(seriesHref(seriesId, format))}>Ver estado de la serie</Button>
             </div>
           </>
         ) : null}
       </div>
     );
   } else if (seriesMode) {
-    body = <PlayerPicker players={aggregated} purpose="highlights" allowDestinationSwitch={false} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} tone={format} />;
+    body = <PlayerPicker players={aggregated} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} tone={format} />;
   } else if (stage === 'scanning') {
     body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} upload={upload} />;
   } else if (stage === 'parsing') {

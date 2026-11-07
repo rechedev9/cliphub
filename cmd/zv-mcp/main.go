@@ -42,7 +42,8 @@ plan_full_demo also takes pro_settings (list_pro_settings), a HUD portrait for t
 sponsor and outro clips from local files. publish_copy gives upload copy, alternatives and best times.
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
-for the plays of all maps in play order. generate_short still records one map per call.
+for the plays of all maps in play order. generate_short still records one map per call; for the
+full demo of each map, plan_full_demo and render_full_demo take each series job in turn.
 A match summary with the best plays of several teammates (multi-POV): get_match, then
 create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
 (each play names its player; player filters one), then generate_short with plays whose times do not

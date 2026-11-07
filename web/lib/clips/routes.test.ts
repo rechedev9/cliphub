@@ -12,6 +12,7 @@ import {
   produceHref,
   publishHref,
   roundsProduceHref,
+  seriesHref,
   SHORTS_HREF,
   teamHref,
 } from './routes.ts';
@@ -41,6 +42,11 @@ test('produceHref opens the producer of the given flow', () => {
   for (const { name, href, want } of cases) {
     assert.equal(href, want, name);
   }
+});
+
+test('seriesHref keeps a series in the flow it came from', () => {
+  assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.short), `/series/${SERIES_ID}`);
+  assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.full), `${LONG_VIDEOS_HREF}/serie/${SERIES_ID}`);
 });
 
 test('publishHref lives under the results area', () => {

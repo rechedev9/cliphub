@@ -74,7 +74,7 @@ type seriesMap struct {
 func registerSeriesTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "create_series_jobs",
 		Description: "Start a series (best of 3 or best of 5) for one player: give the imported demos of every map in the order they were played and the player's SteamID64. " +
-			"Checks that the player is in every map, matching by SteamID, then creates or reuses one job per map. Follow with wait_for_job on each job until \"parsed\", then list_series_moments."},
+			"Checks that the player is in every map, matching by SteamID, then creates or reuses one job per map. Follow with wait_for_job on each job until \"parsed\", then list_series_moments for Shorts, or plan_full_demo and render_full_demo per job for each map's full demo."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in createSeriesIn) (*mcp.CallToolResult, createSeriesOut, error) {
 			if err := checkSeriesIDs("demo_ids", in.DemoIDs); err != nil {
 				return nil, createSeriesOut{}, err

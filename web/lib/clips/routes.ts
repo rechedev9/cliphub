@@ -176,8 +176,13 @@ export function librarySeriesHref(seriesId: string): string {
 
 export const LIBRARY_SERIES_HREF = `${MATCHES_HREF}/series` as const;
 
-export function seriesHref(seriesId: string): string {
-  return `/series/${encodeURIComponent(seriesId)}`;
+/** The segment under /videos-largos that holds a Demo completa series. */
+export const FULL_SERIES_SEGMENT = 'serie' as const;
+
+/** A bo3/bo5 series; from Demo completa it lives under that flow and each map prepares its full demo. */
+export function seriesHref(seriesId: string, format: ProduceFormat): string {
+  const id = encodeURIComponent(seriesId);
+  return format === PRODUCE_FORMAT.full ? `${LONG_VIDEOS_HREF}/${FULL_SERIES_SEGMENT}/${id}` : `/series/${id}`;
 }
 
 export function publishHref(matchId: string, clipId: string): string {

@@ -219,7 +219,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
   const heroTitle = producerTitle(match, landscape);
   const musicSummary = songTitle ? `♪ ${songTitle}` : 'Sin música';
   // A created Short lands in Mis vídeos; from a series map card it returns to the series.
-  const doneHref = seriesId ? seriesHref(seriesId) : RESULTS_HREF;
+  const flow = landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short;
+  const doneHref = seriesId ? seriesHref(seriesId, flow) : RESULTS_HREF;
+  const backHref = seriesId ? seriesHref(seriesId, flow) : flowHref(flow);
   const summary = selectedPlays.length > 0 ? (
     <>
       {selectedPlays.length} {selectedPlays.length === 1 ? 'jugada' : 'jugadas'}
@@ -380,7 +382,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
             : forgeHint(roundsSummary(selectedPlays), presetLabel)
         }
         briefItems={briefItems}
-        backHref={seriesId ? seriesHref(seriesId) : flowHref(landscape ? PRODUCE_FORMAT.full : PRODUCE_FORMAT.short)}
+        backHref={backHref}
         error={createError}
         cta={
           <Button
