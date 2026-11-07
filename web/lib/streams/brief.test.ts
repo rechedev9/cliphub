@@ -25,7 +25,7 @@ test('stream creative brief lists every production decision', () => {
   assert.match(byLabel.Shorts, /1 Short/);
   assert.equal(byLabel['Banner del streamer'], 'pro_player · Twitch · deslizante');
   assert.equal(byLabel.Afiliado, 'No');
-  assert.equal(byLabel.Música, 'phonk-01 · 25%');
+  assert.equal(byLabel.Música, 'phonk-01 · 25 %');
   assert.equal(byLabel['Realce de color'], 'Sí');
 });
 
@@ -35,7 +35,7 @@ test('the brief names the catalog track and reads the affiliate window without d
     'Night Drive',
   );
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel['Música'], 'Night Drive · 25%');
+  assert.equal(byLabel['Música'], 'Night Drive · 25 %');
   assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · de 0,0 s a 4,0 s');
 });
 

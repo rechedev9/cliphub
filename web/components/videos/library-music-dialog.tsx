@@ -146,7 +146,7 @@ export function LibraryMusicDialog({
                 htmlFor={`library-music-volume-${video.id}`}
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Música <span className="text-fg-1">· {volumePercent}%</span>
+                Música <span className="text-fg-1">· {volumePercent} %</span>
               </label>
               <input
                 id={`library-music-volume-${video.id}`}
@@ -165,7 +165,7 @@ export function LibraryMusicDialog({
                 htmlFor={`library-game-volume-${video.id}`}
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Juego <span className="text-fg-1">· {gameVolumePercent}%</span>
+                Juego <span className="text-fg-1">· {gameVolumePercent} %</span>
               </label>
               <input
                 id={`library-game-volume-${video.id}`}

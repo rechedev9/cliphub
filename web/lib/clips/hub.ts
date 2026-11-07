@@ -294,7 +294,7 @@ export function outputTagLabel(
     case OUTPUT_STATE.ready:
       return 'Listo';
     case OUTPUT_STATE.render:
-      return output.percent === null ? 'Montando' : `Montando ${output.percent}%`;
+      return output.percent === null ? 'Montando' : `Montando ${output.percent} %`;
     case OUTPUT_STATE.rec:
       return output.rounds === null ? 'Grabando' : `Grabando ${output.rounds.done}/${output.rounds.total}`;
     case OUTPUT_STATE.queue:

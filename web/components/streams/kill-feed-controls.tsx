@@ -39,7 +39,7 @@ export function StreamKillFeedControls({
           {position === null ? null : (
             <>
               <Label htmlFor="kill-feed-position" className="text-meta text-fg-3">
-                Altura · {Math.round(position * 100)}%{hasExplicitPosition ? '' : ' (bajo el marcador)'}
+                Altura · {Math.round(position * 100)} %{hasExplicitPosition ? '' : ' (bajo el marcador)'}
               </Label>
               <input
                 id="kill-feed-position"
@@ -49,7 +49,7 @@ export function StreamKillFeedControls({
                 step="0.001"
                 value={position}
                 disabled={busy}
-                aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
+                aria-valuetext={`${Math.round(position * 100)} % desde arriba`}
                 onChange={(event) => onPositionChange(Number(event.target.value))}
                 className={STREAM_SLIDER_CLASS}
               />

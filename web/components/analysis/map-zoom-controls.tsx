@@ -49,7 +49,7 @@ export function MapZoomControls({
         <Minus aria-hidden />
       </MapButton>
       <span className="w-10 text-center text-meta tabular-nums text-fg-2" aria-live="polite">
-        {Math.round(zoom * 100)}%
+        {Math.round(zoom * 100)} %
       </span>
       <MapButton label="Acercar" disabled={zoom >= MAX_ZOOM} onClick={() => onZoomBy(BUTTON_STEP)}>
         <Plus aria-hidden />

@@ -72,7 +72,7 @@ function bookendLabel(enabled: boolean, text: string | undefined, generatedFallb
 
 function musicBriefValue(music: MusicBrief): string {
   if (music.status === 'none') return 'Sin música';
-  return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;
+  return `${music.title} · música ${music.volumePercent} % · juego ${music.gameVolumePercent} %`;
 }
 
 export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>): boolean {
@@ -121,7 +121,7 @@ export function reelCreativeBrief(
     {
       label: 'Comms',
       value: edit.voiceComms
-        ? `Mezclar comms del equipo · ${Math.round((edit.voiceVolume ?? 0.85) * 100)}%`
+        ? `Mezclar comms del equipo · ${Math.round((edit.voiceVolume ?? 0.85) * 100)} %`
         : 'Sin comms',
     },
     { label: 'HUD / killfeed', value: hud },

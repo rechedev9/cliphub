@@ -41,10 +41,10 @@ export function FullDemoGain({ label, value, max = 2, step = 0.05, disabled = fa
   const percent = Math.round(value * 100);
   return <div className="flex min-w-0 items-center gap-3">
     <label htmlFor={id} className="w-24 shrink-0 text-meta text-fg-2">
-      {label} <span className="text-fg-1">· {percent}%</span>
+      {label} <span className="text-fg-1">· {percent} %</span>
     </label>
     <input id={id} type="range" min={0} max={Math.round(max * 100)} step={Math.round(step * 100)} value={percent} disabled={disabled}
-      aria-valuetext={`${percent}%`} className={SLIDER_CLASS} onChange={(event) => onChange(Number(event.target.value) / 100)} />
+      aria-valuetext={`${percent} %`} className={SLIDER_CLASS} onChange={(event) => onChange(Number(event.target.value) / 100)} />
   </div>;
 }
 

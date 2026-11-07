@@ -187,7 +187,7 @@ export function StreamMusicCard({
               <ToggleGroupItem
                 key={v.value}
                 value={String(v.value)}
-                aria-label={`${v.label}, ${Math.round(v.value * 100)}%`}
+                aria-label={`${v.label}, ${Math.round(v.value * 100)} %`}
               >
                 {v.label}
               </ToggleGroupItem>

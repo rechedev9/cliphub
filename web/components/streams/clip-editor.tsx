@@ -209,8 +209,11 @@ function ClipCard({
               {clip.title?.trim() || `Momento ${index + 1}`}
             </span>
             <span className="truncate text-meta text-fg-3">
-              {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)} → Short de{' '}
-              {formatStreamClock(clipOutputDuration(clip))}
+              {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)}
+              {/* The Short's length only when speed edits make it differ from the range above. */}
+              {formatStreamClock(clipOutputDuration(clip)) === formatStreamClock(clip.end_seconds - clip.start_seconds)
+                ? null
+                : ` · Short de ${formatStreamClock(clipOutputDuration(clip))}`}
             </span>
           </span>
         </button>
@@ -289,7 +292,7 @@ function ClipCard({
             onClick={toggleMute}
             className={cn(sourceVolume === 0 && 'border-destructive/45 text-destructive')}
           >
-            {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
+            {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)} %`}
           </Button>
           <Button
             type="button"
@@ -346,7 +349,7 @@ function ClipCard({
                 Volumen original
               </Label>
               <output htmlFor={`${clip.id}-source-volume`} className="text-label tabular-nums text-fg-1">
-                {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`}
+                {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)} %`}
               </output>
             </div>
             <input
@@ -572,7 +575,7 @@ function OverlayRow({
           step="0.005"
           value={overlay.position_y}
           disabled={disabled}
-          aria-valuetext={`${Math.round(overlay.position_y * 100)}% desde arriba`}
+          aria-valuetext={`${Math.round(overlay.position_y * 100)} % desde arriba`}
           onChange={(e) => onChange({ position_y: Number(e.target.value) })}
           className={STREAM_SLIDER_CLASS}
         />
@@ -580,7 +583,7 @@ function OverlayRow({
           htmlFor={`${idBase}-position`}
           className="w-11 shrink-0 text-right text-label tabular-nums text-fg-1"
         >
-          {Math.round(overlay.position_y * 100)}%
+          {Math.round(overlay.position_y * 100)} %
         </output>
       </div>
     </div>

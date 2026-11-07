@@ -127,8 +127,8 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
     { key: 'a', text: `${p.assists} A` },
     { key: 'pm', text: signed(plusMinus), className: plusMinus >= 0 ? 'text-fg-1' : undefined },
     { key: 'adr', text: `${Math.round(p.adr)} ADR` },
-    { key: 'kast', text: `KAST ${Math.round(p.kast)}%` },
-    { key: 'hs', text: `HS ${Math.round(p.hsPct)}%` },
+    { key: 'kast', text: `KAST ${Math.round(p.kast)} %` },
+    { key: 'hs', text: `HS ${Math.round(p.hsPct)} %` },
     ...(showMvp ? [{ key: 'mvp' as const, text: `${p.mvps} MVP` }] : []),
   ];
   return (

@@ -219,7 +219,7 @@ test('fullChipLabel follows the latest Full POV state', () => {
 test('outputTagLabel: one tag per state, with progress when reported', () => {
   const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
     [{ state: 'ready', percent: null, rounds: null }, 'Listo'],
-    [{ state: 'render', percent: 41, rounds: null }, 'Montando 41%'],
+    [{ state: 'render', percent: 41, rounds: null }, 'Montando 41 %'],
     [{ state: 'render', percent: null, rounds: null }, 'Montando'],
     [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'Grabando 3/20'],
     [{ state: 'rec', percent: null, rounds: null }, 'Grabando'],

@@ -186,6 +186,6 @@ function pillTag(job: ShellJob): string {
   const { tag } = STAGE_META[job.stage];
   if (job.progress === null) return tag;
   if (job.stage === 'recording') return `${tag} R${job.progress.done}/${job.progress.total}`;
-  if (job.stage === 'composing') return `${tag} ${captureProgressPercent(job.progress)}%`;
+  if (job.stage === 'composing') return `${tag} ${captureProgressPercent(job.progress)} %`;
   return tag;
 }

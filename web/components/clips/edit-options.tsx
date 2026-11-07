@@ -98,7 +98,7 @@ export function EditOptions({
                 htmlFor="voice-volume"
                 className="w-36 shrink-0 text-meta text-fg-2"
               >
-                Comms <span className="text-fg-1">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
+                Comms <span className="text-fg-1">· {Math.round((value.voiceVolume ?? 0.85) * 100)} %</span>
               </label>
               <input
                 id="voice-volume"

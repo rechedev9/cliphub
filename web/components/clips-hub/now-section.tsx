@@ -229,7 +229,7 @@ function SideRowMeta({ clip }: { clip: HubClip }): ReactNode {
 function streamActivityLabel(activity: StreamActivity): string {
   const parts = [activity.stage === 'download' ? 'Descargando' : 'Exportando'];
   if (activity.clipLabel !== null) parts.push(activity.clipLabel);
-  if (activity.percent !== null) parts.push(`${activity.percent}%`);
+  if (activity.percent !== null) parts.push(`${activity.percent} %`);
   return parts.join(' · ');
 }
 

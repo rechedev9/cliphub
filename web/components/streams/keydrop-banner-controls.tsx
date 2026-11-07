@@ -240,7 +240,7 @@ export function StreamKeyDropBannerControls({
               htmlFor="keydrop-banner-position"
               className="text-label tabular-nums text-fg-1"
             >
-              {Math.round(position * 100)}%
+              {Math.round(position * 100)} %
             </output>
           </div>
           <input
@@ -252,7 +252,7 @@ export function StreamKeyDropBannerControls({
             value={position}
             disabled={busy}
             aria-label="Posición vertical del banner"
-            aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
+            aria-valuetext={`${Math.round(position * 100)} % desde arriba`}
             onChange={(event) => onPositionChange(Number(event.target.value))}
             className={STREAM_SLIDER_CLASS}
           />
@@ -275,7 +275,7 @@ export function StreamKeyDropBannerControls({
               disabled={busy || !hasExplicitPosition}
               onClick={onResetPosition}
             >
-              Restablecer posición ({Math.round(KEYDROP_BANNER_DEFAULT_POSITION * 100)}%)
+              Restablecer posición ({Math.round(KEYDROP_BANNER_DEFAULT_POSITION * 100)} %)
             </Button>
           </div>
         </div>

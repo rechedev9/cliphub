@@ -21,7 +21,7 @@ export function streamCreativeBrief(plan: StreamEditPlan, musicLabel?: string): 
   const music =
     musicKey === ''
       ? 'Sin música'
-      : `${musicLabel?.trim() || musicKey}${typeof musicVolume === 'number' ? ` · ${Math.round(musicVolume * 100)}%` : ''}`;
+      : `${musicLabel?.trim() || musicKey}${typeof musicVolume === 'number' ? ` · ${Math.round(musicVolume * 100)} %` : ''}`;
   const nick = plan.streamer_banner?.nick?.trim() ?? '';
   const totalOut = plan.clips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
   const clipSummary =

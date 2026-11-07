@@ -61,7 +61,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },
-    { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },
+    { label: 'Música', value: 'Tema CC0 · música 35 % · juego 20 %' },
     { label: 'Portada', value: 'Automática (fotograma del vídeo)' },
   ]);
 });
@@ -134,7 +134,7 @@ test('creative brief names the optional recap extras when they are on', () => {
   };
   const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Entrega'], 'POV landscape · rondas en vivo (sin freeze)');
-  assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
+  assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85 %');
   assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
   assert.equal(isLandscapeRecap(edit), true);
   assert.equal(constrainEditConfig(edit), edit);

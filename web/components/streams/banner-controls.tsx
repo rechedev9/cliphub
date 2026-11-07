@@ -98,7 +98,7 @@ export function StreamBannerControls({
           )}
           <div className="flex items-center justify-between gap-2 text-meta text-fg-3">
             <Label htmlFor="streamer-banner-position" className="text-meta text-fg-3">
-              Posición · {Math.round(position * 100)}%
+              Posición · {Math.round(position * 100)} %
             </Label>
             <button
               type="button"
@@ -118,7 +118,7 @@ export function StreamBannerControls({
             step="0.001"
             value={position}
             disabled={busy}
-            aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
+            aria-valuetext={`${Math.round(position * 100)} % desde arriba`}
             onChange={(event) => onPositionChange(Number(event.target.value))}
             className={STREAM_SLIDER_CLASS}
           />

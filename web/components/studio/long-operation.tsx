@@ -67,7 +67,7 @@ export function LongOperation({
           <span className="min-w-0 truncate">{stage}</span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2.5 text-meta tabular-nums">
-          {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
+          {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct} %</span> : null}
           {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
         </span>
       </div>
