@@ -159,6 +159,7 @@ type libraryPlayRequest struct {
 	Examples         *[]tacticalplan.Evidence     `json:"examples"`
 	Status           *string                      `json:"status"`
 	Tags             *[]string                    `json:"tags"`
+	Roles            *[]library.RoleSlot          `json:"roles"`
 }
 
 // teamField reads team_id: set is false when absent, id is nil for null.
@@ -194,6 +195,9 @@ func (req libraryPlayRequest) apply(p library.Play) library.Play {
 	set(&p.Status, req.Status)
 	if req.Tags != nil {
 		p.Tags = *req.Tags
+	}
+	if req.Roles != nil {
+		p.Roles = *req.Roles
 	}
 	if req.PositionsSeconds != nil {
 		p.PositionsSeconds = *req.PositionsSeconds
@@ -384,6 +388,9 @@ func (h *Handlers) PatchLibraryPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Tags != nil {
 		patch.Tags = &next.Tags
+	}
+	if req.Roles != nil {
+		patch.Roles = &next.Roles
 	}
 	if req.Grenades != nil {
 		patch.Grenades = &next.Grenades
@@ -726,7 +733,7 @@ func (h *Handlers) importPlay(ctx context.Context, in library.Play) (library.Pla
 		ID: in.ID, Title: in.Title, Map: in.Map, Side: in.Side, Kind: in.Kind, Site: in.Site,
 		Origin: library.PlayOriginImport, PositionsSeconds: in.PositionsSeconds,
 		Grenades: in.Grenades, Positions: in.Positions, Notes: in.Notes, Examples: in.Examples,
-		Status: in.Status, Tags: in.Tags,
+		Status: in.Status, Tags: in.Tags, Roles: in.Roles,
 	})
 	if err != nil {
 		return library.Play{}, err

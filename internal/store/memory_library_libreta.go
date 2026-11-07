@@ -13,7 +13,8 @@ import (
 // memoryLibreta holds the Libreta's records of the memory repository, under
 // its lock. Maps are made on first write.
 type memoryLibreta struct {
-	lineups map[uuid.UUID]library.Lineup
+	lineups   map[uuid.UUID]library.Lineup
+	teamRoles map[teamRolesKey]library.TeamRoleSheet
 }
 
 func lineupMatches(l library.Lineup, f library.LineupFilter) bool {

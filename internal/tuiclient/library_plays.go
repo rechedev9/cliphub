@@ -48,6 +48,7 @@ type Play struct {
 	Examples         []Evidence     `json:"examples"`
 	Status           string         `json:"status,omitempty"`
 	Tags             []string       `json:"tags,omitempty"`
+	Roles            []RoleSlot     `json:"roles,omitempty"`
 	UpdatedAt        time.Time      `json:"updated_at,omitzero"`
 	MissingMatchIDs  []string       `json:"missing_match_ids,omitempty"`
 }
@@ -113,6 +114,7 @@ type PlayPatch struct {
 	Notes     *string
 	Status    *string
 	Tags      *[]string
+	Roles     *[]RoleSlot
 	TeamID    *string
 	ClearTeam bool
 }
@@ -129,6 +131,9 @@ func (c *Client) UpdatePlay(ctx context.Context, id string, patch PlayPatch) (Pl
 	}
 	if patch.Tags != nil {
 		body["tags"] = *patch.Tags
+	}
+	if patch.Roles != nil {
+		body["roles"] = *patch.Roles
 	}
 	if patch.ClearTeam {
 		body["team_id"] = nil

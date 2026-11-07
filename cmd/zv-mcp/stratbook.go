@@ -100,6 +100,7 @@ type playDetailOut struct {
 	Positions        []playPositionOut `json:"positions"`
 	Refs             []string          `json:"refs" jsonschema:"example rounds (match_id/round)"`
 	MissingMatchIDs  []string          `json:"missing_match_ids,omitempty" jsonschema:"example matches no longer in the library"`
+	Roles            []roleOut         `json:"roles,omitempty" jsonschema:"who does what in the play"`
 }
 
 type saveRoundPlayIn struct {
@@ -161,6 +162,7 @@ type updatePlayIn struct {
 	DetachTeam bool      `json:"detach_team,omitempty" jsonschema:"true leaves the play without a team"`
 	Status     string    `json:"status,omitempty" jsonschema:"active, practice, draft, review or archived; empty keeps it"`
 	Tags       *[]string `json:"tags,omitempty" jsonschema:"the full new tag list; omit to keep them, [] clears them"`
+	Roles      *[]roleIn `json:"roles,omitempty" jsonschema:"up to 5 roles, the whole list; omit to keep them, [] clears them"`
 }
 
 type createPlayIn struct {
@@ -499,8 +501,8 @@ func (in updatePlayIn) patch() (tuiclient.PlayPatch, error) {
 	if err := checkUUID("play_id", in.PlayID); err != nil {
 		return patch, err
 	}
-	if in.Title == "" && in.Kind == "" && in.Site == "" && in.Notes == nil && in.TeamID == "" && !in.DetachTeam && in.Status == "" && in.Tags == nil {
-		return patch, errors.New("set title, kind, site, notes, team_id, detach_team, status or tags")
+	if in.Title == "" && in.Kind == "" && in.Site == "" && in.Notes == nil && in.TeamID == "" && !in.DetachTeam && in.Status == "" && in.Tags == nil && in.Roles == nil {
+		return patch, errors.New("set title, kind, site, notes, team_id, detach_team, status, tags or roles")
 	}
 	if in.TeamID != "" && in.DetachTeam {
 		return patch, errors.New("set team_id or detach_team, not both")
@@ -551,6 +553,13 @@ func (in updatePlayIn) patch() (tuiclient.PlayPatch, error) {
 			return patch, err
 		}
 		patch.Tags = &tags
+	}
+	if in.Roles != nil {
+		roles, err := checkRoles("roles", *in.Roles)
+		if err != nil {
+			return patch, err
+		}
+		patch.Roles = &roles
 	}
 	return patch, nil
 }
@@ -663,6 +672,7 @@ func playDetailOf(p tuiclient.Play) playDetailOut {
 	for _, e := range p.Examples {
 		out.Refs = append(out.Refs, refString(e))
 	}
+	out.Roles = rolesOf(p.Roles)
 	return out
 }
 

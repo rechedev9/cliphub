@@ -26,6 +26,9 @@ func fillPlayLists(p library.Play) library.Play {
 	if p.Tags == nil {
 		p.Tags = []string{}
 	}
+	if p.Roles == nil {
+		p.Roles = []library.RoleSlot{}
+	}
 	p.Status = playStatus(p.Status)
 	return p
 }
@@ -89,6 +92,9 @@ func applyPlayPatch(p library.Play, patch library.PlayPatch) library.Play {
 	}
 	if patch.Tags != nil {
 		p.Tags = append([]string{}, *patch.Tags...)
+	}
+	if patch.Roles != nil {
+		p.Roles = append([]library.RoleSlot{}, *patch.Roles...)
 	}
 	if patch.Grenades != nil {
 		p.Grenades = append([]tacticalplan.PlayGrenade{}, *patch.Grenades...)

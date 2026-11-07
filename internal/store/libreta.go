@@ -9,7 +9,7 @@ import (
 )
 
 // LibretaRepository stores what the Libreta adds to the library's plays:
-// lineups and, later, the team's roles, calls and callout names.
+// lineups, team role sheets and, later, the team's calls and callout names.
 type LibretaRepository interface {
 	// CreateLineup stores a lineup; an id that is already stored is ErrConflict.
 	CreateLineup(ctx context.Context, l *library.Lineup) error
@@ -19,6 +19,11 @@ type LibretaRepository interface {
 	UpdateLineup(ctx context.Context, id uuid.UUID, patch library.LineupPatch) (library.Lineup, error)
 	// DeleteLineup removes a lineup; a missing id is ErrNotFound.
 	DeleteLineup(ctx context.Context, id uuid.UUID) error
+	// GetTeamRoles returns a team's role sheet on a map, empty when none is saved;
+	// a missing team is ErrNotFound.
+	GetTeamRoles(ctx context.Context, teamID uuid.UUID, mapName string) (library.TeamRoleSheet, error)
+	// SetTeamRoles replaces a team's sheet on its map.
+	SetTeamRoles(ctx context.Context, sheet *library.TeamRoleSheet) error
 }
 
 func clampLineupLimit(limit int) int {

@@ -55,6 +55,7 @@ type Play struct {
 	Examples         []tacticalplan.Evidence     `json:"examples"`
 	Status           string                      `json:"status"`
 	Tags             []string                    `json:"tags"`
+	Roles            []RoleSlot                  `json:"roles"`
 	CreatedAt        time.Time                   `json:"created_at"`
 	UpdatedAt        time.Time                   `json:"updated_at"`
 }
@@ -83,6 +84,7 @@ type PlayPatch struct {
 	Notes     *string
 	Status    *string
 	Tags      *[]string
+	Roles     *[]RoleSlot
 	Grenades  *[]tacticalplan.PlayGrenade
 	Positions *[]tacticalplan.PlayPosition
 	Examples  *[]tacticalplan.Evidence
@@ -161,6 +163,11 @@ func CleanPlay(p Play) (Play, error) {
 		p.Status = StatusActive
 	}
 	p.Tags = NormalizeTags(p.Tags)
+	roles, err := CleanRoleSlots(p.Roles)
+	if err != nil {
+		return p, err
+	}
+	p.Roles = roles
 	switch {
 	case p.Title == "":
 		return p, errors.New("title must not be empty")

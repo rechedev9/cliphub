@@ -37,6 +37,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV11DropLibraryCollections,
 	migrateV12PlayStatus,
 	migrateV13LibraryLineups,
+	migrateV14LibraryRoles,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -678,6 +679,27 @@ func migrateV13LibraryLineups(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("create library lineups: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV14LibraryRoles gives plays their roles and teams a role sheet per map.
+// A team's sheet goes with the team when it is deleted.
+func migrateV14LibraryRoles(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`ALTER TABLE library_plays ADD COLUMN roles TEXT NOT NULL DEFAULT '[]'`,
+		`CREATE TABLE library_team_roles (
+			team_id    TEXT    NOT NULL REFERENCES library_teams(id) ON DELETE CASCADE,
+			map        TEXT    NOT NULL,
+			t          TEXT    NOT NULL DEFAULT '[]',
+			ct         TEXT    NOT NULL DEFAULT '[]',
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (team_id, map)
+		)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library roles: %w", err)
 		}
 	}
 	return nil

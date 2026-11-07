@@ -86,6 +86,48 @@ func TestLibretaRepositoryContract(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "team role sheets are saved per map and follow a merge, where into keeps its own",
+			run: func(t *testing.T, f libraryFixture) {
+				vit, mouz := &library.Team{Name: "Vitality"}, &library.Team{Name: "MOUZ"}
+				for _, team := range []*library.Team{vit, mouz} {
+					if err := f.repo.CreateTeam(f.ctx, team); err != nil {
+						t.Fatal(err)
+					}
+				}
+				empty, err := f.repo.GetTeamRoles(f.ctx, vit.ID, "de_mirage")
+				if err != nil || empty.T == nil || empty.CT == nil || len(empty.T) != 0 || !empty.UpdatedAt.IsZero() {
+					t.Fatalf("GetTeamRoles(none saved) = %+v, %v", empty, err)
+				}
+				if _, err := f.repo.GetTeamRoles(f.ctx, uuid.New(), "de_mirage"); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("GetTeamRoles(missing team) = %v, want ErrNotFound", err)
+				}
+				save := func(team uuid.UUID, mapName, name string) {
+					t.Helper()
+					sheet := &library.TeamRoleSheet{TeamID: team, Map: mapName, T: []library.RoleSlot{{Name: name, SteamID64: "765", Task: "abre B"}},
+						CT: []library.RoleSlot{{Name: "Ancla", Callout: "BombsiteB"}}}
+					if err := f.repo.SetTeamRoles(f.ctx, sheet); err != nil || sheet.UpdatedAt.IsZero() {
+						t.Fatalf("SetTeamRoles = %+v, %v", sheet, err)
+					}
+				}
+				save(vit.ID, "de_mirage", "Entry")
+				save(vit.ID, "de_mirage", "AWP")
+				save(mouz.ID, "de_mirage", "Lurker")
+				save(mouz.ID, "de_nuke", "Apoyo")
+				got, err := f.repo.GetTeamRoles(f.ctx, vit.ID, "de_mirage")
+				if err != nil || len(got.T) != 1 || got.T[0].Name != "AWP" || got.T[0].Task != "abre B" || got.CT[0].Callout != "BombsiteB" {
+					t.Fatalf("GetTeamRoles = %+v, %v; want the second save", got, err)
+				}
+				if _, err := f.repo.MergeTeams(f.ctx, mouz.ID, vit.ID); err != nil {
+					t.Fatal(err)
+				}
+				for mapName, want := range map[string]string{"de_mirage": "AWP", "de_nuke": "Apoyo"} {
+					if got, err := f.repo.GetTeamRoles(f.ctx, vit.ID, mapName); err != nil || len(got.T) != 1 || got.T[0].Name != want {
+						t.Fatalf("after merge %s = %+v, %v; want %s", mapName, got, err, want)
+					}
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		for name, repo := range libraryRepositoriesUnderTest(t) {

@@ -25,6 +25,8 @@ type libretaRepository interface {
 	ListLineups(ctx context.Context, filter library.LineupFilter) ([]library.Lineup, error)
 	UpdateLineup(ctx context.Context, id uuid.UUID, patch library.LineupPatch) (library.Lineup, error)
 	DeleteLineup(ctx context.Context, id uuid.UUID) error
+	GetTeamRoles(ctx context.Context, teamID uuid.UUID, mapName string) (library.TeamRoleSheet, error)
+	SetTeamRoles(ctx context.Context, sheet *library.TeamRoleSheet) error
 }
 
 // Error codes of the lineup routes.
