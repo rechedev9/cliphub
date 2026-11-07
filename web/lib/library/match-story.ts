@@ -232,7 +232,8 @@ function endPhrase(round: StoryRound): string {
 }
 
 function closingFact(rounds: readonly StoryRound[], names: TeamNames): RankedFact | null {
-  const last = rounds.findLast((round) => isTeamKey(round.winnerTeamKey));
+  // Only the round that really ended the match can be told as the last one.
+  const last = rounds.at(-1);
   if (last === undefined || !isTeamKey(last.winnerTeamKey)) return null;
   const wins = winsOf(rounds);
   const team = last.winnerTeamKey;

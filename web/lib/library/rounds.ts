@@ -1,6 +1,7 @@
 import type { LibraryTeamKey } from '../api/library.ts';
 import type { RoundTimeline, WinPoint } from '../api/metrics.ts';
 import type { TacticalBuyType, TacticalDocument, TacticalRound, TacticalSide } from '../api/tactical.ts';
+import { strongestKill } from '../metrics/match-view.ts';
 import { tacticalPerspective } from '../tactical-filter.ts';
 import { opponentSide } from '../tactical-labels.ts';
 
@@ -129,25 +130,18 @@ export function roundWinChance(points: readonly WinPoint[], winner: TacticalSide
   return { winnerStart, upset: winnerStart !== null && winnerStart < UPSET_BELOW, swing: biggestKillSwing(points) };
 }
 
-/** The kill whose step moved the CT chance most; the earlier kill wins a tie. */
+/** The kill whose step moved the CT chance most, as the Rondas row shows it. */
 function biggestKillSwing(points: readonly WinPoint[]): RoundSwing | null {
-  let best: RoundSwing | null = null;
-  for (let i = 1; i < points.length; i++) {
-    const point = points[i];
-    const prev = points[i - 1];
-    if (point === undefined || prev === undefined || point.kind !== 'kill') continue;
-    const delta = point.probability_ct - prev.probability_ct;
-    if (delta === 0 || (best !== null && Math.abs(delta) <= best.gain)) continue;
-    best = {
-      tick: point.tick,
-      seconds: point.seconds,
-      actorSlot: point.actor_slot,
-      targetSlot: point.target_slot,
-      side: delta > 0 ? 'CT' : 'T',
-      gain: Math.abs(delta),
-    };
-  }
-  return best;
+  const kill = strongestKill({ round: 0, points });
+  if (kill === undefined) return null;
+  return {
+    tick: kill.tick,
+    seconds: kill.seconds,
+    actorSlot: kill.point.actor_slot,
+    targetSlot: kill.point.target_slot,
+    side: kill.delta > 0 ? 'CT' : 'T',
+    gain: Math.abs(kill.delta),
+  };
 }
 
 /** A run of rounds with the sides fixed: a regulation half or an overtime half. */

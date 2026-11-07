@@ -87,6 +87,14 @@ test('a last round won by the side that loses the match', () => {
   assert.equal(matchStory(build(wins('bbbaa')), NAMES).at(-1)?.text, 'CatClan gana la última ronda eliminando al rival, pero team_miwel se lleva la partida 3-2.');
 });
 
+test('a last round with no winner tells no closing line', () => {
+  const rounds = build(wins('aab'));
+  const last = rounds.at(-1);
+  assert.ok(last);
+  rounds[rounds.length - 1] = { ...last, winnerSide: '', winnerTeamKey: '' };
+  assert.equal(matchStory(rounds, NAMES).some((fact) => fact.text.includes('última ronda')), false);
+});
+
 test('no rounds tell no story', () => {
   assert.deepEqual(matchStory([], NAMES), []);
 });

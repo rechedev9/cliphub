@@ -1,21 +1,21 @@
 import { Fragment, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Bomb, Clock, Crosshair, Flag, Shield, type LucideIcon } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 import { LIBRARY_TEAM_KEYS, type LibraryTeamKey } from '@/lib/api/library';
 import { endReasonLabel } from '@/lib/library/partidas';
 import { roundBlocks, type TeamNames } from '@/lib/library/match-story';
 import { roundEvidenceHref, type RoundRow } from '@/lib/library/rounds';
-import { RoundResultTile } from '@/components/matches/round-result-tile';
+import { END_ICON, RoundResultTile } from '@/components/matches/round-result-tile';
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** The end reasons the legend explains, with the icon RoundResultTile draws for them. */
-const LEGEND: readonly { reasons: readonly string[]; icon: LucideIcon; label: string }[] = [
-  { reasons: ['ct_eliminated_t', 't_eliminated_ct'], icon: Crosshair, label: 'Eliminados' },
-  { reasons: ['bomb_defused'], icon: Shield, label: 'Bomba desactivada' },
-  { reasons: ['bomb_exploded'], icon: Bomb, label: 'Bomba explotada' },
-  { reasons: ['time_expired'], icon: Clock, label: 'Tiempo agotado' },
-  { reasons: ['t_surrender', 'ct_surrender'], icon: Flag, label: 'Rendición' },
+/** The end reasons the legend explains; each draws the icon RoundResultTile gives its first reason. */
+const LEGEND: readonly { reasons: readonly string[]; label: string }[] = [
+  { reasons: ['ct_eliminated_t', 't_eliminated_ct'], label: 'Eliminados' },
+  { reasons: ['bomb_defused'], label: 'Bomba desactivada' },
+  { reasons: ['bomb_exploded'], label: 'Bomba explotada' },
+  { reasons: ['time_expired'], label: 'Tiempo agotado' },
+  { reasons: ['t_surrender', 'ct_surrender'], label: 'Rendición' },
 ];
 
 /**
@@ -86,12 +86,15 @@ export function MatchRoundHistory({
       <div className="flex flex-wrap items-center gap-x-4.5 gap-y-2 text-meta text-fg-2">
         <LegendSwatch className="bg-side-ct" label="Ganada como CT" />
         <LegendSwatch className="bg-side-t" label="Ganada como T" />
-        {LEGEND.filter((entry) => entry.reasons.some((reason) => reasons.has(reason))).map(({ icon: Icon, label }) => (
-          <span key={label} className="inline-flex items-center gap-1.5">
-            <Icon aria-hidden className="size-3.5" />
-            {label}
-          </span>
-        ))}
+        {LEGEND.filter((entry) => entry.reasons.some((reason) => reasons.has(reason))).map(({ reasons: [first = ''], label }) => {
+          const Icon = END_ICON[first] ?? Crosshair;
+          return (
+            <span key={label} className="inline-flex items-center gap-1.5">
+              <Icon aria-hidden className="size-3.5" />
+              {label}
+            </span>
+          );
+        })}
         <span className="ml-auto text-fg-3">Pulsa una ronda para abrirla en Táctica</span>
       </div>
     </div>

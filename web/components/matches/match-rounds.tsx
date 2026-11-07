@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Clapperboard } from 'lucide-react';
-import { fetchTacticalDocument, isServiceUnavailableError, type TacticalDocument } from '@/lib/api/tactical';
 import type { LibraryMatch } from '@/lib/api/library';
 import { teamByKey, teamLabel } from '@/lib/library/partidas';
 import {
   EVERY_ROUND,
+  keepsRound,
   roundHalves,
   roundRows,
   visibleHalves,
@@ -17,6 +17,7 @@ import {
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
 import { RoundFilters } from '@/components/matches/round-filters';
 import { RoundTable, type ChanceStatus, type VisiblePick } from '@/components/matches/round-table';
+import { useMatchRoundRows } from '@/components/matches/use-match-round-rows';
 import { useWinTimelines, type WinTimelines } from '@/components/replay/use-win-timelines';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,46 +39,31 @@ export function MatchRounds(props: MatchRoundsProps): ReactNode {
 }
 
 function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): ReactNode {
-  const [doc, setDoc] = useState<TacticalDocument | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [filter, setFilter] = useState<RoundFilter>(EVERY_ROUND);
   const [picked, setPicked] = useState<readonly number[]>([]);
   /** The rounds the video dialog opens with checked; null while it is closed. */
   const [video, setVideo] = useState<readonly number[] | null>(null);
+  const loaded = useMatchRoundRows(match.id);
   const win = useWinTimelines(match.id);
 
-  useEffect(() => {
-    let active = true;
-    setError(null);
-    fetchTacticalDocument({ kind: 'library', id: match.id })
-      .then((next) => {
-        if (active) setDoc(next);
-      })
-      .catch((err: unknown) => {
-        if (!active) return;
-        setError(
-          isServiceUnavailableError(err)
-            ? 'El servicio local no está disponible.'
-            : 'No se pudo leer el documento táctico de esta partida.',
-        );
-      });
-    return () => {
-      active = false;
-    };
-  }, [match.id, attempt]);
-
-  if (error !== null) {
+  if (loaded.kind === 'error') {
     return (
       <section aria-label="Rondas" className="studio-panel flex flex-wrap items-center gap-3 px-4 py-3">
-        <p className="text-body-sm text-destructive">{error}</p>
-        <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+        <p className="text-body-sm text-destructive">{loaded.message}</p>
+        <Button type="button" size="sm" variant="outline" onClick={loaded.retry}>
           Reintentar
         </Button>
       </section>
     );
   }
-  if (doc === null) {
+  if (loaded.kind === 'pending') {
+    return (
+      <section aria-label="Rondas" className="studio-panel px-4 py-6">
+        <p className="text-body-sm text-fg-2">La partida aún se está analizando. Las rondas aparecen aquí en cuanto termine.</p>
+      </section>
+    );
+  }
+  if (loaded.kind === 'loading') {
     return (
       <section role="status" aria-label="Cargando rondas" className="studio-panel flex flex-col gap-2 p-4">
         <Skeleton className="h-8 w-full" />
@@ -88,6 +74,7 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
     );
   }
 
+  const { doc } = loaded;
   const chance = chanceStatus(win);
   const rows = roundRows(doc, win?.kind === 'ready' ? win.timelines : []);
   const halves = visibleHalves(roundHalves(rows), filter);
@@ -118,7 +105,7 @@ function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): Re
   return (
     <div className="flex flex-col gap-4">
       {rows.length > 0 ? (
-        <RoundFilters value={filter} onChange={setFilter} teamNames={teamNames} counts={winnerCounts(rows)} upsets={chance === 'ready'} />
+        <RoundFilters value={filter} onChange={setFilter} teamNames={teamNames} counts={winnerCounts(rows.filter((row) => keepsRound({ ...filter, winner: 'all' }, row)))} upsets={chance === 'ready'} />
       ) : null}
       <section aria-label="Rondas" className="studio-panel flex flex-col">
         {rows.length === 0 ? <p className="px-4 py-6 text-body-sm text-fg-2">Esta partida no tiene rondas jugadas.</p> : null}

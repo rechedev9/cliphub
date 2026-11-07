@@ -89,12 +89,20 @@ export function ctTeamByRound(
 /** One kill and how much it moved the CT win chance, from -1 to 1. */
 export type KillSwing = { round: number; tick: number; seconds: number; point: WinPoint; delta: number };
 
-function killSwings(timeline: RoundTimeline): KillSwing[] {
+function killSwings(timeline: { readonly round: number; readonly points: readonly WinPoint[] }): KillSwing[] {
   return timeline.points.flatMap((point, i) => {
     const before = timeline.points[i - 1];
     if (point.kind !== 'kill' || before === undefined) return [];
     return [{ round: timeline.round, tick: point.tick, seconds: point.seconds, point, delta: point.probability_ct - before.probability_ct }];
   });
+}
+
+/** The kill of a round that moved the CT chance most, the earlier one on a tie; none when no kill moved it. */
+export function strongestKill(timeline: { readonly round: number; readonly points: readonly WinPoint[] }): KillSwing | undefined {
+  return killSwings(timeline).reduce<KillSwing | undefined>(
+    (best, next) => (next.delta !== 0 && (best === undefined || Math.abs(next.delta) > Math.abs(best.delta)) ? next : best),
+    undefined,
+  );
 }
 
 /** The kills of the match that moved the win chance most, the biggest first. */
@@ -139,10 +147,7 @@ export function roundBars({
     const ct = start?.probability_ct ?? 0.5;
     let outcome: RoundBar['outcome'] = 'none';
     if (timeline.winner !== '') outcome = timeline.winner === side ? 'win' : 'loss';
-    const swing = killSwings(timeline).reduce<KillSwing | undefined>(
-      (best, next) => (best === undefined || Math.abs(next.delta) > Math.abs(best.delta) ? next : best),
-      undefined,
-    );
+    const swing = strongestKill(timeline);
     const halfStart = previous !== undefined && previous !== side;
     previous = side;
     return { round: timeline.round, side, chance: side === 'CT' ? ct : 1 - ct, outcome, halfStart, swing };

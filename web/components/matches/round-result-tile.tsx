@@ -3,7 +3,8 @@ import { Bomb, Clock, Crosshair, Flag, Shield, type LucideIcon } from 'lucide-re
 import { endReasonLabel } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 
-const END_ICON: Record<string, LucideIcon> = {
+/** The icon of each way a round ends; the round history legend reads the same map. */
+export const END_ICON: Readonly<Record<string, LucideIcon>> = {
   bomb_exploded: Bomb,
   bomb_defused: Shield,
   ct_eliminated_t: Crosshair,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fetchTacticalDocument, isServiceUnavailableError, isTacticalNotReadyError } from '@/lib/api/tactical';
+import type { TacticalDocument } from '@/lib/api/tactical';
 import { roundRows, type RoundRow } from '@/lib/library/rounds';
 
 export type MatchRoundRows =
@@ -9,7 +10,7 @@ export type MatchRoundRows =
   /** The tactical document is not written yet: the scan is still running. */
   | { readonly kind: 'pending' }
   | { readonly kind: 'error'; readonly message: string; readonly retry: () => void }
-  | { readonly kind: 'ready'; readonly rows: readonly RoundRow[] };
+  | { readonly kind: 'ready'; readonly doc: TacticalDocument; readonly rows: readonly RoundRow[] };
 
 /** The rounds of a library partida, read from its tactical document as the Rondas tab reads them. */
 export function useMatchRoundRows(matchId: string): MatchRoundRows {
@@ -21,7 +22,7 @@ export function useMatchRoundRows(matchId: string): MatchRoundRows {
     setState({ kind: 'loading' });
     fetchTacticalDocument({ kind: 'library', id: matchId })
       .then((doc) => {
-        if (active) setState({ kind: 'ready', rows: roundRows(doc) });
+        if (active) setState({ kind: 'ready', doc, rows: roundRows(doc) });
       })
       .catch((err: unknown) => {
         if (!active) return;
