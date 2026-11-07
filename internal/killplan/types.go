@@ -45,10 +45,10 @@ type Target struct {
 
 // Segment is one contiguous recording range covering one or more kills.
 type Segment struct {
-	ID        string         `json:"id"`
-	Round     int            `json:"round"`
-	TickStart int            `json:"tick_start"`
-	TickEnd   int            `json:"tick_end"`
+	ID        string `json:"id"`
+	Round     int    `json:"round"`
+	TickStart int    `json:"tick_start"`
+	TickEnd   int    `json:"tick_end"`
 	// LiveEndTick is the last tick where target POV must stay locked. Recording
 	// may continue through TickEnd for outro overlays or post-kill tails.
 	LiveEndTick int            `json:"live_end_tick,omitempty"`
@@ -56,6 +56,8 @@ type Segment struct {
 	Utility     []UtilityThrow `json:"utility,omitempty"`
 	// Death is the target's death a death clip ends on; nil on every other segment.
 	Death *Kill `json:"death,omitempty"`
+	// POV is the player filmed in a multi-POV plan; nil means the plan target.
+	POV *Target `json:"pov,omitempty"`
 }
 
 // Kill captures the metadata downstream stages need to choose effects

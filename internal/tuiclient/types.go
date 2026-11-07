@@ -146,6 +146,7 @@ type Moment struct {
 	ID              string       `json:"id"`
 	SegmentID       string       `json:"segment_id"`
 	Player          string       `json:"player,omitempty"`
+	SteamID64       string       `json:"steamid64,omitempty"`
 	Map             string       `json:"map,omitempty"`
 	Round           int          `json:"round"`
 	Side            string       `json:"side,omitempty"`

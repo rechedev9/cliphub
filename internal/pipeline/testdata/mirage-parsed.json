@@ -694,5 +694,175 @@
         -168.0
       ]
     }
-  ]
+  ],
+  "teammate": {
+    "target": {
+      "steamid64": "76561198000000101",
+      "name_in_demo": "teammate",
+      "team_at_start": "CT"
+    },
+    "kills": [
+      {
+        "tick": 5600,
+        "round": 1,
+        "weapon": "usp_silencer",
+        "headshot": true,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000001",
+          "name_in_demo": "opponent-1",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 5900,
+        "round": 1,
+        "weapon": "usp_silencer",
+        "headshot": false,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000002",
+          "name_in_demo": "opponent-2",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 21400,
+        "round": 4,
+        "weapon": "m4a1",
+        "headshot": true,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000004",
+          "name_in_demo": "opponent-4",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 43200,
+        "round": 8,
+        "weapon": "awp",
+        "headshot": false,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000003",
+          "name_in_demo": "opponent-3",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 43500,
+        "round": 8,
+        "weapon": "awp",
+        "headshot": true,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000004",
+          "name_in_demo": "opponent-4",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 43900,
+        "round": 8,
+        "weapon": "awp",
+        "headshot": false,
+        "wallbang": false,
+        "killer_team": "CT",
+        "victim": {
+          "steamid64": "76561198000000005",
+          "name_in_demo": "opponent-5",
+          "team_at_kill": "T"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      },
+      {
+        "tick": 106500,
+        "round": 17,
+        "weapon": "ak47",
+        "headshot": true,
+        "wallbang": false,
+        "killer_team": "T",
+        "victim": {
+          "steamid64": "76561198000000003",
+          "name_in_demo": "opponent-3",
+          "team_at_kill": "CT"
+        },
+        "killer_pos": [
+          -500.0,
+          -400.0,
+          -160.0
+        ],
+        "victim_pos": [
+          -300.0,
+          -900.0,
+          -168.0
+        ]
+      }
+    ]
+  }
 }

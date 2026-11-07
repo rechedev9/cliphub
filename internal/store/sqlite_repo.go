@@ -15,7 +15,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
-	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // SQLiteJobRepository persists jobs in a local SQLite file so job state survives
@@ -331,15 +330,16 @@ func (r *SQLiteJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	return nil
 }
 
-func (r *SQLiteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
+func (r *SQLiteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, in job.ParseInputs) error {
 	return r.mutate(ctx, id, func(j *job.Job) error {
 		// Same status guard as the memory/Postgres repos: only a scanned or
 		// already-parsed job can be (re)claimed for a parse.
 		if j.Status != job.StatusScanned && j.Status != job.StatusParsed {
 			return job.ErrConflict
 		}
-		j.TargetSteamID = steamID
-		j.Rules = rl
+		j.TargetSteamID = in.TargetSteamID
+		j.MultiPOV = in.MultiPOV
+		j.Rules = in.Rules
 		j.Status = job.StatusParsing
 		return nil
 	})

@@ -137,12 +137,49 @@ type Job struct {
 	SeriesID string `json:"series_id,omitempty"`
 	// DemoFileName is the sanitized original file name of the uploaded demo,
 	// kept only for display; empty when the upload carried no usable name.
-	DemoFileName  string         `json:"demo_file_name,omitempty"`
-	DemoPath      string         `json:"demo_path"`
-	DemoSHA256    string         `json:"demo_sha256"`
-	TargetSteamID string         `json:"target_steamid"`
-	Rules         rules.Rules    `json:"rules"`
-	KillPlan      *killplan.Plan `json:"kill_plan,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	DemoFileName  string `json:"demo_file_name,omitempty"`
+	DemoPath      string `json:"demo_path"`
+	DemoSHA256    string `json:"demo_sha256"`
+	TargetSteamID string `json:"target_steamid"`
+	// MultiPOV lists every player of a multi-POV job; TargetSteamID is its first.
+	MultiPOV  *MultiPOV      `json:"multi_pov,omitempty"`
+	Rules     rules.Rules    `json:"rules"`
+	KillPlan  *killplan.Plan `json:"kill_plan,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+// MultiPOV is the player list of a job whose clips come from several POVs of
+// one demo. The first SteamID is the anchor: recap, deaths and voice use it.
+type MultiPOV struct {
+	SteamIDs []string `json:"steam_ids"`
+}
+
+// MultiPOV player limits: one team, and at least two players.
+const (
+	MinMultiPOVPlayers = 2
+	MaxMultiPOVPlayers = 5
+)
+
+// POVSteamIDs returns the job's players in pick order.
+func (j Job) POVSteamIDs() []string {
+	if j.MultiPOV != nil && len(j.MultiPOV.SteamIDs) > 0 {
+		return j.MultiPOV.SteamIDs
+	}
+	if j.TargetSteamID == "" {
+		return nil
+	}
+	return []string{j.TargetSteamID}
+}
+
+// IsMultiPOV reports whether the job mixes several players.
+func (j Job) IsMultiPOV() bool {
+	return j.MultiPOV != nil && len(j.MultiPOV.SteamIDs) > 1
+}
+
+// ParseInputs is what a parse claim writes onto a scanned or parsed job.
+type ParseInputs struct {
+	TargetSteamID string
+	MultiPOV      *MultiPOV
+	Rules         rules.Rules
 }

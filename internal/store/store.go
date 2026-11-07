@@ -11,7 +11,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
-	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
@@ -29,7 +28,7 @@ type JobRepository interface {
 	ListBySeries(context.Context, string) ([]job.Job, error)
 	ListByStatus(context.Context, job.Status) ([]job.Job, error)
 	UpdateStatus(context.Context, uuid.UUID, job.Status, string) error
-	SetParseInputs(context.Context, uuid.UUID, string, rules.Rules) error
+	SetParseInputs(context.Context, uuid.UUID, job.ParseInputs) error
 	SetKillPlan(context.Context, uuid.UUID, killplan.Plan) error
 	Delete(context.Context, uuid.UUID) error
 }

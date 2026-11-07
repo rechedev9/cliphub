@@ -266,6 +266,8 @@ func (h *Handlers) LinkLibraryJobDemo(w http.ResponseWriter, r *http.Request) {
 // parse scans the roster inline first, since the Full Demo render reads it.
 type createLibraryJobRequest struct {
 	TargetSteamID string `json:"target_steamid"`
+	// TargetSteamIDs makes a multi-POV job of several teammates instead.
+	TargetSteamIDs []string `json:"target_steamids,omitempty"`
 }
 
 // reusableLibraryJob returns a linked job that already parses or parsed the
@@ -274,7 +276,7 @@ type createLibraryJobRequest struct {
 func (h *Handlers) reusableLibraryJob(ctx context.Context, d library.Demo, target string) (job.Job, bool) {
 	for i := len(d.JobIDs) - 1; i >= 0; i-- {
 		j, err := h.repo.Get(ctx, d.JobIDs[i])
-		if err != nil || j.TargetSteamID != target {
+		if err != nil || j.TargetSteamID != target || j.IsMultiPOV() {
 			continue
 		}
 		switch j.Status {
@@ -304,8 +306,8 @@ func (h *Handlers) CreateJobFromLibraryDemo(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid job JSON")
 		return
 	}
-	if req.TargetSteamID != "" && !validSteamID(req.TargetSteamID) {
-		writeError(w, http.StatusBadRequest, "target_steamid must be a 64-bit unsigned integer")
+	if (req.TargetSteamID != "" && !validSteamID(req.TargetSteamID)) || (req.TargetSteamID != "" && len(req.TargetSteamIDs) > 0) {
+		writeError(w, http.StatusBadRequest, "send one 64-bit target_steamid or a target_steamids list")
 		return
 	}
 	d, err := h.libraryRepo.GetDemo(r.Context(), id)
@@ -313,7 +315,14 @@ func (h *Handlers) CreateJobFromLibraryDemo(w http.ResponseWriter, r *http.Reque
 		writeLibraryError(w, "get demo", err)
 		return
 	}
-	if req.TargetSteamID != "" {
+	var multi *job.MultiPOV
+	if len(req.TargetSteamIDs) > 0 {
+		if multi, err = h.libraryMultiPOV(r.Context(), d, req.TargetSteamIDs); err != nil {
+			writeMultiPOVError(w, err)
+			return
+		}
+		req.TargetSteamID = req.TargetSteamIDs[0]
+	} else if req.TargetSteamID != "" {
 		if j, ok := h.reusableLibraryJob(r.Context(), d, req.TargetSteamID); ok {
 			writeJSON(w, http.StatusOK, map[string]any{"job_id": j.ID, "status": j.Status, "reused": true})
 			return
@@ -328,6 +337,7 @@ func (h *Handlers) CreateJobFromLibraryDemo(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	j := newDemoJob(d.FileName, req.TargetSteamID, "", rules.Default())
+	j.MultiPOV = multi
 	if err := h.placeLibraryDemo(d.Path, j.DemoPath); err != nil {
 		internalError(w, "store job demo", err)
 		return
