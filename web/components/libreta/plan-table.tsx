@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Plus, Table2 } from 'lucide-react';
+import { MonitorUp, Plus, Table2 } from 'lucide-react';
 import type { LibraryPlay } from '@/lib/api/stratbook';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { playHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { STATUS_LABEL, STATUS_TONE, type StatusTone } from '@/lib/libreta/status';
+import { matchModeOpener } from '@/lib/match-mode';
 import { PLAN_ALL_TEAMS, PLAN_NO_TEAM, busiestMap, planColumns } from '@/lib/libreta/plan-table';
 import { playKindLabel } from '@/lib/stratbook/plays';
 import { siteLabel } from '@/lib/tactical-labels';
@@ -50,16 +51,23 @@ export function PlanTable({
   onReload,
   compact = false,
   initialMap,
+  initialSide = 'T',
+  initialTeam = PLAN_ALL_TEAMS,
 }: {
   plays: LibraryPlay[] | null;
   onReload: () => void;
   /** The Modo partida window: no team filter and no create buttons. */
   compact?: boolean;
   initialMap?: string;
+  initialSide?: TacticalSide;
+  initialTeam?: string;
 }): ReactNode {
-  const [team, setTeam] = useState(PLAN_ALL_TEAMS);
+  const [team, setTeam] = useState(initialTeam);
   const [map, setMap] = useState<string | null>(initialMap ?? null);
-  const [side, setSide] = useState<TacticalSide>('T');
+  const [side, setSide] = useState<TacticalSide>(initialSide);
+  // The desktop bridge exists only in Studio's window, so it is read after hydration.
+  const [matchMode, setMatchMode] = useState(false);
+  useEffect(() => setMatchMode(!compact && matchModeOpener() !== null), [compact]);
   const [tint, setTint] = useState(true);
   const [creating, setCreating] = useState<NewPlayPreset | null>(null);
 
@@ -106,6 +114,18 @@ export function PlanTable({
           <input type="checkbox" checked={tint} onChange={(event) => setTint(event.target.checked)} className="size-4 accent-primary" />
           Colorear por estado
         </label>
+        {matchMode ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            title="Abre la Tabla y los lineups de este mapa en una ventana pequeña siempre encima, para un segundo monitor"
+            onClick={() => void matchModeOpener()?.({ map: shownMap, side, team: team === PLAN_ALL_TEAMS ? '' : team })}
+          >
+            <MonitorUp aria-hidden />
+            Modo partida
+          </Button>
+        ) : null}
       </div>
       {columns.every((column) => column.plays.length === 0) && !compact ? (
         <EmptyState

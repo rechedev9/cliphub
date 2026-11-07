@@ -255,3 +255,10 @@ test('the whole Libreta file goes out and comes back in with every section', () 
   }
   assert.ok(imported.response.keys.includes('sections'));
 });
+
+test('the library search keeps only its query and words', () => {
+  const route = matchLibraryRoute('GET', ['search']);
+  assert.ok(route);
+  assert.equal(libraryUpstreamQuery(route, new URLSearchParams('q=humo+ventana&limit=5&team_id=x')), 'q=humo+ventana&limit=5');
+  assert.equal(matchLibraryRoute('POST', ['search']), undefined);
+});

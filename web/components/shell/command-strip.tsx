@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { openAppTour } from '@/lib/app-tour-state';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
+import { GlobalSearch } from '@/components/shell/global-search';
 import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
@@ -72,6 +73,7 @@ export function CommandStrip(): ReactElement {
       </nav>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <GlobalSearch />
         <JobTransport />
         {activity.capturing ? <CapturePip /> : null}
         <Button

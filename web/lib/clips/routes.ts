@@ -131,7 +131,7 @@ export const LIBRETA_TABS = {
 export type LibretaTab = (typeof LIBRETA_TABS)[keyof typeof LIBRETA_TABS];
 
 /** Query keys that open the Libreta on one tab, team or map. */
-export const LIBRETA_QUERY = { team: 'equipo', tab: 'tab', map: 'mapa' } as const;
+export const LIBRETA_QUERY = { team: 'equipo', tab: 'tab', map: 'mapa', side: 'lado' } as const;
 export const LIBRETA_DETECT_TAB = LIBRETA_TABS.detect;
 
 export function libretaTabHref(tab: LibretaTab, params: Readonly<Record<string, string>> = {}): string {

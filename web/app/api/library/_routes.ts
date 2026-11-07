@@ -41,6 +41,7 @@ import {
   MAP_CALLOUTS_QUERY,
 } from '../../../lib/api/callouts.ts';
 import { SHARE_IMPORT_KEYS } from '../../../lib/library/share.ts';
+import { SEARCH_QUERY_KEYS, SEARCH_RESPONSE_KEYS } from '../../../lib/api/search.ts';
 import { SERIES_FIELDS, SERIES_KEYS, TEAM_MAPS_KEYS, VETO_KEYS, VETO_QUERY } from '../../../lib/api/veto.ts';
 import {
   PLAYER_POSITIONS_KEYS,
@@ -189,6 +190,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'PUT', segments: ['maps', MAP, 'callouts', PLACE], body: fields(CALLOUT_NAME_FIELDS), response: json(CALLOUT_NAME_KEYS) },
   { method: 'DELETE', segments: ['maps', MAP, 'callouts', PLACE], response: { kind: 'empty' } },
   { method: 'GET', segments: ['libreta', 'export'], response: json(STRATBOOK_FILE_KEYS) },
+  { method: 'GET', segments: ['search'], query: SEARCH_QUERY_KEYS, response: json(SEARCH_RESPONSE_KEYS) },
   { method: 'POST', segments: ['import-package'], body: { kind: 'multipart' }, response: json(SHARE_IMPORT_KEYS) },
   { method: 'GET', segments: ['reports'], query: ['team_id', ...PAGING], response: json(['reports']) },
   { method: 'POST', segments: ['reports'], body: fields(['team_id', ...REPORT_FIELDS]), response: json(REPORT_KEYS) },
