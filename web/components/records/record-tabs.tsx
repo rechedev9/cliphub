@@ -36,9 +36,10 @@ export function RecordTabs({
       onValueChange={onValueChange}
       className={cn('gap-4', className)}
     >
-      <TabsList variant="line" className="h-auto w-full justify-start gap-4 rounded-none border-b border-border p-0">
+      <TabsList variant="line" // Many tabs on a narrow window scroll sideways inside the bar instead of widening the page.
+        className="h-auto w-full justify-start gap-4 overflow-x-auto overflow-y-hidden rounded-none border-b border-border p-0 [scrollbar-width:thin]">
         {tabs.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} className="h-10 flex-none rounded-none px-1">
+          <TabsTrigger key={tab.id} value={tab.id} className="h-10 flex-none rounded-none px-1 after:bottom-0! focus-visible:outline-offset-[-2px]">
             {tab.label}
             {tab.count === undefined ? null : (
               <span className="rounded-sm bg-surface-3 px-1.5 text-meta font-normal text-fg-2">{tab.count}</span>
