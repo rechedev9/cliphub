@@ -14,10 +14,10 @@ import { roundOutcome } from '@/lib/replay/round-outcome';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
+import { playStartSeconds, playbackStep } from '@/lib/replay/playback';
 import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import {
   SEEK_STEP_SECONDS,
-  advanceTransport,
   clampToTimeline,
   roundClockLabelFor,
   roundTimeline,
@@ -121,6 +121,9 @@ export function ReplayWorkspace({
   const scrubRef = useRef<HTMLInputElement>(null);
   const clockLabelRef = useRef<HTMLSpanElement>(null);
   const pendingTick = useRef<number | null>(null);
+  // Whether the user holds the scrubber, and whether they moved the playhead since the last played frame.
+  const scrubbingRef = useRef(false);
+  const seekedRef = useRef(false);
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -210,6 +213,7 @@ export function ReplayWorkspace({
     pendingTick.current = null;
     if (multiRef.current && tick === undefined) return;
     const seconds = tick === undefined ? 0 : clampToTimeline(focusTimeline, timelineSeconds(focusTimeline, tick));
+    seekedRef.current = tick !== undefined;
     clock.set(multiRef.current ? toLiveSeconds(focusTimeline, seconds) : seconds);
   }, [focusKey, focusTimeline, clock]);
 
@@ -228,7 +232,17 @@ export function ReplayWorkspace({
     return clock.subscribe(update);
   }, [clock, transport]);
 
-  const seekTo = useCallback((seconds: number) => clock.set(clampToTimeline(transport, seconds)), [clock, transport]);
+  const seekTo = useCallback(
+    (seconds: number) => {
+      seekedRef.current = true;
+      clock.set(clampToTimeline(transport, seconds));
+    },
+    [clock, transport],
+  );
+  const setScrubbing = useCallback((active: boolean) => {
+    scrubbingRef.current = active;
+    if (!active) seekedRef.current = true;
+  }, []);
   const jumpTo = useCallback(
     (seconds: number) => {
       setPlaying(false);
@@ -252,19 +266,23 @@ export function ReplayWorkspace({
     let frame = 0;
     let last = performance.now();
     const step = (now: number): void => {
-      const next = advanceTransport(
-        { position: clock.seconds, playing: true },
-        { elapsedMs: now - last, speed, durationSeconds: transport.durationSeconds, loop },
-      );
+      const next = playbackStep({
+        position: clock.seconds,
+        elapsedMs: now - last,
+        speed,
+        durationSeconds: transport.durationSeconds,
+        loop,
+        scrubbing: scrubbingRef.current,
+        seeked: seekedRef.current,
+        hasNext: !multi && index < entries.length - 1,
+      });
       last = now;
+      if (next.action !== 'hold') seekedRef.current = false;
       clock.set(next.position);
-      if (!next.playing) {
-        // A playlist plays on: the next round starts where this one ends.
-        if (!multi && index < entries.length - 1) select(index + 1);
-        else setPlaying(false);
-        return;
-      }
-      frame = requestAnimationFrame(step);
+      // A playlist plays on: the next round starts where this one ends.
+      if (next.action === 'next') select(index + 1);
+      else if (next.action === 'stop') setPlaying(false);
+      else frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
@@ -273,7 +291,8 @@ export function ReplayWorkspace({
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
       if (value) return false;
-      if (clock.seconds >= transport.durationSeconds) clock.set(0);
+      seekedRef.current = false;
+      clock.set(playStartSeconds(clock.seconds, transport.durationSeconds));
       return true;
     });
   }, [clock, transport]);
@@ -620,6 +639,7 @@ export function ReplayWorkspace({
           onSpeedChange={setSpeed}
           onToggleLoop={() => setLoop((value) => !value)}
           onSeek={seekTo}
+          onScrubbingChange={setScrubbing}
           below={
             moments.length === 0 && winState === null ? undefined : (
               <>

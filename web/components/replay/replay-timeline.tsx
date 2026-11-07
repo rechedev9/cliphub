@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Pause, Play, Repeat } from 'lucide-react';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent } from '@/lib/api/tactical';
 import { isBombKind } from '@/lib/replay/layers';
+import { SCRUB_STEP_SECONDS } from '@/lib/replay/playback';
 import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { eventKindLabel } from '@/lib/tactical-labels';
@@ -35,6 +37,7 @@ export function ReplayTimeline({
   onSpeedChange,
   onToggleLoop,
   onSeek,
+  onScrubbingChange,
   below,
 }: {
   timeline: RoundTimeline;
@@ -48,9 +51,30 @@ export function ReplayTimeline({
   onSpeedChange: (speed: number) => void;
   onToggleLoop: () => void;
   onSeek: (seconds: number) => void;
+  /** The scrubber is pressed or let go; the release can land outside it, even outside the window. */
+  onScrubbingChange: (scrubbing: boolean) => void;
   /** Drawn under the track on its scale, such as the win probability. */
   below?: ReactNode;
 }): ReactNode {
+  const releaseRef = useRef<(() => void) | null>(null);
+  const scrubbingChangeRef = useRef(onScrubbingChange);
+  scrubbingChangeRef.current = onScrubbingChange;
+  useEffect(() => () => releaseRef.current?.(), []);
+  const startScrub = (): void => {
+    if (releaseRef.current !== null) return;
+    const release = (): void => {
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+      window.removeEventListener('blur', release);
+      releaseRef.current = null;
+      scrubbingChangeRef.current(false);
+    };
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+    window.addEventListener('blur', release);
+    releaseRef.current = release;
+    scrubbingChangeRef.current(true);
+  };
   const freeze = timeline.durationSeconds > 0 ? timeline.freezeSeconds / timeline.durationSeconds : 0;
   return (
     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3">
@@ -79,8 +103,9 @@ export function ReplayTimeline({
             type="range"
             min={0}
             max={timeline.durationSeconds}
-            step={0.05}
+            step={SCRUB_STEP_SECONDS}
             defaultValue={0}
+            onPointerDown={startScrub}
             onChange={(event) => onSeek(Number(event.target.value))}
             aria-label="Posición de la repetición"
             className={cn(
