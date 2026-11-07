@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RoleSuggestion } from '../api/roles.ts';
 import type { LibraryPlay, PlayPosition } from '../api/stratbook.ts';
+import { placeLabel } from '../tactical-labels.ts';
 import { busiestTeam, cleanRoles, fillFromSuggestion, playRoleRows, rolePlayers, rolesFromPositions, sameRoles, sheetFromSuggestion } from './roles.ts';
 
 function play(over: Partial<LibraryPlay>): LibraryPlay {
@@ -34,19 +35,22 @@ const ct: RoleSuggestion[] = [
   { steamid64: '3', player: 'flameZ', role: 'rotator', rounds: 30 },
 ];
 
-test('sheetFromSuggestion names each role in Spanish and keeps the CT spot as players say it', () => {
-  assert.deepEqual(sheetFromSuggestion(ct), [
+/** The team calls BombsiteB "Bé"; every other place keeps CS2's name. */
+const place = (token: string): string => (token === 'BombsiteB' ? 'Bé' : placeLabel(token));
+
+test('sheetFromSuggestion names each role in Spanish and keeps the CT spot as the team says it', () => {
+  assert.deepEqual(sheetFromSuggestion(ct, place), [
     { name: 'AWP', steamid64: '1', callout: 'Top of Mid' },
-    { name: 'Ancla', steamid64: '2', callout: 'Bombsite B' },
+    { name: 'Ancla', steamid64: '2', callout: 'Bé' },
     { name: 'Rotador', steamid64: '3' },
   ]);
   const t: RoleSuggestion[] = [
     { steamid64: '4', player: 'a', role: 'unknown', rounds: 1 },
     { steamid64: '5', player: 'b', role: 'support', rounds: 1 },
   ];
-  assert.deepEqual(sheetFromSuggestion(t).map((slot) => slot.name), ['Rifler', 'Apoyo']);
+  assert.deepEqual(sheetFromSuggestion(t, place).map((slot) => slot.name), ['Rifler', 'Apoyo']);
   const six = Array.from({ length: 6 }, (_, i): RoleSuggestion => ({ steamid64: String(i), player: '', role: 'entry', rounds: 1 }));
-  assert.equal(sheetFromSuggestion(six).length, 5);
+  assert.equal(sheetFromSuggestion(six, place).length, 5);
 });
 
 test('rolesFromPositions takes one role per player, named after them or numbered, five at most', () => {
@@ -56,10 +60,10 @@ test('rolesFromPositions takes one role per player, named after them or numbered
     { pos: [2, 2, 2] },
     ...Array.from({ length: 5 }, (_, i): PlayPosition => ({ player: `p${i}`, steamid64: String(10 + i), pos: [0, 0, 0] })),
   ];
-  const roles = rolesFromPositions({ positions });
+  const roles = rolesFromPositions({ positions }, place);
   assert.deepEqual(roles.slice(0, 2), [{ name: 'apEX', steamid64: '1', callout: 'Bombsite A' }, { name: 'Rol 2' }]);
   assert.equal(roles.length, 5);
-  assert.deepEqual(rolesFromPositions({ positions: [] }), []);
+  assert.deepEqual(rolesFromPositions({ positions: [] }, place), []);
 });
 
 test('cleanRoles drops blank rows, trims the rest and asks for a name on a filled row', () => {
@@ -76,11 +80,11 @@ test('sameRoles ignores blank rows and spaces but not a changed player', () => {
 });
 
 test('fillFromSuggestion fills only the sides without roles', () => {
-  const filled = fillFromSuggestion({ t: [{ name: 'Lurk' }], ct: [{ name: '' }] }, { t: [ct[0]], ct });
+  const filled = fillFromSuggestion({ t: [{ name: 'Lurk' }], ct: [{ name: '' }] }, { t: [ct[0]], ct }, place);
   assert.deepEqual(filled.t, [{ name: 'Lurk' }]);
   assert.equal(filled.ct.length, 3);
   assert.deepEqual(filled.filled, ['CT']);
-  assert.deepEqual(fillFromSuggestion({ t: [], ct: [] }, { t: [], ct: [] }).filled, []);
+  assert.deepEqual(fillFromSuggestion({ t: [], ct: [] }, { t: [], ct: [] }, place).filled, []);
 });
 
 test('rolePlayers lists the roster by nick, then the play players who are not on it', () => {

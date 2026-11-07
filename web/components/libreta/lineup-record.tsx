@@ -8,7 +8,7 @@ import { isLibraryNotFound } from '@/lib/api/library';
 import { deleteLibraryLineup, getLibraryLineup, patchLibraryLineup, type LibraryLineup } from '@/lib/api/lineups';
 import { LIBRETA_TABS, libretaTabHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { calloutLabel, lineupSpot, setposCommand } from '@/lib/libreta/lineups';
+import { lineupSpot, setposCommand } from '@/lib/libreta/lineups';
 import { evidencePath } from '@/lib/reports/scout-sections';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -17,6 +17,7 @@ import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practic
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 import { EditLineupDialog } from './edit-lineup-dialog';
 import { GrenadeName, TechniqueText } from './lineup-fields';
 import { LineupRadar } from './lineup-radar';
@@ -92,6 +93,7 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const practice = usePracticeLaunch(lineup.map);
+  const calloutLabel = useCalloutNames([lineup.map]);
   const command = setposCommand(lineup);
   useRouteTitle(lineup.title);
   useDocumentTitle(`${lineup.title} · Libreta · ClipHub`);
@@ -120,8 +122,8 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
           { label: 'Mapa', value: prettyMapName(lineup.map) },
           { label: 'Lado', value: lineup.side },
           { label: 'Granada', value: <GrenadeName kind={lineup.grenade} /> },
-          { label: 'Desde', value: calloutLabel(lineup.throw_callout) ?? 'Sin callout' },
-          { label: 'Cae en', value: calloutLabel(lineup.landing_callout) ?? 'Sin callout' },
+          { label: 'Desde', value: calloutLabel(lineup.map, lineup.throw_callout) || 'Sin callout' },
+          { label: 'Cae en', value: calloutLabel(lineup.map, lineup.landing_callout) || 'Sin callout' },
           { label: 'Técnica', value: <TechniqueText lineup={lineup} /> },
           { label: 'Estado', value: <StatusBadge status={lineup.status} /> },
           { label: 'Etiquetas', value: lineup.tags.length > 0 ? lineup.tags.join(', ') : 'Ninguna' },

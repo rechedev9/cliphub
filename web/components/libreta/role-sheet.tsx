@@ -14,16 +14,17 @@ import {
   busiestTeam,
   cleanRoles,
   fillFromSuggestion,
-  roleCalloutLabel,
   rolePlayers,
   sameRoles,
   suggestedRoleLabel,
+  type PlaceLabel,
   type RolePlayer,
   type RoleSides,
 } from '@/lib/libreta/roles';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 import { MapField, NO_TEAM, TeamField, mapChoices, useLibraryTeams } from './play-fields';
 import { PlayRolesList } from './play-roles-list';
 import { RoleRowsEditor, useTeamRoster } from './role-rows-editor';
@@ -160,8 +161,10 @@ function SheetEditor({ roles, players, teamId, map }: { roles: TeamRoles; player
   const [saved, setSaved] = useState<RoleSides>({ t: roles.sheet.t, ct: roles.sheet.ct });
   const [sides, setSides] = useState<RoleSides>(saved);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  const calloutLabel = useCalloutNames([map]);
+  const place = (token: string): string => calloutLabel(map, token);
   const dirty = !sameRoles(sides.t, saved.t) || !sameRoles(sides.ct, saved.ct);
-  const fill = fillFromSuggestion(sides, roles.suggested);
+  const fill = fillFromSuggestion(sides, roles.suggested, place);
 
   function edit(side: TacticalSide, slots: RoleSlot[]): void {
     setSides((current) => (side === 'T' ? { ...current, t: slots } : { ...current, ct: slots }));
@@ -229,8 +232,8 @@ function SheetEditor({ roles, players, teamId, map }: { roles: TeamRoles; player
         </p>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
-        <SideColumn side="T" slots={sides.t} suggested={roles.suggested.t} players={players} onChange={(slots) => edit('T', slots)} />
-        <SideColumn side="CT" slots={sides.ct} suggested={roles.suggested.ct} players={players} onChange={(slots) => edit('CT', slots)} />
+        <SideColumn side="T" slots={sides.t} suggested={roles.suggested.t} players={players} place={place} onChange={(slots) => edit('T', slots)} />
+        <SideColumn side="CT" slots={sides.ct} suggested={roles.suggested.ct} players={players} place={place} onChange={(slots) => edit('CT', slots)} />
       </div>
     </section>
   );
@@ -241,12 +244,14 @@ function SideColumn({
   slots,
   suggested,
   players,
+  place,
   onChange,
 }: {
   side: TacticalSide;
   slots: RoleSlot[];
   suggested: readonly RoleSuggestion[];
   players: readonly RolePlayer[];
+  place: PlaceLabel;
   onChange: (slots: RoleSlot[]) => void;
 }): ReactNode {
   return (
@@ -260,7 +265,7 @@ function SideColumn({
               {suggested.map((entry) => (
                 <li key={entry.steamid64}>
                   <span className="text-fg-2">{suggestedRoleLabel(entry.role)}</span>: {entry.player || 'Sin nombre'}
-                  {entry.callout ? `, ${roleCalloutLabel(entry.callout)}` : ''}
+                  {entry.callout ? `, ${place(entry.callout)}` : ''}
                   <span className="tabular-nums"> ({entry.rounds} rondas)</span>
                 </li>
               ))}

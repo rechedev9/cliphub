@@ -1,7 +1,6 @@
 import type { TeamGrenade } from '../api/grenades.ts';
 import type { LibraryLineup, LineupClick, LineupMovement, LineupThrow } from '../api/lineups.ts';
 import { PRACTICE_MAX_SPOTS, type PracticeGrenade, type PracticeSpot } from '../api/practice.ts';
-import { placeLabel } from '../tactical-labels.ts';
 
 export const MOVEMENT_LABEL: Record<LineupMovement, string> = {
   standing: 'Parado',
@@ -97,11 +96,6 @@ export function techniqueLabel(lineup: Pick<LibraryLineup, 'movement' | 'jump' |
   if (lineup.jump) parts.push('salto');
   parts.push(CLICK_LABEL[lineup.click].toLocaleLowerCase('es'));
   return parts.join(', ');
-}
-
-/** A place token as players say it, or null when the map has no callout there. */
-export function calloutLabel(token: string): string | null {
-  return token === '' ? null : placeLabel(token);
 }
 
 /** The throw the server reads a lineup from, or null when the demo did not record where and how it was thrown. */

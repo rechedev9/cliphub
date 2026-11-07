@@ -248,13 +248,13 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
                 <PlayNotes key={play.updated_at} play={play} onSaved={onChanged} />
                 <section className="flex flex-col gap-2">
                   <h2 className="text-body font-semibold text-fg-1">Granadas</h2>
-                  <PlayGrenadeTable grenades={play.grenades} showShare={play.origin === 'detected'} />
+                  <PlayGrenadeTable map={play.map} grenades={play.grenades} showShare={play.origin === 'detected'} />
                 </section>
                 <section className="flex flex-col gap-2">
                   <h2 className="text-body font-semibold text-fg-1">
                     Posiciones{play.positions.length > 0 ? ` a ${playSecondsLabel(play.positions_seconds)} del final del freeze time` : ''}
                   </h2>
-                  <PlayPositionTable positions={play.positions} showShare={play.origin === 'detected'} />
+                  <PlayPositionTable map={play.map} positions={play.positions} showShare={play.origin === 'detected'} />
                 </section>
                 <PlayRoles play={play} onSaved={onChanged} />
               </div>

@@ -5,13 +5,14 @@ import { Pencil } from 'lucide-react';
 import { patchLibraryPlay } from '@/lib/api/library';
 import type { RoleSlot } from '@/lib/api/roles';
 import type { LibraryPlay } from '@/lib/api/stratbook';
-import { cleanRoles, roleCalloutLabel, rolePlayers, rolesFromPositions, sameRoles } from '@/lib/libreta/roles';
+import { cleanRoles, rolePlayers, rolesFromPositions, sameRoles, type PlaceLabel } from '@/lib/libreta/roles';
 import { Button } from '@/components/ui/button';
 import { RoleRowsEditor, useTeamRoster } from '@/components/libreta/role-rows-editor';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 
 const CELL = 'px-2 py-1.5 text-left font-normal';
 
-function RoleTable({ slots, names }: { slots: readonly RoleSlot[]; names: ReadonlyMap<string, string> }): ReactNode {
+function RoleTable({ slots, names, place }: { slots: readonly RoleSlot[]; names: ReadonlyMap<string, string>; place: PlaceLabel }): ReactNode {
   if (slots.length === 0) return <p className="text-body-sm text-fg-2">Esta jugada no tiene roles.</p>;
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -32,7 +33,7 @@ function RoleTable({ slots, names }: { slots: readonly RoleSlot[]; names: Readon
               <tr key={`${slot.name}:${index}`} className="border-t border-border-subtle">
                 <td className={CELL}>{slot.name}</td>
                 <td className={CELL}>{player || <span className="text-fg-3">Sin jugador</span>}</td>
-                <td className={CELL}>{roleCalloutLabel(slot.callout) || <span className="text-fg-3">Sin callout</span>}</td>
+                <td className={CELL}>{place(slot.callout ?? '') || <span className="text-fg-3">Sin callout</span>}</td>
                 <td className={CELL}>{slot.task ?? ''}</td>
               </tr>
             );
@@ -48,6 +49,8 @@ export function PlayRoles({ play, onSaved }: { play: LibraryPlay; onSaved: () =>
   const roster = useTeamRoster(play.team_id);
   const players = rolePlayers(roster, play.positions);
   const names = new Map(players.map((player) => [player.steamid64, player.nick]));
+  const calloutLabel = useCalloutNames([play.map]);
+  const place = (token: string): string => calloutLabel(play.map, token);
   const [draft, setDraft] = useState<RoleSlot[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +83,7 @@ export function PlayRoles({ play, onSaved }: { play: LibraryPlay; onSaved: () =>
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setDraft(play.roles.length > 0 ? play.roles : rolesFromPositions(play))}
+            onClick={() => setDraft(play.roles.length > 0 ? play.roles : rolesFromPositions(play, place))}
           >
             <Pencil aria-hidden />
             Editar roles
@@ -88,7 +91,7 @@ export function PlayRoles({ play, onSaved }: { play: LibraryPlay; onSaved: () =>
         ) : null}
       </div>
       {draft === null ? (
-        <RoleTable slots={play.roles} names={names} />
+        <RoleTable slots={play.roles} names={names} place={place} />
       ) : (
         <>
           {play.roles.length === 0 && draft.length > 0 ? (

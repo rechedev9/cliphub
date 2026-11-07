@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Crosshair, Plus, PlugZap, Users } from 'lucide-react';
 import { GRENADE_KIND_LABEL } from '@/lib/analysis/grenade-patterns';
@@ -10,7 +10,8 @@ import type { LibretaStatus } from '@/lib/api/libreta';
 import { deleteLibraryLineup, listLibraryLineups, patchLibraryLineup, type LibraryLineup } from '@/lib/api/lineups';
 import { TEAMS_HREF, lineupHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
-import { calloutLabel, lineupSpot, practiceBlockReason, techniqueLabel } from '@/lib/libreta/lineups';
+import type { CalloutLabel } from '@/lib/libreta/callouts';
+import { lineupSpot, practiceBlockReason, techniqueLabel } from '@/lib/libreta/lineups';
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
@@ -20,47 +21,50 @@ import { useTableView } from '@/components/records/use-table-view';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 import { BulkBar } from './bulk-bar';
 import { GrenadeName, TechniqueText } from './lineup-fields';
 import { NewLineupDialog } from './new-lineup-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
 
-function Callout({ token }: { token: string }): ReactNode {
-  return calloutLabel(token) ?? <span className="text-fg-3">Sin callout</span>;
+function Callout({ text }: { text: string }): ReactNode {
+  return text || <span className="text-fg-3">Sin callout</span>;
 }
 
-const COLUMNS: readonly DataTableColumn<LibraryLineup>[] = [
-  { id: 'title', header: 'Lineup', required: true, cell: (lineup) => lineup.title, sortValue: (lineup) => lineup.title },
-  { id: 'map', header: 'Mapa', cell: (lineup) => prettyMapName(lineup.map), sortValue: (lineup) => lineup.map },
-  { id: 'side', header: 'Lado', cell: (lineup) => lineup.side, sortValue: (lineup) => lineup.side },
-  { id: 'grenade', header: 'Granada', cell: (lineup) => <GrenadeName kind={lineup.grenade} />, sortValue: (lineup) => lineup.grenade },
-  {
-    id: 'from',
-    header: 'Desde',
-    cell: (lineup) => <Callout token={lineup.throw_callout} />,
-    sortValue: (lineup) => calloutLabel(lineup.throw_callout) ?? '',
-  },
-  {
-    id: 'landing',
-    header: 'Cae en',
-    cell: (lineup) => <Callout token={lineup.landing_callout} />,
-    sortValue: (lineup) => calloutLabel(lineup.landing_callout) ?? '',
-  },
-  { id: 'technique', header: 'Técnica', cell: (lineup) => <TechniqueText lineup={lineup} />, sortValue: (lineup) => techniqueLabel(lineup) },
-  { id: 'status', header: 'Estado', cell: (lineup) => <StatusBadge status={lineup.status} />, sortValue: (lineup) => lineup.status },
-  {
-    id: 'tags',
-    header: 'Etiquetas',
-    cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
-    sortValue: (lineup) => lineup.tags.join(','),
-  },
-  {
-    id: 'updated',
-    header: 'Actualizado',
-    cell: (lineup) => <span className="text-fg-2">{formatShortDate(lineup.updated_at)}</span>,
-    sortValue: (lineup) => Date.parse(lineup.updated_at) || null,
-  },
-];
+function lineupColumns(calloutLabel: CalloutLabel): DataTableColumn<LibraryLineup>[] {
+  return [
+    { id: 'title', header: 'Lineup', required: true, cell: (lineup) => lineup.title, sortValue: (lineup) => lineup.title },
+    { id: 'map', header: 'Mapa', cell: (lineup) => prettyMapName(lineup.map), sortValue: (lineup) => lineup.map },
+    { id: 'side', header: 'Lado', cell: (lineup) => lineup.side, sortValue: (lineup) => lineup.side },
+    { id: 'grenade', header: 'Granada', cell: (lineup) => <GrenadeName kind={lineup.grenade} />, sortValue: (lineup) => lineup.grenade },
+    {
+      id: 'from',
+      header: 'Desde',
+      cell: (lineup) => <Callout text={calloutLabel(lineup.map, lineup.throw_callout)} />,
+      sortValue: (lineup) => calloutLabel(lineup.map, lineup.throw_callout),
+    },
+    {
+      id: 'landing',
+      header: 'Cae en',
+      cell: (lineup) => <Callout text={calloutLabel(lineup.map, lineup.landing_callout)} />,
+      sortValue: (lineup) => calloutLabel(lineup.map, lineup.landing_callout),
+    },
+    { id: 'technique', header: 'Técnica', cell: (lineup) => <TechniqueText lineup={lineup} />, sortValue: (lineup) => techniqueLabel(lineup) },
+    { id: 'status', header: 'Estado', cell: (lineup) => <StatusBadge status={lineup.status} />, sortValue: (lineup) => lineup.status },
+    {
+      id: 'tags',
+      header: 'Etiquetas',
+      cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+      sortValue: (lineup) => lineup.tags.join(','),
+    },
+    {
+      id: 'updated',
+      header: 'Actualizado',
+      cell: (lineup) => <span className="text-fg-2">{formatShortDate(lineup.updated_at)}</span>,
+      sortValue: (lineup) => Date.parse(lineup.updated_at) || null,
+    },
+  ];
+}
 
 /** The lineups of the Libreta, archived ones included; `reload` reads them again. */
 export function useLibretaLineups(): { lineups: LibraryLineup[] | null; offline: boolean; reload: () => void } {
@@ -109,6 +113,8 @@ export function LineupList({
   const chosen = (lineups ?? []).filter((lineup) => selected.has(lineup.id));
   const practice = usePracticeLaunch(chosen[0]?.map ?? '');
   const blocked = practiceBlockReason(chosen);
+  const calloutLabel = useCalloutNames((lineups ?? []).map((lineup) => lineup.map));
+  const columns = useMemo(() => lineupColumns(calloutLabel), [calloutLabel]);
 
   async function bulkStatus(status: LibretaStatus): Promise<void> {
     setBusy(true);
@@ -199,9 +205,14 @@ export function LineupList({
       grenade: (lineup) => lineup.grenade,
     },
     searchText: (lineup) =>
-      [lineup.title, calloutLabel(lineup.throw_callout), calloutLabel(lineup.landing_callout), lineup.tags.join(' '), lineup.notes, prettyMapName(lineup.map)]
-        .filter((part) => part !== null)
-        .join(' '),
+      [
+        lineup.title,
+        calloutLabel(lineup.map, lineup.throw_callout),
+        calloutLabel(lineup.map, lineup.landing_callout),
+        lineup.tags.join(' '),
+        lineup.notes,
+        prettyMapName(lineup.map),
+      ].join(' '),
   });
   const shown = visibleByStatus(filtered, view.state.filters.status ?? FILTER_ANY, FILTER_ANY);
   const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
@@ -262,7 +273,7 @@ export function LineupList({
       <DataTable
         label="Lineups"
         rows={shown}
-        columns={COLUMNS}
+        columns={columns}
         rowKey={(lineup) => lineup.id}
         rowHref={(lineup) => lineupHref(lineup.id)}
         view={view}

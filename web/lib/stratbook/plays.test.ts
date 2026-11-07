@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DetectedPlay, LibraryPlay } from '../api/stratbook.ts';
 import {
+  importSummary,
   parseStratbookFile,
   playFromDetected,
   playFromDraft,
@@ -88,4 +89,45 @@ test('the export file name carries the team and the day', () => {
   const day = new Date('2026-10-30T22:00:00.000Z');
   assert.equal(stratbookFileName(day, 'Team Vitality á'), 'libreta-team-vitality-a-2026-10-30.json');
   assert.equal(stratbookFileName(day), 'libreta-2026-10-30.json');
+});
+
+test('a whole Libreta file keeps its other sections for the import, and drops empty or broken ones', () => {
+  const file = {
+    format: 'cliphub-stratbook', version: 2, exported_at: '2026-11-07T10:00:00.000Z', plays: [],
+    lineups: [{ id: 'l' }], calls: [{ id: 'c' }], callout_names: [], team_roles: 'nope', extra: [1],
+  };
+  const parsed = parseStratbookFile(JSON.stringify(file));
+  assert.ok(parsed.ok);
+  assert.deepEqual(Object.keys(parsed.file).sort(), ['calls', 'exported_at', 'format', 'lineups', 'plays', 'version']);
+});
+
+test('the import summary says what the plays did, one sentence per kind of result', () => {
+  const plays = { imported: 3, duplicates: 1, rejected: [], plays: [] };
+  assert.equal(importSummary(plays), 'Importadas 3 jugadas. 1 ya estaba en la Libreta.');
+  assert.equal(
+    importSummary({ ...plays, imported: 1, duplicates: 0, rejected: [{ index: 4, title: '', error: 'x' }] }),
+    'Importada 1 jugada. 1 no se pudo leer: n.º 5.',
+  );
+  assert.equal(importSummary({ ...plays, imported: 0, duplicates: 0 }), 'Importadas 0 jugadas.');
+});
+
+test('the import summary adds every section the file held, in tab order, and skips plays it did not hold', () => {
+  const result = {
+    imported: 2, duplicates: 0, rejected: [], plays: [],
+    sections: {
+      callout_names: { imported: 14, duplicates: 0, rejected: 0 },
+      calls: { imported: 1, duplicates: 2, rejected: 0 },
+      lineups: { imported: 0, duplicates: 3, rejected: 1 },
+      team_roles: { imported: 2, duplicates: 0, rejected: 0 },
+    },
+  };
+  assert.equal(
+    importSummary(result),
+    'Importadas 2 jugadas. Lineups: 3 ya estaban en la Libreta, 1 no se pudo leer. Hojas de roles: 2 importadas. '
+      + 'Llamadas: 1 importada, 2 ya estaban en la Libreta. Nombres de callouts: 14 importados.',
+  );
+  assert.equal(
+    importSummary({ ...result, imported: 0, sections: { calls: { imported: 5, duplicates: 0, rejected: 0 } } }),
+    'Llamadas: 5 importadas.',
+  );
 });

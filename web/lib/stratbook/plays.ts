@@ -5,6 +5,7 @@ import {
   type TacticalSite,
 } from '../api/tactical.ts';
 import {
+  LIBRETA_SECTIONS,
   STRATBOOK_FORMAT,
   STRATBOOK_VERSION,
   type DetectedPlay,
@@ -13,6 +14,9 @@ import {
   type PlayGrenadeKind,
   type PlayInput,
   type PlayOrigin,
+  type LibretaSection,
+  type SectionImport,
+  type StratbookImport,
   type StratbookUpload,
 } from '../api/stratbook.ts';
 import { patternLabel, siteLabel } from '../tactical-labels.ts';
@@ -130,15 +134,17 @@ export function parseStratbookFile(text: string): StratbookParse {
     return { ok: false, error: `Este fichero es de la versión ${String(version)} y Studio lee hasta la ${STRATBOOK_VERSION}. Actualiza Studio.` };
   }
   const exportedAt: unknown = Reflect.get(value, 'exported_at');
-  return {
-    ok: true,
-    file: {
-      format: STRATBOOK_FORMAT,
-      version,
-      exported_at: typeof exportedAt === 'string' ? exportedAt : new Date(0).toISOString(),
-      plays,
-    },
+  const file: StratbookUpload = {
+    format: STRATBOOK_FORMAT,
+    version,
+    exported_at: typeof exportedAt === 'string' ? exportedAt : new Date(0).toISOString(),
+    plays,
   };
+  for (const section of LIBRETA_SECTIONS) {
+    const records: unknown = Reflect.get(value, section);
+    if (Array.isArray(records) && records.length > 0) file[section] = records;
+  }
+  return { ok: true, file };
 }
 
 /** "libreta-vitality-2026-10-30.json": the team when the export is one team's, and the day. */
@@ -153,4 +159,41 @@ export function stratbookFileName(date: Date, teamName?: string): string {
     .replace(/-+$/g, '');
   const day = date.toISOString().slice(0, 10);
   return slug === '' ? `libreta-${day}.json` : `libreta-${slug}-${day}.json`;
+}
+
+const SECTION_LABEL: Record<LibretaSection, { label: string; feminine: boolean }> = {
+  lineups: { label: 'Lineups', feminine: false },
+  team_roles: { label: 'Hojas de roles', feminine: true },
+  calls: { label: 'Llamadas', feminine: true },
+  callout_names: { label: 'Nombres de callouts', feminine: false },
+};
+
+function sectionSentence(section: LibretaSection, counts: SectionImport): string | null {
+  const { label, feminine } = SECTION_LABEL[section];
+  const parts: string[] = [];
+  if (counts.imported > 0) parts.push(`${counts.imported} ${feminine ? 'importada' : 'importado'}${counts.imported === 1 ? '' : 's'}`);
+  if (counts.duplicates > 0) parts.push(`${counts.duplicates} ${counts.duplicates === 1 ? 'ya estaba' : 'ya estaban'} en la Libreta`);
+  if (counts.rejected > 0) parts.push(`${counts.rejected} no se ${counts.rejected === 1 ? 'pudo' : 'pudieron'} leer`);
+  return parts.length === 0 ? null : `${label}: ${parts.join(', ')}.`;
+}
+
+/** What an import did, in Spanish: the plays, then each other section the file held, in tab order. */
+export function importSummary(result: StratbookImport): string {
+  const sections = LIBRETA_SECTIONS.flatMap((section) => {
+    const counts = result.sections?.[section];
+    const sentence = counts === undefined ? null : sectionSentence(section, counts);
+    return sentence === null ? [] : [sentence];
+  });
+  const parts: string[] = [];
+  // A whole-Libreta file without plays says nothing about plays.
+  if (sections.length === 0 || result.imported + result.duplicates + result.rejected.length > 0) {
+    parts.push(result.imported === 1 ? 'Importada 1 jugada.' : `Importadas ${result.imported} jugadas.`);
+  }
+  if (result.duplicates > 0) parts.push(result.duplicates === 1 ? '1 ya estaba en la Libreta.' : `${result.duplicates} ya estaban en la Libreta.`);
+  const rejected = result.rejected.length;
+  if (rejected > 0) {
+    const titles = result.rejected.map((entry) => entry.title || `n.º ${entry.index + 1}`).join(', ');
+    parts.push(`${rejected} no se ${rejected === 1 ? 'pudo' : 'pudieron'} leer: ${titles}.`);
+  }
+  return [...parts, ...sections].join(' ');
 }

@@ -2,7 +2,6 @@ import type { LibraryRosterEntry } from '../api/library.ts';
 import { MAX_ROLE_CALLOUT, MAX_ROLE_NAME, MAX_ROLE_SLOTS, MAX_ROLE_TASK, type RoleSlot, type RoleSuggestion } from '../api/roles.ts';
 import type { LibraryPlay, PlayPosition } from '../api/stratbook.ts';
 import type { TacticalSide } from '../api/tactical.ts';
-import { placeLabel } from '../tactical-labels.ts';
 
 const SUGGESTED_ROLE_LABEL: ReadonlyMap<string, string> = new Map([
   ['awp', 'AWP'],
@@ -19,11 +18,8 @@ export function suggestedRoleLabel(role: string): string {
   return SUGGESTED_ROLE_LABEL.get(role) ?? 'Rifler';
 }
 
-/** A slot's callout as players say it: a place token such as `BombsiteA` reads `Bombsite A`. */
-export function roleCalloutLabel(callout: string | undefined): string {
-  const text = (callout ?? '').trim();
-  return text === '' ? '' : placeLabel(text);
-}
+/** A CS2 place token as the team says it on the map, such as `calloutLabel` bound to it. */
+export type PlaceLabel = (token: string) => string;
 
 /** A slot with its text trimmed and cut to the server limits, empty optional fields left out. */
 function compactSlot(slot: RoleSlot): RoleSlot {
@@ -43,14 +39,14 @@ function isBlank(slot: RoleSlot): boolean {
 }
 
 /** One side of a team's sheet from the suggestion: the role's label, the player and, on CT, the spot. */
-export function sheetFromSuggestion(suggested: readonly RoleSuggestion[]): RoleSlot[] {
+export function sheetFromSuggestion(suggested: readonly RoleSuggestion[], place: PlaceLabel): RoleSlot[] {
   return suggested
     .slice(0, MAX_ROLE_SLOTS)
-    .map((entry) => compactSlot({ name: suggestedRoleLabel(entry.role), steamid64: entry.steamid64, callout: roleCalloutLabel(entry.callout) }));
+    .map((entry) => compactSlot({ name: suggestedRoleLabel(entry.role), steamid64: entry.steamid64, callout: place(entry.callout ?? '') }));
 }
 
 /** A play's first roles, one per player of its positions, named after the player until the coach renames them. */
-export function rolesFromPositions(play: { positions: readonly PlayPosition[] }): RoleSlot[] {
+export function rolesFromPositions(play: { positions: readonly PlayPosition[] }, place: PlaceLabel): RoleSlot[] {
   const seen = new Set<string>();
   const out: RoleSlot[] = [];
   for (const position of play.positions) {
@@ -58,7 +54,7 @@ export function rolesFromPositions(play: { positions: readonly PlayPosition[] })
     if (steamid64 !== '' && seen.has(steamid64)) continue;
     if (steamid64 !== '') seen.add(steamid64);
     const player = (position.player ?? '').trim();
-    out.push(compactSlot({ name: player === '' ? `Rol ${out.length + 1}` : player, steamid64, callout: roleCalloutLabel(position.callout) }));
+    out.push(compactSlot({ name: player === '' ? `Rol ${out.length + 1}` : player, steamid64, callout: place(position.callout ?? '') }));
     if (out.length === MAX_ROLE_SLOTS) break;
   }
   return out;
@@ -84,12 +80,16 @@ export function sameRoles(a: readonly RoleSlot[], b: readonly RoleSlot[]): boole
 export type RoleSides = { t: RoleSlot[]; ct: RoleSlot[] };
 
 /** Fills each side that has no role yet from the suggestion; `filled` names the sides it changed. */
-export function fillFromSuggestion(sides: RoleSides, suggested: { t: readonly RoleSuggestion[]; ct: readonly RoleSuggestion[] }): RoleSides & { filled: TacticalSide[] } {
+export function fillFromSuggestion(
+  sides: RoleSides,
+  suggested: { t: readonly RoleSuggestion[]; ct: readonly RoleSuggestion[] },
+  place: PlaceLabel,
+): RoleSides & { filled: TacticalSide[] } {
   const filled: TacticalSide[] = [];
   const pick = (current: RoleSlot[], from: readonly RoleSuggestion[], side: TacticalSide): RoleSlot[] => {
     if (from.length === 0 || current.some((slot) => !isBlank(slot))) return current;
     filled.push(side);
-    return sheetFromSuggestion(from);
+    return sheetFromSuggestion(from, place);
   };
   const t = pick(sides.t, suggested.t, 'T');
   const ct = pick(sides.ct, suggested.ct, 'CT');

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TeamGrenade } from '../api/grenades.ts';
 import {
-  calloutLabel,
   lineupSaveError,
   lineupSpot,
   lineupThrow,
@@ -74,9 +73,7 @@ test('techniqueLabel reads like a player says it', () => {
   assert.equal(techniqueLabel({ movement: 'standing', jump: false, click: 'both' }), 'Parado, los dos clics');
 });
 
-test('calloutLabel and lineupSaveError', () => {
-  assert.equal(calloutLabel(''), null);
-  assert.equal(typeof calloutLabel('BombsiteA'), 'string');
+test('lineupSaveError explains the server code', () => {
   assert.match(lineupSaveError('throw_missing'), /analizar la demo/);
   assert.equal(lineupSaveError(undefined), 'No se pudo guardar el lineup.');
 });

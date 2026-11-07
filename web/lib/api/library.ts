@@ -639,6 +639,12 @@ export function exportStratbook(query: PlayListQuery = {}): Promise<StratbookFil
   return request<StratbookFile>(`/plays/export${search === '' ? '' : `?${search}`}`);
 }
 
+/** The whole Libreta as one file: plays, lineups, role sheets, calls and callout names, archived ones too. */
+export function exportLibreta(): Promise<StratbookFile> {
+  return request<StratbookFile>('/libreta/export');
+}
+
+/** Takes a plays file or a whole Libreta file; `sections` counts what each other section did. */
 export function importStratbook(file: StratbookUpload): Promise<StratbookImport> {
   return request<StratbookImport>('/plays/import', jsonInit('POST', file));
 }

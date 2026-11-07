@@ -212,3 +212,46 @@ test('the team role sheet is read without a side and written whole, map and both
   assert.ok(write?.body?.kind === 'json');
   assert.deepEqual(write.body.fields, ['map', 't', 'ct']);
 });
+
+test('the call routes are reachable and a list keeps only its own query names', () => {
+  for (const method of ['GET', 'PATCH', 'DELETE']) assert.ok(matchLibraryRoute(method, ['calls', ID]));
+  assert.ok(matchLibraryRoute('POST', ['calls']));
+  assert.equal(matchLibraryRoute('DELETE', ['calls']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['calls', 'all']), undefined);
+  const list = matchLibraryRoute('GET', ['calls']);
+  assert.ok(list);
+  assert.equal(
+    libraryUpstreamQuery(list, new URLSearchParams('side=T&status=draft&tag=eco&include_archived=true&limit=1000&map=de_nuke')),
+    'side=T&status=draft&tag=eco&include_archived=true&limit=1000',
+  );
+  const patch = matchLibraryRoute('PATCH', ['calls', ID]);
+  assert.ok(patch?.body?.kind === 'json');
+  assert.deepEqual(patch.body.fields, ['name', 'side', 'meaning', 'status', 'tags']);
+});
+
+test('a callout name is written per map and CS2 place, and the map read can carry its geometry', () => {
+  const read = matchLibraryRoute('GET', ['maps', 'de_mirage', 'callouts']);
+  assert.ok(read?.response.kind === 'json');
+  assert.ok(read.response.keys.includes('geometry'));
+  assert.equal(libraryUpstreamQuery(read, new URLSearchParams('geometry=true&team_id=x')), 'geometry=true');
+  assert.ok(matchLibraryRoute('DELETE', ['maps', 'de_mirage', 'callouts', 'BombsiteA']));
+  assert.equal(matchLibraryRoute('GET', ['maps', 'de_mirage', 'callouts', 'TopofMid']), undefined);
+  assert.equal(matchLibraryRoute('PUT', ['maps', 'De Mirage', 'callouts', 'TopofMid']), undefined);
+  assert.equal(matchLibraryRoute('PUT', ['maps', 'de_mirage', 'callouts', '..']), undefined);
+  const put = matchLibraryRoute('PUT', ['maps', 'de_mirage', 'callouts', 'TopofMid']);
+  assert.ok(put?.body?.kind === 'json');
+  assert.deepEqual(put.body.fields, ['name']);
+});
+
+test('the whole Libreta file goes out and comes back in with every section', () => {
+  assert.equal(matchLibraryRoute('POST', ['libreta', 'export']), undefined);
+  const exported = matchLibraryRoute('GET', ['libreta', 'export']);
+  assert.ok(exported?.response.kind === 'json');
+  const imported = matchLibraryRoute('POST', ['plays', 'import']);
+  assert.ok(imported?.body?.kind === 'json' && imported.response.kind === 'json');
+  for (const section of ['lineups', 'team_roles', 'calls', 'callout_names']) {
+    assert.ok(exported.response.keys.includes(section));
+    assert.ok(imported.body.fields.includes(section));
+  }
+  assert.ok(imported.response.keys.includes('sections'));
+});

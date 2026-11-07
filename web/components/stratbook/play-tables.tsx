@@ -1,7 +1,9 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import type { PlayGrenade, PlayPosition } from '@/lib/api/stratbook';
 import { GRENADE_LABEL, playSecondsLabel, shareLabel } from '@/lib/stratbook/plays';
-import { placeLabel } from '@/lib/tactical-labels';
+import { useCalloutNames } from '@/hooks/use-callout-names';
 
 const CELL = 'px-2 py-1.5 text-left font-normal';
 
@@ -10,7 +12,16 @@ function coords(pos: readonly [number, number, number]): string {
 }
 
 /** A play's grenades in landing order: kind, second, callout, thrower and catalog lineup. */
-export function PlayGrenadeTable({ grenades, showShare = false }: { grenades: readonly PlayGrenade[]; showShare?: boolean }): ReactNode {
+export function PlayGrenadeTable({
+  map,
+  grenades,
+  showShare = false,
+}: {
+  map: string;
+  grenades: readonly PlayGrenade[];
+  showShare?: boolean;
+}): ReactNode {
+  const calloutLabel = useCalloutNames([map]);
   if (grenades.length === 0) return <p className="text-body-sm text-fg-2">Sin granadas antes de la plantada.</p>;
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -31,7 +42,7 @@ export function PlayGrenadeTable({ grenades, showShare = false }: { grenades: re
             <tr key={`${grenade.kind}:${index}`} className="border-t border-border-subtle">
               <td className={CELL}>{GRENADE_LABEL[grenade.kind]}</td>
               <td className={CELL}>{playSecondsLabel(grenade.seconds)}</td>
-              <td className={CELL}>{placeLabel(grenade.callout ?? '') || <span className="text-fg-3">{coords(grenade.pos)}</span>}</td>
+              <td className={CELL}>{calloutLabel(map, grenade.callout ?? '') || <span className="text-fg-3">{coords(grenade.pos)}</span>}</td>
               <td className={CELL}>{grenade.player || <span className="text-fg-3">Sin dato</span>}</td>
               {showShare ? <td className={CELL}>{shareLabel(grenade.share)}</td> : null}
               <td className={CELL}>
@@ -50,7 +61,16 @@ export function PlayGrenadeTable({ grenades, showShare = false }: { grenades: re
 }
 
 /** Where the play's players stood at its second. */
-export function PlayPositionTable({ positions, showShare = false }: { positions: readonly PlayPosition[]; showShare?: boolean }): ReactNode {
+export function PlayPositionTable({
+  map,
+  positions,
+  showShare = false,
+}: {
+  map: string;
+  positions: readonly PlayPosition[];
+  showShare?: boolean;
+}): ReactNode {
+  const calloutLabel = useCalloutNames([map]);
   if (positions.length === 0) return <p className="text-body-sm text-fg-2">Sin posiciones: la partida no tiene el fichero de posiciones de esa ronda.</p>;
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -67,7 +87,7 @@ export function PlayPositionTable({ positions, showShare = false }: { positions:
           {positions.map((position, index) => (
             <tr key={`${position.steamid64 ?? position.player ?? ''}:${index}`} className="border-t border-border-subtle">
               <td className={CELL}>{position.player || <span className="text-fg-3">Sin dato</span>}</td>
-              <td className={CELL}>{placeLabel(position.callout ?? '') || <span className="text-fg-3">{coords(position.pos)}</span>}</td>
+              <td className={CELL}>{calloutLabel(map, position.callout ?? '') || <span className="text-fg-3">{coords(position.pos)}</span>}</td>
               {showShare ? <td className={CELL}>{shareLabel(position.share)}</td> : null}
             </tr>
           ))}

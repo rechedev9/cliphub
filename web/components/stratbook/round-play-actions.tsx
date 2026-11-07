@@ -203,8 +203,8 @@ function SavePlayDialog({
                   />
                 </label>
                 <div className="flex max-h-[36vh] flex-col gap-3 overflow-y-auto">
-                  <PlayGrenadeTable grenades={draft.grenades} />
-                  <PlayPositionTable positions={draft.positions} />
+                  <PlayGrenadeTable map={draft.map} grenades={draft.grenades} />
+                  <PlayPositionTable map={draft.map} positions={draft.positions} />
                 </div>
               </>
             ) : null}

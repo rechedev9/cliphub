@@ -222,8 +222,8 @@ function DetectedPlayCard({ play, labels, onSave }: { play: DetectedPlay; labels
         </Button>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <PlayGrenadeTable grenades={play.grenades} showShare />
-        <PlayPositionTable positions={play.positions} showShare />
+        <PlayGrenadeTable map={play.map} grenades={play.grenades} showShare />
+        <PlayPositionTable map={play.map} positions={play.positions} showShare />
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-meta text-fg-3">Rondas de la jugada (la primera es la de referencia)</span>

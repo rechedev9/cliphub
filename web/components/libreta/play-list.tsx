@@ -3,14 +3,15 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { BookMarked, FileDown, FileUp, Plus, PlugZap, Swords } from 'lucide-react';
-import { deleteLibraryPlay, exportStratbook, importStratbook, isLibraryOffline, listLibraryPlays, patchLibraryPlay } from '@/lib/api/library';
+import { deleteLibraryPlay, exportStratbook, isLibraryOffline, listLibraryPlays, patchLibraryPlay } from '@/lib/api/library';
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { STRATBOOK_FORMAT, STRATBOOK_VERSION, type LibraryPlay } from '@/lib/api/stratbook';
 import { MATCHES_HREF, playHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import { importLibretaText } from '@/lib/libreta/libreta-file';
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
-import { PLAY_ORIGIN_LABEL, parseStratbookFile, playKindLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
+import { PLAY_ORIGIN_LABEL, playKindLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
@@ -104,12 +105,15 @@ export function PlayList({
   offline,
   requestedTeam,
   onReload,
+  onImported,
   onDetect,
 }: {
   plays: LibraryPlay[] | null;
   offline: boolean;
   requestedTeam?: string;
   onReload: () => void;
+  /** After an import, which may also bring lineups, role sheets, calls and callout names. */
+  onImported: () => void;
   onDetect: () => void;
 }): ReactNode {
   const [message, setMessage] = useState<string | null>(null);
@@ -152,27 +156,11 @@ export function PlayList({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (file === undefined) return;
-    setMessage(null);
-    const parsed = parseStratbookFile(await file.text());
-    if (!parsed.ok) {
-      setMessage(parsed.error);
-      return;
-    }
     setBusy(true);
-    try {
-      const result = await importStratbook(parsed.file);
-      const parts = [result.imported === 1 ? 'Importada 1 jugada.' : `Importadas ${result.imported} jugadas.`];
-      if (result.duplicates > 0) parts.push(result.duplicates === 1 ? '1 ya estaba en la Libreta.' : `${result.duplicates} ya estaban en la Libreta.`);
-      if (result.rejected.length > 0) {
-        parts.push(`${result.rejected.length} no se pudieron leer: ${result.rejected.map((entry) => entry.title || `n.º ${entry.index + 1}`).join(', ')}.`);
-      }
-      setMessage(parts.join(' '));
-      onReload();
-    } catch {
-      setMessage('No se pudo importar el fichero. Comprueba que lo exportó Studio.');
-    } finally {
-      setBusy(false);
-    }
+    setMessage(null);
+    setMessage(await importLibretaText(await file.text()));
+    setBusy(false);
+    onImported();
   }
 
   async function bulkStatus(status: LibretaStatus): Promise<void> {
