@@ -61,6 +61,7 @@ import {
 } from './studio-settings-ipc';
 import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
 import { parseReportPdfRequest, STUDIO_REPORT_PDF_CHANNEL } from './report-pdf-ipc';
+import { denyPopups, registerMatchModeIPC } from './match-mode-window';
 import {
   AppUpdateController,
   createDefaultAppUpdateHost,
@@ -366,11 +367,7 @@ function createWindow(): BrowserWindow {
     mainWindow = null;
   });
 
-  // No popups; non-loopback http(s) opens in the system browser.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url) && !isLoopbackOrigin(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
+  denyPopups(win.webContents, isLoopbackOrigin);
 
   // Only loopback, loading.html, and the current error data: URL may navigate.
   win.webContents.on('will-navigate', (event, url) => {
@@ -1106,6 +1103,7 @@ app.whenReady().then(() => {
   registerStudioClipboardIPC();
   registerReportPdfIPC();
   registerAppUpdateIPC();
+  registerMatchModeIPC({ isTrustedSender: trustedSettingsSender, webOrigin: () => activeWebOrigin, isLoopbackOrigin, backgroundColor: BOOT_SURFACE });
   telemetryClient.start();
   telemetryJournal.start();
   diagnosticLogs?.start();
