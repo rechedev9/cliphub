@@ -286,7 +286,7 @@ Write:
 | `save_call`, `update_call` | `POST /api/library/calls`; `PATCH /api/library/calls/{id}` (`name`, `side` T, CT or both, `meaning`, `status`, `tags`) | no |
 | `delete_call` | `GET` then `DELETE /api/library/calls/{id}` | yes |
 | `rename_callout` | `PUT /api/library/maps/{map}/callouts/{token}` with `name`, or `DELETE` for an empty name (back to CS2's name) | no |
-| `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade`, as Guardar lineup and Nuevo lineup do | no |
+| `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade` (Studio names the spot from an analysed match of the map), as Guardar lineup and Nuevo lineup do | no |
 | `update_lineup` | `PATCH /api/library/lineups/{id}` (`title`, `status`, `tags`, `notes`, `movement`, `jump`, `click`); map, side, grenade and the spot cannot change | no |
 | `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |

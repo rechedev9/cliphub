@@ -300,9 +300,14 @@ func (h *Handlers) importTeamRoles(ctx context.Context, in fileTeamRoles) error 
 }
 
 func (h *Handlers) importPlay(ctx context.Context, in library.Play) (library.Play, error) {
+	// A hand-written or playbook play reads no match of the PC that exported it.
+	origin := library.PlayOriginImport
+	if in.Origin == library.PlayOriginManual || in.Origin == library.PlayOriginPlaybook {
+		origin = in.Origin
+	}
 	play, err := library.CleanPlay(library.Play{
 		ID: in.ID, Title: in.Title, Map: in.Map, Side: in.Side, Kind: in.Kind, Site: in.Site,
-		Origin: library.PlayOriginImport, PositionsSeconds: in.PositionsSeconds,
+		Origin: origin, PositionsSeconds: in.PositionsSeconds,
 		Grenades: in.Grenades, Positions: in.Positions, Notes: in.Notes, Examples: in.Examples,
 		Status: in.Status, Tags: in.Tags, Roles: in.Roles,
 	})

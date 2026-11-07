@@ -38,6 +38,29 @@ func seedThrowMatch(env libraryTestEnv) library.Match {
 	return m
 }
 
+func TestLibraryLineupByHandNamesItsPlace(t *testing.T) {
+	env := newPlaysTestEnv(t)
+	seedCalloutMatch(env)
+	for _, tc := range []struct {
+		body map[string]any
+		want string
+	}{
+		{map[string]any{"map": "de_mirage", "origin": []float64{3, 4, 0}}, "Apartments"},
+		{map[string]any{"map": "de_mirage", "origin": []float64{3, 4, 0}, "throw_callout": "BombsiteB"}, "BombsiteB"},
+		{map[string]any{"map": "de_nuke", "origin": []float64{3, 4, 0}}, ""},
+	} {
+		body := map[string]any{"title": "Pop", "side": "T", "grenade": "flash", "pitch": -10, "yaw": 90}
+		for k, v := range tc.body {
+			body[k] = v
+		}
+		var got library.Lineup
+		env.json(http.MethodPost, "/api/library/lineups", body, http.StatusCreated, &got)
+		if got.ThrowCallout != tc.want {
+			t.Fatalf("%v: throw callout = %q, want %q", tc.body, got.ThrowCallout, tc.want)
+		}
+	}
+}
+
 func TestLibraryLineupsFromAThrowAndByHand(t *testing.T) {
 	env := newPlaysTestEnv(t)
 	m := seedThrowMatch(env)

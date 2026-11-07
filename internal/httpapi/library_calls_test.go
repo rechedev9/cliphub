@@ -133,7 +133,7 @@ func TestLibretaFileCarriesEverySection(t *testing.T) {
 			t.Fatalf("import %s = %+v, want one imported (all: %+v)", key, resp.Sections[key], resp.Sections)
 		}
 	}
-	if resp.Imported != 1 || len(resp.Plays[0].Roles) != 1 {
+	if resp.Imported != 1 || len(resp.Plays[0].Roles) != 1 || resp.Plays[0].Origin != library.PlayOriginManual {
 		t.Fatalf("plays import = %+v", resp)
 	}
 	dst.json(http.MethodPost, "/api/library/plays/import", json.RawMessage(raw), http.StatusOK, &resp)

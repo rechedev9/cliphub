@@ -138,6 +138,9 @@ func (h *Handlers) CreateLibraryLineup(w http.ResponseWriter, r *http.Request) {
 			*f.dst = *f.src
 		}
 	}
+	if req.From == nil && req.Origin != nil && req.ThrowCallout == nil && base.Map != "" {
+		base.ThrowCallout = h.placeOnMap(r.Context(), base.Map, *req.Origin)
+	}
 	lineup, err := library.CleanLineup(library.ApplyLineupPatch(base, req.patch()))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -151,6 +154,20 @@ func (h *Handlers) CreateLibraryLineup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, lineup)
+}
+
+// placeOnMap names a pasted position with the map's reference geometry. A
+// lineup saves without a place when no match of the map is analysed or listing fails.
+func (h *Handlers) placeOnMap(ctx context.Context, mapName string, pos [3]float64) string {
+	matches, err := h.libraryRepo.ListMatches(ctx, library.MatchFilter{Map: mapName, Limit: calloutReferenceMatches})
+	if err != nil {
+		log.Printf("lineup place on %s: %v", mapName, err)
+		return ""
+	}
+	if _, geometry := h.mapGeometry(matches); geometry != nil {
+		return tacticalplan.NearestCallout(*geometry, pos)
+	}
+	return ""
 }
 
 // lineupFromThrow reads one throw of a library round: where it left the hand,
