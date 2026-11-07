@@ -18,6 +18,7 @@ import { placeLabel } from '@/lib/tactical-labels';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap } from '@/lib/tactical-transform';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
@@ -192,7 +193,7 @@ function calloutColumns({ multiLevel, onPick }: { multiLevel: boolean; onPick: (
     {
       id: 'team',
       header: 'Nombre del equipo',
-      cell: (callout) => callout.name ?? <span className="text-fg-3">Sin nombre propio</span>,
+      cell: (callout) => callout.name ?? <EmptyCell label="Sin nombre propio" />,
       sortValue: (callout) => callout.name ?? '',
     },
   ];

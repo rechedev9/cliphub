@@ -13,6 +13,7 @@ import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { PLAY_ORIGIN_LABEL, playKindLabel, playShapeLabel, stratbookFileName } from '@/lib/stratbook/plays';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
@@ -46,7 +47,7 @@ const COLUMNS: readonly DataTableColumn<LibraryPlay>[] = [
   {
     id: 'tags',
     header: 'Etiquetas',
-    cell: (play) => (play.tags.length > 0 ? play.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+    cell: (play) => (play.tags.length > 0 ? play.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
     sortValue: (play) => play.tags.join(','),
   },
   { id: 'grenades', header: 'Granadas', align: 'end', cell: (play) => play.grenades.length, sortValue: (play) => play.grenades.length },
@@ -181,6 +182,7 @@ export function PlayList({
     onReload();
   }
 
+  const hasPlays = (plays?.length ?? 0) > 0;
   const fileActions = (
     <>
       <Button type="button" size="sm" disabled={busy} onClick={() => setCreating(true)}>
@@ -191,10 +193,13 @@ export function PlayList({
         <FileUp aria-hidden />
         Importar
       </Button>
-      <Button type="button" variant="outline" size="sm" disabled={busy || (plays?.length ?? 0) === 0} onClick={() => void exportPlays(null)}>
-        <FileDown aria-hidden />
-        Exportar
-      </Button>
+      {/* An empty Libreta has nothing to export, so the button only appears once there is. */}
+      {hasPlays ? (
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void exportPlays(null)}>
+          <FileDown aria-hidden />
+          Exportar
+        </Button>
+      ) : null}
       <input
         ref={fileRef}
         type="file"
@@ -248,16 +253,16 @@ export function PlayList({
           ]}
           actions={
             <>
+              {fileActions}
               <Button type="button" variant="outline" size="sm" onClick={onDetect}>
                 Detectar jugadas repetidas
               </Button>
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="ghost" size="sm">
                 <Link href={MATCHES_HREF}>
                   <Swords aria-hidden />
                   Ver partidas
                 </Link>
               </Button>
-              {fileActions}
             </>
           }
         />

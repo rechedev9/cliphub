@@ -10,6 +10,7 @@ import { CALL_FILTER_FIELDS, CALL_SIDE_LABEL, callSearchText, tagOptions } from 
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
@@ -58,7 +59,7 @@ function callColumns(onEdit: (call: LibraryCall) => void): DataTableColumn<Libra
     {
       id: 'tags',
       header: 'Etiquetas',
-      cell: (call) => (call.tags.length > 0 ? call.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+      cell: (call) => (call.tags.length > 0 ? call.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
       sortValue: (call) => call.tags.join(','),
     },
     {

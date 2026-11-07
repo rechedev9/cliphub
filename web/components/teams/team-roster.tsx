@@ -9,6 +9,7 @@ import { playerHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/library/partidas';
 import { PlayerAvatar } from '@/components/players/player-avatar';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { DeltaValue } from '@/components/ui/delta-value';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReferences } from '@/hooks/use-references';
@@ -24,13 +25,7 @@ const SHORT_LABEL: Partial<Record<BaselineMetric, string>> = {
 /** A role too thin to read is a quiet dash, so a short roster is not a column of the same words. */
 function RoleCell({ role }: { role: LibraryRole | undefined }): ReactNode {
   if (role === undefined) return null;
-  if (role !== 'unknown') return ROLE_LABEL[role];
-  return (
-    <span title={ROLE_LABEL.unknown}>
-      <span aria-hidden className="text-fg-3">—</span>
-      <span className="sr-only">{ROLE_LABEL.unknown}</span>
-    </span>
-  );
+  return role === 'unknown' ? <EmptyCell label={ROLE_LABEL.unknown} /> : ROLE_LABEL[role];
 }
 
 /** The roster as one dense row per player, most recent first: role and key numbers against the chosen reference. */

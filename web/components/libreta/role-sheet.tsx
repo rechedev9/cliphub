@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PlugZap } from 'lucide-react';
-import { LibraryApiError, isLibraryOffline, type LibraryRosterEntry } from '@/lib/api/library';
+import { LibraryApiError, isLibraryOffline, listLibraryMatches, type LibraryRosterEntry } from '@/lib/api/library';
 import { getTeamRoles, setTeamRoles, type RoleSlot, type RoleSuggestion, type TeamRoles } from '@/lib/api/roles';
 import type { LibraryPlay } from '@/lib/api/stratbook';
 import type { TacticalSide } from '@/lib/api/tactical';
@@ -30,6 +30,31 @@ import { PlayRolesList } from './play-roles-list';
 import { RoleRowsEditor, useTeamRoster } from './role-rows-editor';
 
 const MAP_PATTERN = /^[a-z0-9_]+$/;
+const FALLBACK_MAP = 'de_mirage';
+
+/** The map a team has played most in the library; undefined while it loads, null when unknown. */
+function useTeamMainMap(teamId: string | null): string | null | undefined {
+  const [found, setFound] = useState<{ teamId: string; map: string | null } | null>(null);
+  useEffect(() => {
+    if (teamId === null) return;
+    let active = true;
+    listLibraryMatches({ team_id: teamId })
+      .then((matches) => {
+        const counts = new Map<string, number>();
+        for (const match of matches) counts.set(match.map, (counts.get(match.map) ?? 0) + 1);
+        const best = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+        if (active) setFound({ teamId, map: best ? best[0] : null });
+      })
+      .catch(() => {
+        if (active) setFound({ teamId, map: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [teamId]);
+  if (teamId === null) return null;
+  return found !== null && found.teamId === teamId ? found.map : undefined;
+}
 
 /** The team and map of the Roles tab, kept in `?equipo=` and `?mapa=` so a reload or a link lands on the same sheet. */
 function useRolesScope(): { team: string | undefined; map: string | undefined; set: (key: 'team' | 'map', value: string) => void } {
@@ -56,8 +81,12 @@ export function RoleSheet({ plays }: { plays: LibraryPlay[] | null }): ReactNode
   const team = scope.team ?? (plays ? busiestTeam(plays) : null) ?? teams[0]?.id ?? NO_TEAM;
   const teamId = team === NO_TEAM ? null : team;
   const roster = useTeamRoster(teamId);
+  const mainMap = useTeamMainMap(teamId);
+  const teamPlays = plays?.filter((play) => play.team_id === teamId) ?? [];
+  // With no plays to go by, open on the map the team plays most, so the suggestion has matches to read.
+  const choosing = scope.map === undefined && teamPlays.length === 0 && mainMap === undefined;
 
-  if (plays === null) {
+  if (plays === null || choosing) {
     return (
       <div role="status" aria-label="Cargando roles" className="flex flex-col gap-3">
         <Skeleton className="h-9 w-full max-w-md" />
@@ -65,8 +94,7 @@ export function RoleSheet({ plays }: { plays: LibraryPlay[] | null }): ReactNode
       </div>
     );
   }
-  const teamPlays = plays.filter((play) => play.team_id === teamId);
-  const map = scope.map ?? busiestMap(teamPlays, 'de_mirage');
+  const map = scope.map ?? busiestMap(teamPlays, mainMap ?? FALLBACK_MAP);
   const teamName = teams.find((entry) => entry.id === teamId)?.name ?? plays.find((play) => play.team_id === teamId)?.team_name;
   const names = new Map(roster.map((entry) => [entry.steamid64, entry.nick]));
 

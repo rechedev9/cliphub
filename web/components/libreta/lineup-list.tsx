@@ -15,6 +15,7 @@ import { lineupSpot, practiceBlockReason, techniqueLabel } from '@/lib/libreta/l
 import { STATUS_LABEL, visibleByStatus } from '@/lib/libreta/status';
 import { FILTER_ANY, SEARCH_FILTER, filterRows } from '@/lib/records/table-view';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
@@ -54,7 +55,7 @@ function lineupColumns(calloutLabel: CalloutLabel): DataTableColumn<LibraryLineu
     {
       id: 'tags',
       header: 'Etiquetas',
-      cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <span className="text-fg-3">Ninguna</span>),
+      cell: (lineup) => (lineup.tags.length > 0 ? lineup.tags.join(', ') : <EmptyCell label="Sin etiquetas" />),
       sortValue: (lineup) => lineup.tags.join(','),
     },
     {
