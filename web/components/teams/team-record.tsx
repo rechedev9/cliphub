@@ -201,7 +201,9 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   let counts: ScopeCounts | null | undefined = { maps: scoped.length, rounds: scoped.reduce((sum, match) => sum + match.round_count, 0) };
   if (REPORTING_TABS.has(tab)) counts = reported;
   else if (tab === 'veto') counts = undefined;
+  // Until a map (and for Playbook a side) is picked there is nothing counted yet: no 0 mapas · 0 rondas.
   if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
+  if (tab === 'granadas' && scope.map === '') counts = undefined;
   const results = lastResults(
     scoped.map((match) => ({ playedAt: match.played_at, outcome: teamOutcome(match, team.id) })),
     10,
