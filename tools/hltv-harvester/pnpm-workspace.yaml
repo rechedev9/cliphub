@@ -1,0 +1,5 @@
+allowBuilds:
+  electron: true
+overrides:
+  "@electron/get>undici": 7.30.1
+  http-cache-semantics: 4.3.0

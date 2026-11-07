@@ -54,11 +54,15 @@ type indexer struct {
 	http     *http.Client
 	workDir  string
 	inboxDir string
+	// hltvDir holds analyses prepared on an operator PC; archiveDir keeps them once indexed.
+	hltvDir    string
+	archiveDir string
 }
 
 type indexOptions struct {
 	datasets []datasetSpec
 	inboxDir string
+	hltvDir  string
 	maxDemos int
 }
 
@@ -97,13 +101,25 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", inboxDataset, len(files), len(pending))
 		todo = append(todo, pending...)
 	}
+	if opts.hltvDir != "" {
+		files, err := listAnalyses(opts.hltvDir)
+		if err != nil {
+			return fmt.Errorf("list hltv analyses: %w", err)
+		}
+		pending, err := ix.store.pendingDemos(ctx, hltvDataset, files)
+		if err != nil {
+			return err
+		}
+		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", hltvDataset, len(files), len(pending))
+		todo = append(todo, pending...)
+	}
 	done, failed := 0, 0
 	for _, demo := range todo {
 		if done+failed >= opts.maxDemos || ctx.Err() != nil {
 			break
 		}
 		start := time.Now()
-		summary, err := ix.indexDemo(ctx, demo)
+		summary, err := ix.indexDemo(ctx, &demo)
 		if err != nil {
 			failed++
 			log.Printf("community stage=index class=failed path=%s error=%v", demo.path, err)
@@ -194,9 +210,16 @@ func (ix *indexer) get(ctx context.Context, rawURL string) (*http.Response, erro
 }
 
 // indexDemo downloads one demo, checks its SHA-256 against the dataset, scans it and deletes it.
-func (ix *indexer) indexDemo(ctx context.Context, demo pendingDemo) (tacticalplan.ProDemoSummary, error) {
-	if demo.dataset == inboxDataset {
-		return ix.indexInboxDemo(ctx, demo)
+func (ix *indexer) indexDemo(ctx context.Context, demo *pendingDemo) (tacticalplan.ProDemoSummary, error) {
+	switch demo.dataset {
+	case inboxDataset:
+		return ix.indexInboxDemo(ctx, *demo)
+	case hltvDataset:
+		summary, event, err := ix.indexAnalysis(*demo)
+		if err == nil {
+			demo.event = event
+		}
+		return summary, err
 	}
 	escaped := []string{}
 	for _, part := range strings.Split(demo.path, "/") {
@@ -242,10 +265,7 @@ func scanProDemo(ctx context.Context, name string) (tacticalplan.ProDemoSummary,
 		return tacticalplan.ProDemoSummary{}, fmt.Errorf("scan: %w", err)
 	}
 	summary := tacticalplan.SummarizeProDemo(res.Document)
-	if summary.Match.Map == "" || summary.Match.Rounds == 0 || len(summary.Players) < 10 {
-		return tacticalplan.ProDemoSummary{}, fmt.Errorf("%w: map %q, %d rounds, %d players", errNotAMatch, summary.Match.Map, summary.Match.Rounds, len(summary.Players))
-	}
-	return summary, nil
+	return summary, checkMatch(summary)
 }
 
 type pendingDemo struct {

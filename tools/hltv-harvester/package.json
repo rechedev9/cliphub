@@ -1,0 +1,21 @@
+{
+  "name": "cliphub-hltv-harvester",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.22.0",
+  "description": "Operator tool: downloads recent HLTV demo archives for the ClipHub pro lineups index",
+  "main": "dist/main.js",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "node --no-warnings --test --test-reporter=dot \"src/**/*.test.ts\"",
+    "start": "pnpm run build && electron ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^43.8.3",
+    "typescript": "^5.7.0"
+  }
+}

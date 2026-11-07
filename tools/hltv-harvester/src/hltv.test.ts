@@ -1,0 +1,46 @@
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseState, rankedTeamIn } from "./hltv.ts";
+
+test("parseRanking keeps teams with an id, rank and name", () => {
+  const got = parseRanking([
+    { pos: "#1", name: "FURIA", href: "/team/8297/furia" },
+    { pos: "#2", name: "", href: "/team/9565/vitality" },
+    { pos: "x", name: "Spirit", href: "/team/7020/spirit" },
+    "junk",
+  ]);
+  assert.deepEqual(got, [{ id: 8297, name: "FURIA", rank: 1 }]);
+});
+
+test("parseResults drops rows without a match path or time", () => {
+  const got = parseResults([
+    { href: "/matches/2400009/mouz-vs-betboom", team1: "MOUZ", team2: "BetBoom", event: "IEM", unix: "1794044700000" },
+    { href: "/news/1/x", team1: "a", team2: "b", event: "", unix: "1" },
+    { href: "/matches/2/x", team1: "a", team2: "b", event: "", unix: "" },
+  ]);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].matchId, 2400009);
+});
+
+test("candidate rows and ranked teams match by normalized name and by id", () => {
+  const row = { matchId: 1, path: "/matches/1/x", team1: "Natus Vincere", team2: "B8", event: "", unixMs: 1 };
+  assert.equal(isCandidate(row, new Set(["natusvincere"])), true);
+  assert.equal(isCandidate(row, new Set(["vitality"])), false);
+  const match = parseMatch({ teams: [{ href: "/team/4608/natus-vincere", name: "Natus Vincere" }], event: "", unix: "5", demos: ["/download/demo/1", "/download/demo/1", "javascript:x"], maps: ["Mirage", "TBA"] });
+  assert.ok(match);
+  assert.deepEqual(match.demoPaths, ["/download/demo/1"]);
+  assert.deepEqual(match.maps, ["Mirage"]);
+  assert.equal(rankedTeamIn(match, [{ id: 4608, name: "NAVI", rank: 6 }])?.rank, 6);
+  assert.equal(rankedTeamIn(match, [{ id: 1, name: "Natus Vincere", rank: 6 }]), null);
+});
+
+test("only matches never seen or still without a demo are visited again", () => {
+  const state = parseState({ matches: { "1": { status: "downloaded", at: "" }, "2": { status: "no_demo", at: "" }, "3": { status: "bogus" } } });
+  assert.equal(needsVisit(state, 1), false);
+  assert.equal(needsVisit(state, 2), true);
+  assert.equal(needsVisit(state, 3), true);
+});
+
+test("parseArgs ignores invalid numbers", () => {
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000 });
+});

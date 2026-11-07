@@ -4,6 +4,7 @@
 //
 //	cliphub-community serve             answer the public API on a loopback port
 //	cliphub-community index [-max N]    index new pro demos and rebuild the reference
+//	cliphub-community prepare-hltv      scan harvested HLTV archives into analyses (operator PC)
 package main
 
 import (
@@ -35,7 +36,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: cliphub-community serve | index [-max N]")
+		return errors.New("usage: cliphub-community serve | index [-max N] | prepare-hltv -downloads DIR -out DIR")
 	}
 	database := os.Getenv("CLIPHUB_COMMUNITY_DATABASE")
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -64,9 +65,22 @@ func run(args []string) error {
 		}
 		defer s.Close()
 		inbox := os.Getenv("CLIPHUB_COMMUNITY_INBOX")
-		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox}
+		hltv := os.Getenv("CLIPHUB_COMMUNITY_HLTV_DIR")
+		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox,
+			hltvDir: hltv, archiveDir: os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR")}
 		datasets := parseDatasetSpecs(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets))
-		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, maxDemos: *maxDemos})
+		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, hltvDir: hltv, maxDemos: *maxDemos})
+	case "prepare-hltv":
+		fs := flag.NewFlagSet("prepare-hltv", flag.ContinueOnError)
+		downloads := fs.String("downloads", "", "folder of harvested <match id>.rar archives and their .json sidecars")
+		out := fs.String("out", "", "folder for the prepared analyses")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *downloads == "" || *out == "" {
+			return errors.New("prepare-hltv needs -downloads and -out")
+		}
+		return prepareHLTV(ctx, *downloads, *out, envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()))
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }
