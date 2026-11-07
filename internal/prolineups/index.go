@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,14 +24,14 @@ const (
 	// A cluster is a lineup when it holds this share of the throws of its kind
 	// from around its spot, or is thrown alwaysLineup times: a spot where players
 	// throw anything anyhow only yields chance repeats.
-	minSpotShare = 0.2
-	alwaysLineup = 10
-	recentDays       = 90
-	trendDays        = 30
-	instaSeconds     = 6.0
-	roundSeconds     = 115.0
-	examplesPerItem  = 8
-	topEntries       = 5
+	minSpotShare    = 0.2
+	alwaysLineup    = 10
+	recentDays      = 90
+	trendDays       = 30
+	instaSeconds    = 6.0
+	roundSeconds    = 115.0
+	examplesPerItem = 8
+	topEntries      = 5
 )
 
 // MapIndex is the published lineup library of one map.
@@ -77,8 +78,9 @@ type Lineup struct {
 	Matches    Counts                 `json:"matches"`
 	// RoundShare is the share of the side's recent rounds on the map with this throw.
 	RoundShare float64 `json:"round_share"`
-	// Trend is throws per 100 side rounds over the last 30 days and the 60 before.
-	Trend      [2]float64    `json:"trend"`
+	// Trend is throws per 100 side rounds over the last 30 days and the 60 before;
+	// nil while either window has no rounds.
+	Trend      *[2]float64   `json:"trend,omitempty"`
 	RoundWin   float64       `json:"round_win"`
 	Attempts   int           `json:"attempts"`
 	Landed     int           `json:"landed"`
@@ -137,10 +139,16 @@ func BuildIndex(mapName string, throws []Throw, now time.Time) MapIndex {
 	clusters := clusterThrows(throws)
 	grid := throwGrid(throws)
 	memberOf := map[int]string{}
+	ids := map[string]int{}
 	for _, c := range clusters {
 		l, ok := buildLineup(c, throws, grid, rounds, now)
 		if !ok {
 			continue
+		}
+		// Two lineups can share a grid cell; the later one gets a counter.
+		ids[l.ID]++
+		if n := ids[l.ID]; n > 1 {
+			l.ID += "-" + strconv.Itoa(n)
 		}
 		for _, i := range c.members {
 			memberOf[i] = l.ID
@@ -402,7 +410,7 @@ func teamRounds(rounds roundTally, side tacticalplan.Side) map[string]int {
 
 // trend is throws per 100 side rounds in the last 30 days and in the rest of
 // the recent window, so a rising or fading lineup shows.
-func trend(recent []Throw, rounds roundTally, side tacticalplan.Side, now time.Time) [2]float64 {
+func trend(recent []Throw, rounds roundTally, side tacticalplan.Side, now time.Time) *[2]float64 {
 	split := now.AddDate(0, 0, -trendDays)
 	var newThrows, oldThrows, newRounds, oldRounds int
 	for _, t := range recent {
@@ -422,13 +430,11 @@ func trend(recent []Throw, rounds roundTally, side tacticalplan.Side, now time.T
 			newRounds++
 		}
 	}
-	per100 := func(n, d int) float64 {
-		if d == 0 {
-			return 0
-		}
-		return math.Round(1000*float64(n)/float64(d)) / 10
+	if newRounds == 0 || oldRounds == 0 {
+		return nil
 	}
-	return [2]float64{per100(newThrows, newRounds), per100(oldThrows, oldRounds)}
+	per100 := func(n, d int) float64 { return math.Round(1000*float64(n)/float64(d)) / 10 }
+	return &[2]float64{per100(newThrows, newRounds), per100(oldThrows, oldRounds)}
 }
 
 func examples(members []Throw) []Example {

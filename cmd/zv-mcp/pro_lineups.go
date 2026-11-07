@@ -125,7 +125,7 @@ type proLineupOut struct {
 	Yaw        float64         `json:"yaw"`
 	Landing    [3]float64      `json:"landing"`
 	AirTime    float64         `json:"air_time" jsonschema:"seconds in the air"`
-	Trend      [2]float64      `json:"trend" jsonschema:"throws per 100 side rounds in the last 30 days, then in the 60 before"`
+	Trend      *[2]float64     `json:"trend,omitempty" jsonschema:"throws per 100 side rounds in the last 30 days, then in the 60 before; missing until both windows have rounds"`
 	Clock      []int           `json:"clock_buckets" jsonschema:"recent throws per 10 seconds of round time, the last after the clock"`
 	TeamCount  int             `json:"team_count"`
 	TeamUsage  []proUsageOut   `json:"team_usage"`

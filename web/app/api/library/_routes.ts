@@ -87,7 +87,7 @@ const TEAM_KEY = /^(ct-start|t-start)$/;
 const ROUND = /^[1-9][0-9]{0,2}$/;
 const MAP = /^[a-z0-9_]{1,64}$/;
 /** A pro lineup id: kind, side, then the rounded throw and landing cells and the jump flag. */
-const PRO_LINEUP_ID = /^(smoke|flash|he|molotov)-(t|ct)(-(-?[0-9]{1,4})){4}-[01]$/;
+const PRO_LINEUP_ID = /^(smoke|flash|he|molotov)-(t|ct)(-(-?[0-9]{1,4})){4}-[01](-[0-9]{1,3})?$/;
 /** A CS2 place name (`m_szLastPlaceName`) such as `BombsiteA` or `TopofMid`. */
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 

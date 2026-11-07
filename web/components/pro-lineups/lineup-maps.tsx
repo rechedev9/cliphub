@@ -79,7 +79,7 @@ export function LineupMaps(): ReactNode {
             >
               <span className="text-body font-semibold text-fg-1">{prettyMapName(entry.map)}</span>
               <span className="ml-auto text-body-sm text-fg-2 tabular-nums">
-                {entry.lineups} lineups · {entry.combos} combos · {entry.recent_maps} mapas pro
+                {entry.lineups} lineups · {entry.combos} {entry.combos === 1 ? 'combo' : 'combos'} · {entry.recent_maps} mapas pro
               </span>
               <ChevronRight aria-hidden className="size-4 text-fg-3" />
             </Link>

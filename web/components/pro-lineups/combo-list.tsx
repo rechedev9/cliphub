@@ -7,7 +7,6 @@ import {
   lineupHref,
   pct,
   practiceSpot,
-  PRO_KIND_LABEL,
   roundClock,
   type ProCombo,
   type ProLineup,
@@ -97,7 +96,6 @@ function ComboRow({
             <Link href={lineupHref(map, lineup)} className="text-fg-1 underline-offset-2 hover:underline">
               {lineup.title}
             </Link>
-            <span className="text-fg-3">{PRO_KIND_LABEL[lineup.kind]}</span>
           </li>
         ))}
       </ol>

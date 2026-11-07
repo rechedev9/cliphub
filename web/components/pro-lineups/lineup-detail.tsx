@@ -253,7 +253,6 @@ function trendWord(now: number, before: number): string {
 }
 
 function ProUsage({ lineup, data }: { lineup: ProLineup; data: ProLineupMap }): ReactNode {
-  const [now, before] = lineup.trend;
   return (
     <section aria-labelledby="uso-pro" className="flex flex-col gap-3">
       <h2 id="uso-pro" className="text-body font-semibold text-fg-1">
@@ -261,18 +260,21 @@ function ProUsage({ lineup, data }: { lineup: ProLineup; data: ProLineupMap }): 
       </h2>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Fact label={`Lanzamientos (${data.recent_days} días)`}>
-          {lineup.throws.recent} <span className="font-normal text-fg-2">de {lineup.throws.all}</span>
+          {lineup.throws.recent}
+          {lineup.throws.all === lineup.throws.recent ? null : <span className="font-normal text-fg-2"> de {lineup.throws.all}</span>}
         </Fact>
         <Fact label={`Rondas ${lineup.side} con este lineup`}>{pct(lineup.round_share)}</Fact>
         <Fact label="Rondas ganadas">{pct(lineup.round_win)}</Fact>
         <Fact label="Mapas">{lineup.matches.recent}</Fact>
         <Fact label="Equipos">{lineup.team_count}</Fact>
-        <Fact label="Por 100 rondas">
-          {now.toFixed(1)}{' '}
-          <span className="font-normal text-fg-2">
-            {trendWord(now, before)} desde {before.toFixed(1)}
-          </span>
-        </Fact>
+        {lineup.trend === undefined ? null : (
+          <Fact label="Por 100 rondas">
+            {lineup.trend[0].toFixed(1)}{' '}
+            <span className="font-normal text-fg-2">
+              {trendWord(lineup.trend[0], lineup.trend[1])} desde {lineup.trend[1].toFixed(1)}
+            </span>
+          </Fact>
+        )}
       </dl>
       <ClockBars buckets={lineup.clock.buckets} />
       <p className="text-meta text-fg-3">Visto por última vez el {formatShortDate(lineup.last_seen)}.</p>

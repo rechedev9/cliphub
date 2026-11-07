@@ -50,7 +50,7 @@ export type ProLineup = {
   matches: ProCounts;
   round_share: number;
   /** Throws per 100 side rounds: last 30 days, then the rest of the window. */
-  trend: [number, number];
+  trend?: [number, number];
   round_win: number;
   attempts: number;
   landed: number;

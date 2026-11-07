@@ -93,7 +93,7 @@ function Summary({ load }: { load: ReturnType<typeof useProLineupMap> }): ReactN
   const d = load.data;
   return (
     <>
-      {d.lineups.length} lineups y {d.combos.length} combos de {d.maps.recent} mapas pro de los últimos {d.recent_days} días. Actualizado{' '}
+      {d.lineups.length} lineups y {d.combos.length} {d.combos.length === 1 ? 'combo' : 'combos'} de {d.maps.recent} mapas pro de los últimos {d.recent_days} días. Actualizado{' '}
       {timeAgo(d.built_at)}
       {d.fresh ? '.' : '; sin conexión con el servidor, es la última copia guardada.'}
     </>

@@ -161,8 +161,10 @@ func recentSideRounds(throws []Throw, memberOf map[int]string, recentFrom time.T
 // combo window in the same round, by share of the lineup's rounds.
 func addPartners(ls []Lineup, throws []Throw, memberOf map[int]string, recentFrom time.Time) {
 	titles := map[string]string{}
+	target := map[string]string{}
 	for _, l := range ls {
 		titles[l.ID] = l.Title
+		target[l.ID] = string(l.Kind) + "|" + l.LandPlace
 	}
 	rounds := map[string]int{}
 	pairs := map[string]map[string]int{}
@@ -191,7 +193,16 @@ func addPartners(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 			out = append(out, Usage{Key: other, Name: titles[other], Count: n, Share: ratio(n, rounds[ls[i].ID])})
 		}
 		slices.SortFunc(out, func(a, b Usage) int { return cmp.Or(cmp.Compare(b.Count, a.Count), cmp.Compare(a.Key, b.Key)) })
-		ls[i].With = out[:min(len(out), topEntries)]
+		// Variants of one grenade to one place would crowd the list: keep the most paired.
+		taken := map[string]bool{}
+		kept := []Usage{}
+		for _, u := range out {
+			if !taken[target[u.Key]] && len(kept) < topEntries {
+				taken[target[u.Key]] = true
+				kept = append(kept, u)
+			}
+		}
+		ls[i].With = kept
 	}
 }
 
@@ -286,7 +297,16 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 	slices.SortFunc(out, func(a, b Combo) int {
 		return cmp.Or(cmp.Compare(b.Rounds.Recent, a.Rounds.Recent), cmp.Compare(a.ID, b.ID))
 	})
-	return out
+	// Variants of the same lineups read as one combo: keep the most run.
+	named := map[string]bool{}
+	return slices.DeleteFunc(out, func(c Combo) bool {
+		key := string(c.Side) + "|" + c.Title
+		if named[key] {
+			return true
+		}
+		named[key] = true
+		return false
+	})
 }
 
 // roundSets lists the distinct lineup sets of size 2 and 3 whose throws all
