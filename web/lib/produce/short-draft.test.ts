@@ -82,7 +82,7 @@ test('a player without kills opens a death reel of every death', () => {
     { id: 'death-001', matchId: 'm', kind: 'clean' as const, round: 2, kills: 0, label: 'Muerte · Ronda 2' },
     { id: 'death-002', matchId: 'm', kind: 'clean' as const, round: 5, kills: 0, label: 'Muerte · Ronda 5' },
   ];
-  const settings = defaultShortSettings([], deaths);
+  const settings = defaultShortSettings([], { deathPlays: deaths });
   assert.deepEqual(settings.selectedIds, ['death-001', 'death-002']);
   assert.equal(settings.editConfig.deathReel, true);
   assert.equal(settings.editConfig.killCounter, false);

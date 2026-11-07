@@ -15,6 +15,7 @@ import {
   matchRowStage,
   outputState,
   outputTagLabel,
+  outputLabel,
   outputType,
   recBusy,
   hubPollClearsLoadError,
@@ -49,13 +50,14 @@ function reel(overrides: Partial<Video> & Pick<Video, 'id' | 'status'>): Video {
   };
 }
 
-test('outputType: a landscape recap is a Full POV, everything else a Short', () => {
+test('outputType: every 16:9 video is a long video, everything else a Short', () => {
   assert.equal(outputType(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT })), 'full');
   assert.equal(outputType(reel({ id: 'b', status: 'ready' })), 'short');
-  assert.equal(
-    outputType(reel({ id: 'c', status: 'ready', editConfig: { ...FULL_DEMO_EDIT, matchRecap: false } })),
-    'short',
-  );
+  const summary = reel({ id: 'c', status: 'ready', editConfig: { ...FULL_DEMO_EDIT, matchRecap: false } });
+  assert.equal(outputType(summary), 'full');
+  assert.equal(outputLabel(summary), 'Resumen');
+  assert.equal(outputLabel(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT })), 'Demo completa');
+  assert.equal(fullChipLabel([toOutput(summary)]), 'Resumen · listo');
 });
 
 test('outputState maps the video pipeline onto the handoff vocabulary', () => {

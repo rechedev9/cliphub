@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { ORPHAN_MATCH_SEGMENT, RESULTS_HREF } from '@/lib/clips/routes';
-import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
+import { isHighlightsVideo, OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
 import { timeAgo } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
@@ -120,6 +120,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   let description = isShort
     ? `Highlights de ${where}.`
     : `Partida completa de ${where}, POV con HUD nativo y comms.`;
+  if (isHighlightsVideo(video)) description = `Mejores jugadas de ${where}, POV con HUD nativo y comms.`;
   if (video.editConfig?.fullDemo) {
     const voice = video.editConfig.fullDemo.document.voice.availability === 'available' && video.editConfig.voiceComms && (video.editConfig.voiceVolume ?? 0) > 0;
     description = `Rondas de ${where}, POV con HUD nativo${voice ? ' y voces del equipo' : ''}.`;

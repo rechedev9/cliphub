@@ -29,6 +29,7 @@ export const PLAY_ORIGIN_LABEL: Record<PlayOrigin, string> = {
   detected: 'Detectada como repetida',
   import: 'Importada de un fichero',
   manual: 'Escrita a mano',
+  playbook: 'Combinación del playbook',
 };
 
 export const GRENADE_LABEL: Record<PlayGrenadeKind, string> = {

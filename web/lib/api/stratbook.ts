@@ -15,7 +15,7 @@ import type { TacticalBuyType, TacticalEventKind, TacticalRate, TacticalSide, Ta
 export const PLAY_GRENADES = ['smoke', 'flash', 'molotov', 'he'] as const;
 export type PlayGrenadeKind = (typeof PLAY_GRENADES)[number];
 
-export type PlayOrigin = 'round' | 'detected' | 'import' | 'manual';
+export type PlayOrigin = 'round' | 'detected' | 'import' | 'manual' | 'playbook';
 
 /** One grenade of a play: when it landed after freeze end and where (world units). */
 export type PlayGrenade = {

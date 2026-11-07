@@ -43,6 +43,10 @@ sponsor and outro clips from local files. publish_copy gives upload copy, altern
 A series (best of 3 or 5): import and wait for every demo, then create_series_jobs with the demo
 ids in play order and the player's SteamID64, wait_for_job on each job, then list_series_moments
 for the plays of all maps in play order. generate_short still records one map per call.
+A match summary with the best plays of several teammates (multi-POV): get_match, then
+create_multi_pov_job with 2 to 5 SteamID64s of one team, wait_for_job until "parsed", list_moments
+(each play names its player; player filters one), then generate_short with plays whose times do not
+overlap. Format landscape-16x9 with preset gameplay-pov-60 gives the horizontal best-moments video.
 generate_short and render_full_demo return a variant: pass it to wait_for_job to follow the render.
 list_all_videos lists the videos of every recent job and stream (Mis vídeos); retry_video renders a failed Short
 again from its last finished version and change_video_music changes a Short's music, both without a new capture.
@@ -54,13 +58,15 @@ Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64,
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
-these and scout_team take opponent_id and match_id to narrow the matches.
+these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
+tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
+kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
-update_report, delete_report. Libreta (the team's playbook; its Jugadas tab was the Stratbook): list_plays
+update_report, delete_report. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
 (archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
 update_play (also status, tags and roles), delete_play, export_plays and import_plays (.json files on this PC).

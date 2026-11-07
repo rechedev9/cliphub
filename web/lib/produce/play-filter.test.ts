@@ -30,10 +30,18 @@ test('kinds and sides keep the plays that have them, and combine', () => {
   assert.deepEqual(ids(filterPlays(plays, { ...NO_PLAY_FILTER, kind: 'clutch' })), ['mixed-t']);
   assert.deepEqual(ids(filterPlays(plays, { ...NO_PLAY_FILTER, kind: 'ace' })), ['ace-t']);
   assert.deepEqual(ids(filterPlays(plays, { ...NO_PLAY_FILTER, side: 'T' })), ['mixed-t', 'ace-t']);
-  assert.deepEqual(ids(filterPlays(plays, { weapon: 'awp', kind: null, side: 'T' })), []);
+  assert.deepEqual(ids(filterPlays(plays, { ...NO_PLAY_FILTER, weapon: 'awp', side: 'T' })), []);
 });
 
 test('playFilterOptions offers only what some play has', () => {
-  assert.deepEqual(playFilterOptions(plays), { weapons: ['ak47', 'awp'], kinds: ['clutch', 'ace'], sides: ['CT', 'T'] });
-  assert.deepEqual(playFilterOptions([plays[3]]), { weapons: [], kinds: [], sides: [] });
+  assert.deepEqual(playFilterOptions(plays), { weapons: ['ak47', 'awp'], kinds: ['clutch', 'ace'], sides: ['CT', 'T'], players: [] });
+  assert.deepEqual(playFilterOptions([plays[3]]), { weapons: [], kinds: [], sides: [], players: [] });
+});
+
+test('a multi-POV match filters by player and offers each player once', () => {
+  const ropz = { steamId: '76561198000000001', name: 'ropz' };
+  const b1t = { steamId: '76561198000000002', name: 'b1t' };
+  const mixed = [play('r1', { player: ropz }), play('b1', { player: b1t }), play('r2', { player: ropz })];
+  assert.deepEqual(ids(filterPlays(mixed, { ...NO_PLAY_FILTER, player: ropz.steamId })), ['r1', 'r2']);
+  assert.deepEqual(playFilterOptions(mixed).players, [ropz, b1t]);
 });

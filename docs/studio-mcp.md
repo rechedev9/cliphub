@@ -182,7 +182,7 @@ Read:
 | --- | --- |
 | `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state; Studio version (session file), support code (`telemetry.json`) and `studio.log` path for a bug report (`CONTRIBUTING.md`) |
 | `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs, side keys and their library team) |
-| `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total`; `weapon`, `kinds` (clutch, ace, multi_kill) and `side` (CT, T) filter the list |
+| `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total`; `weapon`, `kinds` (clutch, ace, multi_kill) and `side` (CT, T) filter the list; in a multi-POV job each play carries `player` and `steamid`, and `player` filters by SteamID64 or name |
 | `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first; same filters as `list_moments` |
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
 | `list_presets` | `GET /api/presets` |
@@ -215,7 +215,7 @@ Read:
 | `get_baseline` | `GET /api/library/baseline` (`scope` library or pro, `map`, `min_rounds`) |
 | `find_rounds` | `GET /api/library/matches?team_id=` or `?steamid=`, then `GET /api/library/matches/{id}/tactical` per match (up to 20); round refs `match_id/round` filtered by side, buy and result |
 | `team_bombsites` | `GET /api/library/teams/{id}/bombsites` (`map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per map and site, the CT hold and retake rates and the T attack, plant and post-plant rates |
-| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`); category, site and zone shares with win rates, the tempo median, and up to 5 round refs per row |
+| `team_playbook` | `GET /api/library/teams/{id}/playbook` (`map` and `side` required, `from`, `to`, `opponent_id`, `match_id`, `with`, `without`); category, site, zone and tactic shares with win rates over the rounds the combination keeps, the tempo median, and up to 5 round refs per row. Tactic keys read `kind:value`: `category`, `site`, `buy`, `opponent_buy`, `opening` (callout), `opening_result` (`won`, `lost`), `awp` (callout at 12 s), `zone`, `utility` (`smoke@Callout`, `molotov@Callout`) |
 | `team_prep` | `GET /api/library/teams/{id}/prep` (`map` required, both sides, `from`, `to`, `opponent_id`, `match_id`); buy matchups, tempo per buy, and each CT player's callouts per time window, with up to 5 round refs per row |
 | `team_grenades` | `GET /api/library/teams/{id}/grenades` (repeatable `kind`, `map`, `side`, `from`, `to`, `opponent_id`, `match_id`); per kind the count, sides, median second and top throwers, then compact rows with the round ref and rounded world positions, 30 by default and at most 100 |
 | `player_positions` | `GET /api/library/players/{steamid}/positions` (`map`, `from`, `to`); per map and side the zones, callouts, CT role and AWP use |
@@ -245,8 +245,9 @@ Write:
 | `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set | no |
 | `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
+| `create_multi_pov_job` | `POST /api/library/demos/{id}/jobs` with `target_steamids` (2 to 5 teammates of one team, checked against the analysed match); the first is the anchor for recap, deaths and team comms. The job never reuses a single-player job and Full Demo refuses it | no |
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player | no |
-| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map. `music` goes as `{key, volume, game_volume}` when `music_volume` or `game_volume` is set (percents in the tool, gains on the wire, full music volume left unset like the UI); `intro_text`/`outro_text` and the affiliate banner (`keydrop_family`, `keydrop_style`, `keydrop_code`, a 0 to 4 s window by default) go in `edit` | yes |
+| `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map. A multi-POV job mixes players in one capture: the server refuses plays of two players less than half a second apart, a death reel and an empty pick. `music` goes as `{key, volume, game_volume}` when `music_volume` or `game_volume` is set (percents in the tool, gains on the wire, full music volume left unset like the UI); `intro_text`/`outro_text` and the affiliate banner (`keydrop_family`, `keydrop_style`, `keydrop_code`, a 0 to 4 s window by default) go in `edit` | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
 | `wait_for_job` | polls a job; takes the render `variant`; shows the progress view | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed`; shows the progress view | no |
@@ -275,6 +276,7 @@ Write:
 | `save_round_as_play` | `GET /api/library/matches/{id}/tactical/rounds/{round}/play?team_key=` (the draft), then `POST /api/library/plays` with the title and notes | no |
 | `save_detected_play` | `GET /api/library/teams/{id}/plays` again with the same filter, the group whose seed matches `play_ref`, then `POST /api/library/plays` (origin `detected`, positions second from the thresholds) | no |
 | `create_play` | `POST /api/library/plays` with origin `manual` (title, map, side, kind, site, team, notes, status, tags), as Nueva jugada does | no |
+| `save_playbook_combo` | `GET /api/library/teams/{id}/playbook` with the same filter, `with` and `without`, then `POST /api/library/plays` (origin `playbook`, the kept rounds' most common pattern and site, the combination in the notes, up to 50 kept rounds as examples) | no |
 | `update_play` | `PATCH /api/library/plays/{id}` (`title`, `kind`, `site`, `notes`, `team_id` or null, `status`, `tags` as the whole set, `roles` as the whole list) | no |
 | `set_team_roles` | `PUT /api/library/teams/{id}/roles` (`map`, `t`, `ct`): replaces the map's sheet; a merge moves it with the team | no |
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |

@@ -144,3 +144,16 @@ test('autoPickBestPlays counts the replays against the target', () => {
   assert.equal(autoPickBestPlays(plays).size, 3);
   assert.deepEqual([...autoPickBestPlays(plays, { victimReplay: true })], ['a', 'b']);
 });
+
+test('autoPickBestPlays never picks two players at the same moment and fills a longer target', () => {
+  const ropz = { steamId: '1', name: 'ropz' };
+  const b1t = { steamId: '2', name: 'b1t' };
+  const plays: Play[] = [
+    { ...play('ace', 1, 5), player: ropz, startSeconds: 10, endSeconds: 30 },
+    { ...play('same-time', 1, 4), player: b1t, startSeconds: 20, endSeconds: 35 },
+    { ...play('later', 2, 3), player: b1t, startSeconds: 100, endSeconds: 115 },
+  ];
+  assert.deepEqual([...autoPickBestPlays(plays)].sort(), ['ace', 'later']);
+  const many = Array.from({ length: 12 }, (_, i) => play(`p${i}`, i + 1, 3));
+  assert.ok(estimatedSelectionSeconds(many.filter((p) => autoPickBestPlays(many, { targetSeconds: 180 }).has(p.id))) > SHORT_TARGET_SECONDS);
+});

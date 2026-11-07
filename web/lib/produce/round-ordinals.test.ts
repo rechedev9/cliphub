@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { roundOrdinals, roundTitle } from './round-ordinals.ts';
+import { playTitle, roundOrdinals, roundTitle } from './round-ordinals.ts';
 
 test('roundOrdinals numbers only rounds with several plays, in list order', () => {
   const plays = [
@@ -21,4 +21,18 @@ test('roundOrdinals numbers only rounds with several plays, in list order', () =
 test('roundTitle appends the ordinal only when there is one', () => {
   assert.equal(roundTitle(16, { index: 2, total: 3 }), 'Ronda 16 · 2/3');
   assert.equal(roundTitle(4, undefined), 'Ronda 4');
+});
+
+test('a multi-POV round counts each player apart and names them in the title', () => {
+  const ropz = { steamId: '1', name: 'ropz' };
+  const b1t = { steamId: '2', name: 'b1t' };
+  const ordinals = roundOrdinals([
+    { id: 'r1', round: 7, player: ropz },
+    { id: 'b1', round: 7, player: b1t },
+    { id: 'r2', round: 7, player: ropz },
+  ]);
+  assert.deepEqual(ordinals.get('r2'), { index: 2, total: 2 });
+  assert.equal(ordinals.has('b1'), false);
+  assert.equal(playTitle({ round: 7, player: ropz }, ordinals.get('r2')), 'ropz · Ronda 7 · 2/2');
+  assert.equal(playTitle({ round: 7 }, undefined), 'Ronda 7');
 });

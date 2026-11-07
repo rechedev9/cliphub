@@ -31,6 +31,7 @@ const (
 	PlayOriginDetected = "detected" // saved from a repeated play the detection found
 	PlayOriginImport   = "import"   // read from a stratbook file
 	PlayOriginManual   = "manual"   // written by hand in the Libreta
+	PlayOriginPlaybook = "playbook" // saved from a tactic combination of the team playbook
 )
 
 var playMapPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
@@ -184,7 +185,7 @@ func CleanPlay(p Play) (Play, error) {
 	case !validPlaySite(p.Site):
 		return p, errors.New("site must be A, B, mid or none")
 	case !validPlayOrigin(p.Origin):
-		return p, errors.New("origin must be round, detected, import or manual")
+		return p, errors.New("origin must be round, detected, import, manual or playbook")
 	case !ValidStatus(p.Status):
 		return p, errors.New("status must be active, practice, draft, review or archived")
 	case math.IsNaN(p.PositionsSeconds) || p.PositionsSeconds < 0 || p.PositionsSeconds > 300:
@@ -228,7 +229,7 @@ func CleanPlay(p Play) (Play, error) {
 
 func validPlayOrigin(origin string) bool {
 	switch origin {
-	case PlayOriginRound, PlayOriginDetected, PlayOriginImport, PlayOriginManual:
+	case PlayOriginRound, PlayOriginDetected, PlayOriginImport, PlayOriginManual, PlayOriginPlaybook:
 		return true
 	default:
 		return false

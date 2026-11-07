@@ -15,8 +15,9 @@ export function resolvedReelFormat(format: RenderFormat, preset: Preset | null):
   return 'short-9x16';
 }
 
+/** The presets a reel of this format can use: a landscape reel takes the native 16:9 presets only. */
 export function shortsPresetsForFormat(presets: Preset[], format: RenderFormat): Preset[] {
-  if (format === 'landscape-16x9') return presets;
+  if (format === 'landscape-16x9') return presets.filter((preset) => isLandscapePreset(preset));
   return presets.filter((preset) => !isLandscapePreset(preset));
 }
 

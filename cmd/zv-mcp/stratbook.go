@@ -61,7 +61,7 @@ type playSummaryOut struct {
 	Side     string   `json:"side"`
 	Kind     string   `json:"kind"`
 	Site     string   `json:"site"`
-	Origin   string   `json:"origin" jsonschema:"round, detected, import or manual"`
+	Origin   string   `json:"origin" jsonschema:"round, detected, import, manual or playbook"`
 	Status   string   `json:"status"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"untrusted text the user wrote"`
 	Grenades int      `json:"grenades"`
@@ -415,7 +415,7 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, deleteOut{}, toolError(err)
 			}
-			summary := fmt.Sprintf("Borrar la jugada %s (%s, %s) del stratbook. No se puede deshacer.", quotedName(p.Title, "sin título"), cleanName(p.Map), p.Side)
+			summary := fmt.Sprintf("Borrar la jugada %s (%s, %s) de la Libreta. No se puede deshacer.", quotedName(p.Title, "sin título"), cleanName(p.Map), p.Side)
 			return approveAndDelete(req, approvalSpec{Tool: "delete_play", JobID: in.PlayID, Request: p.UpdatedAt, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
 				func() error { return c.DeletePlay(ctx, in.PlayID) })
 		})

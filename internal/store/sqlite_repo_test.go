@@ -266,7 +266,7 @@ func TestSQLiteRepoSetParseInputs(t *testing.T) {
 	if err := repo.Create(ctx, scanned); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := repo.SetParseInputs(ctx, scanned.ID, "76561199237188983", rules.Rules{}); err != nil {
+	if err := repo.SetParseInputs(ctx, scanned.ID, job.ParseInputs{TargetSteamID: "76561199237188983", Rules: rules.Rules{}}); err != nil {
 		t.Fatalf("SetParseInputs: %v", err)
 	}
 	got, err := repo.Get(ctx, scanned.ID)
@@ -282,11 +282,11 @@ func TestSQLiteRepoSetParseInputs(t *testing.T) {
 	if err := repo.Create(ctx, queued); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := repo.SetParseInputs(ctx, queued.ID, "1", rules.Rules{}); !errors.Is(err, job.ErrConflict) {
+	if err := repo.SetParseInputs(ctx, queued.ID, job.ParseInputs{TargetSteamID: "1", Rules: rules.Rules{}}); !errors.Is(err, job.ErrConflict) {
 		t.Fatalf("SetParseInputs wrong state: got %v, want ErrConflict", err)
 	}
 
-	if err := repo.SetParseInputs(ctx, uuid.New(), "1", rules.Rules{}); !errors.Is(err, job.ErrNotFound) {
+	if err := repo.SetParseInputs(ctx, uuid.New(), job.ParseInputs{TargetSteamID: "1", Rules: rules.Rules{}}); !errors.Is(err, job.ErrNotFound) {
 		t.Fatalf("SetParseInputs unknown: got %v, want ErrNotFound", err)
 	}
 }
@@ -368,7 +368,7 @@ func TestSQLiteRepoStoresKillPlanOutsideJobDocument(t *testing.T) {
 				if err := repo.UpdateStatus(ctx, j.ID, job.StatusParsed, ""); err != nil {
 					t.Fatalf("UpdateStatus parsed: %v", err)
 				}
-				if err := repo.SetParseInputs(ctx, j.ID, "76561198000000000", rules.Default()); err != nil {
+				if err := repo.SetParseInputs(ctx, j.ID, job.ParseInputs{TargetSteamID: "76561198000000000", Rules: rules.Default()}); err != nil {
 					t.Fatalf("SetParseInputs: %v", err)
 				}
 			},
@@ -726,7 +726,7 @@ func TestSQLiteRepoReadersDoNotBlockOnWriters(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// A read-modify-write transaction per job, racing the readers.
-			if err := repo.SetParseInputs(ctx, id, "76561198000000001", rules.Default()); err != nil {
+			if err := repo.SetParseInputs(ctx, id, job.ParseInputs{TargetSteamID: "76561198000000001", Rules: rules.Default()}); err != nil {
 				errs <- fmt.Errorf("SetParseInputs %s: %w", id, err)
 			}
 			if err := repo.UpdateStatus(ctx, id, job.StatusParsed, ""); err != nil {

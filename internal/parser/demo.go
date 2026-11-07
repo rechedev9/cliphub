@@ -127,6 +127,21 @@ func RunDualWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m Pla
 
 // RunKillsAndRecapWithContext parses once and returns kill bursts plus recap rounds.
 func RunKillsAndRecapWithContext(ctx context.Context, p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (DualPlan, error) {
+	return runCancellable(ctx, p, func() (DualPlan, error) {
+		return RunDualWithOptions(p, target, r, m, RunOptions{SegmentMode: SegmentModeKills, AlsoRecap: true})
+	})
+}
+
+// RunKillsWithContext parses once and returns only the target's kill bursts:
+// the extra players of a multi-POV job need no recap or deaths.
+func RunKillsWithContext(ctx context.Context, p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
+	dual, err := runCancellable(ctx, p, func() (DualPlan, error) {
+		return RunDualWithOptions(p, target, r, m, RunOptions{SegmentMode: SegmentModeKills})
+	})
+	return dual.Kills, err
+}
+
+func runCancellable(ctx context.Context, p demoinfocs.Parser, run func() (DualPlan, error)) (DualPlan, error) {
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -141,7 +156,7 @@ func RunKillsAndRecapWithContext(ctx context.Context, p demoinfocs.Parser, targe
 		wg.Wait()
 	}()
 
-	dual, err := RunDualWithOptions(p, target, r, m, RunOptions{SegmentMode: SegmentModeKills, AlsoRecap: true})
+	dual, err := run()
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return DualPlan{}, fmt.Errorf("parse demo: %w", ctxErr)
 	}

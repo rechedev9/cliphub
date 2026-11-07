@@ -29,10 +29,12 @@ type Document struct {
 }
 
 type Moment struct {
-	ID              string         `json:"id"`
-	Source          string         `json:"source"`
-	SegmentID       string         `json:"segment_id"`
-	Player          string         `json:"player,omitempty"`
+	ID        string `json:"id"`
+	Source    string `json:"source"`
+	SegmentID string `json:"segment_id"`
+	Player    string `json:"player,omitempty"`
+	// SteamID64 is the moment's player, set only in multi-POV plans.
+	SteamID64       string         `json:"steamid64,omitempty"`
 	Map             string         `json:"map,omitempty"`
 	Round           int            `json:"round"`
 	Side            string         `json:"side,omitempty"`
@@ -136,7 +138,8 @@ func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment
 		ID:              fmt.Sprintf("mom-%03d", index),
 		Source:          "killplan",
 		SegmentID:       segment.ID,
-		Player:          plan.Target.NameInDemo,
+		Player:          plan.SegmentPOV(segment).NameInDemo,
+		SteamID64:       multiPOVSteamID(plan, segment),
 		Map:             plan.Demo.Map,
 		Round:           segment.Round,
 		Side:            segmentSide(segment),
@@ -347,4 +350,11 @@ func score(events Events, duration float64) float64 {
 		value = 1
 	}
 	return math.Round(value*100) / 100
+}
+
+func multiPOVSteamID(plan killplan.Plan, segment killplan.Segment) string {
+	if !plan.IsMultiPOV() {
+		return ""
+	}
+	return plan.SegmentPOV(segment).SteamID64
 }

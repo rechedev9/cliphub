@@ -304,7 +304,7 @@ export function PlayList({
             {
               id: 'origin',
               label: 'Origen',
-              options: (['round', 'detected', 'import', 'manual'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
+              options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
             },
           ]}
           count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}

@@ -356,7 +356,7 @@ export class MockApiClient implements ApiClient {
     return list.map((s) => ({ jobId: s.jobId, fileName: s.fileName, status: 'scanned', match: { ...s.match } }));
   }
 
-  async parseDemo(input: { jobId: string; steamId: string }): Promise<Match> {
+  async parseDemo(input: { jobId: string; steamId: string; teammates?: readonly string[] }): Promise<Match> {
     await delay();
     const pending = pendingScans.get(input.jobId);
     if (!pending) throw new Error(`no scan to parse: ${input.jobId}`);
@@ -377,7 +377,16 @@ export class MockApiClient implements ApiClient {
         kd: player.deaths ? Number((player.kills / player.deaths).toFixed(2)) : player.kills,
       },
     };
-    const pickedPlays = plays.map((p) => ({ ...p, matchId: input.jobId }));
+    // A multi-POV pick deals the synthesized plays out to its players in turn.
+    const povPlayers = [input.steamId, ...(input.teammates ?? [])].flatMap((id) => {
+      const row = pending.players.find((p) => p.steamId === id);
+      return row ? [{ steamId: row.steamId, name: row.name }] : [];
+    });
+    if (povPlayers.length > 1) {
+      picked.povPlayers = povPlayers;
+      picked.player = povPlayers.map((p) => p.name).join(', ');
+    }
+    const pickedPlays = plays.map((p, i) => ({ ...p, matchId: input.jobId, ...(povPlayers.length > 1 ? { player: povPlayers[i % povPlayers.length] } : {}) }));
 
     uploadedMatches.unshift(picked);
     uploadedPlays.set(picked.id, pickedPlays);

@@ -133,7 +133,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
           setRecapFailure(classifyFullDemoLoadFailure(recapResult.reason));
         }
         setLoaded(true);
-        return recapPending && format === PRODUCE_FORMAT.full ? 'fast' : 'idle';
+        return recapPending && format === PRODUCE_FORMAT.full && (nextMatch.povPlayers?.length ?? 0) < 2 ? 'fast' : 'idle';
       },
       fastMs: FAST_POLL_MS,
       idleMs: IDLE_POLL_MS,
@@ -165,6 +165,8 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
   }
 
   const stage = matchRowStage(match.status);
+  // Several players make a 16:9 best-moments video, not a full match from one POV.
+  const multiPov = (match.povPlayers?.length ?? 0) > 1;
   let body: ReactNode;
   if (stage === HUB_ROW_STAGE.unpicked) {
     body = (
@@ -222,7 +224,7 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         }
       />
     );
-  } else if (format === PRODUCE_FORMAT.full) {
+  } else if (format === PRODUCE_FORMAT.full && !multiPov) {
     body = (
       <FullPovProducer active matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
         recBusy={recBusy} seriesId={seriesId} selectedRounds={focusRounds} />
@@ -238,7 +240,8 @@ export function ProducePage({ id, format, query }: { id: string; format: Produce
         {/* Mounted through an empty poll so a blip never drops the user's selection. */}
         {shortPlanJobId === id ? (
           <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds} />
+            <ShortProducer key={id} matchId={id} match={match} plays={plays} deathPlays={deathPlays} seriesId={seriesId} focusRounds={focusRounds}
+              format={format === PRODUCE_FORMAT.full ? 'landscape-16x9' : 'short-9x16'} />
           </div>
         ) : null}
       </>

@@ -14,7 +14,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
-	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
@@ -234,7 +233,7 @@ func (r *MemoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	return nil
 }
 
-func (r *MemoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
+func (r *MemoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, in job.ParseInputs) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -247,8 +246,9 @@ func (r *MemoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, 
 	if j.Status != job.StatusScanned && j.Status != job.StatusParsed {
 		return job.ErrConflict
 	}
-	j.TargetSteamID = steamID
-	j.Rules = rl
+	j.TargetSteamID = in.TargetSteamID
+	j.MultiPOV = in.MultiPOV
+	j.Rules = in.Rules
 	j.Status = job.StatusParsing
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j

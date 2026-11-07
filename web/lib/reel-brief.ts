@@ -81,6 +81,11 @@ export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>
   return edit.format === 'landscape-16x9' && edit.matchRecap;
 }
 
+/** A 16:9 video of chosen plays, such as the best moments of several teammates, not a whole match. */
+export function isLandscapeHighlights(edit: Pick<EditConfig, 'format' | 'matchRecap'>): boolean {
+  return edit.format === 'landscape-16x9' && !edit.matchRecap;
+}
+
 export function constrainEditConfig(edit: EditConfig): EditConfig {
   // The hook, the counter and the centered kill feed tell kills; Studio drops them from a death reel too.
   if (edit.deathReel && (edit.hookText || edit.killCounter || edit.centeredKillfeed)) {

@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react';
 import type { PlaySide } from '@/lib/api/types';
 import { prettifyWeapon } from '@/lib/api/map';
-import { isFilterActive, type PlayFilter, type PlayFilterOptions, type PlayKindFilter } from '@/lib/produce/play-filter';
+import { isFilterActive, NO_PLAY_FILTER, type PlayFilter, type PlayFilterOptions, type PlayKindFilter } from '@/lib/produce/play-filter';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const ANY_WEAPON = 'any';
+const ANY_PLAYER = 'any';
 const KIND_LABELS: Record<PlayKindFilter, string> = { clutch: 'Clutch', ace: 'Ace' };
 
 export type PlayFiltersProps = {
@@ -18,12 +19,26 @@ export type PlayFiltersProps = {
   onChange: (next: PlayFilter) => void;
 };
 
-/** Weapon, kind and side filters over the play list; shows only the choices this match has. */
+/** Player, weapon, kind and side filters over the play list; shows only the choices this match has. */
 export function PlayFilters({ options, value, disabled = false, onChange }: PlayFiltersProps): ReactNode {
-  const { weapons, kinds, sides } = options;
-  if (weapons.length < 2 && kinds.length === 0 && sides.length < 2) return null;
+  const { weapons, kinds, sides, players } = options;
+  if (players.length < 2 && weapons.length < 2 && kinds.length === 0 && sides.length < 2) return null;
   return (
     <div className="flex w-full flex-wrap items-center gap-2">
+      {players.length >= 2 ? (
+        <Select value={value.player ?? ANY_PLAYER} disabled={disabled}
+          onValueChange={(next) => onChange({ ...value, player: next === ANY_PLAYER ? null : next })}>
+          <SelectTrigger aria-label="Jugador" className="h-11 w-auto min-w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_PLAYER}>Todos los jugadores</SelectItem>
+            {players.map((player) => (
+              <SelectItem key={player.steamId} value={player.steamId}>{player.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
       {weapons.length >= 2 ? (
         <Select value={value.weapon ?? ANY_WEAPON} disabled={disabled}
           onValueChange={(next) => onChange({ ...value, weapon: next === ANY_WEAPON ? null : next })}>
@@ -57,7 +72,7 @@ export function PlayFilters({ options, value, disabled = false, onChange }: Play
         </ToggleGroup>
       ) : null}
       {isFilterActive(value) ? (
-        <Button type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => onChange({ weapon: null, kind: null, side: null })}>
+        <Button type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => onChange(NO_PLAY_FILTER)}>
           Quitar filtros
         </Button>
       ) : null}

@@ -6,6 +6,7 @@ import {
   ifNoneMatchInit,
   listCacheHeaders,
   notModifiedFromUpstream,
+  parseTargetBody,
   proxyGameAsset,
   proxyStream,
 } from './_lib.ts';
@@ -284,4 +285,13 @@ test('proxyGameAsset refuses other content types and forwards coded errors', asy
   );
   assert.equal(missing.response.status, 404);
   assert.deepEqual(await missing.response.json(), { error: 'no radar', code: 'radar_not_found' });
+});
+
+test('parseTargetBody maps one player or a list of players and rejects anything else', () => {
+  assert.deepEqual(parseTargetBody({ steamId: '1' }), { target_steamid: '1' });
+  assert.deepEqual(parseTargetBody({ steamIds: ['1', '2'] }), { target_steamids: ['1', '2'] });
+  assert.equal(parseTargetBody({ steamId: '1', steamIds: ['2'] }), null);
+  assert.equal(parseTargetBody({ steamIds: [] }), null);
+  assert.equal(parseTargetBody({ steamIds: ['1', 2] }), null);
+  assert.equal(parseTargetBody({}), null);
 });

@@ -29,7 +29,11 @@ export type Match = {
   status?: string;
   /** Human text from the orchestrator when `status` is `failed`. */
   failureReason?: string;
+  /** Multi-POV jobs only: the filmed players, anchor first. */
+  povPlayers?: PlayPlayer[];
 };
+/** A player of a multi-POV match: the one whose POV a play uses. */
+export type PlayPlayer = { steamId: string; name: string };
 type PlayKind = 'clean' | 'highlight';
 export type Play = {
   id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number;
@@ -42,6 +46,8 @@ export type Play = {
   death?: PlayDeath;
   /** False when the recorder cannot replay this play from the victim (bot victim, demo end). */
   victimReplay?: boolean;
+  /** Multi-POV matches only: whose POV the play uses. */
+  player?: PlayPlayer;
 };
 export type PlayDeath = { killer?: string; weapon?: string; headshot: boolean };
 export type PlaySide = 'CT' | 'T';

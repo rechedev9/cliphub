@@ -362,14 +362,14 @@ export class RealApiClient implements ApiClient {
     return { status, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
   }
 
-  async parseDemo(input: { jobId: string; steamId: string }): Promise<Match> {
+  async parseDemo(input: { jobId: string; steamId: string; teammates?: readonly string[] }): Promise<Match> {
     await readJson<unknown>(
       await this.send((dp) => ({
         url: dp.parseUrl(input.jobId),
         init: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dp.parseBody(input.steamId)),
+          body: JSON.stringify(dp.parseBody(input.steamId, input.teammates)),
         },
       })),
     );

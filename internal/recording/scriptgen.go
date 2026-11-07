@@ -548,7 +548,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		}
 		window := captureWindow{
 			Pass:        pass,
-			TargetSteam: s.POVSteamID64,
+			TargetSteam: windowSteamID(s),
 			LiveEndTick: s.LiveEndTick,
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
@@ -582,6 +582,11 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 			)
 		}
 
+		killfeedTick := window.LockFrom
+		if i > 0 && i != firstReplay {
+			killfeedTick = max(killfeedTick, EffectiveRecordEndTick(captures[i-1], plan)+1)
+		}
+		commands = append(commands, povKillfeedCommands(plan, s, pass, killfeedTick)...)
 		commands = append(commands,
 			scheduledCommand{Pass: pass, Tick: recordStart, Key: "record-start-" + s.ID, Commands: []string{"mirv_streams record start"}},
 			scheduledCommand{Pass: pass, Tick: recordEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
@@ -959,74 +964,6 @@ func ffmpegSettingsCommand(name string, crf int, encoder string) string {
 		name,
 		codec,
 	)
-}
-
-func hudSetupCommands(plan RecordingPlan) []string {
-	if plan.FullDemo != nil {
-		return nil
-	}
-	var commands []string
-	switch plan.Stream.HUDMode {
-	case HUDModeClean:
-		return []string{
-			"spec_show_xray 0",
-			"cl_drawhud 0",
-		}
-	case HUDModeDeathnotices:
-		commands = []string{
-			"spec_show_xray 0",
-			"cl_spec_show_bindings 0",
-			"cl_drawhud 1",
-			"cl_draw_only_deathnotices 1",
-			"cl_show_observer_crosshair 2",
-			"crosshair 1",
-		}
-	default:
-		commands = []string{
-			"spec_show_xray 0",
-			"cl_spec_show_bindings 0",
-			"cl_drawhud 1",
-			"cl_draw_only_deathnotices 0",
-			"cl_show_observer_crosshair 2",
-			"crosshair 1",
-		}
-	}
-	if plan.Stream.HUDMode != HUDModeDeathnotices && !plan.Stream.PortraitSafeKillfeed {
-		return commands
-	}
-	commands = append(commands,
-		"mirv_deathmsg clear",
-		"mirv_deathmsg filter clear",
-		fmt.Sprintf("mirv_deathmsg filter add attackerMatch=!x%s block=1 lastRule=1", plan.TargetSteamID64),
-		"mirv_deathmsg localPlayer -1",
-		fmt.Sprintf("mirv_deathmsg lifetime %s", formatFloat(plan.Stream.DeathnoticeLifetime)),
-	)
-	if plan.Stream.PortraitSafeKillfeed && plan.Stream.HUDMode == HUDModeDeathnotices {
-		commands = append(commands,
-			fmt.Sprintf("safezonex %s", formatFloat(plan.Stream.DeathnoticeSafeZoneX)),
-			fmt.Sprintf("safezoney %s", formatFloat(plan.Stream.DeathnoticeSafeZoneY)),
-		)
-	}
-	return commands
-}
-
-func hudCleanupCommands(stream StreamConfig) []string {
-	if stream.HUDMode != HUDModeDeathnotices && !stream.PortraitSafeKillfeed {
-		return nil
-	}
-	commands := []string{
-		"mirv_deathmsg clear",
-		"mirv_deathmsg filter clear",
-		"mirv_deathmsg localPlayer default",
-		"mirv_deathmsg lifetime default",
-	}
-	if stream.PortraitSafeKillfeed && stream.HUDMode == HUDModeDeathnotices {
-		commands = append(commands,
-			"safezonex 1",
-			"safezoney 1",
-		)
-	}
-	return commands
 }
 
 func slashPath(path string) string {

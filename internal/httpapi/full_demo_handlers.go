@@ -33,6 +33,9 @@ func (h *Handlers) PlanFullDemo(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusConflict, recapplan.ErrFactsInsufficient, "Parse the selected player before planning Full Demo")
 		return
 	}
+	if rejectMultiPOVFullDemo(w, j) {
+		return
+	}
 	var req struct {
 		Options *recapplan.Options `json:"options"`
 	}
