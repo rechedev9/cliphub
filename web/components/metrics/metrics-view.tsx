@@ -6,6 +6,7 @@ import type { ScoutMatchSummary } from '@/lib/api/scout';
 import { metricsMatchIndex, metricsSections, modelText, type MetricsSectionOptions } from '@/lib/metrics/advanced';
 import { SKIP_REASON_LABEL, type ReportSection } from '@/lib/reports/scout-sections';
 import { SectionView } from '@/components/reports/scout-view';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 import { Segmented } from '@/components/ui/segmented';
 import { BuyHeatTable, MapHeatTable } from './metrics-heat';
 
@@ -96,7 +97,10 @@ export function MetricsView({
       )}
       {view?.content}
       {section ? <SectionBody section={section} report={report} options={options} matches={index} /> : null}
-      <p className="measure-read text-meta text-fg-3">{modelText(report)}</p>
+      <details className="measure-read text-meta text-fg-3">
+        <DisclosureSummary className="min-h-10 text-body-sm text-fg-2">Cómo se calcula la probabilidad</DisclosureSummary>
+        <p className="pb-2">{modelText(report)}</p>
+      </details>
     </div>
   );
 }
