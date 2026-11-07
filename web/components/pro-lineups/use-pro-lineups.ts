@@ -12,8 +12,10 @@ export type ProLoad<T> =
   | { kind: 'server_down' }
   | { kind: 'failed' };
 
-// One download per map while Studio stays open: the list and a lineup page share it.
-const mapCache = new Map<string, Promise<ProLineupMap>>();
+// The list and a lineup page share one download per map for a while; Studio's own
+// cache decides when to ask the server again, and a stale copy is never kept here.
+const MAP_CACHE_MS = 10 * 60 * 1000;
+const mapCache = new Map<string, { at: number; data: Promise<ProLineupMap> }>();
 
 function failure<T>(error: unknown): ProLoad<T> {
   if (isLibraryOffline(error)) return { kind: 'offline' };
@@ -50,10 +52,15 @@ function fetchMaps(): Promise<ProLineupMaps> {
 
 function fetchMap(map: string, retry: boolean): Promise<ProLineupMap> {
   const cached = mapCache.get(map);
-  if (cached !== undefined && !retry) return cached;
+  if (cached !== undefined && !retry && Date.now() - cached.at < MAP_CACHE_MS) return cached.data;
   const next = getProLineupMap(map);
-  mapCache.set(map, next);
-  next.catch(() => mapCache.delete(map));
+  mapCache.set(map, { at: Date.now(), data: next });
+  const forget = (): void => {
+    if (mapCache.get(map)?.data === next) mapCache.delete(map);
+  };
+  next.then((data) => {
+    if (!data.fresh) forget();
+  }, forget);
   return next;
 }
 

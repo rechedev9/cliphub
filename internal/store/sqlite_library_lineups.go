@@ -26,6 +26,7 @@ type lineupDetail struct {
 	Click              string                 `json:"click"`
 	TechniqueEstimated bool                   `json:"technique_estimated,omitempty"`
 	Source             *tacticalplan.Evidence `json:"source,omitempty"`
+	ProLineupID        string                 `json:"pro_lineup_id,omitempty"`
 }
 
 const libraryLineupColumns = `SELECT id, title, map, side, grenade, status, tags, notes, detail, created_at, updated_at FROM library_lineups`
@@ -54,6 +55,7 @@ func scanLibraryLineup(row sqlScanner) (library.Lineup, error) {
 	l.Origin, l.Pitch, l.Yaw, l.Landing = d.Origin, d.Pitch, d.Yaw, d.Landing
 	l.ThrowCallout, l.LandingCallout = d.ThrowCallout, d.LandingCallout
 	l.Movement, l.Jump, l.Click, l.TechniqueEstimated, l.Source = d.Movement, d.Jump, d.Click, d.TechniqueEstimated, d.Source
+	l.ProLineupID = d.ProLineupID
 	l.CreatedAt, l.UpdatedAt = fromMillis(created), fromMillis(updated)
 	return lineupCopy(l), nil
 }
@@ -67,6 +69,7 @@ func encodeLineup(l library.Lineup) (tags, detail string, err error) {
 	rawDetail, err := json.Marshal(lineupDetail{
 		Origin: l.Origin, Pitch: l.Pitch, Yaw: l.Yaw, Landing: l.Landing, ThrowCallout: l.ThrowCallout, LandingCallout: l.LandingCallout,
 		Movement: l.Movement, Jump: l.Jump, Click: l.Click, TechniqueEstimated: l.TechniqueEstimated, Source: l.Source,
+		ProLineupID: l.ProLineupID,
 	})
 	if err != nil {
 		return "", "", fmt.Errorf("encode lineup: %w", err)

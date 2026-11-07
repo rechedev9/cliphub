@@ -113,7 +113,7 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", hltvDataset, len(files), len(pending))
 		todo = append(todo, pending...)
 	}
-	done, failed := 0, 0
+	done, failed, hltvDone := 0, 0, 0
 	for _, demo := range todo {
 		if done+failed >= opts.maxDemos || ctx.Err() != nil {
 			break
@@ -129,6 +129,9 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 			continue
 		}
 		done++
+		if demo.dataset == hltvDataset {
+			hltvDone++
+		}
 		log.Printf("community stage=index class=indexed path=%s map=%s rounds=%d seconds=%.0f", demo.path, summary.Match.Map, summary.Match.Rounds, time.Since(start).Seconds())
 		if err := ix.store.markIndexed(ctx, demo, summary); err != nil {
 			return err
@@ -144,9 +147,9 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 	if err != nil {
 		return fmt.Errorf("rebuild reference: %w", err)
 	}
-	if ix.archiveDir != "" {
+	if ix.archiveDir != "" && ix.lineupsDue(ctx, hltvDone) {
 		if _, err := buildLineups(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
-			return fmt.Errorf("rebuild lineups: %w", err)
+			log.Printf("community stage=lineups class=kept error=%v", err)
 		}
 	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)
@@ -154,6 +157,23 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		log.Printf("community stage=index class=map map=%s maps=%d rounds=%d players=%d", m.Map, m.Matches, m.Rounds, m.Players)
 	}
 	return nil
+}
+
+// lineupsDue reports whether the lineup index needs a rebuild: new analyses came
+// in, or a day passed and the recent windows moved. Each rebuild reads every analysis.
+func (ix *indexer) lineupsDue(ctx context.Context, indexed int) bool {
+	if indexed > 0 {
+		return true
+	}
+	body, _, err := ix.store.referenceBody(ctx, lineupsIndexKey)
+	if err != nil {
+		return true
+	}
+	var stored lineupsIndex
+	if err := json.Unmarshal(body, &stored); err != nil {
+		return true
+	}
+	return time.Since(stored.BuiltAt) >= lineupsMaxAge
 }
 
 // listDataset walks the tree API, following its Link pagination.

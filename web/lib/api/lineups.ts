@@ -51,6 +51,8 @@ export type LibraryLineup = {
   /** Movement and jump read from 8 Hz samples, until the user sets them. */
   technique_estimated: boolean;
   source: ScoutEvidence | null;
+  /** The Lineups pro id this copy was saved from. */
+  pro_lineup_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -88,7 +90,8 @@ export type LineupPatch = Partial<
 
 export const LINEUP_KEYS = [
   'id', 'title', 'map', 'side', 'grenade', 'status', 'tags', 'notes', 'origin', 'pitch', 'yaw', 'landing',
-  'throw_callout', 'landing_callout', 'movement', 'jump', 'click', 'technique_estimated', 'source', 'created_at', 'updated_at',
+  'throw_callout', 'landing_callout', 'movement', 'jump', 'click', 'technique_estimated', 'source', 'pro_lineup_id', 'created_at',
+  'updated_at',
 ] as const satisfies readonly (keyof LibraryLineup)[];
 export const LINEUP_LIST_QUERY = ['map', 'side', 'grenade', 'status', 'tag', 'include_archived'] as const;
 export const LINEUP_PATCH_FIELDS = [

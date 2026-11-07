@@ -92,7 +92,7 @@ func ExtractThrows(doc tacticalplan.Document, blob []byte, meta MatchMeta) []Thr
 			}
 			t := Throw{
 				Map: doc.Demo.Map, Kind: ev.Kind, Side: ev.Side, Match: meta.MatchID, MapKey: meta.MapKey, Event: meta.Event, PlayedAt: meta.PlayedAt,
-				Round: r.Number, Team: teams[p.TeamKey], SteamID64: p.SteamID64, Player: p.Name,
+				Round: tacticalplan.GameRound(r), Team: teams[p.TeamKey], SteamID64: p.SteamID64, Player: p.Name,
 				Origin: ev.Throw.Pos, Yaw: tacticalplan.SetangYaw(ev.Throw.Yaw), Pitch: tacticalplan.SetangPitch(ev.Throw.Pitch), Landing: ev.Pos,
 				ThrowPlace: placename.Label(tacticalplan.NearestCallout(doc.Geometry, ev.Throw.Pos)), LandPlace: placename.Label(tacticalplan.NearestCallout(doc.Geometry, ev.Pos)),
 				ThrowTick: ev.Throw.Tick, Clock: float64(ev.Throw.Tick-r.TickFreezeEnd) / rate, AirTime: float64(ev.Tick-ev.Throw.Tick) / rate,

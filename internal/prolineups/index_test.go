@@ -76,3 +76,22 @@ func TestCombosNeedSeveralRoundsAndTeams(t *testing.T) {
 		t.Fatalf("partner share = %+v", idx.Lineups[0].With)
 	}
 }
+
+func TestVariantNamesDoNotFollowUse(t *testing.T) {
+	named := func(order ...string) map[string]string {
+		ls := []Lineup{}
+		for _, id := range order {
+			ls = append(ls, Lineup{ID: id, Slug: "smoke/window-from-t-spawn", Title: "Humo a Window desde T Spawn"})
+		}
+		uniqueNames(ls)
+		out := map[string]string{}
+		for _, l := range ls {
+			out[l.ID] = l.Slug + "|" + l.Title
+		}
+		return out
+	}
+	before, after := named("smoke-t-1", "smoke-t-2"), named("smoke-t-2", "smoke-t-1")
+	if before["smoke-t-2"] != after["smoke-t-2"] || before["smoke-t-1"] != "smoke/window-from-t-spawn|Humo a Window desde T Spawn" {
+		t.Fatalf("names moved with use: %v then %v", before, after)
+	}
+}

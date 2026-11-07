@@ -3,7 +3,6 @@ package httpapi
 import (
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -28,7 +27,7 @@ type proLineupIndexResponse struct {
 
 func (h *Handlers) proLineupsCache(w http.ResponseWriter) (*community.LineupsCache, bool) {
 	c := h.references.community.Lineups
-	if c == nil {
+	if c == nil || h.references.community.Client == nil {
 		writeCodedError(w, http.StatusServiceUnavailable, codeCommunityOff, "the community server is disabled")
 		return nil, false
 	}
@@ -86,7 +85,12 @@ func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	idx, _, err := c.Map(r.Context(), chi.URLParam(r, "map"))
+	mapName := chi.URLParam(r, "map")
+	if !community.MapPattern.MatchString(mapName) || mapName == community.AllMaps {
+		writeError(w, http.StatusBadRequest, "map must be a map name like de_mirage")
+		return
+	}
+	idx, _, err := c.Map(r.Context(), mapName)
 	if err != nil {
 		writeProLineupsError(w, err)
 		return
@@ -101,6 +105,7 @@ func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		lineup.ProLineupID = l.ID
 		existing, err := h.savedProLineup(r, lineup)
 		if err != nil {
 			writeLibraryError(w, "save pro lineup", err)
@@ -120,19 +125,25 @@ func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 	writeCodedError(w, http.StatusNotFound, codeNoProLineups, "no pro lineup with this id on the map")
 }
 
-// savedProLineup is the Libreta copy of this pro lineup, matched by spot and aim, so a second save adds nothing.
+// savedProLineup is the Libreta copy saved from this pro lineup id, so a second save adds nothing.
+// The id survives index rebuilds that move the lineup's mean spot and aim a little.
 func (h *Handlers) savedProLineup(r *http.Request, want library.Lineup) (*library.Lineup, error) {
-	saved, err := h.libraryRepo.ListLineups(r.Context(), library.LineupFilter{Map: want.Map, Side: want.Side, Grenade: want.Grenade, Tag: "pro"})
-	if err != nil {
-		return nil, err
-	}
-	for i := range saved {
-		l := &saved[i]
-		if l.Origin == want.Origin && math.Abs(l.Yaw-want.Yaw) < 0.01 && math.Abs(l.Pitch-want.Pitch) < 0.01 {
-			return l, nil
+	filter := library.LineupFilter{Map: want.Map, Side: want.Side, Grenade: want.Grenade, Limit: library.MaxLineupList}
+	for {
+		saved, err := h.libraryRepo.ListLineups(r.Context(), filter)
+		if err != nil {
+			return nil, err
 		}
+		for i := range saved {
+			if saved[i].ProLineupID == want.ProLineupID {
+				return &saved[i], nil
+			}
+		}
+		if len(saved) < filter.Limit {
+			return nil, nil
+		}
+		filter.Offset += len(saved)
 	}
-	return nil, nil
 }
 
 // libretaLineup is a pro lineup as a Libreta lineup; its technique is estimated.

@@ -18,6 +18,10 @@ import (
 // lineupsIndexKey is the stored key of the list of maps with a lineup index.
 const lineupsIndexKey = "lineups:index"
 
+// lineupsMaxAge is how old the lineup index may get before an index run with
+// no new analyses rebuilds it anyway.
+const lineupsMaxAge = 24 * time.Hour
+
 // LineupsMapInfo is one map in the lineups index payload.
 type lineupsMapInfo struct {
 	Map     string `json:"map"`
@@ -41,9 +45,8 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 		return lineupsIndex{}, err
 	}
 	slices.Sort(files)
-	byMap := map[string][]prolineups.Throw{}
+	parts := []mapPart{}
 	geometry := map[string]tacticalplan.MapGeometry{}
-	seen := map[string]bool{}
 	for _, name := range files {
 		if ctx.Err() != nil {
 			return lineupsIndex{}, ctx.Err()
@@ -62,16 +65,15 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 		if g := h.Document.Geometry; g.SampleCount > geometry[h.Document.Demo.Map].SampleCount {
 			geometry[h.Document.Demo.Map] = g
 		}
-		throws := prolineups.ExtractThrows(h.Document, blob, meta)
-		// Restart parts of one map replay its last round; keep each round once.
-		for _, t := range throws {
-			id := fmt.Sprintf("%s|%d|%s|%d", key, t.Round, t.SteamID64, t.ThrowTick)
-			if seen[id] {
-				continue
-			}
-			seen[id] = true
-			byMap[t.Map] = append(byMap[t.Map], t)
-		}
+		parts = append(parts, newMapPart(key, prolineups.ExtractThrows(h.Document, blob, meta)))
+	}
+	byMap := map[string][]prolineups.Throw{}
+	for _, t := range joinParts(parts) {
+		byMap[t.Map] = append(byMap[t.Map], t)
+	}
+	// A missing or unreadable folder must not replace the served lineups with nothing.
+	if len(byMap) == 0 {
+		return lineupsIndex{}, fmt.Errorf("no throws read from %d analyses in %s; the stored lineups stay", len(files), analysesDir)
 	}
 	index := lineupsIndex{Version: prolineups.IndexVersion, BuiltAt: now.UTC(), Maps: []lineupsMapInfo{}}
 	payloads := map[string][]byte{}
@@ -95,6 +97,47 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 	}
 	payloads[lineupsIndexKey] = body
 	return index, s.replacePrefixed(ctx, "lineups:", payloads)
+}
+
+// mapPart is the throws of one demo of a map; first is its lowest game round.
+type mapPart struct {
+	key    string
+	first  int
+	throws []prolineups.Throw
+}
+
+func newMapPart(key string, throws []prolineups.Throw) mapPart {
+	p := mapPart{key: key, throws: throws}
+	for _, t := range throws {
+		if p.first == 0 || t.Round < p.first {
+			p.first = t.Round
+		}
+	}
+	return p
+}
+
+// joinParts keeps each game round of a map from one part: a restart part replays
+// the round the server went down in, and the later part's copy is the one played out.
+func joinParts(parts []mapPart) []prolineups.Throw {
+	owner := map[string]int{}
+	roundOf := func(p mapPart, t prolineups.Throw) string { return fmt.Sprintf("%s|%d", p.key, t.Round) }
+	for i, p := range parts {
+		for _, t := range p.throws {
+			k := roundOf(p, t)
+			if j, ok := owner[k]; !ok || p.first > parts[j].first {
+				owner[k] = i
+			}
+		}
+	}
+	out := []prolineups.Throw{}
+	for i, p := range parts {
+		for _, t := range p.throws {
+			if owner[roundOf(p, t)] == i {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
 }
 
 // replacePrefixed swaps the stored payloads whose key starts with prefix.

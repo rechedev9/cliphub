@@ -2,6 +2,8 @@ package prolineups
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"slices"
 	"strconv"
 	"strings"
@@ -101,15 +103,23 @@ func slugify(s string) string {
 	return strings.TrimSuffix(b.String(), "-")
 }
 
-// uniqueNames numbers lineups that share a title, such as one smoke thrown
-// from each spawn, most thrown first, so each has its own name and address.
+// uniqueNames tells apart lineups that share a title, such as one smoke thrown
+// from each spawn. Variants are numbered by id, not by use, and a variant's slug
+// ends in a hash of its id, so names and addresses stay put when use shifts.
 func uniqueNames(ls []Lineup) {
-	seen := map[string]int{}
+	groups := map[string][]int{}
 	for i := range ls {
-		seen[ls[i].Slug]++
-		if n := seen[ls[i].Slug]; n > 1 {
-			ls[i].Slug += "-" + strconv.Itoa(n)
-			ls[i].Title += " · variante " + strconv.Itoa(n)
+		groups[ls[i].Slug] = append(groups[ls[i].Slug], i)
+	}
+	for _, g := range groups {
+		if len(g) < 2 {
+			continue
+		}
+		slices.SortFunc(g, func(a, b int) int { return cmp.Compare(ls[a].ID, ls[b].ID) })
+		for n, i := range g[1:] {
+			sum := sha256.Sum256([]byte(ls[i].ID))
+			ls[i].Slug += "-" + hex.EncodeToString(sum[:3])
+			ls[i].Title += " · variante " + strconv.Itoa(n+2)
 		}
 	}
 }

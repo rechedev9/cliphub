@@ -87,13 +87,16 @@ type lineupsEntry struct {
 type LineupsCache struct {
 	dir    string
 	client *Client
-	mu     sync.Mutex
-	mem    map[string]lineupsEntry
+	// mu guards mem and keys; a key's own lock is held across its download, so
+	// one slow map does not hold up the others.
+	mu   sync.Mutex
+	mem  map[string]lineupsEntry
+	keys map[string]*sync.Mutex
 }
 
 // OpenLineupsCache stores payloads under dir; a nil client only reads the disk.
 func OpenLineupsCache(dir string, client *Client) *LineupsCache {
-	return &LineupsCache{dir: filepath.Join(dir, "pro-lineups"), client: client, mem: map[string]lineupsEntry{}}
+	return &LineupsCache{dir: filepath.Join(dir, "pro-lineups"), client: client, mem: map[string]lineupsEntry{}, keys: map[string]*sync.Mutex{}}
 }
 
 // Maps returns the maps with a lineup index.
@@ -132,14 +135,17 @@ func (c *LineupsCache) payload(ctx context.Context, mapName string) ([]byte, boo
 	if key == "" {
 		key = lineupsIndex
 	}
+	keyLock := c.keyLock(key)
+	keyLock.Lock()
+	defer keyLock.Unlock()
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	entry, ok := c.mem[key]
+	c.mu.Unlock()
 	if !ok {
 		entry, ok = c.readDisk(key)
 	}
 	if ok && time.Since(entry.fetchedAt) < lineupsFresh {
-		c.mem[key] = entry
+		c.remember(key, entry)
 		return entry.body, true, nil
 	}
 	if c.client == nil {
@@ -161,9 +167,26 @@ func (c *LineupsCache) payload(ctx context.Context, mapName string) ([]byte, boo
 	default:
 		entry = lineupsEntry{body: body, etag: etag, fetchedAt: time.Now()}
 	}
-	c.mem[key] = entry
+	c.remember(key, entry)
 	c.writeDisk(key, entry)
 	return entry.body, true, nil
+}
+
+func (c *LineupsCache) keyLock(key string) *sync.Mutex {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	l := c.keys[key]
+	if l == nil {
+		l = &sync.Mutex{}
+		c.keys[key] = l
+	}
+	return l
+}
+
+func (c *LineupsCache) remember(key string, e lineupsEntry) {
+	c.mu.Lock()
+	c.mem[key] = e
+	c.mu.Unlock()
 }
 
 func (c *LineupsCache) readDisk(key string) (lineupsEntry, bool) {

@@ -157,8 +157,12 @@ func prepareDemo(ctx context.Context, src io.Reader, meta hltvSidecar, entry, ou
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
 	}()
-	if _, err := io.Copy(tmp, io.LimitReader(src, maxDemoBytes+1)); err != nil {
+	n, err := io.Copy(tmp, io.LimitReader(src, maxDemoBytes+1))
+	if err != nil {
 		return fmt.Errorf("extract: %w", err)
+	}
+	if n > maxDemoBytes {
+		return fmt.Errorf("extract: demo is over %d MB", maxDemoBytes>>20)
 	}
 	if err := tmp.Close(); err != nil {
 		return err

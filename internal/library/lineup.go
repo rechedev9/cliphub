@@ -56,8 +56,10 @@ type Lineup struct {
 	// TechniqueEstimated marks movement, jump and click read from 8 Hz samples, until the user sets them.
 	TechniqueEstimated bool                   `json:"technique_estimated"`
 	Source             *tacticalplan.Evidence `json:"source"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+	// ProLineupID is the Lineups pro id a copy was saved from, so saving it again finds it.
+	ProLineupID string    `json:"pro_lineup_id,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // LineupFilter selects lineups for a list read. Zero fields do not filter.
