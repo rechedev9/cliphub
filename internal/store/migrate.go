@@ -38,6 +38,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV12PlayStatus,
 	migrateV13LibraryLineups,
 	migrateV14LibraryRoles,
+	migrateV15LibraryCalls,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -700,6 +701,34 @@ func migrateV14LibraryRoles(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library roles: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV15LibraryCalls stores the team's calls and its own names for CS2 places.
+func migrateV15LibraryCalls(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_calls (
+			id         TEXT    PRIMARY KEY,
+			name       TEXT    NOT NULL,
+			side       TEXT    NOT NULL CHECK (side IN ('CT', 'T', 'both')),
+			meaning    TEXT    NOT NULL DEFAULT '',
+			status     TEXT    NOT NULL DEFAULT 'active',
+			tags       TEXT    NOT NULL DEFAULT '[]',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE TABLE library_callout_names (
+			map        TEXT    NOT NULL,
+			token      TEXT    NOT NULL,
+			name       TEXT    NOT NULL,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (map, token)
+		)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library calls: %w", err)
 		}
 	}
 	return nil

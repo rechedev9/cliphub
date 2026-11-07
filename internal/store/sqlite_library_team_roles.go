@@ -64,3 +64,32 @@ func (r *SQLiteLibraryRepository) SetTeamRoles(ctx context.Context, sheet *libra
 	*sheet = stored
 	return nil
 }
+
+func (r *SQLiteLibraryRepository) ListTeamRoles(ctx context.Context) ([]library.TeamRoleSheet, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT team_id, map, t, ct, updated_at FROM library_team_roles ORDER BY team_id, map`)
+	if err != nil {
+		return nil, fmt.Errorf("list team roles: %w", err)
+	}
+	defer rows.Close()
+	out := []library.TeamRoleSheet{}
+	for rows.Next() {
+		var s library.TeamRoleSheet
+		var teamID, t, ct string
+		var updated int64
+		if err := rows.Scan(&teamID, &s.Map, &t, &ct, &updated); err != nil {
+			return nil, err
+		}
+		if s.TeamID, err = uuid.Parse(teamID); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(t), &s.T); err != nil {
+			return nil, fmt.Errorf("decode team roles: %w", err)
+		}
+		if err := json.Unmarshal([]byte(ct), &s.CT); err != nil {
+			return nil, fmt.Errorf("decode team roles: %w", err)
+		}
+		s.UpdatedAt = fromMillis(updated)
+		out = append(out, teamRolesCopy(s))
+	}
+	return out, rows.Err()
+}

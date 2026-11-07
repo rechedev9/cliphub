@@ -145,7 +145,7 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report`, `delete_play` and `delete_lineup` (the title), `delete_library_series` (format and teams),
+  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_library_series` (format and teams),
   `launch_practice` (map and spot count), turning `set_community_ranking` on and
   `delete_community_ranking` (what leaves or is erased on the community server).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
@@ -198,6 +198,8 @@ Read:
 | `plan_table` | `GET /api/library/plays` (`map`, `side`, `team_id`, `limit` 1000; archived plays left out), grouped as the Tabla: a column per round type of the side in the UI's order, plays by title; `no_team` keeps only plays without a team |
 | `list_lineups`, `get_lineup` | `GET /api/library/lineups` (`map`, `side`, `grenade`, `status`, `tag`, `include_archived`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/lineups/{id}`: origin, angles, callouts, technique (`technique_estimated` when read from 8 Hz samples), the `setpos` command and the round it came from |
 | `get_team_roles` | `GET /api/library/teams/{id}/roles?map=`: the saved sheet (T and CT, up to 5 roles each with name, player, callout and task) and the suggestion, T roles from `InferPlayerRole` and CT ones from where each player sets up in the prep (awp, anchor or rotator) |
+| `list_calls` | `GET /api/library/calls` (`side`, which also keeps the calls of both sides, `status`, `tag`, `include_archived`, `limit` 100 by default and at most 1000, `offset`): name, side, meaning, status and tags, by name |
+| `list_callouts` | `GET /api/library/maps/{map}/callouts`: the places of the map's newest analysed match (calibrated from the overview first), each with its token, CS2's name and the team's name, plus places the team named that the geometry lacks |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
 | `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
@@ -276,7 +278,11 @@ Write:
 | `set_team_roles` | `PUT /api/library/teams/{id}/roles` (`map`, `t`, `ct`): replaces the map's sheet; a merge moves it with the team | no |
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
 | `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`, `include_archived`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
-| `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
+| `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed, and the counts of each other section a whole Libreta file holds (lineups, role sheets, calls, callout names; a sheet or name the Libreta already has is a duplicate) | no |
+| `export_libreta` | `GET /api/library/libreta/export` (plays, lineups, role sheets by team name, calls and callout names, archived ones too), written to a new `.json` file on a local drive | no |
+| `save_call`, `update_call` | `POST /api/library/calls`; `PATCH /api/library/calls/{id}` (`name`, `side` T, CT or both, `meaning`, `status`, `tags`) | no |
+| `delete_call` | `GET` then `DELETE /api/library/calls/{id}` | yes |
+| `rename_callout` | `PUT /api/library/maps/{map}/callouts/{token}` with `name`, or `DELETE` for an empty name (back to CS2's name) | no |
 | `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade`, as Guardar lineup and Nuevo lineup do | no |
 | `update_lineup` | `PATCH /api/library/lineups/{id}` (`title`, `status`, `tags`, `notes`, `movement`, `jump`, `click`); map, side, grenade and the spot cannot change | no |
 | `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |

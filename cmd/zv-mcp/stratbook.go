@@ -206,6 +206,7 @@ type importPlaysOut struct {
 	Rejected      []string         `json:"rejected" jsonschema:"plays that were not stored, with the reason; at most 50 listed"`
 	RejectedCount int              `json:"rejected_count"`
 	Plays         []playSummaryOut `json:"plays" jsonschema:"the imported plays, at most 50 listed"`
+	Sections      []string         `json:"sections,omitempty" jsonschema:"what the file's other sections did, such as lineups: 3 imported, 1 duplicate, 0 rejected"`
 }
 
 func registerStratbookTools(server *mcp.Server, s *studio) {
@@ -445,8 +446,9 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "import_plays", Annotations: &mcp.ToolAnnotations{},
-		Description: "Import a ClipHub stratbook .json file into the stratbook, as Importar does. Each play is stored on its own: " +
-			"plays already there count as duplicates, bad ones are rejected with the reason, and teams are found by name or created."},
+		Description: "Import a ClipHub Libreta (stratbook) .json file, as Importar does: its plays and, from a whole Libreta file, its lineups, " +
+			"role sheets, calls and callout names. Each record is stored on its own: ones already there count as duplicates, " +
+			"bad ones are rejected, and teams are found by name or created."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importPlaysIn) (*mcp.CallToolResult, importPlaysOut, error) {
 			if !strings.EqualFold(filepath.Ext(in.Path), ".json") {
 				return nil, importPlaysOut{}, errors.New("path must be a .json stratbook file")
@@ -472,6 +474,11 @@ func registerStratbookTools(server *mcp.Server, s *studio) {
 			}
 			for _, p := range res.Plays[:min(len(res.Plays), maxImportListed)] {
 				out.Plays = append(out.Plays, playSummaryOf(p))
+			}
+			for _, key := range []string{"lineups", "team_roles", "calls", "callout_names"} {
+				if sec, ok := res.Sections[key]; ok {
+					out.Sections = append(out.Sections, fmt.Sprintf("%s: %d imported, %d duplicate, %d rejected", key, sec.Imported, sec.Duplicates, sec.Rejected))
+				}
 			}
 			return nil, out, nil
 		})

@@ -3,12 +3,10 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -17,17 +15,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
-
-// libretaRepository is the Libreta part of LibraryRepository.
-type libretaRepository interface {
-	CreateLineup(ctx context.Context, l *library.Lineup) error
-	GetLineup(ctx context.Context, id uuid.UUID) (library.Lineup, error)
-	ListLineups(ctx context.Context, filter library.LineupFilter) ([]library.Lineup, error)
-	UpdateLineup(ctx context.Context, id uuid.UUID, patch library.LineupPatch) (library.Lineup, error)
-	DeleteLineup(ctx context.Context, id uuid.UUID) error
-	GetTeamRoles(ctx context.Context, teamID uuid.UUID, mapName string) (library.TeamRoleSheet, error)
-	SetTeamRoles(ctx context.Context, sheet *library.TeamRoleSheet) error
-}
 
 // Error codes of the lineup routes.
 const (
@@ -69,32 +56,11 @@ func lineupFilterQuery(q url.Values) (library.LineupFilter, error) {
 	if f.Grenade = q.Get("grenade"); f.Grenade != "" && !library.ValidGrenade(f.Grenade) {
 		return f, errors.New("grenade must be smoke, flash, he, molotov or decoy")
 	}
-	if f.Status = q.Get("status"); f.Status != "" && !library.ValidStatus(f.Status) {
-		return f, errors.New("status must be active, practice, draft, review or archived")
+	list, err := libretaListQuery(q, library.MaxLineupList)
+	if err != nil {
+		return f, err
 	}
-	if f.Tag = library.CleanName(q.Get("tag")); len([]rune(f.Tag)) > library.MaxTagRunes {
-		return f, fmt.Errorf("tag must be at most %d characters", library.MaxTagRunes)
-	}
-	switch q.Get("include_archived") {
-	case "", "false":
-		f.ExcludeArchived = f.Status == ""
-	case "true":
-	default:
-		return f, errors.New("include_archived must be true or false")
-	}
-	for _, p := range []struct {
-		name string
-		dst  *int
-		min  int
-	}{{"limit", &f.Limit, 1}, {"offset", &f.Offset, 0}} {
-		if raw := q.Get(p.name); raw != "" {
-			n, err := strconv.Atoi(raw)
-			if err != nil || n < p.min || (p.name == "limit" && n > library.MaxLineupList) {
-				return f, fmt.Errorf("%s is out of range", p.name)
-			}
-			*p.dst = n
-		}
-	}
+	f.Status, f.Tag, f.ExcludeArchived, f.Limit, f.Offset = list.status, list.tag, list.excludeArchived, list.limit, list.offset
 	return f, nil
 }
 

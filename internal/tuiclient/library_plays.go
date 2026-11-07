@@ -216,6 +216,12 @@ type StratbookImport struct {
 		Error string `json:"error"`
 	} `json:"rejected"`
 	Plays []Play `json:"plays"`
+	// Sections counts the file's other sections (lineups, calls, callout_names, team_roles).
+	Sections map[string]struct {
+		Imported   int `json:"imported"`
+		Duplicates int `json:"duplicates"`
+		Rejected   int `json:"rejected"`
+	} `json:"sections"`
 }
 
 // ImportPlays stores the plays of a stratbook file, each on its own.

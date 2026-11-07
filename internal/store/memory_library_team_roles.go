@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"sort"
 
 	"github.com/google/uuid"
 
@@ -46,6 +47,27 @@ func (r *MemoryLibraryRepository) SetTeamRoles(ctx context.Context, sheet *libra
 	r.libreta.teamRoles[teamRolesKey{sheet.TeamID, sheet.Map}] = stored
 	*sheet = teamRolesCopy(stored)
 	return nil
+}
+
+func (r *MemoryLibraryRepository) ListTeamRoles(ctx context.Context) ([]library.TeamRoleSheet, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	out := []library.TeamRoleSheet{}
+	for key, sheet := range r.libreta.teamRoles {
+		if _, ok := r.teams[key.teamID]; ok {
+			out = append(out, teamRolesCopy(sheet))
+		}
+	}
+	r.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].TeamID != out[j].TeamID {
+			return out[i].TeamID.String() < out[j].TeamID.String()
+		}
+		return out[i].Map < out[j].Map
+	})
+	return out, nil
 }
 
 // moveTeamRoles hands from's sheets to into, which keeps its own for a map both have.

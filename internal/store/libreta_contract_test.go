@@ -128,6 +128,70 @@ func TestLibretaRepositoryContract(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "calls list by name, a side keeps the calls of both, and callout names replace and clear",
+			run: func(t *testing.T, f libraryFixture) {
+				for _, c := range []*library.Call{
+					{Name: "rotate", Side: "CT", Meaning: "a B"},
+					{Name: "Bait", Side: "both", Tags: []string{"eco"}},
+					{Name: "Lento", Side: "T", Status: "archived"},
+				} {
+					if err := f.repo.CreateCall(f.ctx, c); err != nil || c.Status == "" || c.Tags == nil || c.CreatedAt.IsZero() {
+						t.Fatalf("CreateCall = %+v, %v", c, err)
+					}
+				}
+				all, err := f.repo.ListCalls(f.ctx, library.CallFilter{})
+				if err != nil || len(all) != 3 || all[0].Name != "Bait" || all[2].Name != "rotate" {
+					t.Fatalf("ListCalls = %+v, %v; want by name, case-insensitive", all, err)
+				}
+				again := all[0]
+				if err := f.repo.CreateCall(f.ctx, &again); !errors.Is(err, library.ErrConflict) {
+					t.Fatalf("CreateCall(same id) = %v, want ErrConflict", err)
+				}
+				for _, tc := range []struct {
+					filter library.CallFilter
+					want   int
+				}{
+					{library.CallFilter{Side: "T"}, 2}, {library.CallFilter{Side: "CT", ExcludeArchived: true}, 2},
+					{library.CallFilter{Status: "archived"}, 1}, {library.CallFilter{Tag: "ECO"}, 1}, {library.CallFilter{Limit: 2, Offset: 2}, 1},
+				} {
+					if got, err := f.repo.ListCalls(f.ctx, tc.filter); err != nil || len(got) != tc.want {
+						t.Fatalf("ListCalls(%+v) = %d, %v; want %d", tc.filter, len(got), err, tc.want)
+					}
+				}
+				meaning := "a B por mid"
+				patched, err := f.repo.UpdateCall(f.ctx, all[2].ID, library.CallPatch{Meaning: &meaning})
+				if err != nil || patched.Meaning != meaning || patched.Name != "rotate" {
+					t.Fatalf("UpdateCall = %+v, %v", patched, err)
+				}
+				if err := f.repo.DeleteCall(f.ctx, all[2].ID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.repo.GetCall(f.ctx, all[2].ID); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("GetCall(deleted) = %v, want ErrNotFound", err)
+				}
+
+				for _, c := range []library.CalloutName{{Map: "de_mirage", Token: "BombsiteB", Name: "B"}, {Map: "de_mirage", Token: "BombsiteB", Name: "Bé"},
+					{Map: "de_mirage", Token: "Apartments", Name: "Pisos"}, {Map: "de_nuke", Token: "Ramp", Name: "Rampa"}} {
+					if err := f.repo.SetCalloutName(f.ctx, &c); err != nil || c.UpdatedAt.IsZero() {
+						t.Fatalf("SetCalloutName = %+v, %v", c, err)
+					}
+				}
+				names, err := f.repo.ListCalloutNames(f.ctx, "de_mirage")
+				if err != nil || len(names) != 2 || names[0].Token != "Apartments" || names[1].Name != "Bé" {
+					t.Fatalf("ListCalloutNames = %+v, %v", names, err)
+				}
+				if every, err := f.repo.ListCalloutNames(f.ctx, ""); err != nil || len(every) != 3 {
+					t.Fatalf("ListCalloutNames(all maps) = %+v, %v", every, err)
+				}
+				if err := f.repo.DeleteCalloutName(f.ctx, "de_mirage", "BombsiteB"); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.repo.DeleteCalloutName(f.ctx, "de_mirage", "BombsiteB"); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("second DeleteCalloutName = %v, want ErrNotFound", err)
+				}
+			},
+		},
 	}
 	for _, tc := range cases {
 		for name, repo := range libraryRepositoriesUnderTest(t) {
