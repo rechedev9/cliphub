@@ -25,12 +25,12 @@ export type FilterBarProps = {
   searchPlaceholder?: string;
   /** "12 de 40 partidas": what the filters leave on screen. */
   count?: { readonly shown: number; readonly total: number; readonly noun: string };
-  /** Puts the selects on a row of their own under the search and the count, for lists with many filters. */
-  stacked?: boolean;
-  className?: string;
 };
 
-/** Search plus one select per filter, a reset and the visible count, in one dense row. */
+/**
+ * Search and visible count, then a row of selects with a reset. Its box is display: contents, so in a
+ * DataTable toolbar the search shares the row of the table menus and the selects wrap below them.
+ */
 export function FilterBar({
   filters = [],
   values,
@@ -38,8 +38,6 @@ export function FilterBar({
   onReset,
   searchPlaceholder = 'Buscar',
   count,
-  stacked = false,
-  className,
 }: FilterBarProps): ReactNode {
   const active = activeFilterCount(values);
   const selects = filters.map((filter) => {
@@ -72,12 +70,12 @@ export function FilterBar({
       </Button>
     ) : null;
   const shownCount = count ? (
-    <span role="status" className="ml-auto text-body-sm text-fg-3">
+    <span role="status" className="self-center text-body-sm text-fg-3">
       {count.shown === count.total ? `${count.total} ${count.noun}` : `${count.shown} de ${count.total} ${count.noun}`}
     </span>
   ) : null;
   return (
-    <div role="search" className={className ?? 'flex flex-wrap items-center gap-2'}>
+    <div role="search" className="contents">
       <label className="relative min-w-48 flex-1 basis-56 sm:max-w-80">
         <span className="sr-only">{searchPlaceholder}</span>
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden />
@@ -89,21 +87,13 @@ export function FilterBar({
           className="h-9 pl-9"
         />
       </label>
-      {stacked ? (
-        <>
-          {shownCount}
-          <div className="flex basis-full flex-wrap items-center gap-2">
-            {selects}
-            {reset}
-          </div>
-        </>
-      ) : (
-        <>
+      {shownCount}
+      {selects.length > 0 || reset !== null ? (
+        <div className="order-last flex basis-full flex-wrap items-center gap-2">
           {selects}
           {reset}
-          {shownCount}
-        </>
-      )}
+        </div>
+      ) : null}
     </div>
   );
 }

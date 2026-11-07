@@ -221,7 +221,7 @@ export function PlayList({
 
   if (plays === null) {
     return (
-      <TableSkeleton label="Cargando jugadas" columns={6} />
+      <TableSkeleton label="Cargando jugadas" columns={6} filters={6} />
     );
   }
   if (plays.length === 0) {
@@ -287,33 +287,6 @@ export function PlayList({
   return (
     <div className="flex flex-col gap-3">
       {status}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por título, equipo, notas o etiqueta"
-          filters={[
-            {
-              id: 'team',
-              label: 'Equipo',
-              options: options(plays.map((play) => [play.team_id ?? NO_TEAM, play.team_name ?? 'Sin equipo'])),
-            },
-            { id: 'map', label: 'Mapa', options: options(plays.map((play) => [play.map, prettyMapName(play.map)])) },
-            { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
-            { id: 'kind', label: 'Tipo', options: options(plays.map((play) => [play.kind, playKindLabel(play.kind)])) },
-            { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-            {
-              id: 'origin',
-              label: 'Origen',
-              options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
-            },
-          ]}
-          count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        <div className="flex flex-wrap gap-2">{fileActions}</div>
-      </div>
       {hiddenArchived > 0 ? (
         <p className="text-meta text-fg-3">
           {hiddenArchived === 1 ? 'Una jugada archivada no se muestra.' : `${hiddenArchived} jugadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
@@ -331,6 +304,32 @@ export function PlayList({
         />
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por título, equipo, notas o etiqueta"
+            filters={[
+              {
+                id: 'team',
+                label: 'Equipo',
+                options: options(plays.map((play) => [play.team_id ?? NO_TEAM, play.team_name ?? 'Sin equipo'])),
+              },
+              { id: 'map', label: 'Mapa', options: options(plays.map((play) => [play.map, prettyMapName(play.map)])) },
+              { id: 'side', label: 'Lado', options: [{ value: 'T', label: 'T' }, { value: 'CT', label: 'CT' }] },
+              { id: 'kind', label: 'Tipo', options: options(plays.map((play) => [play.kind, playKindLabel(play.kind)])) },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+              {
+                id: 'origin',
+                label: 'Origen',
+                options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
+              },
+            ]}
+            count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}
+          />
+        }
+        actions={fileActions}
         label="Jugadas"
         rows={shown}
         columns={COLUMNS}

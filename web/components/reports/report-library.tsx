@@ -193,18 +193,17 @@ function ReportListBody({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por título o rival"
-          count={{ shown: shown.length, total: reports.length, noun: reports.length === 1 ? 'informe' : 'informes' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        {newButton}
-      </div>
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por título o rival"
+            count={{ shown: shown.length, total: reports.length, noun: reports.length === 1 ? 'informe' : 'informes' }}
+          />
+        }
+        actions={newButton}
         label="Informes"
         rows={shown}
         columns={[...COLUMNS, deleteColumn(onReload)]}

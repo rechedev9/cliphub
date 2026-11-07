@@ -532,8 +532,6 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
           view={view}
           toolbar={
             <FilterBar
-              className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
-              stacked
               values={view.state.filters}
               onChange={view.setFilter}
               onReset={view.resetFilters}

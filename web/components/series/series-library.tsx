@@ -102,18 +102,17 @@ export function SeriesLibrary(): ReactNode {
     });
     body = (
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterBar
-            className="flex flex-1 flex-wrap items-center gap-2"
-            values={view.state.filters}
-            onChange={view.setFilter}
-            onReset={view.resetFilters}
-            searchPlaceholder="Buscar por equipo o evento"
-            count={{ shown: shown.length, total: series.length, noun: series.length === 1 ? 'serie' : 'series' }}
-          />
-          {newButton}
-        </div>
         <DataTable
+          toolbar={
+            <FilterBar
+              values={view.state.filters}
+              onChange={view.setFilter}
+              onReset={view.resetFilters}
+              searchPlaceholder="Buscar por equipo o evento"
+              count={{ shown: shown.length, total: series.length, noun: series.length === 1 ? 'serie' : 'series' }}
+            />
+          }
+          actions={newButton}
           label="Series"
           rows={shown}
           columns={SERIES_COLUMNS}

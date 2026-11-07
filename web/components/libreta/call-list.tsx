@@ -155,7 +155,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
 
   if (calls === null) {
     return (
-      <TableSkeleton label="Cargando llamadas" columns={4} />
+      <TableSkeleton label="Cargando llamadas" columns={4} filters={3} />
     );
   }
   if (calls.length === 0) {
@@ -199,22 +199,6 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   return (
     <div className="flex flex-col gap-3">
       {status}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FilterBar
-          values={view.state.filters}
-          onChange={view.setFilter}
-          onReset={view.resetFilters}
-          searchPlaceholder="Buscar por llamada, significado o etiqueta"
-          filters={[
-            { id: 'side', label: 'Lado', options: SIDE_OPTIONS },
-            { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
-            { id: 'tag', label: 'Etiqueta', options: tagOptions(calls) },
-          ]}
-          count={{ shown: shown.length, total: calls.length, noun: calls.length === 1 ? 'llamada' : 'llamadas' }}
-          className="flex flex-1 flex-wrap items-center gap-2"
-        />
-        <div className="flex flex-wrap gap-2">{newButton}</div>
-      </div>
       {hiddenArchived > 0 ? (
         <p className="text-meta text-fg-3">
           {hiddenArchived === 1 ? 'Una llamada archivada no se muestra.' : `${hiddenArchived} llamadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
@@ -231,6 +215,21 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
         />
       ) : null}
       <DataTable
+        toolbar={
+          <FilterBar
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por llamada, significado o etiqueta"
+            filters={[
+              { id: 'side', label: 'Lado', options: SIDE_OPTIONS },
+              { id: 'status', label: 'Estado', options: STATUS_FILTER_OPTIONS },
+              { id: 'tag', label: 'Etiqueta', options: tagOptions(calls) },
+            ]}
+            count={{ shown: shown.length, total: calls.length, noun: calls.length === 1 ? 'llamada' : 'llamadas' }}
+          />
+        }
+        actions={newButton}
         label="Llamadas"
         rows={shown}
         columns={columns}
