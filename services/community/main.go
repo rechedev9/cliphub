@@ -4,6 +4,8 @@
 //
 //	cliphub-community serve             answer the public API on a loopback port
 //	cliphub-community index [-max N]    index new pro demos and rebuild the reference
+//	cliphub-community prepare-hltv      scan harvested HLTV archives into analyses (operator PC)
+//	cliphub-community build-lineups     rebuild the pro lineup index from the archived analyses
 package main
 
 import (
@@ -35,7 +37,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: cliphub-community serve | index [-max N]")
+		return errors.New("usage: cliphub-community serve | index [-max N] | prepare-hltv -downloads DIR -out DIR")
 	}
 	database := os.Getenv("CLIPHUB_COMMUNITY_DATABASE")
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -64,9 +66,41 @@ func run(args []string) error {
 		}
 		defer s.Close()
 		inbox := os.Getenv("CLIPHUB_COMMUNITY_INBOX")
-		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox}
+		hltv := os.Getenv("CLIPHUB_COMMUNITY_HLTV_DIR")
+		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox,
+			hltvDir: hltv, archiveDir: os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR")}
 		datasets := parseDatasetSpecs(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets))
-		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, maxDemos: *maxDemos})
+		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, hltvDir: hltv, maxDemos: *maxDemos})
+	case "build-lineups":
+		fs := flag.NewFlagSet("build-lineups", flag.ContinueOnError)
+		analyses := fs.String("analyses", os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"), "folder of archived analyses")
+		out := fs.String("out", "", "also write one JSON file per map here")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		s, err := openStore(database)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		if _, err := buildLineups(ctx, s, *analyses, time.Now()); err != nil {
+			return err
+		}
+		if *out != "" {
+			return writeLineupFiles(ctx, s, *out)
+		}
+		return nil
+	case "prepare-hltv":
+		fs := flag.NewFlagSet("prepare-hltv", flag.ContinueOnError)
+		downloads := fs.String("downloads", "", "folder of harvested <match id>.rar archives and their .json sidecars")
+		out := fs.String("out", "", "folder for the prepared analyses")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *downloads == "" || *out == "" {
+			return errors.New("prepare-hltv needs -downloads and -out")
+		}
+		return prepareHLTV(ctx, *downloads, *out, envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()))
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }

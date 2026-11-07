@@ -386,16 +386,25 @@ func lineupSpots(mapName string, lineups []tuiclient.Lineup) ([]tuiclient.Practi
 	}
 	return out, nil
 }
-// practiceSpots reads lineup_ids from the Libreta, or checks the spots given.
+// practiceSpots reads lineup_ids from the Libreta, pro_lineup_ids from Lineups pro, or checks the spots given.
 func (in practiceIn) practiceSpots(ctx context.Context, s *studio) ([]tuiclient.PracticeSpot, error) {
-	if len(in.LineupIDs) == 0 {
-		return in.spots()
+	sources := 0
+	for _, n := range []int{len(in.Spots), len(in.LineupIDs), len(in.ProLineupIDs)} {
+		if n > 0 {
+			sources++
+		}
 	}
-	if len(in.Spots) > 0 {
-		return nil, errors.New("pass spots or lineup_ids, not both")
+	if sources > 1 {
+		return nil, errors.New("pass only one of spots, lineup_ids and pro_lineup_ids")
+	}
+	if len(in.LineupIDs) == 0 && len(in.ProLineupIDs) == 0 {
+		return in.spots()
 	}
 	if !practiceMapPattern.MatchString(in.Map) {
 		return nil, errors.New("map must be a map name such as de_mirage")
+	}
+	if len(in.ProLineupIDs) > 0 {
+		return proLineupSpots(ctx, s, in)
 	}
 	if len(in.LineupIDs) > maxPracticeSpots {
 		return nil, fmt.Errorf("lineup_ids takes 1 to %d lineups", maxPracticeSpots)

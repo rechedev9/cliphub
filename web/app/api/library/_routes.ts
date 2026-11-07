@@ -32,6 +32,7 @@ import {
 } from '../../../lib/api/stratbook.ts';
 import { TEAM_GRENADES_KEYS, TEAM_GRENADES_QUERY } from '../../../lib/api/grenades.ts';
 import { LINEUP_FIELDS, LINEUP_KEYS, LINEUP_LIST_QUERY, LINEUP_PATCH_FIELDS } from '../../../lib/api/lineups.ts';
+import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-lineups.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
 import {
@@ -85,6 +86,8 @@ const STEAM_ID = /^[0-9]{1,20}$/;
 const TEAM_KEY = /^(ct-start|t-start)$/;
 const ROUND = /^[1-9][0-9]{0,2}$/;
 const MAP = /^[a-z0-9_]{1,64}$/;
+/** A pro lineup id: kind, side, then the rounded throw and landing cells and the jump flag. */
+const PRO_LINEUP_ID = /^(smoke|flash|he|molotov)-(t|ct)(-(-?[0-9]{1,4})){4}-[01](-[0-9]{1,3})?$/;
 /** A CS2 place name (`m_szLastPlaceName`) such as `BombsiteA` or `TopofMid`. */
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 
@@ -213,6 +216,9 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['baseline'], query: BASELINE_QUERY, response: json(BASELINE_KEYS) },
   { method: 'GET', segments: ['leaderboard'], query: LEADERBOARD_QUERY, response: json(LEADERBOARD_KEYS) },
   { method: 'GET', segments: ['norms'], query: NORMS_QUERY, response: json(NORMS_KEYS) },
+  { method: 'GET', segments: ['pro-lineups'], response: json(PRO_LINEUP_MAPS_KEYS) },
+  { method: 'GET', segments: ['pro-lineups', MAP], response: json(PRO_LINEUP_MAP_KEYS) },
+  { method: 'POST', segments: ['pro-lineups', MAP, 'lineups', PRO_LINEUP_ID, 'save'], response: json(LINEUP_KEYS) },
   { method: 'GET', segments: ['community', 'settings'], response: json(COMMUNITY_SETTINGS_KEYS) },
   { method: 'PUT', segments: ['community', 'settings'], body: fields(COMMUNITY_SETTINGS_FIELDS), response: json(COMMUNITY_SETTINGS_KEYS) },
   { method: 'GET', segments: ['community', 'rankings'], query: GLOBAL_RANKINGS_QUERY, response: json(GLOBAL_RANKINGS_KEYS) },

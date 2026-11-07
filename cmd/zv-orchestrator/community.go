@@ -36,5 +36,6 @@ func communityDeps(dataDir string) httpapi.CommunityDeps {
 		Client:    client,
 		Reference: community.OpenProReferenceCache(dir, client),
 		Settings:  community.NewSettingsStore(dir),
+		Lineups:   community.OpenLineupsCache(dir, client),
 	}
 }

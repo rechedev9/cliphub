@@ -54,11 +54,15 @@ type indexer struct {
 	http     *http.Client
 	workDir  string
 	inboxDir string
+	// hltvDir holds analyses prepared on an operator PC; archiveDir keeps them once indexed.
+	hltvDir    string
+	archiveDir string
 }
 
 type indexOptions struct {
 	datasets []datasetSpec
 	inboxDir string
+	hltvDir  string
 	maxDemos int
 }
 
@@ -97,13 +101,25 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", inboxDataset, len(files), len(pending))
 		todo = append(todo, pending...)
 	}
-	done, failed := 0, 0
+	if opts.hltvDir != "" {
+		files, err := listAnalyses(opts.hltvDir)
+		if err != nil {
+			return fmt.Errorf("list hltv analyses: %w", err)
+		}
+		pending, err := ix.store.pendingDemos(ctx, hltvDataset, files)
+		if err != nil {
+			return err
+		}
+		log.Printf("community stage=index class=listed dataset=%s demos=%d pending=%d", hltvDataset, len(files), len(pending))
+		todo = append(todo, pending...)
+	}
+	done, failed, hltvDone := 0, 0, 0
 	for _, demo := range todo {
 		if done+failed >= opts.maxDemos || ctx.Err() != nil {
 			break
 		}
 		start := time.Now()
-		summary, err := ix.indexDemo(ctx, demo)
+		summary, err := ix.indexDemo(ctx, &demo)
 		if err != nil {
 			failed++
 			log.Printf("community stage=index class=failed path=%s error=%v", demo.path, err)
@@ -113,6 +129,9 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 			continue
 		}
 		done++
+		if demo.dataset == hltvDataset {
+			hltvDone++
+		}
 		log.Printf("community stage=index class=indexed path=%s map=%s rounds=%d seconds=%.0f", demo.path, summary.Match.Map, summary.Match.Rounds, time.Since(start).Seconds())
 		if err := ix.store.markIndexed(ctx, demo, summary); err != nil {
 			return err
@@ -128,11 +147,33 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 	if err != nil {
 		return fmt.Errorf("rebuild reference: %w", err)
 	}
+	if ix.archiveDir != "" && ix.lineupsDue(ctx, hltvDone) {
+		if _, err := buildLineups(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
+			log.Printf("community stage=lineups class=kept error=%v", err)
+		}
+	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)
 	for _, m := range index.Maps {
 		log.Printf("community stage=index class=map map=%s maps=%d rounds=%d players=%d", m.Map, m.Matches, m.Rounds, m.Players)
 	}
 	return nil
+}
+
+// lineupsDue reports whether the lineup index needs a rebuild: new analyses came
+// in, or a day passed and the recent windows moved. Each rebuild reads every analysis.
+func (ix *indexer) lineupsDue(ctx context.Context, indexed int) bool {
+	if indexed > 0 {
+		return true
+	}
+	body, _, err := ix.store.referenceBody(ctx, lineupsIndexKey)
+	if err != nil {
+		return true
+	}
+	var stored lineupsIndex
+	if err := json.Unmarshal(body, &stored); err != nil {
+		return true
+	}
+	return time.Since(stored.BuiltAt) >= lineupsMaxAge
 }
 
 // listDataset walks the tree API, following its Link pagination.
@@ -194,9 +235,16 @@ func (ix *indexer) get(ctx context.Context, rawURL string) (*http.Response, erro
 }
 
 // indexDemo downloads one demo, checks its SHA-256 against the dataset, scans it and deletes it.
-func (ix *indexer) indexDemo(ctx context.Context, demo pendingDemo) (tacticalplan.ProDemoSummary, error) {
-	if demo.dataset == inboxDataset {
-		return ix.indexInboxDemo(ctx, demo)
+func (ix *indexer) indexDemo(ctx context.Context, demo *pendingDemo) (tacticalplan.ProDemoSummary, error) {
+	switch demo.dataset {
+	case inboxDataset:
+		return ix.indexInboxDemo(ctx, *demo)
+	case hltvDataset:
+		summary, event, err := ix.indexAnalysis(*demo)
+		if err == nil {
+			demo.event = event
+		}
+		return summary, err
 	}
 	escaped := []string{}
 	for _, part := range strings.Split(demo.path, "/") {
@@ -242,10 +290,7 @@ func scanProDemo(ctx context.Context, name string) (tacticalplan.ProDemoSummary,
 		return tacticalplan.ProDemoSummary{}, fmt.Errorf("scan: %w", err)
 	}
 	summary := tacticalplan.SummarizeProDemo(res.Document)
-	if summary.Match.Map == "" || summary.Match.Rounds == 0 || len(summary.Players) < 10 {
-		return tacticalplan.ProDemoSummary{}, fmt.Errorf("%w: map %q, %d rounds, %d players", errNotAMatch, summary.Match.Map, summary.Match.Rounds, len(summary.Players))
-	}
-	return summary, nil
+	return summary, checkMatch(summary)
 }
 
 type pendingDemo struct {

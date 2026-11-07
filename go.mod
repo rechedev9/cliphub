@@ -16,6 +16,7 @@ require (
 	github.com/markus-wa/demoinfocs-golang/v5 v5.2.0
 	github.com/markus-wa/godispatch v1.4.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/nwaples/rardecode/v2 v2.4.6
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0

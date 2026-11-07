@@ -34,6 +34,7 @@ type CommunityDeps struct {
 	Client    *community.Client
 	Reference *community.ProReferenceCache
 	Settings  *community.SettingsStore
+	Lineups   *community.LineupsCache
 }
 
 // WithCommunity wires the server pro reference and the rankings opt-in.

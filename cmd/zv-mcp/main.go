@@ -86,8 +86,11 @@ update_library_series, delete_library_series and set_match_series. team_maps rea
 and simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
+Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
+list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta), get_pro_lineup
+(setpos, teams, partners, examples) and list_pro_combos; save_pro_lineup copies one into the Libreta.
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
-or lineup_ids of Libreta lineups on one map.
+lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
 community_ranking reads the user's percentile against other installs; set_community_ranking,
 submit_community_ranking and delete_community_ranking manage sharing.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every

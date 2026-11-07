@@ -99,7 +99,7 @@ func SummarizeProDemo(doc Document) ProDemoSummary {
 	out := ProDemoSummary{Match: ProReferenceMatch{Map: doc.Demo.Map, Teams: names, Rounds: n}}
 	if n > 0 {
 		// The score after a restart can read 0-0 for one round, so the range counts back from the end.
-		out.LastRound = gameRound(doc.Rounds[n-1])
+		out.LastRound = GameRound(doc.Rounds[n-1])
 		out.FirstRound = max(out.LastRound-n+1, 1)
 	}
 	index := map[string]int{}

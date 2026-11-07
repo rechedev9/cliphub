@@ -28,6 +28,7 @@ func newAPI(s *store) *api {
 func (a *api) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/pro-reference", a.handleProReference)
+	mux.HandleFunc("GET /v1/pro-lineups", a.handleProLineups)
 	mux.HandleFunc("GET /v1/rankings", a.handleRankings)
 	mux.HandleFunc("POST /v1/rankings/submit", a.handleSubmit)
 	mux.HandleFunc("DELETE /v1/rankings/installs/{id}", a.handleDelete)

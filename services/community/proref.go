@@ -160,6 +160,20 @@ func referencePayloads(ref tacticalplan.ProReference) (map[string][]byte, commun
 	return payloads, index, nil
 }
 
+// handleProLineups serves GET /v1/pro-lineups: the list of maps without a map,
+// else that map's lineup index.
+func (a *api) handleProLineups(w http.ResponseWriter, r *http.Request) {
+	key := lineupsIndexKey
+	if m := r.URL.Query().Get("map"); m != "" {
+		if !community.MapPattern.MatchString(m) || m == community.AllMaps {
+			writeError(w, http.StatusBadRequest, "map must be a map name like de_mirage")
+			return
+		}
+		key = "lineups:" + m
+	}
+	a.serveStored(w, r, key, "no lineups for this map")
+}
+
 // handleProReference serves GET /v1/pro-reference: the index without a map,
 // the full reference for map=all, else one map.
 func (a *api) handleProReference(w http.ResponseWriter, r *http.Request) {
@@ -170,13 +184,18 @@ func (a *api) handleProReference(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "map must be all or a map name like de_mirage")
 		return
 	}
+	a.serveStored(w, r, key, "no pro reference for this map")
+}
+
+// serveStored answers with one stored payload, honouring If-None-Match.
+func (a *api) serveStored(w http.ResponseWriter, r *http.Request, key, missing string) {
 	body, etag, err := a.store.referenceBody(r.Context(), key)
 	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "no pro reference for this map")
+		writeError(w, http.StatusNotFound, missing)
 		return
 	}
 	if err != nil {
-		a.internal(w, "pro reference", err)
+		a.internal(w, "stored payload", err)
 		return
 	}
 	w.Header().Set("ETag", etag)

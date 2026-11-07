@@ -31,7 +31,7 @@ var (
 	practiceMapPattern = regexp.MustCompile(`^de_[a-z0-9_]{1,32}$`)
 	// rankingMapPattern is community.MapPattern without "all", which the empty map means.
 	rankingMapPattern = regexp.MustCompile(`^[a-z]{2,4}_[a-z0-9_]{1,32}$`)
-	practiceGrenades   = []string{"smoke", "flash", "he", "molotov", "decoy"}
+	practiceGrenades  = []string{"smoke", "flash", "he", "molotov", "decoy"}
 )
 
 type faceitLookupIn struct {
@@ -95,10 +95,11 @@ type practiceSpotIn struct {
 }
 
 type practiceIn struct {
-	Map     string           `json:"map" jsonschema:"such as de_mirage"`
-	Spots     []practiceSpotIn `json:"spots,omitempty" jsonschema:"1 to 20 spots, in the order the keys cycle through them"`
-	LineupIDs []string         `json:"lineup_ids,omitempty" jsonschema:"instead of spots: 1 to 20 Libreta lineup ids from list_lineups, all on map"`
-	Approve   string           `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	Map          string           `json:"map" jsonschema:"such as de_mirage"`
+	Spots        []practiceSpotIn `json:"spots,omitempty" jsonschema:"1 to 20 spots, in the order the keys cycle through them"`
+	LineupIDs    []string         `json:"lineup_ids,omitempty" jsonschema:"instead of spots: 1 to 20 Libreta lineup ids from list_lineups, all on map"`
+	ProLineupIDs []string         `json:"pro_lineup_ids,omitempty" jsonschema:"instead of spots: 1 to 20 pro lineup ids or slugs from find_pro_lineups, all on map"`
+	Approve      string           `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
 type practiceOut struct {
@@ -263,7 +264,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "launch_practice", Annotations: &mcp.ToolAnnotations{},
 		Description: "Open CS2 on a local practice server standing on grenade spots, as Practicar does on the grenades page: take origin and view from team_grenades rows, " +
-			"or pass lineup_ids of Libreta lineups. " +
+			"or pass lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups. " +
 			"It opens the game on the user's PC, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in practiceIn) (*mcp.CallToolResult, practiceOut, error) {
 			spots, err := in.practiceSpots(ctx, s)

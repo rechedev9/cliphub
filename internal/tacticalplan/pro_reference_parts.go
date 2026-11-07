@@ -2,9 +2,9 @@ package tacticalplan
 
 import "sort"
 
-// gameRound is a round's number in the game, from the score before it, which
+// GameRound is a round's number in the game, from the score before it, which
 // keeps counting across the demos a server restart splits a map into.
-func gameRound(r Round) int {
+func GameRound(r Round) int {
 	return r.ScoreCTBefore + r.ScoreTBefore + 1
 }
 

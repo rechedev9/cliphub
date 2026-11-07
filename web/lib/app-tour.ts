@@ -322,6 +322,28 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/libreta', label: 'Ir a la Libreta' },
   },
   {
+    id: 'pro-lineups',
+    kicker: 'Lineups pro',
+    label: 'Lineups pro',
+    title: 'Las granadas que repiten los pros',
+    lead: 'Humos, flashes, molotovs y HE leídos cada día de las demos de partidas pro, mapa a mapa y ordenados por uso.',
+    points: [
+      {
+        term: 'En el radar',
+        text: 'Cada punto es dónde cae un lineup. Ábrelo para ver desde dónde se lanza, con qué técnica y cuánto tarda en caer.',
+      },
+      {
+        term: 'Con su uso pro',
+        text: 'Qué equipos y jugadores lo tiran, en qué momento de la ronda, con qué otras granadas y si esas rondas se ganan.',
+      },
+      {
+        term: 'A practicar',
+        text: 'Practícalo en CS2 con un clic, o guárdalo en la Libreta de tu equipo.',
+      },
+    ],
+    link: { href: '/lineups', label: 'Ir a Lineups pro' },
+  },
+  {
     id: 'reports',
     kicker: 'Informes',
     label: 'Informes',
