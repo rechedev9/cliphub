@@ -7,7 +7,6 @@ import {
   matchHref,
   matchesHref,
   parseRoundsParam,
-  parseSeriesFormat,
   playerHref,
   PRODUCE_FORMAT,
   produceHref,
@@ -45,23 +44,10 @@ test('produceHref opens the producer of the given flow', () => {
   }
 });
 
-test('seriesHref carries the flow only for Demo completa', () => {
+test('seriesHref keeps a series in the flow it came from', () => {
   assert.equal(seriesHref(SERIES_ID), `/series/${SERIES_ID}`);
   assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.short), `/series/${SERIES_ID}`);
-  assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.full), `/series/${SERIES_ID}?formato=full`);
-});
-
-test('parseSeriesFormat reads Demo completa and falls back to Short', () => {
-  const cases: Array<{ value: string | string[] | undefined; want: string }> = [
-    { value: 'full', want: PRODUCE_FORMAT.full },
-    { value: 'short', want: PRODUCE_FORMAT.short },
-    { value: undefined, want: PRODUCE_FORMAT.short },
-    { value: 'bogus', want: PRODUCE_FORMAT.short },
-    { value: ['full', 'full'], want: PRODUCE_FORMAT.short },
-  ];
-  for (const { value, want } of cases) {
-    assert.equal(parseSeriesFormat(value), want, String(value));
-  }
+  assert.equal(seriesHref(SERIES_ID, PRODUCE_FORMAT.full), `${LONG_VIDEOS_HREF}/serie/${SERIES_ID}`);
 });
 
 test('publishHref lives under the results area', () => {

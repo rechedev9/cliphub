@@ -45,6 +45,7 @@ test('nav: a nested route lights its section, a series lights Short', () => {
   assert.equal(sectionForPath('/partidas/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed')?.href, '/partidas');
   assert.equal(sectionForPath('/mis-videos/abc/publicar/clip')?.href, '/mis-videos');
   assert.equal(sectionForPath('/series/abc')?.href, '/shorts');
+  assert.equal(sectionForPath('/videos-largos/serie/abc')?.href, '/videos-largos');
   assert.equal(sectionForPath('/shortsx'), null);
   assert.equal(sectionForPath('/'), null);
 });
