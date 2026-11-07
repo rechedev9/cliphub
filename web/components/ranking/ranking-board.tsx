@@ -134,7 +134,7 @@ export function RankingBoard(): ReactNode {
             <span className="text-meta whitespace-nowrap text-fg-3">Demos</span>
             <Segmented label="Demos" value={query.scope} options={BOARD_SCOPES} onChange={(scope) => update({ scope })} />
             {!global && data !== null && data !== 'failed' ? (
-              <p className="flex h-8 items-center rounded-md border border-border px-2.5 text-meta font-medium whitespace-nowrap text-fg-1 tabular-nums">
+              <p className="pl-1 text-meta whitespace-nowrap text-fg-3 tabular-nums">
                 {data.board.matches} {data.board.matches === 1 ? 'partida' : 'partidas'} · {data.board.rounds} rondas
               </p>
             ) : null}

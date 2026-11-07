@@ -5,7 +5,7 @@
 - No pases de 60 s si la música puede recibir una reclamación: el Short se bloquea en todo el mundo.
 - Añade contexto propio: ronda, economía, 1vsX. No repitas la misma plantilla en cada clip.
 - Haz que el final encadene con el principio.
-- Enlaza tu demo completa de esa partida con "Vídeo relacionado".
+- Enlaza tu demo completa de esa partida con «Vídeo relacionado».
 
 ## Demo completa
 
@@ -17,7 +17,7 @@
 
 ## Títulos
 
-- Nombra jugador, equipo, mapa, evento y jugada: "Ace de X en Mirage, final de Y".
+- Nombra jugador, equipo, mapa, evento y jugada: «Ace de X en Mirage, final de Y».
 - Comparte el vídeo en Discord, Reddit o X.
 
 ## Cuándo publicar
@@ -35,6 +35,6 @@
 
 ## Qué mirar en YouTube Studio
 
-- Shorts: "Visto frente a deslizado" y vistas comprometidas.
+- Shorts: «Visto frente a deslizado» y vistas comprometidas.
 - Demo completa: CTR de impresiones, duración media y retención.
 - Compara con la media de tu canal, no con cifras de otros.

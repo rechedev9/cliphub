@@ -113,14 +113,17 @@ export function TeamLibrary(): ReactNode {
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar
-        values={view.state.filters}
-        onChange={view.setFilter}
-        onReset={view.resetFilters}
-        searchPlaceholder="Buscar por nombre o alias"
-        count={{ shown: shown.length, total: teams.length, noun: teams.length === 1 ? 'equipo' : 'equipos' }}
-      />
       <DataTable
+        toolbar={
+          <FilterBar
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por nombre o alias"
+            count={{ shown: shown.length, total: teams.length, noun: teams.length === 1 ? 'equipo' : 'equipos' }}
+          />
+        }
         label="Equipos"
         rows={shown}
         columns={columns}

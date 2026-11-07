@@ -108,15 +108,18 @@ export function PlayerLibrary(): ReactNode {
 
   return (
     <div className="flex flex-col gap-3">
-      <FilterBar
-        values={view.state.filters}
-        onChange={view.setFilter}
-        onReset={view.resetFilters}
-        searchPlaceholder="Buscar por nick, SteamID64 o FACEIT"
-        filters={[{ id: 'faceit', label: 'FACEIT', options: FACEIT_OPTIONS }]}
-        count={{ shown: shown.length, total: players.length, noun: players.length === 1 ? 'jugador' : 'jugadores' }}
-      />
       <DataTable
+        toolbar={
+          <FilterBar
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+            values={view.state.filters}
+            onChange={view.setFilter}
+            onReset={view.resetFilters}
+            searchPlaceholder="Buscar por nick, SteamID64 o FACEIT"
+            filters={[{ id: 'faceit', label: 'FACEIT', options: FACEIT_OPTIONS }]}
+            count={{ shown: shown.length, total: players.length, noun: players.length === 1 ? 'jugador' : 'jugadores' }}
+          />
+        }
         label="Jugadores"
         rows={shown}
         columns={COLUMNS}
