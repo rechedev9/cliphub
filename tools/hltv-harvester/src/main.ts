@@ -4,7 +4,7 @@
 //
 //   pnpm start -- --days 30 --top 50 --out C:\Users\me\cliphub-hltv
 import { app, BrowserWindow, session, type DownloadItem, type Session } from "electron";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,8 +22,11 @@ const opts = parseArgs(process.argv.slice(2), join(homedir(), "cliphub-hltv"));
 const downloadsDir = join(opts.outDir, "downloads");
 const statePath = join(opts.outDir, "harvest-state.json");
 
+// Electron on Windows drops console output when it is redirected, so the log is a file.
 function log(msg: string): void {
-  console.log(`${new Date().toISOString()} harvester ${msg}`);
+  const line = `${new Date().toISOString()} harvester ${msg}`;
+  console.log(line);
+  appendFileSync(join(opts.outDir, "harvester.log"), `${line}\n`);
 }
 
 function sleep(ms: number): Promise<void> {

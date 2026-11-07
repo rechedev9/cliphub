@@ -144,6 +144,11 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 	if err != nil {
 		return fmt.Errorf("rebuild reference: %w", err)
 	}
+	if ix.archiveDir != "" {
+		if _, err := buildLineups(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
+			return fmt.Errorf("rebuild lineups: %w", err)
+		}
+	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)
 	for _, m := range index.Maps {
 		log.Printf("community stage=index class=map map=%s maps=%d rounds=%d players=%d", m.Map, m.Matches, m.Rounds, m.Players)

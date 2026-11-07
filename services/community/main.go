@@ -5,6 +5,7 @@
 //	cliphub-community serve             answer the public API on a loopback port
 //	cliphub-community index [-max N]    index new pro demos and rebuild the reference
 //	cliphub-community prepare-hltv      scan harvested HLTV archives into analyses (operator PC)
+//	cliphub-community build-lineups     rebuild the pro lineup index from the archived analyses
 package main
 
 import (
@@ -70,6 +71,25 @@ func run(args []string) error {
 			hltvDir: hltv, archiveDir: os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR")}
 		datasets := parseDatasetSpecs(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets))
 		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, hltvDir: hltv, maxDemos: *maxDemos})
+	case "build-lineups":
+		fs := flag.NewFlagSet("build-lineups", flag.ContinueOnError)
+		analyses := fs.String("analyses", os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"), "folder of archived analyses")
+		out := fs.String("out", "", "also write one JSON file per map here")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		s, err := openStore(database)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		if _, err := buildLineups(ctx, s, *analyses, time.Now()); err != nil {
+			return err
+		}
+		if *out != "" {
+			return writeLineupFiles(ctx, s, *out)
+		}
+		return nil
 	case "prepare-hltv":
 		fs := flag.NewFlagSet("prepare-hltv", flag.ContinueOnError)
 		downloads := fs.String("downloads", "", "folder of harvested <match id>.rar archives and their .json sidecars")

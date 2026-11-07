@@ -93,14 +93,15 @@ func (s *store) referenceBody(ctx context.Context, key string) ([]byte, string, 
 	return body, etag, err
 }
 
-// replaceReference swaps every stored payload in one transaction.
+// replaceReference swaps every pro reference payload in one transaction; the
+// lineup payloads that share the table are rebuilt on their own.
 func (s *store) replaceReference(ctx context.Context, payloads map[string][]byte) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM pro_reference`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM pro_reference WHERE map NOT LIKE 'lineups:%'`); err != nil {
 		return err
 	}
 	at := now()
