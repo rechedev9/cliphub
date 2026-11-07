@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getLibraryPlayerRole, type LibraryRosterEntry } from '@/lib/api/library';
+import { getLibraryPlayerRole, type LibraryRole, type LibraryRosterEntry } from '@/lib/api/library';
 import type { Baseline, BaselineMetric, BaselineScope } from '@/lib/api/baseline';
 import { METRIC_INFO, baselineSampleText, baselineValue, minRoundsNote, proSourceText, referenceLabel } from '@/lib/analysis/reference';
 import { playerHref } from '@/lib/clips/routes';
@@ -21,6 +21,18 @@ const SHORT_LABEL: Partial<Record<BaselineMetric, string>> = {
   opening_win_pct: 'Aperturas',
   trade_pct: 'Tradeadas',
 };
+/** A role too thin to read is a quiet dash, so a short roster is not a column of the same words. */
+function RoleCell({ role }: { role: LibraryRole | undefined }): ReactNode {
+  if (role === undefined) return null;
+  if (role !== 'unknown') return ROLE_LABEL[role];
+  return (
+    <span title={ROLE_LABEL.unknown}>
+      <span aria-hidden className="text-fg-3">—</span>
+      <span className="sr-only">{ROLE_LABEL.unknown}</span>
+    </span>
+  );
+}
+
 /** The roster as one dense row per player, most recent first: role and key numbers against the chosen reference. */
 export function TeamRoster({
   roster,
@@ -33,7 +45,7 @@ export function TeamRoster({
   reference: BaselineScope;
 }): ReactNode {
   const data = useReferences(map, ROW_METRICS);
-  const [roles, setRoles] = useState<ReadonlyMap<string, string>>(new Map());
+  const [roles, setRoles] = useState<ReadonlyMap<string, LibraryRole>>(new Map());
   const ids = roster.map((entry) => entry.steamid64).join(',');
 
   useEffect(() => {
@@ -41,7 +53,7 @@ export function TeamRoster({
     for (const steamId of ids === '' ? [] : ids.split(',')) {
       getLibraryPlayerRole(steamId)
         .then((role) => {
-          if (active) setRoles((current) => new Map(current).set(steamId, ROLE_LABEL[role.role]));
+          if (active) setRoles((current) => new Map(current).set(steamId, role.role));
         })
         .catch(() => undefined);
     }
@@ -97,7 +109,6 @@ export function TeamRoster({
           <tbody>
             {sorted.map((entry) => {
               const name = entry.nick || entry.steamid64;
-              
               return (
                 <tr key={entry.steamid64} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3/50">
                   <th scope="row" className="sticky left-0 z-10 bg-surface-2 px-3 py-1.5 text-left font-medium">
@@ -108,7 +119,9 @@ export function TeamRoster({
                       </Link>
                     </span>
                   </th>
-                  <td className="px-3 py-1.5 whitespace-nowrap text-fg-2">{roles.get(entry.steamid64) ?? ''}</td>
+                  <td className="px-3 py-1.5 whitespace-nowrap text-fg-2">
+                    <RoleCell role={roles.get(entry.steamid64)} />
+                  </td>
                   <td className="px-3 py-1.5 text-right text-fg-2 tabular-nums">{entry.matches}</td>
                   {ROW_METRICS.map((metric) => {
                     const info = METRIC_INFO[metric];

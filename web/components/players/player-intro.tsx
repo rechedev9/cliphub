@@ -91,6 +91,9 @@ export function PlayerIntro({
     adr: sparkline('adr'),
     wpa_per_round: sparkline('wpa'),
   };
+  const reliabilities = BASELINE_METRICS.map((metric) => metricReliability(evidence[metric], baseline?.metrics[metric], metric));
+  // When every figure is thin, the note under the cards says it once instead of each card.
+  const allWeak = reliabilities.length > 0 && reliabilities.every((r) => r?.weak === true);
   const chartPoints = trendPoints(player.match_lines, trend, damage);
   const chartBaseline = TREND_BASELINE[trend];
   const chartReference = chartBaseline === null ? null : baselineValue(baseline, chartBaseline);
@@ -105,9 +108,10 @@ export function PlayerIntro({
           </p>
         ) : null}
         <StatCardGroup label="Cifras principales">
-          {BASELINE_METRICS.map((metric) => {
+          {BASELINE_METRICS.map((metric, index) => {
             const info = METRIC_INFO[metric];
             const mean = baselineValue(baseline, metric);
+            const cardReliability = reliabilities[index] ?? null;
             return (
               <StatCard
                 key={metric}
@@ -117,14 +121,14 @@ export function PlayerIntro({
                 higherIsBetter={info.higherIsBetter}
                 epsilon={info.epsilon}
                 comparison={mean === null ? undefined : { value: mean, label }}
-                reliability={metricReliability(evidence[metric], baseline?.metrics[metric], metric)}
+                reliability={cardReliability && allWeak ? { ...cardReliability, weak: false } : cardReliability}
                 trend={trends[metric]}
               />
             );
           })}
         </StatCardGroup>
         <p className="measure-read text-meta text-fg-3">
-          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}. ▲▼ solo cuando la diferencia es fiable.
+          {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.{allWeak ? ' Poca muestra en todas las cifras: pesa más la media que sus rondas.' : ''} ▲▼ solo cuando la diferencia es fiable.
           {baseline ? ` ${sourceText(baseline, map)}` : ''}
           {ready && scope === 'library' ? minRoundsNote(ready.minRounds) : ''}
           {references === null ? ' Leyendo la media.' : ''}

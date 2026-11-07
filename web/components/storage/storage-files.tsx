@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FolderOpen, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { listLibraryMatches } from '@/lib/api/library';
 import type { StorageFile, StorageFiles } from '@/lib/api/storage';
 import type { Match, Video } from '@/lib/api/types';
 import { bulkDeleteSummary, deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
@@ -14,11 +15,13 @@ import {
   formatFileDate,
   groupByFolder,
   groupByKind,
+  libraryCopyLabel,
   libraryVideoFor,
   matchLabel,
   splitPath,
   totalBytes,
   type FileGroup,
+  type LibraryCopyMatch,
 } from '@/lib/storage-files';
 import { SelectionBar } from '@/components/records/selection-bar';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -26,13 +29,15 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const SCAN_POLL_MS = 2000;
+/** A folder with more files than this opens folded, so one big folder does not bury the rest of the page. */
+const GROUP_PREVIEW_ROWS = 6;
 
 type MatchIndex = ReadonlyMap<string, Pick<Match, 'map' | 'player'>>;
 
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; files: StorageFiles; matches: MatchIndex };
+  | { kind: 'ready'; files: StorageFiles; matches: MatchIndex; libraryMatches: readonly LibraryCopyMatch[] };
 
 /** Almacenamiento: where demos and Studio videos live on this PC, with delete per file. */
 export function StorageFilesScreen({ children }: { children?: ReactNode }): ReactNode {
@@ -43,8 +48,12 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const [files, matches] = await Promise.all([api.listStorageFiles(), api.listMatches().catch(() => [])]);
-      setState({ kind: 'ready', files, matches: new Map(matches.map((match) => [match.id, match])) });
+      const [files, matches, libraryMatches] = await Promise.all([
+        api.listStorageFiles(),
+        api.listMatches().catch(() => []),
+        listLibraryMatches().catch(() => []),
+      ]);
+      setState({ kind: 'ready', files, matches: new Map(matches.map((match) => [match.id, match])), libraryMatches });
     } catch (err) {
       setState({ kind: 'error', message: storageLoadErrorMessage(err) });
     }
@@ -87,7 +96,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 
   let body: ReactNode;
   if (state.kind === 'ready') {
-    body = <ReadyBody files={state.files} matches={state.matches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); }} />;
+    body = <ReadyBody files={state.files} matches={state.matches} libraryMatches={state.libraryMatches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); }} />;
   } else if (state.kind === 'error') {
     body = (
       <div className="flex flex-col items-start gap-3">
@@ -129,11 +138,13 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 function ReadyBody({
   files,
   matches,
+  libraryMatches,
   onRemoved,
   onReload,
 }: {
   files: StorageFiles;
   matches: MatchIndex;
+  libraryMatches: readonly LibraryCopyMatch[];
   onRemoved: (path: string, freedBytes: number, label: string) => void;
   onReload: () => void;
 }): ReactNode {
@@ -266,7 +277,7 @@ function ReadyBody({
         ) : (
           <ul className="flex flex-col gap-2">
             {files.studioDemos.map((file) => (
-              <StudioDemoRow key={file.path} file={file} label={matchLabel(file.jobId, matches)} onDeleted={onReload} {...rowProps(file)} />
+              <StudioDemoRow key={file.path} file={file} label={matchLabel(file.jobId, matches) ?? libraryCopyLabel(file.path, libraryMatches)} onDeleted={onReload} {...rowProps(file)} />
             ))}
           </ul>
         )}
@@ -310,8 +321,10 @@ function Group({
   group: FileGroup;
   allChosen: boolean;
   onToggle: (on: boolean) => void;
-  children: ReactNode;
+  children: ReactNode[];
 }): ReactNode {
+  const [open, setOpen] = useState(false);
+  const hidden = open ? 0 : Math.max(0, children.length - GROUP_PREVIEW_ROWS);
   return (
     <div className="flex flex-col border border-border bg-surface-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-3.5 py-2.5">
@@ -329,7 +342,16 @@ function Group({
           {formatBytes(group.totalBytes)} · {group.files.length} {group.files.length === 1 ? 'archivo' : 'archivos'}
         </span>
       </div>
-      <ul className="flex flex-col divide-y divide-border">{children}</ul>
+      <ul className="flex flex-col divide-y divide-border">{hidden > 0 ? children.slice(0, GROUP_PREVIEW_ROWS) : children}</ul>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="h-10 border-t border-border px-3.5 text-left text-body-sm text-fg-2 transition-[color,background-color] duration-(--dur-fast) hover:bg-surface-3 hover:text-fg-1"
+        >
+          Mostrar {hidden === 1 ? 'el archivo restante' : `los ${hidden} archivos restantes`}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { HardDrive, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { deleteCapturesErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
 import { formatBytes, freeableJobs, storageLoadErrorMessage, type FreeableJob } from '@/lib/storage';
-import { IconTile } from '@/components/studio/icon-tile';
-import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -53,8 +51,7 @@ export function CaptureStorage(): ReactNode {
   let body: ReactNode;
   if (state.kind === 'ready') {
     body = (
-      <div className="flex flex-col gap-4">
-        <StudioDataRow label="Usado por tus vídeos" value={formatBytes(state.totalBytes)} />
+      <div className="flex flex-col gap-3">
         {freed ? <p role="status" className="text-body-sm text-success">{freed}</p> : null}
         {state.jobs.length > 0 ? (
           <ul className="flex flex-col gap-2" aria-label="Demos completas con capturas">
@@ -67,7 +64,6 @@ export function CaptureStorage(): ReactNode {
             No hay capturas que borrar.
           </p>
         )}
-        <p className="text-body-sm text-fg-2">Studio borra las capturas de una demo completa cuando su render final está listo.</p>
       </div>
     );
   } else if (state.kind === 'error') {
@@ -87,12 +83,19 @@ export function CaptureStorage(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="capture-storage-title">
-      <div className="flex items-center gap-4">
-        <IconTile icon={HardDrive} size="md" depth="inset" />
-        <h2 id="capture-storage-title" className="font-display text-title font-bold text-fg-1">
-          Capturas de demos completas
-        </h2>
+    <section className="flex flex-col gap-3" aria-labelledby="capture-storage-title">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="capture-storage-title" className="font-display text-title font-bold text-fg-1">
+            Capturas de demos completas
+          </h2>
+          {state.kind === 'ready' ? (
+            <span className="text-body-sm tabular-nums text-fg-2">Usado por tus vídeos: {formatBytes(state.totalBytes)}</span>
+          ) : null}
+        </div>
+        <p className="measure-read text-body-sm text-fg-2">
+          Las grabaciones de CS2 de cada demo completa. Studio las borra solo cuando su render final está listo.
+        </p>
       </div>
       {body}
     </section>
@@ -122,10 +125,10 @@ function CaptureRow({ job, onFreed }: { job: FreeableJob; onFreed: (bytes: numbe
   };
 
   return (
-    <li className="flex flex-col gap-3 border border-border bg-surface-2 px-3.5 py-3">
+    <li className="flex flex-col gap-3 border border-border bg-surface-1 px-3.5 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate font-display text-body-sm font-bold text-fg-1">{job.label}</span>
+          <span className="truncate text-body-sm font-semibold text-fg-1">{job.label}</span>
           <span className="text-meta tabular-nums text-fg-2">
             Capturas {formatBytes(job.captureBytes)} · Render {formatBytes(job.renderBytes)}
           </span>
@@ -133,10 +136,10 @@ function CaptureRow({ job, onFreed }: { job: FreeableJob; onFreed: (bytes: numbe
         {armed ? null : (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => { setError(null); setArmed(true); }}
-            className="hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+            className="hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 aria-hidden />
             Borrar capturas
