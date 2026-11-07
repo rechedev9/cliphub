@@ -375,7 +375,7 @@ export function EditOptions({
                 aria-label={`Código ${affiliateFamilyLabel(value.keyDropFamily ?? '', value.keyDropStyle)}`}
               />
               <p className="text-body-sm text-fg-3">
-                Se renderiza como{' '}
+                En el vídeo se lee{' '}
                 <span className="font-mono text-fg-1">
                   {affiliateDisplayLabel(value.keyDropFamily ?? '', value.keyDropStyle ?? '', value.keyDropCode ?? '')}
                 </span>

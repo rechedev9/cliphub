@@ -48,6 +48,7 @@ import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title'
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 import { acquireProgressView } from '@/lib/streams/acquire-progress';
 import { STREAMS_HREF } from '@/lib/clips/routes';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 type Stage = 'loading' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed' | 'missing' | 'error';
 
@@ -57,8 +58,8 @@ type StreamFailure = { kind: StreamFailureKind; reason: string | null };
 const AUTOSAVE_FAIL_MESSAGE =
   'No se pudieron guardar los cambios. Siguen a salvo en este PC y se reintentará con tu próximo cambio.';
 const RENDER_RETRY_PUBLISHED_MESSAGE =
-  'El nuevo render falló. La última versión sigue disponible; revisa los cambios y vuelve a exportar.';
-const RENDER_RETRY_SUPERSEDED_MESSAGE = 'El plan cambió antes de terminar el render. Revísalo y vuelve a exportar.';
+  'La nueva exportación falló. La última versión sigue disponible; revisa los cambios y vuelve a exportar.';
+const RENDER_RETRY_SUPERSEDED_MESSAGE = 'El proyecto cambió antes de terminar la exportación. Revísalo y vuelve a exportar.';
 
 /** /streams/[id]: the stage machine for one job; UI lives in components/streams. */
 export default function StreamEditorPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
@@ -513,10 +514,10 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           description={
             renderFailed ? (
               <>
-                <p>El render falló y no se creó ningún Short. Tu proyecto sigue intacto: vuelve al editor y exporta de nuevo.</p>
+                <p>La exportación falló y no se creó ningún Short. Tu proyecto sigue intacto: vuelve al editor y exporta de nuevo.</p>
                 {failure.reason ? (
                   <details className="mt-4 text-left text-body-sm text-fg-3">
-                    <summary className="cursor-pointer">Detalle técnico</summary>
+                    <DisclosureSummary>Detalle técnico</DisclosureSummary>
                     <p className="mt-2 max-h-48 overflow-y-auto break-words font-mono text-meta">{failure.reason}</p>
                   </details>
                 ) : null}

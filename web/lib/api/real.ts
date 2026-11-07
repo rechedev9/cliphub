@@ -633,7 +633,7 @@ export class RealApiClient implements ApiClient {
   /** Recovered renders have no intent to drive, so edits are refused with a reason. */
   private unknownReel(id: string): Error {
     if (this.recovered.has(id)) {
-      return new Error('Este vídeo se recuperó de un render anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
+      return new Error('Este vídeo se recuperó de un montaje anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
     }
     if (this.imported?.some((video) => importedVideoId(video) === id)) {
       return new Error('Este Short se grabó en la antigua nube de ClipHub: solo se puede ver, descargar o borrar.');
@@ -708,7 +708,7 @@ export class RealApiClient implements ApiClient {
       throw new Error('El Short tiene que estar listo para añadir o cambiar la música.');
     }
     if (current.unrecoverable) {
-      throw new Error('Este reel ya no se puede volver a renderizar.');
+      throw new Error('Este vídeo ya no se puede volver a montar.');
     }
     const nextChoice: MusicChoice = choice.songId
       ? { songId: choice.songId, musicVolume: choice.musicVolume, gameVolume: choice.gameVolume }
@@ -744,7 +744,7 @@ export class RealApiClient implements ApiClient {
         })),
       );
       if (accepted.duplicate && accepted.accepted !== true) {
-        throw new Error('No se pudo encolar un render nuevo. Espera o cambia pista o volumen.');
+        throw new Error('No se pudo volver a montar el vídeo. Espera o cambia la pista o el volumen.');
       }
       this.forgetDriveState(intent.videoId);
       this.artifactNames.delete(intent.videoId);

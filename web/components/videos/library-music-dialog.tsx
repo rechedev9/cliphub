@@ -117,7 +117,7 @@ export function LibraryMusicDialog({
       onOpenChange(false);
       onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo volver a renderizar con música.');
+      setError(err instanceof Error ? err.message : 'No se pudo volver a montar el vídeo con la música.');
     } finally {
       setBusy(false);
     }
@@ -129,7 +129,7 @@ export function LibraryMusicDialog({
         <DialogHeader>
           <DialogTitle>{video.songId ? 'Cambiar música' : 'Añadir música'}</DialogTitle>
           <DialogDescription>
-            La captura no se repite. El montaje se vuelve a renderizar y sustituye el MP4 actual.
+            La captura no se repite. El vídeo se vuelve a montar y sustituye al MP4 actual.
           </DialogDescription>
         </DialogHeader>
 

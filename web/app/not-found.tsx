@@ -26,7 +26,7 @@ export default function NotFound(): ReactElement {
         Esta página ha sido fraggeada
       </h1>
       <p className="max-w-md text-body text-fg-2">
-        No encontramos esa página. Vuelve y elige una partida para forjarla en un reel.
+        No encontramos esa página. Vuelve y elige una partida para crear tu vídeo.
       </p>
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">

@@ -24,7 +24,6 @@ import {
 } from '@/lib/media-playback-store';
 import { browserWindowActivity } from '@/lib/window-activity';
 import { cn } from '@/lib/utils';
-import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatRate } from '@/lib/format';
@@ -277,10 +276,12 @@ export function MediaPlayer({
 
   if (item === undefined) return null;
 
-  const reviewLabel = item.review === PLAYBACK_REVIEW.stale ? 'Render desactualizado' : null;
+  const stale = item.review === PLAYBACK_REVIEW.stale;
+  const formatLabel = item.format === '9:16' ? 'Short vertical · 9:16' : 'Vídeo horizontal · 16:9';
+  const placeInList = items.length > 1 ? ` · ${activeIndex + 1} de ${items.length}` : '';
   let mediaStatusLabel = '';
   if (mediaStatus === 'loading') mediaStatusLabel = 'Cargando';
-  else if (mediaStatus === 'buffering') mediaStatusLabel = 'Buffering';
+  else if (mediaStatus === 'buffering') mediaStatusLabel = 'Cargando';
   else if (mediaStatus === 'seeking') mediaStatusLabel = 'Buscando';
 
   return (
@@ -302,22 +303,18 @@ export function MediaPlayer({
         }}
       >
         <DialogHeader className="pr-12">
-          <span className="flex flex-wrap items-center gap-2">
-            <DialogTitle className="truncate">{item.title}</DialogTitle>
-            <StatusTag tone={item.review === PLAYBACK_REVIEW.ready ? 'success' : 'warning'}>
-              {item.format}
-            </StatusTag>
-          </span>
+          <DialogTitle className="truncate">{item.title}</DialogTitle>
           <DialogDescription>
-            {reviewLabel ?? 'Resultado renderizado'} · {activeIndex + 1} de {items.length}
+            {formatLabel}
+            {placeInList}
           </DialogDescription>
         </DialogHeader>
 
-        {reviewLabel !== null ? (
+        {stale ? (
           <div className="flex items-start gap-2 border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm text-warning" role="status">
             <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span>
-              {reviewLabel}. La reproducción sirve para inspeccionarlo y no cambia su estado ni habilita acciones bloqueadas.
+              Vídeo desactualizado: el proyecto cambió después de exportarlo. Exporta de nuevo para aplicar los cambios.
             </span>
           </div>
         ) : null}

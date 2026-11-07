@@ -25,6 +25,7 @@ import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 import { formatRate } from '@/lib/format';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
@@ -260,9 +261,9 @@ function ClipCard({
         Ver este Short
       </Button>
       <details className="flex flex-col gap-3">
-        <summary className="min-h-10 cursor-pointer py-2 text-body-sm text-fg-2">
+        <DisclosureSummary className="min-h-10 py-2 text-body-sm text-fg-2">
           Texto, velocidad y audio · opcional
-        </summary>
+        </DisclosureSummary>
         <div className="grid grid-cols-2 gap-1.5">
           <Select
             value={String(speed)}

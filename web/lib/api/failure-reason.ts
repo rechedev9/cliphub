@@ -15,7 +15,7 @@ const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
 /** Latched by the reconcile loop breaker when one automatic re-drive still produced a mismatching render. */
 export const MISMATCH_REDRIVE_FAILURE_REASON =
-  'El vídeo renderizado no coincide con las jugadas o los ajustes elegidos para este clip. ' +
+  'El vídeo creado no coincide con las jugadas o los ajustes elegidos para este clip. ' +
   'Reintenta; si vuelve a fallar, elimina el clip y créalo de nuevo.';
 
 /** True when compose/render must re-record; re-rendering the stored capture cannot recover. */

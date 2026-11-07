@@ -8,6 +8,7 @@ import { openYouTubeStudio } from '@/lib/publish-actions';
 import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { MediaPlayer } from '@/components/studio/media-player';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 export function StreamRenderResults({
   renderState,
   job,
@@ -110,7 +111,7 @@ export function StreamRenderResults({
       ) : null}
       {renderState.delivery?.length ? (
         <details className="rounded-md border border-border-subtle p-3">
-          <summary className="cursor-pointer text-body-sm text-fg-3">Archivos adicionales</summary>
+          <DisclosureSummary className="text-body-sm text-fg-3">Archivos adicionales</DisclosureSummary>
           <div className="mt-3 flex flex-wrap gap-2">
             {renderState.delivery
               .filter((a) => !a.name.endsWith('.mp4'))

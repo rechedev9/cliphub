@@ -81,11 +81,11 @@ export function isServiceUnavailable(err: unknown): boolean {
  */
 export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   'stream edit plan cannot change while a render is running':
-    'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
+    'El plan no se puede editar mientras se exporta. Espera a que termine y vuelve a intentarlo.',
   'stream edit plan changed after approval; review the latest plan before rendering':
     'El plan cambió después de aprobarlo. Revísalo y vuelve a crear los Shorts.',
   'stream edit plan requires migration after approval; save and review the migrated plan before rendering':
-    'El plan necesita actualizarse tras la aprobación. Guárdalo y revísalo antes de renderizar.',
+    'El plan necesita actualizarse tras la aprobación. Guárdalo y revísalo antes de exportar.',
   'facecam crop requires explicit review before rendering':
     'Ajusta y confirma el encuadre de tu cámara en «Ajustar aspecto» antes de exportar.',
   [MUTATION_CAPABILITY_ERROR]:

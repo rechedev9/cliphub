@@ -142,7 +142,7 @@ export function StreamKeyDropBannerControls({
             />
             {codeValid ? (
               <p className="text-body-sm text-fg-3">
-                Se renderiza como <span className="font-mono text-fg-1">{affiliateDisplayLabel(family, style, code)}</span>
+                En el Short se lee <span className="font-mono text-fg-1">{affiliateDisplayLabel(family, style, code)}</span>
               </p>
             ) : (
               <p role="alert" className="text-body-sm text-destructive">

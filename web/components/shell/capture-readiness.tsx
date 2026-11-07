@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { SettingsSection } from '@/components/settings/settings-section';
 import {
@@ -21,6 +21,7 @@ import {
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
 import { cn } from '@/lib/utils';
+import { DisclosureSummary } from '@/components/ui/disclosure-summary';
 
 /** `label` is the short aria name; `text` is the one-line pill copy. */
 const STATUS_META: Record<
@@ -188,7 +189,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
         <p className="text-body-sm text-fg-2">Los clips de stream parten de un vídeo ya grabado y no necesitan CS2 ni HLAE. La conexión de Steam en Ajustes es opcional si ya tienes el archivo de la demo.</p>
         <details className="group/setup border-t border-border-subtle pt-2 text-body-sm text-fg-2">
-          <summary className={`min-h-10 cursor-pointer py-2 ${FOCUS_RING}`}>Rutas personalizadas · configuración avanzada</summary>
+          <DisclosureSummary className="min-h-10 py-2">Rutas personalizadas · configuración avanzada</DisclosureSummary>
           <p className="py-2">Si una herramienta está en otra carpeta, configura su variable de entorno y reinicia el servicio local.</p>
           <dl className="flex flex-col gap-3">
             {TOOL_GUIDE.map(tool => <div key={tool.name}><dt className="font-mono text-meta text-fg-1">{tool.name}</dt><dd className="break-all text-body-sm">{tool.example}</dd></div>)}

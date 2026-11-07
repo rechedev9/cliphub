@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CAPTURES_DELETE_WARNING =
-  'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final se queda. Para editarlo y renderizarlo de nuevo habrá que volver a capturar.';
+  'Se borran las grabaciones de CS2 de esta demo completa. El vídeo final se queda. Para editarlo y montarlo de nuevo habrá que volver a capturar.';
 
 type StorageState =
   | { kind: 'loading' }
