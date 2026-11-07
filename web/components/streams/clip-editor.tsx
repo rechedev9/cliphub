@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
+import { formatRate } from '@/lib/format';
 
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
@@ -277,7 +278,7 @@ function ClipCard({
             <SelectContent>
               {CLIP_SPEEDS.map((value) => (
                 <SelectItem key={value} value={String(value)}>
-                  {value}×
+                  {formatRate(value)}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -90,7 +90,7 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
       <div className="flex flex-wrap items-start gap-2">
         {toolbar}
         {/* As tall as one FilterBar row, so the menus stay level with its first line when it wraps. */}
-        <div className="ml-auto flex h-9 shrink-0 items-center gap-2">
+        <div className="ml-auto flex h-9 shrink-0 items-center gap-2 [&_[data-slot=button]]:h-9">
           <SavedViewsMenu view={view} />
           <ColumnsMenu columns={columns} hidden={hidden} onToggle={view.toggleColumn} />
           {actions}
@@ -212,7 +212,7 @@ function ColumnsMenu<Row>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="xs">
+        <Button type="button" variant="outline" size="sm">
           <Columns3 aria-hidden />
           Columnas
         </Button>
@@ -253,7 +253,7 @@ function SavedViewsMenu({ view }: { view: TableViewControl }): ReactNode {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="xs">
+          <Button type="button" variant="outline" size="sm">
             <Eye aria-hidden />
             {active ? active.name : 'Vistas'}
           </Button>

@@ -309,7 +309,7 @@ export function PlayList({
             values={view.state.filters}
             onChange={view.setFilter}
             onReset={view.resetFilters}
-            searchPlaceholder="Buscar por título, equipo, notas o etiqueta"
+            searchPlaceholder="Buscar por título, notas o etiqueta"
             filters={[
               {
                 id: 'team',

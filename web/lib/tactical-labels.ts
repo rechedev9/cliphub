@@ -188,7 +188,7 @@ export function roundClockLabel(seconds: number): string {
   const total = Math.abs(seconds);
   const minutes = Math.floor(total / 60);
   const rest = total - minutes * 60;
-  return `${sign}${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
+  return `${sign}${minutes}:${rest.toFixed(1).padStart(4, '0').replace('.', ',')}`;
 }
 
 /**

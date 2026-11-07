@@ -8,6 +8,7 @@ import { isBombKind } from '@/lib/replay/layers';
 import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { eventKindLabel } from '@/lib/tactical-labels';
+import { formatRate } from '@/lib/format';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -109,7 +110,7 @@ export function ReplayTimeline({
                 speed === option ? 'bg-surface-4 font-semibold text-fg-1 shadow-[inset_0_-2px_0_0_var(--primary)]' : 'text-fg-2 hover:text-fg-1',
               )}
             >
-              {option}×
+              {formatRate(option)}
             </button>
           ))}
         </div>

@@ -18,6 +18,11 @@ export function formatDecimal(value: number, digits: number): string {
   return format.format(value);
 }
 
+/** A playback rate or gain such as 0,25× with as many decimals as it has. */
+export function formatRate(value: number): string {
+  return `${String(value).replace('.', ',')}×`;
+}
+
 /** 0-100 fill for a rating bar, scaled so a 2.0 rating (an elite pace) fills it. */
 export function ratingBarPct(rating: number): number {
   return Math.min(100, Math.max(0, (rating / 2) * 100));

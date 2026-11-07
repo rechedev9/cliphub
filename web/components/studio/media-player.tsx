@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatRate } from '@/lib/format';
 
 const SEEK_SECONDS = 5;
 const WRITE_INTERVAL_MS = 5000;
@@ -447,7 +448,7 @@ export function MediaPlayer({
                   onChange={(event) => setPlaybackRate(Number(event.currentTarget.value))}
                   className="h-10 border border-border-strong bg-surface-2 px-2 text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  {PLAYBACK_RATES.map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
+                  {PLAYBACK_RATES.map((rate) => <option key={rate} value={rate}>{formatRate(rate)}</option>)}
                 </select>
               </label>
               <span className="ml-auto flex items-center gap-1.5">
