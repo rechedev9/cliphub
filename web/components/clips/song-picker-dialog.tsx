@@ -195,7 +195,7 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
 
       {playing ? <Equalizer /> : null}
 
-      <Button type="button" size="sm" variant={selected ? 'secondary' : 'default'} onClick={onUse} className="shrink-0">
+      <Button type="button" size="sm" variant={selected ? 'default' : 'outline'} onClick={onUse} className="shrink-0">
         {selected ? <Check /> : null}
         {selected ? 'Elegido' : 'Usar este tema'}
       </Button>
