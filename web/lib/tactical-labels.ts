@@ -193,11 +193,11 @@ export function roundClockLabel(seconds: number): string {
 
 /**
  * A rate as a percentage with its denominator, never one without the other:
- * `43.5 % (n=23)`. An empty sample reads as a dash rather than `0 %`.
+ * `43,5 % (n=23)`. An empty sample says so rather than `0 %`.
  */
 export function rateLabel(pct: number, total: number): string {
-  if (total <= 0) return '— (n=0)';
-  return `${pct.toFixed(1)} % (n=${total})`;
+  if (total <= 0) return 'Sin rondas (n=0)';
+  return `${pct.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} % (n=${total})`;
 }
 
 /** CS2 place tokens whose English name is not their CamelCase split (`csgo_english.txt`). */

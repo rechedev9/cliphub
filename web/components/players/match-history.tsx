@@ -120,7 +120,7 @@ export function MatchHistory({ matches, refreshing, onRefresh }: {
 function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   const stats = match.stats;
   const map = prettyMapName(stats?.map ?? '') || 'Sin mapa';
-  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
+  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}-${match.score.against}` : '—';
   return (
     <tr className="group h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
       {/* Date under the map, as on the mobile card: a column of its own cost ~100px the room link needed. */}
@@ -171,7 +171,7 @@ function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): React
 function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {
   const stats = match.stats;
   const map = prettyMapName(stats?.map ?? '') || 'Sin mapa';
-  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
+  const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}-${match.score.against}` : '—';
   return (
     <li className="rounded-lg border border-border p-3">
       <div className="flex items-center gap-2.5">

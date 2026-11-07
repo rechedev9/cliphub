@@ -7,16 +7,20 @@ import { VerdictBadge } from '@/components/cheaters/verdict-badge';
 import { ANTICHEAT_VERDICT, VERDICT_LABEL, isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
 import { cn } from '@/lib/utils';
 
-/** Formats a metric value the same way the CLI and the dossier do. */
+const decimal1 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const decimal2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const signed2 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
+
+/** A metric value in the CLI's units, with the Spanish decimal comma the rest of Studio uses. */
 function formatValue(metric: AnticheatMetric): string {
   switch (metric.unit) {
     case '%':
-      return `${metric.value.toFixed(1)} %`;
+      return `${decimal1.format(metric.value)} %`;
     case 'ms':
     case '°/s':
       return `${Math.round(metric.value)} ${metric.unit}`;
     default:
-      return metric.value.toFixed(2);
+      return decimal2.format(metric.value);
   }
 }
 
@@ -24,12 +28,12 @@ function formatBaseline(metric: AnticheatMetric): string {
   const { mean, stddev } = metric.baseline;
   switch (metric.unit) {
     case '%':
-      return `${mean.toFixed(1)} ± ${stddev.toFixed(1)} %`;
+      return `${decimal1.format(mean)} ± ${decimal1.format(stddev)} %`;
     case 'ms':
     case '°/s':
       return `${Math.round(mean)} ± ${Math.round(stddev)} ${metric.unit}`;
     default:
-      return `${mean.toFixed(2)} ± ${stddev.toFixed(2)}`;
+      return `${decimal2.format(mean)} ± ${decimal2.format(stddev)}`;
   }
 }
 
@@ -58,8 +62,7 @@ function MetricRow({ metric }: { metric: AnticheatMetric }) {
             <span style={{ width: `${Math.max(2, Math.min(100, metric.suspicion))}%` }} />
           </span>
           <span className="w-24 shrink-0 text-right text-meta text-fg-2">
-            z {metric.z >= 0 ? '+' : ''}
-            {metric.z.toFixed(2)}
+            z {signed2.format(metric.z)}
           </span>
         </div>
       ) : (
@@ -101,9 +104,9 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
             {player.evidence.map((e) => (
               <li key={`${e.tick}-${e.kind}`} className="text-body-sm text-fg-2">
                 <span className="font-mono text-meta text-fg-1">
-                  R{e.round} · tick {e.tick}
+                  R{e.round} · tick {e.tick}:
                 </span>{' '}
-                — {e.detail}
+                {e.detail}
               </li>
             ))}
           </ul>

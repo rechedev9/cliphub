@@ -58,7 +58,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Efecto de kill', value: 'Impacto / punch-in' },
     { label: 'Transición', value: 'Destello' },
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
-    { label: 'Intro', value: 'Sí · “Entrada”' },
+    { label: 'Intro', value: 'Sí · «Entrada»' },
     { label: 'Outro', value: 'No' },
     { label: 'Afiliado', value: 'No' },
     { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },

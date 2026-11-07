@@ -66,7 +66,7 @@ const HUD_LABEL: Record<string, string> = {
 
 function bookendLabel(enabled: boolean, text: string | undefined, generatedFallback: string): string {
   if (!enabled) return 'No';
-  return text?.trim() ? `Sí · “${text.trim()}”` : `Sí · ${generatedFallback}`;
+  return text?.trim() ? `Sí · «${text.trim()}»` : `Sí · ${generatedFallback}`;
 }
 
 function musicBriefValue(music: MusicBrief): string {
