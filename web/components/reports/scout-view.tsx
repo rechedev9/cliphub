@@ -205,11 +205,15 @@ export function ScoutView({
           ...sections.map((section) => ({
             id: section.id,
             label: section.title,
-            content: <SectionView section={section} matches={matches} minSample={minSample} onRowVideo={onRowVideo} />,
+            content: (
+              <div className="flex flex-col gap-3">
+                <SectionView section={section} matches={matches} minSample={minSample} onRowVideo={onRowVideo} />
+                <p className="measure-read text-meta text-fg-3">{thresholdsText(scout)}</p>
+              </div>
+            ),
           })),
         ]}
       />
-      <p className="measure-read text-meta text-fg-3">{thresholdsText(scout)}</p>
     </div>
   );
 }

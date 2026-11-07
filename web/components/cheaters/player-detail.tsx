@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerdictBadge } from '@/components/cheaters/verdict-badge';
-import { isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
+import { ANTICHEAT_VERDICT, VERDICT_LABEL, isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
 import { cn } from '@/lib/utils';
 
 /** Formats a metric value the same way the CLI and the dossier do. */
@@ -147,17 +147,23 @@ export function PlayerSummaryRow({
       aria-expanded={expanded}
       className="flex w-full flex-wrap items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-surface-3 @[44rem]/content:flex-nowrap sm:px-5"
     >
-      <span className="w-12 shrink-0 text-title font-semibold tabular-nums text-fg-1">
-        {player.score.toFixed(0)}
+      <span className="flex w-14 shrink-0 flex-col" title="Índice de sospecha, de 0 a 100">
+        <span className="text-title leading-tight font-semibold tabular-nums text-fg-1">{player.score.toFixed(0)}</span>
+        <span className="text-meta text-fg-3">sospecha</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium text-fg-1">{player.name || player.steamid64}</span>
-        <span className="font-mono text-meta text-fg-3">
-          {player.steamid64} · {player.gun_kills} bajas · confianza {Math.round(player.confidence * 100)} %
+        <span className="text-meta text-fg-3">
+          <span className="font-mono">{player.steamid64}</span> · {player.gun_kills} bajas · confianza {Math.round(player.confidence * 100)} %
         </span>
       </span>
+      {/* A badge marks what needs a look; a clean line stays plain text. */}
       <span className="shrink-0 self-center">
-        <VerdictBadge verdict={player.verdict} />
+        {player.verdict === ANTICHEAT_VERDICT.clean ? (
+          <span className="text-body-sm text-fg-3">{VERDICT_LABEL[player.verdict]}</span>
+        ) : (
+          <VerdictBadge verdict={player.verdict} />
+        )}
       </span>
     </button>
   );
