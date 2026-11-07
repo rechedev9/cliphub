@@ -18,8 +18,8 @@ import (
 // teams run it.
 const (
 	comboWindow    = 15.0
-	minComboRounds = 4
-	minComboTeams  = 2
+	minComboRounds = 6
+	minComboTeams  = 3
 	maxComboSize   = 3
 	// absorbShare drops a pair when a triple holding it covers this share of its rounds.
 	absorbShare = 0.8

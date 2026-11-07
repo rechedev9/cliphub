@@ -11,9 +11,9 @@ import (
 // Tolerances that make two throws the same lineup. A player who repeats a
 // lineup stands within a few units and aims within about a degree.
 const (
-	spotRadius   = 40.0
+	spotRadius   = 24.0
 	spotHeight   = 24.0
-	aimTolerance = 2.0
+	aimTolerance = 1.0
 )
 
 // landingRadius is how far apart two landings of one lineup may be. Flashes and
@@ -174,6 +174,25 @@ func throwGrid(throws []Throw) map[gridKey][]int {
 	}
 	return g
 }
+
+// spotThrows counts the throws of the cluster's kind from around its spot,
+// whatever the aim or technique, to tell a lineup from chance repeats.
+func spotThrows(c *cluster, throws []Throw, grid map[gridKey][]int) int {
+	n := 0
+	for _, tech := range techniques {
+		for _, k := range neighbours(cellOf(c.kind, tech, c.origin)) {
+			for _, i := range grid[k] {
+				t := throws[i]
+				if math.Hypot(t.Origin[0]-c.origin[0], t.Origin[1]-c.origin[1]) <= 2*spotRadius && math.Abs(t.Origin[2]-c.origin[2]) <= spotHeight {
+					n++
+				}
+			}
+		}
+	}
+	return n
+}
+
+var techniques = []string{"still", "run", "crouch", "still+jump", "run+jump", "crouch+jump"}
 
 // attempts counts the throws from a lineup's spot, aim and technique, wherever
 // they landed, and how many of them landed where the lineup lands.

@@ -15,10 +15,16 @@ import (
 const IndexVersion = 1
 
 // Rules a lineup must pass to be published: thrown often enough, by more than
-// one player, so a one-off or a single player's habit stays out.
+// one player and in more than one map, so a one-off or a single habit stays out.
 const (
 	minLineupThrows  = 3
 	minLineupPlayers = 2
+	minLineupMaps    = 2
+	// A cluster is a lineup when it holds this share of the throws of its kind
+	// from around its spot, or is thrown alwaysLineup times: a spot where players
+	// throw anything anyhow only yields chance repeats.
+	minSpotShare = 0.2
+	alwaysLineup = 10
 	recentDays       = 90
 	trendDays        = 30
 	instaSeconds     = 6.0
@@ -211,11 +217,15 @@ func buildLineup(c *cluster, throws []Throw, grid map[gridKey][]int, rounds roun
 	for _, i := range c.members {
 		members = append(members, throws[i])
 	}
-	players := map[string]bool{}
+	players, maps := map[string]bool{}, map[string]bool{}
 	for _, t := range members {
 		players[t.SteamID64] = true
+		maps[t.MapKey] = true
 	}
-	if len(members) < minLineupThrows || len(players) < minLineupPlayers {
+	if len(members) < minLineupThrows || len(players) < minLineupPlayers || len(maps) < minLineupMaps {
+		return Lineup{}, false
+	}
+	if len(members) < alwaysLineup && float64(len(members)) < minSpotShare*float64(spotThrows(c, throws, grid)) {
 		return Lineup{}, false
 	}
 	recentFrom := now.AddDate(0, 0, -recentDays)

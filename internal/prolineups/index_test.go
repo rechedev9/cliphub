@@ -52,7 +52,7 @@ func TestBuildIndexGroupsRepeatedThrowsAndKeepsOneOffsOut(t *testing.T) {
 
 func TestCombosNeedSeveralRoundsAndTeams(t *testing.T) {
 	throws := []Throw{}
-	for i, team := range []string{"x", "y", "x", "y"} {
+	for i, team := range []string{"x", "y", "z", "x"} {
 		mapKey := "m" + string(rune('a'+i))
 		for _, p := range []string{"p1", "p2"} {
 			a := smoke(mapKey, p, 1, [3]float64{0, 0, 0}, [3]float64{1000, 0, 0}, 10, 5)
@@ -69,7 +69,7 @@ func TestCombosNeedSeveralRoundsAndTeams(t *testing.T) {
 	if len(idx.Lineups) != 2 {
 		t.Fatalf("lineups = %d, want 2", len(idx.Lineups))
 	}
-	if len(idx.Combos) != 1 || idx.Combos[0].Rounds.Recent != 8 || idx.Combos[0].TeamCount != 2 {
+	if len(idx.Combos) != 1 || idx.Combos[0].Rounds.Recent != 8 || idx.Combos[0].TeamCount != 3 {
 		t.Fatalf("combos = %+v", idx.Combos)
 	}
 	if idx.Lineups[0].With[0].Share != 1 {
