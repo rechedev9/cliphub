@@ -3619,8 +3619,8 @@ func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) boo
 
 // mergeRecordingResults unions a freshly recorded result over a previously
 // stored one so the job-level recording result accumulates every segment any
-// reel has recorded. The new run wins for segments it covers; segments only in
-// prev are carried forward (their clips still live in storage under their
+// reel has recorded. The new run wins for segments it covers or clashes with
+// (ClashesWith); other prev segments are carried (their clips still live in storage under their
 // per-segment keys). Capture remains chronological; EditorialSegmentIDs keeps
 // the user-selected order from fullPlan regardless of which reel recorded when.
 func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killplan.Plan) (recording.RecordingResult, error) {
@@ -3634,7 +3634,7 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 	}
 	carriedReplay := map[string]bool{}
 	for _, s := range prev.Plan.Segments {
-		if !haveSegment[s.ID] {
+		if !haveSegment[s.ID] && !next.Plan.ClashesWith(s) {
 			merged.Plan.Segments = append(merged.Plan.Segments, s)
 			haveSegment[s.ID] = true
 			if s.VictimReplay != nil {

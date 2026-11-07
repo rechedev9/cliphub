@@ -2,6 +2,7 @@ package recording
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
@@ -46,6 +47,21 @@ func (p RecordingPlan) IsMultiPOV() bool {
 // spec_player settles within a few frames, so half a second is ample.
 func povSwitchTicks(tickrate int) int {
 	return max(1, tickrate/2)
+}
+
+// ClashesWith reports whether s, a segment of an earlier capture, cannot sit
+// beside p's segments in one plan: windows overlap, or a POV switch has no time.
+func (p RecordingPlan) ClashesWith(s RecordingSegment) bool {
+	if p.FullDemo != nil {
+		return false
+	}
+	return slices.ContainsFunc(p.Segments, func(own RecordingSegment) bool {
+		gap := 0
+		if p.ObservedSteamID(own) != p.ObservedSteamID(s) {
+			gap = povSwitchTicks(p.Tickrate)
+		}
+		return s.TickStart < own.TickEnd+gap && own.TickStart < s.TickEnd+gap
+	})
 }
 
 // validateObserve checks segment i's POV and, when it changes player, that
