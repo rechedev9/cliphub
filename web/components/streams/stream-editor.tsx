@@ -631,7 +631,7 @@ export function StreamEditor({
                 className="h-auto w-full justify-start whitespace-normal text-left"
                 onClick={() => selectClip(clip)}
               >
-                {index + 1}. {clip.title || `Short ${index + 1}`} ·{' '}
+                {index + 1}. {clip.title || `Momento ${index + 1}`} ·{' '}
                 {formatStreamClock((clip.end_seconds - clip.start_seconds) / (clip.edit?.speed ?? 1))}
               </Button>
             </li>

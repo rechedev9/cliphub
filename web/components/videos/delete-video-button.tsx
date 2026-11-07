@@ -22,22 +22,6 @@ import {
  */
 export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  async function onConfirm() {
-    if (deleting) return;
-    setDeleting(true);
-    try {
-      await api.deleteVideo(video.id);
-      setOpen(false);
-      toast('Vídeo borrado.');
-      onDeleted();
-    } catch {
-      toast('No se pudo borrar el vídeo.');
-    } finally {
-      setDeleting(false);
-    }
-  }
 
   return (
     <>
@@ -50,42 +34,72 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
       >
         <Trash2 className="size-4" aria-hidden />
       </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>¿Borrar este vídeo?</DialogTitle>
-            <DialogDescription className="break-words">
-              <span className="font-medium text-fg-1">{video.title}</span> y su MP4 se
-              borrarán de este PC. Esta acción no se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={deleting}
-              className="font-display font-bold"
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={onConfirm}
-              loading={deleting}
-              className="font-display font-bold"
-            >
-              {deleting ? (
-                'Borrando…'
-              ) : (
-                <>
-                  <Trash2 className="size-4" aria-hidden /> Borrar
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteVideoDialog video={video} open={open} onOpenChange={setOpen} onDeleted={onDeleted} />
     </>
+  );
+}
+
+export type DeleteVideoDialogProps = {
+  video: Video;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeleted: () => void;
+};
+
+/** The confirmation alone, for a delete that starts from a menu item. */
+export function DeleteVideoDialog({ video, open, onOpenChange, onDeleted }: DeleteVideoDialogProps) {
+  const [deleting, setDeleting] = useState(false);
+
+  async function onConfirm() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteVideo(video.id);
+      onOpenChange(false);
+      toast('Vídeo borrado.');
+      onDeleted();
+    } catch {
+      toast('No se pudo borrar el vídeo.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>¿Borrar este vídeo?</DialogTitle>
+          <DialogDescription className="break-words">
+            <span className="font-medium text-fg-1">{video.title}</span> y su MP4 se
+            borrarán de este PC. Esta acción no se puede deshacer.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={deleting}
+            className="font-display font-bold"
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            loading={deleting}
+            className="font-display font-bold"
+          >
+            {deleting ? (
+              'Borrando…'
+            ) : (
+              <>
+                <Trash2 className="size-4" aria-hidden /> Borrar
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

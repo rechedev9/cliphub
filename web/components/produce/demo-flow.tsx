@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
@@ -35,21 +35,20 @@ import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailu
 import { FLOW_HOME_DESCRIPTION, FLOW_HOME_TITLE, FLOW_TITLE, PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
+import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
 import { DemoSourceHelp } from '@/components/onboarding/demo-source-help';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
 import { LongOperation } from '@/components/studio/long-operation';
-import { StudioPageHeader } from '@/components/studio/page-header';
+import { FlowHomeHero } from '@/components/produce/flow-home-hero';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
 import { DemoList } from '@/components/produce/demo-list';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
@@ -68,11 +67,26 @@ type ScanRow =
 type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error'; reason?: string };
 
 const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
+type SourceKind = (typeof SOURCE_KIND)[keyof typeof SOURCE_KIND];
 
 const IMPORT_POLL_MS = 1500;
 const IMPORT_RETRY_MS = 10000;
 
-const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
+const ZERO_PLAYERS_HINT = 'Sin jugadores. ¿Seguro que es una demo de CS2?';
+
+const PICK_TITLE = '¿De quién es el vídeo?';
+const PICK_DESCRIPTION = {
+  short: 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.',
+  full: 'Elige el jugador desde cuya vista se graba la partida, o de 2 a 5 del mismo equipo para un resumen con sus mejores jugadas.',
+} as const;
+
+const SERIES_NOTE = 'En una serie prepararás un vídeo por mapa después del análisis.';
+
+/** "Mirage · 13 : 9 · 22 rondas"; null when the scan has no match line. */
+function matchLine(match: RosterMatch | null): string | null {
+  if (match === null) return null;
+  return `${prettyMapName(match.map)} · ${match.scoreT} : ${match.scoreCt} · ${match.rounds} rondas`;
+}
 
 function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
   return row.match ? prettyMapName(row.match.map) : row.fileName;
@@ -158,7 +172,7 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       setStage('parsing');
       try {
         const parsed = await api.parseDemo({ jobId, steamId, teammates });
-        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, { description: `${teammates.length > 0 ? 'Jugadores' : 'Jugador'}: ${parsed.player ?? '—'}` });
+        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, parsed.player ? { description: `${teammates.length > 0 ? 'Jugadores' : 'Jugador'}: ${parsed.player}` } : undefined);
         router.push(produceHref(parsed.id, format));
       } catch (err) {
         setStage('picking');
@@ -347,10 +361,10 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   let title: string = FLOW_HOME_TITLE[format];
   let description: string = FLOW_HOME_DESCRIPTION[format];
   if (resuming) {
-    title = 'Elige uno o varios jugadores';
+    title = PICK_TITLE;
     if (resumeFailure !== null) description = 'No pudimos recuperar los jugadores de esta partida.';
     else if (stage === 'scanning') description = 'Cargando los jugadores de la partida…';
-    else description = 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.';
+    else description = PICK_DESCRIPTION[format];
   } else if (seriesMode) {
     if (stage === 'scanning') {
       title = 'Escaneando la serie';
@@ -363,8 +377,8 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
           : 'Analizando las jugadas del jugador en cada mapa…';
     }
   } else if (stage === 'picking' || stage === 'parsing') {
-    title = 'Elige uno o varios jugadores';
-    description = 'Un jugador, o de 2 a 5 del mismo equipo para mezclar sus jugadas. Después podrás revisar el contenido antes de crearlo.';
+    title = PICK_TITLE;
+    description = PICK_DESCRIPTION[format];
   }
 
   if (stage === 'parsing') {
@@ -373,8 +387,8 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
   }
 
   let progressStep = 0;
-  if (stage === 'picking') progressStep = 1;
-  if (stage === 'parsing') progressStep = 2;
+  // Parsing still belongs to the player step: a failed parse lands back on the picker.
+  if (stage === 'picking' || stage === 'parsing' || (stage === 'scanning' && resuming)) progressStep = 1;
 
   let body: ReactNode;
   if (resumeFailure !== null) {
@@ -408,34 +422,37 @@ export function DemoFlow({ format, query }: { format: ProduceFormat; query: Demo
       </div>
     );
   } else if (seriesMode) {
-    body = (
-      <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-        <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} />
-      </Card>
-    );
+    body = <PlayerPicker players={aggregated} purpose="highlights" allowDestinationSwitch={false} onPick={onPickSeries} seriesMapCount={mapCount} onCancel={leave} tone={format} />;
   } else if (stage === 'scanning') {
     body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} upload={upload} />;
   } else if (stage === 'parsing') {
-    body = <SingleDemoProgress label="Analizando las jugadas…" fileName={fileName} />;
+    body = <SingleDemoProgress label="Extrayendo las rondas y jugadas de la partida…" fileName={fileName} />;
   } else {
     body = (
       <div className="flex flex-col gap-3">
-        <ScannedDemoRow fileName={fileName} match={match} />
         {error ? <ErrorBanner message={error} /> : null}
-        <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
-        </Card>
+        <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} tone={format} allowDestinationSwitch={false} onPick={(steamId) => onPickPlayers([steamId])} onPickMany={onPickPlayers} match={match ?? undefined} onCancel={leave} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
       </div>
     );
   }
 
   const atHome = stage === 'idle' && !resuming;
   return (
-    <div className="measure-list flex flex-col gap-5">
-      {atHome ? null : <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>}
-      <StudioPageHeader title={title} description={description} />
-      <CreateFlowSteps flow={format} step={progressStep} />
-      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás demo completa o Short para cada mapa después del análisis.</p> : null}
+    <div className="measure-work flex flex-col gap-6">
+      {atHome ? <FlowHomeHero format={format} /> : (
+        <>
+          <StudioBackLink onClick={leave}>{FLOW_TITLE[format]}</StudioBackLink>
+          <header className="flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div className="flex min-w-0 flex-[1_1_26rem] flex-col gap-2.5">
+              <h1 className="text-balance font-display text-display font-extrabold leading-[1.05] tracking-[-0.025em] text-fg-1">{title}</h1>
+              <p className="text-body text-fg-2">{description}</p>
+              {stage === 'picking' && !seriesMode && resumeFailure === null ? <ScannedDemoLine fileName={fileName} match={match} withScore={faceitBoard?.jobId === jobId} /> : null}
+            </div>
+            <CreateFlowSteps flow={format} step={progressStep} className="w-120 max-w-full" />
+          </header>
+          {seriesMode ? <p className="text-body-sm text-fg-2">{SERIES_NOTE}</p> : null}
+        </>
+      )}
       {warning ? (
         <div
           role="alert"
@@ -467,33 +484,56 @@ type IdleHomeProps = {
 function IdleHome({ format, error, onFiles }: IdleHomeProps): ReactNode {
   // null until the list's first read settles; the upload waits for it so the page lays out once.
   const [demoCount, setDemoCount] = useState<number | null>(null);
-  const compact = demoCount !== null && demoCount > 0;
+  const [source, setSource] = useState<SourceKind>(SOURCE_KIND.file);
+  const hasDemos = demoCount !== null && demoCount > 0;
+  const steamOpen = source === SOURCE_KIND.steam;
+  const steamToggle = (
+    <Button type="button" variant={hasDemos ? 'ghost' : 'outline'} size="sm" aria-expanded={steamOpen} aria-controls="steam-import"
+      onClick={() => setSource(steamOpen ? SOURCE_KIND.file : SOURCE_KIND.steam)}>
+      Importar desde Steam
+    </Button>
+  );
+  const addTile = <DemoDropzone onFiles={onFiles} minHeightClass="min-h-62.5" tile={{ tone: format, title: 'Suelta aquí otra demo', actions: steamToggle }} />;
   return (
-    <div className="flex flex-col gap-8">
-      <DemoList format={format} onCount={setDemoCount} />
+    <div className="flex flex-col gap-7">
+      <DemoList format={format} onCount={setDemoCount} addTile={addTile} />
+      {hasDemos ? (
+        <details className="group/source -mt-3 self-start">
+          <summary className={cn('flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-md px-2 text-body-sm font-semibold text-fg-2 hover:text-fg-1 [&::-webkit-details-marker]:hidden', FOCUS_RING)}>
+            ¿Dónde consigo una demo?
+            <ChevronDown aria-hidden className="size-4 shrink-0 transition-transform group-open/source:rotate-180" />
+          </summary>
+          <div className="mt-2 max-w-md">
+            <DemoSourceHelp format={format} />
+          </div>
+        </details>
+      ) : null}
       {demoCount === null ? (
-        <div role="status" aria-label="Cargando demos" className="flex flex-col gap-4">
-          <Skeleton className="h-11 w-full sm:w-80" />
-          <Skeleton className="h-24 w-full" />
+        <div role="status" aria-label="Cargando demos" className="grid grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] gap-4">
+          <Skeleton className="h-62.5 rounded-2xl" />
+          <Skeleton className="h-62.5 rounded-2xl" />
+          <Skeleton className="h-62.5 rounded-2xl" />
         </div>
-      ) : (
-        <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
-          {compact ? <h2 className="font-display text-title font-bold text-fg-1">Cargar otra demo</h2> : null}
-          <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
-            <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
-            <TabsTrigger value={SOURCE_KIND.steam} className="min-h-10">Importar desde Steam</TabsTrigger>
-          </TabsList>
-          <TabsContent value={SOURCE_KIND.file} className="flex flex-col gap-3">
-            <DemoDropzone onFiles={onFiles} compact={compact} minHeightClass="min-h-[200px]" />
-            {error ? <ErrorBanner message={error} /> : null}
-            <DemoSourceHelp />
-          </TabsContent>
-          <TabsContent value={SOURCE_KIND.steam} className="flex flex-col gap-4">
-            <ShareCodeDoor format={format} />
-            <RecentSteamMatches format={format} />
-          </TabsContent>
-        </Tabs>
-      )}
+      ) : null}
+      {demoCount === 0 ? (
+        <section aria-label="Tu primera demo" className="grid gap-4 @[48rem]/content:grid-cols-[minmax(0,1.4fr)_minmax(16rem,1fr)]">
+          <DemoDropzone onFiles={onFiles} minHeightClass="min-h-80" tile={{ tone: format, title: 'Suelta aquí tu demo de CS2', strong: true, actions: steamToggle }} />
+          <DemoSourceHelp format={format} />
+        </section>
+      ) : null}
+      {error ? <ErrorBanner message={error} /> : null}
+      {steamOpen ? (
+        <section id="steam-import" aria-labelledby="steam-import-title" className="studio-panel flex flex-col gap-4 rounded-2xl p-4 @[40rem]/content:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="steam-import-title" className="font-display text-title font-bold text-fg-1">Importar desde Steam</h2>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Cerrar la importación desde Steam" onClick={() => setSource(SOURCE_KIND.file)}>
+              <X aria-hidden />
+            </Button>
+          </div>
+          <ShareCodeDoor format={format} />
+          <RecentSteamMatches format={format} />
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -515,33 +555,18 @@ function ErrorBanner({ message }: { message: string }): ReactNode {
   );
 }
 
-/** The scanned demo above the picker: cover, map + score, file, source, "Escaneada". */
-function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: RosterMatch | null }): ReactNode {
+/** The scanned demo under the pick guidance. The score shows here only when the picker hides its own match header (FACEIT). */
+function ScannedDemoLine({ fileName, match, withScore }: { fileName: string | null; match: RosterMatch | null; withScore: boolean }): ReactNode {
+  const line = withScore ? matchLine(match) : null;
+  if (fileName === null && line === null) return null;
   return (
-    <div className="studio-panel flex items-center gap-4 px-4 py-3">
-      <span aria-hidden className="h-[47px] w-[84px] shrink-0 overflow-hidden border border-border-strong">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-body-sm text-fg-2">
+      <span aria-hidden className="h-6 w-10.5 shrink-0 overflow-hidden rounded-md">
         <MapCover map={match?.map ?? ''} />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate font-display text-body-lg font-bold text-fg-1">
-          {match ? (
-            <>
-              {prettyMapName(match.map)}{' '}
-              <span className={match.scoreT > match.scoreCt ? 'text-side-t' : 'text-fg-3'}>{match.scoreT}</span>
-              <span className="text-fg-3"> : </span>
-              <span className={match.scoreCt > match.scoreT ? 'text-side-ct' : 'text-fg-3'}>{match.scoreCt}</span>
-            </>
-          ) : (
-            'Demo escaneada'
-          )}
-        </span>
-        <span className="truncate text-meta text-fg-3">
-          {fileName ?? 'demo'} · {match ? `${match.rounds} rondas` : '—'}
-        </span>
-      </span>
-      <StatusTag tone="success" dot>
-        Escaneada
-      </StatusTag>
+      {fileName === null ? null : <span className="min-w-0 truncate font-mono text-fg-1">{fileName}</span>}
+      {line === null ? null : <span className="tabular-nums">{line}</span>}
+      <StatusTag tone="success" dot>Escaneada</StatusTag>
     </div>
   );
 }

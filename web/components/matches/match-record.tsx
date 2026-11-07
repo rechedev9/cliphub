@@ -220,7 +220,7 @@ function makePaths({ matchId, demo, onOpenRounds }: Omit<MatchVideosProps, 'vide
       icon: MonitorPlay,
       title: 'Demo completa',
       format: '16:9, para YouTube',
-      description: 'La partida entera desde los ojos de un jugador, con el HUD que elijas.',
+      description: 'La partida entera desde la vista de un jugador, con el HUD que elijas.',
       action: crear({ format: PRODUCE_FORMAT.full, label: 'Preparar demo completa', primary: false }),
     },
   ];

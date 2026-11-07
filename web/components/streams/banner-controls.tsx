@@ -129,7 +129,7 @@ export function StreamBannerControls({
           ) : null}
         </>
       ) : (
-        <p className="text-body-sm text-fg-3">Sin banner. Actívalo para añadir tu nick sobre la unión de bandas.</p>
+        <p className="text-body-sm text-fg-3">Sin banner. Actívalo para mostrar tu nombre de canal en el Short.</p>
       )}
     </StreamStepCard>
   );

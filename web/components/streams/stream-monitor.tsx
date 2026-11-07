@@ -103,7 +103,7 @@ export function StreamMonitor({
           {cropEditor ? (
             <CropPicker {...cropEditor} />
           ) : (
-            <div className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-black">
+            <div className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-black ring-2 ring-format-stream/65">
               <StreamFrameCanvas mode="contain" className="size-full" />
             </div>
           )}

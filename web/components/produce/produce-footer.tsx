@@ -7,13 +7,21 @@ import { PRODUCE_READY_HINT } from '@/lib/produce/copy';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
+import type { FormatTone } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
 const FOOTER_SHADOW = 'shadow-[var(--elev-band-up)]';
+/** Fills the enabled CTA button the caller passes with the flow's format colour; disabled keeps its grey. */
+const CTA_FILL: Readonly<Record<FormatTone, string>> = {
+  short: '[&>[data-slot=button]:not(:disabled)]:bg-format-short [&>[data-slot=button]:not(:disabled)]:text-format-short-foreground [&>[data-slot=button]:not(:disabled):hover]:bg-format-short/90',
+  full: '[&>[data-slot=button]:not(:disabled)]:bg-format-full [&>[data-slot=button]:not(:disabled)]:text-format-full-foreground [&>[data-slot=button]:not(:disabled):hover]:bg-format-full/90',
+  stream: '[&>[data-slot=button]:not(:disabled)]:bg-format-stream [&>[data-slot=button]:not(:disabled)]:text-format-stream-foreground [&>[data-slot=button]:not(:disabled):hover]:bg-format-stream/90',
+  summary: '[&>[data-slot=button]:not(:disabled)]:bg-format-summary [&>[data-slot=button]:not(:disabled)]:text-format-summary-foreground [&>[data-slot=button]:not(:disabled):hover]:bg-format-summary/90',
+};
 
 export type ProduceFooterProps = {
-  /** Action-bar accent: cyan for Short, magenta for the long video (REC). */
-  tone: 'short' | 'full';
+  /** The format of the flow: its colour fills the CTA (Short, Demo completa, multi-POV resumen). */
+  tone: FormatTone;
   eyebrow: string;
   /** Selection and settings summary; null shows `hint` instead. */
   summary: ReactNode | null;
@@ -61,7 +69,7 @@ export function ProduceFooter({
   ) : nextStep;
   return (
     <>
-      <details className={cn("group/brief border-t border-border-subtle py-1", tone === 'short' ? 'mt-3 @[80rem]/content:mt-5' : 'mt-1')}>
+      <details className={cn("group/brief border-t border-border-subtle py-1", tone === 'full' ? 'mt-1' : 'mt-3 @[80rem]/content:mt-5')}>
         <summary
           id={briefId}
           className={cn('flex cursor-pointer list-none items-center gap-2 text-body-sm font-semibold text-fg-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden', 'min-h-8')}
@@ -104,7 +112,7 @@ export function ProduceFooter({
             <Button variant="outline" size="sm" asChild>
               <Link href={backHref}>Volver</Link>
             </Button>
-            {cta}
+            <div className={cn('contents', CTA_FILL[tone])}>{cta}</div>
           </div>
         </div>
       </div>

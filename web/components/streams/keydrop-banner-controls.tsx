@@ -158,7 +158,7 @@ export function StreamKeyDropBannerControls({
               </output>
             </div>
             <p className="text-body-sm text-fg-3">
-              Tiempo desde el inicio de cada clip (por defecto, de {DEFAULT_KEYDROP_START_SECONDS} a {DEFAULT_KEYDROP_END_SECONDS} s).
+              Tiempo desde el inicio de cada momento (por defecto, de {DEFAULT_KEYDROP_START_SECONDS} a {DEFAULT_KEYDROP_END_SECONDS} s).
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">

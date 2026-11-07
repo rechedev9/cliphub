@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { IconTile } from '@/components/studio/icon-tile';
 import { Button } from '@/components/ui/button';
 
-const OFFLINE_BANNER_TITLE = 'Servicio local offline';
+const OFFLINE_BANNER_TITLE = 'ClipHub perdió la conexión interna';
 const RETRY_NOW_LABEL = 'Reintentar ahora';
 
 export type HubBannerProps = {
@@ -29,7 +29,7 @@ export function HubBanner({ offline, onRetry }: HubBannerProps): ReactNode {
         </span>
         {' · '}
         {offline
-          ? 'Arranca el servicio de ClipHub; la lista sigue tal cual estaba.'
+          ? 'Cierra y vuelve a abrir la aplicación; la lista sigue tal cual estaba.'
           : 'Lo que ves puede estar desactualizado.'}
       </p>
       <Button type="button" variant="outline" size="sm" onClick={onRetry}>

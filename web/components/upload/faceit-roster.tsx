@@ -53,7 +53,7 @@ export function FaceitLevel({ level, size = 26 }: { level?: number; size?: numbe
           strokeDasharray={`${circumference * filled} ${circumference}`}
         />
       </svg>
-      <span className="relative text-[0.6875rem] font-bold leading-none tabular-nums">{level ?? '–'}</span>
+      <span className="relative text-[0.6875rem] font-bold leading-none tabular-nums">{level ?? '?'}</span>
     </span>
   );
 }
@@ -254,7 +254,7 @@ function TeamTable({
               </span>
               <span className={cn('flex items-center gap-2 px-2', tint.cell)}>
                 <FaceitLevel level={p.skillLevel} />
-                <span className="text-body-sm tabular-nums text-fg-1">{p.elo ?? '—'}</span>
+                <span className="text-body-sm tabular-nums text-fg-1">{p.elo ?? 'Sin ELO'}</span>
               </span>
               {COLUMNS.map((c) => (
                 <span

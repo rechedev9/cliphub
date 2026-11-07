@@ -89,7 +89,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
         description={
           loadFailed
             ? 'El servicio local no respondió. Reintenta o vuelve a la partida.'
-            : 'Este clip ya no está en este PC. Puede que se haya borrado con sus artefactos.'
+            : 'Este clip ya no está en este PC. Puede que se haya borrado junto con sus vídeos.'
         }
         actions={
           <>

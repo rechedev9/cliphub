@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Clapperboard } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { streamsApi, type StreamJob, type StreamSourceKind } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { uploadProgress, type UploadProgress } from '@/lib/api/upload';
@@ -17,18 +17,15 @@ import {
 } from '@/lib/streams/plan';
 import { streamImportErrorMessage, streamSourceUrlError } from '@/lib/streams/import';
 import { CREATE_FLOW } from '@/lib/produce/create-flow';
-import Link from 'next/link';
-import { SHORTS_HREF } from '@/lib/clips/routes';
 import { CreateFlowSteps } from '@/components/studio/create-flow-steps';
-import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
-import { StreamListRow } from '@/components/streams/stream-list-row';
+import { StreamProjectCard } from '@/components/streams/stream-project-card';
 import { StreamSourcePanel, type StreamImportError } from '@/components/streams/stream-source-panel';
 
 const POLL_FAST_MS = 1500;
 const POLL_IDLE_MS = 10000;
 
-/** /streams: new source on top, every stream job as a row underneath. */
+/** /streams: the import hero on top, every stream job as a poster card underneath. */
 export default function StreamsPage(): ReactNode {
   const router = useRouter();
   const [jobs, setJobs] = useState<StreamJob[] | null>(null);
@@ -124,26 +121,16 @@ export default function StreamsPage(): ReactNode {
     );
   } else {
     list = (
-      <ul className="flex flex-col gap-3">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4.5">
         {jobs.map((job) => (
-          <StreamListRow key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
+          <StreamProjectCard key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
         ))}
       </ul>
     );
   }
 
   return (
-    <div className="measure-work flex flex-col gap-6">
-      <StudioPageHeader
-        title="Clips de stream"
-        actions={(
-          <Button asChild variant="outline" className="bg-surface-1">
-            <Link href={SHORTS_HREF}><Clapperboard aria-hidden />Crear desde una demo</Link>
-          </Button>
-        )}
-        description="Convierte un clip en un Short, o un stream entero en un resumen y en Shorts de tus jugadas."
-      />
-
+    <div className="measure-work flex flex-col gap-7.5">
       {listError !== null ? (
         <div
           role="alert"
@@ -157,7 +144,9 @@ export default function StreamsPage(): ReactNode {
         </div>
       ) : null}
 
-      <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <CreateFlowSteps flow={CREATE_FLOW.stream} step={0} className="min-w-0 flex-1" />
+      </div>
       <StreamSourcePanel
         sourceKind={sourceKind}
         sourceUrl={sourceUrl}
@@ -178,9 +167,9 @@ export default function StreamsPage(): ReactNode {
         onSubmitFile={(file) => void submitFile(file)}
       />
 
-      <section aria-labelledby="stream-projects-title" className="flex flex-col gap-4">
+      <section aria-labelledby="stream-projects-title" className="flex flex-col gap-3.5">
         <div className="flex items-center gap-3">
-          <h2 id="stream-projects-title" className="font-display text-title font-semibold text-fg-1">Tus proyectos</h2>
+          <h2 id="stream-projects-title" className="font-display text-title font-extrabold text-fg-1">Tus proyectos</h2>
           {jobs !== null ? (
             <span className="min-w-8 rounded-md bg-surface-3 px-2 py-0.5 text-center text-body-sm tabular-nums text-fg-2">
               {jobs.length}

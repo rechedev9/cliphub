@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
+import { FORMAT_TONE } from '@/components/studio/format-tone';
 import { cn } from '@/lib/utils';
 
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
@@ -66,7 +67,7 @@ export function StreamClipEditor({
       <p className="border border-dashed border-border-subtle p-3.5 text-center text-body-sm text-fg-2">
         {sourceDuration > 0
           ? 'Reproduce el vídeo y marca el inicio y el final. Cada momento se guarda como un Short independiente.'
-          : 'Sin duración de la fuente: espera a que cargue el vídeo antes de añadir cortes.'}
+          : 'Espera a que cargue el vídeo original antes de añadir momentos.'}
       </p>
     );
   }
@@ -91,8 +92,14 @@ export function StreamClipEditor({
                 item.id === clip.id ? 'border-stream bg-stream/10' : 'border-border-subtle',
               )}
             >
-              <span className="truncate">
-                {i + 1}. {item.title || `Short ${i + 1}`}
+              <span className="flex min-w-0 items-center gap-2">
+                <span aria-hidden className={cn('grid h-5 min-w-6 shrink-0 place-items-center rounded-md px-1 text-meta font-extrabold tabular-nums', FORMAT_TONE.stream.bg, 'text-format-stream-foreground')}>
+                  {i + 1}
+                </span>
+                <span className="truncate">
+                  <span className="sr-only">{i + 1}. </span>
+                  {item.title || `Momento ${i + 1}`}
+                </span>
               </span>
               <span className="shrink-0 tabular-nums">{formatStreamClock(clipOutputDuration(item))}</span>
             </button>
@@ -192,14 +199,14 @@ function ClipCard({
             aria-hidden
             className={cn(
               'grid size-7 shrink-0 place-items-center border text-label tabular-nums',
-              selected ? 'border-stream/45 bg-stream/10 text-stream-text' : 'border-border-strong text-fg-2',
+              selected ? cn('border-format-stream text-format-stream-foreground', FORMAT_TONE.stream.bg) : 'border-format-stream/45 text-format-stream',
             )}
           >
             {number}
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate font-display text-label font-semibold text-fg-1">
-              {clip.title?.trim() || `Clip ${index + 1}`}
+              {clip.title?.trim() || `Momento ${index + 1}`}
             </span>
             <span className="truncate text-meta text-fg-3">
               {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)} → Short de{' '}
@@ -213,7 +220,7 @@ function ClipCard({
           size="icon-sm"
           disabled={disabled}
           onClick={onRemove}
-          aria-label={`Quitar corte ${number}`}
+          aria-label={`Quitar momento ${number}`}
         >
           <Trash2 aria-hidden />
         </Button>
@@ -221,11 +228,11 @@ function ClipCard({
 
       <Input
         id={`${clip.id}-title`}
-        aria-label={`Título del corte ${number}`}
+        aria-label={`Título del momento ${number}`}
         value={clip.title ?? ''}
         disabled={disabled}
         onChange={(e) => onClipChange({ title: e.target.value })}
-        placeholder={`Clip ${index + 1}`}
+        placeholder={`Momento ${index + 1}`}
         className="h-9"
       />
 

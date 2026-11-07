@@ -3,14 +3,14 @@ import { MUTATION_CAPABILITY_ERROR } from './api/local-request-guard.ts';
 import { POV_DEMO_MESSAGE, TRUNCATED_DEMO_MESSAGE } from './api/failure-reason.ts';
 
 export const DEMO_SERVICE_OFFLINE_HINT =
-  'El servicio de análisis está offline. Arráncalo y vuelve a intentarlo.';
+  'ClipHub perdió la conexión interna. Cierra y vuelve a abrir la aplicación.';
 export const DEMO_LIST_FAIL_HINT =
-  'No se pudieron cargar las demos parseadas. Suelta un .dem o recarga.';
+  'No se pudieron cargar tus demos. Recarga o suelta un archivo .dem.';
 export const DEMO_SCAN_FAIL_HINT = 'No se pudo escanear esa demo. Prueba con otro archivo .dem.';
 export const DEMO_EMPTY_ROSTER_HINT =
   'El escaneo no encontró jugadores en esa demo. ¿Seguro que es una demo de CS2? Prueba con otro archivo .dem.';
 export const DEMO_PARSE_FAIL_HINT =
-  'No se pudieron extraer los highlights de ese jugador. Elige otro.';
+  'No se pudieron analizar las jugadas de ese jugador. Elige otro.';
 
 /** Why a scan failed, in words the user can act on; keyed by the failure cause. */
 export const DEMO_SCAN_HINTS = {

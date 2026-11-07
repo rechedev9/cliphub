@@ -3,7 +3,7 @@ import { PLAN_READY_STATUSES } from './api/types.ts';
 /** Pending parse must never share copy with a genuine zero-plays empty state. */
 export const MATCH_PLAYS_ANALYZING_TITLE = 'Analizando la demo…';
 export const MATCH_PLAYS_ANALYZING_DESCRIPTION =
-  'Las jugadas aparecerán aquí cuando termine el parseo.';
+  'Las jugadas aparecerán aquí en cuanto termine el análisis.';
 
 export const MATCH_PLAYS_EMPTY_TITLE = 'Sin jugadas destacables';
 export const MATCH_PLAYS_EMPTY_DESCRIPTION =
