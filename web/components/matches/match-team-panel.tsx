@@ -61,6 +61,9 @@ export function MatchTeamPanel({
     .filter((player) => player.team_key === team.key)
     .sort((a, b) => playerAdr(b) - playerAdr(a));
   const name = teamLabel(team);
+  const note = `${ASSIGNMENT_NOTE[team.assignment]}${team.clan_name ? ` Clan en la demo: ${team.clan_name}.` : ''}`;
+  // A clan read as the team's own name says nothing the heading does not; it stays on Corregir's tooltip.
+  const noteVisible = team.assignment !== 'auto' || team.clan_name !== name;
 
   return (
     <section aria-label={name} className="studio-panel flex min-w-0 flex-col overflow-hidden">
@@ -71,13 +74,10 @@ export function MatchTeamPanel({
             <span className={cn('font-semibold', team.start_side === 'CT' ? 'text-side-ct' : 'text-side-t')}>Empezó {team.start_side}</span>
             {` · ${team.score} ${team.score === 1 ? 'ronda ganada' : 'rondas ganadas'}`}
           </p>
-          <p className="text-meta text-fg-3">
-            {ASSIGNMENT_NOTE[team.assignment]}
-            {team.clan_name ? ` Clan en la demo: ${team.clan_name}.` : ''}
-          </p>
+          {noteVisible ? <p className="text-meta text-fg-3">{note}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <Button type="button" variant="ghost" size="xs" aria-label={`Corregir el equipo ${name}`} onClick={() => setEditing(true)}>
+          <Button type="button" variant="ghost" size="xs" aria-label={`Corregir el equipo ${name}`} title={note} onClick={() => setEditing(true)}>
             <Pencil aria-hidden />
             Corregir
           </Button>

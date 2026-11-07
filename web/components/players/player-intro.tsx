@@ -100,14 +100,15 @@ export function PlayerIntro({
 
   return (
     <div className="flex flex-col gap-3">
-      <section aria-label="Cifras frente a la referencia" className="flex flex-col gap-1.5">
+      <section aria-label="Cifras frente a la referencia" className="@container flex flex-col gap-1.5">
         <h2 className="text-body-sm font-semibold text-fg-1">Frente a la {referenceLabel(scope).toLowerCase()}</h2>
         {references === 'failed' ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo leer la media de la biblioteca. Las cifras salen sin comparar.
           </p>
         ) : null}
-        <StatCardGroup label="Cifras principales">
+        {/* The nine figures as 3×3, 5 + 4 (the last one twice as wide) or one row: no card alone, no empty cell. */}
+        <StatCardGroup label="Cifras principales" className="grid-cols-3 @min-[34rem]:grid-cols-5 @min-[34rem]:[&>:last-child]:col-span-2 @min-[60rem]:grid-cols-9 @min-[60rem]:[&>:last-child]:col-span-1">
           {BASELINE_METRICS.map((metric, index) => {
             const info = METRIC_INFO[metric];
             const mean = baselineValue(baseline, metric);
