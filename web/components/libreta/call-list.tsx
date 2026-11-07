@@ -111,9 +111,8 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   });
   const columns = useMemo(() => callColumns((call) => setEditing({ kind: 'edit', call })), []);
 
-  async function bulkStatus(status: LibretaStatus): Promise<void> {
+  async function bulkStatus(status: LibretaStatus, ids: readonly string[]): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
     const failed = (await Promise.allSettled(ids.map((id) => patchLibraryCall(id, { status })))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'llamada pasa' : 'llamadas pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
     setSelected(new Set());
@@ -121,9 +120,8 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
     onReload();
   }
 
-  async function bulkDelete(): Promise<void> {
+  async function bulkDelete(ids: readonly string[]): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
     const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryCall(id)))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminada 1 llamada' : `Eliminadas ${ids.length} llamadas`}.` : `${failed} no se pudieron eliminar.`);
     setSelected(new Set());
@@ -196,7 +194,9 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
   const filtered = filterRows(calls, view.state.filters, { fields: CALL_FILTER_FIELDS, searchText: callSearchText });
   const shown = visibleByStatus(filtered, view.state.filters.status ?? FILTER_ANY, FILTER_ANY);
   const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
-  const chosen = calls.filter((call) => selected.has(call.id));
+  // Only rows the filters show count as chosen, so a bulk action never reaches a hidden one.
+  const chosen = shown.filter((call) => selected.has(call.id));
+  const chosenIds = chosen.map((call) => call.id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -227,8 +227,8 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
           count={chosen.length}
           noun={chosen.length === 1 ? 'llamada' : 'llamadas'}
           busy={busy}
-          onStatus={(next) => void bulkStatus(next)}
-          onDelete={() => void bulkDelete()}
+          onStatus={(next) => void bulkStatus(next, chosenIds)}
+          onDelete={() => void bulkDelete(chosenIds)}
           onClear={() => setSelected(new Set())}
         />
       ) : null}

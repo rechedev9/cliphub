@@ -110,15 +110,34 @@ export function LineupList({
     hidden: ['tags'],
     filters: { [SEARCH_FILTER]: FILTER_ANY },
   });
-  const chosen = (lineups ?? []).filter((lineup) => selected.has(lineup.id));
-  const practice = usePracticeLaunch(chosen[0]?.map ?? '');
-  const blocked = practiceBlockReason(chosen);
   const calloutLabel = useCalloutNames((lineups ?? []).map((lineup) => lineup.map));
   const columns = useMemo(() => lineupColumns(calloutLabel), [calloutLabel]);
+  const filtered = filterRows(lineups ?? [], view.state.filters, {
+    fields: {
+      map: (lineup) => lineup.map,
+      side: (lineup) => lineup.side,
+      grenade: (lineup) => lineup.grenade,
+    },
+    searchText: (lineup) =>
+      [
+        lineup.title,
+        calloutLabel(lineup.map, lineup.throw_callout),
+        calloutLabel(lineup.map, lineup.landing_callout),
+        lineup.tags.join(' '),
+        lineup.notes,
+        prettyMapName(lineup.map),
+      ].join(' '),
+  });
+  const shown = visibleByStatus(filtered, view.state.filters.status ?? FILTER_ANY, FILTER_ANY);
+  const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
+  // Only rows the filters show count as chosen, so a bulk action never reaches a hidden one.
+  const chosen = shown.filter((lineup) => selected.has(lineup.id));
+  const practice = usePracticeLaunch(chosen[0]?.map ?? '');
+  const blocked = practiceBlockReason(chosen);
 
   async function bulkStatus(status: LibretaStatus): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
+    const ids = chosen.map((lineup) => lineup.id);
     const failed = (await Promise.allSettled(ids.map((id) => patchLibraryLineup(id, { status })))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'lineup pasa' : 'lineups pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
     setSelected(new Set());
@@ -128,7 +147,7 @@ export function LineupList({
 
   async function bulkDelete(): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
+    const ids = chosen.map((lineup) => lineup.id);
     const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryLineup(id)))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminado 1 lineup' : `Eliminados ${ids.length} lineups`}.` : `${failed} no se pudieron eliminar.`);
     setSelected(new Set());
@@ -198,24 +217,6 @@ export function LineupList({
     );
   }
 
-  const filtered = filterRows(lineups, view.state.filters, {
-    fields: {
-      map: (lineup) => lineup.map,
-      side: (lineup) => lineup.side,
-      grenade: (lineup) => lineup.grenade,
-    },
-    searchText: (lineup) =>
-      [
-        lineup.title,
-        calloutLabel(lineup.map, lineup.throw_callout),
-        calloutLabel(lineup.map, lineup.landing_callout),
-        lineup.tags.join(' '),
-        lineup.notes,
-        prettyMapName(lineup.map),
-      ].join(' '),
-  });
-  const shown = visibleByStatus(filtered, view.state.filters.status ?? FILTER_ANY, FILTER_ANY);
-  const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
   const maps = [...new Set(lineups.map((lineup) => lineup.map))]
     .map((map) => ({ value: map, label: prettyMapName(map) }))
     .sort((a, b) => a.label.localeCompare(b.label, 'es'));

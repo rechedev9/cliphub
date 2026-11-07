@@ -32,7 +32,7 @@ export function BulkBar({
   return (
     <div role="region" aria-label="Acciones de la selección" className="studio-panel flex flex-wrap items-center gap-2 px-3 py-2">
       <span className="text-body-sm font-medium text-fg-1">
-        {count} {noun} {count === 1 ? 'elegida' : 'elegidas'}
+        {count} {noun} en la selección
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -69,7 +69,7 @@ export function BulkBar({
             <DialogTitle>
               ¿Eliminar {count} {noun}?
             </DialogTitle>
-            <DialogDescription>No se puede deshacer. Si solo quieres sacarlas de la lista, pásalas a Archivo.</DialogDescription>
+            <DialogDescription>No se puede deshacer. Para quitar algo de la lista sin borrarlo, cambia su estado a Archivo.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setConfirming(false)}>

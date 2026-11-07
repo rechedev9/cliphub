@@ -163,9 +163,8 @@ export function PlayList({
     onImported();
   }
 
-  async function bulkStatus(status: LibretaStatus): Promise<void> {
+  async function bulkStatus(status: LibretaStatus, ids: readonly string[]): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
     const failed = (await Promise.allSettled(ids.map((id) => patchLibraryPlay(id, { status })))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length} ${ids.length === 1 ? 'jugada pasa' : 'jugadas pasan'} a ${STATUS_LABEL[status]}.` : `${failed} no se pudieron cambiar.`);
     setSelected(new Set());
@@ -173,9 +172,8 @@ export function PlayList({
     onReload();
   }
 
-  async function bulkDelete(): Promise<void> {
+  async function bulkDelete(ids: readonly string[]): Promise<void> {
     setBusy(true);
-    const ids = [...selected];
     const failed = (await Promise.allSettled(ids.map((id) => deleteLibraryPlay(id)))).filter((r) => r.status === 'rejected').length;
     setMessage(failed === 0 ? `${ids.length === 1 ? 'Eliminada 1 jugada' : `Eliminadas ${ids.length} jugadas`}.` : `${failed} no se pudieron eliminar.`);
     setSelected(new Set());
@@ -280,7 +278,9 @@ export function PlayList({
   });
   const shown = visibleByStatus(filtered, view.state.filters.status ?? FILTER_ANY, FILTER_ANY);
   const hiddenArchived = (view.state.filters.status ?? FILTER_ANY) === FILTER_ANY ? filtered.length - shown.length : 0;
-  const chosen = plays.filter((play) => selected.has(play.id));
+  // Only rows the filters show count as chosen, so a bulk action never reaches a hidden one.
+  const chosen = shown.filter((play) => selected.has(play.id));
+  const chosenIds = chosen.map((play) => play.id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -322,9 +322,9 @@ export function PlayList({
           count={chosen.length}
           noun={chosen.length === 1 ? 'jugada' : 'jugadas'}
           busy={busy}
-          onStatus={(next) => void bulkStatus(next)}
+          onStatus={(next) => void bulkStatus(next, chosenIds)}
           onExport={() => void exportPlays(chosen)}
-          onDelete={() => void bulkDelete()}
+          onDelete={() => void bulkDelete(chosenIds)}
           onClear={() => setSelected(new Set())}
         />
       ) : null}
