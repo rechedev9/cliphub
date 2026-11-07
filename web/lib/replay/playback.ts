@@ -21,14 +21,11 @@ export type PlaybackFrame = {
 export type PlaybackAction = 'play' | 'hold' | 'next' | 'stop';
 export type PlaybackStep = { position: number; action: PlaybackAction };
 
-/**
- * Advances one frame. Only a round played into its end moves on; one the user
- * seeked to its end stops there, so a scrubber held at the edge cannot run
- * through every round of the playlist.
- */
+/** Advances one frame. Only a round played into its end moves on; one seeked to its end stops there,
+ * so a scrubber held at the edge cannot run through every round of the playlist. */
 export function playbackStep(frame: PlaybackFrame): PlaybackStep {
   if (frame.scrubbing) return { position: frame.position, action: 'hold' };
-  if (frame.seeked && !frame.loop && frame.position >= frame.durationSeconds - SCRUB_STEP_SECONDS) {
+  if (frame.seeked && !frame.loop && atEnd(frame.position, frame.durationSeconds)) {
     return { position: frame.position, action: 'stop' };
   }
   const next = advanceTransport(
@@ -41,5 +38,9 @@ export function playbackStep(frame: PlaybackFrame): PlaybackStep {
 
 /** Play from the start when the playhead sits at the end, within a scrubber step. */
 export function playStartSeconds(position: number, durationSeconds: number): number {
-  return position >= durationSeconds - SCRUB_STEP_SECONDS ? 0 : position;
+  return atEnd(position, durationSeconds) ? 0 : position;
+}
+
+function atEnd(position: number, durationSeconds: number): boolean {
+  return position >= durationSeconds - SCRUB_STEP_SECONDS;
 }

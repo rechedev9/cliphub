@@ -265,6 +265,8 @@ export function ReplayWorkspace({
     if (!playing || !ready) return;
     let frame = 0;
     let last = performance.now();
+    // Any move of the clock this loop did not make (a note, multi round on or off) counts as a seek too.
+    let written = clock.seconds;
     const step = (now: number): void => {
       const next = playbackStep({
         position: clock.seconds,
@@ -273,12 +275,15 @@ export function ReplayWorkspace({
         durationSeconds: transport.durationSeconds,
         loop,
         scrubbing: scrubbingRef.current,
-        seeked: seekedRef.current,
+        seeked: seekedRef.current || clock.seconds !== written,
         hasNext: !multi && index < entries.length - 1,
       });
       last = now;
-      if (next.action !== 'hold') seekedRef.current = false;
-      clock.set(next.position);
+      if (next.action !== 'hold') {
+        seekedRef.current = false;
+        clock.set(next.position);
+        written = clock.seconds;
+      }
       // A playlist plays on: the next round starts where this one ends.
       if (next.action === 'next') select(index + 1);
       else if (next.action === 'stop') setPlaying(false);

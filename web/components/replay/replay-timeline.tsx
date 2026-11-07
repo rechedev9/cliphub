@@ -105,7 +105,9 @@ export function ReplayTimeline({
             max={timeline.durationSeconds}
             step={SCRUB_STEP_SECONDS}
             defaultValue={0}
-            onPointerDown={startScrub}
+            onPointerDown={(event) => {
+              if (event.button === 0) startScrub();
+            }}
             onChange={(event) => onSeek(Number(event.target.value))}
             aria-label="Posición de la repetición"
             className={cn(
