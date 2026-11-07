@@ -103,8 +103,8 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
           <ul className="flex flex-col gap-1.5">
             {player.evidence.map((e) => (
               <li key={`${e.tick}-${e.kind}`} className="text-body-sm text-fg-2">
-                <span className="font-mono text-meta text-fg-1">
-                  R{e.round} · tick {e.tick}:
+                <span className="font-medium text-fg-1">
+                  Ronda {e.round} · tick <span className="font-mono text-meta tabular-nums">{e.tick}</span>:
                 </span>{' '}
                 {e.detail}
               </li>
