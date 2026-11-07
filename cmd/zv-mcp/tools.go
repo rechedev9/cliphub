@@ -190,6 +190,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerReportTools(server, s)
 	registerStratbookTools(server, s)
 	registerLibretaTableTools(server, s)
+	registerLineupTools(server, s)
 	registerMatchTacticalTools(server, s)
 	registerLibrarySeriesTools(server, s)
 	registerCommunityTools(server, s)

@@ -96,8 +96,9 @@ type practiceSpotIn struct {
 
 type practiceIn struct {
 	Map     string           `json:"map" jsonschema:"such as de_mirage"`
-	Spots   []practiceSpotIn `json:"spots" jsonschema:"1 to 20 spots, in the order the keys cycle through them"`
-	Approve string           `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	Spots     []practiceSpotIn `json:"spots,omitempty" jsonschema:"1 to 20 spots, in the order the keys cycle through them"`
+	LineupIDs []string         `json:"lineup_ids,omitempty" jsonschema:"instead of spots: 1 to 20 Libreta lineup ids from list_lineups, all on map"`
+	Approve   string           `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
 }
 
 type practiceOut struct {
@@ -261,10 +262,11 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "launch_practice", Annotations: &mcp.ToolAnnotations{},
-		Description: "Open CS2 on a local practice server standing on grenade spots, as Practicar does on the grenades page: take origin and view from team_grenades rows. " +
+		Description: "Open CS2 on a local practice server standing on grenade spots, as Practicar does on the grenades page: take origin and view from team_grenades rows, " +
+			"or pass lineup_ids of Libreta lineups. " +
 			"It opens the game on the user's PC, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in practiceIn) (*mcp.CallToolResult, practiceOut, error) {
-			spots, err := in.spots()
+			spots, err := in.practiceSpots(ctx, s)
 			if err != nil {
 				return nil, practiceOut{}, err
 			}

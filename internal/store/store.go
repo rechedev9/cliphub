@@ -131,6 +131,7 @@ type LibraryRepository interface {
 	UpdatePlay(ctx context.Context, id uuid.UUID, patch library.PlayPatch) (library.Play, error)
 	// DeletePlay removes a play; a missing id is ErrNotFound.
 	DeletePlay(ctx context.Context, id uuid.UUID) error
+	LibretaRepository
 }
 
 type Repositories struct {

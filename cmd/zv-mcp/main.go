@@ -65,12 +65,16 @@ update_report, delete_report. Libreta (the team's playbook; its Jugadas tab was 
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,
 update_play (also status and tags), delete_play, export_plays and import_plays (.json files on this PC).
 plan_table reads the Libreta's Tabla: one map and side, a column per round type with its plays.
+Lineups of the Libreta: list_lineups, get_lineup (with its setpos), save_lineup (match_id, round and
+throw_tick of a team_grenades row, or a pasted setpos with map, side and grenade), update_lineup (a
+technique set by hand is no longer estimated) and delete_lineup.
 Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. team_maps reads a team's map record
 and simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
-launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades.
+launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
+or lineup_ids of Libreta lineups on one map.
 community_ranking reads the user's percentile against other installs; set_community_ranking,
 submit_community_ranking and delete_community_ranking manage sharing.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
@@ -95,7 +99,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_play, delete_library_series, launch_practice, delete_community_ranking and
+delete_report, delete_play, delete_lineup, delete_library_series, launch_practice, delete_community_ranking and
 turning set_community_ranking on need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio

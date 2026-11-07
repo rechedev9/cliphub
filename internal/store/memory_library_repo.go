@@ -29,6 +29,7 @@ type MemoryLibraryRepository struct {
 	reports      map[uuid.UUID]library.Report
 	annotations  map[uuid.UUID]library.Annotation
 	plays        map[uuid.UUID]library.Play
+	libreta      memoryLibreta
 }
 
 type memoryJobLink struct {

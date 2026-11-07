@@ -36,6 +36,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV10StreamColumns,
 	migrateV11DropLibraryCollections,
 	migrateV12PlayStatus,
+	migrateV13LibraryLineups,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -650,6 +651,33 @@ func migrateV12PlayStatus(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("add play status: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV13LibraryLineups stores the Libreta's lineups. Map, side, grenade,
+// status and tags are columns because lists filter on them; the rest is JSON.
+func migrateV13LibraryLineups(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_lineups (
+			id         TEXT    PRIMARY KEY,
+			title      TEXT    NOT NULL,
+			map        TEXT    NOT NULL,
+			side       TEXT    NOT NULL CHECK (side IN ('CT', 'T')),
+			grenade    TEXT    NOT NULL,
+			status     TEXT    NOT NULL DEFAULT 'active',
+			tags       TEXT    NOT NULL DEFAULT '[]',
+			notes      TEXT    NOT NULL DEFAULT '',
+			detail     TEXT    NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX library_lineups_updated ON library_lineups(updated_at, id)`,
+		`CREATE INDEX library_lineups_map ON library_lineups(map, side)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("create library lineups: %w", err)
 		}
 	}
 	return nil

@@ -145,7 +145,7 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report` and `delete_play` (the title), `delete_library_series` (format and teams),
+  `delete_report`, `delete_play` and `delete_lineup` (the title), `delete_library_series` (format and teams),
   `launch_practice` (map and spot count), turning `set_community_ranking` on and
   `delete_community_ranking` (what leaves or is erased on the community server).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
@@ -196,6 +196,7 @@ Read:
 | `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
 | `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `status`, `tag`, `include_archived` (archived plays are left out by default, as in the Jugadas tab), `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, status, tags, example refs and missing matches |
 | `plan_table` | `GET /api/library/plays` (`map`, `side`, `team_id`, `limit` 1000; archived plays left out), grouped as the Tabla: a column per round type of the side in the UI's order, plays by title; `no_team` keeps only plays without a team |
+| `list_lineups`, `get_lineup` | `GET /api/library/lineups` (`map`, `side`, `grenade`, `status`, `tag`, `include_archived`, `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/lineups/{id}`: origin, angles, callouts, technique (`technique_estimated` when read from 8 Hz samples), the `setpos` command and the round it came from |
 | `detect_team_plays` | `GET /api/library/teams/{id}/plays` with the `scout_team` filter; each group's seed round is its `ref`; the 20 most repeated by default, at most 100, `truncated` when more |
 | `list_library_series` | `GET /api/library/series` (`team_id`): format, event, veto notes, teams by slot, veto steps, match ids |
 | `team_maps` | `GET /api/library/teams/{id}/maps` (`from`, `to`): record, round win rate per side, veto counts and preference per map |
@@ -274,12 +275,15 @@ Write:
 | `delete_play` | `GET` then `DELETE /api/library/plays/{id}` | yes |
 | `export_plays` | `GET /api/library/plays/export` (`team_id`, `map`, `side`, `kind`, `include_archived`), written to a new `.json` file on a local drive; an existing file is never overwritten | no |
 | `import_plays` | reads a local `.json` file (at most 8 MiB, valid JSON), `POST /api/library/plays/import`; imported, duplicate and rejected counts, with at most 50 plays and 50 rejections listed | no |
+| `save_lineup` | `POST /api/library/lineups` with `from` (`match_id`, `round`, `throw_tick` of a `team_grenades` row: Studio reads the throw, normalizes the pitch for `setang`, sets callouts and estimates movement and jump) or a pasted `setpos x y z;setang p y r` with `map`, `side` and `grenade`, as Guardar lineup and Nuevo lineup do | no |
+| `update_lineup` | `PATCH /api/library/lineups/{id}` (`title`, `status`, `tags`, `notes`, `movement`, `jump`, `click`); map, side, grenade and the spot cannot change | no |
+| `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
 | `delete_library_series` | `GET` then `DELETE /api/library/series/{id}`; its matches stay | yes |
 | `set_match_series` | `PATCH /api/library/matches/{id}` with `series_id` or null | no |
 | `follow_faceit_player`, `unfollow_faceit_player` | `POST /api/faceit/followed` (`nickname`); `DELETE /api/faceit/followed/{id}` (a seeded player is hidden) | no |
 | `link_player_faceit` | `POST /api/library/players/{steamid}/faceit` | no |
-| `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page | yes |
+| `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page. With `lineup_ids`, `GET /api/library/lineups/{id}` for each, all on `map`, as Practicar selección does in the Libreta | yes |
 | `set_community_ranking` | `PUT /api/library/community/settings` (`rankings_enabled`); turning it on submits right away | yes, to turn it on |
 | `submit_community_ranking` | `POST /api/library/community/rankings/submit` | no (sharing must be on) |
 | `delete_community_ranking` | `DELETE /api/library/community/rankings`: the server forgets this install, sharing turns off | yes |
