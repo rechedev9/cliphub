@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, FileVideo, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, FileVideo, Hourglass, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MATCH_STATUS_FAILED, type Match } from '@/lib/api/types';
 import {
@@ -131,9 +131,9 @@ function AnalysisPanel({
   if (document === null && isDemoStillIngesting(match?.status)) {
     return (
       <StudioEmptyState
-        icon={Loader2}
+        icon={Hourglass}
         title="La demo aún se está importando"
-        description="Podrás analizarla en cuanto termine de leerse el roster. Esta vista se actualiza sola."
+        description="Podrás analizarla en cuanto Studio lea sus jugadores. Esta vista se actualiza sola."
         compact
       />
     );
@@ -164,7 +164,7 @@ function AnalysisPanel({
   if (document.status === ANTICHEAT_STATUS.running) {
     return (
       <StudioEmptyState
-        icon={Loader2}
+        icon={Hourglass}
         title="Analizando la demo"
         description="Se está recorriendo la demo tick a tick para medir puntería, información y tiempos de reacción. Puedes salir de esta pantalla; el análisis sigue. Si lleva demasiado tiempo aquí, reinicia el análisis."
         compact
@@ -201,13 +201,12 @@ function AnalysisPanel({
     <div className="flex flex-col gap-6">
       <div className="studio-panel flex flex-col gap-2 rounded-lg px-4 py-3.5">
         <span className="text-meta text-fg-3">
-          {report.match.map} · {report.match.rounds} rondas · línea base {report.baseline.id}
+          {prettyMapName(report.match.map)} · {report.match.rounds} rondas
         </span>
         <p className="text-body-sm text-fg-2">{report.baseline.description}</p>
         {report.baseline.measured ? null : (
           <p className="text-body-sm text-fg-2">
-            Esta línea base no está medida sobre un corpus de demos: es una estimación. Las puntuaciones son
-            orientativas hasta que la calibres con <code>zv demo anticheat calibrate</code>.
+            La referencia es una estimación, no una medida sobre demos reales, así que las puntuaciones son orientativas.
           </p>
         )}
       </div>
@@ -257,7 +256,7 @@ function IngestStatus({ fileName }: { fileName: string | null }): ReactNode {
       className="studio-panel flex min-h-24 flex-col items-center justify-center gap-2 px-4 py-5 text-center"
     >
       <Loader2 className="size-5 animate-spin text-fg-2" />
-      <p className="font-display text-body-sm font-bold text-fg-1">Escaneando el roster…</p>
+      <p className="font-display text-body-sm font-bold text-fg-1">Leyendo los jugadores de la demo…</p>
       {fileName ? (
         <p className="inline-flex max-w-full items-center gap-2 font-mono text-meta text-fg-3">
           <FileVideo aria-hidden className="size-4 shrink-0" />
@@ -491,7 +490,16 @@ export default function CheatersPage(): ReactNode {
 
   let body: ReactNode;
   if (matches === null) {
-    body = <Skeleton className="h-64 w-full rounded-xl" />;
+    body = (
+      <div role="status" aria-label="Cargando demos" className="grid items-start gap-6 @[44rem]/content:grid-cols-[minmax(200px,260px)_1fr] @[44rem]/content:gap-8">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
   } else if (matches.length === 0) {
     body = (
       <div className="@container/upload flex flex-col gap-3">

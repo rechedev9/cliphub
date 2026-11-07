@@ -56,7 +56,7 @@ export type FailureReason = {
 };
 
 export const FAILED_STRIP_LABEL = {
-  pipeline: 'Error de pipeline',
+  pipeline: 'Error al preparar el vídeo',
   capture: 'Fallo de captura',
 } as const;
 

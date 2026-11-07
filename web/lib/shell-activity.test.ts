@@ -181,7 +181,7 @@ test('collectShellJobs merges parsing partidas and stream jobs with reels', () =
       ['reel', 'queued'],
     ],
   );
-  assert.equal(snapshot.jobs[1]?.title, 'de_nuke · parseo POV ropz');
+  assert.equal(snapshot.jobs[1]?.title, 'Nuke · ropz');
   assert.equal(snapshot.jobs[1]?.href, '/shorts');
   assert.equal(snapshot.jobs[0]?.href, '/streams/s1');
   assert.equal(snapshot.capturing, false);
