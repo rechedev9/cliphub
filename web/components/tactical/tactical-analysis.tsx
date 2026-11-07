@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { TriangleAlert } from 'lucide-react';
-import { fetchTacticalTendencies } from '@/lib/api/tactical';
-import type { TacticalFilter, TacticalSource, TacticalTendencies } from '@/lib/api/tactical';
+import type { TacticalFilter, TacticalSource } from '@/lib/api/tactical';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
@@ -18,6 +17,7 @@ import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
 import { ReplayFilters } from '@/components/replay/replay-filters';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
+import { useTeamTendencies } from '@/components/tactical/use-team-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Segmented } from '@/components/ui/segmented';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
@@ -86,8 +86,6 @@ export function TacticalAnalysis({
   const [loaded, setLoaded] = useState<LoadedAnalysis | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
-  const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
-  const [tendenciesError, setTendenciesError] = useState<string | null>(null);
   const [mode, setMode] = useState<AnalysisMode>('replay');
   const rootRef = useRef<HTMLDivElement>(null);
   const ready = loaded !== null;
@@ -128,22 +126,7 @@ export function TacticalAnalysis({
     };
   }, [sourceKind, sourceId]);
 
-  useEffect(() => {
-    let active = true;
-    setTendenciesError(null);
-    fetchTacticalTendencies({ kind: sourceKind, id: sourceId }, tacticalFilterFromQuery(new URLSearchParams(filterQuery)))
-      .then((next) => {
-        if (active) setTendencies(next);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setTendencies(null);
-        setTendenciesError(analysisErrorMessage(error));
-      });
-    return () => {
-      active = false;
-    };
-  }, [sourceKind, sourceId, filterQuery]);
+  const tendencies = useTeamTendencies({ source, filter, doc: loaded?.doc ?? null });
 
   const applyFilter = useCallback(
     (next: TacticalFilter) => {
@@ -211,7 +194,7 @@ export function TacticalAnalysis({
       )}
 
       <div className="mt-6">
-        <TacticalTendenciesPanel tendencies={tendencies} error={tendenciesError} roundCount={rounds.length} />
+        <TacticalTendenciesPanel {...tendencies} roundCount={rounds.length} />
       </div>
     </div>
   );
