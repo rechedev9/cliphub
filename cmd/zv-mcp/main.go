@@ -72,6 +72,8 @@ team's role sheet on a map with a suggestion from its matches; set_team_roles sa
 Calls (the team's words): list_calls, save_call, update_call, delete_call. Callouts: list_callouts
 reads a map's places with the team's own names, rename_callout names one or resets it.
 export_libreta writes the whole Libreta to a file; import_plays reads any Libreta file back.
+search_studio finds plays, lineups, calls, teams, players and matches by words, as Ctrl+K does;
+a map name or grenade word in the query narrows it.
 Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. team_maps reads a team's map record
 and simulate_veto recommends a veto against a rival.

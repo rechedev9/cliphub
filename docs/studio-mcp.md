@@ -190,6 +190,7 @@ Read:
 | `list_all_videos` | `GET /api/jobs` (newest 30 by default, at most 100), then `GET /api/jobs/batch-status` for every job and preset in calls of 100, and `GET /api/stream-jobs` for the same number of streams: finished videos with MP4 links, renders still running or failed, jobs whose parse or capture failed, and rendered stream moments |
 | `publish_copy` | `GET .../videos/{name}/publish-assistant`: title, description, tags, `alternative_titles` (up to 4), the recommended copies (the suggested one and up to 4 alternatives) with score and rationale, keywords, the 5 best publish times across the schedule days, and trending terms (or why they are missing) |
 | `list_pro_settings` | the `internal/prosettings` catalog (no orchestrator call): id, name, team, resolution and viewmodel FOV for `plan_full_demo` `pro_settings` |
+| `search_studio` | `GET /api/library/search?q=` (`limit` per kind, 8 by default and at most 25): plays, lineups, calls, teams, players and matches holding every word, with accents dropped and `&` read as `y`; a map name (mirage, de_nuke...) keeps that map's plays, lineups and matches, a grenade word (humo, flash, molotov...) keeps those lineups |
 | `list_teams` | `GET /api/library/teams` |
 | `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
 | `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
@@ -318,7 +319,8 @@ survives.
 instead of failing halfway.
 
 Not covered yet (see the parity rule in AGENTS.md): the editor, report exports (the
-HTML page and the `.cliphub` package), `open_studio`, resources and prompts. Steam sign-in, the authentication code
+HTML page and the `.cliphub` package), `open_studio`, the Libreta's Modo partida window (its data is `plan_table` and
+`list_lineups`), resources and prompts. Steam sign-in, the authentication code
 and the Web API key stay in the UI on purpose: an assistant never handles Steam credentials. There is no tool to cancel a queued
 render: the orchestrator has no cancel route, and Quitar on a queued video in Mis vídeos only drops
 the UI's local record of it.

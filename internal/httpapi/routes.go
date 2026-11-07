@@ -193,6 +193,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/plays/export", h.ExportLibraryPlays)
 	r.Post("/api/library/plays/import", h.ImportLibraryPlays)
 	r.Get("/api/library/libreta/export", h.ExportLibreta)
+	r.Get("/api/library/search", h.SearchLibrary)
 	r.Get("/api/library/plays/{id}", h.GetLibraryPlay)
 	r.Patch("/api/library/plays/{id}", h.PatchLibraryPlay)
 	r.Delete("/api/library/plays/{id}", h.DeleteLibraryPlay)
