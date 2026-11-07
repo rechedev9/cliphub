@@ -19,6 +19,6 @@ test('a match mode request refuses anything else', () => {
 
 test('the match mode URL stays on the web origin', () => {
   const href = matchModeUrl('http://127.0.0.1:3100', { map: 'de_mirage', side: 'T', team: TEAM });
-  assert.equal(href, `http://127.0.0.1:3100/libreta/partida?mapa=de_mirage&lado=T&equipo=${TEAM}`);
-  assert.equal(matchModeUrl('http://127.0.0.1:3100', { map: 'de_nuke', side: '', team: '' }), 'http://127.0.0.1:3100/libreta/partida?mapa=de_nuke');
+  assert.equal(href, `http://127.0.0.1:3100/modo-partida?mapa=de_mirage&lado=T&equipo=${TEAM}`);
+  assert.equal(matchModeUrl('http://127.0.0.1:3100', { map: 'de_nuke', side: '', team: '' }), 'http://127.0.0.1:3100/modo-partida?mapa=de_nuke');
 });

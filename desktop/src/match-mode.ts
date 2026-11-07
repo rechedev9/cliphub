@@ -1,7 +1,7 @@
 export const STUDIO_MATCH_MODE_CHANNEL = 'cliphub:match-mode';
 
-/** The web route of the compact window, and its query keys (LIBRETA_QUERY in web/lib/clips/routes.ts). */
-const MATCH_MODE_PATH = '/libreta/partida';
+/** The web route of the compact window (web/app/modo-partida), with LIBRETA_QUERY's keys. */
+const MATCH_MODE_PATH = '/modo-partida';
 const MAP_PATTERN = /^[a-z0-9_]{1,64}$/;
 const TEAM_PATTERN = /^(none|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
