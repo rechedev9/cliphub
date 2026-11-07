@@ -46,6 +46,8 @@ type MapIndex struct {
 	Lineups      []Lineup `json:"lineups"`
 	Combos       []Combo  `json:"combos"`
 	LatestPlayed string   `json:"latest_played"`
+	// Geometry draws the radar: the calibration and callouts of the best sampled map read.
+	Geometry *tacticalplan.MapGeometry `json:"geometry,omitempty"`
 }
 
 // Counts is a number over the recent window and over everything read.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/prolineups"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // lineupsIndexKey is the stored key of the list of maps with a lineup index.
@@ -41,6 +42,7 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 	}
 	slices.Sort(files)
 	byMap := map[string][]prolineups.Throw{}
+	geometry := map[string]tacticalplan.MapGeometry{}
 	seen := map[string]bool{}
 	for _, name := range files {
 		if ctx.Err() != nil {
@@ -57,6 +59,9 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 		if t, err := time.Parse(time.RFC3339, h.Match.PlayedAt); err == nil {
 			meta.PlayedAt = t
 		}
+		if g := h.Document.Geometry; g.SampleCount > geometry[h.Document.Demo.Map].SampleCount {
+			geometry[h.Document.Demo.Map] = g
+		}
 		throws := prolineups.ExtractThrows(h.Document, blob, meta)
 		// Restart parts of one map replay its last round; keep each round once.
 		for _, t := range throws {
@@ -72,6 +77,9 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 	payloads := map[string][]byte{}
 	for m, throws := range byMap {
 		idx := prolineups.BuildIndex(m, throws, now)
+		if g, ok := geometry[m]; ok {
+			idx.Geometry = &g
+		}
 		body, err := json.Marshal(idx)
 		if err != nil {
 			return lineupsIndex{}, err

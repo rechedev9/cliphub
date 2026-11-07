@@ -42,7 +42,7 @@ func writeProLineupsError(w http.ResponseWriter, err error) {
 	writeCodedError(w, http.StatusBadGateway, codeCommunityDown, "the community server did not answer and Studio has no copy yet")
 }
 
-// ListProLineupMaps serves GET /api/pro-lineups: the maps with pro lineups.
+// ListProLineupMaps serves GET /api/library/pro-lineups: the maps with pro lineups.
 func (h *Handlers) ListProLineupMaps(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.proLineupsCache(w)
 	if !ok {
@@ -56,7 +56,7 @@ func (h *Handlers) ListProLineupMaps(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, proLineupMapsResponse{LineupMaps: maps, Fresh: fresh})
 }
 
-// GetProLineups serves GET /api/pro-lineups/{map}: every lineup and combo of the map.
+// GetProLineups serves GET /api/library/pro-lineups/{map}: every lineup and combo of the map.
 func (h *Handlers) GetProLineups(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.proLineupsCache(w)
 	if !ok {
@@ -75,7 +75,7 @@ func (h *Handlers) GetProLineups(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, proLineupIndexResponse{MapIndex: idx, Fresh: fresh})
 }
 
-// SaveProLineup serves POST /api/pro-lineups/{map}/lineups/{id}/save: it copies
+// SaveProLineup serves POST /api/library/pro-lineups/{map}/lineups/{id}/save: it copies
 // a pro lineup into the Libreta so the team can tag, note and practise it.
 func (h *Handlers) SaveProLineup(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {

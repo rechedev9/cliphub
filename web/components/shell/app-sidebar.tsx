@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import {
   NotebookPen,
   Clapperboard,
+  Crosshair,
   FileText,
   Film,
   HardDrive,
@@ -52,6 +53,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; trailing?: NavTrailingKind; 
   '/jugadores': { icon: Users, trailing: 'faceit' },
   '/ranking': { icon: Trophy },
   '/libreta': { icon: NotebookPen },
+  '/lineups': { icon: Crosshair },
   '/informes': { icon: FileText },
   '/integridad': { icon: ShieldCheck },
   '/almacenamiento': { icon: HardDrive },
