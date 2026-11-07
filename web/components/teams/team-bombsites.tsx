@@ -61,7 +61,7 @@ function columns(report: TeamBombsitesReport): { ct: HeatColumn[]; t: HeatColumn
 const MIN_LIBRARY_ROUNDS = 8;
 
 function rateCell(rate: TacticalRate, reference?: number | null): HeatCell {
-  if (rate.total === 0) return { text: 'Sin rondas' };
+  if (rate.total === 0) return { text: '', emptyLabel: 'Sin rondas' };
   return {
     text: `${Math.round(rate.pct)} %`,
     value: rate.pct,
@@ -127,7 +127,7 @@ function MapTables({
         </span>
       </h2>
       <div className="grid gap-2 @[96rem]/content:grid-cols-2">
-        <HeatTable label={`Defendiendo en ${name}`} columns={heads.ct} rows={ct} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de CT." reference={reference} />
+        <HeatTable label={`Defendiendo en ${name}`} columns={heads.ct} rows={ct} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de CT." reference={reference} legend={false} />
         <HeatTable label={`Atacando en ${name}`} columns={heads.t} rows={t} minSample={minSample} sampleNoun="rondas" empty="Sin rondas de T." reference={reference} />
       </div>
     </section>
@@ -197,8 +197,8 @@ export function TeamBombsites({
         <MapTables key={entry.map} entry={entry} report={data} heads={heads} library={library} />
       ))}
       <p className="measure-read text-meta text-fg-3">
-        Defendiendo, &quot;Les atacan&quot; cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
-        sitio; los retakes, sobre las plantas. Atacando, &quot;Atacan&quot; cuenta sobre sus rondas de T y &quot;Ganan tras plantar&quot;, sobre sus
+        Defendiendo, «Les atacan» cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
+        sitio; los retakes, sobre las plantas. Atacando, «Atacan» cuenta sobre sus rondas de T y «Ganan tras plantar», sobre sus
         plantas. {referenceText(norms)}
         {data.skipped.length > 0
           ? ` ${data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}`
