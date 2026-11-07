@@ -8,12 +8,10 @@ import type { AnnotationInput } from '@/lib/api/library';
 import { ANNOTATION_TEXT_MAX } from '@/lib/api/spatial';
 import type { Annotation } from '@/lib/api/spatial';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { TelestratorToolbar } from './telestrator';
 import type { TelestratorDraft } from './telestrator';
-
-const TEXTAREA_CLASS =
-  'min-h-16 w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 function byAnchor(a: Annotation, b: Annotation): number {
   if (a.match_id !== b.match_id) return a.match_id < b.match_id ? -1 : 1;
@@ -143,14 +141,14 @@ export function AnnotationPanel({
     <section aria-label="Notas del replay" className="flex flex-col gap-3">
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-2">
         <TelestratorToolbar draft={draft} />
-        <textarea
+        <Textarea
           value={text}
           maxLength={ANNOTATION_TEXT_MAX}
           rows={2}
           placeholder="Nota para el equipo"
           aria-label="Texto de la nota"
           onChange={(event) => setText(event.target.value)}
-          className={TEXTAREA_CLASS}
+          className="min-h-16"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-meta tabular-nums text-fg-3">{anchorLabel ?? 'Sin ronda para anclar la nota'}</span>
@@ -224,13 +222,13 @@ function NoteRow({ item, store }: { item: NoteItem; store: AnnotationStore }): R
       </div>
       {editing ? (
         <div className="flex flex-col gap-1.5">
-          <textarea
+          <Textarea
             value={text}
             maxLength={ANNOTATION_TEXT_MAX}
             rows={2}
             aria-label="Editar el texto de la nota"
             onChange={(event) => setText(event.target.value)}
-            className={TEXTAREA_CLASS}
+            className="min-h-16"
           />
           <div>
             <Button type="button" size="xs" disabled={text.trim() === '' && strokes === 0} onClick={() => void save()}>

@@ -20,6 +20,10 @@ import {
 } from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { MapPinned, Swords } from 'lucide-react';
+import { TACTICAL_SIDES } from '@/lib/api/tactical';
+import { EmptyState } from '@/components/records/empty-state';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryGrid, SiteBars, SkippedNote, TempoChart } from './playbook-summary';
 import { ComboBar, TacticBoard, comboLabeler } from './tactic-board';
@@ -33,20 +37,59 @@ function Section({ title, children, className }: { title: string; children: Reac
   );
 }
 
-function missingText(scope: AnalysisScope): string {
-  if (scope.map === '' && scope.side === '') return 'Elige arriba un mapa y un lado, CT o T, para ver su playbook.';
-  if (scope.map === '') return 'Elige arriba un mapa: el playbook se lee mapa a mapa.';
-  return `Elige arriba el lado, CT o T, para ver cómo juegan ${prettyMapName(scope.map)}.`;
+/** Playbook reads one map and one side: ask for whichever is missing, with the choices at hand. */
+function ChooseScope({ scope, maps, onScopeChange }: { scope: AnalysisScope; maps: readonly string[]; onScopeChange: (patch: Partial<AnalysisScope>) => void }): ReactNode {
+  if (scope.map === '') {
+    return (
+      <EmptyState
+        icon={MapPinned}
+        title="Elige un mapa"
+        description={scope.side === '' ? 'El playbook se lee mapa a mapa y lado a lado.' : 'El playbook se lee mapa a mapa.'}
+        actions={
+          maps.length === 0 ? undefined : (
+            <div className="flex flex-wrap gap-2">
+              {maps.map((entry) => (
+                <Button key={entry} type="button" variant="outline" size="sm" onClick={() => onScopeChange({ map: entry })}>
+                  {prettyMapName(entry)}
+                </Button>
+              ))}
+            </div>
+          )
+        }
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icon={Swords}
+      title="Elige un lado"
+      description={`Cómo juegan ${prettyMapName(scope.map)} de CT o de T.`}
+      actions={
+        <div className="flex flex-wrap gap-2">
+          {Object.values(TACTICAL_SIDES).map((entry) => (
+            <Button key={entry} type="button" variant="outline" size="sm" onClick={() => onScopeChange({ side: entry })}>
+              {entry}
+            </Button>
+          ))}
+        </div>
+      }
+    />
+  );
 }
 
 /** The team's playbook on one side of one map: round types, tempo, sites and the zones it controls. */
 export function TeamPlaybook({
   teamId,
   scope,
+  maps,
+  onScopeChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The maps the team has played, offered when none is chosen. */
+  maps: readonly string[];
+  onScopeChange: (patch: Partial<AnalysisScope>) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
   const [playbook, setPlaybook] = useState<Playbook | null>(null);
@@ -95,7 +138,7 @@ export function TeamPlaybook({
     };
   }, [teamId, map, side, opponent, from, to, attempt, onCounts]);
 
-  if (!ready) return <p className="text-body text-fg-2">{missingText(scope)}</p>;
+  if (!ready) return <ChooseScope scope={scope} maps={maps} onScopeChange={onScopeChange} />;
   if (failed) {
     return (
       <p role="alert" className="text-body-sm text-destructive">

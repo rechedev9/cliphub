@@ -20,11 +20,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Field, TagsField } from './play-fields';
 import { StatusSelect } from './status-badge';
-
-const TEXTAREA =
-  'rounded-md border border-input bg-transparent px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 /** Writes a new call, or edits one and can delete it after asking. */
 export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onClose: () => void; onSaved: () => void }): ReactNode {
@@ -95,13 +93,12 @@ export function CallDialog({ call, onClose, onSaved }: { call?: LibraryCall; onC
             </Field>
           </div>
           <Field label="Qué significa">
-            <textarea
+            <Textarea
               value={meaning}
               maxLength={MAX_CALL_MEANING}
               rows={4}
               placeholder="Por ejemplo: uno se queda atrás en medio y entra solo cuando caiga el primero."
               onChange={(event) => setMeaning(event.target.value)}
-              className={TEXTAREA}
             />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">

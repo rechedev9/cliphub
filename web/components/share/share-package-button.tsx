@@ -7,6 +7,7 @@ import { exportSharePackage, savePackageFile, type SharePackageFile, type ShareT
 import { SHARE_NOTES_MAX, packageSizeLabel, shareErrorLabel } from '@/lib/library/share';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 type SharePackageButtonProps = {
   target: ShareTarget;
@@ -64,12 +65,11 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
           </DialogHeader>
           <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
             Mensaje para el equipo (opcional)
-            <textarea
+            <Textarea
               value={notes}
               maxLength={SHARE_NOTES_MAX}
               disabled={busy || file !== null}
-              onChange={(event) => setNotes(event.target.value)}
-              className="min-h-16 w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              onChange={(event) => setNotes(event.target.value)}
             />
           </label>
           {file !== null ? (

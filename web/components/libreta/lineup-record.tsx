@@ -10,6 +10,7 @@ import { LIBRETA_TABS, libretaTabHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { lineupSpot, setposCommand } from '@/lib/libreta/lineups';
 import { evidencePath } from '@/lib/reports/scout-sections';
+import { EmptyCell } from '@/components/records/empty-cell';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -17,6 +18,7 @@ import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practic
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { useCalloutNames } from '@/hooks/use-callout-names';
 import { EditLineupDialog } from './edit-lineup-dialog';
 import { GrenadeName, TechniqueText } from './lineup-fields';
@@ -96,7 +98,7 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
   const calloutLabel = useCalloutNames([lineup.map]);
   const command = setposCommand(lineup);
   useRouteTitle(lineup.title);
-  useDocumentTitle(`${lineup.title} · Libreta · ClipHub`);
+  useDocumentTitle(`${lineup.title} · Lineup · ClipHub`);
 
   function copySetpos(): void {
     navigator.clipboard
@@ -122,11 +124,11 @@ function LineupRecordView({ lineup, onChanged }: { lineup: LibraryLineup; onChan
           { label: 'Mapa', value: prettyMapName(lineup.map) },
           { label: 'Lado', value: lineup.side },
           { label: 'Granada', value: <GrenadeName kind={lineup.grenade} /> },
-          { label: 'Desde', value: calloutLabel(lineup.map, lineup.throw_callout) || 'Sin callout' },
-          { label: 'Cae en', value: calloutLabel(lineup.map, lineup.landing_callout) || 'Sin callout' },
+          { label: 'Desde', value: calloutLabel(lineup.map, lineup.throw_callout) || <EmptyCell label="Sin callout" /> },
+          { label: 'Cae en', value: calloutLabel(lineup.map, lineup.landing_callout) || <EmptyCell label="Sin callout" /> },
           { label: 'Técnica', value: <TechniqueText lineup={lineup} /> },
           { label: 'Estado', value: <StatusBadge status={lineup.status} /> },
-          { label: 'Etiquetas', value: lineup.tags.length > 0 ? lineup.tags.join(', ') : 'Ninguna' },
+          { label: 'Etiquetas', value: lineup.tags.length > 0 ? lineup.tags.join(', ') : <EmptyCell label="Sin etiquetas" /> },
         ]}
         actions={
           <>
@@ -258,16 +260,15 @@ function LineupNotes({ lineup, onSaved }: { lineup: LibraryLineup; onSaved: () =
   }
 
   return (
-    <form onSubmit={(event) => void save(event)} className="flex flex-col gap-2">
+    <form onSubmit={(event) => void save(event)} className="flex max-w-3xl flex-col gap-2">
       <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
         Notas
-        <textarea
+        <Textarea
           value={notes}
           maxLength={4000}
           rows={4}
           placeholder="Por ejemplo: apunta a la esquina de la antena con la mira."
           onChange={(event) => setNotes(event.target.value)}
-          className="rounded-md border border-input bg-transparent px-3 py-2 text-body-sm text-fg-1 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
       </label>
       {error ? (

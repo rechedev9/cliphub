@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const YOUTUBE_TITLE_MAX_LENGTH = 100;
 const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
@@ -286,13 +287,12 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
                 <Copy className="size-3" /> Copiar
               </Button>
             </div>
-            <textarea
+            <Textarea
               id="publish-description"
               value={description}
               onChange={(event) => setDescription(event.currentTarget.value)}
               maxLength={YOUTUBE_DESCRIPTION_MAX_LENGTH}
-              rows={5}
-              className="w-full resize-y rounded-md border border-border-strong bg-surface-3 px-3.5 py-3 text-body-sm text-fg-1 shadow-[var(--elev-0)] outline-none transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard placeholder:text-fg-3 focus-visible:border-primary focus-visible:bg-surface-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              rows={5}
             />
           </div>
 
