@@ -197,7 +197,7 @@ export function TeamBombsites({
       {data.maps.map((entry) => (
         <MapTables key={entry.map} entry={entry} report={data} heads={heads} library={library} />
       ))}
-      {norms === 'failed' ? <p className="text-body-sm text-fg-2">{referenceText(norms)}</p> : null}
+      {norms === null || norms === 'failed' ? <p className="text-body-sm text-fg-2">{referenceText(norms)}</p> : null}
       {data.skipped.length > 0 ? (
         <p className="text-body-sm text-fg-2">
           {data.skipped.length === 1 ? 'Una partida sin análisis no cuenta.' : `${data.skipped.length} partidas sin análisis no cuentan.`}
@@ -208,7 +208,7 @@ export function TeamBombsites({
         <p className="pb-2">
           Defendiendo, «Les atacan» cuenta sobre sus rondas de CT del mapa; aguantar, plantar y ganar, sobre las rondas en que les atacan ese
           sitio; los retakes, sobre las plantas. Atacando, «Atacan» cuenta sobre sus rondas de T y «Ganan tras plantar», sobre sus
-          plantas. {norms === 'failed' ? null : referenceText(norms)}
+          plantas. {norms === null || norms === 'failed' ? null : referenceText(norms)}
         </p>
       </details>
     </div>

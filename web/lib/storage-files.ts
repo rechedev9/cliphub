@@ -2,6 +2,7 @@ import type { LibraryMatch } from './api/library.ts';
 import type { StorageFile, StorageFileKind } from './api/storage.ts';
 import type { Match, Video } from './api/types.ts';
 import { prettyMapName } from './format.ts';
+import { teamLabel } from './library/partidas.ts';
 
 export const STORAGE_FILE_KIND_LABEL = {
   demo: 'Demo',
@@ -71,8 +72,7 @@ export function libraryCopyLabel(path: string, matches: readonly LibraryCopyMatc
   const map = prettyMapName(match.map);
   const [a, b] = match.teams;
   if (a === undefined || b === undefined) return map;
-  const name = (team: LibraryMatch['teams'][number]): string => team.team_name || team.clan_name;
-  return `${map} · ${name(a)} ${a.score}-${b.score} ${name(b)}`;
+  return `${map} · ${teamLabel(a)} ${a.score}-${b.score} ${teamLabel(b)}`;
 }
 
 const DATE = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });

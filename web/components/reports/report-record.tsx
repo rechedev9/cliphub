@@ -354,7 +354,7 @@ function ReportNotes({ report, onSaved }: { report: LibraryReport; onSaved: () =
           value={notes}
           maxLength={4000}
           rows={8}
-          onChange={(event) => setNotes(event.target.value)}
+          onChange={(event) => setNotes(event.target.value)}
         />
       </label>
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}

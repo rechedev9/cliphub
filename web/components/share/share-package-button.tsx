@@ -69,7 +69,7 @@ export function SharePackageButton({ target, summary, disabled = false }: ShareP
               value={notes}
               maxLength={SHARE_NOTES_MAX}
               disabled={busy || file !== null}
-              onChange={(event) => setNotes(event.target.value)}
+              onChange={(event) => setNotes(event.target.value)}
             />
           </label>
           {file !== null ? (

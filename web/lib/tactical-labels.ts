@@ -10,6 +10,7 @@ import {
   TACTICAL_STATES,
   TACTICAL_T_PATTERNS,
 } from './api/tactical.ts';
+import { formatDecimal } from './format.ts';
 import type {
   TacticalBuyType,
   TacticalCTPattern,
@@ -197,7 +198,7 @@ export function roundClockLabel(seconds: number): string {
  */
 export function rateLabel(pct: number, total: number): string {
   if (total <= 0) return 'Sin rondas (n=0)';
-  return `${pct.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} % (n=${total})`;
+  return `${formatDecimal(pct, 1)} % (n=${total})`;
 }
 
 /** CS2 place tokens whose English name is not their CamelCase split (`csgo_english.txt`). */

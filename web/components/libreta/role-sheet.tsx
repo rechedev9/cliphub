@@ -32,11 +32,11 @@ import { RoleRowsEditor, useTeamRoster } from './role-rows-editor';
 const MAP_PATTERN = /^[a-z0-9_]+$/;
 const FALLBACK_MAP = 'de_mirage';
 
-/** The map a team has played most in the library; undefined while it loads, null when unknown. */
-function useTeamMainMap(teamId: string | null): string | null | undefined {
+/** The map a team has played most in the library; undefined while it loads, null when unknown or not needed. */
+function useTeamMainMap(teamId: string | null, needed: boolean): string | null | undefined {
   const [found, setFound] = useState<{ teamId: string; map: string | null } | null>(null);
   useEffect(() => {
-    if (teamId === null) return;
+    if (teamId === null || !needed) return;
     let active = true;
     listLibraryMatches({ team_id: teamId })
       .then((matches) => {
@@ -51,8 +51,8 @@ function useTeamMainMap(teamId: string | null): string | null | undefined {
     return () => {
       active = false;
     };
-  }, [teamId]);
-  if (teamId === null) return null;
+  }, [teamId, needed]);
+  if (teamId === null || !needed) return null;
   return found !== null && found.teamId === teamId ? found.map : undefined;
 }
 
@@ -81,8 +81,8 @@ export function RoleSheet({ plays }: { plays: LibraryPlay[] | null }): ReactNode
   const team = scope.team ?? (plays ? busiestTeam(plays) : null) ?? teams[0]?.id ?? NO_TEAM;
   const teamId = team === NO_TEAM ? null : team;
   const roster = useTeamRoster(teamId);
-  const mainMap = useTeamMainMap(teamId);
   const teamPlays = plays?.filter((play) => play.team_id === teamId) ?? [];
+  const mainMap = useTeamMainMap(teamId, plays !== null && scope.map === undefined && teamPlays.length === 0);
   // With no plays to go by, open on the map the team plays most, so the suggestion has matches to read.
   const choosing = scope.map === undefined && teamPlays.length === 0 && mainMap === undefined;
 

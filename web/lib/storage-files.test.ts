@@ -72,6 +72,8 @@ test('libraryCopyLabel names a library copy by its match, and gives up on unknow
   });
   const matches = [{ demo_id: 'd1', map: 'de_mirage', teams: [team('clanA', 13, 'Vitality'), team('clanB', 9)] }];
   assert.equal(libraryCopyLabel('C:\\data\\library\\d1\\demo.dem', matches), 'Mirage · Vitality 13-9 clanB');
+  const unnamed = [{ demo_id: 'd3', map: 'de_inferno', teams: [team('', 10), { ...team('', 13), start_side: 'T' as const }] }];
+  assert.equal(libraryCopyLabel('/data/library/d3/demo.dem', unnamed), 'Inferno · Equipo CT 10-13 Equipo T');
   assert.equal(libraryCopyLabel('/data/library/d2/demo.dem', matches), null);
   assert.equal(libraryCopyLabel('C:\\data\\jobs\\d1\\demo.dem', matches), null);
 });

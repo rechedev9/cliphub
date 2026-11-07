@@ -37,7 +37,7 @@ type MatchIndex = ReadonlyMap<string, Pick<Match, 'map' | 'player'>>;
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; files: StorageFiles; matches: MatchIndex; libraryMatches: readonly LibraryCopyMatch[] };
+  | { kind: 'ready'; files: StorageFiles; matches: MatchIndex };
 
 /** Almacenamiento: where demos and Studio videos live on this PC, with delete per file. */
 export function StorageFilesScreen({ children }: { children?: ReactNode }): ReactNode {
@@ -45,23 +45,26 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
   const [notice, setNotice] = useState<string | null>(null);
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [childrenKey, setChildrenKey] = useState(0);
+  const [libraryMatches, setLibraryMatches] = useState<readonly LibraryCopyMatch[]>([]);
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const [files, matches, libraryMatches] = await Promise.all([
-        api.listStorageFiles(),
-        api.listMatches().catch(() => []),
-        listLibraryMatches().catch(() => []),
-      ]);
-      setState({ kind: 'ready', files, matches: new Map(matches.map((match) => [match.id, match])), libraryMatches });
+      const [files, matches] = await Promise.all([api.listStorageFiles(), api.listMatches().catch(() => [])]);
+      setState({ kind: 'ready', files, matches: new Map(matches.map((match) => [match.id, match])) });
     } catch (err) {
       setState({ kind: 'error', message: storageLoadErrorMessage(err) });
     }
   }, []);
 
+  // Only labels library copies, which a disk scan does not change, so it stays out of the scan poll.
+  const loadLibrary = useCallback(async (): Promise<void> => {
+    setLibraryMatches(await listLibraryMatches().catch(() => []));
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadLibrary();
+  }, [load, loadLibrary]);
 
   const scanning = state.kind === 'ready' && state.files.scanning;
   useEffect(() => {
@@ -96,7 +99,7 @@ export function StorageFilesScreen({ children }: { children?: ReactNode }): Reac
 
   let body: ReactNode;
   if (state.kind === 'ready') {
-    body = <ReadyBody files={state.files} matches={state.matches} libraryMatches={state.libraryMatches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); }} />;
+    body = <ReadyBody files={state.files} matches={state.matches} libraryMatches={libraryMatches} onRemoved={removeFile} onReload={() => { setChildrenKey((key) => key + 1); void load(); void loadLibrary(); }} />;
   } else if (state.kind === 'error') {
     body = (
       <div className="flex flex-col items-start gap-3">
