@@ -98,21 +98,25 @@ export function ReportMatchPicker({
           options={DATE_RANGES.map((range) => ({ value: range.value, label: range.label }))}
           onChange={(range) => onFiltersChange({ ...filters, range })}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onSelectedChange(new Set([...selected, ...shown.map((match) => match.id)]))}
-        >
-          Marcar las visibles
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => onSelectedChange(new Set())}>
-          Quitar todas
-        </Button>
       </div>
-      <p className="text-meta text-fg-3">
-        {selected.size} {selected.size === 1 ? 'partida elegida' : 'partidas elegidas'} de {matches.length}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-meta text-fg-3">
+          {selected.size} {selected.size === 1 ? 'partida elegida' : 'partidas elegidas'} de {matches.length}
+        </p>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectedChange(new Set([...selected, ...shown.map((match) => match.id)]))}
+          >
+            Marcar las visibles
+          </Button>
+          <Button type="button" variant="ghost" size="sm" disabled={selected.size === 0} onClick={() => onSelectedChange(new Set())}>
+            Quitar todas
+          </Button>
+        </div>
+      </div>
       <div className="max-h-72 overflow-y-auto rounded-md border border-border">
         {shown.length === 0 ? (
           <p className="px-3 py-3 text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>
