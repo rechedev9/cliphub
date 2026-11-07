@@ -88,10 +88,10 @@ func (r *SQLiteLibraryRepository) ListCalls(ctx context.Context, filter library.
 		args = append(args, library.StatusArchived)
 	}
 	if filter.Tag != "" {
-		query += ` AND EXISTS (SELECT 1 FROM json_each(tags) WHERE lower(json_each.value) = lower(?))`
+		query += tagFilterSQL("tags")
 		args = append(args, filter.Tag)
 	}
-	query += ` ORDER BY lower(name) ASC, id ASC LIMIT ? OFFSET ?`
+	query += ` ORDER BY ` + sqlLower + `(name) ASC, id ASC LIMIT ? OFFSET ?`
 	args = append(args, clampCallLimit(filter.Limit), max(filter.Offset, 0))
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

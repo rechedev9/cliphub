@@ -127,7 +127,7 @@ func (r *SQLiteLibraryRepository) ListLineups(ctx context.Context, filter librar
 		args = append(args, library.StatusArchived)
 	}
 	if filter.Tag != "" {
-		query += ` AND EXISTS (SELECT 1 FROM json_each(tags) WHERE lower(json_each.value) = lower(?))`
+		query += tagFilterSQL("tags")
 		args = append(args, filter.Tag)
 	}
 	query += ` ORDER BY updated_at DESC, id ASC LIMIT ? OFFSET ?`

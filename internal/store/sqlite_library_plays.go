@@ -132,7 +132,7 @@ func (r *SQLiteLibraryRepository) ListPlays(ctx context.Context, filter library.
 		args = append(args, library.StatusArchived)
 	}
 	if filter.Tag != "" {
-		query += ` AND EXISTS (SELECT 1 FROM json_each(p.tags) WHERE lower(json_each.value) = lower(?))`
+		query += tagFilterSQL("p.tags")
 		args = append(args, filter.Tag)
 	}
 	query += ` ORDER BY p.updated_at DESC, p.id ASC LIMIT ? OFFSET ?`

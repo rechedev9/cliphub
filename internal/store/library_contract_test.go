@@ -847,6 +847,9 @@ func TestLibraryRepositoryContract(t *testing.T) {
 				if got, _ := f.repo.ListPlays(f.ctx, library.PlayFilter{ExcludeArchived: true}); len(got) != 2 {
 					t.Fatalf("plays after unarchiving = %d, want 2", len(got))
 				}
+				if got, err := f.repo.ListPlays(f.ctx, library.PlayFilter{Tag: "RÁPIDA"}); err != nil || len(got) != 1 {
+					t.Fatalf("ListPlays(tag RÁPIDA) = %d plays, %v; want the play tagged rápida", len(got), err)
+				}
 			},
 		},
 	}
