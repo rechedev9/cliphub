@@ -8,6 +8,7 @@ import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
   analyzeLibraryDemo,
+  deleteLibraryDemo,
   isLibraryOffline,
   linkAllLibraryJobs,
   listLibraryDemos,
@@ -15,6 +16,7 @@ import {
   listUnlinkedLibraryJobs,
   type LibraryParseState,
 } from '@/lib/api/library';
+import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
@@ -38,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
+import { SelectionBar } from '@/components/records/selection-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DemoImport } from '@/components/matches/demo-import';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -232,6 +235,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [readError, setReadError] = useState<'offline' | 'error' | null>(null);
   const [linking, setLinking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const view = useTableView('partidas', initialView(search));
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
@@ -269,6 +274,25 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     }
     pollRef.current();
   }, []);
+
+  async function deleteChosen(ids: readonly string[]): Promise<void> {
+    setDeleting(true);
+    const results = await Promise.allSettled(ids.map((demoId) => deleteLibraryDemo(demoId)));
+    const failedIds = new Set(ids.filter((_, index) => results[index]?.status === 'rejected'));
+    const firstFailure = results.find((result) => result.status === 'rejected');
+    setNotice(
+      bulkDeleteSummary({
+        deleted: ids.length - failedIds.size,
+        failed: failedIds.size,
+        noun: { one: 'partida', many: 'partidas', feminine: true },
+        reason: firstFailure?.status === 'rejected' ? deleteErrorMessage(firstFailure.reason) : undefined,
+      }),
+    );
+    // What could not be deleted stays chosen, so a retry is one click.
+    setSelected(failedIds);
+    setDeleting(false);
+    pollRef.current();
+  }
 
   async function linkCrearDemos(): Promise<void> {
     setLinking(true);
@@ -373,6 +397,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       [match ? prettyMapName(match.map) : '', match ? matchTitle(match) : '', demo.file_name, ...demo.tags].join(' '),
   }).filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now));
   const pending = rows.filter(isPending).length;
+  // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
+  const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
 
   return (
     <>
@@ -396,9 +422,20 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               : 'El servicio local respondió con un error; la tabla muestra la última lectura.'}
           </p>
         ) : null}
+        {chosenIds.length > 0 ? (
+          <SelectionBar
+            count={chosenIds.length}
+            noun={chosenIds.length === 1 ? 'partida' : 'partidas'}
+            busy={deleting}
+            confirmDescription="Se borran la copia de la demo en la biblioteca, su análisis y sus correcciones. Los vídeos ya creados y las demos de Crear no se tocan."
+            onDelete={() => void deleteChosen(chosenIds)}
+            onClear={() => setSelected(new Set())}
+          />
+        ) : null}
         <DataTable
           label="Partidas"
           rows={shown}
+          selection={{ selected, onChange: setSelected }}
           columns={columns((demoId) => void retry(demoId))}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}

@@ -73,3 +73,12 @@ export function libraryVideoFor(videos: readonly Pick<Video, 'id' | 'jobId' | 'd
   const video = videos.find((entry) => entry.jobId === file.jobId && entry.downloadUrl?.split('?')[0]?.endsWith(suffix));
   return video?.id ?? null;
 }
+
+/** What a bulk delete will remove, in the words the confirmation dialog shows. */
+export function bulkDeleteWarning(files: readonly Pick<StorageFile, 'kind'>[]): string {
+  const parts: string[] = [];
+  if (files.some((file) => file.kind === 'demo')) parts.push('Los .dem elegidos se borran de tu PC.');
+  if (files.some((file) => file.kind === 'studio_demo')) parts.push('Cada copia de Studio se borra con su partida, sus vídeos y sus capturas.');
+  if (files.some((file) => file.kind !== 'demo' && file.kind !== 'studio_demo')) parts.push('Los vídeos elegidos se borran.');
+  return parts.join(' ');
+}

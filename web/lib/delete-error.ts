@@ -82,3 +82,29 @@ const DELETE_NOTICE_MESSAGES = new Set<string>([
 export function deleteFeedbackTone(message: string): 'notice' | 'error' {
   return DELETE_NOTICE_MESSAGES.has(message) ? 'notice' : 'error';
 }
+
+type BulkDeleteSummaryOptions = {
+  deleted: number;
+  failed: number;
+  noun: { one: string; many: string; feminine: boolean };
+  /** Pre-formatted size the delete freed, when the screen knows it. */
+  freed?: string;
+  /** Why the first failure happened, from deleteErrorMessage. */
+  reason?: string;
+};
+
+/** One status line for a bulk delete: what went, what freed, and why the rest stayed. */
+export function bulkDeleteSummary({ deleted, failed, noun, freed, reason }: BulkDeleteSummaryOptions): string {
+  const parts: string[] = [];
+  if (deleted > 0) {
+    const verb = noun.feminine ? 'Borrada' : 'Borrado';
+    const plural = noun.feminine ? 'Borradas' : 'Borrados';
+    const what = deleted === 1 ? `${verb} 1 ${noun.one}` : `${plural} ${deleted} ${noun.many}`;
+    parts.push(freed ? `${what}: se han liberado ${freed}.` : `${what}.`);
+  }
+  if (failed > 0) {
+    const what = failed === 1 ? 'No se pudo borrar 1' : `No se pudieron borrar ${failed}`;
+    parts.push(reason ? `${what}. ${reason}` : `${what}.`);
+  }
+  return parts.join(' ');
+}
