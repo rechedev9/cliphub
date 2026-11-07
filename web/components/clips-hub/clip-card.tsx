@@ -256,7 +256,7 @@ export function StreamClipCard({ item, size, onPlay }: StreamClipCardProps): Rea
         playLabel={`Reproducir ${item.title}`}
         onPlay={onPlay}
       />
-      <CardText size={size} title={item.title} meta={`Clip de stream · ${isShort ? 'Short' : 'Horizontal'}`} />
+      <CardText size={size} title={item.title} meta={isShort ? 'Short vertical' : 'Vídeo horizontal'} />
       <span className={actionRowClass(size)}>
         <Button
           type="button"
@@ -280,13 +280,14 @@ export function StreamClipCard({ item, size, onPlay }: StreamClipCardProps): Rea
           <Download aria-hidden />
           {iconOnly ? null : 'MP4'}
         </Button>
-        <Button asChild size={iconOnly ? 'icon-sm' : 'sm'} variant="outline" className="ml-auto">
+        <Button asChild size={iconOnly ? 'icon-sm' : 'sm'} variant="ghost">
           <Link
             href={`/streams/${item.jobId}`}
             aria-label={iconOnly ? 'Abrir proyecto' : undefined}
             title={iconOnly ? 'Abrir proyecto' : undefined}
           >
-            {iconOnly ? <FolderOpen aria-hidden /> : 'Proyecto'}
+            <FolderOpen aria-hidden />
+            {iconOnly ? null : 'Proyecto'}
           </Link>
         </Button>
       </span>
