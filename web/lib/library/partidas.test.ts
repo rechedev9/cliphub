@@ -6,11 +6,13 @@ import {
   buildPartidaRows,
   inDateRange,
   kdLabel,
+  mapChips,
   mapPerformance,
   matchScoreLabel,
   matchTitle,
   partidaDate,
   playerTotals,
+  scoreline,
   teamFilterOptions,
   teamLabel,
   teamOutcome,
@@ -60,6 +62,33 @@ test('teams are named by the library, then the clan, then the starting side', ()
   assert.equal(matchScoreLabel(m), '13-7');
   assert.equal(teamLabel({ ...side('t-start', 0, null), clan_name: 'team_xKacpersky' }), 'team_xKacpersky');
   assert.equal(teamLabel(undefined), 'Sin equipo');
+});
+
+test('the scoreline names both sides in title order and marks who won', () => {
+  const won = match('m1', 'de_mirage', side('ct-start', 10, VIT, 'Vitality'), side('t-start', 13, null, 'team_miwel'));
+  assert.deepEqual(scoreline(won), [
+    { name: 'Vitality', score: 10, outcome: 'loss' },
+    { name: 'team_miwel', score: 13, outcome: 'win' },
+  ]);
+  const tied = scoreline(match('m2', 'de_nuke', side('ct-start', 15, VIT), side('t-start', 15, MOUZ)));
+  assert.deepEqual(tied.map((entry) => entry.outcome), ['draw', 'draw']);
+});
+
+test('map chips keep the library order while the listed partidas set the counts', () => {
+  const mirage = match('m1', 'de_mirage', side('ct-start', 13, VIT), side('t-start', 7, MOUZ));
+  const mirage2 = match('m2', 'de_mirage', side('ct-start', 13, MOUZ), side('t-start', 7, VIT));
+  const nuke = match('m3', 'de_nuke', side('ct-start', 13, MOUZ), side('t-start', 7, null));
+  const anubis = match('m4', 'de_anubis', side('ct-start', 13, MOUZ), side('t-start', 7, null));
+  const library = [nuke, mirage, null, anubis, mirage2];
+  assert.deepEqual(mapChips({ library, listed: [nuke, anubis], selected: '' }), [
+    { value: 'de_mirage', label: 'Mirage', count: 0 },
+    { value: 'de_anubis', label: 'Anubis', count: 1 },
+    { value: 'de_nuke', label: 'Nuke', count: 1 },
+  ]);
+  assert.deepEqual(mapChips({ library: [mirage], listed: [mirage], selected: 'de_vertigo' }), [
+    { value: 'de_mirage', label: 'Mirage', count: 1 },
+    { value: 'de_vertigo', label: 'Vertigo', count: 0 },
+  ]);
 });
 
 test('a team outcome reads its own score against the rival', () => {

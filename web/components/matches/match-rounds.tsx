@@ -1,41 +1,54 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { Clapperboard } from 'lucide-react';
 import { fetchTacticalDocument, isServiceUnavailableError, type TacticalDocument } from '@/lib/api/tactical';
 import type { LibraryMatch } from '@/lib/api/library';
-import { endReasonLabel, teamByKey, teamLabel } from '@/lib/library/partidas';
-import { roundEvidenceHref, roundRows } from '@/lib/library/rounds';
-import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
-import { RelatedList } from '@/components/records/related-list';
+import { teamByKey, teamLabel } from '@/lib/library/partidas';
+import {
+  EVERY_ROUND,
+  roundHalves,
+  roundRows,
+  visibleHalves,
+  winnerCounts,
+  type PerTeam,
+  type RoundFilter,
+} from '@/lib/library/rounds';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
+import { RoundFilters } from '@/components/matches/round-filters';
+import { RoundTable, type ChanceStatus, type VisiblePick } from '@/components/matches/round-table';
+import { useWinTimelines, type WinTimelines } from '@/components/replay/use-win-timelines';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 
-function clock(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+type MatchRoundsProps = { match: LibraryMatch; pathname: string; onOpenRound: () => void };
+
+function chanceStatus(win: WinTimelines | null): ChanceStatus {
+  if (win === null || win.kind === 'loading') return 'loading';
+  return win.kind === 'ready' && win.timelines.length > 0 ? 'ready' : 'none';
 }
 
-/** Every round of a partida, each one a link into the 2D replay at the moment the round goes live. */
-export function MatchRounds({
-  match,
-  pathname,
-  onOpenRound,
-}: {
-  match: LibraryMatch;
-  pathname: string;
-  onOpenRound: () => void;
-}): ReactNode {
+function roundsText(count: number): string {
+  return count === 1 ? '1 ronda' : `${count} rondas`;
+}
+
+/** Every round of a partida by half, with filters and a pick of several rounds for one video. */
+export function MatchRounds(props: MatchRoundsProps): ReactNode {
+  return <MatchRoundsView key={props.match.id} {...props} />;
+}
+
+function MatchRoundsView({ match, pathname, onOpenRound }: MatchRoundsProps): ReactNode {
   const [doc, setDoc] = useState<TacticalDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [filter, setFilter] = useState<RoundFilter>(EVERY_ROUND);
+  const [picked, setPicked] = useState<readonly number[]>([]);
   /** The rounds the video dialog opens with checked; null while it is closed. */
   const [video, setVideo] = useState<readonly number[] | null>(null);
+  const win = useWinTimelines(match.id);
 
   useEffect(() => {
     let active = true;
-    setDoc(null);
     setError(null);
     fetchTacticalDocument({ kind: 'library', id: match.id })
       .then((next) => {
@@ -52,101 +65,144 @@ export function MatchRounds({
     return () => {
       active = false;
     };
-  }, [match.id]);
+  }, [match.id, attempt]);
 
-  let body: ReactNode;
   if (error !== null) {
-    body = <p className="px-4 py-3 text-body-sm text-destructive">{error}</p>;
-  } else if (doc === null) {
-    body = (
-      <div role="status" aria-label="Cargando rondas" className="p-4">
-        <Skeleton className="h-48 w-full" />
-      </div>
+    return (
+      <section aria-label="Rondas" className="studio-panel flex flex-wrap items-center gap-3 px-4 py-3">
+        <p className="text-body-sm text-destructive">{error}</p>
+        <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+          Reintentar
+        </Button>
+      </section>
     );
-  } else {
-    const rows = roundRows(doc);
-    body = (
-      <div className="overflow-x-auto">
-        <table aria-label="Rondas" className="w-full border-collapse text-left text-body-sm">
-          <thead className="bg-surface-2">
-            <tr className="border-b border-border text-fg-3">
-              {['Ronda', 'Marcador', 'Ganador', 'Motivo', 'Compra T', 'Compra CT', 'Patrón T', 'Patrón CT', 'Sitio', 'Duración', 'Vídeo'].map((header) => (
-                <th key={header} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const winner = row.winnerTeamKey === 'ct-start' || row.winnerTeamKey === 't-start' ? teamByKey(match, row.winnerTeamKey) : undefined;
-              return (
-                <tr key={row.number} className="border-b border-border-subtle last:border-b-0 hover:bg-surface-3">
-                  <td className="h-10 px-3">
-                    <Link
-                      href={roundEvidenceHref(pathname, row.number, row.tick)}
-                      onClick={onOpenRound}
-                      className="font-medium text-fg-1 hover:text-primary hover:underline"
-                      aria-label={`Abrir la ronda ${row.number} en el replay, tick ${row.tick}`}
-                    >
-                      {row.number}
-                    </Link>
-                  </td>
-                  <td className="px-3 text-fg-2">{row.scoreBefore}</td>
-                  <td className="px-3">
-                    {row.winnerSide === '' ? (
-                      <span className="text-fg-3">Sin ganador</span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <span className={cn('text-meta font-semibold', row.winnerSide === 'CT' ? 'text-side-ct' : 'text-side-t')}>
-                          {row.winnerSide}
-                        </span>
-                        <span className="text-fg-1">{teamLabel(winner)}</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 text-fg-2">{endReasonLabel(row.round.end_reason)}</td>
-                  <td className="px-3 text-fg-2">{buyLabel(row.round.economy.t_buy)}</td>
-                  <td className="px-3 text-fg-2">{buyLabel(row.round.economy.ct_buy)}</td>
-                  <td className="px-3 text-fg-2">{tPatternLabel(row.round.class.t_side)}</td>
-                  <td className="px-3 text-fg-2">{ctPatternLabel(row.round.class.ct_side)}</td>
-                  <td className="px-3 text-fg-2">{siteLabel(row.round.class.site)}</td>
-                  <td className="px-3 text-fg-2">{clock(row.liveSeconds)}</td>
-                  <td className="px-3">
-                    <Button type="button" size="xs" variant="ghost" onClick={() => setVideo([row.number])} aria-label={`Crear vídeo de la ronda ${row.number}`}>
-                      <Clapperboard aria-hidden />
-                      Vídeo
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+  }
+  if (doc === null) {
+    return (
+      <section role="status" aria-label="Cargando rondas" className="studio-panel flex flex-col gap-2 p-4">
+        <Skeleton className="h-8 w-full" />
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-11 w-full" />
+        ))}
+      </section>
     );
   }
 
-  const allRounds = doc?.rounds.map((round) => round.number) ?? [];
+  const chance = chanceStatus(win);
+  const rows = roundRows(doc, win?.kind === 'ready' ? win.timelines : []);
+  const halves = visibleHalves(roundHalves(rows), filter);
+  const visible = halves.flatMap((half) => half.rows.map((row) => row.number));
+  const pickedSet = new Set(picked);
+  const pickedVisible = visible.filter((round) => pickedSet.has(round)).length;
+  let visiblePick: VisiblePick = 'some';
+  if (pickedVisible === 0) visiblePick = 'none';
+  else if (pickedVisible === visible.length) visiblePick = 'all';
+  const teamNames: PerTeam<string> = {
+    'ct-start': teamLabel(teamByKey(match, 'ct-start')),
+    't-start': teamLabel(teamByKey(match, 't-start')),
+  };
+  const playerNames = new Map(doc.players.map((player) => [player.slot, player.name || player.steamid64]));
+
+  function togglePick(round: number): void {
+    setPicked((current) => (current.includes(round) ? current.filter((n) => n !== round) : [...current, round].sort((a, b) => a - b)));
+  }
+
+  function toggleVisible(): void {
+    setPicked((current) =>
+      visiblePick === 'all'
+        ? current.filter((round) => !visible.includes(round))
+        : [...new Set([...current, ...visible])].sort((a, b) => a - b),
+    );
+  }
+
   return (
-    <>
-      <RelatedList
-        title="Rondas"
-        count={doc?.rounds.length}
-        actions={
-          doc ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => setVideo([])}>
-              <Clapperboard aria-hidden />
-              Vídeo de varias rondas
-            </Button>
-          ) : null
-        }
-      >
-        {body}
-      </RelatedList>
-      {video !== null ? (
-        <AnalysisVideoDialog sources={[{ matchId: match.id, rounds: allRounds }]} selected={video} onClose={() => setVideo(null)} />
+    <div className="flex flex-col gap-4">
+      {rows.length > 0 ? (
+        <RoundFilters value={filter} onChange={setFilter} teamNames={teamNames} counts={winnerCounts(rows)} upsets={chance === 'ready'} />
       ) : null}
-    </>
+      <section aria-label="Rondas" className="studio-panel flex flex-col">
+        {rows.length === 0 ? <p className="px-4 py-6 text-body-sm text-fg-2">Esta partida no tiene rondas jugadas.</p> : null}
+        {rows.length > 0 && halves.length === 0 ? <NoRoundsMatch filter={filter} onReset={() => setFilter(EVERY_ROUND)} /> : null}
+        {halves.length > 0 ? (
+          <RoundTable
+            halves={halves}
+            teamNames={teamNames}
+            playerNames={playerNames}
+            chance={chance}
+            picked={pickedSet}
+            visiblePick={visiblePick}
+            onTogglePick={togglePick}
+            onToggleVisible={toggleVisible}
+            pathname={pathname}
+            onOpenRound={onOpenRound}
+            onVideo={(round) => setVideo([round])}
+          />
+        ) : null}
+        {rows.length > 0 ? (
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 rounded-b-lg border-t border-border bg-surface-1 px-4 py-3">
+            {picked.length > 0 ? (
+              <>
+                <span className="text-body-sm font-semibold text-fg-1">
+                  {picked.length === 1 ? '1 ronda elegida' : `${picked.length} rondas elegidas`}
+                </span>
+                <span className="text-meta text-fg-3">
+                  {picked.length === 1 ? 'Ronda' : 'Rondas'} {picked.join(', ')}
+                </span>
+                <span className="grow" />
+                <Button type="button" size="sm" variant="ghost" onClick={() => setPicked([])}>
+                  Quitar selección
+                </Button>
+                <Button type="button" size="sm" onClick={() => setVideo(picked)}>
+                  <Clapperboard aria-hidden />
+                  Crear vídeo con estas rondas
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="text-body-sm text-fg-2">Marca varias rondas para hacer un solo vídeo con todas.</span>
+                <span className="grow" />
+                <span className="text-meta text-fg-3">
+                  {visible.length === rows.length ? roundsText(rows.length) : `${visible.length} de ${roundsText(rows.length)}`}
+                </span>
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+      {chance === 'ready' ? (
+        <p className="text-meta text-fg-3">
+          El porcentaje en ámbar marca a quien ganó con menos de un 35 % de probabilidad al empezar la ronda. La baja que más pesó es la que más
+          movió esa probabilidad.
+        </p>
+      ) : null}
+      {video !== null ? (
+        <AnalysisVideoDialog
+          sources={[{ matchId: match.id, rounds: doc.rounds.map((round) => round.number) }]}
+          selected={video}
+          onClose={() => setVideo(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function NoRoundsMatch({ filter, onReset }: { filter: RoundFilter; onReset: () => void }): ReactNode {
+  let title = 'Ninguna ronda de este tipo';
+  let hint = 'Prueba con otro tipo de ronda.';
+  if (filter.winner !== 'all' && filter.kind !== 'any') {
+    title = 'Ninguna ronda cumple los dos filtros';
+    hint = 'Prueba con otro tipo de ronda o quita el filtro de ganador.';
+  } else if (filter.winner !== 'all') {
+    title = 'Este equipo no ganó ninguna ronda';
+    hint = 'Elige Todas para ver las demás.';
+  }
+  return (
+    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+      <p className="text-body-sm font-semibold text-fg-1">{title}</p>
+      <p className="text-body-sm text-fg-2">{hint}</p>
+      <Button type="button" size="sm" variant="outline" onClick={onReset}>
+        Quitar filtros
+      </Button>
+    </div>
   );
 }

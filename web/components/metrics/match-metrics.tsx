@@ -1,20 +1,101 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Gauge, PlugZap } from 'lucide-react';
 import { LibraryApiError, getLibraryMatchMetrics, type LibraryMatch } from '@/lib/api/library';
 import type { MetricsReport } from '@/lib/api/metrics';
 import { playerHref } from '@/lib/clips/routes';
+import { ctTeamByRound, topSwings } from '@/lib/metrics/match-view';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MatchPlayersTable } from './match-players-table';
+import { MatchSwings } from './match-swings';
+import { MatchWinChart } from './match-win-chart';
 import { MetricsView } from './metrics-view';
 import { WinProbability } from './win-probability';
 
 type State = { kind: 'loading' } | { kind: 'ready'; report: MetricsReport } | { kind: 'pending' } | { kind: 'offline' };
 
+const SWING_LIMIT = 5;
+
+/**
+ * The read metrics of one match: each round's win chance, the kills that
+ * weighed most, and every player in one table before the detailed sections.
+ */
+function MatchMetricsReport({
+  match,
+  report,
+  onOpenTactical,
+}: {
+  match: LibraryMatch;
+  report: MetricsReport;
+  onOpenTactical?: () => void;
+}): ReactNode {
+  const timelines = [...(report.timelines ?? [])].sort((a, b) => a.round - b.round);
+  const players = match.players ?? [];
+  const ctTeams = ctTeamByRound(timelines, players);
+  const names = new Map(players.map((p) => [p.slot, p.name || p.steamid64]));
+  const [round, setRound] = useState(timelines[0]?.round ?? 0);
+  const [curveOpen, setCurveOpen] = useState(false);
+  const curveId = useId();
+  const curveRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!curveOpen) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    curveRef.current?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [curveOpen]);
+
+  const lead =
+    timelines.length === 0 ? null : (
+      <>
+        <MatchWinChart
+          match={match}
+          timelines={timelines}
+          ctTeams={ctTeams}
+          names={names}
+          round={round}
+          onRoundChange={setRound}
+          curveOpen={curveOpen}
+          curveId={curveId}
+          onCurveToggle={() => setCurveOpen((open) => !open)}
+        />
+        {curveOpen ? (
+          <div id={curveId} ref={curveRef} className="scroll-mt-4">
+            <WinProbability
+              matchId={match.id}
+              timelines={timelines}
+              players={players}
+              round={round}
+              onRoundChange={setRound}
+              onOpenTactical={onOpenTactical}
+            />
+          </div>
+        ) : null}
+        <MatchSwings match={match} swings={topSwings(timelines, SWING_LIMIT)} ctTeams={ctTeams} names={names} onOpenTactical={onOpenTactical} />
+      </>
+    );
+  return (
+    <MetricsView
+      report={report}
+      options={{ playerHref }}
+      lead={lead}
+      title="Jugadores"
+      leading={[{ id: 'metricas-general', label: 'General', content: <MatchPlayersTable match={match} report={report} /> }]}
+    />
+  );
+}
+
 /** The match's advanced metrics: every player's impact, duels, trades and utility. */
-export function MatchMetrics({ match }: { match: LibraryMatch }): ReactNode {
+export function MatchMetrics({
+  match,
+  onOpenTactical,
+}: {
+  match: LibraryMatch;
+  /** Switches the record to its Táctica tab when a link here opens the replay. */
+  onOpenTactical?: () => void;
+}): ReactNode {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -65,11 +146,5 @@ export function MatchMetrics({ match }: { match: LibraryMatch }): ReactNode {
       />
     );
   }
-  return (
-    <MetricsView
-      report={state.report}
-      options={{ playerHref }}
-      lead={<WinProbability matchId={match.id} timelines={state.report.timelines ?? []} players={match.players ?? []} />}
-    />
-  );
+  return <MatchMetricsReport match={match} report={state.report} onOpenTactical={onOpenTactical} />;
 }

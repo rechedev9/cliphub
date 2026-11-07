@@ -8,6 +8,7 @@ import type {
   LibrarySource,
 } from '../api/library.ts';
 import { TRUNCATED_DEMO_MESSAGE } from '../api/failure-reason.ts';
+import { prettyMapName } from '../format.ts';
 
 /**
  * Pure reads over the library records: how a partida, a team and a player are
@@ -125,14 +126,59 @@ export function matchScoreMargin(match: LibraryMatch): number {
 
 export type Outcome = 'win' | 'loss' | 'draw';
 
+function scoreOutcome(own: number, rival: number): Outcome {
+  if (own > rival) return 'win';
+  if (own < rival) return 'loss';
+  return 'draw';
+}
+
 /** How a library team fared in a match, or null when it did not play it. */
 export function teamOutcome(match: LibraryMatch, teamId: string): Outcome | null {
   const own = match.teams.find((team) => team.team_id === teamId);
   const rival = match.teams.find((team) => team !== own);
   if (own === undefined || rival === undefined) return null;
-  if (own.score > rival.score) return 'win';
-  if (own.score < rival.score) return 'loss';
-  return 'draw';
+  return scoreOutcome(own.score, rival.score);
+}
+
+/** One side of a final score as Partidas draws it. */
+export type ScoreSide = { readonly name: string; readonly score: number; readonly outcome: Outcome };
+
+/** Both sides of the final score, in matchTitle order, each with how it fared. */
+export function scoreline(match: LibraryMatch): readonly [ScoreSide, ScoreSide] {
+  const left = teamByKey(match, 'ct-start');
+  const right = teamByKey(match, 't-start');
+  const leftScore = left?.score ?? 0;
+  const rightScore = right?.score ?? 0;
+  return [
+    { name: teamLabel(left), score: leftScore, outcome: scoreOutcome(leftScore, rightScore) },
+    { name: teamLabel(right), score: rightScore, outcome: scoreOutcome(rightScore, leftScore) },
+  ];
+}
+
+/** One map chip of Partidas: the raw map name, how it reads, and how many listed partidas it has. */
+export type MapChip = { readonly value: string; readonly label: string; readonly count: number };
+
+/** One chip per map of the library, most played first; `listed` only sets the counts so the order holds.
+ * A `selected` map the library lacks (an old link) keeps its chip, so the filter shows as chosen. */
+export function mapChips(input: {
+  library: readonly (LibraryMatch | null)[];
+  listed: readonly (LibraryMatch | null)[];
+  selected: string;
+}): MapChip[] {
+  const countMaps = (matches: readonly (LibraryMatch | null)[]): Map<string, number> => {
+    const counts = new Map<string, number>();
+    for (const match of matches) {
+      if (match !== null && match.map !== '') counts.set(match.map, (counts.get(match.map) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const inLibrary = countMaps(input.library);
+  const listed = countMaps(input.listed);
+  if (input.selected !== '' && !inLibrary.has(input.selected)) inLibrary.set(input.selected, 0);
+  return [...inLibrary]
+    .map(([value, total]) => ({ value, label: prettyMapName(value), total }))
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label, 'es'))
+    .map(({ value, label }) => ({ value, label, count: listed.get(value) ?? 0 }));
 }
 
 export const OUTCOME_LABEL: Record<Outcome, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
