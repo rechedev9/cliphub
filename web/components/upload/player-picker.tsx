@@ -11,6 +11,9 @@ import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Segmented } from '@/components/ui/segmented';
+import { SelectionMark } from '@/components/clips/selection-mark';
+import { MAX_POV_PLAYERS, MIN_POV_PLAYERS, togglePovPick } from '@/lib/produce/multi-pov';
 
 // Series rows add mapsPresent; single-match callers keep plain DemoPlayer values.
 type PickerPlayer = DemoPlayer & { mapsPresent?: number };
@@ -31,7 +34,12 @@ export type PlayerPickerProps = {
   allowDestinationSwitch?: boolean;
   /** FACEIT room scoreboard of this demo; replaces the demo's own tables so the numbers match the room. */
   faceit?: FaceitScoreboard | null;
+  /** Offers "Varios del equipo": 2 to 5 teammates for one video, the first pick leading. */
+  onPickMany?: (steamIds: string[]) => void;
 };
+
+type PickMode = 'one' | 'team';
+const PICK_MODES = [{ value: 'one', label: 'Un jugador' }, { value: 'team', label: 'Varios del equipo' }] as const;
 
 /** Tooltip copy for the abbreviated stat column headers. */
 const STAT_TOOLTIPS: Record<string, string> = {
@@ -176,9 +184,12 @@ export function PlayerPicker({
   allowDestinationSwitch = true,
   onCancel,
   faceit,
+  onPickMany,
 }: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
+  const [mode, setMode] = useState<PickMode>('one');
+  const [team, setTeam] = useState<PickerPlayer[]>([]);
 
   useEffect(() => {
     setSelected((current) =>
@@ -186,9 +197,28 @@ export function PlayerPicker({
         ? current
         : (recommended?.steamId ?? players[0]?.steamId ?? null),
     );
+    setTeam((current) => current.filter((p) => players.some((player) => player.steamId === p.steamId)));
   }, [players, recommended?.steamId]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
+  const canPickMany = onPickMany !== undefined && !isSeries;
+  const multi = canPickMany && mode === 'team';
+  const byId = new Map(players.map((p) => [p.steamId, p]));
   const selectedPlayer = players.find((p) => p.steamId === selected);
+  let chosenIds: string[] = [];
+  if (multi) chosenIds = team.map((p) => p.steamId);
+  else if (selected !== null) chosenIds = [selected];
+  const chosen = new Set(chosenIds);
+  const choose = (steamId: string) => {
+    const player = byId.get(steamId);
+    if (!multi) setSelected(steamId);
+    else if (player) setTeam((current) => togglePovPick(current, player));
+  };
+  const pickTeam = (steamIds: readonly string[]) =>
+    setTeam(steamIds.flatMap((id) => byId.get(id) ?? []).slice(0, MAX_POV_PLAYERS));
+  const switchMode = (next: PickMode) => {
+    if (next === 'team' && team.length === 0 && selectedPlayer) setTeam([selectedPlayer]);
+    setMode(next);
+  };
   // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
   const faceitBoard = !isSeries && faceit ? faceit : null;
   const faceitSelected = faceitBoard?.teams.flatMap((t) => t.players).find((p) => p.steamId === selected);
@@ -199,6 +229,24 @@ export function PlayerPicker({
   else if (match) contextLabel = prettyMapName(match.map);
   let ctaLabel = purpose === 'full-demo' ? 'Continuar a la demo completa' : 'Continuar al Short';
   if (isSeries) ctaLabel = 'Continuar con la serie';
+  if (multi) ctaLabel = team.length >= MIN_POV_PLAYERS ? `Analizar ${team.length} jugadores` : 'Analizar jugadores';
+  const nameOf = (p: PickerPlayer) => faceitBoard?.teams.flatMap((t) => t.players).find((f) => f.steamId === p.steamId)?.nickname ?? p.name;
+  let teamSummary = 'Elige de 2 a 5 jugadores del mismo equipo';
+  if (team.length === 1) teamSummary = `${nameOf(team[0])} · añade otro jugador de su equipo`;
+  else if (team.length > 1) teamSummary = `${contextLabel} · ${team.map(nameOf).join(', ')}`;
+  let pickSummary: ReactNode = 'Elige un jugador para continuar';
+  if (multi) pickSummary = teamSummary;
+  else if (selectedPlayer) {
+    pickSummary = (
+      <>
+        {contextLabel} <span className="text-fg-3">·</span>{' '}
+        <span className="font-medium text-fg-1">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
+        <span className="text-fg-3">
+          · {faceitSelected?.kills ?? selectedPlayer.kills}K / {faceitSelected?.deaths ?? selectedPlayer.deaths}D
+        </span>
+      </>
+    );
+  }
 
 
   const showMvp = players.some((p) => p.mvps > 0);
@@ -238,11 +286,13 @@ export function PlayerPicker({
 
   return (
     <div className="flex flex-col gap-5">
+      {canPickMany ? <Segmented label="Jugadores del vídeo" value={mode} options={PICK_MODES} onChange={switchMode} /> : null}
       {faceitBoard ? (
         <FaceitRoster
           board={faceitBoard}
-          selected={selected}
-          onSelect={setSelected}
+          selected={chosen}
+          onSelect={choose}
+          onSelectTeam={multi ? pickTeam : undefined}
           selectable={selectable}
           recommended={recommended?.steamId}
           recommendedLabel={recommendedLabel}
@@ -258,9 +308,14 @@ export function PlayerPicker({
               <span className={cn('font-display text-label font-bold', meta.text)}>
                 {meta.label}
               </span>
-              <span className="text-meta tabular-nums text-fg-3">
+              <span className="ml-auto text-meta tabular-nums text-fg-3">
                 media {avg.toFixed(2)}
               </span>
+              {multi && side !== '' ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => pickTeam(roster.map((p) => p.steamId))}>
+                  Todo el equipo
+                </Button>
+              ) : null}
             </div>
 
             <div className="overflow-hidden border border-border">
@@ -280,7 +335,7 @@ export function PlayerPicker({
               </div>
 
               {roster.map((p) => {
-                const active = p.steamId === selected;
+                const active = chosen.has(p.steamId);
                 const isRecommended = p.steamId === recommended?.steamId;
                 const chips = highlightChips(p);
                 // In series mode, flag only players missing from at least one map.
@@ -308,7 +363,7 @@ export function PlayerPicker({
                     key={p.steamId}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setSelected(p.steamId)}
+                    onClick={() => choose(p.steamId)}
                     style={gridStyle}
                     className={cn(
                       'grid w-full cursor-pointer items-center gap-x-1 border-b border-border-subtle px-3 py-2.5 text-left last:border-b-0',
@@ -326,6 +381,7 @@ export function PlayerPicker({
                   >
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="flex min-w-0 items-center gap-2.5">
+                        {multi ? <SelectionMark selected={active} /> : null}
                         <span
                           data-testid="player-avatar"
                           className={cn(
@@ -343,7 +399,7 @@ export function PlayerPicker({
                       {/* Second line, indented under the name: the Recommended tag and the
                           Highlights chips. Always rendered (never just for narrow windows) so
                           it never competes with the player name for horizontal space. */}
-                      <span className="flex flex-wrap items-center gap-1.5 pl-[2.375rem]">
+                      <span className={cn('flex flex-wrap items-center gap-1.5', multi ? 'pl-[4.5rem]' : 'pl-[2.375rem]')}>
                         {isRecommended ? (
                           <Badge shape="square" className="min-h-7 px-2">
                             {recommendedLabel}
@@ -375,19 +431,9 @@ export function PlayerPicker({
 
       <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[40rem]/content:-mx-6 @[40rem]/content:-mb-6 @[40rem]/content:px-6">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-meta text-fg-3">Jugador elegido</span>
-          <p className="truncate text-body text-fg-1">
-            {selectedPlayer ? (
-              <>
-                {contextLabel} <span className="text-fg-3">·</span>{' '}
-                <span className="font-medium text-fg-1">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
-                <span className="text-fg-3">
-                  · {faceitSelected?.kills ?? selectedPlayer.kills}K / {faceitSelected?.deaths ?? selectedPlayer.deaths}D
-                </span>
-              </>
-            ) : (
-              'Elige un jugador para continuar'
-            )}
+          <span className="text-meta text-fg-3">{multi ? 'Jugadores elegidos' : 'Jugador elegido'}</span>
+          <p className={cn('truncate text-body', multi && team.length < MIN_POV_PLAYERS ? 'text-fg-2' : 'text-fg-1')}>
+            {pickSummary}
           </p>
         </div>
         {onCancel !== undefined ? (
@@ -395,7 +441,7 @@ export function PlayerPicker({
             Cancelar
           </Button>
         ) : null}
-        {allowDestinationSwitch && purpose === 'highlights' && !isSeries ? (
+        {allowDestinationSwitch && purpose === 'highlights' && !isSeries && !multi ? (
           <Button
             type="button"
             variant="outline-primary"
@@ -410,8 +456,11 @@ export function PlayerPicker({
           type="button"
           variant="hero"
           size="lg"
-          disabled={selected === null}
-          onClick={() => selected && onPick(selected, purpose)}
+          disabled={multi ? team.length < MIN_POV_PLAYERS : selected === null}
+          onClick={() => {
+            if (multi) onPickMany?.(team.map((p) => p.steamId));
+            else if (selected) onPick(selected, purpose);
+          }}
         >
           {ctaLabel}
         </Button>

@@ -12,7 +12,7 @@ export const FLOW_TITLE = { short: 'Short', full: 'Demo completa' } as const;
 export const FLOW_HOME_TITLE = { short: 'Crea un Short', full: 'Crea una demo completa' } as const;
 export const FLOW_HOME_DESCRIPTION = {
   short: 'Vídeo vertical 9:16 con las mejores jugadas de un jugador. Carga una demo de CS2, elige el jugador y revisa las jugadas antes de grabar.',
-  full: 'Vídeo horizontal 16:9 con todas las rondas desde la vista de un jugador. Carga una demo de CS2, elige el jugador y revisa los ajustes antes de grabar.',
+  full: 'Vídeo horizontal 16:9 con todas las rondas desde la vista de un jugador, o con las mejores jugadas de varios jugadores del equipo. Carga una demo de CS2, elige los jugadores y revisa los ajustes antes de grabar.',
 } as const;
 export const FLOW_STEPS = {
   short: ['Cargar demo', 'Elegir jugador', 'Preparar Short', 'Grabar y descargar'],
@@ -32,6 +32,10 @@ export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu úl
 export const PRODUCE_SHORT_DRAFT_RESET = PRODUCE_DRAFT_RESET;
 export const PRODUCE_SHORT_CTA = 'Crear Short';
 
+/** The 16:9 best moments of several teammates (multi-POV from the long-video flow). */
+export const PRODUCE_SUMMARY_TITLE = 'Prepara tu resumen';
+export const PRODUCE_SUMMARY_CTA = 'Crear resumen';
+
 /** Footer line once a producer can create: where it records and where the result lands. */
 export const PRODUCE_READY_HINT = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el vídeo en Mis vídeos.';
 
@@ -48,7 +52,7 @@ export const PRODUCE_POLL_OFFLINE = 'Servicio local sin conexión. Seguimos most
 /** `scanned` partida: roster read, no POV picked. Settled, so it never advances on its own. */
 export const PRODUCE_MATCH_NO_POV = {
   title: 'Elige de quién será el vídeo',
-  description: 'La demo ya está cargada. Elige un jugador para analizar sus jugadas y preparar el vídeo.',
+  description: 'La demo ya está cargada. Elige uno o varios jugadores para analizar sus jugadas y preparar el vídeo.',
 } as const;
 export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
 

@@ -26,6 +26,8 @@ export type EditOptionsProps = {
   disabled?: boolean;
   /** Recap / comms / native HUD live on /full-demo, not the Shorts constructor. */
   showFullDemoDelivery?: boolean;
+  /** False hides the kill counter: a multi-POV video counts no single player's kills. */
+  killCounter?: boolean;
 };
 
 const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
@@ -52,6 +54,7 @@ export function EditOptions({
   onChange,
   disabled = false,
   showFullDemoDelivery = false,
+  killCounter = true,
 }: EditOptionsProps) {
   return (
     <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
@@ -172,10 +175,12 @@ export function EditOptions({
             <Type className="size-4" />
             Título automático
           </ToggleGroupItem>
-          <ToggleGroupItem value="kill-counter" aria-label="Contador de kills">
-            <ListOrdered className="size-4" />
-            Contador de kills
-          </ToggleGroupItem>
+          {killCounter ? (
+            <ToggleGroupItem value="kill-counter" aria-label="Contador de kills">
+              <ListOrdered className="size-4" />
+              Contador de kills
+            </ToggleGroupItem>
+          ) : null}
         </ToggleGroup>
       </OptionBlock>
 

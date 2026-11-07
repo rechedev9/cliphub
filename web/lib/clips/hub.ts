@@ -2,7 +2,7 @@ import { MATCH_STATUS_FAILED, type Match, type Video } from '../api/types.ts';
 import type { StreamJob } from '../api/streams.ts';
 import { captureProgressPercent } from '../capture-progress.ts';
 import { matchPlanReady } from '../match-plays-empty.ts';
-import { isLandscapeRecap } from '../reel-brief.ts';
+import { isLandscapeHighlights } from '../reel-brief.ts';
 
 /**
  * The 01 hub's read model. Everything the user produced hangs off the parsed
@@ -90,10 +90,20 @@ export function settleHubSnapshot([matches, videos, streams]: SettledSources, pr
   };
 }
 
+/** Every 16:9 video files under the long videos; a Short is 9:16. */
 export function outputType(video: Video): OutputType {
-  return video.editConfig !== undefined && isLandscapeRecap(video.editConfig)
-    ? OUTPUT_TYPE.full
-    : OUTPUT_TYPE.short;
+  return video.editConfig?.format === 'landscape-16x9' ? OUTPUT_TYPE.full : OUTPUT_TYPE.short;
+}
+
+/** True for a 16:9 video of chosen plays: it reads as a summary, not as a full match. */
+export function isHighlightsVideo(video: Video): boolean {
+  return video.editConfig !== undefined && isLandscapeHighlights(video.editConfig);
+}
+
+/** "Short", "Resumen" or "Demo completa". */
+export function outputLabel(video: Video): string {
+  if (outputType(video) === OUTPUT_TYPE.short) return 'Short';
+  return isHighlightsVideo(video) ? 'Resumen' : 'Demo completa';
 }
 
 export function outputState(status: Video['status']): OutputState {
@@ -308,7 +318,8 @@ function fullStateLabel(fulls: readonly MatchOutput[]): string {
 
 /** Full POV chip label for a collapsed row. */
 export function fullChipLabel(fulls: readonly MatchOutput[]): string {
-  return `Demo completa · ${fullStateLabel(fulls)}`;
+  const label = fulls.length > 0 && fulls.every((output) => isHighlightsVideo(output.video)) ? 'Resumen' : 'Demo completa';
+  return `${label} · ${fullStateLabel(fulls)}`;
 }
 
 /** Tone vocabulary for an output's tag; mirrors `StatusTagTone` by name. */

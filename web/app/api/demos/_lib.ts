@@ -292,3 +292,12 @@ function streamCacheControl(res: Response, fallbackCacheControl: string): string
   }
   return res.headers.get('cache-control') ?? fallbackCacheControl;
 }
+
+/** The orchestrator parse target: one steamId keeps the single-POV parse, a steamIds list asks for a multi-POV job. */
+export function parseTargetBody(body: Record<string, unknown>): { target_steamid: string } | { target_steamids: string[] } | null {
+  const { steamId, steamIds } = body;
+  if (typeof steamId === 'string' && steamId && steamIds === undefined) return { target_steamid: steamId };
+  if (steamId !== undefined || !Array.isArray(steamIds) || steamIds.length === 0) return null;
+  const ids = steamIds.filter((id): id is string => typeof id === 'string' && id !== '');
+  return ids.length === steamIds.length ? { target_steamids: ids } : null;
+}

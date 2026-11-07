@@ -1,4 +1,5 @@
 import type { Play } from '../api/types.ts';
+import { clashingPlay } from './multi-pov.ts';
 
 /** A Short should stay at or under one minute. */
 export const SHORT_TARGET_SECONDS = 60;
@@ -54,11 +55,14 @@ export function autoPickBestPlays(
     .map((play, index) => ({ play, index }))
     .sort((a, b) => b.play.kills - a.play.kills || a.index - b.index);
   const picked = new Set<string>();
+  const pickedPlays: Play[] = [];
   let totalTenths = 0;
   for (const { play } of ranked) {
     const tenths = estimatedPlayTenths(play, options);
-    if ((totalTenths + tenths) / 10 > targetSeconds) continue;
+    // A multi-POV capture cannot film two players at once.
+    if ((totalTenths + tenths) / 10 > targetSeconds || clashingPlay(play, pickedPlays)) continue;
     picked.add(play.id);
+    pickedPlays.push(play);
     totalTenths += tenths;
   }
   if (picked.size === 0 && ranked.length > 0) picked.add(ranked[0].play.id);

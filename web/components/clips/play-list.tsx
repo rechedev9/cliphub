@@ -20,6 +20,8 @@ export type PlayListProps = {
   visibleIds?: ReadonlySet<string>;
   /** Shown in place of the rows when the filters hide every play. */
   emptyFiltered?: ReactNode;
+  /** Multi-POV only: play id → the player whose chosen play it overlaps. */
+  clashes?: ReadonlyMap<string, string>;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -40,6 +42,7 @@ export function PlayList({
   filters,
   visibleIds,
   emptyFiltered,
+  clashes,
   onToggle,
   onSelectAll,
   onClear,
@@ -96,6 +99,7 @@ export function PlayList({
             selected={selectedIds.has(play.id)}
             reelPosition={positions.get(play.id) ?? null}
             ordinal={ordinals.get(play.id)}
+            clashWith={clashes?.get(play.id)}
             onToggle={() => onToggle(play.id)}
           />
         ))}

@@ -18,7 +18,8 @@ export interface ApiClient {
   getSeries(seriesId: string): Promise<SeriesDemo[]>;
   /** Resumes an existing job's POV pick: its status and roster; null when the job is gone (404). */
   getScan(jobId: string): Promise<ScannedDemo | null>;
-  parseDemo(input: { jobId: string; steamId: string }): Promise<Match>;
+  /** `teammates` adds players of the same team for one multi-POV job; steamId is its anchor. */
+  parseDemo(input: { jobId: string; steamId: string; teammates?: readonly string[] }): Promise<Match>;
   findClips(matchId: string): Promise<Play[]>;
   findRecapClips(matchId: string): Promise<Play[]>;
   /** Death clips of the match's player; empty for a demo parsed before death clips existed. */

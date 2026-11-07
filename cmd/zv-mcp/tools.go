@@ -119,6 +119,8 @@ type jobOut struct {
 
 type momentOut struct {
 	SegmentID string   `json:"segment_id"`
+	Player    string   `json:"player,omitempty" jsonschema:"multi-POV jobs only: untrusted name of the player whose POV the play uses"`
+	SteamID   string   `json:"steamid,omitempty" jsonschema:"multi-POV jobs only: that player's SteamID64"`
 	Round     int      `json:"round"`
 	Side      string   `json:"side,omitempty" jsonschema:"CT or T"`
 	ClutchVs  int      `json:"clutch_vs,omitempty" jsonschema:"for a clutch, the enemies alive when the player was the last one of the team"`
@@ -183,6 +185,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerApps(server, s)
 	registerShortOptions(server, s)
 	registerSeriesTools(server, s)
+	registerMultiPOVTools(server, s)
 	registerFindMomentsTool(server, s)
 	registerAnalysisTools(server, s)
 	registerTeamTools(server, s)
@@ -351,7 +354,7 @@ func registerTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_moments", Annotations: readOnly,
 		Description: "List the plays of a parsed job, best first: the same list Studio shows under \"Prepara tu Short\". Returns the best 10 unless limit says otherwise. " +
-			"weapon, kinds and side keep only matching plays, for example only AWP, only clutches and aces, or only CT. " +
+			"weapon, kinds and side keep only matching plays, for example only AWP, only clutches and aces, or only CT; player keeps one player of a multi-POV job. " +
 			"With deaths, lists the player's deaths instead, for a death reel."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in momentsIn) (*mcp.CallToolResult, momentsOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
@@ -365,8 +368,8 @@ func registerTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, momentsOut{}, toolError(err)
 			}
-			if in.Deaths && (q.Weapon != "" || len(q.Kinds) > 0 || q.Side != "") {
-				return nil, momentsOut{}, errors.New("weapon, kinds and side filter plays, not deaths; leave them empty with deaths")
+			if in.Deaths && (q.Weapon != "" || len(q.Kinds) > 0 || q.Side != "" || q.Player != "") {
+				return nil, momentsOut{}, errors.New("weapon, kinds, side and player filter plays, not deaths; leave them empty with deaths")
 			}
 			var doc tuiclient.MomentsDocument
 			if in.Deaths {
@@ -411,7 +414,8 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "generate_short", Meta: appToolMeta(jobProgressAppURI),
-		Description: "Capture and edit a Short from chosen plays of one job. For a series, the plays of one call must share one job_id (one map); a Short that mixes maps is not supported, so make one Short per map. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
+		Description: "Capture and edit a Short from chosen plays of one job. For a series, the plays of one call must share one job_id (one map); a Short that mixes maps is not supported, so make one Short per map. " +
+			"A multi-POV job mixes players in one Short: pick plays whose times do not overlap, since one capture films one player at a time. Optional format, kill_effect, transition, music and extras come from list_short_options; unset keeps the defaults. This opens CS2 full screen and records for minutes, so the user must approve it. " +
 			"If the result says needs_approval, show the summary, ask the user, and call again with approve set to approval_code only if they agree. " +
 			"Follow with wait_for_job, passing the returned variant."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in generateIn) (*mcp.CallToolResult, generateOut, error) {
@@ -496,6 +500,9 @@ func describeMoment(m tuiclient.Moment) momentOut {
 		Weapons: cleanNames(m.Weapons), Victims: cleanNames(m.Victims)}
 	if d := m.Death; d != nil {
 		out.KilledBy, out.Weapon = cleanName(d.Killer), cleanName(d.Weapon)
+	}
+	if m.SteamID64 != "" {
+		out.Player, out.SteamID = cleanName(m.Player), cleanName(m.SteamID64)
 	}
 	return out
 }

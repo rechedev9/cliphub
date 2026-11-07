@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +29,7 @@ type momentFilterIn struct {
 	Weapon string   `json:"weapon,omitempty" jsonschema:"keep only plays where every kill used this weapon id, such as awp, ak47, deagle or m4a1_silencer"`
 	Kinds  []string `json:"kinds,omitempty" jsonschema:"keep only plays of any of these kinds: clutch (last one alive on the team), ace (5 kills), multi_kill (2 or more kills)"`
 	Side   string   `json:"side,omitempty" jsonschema:"keep only plays made on this side: CT or T"`
+	Player string   `json:"player,omitempty" jsonschema:"multi-POV jobs only: keep the plays of this player, by SteamID64 or name"`
 }
 
 func (in momentFilterIn) query(jobID string) (tuiclient.MomentsQuery, error) {
@@ -35,7 +37,7 @@ func (in momentFilterIn) query(jobID string) (tuiclient.MomentsQuery, error) {
 	if err != nil {
 		return tuiclient.MomentsQuery{}, err
 	}
-	return tuiclient.MomentsQuery{JobID: jobID, Weapon: f.Weapon, Kinds: f.Kinds, Side: f.Side}, nil
+	return tuiclient.MomentsQuery{JobID: jobID, Weapon: f.Weapon, Kinds: f.Kinds, Side: f.Side, Player: strings.TrimSpace(in.Player)}, nil
 }
 
 type findMomentsIn struct {
