@@ -1,9 +1,9 @@
 {
-  "version": "2.192.10",
-  "archiveName": "hlae_2_192_10.zip",
-  "url": "https://github.com/advancedfx/advancedfx/releases/download/v2.192.10/hlae_2_192_10.zip",
-  "sha256": "cac5bb990f59110c31b159b5d008aa85e6332f04bbaf6b87e82b3228606bc28d",
-  "treeSha256": "3d5c0437511241eacf79b2baf359e9909b55bb3ceae8df9078cb362153ee8ad7",
+  "version": "2.193.0",
+  "archiveName": "hlae_2_193_0.zip",
+  "url": "https://github.com/advancedfx/advancedfx/releases/download/v2.193.0/hlae_2_193_0.zip",
+  "sha256": "ac1f6740551cba7a72ba8437b84097d6f9a95d922ae05f333417bac6d1b746c2",
+  "treeSha256": "990bb7614a89ca7a0e93d914b7b680eb93c7469a0d559bf933ca818b732d1783",
   "exeRel": "HLAE.exe",
   "timeoutMs": 90000
 }

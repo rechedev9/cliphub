@@ -278,6 +278,8 @@ what users run.
 - Fixed in official 2.192.8 (AfxHookSource2 0.41.8). Studio 5.5.1 pins
   2.192.10; four Short captures on CS2 1.41.9.2 with it reported no frozen
   picture.
+- Studio 5.13.0 pins official 2.193.0; a one-round Short capture of a Nuke
+  pro demo with it recorded the game picture (2026-11-07).
 
 ### Incident: frozen picture certified as a good capture (HLAE 2.192.7, 2026-10-09)
 
