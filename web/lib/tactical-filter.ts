@@ -204,8 +204,12 @@ function teamSideInRound(
 ): TacticalSide | undefined {
   const team = teams.find((candidate) => candidate.key === teamKey);
   if (team === undefined) return undefined;
-  const swapped = Math.floor(half / 2) % 2 === 1;
-  return swapped ? opponentSide(team.start_side) : team.start_side;
+  return sidesSwapped(half) ? opponentSide(team.start_side) : team.start_side;
+}
+
+/** Whether teams play opposite their start side in a half, mirroring `tacticalplan.SidesSwapped`. */
+export function sidesSwapped(half: number): boolean {
+  return Math.floor(half / 2) % 2 === 1;
 }
 
 /**

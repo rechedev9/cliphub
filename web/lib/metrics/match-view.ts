@@ -1,6 +1,7 @@
 import { LIBRARY_TEAM_KEYS, type LibraryMatchPlayer, type LibraryTeamKey } from '../api/library.ts';
 import type { MetricsReport, PlayerMetrics, RoundTimeline, WinPoint } from '../api/metrics.ts';
 import type { TacticalSide } from '../api/tactical.ts';
+import { sidesSwapped } from '../tactical-filter.ts';
 
 /**
  * The view model of one partida's Métricas tab: each round's win chance at the
@@ -44,7 +45,7 @@ function scheduleHalf(round: number): number {
 
 /** The format's guess when a half has no kill to read: an overtime keeps the sides the half before it ended on. */
 function scheduledCtTeam(round: number): LibraryTeamKey {
-  return Math.floor(scheduleHalf(round) / 2) % 2 === 1 ? 't-start' : 'ct-start';
+  return sidesSwapped(scheduleHalf(round)) ? 't-start' : 'ct-start';
 }
 
 /** The side that lost a player at this point: the alive count that dropped from the point before. */
