@@ -3,6 +3,7 @@ import type { TacticalEvent, TacticalSample, TacticalSide } from '../api/tactica
 import { clearShare, segmentBlocked } from './sight-bvh.ts';
 import type { SightBvh } from './sight-bvh.ts';
 import type { Vec3 } from './three/orbit.ts';
+import { SMOKE_FADE_SECONDS, SMOKE_SECONDS } from './three/utility-visuals.ts';
 
 /** Eye height over the feet, standing and crouched (CS2 view offsets). */
 const EYE_STANDING = 64;
@@ -17,9 +18,9 @@ const FOV = { open: { horizontal: 106.3, vertical: 73.7 }, scoped: { horizontal:
 /** A smoke blocks sight inside this radius around a point this high over where it landed. */
 const SMOKE_BLOCK_RADIUS = 132;
 const SMOKE_CENTRE_HEIGHT = 56;
-/** A smoke blocks once it has bloomed and until it starts to thin (CS2 smokes last 18 s). */
+/** A smoke blocks once it has bloomed and until it starts to thin. */
 const SMOKE_BLOCKS_FROM = 0.75;
-const SMOKE_BLOCKS_UNTIL = 17;
+const SMOKE_BLOCKS_UNTIL = SMOKE_SECONDS - SMOKE_FADE_SECONDS;
 
 export type SightPlayer = { slot: number; side: TacticalSide; eye: Vec3; chest: Vec3; yaw: number; pitch: number; scoped: boolean };
 

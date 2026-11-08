@@ -3,9 +3,13 @@ import type { TacticalEventKind } from '../../api/tactical.ts';
 import type { TimelineEvent } from '../../tactical-timeline.ts';
 import type { Vec3 } from './orbit.ts';
 
+/** CS2 demos record 22.06 s from SmokeStart to SmokeExpired for every smoke; it thins over the last 2. */
+export const SMOKE_SECONDS = 22;
+export const SMOKE_FADE_SECONDS = 2;
+
 /** How long each grenade's effect stays on the map, in seconds (CS2 defaults). */
 export const UTILITY_SECONDS: Partial<Record<TacticalEventKind, number>> = {
-  [TACTICAL_EVENT_KINDS.smoke]: 18,
+  [TACTICAL_EVENT_KINDS.smoke]: SMOKE_SECONDS,
   [TACTICAL_EVENT_KINDS.molotov]: 7,
   [TACTICAL_EVENT_KINDS.flash]: 0.6,
   [TACTICAL_EVENT_KINDS.he]: 0.6,
@@ -16,7 +20,6 @@ export const UTILITY_SECONDS: Partial<Record<TacticalEventKind, number>> = {
 export const ARC_LINGER_SECONDS = 2;
 
 const SMOKE_BLOOM_SECONDS = 1.2;
-const SMOKE_FADE_SECONDS = 2;
 const FIRE_SPREAD_SECONDS = 0.5;
 const FIRE_FADE_SECONDS = 1;
 

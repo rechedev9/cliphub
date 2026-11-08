@@ -15,15 +15,15 @@ function entry(kind: TacticalEventKind, seconds: number, extra: Partial<Tactical
   };
 }
 
-test('utility: a smoke blooms, holds and fades over its 18 seconds', () => {
+test('utility: a smoke blooms, holds for 20 seconds and fades by 22, as in game', () => {
   const start = utilityEffect('smoke', 0);
-  const held = utilityEffect('smoke', 8);
-  const ending = utilityEffect('smoke', 17.5);
+  const held = utilityEffect('smoke', 19.5);
+  const ending = utilityEffect('smoke', 21.5);
   assert.ok(start !== null && held !== null && ending !== null);
   assert.ok(start.grow < held.grow);
   assert.equal(held.strength, 1);
   assert.ok(ending.strength < 0.5);
-  assert.equal(utilityEffect('smoke', 18.5), null);
+  assert.equal(utilityEffect('smoke', 22.5), null);
   assert.equal(utilityEffect('smoke', -0.1), null);
   assert.equal(utilityEffect('kill', 0), null);
 });

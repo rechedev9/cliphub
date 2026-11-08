@@ -38,6 +38,7 @@ func TestWorldToPixel(t *testing.T) {
 		{"mirage upper-left corner", "de_mirage", -3230, 1713, 0, 0},
 		{"inferno banana", "de_inferno", 500, 1200, 527.9591836734694, 544.8979591836735},
 		{"dust2 origin", "de_dust2", -2476, 3239, 0, 0},
+		{"cache mid", "de_cache", 750, -50, 500, 600},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
