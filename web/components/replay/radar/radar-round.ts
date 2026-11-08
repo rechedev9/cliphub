@@ -389,7 +389,9 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
   const { frame, players, visible, spots } = options;
   if (frame.labels.size === 0) return;
   ctx.font = `600 ${TAG_FONT_PX}px ${frame.style.fontFamily}`;
-  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot));
+  // A player panned off the canvas gets no tag, or it would sit at the edge far from anyone.
+  const inside = (player: DrawnPlayer): boolean => player.x >= visible.x && player.x <= visible.x + visible.width && player.y >= visible.y && player.y <= visible.y + visible.height;
+  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && inside(player));
   const requests = alive.map((player) => {
     const label = frame.labels.get(player.slot) ?? '';
     return { id: player.slot, x: player.x, y: player.y, width: Math.ceil(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD * 2, height: TAG_HEIGHT };
