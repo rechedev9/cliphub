@@ -6,6 +6,9 @@ export type SightGeometry = { kind: 'ready'; bvh: SightBvh } | { kind: 'failed';
 
 const NO_WALLS = 'No se pudieron leer las paredes del mapa desde tu instalación de CS2, así que no se sabe quién ve a quién.';
 
+/** A worker that has not answered by then is given up on. */
+const WORKER_TIMEOUT_MS = 60_000;
+
 /** One tree per map for the session; a failed read is forgotten so turning the layer on again retries. */
 const cache = new Map<string, Promise<SightGeometry>>();
 
@@ -26,20 +29,26 @@ function buildOffThread(vertices: Float32Array, triangles: Uint32Array): Promise
     return Promise.resolve(buildSightBvh(vertices, triangles));
   }
   return new Promise((resolve) => {
-    const local = (): void => {
-      worker.terminate();
-      resolve(buildSightBvh(vertices, triangles));
-    };
-    worker.addEventListener('message', (event: MessageEvent<unknown>) => {
-      const bvh = asBvh(event.data);
-      if (bvh === null) {
-        local();
-        return;
-      }
+    let settled = false;
+    const finish = (bvh: SightBvh): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       worker.terminate();
       resolve(bvh);
+    };
+    // Any answer that is not a tree, a lost message or a silent worker falls back to this thread.
+    const local = (): void => {
+      if (!settled) finish(buildSightBvh(vertices, triangles));
+    };
+    const timer = setTimeout(local, WORKER_TIMEOUT_MS);
+    worker.addEventListener('message', (event: MessageEvent<unknown>) => {
+      const bvh = asBvh(event.data);
+      if (bvh === null) local();
+      else finish(bvh);
     });
     worker.addEventListener('error', local);
+    worker.addEventListener('messageerror', local);
     // Copies, so the 3D view's cached mesh keeps its own arrays.
     const copy = { vertices: vertices.slice(), triangles: triangles.slice() };
     worker.postMessage(copy, [copy.vertices.buffer, copy.triangles.buffer]);

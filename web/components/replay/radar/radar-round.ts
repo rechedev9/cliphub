@@ -1,5 +1,6 @@
 import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '@/lib/api/tactical';
-import type { RadarCalibration, TacticalEventKind, TacticalSample, TacticalSide } from '@/lib/api/tactical';
+import type { RadarCalibration, RadarLevel, TacticalEventKind, TacticalSample, TacticalSide } from '@/lib/api/tactical';
+import { floorAlpha } from '@/lib/analysis/floors';
 import { equipmentIconUrl } from '@/lib/api/game-assets';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { layoutTags } from '@/lib/replay/tag-layout';
@@ -30,6 +31,8 @@ const TAG_PAD = 5;
 /** One round's frame on the map, already filtered by the layers. */
 export type RoundFrame = {
   calibration: RadarCalibration;
+  /** The floor the plate shows; on a two-floor map, everything on the other one recedes. */
+  level: RadarLevel;
   /** Side of the radar square in CSS pixels. */
   size: number;
   samples: readonly TacticalSample[];
@@ -85,6 +88,19 @@ function softDisc(ctx: CanvasRenderingContext2D, options: { at: RadarPoint; radi
   ctx.beginPath();
   ctx.arc(at.x, at.y, radius, 0, Math.PI * 2);
   ctx.fill();
+}
+
+/** Draws with everything faded when `z` is on the floor the plate is not showing. */
+function onFloor(ctx: CanvasRenderingContext2D, frame: RoundFrame, z: number, draw: () => void): void {
+  const alpha = floorAlpha(frame, z);
+  if (alpha >= 1) {
+    draw();
+    return;
+  }
+  // A filter fades the whole drawing, whatever globalAlpha each stroke sets.
+  ctx.filter = `opacity(${alpha})`;
+  draw();
+  ctx.filter = 'none';
 }
 
 /** Small deterministic offsets so a fire reads as flames, not a circle. */
@@ -222,6 +238,10 @@ function drawBomb(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
   const carried = frame.samples.some((sample) => hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb));
   const bomb = bombVisual({ events: frame.events, nowSeconds: frame.nowSeconds, carried, secondsOf: frame.secondsOf });
   if (bomb === null) return;
+  onFloor(ctx, frame, bomb.at.z, () => drawBombAt(ctx, frame, bomb));
+}
+
+function drawBombAt(ctx: CanvasRenderingContext2D, frame: RoundFrame, bomb: NonNullable<ReturnType<typeof bombVisual>>): void {
   const at = worldToRendered(frame.calibration, bomb.at.x, bomb.at.y, frame.size);
   if (bomb.state === 'exploded') {
     softDisc(ctx, { at, radius: worldPx(frame.calibration, frame.size, 500) * bomb.effect.grow, rgb: '255, 110, 50', alpha: 0.6 * bomb.effect.strength, edge: 0.5 });
@@ -250,10 +270,12 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
     const points = frame.trails.get(sample.slot);
     if (points === undefined || points.length < 2) continue;
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
+    // A trail recedes with its player, by the floor the player stands on now.
+    const strength = floorAlpha(frame, sample.z);
     for (let i = 1; i < points.length; i += 1) {
       const from = worldToRendered(frame.calibration, points[i - 1].x, points[i - 1].y, frame.size);
       const to = worldToRendered(frame.calibration, points[i].x, points[i].y, frame.size);
-      ctx.globalAlpha = 0.05 + 0.35 * (i / (points.length - 1));
+      ctx.globalAlpha = (0.05 + 0.35 * (i / (points.length - 1))) * strength;
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
@@ -367,7 +389,9 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
   const { frame, players, visible, spots } = options;
   if (frame.labels.size === 0) return;
   ctx.font = `600 ${TAG_FONT_PX}px ${frame.style.fontFamily}`;
-  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot));
+  // A player panned off the canvas gets no tag, or it would sit at the edge far from anyone.
+  const inside = (player: DrawnPlayer): boolean => player.x >= visible.x && player.x <= visible.x + visible.width && player.y >= visible.y && player.y <= visible.y + visible.height;
+  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && inside(player));
   const requests = alive.map((player) => {
     const label = frame.labels.get(player.slot) ?? '';
     return { id: player.slot, x: player.x, y: player.y, width: Math.ceil(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD * 2, height: TAG_HEIGHT };
@@ -411,7 +435,7 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
  */
 export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame, tags: { visible: TagRect; spots: Map<number, number> } | null): DrawnPlayer[] {
   if (frame.utility) {
-    for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) drawGrenade(ctx, frame, visual);
+    for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) onFloor(ctx, frame, visual.at.z, () => drawGrenade(ctx, frame, visual));
   }
   const canvas = { ctx, calibration: frame.calibration, size: frame.size, style: frame.style, samples: frame.samples };
   const sight = frame.analysis?.sight ?? null;
@@ -424,13 +448,13 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     const at = worldToRendered(frame.calibration, sample.x, sample.y, frame.size);
     const alive = hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive);
     players.push({ slot: sample.slot, x: at.x, y: at.y, side: sampleSide(sample), alive });
-    if (!alive) drawDead(ctx, frame, sample, at);
+    if (!alive) onFloor(ctx, frame, sample.z, () => drawDead(ctx, frame, sample, at));
   }
   if (sight !== null) drawSightPairs(canvas, sight);
   drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);
-    if (player !== undefined && player.alive) drawAlive(ctx, frame, sample, player);
+    if (player !== undefined && player.alive) onFloor(ctx, frame, sample.z, () => drawAlive(ctx, frame, sample, player));
   }
   drawHitLabels(canvas, hits);
   if (tags !== null) drawTags(ctx, { frame, players, visible: tags.visible, spots: tags.spots });

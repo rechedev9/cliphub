@@ -25,7 +25,8 @@ import {
   visibleFocus,
 } from '@/lib/tactical-spatial';
 import { TACTICAL_REPLAY_SPEEDS } from '@/lib/tactical-timeline';
-import { isMultiLevelMap, levelForAltitude, worldToRendered } from '@/lib/tactical-transform';
+import { isMultiLevelMap, worldToRendered } from '@/lib/tactical-transform';
+import { floorAlpha } from '@/lib/analysis/floors';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -170,6 +171,8 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
       const ordered = rounds.filter((round) => !hidden.has(overlayRoundKey(round)));
       ordered.sort((a, b) => Number(overlayRoundKey(a) === focus) - Number(overlayRoundKey(b) === focus));
       const dim = ordered.length > 1;
+      // Marks on the other floor of a two-floor map recede like the players there.
+      const floor = { calibration, level };
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (const round of ordered) {
@@ -179,7 +182,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
           if (event.seconds > seconds || seconds - event.seconds > EVENT_SECONDS) continue;
           const fade = 1 - (seconds - event.seconds) / EVENT_SECONDS;
           const p = worldToRendered(calibration, event.pos[0], event.pos[1], size);
-          ctx.globalAlpha = base * (0.25 + 0.55 * fade);
+          ctx.globalAlpha = base * (0.25 + 0.55 * fade) * floorAlpha(floor, event.pos[2]);
           if (event.kind === TACTICAL_EVENT_KINDS.kill) {
             const r = dot * 0.9;
             ctx.strokeStyle = sideColor(event.side);
@@ -205,10 +208,12 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
         for (const track of round.tracks) {
           const color = sideColor(track.side);
           const trail = trackTrail(track, seconds, step, TRAIL_SECONDS);
+          const index = Math.min(track.points.length - 1, Math.max(0, Math.floor(seconds / step - track.start)));
+          const strength = floorAlpha(floor, track.points[index]?.[2] ?? 0);
           if (trail.length > 1) {
             ctx.strokeStyle = color;
             ctx.lineWidth = Math.max(1.25, size * 0.003);
-            ctx.globalAlpha = base * 0.45;
+            ctx.globalAlpha = base * 0.45 * strength;
             ctx.beginPath();
             trail.forEach(([x, y], i) => {
               const p = worldToRendered(calibration, x, y, size);
@@ -218,11 +223,9 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
             ctx.stroke();
           }
           const at = trackPositionAt(track, seconds, step);
-          const index = Math.min(track.points.length - 1, Math.max(0, Math.floor(seconds / step - track.start)));
-          const onLevel = levelForAltitude(calibration, track.points[index]?.[2] ?? 0) === level;
           if (at !== undefined) {
             const p = worldToRendered(calibration, at[0], at[1], size);
-            ctx.globalAlpha = base * (onLevel ? 1 : 0.35);
+            ctx.globalAlpha = base * strength;
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(p.x, p.y, dot, 0, Math.PI * 2);
@@ -237,7 +240,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
           } else if (trackDeadAt(track, seconds, step)) {
             const last = track.points[track.points.length - 1];
             const p = worldToRendered(calibration, last[0], last[1], size);
-            ctx.globalAlpha = base * 0.6;
+            ctx.globalAlpha = base * 0.6 * floorAlpha(floor, last[2]);
             ctx.strokeStyle = color;
             ctx.lineWidth = Math.max(1.25, size * 0.0025);
             const r = dot * 0.7;

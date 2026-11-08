@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { radarImageUrl, type RadarLayer } from '@/lib/api/game-assets';
 
-// One decode per radar for the session; a failed load (CS2 not installed) is remembered as null.
+// One decode per radar for the session; a failed load (CS2 missing or not set up yet) is forgotten, so the next view retries.
 const cache = new Map<string, Promise<HTMLImageElement | null>>();
 
 function loadRadar(map: string, layer: RadarLayer): Promise<HTMLImageElement | null> {
@@ -18,6 +18,9 @@ function loadRadar(map: string, layer: RadarLayer): Promise<HTMLImageElement | n
     image.src = url;
   });
   cache.set(url, pending);
+  void pending.then((image) => {
+    if (image === null && cache.get(url) === pending) cache.delete(url);
+  });
   return pending;
 }
 

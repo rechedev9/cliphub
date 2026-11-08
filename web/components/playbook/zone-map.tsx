@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { mapSilhouette } from '@/lib/analysis/map-silhouette';
-import type { TacticalGeometry } from '@/lib/api/tactical';
-import type { RadarRect } from '@/lib/tactical-transform';
+import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
+import { isMultiLevelMap, type RadarRect } from '@/lib/tactical-transform';
+import { LEVEL_LABEL } from '@/lib/tactical-spatial';
+import { radarImageFits } from '@/lib/replay/map-view';
+import { Segmented } from '@/components/ui/segmented';
 import { zoneShapes } from '@/lib/analysis/zone-shapes';
 import { prettyMapName } from '@/lib/format';
 import { useMapGeometry } from '@/components/analysis/use-map-geometry';
@@ -34,10 +37,13 @@ export function ZoneMap({
   selected: readonly string[];
 }): ReactNode {
   const geometry = useMapGeometry(teamId, [map]).get(map);
-  const radar = useRadarImage(map);
+  const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
+  const radar = useRadarImage(map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
   if (geometry === undefined) return <div aria-hidden className="aspect-square w-full max-w-[26rem] rounded-md bg-surface-3" />;
   if (geometry === null) return null;
-  return <ZoneMapPlate geometry={geometry} radar={radar ?? null} map={map} zones={zones} labels={labels} selected={selected} />;
+  // A derived calibration does not line up with the game's image; the silhouette does.
+  const image = radarImageFits(geometry.calibration) ? (radar ?? null) : null;
+  return <ZoneMapPlate geometry={geometry} radar={image} map={map} zones={zones} labels={labels} selected={selected} level={level} onLevel={setLevel} />;
 }
 
 function ZoneMapPlate({
@@ -47,6 +53,8 @@ function ZoneMapPlate({
   zones,
   labels,
   selected,
+  level,
+  onLevel,
 }: {
   geometry: TacticalGeometry;
   radar: HTMLImageElement | null;
@@ -54,6 +62,8 @@ function ZoneMapPlate({
   zones: readonly string[];
   labels: ReadonlyMap<string, string>;
   selected: readonly string[];
+  level: RadarLevel;
+  onLevel: (level: RadarLevel) => void;
 }): ReactNode {
   const silhouette = mapSilhouette(geometry, SIZE);
   const imageWidth = radar ? (SIZE * radar.naturalWidth) / geometry.calibration.size : 0;
@@ -66,11 +76,11 @@ function ZoneMapPlate({
   }, [viewBox]);
   const zoom = useMapZoom(base);
   if (silhouette === null) return null;
-  const shapes = zoneShapes(geometry, zones, SIZE);
+  const shapes = zoneShapes(geometry, { zones, size: SIZE, level });
   const { view } = zoom;
   // Labels keep their screen size as the map zooms.
   const font = Math.max(1.6, base.width / 32) / zoom.zoom;
-  return (
+  const plate = (
     <div {...zoom.surface} className={cn('relative aspect-square w-full max-w-[26rem] overflow-hidden rounded-md bg-surface-3', zoom.zoomed && 'touch-none', zoom.cursor)}>
       <svg
         viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
@@ -80,7 +90,7 @@ function ZoneMapPlate({
       >
         {radar ? (
           <image
-            href={radarImageUrl(map)}
+            href={radarImageUrl(map, level === RADAR_LEVELS.lower ? 'lower' : 'upper')}
             x={0}
             y={0}
             width={imageWidth}
@@ -109,6 +119,18 @@ function ZoneMapPlate({
         ))}
       </svg>
       <MapZoomControls zoom={zoom.zoom} zoomed={zoom.zoomed} onZoomBy={zoom.zoomBy} onReset={zoom.reset} className="absolute right-2 bottom-2" />
+    </div>
+  );
+  if (!isMultiLevelMap(geometry.calibration)) return plate;
+  return (
+    <div className="flex w-full max-w-[26rem] flex-col gap-2">
+      <Segmented
+        label="Piso"
+        value={level}
+        options={[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))}
+        onChange={onLevel}
+      />
+      {plate}
     </div>
   );
 }

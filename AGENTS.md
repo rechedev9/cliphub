@@ -48,11 +48,17 @@ change for the installed Windows app. The UI is in Spanish.
 1. `.\scripts\build.ps1` builds the Go binaries into `bin\`.
 2. `pnpm --dir desktop run build`, then `pnpm --dir desktop run assemble` (stages `bin\`, the web
    standalone build and HLAE into `desktop\build-resources`).
-3. Start it with a throwaway profile, never the real `%APPDATA%\cliphub-studio`:
-   `$env:CLIPHUB_E2E_USER_DATA = "C:\temp\cliphub-try\$(Get-Date -f yyyyMMdd-HHmmss)"`
+3. Start it with a throwaway profile, never the real `%APPDATA%\cliphub-studio`. Write
+   `{"enabled":true}` to `agent-access.json` in the profile first, so Studio lets the MCP in:
+   `$p = "C:\temp\cliphub-try\$(Get-Date -f yyyyMMdd-HHmmss)"; mkdir $p; '{"enabled":true}' | Set-Content -Encoding ascii "$p\agent-access.json"`
+   `$env:CLIPHUB_E2E_USER_DATA = $p`
    `pnpm --dir desktop exec electron scripts\isolated-userdata.cjs`
    A new profile shows the first-run guide and fetches HLAE on first boot.
-4. Capture needs Steam and CS2 on the machine. Use demo files from outside the repo.
+4. Import demos and drive other state changes through the branch's MCP, not the window: run
+   `bin\zv-mcp.exe` with `CLIPHUB_STUDIO_USER_DATA` set to the profile and call `import_demo` and
+   `wait_for_demo`. A session's `cliphub-studio` MCP talks to the real Studio; never use it for a
+   check. The browser pane cannot import: its POSTs lack the window's capability cookie.
+5. Capture needs Steam and CS2 on the machine. Use demo files from outside the repo.
 
 ## Verify a change
 Verify by hand in the real app:
@@ -62,6 +68,10 @@ Verify by hand in the real app:
 3. Try one path off the happy path, such as a corrupt `.dem`, and check `studio.log` in the
    throwaway profile for a clear error instead of a crash or silence.
 4. In the PR, write a few lines on what you did and saw. No screenshots.
+
+Drive and check the UI in the built-in browser pane, on the web server that Studio started (its
+`[web] - Local:` URL in the Electron output), and import demos through `bin\zv-mcp.exe` as in
+"Run Studio from source". Never use computer use for a check.
 Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
 The one exception is the deterministic Short pipeline test in `internal/pipeline`: plain `go test`,
 golden files in its `testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.

@@ -42,9 +42,9 @@ test('a drag box maps back to the world and selects by landing or by throw', () 
   const box = dragWorldBox(CAL, 1024, { x: 700, y: 400 }, { x: 600, y: 300 });
   assert.deepEqual(box, { minX: 0, minY: 0, maxX: 500, maxY: 500 });
   const grenade = throwAt({ origin: [-100, 0, 0], landing: [250, 250, 0] });
-  assert.equal(grenadeInBox(grenade, box, 'landing'), true);
-  assert.equal(grenadeInBox(grenade, box, 'throw'), false);
-  assert.equal(grenadeInBox(throwAt({ origin: null }), box, 'throw'), false);
+  assert.equal(grenadeInBox({ grenade, box, area: 'landing' }), true);
+  assert.equal(grenadeInBox({ grenade, box, area: 'throw' }), false);
+  assert.equal(grenadeInBox({ grenade: throwAt({ origin: null }), box, area: 'throw' }), false);
 });
 
 test('tracers follow the radar transform and the nearest one is hit', () => {
@@ -121,4 +121,23 @@ test('a group practises its most central real throw, capped at 20 spots', () => 
   const [old] = clusterGrenades([throwAt({ origin: null })]);
   assert.ok(old);
   assert.deepEqual(practiceSpotsForSpots([{ spot: old, label: 'Humo' }]), []);
+});
+
+const NUKE: RadarCalibration = { map: 'de_nuke', source: 'overview', pos_x: -3453, pos_y: 2887, scale: 7, size: 1024, lower_altitude_max: -495 };
+
+test('on a two-floor map the box selects on the floor it was drawn on', () => {
+  const box = { minX: 400, minY: 400, maxX: 600, maxY: 600 };
+  const lower = { calibration: NUKE, level: 'lower' as const };
+  // Thrown from A site above, landing in B below: on the B radar only the landing is in.
+  const fromA = throwAt({ origin: [500, 500, -400], landing: [500, 500, -700] });
+  assert.equal(grenadeInBox({ grenade: fromA, box, area: 'landing', floor: lower }), true);
+  assert.equal(grenadeInBox({ grenade: fromA, box, area: 'throw', floor: lower }), false);
+  assert.equal(grenadeInBox({ grenade: fromA, box, area: 'throw' }), true);
+});
+
+test('throws one floor apart are never the same spot', () => {
+  const spots = clusterGrenades([throwAt({ landing: [500, 500, -400] }), throwAt({ landing: [500, 500, -760] })]);
+  assert.equal(spots.length, 2);
+  const stacked = clusterGrenades([throwAt({ origin: [0, 0, -400] }), throwAt({ origin: [0, 0, -760] })]);
+  assert.equal(stacked.length, 2);
 });

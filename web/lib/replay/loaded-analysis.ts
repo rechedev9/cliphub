@@ -11,6 +11,14 @@ const FRAME_CACHE_ROUNDS = 14;
 export const POSITIONS_MISSING_MESSAGE =
   'Falta el archivo de posiciones de esta demo, así que no se puede reproducir. Vuelve a analizar la demo para reconstruirlo.';
 
+/** Frames of a round that failed to decode, with the message the map shows instead. */
+const decodeFailures = new WeakMap<readonly TacticalFrame[], string>();
+
+/** Why a round has no frames, when it is because its bytes did not decode. */
+export function framesDecodeError(frames: readonly TacticalFrame[]): string | null {
+  return decodeFailures.get(frames) ?? null;
+}
+
 /** A message the analysis screens can show as is. */
 export class UserFacingTacticalError extends Error {}
 
@@ -34,7 +42,10 @@ export class LoadedAnalysis {
     return this.doc.rounds.find((round) => round.number === number);
   }
 
-  /** The round's frames; a truncated or mis-offset round reads as empty instead of throwing. */
+  /**
+   * The round's frames; a truncated or mis-offset round reads as empty instead of
+   * throwing, is cached like any other, and `framesDecodeError` tells why.
+   */
   framesFor(number: number): TacticalFrame[] {
     const cached = this.#frames.get(number);
     if (cached !== undefined) return cached;
@@ -44,8 +55,11 @@ export class LoadedAnalysis {
       const decoded = decodeRoundFrames(this.#blob, offset, this.#scale);
       this.#frames.set(number, decoded);
       return decoded;
-    } catch {
-      return [];
+    } catch (error) {
+      const failed: TacticalFrame[] = [];
+      decodeFailures.set(failed, error instanceof TacticalDecodeError ? tacticalDecodeErrorMessage(error) : 'No se pudieron leer las posiciones de esta ronda. Repite el análisis táctico.');
+      this.#frames.set(number, failed);
+      return failed;
     }
   }
 }

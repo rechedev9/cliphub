@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOLLOW_ZOOM, MAX_ZOOM, followView, panView, zoomLevel, zoomViewAt } from './map-view.ts';
+import { FOLLOW_ZOOM, MAX_ZOOM, boxWindow, followView, panView, radarImageFits, rememberZoom, rememberedZoom, zoomLevel, zoomViewAt } from './map-view.ts';
+import { radarProjection } from '../tactical-spatial.ts';
 import { heightTone, navRadarModel, polygonLevel, toneColor } from './nav-radar.ts';
 import { layoutTags, tagName } from './tag-layout.ts';
 
@@ -93,4 +94,35 @@ test('map view: following zooms in on the player and only moves once they near t
   assert.equal(followView({ view: start, base, point: { x: 0.52, y: 0.5 } }), start);
   const moved = followView({ view: start, base, point: { x: 0.64, y: 0.5 } });
   assert.ok(Math.abs(moved.x + moved.width / 2 - 0.64) < 1e-9);
+});
+
+test('map view: the plate window covers the whole box, beside the view too', () => {
+  const wide = { width: 1200, height: 600 };
+  const zoomed = panView({ box: wide, view: zoomViewAt({ box: wide, view: base, base, cursor: { x: 600, y: 300 }, factor: 1.57 }), base, dx: 200, dy: 0 });
+  const projection = radarProjection(wide, zoomed);
+  const window = boxWindow(wide, projection);
+  // The window's corners land on the box's corners.
+  assert.equal(projection.offsetX + window.x * projection.size, 0);
+  assert.equal(projection.offsetY + window.y * projection.size, 0);
+  assert.equal(window.width * projection.size, wide.width);
+  assert.equal(window.height * projection.size, wide.height);
+  // And it holds the whole view, so nothing on screen falls outside the plate (within the fit's rounding).
+  const px = 1 / projection.size;
+  assert.ok(window.x <= zoomed.x + px && window.x + window.width >= zoomed.x + zoomed.width - px);
+  assert.ok(window.y <= zoomed.y + px && window.y + window.height >= zoomed.y + zoomed.height - px);
+  assert.ok(window.width > zoomed.width);
+});
+
+test('map view: the zoom is remembered per map until it is reset', () => {
+  const view = { x: 0.2, y: 0.2, width: 0.4, height: 0.4 };
+  rememberZoom('de_mirage', view);
+  assert.deepEqual(rememberedZoom('de_mirage'), view);
+  assert.equal(rememberedZoom('de_inferno'), null);
+  rememberZoom('de_mirage', null);
+  assert.equal(rememberedZoom('de_mirage'), null);
+});
+
+test('map view: the official radar only sits under a calibration read from its overview', () => {
+  assert.equal(radarImageFits({ source: 'overview' }), true);
+  assert.equal(radarImageFits({ source: 'derived' }), false);
 });
