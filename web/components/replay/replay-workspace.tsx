@@ -16,6 +16,7 @@ import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
 import { playStartSeconds, playbackStep } from '@/lib/replay/playback';
 import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
+import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import {
   SEEK_STEP_SECONDS,
   clampToTimeline,
@@ -316,55 +317,67 @@ export function ReplayWorkspace({
 
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
   keyHandler.current = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.defaultPrevented) return;
+    const shortcut = replayShortcut({ key: event.key, shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, altGraph: event.getModifierState('AltGraph') });
+    if (shortcut === null) return;
     const target = event.target;
+    const root = rootRef.current;
     if (target instanceof HTMLElement && target !== document.body) {
-      if (rootRef.current === null || !rootRef.current.contains(target)) return;
-      if (target.isContentEditable || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+      // Clicking the map focuses the replay or leaves focus on a wrapper around it, such as the tab panel.
+      if (root === null || (!root.contains(target) && !target.contains(root))) return;
       const inputType = target.tagName === 'INPUT' ? target.getAttribute('type') : null;
-      if (inputType !== null && inputType !== 'range' && inputType !== 'checkbox') return;
-      if (event.key === ' ' && (target.tagName === 'BUTTON' || inputType === 'checkbox')) return;
-      if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && inputType === 'range') return;
+      const keyboardFocus = pointerTarget.current === null || !target.contains(pointerTarget.current);
+      if (!targetTakesKey({ tag: target.tagName, inputType, editable: target.isContentEditable, keyboardFocus }, shortcut)) return;
     }
-    if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
-      event.preventDefault();
+    if (shortcut === 'escape') {
+      if (eventsOpen) setEventsOpen(false);
+      else if (followSlot !== null || selectedSlot !== null) {
+        setFollowSlot(null);
+        setSelectedSlot(null);
+      } else if (fullscreen.active) fullscreen.toggle();
+      return;
+    }
+    event.preventDefault();
+    if (shortcut === 'help') {
       // Dialogs open outside the full-screen layer, so leave it to show them.
       if (fullscreen.active) fullscreen.toggle();
       setHelp((value) => !value);
-    } else if (event.key === 'p' || event.key === 'P') {
-      event.preventDefault();
-      fullscreen.toggle();
-    } else if (event.key === 'Escape' && fullscreen.active && followSlot === null && selectedSlot === null) {
-      fullscreen.toggle();
-    } else if (event.key === 'm' || event.key === 'M') {
-      event.preventDefault();
-      toggleMulti();
-    } else if (event.key === 'f' || event.key === 'F') {
-      event.preventDefault();
+    } else if (shortcut === 'fullscreen') fullscreen.toggle();
+    else if (shortcut === 'multi') toggleMulti();
+    else if (shortcut === 'follow') {
       const slot = selectedSlot ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
-    } else if (event.key === 'Escape' && (followSlot !== null || selectedSlot !== null)) {
-      setFollowSlot(null);
-      setSelectedSlot(null);
-    } else if (event.key === ' ') {
-      event.preventDefault();
+    } else if (shortcut === 'play') {
+      spaceTookButton.current = target instanceof HTMLButtonElement || (target instanceof HTMLInputElement && target.type === 'checkbox');
       togglePlay();
-    } else if (event.key === '[' || event.key === ']') {
-      event.preventDefault();
-      select(index + (event.key === ']' ? 1 : -1));
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      const direction = event.key === 'ArrowRight' ? 1 : -1;
-      if (event.shiftKey) {
-        const at = seekEventSeconds(transportEvents, clock.seconds, direction);
-        if (at !== undefined) seekTo(at);
-      } else seekTo(clock.seconds + direction * SEEK_STEP_SECONDS);
-    }
+    } else if (shortcut === 'round-prev' || shortcut === 'round-next') select(index + (shortcut === 'round-next' ? 1 : -1));
+    else if (shortcut === 'event-back' || shortcut === 'event-forward') {
+      const at = seekEventSeconds(transportEvents, clock.seconds, shortcut === 'event-forward' ? 1 : -1);
+      if (at !== undefined) seekTo(at);
+    } else seekTo(clock.seconds + (shortcut === 'seek-forward' ? 1 : -1) * SEEK_STEP_SECONDS);
   };
+  // A button activates on the Space keyup, so a Space the replay used must not also click it.
+  const spaceTookButton = useRef(false);
+  // The element last pressed with the mouse: a control focused that way gives Space to play or pause.
+  const pointerTarget = useRef<Element | null>(null);
   useEffect(() => {
-    const listener = (event: KeyboardEvent): void => keyHandler.current(event);
-    window.addEventListener('keydown', listener);
-    return () => window.removeEventListener('keydown', listener);
+    const onKeyDown = (event: KeyboardEvent): void => keyHandler.current(event);
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.key !== ' ' || !spaceTookButton.current) return;
+      spaceTookButton.current = false;
+      event.preventDefault();
+    };
+    const onPointerDown = (event: PointerEvent): void => {
+      pointerTarget.current = event.target instanceof Element ? event.target : null;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
   }, []);
 
   const win = useWinTimelines(library && entry !== undefined && loaded !== null ? entry.matchId : null);
@@ -463,9 +476,11 @@ export function ReplayWorkspace({
       ref={rootRef}
       data-replay-workspace=""
       aria-label="Repetición"
+      // Takes the focus a click on the map or a panel would drop, so the shortcuts keep working.
+      tabIndex={-1}
       data-fullscreen={fullscreen.active ? '' : undefined}
       className={cn(
-        'grid grid-cols-1 gap-2',
+        'grid grid-cols-1 gap-2 outline-none',
         fullscreen.active
           ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_288px] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
           : [
