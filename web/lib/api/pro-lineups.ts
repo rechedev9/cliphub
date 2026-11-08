@@ -208,7 +208,8 @@ export function shownClip(
   lineup: Pick<ProLineup, 'clip' | 'examples'>,
   chosen: string | null,
 ): { clip: string; example: ProExample } | null {
-  const want = chosen ?? lineup.clip;
-  const example = lineup.examples.find((e) => e.clip !== undefined && e.clip === want);
+  const find = (want: string | null | undefined) => lineup.examples.find((e) => e.clip !== undefined && e.clip === want);
+  // A choice from another lineup falls back to this lineup's own clip.
+  const example = find(chosen) ?? find(lineup.clip);
   return example?.clip === undefined ? null : { clip: example.clip, example };
 }

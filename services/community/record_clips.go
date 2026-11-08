@@ -77,7 +77,8 @@ func recordClips(ctx context.Context, job recordClipsJob) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		n, err := recordDemoClips(ctx, job, d, filepath.Join(job.work, fmt.Sprintf("demo-%03d", i+1)))
+		run := &demoRun{job: job, demo: d, dir: filepath.Join(job.work, fmt.Sprintf("demo-%03d", i+1))}
+		n, err := run.record(ctx)
 		if err != nil {
 			failed++
 			log.Printf("community stage=clips class=failed demo=%s error=%v", filepath.Base(d.Demo), err)
@@ -87,7 +88,7 @@ func recordClips(ctx context.Context, job recordClipsJob) error {
 	}
 	joined := 0
 	for _, c := range plan.Combos {
-		ok, err := joinCombo(ctx, job, c)
+		ok, err := job.joinCombo(ctx, c)
 		if err != nil {
 			log.Printf("community stage=clips class=combo_failed combo=%s error=%v", c.Name, err)
 			continue
@@ -104,7 +105,7 @@ func recordClips(ctx context.Context, job recordClipsJob) error {
 }
 
 // joinCombo writes a combo clip once every throw clip of it is recorded; false means some are still missing.
-func joinCombo(ctx context.Context, job recordClipsJob, c clipCombo) (bool, error) {
+func (job recordClipsJob) joinCombo(ctx context.Context, c clipCombo) (bool, error) {
 	dst := filepath.Join(job.clips, filepath.FromSlash(c.Name))
 	if _, err := os.Stat(dst); err == nil {
 		return false, nil
@@ -147,17 +148,25 @@ func concatList(paths []string) string {
 	return b.String()
 }
 
-func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir string) (int, error) {
+// demoRun records the planned clips of one kept demo in its own work folder.
+type demoRun struct {
+	job  recordClipsJob
+	demo clipDemo
+	dir  string
+	// sum is the demo's digest after the capture, which can rewrite the demo in place.
+	sum string
+}
+
+func (r *demoRun) record(ctx context.Context) (int, error) {
+	d := &r.demo
 	if len(d.Clips) == 0 {
 		return 0, nil
 	}
-	d, segments, err := captureDropping(ctx, job, d, dir)
+	segments, err := r.captureDropping(ctx)
 	if err != nil {
 		return 0, err
 	}
-	// The capture can rewrite the demo in place (it leaves a .bak), so the HUD digest is taken again.
-	sum, err := fileSHA256(d.Demo)
-	if err != nil {
+	if r.sum, err = fileSHA256(d.Demo); err != nil {
 		return 0, err
 	}
 	fonts, err := mediafont.MaterializeHUD()
@@ -178,7 +187,7 @@ func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 		}
 		tl, ok := timelines[c.SteamID64]
 		if !ok {
-			if tl, err = extractTimeline(ctx, d, sum, c.SteamID64); err != nil {
+			if tl, err = r.timeline(ctx, c.SteamID64); err != nil {
 				return done, err
 			}
 			timelines[c.SteamID64] = tl
@@ -188,11 +197,11 @@ func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 		if err != nil {
 			return done, fmt.Errorf("%s: HUD: %w", c.Name, err)
 		}
-		assPath := filepath.Join(dir, clipSegmentID(i)+".ass")
+		assPath := filepath.Join(r.dir, clipSegmentID(i)+".ass")
 		if err := os.WriteFile(assPath, []byte(ass), 0o644); err != nil {
 			return done, err
 		}
-		if err := burnClip(ctx, job, burnInput{raw: raw, ass: assPath, fonts: fonts, name: c.Name, frames: frames}); err != nil {
+		if err := r.burn(ctx, burnInput{raw: raw, ass: assPath, fonts: fonts, name: c.Name, frames: frames}); err != nil {
 			return done, fmt.Errorf("%s: %w", c.Name, err)
 		}
 		done++
@@ -205,29 +214,29 @@ const maxDroppedClips = 3
 
 var failedSegment = regexp.MustCompile(`during clip-(\d{3})`)
 
-// captureDropping records the demo. When the recorder names a throw it lost sight of, that throw is
-// first cut to end soon after the release (the thrower often dies during the flight); if it still
-// fails it is marked failed (so the planner takes another example) and the rest are recorded again.
-func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir string) (clipDemo, map[string]string, error) {
+// captureDropping retries a throw the recorder lost sight of cut short after the release (the thrower
+// often dies mid-flight), then marks it failed so the planner takes another example, and records the rest.
+func (r *demoRun) captureDropping(ctx context.Context) (map[string]string, error) {
+	d := &r.demo
 	shortened := map[string]bool{}
 	for dropped := 0; ; {
 		sum, err := fileSHA256(d.Demo)
 		if err != nil {
-			return d, nil, err
+			return nil, err
 		}
-		if err := os.RemoveAll(dir); err != nil {
-			return d, nil, err
+		if err := os.RemoveAll(r.dir); err != nil {
+			return nil, err
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return d, nil, err
+		if err := os.MkdirAll(r.dir, 0o755); err != nil {
+			return nil, err
 		}
-		segments, out, err := captureClips(ctx, job, d, sum, dir)
+		segments, out, err := r.capture(ctx, sum)
 		if err == nil {
-			return d, segments, nil
+			return segments, nil
 		}
 		i := failedClip(out, len(d.Clips))
 		if i < 0 || dropped == maxDroppedClips || ctx.Err() != nil {
-			return d, nil, err
+			return nil, err
 		}
 		name := d.Clips[i].Name
 		if short := shortClip(d.Clips[i], d.TickRate); !shortened[name] && short.EndTick < d.Clips[i].EndTick {
@@ -238,12 +247,12 @@ func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 		}
 		dropped++
 		log.Printf("community stage=clips class=clip_dropped clip=%s error=%v", name, err)
-		if err := markClipFailed(job.clips, name); err != nil {
-			return d, nil, err
+		if err := markClipFailed(r.job.clips, name); err != nil {
+			return nil, err
 		}
 		d.Clips = append(d.Clips[:i:i], d.Clips[i+1:]...)
 		if len(d.Clips) == 0 {
-			return d, map[string]string{}, nil
+			return map[string]string{}, nil
 		}
 	}
 }
@@ -276,8 +285,9 @@ func markClipFailed(clips, name string) error {
 	return os.WriteFile(path, nil, 0o644)
 }
 
-// captureClips runs zv-recorder once for the demo and returns each segment's raw capture and the recorder output.
-func captureClips(ctx context.Context, job recordClipsJob, d clipDemo, sum, dir string) (map[string]string, string, error) {
+// capture runs zv-recorder once for the demo and returns each segment's raw capture and the recorder output.
+func (r *demoRun) capture(ctx context.Context, sum string) (map[string]string, string, error) {
+	job, d, dir := r.job, r.demo, r.dir
 	body, err := json.Marshal(clipKillPlan(d, sum))
 	if err != nil {
 		return nil, "", err
@@ -362,13 +372,15 @@ func capturedSegments(out string) (map[string]string, error) {
 	return paths, nil
 }
 
-func extractTimeline(ctx context.Context, d clipDemo, sum, steamID string) (customhud.Timeline, error) {
+// timeline is one thrower's inputs over the whole demo, read for the HUD.
+func (r *demoRun) timeline(ctx context.Context, steamID string) (customhud.Timeline, error) {
+	d := r.demo
 	f, err := os.Open(d.Demo)
 	if err != nil {
 		return customhud.Timeline{}, err
 	}
 	defer f.Close()
-	tl, err := customhud.Extract(ctx, f, sum, steamID, d.TickRate)
+	tl, err := customhud.Extract(ctx, f, r.sum, steamID, d.TickRate)
 	if err != nil {
 		return customhud.Timeline{}, fmt.Errorf("inputs of %s: %w", steamID, err)
 	}
@@ -380,8 +392,9 @@ type burnInput struct {
 	frames                int
 }
 
-// burnClip draws the HUD on the capture and encodes a small silent 720p loop.
-func burnClip(ctx context.Context, job recordClipsJob, in burnInput) error {
+// burn draws the HUD on the capture and encodes a small silent 720p loop.
+func (r *demoRun) burn(ctx context.Context, in burnInput) error {
+	job := r.job
 	dst := filepath.Join(job.clips, filepath.FromSlash(in.name))
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err

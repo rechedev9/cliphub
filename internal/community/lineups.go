@@ -26,6 +26,9 @@ const (
 // maxClipBytes bounds one throw clip; a recorded clip is about 2 MB.
 const maxClipBytes = 32 << 20
 
+// clipTimeout is how long one clip download may take on a slow link.
+const clipTimeout = 5 * time.Minute
+
 // ErrNoClip means the server has no recorded clip with that name.
 var ErrNoClip = errors.New("community: no such pro lineup clip")
 
@@ -235,7 +238,9 @@ func (c *Client) ProClip(ctx context.Context, name string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "video/mp4")
-	resp, err := c.http.Do(req)
+	long := *c.http
+	long.Timeout = clipTimeout
+	resp, err := long.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("community: pro clip: %w", err)
 	}

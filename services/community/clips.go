@@ -213,6 +213,9 @@ func clipRecorded(dir string) func(name string) bool {
 	}
 }
 
+// clipWriteTimeout lets a clip download take minutes on a slow link.
+const clipWriteTimeout = 5 * time.Minute
+
 // clipFailed reports whether record-clips marked a throw as one the recorder cannot film.
 func clipFailed(dir string) func(name string) bool {
 	return func(name string) bool {
@@ -240,6 +243,8 @@ func (a *api) handleProClip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no such clip")
 		return
 	}
+	// A clip is megabytes, more than the server's 15 s write timeout carries on a slow link.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(clipWriteTimeout))
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeContent(w, r, file, info.ModTime(), f)

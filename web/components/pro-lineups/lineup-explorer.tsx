@@ -108,7 +108,8 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
   const [insta, setInsta] = useState(false);
   // With recorded clips on the map, the list opens on the lineups you can watch.
   const hasVideo = useMemo(() => data.lineups.some((l) => Boolean(l.clip)), [data.lineups]);
-  const [video, setVideo] = useState(hasVideo);
+  const [videoChoice, setVideo] = useState<boolean | null>(null);
+  const video = videoChoice ?? hasVideo;
   const [text, setText] = useState('');
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
   const [hover, setHover] = useState<string | null>(null);

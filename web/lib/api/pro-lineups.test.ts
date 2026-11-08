@@ -26,6 +26,7 @@ test('the clip shown is the chosen recorded throw, else the lineup clip', () => 
   assert.equal(shownClip({ clip: recorded.clip, examples }, null)?.example, recorded);
   assert.equal(shownClip({ clip: recorded.clip, examples }, other.clip ?? null)?.example, other);
   assert.equal(shownClip({ examples: [example()] }, null), null);
+  assert.equal(shownClip({ clip: recorded.clip, examples }, '9/other-lineup.mp4')?.example, recorded);
 });
 
 test('the video filter keeps only lineups with a recorded clip', () => {

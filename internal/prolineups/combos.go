@@ -326,8 +326,6 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 	})
 }
 
-// roundSets lists the distinct lineup sets of size 2 and 3 whose throws all
-// fall within the combo window of the first one.
 // comboSet is one set of distinct lineups in a round, with the throws that made it in clock order.
 type comboSet struct {
 	ids     []string
@@ -335,6 +333,8 @@ type comboSet struct {
 	throws  []Throw
 }
 
+// roundSets lists the distinct lineup sets of size 2 and 3 whose throws all
+// fall within the combo window of the first one.
 func roundSets(r *sideRound) []comboSet {
 	seen := map[string]bool{}
 	out := []comboSet{}

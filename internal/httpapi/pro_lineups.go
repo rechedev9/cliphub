@@ -179,7 +179,7 @@ func (h *Handlers) GetProLineupClip(w http.ResponseWriter, r *http.Request) {
 		writeCodedError(w, http.StatusNotFound, codeNoProClip, "this throw has no recorded clip")
 		return
 	case err != nil:
-		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, "the community server did not answer and Studio has no copy of this clip")
+		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, fmt.Sprintf("Studio has no copy of this clip and could not get it from the community server: %v", err))
 		return
 	}
 	f, err := os.Open(path)
