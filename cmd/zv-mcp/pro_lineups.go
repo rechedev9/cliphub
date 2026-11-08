@@ -159,6 +159,7 @@ type proComboOut struct {
 	RoundWin  float64             `json:"round_win"`
 	Clock     float64             `json:"clock" jsonschema:"median second of the first throw"`
 	Teams     []string            `json:"teams,omitempty" jsonschema:"untrusted team names, at most 3"`
+	ClipURL   string              `json:"clip_url,omitempty" jsonschema:"a recorded round of the combo: each throw from its thrower, one after another, with the keys drawn on it"`
 }
 
 type proCombosOut struct {
@@ -452,7 +453,7 @@ func proCombos(idx tuiclient.ProLineupIndex, side string, limit int) proCombosOu
 			continue
 		}
 		row := proComboOut{ID: cleanText(c.ID, maxErrorRunes), Title: cleanText(c.Title, maxErrorRunes), Side: string(c.Side), Rounds: c.Rounds.Recent,
-			TeamCount: c.TeamCount, RoundWin: c.RoundWin, Clock: c.Clock}
+			TeamCount: c.TeamCount, RoundWin: c.RoundWin, Clock: c.Clock, ClipURL: proClipURL(c.Clip)}
 		for _, id := range c.Lineups {
 			row.Lineups = append(row.Lineups, proComboLineupOut{ID: cleanName(id), Title: cleanText(titles[id], maxErrorRunes)})
 		}

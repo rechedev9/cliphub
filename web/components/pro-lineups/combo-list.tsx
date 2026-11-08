@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Crosshair } from 'lucide-react';
+import { Crosshair, Play } from 'lucide-react';
 import {
   lineupHref,
   pct,
@@ -16,6 +16,7 @@ import type { PracticeSpot } from '@/lib/api/practice';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
+import { ClipVideo } from './throw-clip';
 
 const PAGE = 40;
 
@@ -66,6 +67,8 @@ function ComboRow({
   onPractice: (spots: PracticeSpot[]) => void;
 }): ReactNode {
   const teams = combo.teams.slice(0, 3).map((team) => team.name).join(', ');
+  const [watching, setWatching] = useState(false);
+  const recorded = combo.examples.find((example) => example.clip !== undefined && example.clip === combo.clip);
   return (
     <li className="flex flex-col gap-2 px-3 py-3">
       <div className="flex flex-wrap items-start gap-2">
@@ -77,11 +80,17 @@ function ComboRow({
             {teams === '' ? null : ` · ${teams}`}
           </span>
         </div>
+        {combo.clip === undefined ? null : (
+          <Button type="button" variant="ghost" size="xs" className="ml-auto" aria-expanded={watching} onClick={() => setWatching((w) => !w)}>
+            <Play aria-hidden />
+            {watching ? 'Ocultar vídeo' : 'Ver vídeo'}
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
           size="xs"
-          className="ml-auto"
+          className={combo.clip === undefined ? 'ml-auto' : undefined}
           disabled={busy || lineups.length === 0}
           onClick={() => onPractice(lineups.map(practiceSpot))}
         >
@@ -89,6 +98,16 @@ function ComboRow({
           Practicar combo
         </Button>
       </div>
+      {watching && combo.clip !== undefined ? (
+        <figure className="flex max-w-2xl flex-col gap-1.5">
+          <ClipVideo clip={combo.clip} label={`Combo ${combo.title}`} />
+          {recorded === undefined ? null : (
+            <figcaption className="text-meta text-fg-2">
+              {recorded.team} · {recorded.event ? `${recorded.event} · ` : ''}R{recorded.round}. Cada lanzamiento, uno tras otro, desde los ojos de quien lo tira.
+            </figcaption>
+          )}
+        </figure>
+      ) : null}
       <ol className="flex flex-col gap-1 pl-1">
         {lineups.map((lineup, index) => (
           <li key={lineup.id} className="flex gap-2 text-body-sm">

@@ -25,7 +25,8 @@ const testProIndexJSON = `{"version":1,"map":"de_mirage","recent_days":90,"fresh
 	 "throws":{"recent":12,"all":20},"clock":{"median":40}}],
 	"combos":[
 	{"id":"molotov-ct-5-6-7-8-1+smoke-t-1-2-3-4-0","title":"Molotov Bench + Humo Window","side":"CT","lineups":["molotov-ct-5-6-7-8-1","smoke-t-1-2-3-4-0"],
-	 "rounds":{"recent":7,"all":7},"team_count":3,"round_win":0.5,"clock":20,"teams":[{"name":"G2","count":3}]},
+	 "rounds":{"recent":7,"all":7},"team_count":3,"round_win":0.5,"clock":20,"teams":[{"name":"G2","count":3}],
+	 "clip":"1/a-m1-mirage-r3-t5000-76561198000000001-combo.mp4"},
 	{"id":"x+y","title":"T combo","side":"T","lineups":["x","y"],"rounds":{"recent":6,"all":6}}]}`
 
 func proStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
@@ -90,7 +91,8 @@ func TestGetProLineupAndCombos(t *testing.T) {
 
 	var combos proCombosOut
 	callTool(t, cs, "list_pro_combos", map[string]any{"map": "de_mirage", "side": "CT"}, &combos)
-	if combos.Total != 1 || len(combos.Combos[0].Lineups) != 2 || combos.Combos[0].Lineups[1].Title != "Humo a Window desde TSpawn" {
+	if combos.Total != 1 || len(combos.Combos[0].Lineups) != 2 || combos.Combos[0].Lineups[1].Title != "Humo a Window desde TSpawn" ||
+		combos.Combos[0].ClipURL != "https://community.test/v1/pro-clips/1/a-m1-mirage-r3-t5000-76561198000000001-combo.mp4" {
 		t.Fatalf("combos = %+v", combos)
 	}
 }

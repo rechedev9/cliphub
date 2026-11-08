@@ -30,6 +30,8 @@ export type ProExample = {
   air_time?: number;
   /** Stored name of the recorded throw clip, when one exists. */
   clip?: string;
+  /** For a combo example: every throw of the combo in clock order. */
+  throws?: { lineup: string; player: string; steamid64: string; tick: number; air_time: number }[];
 };
 
 export type ProLineup = {
@@ -83,6 +85,8 @@ export type ProCombo = {
   clock: number;
   teams: ProUsage[];
   examples: ProExample[];
+  /** The newest recorded example: its throws one after another. */
+  clip?: string;
 };
 
 export type ProLineupMap = {
