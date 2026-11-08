@@ -164,7 +164,7 @@ function halfTitle(overtime: number, index: number): string {
   return overtime > 0 ? `Prórroga ${overtime}, ${name}` : `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
 }
 
-/** The scan keeps the half counter when an overtime starts on the sides of the half before it. */
+/** A half ends where the half counter or the overtime number changes. */
 function sameHalf(a: Pick<TacticalRound, 'half' | 'overtime'>, b: Pick<TacticalRound, 'half' | 'overtime'>): boolean {
   return a.half === b.half && (a.overtime ?? 0) === (b.overtime ?? 0);
 }

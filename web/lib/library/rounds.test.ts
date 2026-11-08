@@ -45,7 +45,7 @@ function round(spec: RoundSpec): TacticalRound {
 }
 
 // Vitality starts CT. Regulation ends 3-3, the first overtime 6-4 for Vitality.
-// The overtime starts on the second-half sides, so the scan keeps half 2 for its first half.
+// The scan counts overtime halves as 3 and 4, and half 3 keeps the second-half sides.
 const ROUNDS: TacticalRound[] = [
   round({ number: 1, half: 1, winner: 'CT', ct: 0, t: 0, buys: ['pistol', 'pistol'], tags: ['pistol'] }),
   round({ number: 2, half: 1, winner: 'T', ct: 1, t: 0, buys: ['full', 'eco'] }),
@@ -53,10 +53,10 @@ const ROUNDS: TacticalRound[] = [
   round({ number: 4, half: 2, winner: 'T', ct: 1, t: 2, buys: ['pistol', 'pistol'], tags: ['pistol'] }),
   round({ number: 5, half: 2, winner: 'CT', ct: 1, t: 3, buys: ['full', 'force'] }),
   round({ number: 6, half: 2, winner: 'CT', ct: 2, t: 3 }),
-  round({ number: 7, half: 2, overtime: 1, winner: 'T', ct: 3, t: 3 }),
-  round({ number: 8, half: 2, overtime: 1, winner: 'T', ct: 3, t: 4 }),
-  round({ number: 9, half: 3, overtime: 1, winner: 'T', ct: 5, t: 3 }),
-  round({ number: 10, half: 3, overtime: 1, winner: 'CT', ct: 5, t: 4 }),
+  round({ number: 7, half: 3, overtime: 1, winner: 'T', ct: 3, t: 3 }),
+  round({ number: 8, half: 3, overtime: 1, winner: 'T', ct: 3, t: 4 }),
+  round({ number: 9, half: 4, overtime: 1, winner: 'T', ct: 5, t: 3 }),
+  round({ number: 10, half: 4, overtime: 1, winner: 'CT', ct: 5, t: 4 }),
 ];
 
 const DOC: Pick<TacticalDocument, 'teams' | 'rounds' | 'demo'> = {
