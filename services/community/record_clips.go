@@ -109,7 +109,11 @@ func joinCombo(ctx context.Context, job recordClipsJob, c clipCombo) (bool, erro
 	}
 	parts := make([]string, 0, len(c.Parts))
 	for _, name := range c.Parts {
-		path := filepath.Join(job.clips, filepath.FromSlash(name))
+		// The concat demuxer reads relative entries against the list's own folder.
+		path, err := filepath.Abs(filepath.Join(job.clips, filepath.FromSlash(name)))
+		if err != nil {
+			return false, err
+		}
 		if _, err := os.Stat(path); err != nil {
 			return false, nil
 		}
