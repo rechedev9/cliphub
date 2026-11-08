@@ -3,15 +3,17 @@
 // one at a time. It never solves a Cloudflare challenge: it waits for the user.
 //
 //   pnpm start -- --days 30 --top 50 --out C:\Users\me\cliphub-hltv
+//   pnpm start -- --best-maps --days 90 --top 20 --min-maps 10 --per-map 5
 import { app, BrowserWindow, session, type DownloadItem, type Session } from "electron";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   CHALLENGE_SCRIPT, HLTV, MATCH_SCRIPT, RANKING_SCRIPT, RESULTS_SCRIPT,
-  isCandidate, needsVisit, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseState,
+  isCandidate, needsVisit, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState,
   rankedTeamIn, sidecarFor, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
 } from "./hltv.ts";
+import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
 
 const PAGE_DELAY_MS: [number, number] = [6000, 12000];
 const CHALLENGE_WAIT_MS = 30 * 60 * 1000;
@@ -167,11 +169,92 @@ async function harvest(win: BrowserWindow, ses: Session): Promise<void> {
   log(`class=done downloaded=${downloaded}`);
 }
 
+// refetch downloads again the archives of sidecars kept from earlier runs, so their demos can be recorded.
+async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
+  mkdirSync(downloadsDir, { recursive: true });
+  const browser = new Browser(win);
+  await browser.open(`${HLTV}/results`);
+  let downloaded = 0;
+  for (const name of readdirSync(opts.refetch).filter((f) => f.endsWith(".json")).sort()) {
+    if (downloaded === opts.maxMatches) break;
+    const sidecar = parseSidecar(JSON.parse(readFileSync(join(opts.refetch, name), "utf8")));
+    if (sidecar === null) {
+      log(`class=refetch_skipped file=${name}`);
+      continue;
+    }
+    const file = join(downloadsDir, `${sidecar.match_id}.rar`);
+    if (existsSync(file)) continue;
+    await pause();
+    log(`class=refetching match=${sidecar.match_id}`);
+    try {
+      await browser.download(ses, `${HLTV}${sidecar.demo_path}`, file);
+    } catch (err) {
+      log(`class=download_failed match=${sidecar.match_id} error="${String(err)}"`);
+      continue;
+    }
+    writeFileSync(join(downloadsDir, `${sidecar.match_id}.json`), JSON.stringify(sidecar, null, 2));
+    downloaded++;
+  }
+  log(`class=done refetched=${downloaded}`);
+}
+
+// bestMaps reads every ranked team's map stats, picks the best team per map and writes a
+// sidecar for its latest matches on that map into refetch-best, for the clip backfill.
+async function bestMaps(win: BrowserWindow): Promise<void> {
+  const browser = new Browser(win);
+  const ranked = await rankedTeams(browser);
+  const end = Date.now();
+  const start = end - opts.days * 24 * 60 * 60 * 1000;
+  const range = `startDate=${isoDay(start)}&endDate=${isoDay(end)}`;
+  const teams: TeamStats[] = [];
+  for (const t of ranked) {
+    await pause();
+    await browser.open(`${HLTV}/stats/teams/maps/${t.id}/${teamSlug(t.name)}?${range}`);
+    const records = parseTeamMapStats(await browser.read(MAP_STATS_SCRIPT));
+    log(`class=team_maps team="${t.name}" maps=${records.length}`);
+    teams.push({ ...t, records });
+  }
+  const picks = pickBestPerMap(teams, opts.minMaps);
+  if (picks.length === 0) throw new Error("no team map stats read: the HLTV stats page layout may have changed");
+  writeFileSync(join(opts.outDir, "best-maps.json"), JSON.stringify(picks, null, 2));
+  const sidecars = join(opts.outDir, "refetch-best");
+  mkdirSync(sidecars, { recursive: true });
+  for (const pick of picks) {
+    log(`class=best_map map=${pick.map} team="${pick.team}" maps=${pick.maps} win_rate=${pick.win_rate}`);
+    await pickMatches(browser, pick, { range, start, ranked, sidecars });
+  }
+  log(`class=done picks=${picks.length}`);
+}
+
+type PickContext = { range: string; start: number; ranked: RankedTeam[]; sidecars: string };
+
+async function pickMatches(browser: Browser, pick: BestMapPick, ctx: PickContext): Promise<void> {
+  await pause();
+  await browser.open(`${HLTV}/results?team=${pick.team_id}&map=${pick.map}&${ctx.range}`);
+  const rows = parseResults(await browser.read(RESULTS_SCRIPT)).filter((r) => r.unixMs >= ctx.start).slice(0, opts.perMap);
+  for (const row of rows) {
+    const out = join(ctx.sidecars, `${row.matchId}.json`);
+    if (existsSync(out)) continue;
+    await pause();
+    await browser.open(`${HLTV}${row.path}`);
+    const match = parseMatch(await browser.read(MATCH_SCRIPT));
+    const demoPath = match?.demoPaths[0];
+    if (match === null || demoPath === undefined) {
+      log(`class=best_no_demo match=${row.matchId}`);
+      continue;
+    }
+    if (match.unixMs === 0) match.unixMs = row.unixMs;
+    writeFileSync(out, JSON.stringify(sidecarFor(row.matchId, demoPath, match, ctx.ranked), null, 2));
+  }
+  log(`class=best_matches map=${pick.map} team="${pick.team}" matches=${rows.length}`);
+}
+
 app.whenReady().then(async () => {
   const ses = session.fromPartition("persist:hltv");
   const win = new BrowserWindow({ width: 1280, height: 860, show: true, title: "ClipHub: recolector HLTV", webPreferences: { session: ses, contextIsolation: true, sandbox: true } });
   try {
-    await harvest(win, ses);
+    if (opts.bestMaps) await bestMaps(win);
+    else await (opts.refetch === "" ? harvest(win, ses) : refetch(win, ses));
   } catch (err) {
     log(`class=fatal error="${String(err)}"`);
     process.exitCode = 1;

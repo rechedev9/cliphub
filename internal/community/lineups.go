@@ -23,6 +23,15 @@ const (
 	lineupsIndex = "index"
 )
 
+// maxClipBytes bounds one throw clip; a recorded clip is about 2 MB.
+const maxClipBytes = 32 << 20
+
+// clipTimeout is how long one clip download may take on a slow link.
+const clipTimeout = 5 * time.Minute
+
+// ErrNoClip means the server has no recorded clip with that name.
+var ErrNoClip = errors.New("community: no such pro lineup clip")
+
 // ErrNoLineups means the server has no lineup index for the map.
 var ErrNoLineups = errors.New("community: no pro lineups for this map")
 
@@ -217,4 +226,55 @@ func (c *LineupsCache) writeDisk(key string, e lineupsEntry) {
 	if err := writeFileAtomic(filepath.Join(c.dir, key+".etag"), []byte(e.etag)); err != nil {
 		log.Printf("community: cannot cache pro lineups etag %s: %v", key, err)
 	}
+}
+
+// ProClip downloads one recorded throw clip by its prolineups.ClipName.
+func (c *Client) ProClip(ctx context.Context, name string) ([]byte, error) {
+	if !prolineups.ValidClipName(name) {
+		return nil, fmt.Errorf("community: invalid clip %q", name)
+	}
+	req, err := c.request(ctx, http.MethodGet, "/v1/pro-clips/"+name, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "video/mp4")
+	long := *c.http
+	long.Timeout = clipTimeout
+	resp, err := long.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("community: pro clip: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrNoClip
+	}
+	return readBody(resp, maxClipBytes)
+}
+
+// Clip returns the path of a kept clip, downloading it once: a clip never changes under its name.
+func (c *LineupsCache) Clip(ctx context.Context, name string) (string, error) {
+	if !prolineups.ValidClipName(name) {
+		return "", fmt.Errorf("invalid clip %q", name)
+	}
+	path := filepath.Join(c.dir, "clips", filepath.FromSlash(name))
+	keyLock := c.keyLock("clip:" + name)
+	keyLock.Lock()
+	defer keyLock.Unlock()
+	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		return path, nil
+	}
+	if c.client == nil {
+		return "", errors.New("community server disabled")
+	}
+	body, err := c.client.ProClip(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := writeFileAtomic(path, body); err != nil {
+		return "", err
+	}
+	return path, nil
 }

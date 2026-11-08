@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseState, rankedTeamIn } from "./hltv.ts";
+import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn } from "./hltv.ts";
 
 test("parseRanking keeps teams with an id, rank and name", () => {
   const got = parseRanking([
@@ -42,5 +42,19 @@ test("only matches never seen or still without a demo are visited again", () => 
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000 });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 });
+});
+
+test("--refetch names a folder of sidecars to download again", () => {
+  assert.equal(parseArgs(["--refetch", "C:\sidecars", "--max", "3"], "out").refetch, "C:\sidecars");
+  assert.equal(parseArgs([], "out").refetch, "");
+});
+
+test("parseSidecar keeps only an HLTV demo download of a real match", () => {
+  const good = { source: "hltv", match_id: 2398992, demo_path: "/download/demo/123", event: "IEM", played_at: "2026-11-01T00:00:00Z", teams: [], maps: ["Mirage"] };
+  assert.equal(parseSidecar(good)?.match_id, 2398992);
+  assert.equal(parseSidecar({ ...good, demo_path: "https://evil.example/x" }), null);
+  assert.equal(parseSidecar({ ...good, match_id: 0 }), null);
+  assert.equal(parseSidecar({ ...good, source: "faceit" }), null);
+  assert.equal(parseSidecar("junk"), null);
 });

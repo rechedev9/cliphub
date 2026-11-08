@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/prolineups"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -35,6 +37,7 @@ type findProLineupsIn struct {
 	Landing string `json:"landing,omitempty" jsonschema:"part of the callout it lands at, such as window or jungle; any case"`
 	From    string `json:"from,omitempty" jsonschema:"part of the callout it is thrown from, such as tspawn; any case"`
 	Insta   bool   `json:"insta,omitempty" jsonschema:"true keeps only lineups thrown in the first seconds of the round"`
+	Video   bool   `json:"video,omitempty" jsonschema:"true keeps only lineups with a recorded pro clip (clip_url)"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"default 20, at most 100"`
 }
 
@@ -115,6 +118,9 @@ type proExampleOut struct {
 	Round    int     `json:"round"`
 	Clock    float64 `json:"clock"`
 	Tick     int     `json:"tick"`
+	// SteamID64 is the thrower, the POV of the clip and of the replay.
+	SteamID64 string `json:"steamid64,omitempty"`
+	ClipURL   string `json:"clip_url,omitempty" jsonschema:"the recorded throw as a looping MP4 with the thrower's keys drawn on it; open it in a browser"`
 }
 
 type proLineupOut struct {
@@ -136,6 +142,7 @@ type proLineupOut struct {
 	Examples   []proExampleOut `json:"examples" jsonschema:"recent throws to watch"`
 	Rank       string          `json:"rank,omitempty" jsonschema:"place among the lineups of the kind landing at the same callout, such as 1 of 3"`
 	LastSeen   string          `json:"last_seen,omitempty" jsonschema:"YYYY-MM-DD"`
+	ClipURL    string          `json:"clip_url,omitempty" jsonschema:"the newest recorded throw of the lineup, as a looping MP4 with the thrower's keys; missing until one is recorded"`
 }
 
 type proComboLineupOut struct {
@@ -153,6 +160,7 @@ type proComboOut struct {
 	RoundWin  float64             `json:"round_win"`
 	Clock     float64             `json:"clock" jsonschema:"median second of the first throw"`
 	Teams     []string            `json:"teams,omitempty" jsonschema:"untrusted team names, at most 3"`
+	ClipURL   string              `json:"clip_url,omitempty" jsonschema:"a recorded round of the combo: each throw from its thrower, one after another, with the keys drawn on it"`
 }
 
 type proCombosOut struct {
@@ -188,7 +196,7 @@ func registerProLineupTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "find_pro_lineups", Annotations: readOnly,
-		Description: "Find a map's pro lineups, most thrown recently first: filter by kind, side, landing callout, throw callout and insta. " +
+		Description: "Find a map's pro lineups, most thrown recently first: filter by kind, side, landing callout, throw callout, insta and video (only lineups with a recorded clip). " +
 			"Each row has the technique, throws, round share and win rate, accuracy, clock and top teams; get_pro_lineup has the full detail."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in findProLineupsIn) (*mcp.CallToolResult, findProLineupsOut, error) {
 			f, err := in.filter()
@@ -333,7 +341,7 @@ func proLimit(n int) (int, error) {
 // proFilter is a checked find_pro_lineups input; places are lower case.
 type proFilter struct {
 	mapName, kind, side, landing, from string
-	insta                              bool
+	insta, video                       bool
 	limit                              int
 }
 
@@ -355,11 +363,11 @@ func (in findProLineupsIn) filter() (proFilter, error) {
 		return proFilter{}, err
 	}
 	return proFilter{mapName: mapName, kind: kind, side: side, landing: strings.ToLower(strings.TrimSpace(in.Landing)),
-		from: strings.ToLower(strings.TrimSpace(in.From)), insta: in.Insta, limit: limit}, nil
+		from: strings.ToLower(strings.TrimSpace(in.From)), insta: in.Insta, video: in.Video, limit: limit}, nil
 }
 
 func (f proFilter) keeps(l prolineups.Lineup) bool {
-	return (f.kind == "" || string(l.Kind) == f.kind) && (f.side == "" || string(l.Side) == f.side) && (!f.insta || l.Insta) &&
+	return (f.kind == "" || string(l.Kind) == f.kind) && (f.side == "" || string(l.Side) == f.side) && (!f.insta || l.Insta) && (!f.video || l.Clip != "") &&
 		strings.Contains(strings.ToLower(l.LandPlace), f.landing) && strings.Contains(strings.ToLower(l.ThrowPlace), f.from)
 }
 
@@ -411,9 +419,10 @@ func proLineupOf(l prolineups.Lineup) proLineupOut {
 	if !l.LastSeen.IsZero() {
 		out.LastSeen = l.LastSeen.Format(time.DateOnly)
 	}
+	out.ClipURL = proClipURL(l.Clip)
 	for _, e := range l.Examples {
 		ex := proExampleOut{Match: cleanName(e.Match), Event: cleanName(e.Event), Team: cleanName(e.Team), Player: cleanName(e.Player),
-			Round: e.Round, Clock: e.Clock, Tick: e.Tick}
+			Round: e.Round, Clock: e.Clock, Tick: e.Tick, SteamID64: cleanName(e.SteamID64), ClipURL: proClipURL(e.Clip)}
 		if !e.PlayedAt.IsZero() {
 			ex.PlayedAt = e.PlayedAt.Format(time.DateOnly)
 		}
@@ -445,7 +454,7 @@ func proCombos(idx tuiclient.ProLineupIndex, side string, limit int) proCombosOu
 			continue
 		}
 		row := proComboOut{ID: cleanText(c.ID, maxErrorRunes), Title: cleanText(c.Title, maxErrorRunes), Side: string(c.Side), Rounds: c.Rounds.Recent,
-			TeamCount: c.TeamCount, RoundWin: c.RoundWin, Clock: c.Clock}
+			TeamCount: c.TeamCount, RoundWin: c.RoundWin, Clock: c.Clock, ClipURL: proClipURL(c.Clip)}
 		for _, id := range c.Lineups {
 			row.Lineups = append(row.Lineups, proComboLineupOut{ID: cleanName(id), Title: cleanText(titles[id], maxErrorRunes)})
 		}
@@ -476,4 +485,16 @@ func proLineupSpots(ctx context.Context, s *studio, in practiceIn) ([]tuiclient.
 		lineups = append(lineups, tuiclient.Lineup{Title: l.Title, Map: in.Map, Side: string(l.Side), Grenade: string(l.Kind), Origin: l.Origin, Pitch: l.Pitch, Yaw: l.Yaw})
 	}
 	return lineupSpots(in.Map, lineups)
+}
+
+// proClipURL is a recorded clip on the community server Studio uses, which any browser opens.
+func proClipURL(clip string) string {
+	base := os.Getenv("ZV_COMMUNITY_URL")
+	if base == "off" || !prolineups.ValidClipName(clip) {
+		return ""
+	}
+	if base == "" {
+		base = community.DefaultBaseURL
+	}
+	return strings.TrimRight(base, "/") + "/v1/pro-clips/" + clip
 }

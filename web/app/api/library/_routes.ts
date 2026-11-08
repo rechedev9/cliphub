@@ -88,6 +88,9 @@ const ROUND = /^[1-9][0-9]{0,2}$/;
 const MAP = /^[a-z0-9_]{1,64}$/;
 /** A pro lineup id: kind, side, then the rounded throw and landing cells and the jump flag. */
 const PRO_LINEUP_ID = /^(smoke|flash|he|molotov)-(t|ct)(-(-?[0-9]{1,4})){4}-[01](-[0-9]{1,3})?$/;
+/** A recorded pro throw clip: its match folder, then map, round, tick and thrower. */
+const PRO_CLIP_MATCH = /^[0-9]{1,12}$/;
+const PRO_CLIP_FILE = /^[a-z0-9-]{1,220}-r[0-9]{1,3}-t[0-9]{1,9}-[0-9]{17}(-combo)?\.mp4$/;
 /** A CS2 place name (`m_szLastPlaceName`) such as `BombsiteA` or `TopofMid`. */
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 
@@ -218,6 +221,7 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['norms'], query: NORMS_QUERY, response: json(NORMS_KEYS) },
   { method: 'GET', segments: ['pro-lineups'], response: json(PRO_LINEUP_MAPS_KEYS) },
   { method: 'GET', segments: ['pro-lineups', MAP], response: json(PRO_LINEUP_MAP_KEYS) },
+  { method: 'GET', segments: ['pro-lineups', 'clips', PRO_CLIP_MATCH, PRO_CLIP_FILE], response: { kind: 'stream' } },
   { method: 'POST', segments: ['pro-lineups', MAP, 'lineups', PRO_LINEUP_ID, 'save'], response: json(LINEUP_KEYS) },
   { method: 'GET', segments: ['community', 'settings'], response: json(COMMUNITY_SETTINGS_KEYS) },
   { method: 'PUT', segments: ['community', 'settings'], body: fields(COMMUNITY_SETTINGS_FIELDS), response: json(COMMUNITY_SETTINGS_KEYS) },

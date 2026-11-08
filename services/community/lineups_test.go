@@ -43,7 +43,7 @@ func TestBuildLineupsKeepsTheStoredIndexWhenNothingIsRead(t *testing.T) {
 	if err := s.replacePrefixed(ctx, "lineups:", stored); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := buildLineups(ctx, s, filepath.Join(t.TempDir(), "missing"), time.Now()); err == nil {
+	if _, err := buildLineups(ctx, s, lineupDirs{analyses: filepath.Join(t.TempDir(), "missing")}, time.Now()); err == nil {
 		t.Fatal("an empty analyses folder must not rebuild the lineups")
 	}
 	if _, _, err := s.referenceBody(ctx, "lineups:de_mirage"); err != nil {

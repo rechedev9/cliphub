@@ -42,3 +42,21 @@ func TestAnalysisRoundTripAndListing(t *testing.T) {
 		t.Fatal("restart parts of one map must share a key")
 	}
 }
+
+func TestWriteSidecarsGivesOneSidecarPerMatch(t *testing.T) {
+	dir, out := t.TempDir(), t.TempDir()
+	for _, entry := range []string{"a-vs-b-m1-mirage", "a-vs-b-m2-nuke"} {
+		h := analysisHeader{Format: analysisFormat, Match: hltvSidecar{Source: hltvDataset, MatchID: 2400303, DemoPath: "/download/demo/99", Event: "IEM"}, Entry: entry + ".dem", Document: tacticalplan.NewDocument()}
+		if err := writeAnalysis(filepath.Join(dir, "2400303__"+entry+analysisSuffix), h, []byte{1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := writeSidecars(dir, out)
+	if err != nil || n != 1 {
+		t.Fatalf("wrote %d sidecars: %v", n, err)
+	}
+	body, err := os.ReadFile(filepath.Join(out, "2400303.json"))
+	if err != nil || !bytes.Contains(body, []byte(`"demo_path":"/download/demo/99"`)) {
+		t.Fatalf("sidecar = %s %v", body, err)
+	}
+}

@@ -115,13 +115,16 @@ func (s *scene) movementKeys(p Player) {
 		x, y, w int
 		bit     common.ButtonBitMask
 	}{
-		{"W", 990, 758, 46, common.ButtonForward},
-		{"SHIFT", 840, 810, 90, common.ButtonSpeed},
-		{"A", 938, 810, 46, common.ButtonMoveLeft},
-		{"S", 990, 810, 46, common.ButtonBack},
-		{"D", 1042, 810, 46, common.ButtonMoveRight},
-		{"CTRL", 840, 862, 90, common.ButtonDuck},
-		{"SPACE", 938, 862, 150, common.ButtonJump},
+		{"W", 934, 758, 46, common.ButtonForward},
+		{"SHIFT", 784, 810, 90, common.ButtonSpeed},
+		{"A", 882, 810, 46, common.ButtonMoveLeft},
+		{"S", 934, 810, 46, common.ButtonBack},
+		{"D", 986, 810, 46, common.ButtonMoveRight},
+		{"CTRL", 784, 862, 90, common.ButtonDuck},
+		{"SPACE", 882, 862, 150, common.ButtonJump},
+		// Grenades leave the hand when the mouse button is released.
+		{"MOUSE1", 1044, 810, 90, common.ButtonAttack},
+		{"MOUSE2", 1044, 862, 90, common.ButtonAttack2},
 	} {
 		id := "keys/" + key.label
 		active := *p.Movement&uint64(key.bit) != 0

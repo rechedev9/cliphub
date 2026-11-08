@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Search } from 'lucide-react';
+import { Play, Search } from 'lucide-react';
 import {
   filterProLineups,
   lineupHref,
@@ -106,6 +106,10 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
   const [kinds, setKinds] = useState<ReadonlySet<ProLineupKind>>(() => new Set(PRO_LINEUP_KINDS));
   const [side, setSide] = useState<TacticalSide | ''>('');
   const [insta, setInsta] = useState(false);
+  // With recorded clips on the map, the list opens on the lineups you can watch.
+  const hasVideo = useMemo(() => data.lineups.some((l) => Boolean(l.clip)), [data.lineups]);
+  const [videoChoice, setVideo] = useState<boolean | null>(null);
+  const video = videoChoice ?? hasVideo;
   const [text, setText] = useState('');
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
   const [hover, setHover] = useState<string | null>(null);
@@ -113,16 +117,16 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
   const geometry = data.geometry;
   const multiLevel = geometry !== undefined && isMultiLevelMap(geometry.calibration);
 
-  const filtered = useMemo(() => filterProLineups(data.lineups, { kinds, side, insta, text }), [data.lineups, kinds, side, insta, text]);
+  const filtered = useMemo(() => filterProLineups(data.lineups, { kinds, side, insta, video, text }), [data.lineups, kinds, side, insta, video, text]);
   const onLevel = useMemo(
     () => (geometry === undefined || !multiLevel ? filtered : filtered.filter((l) => levelForAltitude(geometry.calibration, l.landing[2]) === level)),
     [filtered, geometry, multiLevel, level],
   );
   const counts = useMemo(() => {
     const out = new Map<ProLineupKind, number>();
-    for (const l of filterProLineups(data.lineups, { kinds: new Set(PRO_LINEUP_KINDS), side, insta, text })) out.set(l.kind, (out.get(l.kind) ?? 0) + 1);
+    for (const l of filterProLineups(data.lineups, { kinds: new Set(PRO_LINEUP_KINDS), side, insta, video, text })) out.set(l.kind, (out.get(l.kind) ?? 0) + 1);
     return out;
-  }, [data.lineups, side, insta, text]);
+  }, [data.lineups, side, insta, video, text]);
   const focus = hover === null ? null : (onLevel.find((l) => l.id === hover) ?? null);
 
   const toggleKind = (kind: ProLineupKind): void =>
@@ -146,9 +150,15 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
           onChange={setView}
         />
         <Segmented label="Lado" value={side} options={SIDES} onChange={setSide} />
+        {hasVideo ? (
+          <Toggle variant="filter" size="sm" pressed={video} onPressedChange={setVideo}>
+            <Play aria-hidden className="size-3.5" />
+            Con vídeo
+          </Toggle>
+        ) : null}
       </div>
       {view === 'combos' ? (
-        <ComboList data={data} side={side} />
+        <ComboList data={data} side={side} video={video} />
       ) : (
         <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(22rem,1fr)]">
           <section aria-label="Radar" className="flex flex-col gap-2">
@@ -252,7 +262,15 @@ function LineupRow({
           <EquipmentIcon name={grenadeIcon(lineup.kind)} height={16} />
         </span>
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-body-sm font-medium text-fg-1">{lineup.title}</span>
+          <span className="text-body-sm font-medium text-fg-1">
+            {lineup.title}
+            {lineup.clip ? (
+              <span className="ml-1.5 inline-flex translate-y-0.5 text-fg-2" title="Con vídeo">
+                <Play aria-hidden className="size-3.5" />
+                <span className="sr-only">, con vídeo</span>
+              </span>
+            ) : null}
+          </span>
           <span className="text-meta text-fg-2 tabular-nums">
             {lineup.side} · {lineup.throws.recent} lanzamientos · {pct(lineup.round_share)} de rondas · sale a {roundClock(lineup.clock.median)}
           </span>

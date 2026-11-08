@@ -145,10 +145,17 @@ export function parseState(raw: unknown): HarvestState {
   return state;
 }
 
-export type HarvestOptions = { days: number; top: number; outDir: string; maxMatches: number };
+/**
+ * refetch, when set, is a folder of sidecars whose archives are downloaded again instead of walking results.
+ * bestMaps picks the best team per map instead, and writes a sidecar for its latest perMap matches on that map.
+ */
+export type HarvestOptions = {
+  days: number; top: number; outDir: string; maxMatches: number; refetch: string;
+  bestMaps: boolean; minMaps: number; perMap: number;
+};
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000 };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 };
   for (let i = 0; i < argv.length; i++) {
     const next = argv[i + 1] ?? "";
     switch (argv[i]) {
@@ -156,6 +163,10 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
       case "--top": opts.top = positive(next, opts.top); i++; break;
       case "--max": opts.maxMatches = positive(next, opts.maxMatches); i++; break;
       case "--out": if (next !== "") opts.outDir = next; i++; break;
+      case "--refetch": if (next !== "") opts.refetch = next; i++; break;
+      case "--best-maps": opts.bestMaps = true; break;
+      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i++; break;
+      case "--per-map": opts.perMap = positive(next, opts.perMap); i++; break;
     }
   }
   return opts;
@@ -188,4 +199,19 @@ export function sidecarFor(matchId: number, demoPath: string, match: MatchPage, 
     teams: match.teams.map((t) => ({ id: t.id, name: t.name, rank: rankOf.get(t.id) ?? null })),
     maps: match.maps,
   };
+}
+
+/** A sidecar read back from disk, or null when it is not an HLTV demo download of a real match. */
+export function parseSidecar(v: unknown): Sidecar | null {
+  if (!isRecord(v) || v.source !== "hltv") return null;
+  const id = v.match_id;
+  const path = str(v.demo_path);
+  if (typeof id !== "number" || !Number.isInteger(id) || id <= 0 || !DEMO_PATH.test(path)) return null;
+  const teams = (Array.isArray(v.teams) ? v.teams : []).filter(isRecord).map((t) => ({
+    id: typeof t.id === "number" ? t.id : 0,
+    name: str(t.name),
+    rank: typeof t.rank === "number" ? t.rank : null,
+  }));
+  const maps = (Array.isArray(v.maps) ? v.maps : []).map(str).filter((m) => m !== "");
+  return { source: "hltv", match_id: id, demo_path: path, event: str(v.event), played_at: str(v.played_at), teams, maps };
 }

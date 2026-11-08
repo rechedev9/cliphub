@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 
@@ -12,7 +13,10 @@ import (
 	"github.com/rechedev9/cliphub/internal/prolineups"
 )
 
-const codeNoProLineups = "no_pro_lineups"
+const (
+	codeNoProLineups = "no_pro_lineups"
+	codeNoProClip    = "no_pro_clip"
+)
 
 type proLineupMapsResponse struct {
 	community.LineupMaps
@@ -155,4 +159,41 @@ func libretaLineup(mapName string, l prolineups.Lineup) library.Lineup {
 		Origin: l.Origin, Pitch: l.Pitch, Yaw: l.Yaw, Landing: &landing, ThrowCallout: l.ThrowPlace, LandingCallout: l.LandPlace,
 		Movement: l.Movement, Jump: l.Jump, TechniqueEstimated: true,
 	}
+}
+
+// GetProLineupClip serves GET /api/library/pro-lineups/clips/{match}/{file}: a recorded
+// throw clip, kept on disk after the first download.
+func (h *Handlers) GetProLineupClip(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.proLineupsCache(w)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(r, "match") + "/" + chi.URLParam(r, "file")
+	if !prolineups.ValidClipName(name) {
+		writeError(w, http.StatusBadRequest, "clip must be a clip name from a pro lineup")
+		return
+	}
+	path, err := c.Clip(r.Context(), name)
+	switch {
+	case errors.Is(err, community.ErrNoClip):
+		writeCodedError(w, http.StatusNotFound, codeNoProClip, "this throw has no recorded clip")
+		return
+	case err != nil:
+		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, fmt.Sprintf("Studio has no copy of this clip and could not get it from the community server: %v", err))
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		internalError(w, "open pro clip", err)
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		internalError(w, "stat pro clip", err)
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Cache-Control", "private, max-age=604800, immutable")
+	http.ServeContent(w, r, chi.URLParam(r, "file"), info.ModTime(), f)
 }

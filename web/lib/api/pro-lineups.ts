@@ -26,6 +26,12 @@ export type ProExample = {
   /** Seconds after freeze end. */
   clock: number;
   tick: number;
+  steamid64?: string;
+  air_time?: number;
+  /** Stored name of the recorded throw clip, when one exists. */
+  clip?: string;
+  /** For a combo example: every throw of the combo in clock order. */
+  throws?: { lineup: string; player: string; steamid64: string; tick: number; air_time: number }[];
 };
 
 export type ProLineup = {
@@ -61,6 +67,8 @@ export type ProLineup = {
   plant_sites: ProUsage[];
   with: ProUsage[];
   examples: ProExample[];
+  /** The newest recorded example's clip. */
+  clip?: string;
   last_seen: string;
   team_count: number;
   rank: { position: number; of: number };
@@ -77,6 +85,8 @@ export type ProCombo = {
   clock: number;
   teams: ProUsage[];
   examples: ProExample[];
+  /** The newest recorded example: its throws one after another. */
+  clip?: string;
 };
 
 export type ProLineupMap = {
@@ -146,6 +156,8 @@ export type ProLineupFilter = {
   kinds: ReadonlySet<ProLineupKind>;
   side: TacticalSide | '';
   insta: boolean;
+  /** Only lineups with a recorded pro clip. */
+  video: boolean;
   text: string;
 };
 
@@ -157,6 +169,7 @@ export function filterProLineups(lineups: readonly ProLineup[], filter: ProLineu
       filter.kinds.has(l.kind) &&
       (filter.side === '' || l.side === filter.side) &&
       (!filter.insta || l.insta) &&
+      (!filter.video || Boolean(l.clip)) &&
       (needle === '' || l.title.toLowerCase().includes(needle) || l.land_place.toLowerCase().includes(needle) || l.throw_place.toLowerCase().includes(needle)),
   );
 }
@@ -183,4 +196,20 @@ export function practiceSpot(lineup: ProLineup): PracticeSpot {
 /** Other lineups of the same kind landing at the same callout, most thrown first. */
 export function sameLanding(lineups: readonly ProLineup[], lineup: ProLineup): ProLineup[] {
   return lineups.filter((l) => l.id !== lineup.id && l.kind === lineup.kind && l.land_place === lineup.land_place);
+}
+
+/** The Studio URL of a recorded throw clip; the orchestrator keeps it after the first view. */
+export function proClipUrl(clip: string): string {
+  return `/api/library/pro-lineups/clips/${clip.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/** The clip to play: the chosen recorded example, else the lineup's own clip; null when none is recorded. */
+export function shownClip(
+  lineup: Pick<ProLineup, 'clip' | 'examples'>,
+  chosen: string | null,
+): { clip: string; example: ProExample } | null {
+  const find = (want: string | null | undefined) => lineup.examples.find((e) => e.clip !== undefined && e.clip === want);
+  // A choice from another lineup falls back to this lineup's own clip.
+  const example = find(chosen) ?? find(lineup.clip);
+  return example?.clip === undefined ? null : { clip: example.clip, example };
 }
