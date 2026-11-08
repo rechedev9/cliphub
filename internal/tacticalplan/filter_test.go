@@ -137,6 +137,19 @@ func TestFilterByTeamFollowsSideSwap(t *testing.T) {
 	}
 }
 
+// With a team and a side, only the rounds the team played on that side stay;
+// web/lib/tactical-filter.test.ts mirrors this case.
+func TestFilterTeamAndSideKeepTheTeamsRoundsOnThatSide(t *testing.T) {
+	d := testDocument()
+	cases := map[Side][]int{SideCT: {1, 2}, SideT: {3, 4}}
+	for side, want := range cases {
+		f := Filter{TeamKey: "ct-start", Side: side}
+		if got := roundNumbers(f.Apply(d)); !reflect.DeepEqual(got, want) {
+			t.Errorf("Alpha on %s = %v, want %v", side, got, want)
+		}
+	}
+}
+
 func TestFilterByOpponentBuyIsTheAntiEcoQuestion(t *testing.T) {
 	d := testDocument()
 	f := Filter{Side: SideCT, Buys: []BuyType{BuyFull}, OpponentBuys: []BuyType{BuyEco}}

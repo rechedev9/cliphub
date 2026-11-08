@@ -18,11 +18,13 @@ import {
 import type { TacticalFilter, TacticalRound, TacticalSide } from './api/tactical.ts';
 import {
   filterTacticalRounds,
+  roundBoundCommit,
   roundMatchesFilter,
   tacticalFilterCount,
   tacticalFilterFromQuery,
   tacticalFilterToQuery,
   tacticalPerspective,
+  withoutOrphanOutcome,
 } from './tactical-filter.ts';
 
 const TEAMS = [
@@ -266,4 +268,27 @@ test('filterTacticalRounds: keeps document order', () => {
   const rounds = [round({ number: 1 }), round({ number: 2 }), round({ number: 3 })];
   const kept = filterTacticalRounds(TEAMS, { round_from: 2 }, rounds);
   assert.deepEqual(kept.map((r) => r.number), [2, 3]);
+});
+
+// Mirrors TestFilterTeamAndSideKeepTheTeamsRoundsOnThatSide in internal/tacticalplan/filter_test.go.
+test('filter: a team and a side keep only the rounds the team played on that side', () => {
+  const rounds = [round({ number: 1, half: 1 }), round({ number: 2, half: 1 }), round({ number: 3, half: 2 }), round({ number: 4, half: 2 })];
+  const numbers = (side: TacticalSide): number[] => filterTacticalRounds(TEAMS, { team_key: 'home', side }, rounds).map((entry) => entry.number);
+  assert.deepEqual(numbers(TACTICAL_SIDES.ct), [1, 2]);
+  assert.deepEqual(numbers(TACTICAL_SIDES.t), [3, 4]);
+});
+
+test('filter: a round bound that would invert the range is held back instead of clearing both', () => {
+  assert.equal(roundBoundCommit({ text: '1', other: 10, edge: 'to' }), null);
+  assert.deepEqual(roundBoundCommit({ text: '15', other: 10, edge: 'to' }), { value: 15 });
+  assert.equal(roundBoundCommit({ text: '12', other: 10, edge: 'from' }), null);
+  assert.deepEqual(roundBoundCommit({ text: '', other: 10, edge: 'from' }), { value: undefined });
+  assert.deepEqual(roundBoundCommit({ text: '0', other: undefined, edge: 'from' }), { value: undefined });
+  assert.deepEqual(roundBoundCommit({ text: '7', other: undefined, edge: 'to' }), { value: 7 });
+});
+
+test('filter: an outcome without a team or a side is dropped, since it can select nothing', () => {
+  assert.deepEqual(withoutOrphanOutcome({ outcome: TACTICAL_OUTCOMES.win, buys: [TACTICAL_BUY_TYPES.eco] }), { buys: [TACTICAL_BUY_TYPES.eco] });
+  assert.deepEqual(withoutOrphanOutcome({ outcome: TACTICAL_OUTCOMES.win, side: TACTICAL_SIDES.ct }), { outcome: TACTICAL_OUTCOMES.win, side: TACTICAL_SIDES.ct });
+  assert.deepEqual(withoutOrphanOutcome({ outcome: TACTICAL_OUTCOMES.loss, team_key: 'home' }), { outcome: TACTICAL_OUTCOMES.loss, team_key: 'home' });
 });

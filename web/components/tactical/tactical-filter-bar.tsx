@@ -23,7 +23,7 @@ import type {
   TacticalSite,
   TacticalTPattern,
 } from '@/lib/api/tactical';
-import { tacticalFilterCount } from '@/lib/tactical-filter';
+import { roundBoundCommit, tacticalFilterCount, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import {
   buyLabel,
   ctPatternLabel,
@@ -106,16 +106,19 @@ function SingleChips<T extends string>({
   options,
   selected,
   onChange,
+  disabledHint,
 }: {
   label: string;
   anyLabel: string;
   options: readonly Option<T>[];
   selected: T | undefined;
   onChange: (next: T | undefined) => void;
+  /** When set, only "any" can be picked and this says why. */
+  disabledHint?: string;
 }): ReactNode {
   const labelId = useId();
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2" title={disabledHint}>
       <GroupLabel id={labelId}>{label}</GroupLabel>
       <ToggleGroup
         type="single"
@@ -136,20 +139,27 @@ function SingleChips<T extends string>({
           <ToggleGroupItem
             key={option.value}
             value={option.value}
+            disabled={disabledHint !== undefined}
             aria-label={`${label}: ${option.label}`}
           >
             {option.label}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
+      {disabledHint === undefined ? null : <span className="text-meta text-fg-3">{disabledHint}</span>}
     </div>
   );
 }
 
-/** A round bound; an empty or non-positive value simply removes the bound. */
+/**
+ * A round bound; an empty or non-positive value simply removes the bound. A
+ * value that would invert the range stays a draft in the field until it fits.
+ */
 function BoundInput({
   label,
   value,
+  other,
+  edge,
   min,
   max,
   placeholder,
@@ -158,6 +168,9 @@ function BoundInput({
 }: {
   label: string;
   value: number | undefined;
+  /** The opposite bound, which this one may not cross. */
+  other: number | undefined;
+  edge: 'from' | 'to';
   min: number;
   max: number;
   placeholder: string;
@@ -166,6 +179,9 @@ function BoundInput({
   onChange: (next: number | undefined) => void;
 }): ReactNode {
   const inputId = useId();
+  const [draft, setDraft] = useState<string | null>(null);
+  const inverted = draft !== null && roundBoundCommit({ text: draft, other, edge }) === null;
+  const invertedTitle = edge === 'from' ? 'Debe ser menor o igual que «Hasta»' : 'Debe ser mayor o igual que «Desde»';
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2">
       <label htmlFor={inputId} className="text-meta text-fg-3">
@@ -178,11 +194,16 @@ function BoundInput({
         min={min}
         max={max}
         placeholder={placeholder}
-        value={value === undefined ? '' : String(value)}
+        value={draft ?? (value === undefined ? '' : String(value))}
+        aria-invalid={inverted || undefined}
+        title={inverted ? invertedTitle : undefined}
         onChange={(event) => {
-          const parsed = Number(event.target.value);
-          onChange(Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined);
+          const text = event.target.value;
+          setDraft(text);
+          const commit = roundBoundCommit({ text, other, edge });
+          if (commit !== null) onChange(commit.value);
         }}
+        onBlur={() => setDraft(null)}
         // The fill stays the primitive's --surface-3, which the ramp annotates
         // as "field-on-panel": these are the only <Input>s in the zone, and a
         // local override made them the only two fields in the product that do
@@ -268,8 +289,9 @@ export function TacticalFilterBar({
   // An undefined value means "no constraint": the serializer skips it, so the
   // URL stays as short as the filter is.
   const patch = (next: Partial<TacticalFilter>): void => {
-    onChange({ ...filter, ...next });
+    onChange(withoutOrphanOutcome({ ...filter, ...next }));
   };
+  const outcomeNeedsPerspective = filter.team_key === undefined && filter.side === undefined;
 
   return (
     // The replay's left column: no plate of its own, groups stack and wrap.
@@ -298,6 +320,7 @@ export function TacticalFilterBar({
             options={OUTCOME_OPTIONS}
             selected={filter.outcome}
             onChange={(outcome) => patch({ outcome })}
+            disabledHint={outcomeNeedsPerspective ? 'Elige un equipo o un lado' : undefined}
           />
           <SingleChips
             label="Fase"
@@ -328,6 +351,8 @@ export function TacticalFilterBar({
               <BoundInput
                 label="Desde"
                 value={filter.round_from}
+                other={filter.round_to}
+                edge="from"
                 min={firstRound}
                 max={lastRound}
                 placeholder={String(firstRound)}
@@ -337,6 +362,8 @@ export function TacticalFilterBar({
               <BoundInput
                 label="Hasta"
                 value={filter.round_to}
+                other={filter.round_from}
+                edge="to"
                 min={firstRound}
                 max={lastRound}
                 placeholder={String(lastRound)}

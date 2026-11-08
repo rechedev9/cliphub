@@ -184,6 +184,7 @@ function NoteList({ store, items }: { store: AnnotationStore; items: readonly No
 
 function NoteRow({ item, store }: { item: NoteItem; store: AnnotationStore }): ReactNode {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [text, setText] = useState(item.note.text);
   const { note } = item;
   const strokes = note.strokes.length;
@@ -215,11 +216,23 @@ function NoteRow({ item, store }: { item: NoteItem; store: AnnotationStore }): R
           <Button type="button" size="icon-xs" variant="ghost" aria-label="Editar nota" onClick={() => setEditing(!editing)}>
             <PenLine aria-hidden />
           </Button>
-          <Button type="button" size="icon-xs" variant="ghost" aria-label="Borrar nota" onClick={() => void store.remove(note.id)}>
+          <Button type="button" size="icon-xs" variant="ghost" aria-label="Borrar nota" aria-expanded={confirming} onClick={() => setConfirming(!confirming)}>
             <Trash2 aria-hidden />
           </Button>
         </span>
       </div>
+      {confirming ? (
+        // Deleting reaches the server and cannot be undone, so it takes a second press.
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-body-sm text-fg-2">
+          ¿Borrar esta nota{strokes > 0 ? ' y su dibujo' : ''}? No se puede deshacer.
+          <Button type="button" size="xs" variant="destructive" onClick={() => void store.remove(note.id)}>
+            Borrar
+          </Button>
+          <Button type="button" size="xs" variant="ghost" onClick={() => setConfirming(false)}>
+            Cancelar
+          </Button>
+        </div>
+      ) : null}
       {editing ? (
         <div className="flex flex-col gap-1.5">
           <Textarea
