@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -45,5 +46,12 @@ func TestClipAimMarkIsCentredAndLeavesTheCentreOpen(t *testing.T) {
 	}
 	if strings.Contains(f, "x=959:y=539") {
 		t.Fatalf("the mark covers the pro's own crosshair: %s", f)
+	}
+}
+
+func TestComboConcatListKeepsOrderAndQuotes(t *testing.T) {
+	got := concatList([]string{filepath.FromSlash("C:/clips/1/a.mp4"), "/c/it's.mp4"})
+	if got != "file 'C:/clips/1/a.mp4'\nfile '/c/it'\\''s.mp4'\n" {
+		t.Fatalf("list = %q", got)
 	}
 }

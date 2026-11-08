@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -64,5 +65,27 @@ func TestProClipServesRecordedFilesOnly(t *testing.T) {
 		if rec := do(t, h, http.MethodGet, "/v1/pro-clips/"+bad, nil); rec.Code != http.StatusNotFound {
 			t.Errorf("%s answered %d", bad, rec.Code)
 		}
+	}
+}
+
+func TestPlanClipsRecordsEachComboThrowAndListsTheCombo(t *testing.T) {
+	first, second := clipExample("20", 4, 50000, 1), clipExample("20", 4, 50600, 1)
+	second.SteamID64 = "76561198000000002"
+	combo := prolineups.Example{Match: "20", MapKey: first.MapKey, Round: 4, Tick: first.Tick, SteamID64: first.SteamID64, PlayedAt: first.PlayedAt,
+		Throws: []prolineups.ThrowRef{{Lineup: "a", SteamID64: first.SteamID64, Tick: first.Tick, AirTime: 1.5}, {Lineup: "b", SteamID64: second.SteamID64, Tick: second.Tick, AirTime: 1.5}}}
+	sources := map[string]throwSource{}
+	for _, e := range []prolineups.Example{first, second} {
+		sources[prolineups.ClipName(e)] = throwSource{file: "20__a-vs-b-m1-mirage", tickRate: 64, mapName: "de_mirage", duration: 100000}
+	}
+	recordedFirst := prolineups.ClipName(first)
+	plan := planClips(clipPlanInput{combos: []prolineups.Combo{{ID: "a+b", Examples: []prolineups.Example{combo}}}, sources: sources, max: 10,
+		demo:     func(file string) (string, bool) { return "/demos/" + file + ".dem", true },
+		recorded: func(name string) bool { return name == recordedFirst }})
+	if len(plan.Demos) != 1 || len(plan.Demos[0].Clips) != 1 || plan.Demos[0].Clips[0].Name != prolineups.ClipName(second) {
+		t.Fatalf("plan should record only the missing throw: %+v", plan.Demos)
+	}
+	if len(plan.Combos) != 1 || plan.Combos[0].Name != prolineups.ComboClipName(combo) ||
+		!slices.Equal(plan.Combos[0].Parts, []string{recordedFirst, prolineups.ClipName(second)}) {
+		t.Fatalf("combos = %+v", plan.Combos)
 	}
 }

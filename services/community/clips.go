@@ -26,9 +26,11 @@ type throwSource struct {
 	duration int
 }
 
-// clipPlan is what the operator PC records next: per kept demo, the throw windows.
+// clipPlan is what the operator PC records next: per kept demo, the throw windows,
+// and the combos to join once all their throws are recorded.
 type clipPlan struct {
-	Demos []clipDemo `json:"demos"`
+	Demos  []clipDemo  `json:"demos"`
+	Combos []clipCombo `json:"combos"`
 }
 
 type clipDemo struct {
@@ -48,45 +50,107 @@ type clipShot struct {
 	EndTick   int    `json:"end_tick"`
 }
 
+// clipCombo is a combo clip: its throw clips joined in clock order.
+type clipCombo struct {
+	Name  string   `json:"name"`
+	Parts []string `json:"parts"`
+}
+
 type clipPlanInput struct {
 	lineups  []prolineups.Lineup
+	combos   []prolineups.Combo
 	sources  map[string]throwSource
 	demo     func(file string) (string, bool)
 	recorded func(name string) bool
 	max      int
 }
 
-// planClips picks, for each lineup without a clip, its newest throw whose demo is kept.
+type clipPlanner struct {
+	in      clipPlanInput
+	byDemo  map[string]*clipDemo
+	planned map[string]bool
+}
+
+// keptDemo is the kept demo a throw was read from, if there is one.
+func (p *clipPlanner) keptDemo(e prolineups.Example) (string, throwSource, bool) {
+	src, ok := p.in.sources[prolineups.ClipName(e)]
+	if !ok {
+		return "", throwSource{}, false
+	}
+	path, kept := p.in.demo(src.file)
+	return path, src, kept
+}
+
+// add plans one throw clip unless it is recorded or already planned.
+func (p *clipPlanner) add(e prolineups.Example, path string, src throwSource) {
+	name := prolineups.ClipName(e)
+	if p.planned[name] || p.in.recorded(name) || len(p.planned) == p.in.max {
+		return
+	}
+	p.planned[name] = true
+	d := p.byDemo[path]
+	if d == nil {
+		d = &clipDemo{Demo: path, Map: src.mapName, TickRate: src.tickRate, DurationTicks: src.duration}
+		p.byDemo[path] = d
+	}
+	start, end := prolineups.ClipWindow(e.Tick, src.tickRate, e.AirTime)
+	d.Clips = append(d.Clips, clipShot{Name: name, SteamID64: e.SteamID64, Round: e.Round, ThrowTick: e.Tick, StartTick: max(start, 1), EndTick: min(end, src.duration)})
+}
+
+// comboThrows are a combo example's throws when every one comes from one kept demo.
+func (p *clipPlanner) comboThrows(e prolineups.Example) ([]prolineups.Example, string, throwSource, bool) {
+	if prolineups.ComboClipName(e) == "" {
+		return nil, "", throwSource{}, false
+	}
+	parts := []prolineups.Example{}
+	var path string
+	var src throwSource
+	for _, t := range e.Throws {
+		part := prolineups.ThrowExample(e, t)
+		pp, ps, ok := p.keptDemo(part)
+		if !ok || (path != "" && pp != path) {
+			return nil, "", throwSource{}, false
+		}
+		path, src = pp, ps
+		parts = append(parts, part)
+	}
+	return parts, path, src, true
+}
+
+// planClips picks, for each lineup and combo without a clip, its newest throws whose demo is kept.
 func planClips(in clipPlanInput) clipPlan {
-	byDemo := map[string]*clipDemo{}
-	planned := 0
+	p := &clipPlanner{in: in, byDemo: map[string]*clipDemo{}, planned: map[string]bool{}}
 	for _, l := range in.lineups {
-		if planned == in.max || slices.ContainsFunc(l.Examples, func(e prolineups.Example) bool { return in.recorded(prolineups.ClipName(e)) }) {
+		if slices.ContainsFunc(l.Examples, func(e prolineups.Example) bool { return in.recorded(prolineups.ClipName(e)) }) {
 			continue
 		}
 		for _, e := range l.Examples {
-			name := prolineups.ClipName(e)
-			src, ok := in.sources[name]
-			if name == "" || !ok {
+			if path, src, ok := p.keptDemo(e); ok {
+				p.add(e, path, src)
+				break
+			}
+		}
+	}
+	plan := clipPlan{Demos: []clipDemo{}, Combos: []clipCombo{}}
+	for _, c := range in.combos {
+		if slices.ContainsFunc(c.Examples, func(e prolineups.Example) bool { return in.recorded(prolineups.ComboClipName(e)) }) {
+			continue
+		}
+		for _, e := range c.Examples {
+			parts, path, src, ok := p.comboThrows(e)
+			if !ok {
 				continue
 			}
-			path, kept := in.demo(src.file)
-			if !kept {
-				continue
+			combo := clipCombo{Name: prolineups.ComboClipName(e)}
+			for _, part := range parts {
+				p.add(part, path, src)
+				combo.Parts = append(combo.Parts, prolineups.ClipName(part))
 			}
-			d := byDemo[path]
-			if d == nil {
-				d = &clipDemo{Demo: path, Map: src.mapName, TickRate: src.tickRate, DurationTicks: src.duration}
-				byDemo[path] = d
-			}
-			start, end := prolineups.ClipWindow(e.Tick, src.tickRate, e.AirTime)
-			d.Clips = append(d.Clips, clipShot{Name: name, SteamID64: e.SteamID64, Round: e.Round, ThrowTick: e.Tick, StartTick: max(start, 1), EndTick: min(end, src.duration)})
-			planned++
+			plan.Combos = append(plan.Combos, combo)
 			break
 		}
 	}
-	plan := clipPlan{Demos: []clipDemo{}}
-	for _, d := range byDemo {
+	for _, d := range p.byDemo {
 		slices.SortFunc(d.Clips, func(a, b clipShot) int { return cmp.Compare(a.StartTick, b.StartTick) })
 		kept := d.Clips[:0]
 		for _, c := range d.Clips {
@@ -164,12 +228,12 @@ func planClipsFromDirs(ctx context.Context, dirs clipDirs) error {
 	if err != nil {
 		return err
 	}
-	lineups := []prolineups.Lineup{}
-	maps := slices.Sorted(maps.Keys(read.byMap))
-	for _, m := range maps {
-		lineups = append(lineups, prolineups.BuildIndex(m, read.byMap[m], time.Now()).Lineups...)
+	lineups, combos := []prolineups.Lineup{}, []prolineups.Combo{}
+	for _, m := range slices.Sorted(maps.Keys(read.byMap)) {
+		idx := prolineups.BuildIndex(m, read.byMap[m], time.Now())
+		lineups, combos = append(lineups, idx.Lineups...), append(combos, idx.Combos...)
 	}
-	plan := planClips(clipPlanInput{lineups: lineups, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max,
+	plan := planClips(clipPlanInput{lineups: lineups, combos: combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max,
 		demo: func(file string) (string, bool) {
 			path := filepath.Join(dirs.demos, file+".dem")
 			info, err := os.Stat(path)
@@ -179,6 +243,6 @@ func planClipsFromDirs(ctx context.Context, dirs clipDirs) error {
 	for _, d := range plan.Demos {
 		n += len(d.Clips)
 	}
-	log.Printf("community stage=clips class=planned demos=%d clips=%d lineups=%d", len(plan.Demos), n, len(lineups))
+	log.Printf("community stage=clips class=planned demos=%d clips=%d combos=%d lineups=%d all_combos=%d", len(plan.Demos), n, len(plan.Combos), len(lineups), len(combos))
 	return writeClipPlan(dirs.out, plan)
 }

@@ -8,6 +8,7 @@
 //	cliphub-community build-lineups     rebuild the pro lineup index from the archived analyses
 //	cliphub-community plan-clips        list the throws to record as lineup clips (operator PC)
 //	cliphub-community record-clips      record the planned clips with CS2 and the inputs HUD (operator PC)
+//	cliphub-community sidecars          write one sidecar per analysed match, for the harvester's --refetch
 package main
 
 import (
@@ -121,6 +122,19 @@ func run(args []string) error {
 		return planClipsFromDirs(ctx, clipDirs{analyses: *analyses, demos: *demos, clips: *clips, out: *out, max: *maxClips})
 	case "record-clips":
 		return runRecordClips(ctx, args[1:])
+	case "sidecars":
+		fs := flag.NewFlagSet("sidecars", flag.ContinueOnError)
+		analyses := fs.String("analyses", "", "folder of prepared analyses")
+		out := fs.String("out", "", "folder for one sidecar per match")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *analyses == "" || *out == "" {
+			return errors.New("sidecars needs -analyses and -out")
+		}
+		n, err := writeSidecars(*analyses, *out)
+		log.Printf("community stage=sidecars class=written matches=%d", n)
+		return err
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }

@@ -1,6 +1,9 @@
 package prolineups
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClipNameIsStableAndPathSafe(t *testing.T) {
 	e := Example{Match: "2398992", MapKey: "2398992/PariVision-vs-Magic-m1-mirage(2).dem", Round: 7, Tick: 40123, SteamID64: "76561198000984547"}
@@ -49,5 +52,40 @@ func TestValidClipNameMatchesClipName(t *testing.T) {
 		if ValidClipName(bad) {
 			t.Errorf("%q must be invalid", bad)
 		}
+	}
+}
+
+func TestComboExamplesListEveryThrowAndGetTheirOwnClip(t *testing.T) {
+	throws := []Throw{}
+	for i, team := range []string{"x", "y", "z", "x"} {
+		mapKey := "1" + string(rune('0'+i)) + "/a-m1-mirage.dem"
+		for _, p := range []string{"76561198000000001", "76561198000000002"} {
+			a := smoke(mapKey, p, 1, [3]float64{0, 0, 0}, [3]float64{1000, 0, 0}, 10, 5)
+			b := smoke(mapKey, p, 1, [3]float64{500, 500, 0}, [3]float64{0, 1500, 0}, 90, 5)
+			a.Match, b.Match = mapKey[:2], mapKey[:2]
+			a.Team, b.Team = team, team
+			a.ThrowTick, b.ThrowTick = 1000, 1400
+			b.Clock = 8
+			if p == "76561198000000002" {
+				a.Round, b.Round = 2, 2
+			}
+			throws = append(throws, a, b)
+		}
+	}
+	idx := BuildIndex("de_mirage", throws, now)
+	if len(idx.Combos) != 1 {
+		t.Fatalf("combos = %d", len(idx.Combos))
+	}
+	e := idx.Combos[0].Examples[0]
+	if len(e.Throws) != 2 || e.Throws[0].Tick != 1000 || e.Throws[1].Tick != 1400 || e.Throws[1].SteamID64 != e.SteamID64 || e.Throws[0].Lineup == e.Throws[1].Lineup {
+		t.Fatalf("combo example throws = %+v", e.Throws)
+	}
+	name := ComboClipName(e)
+	if !ValidClipName(name) || name == ClipName(e) || !strings.HasSuffix(name, "-combo.mp4") {
+		t.Fatalf("combo clip name %q", name)
+	}
+	AttachClips(&idx, func(n string) bool { return n == name })
+	if idx.Combos[0].Clip != name || idx.Combos[0].Examples[0].Clip != name {
+		t.Fatalf("combo clip not attached: %+v", idx.Combos[0])
 	}
 }

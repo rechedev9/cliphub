@@ -130,6 +130,17 @@ type Example struct {
 	// AirTime is seconds from release to landing.
 	AirTime float64 `json:"air_time,omitempty"`
 	Clip    string  `json:"clip,omitempty"`
+	// Throws lists, for a combo example, every throw of the combo in clock order.
+	Throws []ThrowRef `json:"throws,omitempty"`
+}
+
+// ThrowRef is one throw of a combo example.
+type ThrowRef struct {
+	Lineup    string  `json:"lineup"`
+	Player    string  `json:"player"`
+	SteamID64 string  `json:"steamid64"`
+	Tick      int     `json:"tick"`
+	AirTime   float64 `json:"air_time"`
 }
 
 // RankInLanding places a lineup among those landing at the same callout.

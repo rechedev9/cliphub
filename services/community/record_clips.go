@@ -83,10 +83,62 @@ func recordClips(ctx context.Context, job recordClipsJob) error {
 		}
 		log.Printf("community stage=clips class=recorded demo=%s clips=%d", filepath.Base(d.Demo), n)
 	}
+	joined := 0
+	for _, c := range plan.Combos {
+		ok, err := joinCombo(ctx, job, c)
+		if err != nil {
+			log.Printf("community stage=clips class=combo_failed combo=%s error=%v", c.Name, err)
+			continue
+		}
+		if ok {
+			joined++
+		}
+	}
+	log.Printf("community stage=clips class=combos joined=%d planned=%d", joined, len(plan.Combos))
 	if failed > 0 {
 		return fmt.Errorf("%d of %d demos failed", failed, len(plan.Demos))
 	}
 	return nil
+}
+
+// joinCombo writes a combo clip once every throw clip of it is recorded; false means some are still missing.
+func joinCombo(ctx context.Context, job recordClipsJob, c clipCombo) (bool, error) {
+	dst := filepath.Join(job.clips, filepath.FromSlash(c.Name))
+	if _, err := os.Stat(dst); err == nil {
+		return false, nil
+	}
+	parts := make([]string, 0, len(c.Parts))
+	for _, name := range c.Parts {
+		path := filepath.Join(job.clips, filepath.FromSlash(name))
+		if _, err := os.Stat(path); err != nil {
+			return false, nil
+		}
+		parts = append(parts, path)
+	}
+	list := dst + ".txt"
+	if err := os.WriteFile(list, []byte(concatList(parts)), 0o644); err != nil {
+		return false, err
+	}
+	defer os.Remove(list)
+	tmp := dst + ".tmp.mp4"
+	ffmpeg := job.tools.ffmpeg
+	if ffmpeg == "" {
+		ffmpeg = "ffmpeg"
+	}
+	if err := runTool(ctx, ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", tmp); err != nil {
+		_ = os.Remove(tmp)
+		return false, err
+	}
+	return true, os.Rename(tmp, dst)
+}
+
+// concatList is an ffmpeg concat list; the clips share codec and size, so they join without a re-encode.
+func concatList(paths []string) string {
+	var b strings.Builder
+	for _, p := range paths {
+		fmt.Fprintf(&b, "file '%s'\n", strings.ReplaceAll(filepath.ToSlash(p), "'", `'\''`))
+	}
+	return b.String()
 }
 
 func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir string) (int, error) {

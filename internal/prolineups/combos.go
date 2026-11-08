@@ -39,6 +39,8 @@ type Combo struct {
 	Clock     float64           `json:"clock"`
 	Teams     []Usage           `json:"teams"`
 	Examples  []Example         `json:"examples"`
+	// Clip is the newest recorded example: its throws one after another, each from its thrower.
+	Clip string `json:"clip,omitempty"`
 }
 
 var kindLabel = map[tacticalplan.EventKind]string{
@@ -261,7 +263,8 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 	}
 	tallies := map[string]*comboTally{}
 	for _, r := range recentSideRounds(throws, memberOf, recentFrom) {
-		for _, set := range roundSets(r) {
+		for _, cs := range roundSets(r) {
+			set := cs.ids
 			key := strings.Join(set, "+")
 			c := tallies[key]
 			if c == nil {
@@ -277,8 +280,12 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 			}
 			c.clocks = append(c.clocks, r.throws[0].Clock)
 			if len(c.examples) < examplesPerItem {
-				t := r.throws[0]
-				c.examples = append(c.examples, Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, SteamID64: t.SteamID64, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick, AirTime: round2(t.AirTime)})
+				t := cs.throws[0]
+				e := Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, SteamID64: t.SteamID64, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick, AirTime: round2(t.AirTime)}
+				for i, m := range cs.throws {
+					e.Throws = append(e.Throws, ThrowRef{Lineup: cs.lineups[i], Player: m.Player, SteamID64: m.SteamID64, Tick: m.ThrowTick, AirTime: round2(m.AirTime)})
+				}
+				c.examples = append(c.examples, e)
 			}
 		}
 	}
@@ -321,9 +328,16 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 
 // roundSets lists the distinct lineup sets of size 2 and 3 whose throws all
 // fall within the combo window of the first one.
-func roundSets(r *sideRound) [][]string {
+// comboSet is one set of distinct lineups in a round, with the throws that made it in clock order.
+type comboSet struct {
+	ids     []string
+	lineups []string
+	throws  []Throw
+}
+
+func roundSets(r *sideRound) []comboSet {
 	seen := map[string]bool{}
-	out := [][]string{}
+	out := []comboSet{}
 	n := len(r.ids)
 	var walk func(start int, set []int)
 	walk = func(start int, set []int) {
@@ -336,7 +350,12 @@ func roundSets(r *sideRound) [][]string {
 			ids = slices.Compact(ids)
 			if key := strings.Join(ids, "+"); len(ids) == len(set) && !seen[key] {
 				seen[key] = true
-				out = append(out, ids)
+				cs := comboSet{ids: ids}
+				for _, i := range set {
+					cs.lineups = append(cs.lineups, r.ids[i])
+					cs.throws = append(cs.throws, r.throws[i])
+				}
+				out = append(out, cs)
 			}
 		}
 		if len(set) == maxComboSize {

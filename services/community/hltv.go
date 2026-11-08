@@ -284,6 +284,34 @@ func writeAnalysis(out string, h analysisHeader, blob []byte) error {
 	return os.Rename(tmp, out)
 }
 
+// writeSidecars writes, for every match with an analysis, the sidecar its archive came with,
+// so the harvester can download that archive again for lineup clips.
+func writeSidecars(analysesDir, outDir string) (int, error) {
+	files, err := filepath.Glob(filepath.Join(analysesDir, "*"+analysisSuffix))
+	if err != nil {
+		return 0, err
+	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return 0, err
+	}
+	seen := map[int]bool{}
+	for _, name := range files {
+		h, _, err := readAnalysis(name)
+		if err != nil || seen[h.Match.MatchID] || h.Match.MatchID <= 0 {
+			continue
+		}
+		seen[h.Match.MatchID] = true
+		body, err := json.Marshal(h.Match)
+		if err != nil {
+			return 0, err
+		}
+		if err := writeFile(filepath.Join(outDir, fmt.Sprintf("%d.json", h.Match.MatchID)), body); err != nil {
+			return 0, err
+		}
+	}
+	return len(seen), nil
+}
+
 // readAnalysis decodes a prepared analysis file.
 func readAnalysis(name string) (analysisHeader, []byte, error) {
 	f, err := os.Open(name)
