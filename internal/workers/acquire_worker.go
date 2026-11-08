@@ -152,22 +152,15 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		}
 	}
 
-	probe, err := w.prober.Probe(ctx, destPath)
+	probe, remuxed, err := w.checkSource(ctx, destPath)
 	if err != nil {
-		return fmt.Errorf("probe stream source: %w", err)
-	}
-	remuxed := false
-	if probe.NeedsRemux() {
-		if err := streamclips.RemuxToMP4(ctx, streamclips.RemuxOptions{FFmpeg: w.cfg.FFmpegPath, Input: destPath, Run: w.runner.Run}); err != nil {
-			return err
+		if !exists && ctx.Err() == nil {
+			// Keep the download, so a retry checks it again instead of downloading it twice.
+			if storeErr := uploadFile(w.storage, sourceKey, destPath); storeErr != nil {
+				return errors.Join(err, fmt.Errorf("keep downloaded stream source: %w", storeErr))
+			}
 		}
-		if probe, err = w.prober.Probe(ctx, destPath); err != nil {
-			return fmt.Errorf("probe remuxed stream source: %w", err)
-		}
-		if probe.NeedsRemux() {
-			return fmt.Errorf("%w: still %s after remux", streamclips.ErrSourceNotPlayable, probe.Container)
-		}
-		remuxed = true
+		return err
 	}
 	// Stored once, after the container check, so a remux never copies the source twice.
 	if !exists || remuxed {
@@ -193,6 +186,27 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		return fmt.Errorf("write default stream edit plan: %w", err)
 	}
 	return nil
+}
+
+// checkSource probes the source and remuxes it in place when the editor cannot play its container.
+func (w *AcquireWorker) checkSource(ctx context.Context, path string) (streamclips.SourceProbe, bool, error) {
+	probe, err := w.prober.Probe(ctx, path)
+	if err != nil {
+		return probe, false, fmt.Errorf("probe stream source: %w", err)
+	}
+	if !probe.NeedsRemux() {
+		return probe, false, nil
+	}
+	if err := streamclips.RemuxToMP4(ctx, streamclips.RemuxOptions{FFmpeg: w.cfg.FFmpegPath, Input: path, Run: w.runner.Run}); err != nil {
+		return probe, false, err
+	}
+	if probe, err = w.prober.Probe(ctx, path); err != nil {
+		return probe, false, fmt.Errorf("probe remuxed stream source: %w", err)
+	}
+	if probe.NeedsRemux() {
+		return probe, false, fmt.Errorf("%w: still %s after remux", streamclips.ErrSourceNotPlayable, probe.Container)
+	}
+	return probe, true, nil
 }
 
 // downloadContext bounds the download only when a timeout is set: a full VOD

@@ -159,5 +159,11 @@ func writeStreamListFingerprint(b *strings.Builder, item *streamJobListItem) {
 	if item.RenderProgress != nil {
 		b.WriteString(strconv.FormatFloat(item.RenderProgress.Percent, 'f', 1, 64))
 	}
+	b.WriteByte('\n')
+	// The startup repair rewrites the probe and hash but keeps updated_at, so the list order holds.
+	b.WriteString(item.SourceSHA256)
+	if raw, err := json.Marshal(item.Probe); err == nil {
+		b.Write(raw)
+	}
 	b.WriteByte('\x1e')
 }

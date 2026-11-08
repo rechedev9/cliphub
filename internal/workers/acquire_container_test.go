@@ -91,7 +91,8 @@ func TestAcquireWorkerReportsUnplayableSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id := uuid.New()
 			repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
-			w := NewAcquireWorker(repo, newFakeStorage(), AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: tt.ffmpeg})
+			store := newFakeStorage()
+			w := NewAcquireWorker(repo, store, AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: tt.ffmpeg})
 			w.fetcher = tt.fetcher
 			w.prober = &sequenceProber{probes: []streamclips.SourceProbe{{Container: "mpegts"}}}
 			if tt.runner != nil {
@@ -106,7 +107,34 @@ func TestAcquireWorkerReportsUnplayableSource(t *testing.T) {
 			if got.Status != streamclips.StatusFailed || got.FailureReason != streamclips.AcquireReasonNotPlayable {
 				t.Fatalf("status/reason = %s/%q, want failed with the not-playable reason, not the wrong-link one", got.Status, got.FailureReason)
 			}
+			// The download is kept, so a retry checks it again instead of downloading the VOD twice.
+			if got := string(store.files[streamclips.SourceKey(id)]); got != "ts-bytes" {
+				t.Fatalf("stored source = %q, want the download kept for a retry", got)
+			}
 		})
+	}
+}
+
+func TestAcquireWorkerCancelledRemuxIsNotReportedAsUnplayable(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id := uuid.New()
+	repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
+	w := NewAcquireWorker(repo, newFakeStorage(), AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: "ffmpeg.exe"})
+	w.fetcher = vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}}
+	w.prober = &sequenceProber{probes: []streamclips.SourceProbe{{Container: "mpegts"}}}
+	// Studio shuts down mid-remux: FFmpeg is killed and the context is done.
+	w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		cancel()
+		return nil, fmt.Errorf("exit status 1")
+	}}
+
+	err := w.HandleStreamAcquire(ctx, streamAcquireTask(t, id))
+	if !errors.Is(err, context.Canceled) || errors.Is(err, streamclips.ErrSourceNotPlayable) {
+		t.Fatalf("HandleStreamAcquire error = %v, want the cancellation, not ErrSourceNotPlayable", err)
+	}
+	if got := repo.jobs[id].FailureReason; got == streamclips.AcquireReasonNotPlayable {
+		t.Fatalf("reason = %q, want a shutdown not to blame the video", got)
 	}
 }
 

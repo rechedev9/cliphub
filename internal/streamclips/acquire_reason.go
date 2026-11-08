@@ -9,7 +9,7 @@ const (
 	AcquireReasonUnavailable  = "Ese vídeo no está disponible ahora mismo (privado, caducado o restringido por región)."
 	AcquireReasonBlocked      = "El origen bloqueó la descarga (protección anti-bots). Espera un momento y vuelve a intentarlo."
 	AcquireReasonTooLarge     = "Ese vídeo supera el límite máximo de descarga permitido."
-	AcquireReasonNotPlayable  = "El vídeo se descargó, pero no pudimos convertirlo a un MP4 que Studio pueda abrir. Vuelve a intentarlo; si sigue fallando, reinstala Studio."
+	AcquireReasonNotPlayable  = "El vídeo se descargó, pero no pudimos convertirlo a un MP4 que Studio pueda abrir. Comprueba que te queda espacio libre en el disco y vuelve a intentarlo; si sigue fallando, reinstala Studio."
 	AcquireReasonError        = "No pudimos preparar un vídeo a partir de esa URL. Asegúrate de que es un clip o VOD público de Twitch, YouTube o Kick."
 )
 

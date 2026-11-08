@@ -55,6 +55,9 @@ func RemuxToMP4(ctx context.Context, opts RemuxOptions) error {
 	)
 	if err != nil {
 		_ = os.Remove(output)
+		if ctx.Err() != nil {
+			return fmt.Errorf("remux: %w", ctx.Err())
+		}
 		return fmt.Errorf("%w: remux: %w", ErrSourceNotPlayable, err)
 	}
 	if opts.Output != "" {

@@ -69,17 +69,28 @@ func TestStreamUploadRemuxesMPEGTSToMP4(t *testing.T) {
 
 	t.Run("with ffmpeg", func(t *testing.T) {
 		repo := newFakeStreamRepo()
-		router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamProber(prober), WithStreamFFmpeg(ffmpeg)))
+		files := newFakeStorage()
+		router := Routes(NewHandlers(newFakeRepo(), files, &fakeQueue{}, WithStreamRepository(repo), WithStreamProber(prober), WithStreamFFmpeg(ffmpeg)))
 		response := postStreamUpload(t, router, recording)
 		if response.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
 		}
-		job, err := repo.Get(t.Context(), uuid.MustParse(jsonStringField(t, response.Body.Bytes(), "id")))
+		id := uuid.MustParse(jsonStringField(t, response.Body.Bytes(), "id"))
+		job, err := repo.Get(t.Context(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if job.Probe.NeedsRemux() || !strings.Contains(job.Probe.Container, "mp4") {
-			t.Fatalf("stored container = %q, want MP4", job.Probe.Container)
+			t.Fatalf("recorded container = %q, want MP4", job.Probe.Container)
+		}
+		// The stored bytes, not only the recorded probe, must be the MP4.
+		stored := filepath.Join(t.TempDir(), "stored.mp4")
+		if err := os.WriteFile(stored, files.puts[streamclips.SourceKey(id)], 0o600); err != nil {
+			t.Fatal(err)
+		}
+		storedProbe, err := prober.Probe(t.Context(), stored)
+		if err != nil || storedProbe.NeedsRemux() || !strings.Contains(storedProbe.Container, "mp4") {
+			t.Fatalf("stored source container = %q, %v; want MP4", storedProbe.Container, err)
 		}
 	})
 
