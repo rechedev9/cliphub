@@ -283,7 +283,8 @@ try {
     # Windows PowerShell 5 flattens ArgumentList into one command line, so an
     # entrypoint beneath a repository path containing spaces must retain quotes.
     $quotedNextCommand = '"' + $nextCommand + '"'
-    $webArguments = "$quotedNextCommand dev --hostname 127.0.0.1 --port $WebPort"
+    # --webpack matches `pnpm run build` and `pnpm run dev`: next.config.mjs adds a webpack rule for .md.
+    $webArguments = "$quotedNextCommand dev --webpack --hostname 127.0.0.1 --port $WebPort"
     $webProcess = [ClipHub.LocalProcessJob]::StartInJob(
         $processJob,
         $nodeCommand,
