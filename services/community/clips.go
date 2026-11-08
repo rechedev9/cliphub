@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"time"
 
@@ -18,11 +17,6 @@ import (
 
 // povSwitchTicks is the gap two clips of one demo keep, so the recorder can change POV between them.
 const povSwitchTicks = 32
-
-var (
-	clipFolder = regexp.MustCompile(`^\d{1,12}$`)
-	clipFile   = regexp.MustCompile(`^[a-z0-9-]{1,220}-r\d{1,3}-t\d{1,9}-\d{17}\.mp4$`)
-)
 
 // throwSource is the analysis a throw was read from.
 type throwSource struct {
@@ -38,7 +32,7 @@ type clipPlan struct {
 }
 
 type clipDemo struct {
-	Demo     string     `json:"demo"`
+	Demo          string     `json:"demo"`
 	Map           string     `json:"map"`
 	TickRate      int        `json:"tick_rate"`
 	DurationTicks int        `json:"duration_ticks"`
@@ -138,7 +132,7 @@ func clipRecorded(dir string) func(name string) bool {
 // handleProClip serves GET /v1/pro-clips/{match}/{file}: one recorded throw clip.
 func (a *api) handleProClip(w http.ResponseWriter, r *http.Request) {
 	match, file := r.PathValue("match"), r.PathValue("file")
-	if a.clipsDir == "" || !clipFolder.MatchString(match) || !clipFile.MatchString(file) {
+	if a.clipsDir == "" || !prolineups.ValidClipName(match+"/"+file) {
 		writeError(w, http.StatusNotFound, "no such clip")
 		return
 	}
