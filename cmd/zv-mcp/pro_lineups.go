@@ -37,6 +37,7 @@ type findProLineupsIn struct {
 	Landing string `json:"landing,omitempty" jsonschema:"part of the callout it lands at, such as window or jungle; any case"`
 	From    string `json:"from,omitempty" jsonschema:"part of the callout it is thrown from, such as tspawn; any case"`
 	Insta   bool   `json:"insta,omitempty" jsonschema:"true keeps only lineups thrown in the first seconds of the round"`
+	Video   bool   `json:"video,omitempty" jsonschema:"true keeps only lineups with a recorded pro clip (clip_url)"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"default 20, at most 100"`
 }
 
@@ -195,7 +196,7 @@ func registerProLineupTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "find_pro_lineups", Annotations: readOnly,
-		Description: "Find a map's pro lineups, most thrown recently first: filter by kind, side, landing callout, throw callout and insta. " +
+		Description: "Find a map's pro lineups, most thrown recently first: filter by kind, side, landing callout, throw callout, insta and video (only lineups with a recorded clip). " +
 			"Each row has the technique, throws, round share and win rate, accuracy, clock and top teams; get_pro_lineup has the full detail."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in findProLineupsIn) (*mcp.CallToolResult, findProLineupsOut, error) {
 			f, err := in.filter()
@@ -340,7 +341,7 @@ func proLimit(n int) (int, error) {
 // proFilter is a checked find_pro_lineups input; places are lower case.
 type proFilter struct {
 	mapName, kind, side, landing, from string
-	insta                              bool
+	insta, video                       bool
 	limit                              int
 }
 
@@ -362,11 +363,11 @@ func (in findProLineupsIn) filter() (proFilter, error) {
 		return proFilter{}, err
 	}
 	return proFilter{mapName: mapName, kind: kind, side: side, landing: strings.ToLower(strings.TrimSpace(in.Landing)),
-		from: strings.ToLower(strings.TrimSpace(in.From)), insta: in.Insta, limit: limit}, nil
+		from: strings.ToLower(strings.TrimSpace(in.From)), insta: in.Insta, video: in.Video, limit: limit}, nil
 }
 
 func (f proFilter) keeps(l prolineups.Lineup) bool {
-	return (f.kind == "" || string(l.Kind) == f.kind) && (f.side == "" || string(l.Side) == f.side) && (!f.insta || l.Insta) &&
+	return (f.kind == "" || string(l.Kind) == f.kind) && (f.side == "" || string(l.Side) == f.side) && (!f.insta || l.Insta) && (!f.video || l.Clip != "") &&
 		strings.Contains(strings.ToLower(l.LandPlace), f.landing) && strings.Contains(strings.ToLower(l.ThrowPlace), f.from)
 }
 

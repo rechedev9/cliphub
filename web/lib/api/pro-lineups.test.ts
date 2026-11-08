@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { proClipUrl, shownClip, type ProExample } from './pro-lineups.ts';
+import { filterProLineups, PRO_LINEUP_KINDS, proClipUrl, shownClip, type ProExample, type ProLineup } from './pro-lineups.ts';
 
 const example = (clip?: string): ProExample => ({
   match: '1',
@@ -26,4 +26,12 @@ test('the clip shown is the chosen recorded throw, else the lineup clip', () => 
   assert.equal(shownClip({ clip: recorded.clip, examples }, null)?.example, recorded);
   assert.equal(shownClip({ clip: recorded.clip, examples }, other.clip ?? null)?.example, other);
   assert.equal(shownClip({ examples: [example()] }, null), null);
+});
+
+test('the video filter keeps only lineups with a recorded clip', () => {
+  const lineup = (id: string, clip?: string) => ({ id, kind: 'smoke', side: 'T', insta: false, title: id, land_place: '', throw_place: '', ...(clip ? { clip } : {}) }) as unknown as ProLineup;
+  const lineups = [lineup('a'), lineup('b', '1/b.mp4')];
+  const filter = { kinds: new Set(PRO_LINEUP_KINDS), side: '' as const, insta: false, text: '' };
+  assert.deepEqual(filterProLineups(lineups, { ...filter, video: true }).map((l) => l.id), ['b']);
+  assert.equal(filterProLineups(lineups, { ...filter, video: false }).length, 2);
 });

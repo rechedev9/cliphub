@@ -269,4 +269,7 @@ test('a pro lineup clip streams only under a recorded clip name', () => {
   assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', '..%2Fsecret.mp4']), undefined);
   assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', 'x', file]), undefined);
   assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', 'a.txt']), undefined);
+  const combo = file.replace('.mp4', '-combo.mp4');
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', combo])?.response.kind, 'stream');
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', file.replace('.mp4', '-combo-x.mp4')]), undefined);
 });

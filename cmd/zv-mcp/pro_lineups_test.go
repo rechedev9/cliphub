@@ -69,6 +69,11 @@ func TestFindProLineupsFiltersAndShapes(t *testing.T) {
 	if insta.Total != 1 || !insta.Lineups[0].Insta {
 		t.Errorf("insta = %+v", insta)
 	}
+	var video findProLineupsOut
+	callTool(t, cs, "find_pro_lineups", map[string]any{"map": "de_mirage", "video": true}, &video)
+	if video.Total != 1 || video.Lineups[0].ID != "smoke-t-1-2-3-4-0" {
+		t.Errorf("video = %+v", video)
+	}
 	toolFails(t, cs, "find_pro_lineups", map[string]any{"map": "de_mirage", "kind": "decoy"}, "kind must be one of")
 	toolFails(t, cs, "find_pro_lineups", map[string]any{"map": "de_mirage", "limit": 101}, "limit must be")
 	toolFails(t, cs, "list_pro_lineup_maps", map[string]any{}, "community server is turned off")

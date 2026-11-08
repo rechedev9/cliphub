@@ -87,7 +87,7 @@ and simulate_veto recommends a veto against a rival.
 FACEIT: faceit_player (nickname or profile URL), faceit_matches, list_faceit_follows,
 follow_faceit_player, unfollow_faceit_player, link_player_faceit (a library player's account).
 Lineups pro are grenades pros repeat in pro matches, served by the ClipHub community server:
-list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta), get_pro_lineup
+list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is
 recorded) and list_pro_combos (each with clip_url once a round of it is recorded); save_pro_lineup copies
 one into the Libreta.

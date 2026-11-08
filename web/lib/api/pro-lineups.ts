@@ -156,6 +156,8 @@ export type ProLineupFilter = {
   kinds: ReadonlySet<ProLineupKind>;
   side: TacticalSide | '';
   insta: boolean;
+  /** Only lineups with a recorded pro clip. */
+  video: boolean;
   text: string;
 };
 
@@ -167,6 +169,7 @@ export function filterProLineups(lineups: readonly ProLineup[], filter: ProLineu
       filter.kinds.has(l.kind) &&
       (filter.side === '' || l.side === filter.side) &&
       (!filter.insta || l.insta) &&
+      (!filter.video || Boolean(l.clip)) &&
       (needle === '' || l.title.toLowerCase().includes(needle) || l.land_place.toLowerCase().includes(needle) || l.throw_place.toLowerCase().includes(needle)),
   );
 }

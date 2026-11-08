@@ -21,13 +21,17 @@ import { ClipVideo } from './throw-clip';
 const PAGE = 40;
 
 /** The combos pros run on the map, most rounds first, each with its lineups and a practice button. */
-export function ComboList({ data, side }: { data: ProLineupMap; side: TacticalSide | '' }): ReactNode {
+export function ComboList({ data, side, video }: { data: ProLineupMap; side: TacticalSide | ''; video: boolean }): ReactNode {
   const [shown, setShown] = useState(PAGE);
   const practice = usePracticeLaunch(data.map);
   const byId = useMemo(() => new Map(data.lineups.map((l) => [l.id, l])), [data.lineups]);
-  const combos = data.combos.filter((combo) => side === '' || combo.side === side);
+  const combos = data.combos.filter((combo) => (side === '' || combo.side === side) && (!video || Boolean(combo.clip)));
   if (combos.length === 0) {
-    return <p className="text-body-sm text-fg-2">Aún no hay combos que varios equipos repitan en este lado.</p>;
+    return (
+      <p className="text-body-sm text-fg-2">
+        {video ? 'Ningún combo con vídeo en este lado. Quita «Con vídeo» para ver todos.' : 'Aún no hay combos que varios equipos repitan en este lado.'}
+      </p>
+    );
   }
   return (
     <section aria-label="Combos" className="flex flex-col gap-2">
