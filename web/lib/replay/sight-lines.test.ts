@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalSample } from '../api/tactical.ts';
 import { buildSightBvh } from './sight-bvh.ts';
-import { inFieldOfView, sightPairs, sightPlayer, viewWedge } from './sight-lines.ts';
+import { blockingSmokes, inFieldOfView, sightPairs, sightPlayer, viewWedge } from './sight-lines.ts';
 
 const ALIVE = TACTICAL_SAMPLE_FLAGS.alive;
 const T = TACTICAL_SAMPLE_FLAGS.sideT;
@@ -52,4 +52,14 @@ test('sight lines: the view wedge stops at the wall', () => {
   assert.ok(Math.abs(middle.x) < 1e-3, `middle ray ends at x ${middle.x}`);
   const edge = wedge[0];
   assert.ok(Math.hypot(edge.x + 300, edge.y) > 999, 'the outer ray passes the wall and runs to full reach');
+});
+
+test('sight lines: a smoke stops sight until it thins, and ends early when the demo says so', () => {
+  const secondsOf = (tick: number): number => tick / 64;
+  const smoke = { tick: 0, kind: 'smoke' as const, pos: [10, 20, 0] as [number, number, number], target_pos: [0, 0, 0] as [number, number, number] };
+  assert.equal(blockingSmokes({ events: [smoke], nowSeconds: 15, secondsOf }).length, 1);
+  assert.equal(blockingSmokes({ events: [smoke], nowSeconds: 21, secondsOf }).length, 0);
+  const cleared = { ...smoke, end_tick: 8 * 64 };
+  assert.equal(blockingSmokes({ events: [cleared], nowSeconds: 5, secondsOf }).length, 1);
+  assert.equal(blockingSmokes({ events: [cleared], nowSeconds: 7, secondsOf }).length, 0);
 });

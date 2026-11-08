@@ -396,6 +396,8 @@ export type TacticalEvent = {
   throw?: TacticalThrow;
   /** What a flash, HE or molotov did to players; absent when it touched nobody. */
   effect?: TacticalUtilityEffect;
+  /** When a smoke, fire or decoy went out, or a dropped bomb was picked up; absent before analysis version 9. */
+  end_tick?: number;
 };
 
 /** `tacticalplan.UtilityEffect`: who a flash blinded, and the damage a grenade dealt. */

@@ -344,7 +344,7 @@ export class ReplayScene {
         }
       }
       if (layers.utility) this.#utility.grenades(round.key, utilityVisuals(round.events, nowSeconds, (at) => timelineSeconds(round.timeline, at)), strength, nowSeconds);
-      if (layers.bomb) this.#utility.bomb(round.key, bombVisual(round.events, nowSeconds, carried), strength);
+      if (layers.bomb) this.#utility.bomb(round.key, bombVisual({ events: round.events, nowSeconds, carried, secondsOf: (at) => timelineSeconds(round.timeline, at) }), strength);
     }
     this.#utility.endFrame();
     if (eye !== null) this.#rig.placeEye(eye.at, eye.direction);

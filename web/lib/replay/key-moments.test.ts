@@ -69,3 +69,16 @@ test('key moments: a kill past the trade window is not a trade', () => {
   const moments = keyMoments({ round: { events, players }, frames: [], tickrate: 64, names });
   assert.deepEqual(moments.map((moment) => moment.kind), ['opening']);
 });
+
+test('key moments: kills after the round ended make no trade and no clutch', () => {
+  // The round ends at 4000; the CTs then hunt the Ts who were saving.
+  const events = [kill(1000, 5, 0, 'T', true), kill(3900, 6, 1, 'T'), kill(4050, 2, 6, 'CT'), kill(4100, 2, 7, 'CT')];
+  const defusing = TACTICAL_SAMPLE_FLAGS.alive | TACTICAL_SAMPLE_FLAGS.defusing;
+  const frames: TacticalFrame[] = [{ tick: 4200, samples: [{ slot: 2, x: 0, y: 0, z: 0, yaw: 0, health: 100, flags: defusing }] }];
+  const moments = keyMoments({ round: { events, players }, frames, tickrate: 64, names, endTick: 4000 });
+  // cris left alone at 3900 is a real clutch; the trade at 4050 and dani alone at 4100 are not.
+  assert.deepEqual(moments.map((moment) => [moment.tick, moment.kind, moment.label]), [
+    [1000, 'opening', 'dani mata a ana'],
+    [3900, 'clutch', 'cris, 1 contra 3'],
+  ]);
+});

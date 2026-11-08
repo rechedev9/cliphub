@@ -214,6 +214,8 @@ func TestScanRealDemo(t *testing.T) {
 		t.Fatalf("%d of %d grenades carry their throw", thrown, grenades)
 	}
 
+	checkRealDemoBoundsAndLifetimes(t, doc)
+
 	// Hits are the per-shot side of the damage totals, so they must add up to them.
 	hits := 0
 	for _, r := range doc.Rounds {

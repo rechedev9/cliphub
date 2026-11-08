@@ -58,6 +58,21 @@ test('utility: an old analysis without throws still shows the effect', () => {
   assert.deepEqual(visuals[0].at, { x: 100, y: 200, z: 10 });
 });
 
+test('utility: a fire put out by a smoke goes when the demo says it went out', () => {
+  const fire = entry('molotov', 3, { end_tick: 4 * TICKRATE });
+  assert.equal(utilityVisuals([fire], 3.5, secondsOf).length, 1);
+  assert.deepEqual(utilityVisuals([fire], 4.5, secondsOf), []);
+  const smoke = entry('smoke', 0, { end_tick: 12 * TICKRATE });
+  const thinning = utilityVisuals([smoke], 11.5, secondsOf)[0].effect;
+  assert.ok(thinning !== null && thinning.strength < 0.5);
+  assert.deepEqual(utilityVisuals([smoke], 13, secondsOf), []);
+});
+
+test('utility: a decoy keeps sounding for 15 seconds', () => {
+  assert.equal(utilityVisuals([entry('decoy', 0)], 10, secondsOf).length, 1);
+  assert.deepEqual(utilityVisuals([entry('decoy', 0)], 16, secondsOf), []);
+});
+
 test('arc: starts and ends at the throw and the landing, peaking above both', () => {
   const from = { x: 0, y: 0, z: 64 };
   const to = { x: 1000, y: 0, z: 0 };
@@ -70,14 +85,27 @@ test('arc: starts and ends at the throw and the landing, peaking above both', ()
 
 test('bomb: planted until defused or exploded, a drop only while nobody carries it', () => {
   const events = [entry('bomb_drop', 2), entry('plant', 10), entry('defuse', 30)];
-  assert.equal(bombVisual(events, 1, true), null);
-  assert.equal(bombVisual(events, 3, false)?.state, 'dropped');
-  assert.equal(bombVisual(events, 3, true), null);
-  assert.equal(bombVisual(events, 12, false)?.state, 'planted');
-  assert.equal(bombVisual(events, 31, false)?.state, 'defused');
+  const at = (now: number, carried: boolean, list = events) => bombVisual({ events: list, nowSeconds: now, carried, secondsOf });
+  assert.equal(at(1, true), null);
+  assert.equal(at(3, false)?.state, 'dropped');
+  assert.equal(at(3, true), null);
+  assert.equal(at(12, false)?.state, 'planted');
+  assert.equal(at(31, false)?.state, 'defused');
   const blown = [entry('plant', 10), entry('explode', 50)];
-  assert.equal(bombVisual(blown, 50.5, false)?.state, 'exploded');
-  assert.equal(bombVisual(blown, 53, false), null);
+  assert.equal(at(50.5, false, blown)?.state, 'exploded');
+  assert.equal(at(53, false, blown), null);
+});
+
+test('bomb: a drop lies there until its pickup, whoever is drawn', () => {
+  // Picked up at 6 s by a player the viewer hid: no carrier among the drawn samples.
+  const events = [entry('bomb_drop', 2, { end_tick: 6 * TICKRATE })];
+  assert.equal(bombVisual({ events, nowSeconds: 4, carried: true, secondsOf })?.state, 'dropped');
+  assert.equal(bombVisual({ events, nowSeconds: 7, carried: false, secondsOf }), null);
+});
+
+test('bomb: an old analysis without a plant does not blow up at the world origin', () => {
+  const events = [entry('explode', 50, { pos: [0, 0, 0] })];
+  assert.equal(bombVisual({ events, nowSeconds: 50.5, carried: false, secondsOf }), null);
 });
 
 test('smoke puffs: the same grenade always gets the same cloud, inside its dome', () => {
