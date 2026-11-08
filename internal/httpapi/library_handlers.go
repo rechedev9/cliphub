@@ -720,9 +720,9 @@ func (h *Handlers) GetLibraryMatchTacticalRound(w http.ResponseWriter, r *http.R
 
 // GetLibraryMatchTacticalPositions handles GET /api/library/matches/{id}/tactical/positions.
 func (h *Handlers) GetLibraryMatchTacticalPositions(w http.ResponseWriter, r *http.Request) {
-	_, positionsKey, ok := h.libraryMatchKeys(w, r)
+	indexKey, positionsKey, ok := h.libraryMatchKeys(w, r)
 	if ok {
-		h.serveTacticalPositions(w, r, positionsKey)
+		h.serveTacticalPositions(w, r, indexKey, positionsKey)
 	}
 }
 

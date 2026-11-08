@@ -30,7 +30,7 @@ export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: Tactic
         ))}
       </p>
       <p className="text-meta tabular-nums text-fg-3">
-        {doc.rounds.length} rondas · MR{Math.round(doc.demo.max_rounds / 2)} · {doc.positions.hz} Hz · analizada {timeAgo(generatedAt)}
+        {doc.rounds.length} rondas{doc.demo.max_rounds > 0 ? ` · MR${Math.round(doc.demo.max_rounds / 2)}` : ''} · {doc.positions.hz} Hz · analizada {timeAgo(generatedAt)}
       </p>
       {warnings.length === 0 ? null : (
         <details className="group relative">

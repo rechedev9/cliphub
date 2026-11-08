@@ -11,7 +11,7 @@ import {
   TACTICAL_SITE_ORDER,
 } from '@/lib/api/tactical';
 import type { TacticalDocument, TacticalFilter } from '@/lib/api/tactical';
-import { tacticalFilterCount } from '@/lib/tactical-filter';
+import { roundBoundCommit, tacticalFilterCount, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import { buyLabel, ctPatternLabel, outcomeLabel, phaseLabel, roundTagLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { roundTypeCounts, toggleValue } from '@/lib/replay/round-types';
 import { Button, FOCUS_RING } from '@/components/ui/button';
@@ -20,17 +20,25 @@ import { ReplayChip, ReplayGroup } from './replay-chip';
 
 type Choice<T extends string> = { value: T | undefined; label: string };
 
-function ChoiceRow<T extends string>({ label, options, value, onChange }: { label: string; options: readonly Choice<T>[]; value: T | undefined; onChange: (next: T | undefined) => void }): ReactNode {
+/** `disabledHint` leaves only the first option ("any") pickable and says why. */
+function ChoiceRow<T extends string>({ label, options, value, onChange, disabledHint }: { label: string; options: readonly Choice<T>[]; value: T | undefined; onChange: (next: T | undefined) => void; disabledHint?: string }): ReactNode {
   return (
     <div className="flex flex-col gap-1" role="group" aria-label={label}>
       <span className="text-meta text-fg-3">{label}</span>
       <div className="flex min-w-0 flex-wrap gap-1">
-        {options.map((option) => (
-          <ReplayChip key={option.label} pressed={value === option.value} onClick={() => onChange(option.value)} className="max-w-full">
+        {options.map((option, index) => (
+          <ReplayChip
+            key={option.label}
+            pressed={value === option.value}
+            disabled={disabledHint !== undefined && index > 0}
+            onClick={() => onChange(option.value)}
+            className="max-w-full"
+          >
             <span className="truncate">{option.label}</span>
           </ReplayChip>
         ))}
       </div>
+      {disabledHint === undefined ? null : <span className="text-meta text-fg-3">{disabledHint}</span>}
     </div>
   );
 }
@@ -69,21 +77,35 @@ function TypeRow({ label, count, selected, onClick }: { label: string; count: nu
   );
 }
 
-function RoundBound({ label, value, placeholder, min, max, onChange }: { label: string; value: number | undefined; placeholder: string; min: number; max: number; onChange: (next: number | undefined) => void }): ReactNode {
+type RoundBoundProps = { label: string; value: number | undefined; other: number | undefined; edge: 'from' | 'to'; placeholder: string; min: number; max: number; onChange: (next: number | undefined) => void };
+
+/** A value that would invert the range stays a draft in the field until it fits, instead of clearing both bounds. */
+function RoundBound({ label, value, other, edge, placeholder, min, max, onChange }: RoundBoundProps): ReactNode {
+  const [draft, setDraft] = useState<string | null>(null);
+  const inverted = draft !== null && roundBoundCommit({ text: draft, other, edge }) === null;
+  const invertedTitle = edge === 'from' ? 'Debe ser menor o igual que el final' : 'Debe ser mayor o igual que el inicio';
   return (
     <input
       type="number"
       inputMode="numeric"
       aria-label={label}
+      aria-invalid={inverted || undefined}
+      title={inverted ? invertedTitle : undefined}
       min={min}
       max={max}
       placeholder={placeholder}
-      value={value === undefined ? '' : String(value)}
+      value={draft ?? (value === undefined ? '' : String(value))}
       onChange={(event) => {
-        const parsed = Number(event.target.value);
-        onChange(Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined);
+        const text = event.target.value;
+        setDraft(text);
+        const commit = roundBoundCommit({ text, other, edge });
+        if (commit !== null) onChange(commit.value);
       }}
-      className={cn('h-7 w-14 rounded-sm border border-border-strong bg-surface-1 px-2 text-meta tabular-nums text-fg-1 outline-none placeholder:text-fg-3', FOCUS_RING)}
+      onBlur={() => setDraft(null)}
+      className={cn(
+        'h-7 w-14 rounded-sm border border-border-strong bg-surface-1 px-2 text-meta tabular-nums text-fg-1 outline-none placeholder:text-fg-3 aria-invalid:border-destructive',
+        FOCUS_RING,
+      )}
     />
   );
 }
@@ -107,7 +129,8 @@ export function ReplayFilters({
   total: number;
 }): ReactNode {
   const moreId = useId();
-  const patch = (next: Partial<TacticalFilter>): void => onChange({ ...filter, ...next });
+  const patch = (next: Partial<TacticalFilter>): void => onChange(withoutOrphanOutcome({ ...filter, ...next }));
+  const outcomeNeedsPerspective = filter.team_key === undefined && filter.side === undefined;
   const types = roundTypeCounts(doc.teams, filter, doc.rounds);
   const moreCount = [filter.buys, filter.opponent_buys, filter.sites, filter.tags, filter.slots, filter.phase === undefined ? undefined : [filter.phase]].filter(
     (values) => values !== undefined && values.length > 0,
@@ -140,13 +163,14 @@ export function ReplayFilters({
           value={filter.outcome}
           options={[{ value: undefined, label: 'Todas' }, ...[TACTICAL_OUTCOMES.win, TACTICAL_OUTCOMES.loss].map((value) => ({ value, label: outcomeLabel(value) }))]}
           onChange={(outcome) => patch({ outcome })}
+          disabledHint={outcomeNeedsPerspective ? 'Elige un equipo o un lado' : undefined}
         />
         <div className="flex flex-col gap-1" role="group" aria-label="Rondas">
           <span className="text-meta text-fg-3">Rondas</span>
           <div className="flex items-center gap-1.5 text-meta text-fg-3">
-            <RoundBound label="Desde la ronda" value={filter.round_from} placeholder={String(firstRound)} min={firstRound} max={lastRound} onChange={(round_from) => patch({ round_from })} />
+            <RoundBound label="Desde la ronda" value={filter.round_from} other={filter.round_to} edge="from" placeholder={String(firstRound)} min={firstRound} max={lastRound} onChange={(round_from) => patch({ round_from })} />
             a
-            <RoundBound label="Hasta la ronda" value={filter.round_to} placeholder={String(lastRound)} min={firstRound} max={lastRound} onChange={(round_to) => patch({ round_to })} />
+            <RoundBound label="Hasta la ronda" value={filter.round_to} other={filter.round_from} edge="to" placeholder={String(lastRound)} min={firstRound} max={lastRound} onChange={(round_to) => patch({ round_to })} />
           </div>
         </div>
       </div>

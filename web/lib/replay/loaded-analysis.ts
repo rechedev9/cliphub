@@ -1,4 +1,4 @@
-import { fetchTacticalDocument, fetchTacticalPositions, isServiceUnavailableError } from '../api/tactical.ts';
+import { fetchTacticalDocument, fetchTacticalPositions, isPositionsMissingError, isServiceUnavailableError } from '../api/tactical.ts';
 import type { TacticalDocument, TacticalFrame, TacticalRound, TacticalSource } from '../api/tactical.ts';
 import { decodePositionsHeader, decodeRoundFrames, TacticalDecodeError, tacticalDecodeErrorMessage } from '../tactical-decode.ts';
 import type { PositionsScale } from '../tactical-decode.ts';
@@ -6,6 +6,10 @@ import { LruCache } from '../lru-cache.ts';
 
 /** Rounds kept decoded per match: the superposed rounds plus a few neighbours. */
 const FRAME_CACHE_ROUNDS = 14;
+
+/** What a replay says when the analysis is there but its positions file is not. */
+export const POSITIONS_MISSING_MESSAGE =
+  'Falta el archivo de posiciones de esta demo, así que no se puede reproducir. Vuelve a analizar la demo para reconstruirlo.';
 
 /** A message the analysis screens can show as is. */
 export class UserFacingTacticalError extends Error {}
@@ -71,6 +75,7 @@ export async function loadAnalysis(source: TacticalSource): Promise<LoadedAnalys
 
 export function analysisErrorMessage(error: unknown): string {
   if (isServiceUnavailableError(error)) return 'El servicio de análisis local no está disponible.';
+  if (isPositionsMissingError(error)) return POSITIONS_MISSING_MESSAGE;
   if (error instanceof TacticalDecodeError) return tacticalDecodeErrorMessage(error);
   if (error instanceof UserFacingTacticalError) return error.message;
   return 'No se pudo cargar el análisis táctico. Revisa el estado local y vuelve a intentarlo.';

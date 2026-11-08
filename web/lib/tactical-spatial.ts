@@ -74,7 +74,10 @@ export function heatmapLevels(heatmap: Heatmap): RadarLevel[] {
   return [RADAR_LEVELS.default, RADAR_LEVELS.lower].filter((level) => present.has(level));
 }
 
-/** The side to open on: the asked one if it has data, else the side with more. */
+/**
+ * The side to show: the asked one even when it has no data (an explicit pick
+ * must not bounce back), else the side with more.
+ */
 export function heatmapSide(heatmap: Heatmap, asked: TacticalSide | ''): TacticalSide {
   if (asked !== '') return asked;
   const totals = { [TACTICAL_SIDES.ct]: 0, [TACTICAL_SIDES.t]: 0 };
@@ -113,6 +116,12 @@ export function elapsedLabel(seconds: number): string {
 /** The overlay clock's end: the longest round drawn. */
 export function overlayDuration(rounds: readonly OverlayRound[]): number {
   return rounds.reduce((max, round) => Math.max(max, round.duration_seconds), 0);
+}
+
+/** The focused round while it is shown, else the first shown one; empty when every round is hidden. */
+export function visibleFocus(keys: readonly string[], hidden: ReadonlySet<string>, focus: string): string {
+  if (keys.includes(focus) && !hidden.has(focus)) return focus;
+  return keys.find((key) => !hidden.has(key)) ?? '';
 }
 
 /** Stable key of an overlaid round. */
