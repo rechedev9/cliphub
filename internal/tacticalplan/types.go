@@ -26,9 +26,10 @@ const SchemaVersion = "1.0"
 // 4: every grenade carries where it was thrown from;
 // 5: positions blob version 2, every sample carries pitch and gear;
 // 6: every round lists the damage players dealt to enemies, and samples
-// mark a player defusing).
+// mark a player defusing;
+// 7: Cache uses its shipped radar calibration instead of a derived one).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 6
+const AnalysisVersion = 7
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string

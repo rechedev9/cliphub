@@ -61,6 +61,7 @@ var calibrations = map[string]Calibration{
 	"de_inferno":  {Map: "de_inferno", PosX: -2087, PosY: 3870, Scale: 4.9, Size: 1024},
 	"de_dust2":    {Map: "de_dust2", PosX: -2476, PosY: 3239, Scale: 4.4, Size: 1024},
 	"de_ancient":  {Map: "de_ancient", PosX: -2953, PosY: 2164, Scale: 5.0, Size: 1024},
+	"de_cache":    {Map: "de_cache", PosX: -2000, PosY: 3250, Scale: 5.5, Size: 1024},
 	"de_anubis":   {Map: "de_anubis", PosX: -2796, PosY: 3328, Scale: 5.22, Size: 1024},
 	"de_overpass": {Map: "de_overpass", PosX: -4831, PosY: 1781, Scale: 5.2, Size: 1024},
 	"de_nuke":     {Map: "de_nuke", PosX: -3453, PosY: 2887, Scale: 7.0, Size: 1024, LowerAltitudeMax: altitude(-495)},
