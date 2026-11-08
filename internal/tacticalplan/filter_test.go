@@ -270,3 +270,14 @@ func TestTeamSideFollowsHalf(t *testing.T) {
 		t.Fatalf("unknown team must have no side, got %q", got)
 	}
 }
+
+func TestTeamSideKeepsSidesIntoOvertime(t *testing.T) {
+	d := testDocument()
+	// Halves 3 and 4 are the first overtime, 5 and 6 the second.
+	want := map[int]Side{3: SideT, 4: SideCT, 5: SideCT, 6: SideT}
+	for half, side := range want {
+		if got := d.TeamSide("ct-start", Round{Half: half, Overtime: (half - 1) / 2}); got != side {
+			t.Errorf("half %d side = %q, want %q", half, got, side)
+		}
+	}
+}

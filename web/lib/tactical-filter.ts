@@ -193,9 +193,9 @@ export function tacticalFilterToQuery(filter: TacticalFilter): string {
 export type TeamSides = { key: string; start_side: TacticalSide; slots?: number[] };
 
 /**
- * The side a team played in a round, mirroring `Document.TeamSide`: odd halves
- * are the starting side, even halves the swap. Undefined when the team did not
- * play (another map of a series document).
+ * The side a team played in a round, mirroring `Document.TeamSide`: overtime
+ * keeps the sides regulation ended on, so halves 3 and 4 play as 2 and 1.
+ * Undefined when the team did not play (another map of a series document).
  */
 function teamSideInRound(
   teams: readonly TeamSides[],
@@ -204,7 +204,12 @@ function teamSideInRound(
 ): TacticalSide | undefined {
   const team = teams.find((candidate) => candidate.key === teamKey);
   if (team === undefined) return undefined;
-  return half % 2 === 1 ? team.start_side : opponentSide(team.start_side);
+  return sidesSwapped(half) ? opponentSide(team.start_side) : team.start_side;
+}
+
+/** Whether teams play opposite their start side in a half, mirroring `tacticalplan.SidesSwapped`. */
+export function sidesSwapped(half: number): boolean {
+  return Math.floor(half / 2) % 2 === 1;
 }
 
 /**

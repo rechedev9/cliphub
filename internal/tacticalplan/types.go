@@ -26,9 +26,9 @@ const SchemaVersion = "1.0"
 // 4: every grenade carries where it was thrown from;
 // 5: positions blob version 2, every sample carries pitch and gear;
 // 6: every round lists the damage players dealt to enemies, and samples
-// mark a player defusing).
+// mark a player defusing; 7: overtime keeps the sides regulation ended on).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 6
+const AnalysisVersion = 7
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -440,6 +440,10 @@ func (d Document) RoundByNumber(number int) (Round, bool) {
 	return Round{}, false
 }
 
+// SidesSwapped reports whether teams play opposite their start side in a half.
+// CS2 does not swap when overtime starts, so halves 3 and 4 play as 2 and 1.
+func SidesSwapped(half int) bool { return (half/2)%2 == 1 }
+
 // TeamSide returns the side a team played in a given round. Teams swap sides at
 // half time, so this is the only correct way to attribute a round to a team.
 func (d Document) TeamSide(teamKey string, round Round) Side {
@@ -447,10 +451,10 @@ func (d Document) TeamSide(teamKey string, round Round) Side {
 		if t.Key != teamKey {
 			continue
 		}
-		if round.Half%2 == 1 {
-			return t.StartSide
+		if SidesSwapped(round.Half) {
+			return t.StartSide.Opponent()
 		}
-		return t.StartSide.Opponent()
+		return t.StartSide
 	}
 	return ""
 }
