@@ -318,17 +318,20 @@ func burnClip(ctx context.Context, job recordClipsJob, in burnInput) error {
 		ffmpeg = "ffmpeg"
 	}
 	filter := clipFilter(in.ass, in.fonts)
-	if err := runTool(ctx, ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", in.raw, "-vf", filter, "-frames:v", fmt.Sprint(in.frames),
-		"-an", "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", tmp); err != nil {
+	if err := runTool(ctx, ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", in.raw, "-vf", filter, "-frames:v", fmt.Sprint(in.frames*clipFPS/hudFPS),
+		"-an", "-c:v", "libx264", "-preset", "slow", "-crf", "30", "-movflags", "+faststart", tmp); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
 }
 
-// clipFilter burns the HUD and a bold aim mark on the 1080p capture, then scales it to 720p.
+// clipFPS keeps clips small enough to stream from the server; the HUD is drawn at hudFPS first.
+const clipFPS = 30
+
+// clipFilter burns the HUD and a bold aim mark on the 1080p capture, then scales it to 720p at clipFPS.
 func clipFilter(ass, fonts string) string {
-	return "scale=1920:1080," + aimMark() + "," + customhud.ASSFilter(ass, fonts, false) + ",scale=1280:720:flags=lanczos,format=yuv420p"
+	return "scale=1920:1080," + aimMark() + "," + customhud.ASSFilter(ass, fonts, false) + ",scale=1280:720:flags=lanczos,fps=" + fmt.Sprint(clipFPS) + ",format=yuv420p"
 }
 
 // aimMark draws a white cross with a dark edge at the screen centre, where the in-eye view aims.

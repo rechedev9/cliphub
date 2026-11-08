@@ -55,3 +55,9 @@ func TestComboConcatListKeepsOrderAndQuotes(t *testing.T) {
 		t.Fatalf("list = %q", got)
 	}
 }
+
+func TestClipFilterEndsAt720pAndClipFPS(t *testing.T) {
+	if f := clipFilter("a.ass", "fonts"); !strings.HasSuffix(f, ",scale=1280:720:flags=lanczos,fps=30,format=yuv420p") {
+		t.Fatalf("filter tail = %s", f)
+	}
+}
