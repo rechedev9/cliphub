@@ -145,11 +145,17 @@ export function parseState(raw: unknown): HarvestState {
   return state;
 }
 
-/** refetch, when set, is a folder of sidecars whose archives are downloaded again instead of walking results. */
-export type HarvestOptions = { days: number; top: number; outDir: string; maxMatches: number; refetch: string };
+/**
+ * refetch, when set, is a folder of sidecars whose archives are downloaded again instead of walking results.
+ * bestMaps picks the best team per map instead, and writes a sidecar for its latest perMap matches on that map.
+ */
+export type HarvestOptions = {
+  days: number; top: number; outDir: string; maxMatches: number; refetch: string;
+  bestMaps: boolean; minMaps: number; perMap: number;
+};
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "" };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 };
   for (let i = 0; i < argv.length; i++) {
     const next = argv[i + 1] ?? "";
     switch (argv[i]) {
@@ -158,6 +164,9 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
       case "--max": opts.maxMatches = positive(next, opts.maxMatches); i++; break;
       case "--out": if (next !== "") opts.outDir = next; i++; break;
       case "--refetch": if (next !== "") opts.refetch = next; i++; break;
+      case "--best-maps": opts.bestMaps = true; break;
+      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i++; break;
+      case "--per-map": opts.perMap = positive(next, opts.perMap); i++; break;
     }
   }
   return opts;

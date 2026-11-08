@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"maps"
 	"net/http"
@@ -233,6 +234,8 @@ func (a *api) handleProClip(w http.ResponseWriter, r *http.Request) {
 type clipDirs struct {
 	analyses, demos, clips, out, team string
 	max                               int
+	// picks, when set, names the one team to record on each map; other maps are left out.
+	picks map[string]string
 }
 
 // planClipsFromDirs builds the lineups from the local analyses and writes what to record next.
@@ -241,21 +244,56 @@ func planClipsFromDirs(ctx context.Context, dirs clipDirs) error {
 	if err != nil {
 		return err
 	}
-	lineups, combos := []prolineups.Lineup{}, []prolineups.Combo{}
-	for _, m := range slices.Sorted(maps.Keys(read.byMap)) {
-		idx := prolineups.BuildIndex(m, read.byMap[m], time.Now())
-		lineups, combos = append(lineups, idx.Lineups...), append(combos, idx.Combos...)
+	demo := func(file string) (string, bool) {
+		path := filepath.Join(dirs.demos, file+".dem")
+		info, err := os.Stat(path)
+		return path, err == nil && info.Mode().IsRegular()
 	}
-	plan := planClips(clipPlanInput{lineups: lineups, combos: combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max, team: dirs.team,
-		demo: func(file string) (string, bool) {
-			path := filepath.Join(dirs.demos, file+".dem")
-			info, err := os.Stat(path)
-			return path, err == nil && info.Mode().IsRegular()
-		}})
+	plan := clipPlan{Demos: []clipDemo{}, Combos: []clipCombo{}}
+	lineups, combos := 0, 0
+	for _, m := range slices.Sorted(maps.Keys(read.byMap)) {
+		team := dirs.team
+		if dirs.picks != nil {
+			pick, ok := dirs.picks[m]
+			if !ok {
+				continue
+			}
+			team = pick
+		}
+		idx := prolineups.BuildIndex(m, read.byMap[m], time.Now())
+		lineups, combos = lineups+len(idx.Lineups), combos+len(idx.Combos)
+		part := planClips(clipPlanInput{lineups: idx.Lineups, combos: idx.Combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max, team: team, demo: demo})
+		plan.Demos, plan.Combos = append(plan.Demos, part.Demos...), append(plan.Combos, part.Combos...)
+	}
 	n := 0
 	for _, d := range plan.Demos {
 		n += len(d.Clips)
 	}
-	log.Printf("community stage=clips class=planned demos=%d clips=%d combos=%d lineups=%d all_combos=%d", len(plan.Demos), n, len(plan.Combos), len(lineups), len(combos))
+	log.Printf("community stage=clips class=planned demos=%d clips=%d combos=%d lineups=%d all_combos=%d", len(plan.Demos), n, len(plan.Combos), lineups, combos)
 	return writeClipPlan(dirs.out, plan)
+}
+
+// readClipPicks reads the harvester's best-maps.json into map key to team name.
+func readClipPicks(path string) (map[string]string, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		Map  string `json:"map"`
+		Team string `json:"team"`
+	}
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	picks := map[string]string{}
+	for _, r := range rows {
+		if r.Map != "" && r.Team != "" {
+			picks[r.Map] = r.Team
+		}
+	}
+	if len(picks) == 0 {
+		return nil, fmt.Errorf("%s names no map and team", path)
+	}
+	return picks, nil
 }

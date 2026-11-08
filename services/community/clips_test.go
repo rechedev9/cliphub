@@ -107,3 +107,21 @@ func TestPlanClipsRecordsEachComboThrowAndListsTheCombo(t *testing.T) {
 		t.Fatalf("combos = %+v", plan.Combos)
 	}
 }
+
+func TestReadClipPicksMapsEachMapToItsTeam(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "best-maps.json")
+	body := `[{"map":"de_mirage","team_id":9565,"team":"Vitality","maps":12,"win_rate":0.833},{"map":"","team":"x"}]`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	picks, err := readClipPicks(path)
+	if err != nil || len(picks) != 1 || picks["de_mirage"] != "Vitality" {
+		t.Fatalf("picks = %v, %v", picks, err)
+	}
+	if err := os.WriteFile(path, []byte(`[]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readClipPicks(path); err == nil {
+		t.Fatal("an empty pick list must fail")
+	}
+}

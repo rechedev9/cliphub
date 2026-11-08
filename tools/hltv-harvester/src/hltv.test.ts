@@ -42,7 +42,7 @@ test("only matches never seen or still without a demo are visited again", () => 
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "" });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 });
 });
 
 test("--refetch names a folder of sidecars to download again", () => {
