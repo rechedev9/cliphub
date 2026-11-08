@@ -18,11 +18,30 @@ const GEOMETRY: TacticalGeometry = {
 };
 
 test('a zone is drawn from its cells and labelled at its centre of play', () => {
-  const [mid, apartments] = zoneShapes(GEOMETRY, ['TopofMid', 'Apartments', 'Unknown'], 100);
+  const [mid, apartments] = zoneShapes(GEOMETRY, { zones: ['TopofMid', 'Apartments', 'Unknown'], size: 100 });
   // (-230 + 3230) / 5 = 600 px of 1024; (1713 + 1287) / 5 = 600 px.
   assert.equal(mid?.x, 58.59);
   assert.equal(mid?.y, 58.59);
   assert.match(mid?.path ?? '', /^M[\d.]+ [\d.]+h[\d.]+v[\d.]+h-[\d.]+z$/);
   assert.equal(apartments?.path, '');
-  assert.equal(zoneShapes(GEOMETRY, ['Unknown']).length, 0);
+  assert.equal(zoneShapes(GEOMETRY, { zones: ['Unknown'] }).length, 0);
+});
+
+test('on a two-floor map a zone is drawn on its own floor only', () => {
+  const nuke: TacticalGeometry = {
+    ...GEOMETRY,
+    map: 'de_nuke',
+    calibration: { map: 'de_nuke', source: RADAR_CALIBRATION_SOURCES.overview, pos_x: -3453, pos_y: 2887, scale: 7, size: 1024, lower_altitude_max: -495 },
+    callouts: [
+      { name: 'Ramp', level: RADAR_LEVELS.default, center: [0, 0], samples: 10 },
+      { name: 'Ramp', level: RADAR_LEVELS.lower, center: [500, 500], samples: 10 },
+      { name: 'Secret', level: RADAR_LEVELS.lower, center: [100, 100], samples: 10 },
+    ],
+  };
+  const upper = zoneShapes(nuke, { zones: ['Ramp', 'Secret'], level: RADAR_LEVELS.default });
+  assert.deepEqual(upper.map((shape) => shape.zone), ['Ramp']);
+  const lower = zoneShapes(nuke, { zones: ['Ramp', 'Secret'], level: RADAR_LEVELS.lower });
+  assert.deepEqual(lower.map((shape) => shape.zone), ['Ramp', 'Secret']);
+  // The lower Ramp, not the first one in the list.
+  assert.notEqual(lower[0]?.x, upper[0]?.x);
 });

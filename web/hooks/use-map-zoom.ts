@@ -43,14 +43,17 @@ function boxOf(element: Element): Box {
  * Zoom and pan of a 2D map through `lib/replay/map-view`, the replay's rules:
  * the wheel zooms on the cursor, a drag pans a zoomed map, a double click shows
  * the whole map. `base` is the whole map in any units; a new base resets.
+ * With `enabled` false the map ignores the wheel and drags, e.g. while its base is not known yet.
  */
-export function useMapZoom(base: RadarRect): MapZoom {
+export function useMapZoom(base: RadarRect, options: { enabled?: boolean } = {}): MapZoom {
+  const enabled = options.enabled ?? true;
   const [stored, setStored] = useState<{ base: RadarRect; view: RadarRect } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   const view = stored !== null && sameRect(stored.base, base) ? stored.view : base;
-  const state = useRef({ view, base, box: { width: 1, height: 1 } });
+  const state = useRef({ view, base, enabled, box: { width: 1, height: 1 } });
   state.current.view = view;
   state.current.base = base;
+  state.current.enabled = enabled;
   const drag = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
   const swallowClick = useRef(false);
 
@@ -66,7 +69,7 @@ export function useMapZoom(base: RadarRect): MapZoom {
       state.current.box = boxOf(element);
       const onWheel = (event: WheelEvent): void => {
         const { view: current, base: whole } = state.current;
-        if (!wheelZooms(current, whole, event.deltaY)) return;
+        if (!state.current.enabled || !wheelZooms(current, whole, event.deltaY)) return;
         event.preventDefault();
         const rect = element.getBoundingClientRect();
         const box = boxOf(element);
@@ -82,7 +85,8 @@ export function useMapZoom(base: RadarRect): MapZoom {
 
   const zoomBy = useCallback(
     (factor: number) => {
-      const { view: current, base: whole, box } = state.current;
+      const { view: current, base: whole, box, enabled: on } = state.current;
+      if (!on) return;
       apply(zoomViewAt({ box, view: current, base: whole, cursor: { x: box.width / 2, y: box.height / 2 }, factor }));
     },
     [apply],
@@ -93,7 +97,7 @@ export function useMapZoom(base: RadarRect): MapZoom {
   const surface: MapZoomSurface = {
     ref,
     onPointerDown: (event) => {
-      if (event.button !== 0 || zoomLevel(state.current.view, state.current.base) <= 1) return;
+      if (event.button !== 0 || !state.current.enabled || zoomLevel(state.current.view, state.current.base) <= 1) return;
       drag.current = { x: event.clientX, y: event.clientY, moved: false, id: event.pointerId };
       event.currentTarget.setPointerCapture(event.pointerId);
     },

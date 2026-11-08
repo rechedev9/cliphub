@@ -1,3 +1,5 @@
+import { RADAR_CALIBRATION_SOURCES } from '../api/tactical.ts';
+import type { RadarCalibration } from '../api/tactical.ts';
 import type { RadarRect } from '../tactical-transform.ts';
 
 /**
@@ -108,4 +110,36 @@ export function followView(options: { view: RadarRect; base: RadarRect; point: {
     if (inside) return view;
   }
   return clampView({ x: point.x - next.width / 2, y: point.y - next.height / 2, width: next.width, height: next.height }, base);
+}
+
+/**
+ * The whole box as a window onto the radar square. It is wider or taller than
+ * the view whenever the box and the view differ in shape, so the plate is baked
+ * for this window, or the strips beside the view stay black.
+ */
+export function boxWindow(box: { width: number; height: number }, projection: { size: number; offsetX: number; offsetY: number }): RadarRect {
+  const { size, offsetX, offsetY } = projection;
+  return { x: -offsetX / size, y: -offsetY / size, width: Math.max(1, box.width) / size, height: Math.max(1, box.height) / size };
+}
+
+/** Zoomed windows by map for the session, so leaving the 2D view and coming back keeps the framing. */
+const zoomMemory = new Map<string, RadarRect>();
+
+export function rememberedZoom(map: string): RadarRect | null {
+  return zoomMemory.get(map) ?? null;
+}
+
+/** Remembers `view` for `map`; null forgets it (the whole map). */
+export function rememberZoom(map: string, view: RadarRect | null): void {
+  if (view === null) zoomMemory.delete(map);
+  else zoomMemory.set(map, view);
+}
+
+/**
+ * Whether CS2's overview image lines up with this calibration. A derived
+ * calibration is fitted to where players stood, not to the image, so the image
+ * would land shifted and scaled under the players.
+ */
+export function radarImageFits(calibration: Pick<RadarCalibration, 'source'>): boolean {
+  return calibration.source === RADAR_CALIBRATION_SOURCES.overview;
 }

@@ -66,8 +66,8 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
   }, [onLevel]);
   const drawn = useMemo(() => onLevel.filter((grenade) => kinds.has(grenade.kind)), [onLevel, kinds]);
   const selected = useMemo(
-    () => (box === null ? null : new Set(drawn.filter((grenade) => grenadeInBox(grenade, box, area)).map(grenadeId))),
-    [drawn, box, area],
+    () => (box === null ? null : new Set(drawn.filter((grenade) => grenadeInBox({ grenade, box, area, floor: { calibration, level } })).map(grenadeId))),
+    [drawn, box, area, calibration, level],
   );
   const matching = useMemo(() => (selected === null ? drawn : drawn.filter((grenade) => selected.has(grenadeId(grenade)))), [drawn, selected]);
 

@@ -1,5 +1,7 @@
 import type { TeamGrenade, TeamGrenadeKind } from '../api/grenades.ts';
 import type { RadarCalibration } from '../api/tactical.ts';
+import { onShownFloor } from './floors.ts';
+import type { ShownFloor } from './floors.ts';
 import { renderedToWorld } from '../tactical-spatial.ts';
 import { isCalibrationUsable, worldToRendered, type RadarPoint } from '../tactical-transform.ts';
 import type { ReplayRef } from './replay-link.ts';
@@ -40,11 +42,16 @@ export function dragWorldBox(calibration: RadarCalibration, size: number, a: Rad
   };
 }
 
-/** True when the chosen end of the throw is inside the box; a throw without origin has no throw end. */
-export function grenadeInBox(grenade: TeamGrenade, box: WorldBox, area: GrenadeArea): boolean {
+/**
+ * True when the chosen end of the throw is inside the box; a throw without origin
+ * has no throw end. With `floor`, that end must also be on the floor the box was drawn on.
+ */
+export function grenadeInBox(options: { grenade: TeamGrenade; box: WorldBox; area: GrenadeArea; floor?: ShownFloor }): boolean {
+  const { grenade, box, area, floor } = options;
   const point = area === 'landing' ? grenade.landing : grenade.origin;
   if (point === null) return false;
-  const [x, y] = point;
+  const [x, y, z] = point;
+  if (floor !== undefined && !onShownFloor(floor, z)) return false;
   return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY;
 }
 
@@ -98,6 +105,8 @@ export type GrenadeSpot = {
 /** World units: a lineup is repeated within a step or two; landings spread wider. */
 export const SPOT_ORIGIN_RADIUS = 100;
 export const SPOT_LANDING_RADIUS = 160;
+/** Throws further apart in height than this stand or land on different floors. */
+export const SPOT_HEIGHT = 200;
 
 type Building = { kind: TeamGrenadeKind; grenades: TeamGrenade[]; origin: [number, number] | null; landing: [number, number] };
 
@@ -117,8 +126,13 @@ function near(a: readonly number[], b: readonly number[], radius: number): boole
 
 function fits(group: Building, grenade: TeamGrenade): boolean {
   if (group.kind !== grenade.kind || !near(group.landing, grenade.landing, SPOT_LANDING_RADIUS)) return false;
+  // Heights against the spot's first throw, so A above B on Nuke never merge.
+  const seed = group.grenades[0];
+  if (seed !== undefined && Math.abs(seed.landing[2] - grenade.landing[2]) > SPOT_HEIGHT) return false;
   // A throw without origin joins on landing alone, so old demos still group.
   if (grenade.origin === null || group.origin === null) return true;
+  const thrownFrom = group.grenades.find((entry) => entry.origin !== null)?.origin;
+  if (thrownFrom !== undefined && thrownFrom !== null && Math.abs(thrownFrom[2] - grenade.origin[2]) > SPOT_HEIGHT) return false;
   return near(group.origin, grenade.origin, SPOT_ORIGIN_RADIUS);
 }
 

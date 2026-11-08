@@ -22,6 +22,7 @@ import { readRadarStyle } from '@/components/tactical/radar-style';
 import { useRadarImage } from '@/hooks/use-radar-image';
 import { cn } from '@/lib/utils';
 import { useMapZoom } from '@/hooks/use-map-zoom';
+import { radarImageFits } from '@/lib/replay/map-view';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 
 /** What a paint callback draws with: the context already panned to the radar square. */
@@ -103,10 +104,15 @@ export function RadarSurface({
   const [dpr, setDpr] = useState(1);
   const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
   // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
-  const image = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
+  // A derived calibration does not line up with the image, so such a map keeps its cells.
+  const radar = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
+  const image = radarImageFits(geometry.calibration) ? radar : null;
+  // Until the image settles the framing is unknown: nothing is drawn and the map takes no zoom,
+  // so the crop does not jump and no zoom is lost when it settles.
+  const settled = image !== undefined;
   // The whole map like the game's radar; only the play-derived cells are cropped to where people played.
   const base = useMemo(() => (image === null ? radarViewRect(geometry) : FULL_VIEW), [geometry, image]);
-  const zoom = useMapZoom(base);
+  const zoom = useMapZoom(base, { enabled: settled });
   const view = zoom.view;
   const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
   const bindZoom = zoom.surface.ref;
@@ -127,6 +133,12 @@ export function RadarSurface({
     const style = styleRef.current ?? readRadarStyle(canvas);
     styleRef.current = style;
     const { size, offsetX, offsetY } = projection;
+    if (!settled) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = style.background;
+      ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+      return;
+    }
     const key = `${size}|${dpr}|${level}|${geometry.map}|${view.x},${view.y},${view.width},${view.height}|${style.map}|${image ? 'cs2' : 'cells'}`;
     if (backgroundRef.current?.key !== key) {
       const canvas = image
@@ -141,7 +153,7 @@ export function RadarSurface({
     ctx.drawImage(backgroundRef.current.canvas, view.x * size, view.y * size, view.width * size, view.height * size);
     paintRef.current({ ctx, size, view, style });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [drawable, dpr, geometry, image, level, projection, view]);
+  }, [drawable, dpr, geometry, image, level, projection, settled, view]);
 
   useEffect(() => {
     paintRef.current = paint;

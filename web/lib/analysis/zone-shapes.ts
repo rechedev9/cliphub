@@ -1,4 +1,5 @@
-import type { TacticalGeometry } from '../api/tactical.ts';
+import { RADAR_LEVELS } from '../api/tactical.ts';
+import type { RadarLevel, TacticalGeometry } from '../api/tactical.ts';
 import { cellRadarRect, isCalibrationUsable, worldToRendered } from '../tactical-transform.ts';
 
 export type ZoneShape = {
@@ -12,14 +13,16 @@ export type ZoneShape = {
 
 /**
  * The named zones drawn over a map silhouette of `size` units: each place's
- * cells and its centre of play. Zones the geometry does not name are left out.
+ * cells and its centre of play, on the floor `level` (the upper one by default).
+ * Zones the geometry does not name on that floor are left out.
  */
-export function zoneShapes(geometry: TacticalGeometry, zones: readonly string[], size = 100): ZoneShape[] {
+export function zoneShapes(geometry: TacticalGeometry, options: { zones: readonly string[]; size?: number; level?: RadarLevel }): ZoneShape[] {
+  const { zones, size = 100, level = RADAR_LEVELS.default } = options;
   if (!isCalibrationUsable(geometry.calibration) || !(geometry.cell_size > 0)) return [];
   const r = (n: number): number => Math.round(n * 100) / 100;
   const out: ZoneShape[] = [];
   for (const zone of zones) {
-    const callout = geometry.callouts.find((entry) => entry.name === zone);
+    const callout = geometry.callouts.find((entry) => entry.name === zone && (entry.level ?? RADAR_LEVELS.default) === level);
     if (callout === undefined) continue;
     const parts = (callout.cells ?? []).map(([cx, cy]) => {
       const rect = cellRadarRect(geometry, [cx, cy, 1], size);
