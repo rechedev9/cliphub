@@ -20,7 +20,6 @@ const SMOKE_BLOCK_RADIUS = 132;
 const SMOKE_CENTRE_HEIGHT = 56;
 /** A smoke blocks once it has bloomed and until it starts to thin. */
 const SMOKE_BLOCKS_FROM = 0.75;
-const SMOKE_BLOCKS_UNTIL = SMOKE_SECONDS - SMOKE_FADE_SECONDS;
 
 export type SightPlayer = { slot: number; side: TacticalSide; eye: Vec3; chest: Vec3; yaw: number; pitch: number; scoped: boolean };
 
@@ -126,7 +125,8 @@ export function blockingSmokes(options: { events: readonly TacticalEvent[]; nowS
   for (const event of options.events) {
     if (event.kind !== TACTICAL_EVENT_KINDS.smoke) continue;
     const age = options.nowSeconds - options.secondsOf(event.tick);
-    if (age >= SMOKE_BLOCKS_FROM && age <= SMOKE_BLOCKS_UNTIL) out.push({ x: event.pos[0], y: event.pos[1], z: event.pos[2] });
+    const lasts = event.end_tick === undefined ? SMOKE_SECONDS : options.secondsOf(event.end_tick) - options.secondsOf(event.tick);
+    if (age >= SMOKE_BLOCKS_FROM && age <= lasts - SMOKE_FADE_SECONDS) out.push({ x: event.pos[0], y: event.pos[1], z: event.pos[2] });
   }
   return out;
 }

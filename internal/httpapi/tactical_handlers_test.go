@@ -369,6 +369,36 @@ func TestGetTacticalPositionsHonoursRangeRequests(t *testing.T) {
 	}
 }
 
+// An analysed demo whose positions file went missing answers 404 with its own
+// code, so the page can keep the rest of the analysis and say what to redo.
+func TestGetTacticalPositionsReportsAMissingFile(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	h := NewHandlers(repo, store, &fakeQueue{})
+	id := tacticalTestJob(repo)
+	doc, _ := tacticalFixture(t, id)
+	b, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.TacticalIndexKey(id), bytes.NewReader(b)); err != nil {
+		t.Fatal(err)
+	}
+
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"/tactical/positions", nil))
+	if rw.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", rw.Code, rw.Body.String())
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"] != tacticalPositionsMissingCode {
+		t.Errorf("code = %q, want %q", body["code"], tacticalPositionsMissingCode)
+	}
+}
+
 func TestGetTacticalAggregateFiltersAndRejectsBadFilters(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()

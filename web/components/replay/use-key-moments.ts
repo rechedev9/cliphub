@@ -22,7 +22,7 @@ export function useKeyMoments(options: {
     if (focused === null || !enabled) return [];
     const { timeline } = focused;
     const lead = Math.round(JUMP_LEAD_SECONDS * timeline.tickrate);
-    const found = keyMoments({ round: focused.round, frames: focused.frames, tickrate: timeline.tickrate, names: docNames(focused.doc) });
+    const found = keyMoments({ round: focused.round, frames: focused.frames, tickrate: timeline.tickrate, names: docNames(focused.doc), endTick: timeline.endTick });
     return found.map((moment, index) => ({
       key: `${moment.kind}-${moment.tick}-${index}`,
       kind: moment.kind,

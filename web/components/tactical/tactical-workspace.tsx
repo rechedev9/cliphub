@@ -34,7 +34,10 @@ function errorMessage(error: unknown): string {
  * the whole demo, so it is always an explicit decision.
  */
 export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
-  const [status, setStatus] = useState<TacticalStatus | null>(null);
+  // Tagged with its job, so another job never starts from this one's state.
+  const [tagged, setTagged] = useState<{ jobId: string; value: TacticalStatus } | null>(null);
+  const status = tagged?.jobId === jobId ? tagged.value : null;
+  const setStatus = useCallback((value: TacticalStatus) => setTagged({ jobId, value }), [jobId]);
   const [offline, setOffline] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -62,7 +65,7 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
     return () => {
       active = false;
     };
-  }, [jobId, pollToken]);
+  }, [jobId, pollToken, setStatus]);
 
   useEffect(() => {
     if (settled) return;
@@ -93,7 +96,7 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
       active = false;
       stop();
     };
-  }, [jobId, settled, pollToken]);
+  }, [jobId, settled, pollToken, setStatus]);
 
   const start = useCallback(async () => {
     setStarting(true);
@@ -111,7 +114,7 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
     } finally {
       setStarting(false);
     }
-  }, [jobId]);
+  }, [jobId, setStatus]);
 
   const retryStatus = useCallback(() => {
     setOffline(false);

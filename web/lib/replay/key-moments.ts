@@ -80,14 +80,19 @@ function defuseStarts(frames: readonly TacticalFrame[], options: { tickrate: num
 /**
  * The moments worth jumping to in a round, in tick order: the opening kill,
  * each trade kill, the plant, each defuse attempt and the start of a clutch.
+ * Nothing after `endTick` counts: the kills of the post-round decide nothing.
  */
 export function keyMoments(options: {
   round: Pick<TacticalRound, 'events' | 'players'>;
   frames: readonly TacticalFrame[];
   tickrate: number;
   names: ReadonlyMap<number, string>;
+  endTick?: number;
 }): KeyMoment[] {
-  const { round, tickrate } = options;
+  const { tickrate } = options;
+  const endTick = options.endTick ?? Number.POSITIVE_INFINITY;
+  const round = { players: options.round.players, events: options.round.events.filter((event) => event.tick <= endTick) };
+  const frames = options.frames.filter((frame) => frame.tick <= endTick);
   const name = (slot: number | undefined): string => (slot === undefined ? 'El mundo' : (options.names.get(slot) ?? `Jugador ${slot + 1}`));
   const out: KeyMoment[] = [];
   const window = TRADE_WINDOW_SECONDS * tickrate;
@@ -103,7 +108,7 @@ export function keyMoments(options: {
     const site = event.site === undefined || event.site === TACTICAL_SITES.none ? '' : ` en ${siteLabel(event.site)}`;
     out.push({ tick: event.tick, kind: 'plant', label: `${name(event.actor_slot)}${site}`, side: TACTICAL_SIDES.t });
   }
-  out.push(...defuseStarts(options.frames, { tickrate, name }));
+  out.push(...defuseStarts(frames, { tickrate, name }));
   const clutch = clutchStart({ round, name });
   if (clutch !== null) out.push(clutch);
   return out.sort((a, b) => a.tick - b.tick);

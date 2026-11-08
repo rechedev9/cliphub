@@ -61,3 +61,16 @@ func TestGrenadeKindCoversEveryGrenade(t *testing.T) {
 		t.Error("a rifle is not a grenade")
 	}
 }
+
+func TestAMolotovThatNeverBurnedDoesNotLendItsThrowToTheNextFire(t *testing.T) {
+	var log throwLog
+	log.add(pendingThrow{entityID: 20, steamID: 1, kind: tacticalplan.EventMolotov, throw: tacticalplan.Throw{Tick: 100}})
+	log.add(pendingThrow{entityID: 21, steamID: 1, kind: tacticalplan.EventMolotov, throw: tacticalplan.Throw{Tick: 600}})
+	// The first one lands in a smoke at 160 and goes out without a fire.
+	log.land(20, 160)
+	log.land(21, 700)
+	got, ok := log.claim(detonation{steamID: 1, kind: tacticalplan.EventMolotov, tick: 700, landedAfter: 640}, 0)
+	if !ok || got.Tick != 600 {
+		t.Fatalf("fire at 700 claimed %+v, %v; want the throw at 600", got, ok)
+	}
+}

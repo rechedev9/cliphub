@@ -253,3 +253,37 @@ func TestAggregateWithoutPerspectiveOmitsTheEconomyRollups(t *testing.T) {
 		t.Fatal("a perspective must restore the economy rollups")
 	}
 }
+
+// A CT economy converts when it defuses or keeps the bomb from being planted.
+func TestAggregateCTConversionCountsAStoppedPlant(t *testing.T) {
+	d := testDocument()
+	tend := Aggregate(d, Filter{TeamKey: "ct-start", Side: SideCT})
+	// Round 2: Alpha on CT, full buy, won without a plant.
+	if full := buyBucket(t, tend, BuyFull); full.PlantOrDefuse.Count != 1 || full.PlantOrDefuse.Total != 1 {
+		t.Fatalf("CT full conversion = %+v, want 1 of 1", full.PlantOrDefuse)
+	}
+	// Round 1: the bomb was planted and exploded, so the pistol round did not convert.
+	if pistol := buyBucket(t, tend, BuyPistol); pistol.PlantOrDefuse.Count != 0 {
+		t.Fatalf("CT pistol conversion = %+v, want 0", pistol.PlantOrDefuse)
+	}
+}
+
+// A team followed across the side swap has no single side to report.
+func TestAggregatePerspectiveIsOnlySetForOneSide(t *testing.T) {
+	d := testDocument()
+	cases := []struct {
+		filter Filter
+		want   Side
+	}{
+		{Filter{TeamKey: "ct-start"}, ""},
+		{Filter{TeamKey: "ct-start", Side: SideCT}, SideCT},
+		{Filter{TeamKey: "ct-start", RoundTo: 2}, SideCT},
+		{Filter{Side: SideT}, SideT},
+		{Filter{}, ""},
+	}
+	for _, c := range cases {
+		if got := Aggregate(d, c.filter).Perspective; got != c.want {
+			t.Errorf("perspective of %+v = %q, want %q", c.filter, got, c.want)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -152,7 +153,7 @@ func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	h.serveTacticalPositions(w, r, artifacts.TacticalPositionsKey(j.ID))
+	h.serveTacticalPositions(w, r, artifacts.TacticalIndexKey(j.ID), artifacts.TacticalPositionsKey(j.ID))
 }
 
 // GetTacticalAggregate handles GET /api/jobs/{id}/tactical/aggregate.
@@ -217,17 +218,34 @@ func (h *Handlers) serveTacticalRound(w http.ResponseWriter, r *http.Request, in
 // storage-resolved artifact: local storage hands out a seekable file, so
 // serveArtifact answers Range requests through http.ServeContent and the
 // orchestrator never buffers the whole stream.
-func (h *Handlers) serveTacticalPositions(w http.ResponseWriter, r *http.Request, positionsKey string) {
+func (h *Handlers) serveTacticalPositions(w http.ResponseWriter, r *http.Request, indexKey, positionsKey string) {
 	rc, err := h.storage.Open(positionsKey)
 	if err != nil {
 		if storage.IsNotExist(err) {
-			writeError(w, http.StatusConflict, "tactical analysis is not ready")
+			h.writeMissingPositions(w, indexKey, positionsKey)
 			return
 		}
 		internalError(w, "open tactical positions", err)
 		return
 	}
 	serveArtifact(w, r, "application/octet-stream", rc)
+}
+
+// tacticalPositionsMissingCode marks an analysis whose index exists but whose
+// positions file is gone, so the client can keep the rest of the analysis.
+const tacticalPositionsMissingCode = "positions_missing"
+
+// writeMissingPositions answers 409 while nothing is analysed yet, and 404 with
+// its own code when the index is there but the positions file is not.
+func (h *Handlers) writeMissingPositions(w http.ResponseWriter, indexKey, positionsKey string) {
+	index, err := h.storage.Open(indexKey)
+	if err != nil {
+		writeError(w, http.StatusConflict, "tactical analysis is not ready")
+		return
+	}
+	_ = index.Close()
+	log.Printf("httpapi: tactical positions file %s is missing; the demo has to be analysed again", positionsKey)
+	writeCodedError(w, http.StatusNotFound, tacticalPositionsMissingCode, "the tactical positions file is missing; analyse the demo again")
 }
 
 // serveTacticalAggregate computes tendencies over the rounds the query filter

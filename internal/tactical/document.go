@@ -215,7 +215,7 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 		ev.ActorSlot = remapSlotPtr(ev.ActorSlot, remap)
 		ev.TargetSlot = remapSlotPtr(ev.TargetSlot, remap)
 		ev.Effect = remapEffect(ev.Effect, remap)
-		if ev.Kind == tacticalplan.EventKill && ev.Tick == openingTick {
+		if isKillOf(ev, openingTick, openingDeathSlot) {
 			ev.Opening = true
 		}
 		round.Events = append(round.Events, ev)
@@ -224,9 +224,9 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 		if !acc.kills[i].traded {
 			continue
 		}
-		tick := acc.kills[i].tick
+		victim := acc.kills[i].victimSlot
 		for j := range round.Events {
-			if round.Events[j].Kind == tacticalplan.EventKill && round.Events[j].Tick == tick {
+			if isKillOf(round.Events[j], acc.kills[i].tick, &victim) {
 				round.Events[j].Traded = true
 			}
 		}
@@ -268,6 +268,12 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 		OpeningTraded: openingTraded,
 	}
 	return round
+}
+
+// isKillOf reports whether ev is the kill of victim at tick. A collateral puts
+// two kills on one tick, so the tick alone does not name a kill.
+func isKillOf(ev tacticalplan.Event, tick int, victim *uint8) bool {
+	return ev.Kind == tacticalplan.EventKill && ev.Tick == tick && victim != nil && ev.TargetSlot != nil && *ev.TargetSlot == *victim
 }
 
 // openingDuel returns the round's first non-team kill. Its slots are already

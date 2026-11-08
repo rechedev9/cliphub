@@ -55,8 +55,8 @@ function EconomyTable({ tendencies }: { tendencies: TacticalTendencies }): React
               <th scope="col" className={cn(HEAD_CELL, 'w-[34%]')}>
                 Victorias
               </th>
-              <th scope="col" className={HEAD_CELL}>
-                Plantada o desactivación
+              <th scope="col" className={HEAD_CELL} title="Como T, rondas con la bomba plantada. Como CT, rondas con la bomba desactivada o ganadas sin que la planten.">
+                Objetivo cumplido
               </th>
             </tr>
           </thead>

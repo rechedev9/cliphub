@@ -177,7 +177,7 @@ type aggregator struct {
 	firstContact, plant, duration []float64
 	players                       map[string]*PlayerSummary
 	playerSurvived                map[string]int
-	started                       bool
+	started, mixedSides           bool
 }
 
 func newAggregator(f Filter) *aggregator {
@@ -221,13 +221,17 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 		return
 	}
 	a.t.RoundCount += len(rounds)
-	if !a.started {
-		a.t.Perspective = f.Perspective(d, rounds[0])
-		a.started = true
-	}
-
 	for _, r := range rounds {
 		side := f.Perspective(d, r)
+		// The perspective is one side only while every round shares it; a team
+		// followed across the side swap reports none.
+		if !a.started {
+			a.t.Perspective = side
+			a.started = true
+		} else if a.mixedSides || side != a.t.Perspective {
+			a.t.Perspective = ""
+			a.mixedSides = true
+		}
 		won := side != "" && r.Winner == side
 		if won {
 			a.t.Wins++
@@ -472,19 +476,14 @@ type BuySiteKey struct {
 }
 
 // converted reports whether the round's economy turned into the objective
-// progress that side was playing for.
+// progress that side was playing for: a plant for T, and for CT a defuse or a
+// won round in which the bomb never went down.
 func converted(r Round, side Side) bool {
-	if r.Bomb == nil {
-		return false
+	planted := r.Bomb != nil && r.Bomb.PlantTick > 0
+	if side == SideCT {
+		return (r.Bomb != nil && r.Bomb.DefuseTick > 0) || (!planted && r.Winner == SideCT)
 	}
-	switch side {
-	case SideT:
-		return r.Bomb.PlantTick > 0
-	case SideCT:
-		return r.Bomb.DefuseTick > 0
-	default:
-		return r.Bomb.PlantTick > 0
-	}
+	return planted
 }
 
 func newHistogram(samples []float64) Histogram {

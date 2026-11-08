@@ -184,6 +184,28 @@ export function tacticalFilterFromQuery(query: FilterQuery): TacticalFilter {
   return filter;
 }
 
+export type RoundBoundInput = { text: string; other: number | undefined; edge: 'from' | 'to' };
+
+/**
+ * What a round-bound field writes into the filter: a positive integer, nothing
+ * for an empty or non-positive value, or null while the typed value would invert
+ * the range (the field keeps the draft instead of the URL dropping both bounds).
+ */
+export function roundBoundCommit({ text, other, edge }: RoundBoundInput): { value: number | undefined } | null {
+  const parsed = Number(text);
+  if (text.trim() === '' || !Number.isInteger(parsed) || parsed < 1) return { value: undefined };
+  if (other !== undefined && (edge === 'from' ? parsed > other : parsed < other)) return null;
+  return { value: parsed };
+}
+
+/** The filter without an outcome it cannot satisfy: a result needs a team or a side to be read from. */
+export function withoutOrphanOutcome(filter: TacticalFilter): TacticalFilter {
+  if (filter.outcome === undefined || filter.team_key !== undefined || filter.side !== undefined) return filter;
+  const rest: TacticalFilter = { ...filter };
+  delete rest.outcome;
+  return rest;
+}
+
 /** The filter as the query string of a linkable, reloadable workspace URL. */
 export function tacticalFilterToQuery(filter: TacticalFilter): string {
   return tacticalFilterParams(filter).toString();
@@ -287,6 +309,8 @@ export function roundMatchesFilter(
   const side = tacticalPerspective(teams, filter, round);
   // The team did not play this round (a series document, another map).
   if (filter.team_key !== undefined && side === undefined) return false;
+  // With both set, the side keeps the rounds the team played on it.
+  if (filter.team_key !== undefined && filter.side !== undefined && side !== filter.side) return false;
 
   const buys = filter.buys ?? [];
   if (buys.length > 0 && !matchBuy(round, side, buys)) return false;

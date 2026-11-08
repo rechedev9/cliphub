@@ -236,7 +236,7 @@ function drawEffect(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: Ut
 
 function drawBomb(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
   const carried = frame.samples.some((sample) => hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb));
-  const bomb = bombVisual(frame.events, frame.nowSeconds, carried);
+  const bomb = bombVisual({ events: frame.events, nowSeconds: frame.nowSeconds, carried, secondsOf: frame.secondsOf });
   if (bomb === null) return;
   onFloor(ctx, frame, bomb.at.z, () => drawBombAt(ctx, frame, bomb));
 }

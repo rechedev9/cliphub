@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { TriangleAlert } from 'lucide-react';
-import type { TacticalFilter, TacticalSource } from '@/lib/api/tactical';
+import { FileWarning, TriangleAlert } from 'lucide-react';
+import { fetchTacticalDocument, isPositionsMissingError } from '@/lib/api/tactical';
+import type { TacticalDocument, TacticalFilter, TacticalSource } from '@/lib/api/tactical';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
-import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
+import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
-import { analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
+import { POSITIONS_MISSING_MESSAGE, analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { RADAR_2D_VIEW } from '@/components/replay/radar-centre';
@@ -61,6 +62,9 @@ const MODES: readonly { value: AnalysisMode; label: string }[] = [
   { value: 'heatmap', label: 'Mapas de calor' },
 ];
 
+/** One match's analysis; `analysis` is null when its positions file is missing and only the document reads. */
+type Loaded = { key: string; analysis: LoadedAnalysis | null; doc: TacticalDocument };
+
 function positiveIntParam(raw: string | null): number | null {
   if (raw === null || !/^[0-9]{1,9}$/.test(raw)) return null;
   const value = Number(raw);
@@ -83,11 +87,20 @@ export function TacticalAnalysis({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [loaded, setLoaded] = useState<LoadedAnalysis | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedRound, setSelectedRound] = useState<number | null>(null);
+  const { kind: sourceKind, id: sourceId } = source;
+  const sourceKey = `${sourceKind}:${sourceId}`;
+  // Every piece of state is tagged with the match it belongs to, so a new match never shows the last one's.
+  const [state, setState] = useState<Loaded | null>(null);
+  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const [picked, setPicked] = useState<{ key: string; round: number | null } | null>(null);
   const [mode, setMode] = useState<AnalysisMode>('replay');
   const rootRef = useRef<HTMLDivElement>(null);
+  const current = state?.key === sourceKey ? state : null;
+  const loaded = current?.analysis ?? null;
+  const doc = current?.doc ?? null;
+  const loadError = failure?.key === sourceKey ? failure.message : null;
+  const selectedRound = picked?.key === sourceKey ? picked.round : null;
+  const setSelectedRound = useCallback((round: number | null) => setPicked({ key: sourceKey, round }), [sourceKey]);
   const ready = loaded !== null;
 
   // The replay is sized to the window under the tab list, so the tab list goes under the top bar once.
@@ -99,46 +112,59 @@ export function TacticalAnalysis({
     return stop;
   }, [ready, mode]);
 
-  const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
+  // A pasted link may carry a result with no team or side, which selects nothing; it is read without it.
+  const filter = useMemo<TacticalFilter>(() => withoutOrphanOutcome(tacticalFilterFromQuery(searchParams)), [searchParams]);
   const filterQuery = tacticalFilterToQuery(filter);
   const linkedRound = positiveIntParam(searchParams.get(TACTICAL_EVIDENCE_QUERY.round));
   const linkedTick = positiveIntParam(searchParams.get(TACTICAL_EVIDENCE_QUERY.tick));
-  const { kind: sourceKind, id: sourceId } = source;
 
   useEffect(() => {
     if (linkedRound === null) return;
     setSelectedRound(linkedRound);
     setMode('replay');
-  }, [linkedRound, linkedTick]);
+  }, [linkedRound, linkedTick, setSelectedRound]);
 
   useEffect(() => {
     let active = true;
-    setLoadError(null);
-    loadAnalysis({ kind: sourceKind, id: sourceId })
+    const key = `${sourceKind}:${sourceId}`;
+    const from: TacticalSource = { kind: sourceKind, id: sourceId };
+    const fail = (error: unknown): void => {
+      if (active) setFailure({ key, message: analysisErrorMessage(error) });
+    };
+    loadAnalysis(from)
       .then((next) => {
-        if (active) setLoaded(next);
+        if (active) setState({ key, analysis: next, doc: next.doc });
       })
       .catch((error: unknown) => {
-        if (active) setLoadError(analysisErrorMessage(error));
+        if (!isPositionsMissingError(error)) return fail(error);
+        // Without positions the replay cannot play, but the filters and the tendencies still read.
+        fetchTacticalDocument(from)
+          .then((only) => {
+            if (active) setState({ key, analysis: null, doc: only });
+          })
+          .catch(fail);
       });
     return () => {
       active = false;
     };
   }, [sourceKind, sourceId]);
 
-  const tendencies = useTeamTendencies({ source, filter, doc: loaded?.doc ?? null });
+  const tendencies = useTeamTendencies({ source, filter, doc });
+
+  const rounds = useMemo(() => (doc === null ? [] : filterTacticalRounds(doc.teams, filter, doc.rounds)), [doc, filter]);
+  // A filter that hides the open round moves to the first one it kept.
+  const found = rounds.findIndex((round) => round.number === selectedRound);
+  const index = found < 0 ? 0 : found;
+  const shownRound = rounds[index]?.number ?? null;
 
   const applyFilter = useCallback(
     (next: TacticalFilter) => {
+      // The round on screen stays open when the new filter keeps it, "Limpiar" included.
+      if (shownRound !== null) setSelectedRound(shownRound);
       const query = tacticalFilterToQuery(next);
       router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
     },
-    [pathname, router],
-  );
-
-  const rounds = useMemo(
-    () => (loaded === null ? [] : filterTacticalRounds(loaded.doc.teams, filter, loaded.doc.rounds)),
-    [loaded, filter],
+    [pathname, router, setSelectedRound, shownRound],
   );
   const entries = useMemo<ReplayRef[]>(
     () =>
@@ -149,9 +175,6 @@ export function TacticalAnalysis({
       ),
     [rounds, sourceId, linkedRound, linkedTick],
   );
-  // A filter that hides the open round moves to the first one it kept.
-  const found = rounds.findIndex((round) => round.number === selectedRound);
-  const index = found < 0 ? 0 : found;
   const seed = useMemo(() => (loaded === null ? undefined : { id: sourceId, analysis: loaded }), [loaded, sourceId]);
 
   if (loadError !== null) {
@@ -165,33 +188,45 @@ export function TacticalAnalysis({
     );
   }
 
-  if (loaded === null) return <TacticalWorkspaceSkeleton />;
+  if (doc === null) return <TacticalWorkspaceSkeleton />;
 
-  const filterBar = (
-    <TacticalFilterBar doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />
-  );
+  const filterBar = <TacticalFilterBar doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />;
   const modes = sourceKind === 'library' ? <Segmented label="Cómo leer las rondas" value={mode} options={MODES} onChange={setMode} /> : undefined;
+
+  let rounded: ReactNode;
+  if (loaded === null) {
+    rounded = (
+      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+        {filterBar}
+        <StudioEmptyState icon={FileWarning} title="No se puede reproducir esta demo" description={POSITIONS_MISSING_MESSAGE} compact />
+      </div>
+    );
+  } else if (mode === 'heatmap' && sourceKind === 'library') {
+    rounded = (
+      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+        {filterBar}
+        <SpatialWorkspace scope={{ kind: 'match', matchId: sourceId, filter: filterQuery }} view="heatmap" hideViewSwitch />
+      </div>
+    );
+  } else {
+    rounded = (
+      <ReplayWorkspace
+        source={sourceKind}
+        entries={entries}
+        index={index}
+        onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
+        seed={seed}
+        filters={<ReplayFilters doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />}
+        centreViews={CENTRE_VIEWS}
+      />
+    );
+  }
 
   return (
     <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
-      <TacticalDemoSummary doc={loaded.doc} generatedAt={generatedAt} actions={modes} />
+      <TacticalDemoSummary doc={doc} generatedAt={generatedAt} actions={modes} />
 
-      {mode === 'heatmap' && sourceKind === 'library' ? (
-        <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
-          {filterBar}
-          <SpatialWorkspace scope={{ kind: 'match', matchId: sourceId, filter: filterQuery }} view="heatmap" hideViewSwitch />
-        </div>
-      ) : (
-        <ReplayWorkspace
-          source={sourceKind}
-          entries={entries}
-          index={index}
-          onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
-          seed={seed}
-          filters={<ReplayFilters doc={loaded.doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={loaded.doc.rounds.length} />}
-          centreViews={CENTRE_VIEWS}
-        />
-      )}
+      {rounded}
 
       <div className="mt-6">
         <TacticalTendenciesPanel {...tendencies} roundCount={rounds.length} />

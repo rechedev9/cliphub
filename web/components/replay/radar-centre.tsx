@@ -7,7 +7,7 @@ import { hitLines } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
-import { WHEEL_STEP, boxWindow, followView, paddedView, panView, radarImageFits, rememberZoom, rememberedZoom, sameRect, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
+import { WHEEL_STEP, boxWindow, followView, paddedView, panView, radarImageFits, rememberZoom, rememberedZoom, sameRect, wheelZooms, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
 import type { FrameCursor, TrailPoint } from '@/lib/tactical-replay';
@@ -377,16 +377,17 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     };
   }, [clock]);
 
-  // The wheel listener is not passive so the page does not scroll under the map.
+  // Not passive: a turn that zooms keeps the page still; zooming out of the whole map scrolls the page.
   const zoomStateRef = useRef({ box, view, base, setZoomed });
   zoomStateRef.current = { box, view, base, setZoomed };
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
     const onWheel = (event: WheelEvent): void => {
+      const state = zoomStateRef.current;
+      if (!wheelZooms(state.view, state.base, event.deltaY)) return;
       event.preventDefault();
       const rect = container.getBoundingClientRect();
-      const state = zoomStateRef.current;
       const next = zoomViewAt({ box: state.box, view: state.view, base: state.base, cursor: { x: event.clientX - rect.left, y: event.clientY - rect.top }, factor: WHEEL_STEP ** -event.deltaY });
       state.setZoomed(sameRect(next, state.base) ? null : next);
     };

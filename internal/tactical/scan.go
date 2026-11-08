@@ -209,6 +209,10 @@ type roundAcc struct {
 	stats          map[uint8]*playerRoundAcc
 	sides          map[uint8]tacticalplan.Side
 	economySampled bool
+
+	// freezeTicks is mp_freezetime when the round started, 0 when unknown.
+	freezeTicks int
+	lives       utilityLives
 }
 
 type killRecord struct {
@@ -317,6 +321,7 @@ func (s *scanner) register() {
 			stats:     map[uint8]*playerRoundAcc{},
 			sides:     map[uint8]tacticalplan.Side{},
 		}
+		s.current.freezeTicks = s.freezeTicks()
 		s.lastEmittedTick = math.MinInt32
 		s.throws.reset()
 	})
@@ -355,6 +360,7 @@ func (s *scanner) register() {
 	p.RegisterEventHandler(func(e events.SmokeStart) {
 		s.addUtility(tacticalplan.EventSmoke, e.GrenadeEvent)
 	})
+	s.registerLifetimes()
 	p.RegisterEventHandler(func(e events.FlashExplode) {
 		s.addUtility(tacticalplan.EventFlash, e.GrenadeEvent)
 	})
@@ -370,7 +376,7 @@ func (s *scanner) register() {
 		}
 		thrower := e.Inferno.Thrower()
 		pos := e.Inferno.Entity.Position()
-		s.addEvent(tacticalplan.Event{
+		at := s.addEvent(tacticalplan.Event{
 			Kind:   tacticalplan.EventMolotov,
 			Tick:   s.tick(),
 			Pos:    [3]float64{pos.X, pos.Y, pos.Z},
@@ -378,6 +384,9 @@ func (s *scanner) register() {
 			Side:   sideOfPlayer(thrower),
 			Throw:  s.claimThrow(0, thrower, tacticalplan.EventMolotov),
 		}, thrower)
+		if s.current != nil {
+			s.current.lives.startInferno(e.Inferno.UniqueID(), at)
+		}
 	})
 
 	p.RegisterEventHandler(func(events.FrameDone) { s.onFrame() })
@@ -420,6 +429,13 @@ func (s *scanner) closeCurrent(tick int) {
 		s.current.tickEnd = tick
 	}
 	s.current.tickOfficial = tick
+	switch s.current.settleFreeze(s.current.freezeTicks, int(freezeSlackSeconds*s.tickrateOrDefault())) {
+	case freezeTrimmed:
+		s.warn("round %d: freeze time ran past mp_freezetime; its start moved to %d", s.current.number, s.current.tickStart)
+	case freezeEstimated:
+		s.warn("round %d has no freeze time end; estimated at %d from mp_freezetime", s.current.number, s.current.tickFreezeEnd)
+	case freezeKept:
+	}
 	s.rounds = append(s.rounds, s.current)
 	s.current = nil
 }
@@ -525,6 +541,8 @@ func (s *scanner) onFrame() {
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())
 		}
 	}
+	s.followDrop()
+	s.watchFires()
 	frame.Samples = samples.ordered()
 	if len(frame.Samples) > 0 {
 		s.current.frames = append(s.current.frames, frame)
@@ -616,6 +634,11 @@ func (r *roundAcc) playerStats(slot uint8) *playerRoundAcc {
 func (s *scanner) onKill(e events.Kill) {
 	r := s.current
 	if r == nil || e.Victim == nil {
+		return
+	}
+	if s.p.GameState().IsFreezetimePeriod() {
+		// Nobody can fight in freeze time: a death here is the team switch at
+		// halftime or a console kill, never a play.
 		return
 	}
 	tick := s.tick()
@@ -739,6 +762,7 @@ func (s *scanner) onPlant(e events.BombPlanted) {
 		bomb.PlanterSlot = &slot
 	}
 	r.bomb = bomb
+	s.endDrop()
 	r.events = append(r.events, tacticalplan.Event{
 		Tick:      tick,
 		Kind:      tacticalplan.EventPlant,
@@ -788,12 +812,13 @@ func (s *scanner) onExplode(e events.BombExplode) {
 		Tick: tick,
 		Kind: tacticalplan.EventExplode,
 		Side: tacticalplan.SideT,
+		Pos:  s.bombRestingPos(r),
 		Site: r.bomb.Site,
 	})
 }
 
 func (s *scanner) addUtility(kind tacticalplan.EventKind, e events.GrenadeEvent) {
-	s.addEvent(tacticalplan.Event{
+	at := s.addEvent(tacticalplan.Event{
 		Kind:   kind,
 		Tick:   s.tick(),
 		Pos:    [3]float64{e.Position.X, e.Position.Y, e.Position.Z},
@@ -802,16 +827,37 @@ func (s *scanner) addUtility(kind tacticalplan.EventKind, e events.GrenadeEvent)
 		Place:  placeOf(e.Thrower),
 		Throw:  s.claimThrow(e.GrenadeEntityID, e.Thrower, kind),
 	}, e.Thrower)
+	if s.current != nil && (kind == tacticalplan.EventSmoke || kind == tacticalplan.EventDecoy) {
+		s.current.lives.startEntity(e.GrenadeEntityID, at)
+	}
 }
 
-func (s *scanner) addEvent(ev tacticalplan.Event, actor *common.Player) {
+// addEvent appends to the current round and answers the event's index, -1
+// between rounds.
+func (s *scanner) addEvent(ev tacticalplan.Event, actor *common.Player) int {
 	if s.current == nil {
-		return
+		return -1
 	}
 	if slot, ok := s.slotFor(actor); ok {
 		ev.ActorSlot = &slot
 	}
 	s.current.events = append(s.current.events, ev)
+	return len(s.current.events) - 1
+}
+
+// bombRestingPos is where the C4 lies, or the plant when the state lost it.
+func (s *scanner) bombRestingPos(r *roundAcc) [3]float64 {
+	if bomb := s.p.GameState().Bomb(); bomb != nil {
+		if at := bomb.Position(); at.X != 0 || at.Y != 0 || at.Z != 0 {
+			return [3]float64{at.X, at.Y, at.Z}
+		}
+	}
+	for i := len(r.events) - 1; i >= 0; i-- {
+		if r.events[i].Kind == tacticalplan.EventPlant {
+			return r.events[i].Pos
+		}
+	}
+	return [3]float64{}
 }
 
 func (s *scanner) tickrateOrDefault() float64 {

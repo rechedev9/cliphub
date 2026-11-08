@@ -21,6 +21,7 @@ import {
   trackDeadAt,
   trackPositionAt,
   trackTrail,
+  visibleFocus,
 } from './tactical-spatial.ts';
 
 const MIRAGE: RadarCalibration = { map: 'de_mirage', source: 'overview', pos_x: -3230, pos_y: 1713, scale: 5, size: 1024 };
@@ -167,4 +168,12 @@ test('a cell shared by two floors names the place nearest in height, like the Go
   assert.equal(nearestCallout(geometry, 'default', 30, 30, -360), 'Underpass');
   // A heatmap cell carries no altitude: the cell's busiest place answers.
   assert.equal(nearestCallout(geometry, 'default', 30, 30), 'Catwalk');
+});
+
+test('a hidden focused round hands the focus to the first visible one, so a note never anchors where nothing shows', () => {
+  const keys = ['m:1', 'm:2', 'm:3'];
+  assert.equal(visibleFocus(keys, new Set(), 'm:2'), 'm:2');
+  assert.equal(visibleFocus(keys, new Set(['m:2']), 'm:2'), 'm:1');
+  assert.equal(visibleFocus(keys, new Set(['m:1', 'm:2']), 'm:1'), 'm:3');
+  assert.equal(visibleFocus(keys, new Set(keys), 'm:1'), '');
 });

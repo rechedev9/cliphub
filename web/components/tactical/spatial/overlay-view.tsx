@@ -22,6 +22,7 @@ import {
   trackDeadAt,
   trackPositionAt,
   trackTrail,
+  visibleFocus,
 } from '@/lib/tactical-spatial';
 import { TACTICAL_REPLAY_SPEEDS } from '@/lib/tactical-timeline';
 import { isMultiLevelMap, worldToRendered } from '@/lib/tactical-transform';
@@ -139,7 +140,10 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
   const many = matches.size > 1;
 
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const [focus, setFocus] = useState<string>(rounds[0] ? overlayRoundKey(rounds[0]) : '');
+  const [chosenFocus, setFocus] = useState<string>(rounds[0] ? overlayRoundKey(rounds[0]) : '');
+  const roundKeys = useMemo(() => rounds.map(overlayRoundKey), [rounds]);
+  // A hidden round cannot hold the focus: new notes would anchor where nothing is drawn.
+  const focus = visibleFocus(roundKeys, hidden, chosenFocus);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [uiTick, setUiTick] = useState(0);
@@ -431,7 +435,15 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
             focus={focus}
             now={now}
             onToggle={toggleHidden}
-            onFocus={setFocus}
+            onFocus={(key) => {
+              setFocus(key);
+              setHidden((current) => {
+                if (!current.has(key)) return current;
+                const next = new Set(current);
+                next.delete(key);
+                return next;
+              });
+            }}
             onShowAll={() => setHidden(new Set())}
             onHideOthers={() => setHidden(new Set(rounds.map(overlayRoundKey).filter((key) => key !== focus)))}
           />

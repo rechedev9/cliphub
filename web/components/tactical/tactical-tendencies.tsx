@@ -77,7 +77,8 @@ function Body({ tendencies, teamName }: { tendencies: TacticalTendencies; teamNa
       </p>
     );
   }
-  if (tendencies.perspective === undefined) return <SideAgnosticTendencies tendencies={tendencies} />;
+  // A followed team owns its rounds on both sides, so only a filter with neither team nor side is side-agnostic.
+  if (tendencies.perspective === undefined && tendencies.filter.team_key === undefined) return <SideAgnosticTendencies tendencies={tendencies} />;
   return (
     <>
       <TendencyCards tendencies={tendencies} />

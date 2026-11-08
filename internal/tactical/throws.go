@@ -21,6 +21,8 @@ type pendingThrow struct {
 	steamID  uint64
 	kind     tacticalplan.EventKind
 	throw    tacticalplan.Throw
+	// landedTick is when the projectile came down, 0 while it flies.
+	landedTick int
 }
 
 // detonation is a grenade going off, as its event reports it.
@@ -29,6 +31,9 @@ type detonation struct {
 	steamID  uint64
 	kind     tacticalplan.EventKind
 	tick     int
+	// landedAfter rules out throws that landed before it: a molotov that came
+	// down that long ago and never burned went out in a smoke.
+	landedAfter int
 }
 
 // throwLog holds the round's grenades in flight until they detonate.
@@ -45,6 +50,16 @@ func (l *throwLog) reset() {
 
 func (l *throwLog) add(t pendingThrow) { l.pending = append(l.pending, t) }
 
+// land records that a projectile came down.
+func (l *throwLog) land(entityID, tick int) {
+	for i := range l.pending {
+		if l.pending[i].entityID == entityID && l.pending[i].landedTick == 0 {
+			l.pending[i].landedTick = tick
+			return
+		}
+	}
+}
+
 // claim removes and returns the throw of a detonation: the one with its
 // projectile entity, or else the oldest of its kind by its thrower thrown at or
 // after minTick. A molotov's fire is a new entity, so it always falls back. A
@@ -59,7 +74,8 @@ func (l *throwLog) claim(d detonation, minTick int) (tacticalplan.Throw, bool) {
 	}
 	if at < 0 && d.steamID != 0 {
 		at = slices.IndexFunc(l.pending, func(p pendingThrow) bool {
-			return p.steamID == d.steamID && p.kind == d.kind && p.throw.Tick >= minTick
+			stale := p.landedTick != 0 && p.landedTick < d.landedAfter
+			return p.steamID == d.steamID && p.kind == d.kind && p.throw.Tick >= minTick && !stale
 		})
 	}
 	if at < 0 {
@@ -121,6 +137,7 @@ func (s *scanner) onThrow(e events.GrenadeProjectileThrow) {
 // the demo never showed its throw.
 func (s *scanner) claimThrow(entityID int, thrower *common.Player, kind tacticalplan.EventKind) *tacticalplan.Throw {
 	d := detonation{entityID: entityID, kind: kind, tick: s.tick()}
+	d.landedAfter = d.tick - int(s.tickrateOrDefault())
 	if thrower != nil {
 		d.steamID = thrower.SteamID64
 	}

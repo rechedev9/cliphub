@@ -396,6 +396,8 @@ export type TacticalEvent = {
   throw?: TacticalThrow;
   /** What a flash, HE or molotov did to players; absent when it touched nobody. */
   effect?: TacticalUtilityEffect;
+  /** When a smoke, fire or decoy went out, or a dropped bomb was picked up; absent before analysis version 9. */
+  end_tick?: number;
 };
 
 /** `tacticalplan.UtilityEffect`: who a flash blinded, and the damage a grenade dealt. */
@@ -768,6 +770,7 @@ export const TACTICAL_ROUND_KEYS: readonly string[] = ['round', 'frames'];
 export const TACTICAL_TENDENCIES_KEYS: readonly string[] = [
   'filter',
   'round_count',
+  'match_count',
   'perspective',
   'wins',
   'buys',
@@ -880,6 +883,14 @@ async function readJson<T>(res: Response): Promise<T> {
 /** True when the orchestrator answered 409: the tactical analysis has not finished yet. */
 export function isTacticalNotReadyError(error: unknown): boolean {
   return error instanceof TacticalRequestError && error.status === 409;
+}
+
+/** The orchestrator's code for an analysed demo whose positions file is gone (`tacticalPositionsMissingCode`). */
+const TACTICAL_POSITIONS_MISSING_CODE = 'positions_missing';
+
+/** True when the analysis exists but its positions file does not: the rest of the analysis still reads. */
+export function isPositionsMissingError(error: unknown): boolean {
+  return error instanceof TacticalRequestError && error.status === 404 && error.code === TACTICAL_POSITIONS_MISSING_CODE;
 }
 
 /** True when an error thrown by this module means the local orchestrator is down. */
