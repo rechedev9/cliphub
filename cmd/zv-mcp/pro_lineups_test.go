@@ -16,7 +16,10 @@ const testProIndexJSON = `{"version":1,"map":"de_mirage","recent_days":90,"fresh
 	 "clock":{"median":3.5,"buckets":[30,10]},"insta":true,
 	 "teams":[{"key":"a","name":"Vitality","count":9},{"key":"b","name":"Spirit","count":8},{"key":"c","name":"MOUZ","count":7},{"key":"d","name":"FaZe","count":2}],
 	 "with":[{"key":"molotov-ct-5-6-7-8-1","name":"Molotov","count":4,"share":0.2}],"rank":{"position":1,"of":2},
-	 "examples":[{"match":"vitality-vs-spirit","played_at":"2026-10-01T00:00:00Z","round":3,"clock":3.4,"tick":5000}]},
+	 "clip":"1/a-m1-mirage-r3-t5000-76561198000000001.mp4",
+	 "examples":[{"match":"vitality-vs-spirit","played_at":"2026-10-01T00:00:00Z","round":3,"clock":3.4,"tick":5000,
+	   "steamid64":"76561198000000001","clip":"1/a-m1-mirage-r3-t5000-76561198000000001.mp4"},
+	  {"match":"1","round":9,"tick":8000,"clip":"../secret"}]},
 	{"id":"molotov-ct-5-6-7-8-1","slug":"molotov/bench-from-ct","title":"Molotov a Bench desde CT","kind":"molotov","side":"CT",
 	 "throw_place":"CTSpawn","land_place":"Bench","origin":[10,20,30],"yaw":90,"pitch":-5,"movement":"running","jump":true,
 	 "throws":{"recent":12,"all":20},"clock":{"median":40}}],
@@ -71,12 +74,17 @@ func TestFindProLineupsFiltersAndShapes(t *testing.T) {
 }
 
 func TestGetProLineupAndCombos(t *testing.T) {
+	t.Setenv("ZV_COMMUNITY_URL", "https://community.test")
 	cs, _ := proStudio(t)
 	var l proLineupOut
 	callTool(t, cs, "get_pro_lineup", map[string]any{"map": "de_mirage", "id": "smoke/window-from-tspawn"}, &l)
 	if l.Setpos != "setpos -1200.50 200.00 -160.00;setang -12.50 135.25 0" || l.Rank != "1 of 2" || len(l.TeamUsage) != 4 ||
 		len(l.With) != 1 || l.Examples[0].PlayedAt != "2026-10-01" {
 		t.Fatalf("lineup = %+v", l)
+	}
+	clip := "https://community.test/v1/pro-clips/1/a-m1-mirage-r3-t5000-76561198000000001.mp4"
+	if l.ClipURL != clip || l.Examples[0].ClipURL != clip || l.Examples[0].SteamID64 != "76561198000000001" || l.Examples[1].ClipURL != "" {
+		t.Fatalf("clips = %q %+v", l.ClipURL, l.Examples)
 	}
 	toolFails(t, cs, "get_pro_lineup", map[string]any{"map": "de_mirage", "id": "nope"}, "no pro lineup")
 

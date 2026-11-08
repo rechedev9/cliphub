@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, Copy, Crosshair, MapPinned, NotebookPen } from 'lucide-react';
+import { ArrowLeft, Copy, Crosshair, MapPinned, NotebookPen, Play } from 'lucide-react';
 import {
   lineupHref,
   pct,
@@ -11,6 +11,7 @@ import {
   roundClock,
   sameLanding,
   saveProLineup,
+  shownClip,
   setposCommand,
   techniqueLabel,
   type ProLineup,
@@ -27,6 +28,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProLoadProblem } from './lineup-maps';
 import { ProLineupRadar } from './pro-lineup-radar';
+import { ThrowClip } from './throw-clip';
 import { useProLineupMap } from './use-pro-lineups';
 
 type Who = 'teams' | 'players' | 'events';
@@ -80,6 +82,7 @@ export function LineupDetail({ map, id }: { map: string; id: string }): ReactNod
 function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): ReactNode {
   const practice = usePracticeLaunch(data.map);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  const [chosenClip, setChosenClip] = useState<string | null>(null);
   const siblings = useMemo(() => sameLanding(data.lineups, lineup), [data.lineups, lineup]);
   const geometry = data.geometry;
 
@@ -136,6 +139,10 @@ function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): Re
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,1fr)]">
+        <div className="flex flex-col gap-5">
+        <section aria-label="Vídeo del lanzamiento">
+          <ThrowClip lineup={lineup} chosen={chosenClip} />
+        </section>
         <section aria-label="Radar" className="flex flex-col gap-2">
           {geometry === undefined ? (
             <p className="text-body-sm text-fg-2">Este mapa aún no trae radar.</p>
@@ -150,6 +157,7 @@ function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): Re
           )}
           <p className="text-meta text-fg-3">Punto: desde dónde se lanza. Círculo: dónde cae. Los puntos tenues son otros lineups que caen ahí.</p>
         </section>
+        </div>
 
         <div className="flex flex-col gap-5">
           <HowToThrow lineup={lineup} />
@@ -161,7 +169,7 @@ function Detail({ data, lineup }: { data: ProLineupMap; lineup: ProLineup }): Re
         <WhoThrows lineup={lineup} />
         <Context lineup={lineup} map={data.map} siblings={siblings} />
       </div>
-      <Examples lineup={lineup} />
+      <Examples lineup={lineup} shown={shownClip(lineup, chosenClip)?.clip ?? null} onShow={setChosenClip} />
     </div>
   );
 }
@@ -368,7 +376,7 @@ function Context({ lineup, map, siblings }: { lineup: ProLineup; map: string; si
   );
 }
 
-function Examples({ lineup }: { lineup: ProLineup }): ReactNode {
+function Examples({ lineup, shown, onShow }: { lineup: ProLineup; shown: string | null; onShow: (clip: string) => void }): ReactNode {
   return (
     <section aria-labelledby="en-partidas" className="flex flex-col gap-2">
       <h2 id="en-partidas" className="text-body font-semibold text-fg-1">
@@ -383,6 +391,7 @@ function Examples({ lineup }: { lineup: ProLineup }): ReactNode {
               <th className="px-3 py-2 font-medium">Torneo</th>
               <th className="px-3 py-2 font-medium">Ronda</th>
               <th className="px-3 py-2 font-medium">Fecha</th>
+              <th className="px-3 py-2 font-medium">Vídeo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -395,6 +404,26 @@ function Examples({ lineup }: { lineup: ProLineup }): ReactNode {
                   R{example.round} · {roundClock(example.clock)}
                 </td>
                 <td className="px-3 py-2 text-fg-2 tabular-nums">{formatShortDate(example.played_at)}</td>
+                <td className="px-3 py-2">
+                  {example.clip === undefined ? (
+                    <span className="text-fg-3">Sin grabar</span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={shown === example.clip}
+                      disabled={shown === example.clip}
+                      onClick={() => {
+                        if (example.clip !== undefined) onShow(example.clip);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    >
+                      <Play aria-hidden />
+                      {shown === example.clip ? 'En pantalla' : 'Ver'}
+                    </Button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

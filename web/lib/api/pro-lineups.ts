@@ -26,6 +26,10 @@ export type ProExample = {
   /** Seconds after freeze end. */
   clock: number;
   tick: number;
+  steamid64?: string;
+  air_time?: number;
+  /** Stored name of the recorded throw clip, when one exists. */
+  clip?: string;
 };
 
 export type ProLineup = {
@@ -61,6 +65,8 @@ export type ProLineup = {
   plant_sites: ProUsage[];
   with: ProUsage[];
   examples: ProExample[];
+  /** The newest recorded example's clip. */
+  clip?: string;
   last_seen: string;
   team_count: number;
   rank: { position: number; of: number };
@@ -183,4 +189,19 @@ export function practiceSpot(lineup: ProLineup): PracticeSpot {
 /** Other lineups of the same kind landing at the same callout, most thrown first. */
 export function sameLanding(lineups: readonly ProLineup[], lineup: ProLineup): ProLineup[] {
   return lineups.filter((l) => l.id !== lineup.id && l.kind === lineup.kind && l.land_place === lineup.land_place);
+}
+
+/** The Studio URL of a recorded throw clip; the orchestrator keeps it after the first view. */
+export function proClipUrl(clip: string): string {
+  return `/api/library/pro-lineups/clips/${clip.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/** The clip to play: the chosen recorded example, else the lineup's own clip; null when none is recorded. */
+export function shownClip(
+  lineup: Pick<ProLineup, 'clip' | 'examples'>,
+  chosen: string | null,
+): { clip: string; example: ProExample } | null {
+  const want = chosen ?? lineup.clip;
+  const example = lineup.examples.find((e) => e.clip !== undefined && e.clip === want);
+  return example?.clip === undefined ? null : { clip: example.clip, example };
 }

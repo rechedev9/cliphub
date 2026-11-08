@@ -39,3 +39,15 @@ func TestClipWindowCoversTheWindUpAndTheFlight(t *testing.T) {
 		t.Fatalf("window %d-%d", start, end)
 	}
 }
+
+func TestValidClipNameMatchesClipName(t *testing.T) {
+	e := Example{Match: "1", MapKey: "1/a-m1-mirage.dem", Round: 3, Tick: 100, SteamID64: "76561198000000001"}
+	if !ValidClipName(ClipName(e)) {
+		t.Fatalf("%q must be valid", ClipName(e))
+	}
+	for _, bad := range []string{"", "1/../a-r1-t1-76561198000000001.mp4", "x/a-r1-t1-76561198000000001.mp4", "1/a.mp4", "1/a-r1-t1-1.mp4"} {
+		if ValidClipName(bad) {
+			t.Errorf("%q must be invalid", bad)
+		}
+	}
+}

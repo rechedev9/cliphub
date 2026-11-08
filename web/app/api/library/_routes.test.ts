@@ -262,3 +262,11 @@ test('the library search keeps only its query and words', () => {
   assert.equal(libraryUpstreamQuery(route, new URLSearchParams('q=humo+ventana&limit=5&team_id=x')), 'q=humo+ventana&limit=5');
   assert.equal(matchLibraryRoute('POST', ['search']), undefined);
 });
+
+test('a pro lineup clip streams only under a recorded clip name', () => {
+  const file = 'iberian-soul-vs-og-m1-anubis-r7-t46593-76561198079183361.mp4';
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', file])?.response.kind, 'stream');
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', '..%2Fsecret.mp4']), undefined);
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', 'x', file]), undefined);
+  assert.equal(matchLibraryRoute('GET', ['pro-lineups', 'clips', '2398992', 'a.txt']), undefined);
+});

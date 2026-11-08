@@ -16,7 +16,11 @@ var (
 	clipMatch   = regexp.MustCompile(`^\d{1,12}$`)
 	clipSteamID = regexp.MustCompile(`^\d{17}$`)
 	clipUnsafe  = regexp.MustCompile(`[^a-z0-9-]`)
+	clipPath    = regexp.MustCompile(`^\d{1,12}/[a-z0-9-]{1,220}-r\d{1,3}-t\d{1,9}-\d{17}\.mp4$`)
 )
+
+// ValidClipName reports whether name has the shape ClipName gives, so it is safe as a path.
+func ValidClipName(name string) bool { return clipPath.MatchString(name) }
 
 // ClipName is the stored path of an example's throw clip: one folder per match,
 // a file per map, round, tick and thrower. It is empty when the example cannot name one.

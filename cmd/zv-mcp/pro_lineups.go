@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/prolineups"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -115,6 +117,9 @@ type proExampleOut struct {
 	Round    int     `json:"round"`
 	Clock    float64 `json:"clock"`
 	Tick     int     `json:"tick"`
+	// SteamID64 is the thrower, the POV of the clip and of the replay.
+	SteamID64 string `json:"steamid64,omitempty"`
+	ClipURL   string `json:"clip_url,omitempty" jsonschema:"the recorded throw as a looping MP4 with the thrower's keys drawn on it; open it in a browser"`
 }
 
 type proLineupOut struct {
@@ -136,6 +141,7 @@ type proLineupOut struct {
 	Examples   []proExampleOut `json:"examples" jsonschema:"recent throws to watch"`
 	Rank       string          `json:"rank,omitempty" jsonschema:"place among the lineups of the kind landing at the same callout, such as 1 of 3"`
 	LastSeen   string          `json:"last_seen,omitempty" jsonschema:"YYYY-MM-DD"`
+	ClipURL    string          `json:"clip_url,omitempty" jsonschema:"the newest recorded throw of the lineup, as a looping MP4 with the thrower's keys; missing until one is recorded"`
 }
 
 type proComboLineupOut struct {
@@ -411,9 +417,10 @@ func proLineupOf(l prolineups.Lineup) proLineupOut {
 	if !l.LastSeen.IsZero() {
 		out.LastSeen = l.LastSeen.Format(time.DateOnly)
 	}
+	out.ClipURL = proClipURL(l.Clip)
 	for _, e := range l.Examples {
 		ex := proExampleOut{Match: cleanName(e.Match), Event: cleanName(e.Event), Team: cleanName(e.Team), Player: cleanName(e.Player),
-			Round: e.Round, Clock: e.Clock, Tick: e.Tick}
+			Round: e.Round, Clock: e.Clock, Tick: e.Tick, SteamID64: cleanName(e.SteamID64), ClipURL: proClipURL(e.Clip)}
 		if !e.PlayedAt.IsZero() {
 			ex.PlayedAt = e.PlayedAt.Format(time.DateOnly)
 		}
@@ -476,4 +483,16 @@ func proLineupSpots(ctx context.Context, s *studio, in practiceIn) ([]tuiclient.
 		lineups = append(lineups, tuiclient.Lineup{Title: l.Title, Map: in.Map, Side: string(l.Side), Grenade: string(l.Kind), Origin: l.Origin, Pitch: l.Pitch, Yaw: l.Yaw})
 	}
 	return lineupSpots(in.Map, lineups)
+}
+
+// proClipURL is a recorded clip on the community server Studio uses, which any browser opens.
+func proClipURL(clip string) string {
+	base := os.Getenv("ZV_COMMUNITY_URL")
+	if base == "off" || !prolineups.ValidClipName(clip) {
+		return ""
+	}
+	if base == "" {
+		base = community.DefaultBaseURL
+	}
+	return strings.TrimRight(base, "/") + "/v1/pro-clips/" + clip
 }
