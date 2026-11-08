@@ -135,7 +135,7 @@ func (p *clipPlanner) comboThrows(e prolineups.Example) ([]prolineups.Example, s
 func planClips(in clipPlanInput) clipPlan {
 	p := &clipPlanner{in: in, byDemo: map[string]*clipDemo{}, planned: map[string]bool{}}
 	for _, l := range in.lineups {
-		if slices.ContainsFunc(l.Examples, func(e prolineups.Example) bool { return in.recorded(prolineups.ClipName(e)) }) {
+		if slices.ContainsFunc(l.Examples, func(e prolineups.Example) bool { return p.ofTeam(e) && in.recorded(prolineups.ClipName(e)) }) {
 			continue
 		}
 		for _, e := range l.Examples {
@@ -150,7 +150,7 @@ func planClips(in clipPlanInput) clipPlan {
 	}
 	plan := clipPlan{Demos: []clipDemo{}, Combos: []clipCombo{}}
 	for _, c := range in.combos {
-		if slices.ContainsFunc(c.Examples, func(e prolineups.Example) bool { return in.recorded(prolineups.ComboClipName(e)) }) {
+		if slices.ContainsFunc(c.Examples, func(e prolineups.Example) bool { return p.ofTeam(e) && in.recorded(prolineups.ComboClipName(e)) }) {
 			continue
 		}
 		for _, e := range c.Examples {

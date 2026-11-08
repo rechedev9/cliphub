@@ -64,6 +64,13 @@ func TestPlanClipsWithATeamTakesOnlyThatTeamsThrows(t *testing.T) {
 	if len(plan.Demos) != 1 || len(plan.Demos[0].Clips) != 1 || plan.Demos[0].Clips[0].Name != prolineups.ClipName(ours) {
 		t.Fatalf("plan = %+v", plan)
 	}
+	// Another team's clip of the lineup does not stand in for the team's own.
+	plan = planClips(clipPlanInput{lineups: lineups[:1], sources: sources, max: 10, team: "FURIA",
+		demo:     func(file string) (string, bool) { return "/demos/" + file + ".dem", true },
+		recorded: func(name string) bool { return name == prolineups.ClipName(theirs) }})
+	if len(plan.Demos) != 1 || plan.Demos[0].Clips[0].Name != prolineups.ClipName(ours) {
+		t.Fatalf("plan with their clip = %+v", plan)
+	}
 }
 
 func TestPlanClipsSkipsAThrowTheRecorderCouldNotFilm(t *testing.T) {
