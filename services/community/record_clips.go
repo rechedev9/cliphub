@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/capturetools"
@@ -157,19 +158,27 @@ func captureClips(ctx context.Context, job recordClipsJob, d clipDemo, sum, dir 
 		return nil, err
 	}
 	out := filepath.Join(dir, "capture")
-	args := []string{"--killplan", planPath, "--demo", d.Demo, "--out", out, "--hud", string(recording.HUDModeClean), "--fps", fmt.Sprint(hudFPS)}
-	if job.tools.fake {
-		args = append(args, "--fake")
-	} else {
-		args = append(args, "--hlae", job.tools.hlae, "--cs2", job.tools.cs2)
-	}
-	if job.tools.ffmpeg != "" {
-		args = append(args, "--ffmpeg", job.tools.ffmpeg)
-	}
+	args := recorderArgs(job.tools, recorderFiles{plan: planPath, demo: d.Demo, out: out})
 	if err := runTool(ctx, job.tools.recorder, args...); err != nil {
 		return nil, fmt.Errorf("zv-recorder: %w", err)
 	}
 	return capturedSegments(out)
+}
+
+type recorderFiles struct{ plan, demo, out string }
+
+// recorderArgs keeps the game HUD to the thrower's own crosshair (and their kills), so the aim reads in the clip.
+func recorderArgs(tools recordTools, files recorderFiles) []string {
+	args := []string{"--killplan", files.plan, "--demo", files.demo, "--out", files.out, "--hud", string(recording.HUDModeDeathnotices), "--fps", fmt.Sprint(hudFPS)}
+	if tools.fake {
+		args = append(args, "--fake")
+	} else {
+		args = append(args, "--hlae", tools.hlae, "--cs2", tools.cs2)
+	}
+	if tools.ffmpeg != "" {
+		args = append(args, "--ffmpeg", tools.ffmpeg)
+	}
+	return args
 }
 
 // clipKillPlan films each throw from its thrower: the first one is the plan target, the rest are POVs.
@@ -248,13 +257,36 @@ func burnClip(ctx context.Context, job recordClipsJob, in burnInput) error {
 	if ffmpeg == "" {
 		ffmpeg = "ffmpeg"
 	}
-	filter := "scale=1920:1080," + customhud.ASSFilter(in.ass, in.fonts, false) + ",scale=1280:720:flags=lanczos,format=yuv420p"
+	filter := clipFilter(in.ass, in.fonts)
 	if err := runTool(ctx, ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", in.raw, "-vf", filter, "-frames:v", fmt.Sprint(in.frames),
 		"-an", "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", tmp); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
+}
+
+// clipFilter burns the HUD and a bold aim mark on the 1080p capture, then scales it to 720p.
+func clipFilter(ass, fonts string) string {
+	return "scale=1920:1080," + aimMark() + "," + customhud.ASSFilter(ass, fonts, false) + ",scale=1280:720:flags=lanczos,format=yuv420p"
+}
+
+// aimMark draws a white cross with a dark edge at the screen centre, where the in-eye view aims.
+// Its centre stays open, so the pro's own crosshair still shows.
+func aimMark() string {
+	const cx, cy, gap, arm, w = 960, 540, 6, 16, 3
+	boxes := [][4]int{
+		{cx - gap - arm, cy - w/2, arm, w}, {cx + gap, cy - w/2, arm, w},
+		{cx - w/2, cy - gap - arm, w, arm}, {cx - w/2, cy + gap, w, arm},
+	}
+	parts := make([]string, 0, 2*len(boxes))
+	for _, b := range boxes {
+		parts = append(parts, fmt.Sprintf("drawbox=x=%d:y=%d:w=%d:h=%d:color=black@0.8:t=fill", b[0]-2, b[1]-2, b[2]+4, b[3]+4))
+	}
+	for _, b := range boxes {
+		parts = append(parts, fmt.Sprintf("drawbox=x=%d:y=%d:w=%d:h=%d:color=white:t=fill", b[0], b[1], b[2], b[3]))
+	}
+	return strings.Join(parts, ",")
 }
 
 func runTool(ctx context.Context, name string, args ...string) error {

@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"slices"
+	"strings"
+	"testing"
+)
 
 func TestClipKillPlanFilmsEachThrowerFromTheirOwnPOV(t *testing.T) {
 	d := clipDemo{Demo: "/d/1__a-m1-mirage.dem", Map: "de_mirage", TickRate: 64, DurationTicks: 90000, Clips: []clipShot{
@@ -23,5 +27,23 @@ func TestClipKillPlanFilmsEachThrowerFromTheirOwnPOV(t *testing.T) {
 func TestClipHUDFramesFollowTheWindow(t *testing.T) {
 	if got := clipFrames(clipShot{StartTick: 1000, EndTick: 1416}, 64); got != 390 {
 		t.Fatalf("frames = %d, want 390", got)
+	}
+}
+
+func TestClipCaptureKeepsTheThrowersCrosshair(t *testing.T) {
+	args := recorderArgs(recordTools{hlae: "h", cs2: "c"}, recorderFiles{plan: "p", demo: "d", out: "o"})
+	i := slices.Index(args, "--hud")
+	if i < 0 || args[i+1] != "deathnotices" {
+		t.Fatalf("a clip without the crosshair hides the aim: %v", args)
+	}
+}
+
+func TestClipAimMarkIsCentredAndLeavesTheCentreOpen(t *testing.T) {
+	f := clipFilter("a.ass", "fonts")
+	if !strings.HasPrefix(f, "scale=1920:1080,drawbox=") || !strings.Contains(f, "drawbox=x=938:y=539:w=16:h=3:color=white") || !strings.Contains(f, "drawbox=x=966:y=539:w=16:h=3:color=white") {
+		t.Fatalf("aim mark not centred: %s", f)
+	}
+	if strings.Contains(f, "x=959:y=539") {
+		t.Fatalf("the mark covers the pro's own crosshair: %s", f)
 	}
 }
