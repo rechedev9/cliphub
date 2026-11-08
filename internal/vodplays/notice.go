@@ -5,8 +5,8 @@ import (
 	"sort"
 )
 
-// A kill notice reads "killer [+ assister] weapon icons victim". Player
-// names are drawn in their team colour; the plus, weapon and icons are white.
+// A notice reads "[tag] killer + [tag] assister weapon icons [tag] victim";
+// names and clan tags are in team colours, the plus, weapon and icons white.
 const (
 	textMinBright = 95
 	// The notice plate is translucent, so text is bright relative to the
@@ -17,6 +17,17 @@ const (
 	segmentMinGap   = 5
 	ringInset       = 3
 	minNamePixels   = 12
+	// Blur (under minRunPixels) and thin strokes such as a tag's greyed
+	// bracket cannot tell a name from a mark, so they take their word's.
+	minRunPixels  = 5
+	maxThinRun    = 4
+	minMarkPixels = 10
+	// Marks are white with grey edges; thin coloured strokes over a bright
+	// background lose some colour, but far less than this.
+	maxMarkSatShare = 0.25
+	// Rows of text further apart than this are not one word: the border's
+	// blur or scenery above or below the text.
+	maxRowGap       = 2
 	maskMatchIoU    = 0.8
 	maskWidthSlack  = 3
 	maskShiftSearch = 1
@@ -28,13 +39,34 @@ type NameMask struct {
 	Bits []bool
 }
 
-// readNames returns the player names inside a highlighted notice, left to
-// right, as shapes. The same name drawn again matches itself whatever its
-// team colour, so no text has to be read.
-func readNames(rgb []byte, ring image.Rectangle) []NameMask {
+// Reading is what a highlighted notice says: every coloured word, left to
+// right, and the names in the killer and assister slots (zero when absent).
+type Reading struct {
+	Names    []NameMask
+	Killer   NameMask
+	Assister NameMask
+}
+
+// A token's colour is unknown while it holds only thin or faint runs.
+type tokenClass int
+
+const (
+	classUnknown tokenClass = iota
+	className
+	classMark
+)
+
+type token struct {
+	from, to int
+	class    tokenClass
+}
+
+// readNotice reads a notice's words as shapes. A name is the word right before
+// a white mark (the plus, the weapon), never a clan tag, which precedes it.
+func readNotice(rgb []byte, ring image.Rectangle) Reading {
 	inner := ring.Inset(ringInset).Intersect(image.Rect(0, 0, FeedWidth, FeedHeight))
 	if inner.Empty() {
-		return nil
+		return Reading{}
 	}
 	w, h := inner.Dx(), inner.Dy()
 	threshold := max(textMinBright, plateLevel(rgb, inner)+textAbovePlate)
@@ -53,11 +85,50 @@ func readNames(rgb []byte, ring image.Rectangle) []NameMask {
 			saturated[y*w+x] = float64(hi-lo)/float64(hi) >= nameMinSat
 		}
 	}
-	var names []NameMask
-	for _, seg := range textSegments(bright, w, h) {
+	// A line of the border's blur would join every word it runs over.
+	top, bottom := textBand(bright, w, h, 0, w)
+	for y := 0; y < h; y++ {
+		if y < top || y > bottom {
+			clear(bright[y*w : (y+1)*w])
+		}
+	}
+	var reading Reading
+	slots, last := 0, -1
+	afterName := false
+	for _, t := range noticeTokens(bright, saturated, w, h) {
+		if t.class == classMark {
+			// The first mark after a word closes a slot; the marks of one
+			// group (weapon and icons, plus and flash) close only one.
+			if afterName && slots < 2 {
+				if slots == 0 {
+					reading.Killer = reading.Names[last]
+				} else {
+					reading.Assister = reading.Names[last]
+				}
+				slots++
+			}
+			afterName = false
+			continue
+		}
+		mask := cutMask(bright, w, h, [2]int{t.from, t.to})
+		// A name is far shorter than its notice; a taller shape has scenery
+		// in it and stays an unread word, so no other word takes its slot.
+		if mask.H*2 > ring.Dy() {
+			mask = NameMask{}
+		}
+		reading.Names = append(reading.Names, mask)
+		last, afterName = len(reading.Names)-1, true
+	}
+	return reading
+}
+
+// noticeTokens splits a notice into coloured words and white marks. A white run
+// next to a coloured one starts a new token, so the plus never joins a near tag.
+func noticeTokens(bright, saturated []bool, w, h int) []token {
+	count := func(from, to int) (int, int) {
 		total, sat := 0, 0
 		for y := 0; y < h; y++ {
-			for x := seg[0]; x < seg[1]; x++ {
+			for x := from; x < to; x++ {
 				if bright[y*w+x] {
 					total++
 					if saturated[y*w+x] {
@@ -66,17 +137,64 @@ func readNames(rgb []byte, ring image.Rectangle) []NameMask {
 				}
 			}
 		}
-		if seg[1]-seg[0] >= minSegmentWidth && total >= minNamePixels && sat*2 >= total {
-			mask := cutMask(bright, w, h, seg)
-			// A name is far shorter than its notice; a taller shape has border
-			// or scenery in it, and the whole reading is unreliable.
-			if mask.H*2 > ring.Dy() {
-				return nil
-			}
-			names = append(names, mask)
+		return total, sat
+	}
+	classOf := func(total, sat int) tokenClass {
+		if float64(sat) < maxMarkSatShare*float64(total) {
+			return classMark
+		}
+		return className
+	}
+	var tokens []token
+	add := func(from, to int) {
+		total, sat := count(from, to)
+		class := classUnknown
+		if total >= minRunPixels && to-from > maxThinRun {
+			class = classOf(total, sat)
+		}
+		n := len(tokens)
+		if n == 0 || from-tokens[n-1].to >= segmentMinGap {
+			tokens = append(tokens, token{from: from, to: to, class: class})
+			return
+		}
+		last := &tokens[n-1]
+		switch {
+		case class == classUnknown || class == last.class:
+			last.to = to
+		case last.class == classUnknown:
+			last.to, last.class = to, class
+		default:
+			tokens = append(tokens, token{from: from, to: to, class: class})
 		}
 	}
-	return names
+	start := -1
+	for x := 0; x <= w; x++ {
+		filled := false
+		for y := 0; x < w && y < h; y++ {
+			if bright[y*w+x] {
+				filled = true
+				break
+			}
+		}
+		if filled && start < 0 {
+			start = x
+		}
+		if !filled && start >= 0 {
+			add(start, x)
+			start = -1
+		}
+	}
+	kept := tokens[:0]
+	for _, t := range tokens {
+		total, sat := count(t.from, t.to)
+		if t.class == classUnknown {
+			t.class = classOf(total, sat)
+		}
+		if (t.class == classMark && total >= minMarkPixels) || (t.class == className && t.to-t.from >= minSegmentWidth && total >= minNamePixels) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // plateLevel is the brightness of the notice plate: most of a notice is
@@ -93,43 +211,41 @@ func plateLevel(rgb []byte, inner image.Rectangle) int {
 	return levels[len(levels)*3/10]
 }
 
-// textSegments splits the columns holding text into runs separated by at
-// least segmentMinGap empty columns; letters of one word sit closer.
-func textSegments(bright []bool, w, h int) [][2]int {
-	var segs [][2]int
-	start, gap := -1, 0
-	for x := 0; x <= w; x++ {
-		filled := false
-		for y := 0; x < w && y < h; y++ {
+// textBand returns the rows holding most of the text between the columns from
+// and to, leaving out stray pixels above or below; top is -1 without text.
+func textBand(bright []bool, w, h, from, to int) (int, int) {
+	top, bottom := -1, -1
+	bandTop, bandPixels, bestPixels, gap := -1, 0, 0, 0
+	for y := 0; y < h; y++ {
+		row := 0
+		for x := from; x < to; x++ {
 			if bright[y*w+x] {
-				filled = true
-				break
+				row++
 			}
 		}
-		switch {
-		case filled && start < 0:
-			start, gap = x, 0
-		case filled:
-			gap = 0
-		case start >= 0:
-			gap++
-			if gap >= segmentMinGap || x == w {
-				segs = append(segs, [2]int{start, x - gap + 1})
-				start = -1
+		if row == 0 {
+			if gap++; gap > maxRowGap {
+				bandTop = -1
 			}
+			continue
+		}
+		if bandTop < 0 {
+			bandTop, bandPixels = y, 0
+		}
+		bandPixels += row
+		gap = 0
+		if bandPixels > bestPixels {
+			top, bottom, bestPixels = bandTop, y, bandPixels
 		}
 	}
-	return segs
+	return top, bottom
 }
 
+// cutMask cuts a word's shape from the band of rows holding most of it.
 func cutMask(bright []bool, w, h int, seg [2]int) NameMask {
-	top, bottom := h, -1
-	for y := 0; y < h; y++ {
-		for x := seg[0]; x < seg[1]; x++ {
-			if bright[y*w+x] {
-				top, bottom = min(top, y), max(bottom, y)
-			}
-		}
+	top, bottom := textBand(bright, w, h, seg[0], seg[1])
+	if top < 0 {
+		return NameMask{}
 	}
 	mask := NameMask{W: seg[1] - seg[0], H: bottom - top + 1}
 	mask.Bits = make([]bool, mask.W*mask.H)
