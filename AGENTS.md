@@ -62,6 +62,9 @@ Verify by hand in the real app:
 3. Try one path off the happy path, such as a corrupt `.dem`, and check `studio.log` in the
    throwaway profile for a clear error instead of a crash or silence.
 4. In the PR, write a few lines on what you did and saw. No screenshots.
+
+Drive and check the UI in the built-in browser pane, on the web server that Studio started (its
+`[web] - Local:` URL in the Electron output). Never use computer use for a UI check.
 Do not add e2e suites, verification scripts, evidence folders or reports to the repo.
 The one exception is the deterministic Short pipeline test in `internal/pipeline`: plain `go test`,
 golden files in its `testdata/`, no CS2, network, real clock or video encode, and no scripts beside it.
