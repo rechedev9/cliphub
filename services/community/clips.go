@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/prolineups"
@@ -63,6 +64,8 @@ type clipPlanInput struct {
 	demo     func(file string) (string, bool)
 	recorded func(name string) bool
 	max      int
+	// team, when set, plans only that team's throws and combos.
+	team string
 }
 
 type clipPlanner struct {
@@ -97,6 +100,10 @@ func (p *clipPlanner) add(e prolineups.Example, path string, src throwSource) {
 	d.Clips = append(d.Clips, clipShot{Name: name, SteamID64: e.SteamID64, Round: e.Round, ThrowTick: e.Tick, StartTick: max(start, 1), EndTick: min(end, src.duration)})
 }
 
+func (p *clipPlanner) ofTeam(e prolineups.Example) bool {
+	return p.in.team == "" || strings.EqualFold(e.Team, p.in.team)
+}
+
 // comboThrows are a combo example's throws when every one comes from one kept demo.
 func (p *clipPlanner) comboThrows(e prolineups.Example) ([]prolineups.Example, string, throwSource, bool) {
 	if prolineups.ComboClipName(e) == "" {
@@ -125,6 +132,9 @@ func planClips(in clipPlanInput) clipPlan {
 			continue
 		}
 		for _, e := range l.Examples {
+			if !p.ofTeam(e) {
+				continue
+			}
 			if path, src, ok := p.keptDemo(e); ok {
 				p.add(e, path, src)
 				break
@@ -137,6 +147,9 @@ func planClips(in clipPlanInput) clipPlan {
 			continue
 		}
 		for _, e := range c.Examples {
+			if !p.ofTeam(e) {
+				continue
+			}
 			parts, path, src, ok := p.comboThrows(e)
 			if !ok {
 				continue
@@ -218,8 +231,8 @@ func (a *api) handleProClip(w http.ResponseWriter, r *http.Request) {
 }
 
 type clipDirs struct {
-	analyses, demos, clips, out string
-	max                         int
+	analyses, demos, clips, out, team string
+	max                               int
 }
 
 // planClipsFromDirs builds the lineups from the local analyses and writes what to record next.
@@ -233,7 +246,7 @@ func planClipsFromDirs(ctx context.Context, dirs clipDirs) error {
 		idx := prolineups.BuildIndex(m, read.byMap[m], time.Now())
 		lineups, combos = append(lineups, idx.Lineups...), append(combos, idx.Combos...)
 	}
-	plan := planClips(clipPlanInput{lineups: lineups, combos: combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max,
+	plan := planClips(clipPlanInput{lineups: lineups, combos: combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max, team: dirs.team,
 		demo: func(file string) (string, bool) {
 			path := filepath.Join(dirs.demos, file+".dem")
 			info, err := os.Stat(path)

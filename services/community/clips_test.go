@@ -48,6 +48,24 @@ func TestPlanClipsTakesTheNewestRecordableThrowOfEachLineup(t *testing.T) {
 	}
 }
 
+func TestPlanClipsWithATeamTakesOnlyThatTeamsThrows(t *testing.T) {
+	theirs, ours := clipExample("10", 3, 20000, 1), clipExample("10", 5, 40000, 2)
+	theirs.Team, ours.Team = "Vitality", "FURIA"
+	other := clipExample("10", 7, 60000, 1)
+	other.Team = "Vitality"
+	lineups := []prolineups.Lineup{{ID: "a", Examples: []prolineups.Example{theirs, ours}}, {ID: "b", Examples: []prolineups.Example{other}}}
+	sources := map[string]throwSource{}
+	for _, e := range []prolineups.Example{theirs, ours, other} {
+		sources[prolineups.ClipName(e)] = throwSource{file: "10__a-vs-b-m1-mirage", tickRate: 64, mapName: "de_mirage", duration: 100000}
+	}
+	plan := planClips(clipPlanInput{lineups: lineups, sources: sources, max: 10, team: "furia",
+		demo:     func(file string) (string, bool) { return "/demos/" + file + ".dem", true },
+		recorded: func(string) bool { return false }})
+	if len(plan.Demos) != 1 || len(plan.Demos[0].Clips) != 1 || plan.Demos[0].Clips[0].Name != prolineups.ClipName(ours) {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
 func TestProClipServesRecordedFilesOnly(t *testing.T) {
 	a, h := testAPI(t)
 	a.clipsDir = t.TempDir()

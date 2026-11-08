@@ -113,13 +113,14 @@ func run(args []string) error {
 		clips := fs.String("clips", "", "folder of recorded clips")
 		out := fs.String("out", "", "plan file to write")
 		maxClips := fs.Int("max", 200, "most clips to plan")
+		team := fs.String("team", "", "plan only this team's throws, such as FURIA")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if *analyses == "" || *demos == "" || *clips == "" || *out == "" {
 			return errors.New("plan-clips needs -analyses, -demos, -clips and -out")
 		}
-		return planClipsFromDirs(ctx, clipDirs{analyses: *analyses, demos: *demos, clips: *clips, out: *out, max: *maxClips})
+		return planClipsFromDirs(ctx, clipDirs{analyses: *analyses, demos: *demos, clips: *clips, out: *out, max: *maxClips, team: *team})
 	case "record-clips":
 		return runRecordClips(ctx, args[1:])
 	case "sidecars":
