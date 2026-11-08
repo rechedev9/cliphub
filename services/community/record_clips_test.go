@@ -71,3 +71,13 @@ func TestFailedClipReadsTheSegmentTheRecorderNames(t *testing.T) {
 		t.Fatal("only a named segment inside the plan counts")
 	}
 }
+
+func TestShortClipEndsOneSecondAfterTheRelease(t *testing.T) {
+	c := clipShot{StartTick: 1000, ThrowTick: 1192, EndTick: 1500}
+	if got := shortClip(c, 64); got.EndTick != 1256 || got.StartTick != 1000 {
+		t.Fatalf("short = %+v", got)
+	}
+	if got := shortClip(clipShot{ThrowTick: 1192, EndTick: 1200}, 64); got.EndTick != 1200 {
+		t.Fatalf("a clip already shorter stays as it is: %+v", got)
+	}
+}

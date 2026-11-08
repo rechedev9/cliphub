@@ -205,10 +205,12 @@ const maxDroppedClips = 3
 
 var failedSegment = regexp.MustCompile(`during clip-(\d{3})`)
 
-// captureDropping records the demo; when the recorder names the throw it could not film, that throw
-// is marked failed (so the planner takes another example) and the rest are recorded again.
+// captureDropping records the demo. When the recorder names a throw it lost sight of, that throw is
+// first cut to end soon after the release (the thrower often dies during the flight); if it still
+// fails it is marked failed (so the planner takes another example) and the rest are recorded again.
 func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir string) (clipDemo, map[string]string, error) {
-	for dropped := 0; ; dropped++ {
+	shortened := map[string]bool{}
+	for dropped := 0; ; {
 		sum, err := fileSHA256(d.Demo)
 		if err != nil {
 			return d, nil, err
@@ -228,6 +230,13 @@ func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 			return d, nil, err
 		}
 		name := d.Clips[i].Name
+		if short := shortClip(d.Clips[i], d.TickRate); !shortened[name] && short.EndTick < d.Clips[i].EndTick {
+			shortened[name] = true
+			d.Clips[i] = short
+			log.Printf("community stage=clips class=clip_shortened clip=%s error=%v", name, err)
+			continue
+		}
+		dropped++
 		log.Printf("community stage=clips class=clip_dropped clip=%s error=%v", name, err)
 		if err := markClipFailed(job.clips, name); err != nil {
 			return d, nil, err
@@ -237,6 +246,12 @@ func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 			return d, map[string]string{}, nil
 		}
 	}
+}
+
+// shortClip ends a throw clip one second after the release.
+func shortClip(c clipShot, tickRate int) clipShot {
+	c.EndTick = min(c.EndTick, c.ThrowTick+tickRate)
+	return c
 }
 
 // failedClip is the index of the clip the recorder output names as failed, or -1.
