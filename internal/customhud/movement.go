@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
-const movementMask = uint64(common.ButtonForward | common.ButtonBack | common.ButtonMoveLeft | common.ButtonMoveRight | common.ButtonJump | common.ButtonDuck | common.ButtonSpeed)
+const movementMask = uint64(common.ButtonForward | common.ButtonBack | common.ButtonMoveLeft | common.ButtonMoveRight | common.ButtonJump | common.ButtonDuck | common.ButtonSpeed | common.ButtonAttack | common.ButtonAttack2)
 
 // CS2 records commands per controller slot, independently of pawn properties.
 // Recent demos use CMsgServerUserCmd.delta_data (field 6), not declared in our

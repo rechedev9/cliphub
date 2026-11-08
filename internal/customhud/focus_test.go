@@ -14,9 +14,9 @@ func TestMovementRequiresRecordedPropertyAndIgnoresUnshownActions(t *testing.T) 
 			t.Fatal("missing input became released keys")
 		}
 	}
-	for _, mask := range []uint64{0, uint64(common.ButtonForward | common.ButtonDuck | common.ButtonAttack)} {
+	for _, mask := range []uint64{0, uint64(common.ButtonForward | common.ButtonDuck | common.ButtonAttack | common.ButtonAttack2 | common.ButtonUse)} {
 		got := sourceMovement(propertyEntity{values: map[string]st.PropertyValue{"m_pMovementServices.m_nButtonDownMaskPrev": {Any: mask}}})
-		if got == nil || *got != mask&^uint64(common.ButtonAttack) {
+		if got == nil || *got != mask&^uint64(common.ButtonUse) {
 			t.Fatalf("movement mask=%v", got)
 		}
 	}
@@ -119,5 +119,26 @@ func TestFocusAmmoShowsMagazinesAndHidesWithoutOne(t *testing.T) {
 		if nodes["focus/ammo"].Text != tc.clip || nodes["focus/reserve"].Text != tc.count || magazines != tc.magazines {
 			t.Fatalf("ammo %d/%d drew clip=%q count=%q magazines=%d", tc.ammo, tc.reserve, nodes["focus/ammo"].Text, nodes["focus/reserve"].Text, magazines)
 		}
+	}
+}
+
+func TestFocusShowsThrowButtons(t *testing.T) {
+	r, _ := NewRenderer("focus")
+	state := Example()
+	throw := uint64(common.ButtonJump | common.ButtonAttack)
+	for i := range state.Players {
+		if state.Players[i].SteamID == ExampleTarget {
+			state.Players[i].Movement = &throw
+		}
+	}
+	nodes := map[string]Node{}
+	for _, node := range r.Scene(state, ExampleTarget) {
+		nodes[node.ID] = node
+	}
+	if nodes["keys/MOUSE1/plate"].Color != r.Theme.T || nodes["keys/SPACE/plate"].Color != r.Theme.T {
+		t.Fatal("a jumpthrow does not light SPACE and MOUSE1")
+	}
+	if _, ok := nodes["keys/MOUSE2/plate"]; !ok || nodes["keys/MOUSE2/plate"].Color == r.Theme.T {
+		t.Fatal("MOUSE2 must be drawn released")
 	}
 }
