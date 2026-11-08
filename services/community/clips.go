@@ -64,7 +64,9 @@ type clipPlanInput struct {
 	sources  map[string]throwSource
 	demo     func(file string) (string, bool)
 	recorded func(name string) bool
-	max      int
+	// failed names throws the recorder could not film; another example is taken instead.
+	failed func(name string) bool
+	max    int
 	// team, when set, plans only that team's throws and combos.
 	team string
 }
@@ -75,9 +77,13 @@ type clipPlanner struct {
 	planned map[string]bool
 }
 
-// keptDemo is the kept demo a throw was read from, if there is one.
+// keptDemo is the kept demo a throw was read from, if there is one and the throw can be filmed.
 func (p *clipPlanner) keptDemo(e prolineups.Example) (string, throwSource, bool) {
-	src, ok := p.in.sources[prolineups.ClipName(e)]
+	name := prolineups.ClipName(e)
+	if p.in.failed != nil && p.in.failed(name) {
+		return "", throwSource{}, false
+	}
+	src, ok := p.in.sources[name]
 	if !ok {
 		return "", throwSource{}, false
 	}
@@ -207,6 +213,14 @@ func clipRecorded(dir string) func(name string) bool {
 	}
 }
 
+// clipFailed reports whether record-clips marked a throw as one the recorder cannot film.
+func clipFailed(dir string) func(name string) bool {
+	return func(name string) bool {
+		_, err := os.Stat(filepath.Join(dir, filepath.FromSlash(name)) + ".failed")
+		return err == nil
+	}
+}
+
 // handleProClip serves GET /v1/pro-clips/{match}/{file}: one recorded throw clip.
 func (a *api) handleProClip(w http.ResponseWriter, r *http.Request) {
 	match, file := r.PathValue("match"), r.PathValue("file")
@@ -262,7 +276,7 @@ func planClipsFromDirs(ctx context.Context, dirs clipDirs) error {
 		}
 		idx := prolineups.BuildIndex(m, read.byMap[m], time.Now())
 		lineups, combos = lineups+len(idx.Lineups), combos+len(idx.Combos)
-		part := planClips(clipPlanInput{lineups: idx.Lineups, combos: idx.Combos, sources: read.sources, recorded: clipRecorded(dirs.clips), max: dirs.max, team: team, demo: demo})
+		part := planClips(clipPlanInput{lineups: idx.Lineups, combos: idx.Combos, sources: read.sources, recorded: clipRecorded(dirs.clips), failed: clipFailed(dirs.clips), max: dirs.max, team: team, demo: demo})
 		plan.Demos, plan.Combos = append(plan.Demos, part.Demos...), append(plan.Combos, part.Combos...)
 	}
 	n := 0

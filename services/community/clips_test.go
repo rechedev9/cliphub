@@ -66,6 +66,21 @@ func TestPlanClipsWithATeamTakesOnlyThatTeamsThrows(t *testing.T) {
 	}
 }
 
+func TestPlanClipsSkipsAThrowTheRecorderCouldNotFilm(t *testing.T) {
+	bad, good := clipExample("10", 3, 20000, 1), clipExample("10", 5, 40000, 2)
+	sources := map[string]throwSource{}
+	for _, e := range []prolineups.Example{bad, good} {
+		sources[prolineups.ClipName(e)] = throwSource{file: "10__a-vs-b-m1-mirage", tickRate: 64, mapName: "de_mirage", duration: 100000}
+	}
+	plan := planClips(clipPlanInput{lineups: []prolineups.Lineup{{ID: "a", Examples: []prolineups.Example{bad, good}}}, sources: sources, max: 10,
+		demo:     func(file string) (string, bool) { return "/demos/" + file + ".dem", true },
+		recorded: func(string) bool { return false },
+		failed:   func(name string) bool { return name == prolineups.ClipName(bad) }})
+	if len(plan.Demos) != 1 || plan.Demos[0].Clips[0].Name != prolineups.ClipName(good) {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
 func TestProClipServesRecordedFilesOnly(t *testing.T) {
 	a, h := testAPI(t)
 	a.clipsDir = t.TempDir()

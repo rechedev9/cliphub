@@ -61,3 +61,13 @@ func TestClipFilterEndsAt720pAndClipFPS(t *testing.T) {
 		t.Fatalf("filter tail = %s", f)
 	}
 }
+
+func TestFailedClipReadsTheSegmentTheRecorderNames(t *testing.T) {
+	out := "error: capture POV verification failed: observer target remained unknown during clip-008; check CS2 console log"
+	if got := failedClip(out, 10); got != 7 {
+		t.Fatalf("failedClip = %d, want 7", got)
+	}
+	if failedClip(out, 5) != -1 || failedClip("cs2.exe is already running", 10) != -1 {
+		t.Fatal("only a named segment inside the plan counts")
+	}
+}

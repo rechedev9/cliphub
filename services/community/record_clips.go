@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,22 +151,13 @@ func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 	if len(d.Clips) == 0 {
 		return 0, nil
 	}
-	sum, err := fileSHA256(d.Demo)
-	if err != nil {
-		return 0, err
-	}
-	if err := os.RemoveAll(dir); err != nil {
-		return 0, err
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return 0, err
-	}
-	segments, err := captureClips(ctx, job, d, sum, dir)
+	d, segments, err := captureDropping(ctx, job, d, dir)
 	if err != nil {
 		return 0, err
 	}
 	// The capture can rewrite the demo in place (it leaves a .bak), so the HUD digest is taken again.
-	if sum, err = fileSHA256(d.Demo); err != nil {
+	sum, err := fileSHA256(d.Demo)
+	if err != nil {
 		return 0, err
 	}
 	fonts, err := mediafont.MaterializeHUD()
@@ -207,22 +200,88 @@ func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 	return done, nil
 }
 
-// captureClips runs zv-recorder once for the demo and returns each segment's raw capture.
-func captureClips(ctx context.Context, job recordClipsJob, d clipDemo, sum, dir string) (map[string]string, error) {
+// maxDroppedClips bounds how many failing throws one demo may drop before it gives up.
+const maxDroppedClips = 3
+
+var failedSegment = regexp.MustCompile(`during clip-(\d{3})`)
+
+// captureDropping records the demo; when the recorder names the throw it could not film, that throw
+// is marked failed (so the planner takes another example) and the rest are recorded again.
+func captureDropping(ctx context.Context, job recordClipsJob, d clipDemo, dir string) (clipDemo, map[string]string, error) {
+	for dropped := 0; ; dropped++ {
+		sum, err := fileSHA256(d.Demo)
+		if err != nil {
+			return d, nil, err
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			return d, nil, err
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return d, nil, err
+		}
+		segments, out, err := captureClips(ctx, job, d, sum, dir)
+		if err == nil {
+			return d, segments, nil
+		}
+		i := failedClip(out, len(d.Clips))
+		if i < 0 || dropped == maxDroppedClips || ctx.Err() != nil {
+			return d, nil, err
+		}
+		name := d.Clips[i].Name
+		log.Printf("community stage=clips class=clip_dropped clip=%s error=%v", name, err)
+		if err := markClipFailed(job.clips, name); err != nil {
+			return d, nil, err
+		}
+		d.Clips = append(d.Clips[:i:i], d.Clips[i+1:]...)
+		if len(d.Clips) == 0 {
+			return d, map[string]string{}, nil
+		}
+	}
+}
+
+// failedClip is the index of the clip the recorder output names as failed, or -1.
+func failedClip(out string, n int) int {
+	m := failedSegment.FindStringSubmatch(out)
+	if m == nil {
+		return -1
+	}
+	i, err := strconv.Atoi(m[1])
+	if err != nil || i < 1 || i > n {
+		return -1
+	}
+	return i - 1
+}
+
+// markClipFailed leaves name.failed beside the clips so later plans skip that throw.
+func markClipFailed(clips, name string) error {
+	path := filepath.Join(clips, filepath.FromSlash(name)) + ".failed"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, nil, 0o644)
+}
+
+// captureClips runs zv-recorder once for the demo and returns each segment's raw capture and the recorder output.
+func captureClips(ctx context.Context, job recordClipsJob, d clipDemo, sum, dir string) (map[string]string, string, error) {
 	body, err := json.Marshal(clipKillPlan(d, sum))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	planPath := filepath.Join(dir, "killplan.json")
 	if err := os.WriteFile(planPath, body, 0o644); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	out := filepath.Join(dir, "capture")
 	args := recorderArgs(job.tools, recorderFiles{plan: planPath, demo: d.Demo, out: out})
-	if err := runTool(ctx, job.tools.recorder, args...); err != nil {
-		return nil, fmt.Errorf("zv-recorder: %w", err)
+	var output strings.Builder
+	cmd := exec.CommandContext(ctx, job.tools.recorder, args...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
+	if err := cmd.Run(); err != nil {
+		return nil, output.String(), fmt.Errorf("zv-recorder: %w", err)
 	}
-	return capturedSegments(out)
+	segments, err := capturedSegments(out)
+	return segments, output.String(), err
 }
 
 type recorderFiles struct{ plan, demo, out string }
