@@ -66,11 +66,21 @@ var demoEntry = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.()-]{0,200}\.dem$`)
 
 // prepareHLTV scans every downloaded archive that has its sidecar, writes one
 // analysis per demo into outDir and deletes the archive once all its demos are in.
-func prepareHLTV(ctx context.Context, downloads, outDir, workDir string) error {
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
+// prepareDirs are the folders prepare-hltv reads and writes; keep is empty when no demo is kept.
+type prepareDirs struct {
+	downloads, out, work, keep string
+}
+
+func prepareHLTV(ctx context.Context, dirs prepareDirs) error {
+	for _, dir := range []string{dirs.out, dirs.keep} {
+		if dir == "" {
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
 	}
-	sidecars, err := filepath.Glob(filepath.Join(downloads, "*.json"))
+	sidecars, err := filepath.Glob(filepath.Join(dirs.downloads, "*.json"))
 	if err != nil {
 		return err
 	}
@@ -84,7 +94,7 @@ func prepareHLTV(ctx context.Context, downloads, outDir, workDir string) error {
 		if _, err := os.Stat(archive); err != nil {
 			continue
 		}
-		n, err := prepareArchive(ctx, side, archive, outDir, workDir)
+		n, err := prepareArchive(ctx, side, archive, dirs)
 		if err != nil {
 			failed++
 			log.Printf("community stage=prepare class=failed archive=%s error=%v", filepath.Base(archive), err)
@@ -98,7 +108,7 @@ func prepareHLTV(ctx context.Context, downloads, outDir, workDir string) error {
 	return nil
 }
 
-func prepareArchive(ctx context.Context, sidecarPath, archive, outDir, workDir string) (int, error) {
+func prepareArchive(ctx context.Context, sidecarPath, archive string, dirs prepareDirs) (int, error) {
 	raw, err := os.ReadFile(sidecarPath)
 	if err != nil {
 		return 0, err
@@ -125,12 +135,20 @@ func prepareArchive(ctx context.Context, sidecarPath, archive, outDir, workDir s
 		if h.IsDir || !demoEntry.MatchString(entry) {
 			continue
 		}
-		out := filepath.Join(outDir, fmt.Sprintf("%d__%s%s", meta.MatchID, strings.TrimSuffix(entry, ".dem"), analysisSuffix))
+		base := fmt.Sprintf("%d__%s", meta.MatchID, strings.TrimSuffix(entry, ".dem"))
+		out := filepath.Join(dirs.out, base+analysisSuffix)
+		keep := ""
+		if dirs.keep != "" {
+			keep = filepath.Join(dirs.keep, base+".dem")
+		}
 		if _, err := os.Stat(out); err == nil {
 			written++
+			if err := keepDemo(r, keep); err != nil {
+				return written, fmt.Errorf("%s: %w", entry, err)
+			}
 			continue
 		}
-		err = prepareDemo(ctx, r, meta, entry, out, workDir)
+		err = prepareDemo(ctx, r, demoJob{meta: meta, entry: entry, out: out, work: dirs.work, keep: keep})
 		if errors.Is(err, errNotAMatch) {
 			log.Printf("community stage=prepare class=skipped match=%d entry=%s error=%v", meta.MatchID, entry, err)
 			continue
@@ -148,8 +166,42 @@ func prepareArchive(ctx context.Context, sidecarPath, archive, outDir, workDir s
 }
 
 // prepareDemo copies one archive entry to a temporary demo, scans it and writes the analysis.
-func prepareDemo(ctx context.Context, src io.Reader, meta hltvSidecar, entry, out, workDir string) error {
-	tmp, err := os.CreateTemp(workDir, "hltv-*.dem")
+// demoJob is one archive entry to prepare; keep is where the demo stays for lineup clips, or empty.
+type demoJob struct {
+	meta                   hltvSidecar
+	entry, out, work, keep string
+}
+
+// keepDemo copies an entry already prepared into the kept demos, unless it is there.
+func keepDemo(src io.Reader, keep string) error {
+	if keep == "" {
+		return nil
+	}
+	if _, err := os.Stat(keep); err == nil {
+		return nil
+	}
+	tmp := keep + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(f, io.LimitReader(src, maxDemoBytes+1))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n > maxDemoBytes {
+		err = fmt.Errorf("keep: demo is over %d MB", maxDemoBytes>>20)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, keep)
+}
+
+func prepareDemo(ctx context.Context, src io.Reader, job demoJob) error {
+	meta, entry, out := job.meta, job.entry, job.out
+	tmp, err := os.CreateTemp(job.work, "hltv-*.dem")
 	if err != nil {
 		return err
 	}
@@ -175,7 +227,22 @@ func prepareDemo(ctx context.Context, src io.Reader, meta hltvSidecar, entry, ou
 		return err
 	}
 	res.Document.Demo.Path = ""
-	return writeAnalysis(out, analysisHeader{Format: analysisFormat, Match: meta, Entry: entry, Document: res.Document, Positions: res.Positions.Descriptor}, res.Positions.Data)
+	if err := writeAnalysis(out, analysisHeader{Format: analysisFormat, Match: meta, Entry: entry, Document: res.Document, Positions: res.Positions.Descriptor}, res.Positions.Data); err != nil {
+		return err
+	}
+	if job.keep == "" {
+		return nil
+	}
+	// The work folder may sit on another drive, where a rename fails; a copy always works.
+	if err := os.Rename(tmp.Name(), job.keep); err == nil {
+		return nil
+	}
+	f, err := os.Open(tmp.Name())
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return keepDemo(f, job.keep)
 }
 
 func checkMatch(s tacticalplan.ProDemoSummary) error {

@@ -278,7 +278,7 @@ func buildCombos(ls []Lineup, throws []Throw, memberOf map[int]string, recentFro
 			c.clocks = append(c.clocks, r.throws[0].Clock)
 			if len(c.examples) < examplesPerItem {
 				t := r.throws[0]
-				c.examples = append(c.examples, Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick})
+				c.examples = append(c.examples, Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, SteamID64: t.SteamID64, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick, AirTime: round2(t.AirTime)})
 			}
 		}
 	}

@@ -57,6 +57,7 @@ type indexer struct {
 	// hltvDir holds analyses prepared on an operator PC; archiveDir keeps them once indexed.
 	hltvDir    string
 	archiveDir string
+	clipsDir   string
 }
 
 type indexOptions struct {
@@ -148,7 +149,7 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		return fmt.Errorf("rebuild reference: %w", err)
 	}
 	if ix.archiveDir != "" && ix.lineupsDue(ctx, hltvDone) {
-		if _, err := buildLineups(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
+		if _, err := buildLineups(ctx, ix.store, lineupDirs{analyses: ix.archiveDir, clips: ix.clipsDir}, time.Now()); err != nil {
 			log.Printf("community stage=lineups class=kept error=%v", err)
 		}
 	}

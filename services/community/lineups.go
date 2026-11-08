@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,19 +38,26 @@ type lineupsIndex struct {
 	Maps    []lineupsMapInfo `json:"maps"`
 }
 
-// buildLineups reads every archived analysis, groups the throws by map and
-// stores one lineup index per map plus the list of maps.
-func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Time) (lineupsIndex, error) {
+// lineupThrows is every throw read from the archived analyses, by map.
+type lineupThrows struct {
+	byMap    map[string][]prolineups.Throw
+	geometry map[string]tacticalplan.MapGeometry
+	// sources maps a throw's clip name to the analysis it came from.
+	sources map[string]throwSource
+	files   int
+}
+
+func readLineupThrows(ctx context.Context, analysesDir string) (lineupThrows, error) {
 	files, err := filepath.Glob(filepath.Join(analysesDir, "*"+analysisSuffix))
 	if err != nil {
-		return lineupsIndex{}, err
+		return lineupThrows{}, err
 	}
 	slices.Sort(files)
+	out := lineupThrows{byMap: map[string][]prolineups.Throw{}, geometry: map[string]tacticalplan.MapGeometry{}, sources: map[string]throwSource{}, files: len(files)}
 	parts := []mapPart{}
-	geometry := map[string]tacticalplan.MapGeometry{}
 	for _, name := range files {
 		if ctx.Err() != nil {
-			return lineupsIndex{}, ctx.Err()
+			return lineupThrows{}, ctx.Err()
 		}
 		h, blob, err := readAnalysis(name)
 		if err != nil {
@@ -62,18 +70,41 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 		if t, err := time.Parse(time.RFC3339, h.Match.PlayedAt); err == nil {
 			meta.PlayedAt = t
 		}
-		if g := h.Document.Geometry; g.SampleCount > geometry[h.Document.Demo.Map].SampleCount {
-			geometry[h.Document.Demo.Map] = g
+		if g := h.Document.Geometry; g.SampleCount > out.geometry[h.Document.Demo.Map].SampleCount {
+			out.geometry[h.Document.Demo.Map] = g
 		}
-		parts = append(parts, newMapPart(key, prolineups.ExtractThrows(h.Document, blob, meta)))
+		throws := prolineups.ExtractThrows(h.Document, blob, meta)
+		src := throwSource{file: strings.TrimSuffix(filepath.Base(name), analysisSuffix), mapName: h.Document.Demo.Map, tickRate: int(math.Round(h.Document.Demo.Tickrate)), duration: h.Document.Demo.DurationTicks}
+		for _, t := range throws {
+			e := prolineups.Example{Match: t.Match, MapKey: t.MapKey, SteamID64: t.SteamID64, Round: t.Round, Tick: t.ThrowTick}
+			out.sources[prolineups.ClipName(e)] = src
+		}
+		parts = append(parts, newMapPart(key, throws))
 	}
-	byMap := map[string][]prolineups.Throw{}
 	for _, t := range joinParts(parts) {
-		byMap[t.Map] = append(byMap[t.Map], t)
+		out.byMap[t.Map] = append(out.byMap[t.Map], t)
 	}
+	return out, nil
+}
+
+// lineupDirs are the folders a lineup build reads.
+type lineupDirs struct {
+	analyses string
+	// clips holds recorded throw clips; empty attaches none.
+	clips string
+}
+
+// buildLineups reads every archived analysis, groups the throws by map and
+// stores one lineup index per map plus the list of maps.
+func buildLineups(ctx context.Context, s *store, dirs lineupDirs, now time.Time) (lineupsIndex, error) {
+	read, err := readLineupThrows(ctx, dirs.analyses)
+	if err != nil {
+		return lineupsIndex{}, err
+	}
+	byMap, geometry, files := read.byMap, read.geometry, read.files
 	// A missing or unreadable folder must not replace the served lineups with nothing.
 	if len(byMap) == 0 {
-		return lineupsIndex{}, fmt.Errorf("no throws read from %d analyses in %s; the stored lineups stay", len(files), analysesDir)
+		return lineupsIndex{}, fmt.Errorf("no throws read from %d analyses in %s; the stored lineups stay", files, dirs.analyses)
 	}
 	index := lineupsIndex{Version: prolineups.IndexVersion, BuiltAt: now.UTC(), Maps: []lineupsMapInfo{}}
 	payloads := map[string][]byte{}
@@ -82,6 +113,7 @@ func buildLineups(ctx context.Context, s *store, analysesDir string, now time.Ti
 		if g, ok := geometry[m]; ok {
 			idx.Geometry = &g
 		}
+		prolineups.AttachClips(&idx, clipRecorded(dirs.clips))
 		body, err := json.Marshal(idx)
 		if err != nil {
 			return lineupsIndex{}, err

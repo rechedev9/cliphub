@@ -6,6 +6,8 @@
 //	cliphub-community index [-max N]    index new pro demos and rebuild the reference
 //	cliphub-community prepare-hltv      scan harvested HLTV archives into analyses (operator PC)
 //	cliphub-community build-lineups     rebuild the pro lineup index from the archived analyses
+//	cliphub-community plan-clips        list the throws to record as lineup clips (operator PC)
+//	cliphub-community record-clips      record the planned clips with CS2 and the inputs HUD (operator PC)
 package main
 
 import (
@@ -37,7 +39,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: cliphub-community serve | index [-max N] | prepare-hltv -downloads DIR -out DIR")
+		return errors.New("usage: cliphub-community serve | index [-max N] | build-lineups | plan-clips | prepare-hltv -downloads DIR -out DIR")
 	}
 	database := os.Getenv("CLIPHUB_COMMUNITY_DATABASE")
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -68,13 +70,14 @@ func run(args []string) error {
 		inbox := os.Getenv("CLIPHUB_COMMUNITY_INBOX")
 		hltv := os.Getenv("CLIPHUB_COMMUNITY_HLTV_DIR")
 		ix := &indexer{store: s, http: &http.Client{Timeout: 30 * time.Minute}, workDir: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()), inboxDir: inbox,
-			hltvDir: hltv, archiveDir: os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR")}
+			hltvDir: hltv, archiveDir: os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"), clipsDir: os.Getenv("CLIPHUB_COMMUNITY_CLIPS_DIR")}
 		datasets := parseDatasetSpecs(envDefault("CLIPHUB_COMMUNITY_DATASETS", defaultDatasets))
 		return ix.run(ctx, indexOptions{datasets: datasets, inboxDir: inbox, hltvDir: hltv, maxDemos: *maxDemos})
 	case "build-lineups":
 		fs := flag.NewFlagSet("build-lineups", flag.ContinueOnError)
 		analyses := fs.String("analyses", os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"), "folder of archived analyses")
 		out := fs.String("out", "", "also write one JSON file per map here")
+		clips := fs.String("clips", os.Getenv("CLIPHUB_COMMUNITY_CLIPS_DIR"), "folder of recorded lineup clips")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
@@ -83,7 +86,7 @@ func run(args []string) error {
 			return err
 		}
 		defer s.Close()
-		if _, err := buildLineups(ctx, s, *analyses, time.Now()); err != nil {
+		if _, err := buildLineups(ctx, s, lineupDirs{analyses: *analyses, clips: *clips}, time.Now()); err != nil {
 			return err
 		}
 		if *out != "" {
@@ -94,24 +97,43 @@ func run(args []string) error {
 		fs := flag.NewFlagSet("prepare-hltv", flag.ContinueOnError)
 		downloads := fs.String("downloads", "", "folder of harvested <match id>.rar archives and their .json sidecars")
 		out := fs.String("out", "", "folder for the prepared analyses")
+		keep := fs.String("keep-demos", "", "also keep each demo here, for lineup clips")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if *downloads == "" || *out == "" {
 			return errors.New("prepare-hltv needs -downloads and -out")
 		}
-		return prepareHLTV(ctx, *downloads, *out, envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir()))
+		return prepareHLTV(ctx, prepareDirs{downloads: *downloads, out: *out, keep: *keep, work: envDefault("CLIPHUB_COMMUNITY_WORK_DIR", os.TempDir())})
+	case "plan-clips":
+		fs := flag.NewFlagSet("plan-clips", flag.ContinueOnError)
+		analyses := fs.String("analyses", "", "folder of prepared analyses")
+		demos := fs.String("demos", "", "folder of the demos prepare-hltv kept")
+		clips := fs.String("clips", "", "folder of recorded clips")
+		out := fs.String("out", "", "plan file to write")
+		maxClips := fs.Int("max", 200, "most clips to plan")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *analyses == "" || *demos == "" || *clips == "" || *out == "" {
+			return errors.New("plan-clips needs -analyses, -demos, -clips and -out")
+		}
+		return planClipsFromDirs(ctx, clipDirs{analyses: *analyses, demos: *demos, clips: *clips, out: *out, max: *maxClips})
+	case "record-clips":
+		return runRecordClips(ctx, args[1:])
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }
 
 func serve(ctx context.Context, s *store, address string) error {
+	a := newAPI(s)
+	a.clipsDir = os.Getenv("CLIPHUB_COMMUNITY_CLIPS_DIR")
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
 	server := &http.Server{
-		Handler:           newAPI(s).routes(),
+		Handler:           a.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,

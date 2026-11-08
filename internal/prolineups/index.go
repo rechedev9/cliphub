@@ -80,20 +80,22 @@ type Lineup struct {
 	RoundShare float64 `json:"round_share"`
 	// Trend is throws per 100 side rounds over the last 30 days and the 60 before;
 	// nil while either window has no rounds.
-	Trend      *[2]float64   `json:"trend,omitempty"`
-	RoundWin   float64       `json:"round_win"`
-	Attempts   int           `json:"attempts"`
-	Landed     int           `json:"landed"`
-	Clock      ClockStats    `json:"clock"`
-	Teams      []Usage       `json:"teams"`
-	Players    []Usage       `json:"players"`
-	Events     []Usage       `json:"events"`
-	PlantSites []Usage       `json:"plant_sites"`
-	With       []Usage       `json:"with"`
-	Examples   []Example     `json:"examples"`
-	LastSeen   time.Time     `json:"last_seen"`
-	TeamCount  int           `json:"team_count"`
-	Rank       RankInLanding `json:"rank"`
+	Trend      *[2]float64 `json:"trend,omitempty"`
+	RoundWin   float64     `json:"round_win"`
+	Attempts   int         `json:"attempts"`
+	Landed     int         `json:"landed"`
+	Clock      ClockStats  `json:"clock"`
+	Teams      []Usage     `json:"teams"`
+	Players    []Usage     `json:"players"`
+	Events     []Usage     `json:"events"`
+	PlantSites []Usage     `json:"plant_sites"`
+	With       []Usage     `json:"with"`
+	Examples   []Example   `json:"examples"`
+	// Clip is the stored path of the newest example's recorded throw clip, when one exists.
+	Clip      string        `json:"clip,omitempty"`
+	LastSeen  time.Time     `json:"last_seen"`
+	TeamCount int           `json:"team_count"`
+	Rank      RankInLanding `json:"rank"`
 }
 
 // ClockStats is when in the round the lineup is thrown, as seconds after freeze end.
@@ -120,9 +122,14 @@ type Example struct {
 	PlayedAt time.Time `json:"played_at"`
 	Team     string    `json:"team"`
 	Player   string    `json:"player"`
-	Round    int       `json:"round"`
-	Clock    float64   `json:"clock"`
-	Tick     int       `json:"tick"`
+	// SteamID64 is the thrower, the POV a clip or replay follows.
+	SteamID64 string  `json:"steamid64,omitempty"`
+	Round     int     `json:"round"`
+	Clock     float64 `json:"clock"`
+	Tick      int     `json:"tick"`
+	// AirTime is seconds from release to landing.
+	AirTime float64 `json:"air_time,omitempty"`
+	Clip    string  `json:"clip,omitempty"`
 }
 
 // RankInLanding places a lineup among those landing at the same callout.
@@ -442,7 +449,7 @@ func examples(members []Throw) []Example {
 	slices.SortFunc(s, func(a, b Throw) int { return cmp.Or(b.PlayedAt.Compare(a.PlayedAt), cmp.Compare(a.Round, b.Round)) })
 	out := []Example{}
 	for _, t := range s[:min(len(s), examplesPerItem)] {
-		out = append(out, Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick})
+		out = append(out, Example{Match: t.Match, MapKey: t.MapKey, Event: t.Event, PlayedAt: t.PlayedAt, Team: t.Team, Player: t.Player, SteamID64: t.SteamID64, Round: t.Round, Clock: round2(t.Clock), Tick: t.ThrowTick, AirTime: round2(t.AirTime)})
 	}
 	return out
 }
