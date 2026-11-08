@@ -159,6 +159,10 @@ func recordDemoClips(ctx context.Context, job recordClipsJob, d clipDemo, dir st
 	if err != nil {
 		return 0, err
 	}
+	// The capture can rewrite the demo in place (it leaves a .bak), so the HUD digest is taken again.
+	if sum, err = fileSHA256(d.Demo); err != nil {
+		return 0, err
+	}
 	fonts, err := mediafont.MaterializeHUD()
 	if err != nil {
 		return 0, err
