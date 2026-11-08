@@ -1,5 +1,5 @@
 import { TACTICAL_EVENT_KINDS } from '../../api/tactical.ts';
-import type { TacticalEventKind } from '../../api/tactical.ts';
+import type { TacticalEvent, TacticalEventKind } from '../../api/tactical.ts';
 import type { TimelineEvent } from '../../tactical-timeline.ts';
 import type { Vec3 } from './orbit.ts';
 
@@ -7,13 +7,13 @@ import type { Vec3 } from './orbit.ts';
 export const SMOKE_SECONDS = 22;
 export const SMOKE_FADE_SECONDS = 2;
 
-/** How long each grenade's effect stays on the map, in seconds (CS2 defaults). */
+/** How long each grenade's effect stays on the map, in seconds (CS2 defaults), when the event has no end. */
 export const UTILITY_SECONDS: Partial<Record<TacticalEventKind, number>> = {
   [TACTICAL_EVENT_KINDS.smoke]: SMOKE_SECONDS,
   [TACTICAL_EVENT_KINDS.molotov]: 7,
   [TACTICAL_EVENT_KINDS.flash]: 0.6,
   [TACTICAL_EVENT_KINDS.he]: 0.6,
-  [TACTICAL_EVENT_KINDS.decoy]: 0.6,
+  [TACTICAL_EVENT_KINDS.decoy]: 15,
 };
 
 /** The thrown path stays this long after the grenade lands, fading out. */
@@ -48,7 +48,18 @@ function clamp01(value: number): number {
 
 /** Strength and size of a detonated grenade `age` seconds after it went off. */
 export function utilityEffect(kind: TacticalEventKind, age: number): UtilityEffect | null {
-  const duration = UTILITY_SECONDS[kind];
+  return effectWithin({ kind, age, duration: UTILITY_SECONDS[kind] });
+}
+
+/** Seconds a grenade's effect lasts: to its recorded end, or the CS2 default. */
+function lifetime(event: TacticalEvent, seconds: number, secondsOf: (tick: number) => number): number | undefined {
+  const fallback = UTILITY_SECONDS[event.kind];
+  if (fallback === undefined || event.end_tick === undefined) return fallback;
+  return Math.max(0, secondsOf(event.end_tick) - seconds);
+}
+
+function effectWithin(options: { kind: TacticalEventKind; age: number; duration: number | undefined }): UtilityEffect | null {
+  const { kind, age, duration } = options;
   if (duration === undefined || age < 0 || age > duration) return null;
   if (kind === TACTICAL_EVENT_KINDS.smoke) {
     return { grow: 0.35 + 0.65 * clamp01(age / SMOKE_BLOOM_SECONDS), strength: clamp01((duration - age) / SMOKE_FADE_SECONDS) };
@@ -72,7 +83,7 @@ export function utilityVisuals(
   const out: UtilityVisual[] = [];
   events.forEach((entry, index) => {
     const { event } = entry;
-    const duration = UTILITY_SECONDS[event.kind];
+    const duration = lifetime(event, entry.seconds, secondsOf);
     if (duration === undefined) return;
     const at = vec(event.pos);
     let arc: UtilityArc | null = null;
@@ -88,7 +99,7 @@ export function utilityVisuals(
         };
       }
     }
-    const effect = utilityEffect(event.kind, nowSeconds - entry.seconds);
+    const effect = effectWithin({ kind: event.kind, age: nowSeconds - entry.seconds, duration });
     if (arc === null && effect === null) return;
     out.push({ index, kind: event.kind, at, from: event.throw === undefined ? null : vec(event.throw.pos), effect, arc });
   });
@@ -126,23 +137,41 @@ export type BombVisual =
 
 const EXPLOSION_SECONDS = 1.5;
 
-/** The bomb on the ground at the playhead; a carried bomb is drawn on its carrier instead. */
-export function bombVisual(events: readonly TimelineEvent[], nowSeconds: number, carried: boolean): BombVisual | null {
+function isOrigin(at: Vec3): boolean {
+  return at.x === 0 && at.y === 0 && at.z === 0;
+}
+
+/**
+ * The bomb on the ground at the playhead; a carried bomb is drawn on its carrier instead.
+ * A drop ends at its pickup; an analysis before drops had ends falls back on `carried`.
+ */
+export function bombVisual(options: {
+  events: readonly TimelineEvent[];
+  nowSeconds: number;
+  carried: boolean;
+  secondsOf: (tick: number) => number;
+}): BombVisual | null {
+  const { events, nowSeconds, carried, secondsOf } = options;
   let state: BombVisual | null = null;
+  let dropEnds: number | undefined;
   for (const { event, seconds } of events) {
     if (seconds > nowSeconds) break;
     const at = vec(event.pos);
     if (event.kind === TACTICAL_EVENT_KINDS.plant) state = { state: 'planted', at };
     else if (event.kind === TACTICAL_EVENT_KINDS.defuse && state !== null) state = { state: 'defused', at: state.at };
-    else if (event.kind === TACTICAL_EVENT_KINDS.bombDrop && (state === null || state.state === 'dropped')) state = { state: 'dropped', at };
-    else if (event.kind === TACTICAL_EVENT_KINDS.explode) {
+    else if (event.kind === TACTICAL_EVENT_KINDS.bombDrop && (state === null || state.state === 'dropped')) {
+      state = { state: 'dropped', at };
+      dropEnds = event.end_tick === undefined ? undefined : secondsOf(event.end_tick);
+    } else if (event.kind === TACTICAL_EVENT_KINDS.explode) {
       const age = nowSeconds - seconds;
       const site: Vec3 = state === null ? at : state.at;
+      if (state === null && isOrigin(site)) continue;
       state = age > EXPLOSION_SECONDS ? null : { state: 'exploded', at: site, effect: { grow: 0.3 + 0.7 * (age / EXPLOSION_SECONDS), strength: 1 - age / EXPLOSION_SECONDS } };
     }
   }
-  if (state?.state === 'dropped' && carried) return null;
-  return state;
+  if (state?.state !== 'dropped') return state;
+  if (dropEnds !== undefined) return nowSeconds < dropEnds ? state : null;
+  return carried ? null : state;
 }
 
 /** One soft blob of a smoke or one tongue of a fire, in units of the effect's radius and height. */

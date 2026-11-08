@@ -27,9 +27,11 @@ const SchemaVersion = "1.0"
 // 5: positions blob version 2, every sample carries pitch and gear;
 // 6: every round lists the damage players dealt to enemies, and samples
 // mark a player defusing; 7: overtime keeps the sides regulation ended on;
-// 8: Cache uses its shipped radar calibration instead of a derived one).
+// 8: Cache uses its shipped radar calibration instead of a derived one;
+// 9: dropped bombs, utility end ticks, no freeze time deaths, halftime and
+// pre-live waits cut from the round start).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 8
+const AnalysisVersion = 9
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -375,6 +377,9 @@ type Event struct {
 	// Throw is where a grenade left the thrower's hand. Analyses before version 4
 	// lack it, and so does a grenade whose throw the demo never showed.
 	Throw *Throw `json:"throw,omitempty"`
+	// EndTick is when a smoke, fire or decoy went out, or a dropped bomb was
+	// picked up or planted; 0 when the demo never said.
+	EndTick int `json:"end_tick,omitempty"`
 }
 
 // Throw is the thrower's state on the tick a grenade was thrown. Pos is at the
