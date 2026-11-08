@@ -286,7 +286,7 @@ func (s *scanner) register() {
 			return
 		}
 		half := max(s.half, 1)
-		if half%2 == 0 {
+		if tacticalplan.SidesSwapped(half) {
 			side = side.Opponent()
 		}
 		if _, seen := s.clanNames[side]; seen && half > 1 {
@@ -894,9 +894,9 @@ func siteFromBombsite(site events.Bombsite) tacticalplan.Site {
 }
 
 func teamKeyForStartSide(side tacticalplan.Side, half int) string {
-	// In the second half a player's current side is the opposite of the side
+	// In a swapped half a player's current side is the opposite of the side
 	// their team started on.
-	if half%2 == 0 {
+	if tacticalplan.SidesSwapped(half) {
 		side = side.Opponent()
 	}
 	if side == tacticalplan.SideCT {

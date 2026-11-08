@@ -169,6 +169,8 @@ test('perspective: a team key follows the side swap, a side pins it', () => {
     ['home swaps to T', { team_key: 'home' }, 2, TACTICAL_SIDES.t],
     ['away starts T', { team_key: 'away' }, 1, TACTICAL_SIDES.t],
     ['away swaps to CT', { team_key: 'away' }, 2, TACTICAL_SIDES.ct],
+    ['overtime keeps the regulation sides', { team_key: 'home' }, 3, TACTICAL_SIDES.t],
+    ['overtime swaps back at its half', { team_key: 'home' }, 4, TACTICAL_SIDES.ct],
     ['a team that did not play', { team_key: 'ghost' }, 1, undefined],
     ['a fixed side ignores the swap', { side: TACTICAL_SIDES.ct }, 2, TACTICAL_SIDES.ct],
     ['a side-agnostic filter', {}, 1, undefined],

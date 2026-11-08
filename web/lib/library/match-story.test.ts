@@ -11,12 +11,12 @@ const END: Record<string, string> = { def: 'bomb_defused', exp: 'bomb_exploded',
 type Spec = { team: 'a' | 'b'; end?: keyof typeof END; site?: 'A' | 'B'; loserEco?: boolean };
 
 /** MR12 with MR3 overtimes: the half and overtime the scan gives round `index`, and the side each team plays.
- * Overtime starts on the second-half sides (as `scheduledCtTeam` assumes), so its first half keeps half 2. */
+ * Overtime halves count on from 3 and each overtime starts on the sides the half before it ended on. */
 function build(specs: readonly Spec[]): StoryRound[] {
   return specs.map((spec, index) => {
     const overtime = index < 24 ? 0 : Math.floor((index - 24) / 6) + 1;
-    const half = index < 24 ? Math.floor(index / 12) + 1 : 2 + Math.floor((index - 24) / 3);
-    const aSide: TacticalSide = half % 2 === 1 ? 'CT' : 'T';
+    const half = index < 24 ? Math.floor(index / 12) + 1 : 3 + Math.floor((index - 24) / 3);
+    const aSide: TacticalSide = Math.floor(half / 2) % 2 === 0 ? 'CT' : 'T';
     const bSide: TacticalSide = aSide === 'CT' ? 'T' : 'CT';
     const winnerSide = spec.team === 'a' ? aSide : bSide;
     const loserBuy = spec.loserEco ? 'eco' : 'full';

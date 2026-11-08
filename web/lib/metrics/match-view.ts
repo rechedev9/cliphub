@@ -42,11 +42,9 @@ function scheduleHalf(round: number): number {
   return 3 + Math.floor((round - 25) / 3);
 }
 
-/** The format's guess when a half has no kill to read: overtime starts on the sides of the second half. */
+/** The format's guess when a half has no kill to read: an overtime keeps the sides the half before it ended on. */
 function scheduledCtTeam(round: number): LibraryTeamKey {
-  const half = scheduleHalf(round);
-  const block = half <= 2 ? half : half - 1;
-  return block % 2 === 1 ? 'ct-start' : 't-start';
+  return Math.floor(scheduleHalf(round) / 2) % 2 === 1 ? 't-start' : 'ct-start';
 }
 
 /** The side that lost a player at this point: the alive count that dropped from the point before. */
