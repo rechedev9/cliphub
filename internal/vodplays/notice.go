@@ -57,8 +57,16 @@ const (
 )
 
 type token struct {
-	from, to int
-	class    tokenClass
+	from, to   int
+	class      tokenClass
+	total, sat int
+}
+
+// textMap marks the text pixels inside a notice, and which of them are coloured.
+type textMap struct {
+	w, h      int
+	bright    []bool
+	saturated []bool
 }
 
 // readNotice reads a notice's words as shapes. A name is the word right before
@@ -70,8 +78,7 @@ func readNotice(rgb []byte, ring image.Rectangle) Reading {
 	}
 	w, h := inner.Dx(), inner.Dy()
 	threshold := max(textMinBright, plateLevel(rgb, inner)+textAbovePlate)
-	bright := make([]bool, w*h)
-	saturated := make([]bool, w*h)
+	m := textMap{w: w, h: h, bright: make([]bool, w*h), saturated: make([]bool, w*h)}
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			i := ((inner.Min.Y+y)*FeedWidth + inner.Min.X + x) * 3
@@ -81,21 +88,21 @@ func readNotice(rgb []byte, ring image.Rectangle) Reading {
 			if hi < threshold || (r*5 > g*8 && r*5 > b*8) {
 				continue
 			}
-			bright[y*w+x] = true
-			saturated[y*w+x] = float64(hi-lo)/float64(hi) >= nameMinSat
+			m.bright[y*w+x] = true
+			m.saturated[y*w+x] = float64(hi-lo)/float64(hi) >= nameMinSat
 		}
 	}
 	// A line of the border's blur would join every word it runs over.
-	top, bottom := textBand(bright, w, h, 0, w)
+	top, bottom := m.band(0, w)
 	for y := 0; y < h; y++ {
 		if y < top || y > bottom {
-			clear(bright[y*w : (y+1)*w])
+			clear(m.bright[y*w : (y+1)*w])
 		}
 	}
 	var reading Reading
 	slots, last := 0, -1
 	afterName := false
-	for _, t := range noticeTokens(bright, saturated, w, h) {
+	for _, t := range m.tokens() {
 		if t.class == classMark {
 			// The first mark after a word closes a slot; the marks of one
 			// group (weapon and icons, plus and flash) close only one.
@@ -110,7 +117,7 @@ func readNotice(rgb []byte, ring image.Rectangle) Reading {
 			afterName = false
 			continue
 		}
-		mask := cutMask(bright, w, h, [2]int{t.from, t.to})
+		mask := m.cut(t.from, t.to)
 		// A name is far shorter than its notice; a taller shape has scenery
 		// in it and stays an unread word, so no other word takes its slot.
 		if mask.H*2 > ring.Dy() {
@@ -122,56 +129,37 @@ func readNotice(rgb []byte, ring image.Rectangle) Reading {
 	return reading
 }
 
-// noticeTokens splits a notice into coloured words and white marks. A white run
-// next to a coloured one starts a new token, so the plus never joins a near tag.
-func noticeTokens(bright, saturated []bool, w, h int) []token {
-	count := func(from, to int) (int, int) {
-		total, sat := 0, 0
-		for y := 0; y < h; y++ {
-			for x := from; x < to; x++ {
-				if bright[y*w+x] {
-					total++
-					if saturated[y*w+x] {
-						sat++
-					}
-				}
-			}
-		}
-		return total, sat
-	}
-	classOf := func(total, sat int) tokenClass {
-		if float64(sat) < maxMarkSatShare*float64(total) {
-			return classMark
-		}
-		return className
-	}
+// tokens splits a notice into coloured words and white marks. A white run next
+// to a coloured one starts a new token, so the plus never joins a near tag.
+func (m textMap) tokens() []token {
 	var tokens []token
 	add := func(from, to int) {
-		total, sat := count(from, to)
+		total, sat := m.pixels(from, to)
 		class := classUnknown
 		if total >= minRunPixels && to-from > maxThinRun {
 			class = classOf(total, sat)
 		}
 		n := len(tokens)
 		if n == 0 || from-tokens[n-1].to >= segmentMinGap {
-			tokens = append(tokens, token{from: from, to: to, class: class})
+			tokens = append(tokens, token{from: from, to: to, class: class, total: total, sat: sat})
 			return
 		}
 		last := &tokens[n-1]
 		switch {
 		case class == classUnknown || class == last.class:
-			last.to = to
 		case last.class == classUnknown:
-			last.to, last.class = to, class
+			last.class = class
 		default:
-			tokens = append(tokens, token{from: from, to: to, class: class})
+			tokens = append(tokens, token{from: from, to: to, class: class, total: total, sat: sat})
+			return
 		}
+		last.to, last.total, last.sat = to, last.total+total, last.sat+sat
 	}
 	start := -1
-	for x := 0; x <= w; x++ {
+	for x := 0; x <= m.w; x++ {
 		filled := false
-		for y := 0; x < w && y < h; y++ {
-			if bright[y*w+x] {
+		for y := 0; x < m.w && y < m.h; y++ {
+			if m.bright[y*m.w+x] {
 				filled = true
 				break
 			}
@@ -186,15 +174,38 @@ func noticeTokens(bright, saturated []bool, w, h int) []token {
 	}
 	kept := tokens[:0]
 	for _, t := range tokens {
-		total, sat := count(t.from, t.to)
 		if t.class == classUnknown {
-			t.class = classOf(total, sat)
+			t.class = classOf(t.total, t.sat)
 		}
-		if (t.class == classMark && total >= minMarkPixels) || (t.class == className && t.to-t.from >= minSegmentWidth && total >= minNamePixels) {
+		if (t.class == classMark && t.total >= minMarkPixels) || (t.class == className && t.to-t.from >= minSegmentWidth && t.total >= minNamePixels) {
 			kept = append(kept, t)
 		}
 	}
 	return kept
+}
+
+func classOf(total, sat int) tokenClass {
+	if float64(sat) < maxMarkSatShare*float64(total) {
+		return classMark
+	}
+	return className
+}
+
+// pixels counts the text pixels between the columns from and to, and how many
+// of them are coloured.
+func (m textMap) pixels(from, to int) (int, int) {
+	total, sat := 0, 0
+	for y := 0; y < m.h; y++ {
+		for x := from; x < to; x++ {
+			if m.bright[y*m.w+x] {
+				total++
+				if m.saturated[y*m.w+x] {
+					sat++
+				}
+			}
+		}
+	}
+	return total, sat
 }
 
 // plateLevel is the brightness of the notice plate: most of a notice is
@@ -211,15 +222,15 @@ func plateLevel(rgb []byte, inner image.Rectangle) int {
 	return levels[len(levels)*3/10]
 }
 
-// textBand returns the rows holding most of the text between the columns from
-// and to, leaving out stray pixels above or below; top is -1 without text.
-func textBand(bright []bool, w, h, from, to int) (int, int) {
+// band returns the rows holding most of the text between the columns from and
+// to, leaving out stray pixels above or below; top is -1 without text.
+func (m textMap) band(from, to int) (int, int) {
 	top, bottom := -1, -1
 	bandTop, bandPixels, bestPixels, gap := -1, 0, 0, 0
-	for y := 0; y < h; y++ {
+	for y := 0; y < m.h; y++ {
 		row := 0
 		for x := from; x < to; x++ {
-			if bright[y*w+x] {
+			if m.bright[y*m.w+x] {
 				row++
 			}
 		}
@@ -241,17 +252,18 @@ func textBand(bright []bool, w, h, from, to int) (int, int) {
 	return top, bottom
 }
 
-// cutMask cuts a word's shape from the band of rows holding most of it.
-func cutMask(bright []bool, w, h int, seg [2]int) NameMask {
-	top, bottom := textBand(bright, w, h, seg[0], seg[1])
+// cut cuts the shape of the word between the columns from and to, from the
+// band of rows holding most of it.
+func (m textMap) cut(from, to int) NameMask {
+	top, bottom := m.band(from, to)
 	if top < 0 {
 		return NameMask{}
 	}
-	mask := NameMask{W: seg[1] - seg[0], H: bottom - top + 1}
+	mask := NameMask{W: to - from, H: bottom - top + 1}
 	mask.Bits = make([]bool, mask.W*mask.H)
 	for y := 0; y < mask.H; y++ {
 		for x := 0; x < mask.W; x++ {
-			mask.Bits[y*mask.W+x] = bright[(top+y)*w+seg[0]+x]
+			mask.Bits[y*mask.W+x] = m.bright[(top+y)*m.w+from+x]
 		}
 	}
 	return mask

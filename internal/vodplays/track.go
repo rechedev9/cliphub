@@ -23,7 +23,10 @@ const (
 	minAliasNotices = 3
 	// CS2 aligns notices right, so the left edge holds a notice's width to the
 	// pixel even when red scenery stretches the ring's right edge.
-	echoEdgeTolerance = 2
+	edgeTolerance = 2
+	// noticeSeconds is how long CS2 shows a highlighted notice. A notice that
+	// detection lost for longer than trackGapSeconds can come back until then.
+	noticeSeconds = 8.0
 )
 
 // Kill is one highlighted notice seen for the first time, with what could be
@@ -32,8 +35,6 @@ type Kill struct {
 	Seconds float64         `json:"seconds"`
 	Notice  image.Rectangle `json:"-"`
 	Reading `json:"-"`
-	// lastTop is the top of the row where the notice was last seen.
-	lastTop int
 }
 
 type track struct {
@@ -43,17 +44,22 @@ type track struct {
 	hits      int
 	confirmed bool
 	notice    int
+	readings  []Reading
 	reading   Reading
+	// reads counts the sightings read since the notice was last found.
+	reads int
 }
 
 // Tracker follows notices across samples and reports each one once.
 type Tracker struct {
 	tracks []*track
-	kills  []Kill
+	// lost holds notices no longer seen that can still be on screen.
+	lost  []*track
+	kills []Kill
 }
 
-// readHits is how many sightings of a notice are read for names; the first
-// ones can catch the notice while it fades or slides in.
+// readHits is how many sightings of a notice are read for names, again when it
+// comes back; the first ones can catch it while it fades or slides in.
 const readHits = 6
 
 func (t *Tracker) Add(s Sample) {
@@ -72,11 +78,17 @@ func (t *Tracker) Add(s Sample) {
 			}
 		}
 		if best < 0 {
-			tr := &track{bounds: ring.Bounds, first: s.Seconds, last: s.Seconds, hits: 1}
-			tr.read(s.Frame, ring.Bounds)
+			tr := t.revive(ring.Bounds)
+			if tr == nil {
+				tr = &track{bounds: ring.Bounds, first: s.Seconds, last: s.Seconds, hits: 1}
+				tr.read(s.Frame, ring.Bounds)
+				t.tracks = append(t.tracks, tr)
+				used = append(used, true)
+				continue
+			}
 			t.tracks = append(t.tracks, tr)
 			used = append(used, true)
-			continue
+			best = len(t.tracks) - 1
 		}
 		used[best] = true
 		tr := t.tracks[best]
@@ -89,7 +101,7 @@ func (t *Tracker) Add(s Sample) {
 			tr.bounds = ring.Bounds
 		}
 		tr.hits++
-		if tr.hits <= readHits {
+		if tr.reads < readHits {
 			tr.read(s.Frame, ring.Bounds)
 		}
 		if !tr.confirmed && tr.hits >= confirmHits {
@@ -99,28 +111,39 @@ func (t *Tracker) Add(s Sample) {
 		}
 		if tr.confirmed {
 			t.kills[tr.notice].Reading = tr.reading
-			t.kills[tr.notice].lastTop = ring.Bounds.Min.Y
 		}
 	}
 }
 
-// read keeps the fullest reading of the notice that found its killer; a
-// reading spoiled by the border or scenery comes back empty.
+// read reads the notice once more and keeps the reading most sightings agree
+// on: the border or scenery spoils a reading now and then, seldom the same way.
 func (tr *track) read(frame []byte, ring image.Rectangle) {
+	tr.reads++
 	if frame == nil {
 		return
 	}
-	r := readNotice(frame, ring)
-	hasKiller, hadKiller := r.Killer.W > 0, tr.reading.Killer.W > 0
-	if hasKiller != hadKiller {
-		if hasKiller {
-			tr.reading = r
+	tr.readings = append(tr.readings, readNotice(frame, ring))
+	tr.reading = mostAgreed(tr.readings)
+}
+
+// mostAgreed picks the reading whose killer the most readings share, then the
+// fullest one; a reading that found a killer always beats one that did not.
+func mostAgreed(readings []Reading) Reading {
+	var best Reading
+	bestVotes, bestPixels := -1, -1
+	for _, r := range readings {
+		votes := 0
+		for _, other := range readings {
+			if r.Killer.W > 0 && sameName(r.Killer, other.Killer) {
+				votes++
+			}
 		}
-		return
+		pixels := maskPixels(r.Names)
+		if votes > bestVotes || (votes == bestVotes && pixels > bestPixels) {
+			best, bestVotes, bestPixels = r, votes, pixels
+		}
 	}
-	if maskPixels(r.Names) > maskPixels(tr.reading.Names) {
-		tr.reading = r
-	}
+	return best
 }
 
 // matchCost says whether a ring can be a tracked notice: either it stayed in
@@ -133,15 +156,34 @@ func matchCost(tracked, ring image.Rectangle) (float64, bool) {
 	if dy <= matchHeightTolerance {
 		return float64(dy), true
 	}
-	if dw <= matchWidthTolerance && dh <= matchHeightTolerance {
-		return float64(matchHeightTolerance + dw + dh + dy/20), true
+	// Red scenery can stretch the ring's right edge, never its left one.
+	dx := absInt(tracked.Min.X - ring.Min.X)
+	if (dw <= matchWidthTolerance || dx <= edgeTolerance) && dh <= matchHeightTolerance {
+		return float64(matchHeightTolerance + min(dw, dx) + dh + dy/20), true
 	}
 	return 0, false
 }
 
-// isEcho reports a second track for a notice already counted, within a
-// round's time: the same names, or the same killer and width after a flicker.
-func isEcho(kept []Kill, kill Kill, nicks [][]NameMask) bool {
+// revive takes back a lost notice that a ring shows again. Notices only move up
+// as older ones leave and new ones come in below, so it is in its row or above.
+func (t *Tracker) revive(ring image.Rectangle) *track {
+	for i := len(t.lost) - 1; i >= 0; i-- {
+		tr := t.lost[i]
+		if absInt(tr.bounds.Min.X-ring.Min.X) <= edgeTolerance &&
+			absInt(tr.bounds.Dy()-ring.Dy()) <= matchHeightTolerance &&
+			ring.Min.Y <= tr.bounds.Min.Y+matchHeightTolerance {
+			t.lost = append(t.lost[:i], t.lost[i+1:]...)
+			tr.reads = 0
+			return tr
+		}
+	}
+	return nil
+}
+
+// isEcho reports a second track for a notice already counted: the same row
+// and size seen a moment later, or the same names within a round's time,
+// since one player cannot kill the same victim twice in a round.
+func isEcho(kept []Kill, kill Kill) bool {
 	for i := len(kept) - 1; i >= 0; i-- {
 		k := kept[i]
 		if kill.Seconds-k.Seconds > echoNamesSeconds {
@@ -150,17 +192,9 @@ func isEcho(kept []Kill, kill Kill, nicks [][]NameMask) bool {
 		if len(kill.Names) > 0 && sameNames(k.Names, kill.Names) {
 			return true
 		}
-		sameRow := absInt(k.Notice.Min.Y-kill.Notice.Min.Y) <= matchHeightTolerance
-		dw := absInt(k.Notice.Dx() - kill.Notice.Dx())
-		if sameRow && kill.Seconds-k.Seconds <= echoSeconds && dw <= 2*matchWidthTolerance {
-			return true
-		}
-		// Notices only move up as older ones leave, and new ones come in below,
-		// so a notice back from a flicker is in its last row or above it.
-		sameKiller := kill.Killer.W > 0 && (sameName(k.Killer, kill.Killer) ||
-			(isPlayer(nicks, k.Killer) && isPlayer(nicks, kill.Killer)))
-		if sameKiller && absInt(k.Notice.Min.X-kill.Notice.Min.X) <= echoEdgeTolerance &&
-			kill.Notice.Min.Y <= k.lastTop+matchHeightTolerance {
+		if kill.Seconds-k.Seconds <= echoSeconds &&
+			absInt(k.Notice.Min.Y-kill.Notice.Min.Y) <= matchHeightTolerance &&
+			absInt(k.Notice.Dx()-kill.Notice.Dx()) <= 2*matchWidthTolerance {
 			return true
 		}
 	}
@@ -182,13 +216,13 @@ func sameNames(a, b []NameMask) bool {
 // Kills returns the notices where the recording player is the killer, in order;
 // CS2 also highlights their assists, where another name holds the killer slot.
 func (t *Tracker) Kills() []Kill {
-	nicks := playerNicks(t.kills)
 	var notices []Kill
 	for _, k := range t.kills {
-		if !isEcho(notices, k, nicks) {
+		if !isEcho(notices, k) {
 			notices = append(notices, k)
 		}
 	}
+	nicks := playerNicks(notices)
 	var kills []Kill
 	for _, k := range notices {
 		if len(nicks) == 0 || isPlayer(nicks, k.Killer) {
@@ -232,19 +266,23 @@ func playerNicks(notices []Kill) [][]NameMask {
 		return nil
 	}
 	var nicks [][]NameMask
+	shares := func(c *cluster) bool {
+		for i := range c.notices {
+			for _, word := range notices[i].Names {
+				if isPlayer(nicks, word) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for k, c := range clusters {
 		if k > 0 && len(c.notices) < minAliasNotices {
 			break
 		}
 		// Teammates share the player's notices, and so does a rival who kills
 		// the player, whose death CS2 can highlight too.
-		shared := false
-		for i := range c.notices {
-			for _, word := range notices[i].Names {
-				shared = shared || isPlayer(nicks, word)
-			}
-		}
-		if !shared {
+		if !shares(c) {
 			nicks = append(nicks, c.readings)
 		}
 	}
@@ -269,11 +307,21 @@ func isPlayer(nicks [][]NameMask, word NameMask) bool {
 func (t *Tracker) expire(now float64) {
 	kept := t.tracks[:0]
 	for _, tr := range t.tracks {
-		if now-tr.last <= trackGapSeconds {
+		switch {
+		case now-tr.last <= trackGapSeconds:
 			kept = append(kept, tr)
+		case tr.confirmed:
+			t.lost = append(t.lost, tr)
 		}
 	}
 	t.tracks = kept
+	lost := t.lost[:0]
+	for _, tr := range t.lost {
+		if now-tr.first <= noticeSeconds {
+			lost = append(lost, tr)
+		}
+	}
+	t.lost = lost
 }
 
 func absInt(v int) int {
