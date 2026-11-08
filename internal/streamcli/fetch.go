@@ -88,15 +88,15 @@ func runStreamFetch(args []string, stdout, stderr io.Writer, fetch vodFetcher) i
 		return writeStreamFetchResult(args, stdout, stderr, *format, result)
 	}
 	if fetch == nil {
+		paths, _ := capturetools.Detect(capturetools.FromEnvironment())
 		binary := *ytdlp
 		if binary == "" {
-			paths, _ := capturetools.Detect(capturetools.FromEnvironment())
 			binary = paths.Ytdlp
 		}
 		if binary == "" {
 			return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("yt-dlp is not configured; install it on PATH or set ZV_YTDLP_PATH"))
 		}
-		fetch = vodfetch.Fetcher{BinaryPath: binary, MaxBytes: *maxBytes}
+		fetch = vodfetch.Fetcher{BinaryPath: binary, FFmpegPath: paths.FFmpeg, MaxBytes: *maxBytes}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()

@@ -255,6 +255,7 @@ func run() error {
 		acquireWorker := workers.NewAcquireWorker(streamRepo, files, workers.AcquireWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
+			FFmpegPath:  cfg.FFmpegPath,
 			FFprobePath: cfg.FFprobePath,
 			Progress:    acquireProgress,
 		})

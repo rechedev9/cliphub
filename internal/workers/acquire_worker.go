@@ -39,6 +39,7 @@ type acquiredSourceMetadata struct {
 type AcquireWorkerConfig struct {
 	WorkDir     string
 	YtdlpPath   string
+	FFmpegPath  string
 	FFprobePath string
 	Timeout     string
 	MaxBytes    int64
@@ -58,6 +59,7 @@ type AcquireWorker struct {
 	cfg     AcquireWorkerConfig
 	fetcher vodfetch.Fetcher
 	prober  streamclips.Prober
+	runner  commandRunner
 }
 
 func NewAcquireWorker(repo StreamAcquireRepository, store storage.Storage, cfg AcquireWorkerConfig) *AcquireWorker {
@@ -65,8 +67,9 @@ func NewAcquireWorker(repo StreamAcquireRepository, store storage.Storage, cfg A
 		repo:    repo,
 		storage: store,
 		cfg:     cfg,
-		fetcher: vodfetch.Fetcher{BinaryPath: cfg.YtdlpPath, MaxBytes: cfg.MaxBytes},
+		fetcher: vodfetch.Fetcher{BinaryPath: cfg.YtdlpPath, FFmpegPath: cfg.FFmpegPath, MaxBytes: cfg.MaxBytes},
 		prober:  streamclips.FFprobeProber{Path: cfg.FFprobePath},
+		runner:  execCommandRunner{},
 	}
 }
 
@@ -155,6 +158,21 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	probe, err := w.prober.Probe(ctx, destPath)
 	if err != nil {
 		return fmt.Errorf("probe stream source: %w", err)
+	}
+	if sourceIsMPEGTS(probe) {
+		// Also repairs a source an older Studio stored as MPEG-TS, when its acquire runs again.
+		if err := w.remuxSourceToMP4(ctx, destPath); err != nil {
+			return err
+		}
+		if probe, err = w.prober.Probe(ctx, destPath); err != nil {
+			return fmt.Errorf("probe remuxed stream source: %w", err)
+		}
+		if sourceIsMPEGTS(probe) {
+			return fmt.Errorf("%w after remux", errSourceNotMP4)
+		}
+		if err := uploadFile(w.storage, sourceKey, destPath); err != nil {
+			return fmt.Errorf("upload remuxed stream source: %w", err)
+		}
 	}
 	sha, err := sha256File(destPath)
 	if err != nil {

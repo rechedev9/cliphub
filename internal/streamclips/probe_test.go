@@ -16,10 +16,13 @@ func TestParseFFprobeOutputKeepsContainerAndVideoOriginsSeparate(t *testing.T) {
 			{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"r_frame_rate":"30/1","time_base":"1/15360","start_time":"1.000000","duration":"2.000000"},
 			{"codec_type":"audio","codec_name":"aac","start_time":"0.000000","duration":"3.000000"}
 		],
-		"format": {"start_time":"0.000000","duration":"3.000000"}
+		"format": {"format_name":"mpegts","start_time":"0.000000","duration":"3.000000"}
 	}`))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if got, want := probe.Container, "mpegts"; got != want {
+		t.Errorf("Container = %q, want %q", got, want)
 	}
 	if got, want := probe.StartTimeSeconds, 0.0; got != want {
 		t.Errorf("StartTimeSeconds = %g, want format start %g", got, want)

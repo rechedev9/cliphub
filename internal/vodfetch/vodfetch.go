@@ -284,6 +284,9 @@ type Fetcher struct {
 	// BinaryPath is the yt-dlp executable to run. Defaults to "yt-dlp" (found
 	// via PATH) when empty.
 	BinaryPath string
+	// FFmpegPath is passed to yt-dlp as --ffmpeg-location. Without an FFmpeg it
+	// can reach, yt-dlp leaves a Twitch VOD as MPEG-TS inside the .mp4.
+	FFmpegPath string
 	// MaxBytes caps the downloaded file. Values <= 0 mean no cap, since a full
 	// VOD can be any size.
 	MaxBytes int64
@@ -389,6 +392,9 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		"--fragment-retries", "2",
 		"--extractor-retries", "2",
 		"--print", "after_move:%(title)s",
+	}
+	if f.FFmpegPath != "" {
+		args = append(args, "--ffmpeg-location", f.FFmpegPath)
 	}
 	if f.MaxBytes > 0 {
 		args = append(args, "--max-filesize", strconv.FormatInt(f.MaxBytes, 10))
