@@ -152,24 +152,20 @@ func (h *Handlers) CreateStreamJob(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		internalError(w, "rewind stream upload for storage", err)
-		return
-	}
-	sourceKey := streamclips.SourceKey(id)
-	if err := h.storage.Put(sourceKey, tmp); err != nil {
-		internalError(w, "store stream source", err)
+	stored, err := h.storeStreamUpload(r.Context(), streamUpload{file: tmp, key: streamclips.SourceKey(id), probe: probe, sha256: hex.EncodeToString(h256.Sum(nil))})
+	if err != nil {
+		writeStreamUploadError(w, err)
 		return
 	}
 
 	j := &streamclips.Job{
 		ID:           id,
 		Status:       streamclips.StatusUploaded,
-		SourcePath:   sourceKey,
-		SourceSHA256: hex.EncodeToString(h256.Sum(nil)),
+		SourcePath:   stored.key,
+		SourceSHA256: stored.sha256,
 		Title:        cfg.Title,
 		SourceKind:   kind,
-		Probe:        probe,
+		Probe:        stored.probe,
 	}
 	if err := h.streamRepo.Create(r.Context(), j); err != nil {
 		internalError(w, "create stream job", err)

@@ -260,6 +260,30 @@ test('removes obsolete versioned HLAE caches after the pinned version is ready',
   assert.match(logs.join(''), /removed obsolete HLAE 2\.192\.2-cliphub\.1/);
 });
 
+test('removes yt-dlp versions an older pin left after the pinned version is ready', async (t) => {
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
+  t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
+  seedCompleteHLAE(toolsDir);
+  seedCompleteFFmpeg(toolsDir);
+  seedCompleteYtdlp(toolsDir);
+  const obsolete = path.join(toolsDir, 'ytdlp', '2026.07.04');
+  const unrelated = path.join(toolsDir, 'ytdlp', 'nightly');
+  for (const dir of [obsolete, unrelated]) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(obsolete, 'yt-dlp.exe'), 'old');
+  const logs: string[] = [];
+
+  const env = await provisionRuntimeTools(withFixtureTrust({
+    toolsDir,
+    logLine: (line) => logs.push(line),
+    platform: 'win32',
+  }));
+
+  assert.equal(env.ZV_YTDLP_PATH, path.join(toolsDir, 'ytdlp', '2026.10.26', 'yt-dlp.exe'));
+  assert.equal(fs.existsSync(obsolete), false);
+  assert.equal(fs.existsSync(unrelated), true);
+  assert.match(logs.join(''), /removed obsolete yt-dlp 2026\.07\.04/);
+});
+
 test('rejects a hash mismatch without publishing the failed tool', async (t) => {
   const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));

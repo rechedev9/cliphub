@@ -105,7 +105,7 @@ func (h *Handlers) StartStreamSummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "el vídeo todavía no está listo")
 		return
 	}
-	if h.playScanFFmpeg == "" {
+	if h.streamFFmpeg == "" {
 		writeError(w, http.StatusServiceUnavailable, "FFmpeg no está disponible")
 		return
 	}
@@ -199,7 +199,7 @@ func (h *Handlers) runStreamSummary(id uuid.UUID, source string, plays []vodplay
 	output := filepath.Join(workDir, "summary.mp4")
 	lastReport := 0.0
 	err = vodplays.RenderSummary(context.Background(), vodplays.SummaryOptions{
-		FFmpeg:   h.playScanFFmpeg,
+		FFmpeg:   h.streamFFmpeg,
 		Input:    source,
 		Output:   output,
 		WorkDir:  workDir,

@@ -74,10 +74,10 @@ func (s *streamPlayScans) startIfIdle(id uuid.UUID) bool {
 	return true
 }
 
-// WithStreamPlayScanner enables the stream play scan with this FFmpeg.
-func WithStreamPlayScanner(ffmpeg string) Option {
+// WithStreamFFmpeg sets the FFmpeg for the stream play scan, summaries and upload remuxes.
+func WithStreamFFmpeg(ffmpeg string) Option {
 	return func(h *Handlers) {
-		h.playScanFFmpeg = ffmpeg
+		h.streamFFmpeg = ffmpeg
 	}
 }
 
@@ -106,7 +106,7 @@ func (h *Handlers) StartStreamPlayScan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "el vídeo todavía no está listo")
 		return
 	}
-	if h.playScanFFmpeg == "" {
+	if h.streamFFmpeg == "" {
 		writeError(w, http.StatusServiceUnavailable, "FFmpeg no está disponible")
 		return
 	}
@@ -139,7 +139,7 @@ func streamSourceIsReady(status streamclips.Status) bool {
 func (h *Handlers) runStreamPlayScan(id uuid.UUID, source string, duration float64) {
 	lastReport := 0.0
 	kills, err := vodplays.FindKills(context.Background(), vodplays.FindOptions{
-		FFmpeg:          h.playScanFFmpeg,
+		FFmpeg:          h.streamFFmpeg,
 		Input:           source,
 		DurationSeconds: duration,
 		OnProgress: func(share float64) {

@@ -150,28 +150,29 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		if err := putJSONToStorage(w.storage, metadataKey, acquiredSourceMetadata{Title: discoveredTitle}); err != nil {
 			return fmt.Errorf("upload stream source metadata: %w", err)
 		}
-		if err := uploadFile(w.storage, sourceKey, destPath); err != nil {
-			return fmt.Errorf("upload stream source: %w", err)
-		}
 	}
 
 	probe, err := w.prober.Probe(ctx, destPath)
 	if err != nil {
 		return fmt.Errorf("probe stream source: %w", err)
 	}
-	if sourceIsMPEGTS(probe) {
-		// Also repairs a source an older Studio stored as MPEG-TS, when its acquire runs again.
-		if err := w.remuxSourceToMP4(ctx, destPath); err != nil {
+	remuxed := false
+	if probe.NeedsRemux() {
+		if err := streamclips.RemuxToMP4(ctx, streamclips.RemuxOptions{FFmpeg: w.cfg.FFmpegPath, Input: destPath, Run: w.runner.Run}); err != nil {
 			return err
 		}
 		if probe, err = w.prober.Probe(ctx, destPath); err != nil {
 			return fmt.Errorf("probe remuxed stream source: %w", err)
 		}
-		if sourceIsMPEGTS(probe) {
-			return fmt.Errorf("%w after remux", errSourceNotMP4)
+		if probe.NeedsRemux() {
+			return fmt.Errorf("%w: still %s after remux", streamclips.ErrSourceNotPlayable, probe.Container)
 		}
+		remuxed = true
+	}
+	// Stored once, after the container check, so a remux never copies the source twice.
+	if !exists || remuxed {
 		if err := uploadFile(w.storage, sourceKey, destPath); err != nil {
-			return fmt.Errorf("upload remuxed stream source: %w", err)
+			return fmt.Errorf("upload stream source: %w", err)
 		}
 	}
 	sha, err := sha256File(destPath)
@@ -251,6 +252,8 @@ func acquireFailureClass(err error) string {
 		return streamclips.AcquireCodeBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return streamclips.AcquireCodeTooLarge
+	case errors.Is(err, streamclips.ErrSourceNotPlayable), errors.Is(err, vodfetch.ErrMPEGTS):
+		return streamclips.AcquireCodeNotPlayable
 	default:
 		return streamclips.AcquireCodeError
 	}
@@ -275,6 +278,8 @@ func friendlyAcquireReason(err error) string {
 		return streamclips.AcquireReasonBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return streamclips.AcquireReasonTooLarge
+	case errors.Is(err, streamclips.ErrSourceNotPlayable), errors.Is(err, vodfetch.ErrMPEGTS):
+		return streamclips.AcquireReasonNotPlayable
 	default:
 		return streamclips.AcquireReasonError
 	}

@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -27,57 +28,94 @@ func (p *sequenceProber) Probe(context.Context, string) (streamclips.SourceProbe
 	return p.probes[i], nil
 }
 
-func TestAcquireWorkerRemuxesMPEGTSSourceToMP4(t *testing.T) {
-	id := uuid.New()
-	repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
-	store := newFakeStorage()
-	ffmpeg := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+// remuxingFFmpeg writes "mp4-bytes" to the output path, the last argument.
+func remuxingFFmpeg() *fakeRunner {
+	return &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		return nil, os.WriteFile(args[len(args)-1], []byte("mp4-bytes"), 0o600)
 	}}
+}
 
-	w := NewAcquireWorker(repo, store, AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: "ffmpeg.exe"})
-	w.fetcher = vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}}
-	w.prober = &sequenceProber{probes: []streamclips.SourceProbe{
-		{Container: "mpegts", Width: 1920, Height: 1080},
-		{Container: mp4Container, Width: 1920, Height: 1080},
-	}}
-	w.runner = ffmpeg
+func TestAcquireWorkerRemuxesNonMP4SourceAndStoresItOnce(t *testing.T) {
+	for _, container := range []string{"mpegts", "flv"} {
+		t.Run(container, func(t *testing.T) {
+			id := uuid.New()
+			repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
+			store := newFakeStorage()
+			counted := &countingStorage{Storage: store}
+			ffmpeg := remuxingFFmpeg()
 
-	if err := w.HandleStreamAcquire(context.Background(), streamAcquireTask(t, id)); err != nil {
-		t.Fatalf("HandleStreamAcquire error = %v", err)
-	}
+			w := NewAcquireWorker(repo, counted, AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: "ffmpeg.exe"})
+			w.fetcher = vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}}
+			w.prober = &sequenceProber{probes: []streamclips.SourceProbe{
+				{Container: container, Width: 1920, Height: 1080},
+				{Container: mp4Container, Width: 1920, Height: 1080},
+			}}
+			w.runner = ffmpeg
 
-	if got := repo.jobs[id].Status; got != streamclips.StatusReady {
-		t.Fatalf("status = %s, want ready", got)
-	}
-	if got := repo.jobs[id].Probe.Container; got != mp4Container {
-		t.Fatalf("stored probe container = %q, want the remuxed MP4", got)
-	}
-	if got := string(store.files[streamclips.SourceKey(id)]); got != "mp4-bytes" {
-		t.Fatalf("stored source = %q, want the remuxed MP4", got)
-	}
-	if len(ffmpeg.calls) != 1 {
-		t.Fatalf("ffmpeg calls = %d, want 1", len(ffmpeg.calls))
-	}
-	if args := ffmpeg.calls[0].args; argValue(args, "-c") != "copy" || !slices.Contains(args, "0:a?") {
-		t.Fatalf("remux args = %q, want a stream copy that keeps optional audio", args)
+			if err := w.HandleStreamAcquire(context.Background(), streamAcquireTask(t, id)); err != nil {
+				t.Fatalf("HandleStreamAcquire error = %v", err)
+			}
+
+			if got := repo.jobs[id].Status; got != streamclips.StatusReady {
+				t.Fatalf("status = %s, want ready", got)
+			}
+			if got := repo.jobs[id].Probe.Container; got != mp4Container {
+				t.Fatalf("stored probe container = %q, want the remuxed MP4", got)
+			}
+			if got := string(store.files[streamclips.SourceKey(id)]); got != "mp4-bytes" {
+				t.Fatalf("stored source = %q, want the remuxed MP4", got)
+			}
+			// Metadata, source and default edit plan: the source is stored once, after the remux.
+			if counted.puts != 3 {
+				t.Fatalf("storage puts = %d, want 3 with the source stored once", counted.puts)
+			}
+			if args := ffmpeg.calls[0].args; argValue(args, "-c") != "copy" || !slices.Contains(args, "0:a?") {
+				t.Fatalf("remux args = %q, want a stream copy that keeps optional audio", args)
+			}
+		})
 	}
 }
 
-func TestAcquireWorkerFailsMPEGTSSourceWithoutFFmpeg(t *testing.T) {
-	id := uuid.New()
-	repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
-	store := newFakeStorage()
-
-	w := NewAcquireWorker(repo, store, AcquireWorkerConfig{WorkDir: t.TempDir()})
-	w.fetcher = vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}}
-	w.prober = &sequenceProber{probes: []streamclips.SourceProbe{{Container: "mpegts"}}}
-
-	err := w.HandleStreamAcquire(context.Background(), streamAcquireTask(t, id))
-	if !errors.Is(err, errSourceNotMP4) {
-		t.Fatalf("HandleStreamAcquire error = %v, want errSourceNotMP4", err)
+func TestAcquireWorkerReportsUnplayableSource(t *testing.T) {
+	tests := []struct {
+		name    string
+		ffmpeg  string
+		fetcher vodfetch.Fetcher
+		runner  *fakeRunner
+	}{
+		{name: "no ffmpeg to remux", fetcher: vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}}},
+		{name: "remux fails", ffmpeg: "ffmpeg.exe", fetcher: vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "ts-bytes"}},
+			runner: &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) { return nil, fmt.Errorf("exit status 1") }}},
 	}
-	if got := repo.jobs[id].Status; got != streamclips.StatusFailed {
-		t.Fatalf("status = %s, want failed so the editor never opens an unplayable source", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := uuid.New()
+			repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://www.twitch.tv/videos/2923183027"})
+			w := NewAcquireWorker(repo, newFakeStorage(), AcquireWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: tt.ffmpeg})
+			w.fetcher = tt.fetcher
+			w.prober = &sequenceProber{probes: []streamclips.SourceProbe{{Container: "mpegts"}}}
+			if tt.runner != nil {
+				w.runner = tt.runner
+			}
+
+			err := w.HandleStreamAcquire(context.Background(), streamAcquireTask(t, id))
+			if !errors.Is(err, streamclips.ErrSourceNotPlayable) {
+				t.Fatalf("HandleStreamAcquire error = %v, want ErrSourceNotPlayable", err)
+			}
+			got := repo.jobs[id]
+			if got.Status != streamclips.StatusFailed || got.FailureReason != streamclips.AcquireReasonNotPlayable {
+				t.Fatalf("status/reason = %s/%q, want failed with the not-playable reason, not the wrong-link one", got.Status, got.FailureReason)
+			}
+		})
+	}
+}
+
+func TestFriendlyAcquireReasonNamesYtdlpMPEGTS(t *testing.T) {
+	err := fmt.Errorf("download https://www.twitch.tv/videos/1: %w", vodfetch.ErrMPEGTS)
+	if got := friendlyAcquireReason(err); got != streamclips.AcquireReasonNotPlayable {
+		t.Fatalf("reason = %q, want the not-playable reason", got)
+	}
+	if got := acquireFailureClass(err); got != streamclips.AcquireCodeNotPlayable {
+		t.Fatalf("class = %q, want %q", got, streamclips.AcquireCodeNotPlayable)
 	}
 }

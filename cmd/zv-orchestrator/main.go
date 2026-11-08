@@ -310,7 +310,7 @@ func run() error {
 		httpapi.WithStreamRenderProgress(streamRenderProgress),
 		httpapi.WithStreamAcquireProgress(acquireProgress),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
-		httpapi.WithStreamPlayScanner(cfg.FFmpegPath),
+		httpapi.WithStreamFFmpeg(cfg.FFmpegPath),
 		httpapi.WithMusicDir(cfg.MusicDir),
 		httpapi.WithLabBundles(labBundles, filepath.Join(cfg.DataDir, "lab")),
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),
@@ -361,6 +361,15 @@ func run() error {
 		observability,
 	); err != nil {
 		return err
+	}
+	if streamRepo != nil {
+		go repairStreamSources(workerCtx, workers.StreamSourceRepairConfig{
+			Repo:       streamRepo,
+			Storage:    files,
+			Prober:     streamclips.FFprobeProber{Path: cfg.FFprobePath},
+			FFmpegPath: cfg.FFmpegPath,
+			Locks:      streamJobLocks,
+		})
 	}
 	if resumed, err := handlers.ResumeLibraryScans(ctx); err != nil {
 		log.Printf("startup: resume library scans (resumed=%d): %v", resumed, err)
@@ -435,4 +444,14 @@ func recoverStreamAcquisitions(
 		}
 	}
 	return nil
+}
+
+// repairStreamSources remuxes the MPEG-TS sources older Studios stored, in the background.
+func repairStreamSources(ctx context.Context, cfg workers.StreamSourceRepairConfig) {
+	repaired, err := workers.RepairStreamSources(ctx, cfg)
+	if err != nil {
+		log.Printf("startup: repair stream sources (remuxed=%d): %v", repaired, err)
+	} else if repaired > 0 {
+		log.Printf("startup: remuxed %d stream sources to MP4", repaired)
+	}
 }

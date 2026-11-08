@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseTelemetryEventRequest } from './telemetry-ipc.ts';
+import { parseTelemetryEventRequest, rendererErrorClass } from './telemetry-ipc.ts';
 
 test('parses only allowlisted renderer event codes', () => {
   assert.deepEqual(parseTelemetryEventRequest({ kind: 'error', name: 'route.error' }), {
@@ -16,6 +16,12 @@ test('parses only allowlisted renderer event codes', () => {
     name: 'navigation.load',
     durationMS: 125.5,
   });
+});
+
+test('files stream preview media errors apart from renderer exceptions', () => {
+  assert.equal(parseTelemetryEventRequest({ kind: 'error', name: 'stream_preview.error' }).name, 'stream_preview.error');
+  assert.equal(rendererErrorClass('stream_preview.error'), 'media_error');
+  assert.equal(rendererErrorClass('global.error'), 'exception');
 });
 
 test('rejects arbitrary renderer text, labels, and event codes', () => {

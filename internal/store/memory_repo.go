@@ -482,6 +482,23 @@ func (r *MemoryStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 	return nil
 }
 
+// SetSourceProbe replaces the probe and hash of a source repaired in place, keeping status and updated_at.
+func (r *MemoryStreamJobRepository) SetSourceProbe(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256 string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	j, ok := r.jobs[id]
+	if !ok {
+		return streamclips.ErrNotFound
+	}
+	j.Probe = probe
+	j.SourceSHA256 = sha256
+	r.jobs[id] = j
+	return nil
+}
+
 // Delete removes the stream job; a missing id is not an error.
 func (r *MemoryStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := ctx.Err(); err != nil {

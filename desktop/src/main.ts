@@ -77,10 +77,7 @@ import { TelemetryClient, type TelemetryReleaseConfig } from './telemetry-client
 import { TelemetryJournal } from './telemetry-journal';
 import { DiagnosticLogClient } from './diagnostic-log-client';
 import { PACKAGED_TELEMETRY_CONFIG } from './telemetry-release';
-import {
-  parseTelemetryEventRequest,
-  STUDIO_TELEMETRY_EVENT_CHANNEL,
-} from './telemetry-ipc';
+import { parseTelemetryEventRequest, rendererErrorClass, STUDIO_TELEMETRY_EVENT_CHANNEL } from './telemetry-ipc';
 import { readPlaybackInfo, type PlaybackInfoCache } from './playback-diagnostics';
 import { isAllowedStudioPermission } from './studio-permission-policy';
 
@@ -860,7 +857,7 @@ function registerStudioTelemetryIPC(): void {
           component: 'renderer',
           name: request.name,
           stage: 'renderer',
-          class: 'exception',
+          class: rendererErrorClass(request.name),
           message: request.message,
         });
       } else {

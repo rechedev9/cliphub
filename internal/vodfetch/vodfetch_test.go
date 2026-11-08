@@ -141,6 +141,23 @@ func TestDownload_PassesFFmpegLocationToYtdlp(t *testing.T) {
 	}
 }
 
+func TestDownload_RejectsMPEGTSLeftWithoutFFmpeg(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "vod.mp4")
+	runner := &fakeRunner{
+		fileContent: []byte("mpegts bytes"),
+		stderr:      "WARNING: v2923183027: Possible MPEG-TS in MP4 container or malformed AAC timestamps. Install ffmpeg to fix this automatically",
+	}
+	_, err := (Fetcher{Runner: runner}).Download(context.Background(), "https://www.twitch.tv/videos/2923183027", dest)
+	if !errors.Is(err, ErrMPEGTS) {
+		t.Fatalf("Download() error = %v, want ErrMPEGTS", err)
+	}
+	for _, path := range []string{dest, outArg(runner.gotArgs)} {
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("%s exists after the rejected download", path)
+		}
+	}
+}
+
 func TestDownload_CapturesProviderTitle(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "clip.mp4")
 	runner := &fakeRunner{fileContent: []byte("video"), stdout: "DALE NIÑO ! – acción 🎮\n"}

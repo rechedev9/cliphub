@@ -683,8 +683,7 @@ export function StreamEditor({
       onPlayingChange={setPreviewPlaying}
       onClipChange={setPlaybackClipId}
       onMediaError={(detail) => {
-        // Reuses an allowlisted event name, so the telemetry collector needs no deploy.
-        recordRendererError('global.error', new Error(`Vista previa de stream: ${detail}`));
+        recordRendererError('stream_preview.error', new Error(`Vista previa de stream: ${detail}`));
         setPreviewPlaying(false);
         setPreviewError(
           'No se pudo decodificar o leer el MP4 de origen. Comprueba que el archivo siga disponible y reintenta la vista previa.',
