@@ -35,7 +35,7 @@ var (
 		"parse:demo", "scan:roster", "analyze:anticheat", "analyze:tactical",
 		"record:demo", "compose:final", "render:variant", "render:stream-clip",
 		"stream:acquire", "render:timeline", "interrupted", "not_found",
-		"auth_required", "unavailable", "blocked", "too_large", "error",
+		"auth_required", "unavailable", "blocked", "too_large", "not_playable", "error",
 		"demo_unreadable", "demo_incompatible", "pov_demo", "map_uncalibrated", "write_artifact",
 		"file_error", "corrupt", "target_not_found", "parse_failed",
 		"capture_incompatible", "unplayable_start", "record_failed", "rhythm_failed",
@@ -198,6 +198,9 @@ func validateEventCode(event Event) error {
 				return nil
 			}
 			if event.Name == "renderer.process_gone" && event.Stage == "runtime" && event.Class == "process_gone" {
+				return nil
+			}
+			if event.Name == "stream_preview.error" && event.Stage == "renderer" && event.Class == "media_error" {
 				return nil
 			}
 		} else if (event.Name == "navigation.dom_content_loaded" || event.Name == "navigation.load") && event.Stage == "renderer" && event.Outcome == "ok" {

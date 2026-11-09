@@ -40,6 +40,7 @@ type StreamJobRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, s streamclips.Status, failureReason string) error
 	SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error
 	SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error
+	SetSourceProbe(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256 string) error
 	ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

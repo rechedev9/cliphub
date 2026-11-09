@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
 
@@ -96,7 +98,7 @@ func runStreamFetch(args []string, stdout, stderr io.Writer, fetch vodFetcher) i
 		if binary == "" {
 			return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("yt-dlp is not configured; install it on PATH or set ZV_YTDLP_PATH"))
 		}
-		fetch = vodfetch.Fetcher{BinaryPath: binary, MaxBytes: *maxBytes}
+		fetch = vodfetch.Fetcher{BinaryPath: binary, FFmpegPath: streamFetchFFmpeg(), MaxBytes: *maxBytes}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
@@ -108,6 +110,14 @@ func runStreamFetch(args []string, stdout, stderr io.Writer, fetch vodFetcher) i
 	result.Title = downloaded.Title
 	result.Output = downloaded.Path
 	return writeStreamFetchResult(args, stdout, stderr, *format, result)
+}
+
+// streamFetchFFmpeg resolves only FFmpeg, which yt-dlp needs to turn a VOD's MPEG-TS into MP4.
+func streamFetchFFmpeg() string {
+	if path := os.Getenv("ZV_FFMPEG_PATH"); path != "" {
+		return path
+	}
+	return recording.FindFFmpeg()
 }
 
 func writeStreamFetchResult(args []string, stdout, stderr io.Writer, format string, result streamFetchResult) int {

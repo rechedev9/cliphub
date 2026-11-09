@@ -118,6 +118,46 @@ func TestDownload_Success(t *testing.T) {
 	}
 }
 
+func TestDownload_PassesFFmpegLocationToYtdlp(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		ffmpeg string
+	}{
+		{name: "configured", ffmpeg: `C:\Studio	oolsfmpeginfmpeg.exe`},
+		{name: "not configured"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &fakeRunner{fileContent: []byte("video")}
+			dest := filepath.Join(t.TempDir(), "vod.mp4")
+			f := Fetcher{Runner: runner, FFmpegPath: tt.ffmpeg}
+			if _, err := f.Download(context.Background(), "https://www.twitch.tv/videos/2923183027", dest); err != nil {
+				t.Fatalf("Download() error = %v", err)
+			}
+			// Without an FFmpeg it can reach, yt-dlp keeps a Twitch VOD as MPEG-TS.
+			if got := argValue(runner.gotArgs, "--ffmpeg-location"); got != tt.ffmpeg {
+				t.Fatalf("--ffmpeg-location = %q, want %q", got, tt.ffmpeg)
+			}
+		})
+	}
+}
+
+func TestDownload_RejectsMPEGTSLeftWithoutFFmpeg(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "vod.mp4")
+	runner := &fakeRunner{
+		fileContent: []byte("mpegts bytes"),
+		stderr:      "WARNING: v2923183027: Possible MPEG-TS in MP4 container or malformed AAC timestamps. Install ffmpeg to fix this automatically",
+	}
+	_, err := (Fetcher{Runner: runner}).Download(context.Background(), "https://www.twitch.tv/videos/2923183027", dest)
+	if !errors.Is(err, ErrMPEGTS) {
+		t.Fatalf("Download() error = %v, want ErrMPEGTS", err)
+	}
+	for _, path := range []string{dest, outArg(runner.gotArgs)} {
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("%s exists after the rejected download", path)
+		}
+	}
+}
+
 func TestDownload_CapturesProviderTitle(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "clip.mp4")
 	runner := &fakeRunner{fileContent: []byte("video"), stdout: "DALE NIÑO ! – acción 🎮\n"}

@@ -29,8 +29,9 @@ type ffprobeOutput struct {
 		Duration   string `json:"duration"`
 	} `json:"streams"`
 	Format struct {
-		Duration  string `json:"duration"`
-		StartTime string `json:"start_time"`
+		FormatName string `json:"format_name"`
+		Duration   string `json:"duration"`
+		StartTime  string `json:"start_time"`
 	} `json:"format"`
 }
 
@@ -41,7 +42,7 @@ func (p FFprobeProber) Probe(ctx context.Context, filePath string) (SourceProbe,
 	// #nosec G204 -- ffprobe path is local config and args are not shell-expanded.
 	cmd := exec.CommandContext(ctx, p.Path,
 		"-v", "error",
-		"-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,start_time,duration:format=duration,start_time",
+		"-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,time_base,start_time,duration:format=format_name,duration,start_time",
 		"-of", "json",
 		filePath,
 	)
@@ -62,6 +63,7 @@ func parseFFprobeOutput(out []byte) (SourceProbe, error) {
 		return SourceProbe{}, fmt.Errorf("decode ffprobe: %w", err)
 	}
 	probe := SourceProbe{
+		Container:        raw.Format.FormatName,
 		DurationSeconds:  parseFloat(raw.Format.Duration),
 		StartTimeSeconds: parseFloat(raw.Format.StartTime),
 	}

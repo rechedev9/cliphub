@@ -93,10 +93,10 @@ const RUNTIME_TOOLS: Record<RuntimeToolName, RuntimeToolSpec> = {
     timeoutMs: 300_000,
   },
   ytdlp: {
-    version: '2026.07.04',
-    url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.07.04/yt-dlp.exe',
-    sha256: '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8',
-    treeSha256: 'ba256e47ee3dc013f9e5cc32a50da23cc769bd0b07854a1360e55811d5ac311c',
+    version: '2026.10.26',
+    url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe',
+    sha256: 'f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d',
+    treeSha256: '7ffdad1cc21bd43adb3bac116c0d1158928c9148c0c8b371e2363625751c0b6a',
     kind: 'exe',
     exeRel: 'yt-dlp.exe',
     requiredRel: ['yt-dlp.exe'],
@@ -114,7 +114,11 @@ const INSTALL_MARKER = '.cliphub-install.json';
 const INSTALL_MARKER_SCHEMA_VERSION = 2;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROGRESS_REPORT_MIN_INTERVAL_MS = 1000;
-const OBSOLETE_HLAE_VERSION_DIR = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$/;
+// Version folders a newer pin replaces; anything else in a tool's folder is the user's.
+const OBSOLETE_VERSION_DIRS: Partial<Record<RuntimeToolName, RegExp>> = {
+  hlae: /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$/,
+  ytdlp: /^\d{4}\.\d{2}\.\d{2}(?:\.\d+)?$/,
+};
 
 /** Installs pinned tools concurrently; cache hits skip the network. */
 export async function provisionRuntimeTools(
@@ -130,7 +134,9 @@ export async function provisionRuntimeTools(
     provisionRuntimeTool(options, 'ytdlp', onStatus),
   ]);
   throwIfProvisioningAborted(options.signal);
-  if (hlae) cleanupObsoleteHLAEVersions(options.toolsDir, path.basename(path.dirname(hlae)), options.logLine);
+  for (const [tool, executable] of [['hlae', hlae], ['ytdlp', ytdlp]] as const) {
+    if (executable) cleanupObsoleteToolVersions({ toolsDir: options.toolsDir, tool, executable, logLine: options.logLine });
+  }
   return runtimeToolEnvironment({ hlae, ffmpeg, ytdlp });
 }
 
@@ -388,13 +394,26 @@ async function copyBundledArchive(
   return digestFile ? digestFile(destination) : digest;
 }
 
-function cleanupObsoleteHLAEVersions(toolsDir: string, active: string, logLine: (text: string) => void): void {
-  const parent = path.join(toolsDir, 'hlae');
+interface ObsoleteToolCleanup {
+  toolsDir: string;
+  tool: RuntimeToolName;
+  /** The executable Studio will run; its version folder is kept. */
+  executable: string;
+  logLine: (text: string) => void;
+}
+
+function cleanupObsoleteToolVersions({ toolsDir, tool, executable, logLine }: ObsoleteToolCleanup): void {
+  const pattern = OBSOLETE_VERSION_DIRS[tool];
+  const parent = path.join(toolsDir, tool);
+  const label = RUNTIME_TOOL_LABELS[tool];
+  // An executable outside the tools folder (a developer override) leaves the cached pins alone.
+  if (!pattern || path.dirname(path.dirname(executable)) !== parent) return;
+  const active = path.basename(path.dirname(executable));
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(parent, { withFileTypes: true });
   } catch (err) {
-    logLine(`[tools] could not inspect obsolete HLAE installs in ${parent}: ${String(err)}\n`);
+    logLine(`[tools] could not inspect obsolete ${label} installs in ${parent}: ${String(err)}\n`);
     return;
   }
 
@@ -402,13 +421,13 @@ function cleanupObsoleteHLAEVersions(toolsDir: string, active: string, logLine: 
     if (!entry.isDirectory() || entry.name === active || entry.name.startsWith(`${active}.`)) continue;
     // Suffixed builds count too: a leftover 2.192.2-cliphub.1 would otherwise
     // be the HLAE the orchestrator autodetects whenever the pin fails to install.
-    if (!OBSOLETE_HLAE_VERSION_DIR.test(entry.name)) continue;
+    if (!pattern.test(entry.name)) continue;
     const obsolete = path.join(parent, entry.name);
     try {
       fs.rmSync(obsolete, { recursive: true, force: true });
-      logLine(`[tools] removed obsolete HLAE ${entry.name}\n`);
+      logLine(`[tools] removed obsolete ${label} ${entry.name}\n`);
     } catch (err) {
-      logLine(`[tools] could not remove obsolete HLAE ${obsolete}: ${String(err)}\n`);
+      logLine(`[tools] could not remove obsolete ${label} ${obsolete}: ${String(err)}\n`);
     }
   }
 }

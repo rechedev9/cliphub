@@ -53,7 +53,7 @@ func TestStreamPlaysFindTheHighlightedKillAndSummarizeIt(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	router := Routes(NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(repo), WithStreamPlayScanner(ffmpeg)))
+	router := Routes(NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(repo), WithStreamFFmpeg(ffmpeg)))
 
 	if scan := requestPlays(t, router, http.MethodGet, id); scan.Status != playScanIdle {
 		t.Fatalf("status before scan = %q, want idle", scan.Status)
@@ -94,7 +94,7 @@ func TestStreamSummaryNeedsThePlays(t *testing.T) {
 	if err := repo.Create(context.Background(), &streamclips.Job{ID: id, Status: streamclips.StatusReady}); err != nil {
 		t.Fatal(err)
 	}
-	router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamPlayScanner("ffmpeg")))
+	router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamFFmpeg("ffmpeg")))
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/stream-jobs/"+id.String()+"/summary", nil))
 	if response.Code != http.StatusConflict {
@@ -135,7 +135,7 @@ func TestStreamPlayScanWaitsForTheSource(t *testing.T) {
 	if err := repo.Create(context.Background(), &streamclips.Job{ID: id, Status: streamclips.StatusAcquiring}); err != nil {
 		t.Fatal(err)
 	}
-	router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamPlayScanner("ffmpeg")))
+	router := Routes(NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo), WithStreamFFmpeg("ffmpeg")))
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/stream-jobs/"+id.String()+"/plays", nil))
 	if response.Code != http.StatusConflict {

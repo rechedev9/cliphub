@@ -23,6 +23,9 @@ export const STREAM_CLIP_LINK_AS_VOD_MESSAGE =
 export const STREAM_IMPORT_FILE_UNREADABLE_MESSAGE =
   'Ese archivo no se puede leer como vídeo. Prueba con otro MP4.';
 
+export const STREAM_IMPORT_FILE_NOT_PLAYABLE_MESSAGE =
+  'Ese vídeo no es un MP4 que Studio pueda abrir y no pudimos convertirlo. Expórtalo como MP4 e impórtalo de nuevo.';
+
 /**
  * Exact copy of `allowedProviderHosts` in internal/vodfetch/vodfetch.go. The
  * server stays the authority (it also checks each provider's path shape and
@@ -117,6 +120,7 @@ export function streamImportErrorMessage(err: unknown, source: 'url' | 'file'): 
   if (isServiceUnavailable(err)) return STREAM_OFFLINE_MESSAGE;
   const { code, status } = (err ?? {}) as { code?: unknown; status?: unknown };
   if (source === 'url' && code === 'invalid_source_url') return STREAM_INVALID_URL_MESSAGE;
+  if (source === 'file' && code === 'not_playable') return STREAM_IMPORT_FILE_NOT_PLAYABLE_MESSAGE;
   if (source === 'url' && code === 'source_kind_mismatch') {
     const message = err instanceof Error ? err.message : '';
     return message.includes('not a clip') ? STREAM_VOD_LINK_AS_CLIP_MESSAGE : STREAM_CLIP_LINK_AS_VOD_MESSAGE;

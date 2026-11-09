@@ -39,6 +39,7 @@ type acquiredSourceMetadata struct {
 type AcquireWorkerConfig struct {
 	WorkDir     string
 	YtdlpPath   string
+	FFmpegPath  string
 	FFprobePath string
 	Timeout     string
 	MaxBytes    int64
@@ -58,6 +59,7 @@ type AcquireWorker struct {
 	cfg     AcquireWorkerConfig
 	fetcher vodfetch.Fetcher
 	prober  streamclips.Prober
+	runner  commandRunner
 }
 
 func NewAcquireWorker(repo StreamAcquireRepository, store storage.Storage, cfg AcquireWorkerConfig) *AcquireWorker {
@@ -65,8 +67,9 @@ func NewAcquireWorker(repo StreamAcquireRepository, store storage.Storage, cfg A
 		repo:    repo,
 		storage: store,
 		cfg:     cfg,
-		fetcher: vodfetch.Fetcher{BinaryPath: cfg.YtdlpPath, MaxBytes: cfg.MaxBytes},
+		fetcher: vodfetch.Fetcher{BinaryPath: cfg.YtdlpPath, FFmpegPath: cfg.FFmpegPath, MaxBytes: cfg.MaxBytes},
 		prober:  streamclips.FFprobeProber{Path: cfg.FFprobePath},
+		runner:  execCommandRunner{},
 	}
 }
 
@@ -147,14 +150,23 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		if err := putJSONToStorage(w.storage, metadataKey, acquiredSourceMetadata{Title: discoveredTitle}); err != nil {
 			return fmt.Errorf("upload stream source metadata: %w", err)
 		}
+	}
+
+	probe, remuxed, err := w.checkSource(ctx, destPath)
+	if err != nil {
+		if !exists && ctx.Err() == nil {
+			// Keep the download, so a retry checks it again instead of downloading it twice.
+			if storeErr := uploadFile(w.storage, sourceKey, destPath); storeErr != nil {
+				return errors.Join(err, fmt.Errorf("keep downloaded stream source: %w", storeErr))
+			}
+		}
+		return err
+	}
+	// Stored once, after the container check, so a remux never copies the source twice.
+	if !exists || remuxed {
 		if err := uploadFile(w.storage, sourceKey, destPath); err != nil {
 			return fmt.Errorf("upload stream source: %w", err)
 		}
-	}
-
-	probe, err := w.prober.Probe(ctx, destPath)
-	if err != nil {
-		return fmt.Errorf("probe stream source: %w", err)
 	}
 	sha, err := sha256File(destPath)
 	if err != nil {
@@ -174,6 +186,27 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		return fmt.Errorf("write default stream edit plan: %w", err)
 	}
 	return nil
+}
+
+// checkSource probes the source and remuxes it in place when the editor cannot play its container.
+func (w *AcquireWorker) checkSource(ctx context.Context, path string) (streamclips.SourceProbe, bool, error) {
+	probe, err := w.prober.Probe(ctx, path)
+	if err != nil {
+		return probe, false, fmt.Errorf("probe stream source: %w", err)
+	}
+	if !probe.NeedsRemux() {
+		return probe, false, nil
+	}
+	if err := streamclips.RemuxToMP4(ctx, streamclips.RemuxOptions{FFmpeg: w.cfg.FFmpegPath, Input: path, Run: w.runner.Run}); err != nil {
+		return probe, false, err
+	}
+	if probe, err = w.prober.Probe(ctx, path); err != nil {
+		return probe, false, fmt.Errorf("probe remuxed stream source: %w", err)
+	}
+	if probe.NeedsRemux() {
+		return probe, false, fmt.Errorf("%w: still %s after remux", streamclips.ErrSourceNotPlayable, probe.Container)
+	}
+	return probe, true, nil
 }
 
 // downloadContext bounds the download only when a timeout is set: a full VOD
@@ -233,6 +266,8 @@ func acquireFailureClass(err error) string {
 		return streamclips.AcquireCodeBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return streamclips.AcquireCodeTooLarge
+	case errors.Is(err, streamclips.ErrSourceNotPlayable), errors.Is(err, vodfetch.ErrMPEGTS):
+		return streamclips.AcquireCodeNotPlayable
 	default:
 		return streamclips.AcquireCodeError
 	}
@@ -257,6 +292,8 @@ func friendlyAcquireReason(err error) string {
 		return streamclips.AcquireReasonBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return streamclips.AcquireReasonTooLarge
+	case errors.Is(err, streamclips.ErrSourceNotPlayable), errors.Is(err, vodfetch.ErrMPEGTS):
+		return streamclips.AcquireReasonNotPlayable
 	default:
 		return streamclips.AcquireReasonError
 	}

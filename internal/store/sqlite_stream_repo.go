@@ -162,6 +162,20 @@ func (r *SQLiteStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 	return checkStreamJobRowsAffected(res)
 }
 
+// SetSourceProbe replaces the probe and hash of a source repaired in place. It keeps the
+// status and updated_at, so a repair neither reorders the list nor changes the job's stage.
+func (r *SQLiteStreamJobRepository) SetSourceProbe(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256 string) error {
+	probeJSON, err := json.Marshal(probe)
+	if err != nil {
+		return fmt.Errorf("marshal probe: %w", err)
+	}
+	res, err := r.db.ExecContext(ctx, `UPDATE stream_jobs SET probe = ?, source_sha256 = ? WHERE id = ?`, probeJSON, sha256, id.String())
+	if err != nil {
+		return fmt.Errorf("update stream job source probe: %w", err)
+	}
+	return checkStreamJobRowsAffected(res)
+}
+
 func (r *SQLiteStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error {
 	plan = streamclips.NormalizeEditPlan(plan)
 	if err := plan.Validate(); err != nil {

@@ -143,7 +143,7 @@ type Handlers struct {
 	rateLimiter         *rateLimiter
 	uploadLimiter       *uploadLimiter
 	streamProber        streamclips.Prober
-	playScanFFmpeg      string
+	streamFFmpeg        string
 	playScans           streamPlayScans
 	summaries           streamSummaries
 	musicDir            string

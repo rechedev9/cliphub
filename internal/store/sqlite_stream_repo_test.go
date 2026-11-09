@@ -325,3 +325,40 @@ func TestSQLiteStreamRepoUpdateStatusUnknownJobReturnsNotFound(t *testing.T) {
 		t.Fatalf("UpdateStatus unknown job: got %v, want ErrNotFound", err)
 	}
 }
+
+func TestStreamRepoSetSourceProbeKeepsStatusAndOrder(t *testing.T) {
+	for name, repo := range map[string]StreamJobRepository{
+		"sqlite": newTestSQLiteStreamRepo(t),
+		"memory": NewMemoryStreamJobRepository(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			job := &streamclips.Job{Status: streamclips.StatusRendered, SourcePath: "streams/source.mp4", SourceSHA256: "ts-sha", Probe: streamclips.SourceProbe{Width: 1920}}
+			if err := repo.Create(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			before, err := repo.Get(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			probe := streamclips.SourceProbe{Width: 1920, Container: "mov,mp4,m4a,3gp,3g2,mj2"}
+			if err := repo.SetSourceProbe(ctx, job.ID, probe, "mp4-sha"); err != nil {
+				t.Fatal(err)
+			}
+			got, err := repo.Get(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Probe.Container != probe.Container || got.SourceSHA256 != "mp4-sha" {
+				t.Fatalf("probe/sha = %q/%q, want the repaired source's", got.Probe.Container, got.SourceSHA256)
+			}
+			// A startup repair must not move a rendered job back to ready or to the top of the list.
+			if got.Status != streamclips.StatusRendered || !got.UpdatedAt.Equal(before.UpdatedAt) {
+				t.Fatalf("status/updated_at = %s/%v, want %s/%v", got.Status, got.UpdatedAt, streamclips.StatusRendered, before.UpdatedAt)
+			}
+			if err := repo.SetSourceProbe(ctx, uuid.New(), probe, "x"); !errors.Is(err, streamclips.ErrNotFound) {
+				t.Fatalf("missing job error = %v, want ErrNotFound", err)
+			}
+		})
+	}
+}

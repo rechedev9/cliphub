@@ -108,6 +108,8 @@ type SourceProbe struct {
 	VideoCodec      string  `json:"video_codec,omitempty"`
 	AudioCodec      string  `json:"audio_codec,omitempty"`
 	FrameRate       string  `json:"frame_rate,omitempty"`
+	// Container is ffprobe's format_name, such as "mov,mp4,m4a,3gp,3g2,mj2" or "mpegts".
+	Container string `json:"container,omitempty"`
 	// VideoTimeBase is the selected video stream's ffprobe time_base (for
 	// example "1/30000"). StartTimeSeconds is format.start_time: the container
 	// timestamp represented by source/UI time zero. Frame-aware analyzers map a

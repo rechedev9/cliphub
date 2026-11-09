@@ -6,6 +6,7 @@ import { isStreamURLValidationError, STREAM_INVALID_URL_MESSAGE, STREAM_OFFLINE_
 import {
   STREAM_IMPORT_FILE_FAIL_MESSAGE,
   STREAM_IMPORT_FILE_UNREADABLE_MESSAGE,
+  STREAM_IMPORT_FILE_NOT_PLAYABLE_MESSAGE,
   STREAM_IMPORT_URL_FAIL_MESSAGE,
   STREAM_IMPORT_YTDLP_MISSING_MESSAGE,
   STREAM_VOD_LINK_AS_CLIP_MESSAGE,
@@ -105,6 +106,10 @@ test('file import failures map to Spanish copy', () => {
   assert.equal(
     streamImportErrorMessage(apiError('probe video: exit status 1', { status: 400 }), 'file'),
     STREAM_IMPORT_FILE_UNREADABLE_MESSAGE,
+  );
+  assert.equal(
+    streamImportErrorMessage(apiError('Ese vídeo no es un MP4', { status: 400, code: 'not_playable' }), 'file'),
+    STREAM_IMPORT_FILE_NOT_PLAYABLE_MESSAGE,
   );
   assert.equal(
     streamImportErrorMessage(apiError('missing video file: http: no such file', { status: 400 }), 'file'),

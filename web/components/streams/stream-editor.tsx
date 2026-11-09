@@ -84,6 +84,7 @@ import { clipsWithPlays } from '@/lib/streams/plays';
 import { StreamKillFeedControls } from '@/components/streams/kill-feed-controls';
 import { killFeedDefaultPosition } from '@/lib/streams/kill-feed';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
+import { recordRendererError } from '@/lib/desktop-telemetry';
 
 /** Guided stream editor: moments, appearance, review, then finished videos. */
 export function StreamEditor({
@@ -681,7 +682,8 @@ export function StreamEditor({
       onStatus={setPlaybackStatus}
       onPlayingChange={setPreviewPlaying}
       onClipChange={setPlaybackClipId}
-      onMediaError={() => {
+      onMediaError={(detail) => {
+        recordRendererError('stream_preview.error', new Error(`Vista previa de stream: ${detail}`));
         setPreviewPlaying(false);
         setPreviewError(
           'No se pudo decodificar o leer el MP4 de origen. Comprueba que el archivo siga disponible y reintenta la vista previa.',

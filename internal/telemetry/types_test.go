@@ -109,3 +109,16 @@ func TestCanonicalFingerprintUsesOnlyBoundedLabels(t *testing.T) {
 		t.Fatal("different canonical labels produced the same fingerprint")
 	}
 }
+
+func TestValidateEventCodeFilesStreamPreviewMediaErrors(t *testing.T) {
+	t.Parallel()
+	preview := Event{Kind: KindError, Component: "renderer", Name: "stream_preview.error", Stage: "renderer", Class: "media_error"}
+	if err := validateEventCode(preview); err != nil {
+		t.Fatalf("stream preview media error rejected: %v", err)
+	}
+	// Only its own class: a preview error must not pass as a renderer exception.
+	preview.Class = "exception"
+	if err := validateEventCode(preview); err == nil {
+		t.Fatal("stream_preview.error accepted with the exception class")
+	}
+}

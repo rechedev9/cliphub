@@ -36,6 +36,8 @@ var (
 	ErrBlocked = errors.New("vodfetch: request blocked by source security policy")
 	// ErrTooLarge means the source exceeds the configured download ceiling.
 	ErrTooLarge = errors.New("vodfetch: source exceeds maximum size")
+	// ErrMPEGTS means yt-dlp could not reach FFmpeg and left MPEG-TS inside the .mp4.
+	ErrMPEGTS = errors.New("vodfetch: yt-dlp left MPEG-TS in the MP4 because it found no FFmpeg")
 )
 
 // SourceKind classifies an allowlisted provider URL.
@@ -284,6 +286,9 @@ type Fetcher struct {
 	// BinaryPath is the yt-dlp executable to run. Defaults to "yt-dlp" (found
 	// via PATH) when empty.
 	BinaryPath string
+	// FFmpegPath is passed to yt-dlp as --ffmpeg-location. Without an FFmpeg it
+	// can reach, yt-dlp leaves a Twitch VOD as MPEG-TS inside the .mp4.
+	FFmpegPath string
 	// MaxBytes caps the downloaded file. Values <= 0 mean no cap, since a full
 	// VOD can be any size.
 	MaxBytes int64
@@ -390,6 +395,9 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		"--extractor-retries", "2",
 		"--print", "after_move:%(title)s",
 	}
+	if f.FFmpegPath != "" {
+		args = append(args, "--ffmpeg-location", f.FFmpegPath)
+	}
 	if f.MaxBytes > 0 {
 		args = append(args, "--max-filesize", strconv.FormatInt(f.MaxBytes, 10))
 	}
@@ -404,6 +412,10 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		return Result{}, classifyError(rawURL, stderr, runErr)
 	}
 
+	if strings.Contains(stderr, mpegtsWarning) {
+		_ = os.Remove(tmpPath)
+		return Result{}, fmt.Errorf("download %s: %w", source, ErrMPEGTS)
+	}
 	info, err := os.Stat(tmpPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("stat downloaded file: %w", err)
@@ -428,6 +440,9 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 
 	return Result{Path: destPath, Bytes: info.Size(), Title: downloadTitle(stdout)}, nil
 }
+
+// mpegtsWarning is what yt-dlp prints instead of its FixupM3u8 step when FFmpeg is missing.
+const mpegtsWarning = "Possible MPEG-TS in MP4 container"
 
 func downloadTitle(stdout string) string {
 	title := ""

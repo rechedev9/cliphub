@@ -29,7 +29,7 @@ type StreamFrameProps = {
   onStatus: (status: PlaybackStatus) => void;
   onPlayingChange: (playing: boolean) => void;
   onClipChange: (clipId: string | null) => void;
-  onMediaError: () => void;
+  onMediaError: (detail: string) => void;
   videoSrc: string;
 };
 type StreamRuntime = {
@@ -39,6 +39,11 @@ type StreamRuntime = {
   configure: () => void;
 };
 const StreamFrameContext = createContext<StreamFrameState | null>(null);
+
+function mediaErrorDetail(video: HTMLVideoElement): string {
+  const error = video.error;
+  return error ? `MediaError ${error.code}: ${error.message || 'sin mensaje'}` : 'MediaError desconocido';
+}
 
 function clipRangeKey(mode: StreamPlaybackMode, clip: StreamClipRange | undefined): string {
   return JSON.stringify([mode, clip?.id, streamClipRange(clip)]);
@@ -74,7 +79,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     let rangeKey = '';
     let selectionKey = '';
     let releaseOwner = (): void => {};
-    const mixer = new StreamAudioMixer(video, () => { if (alive) latest.current.onMediaError(); });
+    const mixer = new StreamAudioMixer(video, () => { if (alive) latest.current.onMediaError('El mezclador de audio falló'); });
     const session = new PlaybackSession(video, {
       onState: (state) => {
         if (!alive) return;
@@ -85,7 +90,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
         if (state.status === PLAYBACK_STATUS.error) {
           mixer.pause();
           latest.current.onPlayingChange(false);
-          latest.current.onMediaError();
+          latest.current.onMediaError(mediaErrorDetail(video));
         } else if (state.status === PLAYBACK_STATUS.paused && !state.playRequested && latest.current.playing) {
           queueMicrotask(() => {
             // A no-op seek can report paused before AudioContext.resume()
@@ -170,7 +175,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           if (!alive || generation !== playGeneration) return;
           runtime.pause();
           latest.current.onPlayingChange(false);
-          latest.current.onMediaError();
+          latest.current.onMediaError('No se pudo reanudar el audio');
         });
       },
       pause: () => {
