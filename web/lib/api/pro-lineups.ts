@@ -193,11 +193,6 @@ export function practiceSpot(lineup: ProLineup): PracticeSpot {
   };
 }
 
-/** Other lineups of the same kind landing at the same callout, most thrown first. */
-export function sameLanding(lineups: readonly ProLineup[], lineup: ProLineup): ProLineup[] {
-  return lineups.filter((l) => l.id !== lineup.id && l.kind === lineup.kind && l.land_place === lineup.land_place);
-}
-
 /** The Studio URL of a recorded throw clip; the orchestrator keeps it after the first view. */
 export function proClipUrl(clip: string): string {
   return `/api/library/pro-lineups/clips/${clip.split('/').map(encodeURIComponent).join('/')}`;

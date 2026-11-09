@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { ChevronRight, CloudOff, MapPinned, PlugZap } from 'lucide-react';
+import { CloudOff, MapPinned, PlugZap } from 'lucide-react';
 import { prettyMapName, timeAgo } from '@/lib/format';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,20 +57,25 @@ export function ProLoadProblem({ load, onRetry, map }: { load: ProLoad<unknown>;
   }
 }
 
+const MAP_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3';
+
 function MapsSkeleton(): ReactNode {
   return (
-    <div role="status" aria-label="Cargando mapas" className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface-1">
+    <div role="status" aria-label="Cargando mapas" className={MAP_GRID}>
       {Array.from({ length: 7 }, (_, index) => (
-        <div key={index} className="flex items-center gap-4 px-4 py-3">
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="ml-auto h-4 w-40" />
+        <div key={index} className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface-1">
+          <Skeleton className="aspect-[4/3] w-full rounded-none" />
+          <div className="flex flex-col gap-1.5 px-3 py-2.5">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-4 w-36" />
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-/** Every map with pro lineups, as rows that open the map. */
+/** Every map with pro lineups, as cards with CS2's radar that open the map. */
 export function LineupMaps(): ReactNode {
   const [attempt, setAttempt] = useState(0);
   const load = useProLineupMaps(attempt);
@@ -78,18 +84,21 @@ export function LineupMaps(): ReactNode {
   const { maps, built_at: builtAt, fresh } = load.data;
   return (
     <div className="flex flex-col gap-2">
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface-1">
+      <ul className={MAP_GRID}>
         {maps.map((entry) => (
           <li key={entry.map}>
             <Link
               href={`/lineups/${entry.map}`}
-              className="flex min-h-11 items-center gap-4 px-4 py-3 transition-[background-color] hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+              className="group flex flex-col overflow-hidden rounded-lg border border-border bg-surface-1 transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             >
-              <span className="text-body font-semibold text-fg-1">{prettyMapName(entry.map)}</span>
-              <span className="ml-auto text-body-sm text-fg-2 tabular-nums">
-                {entry.lineups} lineups · {entry.combos} {entry.combos === 1 ? 'combo' : 'combos'} · {entry.recent_maps} mapas pro
+              <MapThumb map={entry.map} className="aspect-[4/3] h-auto w-full rounded-none" crop={1.15} />
+              <span className="flex flex-col gap-0.5 px-3 py-2.5">
+                <span className="text-body font-semibold text-fg-1">{prettyMapName(entry.map)}</span>
+                <span className="text-meta text-fg-2 tabular-nums">
+                  {entry.lineups} lineups · {entry.combos} {entry.combos === 1 ? 'combo' : 'combos'}
+                </span>
+                <span className="text-meta text-fg-3 tabular-nums">De {entry.recent_maps} mapas pro</span>
               </span>
-              <ChevronRight aria-hidden className="size-4 text-fg-3" />
             </Link>
           </li>
         ))}

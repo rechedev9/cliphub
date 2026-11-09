@@ -31,17 +31,10 @@ export function ClipVideo({ clip, label }: { clip: string; label: string }): Rea
   );
 }
 
-/** The recorded pro throw of a lineup, looping with the thrower's keys drawn on it. */
+/** The recorded pro throw of a lineup, looping with the thrower's keys drawn on it; nothing until one is recorded. */
 export function ThrowClip({ lineup, chosen }: { lineup: ProLineup; chosen: string | null }): ReactNode {
   const shown = shownClip(lineup, chosen);
-  if (shown === null) {
-    return (
-      <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-surface-1 px-6 text-center">
-        <p className="text-body-sm font-medium text-fg-1">Aún no hay vídeo de este lineup</p>
-        <p className="text-meta text-fg-2">Se graba cuando entra una partida pro nueva con este lanzamiento. Mientras, tienes el radar y la posición para la consola.</p>
-      </div>
-    );
-  }
+  if (shown === null) return null;
   const { clip, example } = shown;
   return (
     <figure className="flex flex-col gap-1.5">

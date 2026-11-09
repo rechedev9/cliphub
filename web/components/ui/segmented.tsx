@@ -15,7 +15,7 @@ export function Segmented<T extends string>({
 }: {
   label: string;
   value: T;
-  options: readonly { value: T; label: string; disabled?: boolean; /** Why it is disabled, shown on hover. */ reason?: string }[];
+  options: readonly { value: T; label: ReactNode; disabled?: boolean; /** Why it is disabled, shown on hover. */ reason?: string }[];
   onChange: (value: T) => void;
 }): ReactNode {
   return (
