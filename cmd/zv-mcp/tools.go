@@ -199,6 +199,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerPlaylistTools(server, s)
 	registerReplayGIFTool(server, s)
 	registerTeamReportTools(server, s)
+	registerTeamSideStatsTool(server, s)
 	registerPlaybookComboTools(server, s)
 	registerTeamGrenadesTool(server, s)
 	registerPlayerReportTools(server, s)

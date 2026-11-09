@@ -82,6 +82,8 @@ export type ScopeBarProps = {
   proReference?: Baseline | null;
   /** Fixed context the person cannot change here, such as a report's rival and side. */
   context?: ReactNode;
+  /** What the view's figures are compared with, such as the "Comparar con" teams; sits by the sample. */
+  comparison?: ReactNode;
   className?: string;
 };
 
@@ -363,6 +365,7 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
           </Button>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
+          {props.comparison}
           {fields.includes('reference') ? (
             <div className="flex items-center gap-1.5">
               <span className="text-meta whitespace-nowrap text-fg-3">Comparando con</span>

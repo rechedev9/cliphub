@@ -133,6 +133,12 @@ test('series, map history and the veto simulator are reachable with their own na
   const bombsites = matchLibraryRoute('GET', ['teams', ID, 'bombsites']);
   assert.ok(bombsites);
   assert.equal(libraryUpstreamQuery(bombsites, new URLSearchParams('map=de_nuke&side=CT&limit=5')), 'map=de_nuke&side=CT');
+  const sideStats = matchLibraryRoute('GET', ['teams', ID, 'side-stats']);
+  assert.ok(sideStats);
+  assert.equal(
+    libraryUpstreamQuery(sideStats, new URLSearchParams(`side=T&buy=full&opponent_buy=eco&compare_team=${ID}&ref=pro`)),
+    `side=T&buy=full&opponent_buy=eco&compare_team=${ID}`,
+  );
   const positions = matchLibraryRoute('GET', ['players', '76561198000000001', 'positions']);
   assert.ok(positions);
   assert.equal(libraryUpstreamQuery(positions, new URLSearchParams('map=de_nuke&side=T&to=x')), 'map=de_nuke&to=x');

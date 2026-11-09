@@ -59,6 +59,9 @@ Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64,
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
+compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
+one card per player; its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 these and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
