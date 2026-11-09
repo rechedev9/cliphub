@@ -16,8 +16,6 @@ import (
 const (
 	// HeatmapCellSize is the heatmap grid in world units, the occupancy grid's default.
 	HeatmapCellSize = 64
-	// HeatmapStepSeconds is how often an alive player adds to the position heatmap.
-	HeatmapStepSeconds = 1
 	// HeatmapExampleLimit caps the example rounds kept for each cell.
 	HeatmapExampleLimit = 3
 	// OverlayStepSeconds is the spacing of the points of an overlaid track.
@@ -119,13 +117,14 @@ func (w SpatialWindow) contains(r Round, tickrate, seconds float64) bool {
 	return seconds >= w.From && (w.To <= 0 || seconds <= w.To)
 }
 
-// HeatmapOptions selects the kind, for utility the grenades counted, and for
-// kills which end of the kill is placed (the killer when empty).
+// HeatmapOptions selects the kind, the grenades counted and which end of a kill is placed (the
+// killer when empty). Radar is the square the density grid covers; empty takes the first match's.
 type HeatmapOptions struct {
 	Kind     HeatmapKind
 	Window   SpatialWindow
 	Grenades []EventKind
 	KillAt   KillSpot
+	Radar    radarmap.Calibration
 }
 
 // HeatmapCell is one cell of the grid on one side and one level. X and Y index
@@ -148,20 +147,25 @@ type HeatmapCell struct {
 
 // Heatmap is a grid of counts over the selected rounds, split by side and level.
 type Heatmap struct {
-	Kind         HeatmapKind   `json:"kind"`
-	KillAt       KillSpot      `json:"kill_at,omitempty"`
-	Window       SpatialWindow `json:"window"`
-	Grenades     []EventKind   `json:"grenades,omitempty"`
-	CellSize     float64       `json:"cell_size"`
-	StepSeconds  float64       `json:"step_seconds"`
-	ExampleLimit int           `json:"example_limit"`
-	Matches      int           `json:"matches"`
-	Rounds       int           `json:"rounds"`
+	Kind     HeatmapKind   `json:"kind"`
+	KillAt   KillSpot      `json:"kill_at,omitempty"`
+	Window   SpatialWindow `json:"window"`
+	Grenades []EventKind   `json:"grenades,omitempty"`
+	CellSize float64       `json:"cell_size"`
+	// SamplesPerRound is how many instants of each round the position kind reads.
+	SamplesPerRound int `json:"samples_per_round"`
+	ExampleLimit    int `json:"example_limit"`
+	Matches         int `json:"matches"`
+	Rounds          int `json:"rounds"`
 	// MissingPositions counts the matches with no position blob; they add
 	// deaths and grenades but no positions or timings.
 	MissingPositions int           `json:"missing_positions"`
 	Sides            []HeatmapSide `json:"sides"`
 	Cells            []HeatmapCell `json:"cells"`
+	// DensityGrid and Density are the same marks on a fine grid over the radar
+	// square, for the smooth picture; the cells stay for picking and the zone list.
+	DensityGrid int           `json:"density_grid"`
+	Density     []HeatDensity `json:"density"`
 }
 
 // HeatmapSide is the total of one side and level, the scale its cells are read on.
@@ -195,6 +199,8 @@ type timedEvidence struct {
 
 type heatmapBuilder struct {
 	opts      HeatmapOptions
+	radar     radarmap.Calibration
+	bins      map[densityKey]densityAcc
 	cells     map[heatKey]*heatAcc
 	sideTotal map[heatKey]*HeatmapSide
 	sideRound map[heatKey]int
@@ -228,6 +234,13 @@ func cellIndex(v float64) int {
 
 func (b *heatmapBuilder) add(cal radarmap.Calibration, side Side, pos [3]float64, seconds float64, ev Evidence) {
 	key := heatKey{side: side, level: cal.Level(pos[2]), x: cellIndex(pos[0]), y: cellIndex(pos[1])}
+	if column, row, ok := b.densityCell(pos); ok {
+		square := densityKey{side: side, level: key.level, column: column, row: row}
+		bin := b.bins[square]
+		bin.count++
+		bin.seconds += seconds
+		b.bins[square] = bin
+	}
 	acc, ok := b.cells[key]
 	if !ok {
 		acc = &heatAcc{}
@@ -339,15 +352,13 @@ func (b *heatmapBuilder) addEvents(m SpatialMatch, r Round, team map[uint8]Side)
 	}
 }
 
-// addFrames reads the round's samples: one per HeatmapStepSeconds for the
-// position kind, and every frame for the first arrival of the timing kind.
-func (b *heatmapBuilder) addFrames(m SpatialMatch, r Round, team map[uint8]Side, frames []Frame) {
+// addArrivals reads every frame of the round for the first arrival of each
+// player at each cell, the timing kind.
+func (b *heatmapBuilder) addArrivals(m SpatialMatch, r Round, team map[uint8]Side, frames []Frame) {
 	doc := m.Document
 	cal := doc.Geometry.Calibration
 	tickrate := doc.Demo.Tickrate
 	end := roundEndTick(r)
-	nextTick := r.TickFreezeEnd
-	step := int(math.Round(HeatmapStepSeconds * tickrate))
 	type arrival struct {
 		slot uint8
 		cell heatKey
@@ -361,29 +372,18 @@ func (b *heatmapBuilder) addFrames(m SpatialMatch, r Round, team map[uint8]Side,
 		if !ok || !b.opts.Window.contains(r, tickrate, seconds) {
 			continue
 		}
-		if b.opts.Kind == HeatPosition {
-			if frame.Tick < nextTick {
-				continue
-			}
-			for nextTick <= frame.Tick {
-				nextTick += max(step, 1)
-			}
-		}
 		e := Evidence{MatchID: m.MatchID, Round: r.Number, Tick: frame.Tick}
 		for _, s := range frame.Samples {
 			side, ok := team[s.Slot]
 			if !ok || !s.Flags.Has(FlagAlive) {
 				continue
 			}
-			pos := [3]float64{s.X, s.Y, s.Z}
-			if b.opts.Kind == HeatTiming {
-				key := arrival{slot: s.Slot, cell: heatKey{side: side, level: cal.Level(s.Z), x: cellIndex(s.X), y: cellIndex(s.Y)}}
-				if arrived[key] {
-					continue
-				}
-				arrived[key] = true
+			key := arrival{slot: s.Slot, cell: heatKey{side: side, level: cal.Level(s.Z), x: cellIndex(s.X), y: cellIndex(s.Y)}}
+			if arrived[key] {
+				continue
 			}
-			b.add(cal, side, pos, seconds, e)
+			arrived[key] = true
+			b.add(cal, side, [3]float64{s.X, s.Y, s.Z}, seconds, e)
 		}
 	}
 }
@@ -406,11 +406,14 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 	case opts.KillAt == "":
 		opts.KillAt = KillAtKiller
 	}
-	b := &heatmapBuilder{opts: opts, cells: map[heatKey]*heatAcc{}, sideTotal: map[heatKey]*HeatmapSide{}, sideRound: map[heatKey]int{}}
+	b := &heatmapBuilder{
+		opts: opts, radar: densityRadar(matches, opts.Radar), bins: map[densityKey]densityAcc{},
+		cells: map[heatKey]*heatAcc{}, sideTotal: map[heatKey]*HeatmapSide{}, sideRound: map[heatKey]int{},
+	}
 	out := Heatmap{
 		Kind: opts.Kind, KillAt: opts.KillAt, Window: opts.Window, Grenades: opts.Grenades, CellSize: HeatmapCellSize,
-		StepSeconds: HeatmapStepSeconds, ExampleLimit: HeatmapExampleLimit, Matches: len(matches),
-		Sides: []HeatmapSide{}, Cells: []HeatmapCell{},
+		SamplesPerRound: HeatmapSamplesPerRound, ExampleLimit: HeatmapExampleLimit, Matches: len(matches),
+		Sides: []HeatmapSide{}, Cells: []HeatmapCell{}, DensityGrid: HeatDensityGrid,
 	}
 	positional := opts.Kind == HeatPosition || opts.Kind == HeatTiming
 	for _, m := range matches {
@@ -441,7 +444,11 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 			if err != nil {
 				return Heatmap{}, fmt.Errorf("match %s round %d: %w", m.MatchID, r.Number, err)
 			}
-			b.addFrames(m, r, team, frames)
+			if opts.Kind == HeatPosition {
+				b.addInstants(m, r, team, frames)
+			} else {
+				b.addArrivals(m, r, team, frames)
+			}
 		}
 	}
 
@@ -480,6 +487,7 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 		}
 		return out.Sides[i].Level < out.Sides[j].Level
 	})
+	out.Density = b.density()
 	return out, nil
 }
 

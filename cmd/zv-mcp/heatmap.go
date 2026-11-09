@@ -33,7 +33,7 @@ var heatGrenades = []string{"smoke", "flash", "he", "molotov"}
 
 // heatmapViewIn is what the heatmap counts and in which clock window (the tramo).
 type heatmapViewIn struct {
-	Kind      string   `json:"kind,omitempty" jsonschema:"what the map counts: position (default; one sample per alive player and second), death, kill, utility or timing (first arrival at each spot)"`
+	Kind      string   `json:"kind,omitempty" jsonschema:"what the map counts: position (default; each round read at 50 instants spread over the clock window, one sample per alive player at each), death, kill, utility or timing (first arrival at each spot)"`
 	KillAt    string   `json:"kill_at,omitempty" jsonschema:"for kill: killer (default; where the counted players stood when they killed) or victim (where their victims fell). Team kills never count"`
 	Grenade   []string `json:"grenade,omitempty" jsonschema:"for utility: only smoke, flash, he or molotov; empty counts all four"`
 	ClockFrom float64  `json:"clock_from,omitempty" jsonschema:"start of the clock window (Tramo), in seconds after the round went live; 0 by default. The round clock 1:40 is 15"`

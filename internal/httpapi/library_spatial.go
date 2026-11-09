@@ -196,7 +196,12 @@ func (h *Handlers) buildSpatial(resp spatialResponse, matches []tacticalplan.Spa
 		resp.Overlay = &overlay
 		return resp, nil
 	}
-	heatmap, err := tacticalplan.BuildHeatmap(matches, req.heatmap)
+	opts := req.heatmap
+	if resp.Geometry != nil {
+		// The density grid covers the radar the web draws on.
+		opts.Radar = resp.Geometry.Calibration
+	}
+	heatmap, err := tacticalplan.BuildHeatmap(matches, opts)
 	if err != nil {
 		return resp, err
 	}

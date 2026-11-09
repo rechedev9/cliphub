@@ -156,18 +156,27 @@ func TestHeatmapUtilityByGrenadeAndWindow(t *testing.T) {
 
 func TestHeatmapPositionsAndTimingsFromTheBlob(t *testing.T) {
 	m := spatialMatch(t, Filter{TeamKey: "ct-start", RoundTo: 1})
-	pos, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition})
+	// The first 2 s: all 50 instants fall while the walker lives, about half in each of cells 0 and 1.
+	pos, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition, Window: SpatialWindow{To: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pos.Cells) != 3 || pos.MissingPositions != 0 {
-		t.Fatalf("positions = %+v, want one sample a second in cells 0, 1 and 2 before the death", pos.Cells)
+	if len(pos.Cells) != 2 || pos.MissingPositions != 0 || pos.SamplesPerRound != HeatmapSamplesPerRound {
+		t.Fatalf("positions = %+v, want the walker in cells 0 and 1", pos.Cells)
 	}
-	for x := range 3 {
-		c, ok := findCell(pos, SideCT, x, 0)
-		if !ok || c.Count != 1 || c.Examples[0].Tick != 640+64*x {
-			t.Fatalf("cell %d = %+v", x, c)
-		}
+	first, _ := findCell(pos, SideCT, 0, 0)
+	second, _ := findCell(pos, SideCT, 1, 0)
+	if first.Count+second.Count != HeatmapSamplesPerRound || first.Count < 20 || second.Count < 20 || first.Examples[0].Tick >= 640+64 {
+		t.Fatalf("cells = %+v and %+v, want 50 samples split over the two seconds", first, second)
+	}
+	again, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition, Window: SpatialWindow{To: 2}})
+	if !reflect.DeepEqual(pos, again) {
+		t.Fatal("the same rounds gave a different heatmap: the instants must be seeded by match and round")
+	}
+	// Over the whole round only the instants of its first 2.4 s find the walker alive.
+	whole, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatPosition})
+	if total := whole.Sides[0].Total; total < 1 || total > 3 {
+		t.Fatalf("whole round = %d samples, want the two or so instants before the death", total)
 	}
 	timing, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatTiming})
 	if err != nil {

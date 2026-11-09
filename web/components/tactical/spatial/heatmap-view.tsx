@@ -11,11 +11,12 @@ import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tacti
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import {
   HEATMAP_KIND_LABEL,
+  HEATMAP_LEGEND_LABEL,
   HEATMAP_UNIT_LABEL,
   KILL_SPOT_LABEL,
   LEVEL_LABEL,
   HEAT_GRADIENT,
-  heatStrength,
+  arrivalStrength,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
@@ -25,8 +26,8 @@ import {
   topCells,
 } from '@/lib/tactical-spatial';
 import type { HeatmapLayer } from '@/lib/tactical-spatial';
-import { SMOOTHING_DEFAULT, SMOOTHING_MAX, SMOOTHING_MIN, densityRect, densityRgba, heatDensity, heatSigma } from '@/lib/heat-density';
-import type { HeatDensity } from '@/lib/heat-density';
+import { SMOOTHING_DEFAULT, SMOOTHING_MAX, SMOOTHING_MIN, densityPicture, heatBandwidth, heatDensity } from '@/lib/heat-density';
+import type { DensityPicture } from '@/lib/heat-density';
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
 import type { WorldMark } from '@/lib/tactical-transform';
 import { DEFAULT_HEAT } from '@/lib/replay/heat-choice';
@@ -52,8 +53,8 @@ type FloorChoice = RadarLevel | 'both';
 /** The owner's heat choice, kept in its URL; without it the view keeps its own. */
 export type HeatControl = { choice: HeatChoice; onChange: (next: HeatChoice) => void };
 
-/** One floor's density, its pixels already on the scale both floors share. */
-type FloorDensity = { level: RadarLevel; grid: HeatDensity; rgba: Uint8ClampedArray<ArrayBuffer> };
+/** One floor's density contours, already on the scale both floors share. */
+type FloorDensity = { level: RadarLevel; picture: DensityPicture };
 
 function cellKey(cell: HeatmapCell): string {
   return `${cell.side}|${cell.level}|${cell.x}|${cell.y}`;
@@ -150,29 +151,35 @@ export function HeatmapView({
 
   const densities = useMemo<FloorDensity[]>(() => {
     if (!heatmap || !geometry || !layer) return [];
-    const sigma = heatSigma(geometry.calibration, smoothing);
-    const tone = heatmap.kind === 'timing' ? (cell: HeatmapCell) => heatStrength('timing', cell, layer) : undefined;
-    const grids = layers.flatMap(({ level, layer: floorLayer }) => {
-      const grid = heatDensity({ cells: floorLayer.cells, cellSize: heatmap.cell_size, sigma, tone });
-      return grid === null ? [] : [{ level, grid }];
+    const bandwidth = heatBandwidth(geometry.calibration.map, smoothing);
+    const grids = shownLevels.flatMap((level) => {
+      const source = heatmap.density.find((entry) => entry.side === shownSide && entry.level === level);
+      if (source === undefined) return [];
+      // Timing colours each spot by how early its players got there, on the legend's scale.
+      const tone = heatmap.kind === 'timing' ? source.bins.map((_, i) => arrivalStrength(source.seconds?.[i] ?? 0, layer.maxSeconds)) : undefined;
+      const density = heatDensity({ grid: heatmap.density_grid, bins: source.bins, bandwidth, tone });
+      return density === null ? [] : [{ level, density }];
     });
-    const peak = Math.max(0, ...grids.map((entry) => entry.grid.peak));
-    return grids.map((entry) => ({ ...entry, rgba: densityRgba(entry.grid, peak) }));
-  }, [heatmap, geometry, layer, layers, smoothing]);
+    const peak = Math.max(0, ...grids.map((entry) => entry.density.peak));
+    return grids.flatMap(({ level, density }) => {
+      const picture = densityPicture(density, peak);
+      return picture === null ? [] : [{ level, picture }];
+    });
+  }, [heatmap, geometry, layer, shownLevels, shownSide, smoothing]);
 
   const paint = useCallback(
     ({ ctx, size, style, level }: RadarFrame) => {
       if (!heatmap || !geometry) return;
       const calibration = geometry.calibration;
       const density = densities.find((entry) => entry.level === level);
-      if (density !== undefined) {
-        const image = densityImage(imagesRef.current, density);
-        if (image !== null) {
-          const rect = worldRectToRadarRect(calibration, densityRect(density.grid), size);
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
-        }
+      const image = density === undefined ? null : densityImage(imagesRef.current, density.picture);
+      if (density !== undefined && image !== null && heatmap.density_grid > 0) {
+        // The density grid covers the whole radar square, so a square is size / grid pixels.
+        const unit = size / heatmap.density_grid;
+        const { x, y, width, height } = density.picture;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(image, x * unit, y * unit, width * unit, height * unit);
       }
       if (selectedCell !== undefined && selectedCell.level === level) {
         const cs = heatmap.cell_size;
@@ -252,6 +259,7 @@ export function HeatmapView({
           matchCount={heatmap.matches}
           missing={heatmap.missing_positions}
           cellSize={heatmap.cell_size}
+          samplesPerRound={heatmap.samples_per_round}
           geometry={geometry}
           matches={matches}
           selected={selectedCell}
@@ -334,7 +342,7 @@ export function HeatmapView({
             type="range"
             min={Math.round(SMOOTHING_MIN * 100)}
             max={Math.round(SMOOTHING_MAX * 100)}
-            step={10}
+            step={1}
             value={Math.round(smoothing * 100)}
             onChange={(event) => setSmoothing(Number(event.target.value) / 100)}
             className="h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-primary"
@@ -348,17 +356,19 @@ export function HeatmapView({
   );
 }
 
-/** The density's pixels as a bitmap, made once per density and kept while it lives. */
-function densityImage(cache: WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>, density: FloorDensity): HTMLCanvasElement | null {
-  const known = cache.get(density.rgba);
+/** The contours as a bitmap, made once per picture and kept while it lives. */
+function densityImage(cache: WeakMap<Uint8ClampedArray<ArrayBuffer>, HTMLCanvasElement>, picture: DensityPicture): HTMLCanvasElement | null {
+  const known = cache.get(picture.rgba);
   if (known !== undefined) return known;
+  const width = picture.width * picture.scale;
+  const height = picture.height * picture.scale;
   const canvas = document.createElement('canvas');
-  canvas.width = density.grid.cols;
-  canvas.height = density.grid.rows;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (ctx === null) return null;
-  ctx.putImageData(new ImageData(density.rgba, density.grid.cols, density.grid.rows), 0, 0);
-  cache.set(density.rgba, canvas);
+  ctx.putImageData(new ImageData(picture.rgba, width, height), 0, 0);
+  cache.set(picture.rgba, canvas);
   return canvas;
 }
 
@@ -373,6 +383,7 @@ function HeatmapSidebar({
   matchCount,
   missing,
   cellSize,
+  samplesPerRound,
   geometry,
   matches,
   selected,
@@ -385,6 +396,7 @@ function HeatmapSidebar({
   matchCount: number;
   missing: number;
   cellSize: number;
+  samplesPerRound: number;
   geometry: TacticalGeometry;
   matches: ReadonlyMap<string, SpatialMatchRef>;
   selected: HeatmapCell | undefined;
@@ -398,6 +410,7 @@ function HeatmapSidebar({
     return bothFloors && cell.level === RADAR_LEVELS.lower ? `${name} (piso inferior)` : name;
   };
   const top = topCells(layer, TOP_CELLS);
+  const timing = kind === 'timing';
   return (
     <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
       <p className="text-body-sm text-fg-2">
@@ -409,7 +422,8 @@ function HeatmapSidebar({
         <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
           <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
           <span className="text-meta tabular-nums text-fg-2">
-            {selected.count} {unit} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'} · mediana {selected.seconds} s
+            {selected.count} {unit} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
+            {timing ? ` · mediana ${selected.seconds} s` : ''}
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
         </div>
@@ -423,12 +437,12 @@ function HeatmapSidebar({
         </p>
       ) : (
         <table className="w-full text-body-sm">
-          <caption className="pb-1 text-left text-meta text-fg-3">{kind === 'timing' ? 'Primeras llegadas' : 'Zonas con más actividad'}</caption>
+          <caption className="pb-1 text-left text-meta text-fg-3">{timing ? 'Primeras llegadas' : 'Zonas con más actividad'}</caption>
           <thead className="sr-only">
             <tr>
               <th>Zona</th>
               <th>Cantidad</th>
-              <th>Mediana</th>
+              {timing ? <th>Mediana</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -440,7 +454,7 @@ function HeatmapSidebar({
                   </button>
                 </td>
                 <td className="py-1 text-right tabular-nums text-fg-2">{cell.count}</td>
-                <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td>
+                {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td> : null}
               </tr>
             ))}
           </tbody>
@@ -448,23 +462,25 @@ function HeatmapSidebar({
       )}
       <p className="text-meta text-fg-3">
         Zonas de {cellSize} unidades; el radar las suaviza.
-        {kind === 'position' ? ' Una muestra por jugador vivo y segundo.' : ''}
+        {kind === 'position' ? ` Cada ronda se lee en ${samplesPerRound} instantes del tramo, una muestra por jugador vivo en cada uno.` : ''}
         {kind === 'kill' ? ' Las bajas a compañeros no cuentan.' : ''}
-        {kind === 'timing' ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}
+        {timing ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}
       </p>
     </aside>
   );
 }
 
-/** The heat has its own scale, dark green to yellow, so the side colours keep meaning only the sides. */
+/** The heat scale, dark green to yellow, with ends in what the map counts; timing runs reversed. */
 function Legend({ kind, maxCount, maxSeconds }: { kind: HeatmapKind; maxCount: number; maxSeconds: number }): ReactNode {
   const timing = kind === 'timing';
+  const unit = HEATMAP_UNIT_LABEL[kind];
   return (
-    <div className="flex flex-col gap-1" aria-label="Leyenda">
+    <div className="flex flex-col gap-1" aria-label={`Leyenda: ${HEATMAP_LEGEND_LABEL[kind]}`}>
+      <span className="text-meta text-fg-2">{HEATMAP_LEGEND_LABEL[kind]}</span>
       <div className="h-2 rounded-sm" style={{ background: HEAT_GRADIENT }} aria-hidden />
       <div className="flex justify-between text-meta tabular-nums text-fg-3">
-        <span>{timing ? `${maxSeconds} s` : 'Poca'}</span>
-        <span>{timing ? '0 s, llegan antes' : `Hasta ${maxCount} ${HEATMAP_UNIT_LABEL[kind]} por zona`}</span>
+        <span>{timing ? `${maxSeconds} s, más tarde` : `0 ${unit}`}</span>
+        <span>{timing ? '0 s, antes' : `${maxCount} ${unit}`}</span>
       </div>
     </div>
   );

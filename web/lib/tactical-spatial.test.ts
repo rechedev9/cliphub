@@ -4,11 +4,11 @@ import type { RadarCalibration } from './api/tactical.ts';
 import type { Heatmap, OverlayTrack } from './api/spatial.ts';
 import { worldToRendered } from './tactical-transform.ts';
 import {
+  arrivalStrength,
   arrowHead,
   elapsedLabel,
   heatColor,
   heatRgb,
-  heatStrength,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
@@ -47,7 +47,7 @@ const HEATMAP: Heatmap = {
   kind: 'position',
   window: { from: 0, to: 0 },
   cell_size: 64,
-  step_seconds: 1,
+  samples_per_round: 50,
   example_limit: 3,
   matches: 1,
   rounds: 3,
@@ -63,6 +63,8 @@ const HEATMAP: Heatmap = {
     { side: 'T', level: 'default', x: 1, y: 1, count: 9, rounds: 3, seconds: 5, examples: [] },
     { side: 'T', level: 'lower', x: 1, y: 1, count: 1, rounds: 1, seconds: 30, examples: [] },
   ],
+  density_grid: 150,
+  density: [],
 };
 
 test('a heatmap layer is one side and level with its own scale', () => {
@@ -70,9 +72,10 @@ test('a heatmap layer is one side and level with its own scale', () => {
   assert.equal(ct.cells.length, 2);
   assert.equal(ct.maxCount, 4);
   assert.equal(ct.maxSeconds, 40);
-  assert.equal(heatStrength('position', ct.cells[0], ct), 1);
-  assert.equal(heatStrength('position', ct.cells[1], ct), 0.5);
-  assert.ok(heatStrength('timing', ct.cells[0], ct) > heatStrength('timing', ct.cells[1], ct), 'earlier arrivals read stronger');
+  assert.equal(arrivalStrength(0, ct.maxSeconds), 1);
+  assert.equal(arrivalStrength(30, 40), 0.25, 'earlier arrivals read stronger');
+  assert.equal(arrivalStrength(90, 40), 0);
+  assert.equal(arrivalStrength(5, 0), 1);
   assert.deepEqual(heatmapLevels(HEATMAP), ['default', 'lower']);
   assert.equal(heatmapSide(HEATMAP, ''), 'T');
   assert.equal(heatmapSide(HEATMAP, 'CT'), 'CT');

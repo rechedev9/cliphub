@@ -50,6 +50,15 @@ export const HEATMAP_UNIT_LABEL: Record<HeatmapKind, string> = {
   timing: 'llegadas',
 };
 
+/** What the legend's scale measures for each kind. */
+export const HEATMAP_LEGEND_LABEL: Record<HeatmapKind, string> = {
+  position: 'Posiciones por zona',
+  death: 'Muertes por zona',
+  kill: 'Bajas por zona',
+  utility: 'Granadas por zona',
+  timing: 'Segundos hasta la primera llegada',
+};
+
 /** Where a kill heatmap puts each kill. */
 export const KILL_SPOT_LABEL: Record<KillSpot, string> = {
   killer: 'Desde dónde mata',
@@ -93,17 +102,10 @@ export function heatmapSide(heatmap: Heatmap, asked: TacticalSide | ''): Tactica
   return totals[TACTICAL_SIDES.t] > totals[TACTICAL_SIDES.ct] ? TACTICAL_SIDES.t : TACTICAL_SIDES.ct;
 }
 
-/**
- * A cell's strength from 0 to 1. Counts are long-tailed, so the ramp is on the
- * square root; for timing the early cells are the strong ones.
- */
-export function heatStrength(kind: HeatmapKind, cell: HeatmapCell, layer: HeatmapLayer): number {
-  if (kind === 'timing') {
-    if (layer.maxSeconds <= 0) return 1;
-    return 1 - Math.min(1, Math.max(0, cell.seconds / layer.maxSeconds)) * 0.85;
-  }
-  if (layer.maxCount <= 0) return 0;
-  return Math.sqrt(Math.min(1, cell.count / layer.maxCount));
+/** How hot a first arrival reads, from 0 to 1: at 0 s the top of the scale, at `maxSeconds` the bottom. */
+export function arrivalStrength(seconds: number, maxSeconds: number): number {
+  if (!(maxSeconds > 0)) return 1;
+  return 1 - Math.min(1, Math.max(0, seconds / maxSeconds));
 }
 
 /**

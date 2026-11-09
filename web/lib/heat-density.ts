@@ -1,15 +1,9 @@
-import type { HeatmapCell } from './api/spatial.ts';
-import type { RadarCalibration } from './api/tactical.ts';
-import type { WorldRect } from './tactical-transform.ts';
 import { heatRgb } from './tactical-spatial.ts';
 
-/**
- * The heatmap painted as a smooth density: each 64-unit cell's count spread
- * over a finer grid, then a Gaussian kernel estimate. The cells stay the data
- * for picking and the zone list; this is only how they look.
- */
+// The heatmap as cs2lens paints it: the server's bins on a 150 grid over the radar, a Gaussian
+// kernel per map times Suavizado, and filled contours at 24 thresholds. Picking stays on the cells.
 
-/** Kernel width per map, in cells of a 150 cell grid over the radar square: tight maps get a narrower kernel. */
+/** Kernel width per map, in grid squares: tight maps get a narrower kernel. */
 const MAP_BANDWIDTH: Record<string, number> = {
   de_nuke: 1.4,
   de_inferno: 2.1,
@@ -23,123 +17,126 @@ const MAP_BANDWIDTH: Record<string, number> = {
   de_ancient: 2.6,
 };
 const DEFAULT_BANDWIDTH = 2.2;
-const BANDWIDTH_GRID = 150;
 
-/** The smoothing slider's range; 1 is the map's own bandwidth. */
-export const SMOOTHING_MIN = 0.5;
+/** The Suavizado slider's range; 1 is the map's own bandwidth. */
+export const SMOOTHING_MIN = 0.33;
 export const SMOOTHING_MAX = 1.5;
 export const SMOOTHING_DEFAULT = 1;
 
-/** Largest grid side, so an outlier cell far from the rest cannot blow up the work. */
-const MAX_GRID_SIDE = 640;
+/** Contour thresholds between nothing and the peak. */
+export const DENSITY_THRESHOLDS = 24;
 
-/** The kernel's standard deviation in world units for a map and a smoothing factor. */
-export function heatSigma(calibration: RadarCalibration, smoothing: number): number {
-  const bandwidth = MAP_BANDWIDTH[calibration.map] ?? DEFAULT_BANDWIDTH;
-  const factor = Math.min(SMOOTHING_MAX, Math.max(SMOOTHING_MIN, Number.isFinite(smoothing) ? smoothing : SMOOTHING_DEFAULT));
-  return (bandwidth * calibration.size * calibration.scale * factor) / BANDWIDTH_GRID;
+/** Pixels of the picture per grid square, so the contour edges stay smooth on a large plate. */
+const PICTURE_SCALE = 6;
+
+/** The kernel's standard deviation in grid squares for a map and a smoothing factor. */
+export function heatBandwidth(map: string, smoothing: number): number {
+  const factor = Number.isFinite(smoothing) ? Math.min(SMOOTHING_MAX, Math.max(SMOOTHING_MIN, smoothing)) : SMOOTHING_DEFAULT;
+  return (MAP_BANDWIDTH[map] ?? DEFAULT_BANDWIDTH) * factor;
 }
 
-/** A density grid, row 0 at the top (largest world y). `tone` is the colour strength per pixel for timing, else absent. */
-export type HeatDensity = {
-  cols: number;
-  rows: number;
-  minX: number;
-  maxY: number;
-  step: number;
-  mass: Float32Array;
-  tone: Float32Array | null;
-  peak: number;
-};
+/** A smoothed grid, row 0 at the radar's top. `tone` is the colour per square for timing, else absent. */
+export type HeatDensity = { grid: number; mass: Float32Array; tone: Float32Array | null; peak: number };
 
 export type DensityInput = {
-  cells: readonly HeatmapCell[];
-  cellSize: number;
-  sigma: number;
-  /** A cell's own strength from 0 to 1, smoothed by weight (timing); without it the colour follows the density. */
-  tone?: (cell: HeatmapCell) => number;
+  grid: number;
+  bins: readonly (readonly [number, number, number])[];
+  bandwidth: number;
+  /** Each bin's own strength from 0 to 1, in `bins` order, smoothed by weight (timing); without it the colour follows the density. */
+  tone?: readonly number[];
 };
 
-/** The density of the cells, or null when there is nothing to paint. */
-export function heatDensity({ cells, cellSize, sigma, tone }: DensityInput): HeatDensity | null {
-  if (cells.length === 0 || !(cellSize > 0) || !(sigma > 0)) return null;
-  let lowX = Infinity;
-  let lowY = Infinity;
-  let highX = -Infinity;
-  let highY = -Infinity;
-  for (const cell of cells) {
-    lowX = Math.min(lowX, cell.x);
-    lowY = Math.min(lowY, cell.y);
-    highX = Math.max(highX, cell.x + 1);
-    highY = Math.max(highY, cell.y + 1);
-  }
-  const span = Math.max(highX - lowX, highY - lowY) * cellSize + 6 * sigma;
-  const step = Math.max(cellSize / 4, span / MAX_GRID_SIDE);
-  const pad = Math.ceil((3 * sigma) / step + 1) * step;
-  const minX = lowX * cellSize - pad;
-  const maxY = highY * cellSize + pad;
-  const cols = Math.max(1, Math.ceil(((highX - lowX) * cellSize + 2 * pad) / step));
-  const rows = Math.max(1, Math.ceil(((highY - lowY) * cellSize + 2 * pad) / step));
-  const mass = new Float32Array(cols * rows);
-  const weighted = tone ? new Float32Array(cols * rows) : null;
-  for (const cell of cells) {
-    if (!(cell.count > 0)) continue;
-    const c0 = clamp(Math.floor((cell.x * cellSize - minX) / step), 0, cols - 1);
-    const c1 = clamp(Math.ceil(((cell.x + 1) * cellSize - minX) / step) - 1, c0, cols - 1);
-    const r0 = clamp(Math.floor((maxY - (cell.y + 1) * cellSize) / step), 0, rows - 1);
-    const r1 = clamp(Math.ceil((maxY - cell.y * cellSize) / step) - 1, r0, rows - 1);
-    const share = cell.count / ((c1 - c0 + 1) * (r1 - r0 + 1));
-    const strength = tone ? tone(cell) : 0;
-    for (let r = r0; r <= r1; r++) {
-      for (let c = c0; c <= c1; c++) {
-        mass[r * cols + c] += share;
-        if (weighted) weighted[r * cols + c] += share * strength;
-      }
-    }
-  }
-  const grid = { cols, rows };
-  blur(mass, grid, sigma / step);
+/** The kernel density of the bins, or null when there is nothing to paint. */
+export function heatDensity({ grid, bins, bandwidth, tone }: DensityInput): HeatDensity | null {
+  if (!(grid > 0) || bins.length === 0) return null;
+  const mass = new Float32Array(grid * grid);
+  const weighted = tone ? new Float32Array(grid * grid) : null;
+  bins.forEach(([column, row, count], index) => {
+    if (column < 0 || row < 0 || column >= grid || row >= grid || !(count > 0)) return;
+    mass[row * grid + column] += count;
+    if (weighted) weighted[row * grid + column] += count * (tone?.[index] ?? 0);
+  });
+  blur({ values: mass, grid, sigma: bandwidth });
   let toneOut: Float32Array | null = null;
   if (weighted) {
-    blur(weighted, grid, sigma / step);
-    toneOut = new Float32Array(cols * rows);
+    blur({ values: weighted, grid, sigma: bandwidth });
+    toneOut = new Float32Array(grid * grid);
     for (let i = 0; i < mass.length; i++) toneOut[i] = mass[i] > 1e-9 ? Math.min(1, Math.max(0, weighted[i] / mass[i])) : 0;
   }
   let peak = 0;
   for (const value of mass) peak = Math.max(peak, value);
-  return { cols, rows, minX, maxY, step, mass, tone: toneOut, peak };
+  return peak > 0 ? { grid, mass, tone: toneOut, peak } : null;
 }
 
-/** The world rectangle the grid covers, to place its image on the radar. */
-export function densityRect(grid: HeatDensity): WorldRect {
-  return { minX: grid.minX, minY: grid.maxY - grid.rows * grid.step, maxX: grid.minX + grid.cols * grid.step, maxY: grid.maxY };
+/** The picture of a density: RGBA pixels over grid squares [x, x + width) and [y, y + height), `scale` pixels per square. */
+export type DensityPicture = { rgba: Uint8ClampedArray<ArrayBuffer>; x: number; y: number; width: number; height: number; scale: number };
+
+/** A reader of a grid at any point, bilinear between square centres and 0 off the grid. */
+function sampler(values: Float32Array, grid: number): (gx: number, gy: number) => number {
+  const at = (x: number, y: number): number => (x < 0 || y < 0 || x >= grid || y >= grid ? 0 : values[y * grid + x]);
+  return (gx, gy) => {
+    const x0 = Math.floor(gx - 0.5);
+    const y0 = Math.floor(gy - 0.5);
+    const tx = gx - 0.5 - x0;
+    const ty = gy - 0.5 - y0;
+    const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+    const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+    return top * (1 - ty) + bottom * ty;
+  };
 }
 
-/**
- * RGBA pixels of the grid on the heat scale, read against `peak` (pass the
- * larger peak of two floors so both share one scale). The faint tail fades
- * out and the strongest spots stay translucent, so the map reads underneath.
- */
-export function densityRgba(grid: HeatDensity, peak: number = grid.peak): Uint8ClampedArray<ArrayBuffer> {
-  const out = new Uint8ClampedArray(grid.cols * grid.rows * 4);
-  if (!(peak > 0)) return out;
-  for (let i = 0; i < grid.mass.length; i++) {
-    const density = Math.min(1, grid.mass[i] / peak);
-    const edge = smoothstep(0.01, 0.08, density);
-    if (edge <= 0) continue;
-    // Counts are long-tailed, so the colour ramps on the square root, like the cells did.
-    const strength = grid.tone ? grid.tone[i] : Math.sqrt(density);
-    const [r, g, b] = heatRgb(strength);
-    out[i * 4] = r;
-    out[i * 4 + 1] = g;
-    out[i * 4 + 2] = b;
-    out[i * 4 + 3] = Math.round(255 * edge * (0.35 + 0.5 * Math.sqrt(density)));
+/** Filled contours of the density against `peak`; pass the larger peak of two floors so both read on one scale. */
+export function densityPicture(density: HeatDensity, peak: number = density.peak): DensityPicture | null {
+  const { grid, mass, tone } = density;
+  if (!(peak > 0)) return null;
+  const floor = peak / DENSITY_THRESHOLDS;
+  let left = grid;
+  let top = grid;
+  let right = -1;
+  let bottom = -1;
+  for (let row = 0; row < grid; row++) {
+    for (let column = 0; column < grid; column++) {
+      if (mass[row * grid + column] < floor / 2) continue;
+      left = Math.min(left, column);
+      right = Math.max(right, column);
+      top = Math.min(top, row);
+      bottom = Math.max(bottom, row);
+    }
   }
-  return out;
+  if (right < 0) return null;
+  const x = Math.max(0, left - 1);
+  const y = Math.max(0, top - 1);
+  const width = Math.min(grid, right + 2) - x;
+  const height = Math.min(grid, bottom + 2) - y;
+  const columns = width * PICTURE_SCALE;
+  const rows = height * PICTURE_SCALE;
+  const rgba = new Uint8ClampedArray(columns * rows * 4);
+  const massAt = sampler(mass, grid);
+  const toneAt = tone ? sampler(tone, grid) : null;
+  for (let py = 0; py < rows; py++) {
+    const gy = y + (py + 0.5) / PICTURE_SCALE;
+    for (let px = 0; px < columns; px++) {
+      const gx = x + (px + 0.5) / PICTURE_SCALE;
+      // Thresholds at k/24 of the peak: under the first stays clear, over the last is the top band.
+      const band = Math.min(DENSITY_THRESHOLDS - 1, Math.floor((massAt(gx, gy) / peak) * DENSITY_THRESHOLDS));
+      if (band < 1) continue;
+      const level = band / (DENSITY_THRESHOLDS - 1);
+      // Timing colours each band by how early its players got there; the rest by the density itself.
+      const strength = toneAt ? Math.round(toneAt(gx, gy) * DENSITY_THRESHOLDS) / DENSITY_THRESHOLDS : level;
+      const [r, g, b] = heatRgb(strength);
+      const i = (py * columns + px) * 4;
+      rgba[i] = r;
+      rgba[i + 1] = g;
+      rgba[i + 2] = b;
+      rgba[i + 3] = Math.round(255 * (0.3 + 0.55 * level));
+    }
+  }
+  return { rgba, x, y, width, height, scale: PICTURE_SCALE };
 }
 
-function blur(values: Float32Array, grid: { cols: number; rows: number }, sigma: number): void {
-  if (!(sigma >= 0.5)) return;
+/** A Gaussian blur in place, one axis then the other; the mass that leaves the grid is lost. */
+function blur({ values, grid, sigma }: { values: Float32Array; grid: number; sigma: number }): void {
+  if (!(sigma > 0)) return;
   const radius = Math.ceil(3 * sigma);
   const kernel = new Float32Array(2 * radius + 1);
   let sum = 0;
@@ -148,35 +145,25 @@ function blur(values: Float32Array, grid: { cols: number; rows: number }, sigma:
     sum += kernel[k + radius];
   }
   for (let k = 0; k < kernel.length; k++) kernel[k] /= sum;
-  const { cols, rows } = grid;
   const temp = new Float32Array(values.length);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+  for (let r = 0; r < grid; r++) {
+    for (let c = 0; c < grid; c++) {
       let acc = 0;
       for (let k = -radius; k <= radius; k++) {
         const x = c + k;
-        if (x >= 0 && x < cols) acc += values[r * cols + x] * kernel[k + radius];
+        if (x >= 0 && x < grid) acc += values[r * grid + x] * kernel[k + radius];
       }
-      temp[r * cols + c] = acc;
+      temp[r * grid + c] = acc;
     }
   }
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
+  for (let c = 0; c < grid; c++) {
+    for (let r = 0; r < grid; r++) {
       let acc = 0;
       for (let k = -radius; k <= radius; k++) {
         const y = r + k;
-        if (y >= 0 && y < rows) acc += temp[y * cols + c] * kernel[k + radius];
+        if (y >= 0 && y < grid) acc += temp[y * grid + c] * kernel[k + radius];
       }
-      values[r * cols + c] = acc;
+      values[r * grid + c] = acc;
     }
   }
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
-}
-
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
-  return t * t * (3 - 2 * t);
 }

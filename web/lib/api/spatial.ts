@@ -44,19 +44,31 @@ export type HeatmapCell = {
 
 export type HeatmapSideTotal = { side: TacticalSide; level: string; total: number; rounds: number; max_count: number };
 
+/** The marks of one side and level on a `density_grid` square grid over the radar square: [column, row, count], row 0 at the top. */
+export type HeatDensityLayer = {
+  side: TacticalSide;
+  level: string;
+  bins: [number, number, number][];
+  /** Each bin's mean seconds after freeze end, in `bins` order; only for timing. */
+  seconds?: number[];
+};
+
 export type Heatmap = {
   kind: HeatmapKind;
   kill_at?: KillSpot;
   window: HeatmapWindow;
   grenades?: TacticalEventKind[];
   cell_size: number;
-  step_seconds: number;
+  /** Instants of each round the position kind reads. */
+  samples_per_round: number;
   example_limit: number;
   matches: number;
   rounds: number;
   missing_positions: number;
   sides: HeatmapSideTotal[];
   cells: HeatmapCell[];
+  density_grid: number;
+  density: HeatDensityLayer[];
 };
 
 export type OverlayTrack = {
