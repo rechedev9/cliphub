@@ -330,7 +330,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'En el radar',
-        text: 'Cada punto es dónde cae un lineup. Ábrelo para ver desde dónde se lanza, con qué técnica y cuánto tarda en caer.',
+        text: 'Elige dónde quieres que caiga la granada y verás cada sitio desde el que la lanzan los pros, con su técnica, su vídeo y su posición.',
       },
       {
         term: 'Con su uso pro',

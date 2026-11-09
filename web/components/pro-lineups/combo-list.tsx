@@ -1,109 +1,134 @@
 'use client';
 
-import Link from 'next/link';
-import { useMemo, useState, type ReactNode } from 'react';
-import { Crosshair, Play } from 'lucide-react';
-import {
-  lineupHref,
-  pct,
-  practiceSpot,
-  roundClock,
-  type ProCombo,
-  type ProLineup,
-  type ProLineupMap,
-} from '@/lib/api/pro-lineups';
-import type { PracticeSpot } from '@/lib/api/practice';
-import type { TacticalSide } from '@/lib/api/tactical';
+import type { ReactNode } from 'react';
+import { ChevronLeft, ChevronRight, Crosshair, Play } from 'lucide-react';
+import { pct, practiceSpot, PRO_LINEUP_KINDS, roundClock, techniqueLabel, type ProCombo, type ProLineup } from '@/lib/api/pro-lineups';
+import { grenadeIcon } from '@/lib/analysis/icons';
+import { spotLabel } from '@/lib/pro-lineups-view';
+import { GRENADE_KIND_TOKEN } from '@/components/patterns/grenade-radar';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
+import { EquipmentIcon } from '@/components/ui/equipment-icon';
+import { cn } from '@/lib/utils';
 import { ClipVideo } from './throw-clip';
 
-const PAGE = 40;
-
-/** The combos pros run on the map, most rounds first, each with its lineups and a practice button. */
-export function ComboList({ data, side, video }: { data: ProLineupMap; side: TacticalSide | ''; video: boolean }): ReactNode {
-  const [shown, setShown] = useState(PAGE);
-  const practice = usePracticeLaunch(data.map);
-  const byId = useMemo(() => new Map(data.lineups.map((l) => [l.id, l])), [data.lineups]);
-  const combos = data.combos.filter((combo) => (side === '' || combo.side === side) && (!video || Boolean(combo.clip)));
-  if (combos.length === 0) {
-    return (
-      <p className="text-body-sm text-fg-2">
-        {video ? 'Ningún combo con vídeo en este lado. Quita «Con vídeo» para ver todos.' : 'Aún no hay combos que varios equipos repitan en este lado.'}
-      </p>
-    );
-  }
+/** "2 humos, 1 flash" as icons: what a combo throws at a glance. */
+function Makeup({ lineups }: { lineups: readonly ProLineup[] }): ReactNode {
   return (
-    <section aria-label="Combos" className="flex flex-col gap-2">
-      <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface-1">
-        {combos.slice(0, shown).map((combo) => (
-          <ComboRow
-            key={combo.id}
-            map={data.map}
-            combo={combo}
-            lineups={combo.lineups.flatMap((id) => byId.get(id) ?? [])}
-            busy={practice.state.kind === 'busy'}
-            onPractice={(spots) => practice.launch(spots)}
-          />
-        ))}
-      </ul>
-      {combos.length > shown ? (
-        <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setShown((n) => n + PAGE)}>
-          Mostrar {Math.min(PAGE, combos.length - shown)} más
-        </Button>
-      ) : null}
-    </section>
+    <span className="flex items-center gap-2">
+      {PRO_LINEUP_KINDS.map((kind) => {
+        const count = lineups.filter((l) => l.kind === kind).length;
+        if (count === 0) return null;
+        return (
+          <span key={kind} className="inline-flex items-center gap-0.5 text-meta text-fg-2 tabular-nums">
+            <span aria-hidden className="flex" style={{ color: `var(${GRENADE_KIND_TOKEN[kind]})` }}>
+              <EquipmentIcon name={grenadeIcon(kind)} height={14} />
+            </span>
+            {count}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
-function ComboRow({
+function comboFacts(combo: ProCombo): string {
+  return `${combo.side} · ${combo.rounds.recent} rondas · ${combo.team_count} equipos · ${pct(combo.round_win)} ganadas`;
+}
+
+/** The combos the filters keep, most rounds first; picking one draws it on the map. */
+export function ComboList({
+  combos,
+  lineupsOf,
+  video,
+  hover,
+  onHover,
+  onOpen,
+}: {
+  combos: readonly ProCombo[];
+  lineupsOf: (combo: ProCombo) => ProLineup[];
+  video: boolean;
+  hover: string | null;
+  onHover: (id: string | null) => void;
+  onOpen: (combo: ProCombo) => void;
+}): ReactNode {
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-body font-semibold text-fg-1 tabular-nums">
+        {combos.length} {combos.length === 1 ? 'combo' : 'combos'}
+      </h2>
+      {combos.length === 0 ? (
+        <p className="rounded-lg border border-border bg-surface-1 px-3 py-3 text-body-sm text-fg-2">
+          {video ? 'Ningún combo con vídeo en este lado. Quita «Con vídeo» para ver todos.' : 'Aún no hay combos que varios equipos repitan en este lado.'}
+        </p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface-1">
+          {combos.map((combo) => (
+            <li key={combo.id} onPointerEnter={() => onHover(combo.id)} onPointerLeave={() => onHover(null)}>
+              <button
+                type="button"
+                onClick={() => onOpen(combo)}
+                onFocus={() => onHover(combo.id)}
+                onBlur={() => onHover(null)}
+                className={cn(
+                  'flex min-h-11 w-full items-start gap-3 px-3 py-2.5 text-left transition-[background-color] hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none',
+                  hover === combo.id && 'bg-surface-2',
+                )}
+              >
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="text-body-sm font-medium text-fg-1">{combo.title}</span>
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <Makeup lineups={lineupsOf(combo)} />
+                    <span className="text-meta text-fg-2 tabular-nums">{comboFacts(combo)}</span>
+                  </span>
+                </span>
+                {!video && combo.clip ? <Play aria-label="Con vídeo" className="mt-1 size-3.5 shrink-0 text-fg-2" /> : null}
+                <ChevronRight aria-hidden className="mt-1 size-4 shrink-0 text-fg-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** One combo: its clip, its throws in order and practice for all of them at once. */
+export function ComboOpen({
   map,
   combo,
   lineups,
-  busy,
-  onPractice,
+  hover,
+  onHover,
+  onLineup,
+  onBack,
 }: {
   map: string;
   combo: ProCombo;
-  lineups: ProLineup[];
-  busy: boolean;
-  onPractice: (spots: PracticeSpot[]) => void;
+  lineups: readonly ProLineup[];
+  hover: string | null;
+  onHover: (id: string | null) => void;
+  onLineup: (lineup: ProLineup) => void;
+  onBack: () => void;
 }): ReactNode {
-  const teams = combo.teams.slice(0, 3).map((team) => team.name).join(', ');
-  const [watching, setWatching] = useState(false);
+  const practice = usePracticeLaunch(map);
   const recorded = combo.examples.find((example) => example.clip !== undefined && example.clip === combo.clip);
+  const teams = combo.teams.slice(0, 3).map((team) => team.name).join(', ');
   return (
-    <li className="flex flex-col gap-2 px-3 py-3">
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-body-sm font-medium text-fg-1">{combo.title}</span>
-          <span className="text-meta text-fg-2 tabular-nums">
-            {combo.side} · {combo.rounds.recent} rondas · {combo.team_count} equipos · {pct(combo.round_win)} ganadas · empieza a{' '}
-            {roundClock(combo.clock)}
-            {teams === '' ? null : ` · ${teams}`}
-          </span>
-        </div>
-        {combo.clip === undefined ? null : (
-          <Button type="button" variant="ghost" size="xs" className="ml-auto" aria-expanded={watching} onClick={() => setWatching((w) => !w)}>
-            <Play aria-hidden />
-            {watching ? 'Ocultar vídeo' : 'Ver vídeo'}
-          </Button>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className={combo.clip === undefined ? 'ml-auto' : undefined}
-          disabled={busy || lineups.length === 0}
-          onClick={() => onPractice(lineups.map(practiceSpot))}
-        >
-          <Crosshair aria-hidden />
-          Practicar combo
-        </Button>
+    <div className="flex flex-col gap-3">
+      <Button type="button" variant="ghost" size="xs" className="-ml-2 self-start" onClick={onBack}>
+        <ChevronLeft aria-hidden />
+        Combos
+      </Button>
+      <div>
+        <h2 className="text-body font-semibold text-fg-1">{combo.title}</h2>
+        <p className="text-meta text-fg-2 tabular-nums">
+          {comboFacts(combo)} · empieza a {roundClock(combo.clock)}
+        </p>
+        {teams === '' ? null : <p className="text-meta text-fg-2">Lo tiran {teams}</p>}
       </div>
-      {watching && combo.clip !== undefined ? (
-        <figure className="flex max-w-2xl flex-col gap-1.5">
+      {combo.clip === undefined ? null : (
+        <figure className="flex flex-col gap-1.5">
           <ClipVideo clip={combo.clip} label={`Combo ${combo.title}`} />
           {recorded === undefined ? null : (
             <figcaption className="text-meta text-fg-2">
@@ -111,17 +136,45 @@ function ComboRow({
             </figcaption>
           )}
         </figure>
-      ) : null}
-      <ol className="flex flex-col gap-1 pl-1">
+      )}
+      <ol className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface-1">
         {lineups.map((lineup, index) => (
-          <li key={lineup.id} className="flex gap-2 text-body-sm">
-            <span className="w-4 shrink-0 text-fg-3 tabular-nums">{index + 1}</span>
-            <Link href={lineupHref(map, lineup)} className="text-fg-1 underline-offset-2 hover:underline">
-              {lineup.title}
-            </Link>
+          <li key={lineup.id} onPointerEnter={() => onHover(lineup.id)} onPointerLeave={() => onHover(null)}>
+            <button
+              type="button"
+              onClick={() => onLineup(lineup)}
+              onFocus={() => onHover(lineup.id)}
+              onBlur={() => onHover(null)}
+              className={cn(
+                'flex min-h-11 w-full items-start gap-3 px-3 py-2.5 text-left transition-[background-color] hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none',
+                hover === lineup.id && 'bg-surface-2',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'flex size-6 shrink-0 items-center justify-center rounded-full text-meta font-semibold text-surface-0 tabular-nums',
+                  lineup.side === 'CT' ? 'bg-side-ct' : 'bg-side-t',
+                )}
+              >
+                {index + 1}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-body-sm font-medium text-fg-1">{spotLabel({ kind: lineup.kind, place: lineup.land_place })}</span>
+                <span className="text-meta text-fg-2">
+                  Desde {lineup.throw_place || 'zona sin nombre'} · {techniqueLabel(lineup)}
+                </span>
+              </span>
+              <ChevronRight aria-hidden className="mt-1 size-4 shrink-0 text-fg-3" />
+            </button>
           </li>
         ))}
       </ol>
-    </li>
+      <Button type="button" size="sm" className="self-start" disabled={practice.state.kind === 'busy' || lineups.length === 0} onClick={() => practice.launch(lineups.map(practiceSpot))}>
+        <Crosshair aria-hidden />
+        Practicar combo
+      </Button>
+      <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
+    </div>
   );
 }

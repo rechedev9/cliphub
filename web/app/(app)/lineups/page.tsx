@@ -6,7 +6,7 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 export default function LineupsPage(): ReactNode {
   return (
     <div className="measure-work flex flex-col gap-5">
-      <StudioPageHeader title="Lineups pro" description="Humos, flashes, molotovs y HE que los pros repiten, leídos de sus demos. Elige un mapa." />
+      <StudioPageHeader title="Lineups pro" description="Humos, flashes, molotovs y HE que los pros repiten, leídos de sus demos." />
       <LineupMaps />
     </div>
   );
