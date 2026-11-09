@@ -6,19 +6,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const testDemoID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+const (
+	testDemoID  = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+	testDemoID2 = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
+)
 
-// fakeLibrary is an orchestrator holding one ready demo; it records PATCH bodies and deletes.
+// fakeLibrary is an orchestrator holding two ready demos; it records PATCH bodies and deleted ids.
 type fakeLibrary struct {
 	mu      sync.Mutex
 	patches []string
-	deletes int
+	deleted []string
 }
 
 func (f *fakeLibrary) connect(t *testing.T) *mcp.ClientSession {
@@ -26,7 +30,9 @@ func (f *fakeLibrary) connect(t *testing.T) *mcp.ClientSession {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	demo := `{"id":"` + testDemoID + `","file_name":"final.dem","state":"ready","source":"faceit","tags":["ESL"],"imported_at":"2026-11-01T10:00:00Z"}`
+	demo2 := `{"id":"` + testDemoID2 + `","file_name":"semi.dem","state":"ready","source":"faceit","tags":[],"imported_at":"2026-11-02T10:00:00Z"}`
 	mux.HandleFunc("GET /api/library/demos/"+testDemoID, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(demo)) })
+	mux.HandleFunc("GET /api/library/demos/"+testDemoID2, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(demo2)) })
 	mux.HandleFunc("PATCH /api/library/demos/"+testDemoID, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
@@ -34,9 +40,9 @@ func (f *fakeLibrary) connect(t *testing.T) *mcp.ClientSession {
 		f.mu.Unlock()
 		_, _ = w.Write([]byte(demo))
 	})
-	mux.HandleFunc("DELETE /api/library/demos/"+testDemoID, func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("DELETE /api/library/demos/{id}", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
-		f.deletes++
+		f.deleted = append(f.deleted, r.PathValue("id"))
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -85,14 +91,35 @@ func TestDeleteDemoNeedsTheApprovalCode(t *testing.T) {
 	cs := f.connect(t)
 	var ask deleteOut
 	callTool(t, cs, "delete_demo", map[string]any{"id": testDemoID}, &ask)
-	if !ask.NeedsApproval || ask.ApprovalCode == "" || f.deletes != 0 {
-		t.Fatalf("first call = %+v, deletes %d", ask, f.deletes)
+	if !ask.NeedsApproval || ask.ApprovalCode == "" || len(f.deleted) != 0 {
+		t.Fatalf("first call = %+v, deleted %q", ask, f.deleted)
 	}
 	toolFails(t, cs, "delete_demo", map[string]any{"id": testDemoID, "approve": "0000"}, "not valid")
 	var done deleteOut
 	callTool(t, cs, "delete_demo", map[string]any{"id": testDemoID, "approve": ask.ApprovalCode}, &done)
-	if !done.Deleted || f.deletes != 1 {
-		t.Fatalf("approved call = %+v, deletes %d", done, f.deletes)
+	if !done.Deleted || !slices.Equal(f.deleted, []string{testDemoID}) {
+		t.Fatalf("approved call = %+v, deleted %q", done, f.deleted)
 	}
 	toolFails(t, cs, "delete_demo", map[string]any{"id": "../jobs"}, "id")
+}
+
+// Several demos go under one approval, and the code for one set does not approve another.
+func TestDeleteDemoRemovesSeveralWithOneApproval(t *testing.T) {
+	f := &fakeLibrary{}
+	cs := f.connect(t)
+	both := []string{testDemoID, testDemoID2}
+	var ask deleteOut
+	callTool(t, cs, "delete_demo", map[string]any{"ids": both}, &ask)
+	if !ask.NeedsApproval || !strings.Contains(ask.Summary, "2 partidas") || !strings.Contains(ask.Summary, "semi.dem") {
+		t.Fatalf("first call = %+v", ask)
+	}
+	toolFails(t, cs, "delete_demo", map[string]any{"ids": []string{testDemoID2}, "approve": ask.ApprovalCode}, "not valid")
+	var done deleteOut
+	callTool(t, cs, "delete_demo", map[string]any{"ids": both, "approve": ask.ApprovalCode}, &done)
+	if !done.Deleted || !slices.Equal(f.deleted, both) {
+		t.Fatalf("approved call = %+v, deleted %q", done, f.deleted)
+	}
+	toolFails(t, cs, "delete_demo", map[string]any{"id": testDemoID, "ids": both}, "not both")
+	toolFails(t, cs, "delete_demo", map[string]any{"ids": []string{testDemoID, testDemoID}}, "twice")
+	toolFails(t, cs, "delete_demo", map[string]any{}, "required")
 }
