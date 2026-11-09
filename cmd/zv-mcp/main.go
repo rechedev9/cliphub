@@ -58,7 +58,8 @@ each percent in chat.
 Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
-For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
+For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.

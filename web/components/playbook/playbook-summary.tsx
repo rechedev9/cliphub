@@ -101,6 +101,66 @@ export function CategoryGrid({
   );
 }
 
+/** The round types as a table with its columns named: how often, how often won, and over how many rounds. */
+export function CategoryTable({ playbook, reference = null }: { playbook: TeamPlaybook; reference?: RatePool | null }): ReactNode {
+  return (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <table aria-label="Tipos de ronda" className="w-full border-collapse text-left text-body-sm">
+        <thead className="bg-surface-2 text-meta text-fg-3">
+          <tr className="border-b border-border">
+            <th scope="col" className="h-8 px-2.5 font-medium">
+              Tipo de ronda
+            </th>
+            <th scope="col" className="h-8 px-2.5 text-right font-medium">
+              Uso
+            </th>
+            <th scope="col" className="h-8 px-2.5 text-right font-medium">
+              Gana
+            </th>
+            <th scope="col" className="h-8 px-2.5 text-right font-medium">
+              Rondas
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {playbook.categories.map((category) => {
+            const label = playbookCategoryLabel(category.category);
+            const empty = category.rounds === 0;
+            return (
+              <tr key={category.category} className={cn('border-b border-border-subtle last:border-b-0', empty && 'text-fg-3')}>
+                <th scope="row" className="px-2.5 py-1.5 font-medium text-fg-1">
+                  {label}
+                </th>
+                <td className="px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap">
+                  {Math.round(category.share.pct)} %
+                  <Arrow value={category.share.pct} reference={reference?.pct(categoryKey('used', category.category), 10) ?? null} colored={false} />
+                </td>
+                <td className="px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap">
+                  {empty ? '' : `${Math.round(category.win_rate.pct)} %`}
+                  {empty ? null : <Arrow value={category.win_rate.pct} reference={reference?.pct(categoryKey('won', category.category), 6) ?? null} colored />}
+                </td>
+                <td className="px-2.5 py-1.5 text-right tabular-nums">
+                  {empty ? (
+                    0
+                  ) : (
+                    <Link
+                      href={replayHref(evidenceRefs(category.refs), playbookReplayTitle(playbook, label))}
+                      title="Ver estas rondas en el Replay"
+                      className="underline decoration-fg-4 underline-offset-2 hover:decoration-fg-1 print:no-underline"
+                    >
+                      {category.rounds}
+                    </Link>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Where the side's rounds went: A, B or mid, each with its share, count and wins. */
 export function SiteBars({ playbook }: { playbook: TeamPlaybook }): ReactNode {
   const sites = playbook.sites.filter((site) => site.site !== 'none' || site.rounds > 0);

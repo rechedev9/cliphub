@@ -12,16 +12,32 @@ import { ROLE_LABEL } from '@/lib/library/partidas';
 import { buyLabel, placeLabel } from '@/lib/tactical-labels';
 import { HeatTable, type HeatCell, type HeatColumn, type HeatRow } from '@/components/ui/heat-table';
 import { BarList } from '@/components/playbook/bars';
-import { CategoryGrid, SiteBars, TempoChart } from '@/components/playbook/playbook-summary';
+import { CategoryTable, SiteBars, TempoChart } from '@/components/playbook/playbook-summary';
 import { CtPositionsMap, playerColor } from './ct-positions-map';
 import type { RatePool } from '@/lib/analysis/library-pool';
 
 const SIDES: readonly TacticalSide[] = ['CT', 'T'];
 
-export function PrepSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
+export function PrepSection({
+  title,
+  hint,
+  action,
+  children,
+}: {
+  title: string;
+  /** What the section's figures do, beside the title. */
+  hint?: string;
+  /** The door to the Replay form that shows this section. */
+  action?: ReactNode;
+  children: ReactNode;
+}): ReactNode {
   return (
     <section aria-label={title} className="flex flex-col gap-2 print:break-inside-avoid">
-      <h2 className="text-body font-semibold text-fg-1">{title}</h2>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="text-body font-semibold text-fg-1">{title}</h2>
+        {hint === undefined ? null : <p className="text-meta text-fg-3 print:hidden">{hint}</p>}
+        {action === undefined ? null : <div className="ml-auto">{action}</div>}
+      </div>
       {children}
     </section>
   );
@@ -201,9 +217,9 @@ export function PlaybookBrief({ playbook, library }: { playbook: TeamPlaybook; l
   return (
     <div className="flex flex-col gap-3">
       <p className="text-body-sm text-fg-2">
-        Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas de {playbook.side}.{library ? ' En cada tipo, ▲▼ frente a la biblioteca en el mismo mapa y lado: cuánto lo usan y cuánto ganan.' : ''}
+        Gana el {Math.round(playbook.win_rate.pct)} % de sus {playbook.round_count} rondas de {playbook.side}.{library ? ' ▲▼ compara con la biblioteca en el mismo mapa y lado.' : ''}
       </p>
-      <CategoryGrid playbook={playbook} compact reference={library} />
+      <CategoryTable playbook={playbook} reference={library} />
       <div className="grid gap-2 lg:grid-cols-2 print:grid-cols-2">
         <div className="studio-panel flex flex-col gap-1.5 px-3 py-2.5">
           <h3 className="text-body-sm font-semibold text-fg-1">Sitios</h3>

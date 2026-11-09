@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, BookMarked, GitMerge, Pencil, PlugZap, Shield } from 'lucide-react';
 import {
   getLibraryTeam,
@@ -30,7 +30,6 @@ import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
 import { MapLabel } from '@/components/analysis/map-thumb';
 import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
-import { TeamGrenades } from '@/components/patterns/team-grenades';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { EmptyState } from '@/components/records/empty-state';
 import { RecordHeader } from '@/components/records/record-header';
@@ -56,11 +55,13 @@ import { cn } from '@/lib/utils';
 import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
 import { TeamRoster } from './team-roster';
-import { TeamScout } from './team-scout';
+import { TeamPrepare } from './team-prepare';
+import { TEAM_REPLAY_FORMS, TeamReplay, type TeamReplayForm } from './team-replay';
+import { REPLAY_FORM_QUERY } from '@/lib/replay/forms';
+import { writeTab } from '@/lib/analysis/context-bar';
 import { TeamPlaybook } from '@/components/playbook/team-playbook';
 import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
-import { TeamSpatial } from './team-spatial';
 import { TeamTrend } from './team-trend';
 
 type Loaded = { team: LibraryTeam; matches: LibraryMatch[] };
@@ -138,20 +139,38 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   mapas: ['map', 'period'],
   veto: ['opponent'],
   sitios: ['map', 'period', 'opponent'],
-  scouting: ['map', 'side', 'period', 'opponent'],
+  preparar: ['map', 'side', 'period', 'opponent'],
   playbook: ['map', 'side', 'period', 'opponent'],
-  radar: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
-  granadas: ['map', 'side', 'period', 'buy', 'opponent'],
+  replay: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
+  'replay-granadas': ['map', 'side', 'period', 'buy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
-const REPORTING_TABS = new Set(['mapas', 'sitios', 'scouting', 'playbook', 'radar', 'granadas']);
-const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'series', 'veto', 'sitios', 'scouting', 'playbook', 'radar', 'granadas'];
+const REPORTING_TABS = new Set(['mapas', 'sitios', 'preparar', 'playbook', 'replay']);
+const TEAM_TABS = ['plantilla', 'partidas', 'mapas', 'series', 'veto', 'sitios', 'preparar', 'playbook', 'replay'];
+/** Tabs of older links: Scouting is in Preparar, and the radar and the grenades are forms of the Replay. */
+const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', radar: 'replay', granadas: 'replay' };
+const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
   const { team, matches } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
-  const [tab, setTab] = useRecordTab(TEAM_TABS, 'plantilla');
+  const [rawTab, setTab] = useRecordTab(QUERY_TABS, 'plantilla');
+  const tab = LEGACY_TABS[rawTab] ?? rawTab;
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const askedForm = search.get(REPLAY_FORM_QUERY) ?? (rawTab === 'granadas' ? 'granadas' : '');
+  const replayForm: TeamReplayForm = TEAM_REPLAY_FORMS.find((entry) => entry === askedForm) ?? 'calor';
+  // One replace for the tab and the form, so neither write loses the other.
+  const openReplay = useCallback(
+    (form: TeamReplayForm) => {
+      const params = new URLSearchParams(writeTab(search.toString(), 'replay', 'plantilla'));
+      params.set(REPLAY_FORM_QUERY, form);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, search],
+  );
   const [reported, setReported] = useState<ScopeCounts | null>(null);
   const [teams, setTeams] = useState<LibraryTeam[] | null>(null);
   const [now] = useState(() => Date.now());
@@ -203,7 +222,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   else if (tab === 'veto') counts = undefined;
   // Until a map (and for Playbook a side) is picked there is nothing counted yet: no 0 mapas · 0 rondas.
   if (tab === 'playbook' && (scope.map === '' || scope.side === '')) counts = undefined;
-  if (tab === 'granadas' && scope.map === '') counts = undefined;
+  if (tab === 'replay' && replayForm === 'granadas' && scope.map === '') counts = undefined;
   const results = lastResults(
     scoped.map((match) => ({ playedAt: match.played_at, outcome: teamOutcome(match, team.id) })),
     10,
@@ -227,7 +246,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           fields={fields}
           entity={entity}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
-          mapRequired={id === 'playbook' || id === 'granadas'}
+          mapRequired={id === 'playbook' || id === 'replay-granadas'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
@@ -323,9 +342,12 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} onCounts={onCounts} />),
           },
           {
-            id: 'scouting',
-            label: 'Scouting',
-            content: withScope('scouting', <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />),
+            id: 'preparar',
+            label: 'Preparar',
+            content: withScope(
+              'preparar',
+              <TeamPrepare team={team} matches={scoped} maps={teamMaps} scope={scope} onMapChange={onMapChange} onOpenReplay={openReplay} onCounts={onCounts} />,
+            ),
           },
           {
             id: 'playbook',
@@ -333,19 +355,22 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />),
           },
           {
-            id: 'radar',
+            id: 'replay',
             label: 'Replay',
             content: withScope(
-              'radar',
-              <TeamSpatial teamId={team.id} scope={scope} onMapChange={onMapChange} onCounts={onCounts} />,
-            ),
-          },
-          {
-            id: 'granadas',
-            label: 'Granadas',
-            content: withScope(
-              'granadas',
-              <TeamGrenades teamId={team.id} scope={scope} matches={matches} onMapChange={onMapChange} onCounts={onCounts} />,
+              replayForm === 'granadas' ? 'replay-granadas' : 'replay',
+              <TeamReplay
+                teamId={team.id}
+                scope={scope}
+                matches={matches}
+                form={replayForm}
+                onFormChange={(form) => {
+                  setReported(null);
+                  openReplay(form);
+                }}
+                onMapChange={onMapChange}
+                onCounts={onCounts}
+              />,
             ),
           },
         ]}

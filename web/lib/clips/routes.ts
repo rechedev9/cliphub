@@ -156,6 +156,13 @@ export function newReportHref(teamId: string): string {
 /** Query keys of the printable rival prep: team id, map, and optional days `YYYY-MM-DD`. */
 export const PREP_QUERY = { team: 'team', map: 'map', from: 'from', to: 'to' } as const;
 
+/** A team's Preparar tab, on one map when it is known. */
+export function teamPrepareHref(teamId: string, map = ''): string {
+  const params = new URLSearchParams({ tab: 'preparar' });
+  if (map !== '') params.set('map', map);
+  return `${teamHref(teamId)}?${params.toString()}`;
+}
+
 /** The printable prep of a rival on one map. */
 export function prepHref(prep: { teamId: string; map: string; from?: string; to?: string }): string {
   const params = new URLSearchParams({ [PREP_QUERY.team]: prep.teamId, [PREP_QUERY.map]: prep.map });
