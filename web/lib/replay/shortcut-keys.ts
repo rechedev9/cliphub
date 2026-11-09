@@ -45,6 +45,11 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   ' ': 'play',
   '[': 'round-prev',
   ']': 'round-next',
+  // J and K as in Skybox EDGE, for teams used to it.
+  j: 'round-prev',
+  J: 'round-prev',
+  k: 'round-next',
+  K: 'round-next',
 };
 
 /** Which replay shortcut a key press asks for, or null when it is not one. */

@@ -13,7 +13,7 @@ import {
 } from 'react';
 import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
-import type { RadarRect } from '@/lib/tactical-transform';
+import type { RadarRect, WorldMark } from '@/lib/tactical-transform';
 import { radarProjection, renderedToWorld } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
@@ -36,7 +36,7 @@ export type RadarFrame = {
 /** Lets the owner repaint the marks without React rendering, from an animation loop. */
 export type RadarSurfaceHandle = { repaint: () => void };
 
-const FULL_VIEW: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
+const NO_MARKS: readonly WorldMark[] = [];
 
 /** Same height ceiling as the round replay, so the two views share one plate size. */
 const RADAR_MAX_HEIGHT_VH = 74;
@@ -83,11 +83,14 @@ export function RadarSurface({
   handleRef,
   onPoint,
   label,
+  marks = NO_MARKS,
   children,
 }: {
   geometry: TacticalGeometry;
   level: RadarLevel;
   paint: (frame: RadarFrame) => void;
+  /** World positions `paint` and `children` draw at; the crop grows to keep each in reach. Memoize it. */
+  marks?: readonly WorldMark[];
   handleRef?: RefObject<RadarSurfaceHandle | null>;
   /** A click on the plate, in world units. */
   onPoint?: (world: { x: number; y: number }) => void;
@@ -107,11 +110,10 @@ export function RadarSurface({
   // A derived calibration does not line up with the image, so such a map keeps its cells.
   const radar = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
   const image = radarImageFits(geometry.calibration) ? radar : null;
-  // Until the image settles the framing is unknown: nothing is drawn and the map takes no zoom,
-  // so the crop does not jump and no zoom is lost when it settles.
+  // Until the image settles nothing is drawn, so the cells never flash before it, and the map takes no zoom.
   const settled = image !== undefined;
-  // The whole map like the game's radar; only the play-derived cells are cropped to where people played.
-  const base = useMemo(() => (image === null ? radarViewRect(geometry) : FULL_VIEW), [geometry, image]);
+  // Image or cells, the plate is cropped to where people played and the marks: a tall map stays tall, a wide one wide.
+  const base = useMemo(() => radarViewRect(geometry, marks), [geometry, marks]);
   const zoom = useMapZoom(base, { enabled: settled });
   const view = zoom.view;
   const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);

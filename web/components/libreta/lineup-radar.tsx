@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchTacticalDocument, type TacticalGeometry, type TacticalSide } from '@/lib/api/tactical';
 import { levelForAltitude, worldToRendered } from '@/lib/tactical-transform';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
@@ -58,6 +58,7 @@ export function LineupRadar({ matchId, side, origin, landing }: { matchId: strin
     },
     [geometry, origin, landing, side],
   );
+  const marks = useMemo(() => [origin, landing], [origin, landing]);
 
   if (geometry === 'failed') {
     return <p className="text-body-sm text-fg-2">No se pudo leer el radar de la partida de la que sale este lineup.</p>;
@@ -69,6 +70,7 @@ export function LineupRadar({ matchId, side, origin, landing }: { matchId: strin
         geometry={geometry}
         level={levelForAltitude(geometry.calibration, origin[2])}
         paint={paint}
+        marks={marks}
         label="Radar del lineup: desde dónde se lanza y dónde cae"
       />
       <p className="text-meta text-fg-3">Punto: desde dónde se lanza. Círculo: dónde cae.</p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchTacticalDocument, RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import type { PlayGrenade, PlayGrenadeKind, PlayPosition } from '@/lib/api/stratbook';
 import { GRENADE_LABEL } from '@/lib/stratbook/plays';
@@ -87,6 +87,7 @@ export function PlayRadar({
     },
     [geometry, grenades, positions, side, level],
   );
+  const marks = useMemo(() => [...grenades.map((grenade) => grenade.pos), ...positions.map((position) => position.pos)], [grenades, positions]);
 
   if (matchId === undefined) {
     return <p className="text-body-sm text-fg-2">Esta jugada no tiene ninguna ronda de ejemplo en la biblioteca, así que no hay radar sobre el que dibujarla.</p>;
@@ -112,6 +113,7 @@ export function PlayRadar({
         geometry={geometry}
         level={level}
         paint={paint}
+        marks={marks}
         label={`Radar de la jugada: ${grenades.length} granadas y ${positions.length} posiciones`}
       />
       <p className="text-meta text-fg-3">

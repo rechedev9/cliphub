@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useMemo, type CSSProperties, type ReactNode } from 'react';
 import type { ProLineupKind } from '@/lib/api/pro-lineups';
 import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tactical';
 import { grenadeIcon } from '@/lib/analysis/icons';
@@ -100,9 +100,10 @@ export function ProLineupRadar({ geometry, level, spots = [], throws = [], onSpo
     },
     [geometry.calibration, throws],
   );
+  const marks = useMemo(() => [...spots.map((spot) => spot.at), ...throws.flatMap((shot) => [shot.from, shot.to])], [spots, throws]);
 
   return (
-    <RadarSurface geometry={geometry} level={level} paint={paint} label={label}>
+    <RadarSurface geometry={geometry} level={level} paint={paint} marks={marks} label={label}>
       {(projection) => (
         <>
           {/* Most thrown last, so it sits on top where points pile up. */}

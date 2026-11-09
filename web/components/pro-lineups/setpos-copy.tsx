@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from 'react';
 import { Copy } from 'lucide-react';
-import { setposCommand, type ProLineup } from '@/lib/api/pro-lineups';
+import type { ProLineup } from '@/lib/api/pro-lineups';
+import { setposCommand } from '@/lib/libreta/lineups';
 import { Button } from '@/components/ui/button';
 
 /** The console line that stands you on the lineup, with a copy button. */

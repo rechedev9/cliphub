@@ -14,11 +14,7 @@ import { ReplayClock } from '@/lib/replay/clock';
 import { DEFAULT_LAYERS, showAllPlayers, toggleLayer, togglePlayer } from '@/lib/replay/layers';
 import { pickPlayer } from '@/lib/replay/player-focus';
 import { roundOutcome } from '@/lib/replay/round-outcome';
-import { withSetpos } from '@/lib/replay/setpos';
-import type { SetposCopy } from '@/lib/replay/setpos';
-import { sampleSetpos } from '@/lib/libreta/lineups';
-import { writeClipboardText } from '@/lib/clipboard-write';
-import { frameCursor } from '@/lib/tactical-replay';
+import { playerSetpos } from '@/lib/replay/setpos';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
@@ -60,9 +56,11 @@ import { ReplayTimeline } from './replay-timeline';
 import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
+import { SetposNotice } from './setpos-notice';
 import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
 import { useKeyMoments } from './use-key-moments';
+import { useSetposCopies } from './use-setpos-copies';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
 import type { WinStripState } from './win-strip';
@@ -140,8 +138,7 @@ export function ReplayWorkspace({
   const [folds, toggleFold] = usePanelFolds();
   const playlist = useSavedPlaylist();
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
-  const [setposList, setSetposList] = useState<SetposCopy[]>([]);
-  const [setposNote, setSetposNote] = useState<string | null>(null);
+  const setpos = useSetposCopies();
   const hoverSlot = useRef<number | null>(null);
   const onHoverSlot = useCallback((slot: number | null) => {
     hoverSlot.current = slot;
@@ -334,29 +331,12 @@ export function ReplayWorkspace({
     });
   }, [clock, transport]);
 
-  const copySetpos = (command: string): void => {
-    writeClipboardText(command).then(
-      () => setSetposNote('Setpos copiado'),
-      () => setSetposNote('No se pudo copiar: está en la lista de jugadores'),
-    );
-  };
   const copyPlayerSetpos = (slot: number): void => {
     if (focused === null) return;
-    const tick = tickOf(focused, clock.seconds);
-    const cursor = frameCursor(focused.frames, tick);
-    const sample = cursor === undefined ? undefined : focused.frames[cursor.index]?.samples.find((candidate) => candidate.slot === slot);
-    if (sample === undefined) return;
-    const command = sampleSetpos(sample);
-    const name = focused.doc.players.find((player) => player.slot === slot)?.name ?? `Jugador ${slot}`;
-    const at = `R${focused.round.number} · ${roundClockLabelFor(focused.timeline, timelineSeconds(focused.timeline, tick))}`;
-    setSetposList((list) => withSetpos(list, { name, at, command }));
-    copySetpos(command);
+    const { frames, doc, timeline } = focused;
+    const copied = playerSetpos({ frames, players: doc.players, round: focused.round.number, timeline, slot, tick: tickOf(focused, clock.seconds) });
+    if (copied !== null) setpos.copy(copied);
   };
-  useEffect(() => {
-    if (setposNote === null) return;
-    const timer = window.setTimeout(() => setSetposNote(null), 2500);
-    return () => window.clearTimeout(timer);
-  }, [setposNote]);
 
   const toggleMulti = (): void => {
     if (focusTimeline === null) return;
@@ -573,9 +553,6 @@ export function ReplayWorkspace({
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
-            <span role="status" className="text-meta text-fg-2">
-              {setposNote}
-            </span>
             <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => {
                 if (fullscreen.active) fullscreen.toggle();
                 setHelp(true);
@@ -621,6 +598,7 @@ export function ReplayWorkspace({
               focus={focus}
               onPickSlot={pickSlot}
               onHoverSlot={onHoverSlot}
+              onCopySlot={copyPlayerSetpos}
               settings={mapSettings}
               barSlot={zoomSlot}
             />
@@ -637,6 +615,7 @@ export function ReplayWorkspace({
               }}
             />
           )}
+          <SetposNotice note={setpos.note} />
         </div>
       </div>
 
@@ -680,8 +659,8 @@ export function ReplayWorkspace({
           onFocus={setFocus}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
           onShowAll={() => setLayers((value) => showAllPlayers(value))}
-          setpos={setposList}
-          onCopySetpos={copySetpos}
+          setpos={setpos.list}
+          onCopySetpos={setpos.copyAgain}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null

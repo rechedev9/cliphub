@@ -24,6 +24,7 @@ import {
   topCells,
 } from '@/lib/tactical-spatial';
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
+import type { WorldMark } from '@/lib/tactical-transform';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { RadarSurface } from './radar-surface';
@@ -138,6 +139,11 @@ export function HeatmapView({
     },
     [data, heatmap, layer, selected],
   );
+  // Every side and level, so switching between them keeps the framing.
+  const marks = useMemo(() => {
+    const cs = heatmap?.cell_size ?? 0;
+    return (heatmap?.cells ?? []).flatMap((cell): WorldMark[] => [[cell.x * cs, cell.y * cs], [(cell.x + 1) * cs, (cell.y + 1) * cs]]);
+  }, [heatmap]);
 
   const onPoint = useCallback(
     (world: { x: number; y: number }) => {
@@ -173,6 +179,7 @@ export function HeatmapView({
           geometry={data.geometry}
           level={shownLevel}
           paint={paint}
+          marks={marks}
           onPoint={onPoint}
           label={`Mapa de calor de ${HEATMAP_KIND_LABEL[heatmap.kind].toLowerCase()}, lado ${shownSide}. La lista de zonas lo describe en texto.`}
         />

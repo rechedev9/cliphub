@@ -242,7 +242,7 @@ Read:
 | `replay_overlay` | `GET /api/library/matches/{id}/tactical/overlay` with the scope and `focus` of `replay_rounds`; the rounds superposed from the end of freeze time, whose paths each draws, the total the scope keeps and the cap, and `studio_path` (`forma=recorridos`) |
 | `round_lineups` | `GET /api/library/matches/{id}/tactical/rounds/{round}/lineups`; the round's grenades with thrower, landing callout and the catalog lineup each matches (Comparar granadas in the round panel) |
 | `replay_playlist` | no request: checks the round refs and returns the `/replay?r=<match_id>:<round>` path that opens them as one playlist, as B adds rounds in the Replay; nothing is stored |
-| `player_setpos` | `GET /api/library/matches/{id}/tactical` for the slot and `GET /api/library/matches/{id}/tactical/rounds/{round}` for the samples; the `setpos x y z;setang pitch yaw 0` line of the sample nearest to `second` after the round went live, as the S key over a player copies it |
+| `player_setpos` | `GET /api/library/matches/{id}/tactical` for the slot and `GET /api/library/matches/{id}/tactical/rounds/{round}` for the samples; the `setpos x y z;setang pitch yaw 0` line (z at the feet, as in the lineups) of the sample nearest to `second` after the round went live, as S or a right-click on a player copies it |
 | `real_map_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog, sky and post processing (exposure, tonemap and colour LUT), plus how to open the Mapa real floor plan in the Replay and full screen |
 
 Write:

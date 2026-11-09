@@ -47,7 +47,7 @@ export function ReplaySidePanel({
   onTogglePlayer: (slot: number) => void;
   onShowAll: () => void;
   setpos: readonly SetposCopy[];
-  onCopySetpos: (command: string) => void;
+  onCopySetpos: (entry: SetposCopy) => void;
   notes: ComponentProps<typeof AnnotationPanel> | null;
   /** Folded, the panel is a strip with each player's initials. */
   folded: boolean;

@@ -6,7 +6,18 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
+
+// TestSetposCommandMatchesTheWebByteForByte pins the web's toFixed(2) output, which
+// player_setpos must match: no "-0.00", and an exact half rounds away from zero.
+func TestSetposCommandMatchesTheWebByteForByte(t *testing.T) {
+	got := setposCommand(tuiclient.Lineup{Origin: [3]float64{-0.001, 0.125, -167.96875}, Pitch: -0.625, Yaw: 1.005})
+	if want := "setpos 0.00 0.13 -167.97;setang -0.63 1.00 0"; got != want {
+		t.Fatalf("setposCommand = %q, want %q", got, want)
+	}
+}
 
 const (
 	testLineupID   = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"

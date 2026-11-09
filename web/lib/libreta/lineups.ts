@@ -61,7 +61,7 @@ function fixed(value: number): string {
   return text === '-0.00' ? '0.00' : text;
 }
 
-/** The console line that puts a player on the lineup: `setpos x y z;setang pitch yaw 0`. */
+/** The console line that puts a player on the lineup: `setpos x y z;setang pitch yaw 0`; z is the feet origin. */
 export function setposCommand(aim: SetposAim): string {
   const [x, y, z] = aim.origin;
   return `setpos ${fixed(x)} ${fixed(y)} ${fixed(z)};setang ${fixed(aim.pitch)} ${fixed(aim.yaw)} 0`;
