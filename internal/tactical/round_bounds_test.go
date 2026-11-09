@@ -14,7 +14,7 @@ func TestHalftimeBreakIsCutFromTheRoundStart(t *testing.T) {
 		frames: []tacticalplan.Frame{{Tick: 62400}, {Tick: 69600}, {Tick: 70600}},
 		events: []tacticalplan.Event{{Tick: 63048, Kind: tacticalplan.EventKill}, {Tick: 71000, Kind: tacticalplan.EventSmoke}},
 	}
-	got := r.settleFreeze(15*64, 3*64)
+	got := r.settleFreeze(freezeLimits{freeze: 15 * 64, slack: 3 * 64, timeoutKeep: 60 * 64})
 	if got != freezeTrimmed {
 		t.Fatalf("settleFreeze = %v, want trimmed", got)
 	}
@@ -31,7 +31,7 @@ func TestHalftimeBreakIsCutFromTheRoundStart(t *testing.T) {
 
 func TestANormalFreezeTimeIsKept(t *testing.T) {
 	r := &roundAcc{tickStart: 1000, tickFreezeEnd: 1000 + 20*64, tickEnd: 9000}
-	if got := r.settleFreeze(20*64, 3*64); got != freezeKept {
+	if got := r.settleFreeze(freezeLimits{freeze: 20 * 64, slack: 3 * 64, timeoutKeep: 60 * 64}); got != freezeKept {
 		t.Fatalf("settleFreeze = %v, want kept", got)
 	}
 	if r.tickStart != 1000 {
@@ -41,7 +41,7 @@ func TestANormalFreezeTimeIsKept(t *testing.T) {
 
 func TestAMissingFreezeEndIsEstimatedFromTheFreezeTime(t *testing.T) {
 	r := &roundAcc{tickStart: 1000, tickEnd: 9000}
-	if got := r.settleFreeze(20*64, 3*64); got != freezeEstimated {
+	if got := r.settleFreeze(freezeLimits{freeze: 20 * 64, slack: 3 * 64, timeoutKeep: 60 * 64}); got != freezeEstimated {
 		t.Fatalf("settleFreeze = %v, want estimated", got)
 	}
 	if r.tickFreezeEnd != 1000+20*64 {
@@ -49,7 +49,7 @@ func TestAMissingFreezeEndIsEstimatedFromTheFreezeTime(t *testing.T) {
 	}
 
 	short := &roundAcc{tickStart: 1000, tickEnd: 1500}
-	short.settleFreeze(20*64, 3*64)
+	short.settleFreeze(freezeLimits{freeze: 20 * 64, slack: 3 * 64, timeoutKeep: 60 * 64})
 	if short.tickFreezeEnd != 1500 {
 		t.Fatalf("freeze end of a round shorter than freeze time = %d, want its end", short.tickFreezeEnd)
 	}
@@ -137,7 +137,7 @@ func checkRealDemoBoundsAndLifetimes(t *testing.T, doc tacticalplan.Document) {
 
 func TestAnUnknownFreezeTimeChangesNothing(t *testing.T) {
 	r := &roundAcc{tickStart: 1000, tickFreezeEnd: 9000, tickEnd: 12000}
-	if got := r.settleFreeze(0, 3*64); got != freezeKept {
+	if got := r.settleFreeze(freezeLimits{freeze: 0, slack: 3 * 64, timeoutKeep: 60 * 64}); got != freezeKept {
 		t.Fatalf("settleFreeze = %v, want kept", got)
 	}
 	if r.tickStart != 1000 || r.tickFreezeEnd != 9000 {

@@ -45,6 +45,14 @@ function atEnd(position: number, durationSeconds: number): boolean {
   return position >= durationSeconds - SCRUB_STEP_SECONDS;
 }
 
+/** A screen frame a little early still counts, so a 60 Hz screen capped at 60 draws every frame. */
+const FRAME_SLACK_MS = 2;
+
+/** Whether a playing replay draws this screen frame under a frame-rate cap; 0 is no cap. */
+export function frameDue(sinceLastMs: number, fps: number): boolean {
+  return fps <= 0 || sinceLastMs >= 1000 / fps - FRAME_SLACK_MS;
+}
+
 /** A playing position kept inside a span: past its end, or before its start, it starts over. */
 export function loopWithin(position: number, span: { from: number; to: number }): number {
   return position < span.from || position >= span.to ? span.from : position;

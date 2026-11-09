@@ -54,3 +54,17 @@ export function hitLines(options: {
   }
   return lines.sort((x, y) => x.at - y.at).map((entry) => entry.line);
 }
+
+/** How long a player's dot shows the damage they just took. */
+export const HURT_SECONDS = 0.6;
+
+/** Players hurt in the last `HURT_SECONDS`, each with the strength of its latest hit, 1 fading to 0. */
+export function recentDamage(options: { hits: readonly TacticalHit[]; nowSeconds: number; secondsOf: (tick: number) => number }): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const hit of options.hits) {
+    const age = options.nowSeconds - options.secondsOf(hit.tick);
+    if (age < 0 || age > HURT_SECONDS || hit.damage <= 0) continue;
+    out.set(hit.target_slot, Math.max(out.get(hit.target_slot) ?? 0, 1 - age / HURT_SECONDS));
+  }
+  return out;
+}

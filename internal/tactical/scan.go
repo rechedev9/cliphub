@@ -170,6 +170,7 @@ type scanner struct {
 	occupancy *tacticalplan.OccupancyBuilder
 	warnings  []string
 	throws    throwLog
+	timeouts  timeoutLog
 }
 
 type playerAcc struct {
@@ -198,10 +199,11 @@ type roundAcc struct {
 	half          int
 	overtime      int
 
-	bomb    *tacticalplan.Bomb
-	economy tacticalplan.Economy
-	events  []tacticalplan.Event
-	frames  []tacticalplan.Frame
+	bomb     *tacticalplan.Bomb
+	economy  tacticalplan.Economy
+	events   []tacticalplan.Event
+	frames   []tacticalplan.Frame
+	timeouts []tacticalplan.Timeout
 
 	kills          []killRecord
 	utilityHits    []utilityHit
@@ -364,6 +366,8 @@ func (s *scanner) register() {
 		s.addUtility(tacticalplan.EventSmoke, e.GrenadeEvent)
 	})
 	s.registerLifetimes()
+	s.registerTimeouts()
+	s.registerKillAir()
 	p.RegisterEventHandler(func(e events.FlashExplode) {
 		s.addUtility(tacticalplan.EventFlash, e.GrenadeEvent)
 	})
@@ -432,7 +436,8 @@ func (s *scanner) closeCurrent(tick int) {
 		s.current.tickEnd = tick
 	}
 	s.current.tickOfficial = tick
-	switch s.current.settleFreeze(s.current.freezeTicks, int(freezeSlackSeconds*s.tickrateOrDefault())) {
+	rate := s.tickrateOrDefault()
+	switch s.current.settleFreeze(freezeLimits{freeze: s.current.freezeTicks, slack: int(freezeSlackSeconds * rate), timeoutKeep: int(timeoutKeepSeconds * rate)}) {
 	case freezeTrimmed:
 		s.warn("round %d: freeze time ran past mp_freezetime; its start moved to %d", s.current.number, s.current.tickStart)
 	case freezeEstimated:

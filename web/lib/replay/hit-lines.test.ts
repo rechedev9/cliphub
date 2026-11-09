@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TacticalEvent } from '../api/tactical.ts';
-import { hitKind, hitLines } from './hit-lines.ts';
+import { hitKind, hitLines, recentDamage } from './hit-lines.ts';
 
 const secondsOf = (tick: number): number => tick / 64;
 const flash = (tick: number, actor: number, blinded: { slot: number; seconds: number; enemy: boolean }[]): TacticalEvent => ({
@@ -47,4 +47,17 @@ test('hit lines: fire weapons read as fire', () => {
   assert.equal(hitKind('molotov'), 'fire');
   assert.equal(hitKind('awp'), 'bullet');
   assert.equal(hitKind(undefined), 'bullet');
+});
+
+test('recent damage: a hurt player shows it briefly, the latest hit strongest', () => {
+  const hits = [
+    { tick: 640, actor_slot: 1, target_slot: 7, damage: 27 },
+    { tick: 656, actor_slot: 2, target_slot: 7, damage: 10 },
+    { tick: 640, actor_slot: 3, target_slot: 8, damage: 0 },
+  ];
+  const hurt = recentDamage({ hits, nowSeconds: 10.25, secondsOf });
+  assert.deepEqual([...hurt.keys()], [7]);
+  assert.equal(hurt.get(7), 1);
+  assert.equal(recentDamage({ hits, nowSeconds: 11, secondsOf }).size, 0);
+  assert.equal(recentDamage({ hits, nowSeconds: 9.9, secondsOf }).size, 0);
 });

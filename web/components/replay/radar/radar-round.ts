@@ -5,6 +5,8 @@ import { equipmentIconUrl } from '@/lib/api/game-assets';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
 import { inFocus } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
+import type { MapShows } from '@/lib/replay/map-settings';
+import type { TacticalEquipment } from '@/lib/tactical-equipment';
 import { layoutTags } from '@/lib/replay/tag-layout';
 import type { TagRect } from '@/lib/replay/tag-layout';
 import { bombVisual, grenadeArc, utilityVisuals } from '@/lib/replay/three/utility-visuals';
@@ -49,6 +51,12 @@ export type RoundFrame = {
   labels: ReadonlyMap<number, string>;
   /** The players in the foreground; the rest are drawn translucent, without trail or name. */
   focus: PlayerFocus;
+  /** Players taken off the map in the side panel: drawn translucent too, never hidden. */
+  dimmed: readonly number[];
+  /** Ajustes del mapa: what is drawn on and around each player. */
+  show: MapShows;
+  /** Players just hurt, with how strongly their dot still shows it. */
+  hurt: ReadonlyMap<number, number>;
   /** Multiplies the player dots and the name tags (Ajustes del mapa). */
   dotScale: number;
   nameScale: number;
@@ -77,6 +85,19 @@ export function discRadius(size: number, scale = 1): number {
 
 /** A player outside the focus is drawn at this strength. */
 const UNFOCUSED_ALPHA = 0.3;
+
+function foreground(frame: RoundFrame, slot: number): boolean {
+  return inFocus(frame.focus, slot) && !frame.dimmed.includes(slot);
+}
+
+const GRENADE_PIP: Partial<Record<TacticalEquipment, string>> = {
+  smokegrenade: '#d6dbe0',
+  flashbang: '#ffffff',
+  hegrenade: '#ff7a3d',
+  molotov: '#ff6824',
+  incgrenade: '#ff6824',
+  decoy: '#9aa1a8',
+};
 
 function worldPx(calibration: RadarCalibration, size: number, units: number): number {
   return (units / calibration.scale) * (size / calibration.size);
@@ -176,7 +197,7 @@ function grenadeBadge(ctx: CanvasRenderingContext2D, kind: TacticalEventKind, at
 function drawGrenade(ctx: CanvasRenderingContext2D, frame: RoundFrame, visual: UtilityVisual): void {
   const { calibration, size } = frame;
   const at = worldToRendered(calibration, visual.at.x, visual.at.y, size);
-  if (visual.arc !== null && visual.from !== null) {
+  if (frame.show.trajectories && visual.arc !== null && visual.from !== null) {
     const path = grenadeArc(visual.from, visual.at, 16).map((point) => worldToRendered(calibration, point.x, point.y, size));
     const reach = Math.max(1, Math.round(visual.arc.progress * (path.length - 1)));
     ctx.globalAlpha = 0.7 * visual.arc.fade;
@@ -301,7 +322,8 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
   const arm = discRadius(frame.size, frame.dotScale) * 0.75;
-  ctx.globalAlpha = DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS);
+  const strength = frame.dimmed.includes(sample.slot) ? UNFOCUSED_ALPHA : 1;
+  ctx.globalAlpha = strength * (DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
   ctx.lineWidth = 4;
@@ -369,23 +391,24 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   ctx.fill();
   ctx.stroke();
 
+  const hurt = frame.hurt.get(sample.slot) ?? 0;
+  if (hurt > 0) {
+    ctx.globalAlpha = hurt;
+    ctx.strokeStyle = '#ff3b30';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, ring + 3 + (1 - hurt) * 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   const flashed = (sample.flashed ?? 0) > 0 || hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.blinded);
-  if (flashed) {
+  if (frame.show.flashed && flashed) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.beginPath();
     ctx.arc(at.x, at.y, radius * 0.6, 0, Math.PI * 2);
     ctx.fill();
   }
-  if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
-    const s = Math.max(6, radius * 0.95);
-    ctx.fillStyle = style.bomb;
-    ctx.strokeStyle = '#0b0c0e';
-    ctx.lineWidth = 1.25;
-    ctx.beginPath();
-    ctx.roundRect(at.x + radius * 0.45, at.y + radius * 0.45, s, s * 0.75, 1.5);
-    ctx.fill();
-    ctx.stroke();
-  }
+  if (frame.show.held) drawHeld(ctx, { frame, sample, at, radius });
   if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.defusing)) {
     ctx.strokeStyle = style.defuse;
     ctx.lineWidth = 2;
@@ -394,6 +417,46 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
     ctx.arc(at.x, at.y, radius + 7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+}
+
+/** The bomb and the kit at the dot's corners, and a pip under it for each grenade carried. */
+function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; sample: TacticalSample; at: RadarPoint; radius: number }): void {
+  const { frame, sample, at, radius } = options;
+  const { style } = frame;
+  const s = Math.max(6, radius * 0.95);
+  if (sample.defuser === true) {
+    ctx.fillStyle = style.defuse;
+    ctx.strokeStyle = '#0b0c0e';
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.roundRect(at.x - radius * 0.45 - s, at.y - radius * 0.45 - s * 0.75, s, s * 0.75, 1.5);
+    ctx.fill();
+    ctx.stroke();
+  }
+  const pips: string[] = [];
+  for (const entry of sample.inventory ?? []) {
+    const color = GRENADE_PIP[entry.item];
+    for (let i = 0; color !== undefined && i < entry.count; i += 1) pips.push(color);
+  }
+  const gap = 4.5;
+  pips.forEach((color, index) => {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#0b0c0e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(at.x + (index - (pips.length - 1) / 2) * gap, at.y + radius + 8, 1.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+  if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
+    ctx.fillStyle = style.bomb;
+    ctx.strokeStyle = '#0b0c0e';
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.roundRect(at.x + radius * 0.45, at.y + radius * 0.45, s, s * 0.75, 1.5);
+    ctx.fill();
+    ctx.stroke();
   }
 }
 
@@ -406,7 +469,7 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
   ctx.font = `600 ${fontPx}px ${frame.style.fontFamily}`;
   // A player panned off the canvas gets no tag, or it would sit at the edge far from anyone.
   const inside = (player: DrawnPlayer): boolean => player.x >= visible.x && player.x <= visible.x + visible.width && player.y >= visible.y && player.y <= visible.y + visible.height;
-  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && inFocus(frame.focus, player.slot) && inside(player));
+  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && foreground(frame, player.slot) && inside(player));
   const requests = alive.map((player) => {
     const label = frame.labels.get(player.slot) ?? '';
     return { id: player.slot, x: player.x, y: player.y, width: Math.ceil(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD * 2, height: tagHeight };
@@ -471,7 +534,7 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     const player = players.find((entry) => entry.slot === sample.slot);
     if (player === undefined || !player.alive) continue;
     // A filter fades the whole player, whatever globalAlpha each stroke sets.
-    const alpha = floorAlpha(frame, sample.z) * (inFocus(frame.focus, sample.slot) ? 1 : UNFOCUSED_ALPHA);
+    const alpha = floorAlpha(frame, sample.z) * (foreground(frame, sample.slot) ? 1 : UNFOCUSED_ALPHA);
     if (alpha <= 0) continue;
     if (alpha < 1) ctx.filter = `opacity(${alpha})`;
     drawAlive(ctx, frame, sample, player);

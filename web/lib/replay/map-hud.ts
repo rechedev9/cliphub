@@ -1,6 +1,7 @@
 import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '../api/tactical.ts';
-import type { TacticalDocument, TacticalRound, TacticalSample, TacticalSide, TacticalSite } from '../api/tactical.ts';
-import type { TimelineEvent } from '../tactical-timeline.ts';
+import type { TacticalDocument, TacticalRound, TacticalSample, TacticalSide, TacticalSite, TacticalTimeout } from '../api/tactical.ts';
+import { timelineSeconds } from '../tactical-timeline.ts';
+import type { RoundTimeline, TimelineEvent } from '../tactical-timeline.ts';
 
 /** What the HUD over the map shows at the playhead: score bug, bomb timer and kill feed, as in the game. */
 
@@ -28,10 +29,52 @@ export function bombState(events: readonly TimelineEvent[], now: number): BombSt
   return state;
 }
 
+/** From the plant to the defuse, the explosion or the end of the bar; null in a round without a plant. */
+export function postPlantSpan(events: readonly TimelineEvent[], durationSeconds: number): { from: number; to: number } | null {
+  const plant = events.find((entry) => entry.event.kind === TACTICAL_EVENT_KINDS.plant);
+  if (plant === undefined) return null;
+  const end = events.find((entry) => entry.seconds >= plant.seconds && (entry.event.kind === TACTICAL_EVENT_KINDS.defuse || entry.event.kind === TACTICAL_EVENT_KINDS.explode));
+  const to = Math.min(durationSeconds, end?.seconds ?? durationSeconds);
+  return to > plant.seconds ? { from: plant.seconds, to } : null;
+}
+
+export type TimeoutSpan = { from: number; to: number; side: TacticalSide; label: string };
+
+/**
+ * The round's timeouts on its bar, clipped to it, each named by the side that called it and how
+ * long it ran: the scan keeps only the last minute of a long technical pause, so one band stands for all of it.
+ */
+export function timeoutSpans(timeouts: readonly TacticalTimeout[], timeline: RoundTimeline): TimeoutSpan[] {
+  const out: TimeoutSpan[] = [];
+  for (const timeout of timeouts) {
+    const from = Math.max(0, timelineSeconds(timeline, timeout.tick));
+    const to = Math.min(timeline.durationSeconds, timelineSeconds(timeline, timeout.end_tick));
+    if (to <= from) continue;
+    const ran = hudClock((timeout.end_tick - timeout.tick) / timeline.tickrate);
+    out.push({ from, to, side: timeout.side, label: `${timeout.side} Timeout${timeout.technical === true ? ' técnico' : ''} ${ran}` });
+  }
+  return out;
+}
+
 /** The kills of the last few seconds, oldest first, as the game's feed stacks them. */
 export function killFeed(events: readonly TimelineEvent[], now: number): TimelineEvent[] {
   const out = events.filter((entry) => entry.event.kind === TACTICAL_EVENT_KINDS.kill && entry.seconds <= now && now - entry.seconds < FEED_SECONDS);
   return out.slice(-FEED_MAX);
+}
+
+export type KillMark = { short: string; label: string };
+
+/** How a kill was made, as the feed marks it, from what the game's player_death says. */
+export function killMarks(event: TimelineEvent['event']): KillMark[] {
+  const marks: [boolean | undefined, KillMark][] = [
+    [event.headshot, { short: 'HS', label: 'Disparo a la cabeza' }],
+    [event.wallbang, { short: 'WB', label: 'A través de una pared' }],
+    [event.through_smoke, { short: 'Humo', label: 'A través de un humo' }],
+    [event.no_scope, { short: 'Sin mira', label: 'Sin apuntar con la mira' }],
+    [event.attacker_in_air, { short: 'Aire', label: 'Desde el aire' }],
+    [event.attacker_blind, { short: 'Cegado', label: 'Con el tirador cegado' }],
+  ];
+  return marks.filter(([on]) => on === true).map(([, mark]) => mark);
 }
 
 /** Living players by side in one frame. */

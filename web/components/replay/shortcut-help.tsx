@@ -23,9 +23,19 @@ const MAP: readonly Shortcut[] = [
   { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
   { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
   { keys: ['S'], or: ['Clic derecho'], does: 'Copiar el setpos del jugador bajo el cursor' },
+  { keys: ['G'], does: 'Abrir el GIF del tramo; otra vez para exportarlo' },
   { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
   { keys: ['Arrastrar'], does: 'Mover el mapa' },
+];
+
+const DRAW: readonly Shortcut[] = [
+  { keys: ['H'], does: 'Mover el mapa con el ratón' },
+  { keys: ['D'], does: 'Dibujar' },
+  { keys: ['A'], does: 'Dibujar una flecha' },
+  { keys: ['E'], or: ['Supr'], does: 'Borrar un trazo' },
+  { keys: ['T'], does: 'Trazo temporal, que se desvanece solo' },
+  { keys: ['Z'], does: 'Deshacer el último trazo' },
 ];
 
 function Keys({ keys }: { keys: readonly string[] }): ReactNode {
@@ -71,6 +81,7 @@ export function ShortcutHelp({ open, onOpenChange }: { open: boolean; onOpenChan
         </DialogHeader>
         <Group title="Reproducción" items={PLAYBACK} />
         <Group title="Mapa" items={MAP} />
+        <Group title="Dibujo, en las partidas de la biblioteca" items={DRAW} />
       </DialogContent>
     </Dialog>
   );

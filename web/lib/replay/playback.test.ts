@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SCRUB_STEP_SECONDS, playStartSeconds, playbackStep } from './playback.ts';
+import { SCRUB_STEP_SECONDS, frameDue, playStartSeconds, playbackStep } from './playback.ts';
 
 const frame = { position: 10, elapsedMs: 16, speed: 1, durationSeconds: 112.7, loop: false, scrubbing: false, seeked: false, hasNext: true };
 
@@ -39,6 +39,14 @@ test('playback: the loop wraps the round instead of moving on', () => {
   const step = playbackStep({ ...frame, loop: true, seeked: true, position: 112.69, elapsedMs: 20 });
   assert.equal(step.action, 'play');
   assert.ok(step.position < 1);
+});
+
+test('playback: a frame-rate cap skips screen frames that come too soon, and no cap draws them all', () => {
+  assert.equal(frameDue(16.6, 60), true);
+  assert.equal(frameDue(8.3, 60), false);
+  assert.equal(frameDue(16.6, 30), false);
+  assert.equal(frameDue(33.3, 30), true);
+  assert.equal(frameDue(1, 0), true);
 });
 
 test('playback: play restarts a round parked at its end', () => {

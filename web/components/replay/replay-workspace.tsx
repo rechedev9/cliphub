@@ -17,12 +17,14 @@ import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
-import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { frameDue, loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { namesShown, toggleNames } from '@/lib/replay/map-settings';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { TramoControl } from './tramo-bar';
 import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
+import type { ReplayShortcut } from '@/lib/replay/shortcut-keys';
 import {
   SEEK_STEP_SECONDS,
   clampToTimeline,
@@ -37,7 +39,8 @@ import { noteVisibleAt } from '@/lib/tactical-spatial';
 import { useMatchAnalyses } from '@/hooks/use-match-analyses';
 import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
-import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import { chooseDrawMode, useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import type { DrawMode, TelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { AnnotationStore, NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
@@ -47,7 +50,10 @@ import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
+import type { MapCapture } from './gif-export';
+import { GifPanel } from './gif-panel';
 import { PlaylistPicker } from './playlist-picker';
+import { useReplayGif } from './use-replay-gif';
 import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
@@ -131,8 +137,9 @@ export function ReplayWorkspace({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
-  const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
+  const [ownLayers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
+  const captureRef = useRef<MapCapture | null>(null);
   // The span the superposed rounds play in; one round alone plays whole.
   const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
   const tramo = pageTramo?.tramo ?? ownTramo;
@@ -143,6 +150,8 @@ export function ReplayWorkspace({
   const focus = players?.focus ?? ownFocus;
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
+  const namesOn = namesShown(mapSettings, multi);
+  const layers = useMemo(() => ({ ...ownLayers, names: namesOn }), [namesOn, ownLayers]);
   const [folds, toggleFold] = usePanelFolds();
   const playlist = useSavedPlaylists({ enabled: library, openId: openPlaylistId });
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
@@ -287,6 +296,7 @@ export function ReplayWorkspace({
   );
 
   const ready = focused !== null;
+  const fps = mapSettings.fps;
   const span = useMemo(
     () => (multi && !isWholeRound(tramo) ? { from: tramo.from, to: Math.min(tramoEnd(tramo), transport.durationSeconds) } : null),
     [multi, tramo, transport.durationSeconds],
@@ -298,6 +308,10 @@ export function ReplayWorkspace({
     // Any move of the clock this loop did not make (a note, multi round on or off) counts as a seek too.
     let written = clock.seconds;
     const step = (now: number): void => {
+      if (!frameDue(now - last, fps)) {
+        frame = requestAnimationFrame(step);
+        return;
+      }
       const next = playbackStep({
         position: clock.seconds,
         elapsedMs: now - last,
@@ -328,7 +342,7 @@ export function ReplayWorkspace({
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span]);
+  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span, fps]);
 
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
@@ -391,7 +405,13 @@ export function ReplayWorkspace({
       const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
     } else if (shortcut === 'fold-left' || shortcut === 'fold-right') toggleFold(shortcut === 'fold-left' ? 'left' : 'right');
-    else if (shortcut === 'playlist') {
+    else if (shortcut.startsWith('tool-') || shortcut === 'undo-stroke') {
+      if (library) drawShortcut(draft, shortcut);
+    } else if (shortcut === 'gif') {
+      // The first G shows the tramo that goes in; the second records it.
+      if (gif.open) gif.start();
+      else gif.toggle();
+    } else if (shortcut === 'playlist') {
       if (library && entry !== undefined) playlist.toggle(entry);
     } else if (shortcut === 'setpos') {
       const slot = hoverSlot.current ?? (focus.length === 1 ? focus[0] : undefined);
@@ -496,6 +516,19 @@ export function ReplayWorkspace({
     if (notesMatchId === undefined || focused === null) return Promise.resolve(false);
     return notes.create({ match_id: notesMatchId, round: focused.round.number, tick: tickOf(focused, clock.seconds), text, strokes: draft.strokes });
   };
+  const gif = useReplayGif({
+    captureRef,
+    focused,
+    multi,
+    rounds: centreRounds.length,
+    transport,
+    events: transportEvents,
+    tramo,
+    speed,
+    draft: library ? draft.strokes : [],
+    notes: focusTimeline === null ? [] : (notes.notes ?? []).map((note) => ({ at: clockSecondsOf(focusTimeline, note.tick), strokes: note.strokes })),
+    onStart: () => setPlaying(false),
+  });
 
   if (entries.length === 0) {
     return (
@@ -586,12 +619,14 @@ export function ReplayWorkspace({
           onSettings={setMapSettings}
           twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
           layers={layers}
-          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onToggleLayer={(key) => (key === 'names' ? setMapSettings(toggleNames(mapSettings, multi)) : setLayers((value) => toggleLayer(value, key)))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           draft={library ? draft : null}
+          gif={{ open: gif.open, onToggle: gif.toggle }}
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           zoomSlot={setZoomSlot}
         />
+        {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
@@ -611,6 +646,7 @@ export function ReplayWorkspace({
               onCopySlot={copyPlayerSetpos}
               settings={mapSettings}
               barSlot={zoomSlot}
+              captureRef={captureRef}
             />
           )}
           {focused === null ? null : (
@@ -618,6 +654,7 @@ export function ReplayWorkspace({
               focused={focused}
               roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
               eventsOpen={eventsOpen}
+              showFeed={mapSettings.show.killfeed}
               onToggleEvents={() => setEventsOpen((value) => !value)}
               onSeek={(seconds) => {
                 setPlaying(false);
@@ -745,6 +782,7 @@ export function ReplayWorkspace({
           onSeek={seekTo}
           onScrubbingChange={setScrubbing}
           tramo={multi ? { tramo, onChange: setTramo } : undefined}
+          timeouts={multi ? undefined : round?.timeouts}
           below={
             moments.length === 0 && winState === null ? undefined : (
               <>
@@ -759,6 +797,16 @@ export function ReplayWorkspace({
       <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
   );
+}
+
+const DRAW_KEYS: Partial<Record<ReplayShortcut, DrawMode>> = { 'tool-move': 'move', 'tool-draw': 'draw', 'tool-arrow': 'arrow', 'tool-erase': 'erase' };
+
+/** H, D, A and E pick the map's tool as its buttons do; T turns timed strokes on or off; Z undoes. */
+function drawShortcut(draft: TelestratorDraft, shortcut: ReplayShortcut): void {
+  const mode = DRAW_KEYS[shortcut];
+  if (mode !== undefined) chooseDrawMode(draft, mode);
+  else if (shortcut === 'tool-timed') draft.setTool({ ...draft.tool, timed: !draft.tool.timed });
+  else if (shortcut === 'undo-stroke') draft.undo();
 }
 
 function CentreState({

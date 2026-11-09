@@ -44,6 +44,7 @@ type killOut struct {
 	Place    string  `json:"place,omitempty"`
 	Headshot bool    `json:"headshot,omitempty"`
 	Wallbang bool    `json:"wallbang,omitempty"`
+	InAir    bool    `json:"in_air,omitempty" jsonschema:"the killer shot from the air"`
 	Opening  bool    `json:"opening,omitempty"`
 	Traded   bool    `json:"traded,omitempty" jsonschema:"this kill was traded back"`
 }
@@ -54,6 +55,13 @@ type bombOut struct {
 	PlantSecond float64 `json:"plant_second"`
 	Defused     bool    `json:"defused"`
 	Exploded    bool    `json:"exploded"`
+}
+
+type timeoutOut struct {
+	Side       string  `json:"side" jsonschema:"CT or T, the side that called it"`
+	FromSecond float64 `json:"from_second" jsonschema:"negative: seconds before the round went live"`
+	ToSecond   float64 `json:"to_second"`
+	Technical  bool    `json:"technical,omitempty"`
 }
 
 type winPointOut struct {
@@ -79,6 +87,7 @@ type roundOut struct {
 	Tags        []string         `json:"tags"`
 	Reasons     []string         `json:"reasons" jsonschema:"why the classifier chose the patterns"`
 	Bomb        *bombOut         `json:"bomb,omitempty"`
+	Timeouts    []timeoutOut     `json:"timeouts,omitempty" jsonschema:"timeouts taken in the freeze time, as the Replay's timeline marks them"`
 	Players     []roundPlayerOut `json:"players"`
 	Kills       []killOut        `json:"kills"`
 	WinTimeline []winPointOut    `json:"win_probability" jsonschema:"CT win chance after each kill and bomb event, from the Studio model"`
@@ -320,6 +329,9 @@ func summarizeRound(matchID string, doc tuiclient.TacticalDocument, r tuiclient.
 		out.Bomb = &bombOut{Site: cleanName(b.Site), Planter: names.name(b.PlanterSlot), PlantSecond: second(b.PlantTick),
 			Defused: b.DefuseTick > 0, Exploded: b.ExplodeTick > 0}
 	}
+	for _, t := range r.Timeouts {
+		out.Timeouts = append(out.Timeouts, timeoutOut{Side: cleanName(t.Side), FromSecond: second(t.Tick), ToSecond: second(t.EndTick), Technical: t.Technical})
+	}
 	for _, p := range r.Players {
 		who := names[p.Slot]
 		out.Players = append(out.Players, roundPlayerOut{SteamID64: who[1], Name: who[0], Side: p.Side, Kills: p.Kills, Deaths: p.Deaths,
@@ -331,7 +343,7 @@ func summarizeRound(matchID string, doc tuiclient.TacticalDocument, r tuiclient.
 			continue
 		}
 		out.Kills = append(out.Kills, killOut{Second: second(e.Tick), Killer: names.name(e.ActorSlot), Victim: names.name(e.TargetSlot),
-			Weapon: cleanName(e.Weapon), Place: cleanName(e.Place), Headshot: e.Headshot, Wallbang: e.Wallbang, Opening: e.Opening, Traded: e.Traded})
+			Weapon: cleanName(e.Weapon), Place: cleanName(e.Place), Headshot: e.Headshot, Wallbang: e.Wallbang, InAir: e.InAir, Opening: e.Opening, Traded: e.Traded})
 	}
 	for _, t := range m.Timelines {
 		if t.Round != r.Number {

@@ -110,6 +110,7 @@ match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (
 in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
+export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
 round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one passing playlist to open in Studio.
 Saved playlists (Replay > Playlists: rounds of any matches with a comment each, in folders, starred): list_playlists,

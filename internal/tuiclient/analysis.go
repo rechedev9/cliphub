@@ -286,6 +286,12 @@ type TacticalRound struct {
 		DefuseTick  int    `json:"defuse_tick"`
 		ExplodeTick int    `json:"explode_tick"`
 	} `json:"bomb"`
+	Timeouts []struct {
+		Side      string `json:"side"`
+		Tick      int    `json:"tick"`
+		EndTick   int    `json:"end_tick"`
+		Technical bool   `json:"technical"`
+	} `json:"timeouts"`
 	Economy struct {
 		CTEquipValue int    `json:"ct_equip_value"`
 		TEquipValue  int    `json:"t_equip_value"`
@@ -321,6 +327,7 @@ type TacticalRound struct {
 		Place      string `json:"place"`
 		Headshot   bool   `json:"headshot"`
 		Wallbang   bool   `json:"wallbang"`
+		InAir      bool   `json:"attacker_in_air"`
 		Opening    bool   `json:"opening"`
 		Traded     bool   `json:"traded"`
 	} `json:"events"`

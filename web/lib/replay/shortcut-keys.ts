@@ -6,6 +6,13 @@ export type ReplayShortcut =
   | 'follow'
   | 'setpos'
   | 'playlist'
+  | 'gif'
+  | 'tool-move'
+  | 'tool-draw'
+  | 'tool-arrow'
+  | 'tool-erase'
+  | 'tool-timed'
+  | 'undo-stroke'
   | 'fold-left'
   | 'fold-right'
   | 'play'
@@ -40,6 +47,20 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   S: 'setpos',
   b: 'playlist',
   B: 'playlist',
+  g: 'gif',
+  G: 'gif',
+  h: 'tool-move',
+  H: 'tool-move',
+  d: 'tool-draw',
+  D: 'tool-draw',
+  a: 'tool-arrow',
+  A: 'tool-arrow',
+  e: 'tool-erase',
+  E: 'tool-erase',
+  t: 'tool-timed',
+  T: 'tool-timed',
+  z: 'undo-stroke',
+  Z: 'undo-stroke',
   ',': 'fold-left',
   '.': 'fold-right',
   ' ': 'play',
@@ -60,6 +81,8 @@ export function replayShortcut(press: ReplayKey): ReplayShortcut | null {
   if (press.metaKey) return null;
   if ((press.ctrlKey || press.altKey) && !(altGraph && character)) return null;
   if (press.key === 'Escape') return 'escape';
+  // Supr picks the eraser too, as in the owner's key table; E stays.
+  if (press.key === 'Delete') return 'tool-erase';
   if (press.key === '/' && press.shiftKey) return 'help';
   return CHARACTER_KEYS[press.key] ?? arrow(press.key, press.shiftKey);
 }
