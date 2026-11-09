@@ -93,7 +93,7 @@ test('a rate always carries its counts and an empty one says so', () => {
 });
 
 test('every row that counts rounds links its examples to the round and tick', () => {
-  assert.equal(evidencePath(ev(13, 4100)), `/partidas/${MATCH}?tab=tactica&round=13&tick=4100`);
+  assert.equal(evidencePath(ev(13, 4100)), `/partidas/${MATCH}?tab=replay&round=13&tick=4100`);
   const sections = scoutSections(fixture());
   assert.deepEqual(
     sections.map((section) => section.id),
@@ -134,7 +134,7 @@ test('the exported HTML is self-contained, escaped and links every example', () 
   assert.equal(html.includes('<script'), false);
   assert.ok(html.includes('Vitality &lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(html.includes('Fuerzan tras perder la pistola &amp; salen por B.'));
-  assert.ok(html.includes(`href="http://127.0.0.1:3000/partidas/${MATCH}?tab=tactica&amp;round=15&amp;tick=9100"`));
+  assert.ok(html.includes(`href="http://127.0.0.1:3000/partidas/${MATCH}?tab=replay&amp;round=15&amp;tick=9100"`));
   assert.equal(/(src|href)="(?!http:\/\/127\.0\.0\.1:3000\/)/.test(html), false, 'no resource outside the exporting Studio');
   assert.equal(/[–—]/.test(html), false, 'no en or em dashes in the exported text');
   assert.ok(html.includes('La partida aún no tiene análisis táctico.'));

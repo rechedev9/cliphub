@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
+import { PLAYLIST_TITLE, inPlaylist } from '@/lib/replay/saved-playlist';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
 import { teamScoreBefore } from '@/lib/library/rounds';
@@ -10,12 +12,21 @@ import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { ReplayClock } from '@/lib/replay/clock';
 import { DEFAULT_LAYERS, showAllPlayers, toggleLayer, togglePlayer } from '@/lib/replay/layers';
+import { pickPlayer } from '@/lib/replay/player-focus';
 import { roundOutcome } from '@/lib/replay/round-outcome';
+import { withSetpos } from '@/lib/replay/setpos';
+import type { SetposCopy } from '@/lib/replay/setpos';
+import { sampleSetpos } from '@/lib/libreta/lineups';
+import { writeClipboardText } from '@/lib/clipboard-write';
+import { frameCursor } from '@/lib/tactical-replay';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
-import { playStartSeconds, playbackStep } from '@/lib/replay/playback';
-import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
+import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
+import type { Tramo } from '@/lib/replay/tramo';
+import type { TramoControl } from './tramo-bar';
+import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import {
   SEEK_STEP_SECONDS,
@@ -35,15 +46,18 @@ import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { ReplayCentreView } from './centre';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
+import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
+import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
+import { useSavedPlaylist } from './use-saved-playlist';
+import type { FocusControl } from './replay-players';
+import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
-import { RADAR_2D_VIEW } from './radar-centre';
+import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { ShortcutHelp } from './shortcut-help';
@@ -59,27 +73,6 @@ const UI_TICKS_PER_SECOND = 4;
 
 const EMPTY_TIMELINE = roundTimeline({ tick_start: 0, tick_freeze_end: 0, tick_end: 64, tick_official: 64 }, 64);
 
-const DEFAULT_VIEWS: readonly ReplayCentreView[] = [RADAR_2D_VIEW];
-
-/** The centre view the user picked last in this window. */
-const VIEW_STORAGE_KEY = 'cliphub.replay.view';
-
-function storedView(): string | null {
-  try {
-    return window.sessionStorage.getItem(VIEW_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function storeView(id: string): void {
-  try {
-    window.sessionStorage.setItem(VIEW_STORAGE_KEY, id);
-  } catch {
-    // Storage can be off; the view still switches for this page.
-  }
-}
-
 export type ReplayWorkspaceProps = {
   /** `library`: strip ids are library match ids, which also enables moments, notes and plays. `job`: a Crear job id. */
   source: TacticalSource['kind'];
@@ -93,10 +86,12 @@ export type ReplayWorkspaceProps = {
   groupLabel?: (matchId: string) => string | null;
   /** Round filters, at the top of the left panel. */
   filters?: ReactNode;
-  /** Centre views; the first is the default. Without it, the 2D radar. */
-  centreViews?: readonly ReplayCentreView[];
   /** Shown above the round line, such as a playlist's name. */
   title?: string;
+  /** The players in the foreground when the page keeps them (the Replay does, in the URL); without it the workspace keeps its own. */
+  players?: FocusControl;
+  /** The tramo when the page keeps it in the URL, shared with its other forms; without it the workspace keeps its own. */
+  tramo?: TramoControl;
 };
 
 /**
@@ -113,8 +108,9 @@ export function ReplayWorkspace({
   seed,
   groupLabel,
   filters,
-  centreViews = DEFAULT_VIEWS,
   title,
+  players,
+  tramo: pageTramo,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -131,10 +127,25 @@ export function ReplayWorkspace({
   const [loop, setLoop] = useState(false);
   const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
+  // The span the superposed rounds play in; one round alone plays whole.
+  const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
+  const tramo = pageTramo?.tramo ?? ownTramo;
+  const setTramo = pageTramo?.onChange ?? setOwnTramo;
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
-  const [viewId, setViewId] = useState(centreViews[0]?.id ?? RADAR_2D_VIEW.id);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [ownFocus, setOwnFocus] = useState<number[]>([]);
+  const focus = players?.focus ?? ownFocus;
+  const setFocus = players?.onChange ?? setOwnFocus;
+  const [mapSettings, setMapSettings] = useMapSettings();
+  const [folds, toggleFold] = usePanelFolds();
+  const playlist = useSavedPlaylist();
+  const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
+  const [setposList, setSetposList] = useState<SetposCopy[]>([]);
+  const [setposNote, setSetposNote] = useState<string | null>(null);
+  const hoverSlot = useRef<number | null>(null);
+  const onHoverSlot = useCallback((slot: number | null) => {
+    hoverSlot.current = slot;
+  }, []);
   const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
@@ -143,7 +154,16 @@ export function ReplayWorkspace({
 
   const entry = entries[index];
   const focusKey = entry === undefined ? '' : entryKey(entry);
-  const selectedKeys = useMemo(() => (multi ? withFocus(multiKeys, focusKey) : []), [multi, multiKeys, focusKey]);
+  // Slots mean a player only inside one match: a focus the workspace keeps itself ends with the match.
+  const matchId = entry?.matchId;
+  useEffect(() => setOwnFocus([]), [matchId]);
+  // With players in focus every round of the scope is superposed; without, the cap keeps the map readable.
+  const everyRound = focus.length > 0;
+  const selectedKeys = useMemo(() => {
+    if (!multi) return [];
+    return everyRound ? entries.map(entryKey) : withFocus(multiKeys, focusKey);
+  }, [entries, everyRound, focusKey, multi, multiKeys]);
+  const pickSlot = useCallback((slot: number, additive: boolean) => setFocus(pickPlayer(focus, slot, additive)), [focus, setFocus]);
 
   const wanted = useMemo(() => {
     const ids = matchesToLoad(entries, index, 1);
@@ -262,6 +282,10 @@ export function ReplayWorkspace({
   );
 
   const ready = focused !== null;
+  const span = useMemo(
+    () => (multi && !isWholeRound(tramo) ? { from: tramo.from, to: Math.min(tramoEnd(tramo), transport.durationSeconds) } : null),
+    [multi, tramo, transport.durationSeconds],
+  );
   useEffect(() => {
     if (!playing || !ready) return;
     let frame = 0;
@@ -280,6 +304,13 @@ export function ReplayWorkspace({
         hasNext: !multi && index < entries.length - 1,
       });
       last = now;
+      if (span !== null && next.action !== 'hold') {
+        seekedRef.current = false;
+        clock.set(loopWithin(next.position, span));
+        written = clock.seconds;
+        frame = requestAnimationFrame(step);
+        return;
+      }
       if (next.action !== 'hold') {
         seekedRef.current = false;
         clock.set(next.position);
@@ -292,7 +323,7 @@ export function ReplayWorkspace({
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select]);
+  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span]);
 
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
@@ -302,6 +333,30 @@ export function ReplayWorkspace({
       return true;
     });
   }, [clock, transport]);
+
+  const copySetpos = (command: string): void => {
+    writeClipboardText(command).then(
+      () => setSetposNote('Setpos copiado'),
+      () => setSetposNote('No se pudo copiar: está en la lista de jugadores'),
+    );
+  };
+  const copyPlayerSetpos = (slot: number): void => {
+    if (focused === null) return;
+    const tick = tickOf(focused, clock.seconds);
+    const cursor = frameCursor(focused.frames, tick);
+    const sample = cursor === undefined ? undefined : focused.frames[cursor.index]?.samples.find((candidate) => candidate.slot === slot);
+    if (sample === undefined) return;
+    const command = sampleSetpos(sample);
+    const name = focused.doc.players.find((player) => player.slot === slot)?.name ?? `Jugador ${slot}`;
+    const at = `R${focused.round.number} · ${roundClockLabelFor(focused.timeline, timelineSeconds(focused.timeline, tick))}`;
+    setSetposList((list) => withSetpos(list, { name, at, command }));
+    copySetpos(command);
+  };
+  useEffect(() => {
+    if (setposNote === null) return;
+    const timer = window.setTimeout(() => setSetposNote(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [setposNote]);
 
   const toggleMulti = (): void => {
     if (focusTimeline === null) return;
@@ -331,9 +386,9 @@ export function ReplayWorkspace({
     }
     if (shortcut === 'escape') {
       if (eventsOpen) setEventsOpen(false);
-      else if (followSlot !== null || selectedSlot !== null) {
+      else if (followSlot !== null || focus.length > 0) {
         setFollowSlot(null);
-        setSelectedSlot(null);
+        setFocus([]);
       } else if (fullscreen.active) fullscreen.toggle();
       return;
     }
@@ -345,8 +400,14 @@ export function ReplayWorkspace({
     } else if (shortcut === 'fullscreen') fullscreen.toggle();
     else if (shortcut === 'multi') toggleMulti();
     else if (shortcut === 'follow') {
-      const slot = selectedSlot ?? followSlot;
+      const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
+    } else if (shortcut === 'fold-left' || shortcut === 'fold-right') toggleFold(shortcut === 'fold-left' ? 'left' : 'right');
+    else if (shortcut === 'playlist') {
+      if (library && entry !== undefined) playlist.toggle(entry);
+    } else if (shortcut === 'setpos') {
+      const slot = hoverSlot.current ?? (focus.length === 1 ? focus[0] : undefined);
+      if (slot !== undefined) copyPlayerSetpos(slot);
     } else if (shortcut === 'play') {
       spaceTookButton.current = target instanceof HTMLButtonElement || (target instanceof HTMLInputElement && target.type === 'checkbox');
       togglePlay();
@@ -406,6 +467,9 @@ export function ReplayWorkspace({
   );
   const labelOf = useCallback(
     (matchId: string) => {
+      // The page knows the match's date; the analysis alone only knows the map and the teams.
+      const named = groupLabel?.(matchId) ?? null;
+      if (named !== null) return named;
       const state = analyses.get(matchId);
       if (state?.state === 'ready') {
         const { doc } = state.analysis;
@@ -417,17 +481,6 @@ export function ReplayWorkspace({
     },
     [analyses, groupLabel],
   );
-  const view = centreViews.find((option) => option.id === viewId) ?? centreViews[0] ?? RADAR_2D_VIEW;
-  const selectView = useCallback((id: string) => {
-    setViewId(id);
-    setFollowSlot(null);
-    storeView(id);
-  }, []);
-  const viewIds = centreViews.map((option) => option.id).join('|');
-  useEffect(() => {
-    const saved = storedView();
-    if (saved !== null && viewIds.split('|').includes(saved)) setViewId(saved);
-  }, [viewIds]);
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
@@ -464,10 +517,28 @@ export function ReplayWorkspace({
     );
   }
 
+  const panelWidths: CSSProperties & { '--replay-left': string; '--replay-right': string } = {
+    '--replay-left': folds.left ? '2.75rem' : '236px',
+    '--replay-right': folds.right ? '2.75rem' : '288px',
+  };
+  const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
+  const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
+  let superposeNote = `hasta ${MULTI_MAX_ROUNDS} rondas`;
+  if (everyRound) superposeNote = multi ? `${centreRounds.length} de ${focusNames}` : `todas las de ${focusNames}`;
+  else if (multi) superposeNote = `${centreRounds.length} de ${MULTI_MAX_ROUNDS} como máximo`;
+  const superposeHint = everyRound
+    ? `Superpone todas las rondas del alcance con ${focusNames} en primer plano, desde el final del tiempo de compra`
+    : `Superpone hasta ${MULTI_MAX_ROUNDS} rondas desde el final del tiempo de compra: pulsa una ronda para sumarla. Elige un jugador para ver todas las suyas`;
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
-        <RoundPlayActions matchId={entry.matchId} doc={focused.doc} round={focused.round} currentTick={() => tickOf(focused, clock.seconds)} />
+        <RoundPlayActions
+          matchId={entry.matchId}
+          doc={focused.doc}
+          round={focused.round}
+          currentTick={() => tickOf(focused, clock.seconds)}
+          playlist={{ added: inPlaylist(playlist.refs, entry), onToggle: () => playlist.toggle(entry), count: playlist.refs.length, href: replayHref(playlist.refs, PLAYLIST_TITLE) }}
+        />
       ) : null}
     </div>
   );
@@ -479,13 +550,14 @@ export function ReplayWorkspace({
       // Takes the focus a click on the map or a panel would drop, so the shortcuts keep working.
       tabIndex={-1}
       data-fullscreen={fullscreen.active ? '' : undefined}
+      style={panelWidths}
       className={cn(
         'grid grid-cols-1 gap-2 outline-none',
         fullscreen.active
-          ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_288px] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
+          ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_var(--replay-right)] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
           : [
-              'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[620px]',
-              'min-[1180px]:grid-cols-[236px_minmax(0,1fr)_288px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
+              'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[460px]',
+              'min-[1180px]:grid-cols-[var(--replay-left)_minmax(0,1fr)_var(--replay-right)] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
             ],
       )}
     >
@@ -495,21 +567,21 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-1 row-start-1' : 'h-[72vh] min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto',
         )}
       >
-        <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
+        <header className="flex h-9 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
           <h2 className="flex min-w-0 items-baseline gap-2 truncate">
             {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
+            <span role="status" className="text-meta text-fg-2">
+              {setposNote}
+            </span>
             <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => {
                 if (fullscreen.active) fullscreen.toggle();
                 setHelp(true);
               }}>
               <Keyboard aria-hidden />
             </Button>
-            {centreViews.length > 1 ? (
-              <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
-            ) : null}
             <Button
               type="button"
               size="icon-xs"
@@ -523,23 +595,35 @@ export function ReplayWorkspace({
             </Button>
           </div>
         </header>
+        <MapBar
+          settings={mapSettings}
+          onSettings={setMapSettings}
+          layers={layers}
+          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
+          draft={library ? draft : null}
+          follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
+          zoomSlot={setZoomSlot}
+        />
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (
-            view.render({
-              mode: multi ? 'multi' : 'single',
-              rounds: centreRounds,
-              clock,
-              tickOf,
-              layers,
-              telestrator: library ? { draft, shown: shownDrawings } : null,
-              onSelectView: selectView,
-              followSlot,
-              onFollowSlot: setFollowSlot,
-              selectedSlot,
-              onSelectSlot: setSelectedSlot,
-            })
+            <RadarCentre
+              mode={multi ? 'multi' : 'single'}
+              rounds={centreRounds}
+              clock={clock}
+              tickOf={tickOf}
+              layers={layers}
+              telestrator={library ? { draft, shown: shownDrawings } : null}
+              followSlot={followSlot}
+              onFollowSlot={setFollowSlot}
+              focus={focus}
+              onPickSlot={pickSlot}
+              onHoverSlot={onHoverSlot}
+              settings={mapSettings}
+              barSlot={zoomSlot}
+            />
           )}
           {focused === null ? null : (
             <MapHud
@@ -557,40 +641,47 @@ export function ReplayWorkspace({
       </div>
 
       <aside
-        aria-label="Ronda, filtros y capas"
+        aria-label="Ronda y filtros"
         className={cn(
-          'min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
+          'flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
+          folds.left ? 'items-center p-1' : 'p-3',
           fullscreen.active && 'hidden',
         )}
       >
+        <PanelFoldButton side="left" folded={folds.left} onToggle={() => toggleFold('left')} className={folds.left ? undefined : 'self-end -mt-1 -mr-1 -mb-9 relative z-10'} />
+        {folds.left ? <FoldedRounds entries={entries} index={index} onSelect={(at) => select(at)} /> : null}
+        {folds.left ? null : (
         <ReplayLeftPanel
           focused={focused}
           actions={roundActions}
           filters={filters}
-          layers={layers}
-          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
-          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
-          onShowAll={() => setLayers((value) => showAllPlayers(value))}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
         />
+        )}
       </aside>
 
       <aside
         aria-label="Jugadores y notas de la ronda"
         className={cn(
-          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2',
+          'flex min-h-0 min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border bg-surface-1',
+          folds.right ? 'items-center overflow-y-auto p-1 [scrollbar-width:thin]' : 'p-2',
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-3 min-[1180px]:row-start-1',
         )}
       >
+        <PanelFoldButton side="right" folded={folds.right} onToggle={() => toggleFold('right')} className={folds.right ? undefined : 'self-end -mb-8 relative z-10'} />
         <ReplaySidePanel
+          folded={folds.right}
           focused={focused}
           nowSeconds={nowSeconds}
           tickOf={tickOf}
           layers={layers}
-          selectedSlot={selectedSlot}
-          onSelectSlot={setSelectedSlot}
+          focus={focus}
+          onPickSlot={pickSlot}
+          onFocus={setFocus}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
-          follow={view.followsPlayers === true ? { slot: followSlot, onFollow: setFollowSlot } : null}
+          onShowAll={() => setLayers((value) => showAllPlayers(value))}
+          setpos={setposList}
+          onCopySetpos={copySetpos}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null
@@ -620,10 +711,13 @@ export function ReplayWorkspace({
             disabled={focused === null}
             onClick={toggleMulti}
             className="h-10 shrink-0"
-            title={multi ? 'Pulsa una ronda para superponerla; doble clic para abrirla' : 'Superpone varias rondas desde el final del tiempo de compra'}
+            title={superposeHint}
           >
             <Layers aria-hidden />
-            Multi ronda
+            <span className="flex flex-col items-start leading-tight">
+              Superponer
+              <span className="text-meta font-normal text-fg-3">{superposeNote}</span>
+            </span>
           </Button>
           <RoundStrip
             entries={entries}
@@ -635,6 +729,7 @@ export function ReplayWorkspace({
               multi
                 ? {
                     selected: selectedKeys,
+                    locked: everyRound,
                     blocked: (candidate) => {
                       const state = analyses.get(candidate.matchId);
                       if (state?.state === 'failed') return 'Esta partida no tiene análisis';
@@ -660,6 +755,7 @@ export function ReplayWorkspace({
           onToggleLoop={() => setLoop((value) => !value)}
           onSeek={seekTo}
           onScrubbingChange={setScrubbing}
+          tramo={multi ? { tramo, onChange: setTramo } : undefined}
           below={
             moments.length === 0 && winState === null ? undefined : (
               <>

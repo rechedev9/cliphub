@@ -114,7 +114,7 @@ func TestTeamBombsitesPlaybookAndPrep(t *testing.T) {
 		t.Fatalf("players = %+v, want the name cleaned", prep.CTPlayers)
 	}
 	w := prep.CTPlayers[0].Windows
-	if len(w) != 2 || w[0].Window != "0-20s" || w[1].Window != "60s+" || w[0].Spots[0].Callout != "Ramp" || w[0].Spots[0].Rounds != 6 {
+	if len(w) != 2 || w[0].Window != "1:55 to 1:35" || w[1].Window != "0:55 to the end" || w[0].Spots[0].Callout != "Ramp" || w[0].Spots[0].Rounds != 6 {
 		t.Errorf("windows = %+v", w)
 	}
 	toolFails(t, cs, "team_prep", map[string]any{"team_id": testTeamID, "map": ""}, "map is required")

@@ -104,6 +104,13 @@ func parseSpatialRequest(q url.Values, overlay bool) (spatialRequest, error) {
 	if window.To, err = secondsQuery(q, "t_to"); err != nil {
 		return req, err
 	}
+	switch q.Get("t_from_plant") {
+	case "", "0":
+	case "1":
+		window.FromPlant = true
+	default:
+		return req, errors.New("t_from_plant must be 1 or 0")
+	}
 	if window.To > 0 && window.To < window.From {
 		return req, errors.New("t_to must not be before t_from")
 	}
@@ -269,6 +276,7 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	}
 	// Slots differ between demos, so a team view cannot filter by them.
 	rounds.Slots = nil
+	rounds.Subjects = nil
 	candidates, pending, skipped, err := h.teamCandidates(ctx, team, matchIDs)
 	if err != nil {
 		return spatialResponse{}, nil, err

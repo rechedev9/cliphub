@@ -9,12 +9,14 @@ import { opponentSide } from '../tactical-labels.ts';
 export const TACTICAL_EVIDENCE_QUERY = { round: 'round', tick: 'tick' } as const;
 /** Query key of the record tab a link opens, and the tab that holds the replay. */
 export const MATCH_TAB_QUERY = 'tab';
-export const MATCH_TACTICAL_TAB = 'tactica';
+export const MATCH_REPLAY_TAB = 'replay';
+/** The tab's id before it was renamed; old links and exported reports still carry it. */
+export const LEGACY_REPLAY_TAB = 'tactica';
 
 /** The href that opens a partida's replay on one round and tick. */
 export function roundEvidenceHref(matchPath: string, round: number, tick: number): string {
   const params = new URLSearchParams({
-    [MATCH_TAB_QUERY]: MATCH_TACTICAL_TAB,
+    [MATCH_TAB_QUERY]: MATCH_REPLAY_TAB,
     [TACTICAL_EVIDENCE_QUERY.round]: String(round),
     [TACTICAL_EVIDENCE_QUERY.tick]: String(tick),
   });

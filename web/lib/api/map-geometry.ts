@@ -1,5 +1,5 @@
 /**
- * Map geometry for the 3D replay (`internal/mapgeo`), read at runtime from the user's own CS2
+ * Map geometry for the Replay (`internal/mapgeo`), read at runtime from the user's own CS2
  * install: `physics` is the decimated collision (walls, floors, props that stop players and
  * bullets; undersides dropped, winding not uniform, so draw it double-sided), `nav` the walkable
  * floor. World units, Z up, the same space as the tactical document's positions.

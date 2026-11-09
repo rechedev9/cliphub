@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // RoundFilter selects the rounds of one match a tendencies read aggregates;
@@ -100,5 +102,77 @@ type AnticheatDossier struct {
 func (c *Client) GetAnticheatDossier(ctx context.Context, jobID, steamID string) (AnticheatDossier, error) {
 	var out AnticheatDossier
 	err := c.getJSON(ctx, jobPath(jobID)+"/anticheat/dossier/"+url.PathEscape(steamID), &out)
+	return out, err
+}
+
+// LibraryTacticalPlan returns a library match's tactical document in the
+// orchestrator's own type, so a caller can run tacticalplan.Filter over it.
+func (c *Client) LibraryTacticalPlan(ctx context.Context, matchID string) (tacticalplan.Document, error) {
+	var out tacticalplan.Document
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical", &out)
+	return out, err
+}
+
+// TacticalRoundFrames is GET /api/library/matches/{id}/tactical/rounds/{round}:
+// one round and its sampled positions.
+type TacticalRoundFrames struct {
+	Round  tacticalplan.Round   `json:"round"`
+	Frames []tacticalplan.Frame `json:"frames"`
+}
+
+// LibraryTacticalRound returns one round of a library match with its position samples.
+func (c *Client) LibraryTacticalRound(ctx context.Context, matchID string, round int) (TacticalRoundFrames, error) {
+	var out TacticalRoundFrames
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round), &out)
+	return out, err
+}
+
+// RoundLineups is GET /api/library/matches/{id}/tactical/rounds/{round}/lineups:
+// a round's grenades against the lineup catalog.
+type RoundLineups struct {
+	Map         string         `json:"map"`
+	CatalogSize int            `json:"catalog_size"`
+	Smokes      int            `json:"smokes"`
+	Matched     int            `json:"matched"`
+	Grenades    []RoundGrenade `json:"grenades"`
+}
+
+// RoundGrenade is one grenade of the round and the catalog lineup it matches, if any.
+type RoundGrenade struct {
+	Seconds float64 `json:"seconds"`
+	Kind    string  `json:"kind"`
+	Side    string  `json:"side"`
+	Player  string  `json:"player"`
+	Callout string  `json:"callout"`
+	Status  string  `json:"status"`
+	Lineup  *struct {
+		ID          string `json:"id"`
+		Destination string `json:"destination"`
+		FromArea    string `json:"from_area"`
+	} `json:"lineup"`
+}
+
+// LibraryRoundLineups compares one round's grenades with the lineup catalog.
+func (c *Client) LibraryRoundLineups(ctx context.Context, matchID string, round int) (RoundLineups, error) {
+	var out RoundLineups
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round)+"/lineups", &out)
+	return out, err
+}
+
+// MatchOverlay is GET /api/library/matches/{id}/tactical/overlay: the rounds a
+// scope superposes, each with the paths of the players it counts.
+type MatchOverlay struct {
+	Map     string                `json:"map"`
+	Overlay *tacticalplan.Overlay `json:"overlay"`
+}
+
+// LibraryMatchOverlay superposes the rounds of one match that the filter keeps.
+func (c *Client) LibraryMatchOverlay(ctx context.Context, matchID string, filter url.Values) (MatchOverlay, error) {
+	var out MatchOverlay
+	suffix := ""
+	if len(filter) > 0 {
+		suffix = "?" + filter.Encode()
+	}
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/overlay"+suffix, &out)
 	return out, err
 }

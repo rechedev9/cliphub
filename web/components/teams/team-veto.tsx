@@ -124,7 +124,7 @@ export function TeamVeto({
   if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige un rival en el filtro de arriba para simular el veto.</p>;
   else if (!fits) {
     notice = (
-      <p role="alert" className="text-body-sm text-warning">
+      <p role="alert" className="text-body-sm text-fg-1">
         Un {SERIES_FORMAT_LABEL[format]} necesita entre {minPool} y 9 mapas en el pool.
       </p>
     );

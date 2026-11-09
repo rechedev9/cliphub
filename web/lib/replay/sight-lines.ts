@@ -2,7 +2,7 @@ import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleF
 import type { TacticalEvent, TacticalSample, TacticalSide } from '../api/tactical.ts';
 import { clearShare, segmentBlocked } from './sight-bvh.ts';
 import type { SightBvh } from './sight-bvh.ts';
-import type { Vec3 } from './three/orbit.ts';
+import type { Vec3 } from './vec3.ts';
 import { SMOKE_FADE_SECONDS, SMOKE_SECONDS } from './three/utility-visuals.ts';
 
 /** Eye height over the feet, standing and crouched (CS2 view offsets). */

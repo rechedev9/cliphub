@@ -28,7 +28,7 @@ const SIDES = [
 
 const TONE_CLASS: Record<StatusTone, string> = {
   success: 'border-success/40 bg-success/10',
-  warning: 'border-warning/40 bg-warning/10',
+  accent: 'border-primary/40 bg-primary/10',
   secondary: 'border-border bg-surface-2',
   stream: 'border-stream/40 bg-stream/10',
   outline: 'border-border bg-surface-1',
@@ -36,7 +36,7 @@ const TONE_CLASS: Record<StatusTone, string> = {
 
 const DOT_CLASS: Record<StatusTone, string> = {
   success: 'bg-success',
-  warning: 'bg-warning',
+  accent: 'bg-primary',
   secondary: 'bg-fg-4',
   stream: 'bg-stream',
   outline: 'bg-border-strong',
@@ -131,7 +131,7 @@ export function PlanTable({
         <EmptyState
           icon={Table2}
           title={`Sin jugadas ${side} en ${prettyMapName(shownMap)}`}
-          description="Cada columna es un tipo de ronda. Añade jugadas con el botón + de cada columna o guarda rondas desde la repetición 2D."
+          description="Cada columna es un tipo de ronda. Añade jugadas con el botón + de cada columna o guarda rondas desde el Replay."
         />
       ) : null}
       <div className="grid auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1">

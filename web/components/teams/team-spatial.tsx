@@ -10,11 +10,14 @@ import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspac
 export function TeamSpatial({
   teamId,
   scope,
+  view,
   onMapChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The form the team's Replay is on: a heatmap or the superposed paths. */
+  view: 'heatmap' | 'overlay';
   onMapChange: (map: string) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
@@ -31,6 +34,8 @@ export function TeamSpatial({
   return (
     <SpatialWorkspace
       side={scope.side}
+      view={view}
+      hideViewSwitch
       onMapChange={onMapChange}
       onLoaded={onLoaded}
       scope={{

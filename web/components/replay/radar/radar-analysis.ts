@@ -1,19 +1,11 @@
 import { TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '@/lib/api/tactical';
 import type { RadarCalibration, TacticalSample, TacticalSide } from '@/lib/api/tactical';
-import type { HitLine, HitLineKind } from '@/lib/replay/hit-lines';
+import type { HitLine } from '@/lib/replay/hit-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { formatDecimal } from '@/lib/format';
-
-/** Colours of the hit lines; the left panel's legend reads them too. */
-export const HIT_COLORS: Record<HitLineKind, string> = {
-  bullet: '#ff4a4a',
-  he: '#ff9f43',
-  fire: '#e8590c',
-  flash: '#f6f1b0',
-};
 
 /** What the analysis layers add to one frame of the focused round. */
 export type FrameAnalysis = { sight: FrameSight | null; hits: readonly HitLine[] };
@@ -99,8 +91,8 @@ export function drawHitLines(canvas: Canvas, lines: readonly HitLine[]): void {
     const ux = (to.at.x - from.at.x) / length;
     const uy = (to.at.y - from.at.y) / length;
     ctx.globalAlpha = line.alpha;
-    ctx.strokeStyle = HIT_COLORS[line.kind];
-    ctx.fillStyle = HIT_COLORS[line.kind];
+    ctx.strokeStyle = canvas.style.hits[line.kind];
+    ctx.fillStyle = canvas.style.hits[line.kind];
     ctx.lineWidth = line.kind === 'bullet' ? Math.min(3.5, 1.25 + line.amount / 40) : 2;
     ctx.beginPath();
     ctx.moveTo(from.at.x, from.at.y);
@@ -138,7 +130,7 @@ export function drawHitLabels(canvas: Canvas, lines: readonly HitLine[]): void {
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(11, 12, 14, 0.9)';
     ctx.strokeText(text, x, y);
-    ctx.fillStyle = HIT_COLORS[line.kind];
+    ctx.fillStyle = canvas.style.hits[line.kind];
     ctx.fillText(text, x, y);
   }
   ctx.globalAlpha = 1;

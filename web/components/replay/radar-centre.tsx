@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { hitLines } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
+import { MAP_SIZE_SCALE } from '@/lib/replay/map-settings';
 import { WHEEL_STEP, boxWindow, followView, paddedView, panView, radarImageFits, rememberZoom, rememberedZoom, sameRect, wheelZooms, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
@@ -19,11 +20,10 @@ import type { RadarRect } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { readRadarStyle } from '@/components/tactical/radar-style';
 import { TelestratorLayer } from '@/components/tactical/spatial/telestrator';
-import { Segmented } from '@/components/ui/segmented';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
-import type { ReplayCentreProps, ReplayCentreView } from './centre';
+import type { ReplayCentreProps } from './centre';
 import { loadNavRadar, loadRadarImage } from './radar/map-art';
 import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
@@ -52,8 +52,6 @@ type Readers = {
   trails: (cursor: FrameCursor) => ReadonlyMap<number, readonly TrailPoint[]>;
 };
 
-type ArtSource = 'scheme' | 'official' | 'real';
-
 /** The real map's plate for one map; `plate` is null while it loads or when it failed. */
 type RealArt = { map: string; plate: RealPlate | null; failed: boolean };
 
@@ -61,6 +59,7 @@ type RealArt = { map: string; plate: RealPlate | null; failed: boolean };
 type OfficialArt = { map: string; upper: HTMLImageElement; lower: HTMLImageElement | null };
 
 const GRID: MapArt = { kind: 'grid' };
+const NO_FOCUS: readonly number[] = [];
 
 /**
  * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
@@ -68,7 +67,7 @@ const GRID: MapArt = { kind: 'grid' };
  * The wheel zooms on the cursor, a drag pans, a click highlights a player.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot, followSlot, onFollowSlot }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, followSlot, onFollowSlot, settings, barSlot }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -81,7 +80,9 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const [box, setBox] = useState<Box>({ width: 1, height: 1, dpr: 1 });
   const [navArt, setNavArt] = useState<{ map: string; art: MapArt; failed: boolean } | null>(null);
   const [officialArt, setOfficialArt] = useState<OfficialArt | null>(null);
-  const [source, setSource] = useState<ArtSource>('official');
+  const source = settings.art;
+  const dotScale = MAP_SIZE_SCALE[settings.dots];
+  const nameScale = MAP_SIZE_SCALE[settings.names];
   const [real, setReal] = useState<RealArt | null>(null);
   const [zoomState, setZoomState] = useState<{ map: string; view: RadarRect | null } | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -90,6 +91,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const sightMemo = useRef<{ key: string; value: FrameSight } | null>(null);
 
   const focused = rounds.find((round) => round.focused) ?? rounds.at(-1);
+  const focusedMatchId = focused?.matchId;
   const geometry = focused?.doc.geometry;
   const map = geometry?.map ?? '';
   const drawable = geometry !== undefined && isCalibrationUsable(geometry.calibration);
@@ -99,7 +101,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const art = navArt?.map === map ? navArt.art : GRID;
   const navFailed = navArt?.map === map && navArt.failed;
   const official = imageFits && officialArt?.map === map ? officialArt : null;
-  // The zoom outlives a trip to the 3D view and back, per map.
+  // The zoom outlives a remount, per map.
   const zoomed = zoomState?.map === map ? zoomState.view : rememberedZoom(map);
   const setZoomed = useCallback(
     (view: RadarRect | null) => {
@@ -187,6 +189,17 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   // The plate covers the whole canvas, not just the view, or the strips beside it stay black.
   const shown = useMemo(() => boxWindow(box, projection), [box, projection]);
 
+  // Slots mean a player only inside one match: in another match the same players are found by SteamID.
+  const focusByMatch = useMemo(() => {
+    const out = new Map<string, readonly number[]>();
+    const ids = new Set((focused?.doc.players ?? []).filter((player) => focus.includes(player.slot)).map((player) => player.steamid64));
+    for (const round of rounds) {
+      if (out.has(round.matchId)) continue;
+      out.set(round.matchId, round.matchId === focusedMatchId ? focus : round.doc.players.filter((player) => ids.has(player.steamid64)).map((player) => player.slot));
+    }
+    return out;
+  }, [focus, focused, focusedMatchId, rounds]);
+
   const readers = useMemo(() => {
     const out = new Map<string, Readers>();
     for (const round of rounds) {
@@ -203,11 +216,11 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
       if (geometry === undefined) return null;
       const key = `${shownArt.kind}|${level}|${projection.size}|${box.dpr}|${shown.x},${shown.y},${shown.width},${shown.height}|${map}`;
       if (plateRef.current?.key === key) return plateRef.current.canvas;
-      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size: projection.size, dpr: box.dpr, view: shown, style, zoom });
+      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size: projection.size, dpr: box.dpr, view: shown, style });
       plateRef.current = { key, canvas };
       return canvas;
     },
-    [box.dpr, geometry, map, projection.size, shown, shownArt, zoom],
+    [box.dpr, geometry, map, projection.size, shown, shownArt],
   );
 
   const drawRound = useCallback(
@@ -228,7 +241,10 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         if (player.death_tick !== undefined && player.death_tick <= tick) deadFor.set(player.slot, nowSeconds - timelineSeconds(round.timeline, player.death_tick));
       }
       const visible = { x: shown.x * projection.size, y: shown.y * projection.size, width: shown.width * projection.size, height: shown.height * projection.size };
-      const drawn = layerSamples(samples, layers);
+      const roundFocus = focusByMatch.get(round.matchId) ?? NO_FOCUS;
+      // With players in focus, a superposed round shows only them: forty rounds of one player stay readable.
+      const alone = focus.length > 0 && !round.focused;
+      const drawn = alone ? layerSamples(samples, layers).filter((sample) => roundFocus.includes(sample.slot)) : layerSamples(samples, layers);
       const secondsOf = (at: number): number => timelineSeconds(round.timeline, at);
       let analysis: FrameAnalysis | null = null;
       if (round.focused) {
@@ -259,16 +275,18 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
           secondsOf,
           deadFor,
           labels: round.focused ? round.labels : new Map(),
-          selectedSlot: round.focused ? selectedSlot : null,
-          utility: layers.utility,
-          bomb: layers.bomb,
+          focus: roundFocus,
+          dotScale,
+          nameScale,
+          utility: layers.utility && !alone,
+          bomb: layers.bomb && !alone,
           style,
           analysis,
         },
         round.focused ? { visible, spots: spotsRef.current } : null,
       );
     },
-    [geometry, layers, projection.size, readers, selectedSlot, shown, sightBvh, tickOf],
+    [dotScale, focus, focusByMatch, geometry, layers, nameScale, projection.size, readers, shown, sightBvh, tickOf],
   );
 
   const render = useCallback(
@@ -396,7 +414,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   }, []);
 
   const playerAt = (x: number, y: number): number | null => {
-    const reach = discRadius(projection.size) + 6;
+    const reach = discRadius(projection.size, dotScale) + 6;
     let best: { slot: number; distance: number } | null = null;
     for (const player of drawnRef.current) {
       if (!player.alive) continue;
@@ -405,6 +423,8 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     }
     return best?.slot ?? null;
   };
+
+  useEffect(() => onHoverSlot(hover), [hover, onHoverSlot]);
 
   const dragRef = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
   const local = (event: { clientX: number; clientY: number }): { x: number; y: number } => {
@@ -423,7 +443,6 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const label = mode === 'multi' ? `${rounds.length} rondas superpuestas desde el final del tiempo de compra` : `Mapa de la ronda ${focused?.round.number ?? ''}`;
   const hovered = hover === null ? null : drawnRef.current.find((player) => player.slot === hover);
   const hoveredSample = hover === null ? undefined : samplesRef.current.find((sample) => sample.slot === hover);
-  const followedName = followSlot === null || focused === undefined ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const decodeError = focused === undefined ? null : framesDecodeError(focused.frames);
   const hoveredName = hover === null || focused === undefined ? '' : (focused.doc.players.find((player) => player.slot === hover)?.name ?? '');
 
@@ -467,7 +486,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
           if (drag === null || drag.moved) return;
           const at = local(event);
           const slot = playerAt(at.x, at.y);
-          if (slot !== null) onSelectSlot(slot === selectedSlot ? null : slot);
+          if (slot !== null) onPickSlot(slot, event.shiftKey);
         }}
         onPointerLeave={() => setHover(null)}
         onDoubleClick={() => setZoomed(null)}
@@ -488,31 +507,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         />
       )}
 
-      <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-12rem)] flex-wrap items-end gap-2">
-        {official === null ? null : (
-          <div className="pointer-events-auto">
-            <Segmented
-              label="Dibujo del mapa"
-              value={source}
-              options={[
-                { value: 'scheme', label: 'Esquema' },
-                { value: 'official', label: 'Radar oficial' },
-                { value: 'real', label: 'Mapa real' },
-              ]}
-              onChange={setSource}
-            />
-          </div>
-        )}
-        {followedName === null ? null : (
-          <button
-            type="button"
-            onClick={() => onFollowSlot(null)}
-            className="pointer-events-auto flex h-9 items-center gap-1.5 rounded-md border border-border-strong bg-surface-1/95 px-2.5 text-meta text-fg-1 outline-none hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Siguiendo a <span className="max-w-32 truncate font-semibold">{followedName}</span>
-            <X className="size-3.5 text-fg-3" aria-label="Dejar de seguir" />
-          </button>
-        )}
+      <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap items-end gap-2">
         {realLoading ? (
           <p role="status" className="pointer-events-auto rounded-md bg-surface-0/90 px-2 py-1 text-meta text-fg-2">
             Cargando el mapa real de CS2…
@@ -538,28 +533,23 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
         ) : null}
       </div>
 
-      <MapZoomControls zoom={zoom} zoomed={zoomed !== null} onZoomBy={zoomBy} onReset={() => setZoomed(null)} className="absolute right-2 bottom-2" />
+      {barSlot === null
+        ? null
+        : createPortal(<MapZoomControls zoom={zoom} zoomed={zoomed !== null} onZoomBy={zoomBy} onReset={() => setZoomed(null)} className="border-0 bg-transparent p-0" />, barSlot)}
 
       {drawable ? null : (
         <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
-          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la repetición. Los eventos siguen en la lista.
+          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar el Replay. Los eventos siguen en la lista.
         </p>
       )}
       {drawable && decodeError !== null ? (
-        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-warning/45 bg-surface-0/90 px-3 py-2 text-body-sm text-warning">{decodeError}</p>
+        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-border-strong bg-surface-0/90 px-3 py-2 text-body-sm text-fg-1">{decodeError}</p>
       ) : null}
       {drawable && decodeError === null && focused !== undefined && focused.frames.length === 0 ? (
-        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-warning/45 bg-surface-0/90 px-3 py-2 text-body-sm text-warning">
+        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-border-strong bg-surface-0/90 px-3 py-2 text-body-sm text-fg-1">
           Esta ronda no tiene posiciones guardadas: el mapa queda vacío, los eventos no.
         </p>
       ) : null}
     </div>
   );
 }
-
-/** The default centre view. Put a 3D view after it in `centreViews` to offer both. */
-export const RADAR_2D_VIEW: ReplayCentreView = {
-  id: '2d',
-  label: '2D',
-  render: (props) => <RadarCentre {...props} />,
-};

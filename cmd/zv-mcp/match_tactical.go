@@ -200,7 +200,8 @@ func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "match_tendencies", Annotations: readOnly,
 		Description: "Aggregate how one team played the rounds of a single match: buys, sites, T and CT round shapes, openings and players, " +
-			"filtered by side, buy, result and round range. For many matches use scout_team."},
+			"filtered by side, buy, result and round range: the tables under the match's Métricas tab. replay_rounds with the same buy, site or shape " +
+			"gives the rounds behind a figure. For many matches use scout_team."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in matchTendenciesIn) (*mcp.CallToolResult, tendenciesOut, error) {
 			f, err := in.filter()
 			if err != nil {

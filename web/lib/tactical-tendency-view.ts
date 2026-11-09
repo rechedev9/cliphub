@@ -1,4 +1,5 @@
-import type { TacticalFilter, TacticalRate, TacticalRound, TacticalTendencies } from './api/tactical.ts';
+import { TACTICAL_CT_PATTERN_ORDER, TACTICAL_T_PATTERN_ORDER } from './api/tactical.ts';
+import type { TacticalFilter, TacticalRate, TacticalRound, TacticalSide, TacticalTendencies } from './api/tactical.ts';
 import { tacticalPerspective } from './tactical-filter.ts';
 import type { TeamSides } from './tactical-filter.ts';
 import { buyLabel, patternLabel, siteLabel } from './tactical-labels.ts';
@@ -98,14 +99,17 @@ export type TendencyRow = {
   tone: OutcomeTone;
   /** Fewer rounds than MIN_RELIABLE_SAMPLE: a fact, not a tendency yet. */
   small: boolean;
+  /** What narrows the panel's rounds to this row's, for the link to the Replay. */
+  patch: TacticalFilter;
 };
 
 export type TendencyCard = { key: string; title: string; hint: string; column: string; rows: TendencyRow[] };
 
 type WinBucket = { rounds: number; share: TacticalRate; win_rate: TacticalRate };
 
-function row({ key, label, bucket }: { key: string; label: string; bucket: WinBucket }): TendencyRow {
+function row({ key, label, bucket, patch }: { key: string; label: string; bucket: WinBucket; patch: TacticalFilter }): TendencyRow {
   return {
+    patch,
     key,
     label,
     rounds: bucket.rounds,
@@ -115,6 +119,12 @@ function row({ key, label, bucket }: { key: string; label: string; bucket: WinBu
     tone: winTone(bucket.win_rate),
     small: !bucket.win_rate.reliable,
   };
+}
+
+/** The filter of one round shape: the side it is played on and the shape itself. */
+export function shapePatch(side: TacticalSide, pattern: string): TacticalFilter {
+  if (side === 'T') return { side, t_patterns: TACTICAL_T_PATTERN_ORDER.filter((entry) => entry === pattern) };
+  return { side, ct_patterns: TACTICAL_CT_PATTERN_ORDER.filter((entry) => entry === pattern) };
 }
 
 function sideRounds(buckets: readonly WinBucket[]): number {
@@ -129,28 +139,28 @@ export function tendencyCards(tendencies: TacticalTendencies): TendencyCard[] {
       title: 'Economía',
       hint: 'Cuánto gana con cada compra',
       column: 'Compra',
-      rows: tendencies.buys.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.buy, label: buyLabel(bucket.buy), bucket })),
+      rows: tendencies.buys.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.buy, label: buyLabel(bucket.buy), bucket, patch: { buys: [bucket.buy] } })),
     },
     {
       key: 'sites',
       title: 'Sitio de la ronda',
       hint: 'Dónde se jugó la ronda',
       column: 'Sitio',
-      rows: tendencies.sites.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.site, label: siteLabel(bucket.site), bucket })),
+      rows: tendencies.sites.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.site, label: siteLabel(bucket.site), bucket, patch: { sites: [bucket.site] } })),
     },
     {
       key: 't',
       title: `Como T · ${roundsLabel(sideRounds(tendencies.t_patterns))}`,
       hint: 'Forma de sus ataques',
       column: 'Forma',
-      rows: tendencies.t_patterns.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.pattern, label: patternLabel(bucket.pattern), bucket })),
+      rows: tendencies.t_patterns.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.pattern, label: patternLabel(bucket.pattern), bucket, patch: shapePatch('T', bucket.pattern) })),
     },
     {
       key: 'ct',
       title: `Como CT · ${roundsLabel(sideRounds(tendencies.ct_patterns))}`,
       hint: 'Forma de sus defensas',
       column: 'Forma',
-      rows: tendencies.ct_patterns.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.pattern, label: patternLabel(bucket.pattern), bucket })),
+      rows: tendencies.ct_patterns.filter((bucket) => bucket.rounds > 0).map((bucket) => row({ key: bucket.pattern, label: patternLabel(bucket.pattern), bucket, patch: shapePatch('CT', bucket.pattern) })),
     },
   ];
   return cards.filter((card) => card.rows.length > 0);

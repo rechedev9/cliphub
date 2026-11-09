@@ -505,7 +505,7 @@ export type TeamSpatialQuery = {
   opponent_buys?: readonly TacticalBuyType[];
 };
 
-export type HeatmapQuery = { kind: HeatmapKind; from?: number; to?: number; grenades?: readonly HeatmapGrenade[] };
+export type HeatmapQuery = { kind: HeatmapKind; from?: number; to?: number; /** Count each round from its plant on. */ fromPlant?: boolean; grenades?: readonly HeatmapGrenade[] };
 
 /** The path of a scope's heatmap or overlay with its query, in a stable order. */
 export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', extra: URLSearchParams): string {
@@ -532,6 +532,7 @@ export function getSpatialHeatmap(scope: SpatialScope, heat: HeatmapQuery): Prom
   const extra = new URLSearchParams({ kind: heat.kind });
   if (heat.from !== undefined && heat.from > 0) extra.set('t_from', String(heat.from));
   if (heat.to !== undefined && heat.to > 0) extra.set('t_to', String(heat.to));
+  if (heat.fromPlant === true) extra.set('t_from_plant', '1');
   for (const grenade of heat.grenades ?? []) extra.append('grenade', grenade);
   return request<SpatialResponse>(spatialPath(scope, 'heatmap', extra));
 }

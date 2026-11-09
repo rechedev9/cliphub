@@ -3,9 +3,11 @@
 import { useId, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { TACTICAL_BUY_TYPE_ORDER, TACTICAL_SITE_ORDER } from '@/lib/api/tactical';
-import type { TacticalBuyType, TacticalSite, TacticalTendencies } from '@/lib/api/tactical';
+import type { TacticalBuyType, TacticalFilter, TacticalSide, TacticalSite, TacticalTendencies } from '@/lib/api/tactical';
+import { shapePatch } from '@/lib/tactical-tendency-view';
 import { buyLabel, patternLabel, siteLabel } from '@/lib/tactical-labels';
 import { HistogramChart, RateBar, RateRow, RateValue, SmallSampleChip } from '@/components/tactical/tactical-charts';
+import { RoundsLink } from '@/components/tactical/tendency-links';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDecimal } from '@/lib/format';
@@ -20,7 +22,7 @@ function SectionTitle({ children }: { children: ReactNode }): ReactNode {
 }
 
 /** A cross-tab cell: the rate, its denominator, and nothing implied by colour alone. */
-function CrossCell({ rounds, pct, reliable }: { rounds: number; pct: number; reliable: boolean }): ReactNode {
+function CrossCell({ rounds, pct, reliable, patch }: { rounds: number; pct: number; reliable: boolean; patch: TacticalFilter }): ReactNode {
   if (rounds === 0) {
     return <span className="text-meta tabular-nums text-fg-4">n=0</span>;
   }
@@ -28,7 +30,9 @@ function CrossCell({ rounds, pct, reliable }: { rounds: number; pct: number; rel
     <span className="flex flex-col gap-1">
       <span className="flex items-baseline gap-2">
         <span className={cn('text-meta tracking-normal tabular-nums', reliable ? 'text-fg-1' : 'text-fg-3')}>{formatDecimal(pct, 1)} %</span>
-        <span className="text-meta tracking-normal tabular-nums text-fg-3">n={rounds}</span>
+        <RoundsLink patch={patch} className="text-meta tracking-normal tabular-nums text-fg-3">
+          n={rounds}
+        </RoundsLink>
       </span>
       {reliable ? null : <SmallSampleChip className="self-start" />}
     </span>
@@ -68,7 +72,9 @@ function EconomyTable({ tendencies }: { tendencies: TacticalTendencies }): React
                   <th scope="row" className={ROW_HEAD}>
                     {buyLabel(bucket.buy)}
                   </th>
-                  <td className={cn(BODY_CELL, 'text-meta tracking-normal tabular-nums text-fg-3')}>{bucket.rounds}</td>
+                  <td className={cn(BODY_CELL, 'text-meta tracking-normal tabular-nums text-fg-3')}>
+                    <RoundsLink patch={{ buys: [bucket.buy] }}>{bucket.rounds}</RoundsLink>
+                  </td>
                   <td className={BODY_CELL}>
                     <div className="flex flex-col gap-1.5">
                       <RateBar rate={bucket.share} className="text-fg-2" />
@@ -101,6 +107,7 @@ function CrossTable<Column extends string>({
   columns,
   columnLabel,
   cell,
+  patch,
 }: {
   title: string;
   corner: string;
@@ -108,6 +115,8 @@ function CrossTable<Column extends string>({
   columns: readonly Column[];
   columnLabel: (column: Column) => string;
   cell: (buy: TacticalBuyType, column: Column) => { rounds: number; pct: number; reliable: boolean } | undefined;
+  /** The filter of one cell's rounds. */
+  patch: (buy: TacticalBuyType, column: Column) => TacticalFilter;
 }): ReactNode {
   if (rows.length === 0) return null;
   return (
@@ -137,7 +146,7 @@ function CrossTable<Column extends string>({
                   const value = cell(buy, column);
                   return (
                     <td key={column} className={BODY_CELL}>
-                      <CrossCell rounds={value?.rounds ?? 0} pct={value?.pct ?? 0} reliable={value?.reliable ?? false} />
+                      <CrossCell rounds={value?.rounds ?? 0} pct={value?.pct ?? 0} reliable={value?.reliable ?? false} patch={patch(buy, column)} />
                     </td>
                   );
                 })}
@@ -188,6 +197,7 @@ function DetailBody({ tendencies }: { tendencies: TacticalTendencies }): ReactNo
         columns={opponentBuys}
         columnLabel={buyLabel}
         cell={matchup}
+        patch={(buy, opponent) => ({ buys: [buy], opponent_buys: [opponent] })}
       />
       <CrossTable
         title="Con cada economía, a qué sitio van · reparto"
@@ -196,10 +206,11 @@ function DetailBody({ tendencies }: { tendencies: TacticalTendencies }): ReactNo
         columns={sites}
         columnLabel={siteLabel}
         cell={buySite}
+        patch={(buy, site) => ({ buys: [buy], sites: [site] })}
       />
       <div className="grid gap-8 lg:grid-cols-2">
-        <ShapeShares title="Formas en T · reparto" buckets={tendencies.t_patterns} />
-        <ShapeShares title="Formas en CT · reparto" buckets={tendencies.ct_patterns} />
+        <ShapeShares title="Formas en T · reparto" side="T" buckets={tendencies.t_patterns} />
+        <ShapeShares title="Formas en CT · reparto" side="CT" buckets={tendencies.ct_patterns} />
       </div>
       <section className="flex flex-col gap-3">
         <SectionTitle>Duelo de apertura · {openings.rounds} rondas con duelo</SectionTitle>
@@ -242,7 +253,7 @@ export function TendencyDetail({ tendencies }: { tendencies: TacticalTendencies 
   );
 }
 
-function ShapeShares({ title, buckets }: { title: string; buckets: TacticalTendencies['t_patterns'] }): ReactNode {
+function ShapeShares({ title, side, buckets }: { title: string; side: TacticalSide; buckets: TacticalTendencies['t_patterns'] }): ReactNode {
   return (
     <section className="flex min-w-0 flex-col gap-3">
       <SectionTitle>{title}</SectionTitle>
@@ -250,7 +261,7 @@ function ShapeShares({ title, buckets }: { title: string; buckets: TacticalTende
         {buckets
           .filter((bucket) => bucket.rounds > 0)
           .map((bucket) => (
-            <RateRow key={bucket.pattern} label={patternLabel(bucket.pattern)} rate={bucket.share} />
+            <RateRow key={bucket.pattern} label={<RoundsLink patch={shapePatch(side, bucket.pattern)}>{patternLabel(bucket.pattern)}</RoundsLink>} rate={bucket.share} />
           ))}
       </div>
     </section>
@@ -267,8 +278,8 @@ export function SideAgnosticTendencies({ tendencies }: { tendencies: TacticalTen
         válidos tal cual.
       </p>
       <div className="grid gap-8 lg:grid-cols-2">
-        <ShapeShares title="Formas en T · reparto" buckets={tendencies.t_patterns} />
-        <ShapeShares title="Formas en CT · reparto" buckets={tendencies.ct_patterns} />
+        <ShapeShares title="Formas en T · reparto" side="T" buckets={tendencies.t_patterns} />
+        <ShapeShares title="Formas en CT · reparto" side="CT" buckets={tendencies.ct_patterns} />
       </div>
       <Timings tendencies={tendencies} />
     </div>

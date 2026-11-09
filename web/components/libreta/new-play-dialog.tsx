@@ -91,7 +91,7 @@ export function NewPlayDialog({
           <DialogHeader>
             <DialogTitle>Nueva jugada</DialogTitle>
             <DialogDescription>
-              Escríbela con su nombre y su tipo. Las granadas y las posiciones llegan al guardar una ronda desde la repetición 2D.
+              Escríbela con su nombre y su tipo. Las granadas y las posiciones llegan al guardar una ronda desde el Replay.
             </DialogDescription>
           </DialogHeader>
           <TitleField value={title} onChange={setTitle} />

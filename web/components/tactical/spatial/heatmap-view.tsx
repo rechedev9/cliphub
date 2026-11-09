@@ -13,6 +13,8 @@ import {
   HEATMAP_KIND_LABEL,
   HEATMAP_UNIT_LABEL,
   LEVEL_LABEL,
+  HEAT_GRADIENT,
+  heatColor,
   heatStrength,
   heatmapCellAt,
   heatmapLayer,
@@ -28,15 +30,9 @@ import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { EvidenceChips } from './spatial-controls';
-
-const WINDOWS = [
-  { value: 'all', label: 'Toda la ronda', from: 0, to: 0 },
-  { value: 'early', label: '0 a 20 s', from: 0, to: 20 },
-  { value: 'mid', label: '20 a 40 s', from: 20, to: 40 },
-  { value: 'late', label: '40 a 60 s', from: 40, to: 60 },
-  { value: 'after', label: 'Desde 60 s', from: 60, to: 0 },
-] as const;
-type WindowValue = (typeof WINDOWS)[number]['value'];
+import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/components/replay/tramo-bar';
+import { isWholeRound } from '@/lib/replay/tramo';
 
 const TOP_CELLS = 8;
 
@@ -55,13 +51,20 @@ export function HeatmapView({
   scope,
   side: sideHint,
   onLoaded,
+  tramo: tramoControl,
 }: {
   scope: SpatialScope;
   side: TacticalSide | '';
+  /** The owner's tramo; without it the view keeps its own. */
+  tramo?: TramoControl;
   onLoaded?: (response: SpatialResponse) => void;
 }): ReactNode {
   const [kind, setKind] = useState<HeatmapKind>('position');
-  const [windowValue, setWindowValue] = useState<WindowValue>('all');
+  const { tramo, onChange: setTramo } = useTramo(tramoControl);
+  const whole = isWholeRound(tramo);
+  const tramoFrom = whole ? 0 : tramo.from;
+  const tramoTo = whole ? 0 : tramo.to;
+  const fromPlant = tramo.fromPlant === true;
   const [grenades, setGrenades] = useState<HeatmapGrenade[]>([]);
   const [side, setSide] = useState<TacticalSide | ''>(sideHint);
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
@@ -80,11 +83,11 @@ export function HeatmapView({
   useEffect(() => {
     let active = true;
     setLoad({ kind: 'loading' });
-    const range = WINDOWS.find((entry) => entry.value === windowValue) ?? WINDOWS[0];
     getSpatialHeatmap(scopeRef.current, {
       kind,
-      from: range.from,
-      to: range.to,
+      from: tramoFrom,
+      to: tramoTo,
+      fromPlant,
       grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
     })
       .then((data) => {
@@ -98,7 +101,7 @@ export function HeatmapView({
     return () => {
       active = false;
     };
-  }, [scopeKey, kind, windowValue, grenadeKey, onLoaded]);
+  }, [scopeKey, kind, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded]);
 
   const data = load.kind === 'ready' ? load.data : null;
   const heatmap = data?.heatmap;
@@ -113,7 +116,6 @@ export function HeatmapView({
     ({ ctx, size, style }: RadarFrame) => {
       if (!heatmap || !layer || !data?.geometry) return;
       const calibration = data.geometry.calibration;
-      const color = shownSide === TACTICAL_SIDES.t ? style.t : style.ct;
       const cs = heatmap.cell_size;
       for (const cell of layer.cells) {
         const rect = worldRectToRadarRect(
@@ -121,8 +123,9 @@ export function HeatmapView({
           { minX: cell.x * cs, minY: cell.y * cs, maxX: (cell.x + 1) * cs, maxY: (cell.y + 1) * cs },
           size,
         );
-        ctx.globalAlpha = 0.14 + 0.76 * heatStrength(heatmap.kind, cell, layer);
-        ctx.fillStyle = color;
+        const strength = heatStrength(heatmap.kind, cell, layer);
+        ctx.globalAlpha = 0.3 + 0.55 * strength;
+        ctx.fillStyle = heatColor(strength);
         ctx.fillRect(rect.x, rect.y, rect.width + 0.5, rect.height + 0.5);
         if (cellKey(cell) === selected) {
           ctx.globalAlpha = 1;
@@ -133,7 +136,7 @@ export function HeatmapView({
       }
       ctx.globalAlpha = 1;
     },
-    [data, heatmap, layer, selected, shownSide],
+    [data, heatmap, layer, selected],
   );
 
   const onPoint = useCallback(
@@ -184,7 +187,6 @@ export function HeatmapView({
           matches={matches}
           selected={selectedCell}
           onSelect={(cell) => setSelected(cellKey(cell))}
-          side={shownSide}
         />
       </div>
     );
@@ -228,8 +230,8 @@ export function HeatmapView({
             }}
           />
         ) : null}
-        <Segmented label="Momento de la ronda" value={windowValue} options={WINDOWS} onChange={setWindowValue} />
       </div>
+      <TramoBar tramo={tramo} onChange={setTramo} />
       {kind === 'utility' ? (
         <div role="group" aria-label="Granadas" className="flex flex-wrap items-center gap-1.5">
           <span className="text-body-sm text-fg-3">Granadas:</span>
@@ -271,9 +273,7 @@ function HeatmapSidebar({
   matches,
   selected,
   onSelect,
-  side,
 }: {
-  side: TacticalSide;
   kind: HeatmapKind;
   layer: ReturnType<typeof heatmapLayer>;
   rounds: number;
@@ -296,7 +296,7 @@ function HeatmapSidebar({
         {layer.total} {unit} en {layer.rounds} de {rounds} rondas ({matchCount} {matchCount === 1 ? 'partida' : 'partidas'}).
         {missing > 0 ? ` ${missing} sin posiciones guardadas.` : ''}
       </p>
-      <Legend kind={kind} side={side} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} />
+      <Legend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} />
       {selected ? (
         <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
           <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
@@ -347,20 +347,14 @@ function HeatmapSidebar({
   );
 }
 
-/** The radar paints CT in --side-ct and T in --side-t; the legend follows it. */
-const SIDE_RAMP: Record<TacticalSide, string> = {
-  [TACTICAL_SIDES.ct]: 'var(--side-ct)',
-  [TACTICAL_SIDES.t]: 'var(--side-t)',
-};
-
-function Legend({ kind, side, maxCount, maxSeconds }: { kind: HeatmapKind; side: TacticalSide; maxCount: number; maxSeconds: number }): ReactNode {
+/** The heat has its own scale, green to yellow, so the side colours keep meaning only the sides. */
+function Legend({ kind, maxCount, maxSeconds }: { kind: HeatmapKind; maxCount: number; maxSeconds: number }): ReactNode {
   const timing = kind === 'timing';
-  const color = SIDE_RAMP[side];
   return (
     <div className="flex flex-col gap-1" aria-label="Leyenda">
       <div
         className="h-2 rounded-sm"
-        style={{ background: `linear-gradient(to right, color-mix(in oklab, ${color} 15%, transparent), ${color})` }}
+        style={{ background: HEAT_GRADIENT }}
         aria-hidden
       />
       <div className="flex justify-between text-meta tabular-nums text-fg-3">

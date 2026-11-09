@@ -58,7 +58,8 @@ each percent in chat.
 Analysis: list_teams for team ids, list_players to turn a nick into a SteamID64, get_team (roster) and
 get_player (nicks and teams by date), scout_team for a team's tendencies, player_metrics for a player's
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
-For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades;
+For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
+prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
@@ -95,10 +96,18 @@ one into the Libreta.
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
-player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered).
+player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered: the tables of the match's Métricas tab;
+replay_rounds with the same buy, site or shape gives the rounds behind one of its figures).
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
 integrity_dossier is one screened player's evidence pack and the official ways to report them.
-map_3d_status checks that the tactical replay can draw a map as CS2 does, in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
+replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
+round range, phase); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
+Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
+replay_overlay superposes those rounds from the end of freeze time, as Superponer does, with the same scope and focus.
+player_setpos gives the console line that puts you where a player stood at a moment of a round (the S key in the Replay).
+What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
+round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one playlist to open in Studio.
+real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a

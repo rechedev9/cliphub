@@ -96,7 +96,7 @@ export function TeamScout({
         <Button asChild size="sm">
           <Link href={newReportHref(teamId)}>
             <FilePlus2 aria-hidden />
-            Crear informe
+            Guardar como informe
           </Link>
         </Button>
       }

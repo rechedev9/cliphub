@@ -1,7 +1,6 @@
 import type { RadarLevel, TacticalGeometry } from '@/lib/api/tactical';
 import { NAV_RADAR_PALETTE, heightTone, polygonLevel, toneColor } from '@/lib/replay/nav-radar';
 import type { NavPolygon, NavRadarModel } from '@/lib/replay/nav-radar';
-import { placeLabel } from '@/lib/tactical-labels';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarRect } from '@/lib/tactical-transform';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
@@ -21,9 +20,7 @@ const BAND_UNITS = 40;
 const INACTIVE_ALPHA = 0.28;
 const OUTLINE_PX = 2.4;
 const SEAM_PX = 0.9;
-/** Callouts below this share of the busiest one would only add noise. */
-const CALLOUT_SHARE = 0.12;
-const SITE_COLOR = '#e3843c';
+const SITE_COLOR = '#c9ced4';
 
 function tracePolygon(ctx: CanvasRenderingContext2D, polygon: NavPolygon): void {
   const { points } = polygon;
@@ -93,7 +90,7 @@ function siteBadge(ctx: CanvasRenderingContext2D, x: number, y: number, letter: 
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#0b0c0e';
   ctx.font = `700 14px ${font}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -117,39 +114,24 @@ function spawnBadge(ctx: CanvasRenderingContext2D, options: { x: number; y: numb
   ctx.fillText(label, x, y + 0.5);
 }
 
-/** Bombsites, spawns and the busiest callouts, from the places the demo recorded. */
-function paintMarkers(ctx: CanvasRenderingContext2D, options: { geometry: TacticalGeometry; level: RadarLevel; size: number; style: RadarStyle; zoom: number; official: boolean }): void {
-  const { geometry, level, size, style, zoom, official } = options;
-  const busiest = geometry.callouts.reduce((max, callout) => Math.max(max, callout.samples), 0);
-  const labels: { x: number; y: number; text: string }[] = [];
+/** Bombsites and spawns, from the places the demo recorded. Zone names stay off the map: each team has its own. */
+function paintMarkers(ctx: CanvasRenderingContext2D, options: { geometry: TacticalGeometry; size: number; style: RadarStyle; official: boolean }): void {
+  const { geometry, size, style, official } = options;
+  // The official overview already draws its own sites and spawns.
+  if (official) return;
   for (const callout of geometry.callouts) {
     const at = worldToRendered(geometry.calibration, callout.center[0], callout.center[1], size);
     const name = callout.name.toLowerCase().replace(/[^a-z]/g, '');
-    const furniture = name === 'bombsitea' || name === 'bombsiteb' || name === 'tspawn' || name === 'ctspawn';
-    if (official && furniture) continue;
     if (name === 'bombsitea') siteBadge(ctx, at.x, at.y, 'A', style.fontFamily);
     else if (name === 'bombsiteb') siteBadge(ctx, at.x, at.y, 'B', style.fontFamily);
     else if (name === 'tspawn') spawnBadge(ctx, { ...at, label: 'T', color: style.t, font: style.fontFamily });
     else if (name === 'ctspawn') spawnBadge(ctx, { ...at, label: 'CT', color: style.ct, font: style.fontFamily });
-    else if (callout.level === level && busiest > 0 && callout.samples / busiest >= CALLOUT_SHARE / zoom) labels.push({ ...at, text: placeLabel(callout.name) });
-  }
-  if (size < 560) return;
-  ctx.font = `500 12px ${style.fontFamily}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(11, 12, 14, 0.7)';
-  ctx.fillStyle = 'rgba(232, 235, 238, 0.62)';
-  for (const label of labels) {
-    ctx.strokeText(label.text, label.x, label.y);
-    ctx.fillText(label.text, label.x, label.y);
   }
 }
 
 /**
  * Bakes the visible window of the map plate at device resolution: the art,
- * then the bombsites, spawns and callouts. Everything draws in the radar
+ * then the bombsites and spawns. Everything draws in the radar
  * square's coordinates (`worldToRendered`), so the players land on it exactly.
  */
 export function bakeMapPlate(options: {
@@ -160,9 +142,8 @@ export function bakeMapPlate(options: {
   dpr: number;
   view: RadarRect;
   style: RadarStyle;
-  zoom: number;
 }): HTMLCanvasElement {
-  const { art, geometry, level, size, dpr, view, style, zoom } = options;
+  const { art, geometry, level, size, dpr, view, style } = options;
   if (art.kind === 'grid') return renderRadarBackground(geometry, level, size, dpr, style, view);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(view.width * size * dpr));
@@ -180,6 +161,6 @@ export function bakeMapPlate(options: {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, size, size);
   }
-  paintMarkers(ctx, { geometry, level, size, style, zoom, official: art.kind === 'image' });
+  paintMarkers(ctx, { geometry, size, style, official: art.kind === 'image' });
   return canvas;
 }

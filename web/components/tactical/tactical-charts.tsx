@@ -22,8 +22,7 @@ export function SmallSampleChip({ className }: { className?: string }): ReactNod
     <span
       title={`Menos de ${MIN_RELIABLE_SAMPLE} rondas: no es una tendencia`}
       className={cn(
-        // The house pair for a tinted chip: edge 45%, fill 10%, square.
-        'shrink-0 border border-warning/45 bg-warning/10 px-2 py-0.5 text-meta text-warning',
+        'shrink-0 border border-border-strong bg-surface-3 px-2 py-0.5 text-meta text-fg-2',
         className,
       )}
     >
@@ -190,7 +189,7 @@ export function HistogramChart({
             y1="0"
             x2={`${medianPct}%`}
             y2={HISTOGRAM_BASE}
-            className="stroke-warning"
+            className="stroke-fg-1"
             strokeWidth="1.5"
             strokeDasharray="3 3"
           />

@@ -60,6 +60,17 @@ func TestHeatmapDeathsFollowTheTeamAndCarryEvidence(t *testing.T) {
 	}
 }
 
+func TestHeatmapSubjectsNarrowThePlayersNotTheRounds(t *testing.T) {
+	// Slot 15 plays for nobody: the team's rounds stay, its one death does not.
+	h, err := BuildHeatmap([]SpatialMatch{spatialMatch(t, Filter{TeamKey: "t-start", Subjects: []uint8{15}})}, HeatmapOptions{Kind: HeatDeath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Rounds != 4 || len(h.Cells) != 0 {
+		t.Fatalf("heatmap = %+v, want 4 rounds and no cell", h)
+	}
+}
+
 func TestHeatmapUtilityByGrenadeAndWindow(t *testing.T) {
 	m := spatialMatch(t, Filter{TeamKey: "ct-start"})
 	all, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatUtility})

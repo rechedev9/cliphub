@@ -10,23 +10,21 @@ const PLAYBACK: readonly Shortcut[] = [
   { keys: ['←', '→'], does: 'Retroceder o avanzar 1 segundo' },
   { keys: ['Mayús', '←', '→'], does: 'Saltar al evento anterior o siguiente' },
   { keys: ['[', ']'], does: 'Ronda anterior o siguiente' },
-  { keys: ['M'], does: 'Activar o quitar Multi ronda' },
+  { keys: ['M'], does: 'Superponer rondas, o dejar de hacerlo' },
+  { keys: ['B'], does: 'Añadir la ronda a la playlist, o quitarla' },
+  { keys: [',', '.'], does: 'Plegar el panel de la ronda o el de jugadores' },
   { keys: ['P'], does: 'Pantalla completa; otra vez o Esc para salir' },
   { keys: ['?'], does: 'Mostrar estos atajos' },
 ];
 
 const MAP: readonly Shortcut[] = [
-  { keys: ['F'], does: 'Seguir al jugador seleccionado; otra vez para soltarlo' },
-  { keys: ['Esc'], does: 'Dejar de seguir y quitar la selección' },
+  { keys: ['Clic'], does: 'Dejar a un jugador en primer plano; los demás quedan translúcidos' },
+  { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
+  { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
+  { keys: ['S'], does: 'Copiar el setpos del jugador bajo el cursor' },
+  { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
-  { keys: ['Arrastrar'], does: 'Mover el mapa (en 3D, girar la cámara)' },
-  { keys: ['Clic derecho'], does: 'En 3D, desplazar la cámara' },
-];
-
-const THREE_D: readonly Shortcut[] = [
-  { keys: ['1'], does: 'Cámara en órbita' },
-  { keys: ['2'], does: 'Cámara cenital' },
-  { keys: ['3'], does: 'Cámara del jugador' },
+  { keys: ['Arrastrar'], does: 'Mover el mapa' },
 ];
 
 function Group({ title, items }: { title: string; items: readonly Shortcut[] }): ReactNode {
@@ -58,11 +56,10 @@ export function ShortcutHelp({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className="gap-4 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Atajos de teclado</DialogTitle>
-          <DialogDescription>Funcionan mientras la repetición está en pantalla y no escribes en un campo.</DialogDescription>
+          <DialogDescription>Funcionan mientras el Replay está en pantalla y no escribes en un campo.</DialogDescription>
         </DialogHeader>
         <Group title="Reproducción" items={PLAYBACK} />
         <Group title="Mapa" items={MAP} />
-        <Group title="Vista 3D" items={THREE_D} />
       </DialogContent>
     </Dialog>
   );

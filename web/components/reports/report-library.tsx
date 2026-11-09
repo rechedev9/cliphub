@@ -17,7 +17,6 @@ import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { useTableView, type TableViewControl } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { PrepDialog } from '@/components/prep/prep-dialog';
 import { NewReportDialog } from './new-report-dialog';
 
 const COLUMNS: readonly DataTableColumn<LibraryReport>[] = [
@@ -71,7 +70,6 @@ export function ReportLibrary(): ReactNode {
   const [offline, setOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [creating, setCreating] = useState(requestedTeam !== undefined);
-  const [preparing, setPreparing] = useState(false);
   const view = useTableView('informes', {
     sort: { column: 'updated', direction: 'desc' },
     hidden: [],
@@ -109,9 +107,11 @@ export function ReportLibrary(): ReactNode {
   const dialog = <NewReportDialog open={creating} onOpenChange={setDialog} initialTeamId={requestedTeam} />;
   const newButton = (
     <span className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={() => setPreparing(true)}>
-        <ClipboardList aria-hidden />
-        Preparar rival
+      <Button asChild variant="outline" size="sm">
+        <Link href={TEAMS_HREF} title="La preparación de un rival está en su ficha de Equipos, pestaña Preparar">
+          <ClipboardList aria-hidden />
+          Preparar un rival en Equipos
+        </Link>
       </Button>
       <Button type="button" size="sm" onClick={() => setCreating(true)}>
         <FilePlus2 aria-hidden />
@@ -125,7 +125,6 @@ export function ReportLibrary(): ReactNode {
     <>
       <ReportListBody reports={reports} offline={offline} view={view} newButton={newButton} onReload={() => setAttempt((n) => n + 1)} />
       {dialog}
-      <PrepDialog open={preparing} onOpenChange={setPreparing} />
     </>
   );
 }

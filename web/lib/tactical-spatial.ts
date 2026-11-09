@@ -99,6 +99,20 @@ export function heatStrength(kind: HeatmapKind, cell: HeatmapCell, layer: Heatma
 }
 
 /** The cell under a world point, if the layer has one there. */
+/** The heat scale's ends: green where little happens, yellow where the most does. No side owns either. */
+const HEAT_LOW = [34, 160, 92] as const;
+const HEAT_HIGH = [250, 224, 60] as const;
+
+/** A strength from 0 to 1 on the heat scale, as a CSS colour. */
+export function heatColor(strength: number): string {
+  const t = Math.min(1, Math.max(0, strength));
+  const channel = (index: 0 | 1 | 2): number => Math.round(HEAT_LOW[index] + (HEAT_HIGH[index] - HEAT_LOW[index]) * t);
+  return `rgb(${channel(0)} ${channel(1)} ${channel(2)})`;
+}
+
+/** The scale as a CSS gradient, for the legend. */
+export const HEAT_GRADIENT = `linear-gradient(to right, ${heatColor(0)}, ${heatColor(0.5)}, ${heatColor(1)})`;
+
 export function heatmapCellAt(layer: HeatmapLayer, cellSize: number, worldX: number, worldY: number): HeatmapCell | undefined {
   if (!(cellSize > 0)) return undefined;
   const x = Math.floor(worldX / cellSize);

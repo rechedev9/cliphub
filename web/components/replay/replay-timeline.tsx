@@ -13,6 +13,9 @@ import { eventKindLabel } from '@/lib/tactical-labels';
 import { formatRate } from '@/lib/format';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { isWholeRound, tramoLabel } from '@/lib/replay/tramo';
+import { QuickTramos, TramoBracket } from './tramo-bar';
+import type { TramoControl } from './tramo-bar';
 
 /** Kills in the killer's colour, the bomb in white, grenades as short grey ticks. */
 function tickClass(event: TacticalEvent): string {
@@ -40,6 +43,7 @@ export function ReplayTimeline({
   onSeek,
   onScrubbingChange,
   below,
+  tramo,
 }: {
   timeline: RoundTimeline;
   events: readonly TimelineEvent[];
@@ -56,6 +60,8 @@ export function ReplayTimeline({
   onScrubbingChange: (scrubbing: boolean) => void;
   /** Drawn under the track on its scale, such as the win probability. */
   below?: ReactNode;
+  /** The span the superposed rounds play in, drawn over the track; absent while one round plays. */
+  tramo?: TramoControl;
 }): ReactNode {
   const releaseRef = useRef<(() => void) | null>(null);
   const scrubbingChangeRef = useRef(onScrubbingChange);
@@ -79,7 +85,7 @@ export function ReplayTimeline({
   const freeze = timeline.durationSeconds > 0 ? timeline.freezeSeconds / timeline.durationSeconds : 0;
   return (
     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3">
-      <Button type="button" size="icon-sm" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ]: ronda">
+      <Button type="button" size="icon-sm" variant="outline" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ]: ronda">
         {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
       </Button>
       <span ref={clockRef} className="flex h-10 w-[6ch] items-center justify-end font-display text-title font-semibold tabular-nums text-fg-1">
@@ -110,17 +116,28 @@ export function ReplayTimeline({
               if (event.button === 0) startScrub();
             }}
             onChange={(event) => onSeek(Number(event.target.value))}
-            aria-label="Posición de la repetición"
+            aria-label="Posición de la reproducción"
             className={cn(
               'absolute inset-0 h-10 w-full cursor-pointer appearance-none bg-transparent outline-none',
               '[&::-webkit-slider-runnable-track]:h-10 [&::-webkit-slider-runnable-track]:bg-transparent',
-              '[&::-webkit-slider-thumb]:mt-[5px] [&::-webkit-slider-thumb]:h-[30px] [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_0_2px_var(--surface-0)]',
+              '[&::-webkit-slider-thumb]:mt-[5px] [&::-webkit-slider-thumb]:h-[30px] [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:bg-fg-1 [&::-webkit-slider-thumb]:shadow-[0_0_0_2px_var(--surface-0)]',
               '[&::-moz-range-track]:h-10 [&::-moz-range-track]:bg-transparent',
-              '[&::-moz-range-thumb]:h-[30px] [&::-moz-range-thumb]:w-1.5 [&::-moz-range-thumb]:rounded-[2px] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary',
+              '[&::-moz-range-thumb]:h-[30px] [&::-moz-range-thumb]:w-1.5 [&::-moz-range-thumb]:rounded-[2px] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-fg-1',
               FOCUS_RING,
             )}
           />
+          {tramo === undefined ? null : (
+            <div className="pointer-events-none absolute inset-x-[3px] top-1/2 h-5 -translate-y-1/2">
+              <TramoBracket tramo={isWholeRound(tramo.tramo) ? { from: 0, to: timeline.durationSeconds } : tramo.tramo} duration={timeline.durationSeconds} onChange={tramo.onChange} />
+            </div>
+          )}
         </div>
+        {tramo === undefined ? null : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-meta font-medium text-fg-1">{tramoLabel(tramo.tramo)}</span>
+            <QuickTramos tramo={tramo.tramo} onChange={tramo.onChange} plant={false} />
+          </div>
+        )}
         {below}
       </div>
       <div className="flex h-10 items-center gap-1">

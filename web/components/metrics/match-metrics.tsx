@@ -26,11 +26,11 @@ const SWING_LIMIT = 5;
 function MatchMetricsReport({
   match,
   report,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   match: LibraryMatch;
   report: MetricsReport;
-  onOpenTactical?: () => void;
+  onOpenReplay?: () => void;
 }): ReactNode {
   const timelines = [...(report.timelines ?? [])].sort((a, b) => a.round - b.round);
   const players = match.players ?? [];
@@ -69,11 +69,11 @@ function MatchMetricsReport({
               players={players}
               round={round}
               onRoundChange={setRound}
-              onOpenTactical={onOpenTactical}
+              onOpenReplay={onOpenReplay}
             />
           </div>
         ) : null}
-        <MatchSwings match={match} swings={topSwings(timelines, SWING_LIMIT)} ctTeams={ctTeams} names={names} onOpenTactical={onOpenTactical} />
+        <MatchSwings match={match} swings={topSwings(timelines, SWING_LIMIT)} ctTeams={ctTeams} names={names} onOpenReplay={onOpenReplay} />
       </>
     );
   return (
@@ -90,11 +90,11 @@ function MatchMetricsReport({
 /** The match's advanced metrics: every player's impact, duels, trades and utility. */
 export function MatchMetrics({
   match,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   match: LibraryMatch;
-  /** Switches the record to its Táctica tab when a link here opens the replay. */
-  onOpenTactical?: () => void;
+  /** Switches the record to its Replay tab when a link here opens the replay. */
+  onOpenReplay?: () => void;
 }): ReactNode {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -146,5 +146,5 @@ export function MatchMetrics({
       />
     );
   }
-  return <MatchMetricsReport match={match} report={state.report} onOpenTactical={onOpenTactical} />;
+  return <MatchMetricsReport match={match} report={state.report} onOpenReplay={onOpenReplay} />;
 }

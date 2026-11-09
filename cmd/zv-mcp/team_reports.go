@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -127,7 +128,7 @@ type spotOut struct {
 }
 
 type prepWindowOut struct {
-	Window string    `json:"window" jsonschema:"seconds after freeze end, such as 0-20s or 60s+"`
+	Window string    `json:"window" jsonschema:"a span of the round clock, which counts down from 1:55: such as 1:55 to 1:00 or 0:40 to the end; the same tramos the Replay offers"`
 	Rounds int       `json:"rounds"`
 	Spots  []spotOut `json:"spots"`
 }
@@ -210,6 +211,49 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			}
 			return nil, summarizePrep(prep), nil
 		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "prepare_team", Annotations: readOnly,
+		Description: "Everything the team's Preparar tab shows for one map, in one call: the scouting (scout_team) and the map preparation (team_prep) " +
+			"over the same matches. studio_path opens that tab. Use scout_team or team_prep alone when only one half is needed."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, prepareTeamOut, error) {
+			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
+				teamScopeIn: in.teamScopeIn}.check(false)
+			if err == nil && q.Map == "" {
+				err = errors.New("map is required, such as de_mirage")
+			}
+			if err != nil {
+				return nil, prepareTeamOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, prepareTeamOut{}, toolError(err)
+			}
+			scout, err := c.TeamScout(ctx, in.TeamID, q)
+			if err != nil {
+				return nil, prepareTeamOut{}, toolError(err)
+			}
+			prep, err := c.TeamPrepReport(ctx, in.TeamID, q)
+			if err != nil {
+				return nil, prepareTeamOut{}, toolError(err)
+			}
+			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), StudioPath: preparePath(in.TeamID, q.Map)}, nil
+		})
+}
+
+// prepareTeamOut is the team's Preparar tab: both halves over the same matches.
+type prepareTeamOut struct {
+	Scouting   scoutTeamOut `json:"scouting"`
+	Prep       teamPrepOut  `json:"prep"`
+	StudioPath string       `json:"studio_path" jsonschema:"the path that opens the team's Preparar tab on this map in Studio"`
+}
+
+// preparePath is the team's Preparar tab on one map, as the web's teamPrepareHref writes it.
+func preparePath(teamID, mapName string) string {
+	v := url.Values{"tab": {"preparar"}}
+	if mapName != "" {
+		v.Set("map", mapName)
+	}
+	return "/equipos/" + url.PathEscape(teamID) + "?" + v.Encode()
 }
 
 // check validates the team and filter; a playbook also needs a map and a side.
@@ -312,11 +356,20 @@ func tempoOf(h tuiclient.Histogram) tempoOut {
 	return tempoOut{Samples: h.Samples, MedianSeconds: h.Median}
 }
 
+// roundClockSeconds is the length of a CS2 round; the clock counts down from it.
+const roundClockSeconds = 115
+
+func roundClock(seconds int) string {
+	left := max(roundClockSeconds-seconds, 0)
+	return fmt.Sprintf("%d:%02d", left/60, left%60)
+}
+
+// windowName names a window on the round clock, as the Replay's tramo does.
 func windowName(from, to int) string {
 	if to == 0 {
-		return fmt.Sprintf("%ds+", from)
+		return roundClock(from) + " to the end"
 	}
-	return fmt.Sprintf("%d-%ds", from, to)
+	return roundClock(from) + " to " + roundClock(to)
 }
 
 // refStrings formats the first rounds as match_id/round, the refs find_rounds returns.

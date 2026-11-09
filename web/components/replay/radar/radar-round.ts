@@ -3,6 +3,8 @@ import type { RadarCalibration, RadarLevel, TacticalEventKind, TacticalSample, T
 import { floorAlpha } from '@/lib/analysis/floors';
 import { equipmentIconUrl } from '@/lib/api/game-assets';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
+import { inFocus } from '@/lib/replay/player-focus';
+import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { layoutTags } from '@/lib/replay/tag-layout';
 import type { TagRect } from '@/lib/replay/tag-layout';
 import { bombVisual, grenadeArc, utilityVisuals } from '@/lib/replay/three/utility-visuals';
@@ -43,7 +45,11 @@ export type RoundFrame = {
   /** Seconds since each dead player died, for the fading cross. */
   deadFor: ReadonlyMap<number, number>;
   labels: ReadonlyMap<number, string>;
-  selectedSlot: number | null;
+  /** The players in the foreground; the rest are drawn translucent, without trail or name. */
+  focus: PlayerFocus;
+  /** Multiplies the player dots and the name tags (Ajustes del mapa). */
+  dotScale: number;
+  nameScale: number;
   utility: boolean;
   bomb: boolean;
   style: RadarStyle;
@@ -63,9 +69,12 @@ function sideColor(style: RadarStyle, side: TacticalSide): string {
 }
 
 /** The disc radius at this zoom: grows with the map, within readable bounds. */
-export function discRadius(size: number): number {
-  return Math.min(11, Math.max(5.5, size * 0.0085));
+export function discRadius(size: number, scale = 1): number {
+  return Math.min(11, Math.max(5.5, size * 0.0085)) * scale;
 }
+
+/** A player outside the focus is drawn at this strength. */
+const UNFOCUSED_ALPHA = 0.3;
 
 function worldPx(calibration: RadarCalibration, size: number, units: number): number {
   return (units / calibration.scale) * (size / calibration.size);
@@ -73,7 +82,7 @@ function worldPx(calibration: RadarCalibration, size: number, units: number): nu
 
 function hpColor(style: RadarStyle, health: number): string {
   if (health > 50) return '#f2f4f6';
-  if (health > 20) return '#f0b648';
+  if (health > 20) return style.map;
   return style.bomb;
 }
 
@@ -268,7 +277,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
   ctx.lineWidth = 1.5;
   for (const sample of frame.samples) {
     const points = frame.trails.get(sample.slot);
-    if (points === undefined || points.length < 2) continue;
+    if (points === undefined || points.length < 2 || !inFocus(frame.focus, sample.slot)) continue;
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
     // A trail recedes with its player, by the floor the player stands on now.
     const strength = floorAlpha(frame, sample.z);
@@ -287,7 +296,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
 
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
-  const arm = discRadius(frame.size) * 0.75;
+  const arm = discRadius(frame.size, frame.dotScale) * 0.75;
   ctx.globalAlpha = DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS);
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
@@ -311,7 +320,7 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const { style } = frame;
   const side = sampleSide(sample);
   const color = sideColor(style, side);
-  const radius = discRadius(frame.size);
+  const radius = discRadius(frame.size, frame.dotScale);
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
   if (frame.analysis?.sight?.wedges.has(sample.slot) !== true) {
     const reach = radius * 6;
@@ -328,7 +337,7 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
     ctx.globalAlpha = 1;
   }
 
-  if (frame.selectedSlot === sample.slot) {
+  if (frame.focus.includes(sample.slot)) {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -388,15 +397,17 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
 function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; players: readonly DrawnPlayer[]; visible: TagRect; spots: Map<number, number> }): void {
   const { frame, players, visible, spots } = options;
   if (frame.labels.size === 0) return;
-  ctx.font = `600 ${TAG_FONT_PX}px ${frame.style.fontFamily}`;
+  const fontPx = Math.round(TAG_FONT_PX * frame.nameScale);
+  const tagHeight = Math.round(TAG_HEIGHT * frame.nameScale);
+  ctx.font = `600 ${fontPx}px ${frame.style.fontFamily}`;
   // A player panned off the canvas gets no tag, or it would sit at the edge far from anyone.
   const inside = (player: DrawnPlayer): boolean => player.x >= visible.x && player.x <= visible.x + visible.width && player.y >= visible.y && player.y <= visible.y + visible.height;
-  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && inside(player));
+  const alive = players.filter((player) => player.alive && frame.labels.has(player.slot) && inFocus(frame.focus, player.slot) && inside(player));
   const requests = alive.map((player) => {
     const label = frame.labels.get(player.slot) ?? '';
-    return { id: player.slot, x: player.x, y: player.y, width: Math.ceil(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD * 2, height: TAG_HEIGHT };
+    return { id: player.slot, x: player.x, y: player.y, width: Math.ceil(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD * 2, height: tagHeight };
   });
-  const placed = layoutTags({ tags: requests, discs: alive, radius: discRadius(frame.size) + 3, bounds: visible, prefer: spots });
+  const placed = layoutTags({ tags: requests, discs: alive, radius: discRadius(frame.size, frame.dotScale) + 3, bounds: visible, prefer: spots });
   spots.clear();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
@@ -416,7 +427,7 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = frame.selectedSlot === tag.id ? 'rgba(46, 50, 56, 0.95)' : 'rgba(11, 12, 14, 0.82)';
+    ctx.fillStyle = frame.focus.includes(tag.id) ? 'rgba(46, 50, 56, 0.95)' : 'rgba(11, 12, 14, 0.82)';
     ctx.beginPath();
     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 3);
     ctx.fill();
@@ -454,7 +465,12 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
   drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);
-    if (player !== undefined && player.alive) onFloor(ctx, frame, sample.z, () => drawAlive(ctx, frame, sample, player));
+    if (player === undefined || !player.alive) continue;
+    // A filter fades the whole player, whatever globalAlpha each stroke sets.
+    const alpha = floorAlpha(frame, sample.z) * (inFocus(frame.focus, sample.slot) ? 1 : UNFOCUSED_ALPHA);
+    if (alpha < 1) ctx.filter = `opacity(${alpha})`;
+    drawAlive(ctx, frame, sample, player);
+    ctx.filter = 'none';
   }
   drawHitLabels(canvas, hits);
   if (tags !== null) drawTags(ctx, { frame, players, visible: tags.visible, spots: tags.spots });

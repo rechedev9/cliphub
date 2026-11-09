@@ -1,5 +1,6 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import type { TacticalEquipment, TacticalInventoryItem } from '../tactical-equipment.ts';
+import { withTeamSlots } from './tactical-teams.ts';
 
 /**
  * Browser-side contract for the deterministic tactical analysis of a demo.
@@ -939,7 +940,7 @@ export async function fetchTacticalDocument(source: TacticalSource): Promise<Tac
       `unsupported tactical schema ${doc.schema_version}, expected ${TACTICAL_SCHEMA_VERSION}`,
     );
   }
-  return doc;
+  return withTeamSlots(doc);
 }
 
 /** GET — tendencies over the rounds the filter selects. */

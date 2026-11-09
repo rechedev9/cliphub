@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * warnings behind a toggle so they stay one click away without pushing the
  * replay down.
  */
-export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: TacticalDocument; generatedAt: string; actions?: ReactNode }): ReactNode {
+export function TacticalDemoSummary({ doc, generatedAt }: { doc: TacticalDocument; generatedAt: string }): ReactNode {
   const derived = doc.geometry.calibration.source === RADAR_CALIBRATION_SOURCES.derived;
   const warnings = [
     ...(derived ? ['Este mapa no trae calibración oficial: el encuadre se derivó de las posiciones de esta demo y no es comparable con otra.'] : []),
@@ -34,7 +34,7 @@ export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: Tactic
       </p>
       {warnings.length === 0 ? null : (
         <details className="group relative">
-          <summary className={cn('flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-sm px-1.5 text-meta text-warning outline-none hover:bg-surface-3', FOCUS_RING)}>
+          <summary className={cn('flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-sm px-1.5 text-meta text-fg-2 outline-none hover:bg-surface-3', FOCUS_RING)}>
             <TriangleAlert className="size-3.5" aria-hidden />
             {warnings.length} aviso{warnings.length === 1 ? '' : 's'}
           </summary>
@@ -47,7 +47,6 @@ export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: Tactic
           </ul>
         </details>
       )}
-      {actions === undefined ? null : <div className="ml-auto">{actions}</div>}
     </section>
   );
 }

@@ -18,13 +18,13 @@ export function MatchSwings({
   swings,
   ctTeams,
   names,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   match: LibraryMatch;
   swings: readonly KillSwing[];
   ctTeams: ReadonlyMap<number, LibraryTeamKey>;
   names: ReadonlyMap<number, string>;
-  onOpenTactical?: () => void;
+  onOpenReplay?: () => void;
 }): ReactNode {
   const headingId = useId();
   if (swings.length === 0) return null;
@@ -47,8 +47,8 @@ export function MatchSwings({
                 Ronda {swing.round} · {secondsText(swing.seconds)} · a favor de {teamLabel(teamByKey(match, favouredTeam(ctTeams, swing)))} ({side})
               </span>
               <Button asChild variant="ghost" size="xs" className="-ml-2 mt-auto self-start">
-                <Link href={roundEvidenceHref(matchHref(match.id), swing.round, swing.tick)} onClick={onOpenTactical}>
-                  Ver en Táctica
+                <Link href={roundEvidenceHref(matchHref(match.id), swing.round, swing.tick)} onClick={onOpenReplay}>
+                  Ver en el Replay
                 </Link>
               </Button>
             </li>

@@ -17,14 +17,14 @@ export function MatchSummary({
   pathname,
   onMatchChange,
   onDemoChange,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   match: LibraryMatch;
   demo: LibraryDemo;
   pathname: string;
   onMatchChange: (match: LibraryMatch) => void;
   onDemoChange: (demo: LibraryDemo) => void;
-  onOpenTactical: () => void;
+  onOpenReplay: () => void;
 }): ReactNode {
   const rounds = useMatchRoundRows(match.id);
   const ctStart = teamByKey(match, 'ct-start');
@@ -40,8 +40,8 @@ export function MatchSummary({
 
   return (
     <div className="flex flex-col gap-5">
-      <MatchScoreboard teams={[ctStart, tStart]} names={names} rounds={rounds} pathname={pathname} onOpenRound={onOpenTactical} />
-      {facts.length > 0 ? <MatchStoryPanel facts={facts} pathname={pathname} onOpenTactical={onOpenTactical} /> : null}
+      <MatchScoreboard teams={[ctStart, tStart]} names={names} rounds={rounds} pathname={pathname} onOpenRound={onOpenReplay} />
+      {facts.length > 0 ? <MatchStoryPanel facts={facts} pathname={pathname} onOpenReplay={onOpenReplay} /> : null}
       <div className="grid gap-5 @[64rem]/content:grid-cols-2">
         {match.teams.map((team) => (
           <MatchTeamPanel
@@ -51,7 +51,7 @@ export function MatchSummary({
             pathname={pathname}
             bestAdr={bestAdr}
             onMatchChange={onMatchChange}
-            onOpenTactical={onOpenTactical}
+            onOpenReplay={onOpenReplay}
           />
         ))}
       </div>

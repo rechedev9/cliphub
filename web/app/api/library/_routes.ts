@@ -3,6 +3,7 @@
 import { TACTICAL_DOCUMENT_KEYS, TACTICAL_FILTER_PARAM_NAMES, TACTICAL_ROUND_KEYS, TACTICAL_TENDENCIES_KEYS } from '../../../lib/api/tactical.ts';
 import {
   ANNOTATION_KEYS,
+  FOCUS_QUERY,
   HEATMAP_QUERY,
   OVERLAY_QUERY,
   SPATIAL_RESPONSE_KEYS,
@@ -137,8 +138,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND], response: json(TACTICAL_ROUND_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'positions'], response: { kind: 'stream' } },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'aggregate'], query: TACTICAL_FILTER_PARAM_NAMES, response: json(TACTICAL_TENDENCIES_KEYS) },
-  { method: 'GET', segments: ['matches', UUID, 'tactical', 'heatmap'], query: [...TACTICAL_FILTER_PARAM_NAMES, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
-  { method: 'GET', segments: ['matches', UUID, 'tactical', 'overlay'], query: [...TACTICAL_FILTER_PARAM_NAMES, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'tactical', 'heatmap'], query: [...TACTICAL_FILTER_PARAM_NAMES, ...FOCUS_QUERY, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
+  { method: 'GET', segments: ['matches', UUID, 'tactical', 'overlay'], query: [...TACTICAL_FILTER_PARAM_NAMES, ...FOCUS_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND, 'play'], query: ['team_key', 'tick'], response: json(['draft']) },
   { method: 'GET', segments: ['matches', UUID, 'tactical', 'rounds', ROUND, 'lineups'], response: json(ROUND_LINEUPS_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'metrics'], response: json(METRICS_KEYS) },

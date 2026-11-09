@@ -278,7 +278,7 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           { id: 'notas', label: 'Notas', content: <ReportNotes report={report} onSaved={onChanged} /> },
           {
             id: 'radar',
-            label: 'Radar 2D',
+            label: 'Replay',
             content: (
               <ReportSpatial report={report} scope={scope} onMapChange={onMapChange} onCounts={setCounts} />
             ),

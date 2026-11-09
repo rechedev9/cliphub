@@ -284,7 +284,7 @@ export default function Home() {
             </p>
             <Points
               items={[
-                "Rondas clasificadas por compra y por patrón, y repetición 2D en el radar.",
+                "Rondas clasificadas por compra y por patrón, y el Replay de cada ronda sobre el mapa.",
                 "Fichas de equipos y jugadores con ADR, KAST, WPA y su rol, cada cifra enlazada a sus rondas.",
                 "Informes de scouting del rival para el coach, en HTML o PDF.",
                 "Integridad puntúa a los diez jugadores para decidir qué revisar a mano. Es un detector de anomalías, no un veredicto.",

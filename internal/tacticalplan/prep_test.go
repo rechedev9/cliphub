@@ -40,7 +40,7 @@ func TestPrepReadsCTPositionsPerWindow(t *testing.T) {
 		t.Fatalf("steam2 = %+v", two)
 	}
 	if got := spots(two.Windows[0]); !reflect.DeepEqual(got, map[string]int{"BombsiteA": 1, "Middle": 1}) || two.Windows[0].Rounds != 2 {
-		t.Errorf("steam2 0-20 s = %v over %d rounds", got, two.Windows[0].Rounds)
+		t.Errorf("steam2 1:55 to 1:00 = %v over %d rounds", got, two.Windows[0].Rounds)
 	}
 	if two.Windows[0].Spots[0].Share.Pct != 50 {
 		t.Errorf("steam2 share = %+v, want half the rounds", two.Windows[0].Spots[0].Share)
@@ -49,17 +49,18 @@ func TestPrepReadsCTPositionsPerWindow(t *testing.T) {
 	if three.Role != "unknown" || three.Rounds != 1 {
 		t.Fatalf("steam3 = %+v", three)
 	}
-	want := []map[string]int{{"Middle": 1}, {"BombsiteB": 1}, {"BombsiteB": 1}, {"BombsiteB": 1}}
+	// He leaves Middle for B 25 s in, so B is where he spends most of every window; nothing is framed after 0:40.
+	want := []map[string]int{{"BombsiteB": 1}, {"BombsiteB": 1}, {}}
 	for i, w := range three.Windows {
 		if got := spots(w); !reflect.DeepEqual(got, want[i]) {
 			t.Errorf("steam3 window %d = %v, want %v", i, got, want[i])
 		}
 	}
-	if ex := three.Windows[1].Spots[0].Examples; len(ex) != 1 || ex[0].Tick != pbTick(8, 25) {
-		t.Errorf("steam3 20-40 s example = %+v, want the first frame on B", ex)
+	if ex := three.Windows[0].Spots[0].Examples; len(ex) != 1 || ex[0].Tick != pbTick(8, 25) {
+		t.Errorf("steam3 1:55 to 1:00 example = %+v, want the first frame on B", ex)
 	}
-	if refs := three.Windows[1].Spots[0].Refs; len(refs) != 1 || refs[0].Tick != pbTick(8, 25) {
-		t.Errorf("steam3 20-40 s refs = %+v, want the round on B", refs)
+	if refs := three.Windows[1].Spots[0].Refs; len(refs) != 1 || refs[0].Tick < pbTick(8, 55) {
+		t.Errorf("steam3 1:00 to 0:40 refs = %+v, want the round on B inside the window", refs)
 	}
 }
 

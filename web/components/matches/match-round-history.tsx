@@ -20,7 +20,7 @@ const LEGEND: readonly { reasons: readonly string[]; label: string }[] = [
 
 /**
  * Every round as a tile in the row of the team that won it, coloured by the side
- * it won on, cut at the half and before each overtime. A tile opens the round in Táctica.
+ * it won on, cut at the half and before each overtime. A tile opens the round in the Replay.
  */
 export function MatchRoundHistory({
   rows,
@@ -96,7 +96,7 @@ export function MatchRoundHistory({
             </span>
           );
         })}
-        <span className="ml-auto text-fg-3">Pulsa una ronda para abrirla en Táctica</span>
+        <span className="ml-auto text-fg-3">Pulsa una ronda para abrirla en el Replay</span>
       </div>
     </div>
   );
@@ -126,7 +126,7 @@ function RoundCell({
     <Link
       href={roundEvidenceHref(pathname, row.number, row.tick)}
       onClick={onOpenRound}
-      aria-label={`Ronda ${row.number}, gana ${name} como ${row.winnerSide}: ${endReasonLabel(row.round.end_reason)}. Abrir en Táctica`}
+      aria-label={`Ronda ${row.number}, gana ${name} como ${row.winnerSide}: ${endReasonLabel(row.round.end_reason)}. Abrir en el Replay`}
       className={cn('grid rounded-sm transition-opacity hover:opacity-80', FOCUS_RING)}
     >
       <RoundResultTile side={row.winnerSide} endReason={row.round.end_reason} />

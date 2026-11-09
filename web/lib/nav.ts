@@ -15,6 +15,7 @@ export const NAV_SECTIONS = [
   { label: 'Mis vídeos', href: '/mis-videos', area: 'create' },
   { label: 'Ideas', href: '/ideas', area: 'create' },
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
+  { label: 'Replay', href: '/replay', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },
   { label: 'Libreta', href: '/libreta', area: 'analyze' },
   { label: 'Lineups pro', href: '/lineups', area: 'analyze' },

@@ -62,6 +62,14 @@ test('the replay views and notes are reachable, and a note cannot change match o
   const matchHeat = matchLibraryRoute('GET', ['matches', ID, 'tactical', 'heatmap']);
   assert.ok(matchHeat);
   assert.equal(libraryUpstreamQuery(matchHeat, new URLSearchParams('team=ct-start&slot=3&kind=death')), 'team=ct-start&slot=3&kind=death');
+  assert.equal(
+    libraryUpstreamQuery(matchHeat, new URLSearchParams('team=t-start&subject=2&subject=4&t_from_plant=1')),
+    'team=t-start&subject=2&subject=4&t_from_plant=1',
+  );
+  const matchOverlay = matchLibraryRoute('GET', ['matches', ID, 'tactical', 'overlay']);
+  assert.ok(matchOverlay);
+  assert.equal(libraryUpstreamQuery(matchOverlay, new URLSearchParams('buy=full&subject=2&limit=40')), 'buy=full&subject=2&limit=40');
+  assert.equal(libraryUpstreamQuery(heat, new URLSearchParams('map=de_nuke&subject=2')), 'map=de_nuke');
 });
 
 test('the stratbook routes are reachable and a play patch cannot move its map, side or origin', () => {

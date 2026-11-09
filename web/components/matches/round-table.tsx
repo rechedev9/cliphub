@@ -156,7 +156,7 @@ function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }
             <Link
               href={roundEvidenceHref(table.pathname, row.number, row.tick)}
               onClick={table.onOpenRound}
-              aria-label={`Abrir la ronda ${row.number} en Táctica`}
+              aria-label={`Abrir la ronda ${row.number} en el Replay`}
             >
               <Radar aria-hidden />
               Táctica
@@ -198,7 +198,7 @@ function WinnerCell({ row, teamNames }: { row: RoundRow; teamNames: PerTeam<stri
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="max-w-44 truncate font-medium text-fg-1">{teamNames[row.winnerTeamKey]}</span>
           {start === null ? null : (
-            <Badge variant="warning" title={`Contra pronóstico: empezó la ronda con un ${percentText(start)} de victoria`}>
+            <Badge variant="outline" title={`Contra pronóstico: empezó la ronda con un ${percentText(start)} de victoria`}>
               <span className="sr-only">Contra pronóstico, empezó con un </span>
               {percentText(start)}
             </Badge>
@@ -231,7 +231,7 @@ function SwingCell({ row, table }: { row: RoundRow; table: RoundTableProps }): R
       <Link
         href={roundEvidenceHref(table.pathname, row.number, swing.tick)}
         onClick={table.onOpenRound}
-        aria-label={`Ver en Táctica: ${kill.spoken}`}
+        aria-label={`Ver en el Replay: ${kill.spoken}`}
         className="max-w-44 truncate text-fg-1 hover:text-primary hover:underline"
       >
         {kill.shown}
