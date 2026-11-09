@@ -354,3 +354,22 @@ func realDemoFrames(t *testing.T, result Result) []tacticalplan.Frame {
 	}
 	return frames
 }
+
+func TestOnlyWhoPlayedARoundIsAPlayerOfIt(t *testing.T) {
+	// Slot 2 is a coach on the CT team: the economy read gave it a line, but it never spawned.
+	s := &scanner{tickrate: 64}
+	acc := &roundAcc{
+		stats: map[uint8]*playerRoundAcc{0: {kills: 1}, 1: {deaths: 1}, 2: {money: 800}},
+		sides: map[uint8]tacticalplan.Side{0: tacticalplan.SideCT, 1: tacticalplan.SideT, 2: tacticalplan.SideCT},
+	}
+	acc.markPlayed(0)
+	acc.markPlayed(1)
+	round := s.buildRound(acc, map[uint8]uint8{0: 0, 1: 1, 2: 2})
+	slots := []uint8{}
+	for _, p := range round.Players {
+		slots = append(slots, p.Slot)
+	}
+	if !slices.Equal(slots, []uint8{0, 1}) {
+		t.Fatalf("round players = %v, want the two who played and not the coach", slots)
+	}
+}
