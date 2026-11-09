@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Megaphone, Plus, PlugZap } from 'lucide-react';
 import { deleteLibraryCall, listLibraryCalls, patchLibraryCall, type LibraryCall } from '@/lib/api/calls';
+import type { CountNoun } from '@/lib/records/selection';
 import { isLibraryOffline } from '@/lib/api/library';
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { formatShortDate } from '@/lib/format';
@@ -16,9 +17,11 @@ import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { BulkBar } from './bulk-bar';
+import { LibretaBulkActions } from './bulk-actions';
 import { CallDialog } from './call-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
+
+const LLAMADA: CountNoun = { one: 'llamada', many: 'llamadas', feminine: true };
 
 const SIDE_OPTIONS = [
   { value: 'T', label: 'T' },
@@ -204,16 +207,6 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
           {hiddenArchived === 1 ? 'Una llamada archivada no se muestra.' : `${hiddenArchived} llamadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
         </p>
       ) : null}
-      {chosen.length > 0 ? (
-        <BulkBar
-          count={chosen.length}
-          noun={chosen.length === 1 ? 'llamada' : 'llamadas'}
-          busy={busy}
-          onStatus={(next) => void bulkStatus(next, chosenIds)}
-          onDelete={() => void bulkDelete(chosenIds)}
-          onClear={() => setSelected(new Set())}
-        />
-      ) : null}
       <DataTable
         toolbar={
           <FilterBar
@@ -235,7 +228,21 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
         columns={columns}
         rowKey={(call) => call.id}
         view={view}
-        selection={{ selected, onChange: setSelected }}
+        selection={{
+          selected,
+          onChange: setSelected,
+          busy,
+          noun: LLAMADA,
+          actions: (
+            <LibretaBulkActions
+              count={chosen.length}
+              noun={LLAMADA}
+              busy={busy}
+              onStatus={(next) => void bulkStatus(next, chosenIds)}
+              onDelete={() => void bulkDelete(chosenIds)}
+            />
+          ),
+        }}
         empty={<p className="text-body-sm text-fg-2">Ninguna llamada cumple estos filtros.</p>}
       />
       {dialog}

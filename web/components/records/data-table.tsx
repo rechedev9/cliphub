@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, ArrowUpDown, BookmarkPlus, Check, Columns3, Eye, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, BookmarkPlus, Check, Columns3, Eye, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import type { TableViewControl } from '@/components/records/use-table-view';
+import { selectedCount, type CountNoun } from '@/lib/records/selection';
 import { nextSort, sortRows, type SortValue } from '@/lib/records/table-view';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +61,12 @@ export type DataTableProps<Row> = {
 export type DataTableSelection = {
   selected: ReadonlySet<string>;
   onChange: (next: Set<string>) => void;
+  /** What one row is, for the count of chosen rows. */
+  noun: CountNoun;
+  /** Buttons for the chosen rows. While any shown row is chosen they take the place of the column headers. */
+  actions: ReactNode;
+  /** A bulk action is running: the bar stays up, so the selection cannot be dropped until it ends. */
+  busy?: boolean;
 };
 
 /** Dense, sortable record list with configurable columns and saved views. */
@@ -69,7 +76,23 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
   const visible = columns.filter((column) => column.required === true || !hidden.includes(column.id));
   const sorted = sortRows(rows, sort, (row, id) => columns.find((column) => column.id === id)?.sortValue?.(row) ?? null);
   const shownKeys = sorted.map(rowKey);
-  const allChosen = selection !== undefined && shownKeys.length > 0 && shownKeys.every((key) => selection.selected.has(key));
+  const chosenCount = selection === undefined ? 0 : shownKeys.filter((key) => selection.selected.has(key)).length;
+  const allChosen = chosenCount > 0 && chosenCount === shownKeys.length;
+  const barShown = chosenCount > 0;
+  // Focus follows the select-all box into the bar, and lands back on it when the bar goes with the focus inside.
+  const focusBar = useRef(false);
+  const headerBox = useRef<HTMLInputElement>(null);
+  const barWasShown = useRef(barShown);
+
+  useEffect(() => {
+    const focusLost = document.activeElement === null || document.activeElement === document.body;
+    if (barWasShown.current && !barShown && focusLost) headerBox.current?.focus();
+    barWasShown.current = barShown;
+  }, [barShown]);
+
+  function toggleAll(): void {
+    selection?.onChange(allChosen ? new Set() : new Set(shownKeys));
+  }
 
   function toggleRow(key: string): void {
     if (selection === undefined) return;
@@ -96,98 +119,171 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
           {actions}
         </div>
       </div>
-      <div className="studio-panel overflow-x-auto">
-        <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
-          <thead className="sticky top-0 bg-surface-2">
-            <tr className="border-b border-border">
-              {selection ? (
-                <th scope="col" className="h-9 w-9 px-3">
-                  <input
-                    type="checkbox"
-                    aria-label={allChosen ? 'Quitar la selección' : 'Elegir todas las filas'}
-                    checked={allChosen}
-                    disabled={shownKeys.length === 0}
-                    onChange={() => selection.onChange(allChosen ? new Set() : new Set(shownKeys))}
-                    className="size-4 accent-primary"
-                  />
-                </th>
-              ) : null}
-              {visible.map((column) => {
-                const direction = sort?.column === column.id ? sort.direction : null;
-                let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
-                if (direction === 'asc') ariaSort = 'ascending';
-                if (direction === 'desc') ariaSort = 'descending';
-                return (
-                  <th
-                    key={column.id}
-                    scope="col"
-                    aria-sort={column.sortValue ? ariaSort : undefined}
-                    className={cn('h-9 px-3 font-medium whitespace-nowrap text-fg-3', column.align === 'end' && 'text-right')}
-                  >
-                    {column.sortValue ? (
-                      <button
-                        type="button"
-                        onClick={() => view.setSort(nextSort(sort, column.id))}
-                        className={cn('inline-flex items-center gap-1 rounded-sm hover:text-fg-1', direction !== null && 'text-fg-1')}
-                      >
-                        {column.header}
-                        <SortGlyph direction={direction} />
-                      </button>
-                    ) : (
-                      column.header
-                    )}
+      {/* No overflow on the panel itself, so the selection bar can stick below the command strip. */}
+      <div className="studio-panel">
+        {selection !== undefined && barShown ? (
+          <SelectionHeader
+            count={chosenCount}
+            all={allChosen}
+            noun={selection.noun}
+            actions={selection.actions}
+            busy={selection.busy === true}
+            boxRef={(box) => {
+              if (box === null || !focusBar.current) return;
+              focusBar.current = false;
+              box.focus();
+            }}
+            onToggleAll={toggleAll}
+            onClear={() => selection.onChange(new Set())}
+          />
+        ) : null}
+        {selection !== undefined ? (
+          <span aria-live="polite" className="sr-only">
+            {barShown ? selectedCount(chosenCount, selection.noun) : ''}
+          </span>
+        ) : null}
+        <div className="overflow-x-auto rounded-[inherit]">
+          <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
+            <thead className="bg-surface-2">
+              {/* Collapsed, not removed, while the selection bar stands in: the columns keep the widths the headers give them. */}
+              <tr className={cn('border-b border-border', barShown && 'collapse')}>
+                {selection ? (
+                  <th scope="col" className="h-9 w-9 px-3">
+                    <input
+                      type="checkbox"
+                      aria-label={allChosen ? 'Quitar la selección' : 'Elegir todas las filas'}
+                      checked={allChosen}
+                      disabled={shownKeys.length === 0}
+                      ref={headerBox}
+                      onChange={() => {
+                        focusBar.current = true;
+                        toggleAll();
+                      }}
+                      className="size-4 accent-primary"
+                    />
                   </th>
-                );
-              })}
-            </tr>
-          </thead>
-          {sorted.length === 0 ? null : (
-            <tbody>
-              {sorted.map((row) => {
-                const href = rowHref?.(row);
-                const key = rowKey(row);
-                return (
-                  <tr
-                    key={key}
-                    onClick={href === undefined ? undefined : (event) => openRow(event, href)}
-                    className={cn(
-                      'border-b border-border-subtle last:border-b-0',
-                      href !== undefined && 'cursor-pointer hover:bg-surface-3',
-                    )}
-                  >
-                    {selection ? (
-                      <td className="h-10 w-9 px-3 align-middle">
-                        <input
-                          type="checkbox"
-                          aria-label="Elegir esta fila"
-                          checked={selection.selected.has(key)}
-                          onChange={() => toggleRow(key)}
-                          className="size-4 accent-primary"
-                        />
-                      </td>
-                    ) : null}
-                    {visible.map((column, index) => (
-                      <td
-                        key={column.id}
-                        className={cn('h-10 px-3 align-middle text-fg-1', column.align === 'end' && 'text-right', column.className)}
-                      >
-                        {index === 0 && href !== undefined ? (
-                          <Link href={href} className="font-medium text-fg-1 underline-offset-4 hover:underline">
-                            {column.cell(row)}
-                          </Link>
-                        ) : (
-                          column.cell(row)
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          )}
-        </table>
+                ) : null}
+                {visible.map((column) => {
+                  const direction = sort?.column === column.id ? sort.direction : null;
+                  let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
+                  if (direction === 'asc') ariaSort = 'ascending';
+                  if (direction === 'desc') ariaSort = 'descending';
+                  return (
+                    <th
+                      key={column.id}
+                      scope="col"
+                      aria-sort={column.sortValue ? ariaSort : undefined}
+                      className={cn('h-9 px-3 font-medium whitespace-nowrap text-fg-3', column.align === 'end' && 'text-right')}
+                    >
+                      {column.sortValue ? (
+                        <button
+                          type="button"
+                          onClick={() => view.setSort(nextSort(sort, column.id))}
+                          className={cn('inline-flex items-center gap-1 rounded-sm hover:text-fg-1', direction !== null && 'text-fg-1')}
+                        >
+                          {column.header}
+                          <SortGlyph direction={direction} />
+                        </button>
+                      ) : (
+                        column.header
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            {sorted.length === 0 ? null : (
+              <tbody>
+                {sorted.map((row) => {
+                  const href = rowHref?.(row);
+                  const key = rowKey(row);
+                  return (
+                    <tr
+                      key={key}
+                      onClick={href === undefined ? undefined : (event) => openRow(event, href)}
+                      className={cn(
+                        'border-b border-border-subtle last:border-b-0',
+                        href !== undefined && 'cursor-pointer hover:bg-surface-3',
+                        selection?.selected.has(key) === true && 'bg-surface-3',
+                      )}
+                    >
+                      {selection ? (
+                        <td className="h-10 w-9 px-3 align-middle">
+                          <input
+                            type="checkbox"
+                            aria-label="Elegir esta fila"
+                            checked={selection.selected.has(key)}
+                            onChange={() => toggleRow(key)}
+                            className="size-4 accent-primary"
+                          />
+                        </td>
+                      ) : null}
+                      {visible.map((column, index) => (
+                        <td
+                          key={column.id}
+                          className={cn('h-10 px-3 align-middle text-fg-1', column.align === 'end' && 'text-right', column.className)}
+                        >
+                          {index === 0 && href !== undefined ? (
+                            <Link href={href} className="font-medium text-fg-1 underline-offset-4 hover:underline">
+                              {column.cell(row)}
+                            </Link>
+                          ) : (
+                            column.cell(row)
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            )}
+          </table>
+        </div>
         {sorted.length === 0 ? <div className="p-4">{empty}</div> : null}
       </div>
+    </div>
+  );
+}
+
+type SelectionHeaderProps = {
+  count: number;
+  all: boolean;
+  noun: CountNoun;
+  actions: ReactNode;
+  busy: boolean;
+  boxRef: (box: HTMLInputElement | null) => void;
+  onToggleAll: () => void;
+  onClear: () => void;
+};
+
+/** The header row while rows are chosen: the same box to pick all, the count, and what can be done to them. */
+function SelectionHeader({ count, all, noun, actions, busy, boxRef, onToggleAll, onClear }: SelectionHeaderProps): ReactNode {
+  return (
+    <div
+      role="region"
+      aria-label="Acciones de la selección"
+      className="sticky top-(--shell-strip-height) z-20 flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 rounded-t-[inherit] border-b border-border bg-surface-2 px-3"
+    >
+      <input
+        type="checkbox"
+        aria-label={all ? 'Quitar la selección' : 'Elegir todas las filas'}
+        checked={all}
+        disabled={busy}
+        ref={(box) => {
+          if (box) box.indeterminate = !all;
+          boxRef(box);
+        }}
+        onChange={onToggleAll}
+        className="size-4 accent-primary"
+      />
+      <span className="text-body-sm font-medium whitespace-nowrap text-fg-1 tabular-nums">
+        {selectedCount(count, noun)}
+      </span>
+      <div className="flex flex-wrap items-center gap-2">{actions}</div>
+      <Button type="button" variant="ghost" size="xs" className="ml-auto" disabled={busy} onClick={onClear}>
+        <X aria-hidden />
+        Quitar la selección
+      </Button>
     </div>
   );
 }

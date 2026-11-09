@@ -7,6 +7,7 @@ import { listLibraryMatches } from '@/lib/api/library';
 import type { StorageFile, StorageFiles } from '@/lib/api/storage';
 import type { Match, Video } from '@/lib/api/types';
 import { bulkDeleteSummary, deleteErrorMessage, deleteFeedbackTone } from '@/lib/delete-error';
+import type { CountNoun } from '@/lib/records/selection';
 import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { formatBytes, storageLoadErrorMessage } from '@/lib/storage';
 import {
@@ -23,10 +24,12 @@ import {
   type FileGroup,
   type LibraryCopyMatch,
 } from '@/lib/storage-files';
-import { SelectionBar } from '@/components/records/selection-bar';
+import { DeleteResult, SelectionBar } from '@/components/records/selection-bar';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const ARCHIVO: CountNoun = { one: 'archivo', many: 'archivos', feminine: false };
 
 const SCAN_POLL_MS = 2000;
 /** A folder with more files than this opens folded, so one big folder does not bury the rest of the page. */
@@ -186,7 +189,7 @@ function ReadyBody({
       text: bulkDeleteSummary({
         deleted: done.length,
         failed: failed.length,
-        noun: { one: 'archivo', many: 'archivos', feminine: false },
+        noun: ARCHIVO,
         freed: freed > 0 ? formatBytes(freed) : undefined,
         reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
       }),
@@ -208,20 +211,6 @@ function ReadyBody({
 
   return (
     <div className="flex flex-col gap-8">
-      {chosen.length > 0 ? (
-        <SelectionBar
-          count={chosen.length}
-          noun={chosen.length === 1 ? 'archivo' : 'archivos'}
-          busy={bulkBusy}
-          detail={formatBytes(totalBytes(chosen))}
-          confirmDescription={bulkDeleteWarning(chosen)}
-          onDelete={() => void deleteChosen()}
-          onClear={() => setSelected(new Set())}
-        />
-      ) : null}
-      {bulkResult ? (
-        <p role="status" className={`text-body-sm ${bulkResult.failed ? 'text-destructive' : 'text-success'}`}>{bulkResult.text}</p>
-      ) : null}
       <dl className="grid gap-px border border-border bg-border @[40rem]/content:grid-cols-3">
         <Summary label="Demos en tu PC" files={files.demos} pending={files.scanning && files.scannedAt === null} />
         <Summary label="Copias de demos en Studio" files={files.studioDemos} />
@@ -283,6 +272,19 @@ function ReadyBody({
           </ul>
         )}
       </Section>
+      {bulkResult && chosen.length === 0 ? <DeleteResult result={bulkResult} /> : null}
+      {chosen.length > 0 ? (
+        <SelectionBar
+          count={chosen.length}
+          noun={ARCHIVO}
+          busy={bulkBusy}
+          detail={formatBytes(totalBytes(chosen))}
+          confirmDescription={`${bulkDeleteWarning(chosen)} No se puede deshacer.`}
+          result={bulkResult}
+          onDelete={() => void deleteChosen()}
+          onClear={() => setSelected(new Set())}
+        />
+      ) : null}
     </div>
   );
 }

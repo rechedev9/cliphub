@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
+import { countOf, type CountNoun } from './records/selection.ts';
 
 /**
  * Shown inline near a Partidas row when a delete fails because the local
@@ -86,7 +87,7 @@ export function deleteFeedbackTone(message: string): 'notice' | 'error' {
 type BulkDeleteSummaryOptions = {
   deleted: number;
   failed: number;
-  noun: { one: string; many: string; feminine: boolean };
+  noun: CountNoun;
   /** Pre-formatted size the delete freed, when the screen knows it. */
   freed?: string;
   /** Why the first failure happened, from deleteErrorMessage. */
@@ -99,7 +100,7 @@ export function bulkDeleteSummary({ deleted, failed, noun, freed, reason }: Bulk
   if (deleted > 0) {
     const verb = noun.feminine ? 'Borrada' : 'Borrado';
     const plural = noun.feminine ? 'Borradas' : 'Borrados';
-    const what = deleted === 1 ? `${verb} 1 ${noun.one}` : `${plural} ${deleted} ${noun.many}`;
+    const what = `${deleted === 1 ? verb : plural} ${countOf(deleted, noun)}`;
     parts.push(freed ? `${what}: se han liberado ${freed}.` : `${what}.`);
   }
   if (failed > 0) {
