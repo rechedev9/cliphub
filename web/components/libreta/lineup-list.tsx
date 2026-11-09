@@ -257,6 +257,7 @@ export function LineupList({
         selection={{
           selected,
           onChange: setSelected,
+          busy,
           noun: LINEUP,
           actions: (
             <LibretaBulkActions

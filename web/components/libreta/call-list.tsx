@@ -231,6 +231,7 @@ export function CallList({ calls, offline, onReload }: { calls: LibraryCall[] | 
         selection={{
           selected,
           onChange: setSelected,
+          busy,
           noun: LLAMADA,
           actions: (
             <LibretaBulkActions

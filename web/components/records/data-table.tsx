@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, ArrowUpDown, BookmarkPlus, Check, Columns3, Eye, Trash2, X } from 'lucide-react';
@@ -65,7 +65,11 @@ export type DataTableSelection = {
   noun: CountNoun;
   /** Buttons for the chosen rows. While any shown row is chosen they take the place of the column headers. */
   actions: ReactNode;
+  /** A bulk action is running: the bar stays up, so the selection cannot be dropped until it ends. */
+  busy?: boolean;
 };
+
+type FocusTarget = 'bar' | 'header' | null;
 
 /** Dense, sortable record list with configurable columns and saved views. */
 export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, actions, selection }: DataTableProps<Row>): ReactNode {
@@ -76,6 +80,18 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
   const shownKeys = sorted.map(rowKey);
   const chosenCount = selection === undefined ? 0 : shownKeys.filter((key) => selection.selected.has(key)).length;
   const allChosen = chosenCount > 0 && chosenCount === shownKeys.length;
+  // The select-all box swaps between the header row and the bar, so focus follows it across the swap.
+  const focusNext = useRef<FocusTarget>(null);
+
+  function toggleAll(): void {
+    selection?.onChange(allChosen ? new Set() : new Set(shownKeys));
+  }
+
+  function focusIf(target: FocusTarget, box: HTMLInputElement | null): void {
+    if (box === null || focusNext.current !== target) return;
+    focusNext.current = null;
+    box.focus();
+  }
 
   function toggleRow(key: string): void {
     if (selection === undefined) return;
@@ -110,9 +126,22 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
             all={allChosen}
             noun={selection.noun}
             actions={selection.actions}
-            onToggleAll={() => selection.onChange(allChosen ? new Set() : new Set(shownKeys))}
-            onClear={() => selection.onChange(new Set())}
+            busy={selection.busy === true}
+            boxRef={(box) => focusIf('bar', box)}
+            onToggleAll={() => {
+              if (allChosen) focusNext.current = 'header';
+              toggleAll();
+            }}
+            onClear={() => {
+              focusNext.current = 'header';
+              selection.onChange(new Set());
+            }}
           />
+        ) : null}
+        {selection !== undefined ? (
+          <span aria-live="polite" className="sr-only">
+            {chosenCount > 0 ? selectedCount(chosenCount, selection.noun) : ''}
+          </span>
         ) : null}
         <div className="overflow-x-auto rounded-[inherit]">
           <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
@@ -126,7 +155,11 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                       aria-label={allChosen ? 'Quitar la selección' : 'Elegir todas las filas'}
                       checked={allChosen}
                       disabled={shownKeys.length === 0}
-                      onChange={() => selection.onChange(allChosen ? new Set() : new Set(shownKeys))}
+                      ref={(box) => focusIf('header', box)}
+                      onChange={() => {
+                        focusNext.current = 'bar';
+                        toggleAll();
+                      }}
                       className="size-4 accent-primary"
                     />
                   </th>
@@ -218,12 +251,14 @@ type SelectionHeaderProps = {
   all: boolean;
   noun: CountNoun;
   actions: ReactNode;
+  busy: boolean;
+  boxRef: (box: HTMLInputElement | null) => void;
   onToggleAll: () => void;
   onClear: () => void;
 };
 
 /** The header row while rows are chosen: the same box to pick all, the count, and what can be done to them. */
-function SelectionHeader({ count, all, noun, actions, onToggleAll, onClear }: SelectionHeaderProps): ReactNode {
+function SelectionHeader({ count, all, noun, actions, busy, boxRef, onToggleAll, onClear }: SelectionHeaderProps): ReactNode {
   return (
     <div
       role="region"
@@ -234,17 +269,19 @@ function SelectionHeader({ count, all, noun, actions, onToggleAll, onClear }: Se
         type="checkbox"
         aria-label={all ? 'Quitar la selección' : 'Elegir todas las filas'}
         checked={all}
+        disabled={busy}
         ref={(box) => {
           if (box) box.indeterminate = !all;
+          boxRef(box);
         }}
         onChange={onToggleAll}
         className="size-4 accent-primary"
       />
-      <span aria-live="polite" className="text-body-sm font-medium whitespace-nowrap text-fg-1 tabular-nums">
+      <span className="text-body-sm font-medium whitespace-nowrap text-fg-1 tabular-nums">
         {selectedCount(count, noun)}
       </span>
       <div className="flex flex-wrap items-center gap-2">{actions}</div>
-      <Button type="button" variant="ghost" size="xs" className="ml-auto" onClick={onClear}>
+      <Button type="button" variant="ghost" size="xs" className="ml-auto" disabled={busy} onClick={onClear}>
         <X aria-hidden />
         Quitar la selección
       </Button>

@@ -67,7 +67,9 @@ Verify by hand in the real app:
    Exercise the flow you changed along the way.
 3. Try one path off the happy path, such as a corrupt `.dem`, and check `studio.log` in the
    throwaway profile for a clear error instead of a crash or silence.
-4. In the PR, write a few lines on what you did and saw. No screenshots.
+4. In the PR, write a few lines on what you did and saw. A PR that changes what a user sees embeds
+   screenshots of the changed screen from the browser pane, attached with `gh pr create|edit --attach`.
+   Never commit them.
 
 Drive and check the UI in the built-in browser pane, on the web server that Studio started (its
 `[web] - Local:` URL in the Electron output), and import demos through `bin\zv-mcp.exe` as in

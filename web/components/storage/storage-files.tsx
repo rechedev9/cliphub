@@ -211,9 +211,6 @@ function ReadyBody({
 
   return (
     <div className="flex flex-col gap-8">
-      {bulkResult ? (
-        <p role="status" className={`text-body-sm ${bulkResult.failed ? 'text-destructive' : 'text-success'}`}>{bulkResult.text}</p>
-      ) : null}
       <dl className="grid gap-px border border-border bg-border @[40rem]/content:grid-cols-3">
         <Summary label="Demos en tu PC" files={files.demos} pending={files.scanning && files.scannedAt === null} />
         <Summary label="Copias de demos en Studio" files={files.studioDemos} />
@@ -275,6 +272,9 @@ function ReadyBody({
           </ul>
         )}
       </Section>
+      {bulkResult ? (
+        <p role="status" className={`text-body-sm ${bulkResult.failed ? 'text-destructive' : 'text-success'}`}>{bulkResult.text}</p>
+      ) : null}
       {chosen.length > 0 ? (
         <SelectionBar
           count={chosen.length}

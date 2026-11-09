@@ -522,6 +522,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
             selected,
             onChange: setSelected,
             noun: PARTIDA,
+            busy: deleting,
             actions: (
               <DeleteChosenButton
                 count={chosenIds.length}

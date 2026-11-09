@@ -331,6 +331,7 @@ export function PlayList({
         selection={{
           selected,
           onChange: setSelected,
+          busy,
           noun: JUGADA,
           actions: (
             <LibretaBulkActions
