@@ -23,6 +23,8 @@ const (
 	maxScopeOpponents = 200
 	// maxBaselineMinRounds is the server's cap on min_rounds.
 	maxBaselineMinRounds = 10000
+	// maxLineupPlayers is the server's cap on lineup (tacticalplan.MaxLineupPlayers).
+	maxLineupPlayers = 50
 )
 
 // analysisFilterIn is the map, side and date filter the analysis tools share.
@@ -53,10 +55,11 @@ func (in analysisFilterIn) query() (tuiclient.AnalysisQuery, error) {
 	return tuiclient.AnalysisQuery{Map: strings.ToLower(in.Map), Side: side, From: from, To: to}, nil
 }
 
-// teamScopeIn narrows a team report to some rivals or to chosen matches.
+// teamScopeIn narrows a team report to some rivals, chosen matches or a lineup.
 type teamScopeIn struct {
 	OpponentID []string `json:"opponent_id,omitempty" jsonschema:"only matches against these teams, ids from list_teams"`
 	MatchID    []string `json:"match_id,omitempty" jsonschema:"only these matches, ids from list_matches; at most 50"`
+	Lineup     []string `json:"lineup,omitempty" jsonschema:"the team's players to keep, SteamID64s from team_lineups or get_team, at most 50: a round counts only when every player of the team in it is listed, and matches with no such round drop out; empty keeps every round (not a grenade lineup)"`
 }
 
 // teamQuery validates the filter and the scope of a team report.
@@ -81,7 +84,15 @@ func teamQuery(filter analysisFilterIn, scope teamScopeIn) (tuiclient.AnalysisQu
 			return q, err
 		}
 	}
-	q.Opponents, q.Matches = scope.OpponentID, scope.MatchID
+	if len(scope.Lineup) > maxLineupPlayers {
+		return q, fmt.Errorf("at most %d lineup players", maxLineupPlayers)
+	}
+	for _, id := range scope.Lineup {
+		if err := checkSteamID(id); err != nil {
+			return q, fmt.Errorf("lineup: %w", err)
+		}
+	}
+	q.Opponents, q.Matches, q.Lineup = scope.OpponentID, scope.MatchID, scope.Lineup
 	return q, nil
 }
 

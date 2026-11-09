@@ -7,6 +7,7 @@ import { getLibraryTeamScout } from '@/lib/api/library';
 import type { ScoutReport } from '@/lib/api/scout';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { newReportHref } from '@/lib/clips/routes';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { ScoutView } from '@/components/reports/scout-view';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
@@ -49,12 +50,18 @@ export function OptionSelect({
 export function TeamScout({
   teamId,
   scope,
+  lineup,
   onCounts,
+  onReport,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   /** The sample the answer stands on, or null while it is read. */
   onCounts: (counts: ScopeCounts | null) => void;
+  /** The report once read, or null while it is read or when it failed. */
+  onReport?: (report: ScoutReport | null) => void;
 }): ReactNode {
   const [scout, setScout] = useState<ScoutReport | null>(null);
   const [failed, setFailed] = useState(false);
@@ -67,17 +74,20 @@ export function TeamScout({
     setScout(null);
     setFailed(false);
     onCounts(null);
+    onReport?.(null);
     getLibraryTeamScout(teamId, {
       maps: map === '' ? [] : [map],
       side,
       opponent_ids: opponent === '' ? [] : [opponent],
       from,
       to,
+      lineup,
     })
       .then((report) => {
         if (!active) return;
         setScout(report);
         onCounts({ maps: report.matches.length, rounds: report.tendencies.round_count });
+        onReport?.(report);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -85,7 +95,7 @@ export function TeamScout({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, opponent, from, to, onCounts]);
+  }, [teamId, map, side, opponent, from, to, lineup, onCounts, onReport]);
 
   return (
     <ScoutResult
@@ -128,9 +138,11 @@ function ScoutResult({ failed, scout, teamId, actions }: { failed: boolean; scou
       </div>
     );
   }
+  const view = <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />;
   return (
     <>
-      <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />
+      {/* An empty report empties every sub-tab, so the lineup's note replaces them all. */}
+      {scout.matches.length === 0 ? <EmptySample>{view}</EmptySample> : view}
       {video ? <AnalysisVideoDialog title="Crear vídeo de estas rondas" sources={video} teamId={teamId} onClose={() => setVideo(null)} /> : null}
     </>
   );

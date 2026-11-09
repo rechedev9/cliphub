@@ -180,6 +180,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/teams/{id}", h.GetLibraryTeam)
 	r.Patch("/api/library/teams/{id}", h.PatchLibraryTeam)
 	r.Post("/api/library/teams/{id}/merge", h.MergeLibraryTeam)
+	r.Get("/api/library/teams/{id}/lineups", h.GetLibraryTeamLineups)
 	r.Get("/api/library/teams/{id}/scout", h.GetLibraryTeamScout)
 	r.Get("/api/library/teams/{id}/heatmap", h.GetLibraryTeamHeatmap)
 	r.Get("/api/library/teams/{id}/overlay", h.GetLibraryTeamOverlay)

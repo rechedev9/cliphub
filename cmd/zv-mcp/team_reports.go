@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -236,7 +238,7 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
-			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), StudioPath: preparePath(in.TeamID, q.Map)}, nil
+			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), StudioPath: preparePath(in.TeamID, q)}, nil
 		})
 }
 
@@ -244,14 +246,19 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 type prepareTeamOut struct {
 	Scouting   scoutTeamOut `json:"scouting"`
 	Prep       teamPrepOut  `json:"prep"`
-	StudioPath string       `json:"studio_path" jsonschema:"the path that opens the team's Preparar tab on this map in Studio"`
+	StudioPath string       `json:"studio_path" jsonschema:"the path that opens the team's Preparar tab on this map and lineup in Studio"`
 }
 
-// preparePath is the team's Preparar tab on one map, as the web's teamPrepareHref writes it.
-func preparePath(teamID, mapName string) string {
-	v := url.Values{"tab": {"preparar"}}
-	if mapName != "" {
-		v.Set("map", mapName)
+// preparePath is the team's Preparar tab on the query's map and lineup, as the
+// web's scope writes them; no lineup is lineup=all, since the UI defaults to the latest one.
+func preparePath(teamID string, q tuiclient.AnalysisQuery) string {
+	v := url.Values{"tab": {"preparar"}, "lineup": {"all"}}
+	if q.Map != "" {
+		v.Set("map", q.Map)
+	}
+	if len(q.Lineup) > 0 {
+		ids := slices.Compact(slices.Sorted(slices.Values(q.Lineup)))
+		v.Set("lineup", strings.Join(ids, ","))
 	}
 	return "/equipos/" + url.PathEscape(teamID) + "?" + v.Encode()
 }

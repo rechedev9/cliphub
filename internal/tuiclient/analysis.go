@@ -26,8 +26,8 @@ func (c *Client) ListLibraryTeams(ctx context.Context, search string) ([]Library
 }
 
 // AnalysisQuery filters a scouting report or a player's metrics; zero fields
-// are unset. Limit only applies to player metrics; Opponents and Matches
-// (team ids and match ids) only to team reports.
+// are unset. Limit only applies to player metrics; Opponents, Matches and
+// Lineup (team ids, match ids and SteamID64s) only to team reports.
 type AnalysisQuery struct {
 	Map       string
 	Side      string
@@ -36,6 +36,7 @@ type AnalysisQuery struct {
 	Limit     int
 	Opponents []string
 	Matches   []string
+	Lineup    []string
 	// With and Without are the playbook's tactic combination.
 	With    []string
 	Without []string
@@ -44,7 +45,7 @@ type AnalysisQuery struct {
 // encode builds the "?k=v" suffix of the query.
 func (q AnalysisQuery) encode() string { return encodeValues(q.values()) }
 
-// values holds the set fields, with opponent_id and match_id repeated.
+// values holds the set fields, with opponent_id, match_id and lineup repeated.
 func (q AnalysisQuery) values() url.Values {
 	values := url.Values{}
 	set := func(k, v string) {
@@ -68,6 +69,9 @@ func (q AnalysisQuery) values() url.Values {
 	}
 	for _, id := range q.Matches {
 		values.Add("match_id", id)
+	}
+	for _, id := range q.Lineup {
+		values.Add("lineup", id)
 	}
 	for _, key := range q.With {
 		values.Add("with", key)

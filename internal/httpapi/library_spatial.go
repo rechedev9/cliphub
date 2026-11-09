@@ -293,26 +293,21 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 		TeamID: &teamID, TeamName: team.Name, Map: mapName, Maps: maps,
 		Matches: []spatialMatchRef{}, Skipped: skipped,
 	}
-	matches := []tacticalplan.SpatialMatch{}
+	onMap := make([]tacticalplan.ScoutMatch, 0, len(selected))
 	for _, sm := range selected {
-		if sm.Document.Demo.Map != mapName {
-			continue
+		if sm.Document.Demo.Map == mapName {
+			onMap = append(onMap, sm)
 		}
-		if len(matches) >= library.MaxReportMatches {
-			resp.Skipped = append(resp.Skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
-			continue
-		}
-		c := candidates[sm.MatchID]
-		doc, err := h.readLibraryDocument(c.match.DemoID)
-		if err != nil {
-			log.Printf("httpapi: spatial view of %s skips match %s: %v", team.ID, sm.MatchID, err)
-			resp.Skipped = append(resp.Skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
-			continue
-		}
+	}
+	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: onMap, lineup: scout.Lineup})
+	resp.Skipped = append(resp.Skipped, more...)
+	matches := make([]tacticalplan.SpatialMatch, 0, len(kept))
+	for _, k := range kept {
+		sm := k.scout
 		filter := rounds
-		filter.TeamKey, filter.Side = sm.TeamKey, scout.Side
+		filter.TeamKey, filter.Side, filter.Lineup = sm.TeamKey, scout.Side, scout.Lineup
 		matches = append(matches, tacticalplan.SpatialMatch{
-			MatchID: sm.MatchID, Document: doc, Filter: filter, Blob: h.positionsReader(c.match.DemoID),
+			MatchID: sm.MatchID, Document: sm.Document, Filter: filter, Blob: h.positionsReader(k.demoID),
 		})
 		resp.Matches = append(resp.Matches, spatialMatchRef{
 			MatchID: sm.MatchID, Map: mapName, PlayedAt: sm.PlayedAt, TeamKey: sm.TeamKey, Opponent: sm.Opponent,

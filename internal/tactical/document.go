@@ -235,7 +235,10 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 
 	slots := make([]uint8, 0, len(acc.stats))
 	for slot := range acc.stats {
-		slots = append(slots, slot)
+		// Only who played the round is a player of it, so a team view's lineup never waits on a coach.
+		if acc.played[slot] {
+			slots = append(slots, slot)
+		}
 	}
 	sort.Slice(slots, func(i, j int) bool { return remap[slots[i]] < remap[slots[j]] })
 	for _, slot := range slots {

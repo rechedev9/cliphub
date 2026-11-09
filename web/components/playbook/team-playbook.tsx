@@ -19,6 +19,7 @@ import {
   type ComboMode,
 } from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Map as MapIcon, Swords } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
@@ -81,12 +82,15 @@ function ChooseScope({ scope, maps, onScopeChange }: { scope: AnalysisScope; map
 export function TeamPlaybook({
   teamId,
   scope,
+  lineup,
   maps,
   onScopeChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   /** The maps the team has played, offered when none is chosen. */
   maps: readonly string[];
   onScopeChange: (patch: Partial<AnalysisScope>) => void;
@@ -124,7 +128,7 @@ export function TeamPlaybook({
     setPlaybook(null);
     setFailed(false);
     onCounts(null);
-    getTeamPlaybook(teamId, { map, side, from, to, opponent_ids: opponent === '' ? [] : [opponent] })
+    getTeamPlaybook(teamId, { map, side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup })
       .then((next) => {
         if (!active) return;
         setPlaybook(next);
@@ -136,7 +140,7 @@ export function TeamPlaybook({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, opponent, from, to, attempt, onCounts]);
+  }, [teamId, map, side, opponent, from, to, lineup, attempt, onCounts]);
 
   if (!ready) return <ChooseScope scope={scope} maps={maps} onScopeChange={onScopeChange} />;
   if (failed) {
@@ -164,9 +168,11 @@ export function TeamPlaybook({
   }
   if (playbook.round_count === 0) {
     return (
-      <p className="text-body text-fg-2">
-        No hay rondas de {side} en {prettyMapName(map)} con este filtro. Prueba con otro periodo o rival.
-      </p>
+      <EmptySample>
+        <p className="text-body text-fg-2">
+          No hay rondas de {side} en {prettyMapName(map)} con este filtro. Prueba con otro periodo o rival.
+        </p>
+      </EmptySample>
     );
   }
 

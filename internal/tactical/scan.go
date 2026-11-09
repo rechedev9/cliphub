@@ -210,6 +210,9 @@ type roundAcc struct {
 	sides          map[uint8]tacticalplan.Side
 	economySampled bool
 
+	// played holds the slots seen alive or in a fight: a coach on a team never spawns, so never plays.
+	played map[uint8]bool
+
 	// freezeTicks is mp_freezetime when the round started, 0 when unknown.
 	freezeTicks int
 	lives       utilityLives
@@ -538,6 +541,7 @@ func (s *scanner) onFrame() {
 			Gear:   sampleGear(pl),
 		})
 		if pl.IsAlive() {
+			s.current.markPlayed(slot)
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())
 		}
 	}
@@ -573,53 +577,12 @@ func (s *scanner) mapNameOrDefault() string {
 	return s.mapName
 }
 
-func (s *scanner) sampleEconomyIfDue(tick int) {
-	r := s.current
-	if r == nil || r.economySampled || r.tickFreezeEnd == 0 || s.tickrateOrDefault() <= 0 {
-		return
+// markPlayed records that the slot took part in the round.
+func (r *roundAcc) markPlayed(slot uint8) {
+	if r.played == nil {
+		r.played = map[uint8]bool{}
 	}
-	if float64(tick-r.tickFreezeEnd) < economyDelaySeconds*s.tickrateOrDefault() {
-		return
-	}
-	s.sampleEconomy()
-}
-
-// economyDelaySeconds is how long after freeze-time end the equipment value is
-// read. Players keep buying for a few seconds past the freeze, and by the end
-// of the buy window they have already thrown utility and died, so both edges
-// misreport what the team actually took into the round.
-const economyDelaySeconds = 7
-
-func (s *scanner) sampleEconomy() {
-	r := s.current
-	if r == nil || r.economySampled {
-		return
-	}
-	r.economySampled = true
-	r.economy.SampleTick = s.tick()
-	for _, pl := range s.p.GameState().Participants().All() {
-		slot, ok := s.slotFor(pl)
-		if !ok {
-			continue
-		}
-		side := sideOf(pl.Team)
-		if side == "" {
-			continue
-		}
-		value := pl.EquipmentValueCurrent()
-		money := pl.Money()
-		acc := r.playerStats(slot)
-		acc.equipValue = value
-		acc.money = money
-		r.sides[slot] = side
-		if side == tacticalplan.SideCT {
-			r.economy.CTEquipValue += value
-			r.economy.CTMoney += money
-		} else {
-			r.economy.TEquipValue += value
-			r.economy.TMoney += money
-		}
-	}
+	r.played[slot] = true
 }
 
 func (r *roundAcc) playerStats(slot uint8) *playerRoundAcc {
@@ -692,6 +655,10 @@ func (s *scanner) onKill(e events.Kill) {
 	victimStats.deaths++
 	victimStats.deathTick = tick
 	r.sides[victimSlot] = victimSide
+	r.markPlayed(victimSlot)
+	if rec.killerSlot != nil {
+		r.markPlayed(*rec.killerSlot)
+	}
 	if rec.killerSlot != nil && !rec.teamKill {
 		killerStats := r.playerStats(*rec.killerSlot)
 		killerStats.kills++
@@ -699,6 +666,7 @@ func (s *scanner) onKill(e events.Kill) {
 	}
 	if assistSlot, ok := s.slotFor(e.Assister); ok && sideOf(e.Assister.Team) != victimSide {
 		r.playerStats(assistSlot).assists++
+		r.markPlayed(assistSlot)
 	}
 
 	event := tacticalplan.Event{
@@ -748,6 +716,7 @@ func (s *scanner) onHurt(e events.PlayerHurt) {
 		return
 	}
 	r.playerStats(slot).damage += e.HealthDamageTaken
+	r.markPlayed(slot)
 }
 
 func (s *scanner) onPlant(e events.BombPlanted) {

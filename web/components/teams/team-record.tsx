@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, BookMarked, GitMerge, Pencil, PlugZap, Shield } from 'lucide-react';
 import {
   getLibraryTeam,
+  getTeamLineups,
   isLibraryNotFound,
   isLibraryOffline,
   listLibraryMatches,
@@ -15,6 +16,8 @@ import {
   type LibraryMatch,
   type LibraryTeam,
 } from '@/lib/api/library';
+import type { TeamLineups } from '@/lib/api/team-insights';
+import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { TEAMS_HREF, matchHref, teamHref, teamLibretaHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
@@ -28,6 +31,7 @@ import {
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
+import { SampleLineupProvider } from '@/components/analysis/empty-sample';
 import { MapLabel } from '@/components/analysis/map-thumb';
 import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
@@ -64,7 +68,8 @@ import { TeamSeries } from './team-series';
 import { TeamVeto } from './team-veto';
 import { TeamTrend } from './team-trend';
 
-type Loaded = { team: LibraryTeam; matches: LibraryMatch[] };
+/** `lineups` is null when they could not be read; the views then count every round. */
+type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null };
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
 
 /** A team's record: roster by date, matches with rival and result, and the record per map. */
@@ -75,9 +80,9 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   useEffect(() => {
     let active = true;
     setState({ kind: 'loading' });
-    Promise.all([getLibraryTeam(teamId), listLibraryMatches({ team_id: teamId })])
-      .then(([team, matches]) => {
-        if (active) setState({ kind: 'ready', data: { team, matches } });
+    Promise.all([getLibraryTeam(teamId), listLibraryMatches({ team_id: teamId }), getTeamLineups(teamId).catch(() => null)])
+      .then(([team, matches, lineups]) => {
+        if (active) setState({ kind: 'ready', data: { team, matches, lineups } });
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -138,11 +143,11 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
   veto: ['opponent'],
-  sitios: ['map', 'period', 'opponent'],
-  preparar: ['map', 'side', 'period', 'opponent'],
-  playbook: ['map', 'side', 'period', 'opponent'],
-  replay: ['side', 'period', 'buy', 'opponentBuy', 'opponent'],
-  'replay-granadas': ['map', 'side', 'period', 'buy', 'opponent'],
+  sitios: ['lineup', 'map', 'period', 'opponent'],
+  preparar: ['lineup', 'map', 'side', 'period', 'opponent'],
+  playbook: ['lineup', 'map', 'side', 'period', 'opponent'],
+  replay: ['lineup', 'side', 'period', 'buy', 'opponentBuy', 'opponent'],
+  'replay-granadas': ['lineup', 'map', 'side', 'period', 'buy', 'opponent'],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
 const REPORTING_TABS = new Set(['mapas', 'sitios', 'preparar', 'playbook', 'replay']);
@@ -152,7 +157,7 @@ const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', ra
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
-  const { team, matches } = data;
+  const { team, matches, lineups } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [rawTab, setTab] = useRecordTab(QUERY_TABS, 'plantilla');
@@ -180,6 +185,10 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const onCounts = useCallback((counts: ScopeCounts | null) => setReported(counts), []);
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
   const teamMaps = useMemo(() => [...new Set(matches.map((match) => match.map))].sort(), [matches]);
+  // Keyed on the ids, so a view refetches only when the players it counts change.
+  const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
+  const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
+  const showEveryone = useCallback(() => setScope({ lineup: { kind: 'all' } }), [setScope]);
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -245,13 +254,14 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           proReference={proReference}
           fields={fields}
           entity={entity}
+          lineups={lineups}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
           mapRequired={id === 'playbook' || id === 'replay-granadas'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
         />
-        {content}
+        <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>{content}</SampleLineupProvider>
       </div>
     );
   }
@@ -339,20 +349,32 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           {
             id: 'sitios',
             label: 'Bombsites',
-            content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} onCounts={onCounts} />),
+            content: withScope('sitios', <TeamBombsites teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />),
           },
           {
             id: 'preparar',
             label: 'Preparar',
             content: withScope(
               'preparar',
-              <TeamPrepare team={team} matches={scoped} maps={teamMaps} scope={scope} onMapChange={onMapChange} onOpenReplay={openReplay} onCounts={onCounts} />,
+              <TeamPrepare
+                team={team}
+                matches={scoped}
+                maps={teamMaps}
+                scope={scope}
+                lineup={lineup}
+                onMapChange={onMapChange}
+                onOpenReplay={openReplay}
+                onCounts={onCounts}
+              />,
             ),
           },
           {
             id: 'playbook',
             label: 'Playbook',
-            content: withScope('playbook', <TeamPlaybook teamId={team.id} scope={scope} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />),
+            content: withScope(
+              'playbook',
+              <TeamPlaybook teamId={team.id} scope={scope} lineup={lineup} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />,
+            ),
           },
           {
             id: 'replay',
@@ -362,6 +384,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
               <TeamReplay
                 teamId={team.id}
                 scope={scope}
+                lineup={lineup}
                 matches={matches}
                 form={replayForm}
                 onFormChange={(form) => {

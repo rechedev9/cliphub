@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ClipboardList, Printer } from 'lucide-react';
-import { scopeCountText, scopeDateRange } from '@/lib/analysis/scope';
+import { parseAnalysisScope, scopeCountText, scopeDateRange } from '@/lib/analysis/scope';
 import { PREP_QUERY, TEAMS_HREF, teamPrepareHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -32,13 +32,19 @@ function periodText(from: string, to: string): string {
   return 'Todas las fechas';
 }
 
-/** The sheet to print of a team's Preparar on one map, read from `?team=&map=&from=&to=`. */
+/** The sheet to print of a team's Preparar on one map, read from `?team=&map=&from=&to=&lineup=`. */
 export function PrepRecord(): ReactNode {
   const query = useSearchParams();
   const teamId = query.get(PREP_QUERY.team) ?? '';
   const map = query.get(PREP_QUERY.map) ?? '';
   const fromDay = DAY_RE.test(query.get(PREP_QUERY.from) ?? '') ? (query.get(PREP_QUERY.from) ?? '') : '';
   const toDay = DAY_RE.test(query.get(PREP_QUERY.to) ?? '') ? (query.get(PREP_QUERY.to) ?? '') : '';
+  // The sheet names its players outright; without them it counts every round, as older links did.
+  const lineupParam = query.get(PREP_QUERY.lineup) ?? '';
+  const lineup = useMemo(() => {
+    const parsed = parseAnalysisScope(new URLSearchParams({ [PREP_QUERY.lineup]: lineupParam })).lineup;
+    return parsed.kind === 'players' ? parsed.steamIds : [];
+  }, [lineupParam]);
   const valid = UUID_RE.test(teamId) && MAP_RE.test(map);
   const [teamName, setTeamName] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
@@ -64,7 +70,7 @@ export function PrepRecord(): ReactNode {
   return (
     <article className={`flex flex-col gap-5 print:gap-6 ${PRINT_PAPER}`}>
       <PrepBody
-        query={{ teamId, map, from, to }}
+        query={{ teamId, map, from, to, lineup }}
         header={(prep) => {
           // The sheet is named after the team once its prep is read.
           if (teamName !== prep.team_name) queueMicrotask(() => setTeamName(prep.team_name));
@@ -78,6 +84,7 @@ export function PrepRecord(): ReactNode {
                   </h1>
                   <p className="text-body-sm text-fg-2 tabular-nums">
                     {periodText(fromDay, toDay)} · {scopeCountText(prep.matches, prep.round_count)}
+                    {lineup.length > 0 ? ` · Alineación de ${lineup.length} ${lineup.length === 1 ? 'jugador' : 'jugadores'}` : ''}
                   </p>
                 </div>
               </div>

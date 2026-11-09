@@ -60,7 +60,9 @@ get_player (nicks and teams by date), scout_team for a team's tendencies, player
 numbers compared with get_baseline, and find_rounds for round refs (match_id/round) to open.
 For a team: team_bombsites, team_playbook (one map and side), team_prep (one map) and team_grenades.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
-these and scout_team take opponent_id and match_id to narrow the matches. team_playbook lists every
+these and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
+only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
+players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.

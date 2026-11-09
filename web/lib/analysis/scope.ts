@@ -21,6 +21,15 @@ export type ScopePeriod =
   | { readonly kind: 'preset'; readonly preset: PeriodPreset }
   | { readonly kind: 'range'; readonly from: string; readonly to: string };
 
+/**
+ * Whose rounds a team view reads: the players of the team's latest match, every
+ * player, or a chosen set of SteamID64s (sorted, no repeats).
+ */
+export type ScopeLineup =
+  | { readonly kind: 'latest' }
+  | { readonly kind: 'all' }
+  | { readonly kind: 'players'; readonly steamIds: readonly string[] };
+
 export type AnalysisScope = {
   /** Map name such as `de_mirage`; empty for every map. */
   readonly map: string;
@@ -34,11 +43,12 @@ export type AnalysisScope = {
   readonly opponent: string;
   /** What every comparison on the page reads against: the library mean or the pros'. */
   readonly reference: BaselineScope;
+  readonly lineup: ScopeLineup;
 };
 
 export type ScopeField = keyof AnalysisScope;
 
-export const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent', 'reference'];
+export const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent', 'reference', 'lineup'];
 
 /** Query names. Side and buys share the tactical filter's names, so a link reads the same on every page. */
 export const SCOPE_PARAMS = {
@@ -52,9 +62,14 @@ export const SCOPE_PARAMS = {
   opponentBuy: TACTICAL_FILTER_PARAMS.opponentBuy,
   opponent: 'opponent',
   reference: 'ref',
+  lineup: 'lineup',
 } as const;
 
 export const SCOPE_LIMIT_MAX = 50;
+/** The server's cap on a lineup (`tacticalplan.MaxLineupPlayers`). */
+export const SCOPE_LINEUP_MAX = 50;
+/** The `lineup` value of "every player"; a missing one is the latest lineup. */
+export const LINEUP_ALL = 'all';
 
 /** Buys a person can pick: `unknown` is a parser state, not a choice. */
 export const SCOPE_BUYS: readonly TacticalBuyType[] = [
@@ -74,9 +89,11 @@ export const DEFAULT_SCOPE: AnalysisScope = {
   opponentBuy: '',
   opponent: '',
   reference: 'library',
+  lineup: { kind: 'latest' },
 };
 
 const MAP_RE = /^[a-z0-9_]{1,64}$/;
+const STEAM_ID_RE = /^\d{17}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -116,6 +133,20 @@ function parseLimit(value: string | null): number | null {
   return limit >= 1 && limit <= SCOPE_LIMIT_MAX ? limit : null;
 }
 
+/** A chosen lineup with its ids sorted and without repeats, so one set always writes one URL. */
+export function lineupOf(steamIds: readonly string[]): ScopeLineup {
+  return { kind: 'players', steamIds: [...new Set(steamIds)].sort() };
+}
+
+function parseLineup(value: string | null): ScopeLineup {
+  if (value === LINEUP_ALL) return { kind: 'all' };
+  if (value === null || value === '') return { kind: 'latest' };
+  const ids = value.split(',');
+  // One bad id drops the whole set: a partial lineup would silently count other rounds.
+  if (ids.length > SCOPE_LINEUP_MAX || !ids.every((steamId) => STEAM_ID_RE.test(steamId))) return { kind: 'latest' };
+  return lineupOf(ids);
+}
+
 /** Reads a scope from a query string. A value the URL cannot hold is dropped; the rest still applies. */
 export function parseAnalysisScope(query: ScopeQuery): AnalysisScope {
   const map = query.get(SCOPE_PARAMS.map) ?? '';
@@ -129,7 +160,13 @@ export function parseAnalysisScope(query: ScopeQuery): AnalysisScope {
     opponentBuy: parseBuy(query.get(SCOPE_PARAMS.opponentBuy)),
     opponent: UUID_RE.test(opponent) ? opponent.toLowerCase() : '',
     reference: query.get(SCOPE_PARAMS.reference) === 'pro' ? 'pro' : 'library',
+    lineup: parseLineup(query.get(SCOPE_PARAMS.lineup)),
   };
+}
+
+function lineupParam(lineup: ScopeLineup): string {
+  if (lineup.kind === 'all') return LINEUP_ALL;
+  return lineup.kind === 'players' ? lineup.steamIds.join(',') : '';
 }
 
 /**
@@ -154,12 +191,14 @@ export function writeAnalysisScope(scope: AnalysisScope, current: string | URLSe
   set(SCOPE_PARAMS.opponentBuy, scope.opponentBuy);
   set(SCOPE_PARAMS.opponent, scope.opponent);
   set(SCOPE_PARAMS.reference, scope.reference === 'pro' ? 'pro' : '');
+  set(SCOPE_PARAMS.lineup, lineupParam(scope.lineup));
   return params.toString();
 }
 
 /** True when a field holds anything but its default. */
 export function scopeFieldActive(scope: AnalysisScope, field: ScopeField): boolean {
   if (field === 'period') return scope.period.kind !== 'all';
+  if (field === 'lineup') return scope.lineup.kind !== 'latest';
   return scope[field] !== DEFAULT_SCOPE[field];
 }
 
@@ -176,6 +215,7 @@ export function resetScopeFields(scope: AnalysisScope, fields: readonly ScopeFie
     opponentBuy: pick('opponentBuy'),
     opponent: pick('opponent'),
     reference: pick('reference'),
+    lineup: pick('lineup'),
   };
 }
 

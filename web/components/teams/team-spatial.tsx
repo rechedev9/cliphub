@@ -10,12 +10,15 @@ import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspac
 export function TeamSpatial({
   teamId,
   scope,
+  lineup,
   view,
   onMapChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   /** The form the team's Replay is on: a heatmap or the superposed paths. */
   view: 'heatmap' | 'overlay';
   onMapChange: (map: string) => void;
@@ -47,6 +50,7 @@ export function TeamSpatial({
           opponent_ids: scope.opponent === '' ? [] : [scope.opponent],
           from,
           to,
+          lineup,
           buys: scope.buy === '' ? [] : [scope.buy],
           opponent_buys: scope.opponentBuy === '' ? [] : [scope.opponentBuy],
         },

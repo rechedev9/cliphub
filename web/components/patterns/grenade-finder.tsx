@@ -18,6 +18,7 @@ import {
 import { practiceSpotsForSpots, spotLabel } from '@/lib/analysis/practice-spots';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap, levelForAltitude } from '@/lib/tactical-transform';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { Button } from '@/components/ui/button';
 import { useCalloutNames } from '@/hooks/use-callout-names';
 import { Segmented } from '@/components/ui/segmented';
@@ -207,14 +208,16 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
           </p>
         ) : null}
         {spots.length === 0 ? (
-          <p className="text-body-sm text-fg-2">
-            {box === null ? 'No hay granadas con este filtro.' : 'Ninguna granada en esta zona.'}
-            {box === null ? null : (
-              <Button type="button" variant="link" size="xs" onClick={() => setBox(null)}>
-                Quitar zona
-              </Button>
-            )}
-          </p>
+          <EmptySample hiddenLocally={data.grenades.length > 0}>
+            <p className="text-body-sm text-fg-2">
+              {box === null ? 'No hay granadas con este filtro.' : 'Ninguna granada en esta zona.'}
+              {box === null ? null : (
+                <Button type="button" variant="link" size="xs" onClick={() => setBox(null)}>
+                  Quitar zona
+                </Button>
+              )}
+            </p>
+          </EmptySample>
         ) : (
           <GrenadeSpotList
             spots={spots}

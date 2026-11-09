@@ -10,6 +10,7 @@ import { RatePool, bombsiteKey, libraryMatchesText, poolBombsites, type AttackFi
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
@@ -139,10 +140,13 @@ function MapTables({
 export function TeamBombsites({
   teamId,
   scope,
+  lineup,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
   const [data, setData] = useState<TeamBombsitesReport | null | 'failed'>(null);
@@ -156,7 +160,7 @@ export function TeamBombsites({
     let active = true;
     setData(null);
     onCounts(null);
-    getTeamBombsites(teamId, { maps: map === '' ? [] : [map], opponent_ids: opponent === '' ? [] : [opponent], from, to })
+    getTeamBombsites(teamId, { maps: map === '' ? [] : [map], opponent_ids: opponent === '' ? [] : [opponent], from, to, lineup })
       .then((report) => {
         if (!active) return;
         setData(report);
@@ -171,7 +175,7 @@ export function TeamBombsites({
     return () => {
       active = false;
     };
-  }, [teamId, map, opponent, from, to, onCounts]);
+  }, [teamId, map, opponent, from, to, lineup, onCounts]);
 
   if (data === 'failed') {
     return (
@@ -189,7 +193,11 @@ export function TeamBombsites({
     );
   }
   if (data.maps.length === 0) {
-    return <p className="text-body-sm text-fg-2">Sin partidas analizadas con este filtro. Amplía las fechas o quita el mapa o el rival.</p>;
+    return (
+      <EmptySample>
+        <p className="text-body-sm text-fg-2">Sin partidas analizadas con este filtro. Amplía las fechas o quita el mapa o el rival.</p>
+      </EmptySample>
+    );
   }
   const heads = columns(data);
   return (

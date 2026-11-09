@@ -122,7 +122,7 @@ export const SPATIAL_RESPONSE_KEYS = [
 
 /** Query names of the team views: the scout filter, the round filter and the view's own. */
 export const TEAM_SPATIAL_QUERY = [
-  'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'buy', 'opponent_buy', 'site', 'outcome', 't_pattern',
+  'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'buy', 'opponent_buy', 'site', 'outcome', 't_pattern',
   'ct_pattern', 'tag', 'phase',
 ] as const;
 export const HEATMAP_QUERY = ['kind', 't_from', 't_to', 't_from_plant', 'grenade'] as const;

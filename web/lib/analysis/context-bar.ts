@@ -55,11 +55,12 @@ export function writeTab(current: string, tab: string, fallback: string): string
 
 /**
  * The link to another team or player with the same tab and filters. A rival
- * filter belongs to the entity it was set on, so it is dropped.
+ * filter and a lineup belong to the entity they were set on, so they are dropped.
  */
 export function switchEntityHref(base: string, current: string): string {
   const params = new URLSearchParams(current);
   params.delete(SCOPE_PARAMS.opponent);
+  params.delete(SCOPE_PARAMS.lineup);
   const search = params.toString();
   return search === '' ? base : `${base}?${search}`;
 }

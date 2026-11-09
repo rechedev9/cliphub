@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { CheckIcon } from "lucide-react"
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -83,6 +84,28 @@ function DropdownMenuItem({
   )
 }
 
+/** A row with a check box; the check sits in the inset gutter so labels line up with inset items. */
+function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
+      className={cn(MENU_ITEM_CLASS, "group pl-8", className)}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center rounded-xs border border-fg-3 group-data-[state=checked]:border-fg-1">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CheckIcon className="size-3.5 text-fg-1" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
 function DropdownMenuLabel({
   className,
   inset,
@@ -122,5 +145,6 @@ export {
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
 }

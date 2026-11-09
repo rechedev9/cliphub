@@ -38,4 +38,4 @@ export type TeamGrenades = {
 };
 
 export const TEAM_GRENADES_KEYS = ['grenades', 'rounds', 'skipped'] as const;
-export const TEAM_GRENADES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'kind'] as const;
+export const TEAM_GRENADES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'kind'] as const;

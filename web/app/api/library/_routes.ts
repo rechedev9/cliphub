@@ -43,6 +43,7 @@ import {
   PLAYER_POSITIONS_QUERY,
   TEAM_BOMBSITES_KEYS,
   TEAM_BOMBSITES_QUERY,
+  TEAM_LINEUPS_KEYS,
 } from '../../../lib/api/team-insights.ts';
 
 /**
@@ -147,10 +148,11 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID], response: json(TEAM_KEYS) },
   { method: 'PATCH', segments: ['teams', UUID], body: fields(['name', 'aliases']), response: json(TEAM_KEYS) },
   { method: 'POST', segments: ['teams', UUID, 'merge'], body: fields(['into_team_id']), response: json(TEAM_KEYS) },
-  { method: 'GET', segments: ['teams', UUID, 'scout'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(SCOUT_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'lineups'], response: json(TEAM_LINEUPS_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'scout'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'], response: json(SCOUT_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'heatmap'], query: [...TEAM_SPATIAL_QUERY, ...HEATMAP_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'overlay'], query: [...TEAM_SPATIAL_QUERY, ...OVERLAY_QUERY], response: json(SPATIAL_RESPONSE_KEYS) },
-  { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'], response: json(PLAY_DETECTION_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'plays'], query: ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'], response: json(PLAY_DETECTION_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'grenades'], query: TEAM_GRENADES_QUERY, response: json(TEAM_GRENADES_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'playbook'], query: PLAYBOOK_QUERY, response: json(PLAYBOOK_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'prep'], query: PREP_QUERY, response: json(PREP_KEYS) },

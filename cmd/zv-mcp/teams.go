@@ -37,6 +37,18 @@ type teamDetailOut struct {
 	Roster []rosterOut `json:"roster" jsonschema:"players who played for the team, most recent first"`
 }
 
+type lineupMatchOut struct {
+	MatchID  string `json:"match_id"`
+	Map      string `json:"map"`
+	PlayedAt string `json:"played_at" jsonschema:"YYYY-MM-DD"`
+}
+
+type teamLineupsOut struct {
+	LatestMatch *lineupMatchOut `json:"latest_match,omitempty" jsonschema:"the team's most recent match; absent when it has none or it names none of the team's players, and latest is then empty: the default lineup counts every player"`
+	Latest      []rosterOut     `json:"latest" jsonschema:"who played the latest match for the team: the default lineup of the team views"`
+	Others      []rosterOut     `json:"others" jsonschema:"everyone else who played for the team, most recent first"`
+}
+
 type updateTeamIn struct {
 	TeamID  string    `json:"team_id" jsonschema:"team id from list_teams"`
 	Name    string    `json:"name,omitempty" jsonschema:"new team name; empty keeps it"`
@@ -95,10 +107,28 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamDetailOut{}, toolError(err)
 			}
-			out := teamDetailOut{teamOut: teamOf(t.LibraryTeam), Roster: []rosterOut{}}
-			for _, r := range t.Roster {
-				out.Roster = append(out.Roster, rosterOut{SteamID64: cleanName(r.SteamID64), Nick: cleanName(r.Nick), Matches: r.Matches,
-					First: r.FirstPlayedAt.Format(time.DateOnly), Last: r.LastPlayedAt.Format(time.DateOnly)})
+			return nil, teamDetailOut{teamOut: teamOf(t.LibraryTeam), Roster: rosterOf(t.Roster)}, nil
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "team_lineups", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Read the players a team view's lineup picks from, as the Alineación selector shows them: who played the team's latest match " +
+			"(the default lineup), then everyone else with their last date. Pass the chosen SteamID64s as lineup to scout_team, team_bombsites, " +
+			"team_playbook, team_prep, prepare_team, team_grenades or detect_team_plays."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in getTeamIn) (*mcp.CallToolResult, teamLineupsOut, error) {
+			if err := checkUUID("team_id", in.TeamID); err != nil {
+				return nil, teamLineupsOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, teamLineupsOut{}, toolError(err)
+			}
+			l, err := c.GetTeamLineups(ctx, in.TeamID)
+			if err != nil {
+				return nil, teamLineupsOut{}, toolError(err)
+			}
+			out := teamLineupsOut{Latest: rosterOf(l.Latest), Others: rosterOf(l.Others)}
+			if m := l.LatestMatch; m != nil {
+				out.LatestMatch = &lineupMatchOut{MatchID: m.MatchID, Map: cleanName(m.Map), PlayedAt: m.PlayedAt.Format(time.DateOnly)}
 			}
 			return nil, out, nil
 		})
@@ -269,6 +299,15 @@ func checkUserText(field, raw string) (string, error) {
 		return "", fmt.Errorf("%s must not hold control characters", field)
 	}
 	return text, nil
+}
+
+func rosterOf(entries []tuiclient.RosterEntry) []rosterOut {
+	out := make([]rosterOut, 0, len(entries))
+	for _, r := range entries {
+		out = append(out, rosterOut{SteamID64: cleanName(r.SteamID64), Nick: cleanName(r.Nick), Matches: r.Matches,
+			First: r.FirstPlayedAt.Format(time.DateOnly), Last: r.LastPlayedAt.Format(time.DateOnly)})
+	}
+	return out
 }
 
 func teamOf(t tuiclient.LibraryTeam) teamOut {
