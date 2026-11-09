@@ -1,36 +1,33 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
+import type { PlaylistRound } from '@/lib/api/playlists';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
+import { PLAYLISTS_HREF, PLAYLIST_QUERY, isPlaylistId, playlistRefs } from '@/lib/replay/saved-playlist';
+import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ReplayHome } from './replay-home';
 import { ReplayWorkspace } from './replay-workspace';
+import { SavedPlaylistPanel } from './saved-playlist-panel';
+import { useOpenPlaylist, usePlaylistRoundNotes } from './use-saved-playlists';
 
 function matchLabel(match: LibraryMatch): string {
   return `${prettyMapName(match.map)} · ${matchTitle(match)}`;
 }
 
-/**
- * A playlist of rounds from any matches, from `replayHref`. Each match's
- * analysis loads when the strip reaches it; the left panel narrows the list to
- * some of its matches.
- */
-export function PlaylistReplay(): ReactNode {
-  const search = useSearchParams();
-  const refs = useMemo(() => parseReplayRefs(search), [search]);
-  const title = search.get('t') ?? undefined;
+/** The library's matches by id, for the names of the rounds; `null` while loading. */
+function useLibraryMatches(): ReadonlyMap<string, LibraryMatch> | null {
   const [matches, setMatches] = useState<ReadonlyMap<string, LibraryMatch> | null>(null);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const [currentKey, setCurrentKey] = useState<string | null>(null);
-  useRouteTitle(title ?? 'Replay');
-  useDocumentTitle(`${title ?? 'Replay'} · ClipHub`);
-
   useEffect(() => {
     let active = true;
     listLibraryMatches()
@@ -45,6 +42,104 @@ export function PlaylistReplay(): ReactNode {
       active = false;
     };
   }, []);
+  return matches;
+}
+
+/**
+ * The Replay of a list of rounds from any matches: a saved playlist (`?p=`)
+ * with its panel, or a passing list from `replayHref`. Each match's analysis
+ * loads when the strip reaches it.
+ */
+export function PlaylistReplay(): ReactNode {
+  const search = useSearchParams();
+  const saved = search.get(PLAYLIST_QUERY);
+  if (isPlaylistId(saved)) return <SavedPlaylistReplay key={saved} id={saved} />;
+  return <PassingPlaylistReplay />;
+}
+
+/** A saved playlist for the team meeting: J and K walk its rounds, each with its comment and drawings. */
+function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
+  const { playlist, replace } = useOpenPlaylist(id);
+  const matches = useLibraryMatches();
+  const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const entries = useMemo(() => (playlist ? playlistRefs(playlist) : []), [playlist]);
+  const index = indexOfKey(entries, currentKey);
+  const entry = entries[index];
+  const notes = usePlaylistRoundNotes({ playlist, at: entry, onSaved: replace });
+  const name = playlist?.name ?? 'Playlist';
+  useRouteTitle(name);
+  useDocumentTitle(`${name} · ClipHub`);
+  const groupLabel = useCallback(
+    (matchId: string) => {
+      const match = matches?.get(matchId);
+      return match === undefined ? null : `${matchLabel(match)} · ${formatShortDate(match.played_at)}`;
+    },
+    [matches],
+  );
+  const labelOf = (round: PlaylistRound): string => groupLabel(round.match_id) ?? prettyMapName(round.map);
+
+  if (playlist === undefined) return <Skeleton className="h-[60vh] w-full rounded-lg" />;
+  if (playlist === null) {
+    return (
+      <EmptyState
+        icon={ListVideo}
+        title="Esta playlist ya no está"
+        description="Se ha borrado o Studio no ha podido leerla. Tus otras playlists siguen en su lista."
+        actions={
+          <Button asChild size="sm">
+            <Link href={PLAYLISTS_HREF}>Ver las playlists</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  const panel = (
+    <SavedPlaylistPanel
+      playlist={playlist}
+      current={entry}
+      labelOf={labelOf}
+      onSelect={(ref) => setCurrentKey(entryKey(ref))}
+      onChange={replace}
+    />
+  );
+  if (entries.length === 0) {
+    const empty =
+      playlist.rounds.length === 0
+        ? 'Esta playlist aún no tiene rondas. Abre una partida en el Replay y pulsa B o «Añadir a playlist» en la ronda que quieras.'
+        : 'Ninguna ronda de esta playlist está en tu biblioteca. Importa sus demos en Partidas y las rondas aparecerán solas.';
+    return (
+      <section className="studio-panel grid gap-5 p-4 sm:p-5 lg:grid-cols-[260px_minmax(0,1fr)]" aria-label="Repetición">
+        <div className="flex flex-col gap-3">{panel}</div>
+        <p className="self-center text-body text-fg-2">{empty}</p>
+      </section>
+    );
+  }
+  return (
+    <ReplayWorkspace
+      source="library"
+      entries={entries}
+      index={index}
+      onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
+      groupLabel={groupLabel}
+      filters={panel}
+      title={playlist.name}
+      roundNotes={{ store: notes, where: `«${playlist.name}»` }}
+      openPlaylistId={playlist.id}
+    />
+  );
+}
+
+/** A list of rounds that is not saved, such as the rounds behind a figure; the left panel narrows it to some matches. */
+function PassingPlaylistReplay(): ReactNode {
+  const search = useSearchParams();
+  const refs = useMemo(() => parseReplayRefs(search), [search]);
+  const title = search.get('t') ?? undefined;
+  const matches = useLibraryMatches();
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [currentKey, setCurrentKey] = useState<string | null>(null);
+  useRouteTitle(title ?? 'Replay');
+  useDocumentTitle(`${title ?? 'Replay'} · ClipHub`);
 
   const matchIds = useMemo(() => [...new Set(refs.map((ref) => ref.matchId))], [refs]);
   const missing = useMemo(

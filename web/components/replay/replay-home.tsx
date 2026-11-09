@@ -2,13 +2,14 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Radar } from 'lucide-react';
+import { ListVideo, Radar } from 'lucide-react';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchScoreLabel, matchTitle } from '@/lib/library/partidas';
 import { MATCH_REPLAY_TAB, MATCH_TAB_QUERY } from '@/lib/library/rounds';
+import { PLAYLISTS_HREF } from '@/lib/replay/saved-playlist';
 import { EmptyState } from '@/components/records/empty-state';
 import { Button } from '@/components/ui/button';
 
@@ -80,11 +81,19 @@ export function ReplayHome(): ReactNode {
         <h2 id="replay-home-title" className="text-title text-fg-1">
           Elige una partida
         </h2>
-        {matches.length > recent.length ? (
-          <Link href={MATCHES_HREF} className="text-body-sm text-fg-2 underline decoration-fg-4 underline-offset-2 hover:text-fg-1">
-            Ver las {matches.length} partidas
-          </Link>
-        ) : null}
+        <span className="flex items-baseline gap-3">
+          {matches.length > recent.length ? (
+            <Link href={MATCHES_HREF} className="text-body-sm text-fg-2 underline decoration-fg-4 underline-offset-2 hover:text-fg-1">
+              Ver las {matches.length} partidas
+            </Link>
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link href={PLAYLISTS_HREF}>
+              <ListVideo aria-hidden />
+              Playlists
+            </Link>
+          </Button>
+        </span>
       </div>
       <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {recent.map((match) => (

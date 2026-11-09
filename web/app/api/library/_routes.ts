@@ -30,6 +30,15 @@ import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
 import {
+  PLAYLIST_ADD_FIELDS,
+  PLAYLIST_FIELDS,
+  PLAYLIST_FILE_KEYS,
+  PLAYLIST_IMPORT_KEYS,
+  PLAYLIST_KEYS,
+  PLAYLIST_LIST_QUERY,
+  PLAYLIST_ROUND_FIELDS,
+} from '../../../lib/api/playlists.ts';
+import {
   CALLOUT_NAME_FIELDS,
   CALLOUT_NAME_KEYS,
   MAP_CALLOUTS_KEYS,
@@ -188,6 +197,27 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['calls', UUID], response: json(CALL_KEYS) },
   { method: 'PATCH', segments: ['calls', UUID], body: fields(CALL_FIELDS), response: json(CALL_KEYS) },
   { method: 'DELETE', segments: ['calls', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['playlists'], query: [...PLAYLIST_LIST_QUERY, ...PAGING], response: json(['playlists']) },
+  { method: 'POST', segments: ['playlists'], body: fields(PLAYLIST_FIELDS), response: json(PLAYLIST_KEYS) },
+  { method: 'GET', segments: ['playlists', 'export'], query: ['id', ...PLAYLIST_LIST_QUERY], response: json(PLAYLIST_FILE_KEYS) },
+  {
+    method: 'POST',
+    segments: ['playlists', 'import'],
+    body: { kind: 'json', fields: PLAYLIST_FILE_KEYS, maxBytes: STRATBOOK_FILE_BYTES },
+    response: json(PLAYLIST_IMPORT_KEYS),
+  },
+  { method: 'GET', segments: ['playlists', UUID], response: json(PLAYLIST_KEYS) },
+  { method: 'PATCH', segments: ['playlists', UUID], body: fields(PLAYLIST_FIELDS), response: json(PLAYLIST_KEYS) },
+  { method: 'DELETE', segments: ['playlists', UUID], response: { kind: 'empty' } },
+  { method: 'POST', segments: ['playlists', UUID, 'rounds'], body: fields(PLAYLIST_ADD_FIELDS), response: json(PLAYLIST_KEYS) },
+  {
+    method: 'PATCH',
+    segments: ['playlists', UUID, 'rounds', UUID, ROUND],
+    // A round's drawings can pass the default body cap.
+    body: { kind: 'json', fields: PLAYLIST_ROUND_FIELDS, maxBytes: STRATBOOK_FILE_BYTES },
+    response: json(PLAYLIST_KEYS),
+  },
+  { method: 'DELETE', segments: ['playlists', UUID, 'rounds', UUID, ROUND], response: json(PLAYLIST_KEYS) },
   { method: 'GET', segments: ['maps', MAP, 'callouts'], query: MAP_CALLOUTS_QUERY, response: json(MAP_CALLOUTS_KEYS) },
   { method: 'PUT', segments: ['maps', MAP, 'callouts', PLACE], body: fields(CALLOUT_NAME_FIELDS), response: json(CALLOUT_NAME_KEYS) },
   { method: 'DELETE', segments: ['maps', MAP, 'callouts', PLACE], response: { kind: 'empty' } },

@@ -1,19 +1,63 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inPlaylist, parsePlaylist, togglePlaylistRound } from './saved-playlist.ts';
+import type { SavedPlaylist } from '../api/playlists.ts';
+import {
+  editRoundNotes,
+  holdsRound,
+  legacyRoundsToSave,
+  parseLegacyPlaylist,
+  playlistRefs,
+  playlistRound,
+  roundAnnotations,
+  savedPlaylistHref,
+  targetPlaylist,
+} from './saved-playlist.ts';
 
 const MATCH = '82b2365b-3c63-48d4-8d9c-00342b71c5a1';
+const GONE = '0b9c1f9e-0f4d-4c7a-9a59-2f4f6c1d2e3a';
 
-test('B adds the round once and a second B takes it out', () => {
-  const added = togglePlaylistRound([], { matchId: MATCH, round: 4, tick: 900 });
-  assert.deepEqual(added, [{ matchId: MATCH, round: 4 }]);
-  assert.equal(inPlaylist(added, { matchId: MATCH, round: 4 }), true);
-  assert.deepEqual(togglePlaylistRound(added, { matchId: MATCH, round: 4 }), []);
+function playlist(id: string, rounds: SavedPlaylist['rounds']): SavedPlaylist {
+  return { id, name: id, folder: '', favorite: false, author: '', maps: [], rounds, created_at: '', updated_at: '' };
+}
+
+test('the old stored playlist keeps only real round refs, once each', () => {
+  const raw = JSON.stringify([{ matchId: MATCH, round: 2 }, { matchId: 'x', round: 1 }, { matchId: MATCH, round: 2 }, { matchId: MATCH, round: 0 }, 7]);
+  assert.deepEqual(parseLegacyPlaylist(raw), [{ matchId: MATCH, round: 2 }]);
+  assert.deepEqual(parseLegacyPlaylist('{'), []);
+  assert.deepEqual(parseLegacyPlaylist(null), []);
 });
 
-test('a stored playlist keeps only real round refs, once each', () => {
-  const raw = JSON.stringify([{ matchId: MATCH, round: 2 }, { matchId: 'x', round: 1 }, { matchId: MATCH, round: 2 }, { matchId: MATCH, round: 0 }, 7]);
-  assert.deepEqual(parsePlaylist(raw), [{ matchId: MATCH, round: 2 }]);
-  assert.deepEqual(parsePlaylist('{'), []);
-  assert.deepEqual(parsePlaylist(null), []);
+test('saving the old playlist drops rounds whose match left the library or never had them', () => {
+  const refs = [{ matchId: MATCH, round: 2 }, { matchId: GONE, round: 1 }, { matchId: MATCH, round: 31 }];
+  assert.deepEqual(legacyRoundsToSave(refs, new Map([[MATCH, 30]])), [{ match_id: MATCH, round: 2 }]);
+});
+
+test('the Replay plays the rounds it can find, and B knows which it holds', () => {
+  const p = playlist('a', [
+    { match_id: MATCH, round: 4, map: 'de_mirage', comment: 'humo' },
+    { match_id: GONE, round: 1, map: 'de_nuke', comment: '', missing: true },
+  ]);
+  assert.deepEqual(playlistRefs(p), [{ matchId: MATCH, round: 4 }]);
+  assert.equal(holdsRound(p, { matchId: MATCH, round: 4, tick: 9 }), true);
+  assert.equal(holdsRound(p, { matchId: MATCH, round: 5 }), false);
+});
+
+test('a round drawing reads as a note of its round, and edits send the whole list back', () => {
+  const stroke = { color: 'accent' as const, width: 3, arrow: true, points: [[0, 0], [9, 9]] satisfies [number, number][] };
+  const p = playlist('a', [{ match_id: MATCH, round: 4, map: 'de_mirage', comment: '', notes: [{ id: 'n1', tick: 640, text: 'rota', strokes: [stroke] }] }]);
+  const round = playlistRound(p, { matchId: MATCH, round: 4 });
+  assert.ok(round);
+  assert.deepEqual(roundAnnotations(round)[0], { id: 'n1', match_id: MATCH, round: 4, tick: 640, text: 'rota', strokes: [stroke], created_at: '', updated_at: '' });
+  const notes = round.notes ?? [];
+  assert.deepEqual(editRoundNotes(notes, { add: { tick: 10, text: '', strokes: [stroke] } }).map((n) => n.tick), [640, 10]);
+  assert.equal(editRoundNotes(notes, { id: 'n1', text: 'tarde' })[0]?.text, 'tarde');
+  assert.deepEqual(editRoundNotes(notes, { remove: 'n1' }), []);
+});
+
+test('B adds to the playlist picked last, else the newest', () => {
+  const list = [playlist('new', []), playlist('old', [])];
+  assert.equal(targetPlaylist(list, 'old')?.id, 'old');
+  assert.equal(targetPlaylist(list, 'deleted')?.id, 'new');
+  assert.equal(targetPlaylist([], null), undefined);
+  assert.equal(savedPlaylistHref(MATCH), `/replay?p=${MATCH}`);
 });

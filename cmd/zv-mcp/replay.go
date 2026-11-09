@@ -213,12 +213,8 @@ func playlistPath(refs []string, title string) (string, error) {
 	}
 	v := url.Values{}
 	for _, ref := range refs {
-		matchID, round, ok := strings.Cut(strings.TrimSpace(ref), "/")
-		n, err := strconv.Atoi(round)
-		if !ok || err != nil || n < 1 || n > maxPlayRound {
-			return "", fmt.Errorf("%q is not a round ref (match_id/round)", cleanName(ref))
-		}
-		if err := checkUUID("match_id", matchID); err != nil {
+		matchID, n, err := parseRoundRef(ref)
+		if err != nil {
 			return "", err
 		}
 		v.Add("r", matchID+":"+strconv.Itoa(n))
@@ -334,8 +330,8 @@ func registerReplayTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "replay_playlist", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Put rounds of any matches in one playlist, as B does on each round in the Replay: studio_path opens them in the Replay in the order given, " +
-			"to play one after another or to superpose. Nothing is saved; the playlist is the path."},
+		Description: "Open rounds of any matches in the Replay as a passing playlist: studio_path plays them in the order given, one after another or superposed. " +
+			"Nothing is saved; the playlist is the path. To keep one, with folders, comments and a file for the team, use create_playlist."},
 		func(_ context.Context, _ *mcp.CallToolRequest, in replayPlaylistIn) (*mcp.CallToolResult, replayPlaylistOut, error) {
 			path, err := playlistPath(in.Rounds, in.Title)
 			if err != nil {

@@ -69,6 +69,7 @@ type LibraryRepository interface {
 	DeleteAnnotation(ctx context.Context, id uuid.UUID) error
 	libraryPlayRepository
 	libretaRepository
+	libraryPlaylistRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.

@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
-import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
-import { PLAYLIST_TITLE, inPlaylist } from '@/lib/replay/saved-playlist';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
 import { teamScoreBefore } from '@/lib/library/rounds';
@@ -41,7 +39,7 @@ import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
 import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
-import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
+import type { AnnotationStore, NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -49,7 +47,8 @@ import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
-import { useSavedPlaylist } from './use-saved-playlist';
+import { PlaylistPicker } from './playlist-picker';
+import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
@@ -91,7 +90,13 @@ export type ReplayWorkspaceProps = {
   players?: FocusControl;
   /** The tramo when the page keeps it in the URL, shared with its other forms; without it the workspace keeps its own. */
   tramo?: TramoControl;
+  /** Where the round's notes and drawings live instead of its match, such as an open playlist (`where` names it). */
+  roundNotes?: { store: AnnotationStore; where: string };
+  /** The saved playlist open in the page: B adds to it whatever was picked before. */
+  openPlaylistId?: string;
 };
+
+const NO_MATCHES: readonly string[] = [];
 
 /**
  * The replay: filters, layers and saved moments on the left, the map in the
@@ -110,6 +115,8 @@ export function ReplayWorkspace({
   title,
   players,
   tramo: pageTramo,
+  roundNotes,
+  openPlaylistId,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -137,7 +144,7 @@ export function ReplayWorkspace({
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
   const [folds, toggleFold] = usePanelFolds();
-  const playlist = useSavedPlaylist();
+  const playlist = useSavedPlaylists({ enabled: library, openId: openPlaylistId });
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
   const setpos = useSetposCopies();
   const hoverSlot = useRef<number | null>(null);
@@ -465,7 +472,8 @@ export function ReplayWorkspace({
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
-  const notes = useAnnotations(noteMatchIds, entry?.round);
+  const matchNotes = useAnnotations(roundNotes === undefined ? noteMatchIds : NO_MATCHES, entry?.round);
+  const notes = roundNotes?.store ?? matchNotes;
   const noteItems: NoteItem[] =
     focusTimeline === null
       ? []
@@ -518,7 +526,7 @@ export function ReplayWorkspace({
           doc={focused.doc}
           round={focused.round}
           currentTick={() => tickOf(focused, clock.seconds)}
-          playlist={{ added: inPlaylist(playlist.refs, entry), onToggle: () => playlist.toggle(entry), count: playlist.refs.length, href: replayHref(playlist.refs, PLAYLIST_TITLE) }}
+          playlist={<PlaylistPicker control={playlist} entry={entry} />}
         />
       ) : null}
     </div>
@@ -670,7 +678,7 @@ export function ReplayWorkspace({
                   store: notes,
                   items: noteItems,
                   draft,
-                  anchorLabel: `Se ancla a la ronda ${focused.round.number} · ${roundClockLabelFor(focusTimeline, timelineSeconds(focusTimeline, tickOf(focused, nowSeconds)))}`,
+                  anchorLabel: `${roundNotes === undefined ? 'Se ancla a' : `Se guarda en ${roundNotes.where},`} la ronda ${focused.round.number} · ${roundClockLabelFor(focusTimeline, timelineSeconds(focusTimeline, tickOf(focused, nowSeconds)))}`,
                   onCreate: saveNote,
                 }
           }

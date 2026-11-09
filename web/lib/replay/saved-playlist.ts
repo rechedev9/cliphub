@@ -1,28 +1,77 @@
 import { REPLAY_MAX_REFS } from '../analysis/replay-link.ts';
 import type { ReplayRef } from '../analysis/replay-link.ts';
+import type { PlaylistNote, PlaylistRound, PlaylistRoundInput, SavedPlaylist } from '../api/playlists.ts';
+import type { Annotation } from '../api/spatial.ts';
 
-/** The rounds set aside with B in the Replay, kept on this PC until they are opened as a playlist. */
-export const PLAYLIST_KEY = 'cliphub.replay.playlist';
-export const PLAYLIST_TITLE = 'Mi playlist';
+/** Where the Replay kept the rounds set aside with B before playlists were saved in the library. */
+export const LEGACY_PLAYLIST_KEY = 'cliphub.replay.playlist';
+/** The name the old playlist takes once it is saved, and the playlist B starts when there is none. */
+export const DEFAULT_PLAYLIST_NAME = 'Mi playlist';
+/** The playlist B adds to on this PC: the last one picked. */
+export const TARGET_PLAYLIST_KEY = 'cliphub.replay.playlist-target';
+/** The Replay query key of an open saved playlist. */
+export const PLAYLIST_QUERY = 'p';
+export const PLAYLISTS_HREF = '/replay/playlists';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function sameRound(a: ReplayRef, b: ReplayRef): boolean {
+export function isPlaylistId(value: string | null | undefined): value is string {
+  return typeof value === 'string' && UUID.test(value);
+}
+
+/** The Replay with a saved playlist open in its panel. */
+export function savedPlaylistHref(id: string): string {
+  return `/replay?${new URLSearchParams({ [PLAYLIST_QUERY]: id }).toString()}`;
+}
+
+function sameRound(a: { matchId: string; round: number }, b: { matchId: string; round: number }): boolean {
   return a.matchId === b.matchId && a.round === b.round;
 }
 
-export function inPlaylist(list: readonly ReplayRef[], ref: ReplayRef): boolean {
-  return list.some((entry) => sameRound(entry, ref));
+export function holdsRound(playlist: Pick<SavedPlaylist, 'rounds'>, ref: ReplayRef): boolean {
+  return playlist.rounds.some((r) => sameRound({ matchId: r.match_id, round: r.round }, ref));
 }
 
-/** Adds the round at the end, or takes it out when it is already there. */
-export function togglePlaylistRound(list: readonly ReplayRef[], ref: ReplayRef): ReplayRef[] {
-  if (inPlaylist(list, ref)) return list.filter((entry) => !sameRound(entry, ref));
-  return [...list, { matchId: ref.matchId, round: ref.round }].slice(-REPLAY_MAX_REFS);
+/** The rounds the Replay can play, in order: a round whose match is gone is left out. */
+export function playlistRefs(playlist: Pick<SavedPlaylist, 'rounds'>): ReplayRef[] {
+  return playlist.rounds.filter((r) => r.missing !== true).map((r) => ({ matchId: r.match_id, round: r.round }));
 }
 
-/** Reads the stored playlist; anything that is not a round ref is dropped. */
-export function parsePlaylist(raw: string | null): ReplayRef[] {
+export function playlistRound(playlist: Pick<SavedPlaylist, 'rounds'>, ref: ReplayRef): PlaylistRound | undefined {
+  return playlist.rounds.find((r) => sameRound({ matchId: r.match_id, round: r.round }, ref));
+}
+
+/** A round's notes as the Replay's notes panel reads a match's notes. */
+export function roundAnnotations(round: PlaylistRound): Annotation[] {
+  return (round.notes ?? []).map((note, i) => ({
+    id: note.id ?? `nueva-${i}`,
+    match_id: round.match_id,
+    round: round.round,
+    tick: note.tick,
+    text: note.text,
+    strokes: note.strokes,
+    created_at: '',
+    updated_at: '',
+  }));
+}
+
+/** The round's notes after one is added, edited or removed, ready to send back whole. */
+export function editRoundNotes(
+  notes: readonly PlaylistNote[],
+  edit: { add: Omit<PlaylistNote, 'id'> } | { id: string; text: string } | { remove: string },
+): PlaylistNote[] {
+  if ('add' in edit) return [...notes, edit.add];
+  if ('remove' in edit) return notes.filter((note) => note.id !== edit.remove);
+  return notes.map((note) => (note.id === edit.id ? { ...note, text: edit.text } : note));
+}
+
+/** A round as a playlist edit sends it back. */
+export function roundInput(round: PlaylistRound): PlaylistRoundInput {
+  return { match_id: round.match_id, round: round.round, comment: round.comment };
+}
+
+/** Reads the old stored playlist; anything that is not a round ref is dropped. */
+export function parseLegacyPlaylist(raw: string | null): ReplayRef[] {
   if (raw === null) return [];
   let parsed: unknown;
   try {
@@ -38,7 +87,19 @@ export function parsePlaylist(raw: string | null): ReplayRef[] {
     if (typeof entry.matchId !== 'string' || !UUID.test(entry.matchId)) continue;
     if (typeof entry.round !== 'number' || !Number.isInteger(entry.round) || entry.round < 1) continue;
     const ref = { matchId: entry.matchId, round: entry.round };
-    if (!inPlaylist(out, ref)) out.push(ref);
+    if (!out.some((held) => sameRound(held, ref))) out.push(ref);
   }
   return out.slice(0, REPLAY_MAX_REFS);
+}
+
+/** The old playlist's rounds whose match is still in the library, ready to save. */
+export function legacyRoundsToSave(refs: readonly ReplayRef[], roundCounts: ReadonlyMap<string, number>): PlaylistRoundInput[] {
+  return refs
+    .filter((ref) => ref.round <= (roundCounts.get(ref.matchId) ?? 0))
+    .map((ref) => ({ match_id: ref.matchId, round: ref.round }));
+}
+
+/** The playlist B adds to: the one picked last, else the newest. */
+export function targetPlaylist(list: readonly SavedPlaylist[], picked: string | null): SavedPlaylist | undefined {
+  return list.find((p) => p.id === picked) ?? list[0];
 }
