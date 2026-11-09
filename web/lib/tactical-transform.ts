@@ -27,6 +27,9 @@ export type WorldRect = { minX: number; minY: number; maxX: number; maxY: number
 /** An axis-aligned rectangle in radar pixels, ready for canvas or CSS. */
 export type RadarRect = { x: number; y: number; width: number; height: number };
 
+/** A world position a view draws a mark at: x and y, and a z it ignores. */
+export type WorldMark = readonly [number, number, ...number[]];
+
 /** Reports whether a calibration can drive a transform (`radarmap.Calibration.Valid`). */
 export function isCalibrationUsable(calibration: RadarCalibration): boolean {
   return calibration.scale > 0 && calibration.size > 0;
@@ -246,17 +249,26 @@ function growAxis(
  * trails, the event marks and the blips all move together and a blip lands on
  * exactly the cell it lands on without a crop. A geometry that cannot be framed
  * answers the whole square, which reduces the caller's arithmetic to what it
- * does today.
+ * does today. `marks` are the world positions the caller draws: the window grows
+ * to hold each one, so a grenade on a roof the trim cut off stays reachable.
  */
-export function radarViewRect(geometry: TacticalGeometry): RadarRect {
+export function radarViewRect(geometry: TacticalGeometry, marks: readonly WorldMark[] = []): RadarRect {
   const { calibration } = geometry;
   if (!isCalibrationUsable(calibration)) return RADAR_VIEW_FULL;
   if (!(geometry.cell_size > 0)) return RADAR_VIEW_FULL;
   // The occupancy grid is outlier-trimmed; the raw server bounds are only the
   // fallback for a geometry that carries no weighted cells.
-  const bounds = occupancyBounds(geometry) ?? geometry.bounds;
+  const played = occupancyBounds(geometry) ?? geometry.bounds;
   // Mirrors `radarmap.Bounds.Empty`, and rejects NaN on the way through.
-  if (!(bounds.max_x > bounds.min_x) || !(bounds.max_y > bounds.min_y)) return RADAR_VIEW_FULL;
+  if (!(played.max_x > played.min_x) || !(played.max_y > played.min_y)) return RADAR_VIEW_FULL;
+  const bounds = { ...played };
+  for (const [markX, markY] of marks) {
+    if (!Number.isFinite(markX) || !Number.isFinite(markY)) continue;
+    bounds.min_x = Math.min(bounds.min_x, markX);
+    bounds.max_x = Math.max(bounds.max_x, markX);
+    bounds.min_y = Math.min(bounds.min_y, markY);
+    bounds.max_y = Math.max(bounds.max_y, markY);
+  }
 
   const rect = worldRectToRadarRect(
     calibration,

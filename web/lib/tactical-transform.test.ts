@@ -267,6 +267,20 @@ test('the radar view window frames the play area without golden margins', () => 
   }
 });
 
+test('the radar view window grows to hold every mark the view draws', () => {
+  const geo = occupancy([...CLUSTER_CELLS, STRAY_CELL]);
+  const crop = radarViewRect(geo);
+  assert.deepEqual(radarViewRect(geo, [[-400, 300, -160], [Number.NaN, 0]]), crop, 'marks inside the crop, or not finite, change nothing');
+
+  // A grenade landing far from where people stood, past the trimmed edge.
+  const roof = [1000, -2000] as const;
+  const grown = radarViewRect(geo, [roof]);
+  const at = worldToRendered(MIRAGE, roof[0], roof[1], 1);
+  assertContains(grown, crop, 'the crop stays inside');
+  assertContains(grown, { x: at.x, y: at.y, width: 0, height: 0 }, 'the mark is inside');
+  assert.ok(grown.x >= 0 && grown.y >= 0 && grown.x + grown.width <= 1 + 1e-9 && grown.y + grown.height <= 1 + 1e-9, 'still inside the square');
+});
+
 test('the radar view window falls back to the whole square', () => {
   const cases: readonly { name: string; geo: TacticalGeometry }[] = [
     {

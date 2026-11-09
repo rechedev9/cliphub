@@ -11,7 +11,7 @@ import {
   type GrenadeTracer,
   type WorldBox,
 } from '@/lib/analysis/grenade-patterns';
-import type { RadarPoint } from '@/lib/tactical-transform';
+import type { RadarPoint, WorldMark } from '@/lib/tactical-transform';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
@@ -98,9 +98,10 @@ export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, high
     },
     [geometry.calibration, grenades, highlight, selected, spotOf],
   );
+  const marks = useMemo(() => grenades.flatMap((grenade): WorldMark[] => (grenade.origin === null ? [grenade.landing] : [grenade.landing, grenade.origin])), [grenades]);
 
   return (
-    <RadarSurface geometry={geometry} level={level} paint={paint} label="Radar con las granadas del equipo">
+    <RadarSurface geometry={geometry} level={level} paint={paint} marks={marks} label="Radar con las granadas del equipo">
       {(projection, zoomed) => (
         <DragLayer
           geometry={geometry}

@@ -164,6 +164,8 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
   const store = useAnnotations(matchIds);
 
   const byKey = useMemo(() => new Map(rounds.map((round) => [overlayRoundKey(round), round])), [rounds]);
+  // Hidden rounds too, so hiding one never reframes the map.
+  const marks = useMemo(() => rounds.flatMap((round) => [...round.events.map((event) => event.pos), ...round.tracks.flatMap((track) => track.points)]), [rounds]);
   const focused = byKey.get(focus);
   const now = uiTick / UI_TICKS_PER_SECOND;
 
@@ -401,6 +403,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
             geometry={geometry}
             level={level}
             paint={paint}
+            marks={marks}
             handleRef={surfaceRef}
             label={`${rounds.length - hidden.size} rondas superpuestas desde el final del tiempo de compra. La lista de rondas las describe en texto.`}
           >
