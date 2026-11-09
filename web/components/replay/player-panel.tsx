@@ -15,8 +15,8 @@ const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
 
 function hpTone(health: number): string {
-  if (health > 50) return 'bg-fg-2';
-  if (health > 20) return 'bg-warning';
+  if (health > 50) return 'bg-fg-1';
+  if (health > 20) return 'bg-fg-3';
   return 'bg-destructive';
 }
 

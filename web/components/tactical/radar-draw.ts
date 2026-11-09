@@ -1,3 +1,4 @@
+import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { RADAR_LEVELS, TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '@/lib/api/tactical';
 import type {
   RadarLevel,
@@ -42,6 +43,8 @@ export type RadarStyle = {
   defuse: string;
   utility: string;
   text: string;
+  /** Hit lines by what dealt the damage. */
+  hits: Readonly<Record<HitLineKind, string>>;
   fontFamily: string;
 };
 

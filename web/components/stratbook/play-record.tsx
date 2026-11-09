@@ -231,7 +231,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
         </p>
       ) : null}
       {missing.size > 0 ? (
-        <p className="rounded-md border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning">
+        <p className="rounded-md border border-border-strong bg-surface-3 px-3 py-2 text-body-sm leading-5 text-fg-1">
           {missing.size === 1
             ? 'Una partida de ejemplo no está en esta biblioteca (por ejemplo, porque la jugada se importó de otro PC).'
             : `${missing.size} partidas de ejemplo no están en esta biblioteca (por ejemplo, porque la jugada se importó de otro PC).`}{' '}

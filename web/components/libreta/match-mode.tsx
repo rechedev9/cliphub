@@ -57,7 +57,7 @@ export function MatchMode(): ReactNode {
           Actualizar
         </Button>
       </div>
-      {offline ? <p className="text-meta text-warning">Studio no responde. Prueba Actualizar en un momento.</p> : null}
+      {offline ? <p className="text-meta text-fg-2">Studio no responde. Prueba Actualizar en un momento.</p> : null}
       {view === 'table' ? (
         <PlanTable
           plays={plays}

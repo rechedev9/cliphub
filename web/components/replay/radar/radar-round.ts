@@ -73,7 +73,7 @@ function worldPx(calibration: RadarCalibration, size: number, units: number): nu
 
 function hpColor(style: RadarStyle, health: number): string {
   if (health > 50) return '#f2f4f6';
-  if (health > 20) return '#f0b648';
+  if (health > 20) return style.map;
   return style.bomb;
 }
 

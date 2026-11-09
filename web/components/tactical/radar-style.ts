@@ -1,4 +1,13 @@
+import type { HitLineKind } from '@/lib/replay/hit-lines';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
+
+/** The token each hit line takes; the left panel's legend reads them too. None is amber: that is the T side. */
+export const HIT_TOKENS: Record<HitLineKind, string> = {
+  bullet: '--destructive',
+  he: '--chart-6',
+  fire: '--chart-2',
+  flash: '--fg-1',
+};
 
 /** Reads the design tokens off the live canvas, so the radar follows the theme. */
 export function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
@@ -26,6 +35,12 @@ export function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
     defuse: token('--success', '#5de0b0'),
     utility: token('--fg-3', '#8998a7'),
     text: token('--fg-1', '#edf7fb'),
+    hits: {
+      bullet: token(HIT_TOKENS.bullet, '#fe545c'),
+      he: token(HIT_TOKENS.he, '#5fc4bd'),
+      fire: token(HIT_TOKENS.fire, '#e86a8f'),
+      flash: token(HIT_TOKENS.flash, '#edf7fb'),
+    },
     // Resolved through the element, so the var() in the font token is already
     // substituted with the family next/font generated.
     fontFamily: computed.fontFamily || 'ui-sans-serif, system-ui, sans-serif',

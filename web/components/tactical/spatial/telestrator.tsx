@@ -17,14 +17,14 @@ const STROKE_VAR: Record<StrokeColor, string> = {
   accent: 'oklch(0.96 0.002 264)',
   ct: 'var(--side-ct)',
   t: 'var(--side-t)',
-  mark: 'var(--destructive)',
+  mark: 'var(--primary)',
 };
 
 const STROKE_LABEL: Record<StrokeColor, string> = {
   accent: 'Blanco',
   ct: 'Color CT',
   t: 'Color T',
-  mark: 'Rojo',
+  mark: 'Violeta',
 };
 
 /** Stroke widths are radar pixels at the 1024 reference, scaled with the plate. */

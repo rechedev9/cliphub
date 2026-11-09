@@ -546,10 +546,10 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         </p>
       )}
       {drawable && decodeError !== null ? (
-        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-warning/45 bg-surface-0/90 px-3 py-2 text-body-sm text-warning">{decodeError}</p>
+        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-border-strong bg-surface-0/90 px-3 py-2 text-body-sm text-fg-1">{decodeError}</p>
       ) : null}
       {drawable && decodeError === null && focused !== undefined && focused.frames.length === 0 ? (
-        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-warning/45 bg-surface-0/90 px-3 py-2 text-body-sm text-warning">
+        <p className="absolute inset-x-0 bottom-12 mx-auto w-fit rounded-md border border-border-strong bg-surface-0/90 px-3 py-2 text-body-sm text-fg-1">
           Esta ronda no tiene posiciones guardadas: el mapa queda vacío, los eventos no.
         </p>
       ) : null}

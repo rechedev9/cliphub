@@ -20,7 +20,7 @@ const BAND_UNITS = 40;
 const INACTIVE_ALPHA = 0.28;
 const OUTLINE_PX = 2.4;
 const SEAM_PX = 0.9;
-const SITE_COLOR = '#e3843c';
+const SITE_COLOR = '#c9ced4';
 
 function tracePolygon(ctx: CanvasRenderingContext2D, polygon: NavPolygon): void {
   const { points } = polygon;
@@ -90,7 +90,7 @@ function siteBadge(ctx: CanvasRenderingContext2D, x: number, y: number, letter: 
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#0b0c0e';
   ctx.font = `700 14px ${font}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

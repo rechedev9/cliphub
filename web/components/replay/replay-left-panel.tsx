@@ -10,7 +10,7 @@ import { ROUND_OUTCOME_LABEL, roundOutcome } from '@/lib/replay/round-outcome';
 import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { HIT_COLORS } from './radar/radar-analysis';
+import { HIT_TOKENS } from '@/components/tactical/radar-style';
 import { ReplayChip, ReplayGroup } from './replay-chip';
 
 const LAYER_ICONS: Record<LayerToggle, ReactNode> = {
@@ -44,7 +44,7 @@ function HitLegend(): ReactNode {
     <ul className="flex flex-wrap gap-x-2.5 gap-y-1 text-meta text-fg-3" aria-label="Colores del daño">
       {HIT_LEGEND.map(([kind, label]) => (
         <li key={kind} className="flex items-center gap-1">
-          <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: HIT_COLORS[kind] }} aria-hidden />
+          <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: `var(${HIT_TOKENS[kind]})` }} aria-hidden />
           {label}
         </li>
       ))}

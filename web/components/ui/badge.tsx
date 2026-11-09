@@ -23,6 +23,7 @@ const badgeVariants = cva(
           "border-transparent bg-destructive-solid text-white focus-visible:outline-destructive [a&]:hover:bg-destructive-solid/90",
         success: "border-success/40 bg-success/10 text-success",
         warning: "border-warning/40 bg-warning/10 text-warning",
+        accent: "border-primary/40 bg-primary/10 text-primary",
         stream: "border-stream/40 bg-stream/10 text-stream-text",
         danger: "border-destructive/40 bg-destructive/10 text-destructive",
         outline: "border-border-strong text-fg-1 [a&]:hover:bg-surface-3",

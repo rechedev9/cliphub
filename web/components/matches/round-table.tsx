@@ -198,7 +198,7 @@ function WinnerCell({ row, teamNames }: { row: RoundRow; teamNames: PerTeam<stri
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="max-w-44 truncate font-medium text-fg-1">{teamNames[row.winnerTeamKey]}</span>
           {start === null ? null : (
-            <Badge variant="warning" title={`Contra pronóstico: empezó la ronda con un ${percentText(start)} de victoria`}>
+            <Badge variant="outline" title={`Contra pronóstico: empezó la ronda con un ${percentText(start)} de victoria`}>
               <span className="sr-only">Contra pronóstico, empezó con un </span>
               {percentText(start)}
             </Badge>

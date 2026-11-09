@@ -34,7 +34,7 @@ export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: Tactic
       </p>
       {warnings.length === 0 ? null : (
         <details className="group relative">
-          <summary className={cn('flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-sm px-1.5 text-meta text-warning outline-none hover:bg-surface-3', FOCUS_RING)}>
+          <summary className={cn('flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-sm px-1.5 text-meta text-fg-2 outline-none hover:bg-surface-3', FOCUS_RING)}>
             <TriangleAlert className="size-3.5" aria-hidden />
             {warnings.length} aviso{warnings.length === 1 ? '' : 's'}
           </summary>
