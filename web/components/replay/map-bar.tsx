@@ -6,7 +6,7 @@ import { STROKE_COLORS } from '@/lib/api/spatial';
 import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
 import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
-import { MAP_ARTS, MAP_ART_LABELS, MAP_SIZES, MAP_SIZE_LABELS } from '@/lib/replay/map-settings';
+import { MAP_ARTS, MAP_ART_LABELS, MAP_FLOORS, MAP_FLOORS_LABELS, MAP_SIZES, MAP_SIZE_LABELS } from '@/lib/replay/map-settings';
 import type { MapSettings } from '@/lib/replay/map-settings';
 import { HIT_TOKENS } from '@/components/tactical/radar-style';
 import { STROKE_LABEL, STROKE_VAR } from '@/components/tactical/spatial/telestrator';
@@ -118,6 +118,7 @@ function DrawTools({ draft }: { draft: TelestratorDraft }): ReactNode {
 export function MapBar({
   settings,
   onSettings,
+  twoFloors,
   layers,
   onToggleLayer,
   onTrailSeconds,
@@ -127,6 +128,8 @@ export function MapBar({
 }: {
   settings: MapSettings;
   onSettings: (settings: MapSettings) => void;
+  /** The map has a lower floor (Nuke, Vertigo), so it can show both at once. */
+  twoFloors: boolean;
   layers: ReplayLayers;
   onToggleLayer: (key: LayerToggle) => void;
   onTrailSeconds: (seconds: TrailSeconds) => void;
@@ -147,6 +150,14 @@ export function MapBar({
           options={MAP_ARTS.map((art) => ({ value: art, label: MAP_ART_LABELS[art] }))}
           onChange={(art) => onSettings({ ...settings, art })}
         />
+        {twoFloors ? (
+          <Segmented
+            label="Pisos del mapa"
+            value={settings.floors}
+            options={MAP_FLOORS.map((floors) => ({ value: floors, label: MAP_FLOORS_LABELS[floors] }))}
+            onChange={(floors) => onSettings({ ...settings, floors })}
+          />
+        ) : null}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Capas del mapa">
           {LAYER_ORDER.map((key) => (
             <span key={key} className="flex items-center gap-1">

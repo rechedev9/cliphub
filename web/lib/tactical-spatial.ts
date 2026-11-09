@@ -1,6 +1,6 @@
 import { RADAR_LEVELS, TACTICAL_SIDES } from './api/tactical.ts';
 import type { RadarCalibration, RadarLevel, TacticalSide } from './api/tactical.ts';
-import type { Annotation, Heatmap, HeatmapCell, HeatmapKind, OverlayRound, OverlayTrack } from './api/spatial.ts';
+import type { Annotation, Heatmap, HeatmapCell, HeatmapKind, KillSpot, OverlayRound, OverlayTrack } from './api/spatial.ts';
 import type { RadarPoint, RadarRect } from './tactical-transform.ts';
 
 /**
@@ -36,6 +36,7 @@ export function renderedToWorld(calibration: RadarCalibration, x: number, y: num
 export const HEATMAP_KIND_LABEL: Record<HeatmapKind, string> = {
   position: 'Posiciones',
   death: 'Muertes',
+  kill: 'Bajas',
   utility: 'Utilidad',
   timing: 'Tiempo de llegada',
 };
@@ -44,8 +45,15 @@ export const HEATMAP_KIND_LABEL: Record<HeatmapKind, string> = {
 export const HEATMAP_UNIT_LABEL: Record<HeatmapKind, string> = {
   position: 'muestras',
   death: 'muertes',
+  kill: 'bajas',
   utility: 'granadas',
   timing: 'llegadas',
+};
+
+/** Where a kill heatmap puts each kill. */
+export const KILL_SPOT_LABEL: Record<KillSpot, string> = {
+  killer: 'Desde dónde mata',
+  victim: 'Dónde cae la víctima',
 };
 
 export const LEVEL_LABEL: Record<RadarLevel, string> = {
@@ -98,21 +106,47 @@ export function heatStrength(kind: HeatmapKind, cell: HeatmapCell, layer: Heatma
   return Math.sqrt(Math.min(1, cell.count / layer.maxCount));
 }
 
-/** The cell under a world point, if the layer has one there. */
-/** The heat scale's ends: green where little happens, yellow where the most does. No side owns either. */
-const HEAT_LOW = [34, 160, 92] as const;
-const HEAT_HIGH = [250, 224, 60] as const;
+/**
+ * The heat scale: dark green where little happens, green, then light yellow
+ * where the most does (oklch 0.45 0.09 175, 0.72 0.17 140, 0.92 0.14 105). No side owns any of them.
+ */
+const HEAT_STOPS: readonly (readonly [number, number, number])[] = [
+  [0, 101, 82],
+  [100, 189, 80],
+  [242, 234, 116],
+];
+
+/** A strength from 0 to 1 on the heat scale, as red, green and blue from 0 to 255. */
+export function heatRgb(strength: number): [number, number, number] {
+  const t = Math.min(1, Math.max(0, Number.isFinite(strength) ? strength : 0)) * (HEAT_STOPS.length - 1);
+  const i = Math.min(HEAT_STOPS.length - 2, Math.floor(t));
+  const from = HEAT_STOPS[i];
+  const to = HEAT_STOPS[i + 1];
+  const k = t - i;
+  return [Math.round(from[0] + (to[0] - from[0]) * k), Math.round(from[1] + (to[1] - from[1]) * k), Math.round(from[2] + (to[2] - from[2]) * k)];
+}
 
 /** A strength from 0 to 1 on the heat scale, as a CSS colour. */
 export function heatColor(strength: number): string {
-  const t = Math.min(1, Math.max(0, strength));
-  const channel = (index: 0 | 1 | 2): number => Math.round(HEAT_LOW[index] + (HEAT_HIGH[index] - HEAT_LOW[index]) * t);
-  return `rgb(${channel(0)} ${channel(1)} ${channel(2)})`;
+  const [r, g, b] = heatRgb(strength);
+  return `rgb(${r} ${g} ${b})`;
 }
 
 /** The scale as a CSS gradient, for the legend. */
 export const HEAT_GRADIENT = `linear-gradient(to right, ${heatColor(0)}, ${heatColor(0.5)}, ${heatColor(1)})`;
 
+/** One layer for both floors at once, on one scale, so a colour means the same on either plate. */
+export function mergeHeatmapLayers(layers: readonly HeatmapLayer[]): HeatmapLayer {
+  return {
+    cells: layers.flatMap((layer) => layer.cells),
+    maxCount: Math.max(0, ...layers.map((layer) => layer.maxCount)),
+    total: layers.reduce((sum, layer) => sum + layer.total, 0),
+    rounds: Math.max(0, ...layers.map((layer) => layer.rounds)),
+    maxSeconds: Math.max(0, ...layers.map((layer) => layer.maxSeconds)),
+  };
+}
+
+/** The cell under a world point, if the layer has one there. */
 export function heatmapCellAt(layer: HeatmapLayer, cellSize: number, worldX: number, worldY: number): HeatmapCell | undefined {
   if (!(cellSize > 0)) return undefined;
   const x = Math.floor(worldX / cellSize);

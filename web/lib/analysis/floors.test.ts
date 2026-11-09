@@ -15,6 +15,12 @@ test('floors: on the upper radar of a two-floor map, the lower floor recedes', (
   assert.equal(floorAlpha(lower, -400), OFF_FLOOR_ALPHA);
 });
 
+test('floors: with both floors on screen, each pane hides the other floor', () => {
+  const upperPane = { calibration: NUKE, level: RADAR_LEVELS.default, offFloorAlpha: 0 };
+  assert.equal(floorAlpha(upperPane, -400), 1);
+  assert.equal(floorAlpha(upperPane, -700), 0);
+});
+
 test('floors: a one-floor map draws everything at full strength', () => {
   assert.equal(floorAlpha({ calibration: MIRAGE, level: RADAR_LEVELS.default }, -2000), 1);
 });

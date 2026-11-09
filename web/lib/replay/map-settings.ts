@@ -15,10 +15,16 @@ export const MAP_SIZE_LABELS: Record<MapSize, string> = { s: 'Pequeño', m: 'Med
 /** How much each size multiplies the player dots and the name tags. */
 export const MAP_SIZE_SCALE: Record<MapSize, number> = { s: 0.8, m: 1, l: 1.3 };
 
-/** How the Replay's map is drawn, kept per user across matches. */
-export type MapSettings = { art: MapArtSource; dots: MapSize; names: MapSize };
+/** On a two-floor map (Nuke, Vertigo): the floor the players are on, or both side by side. */
+export const MAP_FLOORS = ['one', 'both'] as const;
+export type MapFloors = (typeof MAP_FLOORS)[number];
 
-export const DEFAULT_MAP_SETTINGS: MapSettings = { art: 'scheme', dots: 'm', names: 'm' };
+export const MAP_FLOORS_LABELS: Record<MapFloors, string> = { one: 'Un piso', both: 'Los dos' };
+
+/** How the Replay's map is drawn, kept per user across matches. */
+export type MapSettings = { art: MapArtSource; dots: MapSize; names: MapSize; floors: MapFloors };
+
+export const DEFAULT_MAP_SETTINGS: MapSettings = { art: 'scheme', dots: 'm', names: 'm', floors: 'both' };
 
 export const MAP_SETTINGS_KEY = 'cliphub.replay.map';
 
@@ -36,10 +42,11 @@ export function parseMapSettings(raw: string | null): MapSettings {
     return DEFAULT_MAP_SETTINGS;
   }
   if (typeof parsed !== 'object' || parsed === null) return DEFAULT_MAP_SETTINGS;
-  const stored: { art?: unknown; dots?: unknown; names?: unknown } = parsed;
+  const stored: { art?: unknown; dots?: unknown; names?: unknown; floors?: unknown } = parsed;
   return {
     art: oneOf(MAP_ARTS, stored.art, DEFAULT_MAP_SETTINGS.art),
     dots: oneOf(MAP_SIZES, stored.dots, DEFAULT_MAP_SETTINGS.dots),
     names: oneOf(MAP_SIZES, stored.names, DEFAULT_MAP_SETTINGS.names),
+    floors: oneOf(MAP_FLOORS, stored.floors, DEFAULT_MAP_SETTINGS.floors),
   };
 }

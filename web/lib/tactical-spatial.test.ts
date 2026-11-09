@@ -7,11 +7,13 @@ import {
   arrowHead,
   elapsedLabel,
   heatColor,
+  heatRgb,
   heatStrength,
   heatmapCellAt,
   heatmapLayer,
   heatmapLevels,
   heatmapSide,
+  mergeHeatmapLayers,
   nearestCallout,
   noteSeconds,
   noteVisibleAt,
@@ -76,11 +78,22 @@ test('a heatmap layer is one side and level with its own scale', () => {
   assert.equal(heatmapSide(HEATMAP, 'CT'), 'CT');
 });
 
-test('the heat scale runs from green to yellow and clamps', () => {
-  assert.equal(heatColor(0), 'rgb(34 160 92)');
-  assert.equal(heatColor(1), 'rgb(250 224 60)');
+test('the heat scale runs from dark green through green to yellow and clamps', () => {
+  assert.equal(heatColor(0), 'rgb(0 101 82)');
+  assert.equal(heatColor(0.5), 'rgb(100 189 80)');
+  assert.equal(heatColor(1), 'rgb(242 234 116)');
+  assert.deepEqual(heatRgb(0.25), [50, 145, 81]);
   assert.equal(heatColor(-1), heatColor(0));
   assert.equal(heatColor(4), heatColor(1));
+  assert.equal(heatColor(Number.NaN), heatColor(0));
+});
+
+test('both floors merge into one layer on one scale', () => {
+  const merged = mergeHeatmapLayers([heatmapLayer(HEATMAP, 'T', 'default'), heatmapLayer(HEATMAP, 'T', 'lower')]);
+  assert.equal(merged.cells.length, 2);
+  assert.equal(merged.maxCount, 9);
+  assert.equal(merged.total, 10);
+  assert.equal(merged.maxSeconds, 30);
 });
 
 test('the cell under a world point uses the floor of each axis', () => {

@@ -15,6 +15,7 @@ import { DEFAULT_LAYERS, showAllPlayers, toggleLayer, togglePlayer } from '@/lib
 import { pickPlayer } from '@/lib/replay/player-focus';
 import { roundOutcome } from '@/lib/replay/round-outcome';
 import { playerSetpos } from '@/lib/replay/setpos';
+import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
@@ -575,6 +576,7 @@ export function ReplayWorkspace({
         <MapBar
           settings={mapSettings}
           onSettings={setMapSettings}
+          twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
           layers={layers}
           onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}

@@ -8,6 +8,7 @@ import { prettyMapName } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { TramoControl } from '@/components/replay/tramo-bar';
 import { HeatmapView } from './heatmap-view';
+import type { HeatControl } from './heatmap-view';
 import { OverlayView } from './overlay-view';
 import { Segmented } from '@/components/ui/segmented';
 
@@ -31,6 +32,7 @@ export function SpatialWorkspace({
   onMapChange,
   onLoaded: onAnswer,
   tramo,
+  heat,
 }: {
   scope: SpatialScope;
   side?: TacticalSide | '';
@@ -42,6 +44,8 @@ export function SpatialWorkspace({
   onLoaded?: (response: SpatialResponse) => void;
   /** The owner's tramo, shared by both views. */
   tramo?: TramoControl;
+  /** What the heatmap counts, when the owner keeps it in its URL. */
+  heat?: HeatControl;
 }): ReactNode {
   const [chosen, setView] = useState<SpatialView>(initialView);
   // With the switch hidden the owner picks the view, so the prop wins.
@@ -86,7 +90,7 @@ export function SpatialWorkspace({
       {view === 'overlay' ? (
         <OverlayView scope={scoped} onLoaded={onLoaded} tramo={tramo} />
       ) : (
-        <HeatmapView scope={scoped} side={side} onLoaded={onLoaded} tramo={tramo} />
+        <HeatmapView scope={scoped} side={side} onLoaded={onLoaded} tramo={tramo} heat={heat} />
       )}
     </div>
   );

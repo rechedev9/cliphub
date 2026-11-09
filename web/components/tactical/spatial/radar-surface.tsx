@@ -14,7 +14,7 @@ import {
 import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import type { RadarRect, WorldMark } from '@/lib/tactical-transform';
-import { radarProjection, renderedToWorld } from '@/lib/tactical-spatial';
+import { LEVEL_LABEL, radarProjection, renderedToWorld } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
@@ -22,15 +22,17 @@ import { readRadarStyle } from '@/components/tactical/radar-style';
 import { useRadarImage } from '@/hooks/use-radar-image';
 import { cn } from '@/lib/utils';
 import { useMapZoom } from '@/hooks/use-map-zoom';
+import type { MapZoom } from '@/hooks/use-map-zoom';
 import { radarImageFits } from '@/lib/replay/map-view';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 
-/** What a paint callback draws with: the context already panned to the radar square. */
+/** What a paint callback draws with: the context already panned to the radar square of `level`. */
 export type RadarFrame = {
   ctx: CanvasRenderingContext2D;
   size: number;
   view: RadarRect;
   style: RadarStyle;
+  level: RadarLevel;
 };
 
 /** Lets the owner repaint the marks without React rendering, from an animation loop. */
@@ -69,16 +71,22 @@ function renderImageBackground(
   return canvas;
 }
 
+function radarLayer(level: RadarLevel): 'upper' | 'lower' {
+  return level === RADAR_LEVELS.lower ? 'lower' : 'upper';
+}
+
 /**
  * A radar plate for the multi-round views: the play-derived map of one level,
  * baked once per size, with the owner's marks painted over it. The canvas is
  * `aria-hidden`; each view lists the same facts as text beside it. `children`
  * receives the projection, for layers such as the telestrator that sit on top,
  * and whether the map is zoomed, when a plain drag pans instead.
+ * With two `levels` (Nuke, Vertigo) both floors sit side by side on one zoom.
  */
 export function RadarSurface({
   geometry,
   level,
+  levels,
   paint,
   handleRef,
   onPoint,
@@ -88,14 +96,106 @@ export function RadarSurface({
 }: {
   geometry: TacticalGeometry;
   level: RadarLevel;
+  /** Both floors at once; one entry, or none, shows only `level`. */
+  levels?: readonly RadarLevel[];
   paint: (frame: RadarFrame) => void;
   /** World positions `paint` and `children` draw at; the crop grows to keep each in reach. Memoize it. */
   marks?: readonly WorldMark[];
   handleRef?: RefObject<RadarSurfaceHandle | null>;
-  /** A click on the plate, in world units. */
-  onPoint?: (world: { x: number; y: number }) => void;
+  /** A click on a plate, in world units, with the floor it was on. */
+  onPoint?: (world: { x: number; y: number }, level: RadarLevel) => void;
   label: string;
-  children?: (projection: RadarProjection, zoomed: boolean) => ReactNode;
+  children?: (projection: RadarProjection, zoomed: boolean, level: RadarLevel) => ReactNode;
+}): ReactNode {
+  const shown: readonly RadarLevel[] = levels !== undefined && levels.length > 1 ? levels.slice(0, 2) : [level];
+  const split = shown.length > 1;
+  const repaints = useRef(new Map<RadarLevel, () => void>());
+  const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
+  // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
+  // A derived calibration does not line up with the image, so such a map keeps its cells.
+  const fits = radarImageFits(geometry.calibration);
+  const first = useRadarImage(fits ? geometry.map : '', radarLayer(shown[0]));
+  const second = useRadarImage(fits && split ? geometry.map : '', radarLayer(shown[1] ?? RADAR_LEVELS.lower));
+  const images = split ? [first, second] : [first];
+  // Until every image settles nothing is drawn, so the cells never flash before it, and the map takes no zoom.
+  const settled = images.every((image) => image !== undefined);
+  // Image or cells, both floors are cropped to where people played and the marks: a tall map stays tall, a wide one wide.
+  const base = useMemo(() => radarViewRect(geometry, marks), [geometry, marks]);
+  const zoom = useMapZoom(base, { enabled: settled });
+
+  useEffect(() => {
+    if (handleRef === undefined) return;
+    const plates = repaints.current;
+    handleRef.current = { repaint: () => plates.forEach((repaint) => repaint()) };
+    return () => {
+      handleRef.current = null;
+    };
+  }, [handleRef]);
+
+  const plateHeight = (RADAR_MAX_HEIGHT_VH * base.width) / base.height;
+  const plateVars: CSSProperties & { '--radar-max': string } = {
+    '--radar-max': split ? `min(100%, calc(${(2 * plateHeight).toFixed(2)}vh + 0.5rem))` : `min(100%, ${plateHeight.toFixed(2)}vh)`,
+  };
+
+  return (
+    <div className={cn('mx-auto w-full max-w-(--radar-max)', split && '@container')} style={plateVars}>
+      <div className={cn(split && 'grid grid-cols-1 gap-2 @[32rem]:grid-cols-2')}>
+        {shown.map((plateLevel, index) => (
+          <RadarPlate
+            key={plateLevel}
+            geometry={geometry}
+            level={plateLevel}
+            image={images[index] ?? null}
+            settled={settled}
+            drawable={drawable}
+            base={base}
+            zoom={zoom}
+            paint={paint}
+            repaints={repaints.current}
+            onPoint={onPoint}
+            label={split ? `${label} ${LEVEL_LABEL[plateLevel]}.` : label}
+            floorLabel={split ? LEVEL_LABEL[plateLevel] : null}
+            controls={index === shown.length - 1}
+          >
+            {children}
+          </RadarPlate>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** One floor's canvas: its own bitmap and size, the zoom shared with the other floor. */
+function RadarPlate({
+  geometry,
+  level,
+  image,
+  settled,
+  drawable,
+  base,
+  zoom,
+  paint,
+  repaints,
+  onPoint,
+  label,
+  floorLabel,
+  controls,
+  children,
+}: {
+  geometry: TacticalGeometry;
+  level: RadarLevel;
+  image: HTMLImageElement | null;
+  settled: boolean;
+  drawable: boolean;
+  base: RadarRect;
+  zoom: MapZoom;
+  paint: (frame: RadarFrame) => void;
+  repaints: Map<RadarLevel, () => void>;
+  onPoint?: (world: { x: number; y: number }, level: RadarLevel) => void;
+  label: string;
+  floorLabel: string | null;
+  controls: boolean;
+  children?: (projection: RadarProjection, zoomed: boolean, level: RadarLevel) => ReactNode;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -105,16 +205,6 @@ export function RadarSurface({
   const repaintRef = useRef<() => void>(() => {});
   const [box, setBox] = useState({ width: 1, height: 1 });
   const [dpr, setDpr] = useState(1);
-  const drawable = isCalibrationUsable(geometry.calibration) && geometry.cell_size > 0;
-  // CS2's radar when the game is installed; the play-derived cells only while it loads or when it is missing.
-  // A derived calibration does not line up with the image, so such a map keeps its cells.
-  const radar = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
-  const image = radarImageFits(geometry.calibration) ? radar : null;
-  // Until the image settles nothing is drawn, so the cells never flash before it, and the map takes no zoom.
-  const settled = image !== undefined;
-  // Image or cells, the plate is cropped to where people played and the marks: a tall map stays tall, a wide one wide.
-  const base = useMemo(() => radarViewRect(geometry, marks), [geometry, marks]);
-  const zoom = useMapZoom(base, { enabled: settled });
   const view = zoom.view;
   const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
   const bindZoom = zoom.surface.ref;
@@ -153,7 +243,7 @@ export function RadarSurface({
     ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     ctx.translate(offsetX, offsetY);
     ctx.drawImage(backgroundRef.current.canvas, view.x * size, view.y * size, view.width * size, view.height * size);
-    paintRef.current({ ctx, size, view, style });
+    paintRef.current({ ctx, size, view, style, level });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }, [drawable, dpr, geometry, image, level, projection, settled, view]);
 
@@ -164,12 +254,11 @@ export function RadarSurface({
   }, [paint, repaint]);
 
   useEffect(() => {
-    if (handleRef === undefined) return;
-    handleRef.current = { repaint };
+    repaints.set(level, repaint);
     return () => {
-      handleRef.current = null;
+      if (repaints.get(level) === repaint) repaints.delete(level);
     };
-  }, [handleRef, repaint]);
+  }, [repaints, level, repaint]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -211,35 +300,36 @@ export function RadarSurface({
 
   const onClick = (event: MouseEvent<HTMLDivElement>): void => {
     if (onPoint === undefined || !drawable) return;
-    const box = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - box.left - projection.offsetX;
-    const y = event.clientY - box.top - projection.offsetY;
-    onPoint(renderedToWorld(geometry.calibration, x, y, projection.size));
-  };
-
-  const plateVars: CSSProperties & { '--radar-max': string } = {
-    '--radar-max': `min(100%, ${((RADAR_MAX_HEIGHT_VH * base.width) / base.height).toFixed(2)}vh)`,
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left - projection.offsetX;
+    const y = event.clientY - rect.top - projection.offsetY;
+    onPoint(renderedToWorld(geometry.calibration, x, y, projection.size), level);
   };
 
   return (
-    <div className="mx-auto w-full max-w-(--radar-max)" style={plateVars}>
-      <div
-        {...zoom.surface}
-        ref={bindContainer}
-        role="img"
-        aria-label={label}
-        onClick={onClick}
-        className={cn(
-          'relative w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]',
-          zoom.zoomed && 'touch-none',
-          zoom.cursor,
-        )}
-        style={{ aspectRatio: `${base.width} / ${base.height}` }}
-      >
-        <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
-        {drawable ? (
-          <>
-            {children?.(projection, zoom.zoomed)}
+    <div
+      {...zoom.surface}
+      ref={bindContainer}
+      role="img"
+      aria-label={label}
+      onClick={onClick}
+      className={cn(
+        'relative w-full overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]',
+        zoom.zoomed && 'touch-none',
+        zoom.cursor,
+      )}
+      style={{ aspectRatio: `${base.width} / ${base.height}` }}
+    >
+      <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
+      {drawable ? (
+        <>
+          {children?.(projection, zoom.zoomed, level)}
+          {floorLabel !== null ? (
+            <span aria-hidden className="pointer-events-none absolute top-2 left-2 rounded-sm border border-border bg-surface-1 px-1.5 py-0.5 text-meta text-fg-2">
+              {floorLabel}
+            </span>
+          ) : null}
+          {controls ? (
             <MapZoomControls
               zoom={zoom.zoom}
               zoomed={zoom.zoomed}
@@ -247,13 +337,13 @@ export function RadarSurface({
               onReset={zoom.reset}
               className="absolute right-2 bottom-2"
             />
-          </>
-        ) : (
-          <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
-            Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar.
-          </p>
-        )}
-      </div>
+          ) : null}
+        </>
+      ) : (
+        <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
+          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar.
+        </p>
+      )}
     </div>
   );
 }
