@@ -137,6 +137,8 @@ function PassingPlaylistReplay(): ReactNode {
   const refs = useMemo(() => parseReplayRefs(search), [search]);
   const title = search.get('t') ?? undefined;
   const focusPlayers = useMemo(() => teamFocusFromQuery(search), [search]);
+  // `s=1` opens every round superposed, as a grenade's Reproducir does.
+  const superpose = search.get('s') === '1';
   const matches = useLibraryMatches();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [currentKey, setCurrentKey] = useState<string | null>(null);
@@ -209,6 +211,7 @@ function PassingPlaylistReplay(): ReactNode {
       filters={filters}
       title={title}
       focusPlayers={focusPlayers}
+      superpose={superpose}
     />
   );
 }

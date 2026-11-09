@@ -713,12 +713,14 @@ export function importStratbook(file: StratbookUpload): Promise<StratbookImport>
   return request<StratbookImport>('/plays/import', jsonInit('POST', file));
 }
 
-export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKind[] };
+/** `rivals` reads the utility of the team's rivals in the same rounds. */
+export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKind[]; rivals?: boolean };
 
 /** Every grenade a team threw on its matches, filtered like the scout and by kind. */
 export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): Promise<TeamGrenades> {
   const params = scoutParams(query);
   for (const kind of query.kinds ?? []) params.append('kind', kind);
+  if (query.rivals) params.set('rivals', '1');
   const search = params.toString();
   return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
 }

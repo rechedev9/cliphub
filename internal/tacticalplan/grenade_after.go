@@ -123,7 +123,7 @@ type FollowUp struct {
 // Play is the round's category and site as "execute@A", the category alone
 // without a site, or empty for a round the playbook could not read.
 func (r GrenadeRound) Play() string {
-	if r.Category == "" || r.Site == "" {
+	if r.Category == "" || r.Site == "" || r.Site == SiteNone {
 		return r.Category
 	}
 	return r.Category + "@" + string(r.Site)

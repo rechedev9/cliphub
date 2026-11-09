@@ -3,10 +3,11 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Play } from 'lucide-react';
-import { PRO_KIND_LABEL, techniqueLabel, type ProCombo, type ProLineup, type ProLineupMap } from '@/lib/api/pro-lineups';
-import { RADAR_LEVELS } from '@/lib/api/tactical';
+import { PRO_KIND_LABEL, PRO_LINEUP_KINDS, techniqueLabel, type ProCombo, type ProLineup, type ProLineupKind, type ProLineupMap } from '@/lib/api/pro-lineups';
+import { RADAR_LEVELS, type TacticalSide } from '@/lib/api/tactical';
 import { grenadeIcon } from '@/lib/analysis/icons';
 import { prettyMapName, timeAgo } from '@/lib/format';
+import { grenadeMeta, type MetaPeriod, type MetaRow } from '@/lib/pro-lineups-meta';
 import {
   DEFAULT_QUERY,
   explorerLineups,
@@ -32,6 +33,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { ComboList, ComboOpen } from './combo-list';
 import { ProLoadProblem } from './lineup-maps';
 import { ProLineupRadar, type RadarSpot, type RadarThrow } from './pro-lineup-radar';
+import { MetaList } from './meta-list';
 import { LineupPreview, SpotLineups, SpotList } from './spot-panel';
 import { useProLineupMap } from './use-pro-lineups';
 
@@ -40,6 +42,13 @@ const SIDES = [
   { value: 'T', label: 'T' },
   { value: 'CT', label: 'CT' },
 ] as const;
+
+const META_SIDES = [
+  { value: 'T', label: 'T' },
+  { value: 'CT', label: 'CT' },
+] as const;
+/** The meta draws its top grenades on the radar. */
+const META_ON_RADAR = 10;
 
 const KIND_TAB: Record<ExplorerKind, string> = { all: 'Todas', smoke: 'Humos', flash: 'Flashes', molotov: 'Molotovs', he: 'HE' };
 const KIND_ORDER: readonly ExplorerKind[] = ['smoke', 'flash', 'molotov', 'he', 'all'];
@@ -161,6 +170,16 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
     [data.combos, query.side, query.video],
   );
   const openCombo = query.view === 'combos' && query.combo !== '' ? combos.find((c) => c.id === query.combo) : undefined;
+  const [metaPeriod, setMetaPeriod] = useState<MetaPeriod>('recent');
+  // The meta ranks one side; with both chosen it reads T.
+  const metaSide: TacticalSide = query.side === '' ? 'T' : query.side;
+  const meta = useMemo(
+    () =>
+      query.view === 'meta'
+        ? grenadeMeta(data, { side: metaSide, kinds: new Set<ProLineupKind>(query.kind === 'all' ? PRO_LINEUP_KINDS : [query.kind]), period: metaPeriod })
+        : [],
+    [data, query.view, query.kind, metaSide, metaPeriod],
+  );
 
   const onText = (value: string): void => {
     setText(value);
@@ -205,9 +224,22 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
   const openLineupInExplorer = (lineup: ProLineup): void =>
     update({ view: 'lineups', kind: query.kind === 'all' ? 'all' : lineup.kind, spot: lineup.id, lineup: lineup.id, combo: '' });
 
-  const radar = radarMarks({ query, shownSpots, openSpot, openLineup, hover, openCombo, combos, lineupsOf });
+  const radar = radarMarks({ query, shownSpots, openSpot, openLineup, hover, openCombo, combos, lineupsOf, meta });
   let panel: ReactNode;
-  if (query.view === 'combos' && openCombo === undefined) {
+  if (query.view === 'meta') {
+    panel = (
+      <MetaList
+        rows={meta}
+        period={metaPeriod}
+        recentDays={data.recent_days}
+        sideRounds={(metaSide === 'CT' ? data.rounds_ct : data.rounds_t)[metaPeriod]}
+        onPeriod={setMetaPeriod}
+        hover={hover}
+        onHover={setHover}
+        onOpen={(row) => openLineupInExplorer(row.lineup)}
+      />
+    );
+  } else if (query.view === 'combos' && openCombo === undefined) {
     panel = <ComboList combos={combos} lineupsOf={lineupsOf} video={query.video} hover={hover} onHover={setHover} onOpen={(combo) => update({ combo: combo.id })} />;
   } else if (query.view === 'combos' && openCombo !== undefined) {
     panel = (
@@ -251,10 +283,11 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
           options={[
             { value: 'lineups', label: 'Lineups' },
             { value: 'combos', label: `Combos (${data.combos.length})` },
+            { value: 'meta', label: 'Meta' },
           ]}
           onChange={(view) => update({ view, combo: '' })}
         />
-        {query.view === 'lineups' ? (
+        {query.view === 'lineups' || query.view === 'meta' ? (
           <Segmented
             label="Granada"
             value={query.kind}
@@ -275,16 +308,22 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
             onChange={(kind) => update({ kind, spot: '', lineup: '' })}
           />
         ) : null}
-        <Segmented label="Lado" value={query.side} options={SIDES} onChange={(side) => update({ side, spot: '', lineup: '', combo: '' })} />
+        {query.view === 'meta' ? (
+          <Segmented label="Lado" value={metaSide} options={META_SIDES} onChange={(side) => update({ side })} />
+        ) : (
+          <Segmented label="Lado" value={query.side} options={SIDES} onChange={(side) => update({ side, spot: '', lineup: '', combo: '' })} />
+        )}
         {query.view === 'lineups' ? (
           <Toggle variant="filter" size="sm" pressed={query.insta} onPressedChange={(insta) => update({ insta, spot: '', lineup: '' })}>
             Solo instas
           </Toggle>
         ) : null}
-        <Toggle variant="filter" size="sm" pressed={query.video} onPressedChange={(video) => update({ video, spot: '', lineup: '', combo: '' })}>
-          <Play aria-hidden className="size-3.5" />
-          Con vídeo
-        </Toggle>
+        {query.view === 'meta' ? null : (
+          <Toggle variant="filter" size="sm" pressed={query.video} onPressedChange={(video) => update({ video, spot: '', lineup: '', combo: '' })}>
+            <Play aria-hidden className="size-3.5" />
+            Con vídeo
+          </Toggle>
+        )}
         {multiLevel ? (
           <Segmented
             label="Piso"
@@ -311,7 +350,7 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
               onThrow={(id) => {
                 const lineup = byId.get(id);
                 if (lineup === undefined) return;
-                if (query.view === 'combos') openLineupInExplorer(lineup);
+                if (query.view === 'combos' || query.view === 'meta') openLineupInExplorer(lineup);
                 else update({ lineup: id });
               }}
               onHoverThrow={setHover}
@@ -321,7 +360,7 @@ function Explorer({ data }: { data: ProLineupMap }): ReactNode {
           <p className="text-meta text-fg-3">{radar.hint}</p>
         </section>
 
-        <aside aria-label={query.view === 'combos' ? 'Combos' : 'Lineups'} className={PANEL}>
+        <aside aria-label={{ lineups: 'Lineups', combos: 'Combos', meta: 'Meta' }[query.view]} className={PANEL}>
           {panel}
         </aside>
       </div>
@@ -364,6 +403,7 @@ function radarMarks({
   openCombo,
   combos,
   lineupsOf,
+  meta,
 }: {
   query: ExplorerQuery;
   shownSpots: readonly ProSpot[];
@@ -373,7 +413,16 @@ function radarMarks({
   openCombo: ProCombo | undefined;
   combos: readonly ProCombo[];
   lineupsOf: (combo: ProCombo) => ProLineup[];
+  meta: readonly MetaRow[];
 }): Marks {
+  if (query.view === 'meta') {
+    return {
+      spots: [],
+      throws: meta.slice(0, META_ON_RADAR).map((row) => throwOf(row.lineup, throwState(row.lineup.id, hover), row.rank)),
+      label: 'Radar con las granadas más tiradas del lado',
+      hint: `Las ${META_ON_RADAR} granadas más tiradas del lado, con su puesto en el meta. Pulsa una para abrirla.`,
+    };
+  }
   if (query.view === 'combos') {
     const combo = openCombo ?? combos.find((c) => c.id === hover);
     if (combo === undefined) {

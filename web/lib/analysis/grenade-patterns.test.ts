@@ -2,16 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TeamGrenade } from '../api/grenades.ts';
 import type { RadarCalibration } from '../api/tactical.ts';
-import {
-  clusterGrenades,
-  dragWorldBox,
-  grenadeInBox,
-  grenadeTracer,
-  nearestCallout,
-  nearestTracer,
-  spotReplayRefs,
-  throwTimeBins,
-} from './grenade-patterns.ts';
+import { clockBins, dragWorldBox, grenadeInBox, grenadeTracer, groupSpots, nearestTracer, spotReplayRefs } from './grenade-patterns.ts';
 import { practiceSpotFor, practiceSpotsForSpots, representativeThrow } from './practice-spots.ts';
 
 const MATCH = '11111111-1111-4111-8111-111111111111';
@@ -33,6 +24,10 @@ function throwAt(over: Partial<TeamGrenade>): TeamGrenade {
     landing: [500, 500, 0],
     buy: 'full',
     round_won: true,
+    land_place: '',
+    throw_place: '',
+    spot: 'smoke:a',
+    after: { zones: [] },
     ...over,
   };
 }
@@ -58,27 +53,31 @@ test('tracers follow the radar transform and the nearest one is hit', () => {
   assert.equal(nearestTracer(tracers, { x: 300, y: 0 }, 6), -1);
 });
 
-test('repeated throws group into spots, most thrown first', () => {
-  const spots = clusterGrenades([
+test('throws group by the spot the server named, most rounds first', () => {
+  const spots = groupSpots([
     throwAt({ round: 1, thrower_steamid64: '1', thrower_name: 'ana', round_won: true }),
-    throwAt({ kind: 'flash', round: 1 }),
-    throwAt({ round: 2, origin: [40, 30, 0], landing: [560, 480, 0], thrower_steamid64: '2', thrower_name: 'bo', round_won: false }),
-    throwAt({ round: 3, origin: null, landing: [520, 510, 0], round_won: true }),
-    throwAt({ round: 4, origin: [900, 0, 0] }),
+    throwAt({ kind: 'flash', round: 1, spot: 'flash:b' }),
+    throwAt({ round: 2, origin: [40, 30, 0], thrower_steamid64: '2', thrower_name: 'bo', round_won: false }),
+    throwAt({ round: 3, origin: null, round_won: true }),
+    throwAt({ round: 4, spot: '' }),
   ]);
   assert.equal(spots.length, 3);
   const [main] = spots;
+  assert.equal(main?.key, 'smoke:a');
   assert.equal(main?.grenades.length, 3);
   assert.equal(main?.rounds, 3);
   assert.equal(main?.roundsWon, 2);
   assert.deepEqual(main?.throwers.map((entry) => [entry.name, entry.count]), [['ana', 2], ['bo', 1]]);
   assert.deepEqual(main?.origin, [20, 15]);
+  assert.ok(spots.some((spot) => spot.key.startsWith('smoke:') && spot.key !== 'smoke:a'), 'a throw without a key stands alone');
 });
 
-test('throw times fill fixed bins and late throws land in the last one', () => {
-  const bins = throwTimeBins([throwAt({ seconds: 0 }), throwAt({ seconds: 4.9 }), throwAt({ seconds: 12 }), throwAt({ seconds: 300 })], 5, 20);
-  assert.deepEqual(bins.map((bin) => bin.count), [2, 0, 1, 1]);
-  assert.deepEqual([bins[3]?.start, bins[3]?.end], [15, 20]);
+test('the round clock bins stack each player and late throws land in the last bin', () => {
+  const bins = clockBins([throwAt({ seconds: 0 }), throwAt({ seconds: 4.9, thrower_steamid64: '2' }), throwAt({ seconds: 12 }), throwAt({ seconds: 300 })], 5);
+  assert.equal(bins.length, 23);
+  assert.deepEqual([bins[0]?.count, bins[0]?.byPlayer.get('1'), bins[0]?.byPlayer.get('2')], [2, 1, 1]);
+  assert.equal(bins[2]?.count, 1);
+  assert.deepEqual([bins[22]?.start, bins[22]?.end, bins[22]?.count], [110, 115, 1]);
 });
 
 test('a spot replays each round once, from just before its first throw', () => {
@@ -87,15 +86,6 @@ test('a spot replays each round once, from just before its first throw', () => {
     { matchId: MATCH, round: 1, tick: 808 },
     { matchId: MATCH, round: 2, tick: 0 },
   ]);
-});
-
-test('callouts name the nearest place within reach', () => {
-  const callouts: { name: string; center: [number, number] }[] = [
-    { name: 'Ventana', center: [0, 0] },
-    { name: 'Rampa', center: [400, 0] },
-  ];
-  assert.equal(nearestCallout(callouts, [350, 10]), 'Rampa');
-  assert.equal(nearestCallout(callouts, [5000, 0]), null);
 });
 
 test('practice spots take feet position, pitch then yaw, and the side grenade', () => {
@@ -109,7 +99,7 @@ test('practice spots take feet position, pitch then yaw, and the side grenade', 
 });
 
 test('a group practises its most central real throw, capped at 20 spots', () => {
-  const [spot] = clusterGrenades([
+  const [spot] = groupSpots([
     throwAt({ origin: [0, 0, 0], view: [1, 1] }),
     throwAt({ round: 2, origin: [60, 0, 0], view: [2, 2] }),
     throwAt({ round: 3, origin: [30, 0, 0], view: [3, 3] }),
@@ -118,7 +108,7 @@ test('a group practises its most central real throw, capped at 20 spots', () => 
   assert.deepEqual(representativeThrow(spot)?.view, [3, 3]);
   const many = Array.from({ length: 25 }, () => ({ spot, label: 'Humo' }));
   assert.equal(practiceSpotsForSpots(many).length, 20);
-  const [old] = clusterGrenades([throwAt({ origin: null })]);
+  const [old] = groupSpots([throwAt({ origin: null })]);
   assert.ok(old);
   assert.deepEqual(practiceSpotsForSpots([{ spot: old, label: 'Humo' }]), []);
 });
@@ -133,11 +123,4 @@ test('on a two-floor map the box selects on the floor it was drawn on', () => {
   assert.equal(grenadeInBox({ grenade: fromA, box, area: 'landing', floor: lower }), true);
   assert.equal(grenadeInBox({ grenade: fromA, box, area: 'throw', floor: lower }), false);
   assert.equal(grenadeInBox({ grenade: fromA, box, area: 'throw' }), true);
-});
-
-test('throws one floor apart are never the same spot', () => {
-  const spots = clusterGrenades([throwAt({ landing: [500, 500, -400] }), throwAt({ landing: [500, 500, -760] })]);
-  assert.equal(spots.length, 2);
-  const stacked = clusterGrenades([throwAt({ origin: [0, 0, -400] }), throwAt({ origin: [0, 0, -760] })]);
-  assert.equal(stacked.length, 2);
 });

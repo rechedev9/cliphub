@@ -5,10 +5,11 @@ import type { ShownFloor } from './floors.ts';
 import { renderedToWorld } from '../tactical-spatial.ts';
 import { isCalibrationUsable, worldToRendered, type RadarPoint } from '../tactical-transform.ts';
 import type { ReplayRef } from './replay-link.ts';
+import { ROUND_CLOCK_SECONDS } from '../replay/tramo.ts';
 
 /**
  * Pure logic of the Pattern Finder: the box a drag draws on the radar, which
- * grenades fall in it, how repeated throws group into spots, the throw time
+ * grenades fall in it, the spots the server grouped, the round clock
  * histogram and the replay playlist of a spot.
  */
 
@@ -88,7 +89,7 @@ export function nearestTracer(tracers: readonly GrenadeTracer[], point: RadarPoi
   return best;
 }
 
-/** Throws that repeat: same kind, origins and landings close together. */
+/** Throws that repeat, grouped by the orchestrator (`tacticalplan.assignSpots`): same kind, origins and landings close together. */
 export type GrenadeSpot = {
   key: string;
   kind: TeamGrenadeKind;
@@ -100,15 +101,24 @@ export type GrenadeSpot = {
   /** Distinct rounds the spot was thrown in, and how many of them were won. */
   rounds: number;
   roundsWon: number;
+  /** The callout tokens most of its throws land at and are thrown from; empty when none names one. */
+  landPlace: string;
+  throwPlace: string;
 };
 
-/** World units: a lineup is repeated within a step or two; landings spread wider. */
-export const SPOT_ORIGIN_RADIUS = 100;
-export const SPOT_LANDING_RADIUS = 160;
-/** Throws further apart in height than this stand or land on different floors. */
-export const SPOT_HEIGHT = 200;
-
-type Building = { kind: TeamGrenadeKind; grenades: TeamGrenade[]; origin: [number, number] | null; landing: [number, number] };
+function mostNamed(grenades: readonly TeamGrenade[], name: (grenade: TeamGrenade) => string): string {
+  const counts = new Map<string, number>();
+  let best = '';
+  for (const grenade of grenades) {
+    const value = name(grenade);
+    if (value === '') continue;
+    const count = (counts.get(value) ?? 0) + 1;
+    counts.set(value, count);
+    const top = counts.get(best) ?? 0;
+    if (count > top || (count === top && value < best)) best = value;
+  }
+  return best;
+}
 
 function mean(points: readonly (readonly number[])[]): [number, number] {
   let x = 0;
@@ -120,84 +130,60 @@ function mean(points: readonly (readonly number[])[]): [number, number] {
   return [x / points.length, y / points.length];
 }
 
-function near(a: readonly number[], b: readonly number[], radius: number): boolean {
-  return Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0)) <= radius;
-}
-
-function fits(group: Building, grenade: TeamGrenade): boolean {
-  if (group.kind !== grenade.kind || !near(group.landing, grenade.landing, SPOT_LANDING_RADIUS)) return false;
-  // Heights against the spot's first throw, so A above B on Nuke never merge.
-  const seed = group.grenades[0];
-  if (seed !== undefined && Math.abs(seed.landing[2] - grenade.landing[2]) > SPOT_HEIGHT) return false;
-  // A throw without origin joins on landing alone, so old demos still group.
-  if (grenade.origin === null || group.origin === null) return true;
-  const thrownFrom = group.grenades.find((entry) => entry.origin !== null)?.origin;
-  if (thrownFrom !== undefined && thrownFrom !== null && Math.abs(thrownFrom[2] - grenade.origin[2]) > SPOT_HEIGHT) return false;
-  return near(group.origin, grenade.origin, SPOT_ORIGIN_RADIUS);
-}
-
-/**
- * Groups throws into spots, greedily in the given order, comparing each throw
- * with the running centre of every spot. Spots come back most thrown first.
- */
-export function clusterGrenades(grenades: readonly TeamGrenade[]): GrenadeSpot[] {
-  const groups: Building[] = [];
+/** The grenades by the spot the server named, most rounds first; a grenade without a key is its own spot. */
+export function groupSpots(grenades: readonly TeamGrenade[]): GrenadeSpot[] {
+  const groups = new Map<string, TeamGrenade[]>();
   for (const grenade of grenades) {
-    const group = groups.find((candidate) => fits(candidate, grenade));
-    if (group === undefined) {
-      groups.push({
-        kind: grenade.kind,
-        grenades: [grenade],
-        origin: grenade.origin === null ? null : [grenade.origin[0], grenade.origin[1]],
-        landing: [grenade.landing[0], grenade.landing[1]],
-      });
-      continue;
-    }
-    group.grenades.push(grenade);
-    const origins = group.grenades.flatMap((entry) => (entry.origin === null ? [] : [entry.origin]));
-    group.origin = origins.length === 0 ? null : mean(origins);
-    group.landing = mean(group.grenades.map((entry) => entry.landing));
+    const key = grenade.spot === '' ? `${grenade.kind}:${grenadeId(grenade)}` : grenade.spot;
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, [grenade]);
+    else group.push(grenade);
   }
-  return groups.map(toSpot).sort((a, b) => b.grenades.length - a.grenades.length || a.key.localeCompare(b.key));
+  return [...groups.entries()]
+    .map(([key, members]) => toSpot(key, members))
+    .sort((a, b) => b.rounds - a.rounds || b.grenades.length - a.grenades.length || a.key.localeCompare(b.key));
 }
 
-function toSpot(group: Building): GrenadeSpot {
-  const first = group.grenades[0];
+function toSpot(key: string, grenades: TeamGrenade[]): GrenadeSpot {
   const throwers = new Map<string, { steamid64: string; name: string; count: number }>();
   const rounds = new Map<string, boolean>();
-  for (const grenade of group.grenades) {
+  for (const grenade of grenades) {
     const known = throwers.get(grenade.thrower_steamid64);
     if (known === undefined) throwers.set(grenade.thrower_steamid64, { steamid64: grenade.thrower_steamid64, name: grenade.thrower_name, count: 1 });
     else known.count += 1;
     rounds.set(`${grenade.match_id}:${grenade.round}`, grenade.round_won);
   }
+  const origins = grenades.flatMap((grenade) => (grenade.origin === null ? [] : [grenade.origin]));
   return {
-    key: `${group.kind}:${first === undefined ? '' : grenadeId(first)}`,
-    kind: group.kind,
-    grenades: group.grenades,
-    origin: group.origin,
-    landing: group.landing,
+    key,
+    kind: grenades[0]?.kind ?? 'smoke',
+    grenades,
+    origin: origins.length === 0 ? null : mean(origins),
+    landing: mean(grenades.map((grenade) => grenade.landing)),
     throwers: [...throwers.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
     rounds: rounds.size,
     roundsWon: [...rounds.values()].filter(Boolean).length,
+    landPlace: mostNamed(grenades, (grenade) => grenade.land_place),
+    throwPlace: mostNamed(grenades, (grenade) => grenade.throw_place),
   };
 }
 
-/** One bar of the throw time histogram: `[start, end)` seconds after freeze end. */
-export type TimeBin = { start: number; end: number; count: number };
+/** One bar of the round clock histogram: `[start, end)` seconds after freeze end, with the throws of each player. */
+export type ClockBin = { start: number; end: number; count: number; byPlayer: ReadonlyMap<string, number> };
 
 /**
- * Throw times in bins of `width` seconds from 0 to `last`; later throws, such
- * as post-plant utility, fall in the last bin.
+ * Throw times in bins of `width` seconds over the round clock (1:55 to 0:00);
+ * later throws, such as post-plant utility, fall in the last bin.
  */
-export function throwTimeBins(grenades: readonly TeamGrenade[], width = 5, last = 115): TimeBin[] {
-  const count = Math.max(1, Math.ceil(last / width));
-  const bins: TimeBin[] = Array.from({ length: count }, (_, index) => ({ start: index * width, end: (index + 1) * width, count: 0 }));
+export function clockBins(grenades: readonly TeamGrenade[], width = 5): ClockBin[] {
+  const count = Math.max(1, Math.ceil(ROUND_CLOCK_SECONDS / width));
+  const bins = Array.from({ length: count }, (_, index) => ({ start: index * width, end: (index + 1) * width, count: 0, byPlayer: new Map<string, number>() }));
   for (const grenade of grenades) {
     if (!Number.isFinite(grenade.seconds)) continue;
-    const index = Math.min(count - 1, Math.max(0, Math.floor(grenade.seconds / width)));
-    const bin = bins[index];
-    if (bin !== undefined) bin.count += 1;
+    const bin = bins[Math.min(count - 1, Math.max(0, Math.floor(grenade.seconds / width)))];
+    if (bin === undefined) continue;
+    bin.count += 1;
+    bin.byPlayer.set(grenade.thrower_steamid64, (bin.byPlayer.get(grenade.thrower_steamid64) ?? 0) + 1);
   }
   return bins;
 }
@@ -217,20 +203,22 @@ export function spotReplayRefs(grenades: readonly TeamGrenade[]): ReplayRef[] {
   return [...refs.values()];
 }
 
-/** The name of the callout nearest a world point, if any is within `reach`. */
-export function nearestCallout(
-  callouts: readonly { name: string; center: [number, number] }[],
-  point: readonly number[],
-  reach = 600,
-): string | null {
-  let best: string | null = null;
-  let bestDistance = reach;
-  for (const callout of callouts) {
-    const distance = Math.hypot(callout.center[0] - (point[0] ?? 0), callout.center[1] - (point[1] ?? 0));
-    if (distance <= bestDistance) {
-      best = callout.name;
-      bestDistance = distance;
-    }
+/** One player who threw: how many of the grenades are theirs. */
+export type GrenadeThrower = { steamid64: string; name: string; throws: number };
+
+/** Who threw the grenades, most throws first, so a player keeps the same colour while the filters change. */
+export function throwersOf(grenades: readonly TeamGrenade[]): GrenadeThrower[] {
+  const out = new Map<string, GrenadeThrower>();
+  for (const grenade of grenades) {
+    const known = out.get(grenade.thrower_steamid64);
+    if (known === undefined) out.set(grenade.thrower_steamid64, { steamid64: grenade.thrower_steamid64, name: grenade.thrower_name, throws: 1 });
+    else known.throws += 1;
   }
-  return best;
+  return [...out.values()].sort((a, b) => b.throws - a.throws || a.name.localeCompare(b.name));
+}
+
+/** A click picks one player (again: everyone); with Shift it adds or drops one. */
+export function pickThrower(picked: readonly string[], steamid64: string, additive: boolean): string[] {
+  if (additive) return picked.includes(steamid64) ? picked.filter((entry) => entry !== steamid64) : [...picked, steamid64];
+  return picked.length === 1 && picked[0] === steamid64 ? [] : [steamid64];
 }

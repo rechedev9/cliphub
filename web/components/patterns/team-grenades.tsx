@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Map as MapIcon, PlugZap } from 'lucide-react';
 import { isLibraryOffline, listTeamGrenades, type LibraryMatch, type TeamCriterion } from '@/lib/api/library';
 import { sampleNotes } from '@/lib/api/team-insights';
@@ -39,7 +39,8 @@ function FinderSkeleton(): ReactNode {
 
 /**
  * The "Granadas" tab: every grenade the team threw on one map, on the radar
- * and grouped by spot, read through the page's analysis scope.
+ * and grouped by spot, read through the page's analysis scope. "Rivales de"
+ * reads the utility of the team's rivals in the same rounds instead.
  */
 export function TeamGrenades({
   teamId,
@@ -63,9 +64,17 @@ export function TeamGrenades({
   const [now] = useState(() => Date.now());
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const [rivals, setRivals] = useState(false);
   const { from, to } = scopeDateRange(scope.period, now);
   const { map, side, opponent } = scope;
   const geometry = useMapGeometry(teamId, map === '' ? [] : [map]).get(map);
+  const teamName = useMemo(() => {
+    for (const match of matches) {
+      const own = match.teams.find((entry) => entry.team_id === teamId);
+      if (own !== undefined) return teamLabel(own);
+    }
+    return 'este equipo';
+  }, [matches, teamId]);
 
   useEffect(() => {
     if (map === '') {
@@ -75,11 +84,13 @@ export function TeamGrenades({
     let active = true;
     setLoad({ kind: 'loading' });
     onCounts(null);
-    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria })
+    // The server applies the whole team scope (criteria), the match limit and the buy among them.
+    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria, rivals })
       .then((data) => {
         if (!active) return;
         setLoad({ kind: 'ready', data });
-        onCounts({ maps: new Set(data.grenades.map((grenade) => grenade.match_id)).size, rounds: data.rounds, notes: sampleNotes(data.skipped, data.awp_estimated) });
+        const matchIds = data.round_list.length === 0 ? data.grenades.map((grenade) => grenade.match_id) : data.round_list.map((round) => round.match_id);
+        onCounts({ maps: new Set(matchIds).size, rounds: data.rounds, notes: sampleNotes(data.skipped, data.awp_estimated) });
       })
       .catch((error: unknown) => {
         if (active) setLoad({ kind: isLibraryOffline(error) ? 'offline' : 'failed' });
@@ -87,7 +98,7 @@ export function TeamGrenades({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, from, to, opponent, lineup, criteria, attempt, onCounts]);
+  }, [teamId, map, side, from, to, opponent, lineup, criteria, rivals, attempt, onCounts]);
 
   const matchLabel = useCallback(
     (matchId: string): string => {
@@ -144,12 +155,14 @@ export function TeamGrenades({
   }
   return (
     <GrenadeFinder
-      key={map}
+      key={`${map}|${rivals}`}
       map={map}
       geometry={geometry}
       data={load.data}
       buy={scope.buy === HALF_BUY ? '' : scope.buy}
       matchLabel={matchLabel}
+      rivals={{ on: rivals, label: `Rivales de ${teamName}`, onChange: setRivals }}
+      teamId={rivals ? null : teamId}
     />
   );
 }

@@ -77,7 +77,7 @@ export function plainTitle(title: string): string {
   return title.replace(/ · variante \d+$/, '');
 }
 
-export type ExplorerView = 'lineups' | 'combos';
+export type ExplorerView = 'lineups' | 'combos' | 'meta';
 export type ExplorerKind = ProLineupKind | 'all';
 
 /** Everything the map explorer shows, as kept in its URL. */
@@ -117,7 +117,7 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[], fa
 export function readExplorerQuery(search: string): ExplorerQuery {
   const params = new URLSearchParams(search);
   return {
-    view: oneOf(params.get('vista'), ['lineups', 'combos'], DEFAULT_QUERY.view),
+    view: oneOf(params.get('vista'), ['lineups', 'combos', 'meta'], DEFAULT_QUERY.view),
     kind: oneOf<ExplorerKind>(params.get('granada'), [...PRO_LINEUP_KINDS, 'all'], DEFAULT_QUERY.kind),
     side: oneOf<TacticalSide | ''>(params.get('lado'), ['T', 'CT'], ''),
     insta: params.get('insta') === '1',

@@ -65,14 +65,17 @@ export function MatchGrenades({
 
   // The server reads the match and the side; the rest of the scope narrows the rounds here.
   const kept = useMemo(() => new Set(rounds.map((round) => round.number)), [rounds]);
-  const throwers = useMemo(
-    () => (focus.length === 0 ? null : new Set(doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.steamid64))),
-    [doc.players, focus],
-  );
+  // The Replay's focus is the finder's player choice, with the same colours on the radar and the clock.
+  const throwers = useMemo(() => doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.steamid64), [doc.players, focus]);
   const data = useMemo<TeamGrenades | null>(() => {
     if (load.kind !== 'ready') return null;
-    return { ...load.data, grenades: load.data.grenades.filter((grenade) => kept.has(grenade.round) && (throwers === null || throwers.has(grenade.thrower_steamid64))), rounds: kept.size };
-  }, [load, kept, throwers]);
+    return {
+      ...load.data,
+      grenades: load.data.grenades.filter((grenade) => kept.has(grenade.round)),
+      round_list: load.data.round_list.filter((round) => kept.has(round.round)),
+      rounds: kept.size,
+    };
+  }, [load, kept]);
   const matchLabel = useCallback(() => matchTitle(match), [match]);
   const plants = useMemo(() => {
     const out = new Map<number, number>();
@@ -142,5 +145,18 @@ export function MatchGrenades({
       />
     );
   }
-  return <GrenadeFinder key={`${teamId}|${match.map}`} map={match.map} geometry={doc.geometry} data={data} buy="" matchLabel={matchLabel} tramo={tramo} plantSeconds={plantSeconds} />;
+  return (
+    <GrenadeFinder
+      key={`${teamId}|${match.map}`}
+      map={match.map}
+      geometry={doc.geometry}
+      data={data}
+      buy=""
+      matchLabel={matchLabel}
+      tramo={tramo}
+      plantSeconds={plantSeconds}
+      players={throwers}
+      teamId={teamId}
+    />
+  );
 }
