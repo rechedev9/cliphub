@@ -80,6 +80,12 @@ pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts
 kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
 holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
+team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)
+crossed with buy matchups, the preferred defaults, the executes per buy and per-player T windows, with stale,
+few-rounds and roster warnings to repeat to the user; prepare_team includes it. Every finding of team_attack,
+team_grenades zones and player_positions places carries a studio_path that opens the 2D Replay on those rounds
+with the focus, tramo and zones in the URL; show_zones draws a map with zones marked in hosts with MCP Apps.
+The match_prep prompt guides a match prep: rival and maps, the analysis, then a report in Informes.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
@@ -90,7 +96,7 @@ Fix the library's teams: update_team renames or replaces the aliases (start from
 own (Mi equipo, one team at most: setting it moves the mark) and hltv_rank,
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
-Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
+Scouting reports (Informes): list_reports, get_report (sections, players and the attack read per map), create_report,
 update_report, delete_report. Libreta (the team's notebook; its Jugadas tab was the Stratbook): list_plays
 (archived plays only with include_archived), get_play, create_play (by hand), save_round_as_play (a
 round ref and the team's side key), detect_team_plays then save_detected_play with a play's ref,

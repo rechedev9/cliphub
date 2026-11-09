@@ -31,9 +31,11 @@ type playerPositionsIn struct {
 }
 
 type positionShareOut struct {
-	Name   string  `json:"name"`
-	Rounds int     `json:"rounds"`
-	Pct    float64 `json:"pct" jsonschema:"over the sampled rounds"`
+	Name       string  `json:"name"`
+	Callout    string  `json:"callout,omitempty" jsonschema:"places only: the CS2 place token, for show_zones"`
+	Rounds     int     `json:"rounds"`
+	Pct        float64 `json:"pct" jsonschema:"over the sampled rounds"`
+	StudioPath string  `json:"studio_path,omitempty" jsonschema:"places only: opens example rounds in the Replay with the player in focus and the place marked"`
 }
 
 type positionSideOut struct {
@@ -46,6 +48,7 @@ type positionSideOut struct {
 	AWPKillPct    float64            `json:"awp_kill_pct" jsonschema:"share of the player's kills with the AWP"`
 	AWPRoundPct   float64            `json:"awp_round_pct" jsonschema:"share of rounds with an AWP kill"`
 	ReliableShare bool               `json:"reliable" jsonschema:"false when the sampled rounds are too few to trust"`
+	StudioPath    string             `json:"studio_path,omitempty" jsonschema:"opens example rounds of every place in the Replay, the player in focus and the places marked"`
 }
 
 type positionMapOut struct {
@@ -146,7 +149,8 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "player_positions", Annotations: readOnly,
 		Description: "Read where a player stands in the first seconds of their rounds, per map and side: the site zones, " +
-			"the callouts, the CT role (anchor or rotator) and how much they use the AWP. Filter by map and dates."},
+			"the callouts, the CT role (anchor or rotator) and how much they use the AWP. Each place names its callout token (show_zones draws it) " +
+			"and a studio_path that opens example rounds in the 2D Replay with the player in focus and the zone marked. Filter by map and dates."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in playerPositionsIn) (*mcp.CallToolResult, playerPositionsOut, error) {
 			if err := checkSteamID(in.SteamID); err != nil {
 				return nil, playerPositionsOut{}, err
@@ -311,13 +315,19 @@ func summarizePositions(steamID string, r tuiclient.PlayerPositions) playerPosit
 			for _, z := range side.Zones {
 				so.Zones = append(so.Zones, positionShareOut{Name: cleanName(z.Zone), Rounds: z.Rounds.Count, Pct: z.Rounds.Pct})
 			}
+			tramo := openingTramo(r.WindowSeconds)
+			zones, all := []string{}, []tuiclient.Evidence{}
 			for _, p := range side.Places {
 				name := p.Label
 				if name == "" {
 					name = p.Place
 				}
-				so.Places = append(so.Places, positionShareOut{Name: cleanName(name), Rounds: p.Rounds.Count, Pct: p.Rounds.Pct})
+				link := findingLink{title: name, refs: p.Examples, focus: []string{steamID}, tramo: tramo, zones: []string{p.Place}}
+				so.Places = append(so.Places, positionShareOut{Name: cleanName(name), Callout: cleanName(p.Place), Rounds: p.Rounds.Count,
+					Pct: p.Rounds.Pct, StudioPath: link.path()})
+				zones, all = append(zones, p.Place), append(all, p.Examples...)
 			}
+			so.StudioPath = findingLink{title: "Posiciones " + side.Side, refs: all, focus: []string{steamID}, tramo: tramo, zones: zones}.path()
 			mo.Sides = append(mo.Sides, so)
 		}
 		out.Maps = append(out.Maps, mo)

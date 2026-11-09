@@ -51,6 +51,8 @@ type grenadeKindOut struct {
 	PerRound      float64      `json:"per_round" jsonschema:"over the rounds the filter kept"`
 	MedianSeconds float64      `json:"median_seconds" jsonschema:"when the grenades went off, seconds after freeze end"`
 	Throwers      []throwerOut `json:"throwers" jsonschema:"most grenades first, at most 5"`
+	Zones         []landingOut `json:"zones" jsonschema:"where they went off, by callout, most first, at most 5; show_zones draws them"`
+	StudioPath    string       `json:"studio_path,omitempty" jsonschema:"opens the rounds of these grenades in the Replay with their landing zones marked"`
 }
 
 type grenadeOut struct {
@@ -87,7 +89,7 @@ type teamGrenadesOut struct {
 
 func registerTeamGrenadesTool(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "team_grenades", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the grenades a team threw, as the Granadas form of its Replay: per kind how many, on which side, when and by whom; " +
+		Description: "Read the grenades a team threw, as the Granadas form of its Replay: per kind how many, on which side, when, by whom and the callouts they went off in (each with a studio_path that opens those rounds in the 2D Replay with the zone marked; show_zones draws them); " +
 			"when on the round clock by player; the repeated throws (spots) with what the team does in the 20 s after each; then compact rows. " +
 			"Pass a spot key to read one grenade in full: how many of the scope's rounds it was thrown in, what follows it, its rounds and a studio_path that superposes them. " +
 			"map is required. Filter by kind and players, then the team scope every team tool takes (side, dates, opponent_id, match_id, lineup, " +
@@ -256,6 +258,7 @@ func kindSummary(kind string, gs []tacticalplan.TeamGrenade, rounds int) grenade
 	if len(k.Throwers) > maxGrenadeThrowers {
 		k.Throwers = k.Throwers[:maxGrenadeThrowers]
 	}
+	k.Zones, k.StudioPath = landingZones(kind, gs)
 	return k
 }
 

@@ -43,7 +43,11 @@ type reportDetailOut struct {
 	reportOut
 	Scout   scoutTeamOut       `json:"scout" jsonschema:"the report's sections over its matches and side, as scout_team returns them"`
 	Players []playerMetricsOut `json:"players" jsonschema:"the scouted team's players over the report's matches, with the get_baseline definitions"`
+	Attack  []teamAttackOut    `json:"attack" jsonschema:"the report's Ataque tab: team_attack over its matches, one per map; empty for a CT report"`
 }
+
+// maxReportAttackMaps caps the maps get_report reads the T side of, most played first.
+const maxReportAttackMaps = 3
 
 type createReportIn struct {
 	Title    string   `json:"title" jsonschema:"the report's name"`
@@ -93,7 +97,8 @@ func registerReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "get_report", Annotations: readOnly,
-		Description: "Read one scouting report: its notes, its scouting sections over its matches and side (as scout_team) and the scouted players' metrics."},
+		Description: "Read one scouting report: its notes, its scouting sections over its matches and side (as scout_team), the scouted players' metrics " +
+			"and its Ataque tab (team_attack per map, with a studio_path on every finding)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in reportIDIn) (*mcp.CallToolResult, reportDetailOut, error) {
 			if err := checkUUID("report_id", in.ReportID); err != nil {
 				return nil, reportDetailOut{}, err
@@ -114,9 +119,24 @@ func registerReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, reportDetailOut{}, toolError(err)
 			}
-			out := reportDetailOut{reportOut: reportOf(r), Scout: summarizeScout(scout), Players: []playerMetricsOut{}}
+			out := reportDetailOut{reportOut: reportOf(r), Scout: summarizeScout(scout), Players: []playerMetricsOut{}, Attack: []teamAttackOut{}}
 			for _, p := range metrics.Players {
 				out.Players = append(out.Players, metricsOf(p))
+			}
+			if r.Side == "CT" {
+				return nil, out, nil
+			}
+			for i, m := range scout.Maps {
+				if i == maxReportAttackMaps {
+					break
+				}
+				attack, err := c.TeamAttackReport(ctx, r.TeamID, tuiclient.AnalysisQuery{Map: m.Map, Matches: r.MatchIDs})
+				if err != nil {
+					return nil, reportDetailOut{}, toolError(err)
+				}
+				row := summarizeAttack(attack)
+				row.StudioPath = preparePath(r.TeamID, tuiclient.AnalysisQuery{Map: m.Map})
+				out.Attack = append(out.Attack, row)
 			}
 			return nil, out, nil
 		})

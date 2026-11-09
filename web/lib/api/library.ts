@@ -1,3 +1,4 @@
+import type { TeamAttack } from './attack.ts';
 import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
@@ -830,4 +831,9 @@ export function getTeamPlaybook(teamId: string, query: TeamPlaybookQuery): Promi
 /** Buy matchups, tempo per buy and CT positions of a team on one map. */
 export function getTeamPrep(teamId: string, query: TeamPrepQuery): Promise<TeamPrep> {
   return request<TeamPrep>(`/teams/${id(teamId)}/prep?${framedParams(query).toString()}`);
+}
+
+/** The T side match prep of a team on one map: sites and tempo per buy, defaults, executes and each player's spots. */
+export function getTeamAttack(teamId: string, query: TeamPrepQuery): Promise<TeamAttack> {
+  return request<TeamAttack>(`/teams/${id(teamId)}/attack?${framedParams(query).toString()}`);
 }

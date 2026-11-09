@@ -50,6 +50,7 @@ import { SharePackageButton } from '@/components/share/share-package-button';
 import { reportShareSummary } from '@/lib/library/share';
 import { ScoutView } from './scout-view';
 import { ReportSpatial } from './report-spatial';
+import { ReportAttack } from './report-attack';
 
 /** Metrics are `null` when they could not be computed: the report still opens without them. */
 type Loaded = { report: LibraryReport; scout: ScoutReport; metrics: MetricsReport | null };
@@ -163,7 +164,7 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
   const [exporting, setExporting] = useState(false);
   /** The example rounds of the report row the video dialog opened on. */
   const [video, setVideo] = useState<VideoSource[] | null>(null);
-  const [tab, setTab] = useRecordTab(['notas', 'radar', 'metricas', ...scoutSections(scout).map((section) => section.id)], 'notas');
+  const [tab, setTab] = useRecordTab(['notas', 'radar', 'metricas', 'ataque', ...scoutSections(scout).map((section) => section.id)], 'notas');
   const [counts, setCounts] = useState<ScopeCounts | null>(null);
   const { scope, setScope, resetScope } = useAnalysisScope({ kind: 'report', id: report.id });
   const onMapChange = useCallback((map: string) => setScope({ map }), [setScope]);
@@ -292,6 +293,9 @@ function ReportRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
               <p className="text-body-sm text-fg-2">No se pudieron calcular las métricas de este informe. Vuelve a abrirlo para reintentarlo.</p>
             ),
           },
+          ...(report.side === 'CT' || scout.matches.length === 0
+            ? []
+            : [{ id: 'ataque', label: 'Ataque', content: <ReportAttack teamId={report.team_id} matches={scout.matches} /> }]),
         ]}
       />
       {video ? <AnalysisVideoDialog title="Crear vídeo de estas rondas" sources={video} teamId={report.team_id} onClose={() => setVideo(null)} /> : null}

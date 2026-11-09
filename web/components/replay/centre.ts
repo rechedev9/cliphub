@@ -24,6 +24,8 @@ export type ReplayCentreProps = {
   layers: ReplayLayers;
   /** Notes' drawings over the map. */
   telestrator: { draft: TelestratorDraft; shown: readonly { id: string; strokes: readonly Stroke[] }[] } | null;
+  /** The zones a finding's link marks, as CS2 place tokens. */
+  zones?: readonly string[];
   /** The player the map keeps centred, set with F. */
   followSlot: number | null;
   onFollowSlot: (slot: number | null) => void;

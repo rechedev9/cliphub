@@ -60,6 +60,7 @@ import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
 import { RadarCentre } from './radar-centre';
+
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { SetposNotice } from './setpos-notice';
@@ -108,8 +109,10 @@ export type ReplayWorkspaceProps = {
   openPlaylistId?: string;
   /** Players to put in the foreground by SteamID64, found in each match by it since slots change between demos. */
   focusPlayers?: readonly string[];
-  /** Opens with every round of the list superposed, as a grenade's Reproducir does. */
+  /** Opens with every round of the list superposed, as a grenade's Reproducir or a link with a tramo does. */
   superpose?: boolean;
+  /** Zones a finding's link marks on the map, as CS2 place tokens. */
+  zones?: readonly string[];
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -135,6 +138,7 @@ export function ReplayWorkspace({
   openPlaylistId,
   focusPlayers,
   superpose = false,
+  zones,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -181,9 +185,7 @@ export function ReplayWorkspace({
 
   const entry = entries[index];
   const focusKey = entry === undefined ? '' : entryKey(entry);
-  // Slots mean a player only inside one match: a focus the workspace keeps itself ends with the match.
   const matchId = entry?.matchId;
-  useEffect(() => setOwnFocus([]), [matchId]);
   // With players in focus, or a list opened to superpose, every round is superposed; otherwise the cap keeps the map readable.
   const everyRound = focus.length > 0 || superpose;
   const selectedKeys = useMemo(() => {
@@ -674,6 +676,7 @@ export function ReplayWorkspace({
               tickOf={tickOf}
               layers={layers}
               telestrator={library ? { draft, shown: shownDrawings } : null}
+              zones={zones}
               followSlot={followSlot}
               onFollowSlot={setFollowSlot}
               focus={focus}

@@ -18,6 +18,7 @@ import { useLibraryNorms } from '@/hooks/use-library-norms';
 import { useReferences } from '@/hooks/use-references';
 import { CtPositions, MatchupTables, PlaybookBrief, PrepSection, TempoByBuy } from './prep-sections';
 import { SignificantStats } from './significant-stats';
+import { AttackPrep } from './attack-sections';
 
 type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook; scout: ScoutReport | null };
 
@@ -123,6 +124,7 @@ export function PrepBody({
           <PrepSection title="Ritmo por compra">
             <TempoByBuy prep={prep} />
           </PrepSection>
+          <AttackPrep query={query} />
           <PrepSection title="Posiciones CT por tramo" action={door('calor')}>
             <CtPositions prep={prep} />
           </PrepSection>
