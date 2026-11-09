@@ -4,6 +4,7 @@ export type ReplayShortcut =
   | 'escape'
   | 'multi'
   | 'follow'
+  | 'setpos'
   | 'play'
   | 'round-prev'
   | 'round-next'
@@ -32,6 +33,8 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   M: 'multi',
   f: 'follow',
   F: 'follow',
+  s: 'setpos',
+  S: 'setpos',
   ' ': 'play',
   '[': 'round-prev',
   ']': 'round-next',

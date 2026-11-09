@@ -11,6 +11,7 @@ import { matchTitle } from '@/lib/library/partidas';
 import { EmptyState } from '@/components/records/empty-state';
 import { GrenadeFinder } from '@/components/patterns/grenade-finder';
 import type { TramoControl } from './tramo-bar';
+import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -28,6 +29,7 @@ export function MatchGrenades({
   rounds,
   onPickTeam,
   tramo,
+  focus,
 }: {
   match: LibraryMatch;
   doc: TacticalDocument;
@@ -36,6 +38,8 @@ export function MatchGrenades({
   rounds: readonly TacticalRound[];
   onPickTeam: (teamKey: string) => void;
   tramo: TramoControl;
+  /** The players whose throws count; empty for the whole team. */
+  focus: PlayerFocus;
 }): ReactNode {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -61,10 +65,14 @@ export function MatchGrenades({
 
   // The server reads the match and the side; the rest of the scope narrows the rounds here.
   const kept = useMemo(() => new Set(rounds.map((round) => round.number)), [rounds]);
+  const throwers = useMemo(
+    () => (focus.length === 0 ? null : new Set(doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.steamid64))),
+    [doc.players, focus],
+  );
   const data = useMemo<TeamGrenades | null>(() => {
     if (load.kind !== 'ready') return null;
-    return { ...load.data, grenades: load.data.grenades.filter((grenade) => kept.has(grenade.round)), rounds: kept.size };
-  }, [load, kept]);
+    return { ...load.data, grenades: load.data.grenades.filter((grenade) => kept.has(grenade.round) && (throwers === null || throwers.has(grenade.thrower_steamid64))), rounds: kept.size };
+  }, [load, kept, throwers]);
   const matchLabel = useCallback(() => matchTitle(match), [match]);
   const plants = useMemo(() => {
     const out = new Map<number, number>();

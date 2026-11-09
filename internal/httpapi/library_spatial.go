@@ -276,6 +276,7 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	}
 	// Slots differ between demos, so a team view cannot filter by them.
 	rounds.Slots = nil
+	rounds.Subjects = nil
 	candidates, pending, skipped, err := h.teamCandidates(ctx, team, matchIDs)
 	if err != nil {
 		return spatialResponse{}, nil, err

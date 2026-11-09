@@ -67,6 +67,11 @@ export function setposCommand(aim: SetposAim): string {
   return `setpos ${fixed(x)} ${fixed(y)} ${fixed(z)};setang ${fixed(aim.pitch)} ${fixed(aim.yaw)} 0`;
 }
 
+/** The console line that puts you where a replay player stands and looks, from one position sample. */
+export function sampleSetpos(sample: { x: number; y: number; z: number; yaw: number; pitch?: number }): string {
+  return setposCommand({ origin: [sample.x, sample.y, sample.z], pitch: setangPitch(sample.pitch ?? 0), yaw: setangYaw(sample.yaw) });
+}
+
 /** CT throws an incendiary, T a molotov; CS2 hands them out as different weapons. */
 function practiceGrenade(lineup: Pick<LibraryLineup, 'grenade' | 'side'>): PracticeGrenade {
   return lineup.grenade === 'molotov' && lineup.side === 'CT' ? 'incendiary' : lineup.grenade;

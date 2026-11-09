@@ -57,6 +57,7 @@ export function PlayerTooltip({ sample, name, ref }: { sample: TacticalSample; n
           ))}
         </p>
       )}
+      <p className="text-meta text-fg-3">Pulsa S para copiar su setpos</p>
       {(sample.flashed ?? 0) > 0 ? <p className="text-meta font-medium text-fg-1">Cegado {formatDecimal(sample.flashed ?? 0, 1)} s</p> : null}
     </div>
   );

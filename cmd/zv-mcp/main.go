@@ -100,6 +100,8 @@ check_integrity screens a match's players for unusual aim: a statistical signal,
 integrity_dossier is one screened player's evidence pack and the official ways to report them.
 replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
 round range, phase); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
+Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
+player_setpos gives the console line that puts you where a player stood at a moment of a round (the S key in the Replay).
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary

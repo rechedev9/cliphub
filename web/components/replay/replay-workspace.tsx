@@ -10,7 +10,13 @@ import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { ReplayClock } from '@/lib/replay/clock';
 import { DEFAULT_LAYERS, showAllPlayers, toggleLayer, togglePlayer } from '@/lib/replay/layers';
+import { pickPlayer } from '@/lib/replay/player-focus';
 import { roundOutcome } from '@/lib/replay/round-outcome';
+import { withSetpos } from '@/lib/replay/setpos';
+import type { SetposCopy } from '@/lib/replay/setpos';
+import { sampleSetpos } from '@/lib/libreta/lineups';
+import { writeClipboardText } from '@/lib/clipboard-write';
+import { frameCursor } from '@/lib/tactical-replay';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
@@ -40,7 +46,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
+import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
+import type { FocusControl } from './replay-players';
+import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
 import { RadarCentre } from './radar-centre';
@@ -74,6 +83,8 @@ export type ReplayWorkspaceProps = {
   filters?: ReactNode;
   /** Shown above the round line, such as a playlist's name. */
   title?: string;
+  /** The players in the foreground when the page keeps them (the Replay does, in the URL); without it the workspace keeps its own. */
+  players?: FocusControl;
 };
 
 /**
@@ -91,6 +102,7 @@ export function ReplayWorkspace({
   groupLabel,
   filters,
   title,
+  players,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -111,7 +123,17 @@ export function ReplayWorkspace({
   const [tramo, setTramo] = useState<Tramo>(WHOLE_ROUND);
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [ownFocus, setOwnFocus] = useState<number[]>([]);
+  const focus = players?.focus ?? ownFocus;
+  const setFocus = players?.onChange ?? setOwnFocus;
+  const [mapSettings, setMapSettings] = useMapSettings();
+  const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
+  const [setposList, setSetposList] = useState<SetposCopy[]>([]);
+  const [setposNote, setSetposNote] = useState<string | null>(null);
+  const hoverSlot = useRef<number | null>(null);
+  const onHoverSlot = useCallback((slot: number | null) => {
+    hoverSlot.current = slot;
+  }, []);
   const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
@@ -120,6 +142,10 @@ export function ReplayWorkspace({
 
   const entry = entries[index];
   const focusKey = entry === undefined ? '' : entryKey(entry);
+  // Slots mean a player only inside one match: a focus the workspace keeps itself ends with the match.
+  const matchId = entry?.matchId;
+  useEffect(() => setOwnFocus([]), [matchId]);
+  const pickSlot = useCallback((slot: number, additive: boolean) => setFocus(pickPlayer(focus, slot, additive)), [focus, setFocus]);
   const selectedKeys = useMemo(() => (multi ? withFocus(multiKeys, focusKey) : []), [multi, multiKeys, focusKey]);
 
   const wanted = useMemo(() => {
@@ -291,6 +317,30 @@ export function ReplayWorkspace({
     });
   }, [clock, transport]);
 
+  const copySetpos = (command: string): void => {
+    writeClipboardText(command).then(
+      () => setSetposNote('Setpos copiado'),
+      () => setSetposNote('No se pudo copiar: está en la lista de jugadores'),
+    );
+  };
+  const copyPlayerSetpos = (slot: number): void => {
+    if (focused === null) return;
+    const tick = tickOf(focused, clock.seconds);
+    const cursor = frameCursor(focused.frames, tick);
+    const sample = cursor === undefined ? undefined : focused.frames[cursor.index]?.samples.find((candidate) => candidate.slot === slot);
+    if (sample === undefined) return;
+    const command = sampleSetpos(sample);
+    const name = focused.doc.players.find((player) => player.slot === slot)?.name ?? `Jugador ${slot}`;
+    const at = `R${focused.round.number} · ${roundClockLabelFor(focused.timeline, timelineSeconds(focused.timeline, tick))}`;
+    setSetposList((list) => withSetpos(list, { name, at, command }));
+    copySetpos(command);
+  };
+  useEffect(() => {
+    if (setposNote === null) return;
+    const timer = window.setTimeout(() => setSetposNote(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [setposNote]);
+
   const toggleMulti = (): void => {
     if (focusTimeline === null) return;
     if (multi) {
@@ -319,9 +369,9 @@ export function ReplayWorkspace({
     }
     if (shortcut === 'escape') {
       if (eventsOpen) setEventsOpen(false);
-      else if (followSlot !== null || selectedSlot !== null) {
+      else if (followSlot !== null || focus.length > 0) {
         setFollowSlot(null);
-        setSelectedSlot(null);
+        setFocus([]);
       } else if (fullscreen.active) fullscreen.toggle();
       return;
     }
@@ -333,8 +383,11 @@ export function ReplayWorkspace({
     } else if (shortcut === 'fullscreen') fullscreen.toggle();
     else if (shortcut === 'multi') toggleMulti();
     else if (shortcut === 'follow') {
-      const slot = selectedSlot ?? followSlot;
+      const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
+    } else if (shortcut === 'setpos') {
+      const slot = hoverSlot.current ?? (focus.length === 1 ? focus[0] : undefined);
+      if (slot !== undefined) copyPlayerSetpos(slot);
     } else if (shortcut === 'play') {
       spaceTookButton.current = target instanceof HTMLButtonElement || (target instanceof HTMLInputElement && target.type === 'checkbox');
       togglePlay();
@@ -441,6 +494,7 @@ export function ReplayWorkspace({
     );
   }
 
+  const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
@@ -478,6 +532,9 @@ export function ReplayWorkspace({
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
+            <span role="status" className="text-meta text-fg-2">
+              {setposNote}
+            </span>
             <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => {
                 if (fullscreen.active) fullscreen.toggle();
                 setHelp(true);
@@ -497,6 +554,16 @@ export function ReplayWorkspace({
             </Button>
           </div>
         </header>
+        <MapBar
+          settings={mapSettings}
+          onSettings={setMapSettings}
+          layers={layers}
+          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
+          draft={library ? draft : null}
+          follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
+          zoomSlot={setZoomSlot}
+        />
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
@@ -510,8 +577,11 @@ export function ReplayWorkspace({
               telestrator={library ? { draft, shown: shownDrawings } : null}
               followSlot={followSlot}
               onFollowSlot={setFollowSlot}
-              selectedSlot={selectedSlot}
-              onSelectSlot={setSelectedSlot}
+              focus={focus}
+              onPickSlot={pickSlot}
+              onHoverSlot={onHoverSlot}
+              settings={mapSettings}
+              barSlot={zoomSlot}
             />
           )}
           {focused === null ? null : (
@@ -530,7 +600,7 @@ export function ReplayWorkspace({
       </div>
 
       <aside
-        aria-label="Ronda, filtros y capas"
+        aria-label="Ronda y filtros"
         className={cn(
           'min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
           fullscreen.active && 'hidden',
@@ -540,10 +610,6 @@ export function ReplayWorkspace({
           focused={focused}
           actions={roundActions}
           filters={filters}
-          layers={layers}
-          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
-          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
-          onShowAll={() => setLayers((value) => showAllPlayers(value))}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
         />
       </aside>
@@ -560,9 +626,13 @@ export function ReplayWorkspace({
           nowSeconds={nowSeconds}
           tickOf={tickOf}
           layers={layers}
-          selectedSlot={selectedSlot}
-          onSelectSlot={setSelectedSlot}
+          focus={focus}
+          onPickSlot={pickSlot}
+          onFocus={setFocus}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
+          onShowAll={() => setLayers((value) => showAllPlayers(value))}
+          setpos={setposList}
+          onCopySetpos={copySetpos}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null

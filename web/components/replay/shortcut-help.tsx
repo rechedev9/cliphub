@@ -16,8 +16,11 @@ const PLAYBACK: readonly Shortcut[] = [
 ];
 
 const MAP: readonly Shortcut[] = [
-  { keys: ['F'], does: 'Seguir al jugador seleccionado; otra vez para soltarlo' },
-  { keys: ['Esc'], does: 'Dejar de seguir y quitar la selección' },
+  { keys: ['Clic'], does: 'Dejar a un jugador en primer plano; los demás quedan translúcidos' },
+  { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
+  { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
+  { keys: ['S'], does: 'Copiar el setpos del jugador bajo el cursor' },
+  { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
   { keys: ['Arrastrar'], does: 'Mover el mapa' },
 ];

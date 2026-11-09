@@ -29,6 +29,7 @@ type replayRoundsIn struct {
 	DefenseShape []string `json:"defense_shape,omitempty" jsonschema:"CT round shapes, as get_round reports them"`
 	Tag          []string `json:"tag,omitempty" jsonschema:"round tags, such as postplant, pistol, ace or retake_won"`
 	Players      []string `json:"players,omitempty" jsonschema:"SteamID64s: only rounds these players were in"`
+	Focus        []string `json:"focus,omitempty" jsonschema:"SteamID64s of the players the Replay puts in the foreground: the rest go translucent in Repetición, and Mapa de calor, Recorridos and Granadas count only them. It never drops a round"`
 	RoundFrom    int      `json:"round_from,omitempty"`
 	RoundTo      int      `json:"round_to,omitempty"`
 	Phase        string   `json:"phase,omitempty" jsonschema:"regulation or overtime"`
@@ -83,15 +84,17 @@ func (in replayRoundsIn) values(doc tacticalplan.Document) (url.Values, error) {
 			v.Add(key, strings.TrimSpace(value))
 		}
 	}
-	for _, id := range in.Players {
-		if err := checkSteamID(id); err != nil {
-			return nil, err
+	for key, ids := range map[string][]string{"slot": in.Players, "subject": in.Focus} {
+		for _, id := range ids {
+			if err := checkSteamID(id); err != nil {
+				return nil, err
+			}
+			i := slices.IndexFunc(doc.Players, func(p tacticalplan.Player) bool { return p.SteamID64 == id })
+			if i < 0 {
+				return nil, fmt.Errorf("player %s did not play this match", id)
+			}
+			v.Add(key, strconv.Itoa(int(doc.Players[i].Slot)))
 		}
-		i := slices.IndexFunc(doc.Players, func(p tacticalplan.Player) bool { return p.SteamID64 == id })
-		if i < 0 {
-			return nil, fmt.Errorf("player %s did not play this match", id)
-		}
-		v.Add("slot", strconv.Itoa(int(doc.Players[i].Slot)))
 	}
 	if in.RoundFrom < 0 || in.RoundTo < 0 {
 		return nil, fmt.Errorf("round_from and round_to must be positive")
@@ -105,10 +108,104 @@ func (in replayRoundsIn) values(doc tacticalplan.Document) (url.Values, error) {
 	return v, nil
 }
 
+type playerSetposIn struct {
+	MatchID string  `json:"match_id" jsonschema:"match id from list_matches"`
+	Round   int     `json:"round" jsonschema:"round number, as in a round ref"`
+	SteamID string  `json:"steamid" jsonschema:"the player's SteamID64"`
+	Second  float64 `json:"second,omitempty" jsonschema:"seconds after the round went live (the end of freeze time); 0 by default"`
+}
+
+type playerSetposOut struct {
+	Player string  `json:"player"`
+	Round  int     `json:"round"`
+	Second float64 `json:"second" jsonschema:"the sampled moment the line was read at, in seconds after the round went live"`
+	Tick   int     `json:"tick"`
+	Alive  bool    `json:"alive"`
+	Setpos string  `json:"setpos" jsonschema:"the console line for CS2 with sv_cheats 1: setpos x y z;setang pitch yaw 0"`
+}
+
+// setposAt reads the setpos of one slot from the frame nearest to a tick.
+func setposAt(frames []tacticalplan.Frame, slot uint8, tick int) (tacticalplan.Frame, tacticalplan.Sample, bool) {
+	best := -1
+	for i, f := range frames {
+		if best < 0 || abs(f.Tick-tick) < abs(frames[best].Tick-tick) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return tacticalplan.Frame{}, tacticalplan.Sample{}, false
+	}
+	for _, sample := range frames[best].Samples {
+		if sample.Slot == slot {
+			return frames[best], sample, true
+		}
+	}
+	return tacticalplan.Frame{}, tacticalplan.Sample{}, false
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func setposLine(s tacticalplan.Sample) string {
+	return fmt.Sprintf("setpos %.2f %.2f %.2f;setang %.2f %.2f 0", s.X, s.Y, s.Z, tacticalplan.SetangPitch(s.Pitch), tacticalplan.SetangYaw(s.Yaw))
+}
+
 func registerReplayTools(server *mcp.Server, s *studio) {
+	mcp.AddTool(server, &mcp.Tool{Name: "player_setpos", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Read the setpos line of one player at a moment of a round, as the S key over a player in the Replay copies it: paste it in the CS2 console " +
+			"with sv_cheats 1 to stand where they stood, looking where they looked. Positions are sampled a few times a second; the answer says which moment it read."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in playerSetposIn) (*mcp.CallToolResult, playerSetposOut, error) {
+			if err := checkUUID("match_id", in.MatchID); err != nil {
+				return nil, playerSetposOut{}, err
+			}
+			if err := checkSteamID(in.SteamID); err != nil {
+				return nil, playerSetposOut{}, err
+			}
+			if in.Round < 1 || in.Round > maxPlayRound {
+				return nil, playerSetposOut{}, fmt.Errorf("round must be from 1 to %d", maxPlayRound)
+			}
+			if in.Second < 0 || in.Second > 600 {
+				return nil, playerSetposOut{}, fmt.Errorf("second must be from 0 to 600")
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, playerSetposOut{}, toolError(err)
+			}
+			doc, err := c.LibraryTacticalPlan(ctx, in.MatchID)
+			if err != nil {
+				return nil, playerSetposOut{}, toolError(err)
+			}
+			i := slices.IndexFunc(doc.Players, func(p tacticalplan.Player) bool { return p.SteamID64 == in.SteamID })
+			if i < 0 {
+				return nil, playerSetposOut{}, fmt.Errorf("player %s did not play this match", in.SteamID)
+			}
+			round, err := c.LibraryTacticalRound(ctx, in.MatchID, in.Round)
+			if err != nil {
+				return nil, playerSetposOut{}, toolError(err)
+			}
+			rate := doc.Demo.Tickrate
+			if rate <= 0 {
+				rate = 64
+			}
+			frame, sample, ok := setposAt(round.Frames, doc.Players[i].Slot, round.Round.TickFreezeEnd+int(in.Second*rate))
+			if !ok {
+				return nil, playerSetposOut{}, fmt.Errorf("round %d has no saved position for that player", in.Round)
+			}
+			return nil, playerSetposOut{
+				Player: cleanName(doc.Players[i].Name), Round: in.Round, Tick: frame.Tick,
+				Second: float64(int(float64(frame.Tick-round.Round.TickFreezeEnd)/rate*10)) / 10,
+				Alive:  sample.Flags.Has(tacticalplan.FlagAlive), Setpos: setposLine(sample),
+			}, nil
+		})
+
 	mcp.AddTool(server, &mcp.Tool{Name: "replay_rounds", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the rounds of one match that a Replay scope keeps, exactly as the scope bar of the Replay does: team, side, result, buys, site, " +
 			"round shapes, tags, players, round range and phase. Every form of the Replay (Repetición, Mapa de calor, Recorridos, Granadas) reads these same rounds. " +
+			"focus puts players in the foreground without dropping rounds, as a click on a player does. " +
 			"studio_path opens the Replay in Studio on that scope and form."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in replayRoundsIn) (*mcp.CallToolResult, replayRoundsOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {

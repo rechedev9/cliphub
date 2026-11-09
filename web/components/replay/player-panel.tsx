@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Crosshair, Eye, EyeOff } from 'lucide-react';
+import type { MouseEvent, ReactNode } from 'react';
+import { Copy, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { equipmentId, rowInventory } from '@/lib/replay/equipment';
@@ -10,6 +10,11 @@ import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EquipmentIcon, GearGlyph } from './equipment-icon';
 import { formatDecimal } from '@/lib/format';
+import { inFocus } from '@/lib/replay/player-focus';
+import type { PlayerFocus } from '@/lib/replay/player-focus';
+import type { SetposCopy } from '@/lib/replay/setpos';
+import { Button } from '@/components/ui/button';
+import { AllTeamRow, FOCUS_HINT } from './replay-players';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
@@ -66,13 +71,16 @@ function PlayerRow({
   card,
   hidden,
   selected,
+  dimmed,
   onSelect,
   onToggle,
 }: {
   card: PlayerCard;
   hidden: boolean;
   selected: boolean;
-  onSelect: () => void;
+  /** Others are in the foreground and this player is not. */
+  dimmed: boolean;
+  onSelect: (event: MouseEvent) => void;
   onToggle: () => void;
 }): ReactNode {
   const ct = card.side === TACTICAL_SIDES.ct;
@@ -83,7 +91,7 @@ function PlayerRow({
       className={cn(
         'group relative flex flex-col gap-1 rounded-sm py-1.5 pr-1 pl-2.5 transition-[background-color,opacity] duration-(--dur-fast)',
         selected ? 'bg-surface-4' : 'hover:bg-surface-3',
-        !card.alive && 'opacity-45',
+        (!card.alive || dimmed) && 'opacity-45',
         hidden && 'opacity-35',
       )}
     >
@@ -92,7 +100,8 @@ function PlayerRow({
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
-        aria-label={`${selected ? 'Dejar de resaltar' : 'Resaltar'} a ${card.name} en el mapa`}
+        aria-label={`${selected ? 'Quitar del primer plano' : 'Poner en primer plano'} a ${card.name}`}
+        title={FOCUS_HINT}
         className={cn('absolute inset-0 rounded-sm outline-none', FOCUS_RING)}
       />
       <span className="pointer-events-none relative flex min-w-0 items-center gap-1.5">
@@ -137,21 +146,34 @@ function PlayerRow({
   );
 }
 
-/** Both teams at the playhead, one dense row per player; a row highlights the player on the map. */
+/**
+ * Both teams at the playhead, one dense row per player. A click leaves that
+ * player in the foreground, Shift and click adds another, and the first row
+ * gives the whole team back. Under them, the setpos lines copied with S.
+ */
 export function PlayerPanel({
   sides,
   teamNames,
   hiddenSlots,
-  selectedSlot,
-  onSelect,
+  focus,
+  onPick,
+  onFocus,
   onTogglePlayer,
+  onShowAll,
+  setpos,
+  onCopySetpos,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   teamNames: Readonly<Record<TacticalSide, string>>;
   hiddenSlots: readonly number[];
-  selectedSlot: number | null;
-  onSelect: (slot: number | null) => void;
+  focus: PlayerFocus;
+  onPick: (slot: number, additive: boolean) => void;
+  onFocus: (focus: number[]) => void;
   onTogglePlayer: (slot: number) => void;
+  onShowAll: () => void;
+  /** The setpos lines copied in this visit, newest first. */
+  setpos: readonly SetposCopy[];
+  onCopySetpos: (command: string) => void;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -159,6 +181,14 @@ export function PlayerPanel({
   ];
   return (
     <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <AllTeamRow focus={focus} onChange={onFocus} />
+        {hiddenSlots.length === 0 ? null : (
+          <Button type="button" size="xs" variant="ghost" onClick={onShowAll} className="h-6">
+            Mostrar {hiddenSlots.length === 1 ? 'el oculto' : `los ${hiddenSlots.length} ocultos`}
+          </Button>
+        )}
+      </div>
       {groups.map(({ side, cards }) => {
         const alive = cards.filter((card) => card.alive).length;
         return (
@@ -176,8 +206,9 @@ export function PlayerPanel({
                   key={card.slot}
                   card={card}
                   hidden={hiddenSlots.includes(card.slot)}
-                  selected={selectedSlot === card.slot}
-                  onSelect={() => onSelect(selectedSlot === card.slot ? null : card.slot)}
+                  selected={focus.includes(card.slot)}
+                  dimmed={!inFocus(focus, card.slot)}
+                  onSelect={(event) => onPick(card.slot, event.shiftKey)}
                   onToggle={() => onTogglePlayer(card.slot)}
                 />
               ))}
@@ -185,6 +216,24 @@ export function PlayerPanel({
           </section>
         );
       })}
+      {setpos.length === 0 ? null : (
+        <section aria-label="Setpos copiados" className="flex flex-col gap-1 border-t border-border-subtle pt-2">
+          <h3 className="px-1 text-meta font-semibold text-fg-3">Setpos copiados</h3>
+          <ul className="flex flex-col gap-px">
+            {setpos.map((entry) => (
+              <li key={entry.id} className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 hover:bg-surface-3">
+                <span className="min-w-0 flex-1 truncate text-body-sm text-fg-1" title={entry.command}>
+                  {entry.name} <span className="text-meta tabular-nums text-fg-3">{entry.at}</span>
+                </span>
+                <RowAction label={`Copiar otra vez el setpos de ${entry.name}`} pressed={false} onClick={() => onCopySetpos(entry.command)}>
+                  <Copy aria-hidden />
+                </RowAction>
+              </li>
+            ))}
+          </ul>
+          <p className="px-1 text-meta text-fg-3">Pégalo en la consola de CS2, con sv_cheats 1.</p>
+        </section>
+      )}
     </div>
   );
 }

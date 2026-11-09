@@ -20,6 +20,8 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { ReplayWorkspace } from '@/components/replay/replay-workspace';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { MatchGrenades } from '@/components/replay/match-grenades';
+import { ReplayPlayers } from '@/components/replay/replay-players';
+import { focusFromQuery, writeFocus } from '@/lib/replay/player-focus';
 import { ReplayFormTabs, ReplayScopeBar } from '@/components/replay/replay-frame';
 import { TacticalTendenciesPanel } from '@/components/tactical/tactical-tendencies';
 import { useTeamTendencies } from '@/components/tactical/use-team-tendencies';
@@ -178,6 +180,16 @@ export function TacticalAnalysis({
     [pathname, router, searchParams],
   );
   const tramo = useMemo(() => ({ tramo: tramoValue, onChange: setTramo }), [tramoValue, setTramo]);
+  // The players in the foreground: one choice for the four forms, kept in the URL.
+  const focus = useMemo(() => focusFromQuery(searchParams, doc?.players.map((player) => player.slot) ?? []), [doc, searchParams]);
+  const setFocus = useCallback(
+    (next: number[]) => {
+      const query = writeFocus(searchParams.toString(), next);
+      router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+  const players = useMemo(() => ({ focus, onChange: setFocus }), [focus, setFocus]);
   const setForm = useCallback(
     (next: ReplayForm) => {
       const query = writeReplayForm(searchParams.toString(), next);
@@ -209,16 +221,35 @@ export function TacticalAnalysis({
 
   if (doc === null) return <TacticalWorkspaceSkeleton />;
 
-  const spatialScope = { kind: 'match', matchId: sourceId, filter: filterQuery } as const;
+  // The forms that count rounds read one team when the scope has one, so a rival in focus does not count there.
+  const scopeSlots = doc.teams.find((team) => team.key === filter.team_key)?.slots;
+  const counted = scopeSlots === undefined ? focus : focus.filter((slot) => scopeSlots.includes(slot));
+  const spatialScope = { kind: 'match', matchId: sourceId, filter: writeFocus(filterQuery, counted) } as const;
+  const playerList = <ReplayPlayers doc={doc} teamKey={filter.team_key} focus={counted} onChange={setFocus} />;
   let rounded: ReactNode;
   if (loaded === null) {
     rounded = <StudioEmptyState icon={FileWarning} title="No se puede reproducir esta demo" description={POSITIONS_MISSING_MESSAGE} compact />;
   } else if (form === 'calor') {
-    rounded = <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} />;
+    rounded = (
+      <>
+        {playerList}
+        <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} />
+      </>
+    );
   } else if (form === 'recorridos') {
-    rounded = <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch tramo={tramo} />;
+    rounded = (
+      <>
+        {playerList}
+        <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch tramo={tramo} />
+      </>
+    );
   } else if (form === 'granadas' && match !== undefined) {
-    rounded = <MatchGrenades match={match} doc={doc} filter={filter} rounds={rounds} onPickTeam={(team_key) => applyFilter({ ...filter, team_key })} tramo={tramo} />;
+    rounded = (
+      <>
+        {playerList}
+        <MatchGrenades match={match} doc={doc} filter={filter} rounds={rounds} onPickTeam={(team_key) => applyFilter({ ...filter, team_key })} tramo={tramo} focus={counted} />
+      </>
+    );
   } else {
     rounded = (
       <ReplayWorkspace
@@ -227,6 +258,7 @@ export function TacticalAnalysis({
         index={index}
         onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
         seed={seed}
+        players={players}
       />
     );
   }

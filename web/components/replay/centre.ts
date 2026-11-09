@@ -1,6 +1,8 @@
 import type { Stroke } from '@/lib/api/spatial';
 import type { ReplayClock } from '@/lib/replay/clock';
 import type { ReplayLayers } from '@/lib/replay/layers';
+import type { MapSettings } from '@/lib/replay/map-settings';
+import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { TelestratorDraft } from '@/components/tactical/spatial/telestrator';
 
@@ -23,7 +25,13 @@ export type ReplayCentreProps = {
   /** The player the map keeps centred, set with F. */
   followSlot: number | null;
   onFollowSlot: (slot: number | null) => void;
-  /** The player highlighted on the map and in the team panels. */
-  selectedSlot: number | null;
-  onSelectSlot: (slot: number | null) => void;
+  /** The players in the foreground; the rest of the focused match are drawn translucent. */
+  focus: PlayerFocus;
+  /** A click on a player; `additive` is Shift held. */
+  onPickSlot: (slot: number, additive: boolean) => void;
+  /** The player under the cursor, for the setpos shortcut. */
+  onHoverSlot: (slot: number | null) => void;
+  settings: MapSettings;
+  /** Where the map puts its zoom buttons: the bar over it. */
+  barSlot: HTMLElement | null;
 };

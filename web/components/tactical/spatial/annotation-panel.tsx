@@ -112,6 +112,7 @@ export function AnnotationPanel({
   draft,
   anchorLabel,
   onCreate,
+  tools = true,
 }: {
   store: AnnotationStore;
   items: readonly NoteItem[];
@@ -119,6 +120,8 @@ export function AnnotationPanel({
   /** Where a new note goes, or null when there is no round to anchor it to. */
   anchorLabel: string | null;
   onCreate: (text: string) => Promise<boolean>;
+  /** Off where the drawing tools sit elsewhere, such as the Replay's map bar. */
+  tools?: boolean;
 }): ReactNode {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -140,7 +143,7 @@ export function AnnotationPanel({
   return (
     <section aria-label="Notas del replay" className="flex flex-col gap-3">
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-2">
-        <TelestratorToolbar draft={draft} />
+        {tools ? <TelestratorToolbar draft={draft} /> : null}
         <Textarea
           value={text}
           maxLength={ANNOTATION_TEXT_MAX}

@@ -3,6 +3,7 @@ package tacticalplan
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/google/uuid"
@@ -166,12 +167,13 @@ type heatmapBuilder struct {
 }
 
 // subjects maps the slots a round counts to the side each played: the team the
-// filter follows, the side it fixes, or every player.
+// filter follows, the side it fixes, or every player; the filter's subjects
+// narrow them to the chosen players.
 func subjects(d Document, f Filter, r Round) map[uint8]Side {
 	side := f.Perspective(d, r)
 	out := map[uint8]Side{}
 	for _, pr := range r.Players {
-		if side == "" || pr.Side == side {
+		if (side == "" || pr.Side == side) && (len(f.Subjects) == 0 || slices.Contains(f.Subjects, pr.Slot)) {
 			out[pr.Slot] = pr.Side
 		}
 	}

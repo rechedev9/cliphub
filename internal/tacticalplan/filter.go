@@ -45,6 +45,8 @@ type Filter struct {
 	CTPatterns   []CTPattern `json:"ct_patterns,omitempty"`
 	Tags         []string    `json:"tags,omitempty"`
 	Slots        []uint8     `json:"slots,omitempty"`
+	// Subjects narrows whom a heatmap or an overlay counts; it never drops a round.
+	Subjects []uint8 `json:"subjects,omitempty"`
 	RoundFrom    int         `json:"round_from,omitempty"`
 	RoundTo      int         `json:"round_to,omitempty"`
 	Phase        Phase       `json:"phase,omitempty"`
@@ -238,6 +240,9 @@ func FilterFromValues(values url.Values) (Filter, error) {
 	}
 	f.Tags = multi(values, "tag")
 	if f.Slots, err = parseSlots(multi(values, "slot")); err != nil {
+		return Filter{}, err
+	}
+	if f.Subjects, err = parseSlots(multi(values, "subject")); err != nil {
 		return Filter{}, err
 	}
 	if f.RoundFrom, err = parseBound(values.Get("round_from")); err != nil {

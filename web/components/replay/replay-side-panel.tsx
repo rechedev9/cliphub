@@ -4,6 +4,8 @@ import { useMemo, type ComponentProps, type ReactNode } from 'react';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { docNames } from '@/lib/replay/centre-round';
 import type { ReplayLayers } from '@/lib/replay/layers';
+import type { PlayerFocus } from '@/lib/replay/player-focus';
+import type { SetposCopy } from '@/lib/replay/setpos';
 import { teamNamesFor } from '@/lib/replay/map-hud';
 import { playerCards } from '@/lib/replay/player-cards';
 import { frameCursor } from '@/lib/tactical-replay';
@@ -21,18 +23,26 @@ export function ReplaySidePanel({
   nowSeconds,
   tickOf,
   layers,
-  selectedSlot,
-  onSelectSlot,
+  focus,
+  onPickSlot,
+  onFocus,
   onTogglePlayer,
+  onShowAll,
+  setpos,
+  onCopySetpos,
   notes,
 }: {
   focused: CentreRound | null;
   nowSeconds: number;
   tickOf: (round: CentreRound, seconds: number) => number;
   layers: ReplayLayers;
-  selectedSlot: number | null;
-  onSelectSlot: (slot: number | null) => void;
+  focus: PlayerFocus;
+  onPickSlot: (slot: number, additive: boolean) => void;
+  onFocus: (focus: number[]) => void;
   onTogglePlayer: (slot: number) => void;
+  onShowAll: () => void;
+  setpos: readonly SetposCopy[];
+  onCopySetpos: (command: string) => void;
   notes: ComponentProps<typeof AnnotationPanel> | null;
 }): ReactNode {
   const names = useMemo(() => (focused === null ? new Map<number, string>() : docNames(focused.doc)), [focused]);
@@ -55,19 +65,25 @@ export function ReplaySidePanel({
   });
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="min-h-0 shrink overflow-y-auto overscroll-contain [scrollbar-width:thin]">
       <PlayerPanel
         sides={sides}
         teamNames={teamNames}
         hiddenSlots={layers.hiddenSlots}
-        selectedSlot={selectedSlot}
-        onSelect={onSelectSlot}
+        focus={focus}
+        onPick={onPickSlot}
+        onFocus={onFocus}
         onTogglePlayer={onTogglePlayer}
+        onShowAll={onShowAll}
+        setpos={setpos}
+        onCopySetpos={onCopySetpos}
       />
+      </div>
       {notes === null ? null : (
-        <section aria-label="Notas de la ronda" className="flex min-h-0 flex-1 flex-col gap-1.5 border-t border-border-subtle pt-2">
+        <section aria-label="Notas de la ronda" className="flex min-h-40 flex-1 flex-col gap-1.5 border-t border-border-subtle pt-2">
           <h3 className="px-1 text-meta font-semibold text-fg-3">Notas</h3>
           <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
-            <AnnotationPanel {...notes} />
+            <AnnotationPanel {...notes} tools={false} />
           </div>
         </section>
       )}

@@ -112,3 +112,17 @@ func (c *Client) LibraryTacticalPlan(ctx context.Context, matchID string) (tacti
 	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical", &out)
 	return out, err
 }
+
+// TacticalRoundFrames is GET /api/library/matches/{id}/tactical/rounds/{round}:
+// one round and its sampled positions.
+type TacticalRoundFrames struct {
+	Round  tacticalplan.Round   `json:"round"`
+	Frames []tacticalplan.Frame `json:"frames"`
+}
+
+// LibraryTacticalRound returns one round of a library match with its position samples.
+func (c *Client) LibraryTacticalRound(ctx context.Context, matchID string, round int) (TacticalRoundFrames, error) {
+	var out TacticalRoundFrames
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round), &out)
+	return out, err
+}
