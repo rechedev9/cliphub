@@ -31,6 +31,7 @@ type replayGIFOut struct {
 	Path     string  `json:"path"`
 	Bytes    int     `json:"bytes"`
 	Frames   int     `json:"frames"`
+	FPS      int     `json:"fps" jsonschema:"frames a second: 10, lower for a long tramo or a big size so the GIF stays in memory"`
 	Seconds  float64 `json:"seconds" jsonschema:"how long the GIF plays"`
 	Radar    bool    `json:"radar" jsonschema:"false when Studio has no CS2 radar for the map: the players are drawn on a plain plate"`
 	Drawings int     `json:"drawings" jsonschema:"saved drawings of the round, each shown at its moment"`
@@ -116,14 +117,14 @@ func registerReplayGIFTool(server *mcp.Server, s *studio) {
 				scene.Notes = gifNotes(notes)
 			}
 			var buf bytes.Buffer
-			got, err := replaygif.Encode(&buf, scene)
+			got, err := replaygif.Encode(ctx, &buf, scene)
 			if err != nil {
 				return nil, replayGIFOut{}, err
 			}
 			if err := writeNewFile(in.Path, buf.Bytes()); err != nil {
 				return nil, replayGIFOut{}, err
 			}
-			return nil, replayGIFOut{Path: in.Path, Bytes: buf.Len(), Frames: got.Frames, Seconds: got.Seconds,
+			return nil, replayGIFOut{Path: in.Path, Bytes: buf.Len(), Frames: got.Frames, FPS: got.FPS, Seconds: got.Seconds,
 				Radar: scene.Radar != nil, Drawings: drawnNotes(scene.Notes)}, nil
 		})
 }

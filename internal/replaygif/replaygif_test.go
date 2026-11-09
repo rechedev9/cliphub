@@ -2,6 +2,8 @@ package replaygif
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/color/palette"
@@ -48,11 +50,11 @@ func scene(t *testing.T) Scene {
 
 func TestEncodeLoopsTheTramoAtTheGifRate(t *testing.T) {
 	var buf bytes.Buffer
-	got, err := Encode(&buf, scene(t))
+	got, err := Encode(context.Background(), &buf, scene(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Frames != 101 || got.Seconds != 10.1 {
+	if got.Frames != 101 || got.FPS != 10 || got.Seconds != 10.1 {
 		t.Fatalf("result = %+v, want 101 frames and 10.1 s", got)
 	}
 	decoded, err := gif.DecodeAll(&buf)
@@ -72,6 +74,36 @@ func TestEncodeLoopsTheTramoAtTheGifRate(t *testing.T) {
 	if len(decoded.Image) < 2 || decoded.Image[1].Bounds().Dx() >= 256 {
 		t.Fatalf("later frames should carry only what changed: %d frames, second %v", len(decoded.Image), decoded.Image[1].Bounds())
 	}
+	second := decoded.Image[1]
+	transparent := 0
+	for _, p := range second.Pix {
+		if _, _, _, a := second.Palette[p].RGBA(); a == 0 {
+			transparent++
+		}
+	}
+	if transparent == 0 {
+		t.Fatal("the pixels of a changed box that stayed the same should be transparent")
+	}
+}
+
+func TestALongTramoGetsALowerFrameRate(t *testing.T) {
+	s := scene(t)
+	s.ToTick = s.FromTick + 115*rate
+	s.Speed = 1
+	for size, want := range map[int]int{256: 10, 512: 5, 1024: 1} {
+		s.Size = size
+		if fps, ok := frameRate(s); !ok || fps != want {
+			t.Errorf("115 s at %d px = %d fps, want %d", size, fps, want)
+		}
+	}
+}
+
+func TestEncodeStopsWhenCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := Encode(ctx, &bytes.Buffer{}, scene(t)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Encode error = %v, want context.Canceled", err)
+	}
 }
 
 func TestStillFramesOnlyLengthenTheOneBefore(t *testing.T) {
@@ -81,7 +113,7 @@ func TestStillFramesOnlyLengthenTheOneBefore(t *testing.T) {
 	}
 	// A caption that changes only once a second; between those seconds nothing moves.
 	var buf bytes.Buffer
-	if _, err := Encode(&buf, s); err != nil {
+	if _, err := Encode(context.Background(), &buf, s); err != nil {
 		t.Fatal(err)
 	}
 	decoded, err := gif.DecodeAll(&buf)
@@ -135,21 +167,21 @@ func TestClockCountsDownThenFollowsTheBomb(t *testing.T) {
 
 func TestEncodeRejectsWhatItCannotDraw(t *testing.T) {
 	long := scene(t)
-	long.ToTick = long.FromTick + 120*rate
+	long.ToTick = long.FromTick + 3000*rate
 	cases := map[string]Scene{
 		"no radar calibration": {Tickrate: rate, FromTick: 0, ToTick: 64},
 		"the tramo is empty":   func() Scene { s := scene(t); s.ToTick = s.FromTick; return s }(),
-		"keep it under 90 s":   long,
+		"too long":             long,
 	}
 	for want, s := range cases {
-		if _, err := Encode(&bytes.Buffer{}, s); err == nil || !strings.Contains(err.Error(), want) {
+		if _, err := Encode(context.Background(), &bytes.Buffer{}, s); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("Encode error = %v, want one about %q", err, want)
 		}
 	}
 }
 
 func TestSpeedShortensTheGif(t *testing.T) {
-	if got := frameCount(1000, 1640, rate, 2); got != 51 {
+	if got := frameCount(1000, 1640, rate, 2.0/MaxFPS); got != 51 {
 		t.Fatalf("frames at 2x = %d, want 51", got)
 	}
 }

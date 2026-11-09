@@ -4,6 +4,7 @@
 package replaygif
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -21,10 +22,11 @@ import (
 )
 
 const (
-	// FPS is the GIF's frame rate; radar dots need no more to read as motion.
-	FPS = 10
-	// MaxFrames caps one GIF at 90 s of output, so its frames fit in memory.
-	MaxFrames = 900
+	// MaxFPS is the GIF's frame rate when the tramo is short; radar dots need no more to read as motion.
+	MaxFPS = 10
+	// maxPixels bounds the frames held until the GIF is written (about 157 MB):
+	// 600 frames at 512 px, 150 at 1024. A longer tramo gets a lower frame rate.
+	maxPixels = 1024 * 1024 * 150
 	// DefaultSize is the GIF's side in pixels.
 	DefaultSize  = 512
 	roundSeconds = 115
@@ -70,15 +72,20 @@ type Scene struct {
 	Size  int
 }
 
-// Result says how long the GIF plays.
+// Result says how long the GIF plays and at what frame rate.
 type Result struct {
 	Frames  int
+	FPS     int
 	Seconds float64
 }
 
+// gifRates are the frame rates whose delay is a whole number of centiseconds, fastest first.
+var gifRates = []int{MaxFPS, 5, 4, 2, 1}
+
 // Encode writes the scene as a looping GIF. Frames after the first carry only
-// the rectangle that changed, and a frame like the one before only lengthens it.
-func Encode(w io.Writer, s Scene) (Result, error) {
+// the rectangle that changed, with the pixels inside it that did not change
+// left transparent, and a frame like the one before only lengthens it.
+func Encode(ctx context.Context, w io.Writer, s Scene) (Result, error) {
 	if !s.Calibration.Valid() {
 		return Result{}, errors.New("the match has no radar calibration")
 	}
@@ -94,24 +101,30 @@ func Encode(w io.Writer, s Scene) (Result, error) {
 	if s.Speed <= 0 {
 		s.Speed = 1
 	}
-	n := frameCount(s.FromTick, s.ToTick, s.Tickrate, s.Speed)
-	if n == 0 {
+	if s.ToTick <= s.FromTick {
 		return Result{}, errors.New("the tramo is empty")
 	}
-	if n > MaxFrames {
-		return Result{}, fmt.Errorf("the GIF would last %d s; keep it under %d s, with a shorter tramo or a higher speed", n/FPS, MaxFrames/FPS)
+	fps, ok := frameRate(s)
+	if !ok {
+		return Result{}, errors.New("the tramo is too long for one GIF even at 1 frame a second: pick a shorter one, a higher speed or a smaller size")
 	}
-	ticks := frameTicks(s.FromTick, s.ToTick, s.Tickrate, s.Speed)
+	ticks := frameTicks(s.FromTick, s.ToTick, s.Tickrate, s.Speed/float64(fps))
 	sort.Slice(s.Frames, func(i, j int) bool { return s.Frames[i].Tick < s.Frames[j].Tick })
-	pal := color.Palette(palette.Plan9)
+	// The Plan9 colours but the last, which becomes the transparent slot.
+	pal := append(color.Palette{}, palette.Plan9[:255]...)
+	pal = append(pal, color.Transparent)
+	transparent := uint8(len(pal) - 1)
 	in := newInks(pal)
 	base := plate(s, pal)
 	bounds := base.Bounds()
 	anim := &gif.GIF{Config: image.Config{ColorModel: pal, Width: s.Size, Height: s.Size}}
 	prev := image.NewPaletted(bounds, pal)
 	cur := image.NewPaletted(bounds, pal)
-	const delay = 100 / FPS
+	delay := 100 / fps
 	for i, tick := range ticks {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		copy(cur.Pix, base.Pix)
 		s.drawAt(cur, tick, in)
 		box := bounds
@@ -121,7 +134,11 @@ func Encode(w io.Writer, s Scene) (Result, error) {
 		if box.Empty() {
 			anim.Delay[len(anim.Delay)-1] += delay
 		} else {
-			anim.Image = append(anim.Image, crop(cur, box))
+			var keep *image.Paletted
+			if i > 0 {
+				keep = prev
+			}
+			anim.Image = append(anim.Image, crop(cur, cropSpec{box: box, prev: keep, transparent: transparent}))
 			anim.Delay = append(anim.Delay, delay)
 			anim.Disposal = append(anim.Disposal, gif.DisposalNone)
 		}
@@ -130,23 +147,35 @@ func Encode(w io.Writer, s Scene) (Result, error) {
 	if err := gif.EncodeAll(w, anim); err != nil {
 		return Result{}, fmt.Errorf("encode gif: %w", err)
 	}
-	return Result{Frames: len(ticks), Seconds: float64(len(ticks)) / FPS}, nil
+	return Result{Frames: len(ticks), FPS: fps, Seconds: float64(len(ticks)) / float64(fps)}, nil
 }
 
-// frameCount is how many GIF frames the tramo takes at this speed.
-func frameCount(from, to int, tickrate, speed float64) int {
+// frameRate is the fastest GIF rate whose frames, at this size, stay within maxPixels.
+func frameRate(s Scene) (int, bool) {
+	budget := maxPixels / (s.Size * s.Size)
+	for _, fps := range gifRates {
+		if frameCount(s.FromTick, s.ToTick, s.Tickrate, s.Speed/float64(fps)) <= budget {
+			return fps, true
+		}
+	}
+	return 0, false
+}
+
+// frameCount is how many GIF frames the tramo takes when each frame advances `step` seconds of play times the tickrate.
+func frameCount(from, to int, tickrate, step float64) int {
 	if to <= from {
 		return 0
 	}
-	return int(float64(to-from)/(tickrate*speed/FPS)) + 1
+	return int(float64(to-from)/(tickrate*step)) + 1
 }
 
-// frameTicks are the round ticks of each GIF frame, from `from` towards `to`.
-func frameTicks(from, to int, tickrate, speed float64) []int {
-	step := tickrate * speed / FPS
-	out := make([]int, frameCount(from, to, tickrate, speed))
+// frameTicks are the round ticks of each GIF frame, from `from` towards `to`; `step` is the
+// seconds of the round one frame advances: speed over the frame rate.
+func frameTicks(from, to int, tickrate, step float64) []int {
+	stepTicks := tickrate * step
+	out := make([]int, frameCount(from, to, tickrate, step))
 	for i := range out {
-		out[i] = from + int(math.Round(float64(i)*step))
+		out[i] = from + int(math.Round(float64(i)*stepTicks))
 	}
 	return out
 }
@@ -183,10 +212,27 @@ func changed(a, b *image.Paletted) image.Rectangle {
 	return box
 }
 
-func crop(src *image.Paletted, box image.Rectangle) *image.Paletted {
-	out := image.NewPaletted(box, src.Palette)
-	for y := box.Min.Y; y < box.Max.Y; y++ {
-		copy(out.Pix[out.PixOffset(box.Min.X, y):out.PixOffset(box.Max.X, y)], src.Pix[src.PixOffset(box.Min.X, y):src.PixOffset(box.Max.X, y)])
+type cropSpec struct {
+	box image.Rectangle
+	// prev, when set, turns every pixel it shares with the frame into transparent.
+	prev        *image.Paletted
+	transparent uint8
+}
+
+func crop(src *image.Paletted, c cropSpec) *image.Paletted {
+	out := image.NewPaletted(c.box, src.Palette)
+	for y := c.box.Min.Y; y < c.box.Max.Y; y++ {
+		row := out.Pix[out.PixOffset(c.box.Min.X, y):out.PixOffset(c.box.Max.X, y)]
+		at := src.PixOffset(c.box.Min.X, y)
+		copy(row, src.Pix[at:at+len(row)])
+		if c.prev == nil {
+			continue
+		}
+		for x, p := range c.prev.Pix[at : at+len(row)] {
+			if p == row[x] {
+				row[x] = c.transparent
+			}
+		}
 	}
 	return out
 }
