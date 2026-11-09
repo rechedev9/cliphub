@@ -35,7 +35,8 @@ function sideBar(winner: TacticalSide | '' | undefined): string {
 }
 
 /**
- * The rounds of the playlist in play order, grouped by match: the number, how
+ * The rounds of the playlist in play order, grouped by match, each group under
+ * its match and date so a round number always says whose it is: the number, how
  * it ended in the winner's colour, and a gap at the half. In multi-round mode a
  * second press of a round adds it to the map instead of opening it.
  */
@@ -54,7 +55,8 @@ export function RoundStrip({
   /** `Mirage · NAVI vs FaZe`, or a placeholder while the match loads. */
   groupLabel: (matchId: string) => string;
   roundInfo: (entry: ReplayRef) => StripRoundInfo | null;
-  multi: { selected: readonly string[]; blocked: (entry: ReplayRef) => string | null } | null;
+  /** `locked`: every round of the scope is superposed, so a press opens a round instead of toggling it. */
+  multi: { selected: readonly string[]; blocked: (entry: ReplayRef) => string | null; locked: boolean } | null;
   onToggleMulti: (key: string) => void;
 }): ReactNode {
   const listRef = useRef<HTMLDivElement>(null);
@@ -83,7 +85,7 @@ export function RoundStrip({
     >
       {groups.map((group) => (
         <div key={`${group.matchId}:${group.start}`} role="listitem" className="flex shrink-0 flex-col gap-1">
-          {groups.length > 1 ? <span className="max-w-60 truncate text-meta text-fg-3">{groupLabel(group.matchId)}</span> : null}
+          <span className="max-w-72 truncate text-meta text-fg-3">{groupLabel(group.matchId)}</span>
           <ol className="flex">
             {entries.slice(group.start, group.end).map((entry, offset) => {
               const at = group.start + offset;
@@ -96,7 +98,7 @@ export function RoundStrip({
               const blocked = multi?.blocked(entry) ?? null;
               const Icon = info === null ? null : OUTCOME_ICON[info.outcome];
               const outcome = info === null ? '' : `, ${ROUND_OUTCOME_LABEL[info.outcome].toLowerCase()}`;
-              const toggles = multi !== null && !selected;
+              const toggles = multi !== null && !multi.locked && !selected;
               let hint: string | undefined = info === null ? undefined : `${info.score}${outcome}`;
               if (toggles) hint = blocked ?? 'Pulsa para superponer, doble clic para abrir';
               return (

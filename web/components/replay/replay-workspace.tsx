@@ -25,7 +25,7 @@ import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds }
 import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
-import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
+import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import {
   SEEK_STEP_SECONDS,
@@ -151,8 +151,13 @@ export function ReplayWorkspace({
   // Slots mean a player only inside one match: a focus the workspace keeps itself ends with the match.
   const matchId = entry?.matchId;
   useEffect(() => setOwnFocus([]), [matchId]);
+  // With players in focus every round of the scope is superposed; without, the cap keeps the map readable.
+  const everyRound = focus.length > 0;
+  const selectedKeys = useMemo(() => {
+    if (!multi) return [];
+    return everyRound ? entries.map(entryKey) : withFocus(multiKeys, focusKey);
+  }, [entries, everyRound, focusKey, multi, multiKeys]);
   const pickSlot = useCallback((slot: number, additive: boolean) => setFocus(pickPlayer(focus, slot, additive)), [focus, setFocus]);
-  const selectedKeys = useMemo(() => (multi ? withFocus(multiKeys, focusKey) : []), [multi, multiKeys, focusKey]);
 
   const wanted = useMemo(() => {
     const ids = matchesToLoad(entries, index, 1);
@@ -456,6 +461,9 @@ export function ReplayWorkspace({
   );
   const labelOf = useCallback(
     (matchId: string) => {
+      // The page knows the match's date; the analysis alone only knows the map and the teams.
+      const named = groupLabel?.(matchId) ?? null;
+      if (named !== null) return named;
       const state = analyses.get(matchId);
       if (state?.state === 'ready') {
         const { doc } = state.analysis;
@@ -508,6 +516,13 @@ export function ReplayWorkspace({
     '--replay-right': folds.right ? '2.75rem' : '288px',
   };
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
+  const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
+  let superposeNote = `hasta ${MULTI_MAX_ROUNDS} rondas`;
+  if (everyRound) superposeNote = multi ? `${centreRounds.length} de ${focusNames}` : `todas las de ${focusNames}`;
+  else if (multi) superposeNote = `${centreRounds.length} de ${MULTI_MAX_ROUNDS} como máximo`;
+  const superposeHint = everyRound
+    ? `Superpone todas las rondas del alcance con ${focusNames} en primer plano, desde el final del tiempo de compra`
+    : `Superpone hasta ${MULTI_MAX_ROUNDS} rondas desde el final del tiempo de compra: pulsa una ronda para sumarla. Elige un jugador para ver todas las suyas`;
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
@@ -690,10 +705,13 @@ export function ReplayWorkspace({
             disabled={focused === null}
             onClick={toggleMulti}
             className="h-10 shrink-0"
-            title={multi ? 'Pulsa una ronda para superponerla; doble clic para abrirla' : 'Superpone varias rondas desde el final del tiempo de compra'}
+            title={superposeHint}
           >
             <Layers aria-hidden />
-            Multi ronda
+            <span className="flex flex-col items-start leading-tight">
+              Superponer
+              <span className="text-meta font-normal text-fg-3">{superposeNote}</span>
+            </span>
           </Button>
           <RoundStrip
             entries={entries}
@@ -705,6 +723,7 @@ export function ReplayWorkspace({
               multi
                 ? {
                     selected: selectedKeys,
+                    locked: everyRound,
                     blocked: (candidate) => {
                       const state = analyses.get(candidate.matchId);
                       if (state?.state === 'failed') return 'Esta partida no tiene análisis';

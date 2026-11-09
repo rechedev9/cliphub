@@ -158,3 +158,21 @@ func (c *Client) LibraryRoundLineups(ctx context.Context, matchID string, round 
 	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round)+"/lineups", &out)
 	return out, err
 }
+
+// MatchOverlay is GET /api/library/matches/{id}/tactical/overlay: the rounds a
+// scope superposes, each with the paths of the players it counts.
+type MatchOverlay struct {
+	Map     string                `json:"map"`
+	Overlay *tacticalplan.Overlay `json:"overlay"`
+}
+
+// LibraryMatchOverlay superposes the rounds of one match that the filter keeps.
+func (c *Client) LibraryMatchOverlay(ctx context.Context, matchID string, filter url.Values) (MatchOverlay, error) {
+	var out MatchOverlay
+	suffix := ""
+	if len(filter) > 0 {
+		suffix = "?" + filter.Encode()
+	}
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/overlay"+suffix, &out)
+	return out, err
+}

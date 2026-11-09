@@ -1,9 +1,11 @@
 package main
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func TestReplayRoundsScopeReadsAsTheReplayURL(t *testing.T) {
@@ -69,5 +71,21 @@ func TestPlaylistPathReadsAsTheReplayURL(t *testing.T) {
 		if _, err := playlistPath(refs, ""); err == nil {
 			t.Errorf("%v: no error", refs)
 		}
+	}
+}
+
+func TestOverlayNamesItsRoundsAndOpensThemAsRecorridos(t *testing.T) {
+	got := tuiclient.MatchOverlay{Map: "de_mirage", Overlay: &tacticalplan.Overlay{Limit: 12, Total: 20, Rounds: []tacticalplan.OverlayRound{
+		{Round: 3, Side: tacticalplan.SideT, Winner: tacticalplan.SideCT, DurationSeconds: 41.5, Tracks: []tacticalplan.OverlayTrack{{Name: "ana"}}},
+	}}}
+	out := overlayOut("m1", got, url.Values{"subject": {"4"}})
+	if out.Superposed != 1 || out.Total != 20 || out.Cap != 12 || out.Rounds[0].Ref != "m1/3" || len(out.Rounds[0].Players) != 1 || out.Rounds[0].Players[0] != "ana" {
+		t.Fatalf("overlay = %+v", out)
+	}
+	if want := "/partidas/m1?forma=recorridos&subject=4&tab=replay"; out.StudioPath != want {
+		t.Fatalf("studio_path = %s, want %s", out.StudioPath, want)
+	}
+	if empty := overlayOut("m1", tuiclient.MatchOverlay{}, nil); empty.Rounds == nil || empty.Superposed != 0 {
+		t.Fatalf("empty overlay = %+v", empty)
 	}
 }

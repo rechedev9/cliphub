@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 // replayForms are the four ways the Replay reads its rounds, as Studio names
@@ -209,7 +210,79 @@ func playlistPath(refs []string, title string) (string, error) {
 	return "/replay?" + v.Encode(), nil
 }
 
+type overlayRoundOut struct {
+	Ref     string   `json:"ref"`
+	Side    string   `json:"side,omitempty"`
+	Winner  string   `json:"winner"`
+	Buy     string   `json:"buy,omitempty"`
+	Site    string   `json:"site,omitempty"`
+	Seconds float64  `json:"seconds" jsonschema:"how long the round ran after going live"`
+	Players []string `json:"players" jsonschema:"whose paths the round draws: the focus, or the team or side in scope"`
+}
+
+type replayOverlayOut struct {
+	MatchID    string            `json:"match_id"`
+	Map        string            `json:"map"`
+	Superposed int               `json:"superposed" jsonschema:"rounds drawn at once"`
+	Total      int               `json:"total" jsonschema:"rounds the scope keeps; more than superposed when the cap cut the list"`
+	Cap        int               `json:"cap" jsonschema:"most rounds one overlay draws"`
+	Rounds     []overlayRoundOut `json:"rounds"`
+	StudioPath string            `json:"studio_path" jsonschema:"the path that opens these rounds superposed in the Replay"`
+}
+
+// overlayOut names the superposed rounds and whose paths each draws, and the path that opens them in Studio.
+func overlayOut(matchID string, got tuiclient.MatchOverlay, scope url.Values) replayOverlayOut {
+	out := replayOverlayOut{MatchID: matchID, Map: cleanName(got.Map), Rounds: []overlayRoundOut{}}
+	if got.Overlay != nil {
+		out.Total, out.Cap = got.Overlay.Total, got.Overlay.Limit
+		for _, r := range got.Overlay.Rounds {
+			row := overlayRoundOut{Ref: fmt.Sprintf("%s/%d", matchID, r.Round), Side: string(r.Side), Winner: string(r.Winner),
+				Buy: string(r.Buy), Site: string(r.Site), Seconds: r.DurationSeconds, Players: []string{}}
+			for _, track := range r.Tracks {
+				row.Players = append(row.Players, cleanName(track.Name))
+			}
+			out.Rounds = append(out.Rounds, row)
+		}
+	}
+	out.Superposed = len(out.Rounds)
+	path := url.Values{}
+	for key, list := range scope {
+		path[key] = list
+	}
+	path.Set("tab", "replay")
+	path.Set("forma", "recorridos")
+	out.StudioPath = "/partidas/" + url.PathEscape(matchID) + "?" + path.Encode()
+	return out
+}
+
 func registerReplayTools(server *mcp.Server, s *studio) {
+	mcp.AddTool(server, &mcp.Tool{Name: "replay_overlay", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Superpose the rounds of one match that a Replay scope keeps, as Superponer does: every round starts at the end of freeze time. " +
+			"It takes the scope of replay_rounds and the same focus: with players in focus only their paths are drawn, in every round they played. " +
+			"The answer lists the rounds and whose paths each draws; studio_path opens them superposed in Studio."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in replayRoundsIn) (*mcp.CallToolResult, replayOverlayOut, error) {
+			if err := checkUUID("match_id", in.MatchID); err != nil {
+				return nil, replayOverlayOut{}, err
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, replayOverlayOut{}, toolError(err)
+			}
+			doc, err := c.LibraryTacticalPlan(ctx, in.MatchID)
+			if err != nil {
+				return nil, replayOverlayOut{}, toolError(err)
+			}
+			values, err := in.values(doc)
+			if err != nil {
+				return nil, replayOverlayOut{}, err
+			}
+			got, err := c.LibraryMatchOverlay(ctx, in.MatchID, values)
+			if err != nil {
+				return nil, replayOverlayOut{}, toolError(err)
+			}
+			return nil, overlayOut(in.MatchID, got, values), nil
+		})
+
 	mcp.AddTool(server, &mcp.Tool{Name: "round_lineups", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Compare one round's grenades with the lineup catalog, as Comparar granadas does in the Replay's round panel: each smoke, flash, HE and molotov, " +
 			"who threw it, where it landed and the catalog lineup it matches."},

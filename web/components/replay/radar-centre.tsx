@@ -189,6 +189,17 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   // The plate covers the whole canvas, not just the view, or the strips beside it stay black.
   const shown = useMemo(() => boxWindow(box, projection), [box, projection]);
 
+  // Slots mean a player only inside one match: in another match the same players are found by SteamID.
+  const focusByMatch = useMemo(() => {
+    const out = new Map<string, readonly number[]>();
+    const ids = new Set((focused?.doc.players ?? []).filter((player) => focus.includes(player.slot)).map((player) => player.steamid64));
+    for (const round of rounds) {
+      if (out.has(round.matchId)) continue;
+      out.set(round.matchId, round.matchId === focusedMatchId ? focus : round.doc.players.filter((player) => ids.has(player.steamid64)).map((player) => player.slot));
+    }
+    return out;
+  }, [focus, focused, focusedMatchId, rounds]);
+
   const readers = useMemo(() => {
     const out = new Map<string, Readers>();
     for (const round of rounds) {
@@ -230,7 +241,10 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         if (player.death_tick !== undefined && player.death_tick <= tick) deadFor.set(player.slot, nowSeconds - timelineSeconds(round.timeline, player.death_tick));
       }
       const visible = { x: shown.x * projection.size, y: shown.y * projection.size, width: shown.width * projection.size, height: shown.height * projection.size };
-      const drawn = layerSamples(samples, layers);
+      const roundFocus = focusByMatch.get(round.matchId) ?? NO_FOCUS;
+      // With players in focus, a superposed round shows only them: forty rounds of one player stay readable.
+      const alone = focus.length > 0 && !round.focused;
+      const drawn = alone ? layerSamples(samples, layers).filter((sample) => roundFocus.includes(sample.slot)) : layerSamples(samples, layers);
       const secondsOf = (at: number): number => timelineSeconds(round.timeline, at);
       let analysis: FrameAnalysis | null = null;
       if (round.focused) {
@@ -261,19 +275,18 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           secondsOf,
           deadFor,
           labels: round.focused ? round.labels : new Map(),
-          // Slots mean a player only inside one match, so another match's rounds keep everyone.
-          focus: round.matchId === focusedMatchId ? focus : NO_FOCUS,
+          focus: roundFocus,
           dotScale,
           nameScale,
-          utility: layers.utility,
-          bomb: layers.bomb,
+          utility: layers.utility && !alone,
+          bomb: layers.bomb && !alone,
           style,
           analysis,
         },
         round.focused ? { visible, spots: spotsRef.current } : null,
       );
     },
-    [dotScale, focus, focusedMatchId, geometry, layers, nameScale, projection.size, readers, shown, sightBvh, tickOf],
+    [dotScale, focus, focusByMatch, geometry, layers, nameScale, projection.size, readers, shown, sightBvh, tickOf],
   );
 
   const render = useCallback(

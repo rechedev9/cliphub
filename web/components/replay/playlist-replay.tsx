@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
-import { prettyMapName } from '@/lib/format';
+import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -58,7 +58,7 @@ export function PlaylistReplay(): ReactNode {
   const index = indexOfKey(entries, currentKey);
   const groupLabel = useCallback((matchId: string) => {
     const match = matches?.get(matchId);
-    return match === undefined ? null : matchLabel(match);
+    return match === undefined ? null : `${matchLabel(match)} · ${formatShortDate(match.played_at)}`;
   }, [matches]);
 
   if (refs.length === 0) return <ReplayHome />;

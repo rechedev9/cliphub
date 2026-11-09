@@ -7,6 +7,8 @@ import { fetchTacticalDocument, isPositionsMissingError } from '@/lib/api/tactic
 import type { TacticalDocument, TacticalFilter, TacticalSource } from '@/lib/api/tactical';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { LibraryMatch } from '@/lib/api/library';
+import { formatShortDate, prettyMapName } from '@/lib/format';
+import { matchTitle } from '@/lib/library/partidas';
 import { DEFAULT_REPLAY_FORM, REPLAY_FORMS, replayFormFromQuery, writeReplayForm } from '@/lib/replay/forms';
 import type { ReplayForm } from '@/lib/replay/forms';
 import { tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
@@ -206,6 +208,11 @@ export function TacticalAnalysis({
       ),
     [rounds, sourceId, linkedRound, linkedTick],
   );
+  // The strip names the match with its date, so a round number always says whose it is.
+  const groupLabel = useCallback(
+    () => (match === undefined ? null : `${prettyMapName(match.map)} · ${matchTitle(match)} · ${formatShortDate(match.played_at)}`),
+    [match],
+  );
   const seed = useMemo(() => (loaded === null ? undefined : { id: sourceId, analysis: loaded }), [loaded, sourceId]);
 
   if (loadError !== null) {
@@ -259,6 +266,7 @@ export function TacticalAnalysis({
         onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
         seed={seed}
         players={players}
+        groupLabel={groupLabel}
       />
     );
   }
