@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { EditConfig, Match, Play, Preset, RenderFormat } from '@/lib/api/types';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
-import { forgeHint } from '@/lib/forge-hint';
+import { FORGE_HINT_LOADING_PRESETS, forgeHint } from '@/lib/forge-hint';
 import { shortCreateErrorMessage } from '@/lib/produce/short-create-error';
 import { PRODUCE_SHORT_CTA, PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE, PRODUCE_SUMMARY_CTA, PRODUCE_SUMMARY_TITLE } from '@/lib/produce/copy';
 import { addWithoutClashes, BEST_MOMENTS_TARGET_SECONDS, bestMomentsEdit, clashingPlay } from '@/lib/produce/multi-pov';
@@ -196,7 +197,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
     setCreating(true);
     setCreateError(null);
     try {
-      await api.createVideo({
+      const video = await api.createVideo({
         matchId,
         playIds: selectedPlays.map((play) => play.id),
         mode: songId ? 'music' : 'clean',
@@ -208,7 +209,9 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         editConfig: shape(editConfig, deathReel),
       });
       discardDraft();
-      toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
+      // A start Studio refused lands as a failed card in Mis vídeos; the toast says so instead of "en preparación".
+      if (video.status === 'failed') toast.error(landscape ? 'El resumen no ha empezado' : 'El Short no ha empezado', { description: parseFailureReason(video.failureReason).message });
+      else toast(landscape ? 'Resumen en preparación' : 'Short en preparación', { description: 'Sigue la grabación y el montaje en Mis vídeos.' });
       router.push(doneHref);
     } catch (err) {
       setCreateError(shortCreateErrorMessage(err));
@@ -228,7 +231,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
       <span className="text-fg-3"> · </span>
       <span className={overTarget ? 'text-warning' : undefined}>{formatClock(estimatedSeconds)} aprox.</span>
       <span className="text-fg-3"> · </span>
-      <span className="text-fg-1">{presetLabel ?? 'Estilo pendiente'}</span>
+      <span className="text-fg-1">{presetLabel ?? (presets === null ? 'Cargando estilo' : 'Estilo pendiente')}</span>
       <span className="text-fg-3"> · </span>
       {musicSummary}
     </>
@@ -298,7 +301,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
               <div className={cn('w-full rounded-[1.25rem] bg-surface-2', landscape ? 'aspect-video' : 'aspect-[9/16]')} />
             )}
           </div>
-          <p className="text-center text-meta text-fg-3">{presetLabel ? `${presetLabel} · ejemplo orientativo` : 'Elige un estilo para verlo aquí'}</p>
+          <p className="text-center text-meta text-fg-3">{previewCaption(presetLabel, presets === null)}</p>
           <ShortStoryboard cues={cues} ordinals={roundOrdinals(plays)} {...(landscape ? { title: 'Guion del resumen', videoLabel: 'Resumen' } : {})} />
         </section>
 
@@ -379,7 +382,7 @@ export function ShortProducer({ matchId, match, plays: killPlays, deathPlays: al
         hint={
           selectedPlays.length === 0
             ? PRODUCE_SHORT_EMPTY_HINT
-            : forgeHint(roundsSummary(selectedPlays), presetLabel)
+            : forgeHint(roundsSummary(selectedPlays), { label: presetLabel, loading: presets === null })
         }
         briefItems={briefItems}
         backHref={backHref}
@@ -465,4 +468,9 @@ function overlaysSummary(edit: EditConfig): string {
   if (edit.victimReplay) parts.push('Repetición');
   if (edit.keyDropStyle) parts.push('Afiliado');
   return parts.length > 0 ? parts.join(' + ') : 'Solo efectos';
+}
+
+function previewCaption(presetLabel: string | null, loading: boolean): string {
+  if (presetLabel) return `${presetLabel} · ejemplo orientativo`;
+  return loading ? FORGE_HINT_LOADING_PRESETS : 'Elige un estilo para verlo aquí';
 }

@@ -7,7 +7,9 @@ import {
   normalizeAffiliateFamily,
   type EditConfig,
   type RenderMode,
+  type Video,
 } from './types.ts';
+import type { ReelAction } from './reel-reconcile.ts';
 
 // Mirrors types.BOOKEND_TEXT_MAX_LENGTH; duplicated so Node's TS loader stays type-only.
 const BOOKEND_TEXT_MAX_LENGTH = 80;
@@ -35,7 +37,11 @@ export type ReelIntent = {
   /** Optional stored cover basename from older Library approvals. */
   selectedCoverName?: string;
   createdAt: number;
+  /** A durable start refusal: a reload shows it instead of starting the reel again on its own. */
+  admissionFailure?: AdmissionFailure;
 };
+
+export type AdmissionFailure = { failureReason: string; retryAction: ReelAction };
 
 const STORE_KEY = 'cliphub.reels.v1';
 /** Pre-rebrand key; read once and migrate into STORE_KEY. */
@@ -125,9 +131,50 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
     if (typeof r.selectedCoverName === 'string' && r.selectedCoverName.trim() !== '') {
       intent.selectedCoverName = r.selectedCoverName.trim();
     }
+    const admissionFailure = coerceAdmissionFailure(r.admissionFailure);
+    if (admissionFailure !== undefined) intent.admissionFailure = admissionFailure;
     out.push(intent);
   }
   return out;
+}
+
+function coerceAdmissionFailure(value: unknown): AdmissionFailure | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { failureReason, retryAction } = value as Record<string, unknown>;
+  if (typeof failureReason !== 'string' || failureReason === '') return undefined;
+  if (retryAction !== 'record' && retryAction !== 'render') return undefined;
+  return { failureReason, retryAction };
+}
+
+/** The intent with its start refusal set, or cleared when `failure` is undefined. */
+export function withAdmissionFailure(intent: ReelIntent, failure: AdmissionFailure | undefined): ReelIntent {
+  const next: ReelIntent = { ...intent };
+  if (failure === undefined) delete next.admissionFailure;
+  else next.admissionFailure = failure;
+  return next;
+}
+
+/** The reel as listed before the orchestrator answers: queued, or failed by a kept start refusal. */
+export function videoFromIntent(intent: ReelIntent): Video {
+  const failure = intent.admissionFailure;
+  return {
+    id: intent.videoId,
+    jobId: intent.jobId,
+    title: intent.title,
+    map: intent.map,
+    score: intent.score,
+    targetName: intent.targetName,
+    mode: intent.mode,
+    variant: intent.variant,
+    songId: intent.songId,
+    musicVolume: intent.musicVolume,
+    gameVolume: intent.gameVolume,
+    editConfig: intent.editConfig,
+    status: failure === undefined ? 'queued' : 'failed',
+    ...(failure === undefined ? {} : { failureReason: failure.failureReason }),
+    createdAt: intent.createdAt,
+    availableForSec: 14 * 3600,
+  };
 }
 
 function isPersistedRecapIntent(videoId: string, edit: EditConfig): boolean {

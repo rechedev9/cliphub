@@ -2,7 +2,7 @@
 // Run: node --test reel-store.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coerceEditConfig, coerceIntents, DEFAULT_EDIT_CONFIG } from './reel-store.ts';
+import { coerceEditConfig, coerceIntents, DEFAULT_EDIT_CONFIG, videoFromIntent, withAdmissionFailure } from './reel-store.ts';
 import type { ReelIntent } from './reel-store.ts';
 
 const valid: ReelIntent = {
@@ -195,4 +195,21 @@ test('truncates bookend text to the 80-char limit and drops non-string values', 
   const coerced = coerceEditConfig({ format: 'short-9x16', killEffect: 'clean', transition: 'cut', intro: true, outro: true, introText: longText, outroText: 42 });
   assert.equal(coerced.introText?.length, 80);
   assert.equal(coerced.outroText, '');
+});
+
+test('a kept start refusal survives a reload and lists the reel as failed with its reason', () => {
+  const refused = withAdmissionFailure(valid, { failureReason: 'local API mutation capability required', retryAction: 'record' });
+  const [reloaded] = coerceIntents(JSON.parse(JSON.stringify([refused, { ...valid, videoId: 'job__seg-002', admissionFailure: { failureReason: 'x', retryAction: 'none' } }])));
+  assert.ok(reloaded !== undefined);
+  assert.deepEqual(reloaded.admissionFailure, { failureReason: 'local API mutation capability required', retryAction: 'record' });
+  assert.equal(videoFromIntent(reloaded).status, 'failed');
+  assert.equal(videoFromIntent(reloaded).failureReason, 'local API mutation capability required');
+  const cleared = withAdmissionFailure(reloaded, undefined);
+  assert.equal('admissionFailure' in cleared, false);
+  assert.equal(videoFromIntent(cleared).status, 'queued');
+});
+
+test('a malformed start refusal is dropped and the reel stays queued', () => {
+  const [intent] = coerceIntents([{ ...valid, admissionFailure: { failureReason: 'x', retryAction: 'none' } }]);
+  assert.equal(intent?.admissionFailure, undefined);
 });

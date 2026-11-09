@@ -25,9 +25,6 @@ const TRAIL = {
 /** Short series live outside /shorts; Demo completa series live under /videos-largos/serie. */
 const SERIES_PREFIX = '/series/';
 
-/** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
-const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 // Full-inset ceiling: own padding, no max-w, opaque and flat (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
@@ -100,9 +97,8 @@ function trailForPath(pathname: string, section: NavSection | null): string | nu
   if (section.href === SHORTS_HREF) return TRAIL.newShort;
   if (section.href === LONG_VIDEOS_HREF) return segments[0] === FULL_SERIES_SEGMENT ? TRAIL.series : TRAIL.newFull;
   if (section.href === RESULTS_HREF && segments[1] === 'publicar') return TRAIL.publish;
-  const segment = decodeURIComponent(segments[0] ?? '');
-  if (OPAQUE_ID.test(segment)) return null;
-  return SEGMENT_LABEL[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1);
+  // Any other segment is a record id: the record names itself once it loads, never the raw id.
+  return SEGMENT_LABEL[decodeURIComponent(segments[0] ?? '')] ?? null;
 }
 
 // Static sub-routes read as screen names, not URL slugs.

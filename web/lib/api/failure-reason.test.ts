@@ -32,6 +32,13 @@ test('parseFailureReason classifies each reason into its kind and retry hint', (
       retryCanHelp: true,
       message: /No se pudo completar el vídeo/,
     },
+    {
+      name: 'a refusal of the web proxy asks to reopen Studio instead of the generic text',
+      reason: 'local API mutation capability required',
+      kind: 'studio-session',
+      retryCanHelp: true,
+      message: /Cierra Studio, vuelve a abrirlo/,
+    },
   ];
   for (const { name, reason, kind, retryCanHelp, message } of cases) {
     const result = parseFailureReason(reason);

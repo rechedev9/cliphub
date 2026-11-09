@@ -133,7 +133,8 @@ function NavRow({ section, active }: { section: NavSection; active: boolean }): 
             className={cn('size-4 shrink-0', meta.tone ?? (active ? 'text-fg-1' : 'text-fg-3'))}
             aria-hidden
           />
-          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">{section.label}</span>
+          {/* sr-only, not hidden: the icon rail keeps the link's name for screen readers. */}
+          <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{section.label}</span>
           <NavPending />
         </Link>
       </SidebarMenuButton>

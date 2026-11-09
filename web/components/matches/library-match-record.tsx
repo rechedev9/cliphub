@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft, Swords } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Video } from '@/lib/api/types';
@@ -10,7 +10,8 @@ import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
-import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
+import { MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
+import { useRecordTab } from '@/hooks/use-record-tab';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
@@ -67,19 +68,14 @@ function matchMeta(match: LibraryMatch, demo: LibraryDemo): ReactNode {
  */
 export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { match: LibraryMatch; demo: LibraryDemo }): ReactNode {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [match, setMatch] = useState(loadedMatch);
   const [demo, setDemo] = useState(loadedDemo);
-  const queryTab = tabFromQuery(searchParams.get(MATCH_TAB_QUERY));
-  const [tab, setTab] = useState<MatchTab>(queryTab ?? 'resumen');
+  // The open tab lives in `?tab=`, so a reload or an evidence link lands on it.
+  const [tabValue, setTab] = useRecordTab(TABS, 'resumen');
+  const tab = tabFromQuery(tabValue) ?? 'resumen';
   // `undefined` while loading, `null` when the list could not be read.
   const [videos, setVideos] = useState<Video[] | null | undefined>(undefined);
   const jobKey = demo.job_ids.join(',');
-
-  // An evidence link on this page names its tab in the URL.
-  useEffect(() => {
-    if (queryTab !== null) setTab(queryTab);
-  }, [queryTab]);
 
   useEffect(() => {
     let active = true;
@@ -123,7 +119,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
       />
       <RecordTabs
         value={tab}
-        onValueChange={(next) => setTab(tabFromQuery(next) ?? 'resumen')}
+        onValueChange={setTab}
         tabs={[
           {
             id: 'resumen',

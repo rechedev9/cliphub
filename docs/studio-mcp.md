@@ -294,7 +294,7 @@ Write:
 | `delete_lineup` | `GET` then `DELETE /api/library/lineups/{id}` | yes |
 | `create_library_series`, `update_library_series` | `POST /api/library/series`, `PATCH /api/library/series/{id}` (`format`, `event`, `veto`, `team_ids`, `vetoes`) | no |
 | `delete_library_series` | `GET` then `DELETE /api/library/series/{id}`; its matches stay | yes |
-| `set_match_series` | `PATCH /api/library/matches/{id}` with `series_id` or null | no |
+| `set_match_series` | `PATCH /api/library/matches/{id}` with `series_id` or null. The maps of one FACEIT match (`1-<match id>-<map>-1.dem`) join one series by themselves after their analysis: the series a map already has, else a new BO3 or BO5 with both teams | no |
 | `follow_faceit_player`, `unfollow_faceit_player` | `POST /api/faceit/followed` (`nickname`); `DELETE /api/faceit/followed/{id}` (a seeded player is hidden) | no |
 | `link_player_faceit` | `POST /api/library/players/{steamid}/faceit` | no |
 | `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page. With `lineup_ids`, `GET /api/library/lineups/{id}` for each, all on `map`, as Practicar selección does in the Libreta. With `pro_lineup_ids` (ids or slugs), `GET /api/library/pro-lineups/{map}`: label the title, `pos` the origin, `ang` pitch and yaw, `grenade` the kind | yes |

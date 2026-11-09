@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { listLibraryDemos, listLibraryMatches, type LibraryDemo, type LibraryMatch } from '@/lib/api/library';
 import { buildHubModel, HUB_ROW_STAGE, hubTransitions, sameHubProps, type HubModel } from '@/lib/clips/hub';
 import { produceHref, RESULTS_HREF, type ProduceFormat } from '@/lib/clips/routes';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
@@ -13,8 +14,10 @@ import { prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FLOW_PRODUCE_CTA } from '@/lib/produce/copy';
 import { oneRowPerDemo } from '@/lib/produce/demo-rows';
+import { libraryOnlyRows, type LibraryDemoRow } from '@/lib/produce/library-rows';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { DemoCard, madeCount } from '@/components/produce/demo-card';
+import { LibraryDemoCard } from '@/components/produce/library-demo-card';
 import { Button } from '@/components/ui/button';
 
 const LIST_HINT = {
@@ -38,15 +41,22 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
   const router = useRouter();
   const [state, setState] = useState<HubModel | null>(null);
   const [offline, setOffline] = useState<boolean | null>(null);
+  const [libraryRows, setLibraryRows] = useState<LibraryDemoRow[]>([]);
   const stateRef = useRef<HubModel | null>(null);
 
   const refresh = useCallback(async (): Promise<HubModel | null> => {
     try {
-      const [matches, videos] = await Promise.all([api.listMatches(), api.listVideos()]);
+      const [matches, videos, library] = await Promise.all([api.listMatches(), api.listVideos(), readLibrary()]);
       const next = buildHubModel(matches, videos);
       const prev = stateRef.current;
       setOffline(null);
-      if (prev !== null && sameHubProps(prev, next)) return prev;
+      const extra = library === null ? null : libraryOnlyRows(library.demos, library.matches, next.rows);
+      if (extra !== null) setLibraryRows((old) => (sameDemoIds(old, extra) ? old : extra));
+      const extraCount = extra?.length ?? 0;
+      if (prev !== null && sameHubProps(prev, next)) {
+        onCount?.(oneRowPerDemo(next.rows).length + extraCount);
+        return prev;
+      }
       if (prev !== null) {
         for (const row of hubTransitions(prev, next).parsed) {
           toast('Demo analizada', {
@@ -60,7 +70,7 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
       }
       stateRef.current = next;
       setState(next);
-      onCount?.(oneRowPerDemo(next.rows).length);
+      onCount?.(oneRowPerDemo(next.rows).length + extraCount);
       return next;
     } catch (err) {
       setOffline(isDemoServiceUnavailable(err));
@@ -92,7 +102,7 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
 
   const banner = offline === null ? null : <HubBanner offline={offline} onRetry={onChange} />;
   // The upload below is the empty state: an empty list adds nothing to it.
-  if (state === null || state.rows.length === 0) return banner;
+  if (state === null || state.rows.length + libraryRows.length === 0) return banner;
 
   const rows = oneRowPerDemo(state.rows);
   const anyMade = rows.some((row) => madeCount(row, format) > 0);
@@ -102,7 +112,7 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 id="demo-list-title" className="font-display text-section font-bold text-fg-1">
-            Elige una demo <span className="text-body font-medium text-fg-3">{rows.length} en este PC</span>
+            Elige una demo <span className="text-body font-medium text-fg-3">{rows.length + libraryRows.length} en este PC</span>
           </h2>
           <p className="text-body-sm text-fg-2">{LIST_HINT[format]}</p>
         </div>
@@ -120,10 +130,27 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
         {rows.map((row) => (
           <DemoCard key={row.match.id} row={row} format={format} onChange={onChange} onDelete={() => deleteJobs(row.jobIds, onChange)} />
         ))}
+        {libraryRows.map((row) => (
+          <LibraryDemoCard key={row.demo.id} row={row} format={format} />
+        ))}
         {addTile}
       </div>
     </section>
   );
+}
+
+/** The analysed library demos; null when the read fails, so the cards already shown stay. */
+async function readLibrary(): Promise<{ demos: LibraryDemo[]; matches: LibraryMatch[] } | null> {
+  try {
+    const [demos, matches] = await Promise.all([listLibraryDemos(), listLibraryMatches()]);
+    return { demos, matches };
+  } catch {
+    return null;
+  }
+}
+
+function sameDemoIds(a: readonly LibraryDemoRow[], b: readonly LibraryDemoRow[]): boolean {
+  return a.length === b.length && a.every((row, index) => row.demo.id === b[index]?.demo.id && row.demo.updated_at === b[index]?.demo.updated_at);
 }
 
 /** The row stands for every job of its demo, so deleting it deletes all of them. A busy job

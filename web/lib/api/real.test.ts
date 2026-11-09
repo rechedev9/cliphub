@@ -430,6 +430,8 @@ test('listMatches reuses the last jobs body when the list answers 304', async ()
   try {
     const client = new RealApiClient();
     const first = await client.listMatches();
+    // The next poll beat, past the window in which one jobs read is shared.
+    (client as unknown as { jobsRead: { drop: () => void } }).jobsRead.drop();
     const second = await client.listMatches();
     assert.equal(calls, 2);
     assert.equal(headers[0], null);
@@ -445,17 +447,18 @@ test('listMatches reuses the last jobs body when the list answers 304', async ()
   }
 });
 
-function createVideoFetch(): { posts: string[]; restore: () => void } {
+function createVideoFetch(generate: () => Response = () => json({ id: 'job', task: 'record' }, 202)): { posts: string[]; restore: () => void } {
   const original = globalThis.fetch;
   const posts: string[] = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
     if (method === 'POST') posts.push(url);
-    if (url === STATUS_URL) return json({ status: 'done' });
+    if (url === STATUS_URL) return json({ status: 'parsed' });
     if (url === PLAN_URL) return json(PLAN);
+    if (url.includes('/renders/')) return json({ error: 'render not found' }, 404);
     if (url === ROSTER_URL) return json(ROSTER);
-    if (url === `/api/demos/${JOB}/generate`) return json({ id: 'job', task: 'record' }, 202);
+    if (url === `/api/demos/${JOB}/generate`) return generate();
     if (url.startsWith('/api/demos/batch-status')) return json({ items: [] });
     return json({ error: `unexpected ${method} ${url}`, code: 'error' }, 500);
   }) as typeof globalThis.fetch;
@@ -478,6 +481,28 @@ test('an already-aborted createVideo does not persist an intent or POST generate
     );
     assert.equal((client as unknown as Seedable).intents.size, 0);
     assert.equal(fake.posts.length, 0);
+  } finally {
+    fake.restore();
+  }
+});
+
+test('createVideo returns a start Studio refused as failed, with the reason', async () => {
+  const fake = createVideoFetch(() => json({ error: 'local API mutation capability required', code: 'cookie_mismatch' }, 403));
+  try {
+    const video = await new RealApiClient().createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean' });
+    assert.equal(video.status, 'failed');
+    assert.match(video.failureReason ?? '', /local API/);
+    assert.equal(fake.posts.length, 1);
+  } finally {
+    fake.restore();
+  }
+});
+
+test('createVideo returns an accepted start as recording', async () => {
+  const fake = createVideoFetch();
+  try {
+    const video = await new RealApiClient().createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean' });
+    assert.equal(video.status, 'recording');
   } finally {
     fake.restore();
   }

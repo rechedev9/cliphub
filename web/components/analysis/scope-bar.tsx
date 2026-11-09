@@ -63,6 +63,8 @@ export type ScopeBarProps = {
   fields: readonly ScopeField[];
   /** Map names for the map control, such as `de_mirage`. */
   maps?: readonly string[];
+  /** The view reads one map at a time, so the empty choice asks for one instead of offering all. */
+  mapRequired?: boolean;
   /** Rival teams for the opponent control. */
   opponents?: readonly ScopeOption[];
   /** The match limits offered, and the one the view uses while the URL names none. */
@@ -193,7 +195,7 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
       return (
         <OptionSelect
           label="Mapa"
-          allLabel="Todos los mapas"
+          allLabel={props.mapRequired === true ? 'Elige un mapa' : 'Todos los mapas'}
           value={scope.map}
           options={(props.maps ?? []).map((map) => ({ value: map, label: prettyMapName(map) }))}
           icon={(map) => <MapThumb map={map} className="h-4 w-6" crop={1.6} />}

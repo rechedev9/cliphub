@@ -137,6 +137,8 @@ func demoFile(path string, entry fs.DirEntry) (File, bool) {
 // Round captures and imported sources are left out: they are inputs, not results.
 func ScanStudio(dataDir string) ([]File, error) {
 	files := []File{}
+	// A job's demo is a hard link to its library copy: one file on disk, listed once.
+	var seen []fs.FileInfo
 	err := filepath.WalkDir(dataDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -164,7 +166,8 @@ func ScanStudio(dataDir string) ([]File, error) {
 		if !ok {
 			return nil
 		}
-		if file, ok := statFile(path, kind); ok {
+		if file, info, ok := statFileInfo(path, kind); ok && !sameAsAny(info, seen) {
+			seen = append(seen, info)
 			file.JobID = jobID
 			files = append(files, file)
 		}
@@ -226,11 +229,25 @@ func Siblings(videoPath string) []string {
 }
 
 func statFile(path string, kind Kind) (File, bool) {
+	file, _, ok := statFileInfo(path, kind)
+	return file, ok
+}
+
+func statFileInfo(path string, kind Kind) (File, fs.FileInfo, bool) {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() {
-		return File{}, false
+		return File{}, nil, false
 	}
-	return File{Path: path, Size: info.Size(), ModTime: info.ModTime().UTC(), Kind: kind}, true
+	return File{Path: path, Size: info.Size(), ModTime: info.ModTime().UTC(), Kind: kind}, info, true
+}
+
+func sameAsAny(info fs.FileInfo, seen []fs.FileInfo) bool {
+	for _, other := range seen {
+		if other.Size() == info.Size() && os.SameFile(other, info) {
+			return true
+		}
+	}
+	return false
 }
 
 func sortBySize(files []File) {

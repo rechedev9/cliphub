@@ -34,8 +34,15 @@ export function useDocumentTitle(title: string | undefined): void {
   useEffect(() => {
     if (!title) return;
     const previous = document.title;
+    const path = window.location.pathname;
     document.title = title;
+    // A query-only navigation (a tab in `?tab=`) re-applies the segment's static title; keep the subject's name.
+    const observer = new MutationObserver(() => {
+      if (window.location.pathname === path && document.title !== title) document.title = title;
+    });
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true });
     return () => {
+      observer.disconnect();
       if (document.title === title) document.title = previous;
     };
   }, [title]);
