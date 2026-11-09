@@ -22,6 +22,13 @@ type Play struct {
 	EndSeconds   float64   `json:"end_seconds"`
 	KillSeconds  []float64 `json:"kill_seconds"`
 	Score        int       `json:"score"`
+	// Kind is KillKind or VoiceKind; plays saved before voice peaks have none and are kills.
+	Kind string `json:"kind,omitempty"`
+	// VoiceSeconds are the voice peaks inside the play; VoiceDB is the loudest, over the streamer's usual level.
+	VoiceSeconds []float64 `json:"voice_seconds,omitempty"`
+	VoiceDB      float64   `json:"voice_db,omitempty"`
+	// Marked is a shout loud enough to be on purpose; such a play always stays in the list.
+	Marked bool `json:"marked,omitempty"`
 }
 
 func (p Play) Kills() int { return len(p.KillSeconds) }
@@ -50,6 +57,7 @@ func GroupPlays(kills []Kill, durationSeconds float64) []Play {
 		plays = append(plays, Play{
 			ID:           fmt.Sprintf("play-%03d", len(plays)+1),
 			Label:        playLabel(len(group)),
+			Kind:         KillKind,
 			StartSeconds: round3(start),
 			EndSeconds:   round3(end),
 			KillSeconds:  group,

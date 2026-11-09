@@ -1,8 +1,20 @@
 import type { StreamClipRange, StreamPlay, StreamSummary } from '../api/streams.ts';
 
-/** Best plays first: the highest score, then the earliest. */
+/** Plays the streamer marked on purpose first, then the highest score, then the earliest. */
 export function rankPlays(plays: readonly StreamPlay[]): StreamPlay[] {
-  return [...plays].sort((a, b) => b.score - a.score || a.start_seconds - b.start_seconds);
+  return [...plays].sort(
+    (a, b) => Number(b.marked ?? false) - Number(a.marked ?? false) || b.score - a.score || a.start_seconds - b.start_seconds,
+  );
+}
+
+/** The second a play is about: its first kill, else its first voice peak. */
+export function playMoment(play: StreamPlay): number {
+  return play.kill_seconds[0] ?? play.voice_seconds?.[0] ?? play.start_seconds;
+}
+
+/** Whether a play is a voice peak with no kill. */
+export function isVoiceOnly(play: StreamPlay): boolean {
+  return play.kind === 'voice_peak';
 }
 
 /** Whether a play already has a moment that covers part of it. */

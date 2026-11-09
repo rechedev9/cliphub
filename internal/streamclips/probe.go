@@ -82,6 +82,7 @@ func parseFFprobeOutput(out []byte) (SourceProbe, error) {
 				}
 			}
 		case "audio":
+			probe.AudioStreams++
 			if probe.AudioCodec == "" {
 				probe.AudioCodec = stream.CodecName
 			}

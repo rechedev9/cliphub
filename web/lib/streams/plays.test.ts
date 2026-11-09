@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamPlay } from '../api/streams.ts';
-import { clipsWithPlays, rankPlays, sameIds, summaryPlayIds } from './plays.ts';
+import { clipsWithPlays, isVoiceOnly, playMoment, rankPlays, sameIds, summaryPlayIds } from './plays.ts';
 
 function play(id: string, start: number, end: number, score: number): StreamPlay {
   return { id, label: id, start_seconds: start, end_seconds: end, kill_seconds: [start + 6], score };
@@ -13,6 +13,23 @@ test('rankPlays puts the best play first and breaks ties by time', () => {
     ranked.map((p) => p.id),
     ['b', 'c', 'a'],
   );
+});
+
+test('rankPlays keeps a marked shout on top and a kill with a shout over the same kill alone', () => {
+  const marked: StreamPlay = { ...play('shout', 90, 100, 70), kind: 'voice_peak', kill_seconds: [], voice_seconds: [92], marked: true };
+  const ranked = rankPlays([play('ace', 10, 20, 100), marked, play('plain', 30, 40, 20), play('loud', 50, 60, 35)]);
+  assert.deepEqual(
+    ranked.map((p) => p.id),
+    ['shout', 'ace', 'loud', 'plain'],
+  );
+});
+
+test('playMoment points at the first kill, or at the voice peak of a play with no kill', () => {
+  const shout: StreamPlay = { ...play('shout', 90, 100, 40), kind: 'voice_peak', kill_seconds: [], voice_seconds: [92] };
+  assert.equal(playMoment(play('kill', 10, 20, 20)), 16);
+  assert.equal(playMoment(shout), 92);
+  assert.equal(isVoiceOnly(shout), true);
+  assert.equal(isVoiceOnly(play('kill', 10, 20, 20)), false);
 });
 
 test('clipsWithPlays skips plays that overlap a moment and keeps source order', () => {
