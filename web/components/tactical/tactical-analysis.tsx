@@ -150,7 +150,7 @@ export function TacticalAnalysis({
     };
   }, [sourceKind, sourceId]);
 
-  const tendencies = useTeamTendencies({ source, filter, doc });
+  const tendencies = useTeamTendencies({ source, filter, doc, enabled: sourceKind !== 'library' });
 
   const rounds = useMemo(() => (doc === null ? [] : filterTacticalRounds(doc.teams, filter, doc.rounds)), [doc, filter]);
   // A filter that hides the open round moves to the first one it kept.
@@ -271,9 +271,12 @@ export function TacticalAnalysis({
 
       {rounded}
 
-      <div className="mt-6">
-        <TacticalTendenciesPanel {...tendencies} roundCount={rounds.length} />
-      </div>
+      {/* A library match keeps its tendencies in its Métricas tab; a Crear job has no other place for them. */}
+      {sourceKind === 'library' ? null : (
+        <div className="mt-6">
+          <TacticalTendenciesPanel {...tendencies} roundCount={rounds.length} />
+        </div>
+      )}
     </div>
   );
 }

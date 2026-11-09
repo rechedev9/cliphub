@@ -26,18 +26,21 @@ export function useTeamTendencies({
   source,
   filter,
   doc,
+  enabled = true,
 }: {
   source: TacticalSource;
   filter: TacticalFilter;
   /** Null while the analysis loads; without it only a filter that names a team can be fetched. */
   doc: TacticalDocument | null;
+  /** Off where the panel is not shown, so nothing is fetched for it. */
+  enabled?: boolean;
 }): TeamTendencies {
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [fetched, setFetched] = useState<Fetched | null>(null);
   const { kind, id } = source;
 
   const teamKey = doc === null ? filter.team_key : panelTeamKey({ teams: doc.teams, rounds: doc.rounds, filter, chosen });
-  const query = doc === null && filter.team_key === undefined ? null : tacticalFilterToQuery(panelFilter(filter, teamKey));
+  const query = !enabled || (doc === null && filter.team_key === undefined) ? null : tacticalFilterToQuery(panelFilter(filter, teamKey));
   const key = query === null ? null : `${kind}:${id}?${query}`;
 
   useEffect(() => {

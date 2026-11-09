@@ -21,6 +21,7 @@ import { MatchMetrics } from '@/components/metrics/match-metrics';
 import { MatchRounds } from '@/components/matches/match-rounds';
 import { MatchSummary } from '@/components/matches/match-summary';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
+import { MatchTendencies } from '@/components/metrics/match-tendencies';
 import { Button } from '@/components/ui/button';
 
 const TABS = ['resumen', 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos'] as const;
@@ -151,7 +152,12 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
           {
             id: 'metricas',
             label: 'Métricas',
-            content: <MatchMetrics match={match} onOpenReplay={openReplay} />,
+            content: (
+              <div className="flex flex-col gap-6">
+                <MatchMetrics match={match} onOpenReplay={openReplay} />
+                <MatchTendencies matchId={match.id} />
+              </div>
+            ),
           },
           {
             id: 'videos',

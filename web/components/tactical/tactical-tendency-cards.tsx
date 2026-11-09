@@ -3,6 +3,7 @@ import type { TacticalRate, TacticalTendencies } from '@/lib/api/tactical';
 import { openingLines, percentText, rateTone, tendencyCards } from '@/lib/tactical-tendency-view';
 import type { OutcomeTone, TendencyCard } from '@/lib/tactical-tendency-view';
 import { RateBar } from '@/components/tactical/tactical-charts';
+import { RoundsLink } from '@/components/tactical/tendency-links';
 import { cn } from '@/lib/utils';
 
 const TONE_TEXT: Record<OutcomeTone, string> = {
@@ -51,7 +52,7 @@ function WinCard({ card }: { card: TendencyCard }): ReactNode {
               {row.small ? <SmallMark /> : null}
             </span>
             <span role="cell" title={row.shareText} className="text-right tabular-nums text-fg-2">
-              {row.rounds}
+              <RoundsLink patch={row.patch}>{row.rounds}</RoundsLink>
             </span>
             <span role="cell">
               <RateBar rate={row.win} className={TONE_TEXT[row.tone]} />
@@ -117,7 +118,7 @@ function OpeningCard({ tendencies }: { tendencies: TacticalTendencies }): ReactN
           {lines.map((line) => (
             <div key={line.key} role="row" className={cn(OPENER_ROW, 'text-body-sm')}>
               <span role="rowheader" className="truncate text-fg-1">
-                {line.name}
+                <RoundsLink patch={line.patch}>{line.name}</RoundsLink>
               </span>
               <span role="cell" className={cn('text-right font-semibold tabular-nums', TONE_TEXT[line.tone])}>
                 {line.text}

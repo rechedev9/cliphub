@@ -95,7 +95,8 @@ one into the Libreta.
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
 One match: get_round (a round ref's buys, patterns, kills and win probability), match_metrics (every
-player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered).
+player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered: the tables of the match's Métricas tab;
+replay_rounds with the same buy, site or shape gives the rounds behind one of its figures).
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
 integrity_dossier is one screened player's evidence pack and the official ways to report them.
 replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
