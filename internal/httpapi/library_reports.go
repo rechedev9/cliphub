@@ -115,6 +115,47 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 	return candidates, pending, skipped, nil
 }
 
+// keptMatch is a selected match whose document is read and whose lineup played it.
+type keptMatch struct {
+	scout  tacticalplan.ScoutMatch
+	demoID uuid.UUID
+}
+
+// keepQuery is what keepTeamMatches walks: the selected matches, newest first.
+type keepQuery struct {
+	teamID     uuid.UUID
+	candidates map[uuid.UUID]scoutCandidate
+	selected   []tacticalplan.ScoutMatch
+	lineup     tacticalplan.Lineup
+}
+
+// keepTeamMatches reads the selected matches' documents and keeps those the
+// lineup played, up to MaxReportMatches kept: a match the lineup drops or one
+// that cannot be read never takes a slot. The rest come back as skipped.
+func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
+	kept := make([]keptMatch, 0, min(len(q.selected), library.MaxReportMatches))
+	var skipped []scoutSkipped
+	for _, sm := range q.selected {
+		if len(kept) >= library.MaxReportMatches {
+			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
+			continue
+		}
+		demoID := q.candidates[sm.MatchID].match.DemoID
+		doc, err := h.readLibraryDocument(demoID)
+		if err != nil {
+			log.Printf("httpapi: team %s skips match %s: %v", q.teamID, sm.MatchID, err)
+			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
+			continue
+		}
+		if !q.lineup.PlayedIn(doc, sm.TeamKey) {
+			continue
+		}
+		sm.Document = doc
+		kept = append(kept, keptMatch{scout: sm, demoID: demoID})
+	}
+	return kept, skipped
+}
+
 // loadTeamMatches reads the team's matches (the given ids, or its most recent
 // ones), keeps those the filter selects, and loads their tactical documents
 // and setup frames. Matches it cannot read are returned as skipped.
@@ -123,28 +164,13 @@ func (h *Handlers) loadTeamMatches(ctx context.Context, team library.Team, match
 	if err != nil {
 		return nil, nil, err
 	}
-	selected := filter.Select(pending)
-	loaded := make([]tacticalplan.ScoutMatch, 0, len(selected))
-	for i, sm := range selected {
-		if i >= library.MaxReportMatches {
-			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
-			continue
-		}
-		c := candidates[sm.MatchID]
-		doc, err := h.readLibraryDocument(c.match.DemoID)
-		if err != nil {
-			log.Printf("httpapi: team %s skips match %s: %v", team.ID, sm.MatchID, err)
-			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
-			continue
-		}
-		if !filter.Lineup.PlayedIn(doc, sm.TeamKey) {
-			continue
-		}
-		sm.Document = doc
-		sm.Setup = h.readSetupFrames(c.match.DemoID, doc)
-		loaded = append(loaded, sm)
+	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: filter.Select(pending), lineup: filter.Lineup})
+	loaded := make([]tacticalplan.ScoutMatch, 0, len(kept))
+	for _, k := range kept {
+		k.scout.Setup = h.readSetupFrames(k.demoID, k.scout.Document)
+		loaded = append(loaded, k.scout)
 	}
-	return loaded, skipped, nil
+	return loaded, append(skipped, more...), nil
 }
 
 // buildScout aggregates the tactical documents of the team's selected matches.

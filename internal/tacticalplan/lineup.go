@@ -10,17 +10,25 @@ const MaxLineupPlayers = 50
 // keeps every round.
 type Lineup []string
 
-// Keeps reports whether every player who played side in round r is in the
-// lineup; with no side, every player of the round must be.
-func (l Lineup) Keeps(d Document, r Round, side Side) bool {
+// LineupRound is one round of a document, read from one side; an empty Side
+// reads every player of the round.
+type LineupRound struct {
+	Document Document
+	Round    Round
+	Side     Side
+}
+
+// Keeps reports whether every player who played the side in the round is in
+// the lineup.
+func (l Lineup) Keeps(lr LineupRound) bool {
 	if len(l) == 0 {
 		return true
 	}
-	for _, pr := range r.Players {
-		if side != "" && pr.Side != side {
+	for _, pr := range lr.Round.Players {
+		if lr.Side != "" && pr.Side != lr.Side {
 			continue
 		}
-		p, ok := d.PlayerBySlot(pr.Slot)
+		p, ok := lr.Document.PlayerBySlot(pr.Slot)
 		if !ok || !slices.Contains(l, p.SteamID64) {
 			return false
 		}
@@ -36,7 +44,7 @@ func (l Lineup) PlayedIn(d Document, teamKey string) bool {
 		return true
 	}
 	for _, r := range d.Rounds {
-		if side := d.TeamSide(teamKey, r); side != "" && l.Keeps(d, r, side) {
+		if side := d.TeamSide(teamKey, r); side != "" && l.Keeps(LineupRound{Document: d, Round: r, Side: side}) {
 			return true
 		}
 	}

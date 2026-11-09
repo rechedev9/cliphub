@@ -20,6 +20,7 @@ type teamLineupMatch struct {
 
 // teamLineupsResponse is a team's roster as the lineup picker groups it: who
 // played its latest match, then everyone else who played for it, with dates.
+// LatestMatch is nil, and Latest empty, when that match names none of the team's players.
 type teamLineupsResponse struct {
 	TeamID      uuid.UUID             `json:"team_id"`
 	TeamName    string                `json:"team_name"`
@@ -28,17 +29,24 @@ type teamLineupsResponse struct {
 	Others      []library.RosterEntry `json:"others"`
 }
 
+// lineupSplit is a team's roster and the side (teamKey) it played in its latest match.
+type lineupSplit struct {
+	roster  []library.RosterEntry
+	latest  library.Match
+	teamKey string
+}
+
 // splitLineups puts the roster players of the team's side of latest first, by
 // nick, and keeps the others in roster order (most recent first).
-func splitLineups(roster []library.RosterEntry, latest library.Match, teamKey string) (inLatest, others []library.RosterEntry) {
+func splitLineups(s lineupSplit) (inLatest, others []library.RosterEntry) {
 	played := map[string]bool{}
-	for _, p := range latest.Players {
-		if p.TeamKey == teamKey {
+	for _, p := range s.latest.Players {
+		if p.TeamKey == s.teamKey {
 			played[p.SteamID64] = true
 		}
 	}
 	inLatest, others = []library.RosterEntry{}, []library.RosterEntry{}
-	for _, e := range roster {
+	for _, e := range s.roster {
 		if played[e.SteamID64] {
 			inLatest = append(inLatest, e)
 		} else {
@@ -76,8 +84,15 @@ func (h *Handlers) GetLibraryTeamLineups(w http.ResponseWriter, r *http.Request)
 		writeLibraryError(w, "get match", err)
 		return
 	}
-	c, _ := candidateFor(latest, team.ID)
-	resp.LatestMatch = &teamLineupMatch{MatchID: latest.ID, Map: latest.Map, PlayedAt: latest.PlayedAt}
-	resp.Latest, resp.Others = splitLineups(team.Roster, latest, c.scout.TeamKey)
+	c, ok := candidateFor(latest, team.ID)
+	if !ok {
+		// No side of the latest match is the team's, so there is no latest lineup to offer.
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	resp.Latest, resp.Others = splitLineups(lineupSplit{roster: team.Roster, latest: latest, teamKey: c.scout.TeamKey})
+	if len(resp.Latest) > 0 {
+		resp.LatestMatch = &teamLineupMatch{MatchID: latest.ID, Map: latest.Map, PlayedAt: latest.PlayedAt}
+	}
 	writeJSON(w, http.StatusOK, resp)
 }

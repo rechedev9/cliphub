@@ -1,10 +1,14 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/rechedev9/cliphub/internal/library"
 )
 
 // In the scout fixture Vitality fields player one at home and player two away.
@@ -28,6 +32,50 @@ func TestLibraryTeamLineupsGroupTheLatestMatchFirst(t *testing.T) {
 	}
 	if rw := f.env.do(http.MethodGet, "/api/library/teams/"+uuid.NewString()+"/lineups", nil, ""); rw.Code != http.StatusNotFound {
 		t.Fatalf("lineups of an unknown team = %d, want 404", rw.Code)
+	}
+}
+
+func overLimit(skipped []scoutSkipped) int {
+	n := 0
+	for _, s := range skipped {
+		if s.Reason == scoutSkipBeyondLimits {
+			n++
+		}
+	}
+	return n
+}
+
+func TestTheMatchCapCountsOnlyTheMatchesTheLineupKeeps(t *testing.T) {
+	f := newScoutFixture(t)
+	team := "/api/library/teams/" + f.vitality.String()
+	patch := func(m library.Match, at time.Time) {
+		f.env.json(http.MethodPatch, "/api/library/matches/"+m.ID.String(), map[string]any{"played_at": at.Format(time.RFC3339)}, http.StatusOK, nil)
+	}
+	// Newer than the fixture's two: the cap's worth of home matches player two never played.
+	start := time.Date(2026, 10, 1, 18, 0, 0, 0, time.UTC)
+	for i := range library.MaxReportMatches {
+		patch(f.env.seedLibraryMatch(fmt.Sprintf("cap-%d", i), "Vitality", "MOUZ"), start.Add(time.Duration(i)*time.Hour))
+	}
+	patch(f.home, start.Add(-48*time.Hour))
+	patch(f.away, start.Add(-24*time.Hour))
+
+	every := f.scout("")
+	if len(every.Matches) != library.MaxReportMatches || overLimit(every.Skipped) != 2 {
+		t.Fatalf("scout = %d matches, %d over the cap; want %d and the 2 oldest skipped", len(every.Matches), overLimit(every.Skipped), library.MaxReportMatches)
+	}
+	two := "?lineup=" + fixturePlayerTwo
+	if scout := f.scout(two); len(scout.Matches) != 1 || scout.Matches[0].MatchID != f.away.ID || overLimit(scout.Skipped) != 0 {
+		t.Fatalf("scout with player two = %+v (skipped %+v), want the away match", scout.Matches, scout.Skipped)
+	}
+	var prep prepResponse
+	f.env.json(http.MethodGet, team+"/prep?map=de_mirage&lineup="+fixturePlayerTwo, nil, http.StatusOK, &prep)
+	if prep.Matches != 1 || overLimit(prep.Skipped) != 0 {
+		t.Fatalf("prep with player two = %d matches (skipped %+v), want the away match", prep.Matches, prep.Skipped)
+	}
+	var heat spatialResponse
+	f.env.json(http.MethodGet, team+"/heatmap"+two, nil, http.StatusOK, &heat)
+	if len(heat.Matches) != 1 || overLimit(heat.Skipped) != 0 {
+		t.Fatalf("heatmap with player two = %+v (skipped %+v), want the away match", heat.Matches, heat.Skipped)
 	}
 }
 

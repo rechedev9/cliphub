@@ -126,7 +126,7 @@ func (f Filter) Match(d Document, r Round) bool {
 	if len(f.Slots) > 0 && !matchSlots(r, f.Slots, side) {
 		return false
 	}
-	return f.Lineup.Keeps(d, r, side)
+	return f.Lineup.Keeps(LineupRound{Document: d, Round: r, Side: side})
 }
 
 // Apply returns the rounds that pass the filter, in document order.

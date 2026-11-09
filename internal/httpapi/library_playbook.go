@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -43,27 +42,12 @@ func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tact
 	if err != nil {
 		return nil, nil, err
 	}
-	selected := q.filter.Select(pending)
-	loaded := make([]tacticalplan.FramedMatch, 0, len(selected))
-	for i, sm := range selected {
-		if i >= library.MaxReportMatches {
-			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
-			continue
-		}
-		c := candidates[sm.MatchID]
-		doc, err := h.readLibraryDocument(c.match.DemoID)
-		if err != nil {
-			log.Printf("httpapi: team %s skips match %s: %v", q.team.ID, sm.MatchID, err)
-			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
-			continue
-		}
-		if !q.filter.Lineup.PlayedIn(doc, sm.TeamKey) {
-			continue
-		}
-		sm.Document = doc
-		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: sm, Blob: h.positionsReader(c.match.DemoID)})
+	kept, more := h.keepTeamMatches(keepQuery{teamID: q.team.ID, candidates: candidates, selected: q.filter.Select(pending), lineup: q.filter.Lineup})
+	loaded := make([]tacticalplan.FramedMatch, 0, len(kept))
+	for _, k := range kept {
+		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: k.scout, Blob: h.positionsReader(k.demoID)})
 	}
-	return loaded, skipped, nil
+	return loaded, append(skipped, more...), nil
 }
 
 // framedRequest reads the team and the scout filter of a playbook or a prep.
