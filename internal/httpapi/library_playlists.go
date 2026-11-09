@@ -25,6 +25,9 @@ type libraryPlaylistRepository interface {
 	DeletePlaylist(ctx context.Context, id uuid.UUID) error
 }
 
+// codePlaylistChanged answers an edit built from a playlist another edit changed first.
+const codePlaylistChanged = "playlist_changed"
+
 // badPlaylistInput is a client mistake in a playlist request, answered with 400.
 type badPlaylistInput struct{ code, msg string }
 
@@ -96,12 +99,19 @@ func playlistFilterQuery(q url.Values) (library.PlaylistFilter, error) {
 }
 
 // playlistRoundRequest is a round as a client names it: the server fills its map
-// and demo. Without notes a round the playlist holds keeps its own.
+// and demo. Without a comment or notes a round the playlist holds keeps its own.
 type playlistRoundRequest struct {
 	MatchID uuid.UUID               `json:"match_id"`
 	Round   int                     `json:"round"`
-	Comment string                  `json:"comment"`
+	Comment *string                 `json:"comment"`
 	Notes   *[]library.PlaylistNote `json:"notes"`
+}
+
+func (in playlistRoundRequest) commentOr(held string) string {
+	if in.Comment == nil {
+		return held
+	}
+	return *in.Comment
 }
 
 func (in playlistRoundRequest) notesOr(held []library.PlaylistNote) []library.PlaylistNote {
@@ -146,7 +156,7 @@ func (h *Handlers) playlistRounds(ctx context.Context, current []library.Playlis
 		want := library.PlaylistRound{MatchID: req.MatchID, Round: req.Round}
 		if i := slices.IndexFunc(current, func(r library.PlaylistRound) bool { return library.SamePlaylistRound(r, want) }); i >= 0 {
 			kept := current[i]
-			kept.Comment, kept.Notes = req.Comment, req.notesOr(kept.Notes)
+			kept.Comment, kept.Notes = req.commentOr(kept.Comment), req.notesOr(kept.Notes)
 			out = append(out, kept)
 			continue
 		}
@@ -167,7 +177,7 @@ func (h *Handlers) playlistRounds(ctx context.Context, current []library.Playlis
 		if req.Round < 1 || req.Round > m.RoundCount {
 			return nil, badPlaylistInput{"invalid_request", fmt.Sprintf("match %s has no round %d", req.MatchID, req.Round)}
 		}
-		out = append(out, library.PlaylistRound{MatchID: m.ID, Round: req.Round, Map: m.Map, DemoSHA256: shas[req.MatchID], Comment: req.Comment, Notes: req.notesOr(nil)})
+		out = append(out, library.PlaylistRound{MatchID: m.ID, Round: req.Round, Map: m.Map, DemoSHA256: shas[req.MatchID], Comment: req.commentOr(""), Notes: req.notesOr(nil)})
 	}
 	return out, nil
 }
@@ -250,9 +260,14 @@ func (h *Handlers) editPlaylist(w http.ResponseWriter, r *http.Request, edit fun
 		clean.Author = &next.Author
 	}
 	if patch.Rounds != nil {
-		clean.Rounds = &next.Rounds
+		// The list was built from current: the store refuses it if another edit came first.
+		clean.Rounds, clean.Base = &next.Rounds, current.UpdatedAt
 	}
 	updated, err := h.libraryRepo.UpdatePlaylist(r.Context(), current.ID, clean)
+	if errors.Is(err, library.ErrConflict) {
+		writeCodedError(w, http.StatusConflict, codePlaylistChanged, "the playlist changed while this edit was made: read it again and repeat the edit")
+		return
+	}
 	if err != nil {
 		writeLibraryError(w, "update playlist", err)
 		return

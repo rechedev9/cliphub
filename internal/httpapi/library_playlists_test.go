@@ -79,6 +79,10 @@ func TestLibraryPlaylistsKeepRoundsInOrderWithComments(t *testing.T) {
 	if !p.Favorite || len(p.Rounds) != 2 || !p.UpdatedAt.Equal(updated) {
 		t.Fatalf("starred = %+v; want the rounds and updated_at kept", p)
 	}
+	env.json(http.MethodPatch, path, map[string]any{"rounds": []map[string]any{{"match_id": a.ID, "round": 1}, {"match_id": a.ID, "round": 2}}}, http.StatusOK, &p)
+	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/1:tarde "+ka+"/2:" {
+		t.Fatalf("after a reorder without comments = %s; want each round's comment kept", got)
+	}
 	env.json(http.MethodPatch, path, map[string]any{"rounds": []map[string]any{{"match_id": a.ID, "round": 1, "comment": "solo"}}}, http.StatusOK, &p)
 	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/1:solo" || len(p.Rounds[0].Notes) != 1 {
 		t.Fatalf("after replace = %s, notes %+v; want the held round's drawing kept", got, p.Rounds[0].Notes)

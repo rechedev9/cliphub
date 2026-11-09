@@ -75,6 +75,19 @@ func TestPlaylistRepositoryContract(t *testing.T) {
 					edited.Maps[0] != "de_nuke" || !edited.UpdatedAt.After(rivals.UpdatedAt) || !edited.Favorite || edited.Author != "mopoz" {
 					t.Fatalf("UpdatePlaylist = %+v, %v", edited, err)
 				}
+				stale := library.PlaylistPatch{Rounds: &[]library.PlaylistRound{rivals.Rounds[1]}, Base: rivals.UpdatedAt}
+				if _, err := f.repo.UpdatePlaylist(f.ctx, rivals.ID, stale); !errors.Is(err, library.ErrConflict) {
+					t.Fatalf("UpdatePlaylist(rounds read before the last edit) = %v, want ErrConflict", err)
+				}
+				stale.Base = edited.UpdatedAt
+				again, err = f.repo.UpdatePlaylist(f.ctx, rivals.ID, stale)
+				if err != nil || len(again.Rounds) != 1 || !again.UpdatedAt.After(edited.UpdatedAt) {
+					t.Fatalf("UpdatePlaylist(fresh base) = %+v, %v; want it stored with a later updated_at", again, err)
+				}
+				stale.Base = edited.UpdatedAt
+				if _, err := f.repo.UpdatePlaylist(f.ctx, rivals.ID, stale); !errors.Is(err, library.ErrConflict) {
+					t.Fatalf("UpdatePlaylist(same base twice) = %v, want ErrConflict even within one millisecond", err)
+				}
 				if got, err := f.repo.ListPlaylists(f.ctx, library.PlaylistFilter{}); err != nil || got[0].ID != rivals.ID {
 					t.Fatalf("after an edit ListPlaylists = %+v, %v; want the edited one first", got, err)
 				}

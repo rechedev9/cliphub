@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -108,12 +109,20 @@ func (r *MemoryLibraryRepository) UpdatePlaylist(ctx context.Context, id uuid.UU
 	if !ok {
 		return library.Playlist{}, library.ErrNotFound
 	}
+	if !patch.Base.IsZero() && !p.UpdatedAt.Equal(patch.Base) {
+		return library.Playlist{}, library.ErrConflict
+	}
+	before := p.UpdatedAt
 	p = library.ApplyPlaylistPatch(p, patch)
 	for i := range p.Rounds {
 		p.Rounds[i].Missing = false
 	}
 	if patch.Edits() {
-		p.UpdatedAt = libraryNow()
+		// As SQLite: every edit moves updated_at by at least a millisecond.
+		p.UpdatedAt = libraryNow().Truncate(time.Millisecond)
+		if !p.UpdatedAt.After(before) {
+			p.UpdatedAt = before.Add(time.Millisecond)
+		}
 	}
 	r.playlists[id] = p
 	return r.playlistView(p), nil

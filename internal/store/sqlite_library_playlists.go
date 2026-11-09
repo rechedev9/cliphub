@@ -215,10 +215,14 @@ func (r *SQLiteLibraryRepository) UpdatePlaylist(ctx context.Context, id uuid.UU
 		if err != nil {
 			return err
 		}
+		if !patch.Base.IsZero() && !current.UpdatedAt.Equal(patch.Base) {
+			return library.ErrConflict
+		}
 		next := library.ApplyPlaylistPatch(current, patch)
 		updated := millis(current.UpdatedAt)
 		if patch.Edits() {
-			updated = millis(libraryNow())
+			// Every edit moves updated_at, even within one millisecond, so Base always sees it.
+			updated = max(millis(libraryNow()), updated+1)
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE library_playlists SET name = ?, folder = ?, favorite = ?, author = ?, updated_at = ? WHERE id = ?`,
 			next.Name, next.Folder, favoriteInt(next.Favorite), next.Author, updated, id.String()); err != nil {

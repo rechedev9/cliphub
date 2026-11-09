@@ -87,6 +87,9 @@ type PlaylistPatch struct {
 	Author   *string
 	Favorite *bool
 	Rounds   *[]PlaylistRound
+	// Base is the updated_at the edit was built from; a playlist edited since
+	// then is ErrConflict, so a rounds list read before another edit cannot undo it.
+	Base time.Time
 }
 
 // Edits reports whether the patch changes more than the star, which does not
