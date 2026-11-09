@@ -38,6 +38,22 @@ CREATE TABLE IF NOT EXISTS pro_reference (
 	etag    TEXT NOT NULL,
 	built_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS pro_match_maps (
+	match_id         INTEGER NOT NULL,
+	entry            TEXT NOT NULL,
+	file             TEXT NOT NULL,
+	size             INTEGER NOT NULL,
+	mod_time         TEXT NOT NULL,
+	sha256           TEXT NOT NULL,
+	map              TEXT NOT NULL,
+	rounds           INTEGER NOT NULL,
+	analysis_version INTEGER NOT NULL,
+	event            TEXT NOT NULL,
+	played_at        TEXT NOT NULL,
+	teams            TEXT NOT NULL,
+	synced_at        TEXT NOT NULL,
+	PRIMARY KEY (match_id, entry)
+);
 CREATE TABLE IF NOT EXISTS ranking_lines (
 	install_id TEXT NOT NULL,
 	map        TEXT NOT NULL,

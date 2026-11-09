@@ -9,6 +9,7 @@
 //	cliphub-community plan-clips        list the throws to record as lineup clips (operator PC)
 //	cliphub-community record-clips      record the planned clips with CS2 and the inputs HUD (operator PC)
 //	cliphub-community sidecars          write one sidecar per analysed match, for the harvester's --refetch
+//	cliphub-community pro-matches       rebuild the pro match catalog from the archived analyses
 package main
 
 import (
@@ -130,6 +131,15 @@ func run(args []string) error {
 			dirs.picks = picks
 		}
 		return planClipsFromDirs(ctx, dirs)
+	case "pro-matches":
+		s, err := openStore(database)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		n, err := syncProCatalog(ctx, s, os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"))
+		log.Printf("community stage=pro_matches class=synced changed=%d", n)
+		return err
 	case "record-clips":
 		return runRecordClips(ctx, args[1:])
 	case "sidecars":
@@ -152,6 +162,7 @@ func run(args []string) error {
 func serve(ctx context.Context, s *store, address string) error {
 	a := newAPI(s)
 	a.clipsDir = os.Getenv("CLIPHUB_COMMUNITY_CLIPS_DIR")
+	a.analysesDir = os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR")
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)

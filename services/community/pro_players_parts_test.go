@@ -14,7 +14,7 @@ func partWith(first int, games ...int) proPart {
 	for _, g := range games {
 		doc.Rounds = append(doc.Rounds, tacticalplan.Round{Number: g, ScoreCTBefore: g - 1})
 	}
-	return proPart{header: analysisHeader{Document: doc}, first: first}
+	return proPart{header: community.ProAnalysisHeader{Document: doc}, first: first}
 }
 
 func TestOwnedRoundsKeepsEachGameRoundInOnePart(t *testing.T) {

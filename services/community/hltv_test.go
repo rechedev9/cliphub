@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func TestAnalysisRoundTripAndListing(t *testing.T) {
 	dir := t.TempDir()
-	h := analysisHeader{Format: analysisFormat, Match: hltvSidecar{Source: hltvDataset, MatchID: 2400303, Event: "ESL Challenger League"}, Entry: "alliance-vs-maybe-m1-mirage.dem", Document: tacticalplan.NewDocument()}
+	h := community.ProAnalysisHeader{Format: community.ProAnalysisFormat, Match: community.ProSidecar{Source: hltvDataset, MatchID: 2400303, Event: "ESL Challenger League"}, Entry: "alliance-vs-maybe-m1-mirage.dem", Document: tacticalplan.NewDocument()}
 	h.Document.Demo.Map = "de_mirage"
 	blob := bytes.Repeat([]byte{1, 2, 3}, 1000)
 	name := filepath.Join(dir, "2400303__alliance-vs-maybe-m1-mirage"+analysisSuffix)
@@ -46,7 +47,7 @@ func TestAnalysisRoundTripAndListing(t *testing.T) {
 func TestWriteSidecarsGivesOneSidecarPerMatch(t *testing.T) {
 	dir, out := t.TempDir(), t.TempDir()
 	for _, entry := range []string{"a-vs-b-m1-mirage", "a-vs-b-m2-nuke"} {
-		h := analysisHeader{Format: analysisFormat, Match: hltvSidecar{Source: hltvDataset, MatchID: 2400303, DemoPath: "/download/demo/99", Event: "IEM"}, Entry: entry + ".dem", Document: tacticalplan.NewDocument()}
+		h := community.ProAnalysisHeader{Format: community.ProAnalysisFormat, Match: community.ProSidecar{Source: hltvDataset, MatchID: 2400303, DemoPath: "/download/demo/99", Event: "IEM"}, Entry: entry + ".dem", Document: tacticalplan.NewDocument()}
 		if err := writeAnalysis(filepath.Join(dir, "2400303__"+entry+analysisSuffix), h, []byte{1}); err != nil {
 			t.Fatal(err)
 		}

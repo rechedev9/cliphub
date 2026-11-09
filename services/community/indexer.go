@@ -156,6 +156,13 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 			log.Printf("community stage=pro-players class=kept error=%v", err)
 		}
 	}
+	if ix.archiveDir != "" {
+		if n, err := syncProCatalog(ctx, ix.store, ix.archiveDir); err != nil {
+			log.Printf("community stage=pro_matches class=kept error=%v", err)
+		} else {
+			log.Printf("community stage=pro_matches class=synced changed=%d", n)
+		}
+	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)
 	for _, m := range index.Maps {
 		log.Printf("community stage=index class=map map=%s maps=%d rounds=%d players=%d", m.Map, m.Matches, m.Rounds, m.Players)

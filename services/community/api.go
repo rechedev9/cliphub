@@ -23,6 +23,8 @@ type api struct {
 	clipsDir string
 	// proPlayers keeps the decoded pro players payloads.
 	proPlayers proPlayersCache
+	// analysesDir holds the archived pro analyses the pro match catalog serves; empty serves none.
+	analysesDir string
 }
 
 func newAPI(s *store) *api {
@@ -35,6 +37,8 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("GET /v1/pro-lineups", a.handleProLineups)
 	mux.HandleFunc("GET /v1/pro-players", a.handleProPlayers)
 	mux.HandleFunc("GET /v1/pro-clips/{match}/{file}", a.handleProClip)
+	mux.HandleFunc("GET /v1/pro-matches", a.handleProMatches)
+	mux.HandleFunc("GET /v1/pro-matches/{match}/{map}", a.handleProMatchFile)
 	mux.HandleFunc("GET /v1/rankings", a.handleRankings)
 	mux.HandleFunc("POST /v1/rankings/submit", a.handleSubmit)
 	mux.HandleFunc("DELETE /v1/rankings/installs/{id}", a.handleDelete)
