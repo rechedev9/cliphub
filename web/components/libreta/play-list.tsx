@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'r
 import Link from 'next/link';
 import { BookMarked, FileDown, FileUp, Plus, PlugZap, Swords } from 'lucide-react';
 import { deleteLibraryPlay, exportStratbook, isLibraryOffline, listLibraryPlays, patchLibraryPlay } from '@/lib/api/library';
+import type { CountNoun } from '@/lib/records/selection';
 import type { LibretaStatus } from '@/lib/api/libreta';
 import { STRATBOOK_FORMAT, STRATBOOK_VERSION, type LibraryPlay } from '@/lib/api/stratbook';
 import { MATCHES_HREF, playHref, teamHref } from '@/lib/clips/routes';
@@ -19,9 +20,11 @@ import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
-import { BulkBar } from './bulk-bar';
+import { LibretaBulkActions } from './bulk-actions';
 import { NewPlayDialog } from './new-play-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
+
+const JUGADA: CountNoun = { one: 'jugada', many: 'jugadas', feminine: true };
 
 const NO_TEAM = 'none';
 
@@ -292,17 +295,6 @@ export function PlayList({
           {hiddenArchived === 1 ? 'Una jugada archivada no se muestra.' : `${hiddenArchived} jugadas archivadas no se muestran.`} Elige Estado: Archivo para verlas.
         </p>
       ) : null}
-      {chosen.length > 0 ? (
-        <BulkBar
-          count={chosen.length}
-          noun={chosen.length === 1 ? 'jugada' : 'jugadas'}
-          busy={busy}
-          onStatus={(next) => void bulkStatus(next, chosenIds)}
-          onExport={() => void exportPlays(chosen)}
-          onDelete={() => void bulkDelete(chosenIds)}
-          onClear={() => setSelected(new Set())}
-        />
-      ) : null}
       <DataTable
         toolbar={
           <FilterBar
@@ -336,7 +328,22 @@ export function PlayList({
         rowKey={(play) => play.id}
         rowHref={(play) => playHref(play.id)}
         view={view}
-        selection={{ selected, onChange: setSelected }}
+        selection={{
+          selected,
+          onChange: setSelected,
+          busy,
+          noun: JUGADA,
+          actions: (
+            <LibretaBulkActions
+              count={chosen.length}
+              noun={JUGADA}
+              busy={busy}
+              onStatus={(next) => void bulkStatus(next, chosenIds)}
+              onExport={() => void exportPlays(chosen)}
+              onDelete={() => void bulkDelete(chosenIds)}
+            />
+          ),
+        }}
         empty={<p className="text-body-sm text-fg-2">Ninguna jugada cumple estos filtros.</p>}
       />
       {dialog}

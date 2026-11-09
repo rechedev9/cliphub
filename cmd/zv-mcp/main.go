@@ -108,7 +108,7 @@ the save fails). Both renders return a variant for wait_for_stream_render, which
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
 The library: import_demo takes tags; update_demo changes a demo's source or tags; reanalyze_demo
-analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay).
+analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
 pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_storage_files,

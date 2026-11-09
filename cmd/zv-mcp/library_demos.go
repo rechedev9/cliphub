@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -45,9 +46,35 @@ type updateDemoIn struct {
 	Tags   *[]string `json:"tags,omitempty" jsonschema:"the whole new tag set, replacing the old one (at most 32 of 40 characters, no commas); an empty list clears it; omit to keep the tags"`
 }
 
+// maxDeleteDemos caps one delete_demo call, so the approval summary stays readable.
+const maxDeleteDemos = 50
+
 type deleteDemoIn struct {
-	ID      string `json:"id" jsonschema:"demo_id from get_match or list_matches"`
-	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+	ID      string   `json:"id,omitempty" jsonschema:"demo_id from get_match or list_matches; use ids for several"`
+	IDs     []string `json:"ids,omitempty" jsonschema:"instead of id: up to 50 demo_ids to remove with one approval"`
+	Approve string   `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
+}
+
+func (in deleteDemoIn) demoIDs() ([]string, error) {
+	switch {
+	case in.ID != "" && len(in.IDs) > 0:
+		return nil, errors.New("pass id or ids, not both")
+	case in.ID != "":
+		return []string{in.ID}, checkUUID("id", in.ID)
+	case len(in.IDs) == 0:
+		return nil, errors.New("id or ids is required")
+	case len(in.IDs) > maxDeleteDemos:
+		return nil, fmt.Errorf("at most %d ids per call", maxDeleteDemos)
+	}
+	for i, id := range in.IDs {
+		if err := checkUUID("ids", id); err != nil {
+			return nil, err
+		}
+		if slices.Contains(in.IDs[:i], id) {
+			return nil, fmt.Errorf("ids lists %s twice", id)
+		}
+	}
+	return in.IDs, nil
 }
 
 func registerLibraryDemoTools(server *mcp.Server, s *studio) {
@@ -155,25 +182,54 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_demo", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
-		Description: "Remove a demo from the library with its match, analysis and corrections, as Quitar de la biblioteca does. " +
+		Description: "Remove demos from the library with their match, analysis and corrections, as Quitar de la biblioteca does for one " +
+			"and Borrar does for the partidas chosen in Partidas: id for one demo, ids for several under one approval. " +
 			"Videos already made and their jobs stay. It cannot be undone, so the user must approve it. " + deleteApprovalHint},
 		func(ctx context.Context, req *mcp.CallToolRequest, in deleteDemoIn) (*mcp.CallToolResult, deleteOut, error) {
-			if err := checkUUID("id", in.ID); err != nil {
+			ids, err := in.demoIDs()
+			if err != nil {
 				return nil, deleteOut{}, err
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, deleteOut{}, toolError(err)
 			}
-			d, err := c.GetLibraryDemo(ctx, in.ID)
-			if err != nil {
-				return nil, deleteOut{}, toolError(err)
+			names := make([]string, 0, len(ids))
+			imported := make([]time.Time, 0, len(ids))
+			for _, id := range ids {
+				d, err := c.GetLibraryDemo(ctx, id)
+				if err != nil {
+					return nil, deleteOut{}, toolError(err)
+				}
+				names = append(names, cleanName(d.FileName))
+				imported = append(imported, d.Imported)
 			}
-			summary := fmt.Sprintf("Quitar %s de la biblioteca: se borran la copia de la demo, su análisis y sus correcciones. "+
-				"Los vídeos ya creados no se tocan. No se puede deshacer.", cleanName(d.FileName))
-			return approveAndDelete(req, approvalSpec{Tool: "delete_demo", JobID: in.ID, Request: d.Imported, Summary: summary, Given: in.Approve, Question: "¿Quitar ahora?"},
-				func() error { return c.DeleteLibraryDemo(ctx, in.ID) })
+			spec := approvalSpec{Tool: "delete_demo", JobID: strings.Join(ids, ","), Request: imported,
+				Summary: deleteDemosSummary(names), Given: in.Approve, Question: "¿Quitar ahora?"}
+			return approveAndDelete(req, spec, func() error {
+				for i, id := range ids {
+					if err := c.DeleteLibraryDemo(ctx, id); err != nil {
+						return fmt.Errorf("removed %d of %d demos, then %s failed: %w", i, len(ids), names[i], err)
+					}
+				}
+				return nil
+			})
 		})
+}
+
+// deleteDemosSummary names up to five files, then counts the rest.
+func deleteDemosSummary(names []string) string {
+	const shown = 5
+	const effect = "Los vídeos ya creados no se tocan. No se puede deshacer."
+	if len(names) == 1 {
+		return fmt.Sprintf("Quitar %s de la biblioteca: se borran la copia de la demo, su análisis y sus correcciones. %s", names[0], effect)
+	}
+	list := strings.Join(names[:min(len(names), shown)], ", ")
+	if len(names) > shown {
+		list += fmt.Sprintf(" y %d más", len(names)-shown)
+	}
+	return fmt.Sprintf("Quitar %d partidas de la biblioteca (%s): se borran las copias de las demos, sus análisis y sus correcciones. %s",
+		len(names), list, effect)
 }
 
 func checkDemoTags(tags []string) error {

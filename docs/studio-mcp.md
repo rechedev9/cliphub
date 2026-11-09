@@ -143,7 +143,7 @@ safe. Only uploads are limited (2 concurrent).
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
-  `delete_stream`, `delete_demo`, `merge_teams` (both team names and the match count of the one that goes),
+  `delete_stream`, `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
   `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_library_series` (format and teams)
   and `launch_practice` (map and spot count).
@@ -270,7 +270,7 @@ Write:
 | `sync_steam_matches` | `POST /api/steam/matches/sync`; `history_not_configured` and `need_known_code` point the user to Ajustes | no |
 | `import_share_code` | `POST /api/steam/import` with `code` only: Studio downloads with the Steam session the user started in the UI, else `steam_credentials_required` asks the user to sign in there. Makes a Crear job | no |
 | `pick_player` | `POST /api/jobs/{id}/parse` with `target_steamid` | no |
-| `delete_demo` | `GET /api/library/demos/{id}` for the summary, then `DELETE /api/library/demos/{id}` (demo, match, analysis and corrections; videos and jobs stay) | yes |
+| `delete_demo` | `GET /api/library/demos/{id}` for the summary of each demo (`id`, or up to 50 `ids` as Borrar on the partidas chosen in Partidas), then `DELETE /api/library/demos/{id}` for each, in order (demo, match, analysis and corrections; videos and jobs stay) | yes |
 | `update_team` | `PATCH /api/library/teams/{id}` (`name`, `aliases` replaces the set, so the list starts from `get_team`: a dropped clan name makes a new team on the next import) | no |
 | `assign_match_team` | `PUT /api/library/matches/{id}/teams/{key}` (`team_id`, `team_name` found or created, or cleared; `remember_alias`); `get_match` lists the side keys | no |
 | `create_report`, `update_report` | `POST /api/library/reports` (`title`, `team_id`, `match_ids`, `side`, `notes`); `PATCH /api/library/reports/{id}` (the team cannot change) | no |
