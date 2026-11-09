@@ -29,7 +29,10 @@ async function loadReferences(map: string, metrics: readonly BaselineMetric[]): 
     getBaseline({ scope: 'library', map, min_rounds: minRounds }),
     getBaseline({ scope: 'pro', map, min_rounds: minRounds }),
   ]);
-  return { library, pro, minRounds, boards: new Map(boards.map((board) => [board.metric, board])) };
+  return { library, pro, minRounds, boards: new Map(wanted.flatMap((metric, index) => {
+      const board = boards[index];
+      return board === undefined ? [] : [[metric, board] as const];
+    })) };
 }
 
 function cached(map: string, metrics: readonly BaselineMetric[]): Promise<References> {

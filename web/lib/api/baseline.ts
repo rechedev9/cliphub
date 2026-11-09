@@ -50,6 +50,20 @@ export type Baseline = {
   metrics: Record<BaselineMetric, BaselineValue>;
 };
 
+/** Metrics a leaderboard ranks on: the reference ones plus the rating (HLTV 2.0 approximation) and K/D. */
+export const LEADERBOARD_METRICS = ['rating', 'kd', ...BASELINE_METRICS] as const;
+export type LeaderboardMetric = (typeof LEADERBOARD_METRICS)[number];
+
+/** Roles of a player on one map: CT anchors and rotators, T lurkers and packs. */
+export const CT_ROLES = ['a_anchor', 'b_anchor', 'rotator'] as const;
+export const T_ROLES = ['a_lurk', 'b_lurk', 'half_lurk', 'pack'] as const;
+export type LeaderboardRole = (typeof CT_ROLES)[number] | (typeof T_ROLES)[number];
+
+export type LeaderboardRoles = { ct?: LeaderboardRole; t?: LeaderboardRole };
+
+/** A round of the row to open in the Replay (`LeaderboardRow.examples`). */
+export type LeaderboardRound = { match_id: string; round: number; tick: number };
+
 export type LeaderboardRow = {
   rank: number;
   steamid64: string;
@@ -59,7 +73,17 @@ export type LeaderboardRow = {
   rounds: number;
   matches: number;
   value: number;
+  /** Every leaderboard metric the player has; library rows only. */
+  metrics?: Partial<Record<LeaderboardMetric, number>>;
+  /** The role per side on the map; present when the query names a map. */
+  roles?: LeaderboardRoles;
+  /** The newest rounds in the filter, library rows only. */
+  examples?: LeaderboardRound[];
 };
+
+/** Where demos come from: the Valve matchmaking, FACEIT, tournaments or scrims. */
+export const LEADERBOARD_SOURCES = ['valve', 'faceit', 'hltv', 'scrim'] as const;
+export type LeaderboardMatchSource = (typeof LEADERBOARD_SOURCES)[number];
 
 export type Leaderboard = {
   scope: BaselineScope;
@@ -67,7 +91,7 @@ export type Leaderboard = {
   source: BaselineSource;
   description?: string;
   updated_at?: string;
-  metric: BaselineMetric;
+  metric: LeaderboardMetric;
   /** False for `dpr`, where the lowest value ranks first. */
   higher_is_better: boolean;
   min_rounds: number;
@@ -79,14 +103,25 @@ export type Leaderboard = {
 
 export type BaselineQuery = { scope?: BaselineScope; map?: string; min_rounds?: number };
 
-export type LeaderboardQuery = BaselineQuery & { metric: BaselineMetric; limit?: number };
+/** The filters beyond `scope`, `map` and `min_rounds` apply to the library scope only. */
+export type LeaderboardQuery = BaselineQuery & {
+  metric: LeaderboardMetric;
+  limit?: number;
+  side?: 'CT' | 'T';
+  role?: LeaderboardRole;
+  /** RFC 3339 bounds of the match date. */
+  from?: string;
+  to?: string;
+  source?: LeaderboardMatchSource;
+};
 
 export const BASELINE_KEYS = ['scope', 'map', 'source', 'description', 'updated_at', 'min_rounds', 'players', 'rounds', 'matches', 'skipped', 'metrics'] as const;
 
 export const LEADERBOARD_KEYS = [
   'scope', 'map', 'source', 'description', 'updated_at', 'metric', 'higher_is_better', 'min_rounds', 'matches', 'rounds', 'skipped', 'players',
+  'side', 'role', 'from', 'to', 'match_source',
 ] as const;
 
 export const BASELINE_QUERY = ['scope', 'map', 'min_rounds'] as const;
 
-export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit'] as const;
+export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit', 'side', 'role', 'from', 'to', 'source'] as const;

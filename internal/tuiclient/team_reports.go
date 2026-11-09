@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // Evidence is one round a report counted, by match, round and tick.
@@ -270,31 +271,55 @@ type LeaderboardQuery struct {
 	Map       string
 	MinRounds int
 	Limit     int
+	// Side, Role, From, To and Source narrow a library leaderboard; zero means unset.
+	Side   string
+	Role   string
+	From   time.Time
+	To     time.Time
+	Source string
 }
 
 // Leaderboard is GET /api/library/leaderboard.
 type Leaderboard struct {
-	Scope          string `json:"scope"`
-	Map            string `json:"map"`
-	Metric         string `json:"metric"`
-	HigherIsBetter bool   `json:"higher_is_better"`
-	MinRounds      int    `json:"min_rounds"`
-	Matches        int    `json:"matches"`
-	Rounds         int    `json:"rounds"`
-	Skipped        int    `json:"skipped"`
-	Players        []struct {
-		Rank      int     `json:"rank"`
-		SteamID64 string  `json:"steamid64"`
-		Name      string  `json:"name"`
-		Rounds    int     `json:"rounds"`
-		Matches   int     `json:"matches"`
-		Value     float64 `json:"value"`
-	} `json:"players"`
+	Scope          string              `json:"scope"`
+	Map            string              `json:"map"`
+	Metric         string              `json:"metric"`
+	HigherIsBetter bool                `json:"higher_is_better"`
+	MinRounds      int                 `json:"min_rounds"`
+	Matches        int                 `json:"matches"`
+	Rounds         int                 `json:"rounds"`
+	Skipped        int                 `json:"skipped"`
+	Players        []LeaderboardPlayer `json:"players"`
+}
+
+// LeaderboardPlayer is one ranked player.
+type LeaderboardPlayer struct {
+	Rank      int                `json:"rank"`
+	SteamID64 string             `json:"steamid64"`
+	Name      string             `json:"name"`
+	Rounds    int                `json:"rounds"`
+	Matches   int                `json:"matches"`
+	Value     float64            `json:"value"`
+	Metrics   map[string]float64 `json:"metrics"`
+	Roles     *struct {
+		CT string `json:"ct"`
+		T  string `json:"t"`
+	} `json:"roles"`
+	Examples []struct {
+		MatchID string `json:"match_id"`
+		Round   int    `json:"round"`
+	} `json:"examples"`
 }
 
 // LibraryLeaderboard ranks the library's players on one reference metric.
 func (c *Client) LibraryLeaderboard(ctx context.Context, q LeaderboardQuery) (Leaderboard, error) {
-	params := map[string]string{"metric": q.Metric, "scope": q.Scope, "map": q.Map}
+	params := map[string]string{"metric": q.Metric, "scope": q.Scope, "map": q.Map, "side": q.Side, "role": q.Role, "source": q.Source}
+	if !q.From.IsZero() {
+		params["from"] = q.From.UTC().Format(time.RFC3339)
+	}
+	if !q.To.IsZero() {
+		params["to"] = q.To.UTC().Format(time.RFC3339)
+	}
 	if q.MinRounds > 0 {
 		params["min_rounds"] = strconv.Itoa(q.MinRounds)
 	}

@@ -82,7 +82,8 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"scope":"library","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":40,"rounds":900,"skipped":1,
-			"players":[{"rank":1,"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","rounds":400,"matches":18,"value":92.4}]}`))
+			"players":[{"rank":1,"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","rounds":400,"matches":18,"value":92.4,
+				"metrics":{"adr":92.4,"rating":1.21},"roles":{"ct":"b_anchor","t":"b_lurk"},"examples":[{"match_id":"` + testMatchID + `","round":3,"tick":10}]}]}`))
 	})
 }
 
@@ -174,6 +175,12 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	if !board.HigherIsBetter || board.SkippedMatches != 1 || len(board.Players) != 1 || board.Players[0].Name != "ZywOo" || board.Players[0].Value != 92.4 {
 		t.Fatalf("leaderboard = %+v", board)
 	}
-	toolFails(t, cs, "leaderboard", map[string]any{"metric": "rating"}, "metric must be one of")
+	if row := board.Players[0]; row.Metrics["rating"] != 1.21 || row.Roles == nil || row.Roles.T != "b_lurk" || len(row.Refs) != 1 || row.Refs[0] != testMatchID+"/3" {
+		t.Fatalf("row = %+v, want the metrics, the roles and the round ref", row)
+	}
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "nope"}, "metric must be one of")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "b_lurk"}, "role needs a map")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "source": "x"}, "source must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "limit": 101}, "limit")
 }

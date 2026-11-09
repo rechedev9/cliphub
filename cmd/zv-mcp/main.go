@@ -65,7 +65,8 @@ only the rounds every player of the team played in it, like the Alineación sele
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
-For a player: player_positions; leaderboard ranks the library's players on one get_baseline metric.
+For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
+filtered by map, side, role (such as b_lurk on de_anubis), dates and demo source, with each player's metrics, roles and round refs.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.

@@ -19,11 +19,22 @@ const (
 	MetricWPA           = "wpa_per_round"
 )
 
+// Leaderboard-only metrics, derived from the totals above. Rating is the
+// public approximation of HLTV 2.0, not the site's own number.
+const (
+	MetricRating = "rating"
+	MetricKD     = "kd"
+)
+
 // ReferenceMetrics lists the reference metrics in report order.
 var ReferenceMetrics = []string{
 	MetricKPR, MetricDPR, MetricADR, MetricKAST, MetricOpeningWin, MetricTrade,
 	MetricUtilityDamage, MetricFlashAssists, MetricWPA,
 }
+
+// LeaderboardMetrics are the metrics a leaderboard ranks on: the reference
+// ones and the two derived from them.
+var LeaderboardMetrics = append(append([]string{}, ReferenceMetrics...), MetricRating, MetricKD)
 
 // BaselineMinRounds is the rounds a player needs to count in a baseline.
 const BaselineMinRounds = 50
@@ -113,6 +124,10 @@ func (t playerTotals) values() map[string]float64 {
 	out[MetricADR] = round4(float64(t.box.Damage) / rounds)
 	out[MetricKAST] = round4(100 * float64(t.box.KASTRounds) / rounds)
 	out[MetricWPA] = round4(t.wpa / rounds)
+	out[MetricRating] = round4(approxRating(float64(t.kills)/rounds, float64(t.deaths)/rounds, float64(t.box.Assists)/rounds, 100*float64(t.box.KASTRounds)/rounds, float64(t.box.Damage)/rounds))
+	if t.deaths > 0 {
+		out[MetricKD] = round4(float64(t.kills) / float64(t.deaths))
+	}
 	if duels := t.box.OpeningKills + t.box.OpeningDeaths; duels > 0 {
 		out[MetricOpeningWin] = round4(100 * float64(t.box.OpeningKills) / float64(duels))
 	}
@@ -124,6 +139,25 @@ func (t playerTotals) values() map[string]float64 {
 		out[MetricFlashAssists] = round4(float64(t.flashAssists) / float64(u))
 	}
 	return out
+}
+
+// approxRating is the community formula for HLTV rating 2.0: kast in percent,
+// the rest per round.
+func approxRating(kpr, dpr, apr, kast, adr float64) float64 {
+	impact := 2.13*kpr + 0.42*apr - 0.41
+	return 0.0073*kast + 0.3591*kpr - 0.5329*dpr + 0.2372*impact + 0.0032*adr + 0.1587
+}
+
+// merge adds the totals of another set of rounds of the same player; matches are the caller's.
+func (t *playerTotals) merge(o playerTotals) {
+	t.rounds += o.rounds
+	t.kills += o.kills
+	t.deaths += o.deaths
+	t.tradedDeaths += o.tradedDeaths
+	t.flashAssists += o.flashAssists
+	t.utilityDamage += o.utilityDamage
+	t.wpa += o.wpa
+	t.box.add(o.box)
 }
 
 // BaselineSample adds up player metrics report by report, so a whole library
@@ -280,6 +314,12 @@ type LeaderboardRow struct {
 	Rounds  int     `json:"rounds"`
 	Matches int     `json:"matches"`
 	Value   float64 `json:"value"`
+	// Metrics holds every leaderboard metric the player has, set on library rows.
+	Metrics map[string]float64 `json:"metrics,omitempty"`
+	// Roles is the player's role per side on the map, set when the map is one.
+	Roles *PlayerRoles `json:"roles,omitempty"`
+	// Examples are the newest rounds the row counts, to open in the Replay.
+	Examples []Evidence `json:"examples,omitempty"`
 }
 
 // Leaderboard ranks the players with at least minRounds rounds on one metric,

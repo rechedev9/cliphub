@@ -299,6 +299,29 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/equipos', label: 'Ir a Equipos' },
   },
   {
+    id: 'ranking',
+    kicker: 'Ranking',
+    label: 'Ranking',
+    title: 'Quién juega mejor un rol en un mapa',
+    lead:
+      'Elige un mapa y un rol, como el lurker de B en Anubis, un periodo y un nivel de demos, y mira quién tiene mejor rating. Desde su fila abres sus rondas en el Replay.',
+    points: [
+      {
+        term: 'Rol por lado',
+        text: 'Studio lee dónde está cada jugador en los primeros segundos de cada ronda: ancla o rotador en CT, lurker, medio lurker o pack en T.',
+      },
+      {
+        term: 'Fijados',
+        text: 'Fija a los jugadores que sigues: salen siempre arriba, aunque el filtro los deje sin rondas.',
+      },
+      {
+        term: 'Sus rondas',
+        text: 'Cada fila abre en el Replay las rondas más recientes de ese jugador dentro del filtro.',
+      },
+    ],
+    link: { href: '/ranking', label: 'Ir al Ranking' },
+  },
+  {
     id: 'libreta',
     kicker: 'Libreta',
     label: 'Libreta',

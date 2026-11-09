@@ -156,6 +156,10 @@ test('the baseline and the leaderboard are read only and keep their own query na
     libraryUpstreamQuery(board, new URLSearchParams('metric=adr&map=de_nuke&min_rounds=80&limit=10&steamid=1')),
     'map=de_nuke&min_rounds=80&metric=adr&limit=10',
   );
+  assert.equal(
+    libraryUpstreamQuery(board, new URLSearchParams('metric=rating&map=de_anubis&role=b_lurk&side=T&from=2026-08-01T00:00:00Z&source=hltv&x=1')),
+    'map=de_anubis&metric=rating&side=T&role=b_lurk&from=2026-08-01T00%3A00%3A00Z&source=hltv',
+  );
 });
 
 test('the norms are read only and forward only the map and the dates', () => {

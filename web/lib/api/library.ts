@@ -737,6 +737,10 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
   const params = baselineParams(query);
   params.set('metric', query.metric);
   if (query.limit) params.set('limit', String(query.limit));
+  for (const key of ['side', 'role', 'from', 'to', 'source'] as const) {
+    const value = query[key];
+    if (value) params.set(key, value);
+  }
   return request<Leaderboard>(`/leaderboard?${params.toString()}`);
 }
 

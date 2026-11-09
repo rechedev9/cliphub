@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -61,18 +62,24 @@ type baselineResponse struct {
 }
 
 type leaderboardResponse struct {
-	Scope          string                        `json:"scope"`
-	Map            string                        `json:"map"`
-	Source         string                        `json:"source"`
-	Description    string                        `json:"description,omitempty"`
-	UpdatedAt      string                        `json:"updated_at,omitempty"`
-	Metric         string                        `json:"metric"`
-	HigherIsBetter bool                          `json:"higher_is_better"`
-	MinRounds      int                           `json:"min_rounds"`
-	Matches        int                           `json:"matches"`
-	Rounds         int                           `json:"rounds"`
-	Skipped        int                           `json:"skipped"`
-	Players        []tacticalplan.LeaderboardRow `json:"players"`
+	Scope          string `json:"scope"`
+	Map            string `json:"map"`
+	Source         string `json:"source"`
+	Description    string `json:"description,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
+	Metric         string `json:"metric"`
+	HigherIsBetter bool   `json:"higher_is_better"`
+	MinRounds      int    `json:"min_rounds"`
+	Matches        int    `json:"matches"`
+	Rounds         int    `json:"rounds"`
+	Skipped        int    `json:"skipped"`
+	// Side, Role, From, To and MatchSource echo the library filters applied.
+	Side        string                        `json:"side,omitempty"`
+	Role        string                        `json:"role,omitempty"`
+	From        *time.Time                    `json:"from,omitempty"`
+	To          *time.Time                    `json:"to,omitempty"`
+	MatchSource string                        `json:"match_source,omitempty"`
+	Players     []tacticalplan.LeaderboardRow `json:"players"`
 }
 
 type baselineQuery struct {
@@ -129,7 +136,8 @@ func (h *Handlers) GetLibraryBaseline(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLibraryLeaderboard handles GET /api/library/leaderboard: the players
-// ranked by one reference metric, best first.
+// ranked by one metric, best first. The library scope also takes the side, a
+// role, a date range and a match source; the pro scope takes none of them.
 func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -137,8 +145,8 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	values := r.URL.Query()
 	q, err := parseBaselineQuery(values)
 	metric := values.Get("metric")
-	if err == nil && !slices.Contains(tacticalplan.ReferenceMetrics, metric) {
-		err = errors.New("metric must be one of " + strings.Join(tacticalplan.ReferenceMetrics, ", "))
+	if err == nil && !slices.Contains(tacticalplan.LeaderboardMetrics, metric) {
+		err = errors.New("metric must be one of " + strings.Join(tacticalplan.LeaderboardMetrics, ", "))
 	}
 	limit := leaderboardDefaultLimit
 	if raw := values.Get("limit"); err == nil && raw != "" {
@@ -146,8 +154,27 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 			err = fmt.Errorf("limit must be an integer from 1 to %d", leaderboardMaxLimit)
 		}
 	}
+	var filters leaderboardFilters
+	if err == nil {
+		filters, err = parseLeaderboardFilters(values, q)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out := leaderboardResponse{
+		Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Metric: metric, HigherIsBetter: !tacticalplan.LowerIsBetter(metric),
+		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, From: filters.from, To: filters.to, MatchSource: string(filters.source),
+	}
+	if q.scope == baselineScopeLibrary {
+		sample, skipped, err := h.leaderboardSample(r.Context(), q, filters)
+		if err != nil {
+			internalError(w, "leaderboard", err)
+			return
+		}
+		out.Matches, out.Rounds, out.Skipped = sample.Matches, sample.Rounds, skipped
+		out.Players = sample.Rows(tacticalplan.LeaderboardOptions{Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role})
+		writeJSON(w, http.StatusOK, out)
 		return
 	}
 	entry, err := h.baselineSample(r.Context(), q)
@@ -155,12 +182,9 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 		internalError(w, "leaderboard", err)
 		return
 	}
-	out := leaderboardResponse{
-		Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Metric: metric, HigherIsBetter: !tacticalplan.LowerIsBetter(metric),
-		MinRounds: q.minRounds, Matches: entry.sample.Matches, Rounds: entry.sample.Rounds, Skipped: entry.skipped,
-	}
+	out.Matches, out.Rounds, out.Skipped = entry.sample.Matches, entry.sample.Rounds, entry.skipped
 	// The baseline's rule, so a ranking and the mean above it read the same players.
-	if q.scope == baselineScopePro && entry.sample.Baseline(q.minRounds, tacticalplan.ReferenceSpread{}).Players < tacticalplan.ProReferenceMinPlayers {
+	if entry.sample.Baseline(q.minRounds, tacticalplan.ReferenceSpread{}).Players < tacticalplan.ProReferenceMinPlayers {
 		ref, source := h.proReference()
 		bundled, rows, mapName := ref.For(q.mapName)
 		out.Map, out.Source, out.Description, out.UpdatedAt, out.Skipped = mapName, source, ref.Description, ref.UpdatedAt, 0

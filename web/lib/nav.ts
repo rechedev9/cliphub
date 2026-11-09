@@ -17,6 +17,7 @@ export const NAV_SECTIONS = [
   { label: 'Partidas', href: '/partidas', area: 'analyze' },
   { label: 'Replay', href: '/replay', area: 'analyze' },
   { label: 'Equipos', href: '/equipos', area: 'analyze' },
+  { label: 'Ranking', href: '/ranking', area: 'analyze' },
   { label: 'Libreta', href: '/libreta', area: 'analyze' },
   { label: 'Lineups pro', href: '/lineups', area: 'analyze' },
   { label: 'Informes', href: '/informes', area: 'analyze' },
@@ -65,7 +66,6 @@ export const RETIRED_ROUTES = {
   '/tactical': '/partidas',
   '/stratbook': '/libreta',
   '/jugadores': '/equipos',
-  '/ranking': '/equipos',
 } as const;
 
 export type RetiredRoute = keyof typeof RETIRED_ROUTES;

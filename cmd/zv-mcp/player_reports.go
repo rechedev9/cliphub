@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ const (
 	defaultLeaderboardRows = 20
 	maxLeaderboardRows     = 100
 	maxLeaderboardMinRound = 10000
+	maxLeaderboardRefs     = 10
 )
 
 type playerPositionsIn struct {
@@ -58,9 +60,14 @@ type playerPositionsOut struct {
 }
 
 type leaderboardIn struct {
-	Metric    string `json:"metric" jsonschema:"the metric to rank on: kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
-	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: only HLTV demos"`
+	Metric    string `json:"metric" jsonschema:"the metric to rank on: rating (HLTV 2.0 approximation), kd, kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
+	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: only HLTV demos, and none of the filters below"`
 	Map       string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
+	Side      string `json:"side,omitempty" jsonschema:"only the rounds played on this side: CT or T"`
+	Role      string `json:"role,omitempty" jsonschema:"only players with this role on the map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
+	From      string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
+	To        string `json:"to,omitempty" jsonschema:"last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
+	Source    string `json:"source,omitempty" jsonschema:"only matches from this kind of demo: valve, faceit, hltv (tournaments) or scrim"`
 	MinRounds int    `json:"min_rounds,omitempty" jsonschema:"rounds a player needs to be ranked; default 50"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"how many players to list, best first; default 20, at most 100"`
 }
@@ -72,6 +79,15 @@ type leaderboardRowOut struct {
 	Rounds    int     `json:"rounds"`
 	Matches   int     `json:"matches"`
 	Value     float64 `json:"value"`
+	// Metrics repeats every metric of the player, so one call reads the whole row of the Studio table.
+	Metrics map[string]float64 `json:"metrics,omitempty"`
+	Roles   *leaderboardRoles  `json:"roles,omitempty" jsonschema:"the role on each side of the map; set when map is"`
+	Refs    []string           `json:"refs,omitempty" jsonschema:"match_id/round of the player's newest rounds in the filter, to open in the Replay"`
+}
+
+type leaderboardRoles struct {
+	CT string `json:"ct,omitempty"`
+	T  string `json:"t,omitempty"`
 }
 
 type leaderboardOut struct {
@@ -112,8 +128,9 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "leaderboard", Annotations: readOnly,
-		Description: "Rank the library's players on one metric (the get_baseline metrics), best first, over the players " +
-			"with at least min_rounds rounds. Filter by scope (library or pro) and map."},
+		Description: "Rank the library's players on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
+			"players with at least min_rounds rounds: the Ranking page of Studio. Filter by map, side, role (a role on a map, " +
+			"such as b_lurk on de_anubis), dates and demo source; each row carries every metric, the roles and refs of the player's rounds."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in leaderboardIn) (*mcp.CallToolResult, leaderboardOut, error) {
 			q, err := in.check()
 			if err != nil {
@@ -130,17 +147,28 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 			out := leaderboardOut{Scope: board.Scope, Map: cleanName(board.Map), Metric: board.Metric, HigherIsBetter: board.HigherIsBetter,
 				MinRounds: board.MinRounds, Matches: board.Matches, Rounds: board.Rounds, Players: []leaderboardRowOut{}, SkippedMatches: board.Skipped}
 			for _, p := range board.Players {
-				out.Players = append(out.Players, leaderboardRowOut{Rank: p.Rank, SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name),
-					Rounds: p.Rounds, Matches: p.Matches, Value: p.Value})
+				out.Players = append(out.Players, leaderboardRow(p))
 			}
 			return nil, out, nil
 		})
 }
 
+func leaderboardRow(p tuiclient.LeaderboardPlayer) leaderboardRowOut {
+	row := leaderboardRowOut{Rank: p.Rank, SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Rounds: p.Rounds, Matches: p.Matches,
+		Value: p.Value, Metrics: p.Metrics}
+	if p.Roles != nil {
+		row.Roles = &leaderboardRoles{CT: cleanName(p.Roles.CT), T: cleanName(p.Roles.T)}
+	}
+	for _, e := range p.Examples[:min(len(p.Examples), maxLeaderboardRefs)] {
+		row.Refs = append(row.Refs, fmt.Sprintf("%s/%d", cleanName(e.MatchID), e.Round))
+	}
+	return row
+}
+
 func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	metric := strings.ToLower(strings.TrimSpace(in.Metric))
-	if !slices.Contains(tacticalplan.ReferenceMetrics, metric) {
-		return tuiclient.LeaderboardQuery{}, fmt.Errorf("metric must be one of %s, not %q", strings.Join(tacticalplan.ReferenceMetrics, ", "), cleanName(in.Metric))
+	if !slices.Contains(tacticalplan.LeaderboardMetrics, metric) {
+		return tuiclient.LeaderboardQuery{}, fmt.Errorf("metric must be one of %s, not %q", strings.Join(tacticalplan.LeaderboardMetrics, ", "), cleanName(in.Metric))
 	}
 	scope := strings.ToLower(strings.TrimSpace(in.Scope))
 	if scope != "" && scope != "library" && scope != "pro" {
@@ -148,6 +176,21 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	}
 	if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
 		return tuiclient.LeaderboardQuery{}, err
+	}
+	filter, err := analysisFilterIn{Side: in.Side, From: in.From, To: in.To}.query()
+	if err != nil {
+		return tuiclient.LeaderboardQuery{}, err
+	}
+	role := strings.ToLower(strings.TrimSpace(in.Role))
+	if role != "" && tacticalplan.RoleSide(role) == "" {
+		return tuiclient.LeaderboardQuery{}, fmt.Errorf("role must be a_anchor, b_anchor, rotator, a_lurk, b_lurk, half_lurk or pack, not %q", cleanName(in.Role))
+	}
+	if role != "" && in.Map == "" {
+		return tuiclient.LeaderboardQuery{}, errors.New("role needs a map: a role is read on one map")
+	}
+	source := strings.ToLower(strings.TrimSpace(in.Source))
+	if source != "" && !slices.Contains([]string{"valve", "faceit", "hltv", "scrim"}, source) {
+		return tuiclient.LeaderboardQuery{}, fmt.Errorf("source must be valve, faceit, hltv or scrim, not %q", cleanName(in.Source))
 	}
 	if in.MinRounds < 0 || in.MinRounds > maxLeaderboardMinRound {
 		return tuiclient.LeaderboardQuery{}, fmt.Errorf("min_rounds must be from 1 to %d", maxLeaderboardMinRound)
@@ -159,7 +202,8 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	if limit == 0 {
 		limit = defaultLeaderboardRows
 	}
-	return tuiclient.LeaderboardQuery{Metric: metric, Scope: scope, Map: strings.ToLower(in.Map), MinRounds: in.MinRounds, Limit: limit}, nil
+	return tuiclient.LeaderboardQuery{Metric: metric, Scope: scope, Map: strings.ToLower(in.Map), MinRounds: in.MinRounds, Limit: limit,
+		Side: filter.Side, Role: role, From: filter.From, To: filter.To, Source: source}, nil
 }
 
 func summarizePositions(steamID string, r tuiclient.PlayerPositions) playerPositionsOut {
