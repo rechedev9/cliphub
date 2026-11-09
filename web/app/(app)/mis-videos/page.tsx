@@ -256,7 +256,7 @@ function ResultsSkeleton(): ReactNode {
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4.5">
         {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} className="h-[22rem] w-full rounded-[18px]" />
+          <Skeleton key={index} className="h-[22rem] w-full rounded-2xl" />
         ))}
       </div>
     </div>

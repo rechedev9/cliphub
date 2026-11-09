@@ -162,7 +162,7 @@ export function DemoDropzone({
         aria-busy={busy || undefined}
         aria-disabled={busy || undefined}
         className={cn(
-          'group flex cursor-pointer items-center justify-center rounded-[10px] border border-dashed text-center',
+          'group flex cursor-pointer items-center justify-center rounded-lg border border-dashed text-center',
           'transition-[background-color,border-color] duration-(--dur-base) ease-standard',
           compact ? 'min-h-24 gap-4 px-4 py-4' : cn('flex-col gap-3.5 px-6 py-8', minHeightClass),
           busy && 'pointer-events-none cursor-wait',

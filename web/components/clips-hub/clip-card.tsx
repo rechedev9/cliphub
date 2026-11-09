@@ -81,12 +81,12 @@ function CardStage({ size, kind, format, seed, posterUrl, durationSeconds, badge
         disabled={onPlay === null}
         aria-label={playLabel}
         onClick={(event) => onPlay?.(event.currentTarget)}
-        className={cn('block rounded-[10px] disabled:cursor-default', FOCUS_RING, tall ? STAGE_CLASS[size].tall : STAGE_CLASS[size].wide)}
+        className={cn('block rounded-lg disabled:cursor-default', FOCUS_RING, tall ? STAGE_CLASS[size].tall : STAGE_CLASS[size].wide)}
       >
         <MediaFrame
           aspect={format}
           badge={badge}
-          className="rounded-[10px]"
+          className="rounded-lg"
           fallback={<ReelCover seed={seed} plain />}
           media={posterUrl === undefined ? undefined : <CoverImage src={posterUrl} />}
         />
@@ -124,7 +124,7 @@ function CardText({ size, title, meta }: { size: ClipSize; title: string; meta: 
   );
 }
 
-const CARD_CLASS = 'flex flex-col overflow-hidden rounded-[18px] bg-surface-2';
+const CARD_CLASS = 'flex flex-col overflow-hidden rounded-2xl bg-surface-2';
 
 function actionRowClass(size: ClipSize): string {
   return cn('flex flex-wrap items-center gap-1.5', size === CLIP_SIZE.s ? 'px-3 pt-2.5 pb-3' : 'px-4 pt-3 pb-4');

@@ -17,7 +17,7 @@ const SOURCES = [
  */
 export function DemoSourceHelp({ titled = true }: { titled?: boolean }): ReactNode {
   return (
-    <section aria-label="Dónde consigo una demo" className="flex flex-col gap-3 self-start rounded-[14px] bg-surface-2 p-4">
+    <section aria-label="Dónde consigo una demo" className="flex flex-col gap-3 self-start rounded-xl bg-surface-2 p-4">
       <div className="flex flex-col gap-1">
         {titled ? <h2 className="text-body font-semibold text-fg-1">Dónde consigo una demo</h2> : null}
         <p className="text-meta text-fg-3">El archivo .dem de una partida de CS2 guarda todas sus rondas.</p>

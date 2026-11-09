@@ -59,7 +59,7 @@ const CHIP_CLASS = cn(
   FOCUS_RING,
 );
 
-const EMPTY_CLASS = 'rounded-[10px] border border-dashed border-border-subtle p-8 text-center text-body-sm text-fg-2';
+const EMPTY_CLASS = 'rounded-lg border border-dashed border-border-subtle p-8 text-center text-body-sm text-fg-2';
 
 const READY_HEADING_ID = 'mis-videos-listos';
 const SIZE_LABEL_ID = 'mis-videos-tamano';

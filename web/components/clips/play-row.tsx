@@ -10,11 +10,9 @@ import { cn } from '@/lib/utils';
 import { playTitle, type RoundOrdinal } from '@/lib/produce/round-ordinals';
 import { SelectionMark } from './selection-mark';
 
-/** Side colours carry no foreground token; the page ground reads on both in each theme. */
-const SIDE_CHIP: Readonly<Record<PlaySide, string>> = {
-  CT: 'bg-side-ct text-background',
-  T: 'bg-side-t text-background',
-};
+/** The side shows as a stripe on the card's edge and a label in the same colour. */
+const SIDE_STRIPE: Readonly<Record<PlaySide, string>> = { CT: 'bg-side-ct', T: 'bg-side-t' };
+const SIDE_LABEL: Readonly<Record<PlaySide, string>> = { CT: 'text-side-ct', T: 'text-side-t' };
 /** The tick sits on the solid format colour, so it takes that colour's foreground. */
 const TICK_TEXT: Readonly<Record<FormatTone, string>> = {
   short: 'text-format-short-foreground',
@@ -50,36 +48,39 @@ export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, tone
       aria-pressed={selected}
       disabled={blocked}
       className={cn(
-        'group/play flex w-full items-center gap-3 rounded-xl border-[1.5px] px-3 py-2.5 text-left',
+        'group/play relative flex w-full items-center gap-3 overflow-hidden rounded-lg border px-3 py-2.5 text-left',
         'transition-colors duration-(--dur-fast) ease-standard',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-        selected ? cn(toneClasses.tint, toneClasses.border) : 'border-transparent bg-surface-2 hover:bg-surface-3',
+        selected ? 'border-border-strong bg-surface-3' : 'border-border-subtle bg-surface-2 hover:bg-surface-3',
         blocked && 'cursor-not-allowed opacity-70 hover:bg-surface-2',
       )}
     >
       <SelectionMark selected={selected} className={cn('size-5 rounded-md', selected && cn(toneClasses.bg, 'border-transparent', TICK_TEXT[tone]))} />
       {play.side ? (
-        <span className={cn('grid h-8 min-w-9 shrink-0 place-items-center rounded-lg px-1.5 text-meta font-extrabold', SIDE_CHIP[play.side])}>{play.side}</span>
+        <>
+          <span aria-hidden className={cn('absolute inset-y-0 left-0 w-1', SIDE_STRIPE[play.side])} />
+          <span className={cn('w-5 shrink-0 font-mono text-meta font-semibold', SIDE_LABEL[play.side])}>{play.side}</span>
+        </>
       ) : null}
       {play.thumbnailUrl ? <PlayThumbnail play={play} compact className="hidden h-9 w-16 rounded-md @[30rem]/reel:flex" /> : null}
 
       {/* min-w-0 lets the meta shrink instead of forcing horizontal scroll. */}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={cn('truncate font-display text-body-sm font-bold', selected ? 'text-fg-1' : 'text-fg-2')}>
+        <span className={cn('truncate font-display text-body-sm font-semibold', selected ? 'text-fg-1' : 'text-fg-2')}>
           {playTitle(play, ordinal)}
         </span>
         <span className="text-meta text-fg-3">{playDescription(play)}</span>
         {blocked ? (
           <span className="text-meta text-fg-3">A la vez que la jugada elegida de {clashWith}</span>
         ) : null}
-        {playSourceRange(play) ? <span className="text-label tabular-nums text-fg-3">Demo {playSourceRange(play)}</span> : null}
+        {playSourceRange(play) ? <span className="font-mono text-meta text-fg-3">Demo {playSourceRange(play)}</span> : null}
       </span>
 
       <span className="ml-auto flex shrink-0 flex-col items-end tabular-nums">
         {play.death ? null : (
           <span className="flex items-center gap-2">
             {play.kills >= 5 ? <StatusTag tone="primary">ACE</StatusTag> : null}
-            <span className={cn('font-display text-title font-extrabold', play.kills >= STANDOUT_KILLS ? toneClasses.text : 'text-fg-1')}>{play.kills}K</span>
+            <span className={cn('font-mono text-title font-semibold', play.kills >= STANDOUT_KILLS ? toneClasses.text : 'text-fg-1')}>{play.kills}K</span>
           </span>
         )}
         <span className="text-meta text-fg-3">
