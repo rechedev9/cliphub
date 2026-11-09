@@ -327,6 +327,7 @@ type TacticalRound struct {
 		Place      string `json:"place"`
 		Headshot   bool   `json:"headshot"`
 		Wallbang   bool   `json:"wallbang"`
+		InAir      bool   `json:"attacker_in_air"`
 		Opening    bool   `json:"opening"`
 		Traded     bool   `json:"traded"`
 	} `json:"events"`

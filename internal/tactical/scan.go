@@ -367,6 +367,7 @@ func (s *scanner) register() {
 	})
 	s.registerLifetimes()
 	s.registerTimeouts()
+	s.registerKillAir()
 	p.RegisterEventHandler(func(e events.FlashExplode) {
 		s.addUtility(tacticalplan.EventFlash, e.GrenadeEvent)
 	})
@@ -435,7 +436,8 @@ func (s *scanner) closeCurrent(tick int) {
 		s.current.tickEnd = tick
 	}
 	s.current.tickOfficial = tick
-	switch s.current.settleFreeze(s.current.freezeTicks, int(freezeSlackSeconds*s.tickrateOrDefault())) {
+	rate := s.tickrateOrDefault()
+	switch s.current.settleFreeze(freezeLimits{freeze: s.current.freezeTicks, slack: int(freezeSlackSeconds * rate), timeoutKeep: int(timeoutKeepSeconds * rate)}) {
 	case freezeTrimmed:
 		s.warn("round %d: freeze time ran past mp_freezetime; its start moved to %d", s.current.number, s.current.tickStart)
 	case freezeEstimated:

@@ -30,7 +30,7 @@ const SchemaVersion = "1.0"
 // 8: Cache uses its shipped radar calibration instead of a derived one;
 // 9: dropped bombs, utility end ticks, no freeze time deaths, halftime and
 // pre-live waits cut from the round start; 10: timeouts, which keep their part
-// of the freeze time).
+// of the freeze time, and kills from the air).
 // The library scans a stored analysis below it again; bump it with each change.
 const AnalysisVersion = 10
 
@@ -381,8 +381,10 @@ type Event struct {
 	ThroughSmoke  bool       `json:"through_smoke,omitempty"`
 	AttackerBlind bool       `json:"attacker_blind,omitempty"`
 	NoScope       bool       `json:"no_scope,omitempty"`
-	Traded        bool       `json:"traded,omitempty"`
-	Opening       bool       `json:"opening,omitempty"`
+	// AttackerInAir is player_death's attackerinair: the killer shot from the air.
+	AttackerInAir bool `json:"attacker_in_air,omitempty"`
+	Traded        bool `json:"traded,omitempty"`
+	Opening       bool `json:"opening,omitempty"`
 	// Effect is what a flash, HE or molotov did to players. It is nil for other
 	// events and for grenades that touched nobody.
 	Effect *UtilityEffect `json:"effect,omitempty"`

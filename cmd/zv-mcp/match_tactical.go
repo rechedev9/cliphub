@@ -44,6 +44,7 @@ type killOut struct {
 	Place    string  `json:"place,omitempty"`
 	Headshot bool    `json:"headshot,omitempty"`
 	Wallbang bool    `json:"wallbang,omitempty"`
+	InAir    bool    `json:"in_air,omitempty" jsonschema:"the killer shot from the air"`
 	Opening  bool    `json:"opening,omitempty"`
 	Traded   bool    `json:"traded,omitempty" jsonschema:"this kill was traded back"`
 }
@@ -342,7 +343,7 @@ func summarizeRound(matchID string, doc tuiclient.TacticalDocument, r tuiclient.
 			continue
 		}
 		out.Kills = append(out.Kills, killOut{Second: second(e.Tick), Killer: names.name(e.ActorSlot), Victim: names.name(e.TargetSlot),
-			Weapon: cleanName(e.Weapon), Place: cleanName(e.Place), Headshot: e.Headshot, Wallbang: e.Wallbang, Opening: e.Opening, Traded: e.Traded})
+			Weapon: cleanName(e.Weapon), Place: cleanName(e.Place), Headshot: e.Headshot, Wallbang: e.Wallbang, InAir: e.InAir, Opening: e.Opening, Traded: e.Traded})
 	}
 	for _, t := range m.Timelines {
 		if t.Round != r.Number {

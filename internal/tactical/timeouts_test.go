@@ -6,8 +6,19 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
+var limits = freezeLimits{freeze: 15 * 64, slack: 3 * 64, timeoutKeep: 60 * 64}
+
 func TestATimeoutKeepsItsPartOfTheFreeze(t *testing.T) {
-	// Inferno round 13: T's technical timeout runs 63048 to 69565, then 15 s of freeze.
+	// A 30 s tactical timeout from 50000, then 15 s of freeze.
+	r := &roundAcc{tickStart: 49000, tickFreezeEnd: 50000 + 45*64, tickEnd: 60000, frames: []tacticalplan.Frame{{Tick: 49500}, {Tick: 50100}}}
+	r.addTimeout(tacticalplan.Timeout{Side: tacticalplan.SideCT, Tick: 50000, EndTick: 50000 + 30*64})
+	if r.settleFreeze(limits) != freezeTrimmed || r.tickStart != 50000 || len(r.frames) != 1 {
+		t.Fatalf("tick start = %d, frames %+v; want the whole timeout kept from 50000", r.tickStart, r.frames)
+	}
+}
+
+func TestALongTechnicalPauseKeepsItsLastMinute(t *testing.T) {
+	// Inferno round 13: T's technical timeout runs 63048 to 69565 (102 s), then 15 s of freeze.
 	r := &roundAcc{
 		tickStart: 62315, tickFreezeEnd: 70525, tickEnd: 74679,
 		frames: []tacticalplan.Frame{{Tick: 62400}, {Tick: 63100}, {Tick: 70600}},
@@ -20,15 +31,16 @@ func TestATimeoutKeepsItsPartOfTheFreeze(t *testing.T) {
 		t.Fatal("the T timeout was not running")
 	}
 	r.addTimeout(got)
-	if r.settleFreeze(15*64, 3*64) != freezeTrimmed || r.tickStart != 63048 {
-		t.Fatalf("tick start = %d, want the timeout start 63048", r.tickStart)
+	if r.settleFreeze(limits) != freezeTrimmed || r.tickStart != 69565-60*64 {
+		t.Fatalf("tick start = %d, want the pause's last minute from %d", r.tickStart, 69565-60*64)
 	}
+	// The timeout keeps its real start, so its one band can say it ran 102 s.
 	want := tacticalplan.Timeout{Side: tacticalplan.SideT, Tick: 63048, EndTick: 69565, Technical: true}
 	if len(r.timeouts) != 1 || r.timeouts[0] != want {
 		t.Fatalf("timeouts = %+v, want %+v", r.timeouts, want)
 	}
-	if len(r.frames) != 2 {
-		t.Fatalf("frames = %+v, want the two from the timeout on", r.frames)
+	if len(r.frames) != 1 {
+		t.Fatalf("frames = %+v, want the one inside the kept minute", r.frames)
 	}
 }
 

@@ -6,7 +6,7 @@ import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { docNames } from '@/lib/replay/centre-round';
-import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, teamNamesFor } from '@/lib/replay/map-hud';
+import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, killMarks, teamNamesFor } from '@/lib/replay/map-hud';
 import type { BombState } from '@/lib/replay/map-hud';
 import { opponentSide, siteLabel } from '@/lib/tactical-labels';
 import { frameCursor } from '@/lib/tactical-replay';
@@ -53,10 +53,6 @@ export function MapHud({
   const alive = aliveCounts(cursor === undefined ? [] : (focused.frames[cursor.index]?.samples ?? []));
   const bomb = bombState(allEvents, roundSeconds);
   const feed = showFeed ? killFeed(focused.events, roundSeconds) : [];
-  const airborneAt = (at: number, slot: number | undefined): boolean => {
-    const killCursor = frameCursor(focused.frames, at);
-    return airborneIn(killCursor === undefined ? [] : (focused.frames[killCursor.index]?.samples ?? []), slot);
-  };
   const score: Record<TacticalSide, number> = { CT: focused.round.score_ct_before, T: focused.round.score_t_before };
 
   return (
@@ -103,7 +99,7 @@ export function MapHud({
                 >
                   <span className={cn('truncate', SIDE_TEXT[killer])}>{names.get(event.actor_slot ?? -1) ?? 'alguien'}</span>
                   {event.weapon ? <EquipmentIcon name={event.weapon} active className="shrink-0" /> : null}
-                  {killMarks(event, airborneAt(event.tick, event.actor_slot)).map((mark) => (
+                  {killMarks(event).map((mark) => (
                     <span key={mark.short} className="shrink-0 text-white/70" title={mark.label}>
                       {mark.short}
                     </span>

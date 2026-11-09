@@ -395,6 +395,8 @@ export type TacticalEvent = {
   wallbang?: boolean;
   through_smoke?: boolean;
   attacker_blind?: boolean;
+  /** The killer shot from the air; absent before version 10. */
+  attacker_in_air?: boolean;
   no_scope?: boolean;
   traded?: boolean;
   opening?: boolean;

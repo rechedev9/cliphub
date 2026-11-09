@@ -4,7 +4,7 @@ import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalEvent } from '../api/tactical.ts';
 import { roundTimeline } from '../tactical-timeline.ts';
 import type { TimelineEvent } from '../tactical-timeline.ts';
-import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, postPlantSpan, timeoutSpans } from './map-hud.ts';
+import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, killMarks, postPlantSpan, timeoutSpans } from './map-hud.ts';
 
 function at(kind: TacticalEvent['kind'], seconds: number, site?: TacticalEvent['site']): TimelineEvent {
   return { event: { kind, tick: seconds * 64, site, pos: [0, 0, 0], target_pos: [0, 0, 0] }, seconds, fraction: 0 };
@@ -26,10 +26,11 @@ test('map hud: the post-plant band runs from the plant to the defuse, the explos
 });
 
 test('map hud: a timeout is a band on the bar named by the side that called it', () => {
-  const timeline = roundTimeline({ tick_start: 63048, tick_freeze_end: 70525, tick_end: 74679, tick_official: 75000 }, 64);
+  // The scan kept the last minute of a 102 s pause: one band from the round start, named for all of it.
+  const timeline = roundTimeline({ tick_start: 65725, tick_freeze_end: 70525, tick_end: 74679, tick_official: 75000 }, 64);
   const spans = timeoutSpans([{ side: 'T', tick: 63048, end_tick: 69565, technical: true }, { side: 'CT', tick: 60000, end_tick: 63048 }], timeline);
-  assert.deepEqual(spans, [{ from: 0, to: (69565 - 63048) / 64, side: 'T', label: 'T Timeout técnico' }]);
-  assert.equal(timeoutSpans([{ side: 'CT', tick: 63100, end_tick: 64000 }], timeline)[0]?.label, 'CT Timeout');
+  assert.deepEqual(spans, [{ from: 0, to: (69565 - 65725) / 64, side: 'T', label: 'T Timeout técnico 1:41' }]);
+  assert.equal(timeoutSpans([{ side: 'CT', tick: 66000, end_tick: 66000 + 30 * 64 }], timeline)[0]?.label, 'CT Timeout 0:30');
 });
 
 test('map hud: the feed keeps the last few seconds of kills, oldest first', () => {
@@ -45,17 +46,12 @@ test('map hud: living players are counted per side', () => {
 });
 
 test('map hud: the feed marks how each kill was made, the air read from the killer', () => {
-  const kill = { ...at('kill', 10).event, actor_slot: 3, headshot: true, through_smoke: true, attacker_blind: true };
+  const kill = { ...at('kill', 10).event, actor_slot: 3, headshot: true, through_smoke: true, attacker_in_air: true, attacker_blind: true };
   assert.deepEqual(
-    killMarks(kill, true).map((mark) => mark.short),
+    killMarks(kill).map((mark) => mark.short),
     ['HS', 'Humo', 'Aire', 'Cegado'],
   );
-  assert.deepEqual(killMarks(at('kill', 10).event, false), []);
-  const { alive, airborne } = TACTICAL_SAMPLE_FLAGS;
-  const samples = [{ slot: 3, flags: alive | airborne }, { slot: 4, flags: alive }];
-  assert.equal(airborneIn(samples, 3), true);
-  assert.equal(airborneIn(samples, 4), false);
-  assert.equal(airborneIn(samples, undefined), false);
+  assert.deepEqual(killMarks(at('kill', 10).event), []);
 });
 
 test('map hud: the clock shows whole seconds', () => {

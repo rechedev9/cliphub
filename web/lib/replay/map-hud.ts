@@ -40,14 +40,18 @@ export function postPlantSpan(events: readonly TimelineEvent[], durationSeconds:
 
 export type TimeoutSpan = { from: number; to: number; side: TacticalSide; label: string };
 
-/** The round's timeouts on its bar, clipped to it, each named by the side that called it. */
+/**
+ * The round's timeouts on its bar, clipped to it, each named by the side that called it and how
+ * long it ran: the scan keeps only the last minute of a long technical pause, so one band stands for all of it.
+ */
 export function timeoutSpans(timeouts: readonly TacticalTimeout[], timeline: RoundTimeline): TimeoutSpan[] {
   const out: TimeoutSpan[] = [];
   for (const timeout of timeouts) {
     const from = Math.max(0, timelineSeconds(timeline, timeout.tick));
     const to = Math.min(timeline.durationSeconds, timelineSeconds(timeline, timeout.end_tick));
     if (to <= from) continue;
-    out.push({ from, to, side: timeout.side, label: `${timeout.side} Timeout${timeout.technical === true ? ' técnico' : ''}` });
+    const ran = hudClock((timeout.end_tick - timeout.tick) / timeline.tickrate);
+    out.push({ from, to, side: timeout.side, label: `${timeout.side} Timeout${timeout.technical === true ? ' técnico' : ''} ${ran}` });
   }
   return out;
 }
@@ -60,26 +64,17 @@ export function killFeed(events: readonly TimelineEvent[], now: number): Timelin
 
 export type KillMark = { short: string; label: string };
 
-/**
- * How a kill was made, as the feed marks it. The parser records all but the
- * air, which comes from the killer's sample at the kill: `airborne`.
- */
-export function killMarks(event: TimelineEvent['event'], airborne: boolean): KillMark[] {
+/** How a kill was made, as the feed marks it, from what the game's player_death says. */
+export function killMarks(event: TimelineEvent['event']): KillMark[] {
   const marks: [boolean | undefined, KillMark][] = [
     [event.headshot, { short: 'HS', label: 'Disparo a la cabeza' }],
     [event.wallbang, { short: 'WB', label: 'A través de una pared' }],
     [event.through_smoke, { short: 'Humo', label: 'A través de un humo' }],
     [event.no_scope, { short: 'Sin mira', label: 'Sin apuntar con la mira' }],
-    [airborne, { short: 'Aire', label: 'Desde el aire' }],
+    [event.attacker_in_air, { short: 'Aire', label: 'Desde el aire' }],
     [event.attacker_blind, { short: 'Cegado', label: 'Con el tirador cegado' }],
   ];
   return marks.filter(([on]) => on === true).map(([, mark]) => mark);
-}
-
-/** Whether a slot was in the air in these samples, the frame of a kill. */
-export function airborneIn(samples: readonly Pick<TacticalSample, 'slot' | 'flags'>[], slot: number | undefined): boolean {
-  const sample = slot === undefined ? undefined : samples.find((entry) => entry.slot === slot);
-  return sample !== undefined && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.airborne);
 }
 
 /** Living players by side in one frame. */
