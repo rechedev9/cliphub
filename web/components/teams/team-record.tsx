@@ -7,16 +7,18 @@ import { ArrowLeft, BookMarked, GitMerge, Pencil, PlugZap, Shield } from 'lucide
 import {
   getLibraryTeam,
   getTeamLineups,
+  getTeamProfile,
   isLibraryNotFound,
   isLibraryOffline,
   listLibraryMatches,
   listLibraryTeams,
   mergeLibraryTeam,
   patchLibraryTeam,
+  setTeamProfile,
   type LibraryMatch,
   type LibraryTeam,
 } from '@/lib/api/library';
-import type { TeamLineups } from '@/lib/api/team-insights';
+import type { TeamLineups, TeamProfile } from '@/lib/api/team-insights';
 import { lineupSteamIds } from '@/lib/analysis/lineup';
 import { TEAMS_HREF, matchHref, teamHref, teamLibretaHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -54,6 +56,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { useAnalysisScope } from '@/hooks/use-analysis-scope';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { useReferences } from '@/hooks/use-references';
@@ -62,7 +65,7 @@ import { TeamBombsites } from './team-bombsites';
 import { TeamMapHistory } from './team-map-history';
 import { TeamRoster } from './team-roster';
 import { TeamPrepare } from './team-prepare';
-import { TEAM_REPLAY_FORMS, TeamReplay, type TeamReplayForm } from './team-replay';
+import { TEAM_REPLAY_FIELDS, TEAM_REPLAY_FORMS, TEAM_REPLAY_LIMITS, TeamReplay, type TeamReplayForm } from './team-replay';
 import { REPLAY_FORM_QUERY } from '@/lib/replay/forms';
 import { writeTab } from '@/lib/analysis/context-bar';
 import { TeamPlaybook } from '@/components/playbook/team-playbook';
@@ -71,8 +74,8 @@ import { TeamVeto } from './team-veto';
 import { TeamTrend } from './team-trend';
 import { TeamSideStats } from './team-side-stats';
 
-/** `lineups` is null when they could not be read; the views then count every round. */
-type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null };
+/** `lineups` and `profile` are null when they could not be read; the views then count every round. */
+type Loaded = { team: LibraryTeam; matches: LibraryMatch[]; lineups: TeamLineups | null; profile: TeamProfile | null };
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: Loaded } | { kind: 'missing' } | { kind: 'offline' };
 
 /** A team's record: roster by date, matches with rival and result, and the record per map. */
@@ -83,9 +86,14 @@ export function TeamRecord({ teamId }: { teamId: string }): ReactNode {
   useEffect(() => {
     let active = true;
     setState({ kind: 'loading' });
-    Promise.all([getLibraryTeam(teamId), listLibraryMatches({ team_id: teamId }), getTeamLineups(teamId).catch(() => null)])
-      .then(([team, matches, lineups]) => {
-        if (active) setState({ kind: 'ready', data: { team, matches, lineups } });
+    Promise.all([
+      getLibraryTeam(teamId),
+      listLibraryMatches({ team_id: teamId }),
+      getTeamLineups(teamId).catch(() => null),
+      getTeamProfile(teamId).catch(() => null),
+    ])
+      .then(([team, matches, lineups, profile]) => {
+        if (active) setState({ kind: 'ready', data: { team, matches, lineups, profile } });
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -150,8 +158,8 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   sitios: ['lineup', 'map', 'period', 'opponent'],
   preparar: ['lineup', 'map', 'side', 'period', 'opponent'],
   playbook: ['lineup', 'map', 'side', 'period', 'opponent'],
-  replay: ['lineup', 'side', 'period', 'buy', 'opponentBuy', 'opponent'],
-  'replay-granadas': ['lineup', 'map', 'side', 'period', 'buy', 'opponent'],
+  replay: TEAM_REPLAY_FIELDS,
+  'replay-granadas': ['lineup', 'map', ...TEAM_REPLAY_FIELDS.filter((field) => field !== 'lineup')],
 };
 /** Tabs whose own answer carries the sample size; the others count the library matches in scope. */
 const REPORTING_TABS = new Set(['mapas', 'estadisticas', 'sitios', 'preparar', 'playbook', 'replay']);
@@ -161,7 +169,7 @@ const LEGACY_TABS: Readonly<Record<string, string>> = { scouting: 'preparar', ra
 const QUERY_TABS = [...TEAM_TABS, ...Object.keys(LEGACY_TABS)];
 
 function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => void }): ReactNode {
-  const { team, matches, lineups } = data;
+  const { team, matches, lineups, profile } = data;
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [rawTab, setTab] = useRecordTab(QUERY_TABS, 'plantilla');
@@ -215,6 +223,10 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const maps = mapPerformance(matches, team.id);
   const last = matches[0];
   const aliases = team.aliases.filter((alias) => alias.toLowerCase() !== team.name.toLowerCase());
+  const subtitle = [profile?.own === true ? 'Mi equipo' : '', aliases.length > 0 ? `También como ${aliases.join(', ')}` : '']
+    .filter((part) => part !== '')
+    .join(' · ');
+  const rank = profile?.hltv_rank ?? 0;
 
   useEffect(() => {
     let active = true;
@@ -274,6 +286,8 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           maps={[...new Set(matches.map((match) => match.map))].sort()}
           mapRequired={id === 'playbook' || id === 'replay-granadas'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
+          limits={id.startsWith('replay') ? TEAM_REPLAY_LIMITS : undefined}
+          ownTeams={profile?.own_teams ?? 0}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
           comparison={
@@ -293,12 +307,13 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
         kind="Equipo"
         icon={Shield}
         title={team.name}
-        subtitle={aliases.length > 0 ? `También como ${aliases.join(', ')}` : undefined}
+        subtitle={subtitle === '' ? undefined : subtitle}
         fields={[
           { label: 'Partidas', value: matches.length },
           { label: 'Victorias', value: `${wins}-${losses}${draws > 0 ? `-${draws}` : ''}` },
           { label: '% victorias', value: percentLabel(wins, matches.length) || 'Sin partidas' },
           { label: 'Mapas', value: maps.length },
+          { label: 'Ranking HLTV', value: rank > 0 ? `#${rank}` : 'Sin ranking' },
           { label: 'Última partida', value: last ? formatShortDate(last.played_at) : 'Sin partidas' },
         ]}
         actions={
@@ -428,7 +443,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           },
         ]}
       />
-      <EditTeamDialog open={editing} onOpenChange={setEditing} team={team} onSaved={onChanged} />
+      <EditTeamDialog open={editing} onOpenChange={setEditing} team={team} profile={profile} onSaved={onChanged} />
       <MergeTeamDialog open={merging} onOpenChange={setMerging} team={team} />
     </div>
   );
@@ -500,19 +515,30 @@ function TeamMatches({ team, matches }: { team: LibraryTeam; matches: readonly L
   );
 }
 
+/** The server's highest HLTV rank (`library.MaxHLTVRank`). */
+const HLTV_RANK_MAX = 1000;
+
+function rankText(profile: TeamProfile | null): string {
+  return profile !== null && profile.hltv_rank > 0 ? String(profile.hltv_rank) : '';
+}
+
 function EditTeamDialog({
   open,
   onOpenChange,
   team,
+  profile,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   team: LibraryTeam;
+  profile: TeamProfile | null;
   onSaved: () => void;
 }): ReactNode {
   const [name, setName] = useState(team.name);
   const [aliases, setAliases] = useState(team.aliases.join(', '));
+  const [own, setOwn] = useState(profile?.own ?? false);
+  const [rank, setRank] = useState(rankText(profile));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -520,8 +546,12 @@ function EditTeamDialog({
     if (!open) return;
     setName(team.name);
     setAliases(team.aliases.join(', '));
+    setOwn(profile?.own ?? false);
+    setRank(rankText(profile));
     setError(null);
-  }, [open, team.name, team.aliases]);
+  }, [open, team.name, team.aliases, profile]);
+  const rankValue = rank.trim() === '' ? 0 : Number(rank);
+  const rankValid = Number.isInteger(rankValue) && rankValue >= 0 && rankValue <= HLTV_RANK_MAX;
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -530,6 +560,9 @@ function EditTeamDialog({
     try {
       const list = aliases.split(',').map((alias) => alias.trim()).filter((alias) => alias !== '');
       await patchLibraryTeam(team.id, { name: name.trim(), aliases: list });
+      if (own !== (profile?.own ?? false) || rankValue !== (profile?.hltv_rank ?? 0)) {
+        await setTeamProfile(team.id, { own, hltv_rank: rankValue });
+      }
       onOpenChange(false);
       onSaved();
     } catch {
@@ -557,12 +590,29 @@ function EditTeamDialog({
             Alias, separados por comas
             <Input value={aliases} maxLength={600} onChange={(event) => setAliases(event.target.value)} />
           </label>
+          <label className="flex flex-col gap-1.5 text-body-sm text-fg-2">
+            Ranking HLTV, vacío si no tiene
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={HLTV_RANK_MAX}
+              value={rank}
+              aria-invalid={!rankValid}
+              onChange={(event) => setRank(event.target.value)}
+              className="w-28"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-3 text-body-sm text-fg-2">
+            <span id="team-own-label">Es mi equipo: el Replay separa sus partidas de las de otros equipos</span>
+            <Switch checked={own} onCheckedChange={setOwn} aria-labelledby="team-own-label" />
+          </div>
           {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
           <DialogFooter>
             <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy || name.trim() === ''}>
+            <Button type="submit" disabled={busy || name.trim() === '' || !rankValid}>
               Guardar
             </Button>
           </DialogFooter>

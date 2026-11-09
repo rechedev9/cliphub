@@ -2,8 +2,9 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { LibraryRosterEntry } from '@/lib/api/library';
+import type { LibraryRosterEntry, TeamCriterion } from '@/lib/api/library';
 import type { SpatialResponse } from '@/lib/api/spatial';
+import { unrankedCount } from '@/lib/api/team-insights';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
 import type { HeatChoice } from '@/lib/replay/heat-choice';
@@ -23,6 +24,7 @@ export function TeamSpatial({
   teamId,
   scope,
   lineup,
+  criteria,
   view,
   roster,
   onMapChange,
@@ -32,6 +34,8 @@ export function TeamSpatial({
   scope: AnalysisScope;
   /** The scope's lineup as SteamID64s; empty counts every round. */
   lineup: readonly string[];
+  /** The rest of the Replay's filters bar, as query entries; the buys travel here too. */
+  criteria: readonly TeamCriterion[];
   /** The form the team's Replay is on: a heatmap or the superposed paths. */
   view: 'heatmap' | 'overlay';
   roster: readonly LibraryRosterEntry[];
@@ -46,7 +50,7 @@ export function TeamSpatial({
   const onLoaded = useCallback(
     (response: SpatialResponse) => {
       const rounds = response.heatmap?.rounds ?? response.overlay?.total ?? 0;
-      onCounts({ maps: response.matches.length, rounds });
+      onCounts({ maps: response.matches.length, rounds, unrated: unrankedCount(response.skipped) });
     },
     [onCounts],
   );
@@ -108,8 +112,7 @@ export function TeamSpatial({
             from,
             to,
             lineup,
-            buys: scope.buy === '' ? [] : [scope.buy],
-            opponent_buys: scope.opponentBuy === '' ? [] : [scope.opponentBuy],
+            criteria,
             players: focus,
           },
         }}

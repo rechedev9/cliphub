@@ -4,7 +4,7 @@ import { useCallback, type ReactNode } from 'react';
 import { Radar } from 'lucide-react';
 import type { LibraryReport } from '@/lib/api/scout';
 import type { SpatialResponse } from '@/lib/api/spatial';
-import type { AnalysisScope } from '@/lib/analysis/scope';
+import { scopeBuyTypes, type AnalysisScope } from '@/lib/analysis/scope';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { EmptyState } from '@/components/records/empty-state';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
@@ -51,8 +51,8 @@ export function ReportSpatial({
           map: scope.map === '' ? undefined : scope.map,
           side: report.side,
           match_ids: report.match_ids,
-          buys: scope.buy === '' ? [] : [scope.buy],
-          opponent_buys: scope.opponentBuy === '' ? [] : [scope.opponentBuy],
+          buys: scopeBuyTypes(scope.buy),
+          opponent_buys: scopeBuyTypes(scope.opponentBuy),
         },
       }}
     />

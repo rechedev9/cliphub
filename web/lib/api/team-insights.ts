@@ -95,3 +95,39 @@ export const PLAYER_POSITIONS_KEYS = [
 ] as const;
 export const PLAYER_POSITIONS_QUERY = ['map', 'from', 'to'] as const;
 export const TEAM_LINEUPS_KEYS = ['team_id', 'team_name', 'latest_match', 'latest', 'others'] as const;
+
+/** The team scope keys every team endpoint takes beyond the scout filter (`httpapi.teamScopeQuery`). */
+export const TEAM_SCOPE_QUERY = [
+  'max_matches', 'opponent_top', 'whose', 'buy', 'opponent_buy', 'awp', 'opponent_awp', 'advantage', 'round_from', 'round_to',
+] as const;
+
+/** Mi equipo and the HLTV rank of a team (`library.TeamProfile`); `own_teams` counts the teams marked as own. */
+export type TeamProfile = { team_id: string; own: boolean; hltv_rank: number; updated_at?: string; own_teams: number };
+export const TEAM_PROFILE_KEYS = ['team_id', 'own', 'hltv_rank', 'updated_at', 'own_teams'] as const;
+export const TEAM_PROFILE_FIELDS = ['own', 'hltv_rank'] as const;
+
+/** One kept round of a team's rounds list (`httpapi.teamRoundOut`). */
+export type TeamRound = { round: number; side: TacticalSide; winner: TacticalSide | ''; buy: string; opponent_buy: string; site: string };
+
+export type TeamRoundsMatch = {
+  match_id: string;
+  map: string;
+  played_at: string;
+  team_key: string;
+  opponent?: string;
+  rounds: TeamRound[];
+  /** Rounds the match has before the filter. */
+  total: number;
+};
+
+/** The rounds the team scope keeps per match, newest match first. */
+export type TeamRounds = { team_id: string; team_name: string; matches: TeamRoundsMatch[]; rounds: number; skipped: Skipped[] };
+export const TEAM_ROUNDS_KEYS = ['team_id', 'team_name', 'matches', 'rounds', 'skipped'] as const;
+
+/** The skip reason of a match the opponent level could not rate. */
+export const OPPONENT_UNRANKED = 'opponent_unranked';
+
+/** How many matches the opponent level left out for lack of a rank. */
+export function unrankedCount(skipped: readonly Skipped[]): number {
+  return skipped.filter((entry) => entry.reason === OPPONENT_UNRANKED).length;
+}
