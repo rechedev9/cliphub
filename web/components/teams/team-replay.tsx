@@ -17,6 +17,7 @@ export type TeamReplayForm = (typeof TEAM_REPLAY_FORMS)[number];
 export function TeamReplay({
   teamId,
   scope,
+  lineup,
   matches,
   form,
   onFormChange,
@@ -25,6 +26,8 @@ export function TeamReplay({
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   matches: readonly LibraryMatch[];
   form: TeamReplayForm;
   onFormChange: (form: TeamReplayForm) => void;
@@ -42,9 +45,16 @@ export function TeamReplay({
         }}
       />
       {form === 'granadas' ? (
-        <TeamGrenades teamId={teamId} scope={scope} matches={matches} onMapChange={onMapChange} onCounts={onCounts} />
+        <TeamGrenades teamId={teamId} scope={scope} lineup={lineup} matches={matches} onMapChange={onMapChange} onCounts={onCounts} />
       ) : (
-        <TeamSpatial teamId={teamId} scope={scope} view={form === 'calor' ? 'heatmap' : 'overlay'} onMapChange={onMapChange} onCounts={onCounts} />
+        <TeamSpatial
+          teamId={teamId}
+          scope={scope}
+          lineup={lineup}
+          view={form === 'calor' ? 'heatmap' : 'overlay'}
+          onMapChange={onMapChange}
+          onCounts={onCounts}
+        />
       )}
     </div>
   );

@@ -24,7 +24,7 @@ test('the dots are the latest results, oldest first, without unknown outcomes', 
 });
 
 test('switching entity keeps tab and filters but drops the rival', () => {
-  const href = switchEntityHref('/equipos/b', 'tab=veto&map=de_mirage&opponent=0b7c4a1e-6f0d-4a51-9d55-3f1f3a9c2b10');
+  const href = switchEntityHref('/equipos/b', 'tab=veto&map=de_mirage&opponent=0b7c4a1e-6f0d-4a51-9d55-3f1f3a9c2b10&lineup=all');
   assert.equal(href, '/equipos/b?tab=veto&map=de_mirage');
   assert.equal(switchEntityHref('/jugadores/1', ''), '/jugadores/1');
 });

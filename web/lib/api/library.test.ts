@@ -10,13 +10,13 @@ test('a match view carries the tactical filter, then its own query', () => {
   assert.equal(spatialPath({ kind: 'match', matchId: ID, filter: '' }, 'overlay', new URLSearchParams()), `/matches/${ID}/tactical/overlay`);
 });
 
-test('a team view carries the map, the side, the matches and the buys', () => {
+test('a team view carries the map, the side, the matches, the lineup and the buys', () => {
   const path = spatialPath(
-    { kind: 'team', teamId: ID, query: { map: 'de_nuke', side: 'T', match_ids: ['a', 'b'], buys: ['full'], opponent_ids: [] } },
+    { kind: 'team', teamId: ID, query: { map: 'de_nuke', side: 'T', match_ids: ['a', 'b'], lineup: ['1', '2'], buys: ['full'], opponent_ids: [] } },
     'overlay',
     new URLSearchParams('limit=20'),
   );
-  assert.equal(path, `/teams/${ID}/overlay?map=de_nuke&side=T&match_id=a&match_id=b&buy=full&limit=20`);
+  assert.equal(path, `/teams/${ID}/overlay?map=de_nuke&side=T&match_id=a&match_id=b&lineup=1&lineup=2&buy=full&limit=20`);
 });
 
 test('a player positions path carries only the map and the dates', () => {

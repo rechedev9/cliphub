@@ -26,6 +26,7 @@ export function TeamPrepare({
   matches,
   maps,
   scope,
+  lineup,
   onMapChange,
   onOpenReplay,
   onCounts,
@@ -35,15 +36,19 @@ export function TeamPrepare({
   matches: readonly LibraryMatch[];
   maps: readonly string[];
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   onMapChange: (map: string) => void;
   onOpenReplay: (form: TeamReplayForm) => void;
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
   const [now] = useState(() => Date.now());
   const { from, to } = scopeDateRange(scope.period, now);
+  // A chosen lineup already drops the rounds of whoever came and went, so only every player warns about it.
+  const roster = scope.lineup.kind === 'all' ? team.roster : undefined;
   const warnings = useMemo(
-    () => prepareWarnings({ roster: team.roster ?? [], playedAt: matches.map((match) => match.played_at), now }),
-    [team.roster, matches, now],
+    () => prepareWarnings({ roster: roster ?? [], playedAt: matches.map((match) => match.played_at), now }),
+    [roster, matches, now],
   );
   return (
     <div className="flex flex-col gap-5">
@@ -58,7 +63,7 @@ export function TeamPrepare({
         </div>
         {scope.map === '' ? null : (
           <Button asChild variant="ghost" size="xs">
-            <Link href={prepHref({ teamId: team.id, map: scope.map, from: from?.slice(0, 10), to: to?.slice(0, 10) })}>
+            <Link href={prepHref({ teamId: team.id, map: scope.map, from: from?.slice(0, 10), to: to?.slice(0, 10), lineup })}>
               <Printer aria-hidden />
               Imprimir la preparación
             </Link>
@@ -85,14 +90,14 @@ export function TeamPrepare({
           ))}
         </div>
       ) : (
-        <PrepBody query={{ teamId: team.id, map: scope.map, from, to }} onOpenReplay={(form) => {
+        <PrepBody query={{ teamId: team.id, map: scope.map, from, to, lineup }} onOpenReplay={(form) => {
             const known = TEAM_REPLAY_FORMS.find((entry) => entry === form);
             if (known !== undefined) onOpenReplay(known);
           }} />
       )}
       <section aria-label="Scouting" className="flex flex-col gap-2 border-t border-border pt-4">
         <h2 className="text-body font-semibold text-fg-1">Cómo juegan</h2>
-        <TeamScout teamId={team.id} scope={scope} onCounts={onCounts} />
+        <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />
       </section>
     </div>
   );

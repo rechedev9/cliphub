@@ -6,6 +6,7 @@ import { SlidersHorizontal, X } from 'lucide-react';
 import type { ReportSide } from '@/lib/api/scout';
 import type { TacticalBuyType } from '@/lib/api/tactical';
 import { BASELINE_SCOPES, type Baseline } from '@/lib/api/baseline';
+import type { TeamLineups } from '@/lib/api/team-insights';
 import { switchEntityHref, resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
 import { buyIcon } from '@/lib/analysis/icons';
 import { SCOPE_LABEL, proReferenceShort, proSourceText } from '@/lib/analysis/reference';
@@ -19,6 +20,7 @@ import {
 } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { buyLabel } from '@/lib/tactical-labels';
+import { LineupPicker } from '@/components/analysis/lineup-picker';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
@@ -74,6 +76,8 @@ export type ScopeBarProps = {
   /** Latest results in scope, oldest first, drawn as dots under the sample. */
   results?: readonly ResultDot[];
   entity?: ScopeEntity;
+  /** The team's players for the lineup control; it shows only while the view reads `lineup`. */
+  lineups?: TeamLineups | null;
   /** The pro reference the view reads, so the bar can say where Pro comes from; null while loading. */
   proReference?: Baseline | null;
   /** Fixed context the person cannot change here, such as a report's rival and side. */
@@ -316,9 +320,12 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
  * the command strip so the context stays in sight while scrolling.
  */
 export function ScopeBar(props: ScopeBarProps): ReactNode {
-  const { scope, fields, counts, results, entity, context, onReset, onChange, className } = props;
+  const { scope, fields, counts, results, entity, context, lineups, onReset, onChange, className } = props;
   const [more, setMore] = useState(false);
-  const filters = fields.filter((field) => field !== 'reference');
+  // The lineup sits by the entity it belongs to and keeps its own reset, like the reference.
+  const filters = fields.filter((field) => field !== 'reference' && field !== 'lineup');
+  const picked = fields.includes('lineup') && lineups ? lineups : null;
+  const players = picked !== null && picked.latest.length + picked.others.length > 0 ? picked : null;
   const active = filters.filter((field) => scopeFieldActive(scope, field));
   // Only a long bar folds its rarely used filters away; a short one keeps them in sight.
   const folds = filters.length > MAX_INLINE;
@@ -338,7 +345,8 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
     >
       <div className="flex flex-wrap items-center gap-1.5">
         {entity ? <EntityPicker entity={entity} /> : null}
-        {context ? <div className="flex items-center gap-2 text-body-sm text-fg-2">{context}</div> : null}
+        {players ? <LineupPicker lineup={scope.lineup} lineups={players} onChange={(lineup) => onChange({ lineup })} /> : null}
+        {context ?<div className="flex items-center gap-2 text-body-sm text-fg-2">{context}</div> : null}
         {primary.map((field) => (
           <FieldControl key={field} field={field} props={props} />
         ))}

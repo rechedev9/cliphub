@@ -154,7 +154,7 @@ export function newReportHref(teamId: string): string {
 }
 
 /** Query keys of the printable rival prep: team id, map, and optional days `YYYY-MM-DD`. */
-export const PREP_QUERY = { team: 'team', map: 'map', from: 'from', to: 'to' } as const;
+export const PREP_QUERY = { team: 'team', map: 'map', from: 'from', to: 'to', lineup: 'lineup' } as const;
 
 /** A team's Preparar tab, on one map when it is known. */
 export function teamPrepareHref(teamId: string, map = ''): string {
@@ -163,11 +163,12 @@ export function teamPrepareHref(teamId: string, map = ''): string {
   return `${teamHref(teamId)}?${params.toString()}`;
 }
 
-/** The printable prep of a rival on one map. */
-export function prepHref(prep: { teamId: string; map: string; from?: string; to?: string }): string {
+/** The printable prep of a rival on one map; `lineup` is the SteamID64s it counts, none for every round. */
+export function prepHref(prep: { teamId: string; map: string; from?: string; to?: string; lineup?: readonly string[] }): string {
   const params = new URLSearchParams({ [PREP_QUERY.team]: prep.teamId, [PREP_QUERY.map]: prep.map });
   if (prep.from) params.set(PREP_QUERY.from, prep.from);
   if (prep.to) params.set(PREP_QUERY.to, prep.to);
+  if (prep.lineup !== undefined && prep.lineup.length > 0) params.set(PREP_QUERY.lineup, prep.lineup.join(','));
   return `${REPORTS_HREF}/prep?${params.toString()}`;
 }
 

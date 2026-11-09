@@ -41,12 +41,15 @@ function FinderSkeleton(): ReactNode {
 export function TeamGrenades({
   teamId,
   scope,
+  lineup,
   matches,
   onMapChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   matches: readonly LibraryMatch[];
   onMapChange: (map: string) => void;
   onCounts: (counts: ScopeCounts | null) => void;
@@ -66,7 +69,7 @@ export function TeamGrenades({
     let active = true;
     setLoad({ kind: 'loading' });
     onCounts(null);
-    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent] })
+    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup })
       .then((data) => {
         if (!active) return;
         setLoad({ kind: 'ready', data });
@@ -78,7 +81,7 @@ export function TeamGrenades({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, from, to, opponent, attempt, onCounts]);
+  }, [teamId, map, side, from, to, opponent, lineup, attempt, onCounts]);
 
   const matchLabel = useCallback(
     (matchId: string): string => {

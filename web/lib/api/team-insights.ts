@@ -1,3 +1,4 @@
+import type { LibraryRosterEntry } from './library.ts';
 import type { ScoutEvidence, ScoutFilter } from './scout.ts';
 import type { TacticalRate, TacticalSide } from './tactical.ts';
 
@@ -77,10 +78,20 @@ export type PlayerPositions = {
 
 export type PlayerPositionsQuery = { map?: string; from?: string; to?: string };
 
+/** What the lineup picker chooses from: who played the team's latest match, then everyone else. */
+export type TeamLineups = {
+  team_id: string;
+  team_name: string;
+  latest_match: { match_id: string; map: string; played_at: string } | null;
+  latest: LibraryRosterEntry[];
+  others: LibraryRosterEntry[];
+};
+
 /** Top-level keys the proxy copies, and the query names it forwards. */
 export const TEAM_BOMBSITES_KEYS = ['team_id', 'team_name', 'skipped', 'filter', 'min_reliable_sample', 'match_count', 'maps'] as const;
-export const TEAM_BOMBSITES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id'] as const;
+export const TEAM_BOMBSITES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'] as const;
 export const PLAYER_POSITIONS_KEYS = [
   'steamid64', 'skipped', 'match_count', 'window_seconds', 'place_limit', 'anchor_share', 'min_reliable_sample', 'maps',
 ] as const;
 export const PLAYER_POSITIONS_QUERY = ['map', 'from', 'to'] as const;
+export const TEAM_LINEUPS_KEYS = ['team_id', 'team_name', 'latest_match', 'latest', 'others'] as const;

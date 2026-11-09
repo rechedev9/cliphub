@@ -16,7 +16,7 @@ import type {
 import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
-import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites } from './team-insights.ts';
+import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites, TeamLineups } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
@@ -361,6 +361,11 @@ export function getLibraryTeam(teamId: string): Promise<LibraryTeam> {
   return request<LibraryTeam>(`/teams/${id(teamId)}`);
 }
 
+/** The team's players grouped for the lineup picker: its latest match first, then the rest. */
+export function getTeamLineups(teamId: string): Promise<TeamLineups> {
+  return request<TeamLineups>(`/teams/${id(teamId)}/lineups`);
+}
+
 export function patchLibraryTeam(teamId: string, patch: { name?: string; aliases?: string[] }): Promise<LibraryTeam> {
   return request<LibraryTeam>(`/teams/${id(teamId)}`, jsonInit('PATCH', patch));
 }
@@ -474,6 +479,8 @@ export type TeamScoutQuery = {
   to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
+  /** SteamID64s: only rounds in which every player of the team is one of them; empty keeps every round. */
+  lineup?: readonly string[];
 };
 
 /** A team's scouting report over its matches, filtered by map, side, date and rival. */
@@ -485,6 +492,7 @@ export function getLibraryTeamScout(teamId: string, query: TeamScoutQuery = {}):
   if (query.to) params.set('to', query.to);
   for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
   for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   const search = params.toString();
   return request<ScoutReport>(`/teams/${id(teamId)}/scout${search === '' ? '' : `?${search}`}`);
 }
@@ -501,6 +509,7 @@ export type TeamSpatialQuery = {
   to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
+  lineup?: readonly string[];
   buys?: readonly TacticalBuyType[];
   opponent_buys?: readonly TacticalBuyType[];
 };
@@ -518,6 +527,7 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
     if (q.to) params.set('to', q.to);
     for (const opponent of q.opponent_ids ?? []) params.append('opponent_id', opponent);
     for (const match of q.match_ids ?? []) params.append('match_id', match);
+    for (const steamId of q.lineup ?? []) params.append('lineup', steamId);
     for (const buy of q.buys ?? []) params.append('buy', buy);
     for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
   }
@@ -630,6 +640,7 @@ export function detectTeamPlays(teamId: string, query: TeamScoutQuery = {}): Pro
   if (query.to) params.set('to', query.to);
   for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
   for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   const search = params.toString();
   return request<PlayDetection>(`/teams/${id(teamId)}/plays${search === '' ? '' : `?${search}`}`);
 }
@@ -660,6 +671,7 @@ export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): 
   if (query.to) params.set('to', query.to);
   for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
   for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   for (const kind of query.kinds ?? []) params.append('kind', kind);
   const search = params.toString();
   return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
@@ -674,6 +686,7 @@ export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Pr
   if (query.to) params.set('to', query.to);
   for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
   for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   const search = params.toString();
   return request<TeamBombsites>(`/teams/${id(teamId)}/bombsites${search === '' ? '' : `?${search}`}`);
 }
@@ -731,6 +744,7 @@ function framedParams(query: TeamPrepQuery): URLSearchParams {
   if (query.to) params.set('to', query.to);
   for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
   for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
   return params;
 }
 

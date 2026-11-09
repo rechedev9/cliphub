@@ -49,10 +49,13 @@ export function OptionSelect({
 export function TeamScout({
   teamId,
   scope,
+  lineup,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   /** The sample the answer stands on, or null while it is read. */
   onCounts: (counts: ScopeCounts | null) => void;
 }): ReactNode {
@@ -73,6 +76,7 @@ export function TeamScout({
       opponent_ids: opponent === '' ? [] : [opponent],
       from,
       to,
+      lineup,
     })
       .then((report) => {
         if (!active) return;
@@ -85,7 +89,7 @@ export function TeamScout({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, opponent, from, to, onCounts]);
+  }, [teamId, map, side, opponent, from, to, lineup, onCounts]);
 
   return (
     <ScoutResult

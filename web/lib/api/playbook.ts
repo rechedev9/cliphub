@@ -150,8 +150,8 @@ export type TeamPrep = {
   ct_players: PrepPlayer[];
 };
 
-export const PLAYBOOK_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'with', 'without'] as const;
-export const PREP_QUERY = ['map', 'from', 'to', 'opponent_id', 'match_id'] as const;
+export const PLAYBOOK_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'with', 'without'] as const;
+export const PREP_QUERY = ['map', 'from', 'to', 'opponent_id', 'match_id', 'lineup'] as const;
 export const PLAYBOOK_KEYS = [
   'team_id', 'team_name', 'skipped', 'map', 'side', 'thresholds', 'matches', 'round_count', 'win_rate', 'framed',
   'categories', 'tempo', 'sites', 'zones', 'tactics', 'combo', 'rounds',
@@ -167,6 +167,7 @@ export type TeamPlaybookQuery = {
   to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
+  lineup?: readonly string[];
 };
 
 export type TeamPrepQuery = {
@@ -175,4 +176,5 @@ export type TeamPrepQuery = {
   to?: string;
   opponent_ids?: readonly string[];
   match_ids?: readonly string[];
+  lineup?: readonly string[];
 };

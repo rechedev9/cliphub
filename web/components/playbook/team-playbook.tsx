@@ -81,12 +81,15 @@ function ChooseScope({ scope, maps, onScopeChange }: { scope: AnalysisScope; map
 export function TeamPlaybook({
   teamId,
   scope,
+  lineup,
   maps,
   onScopeChange,
   onCounts,
 }: {
   teamId: string;
   scope: AnalysisScope;
+  /** The scope's lineup as SteamID64s; empty counts every round. */
+  lineup: readonly string[];
   /** The maps the team has played, offered when none is chosen. */
   maps: readonly string[];
   onScopeChange: (patch: Partial<AnalysisScope>) => void;
@@ -124,7 +127,7 @@ export function TeamPlaybook({
     setPlaybook(null);
     setFailed(false);
     onCounts(null);
-    getTeamPlaybook(teamId, { map, side, from, to, opponent_ids: opponent === '' ? [] : [opponent] })
+    getTeamPlaybook(teamId, { map, side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup })
       .then((next) => {
         if (!active) return;
         setPlaybook(next);
@@ -136,7 +139,7 @@ export function TeamPlaybook({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, opponent, from, to, attempt, onCounts]);
+  }, [teamId, map, side, opponent, from, to, lineup, attempt, onCounts]);
 
   if (!ready) return <ChooseScope scope={scope} maps={maps} onScopeChange={onScopeChange} />;
   if (failed) {

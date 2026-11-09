@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_SCOPE,
   inScopePeriod,
+  lineupOf,
   parseAnalysisScope,
   resetScopeFields,
   scopeCountText,
@@ -16,6 +17,8 @@ import {
 
 const TEAM = '0b7c4a1e-6f0d-4a51-9d55-3f1f3a9c2b10';
 const NOW = Date.parse('2026-11-05T12:00:00Z');
+const ONE = '76561198000000001';
+const TWO = '76561198000000002';
 
 test('an empty query is the default scope', () => {
   assert.deepEqual(parseAnalysisScope(new URLSearchParams('')), DEFAULT_SCOPE);
@@ -31,6 +34,7 @@ test('a full scope survives a round trip through the URL', () => {
     opponentBuy: 'eco',
     opponent: TEAM,
     reference: 'pro',
+    lineup: { kind: 'players', steamIds: [ONE, TWO] },
   };
   assert.deepEqual(parseAnalysisScope(new URLSearchParams(writeAnalysisScope(scope))), scope);
   const preset: AnalysisScope = { ...DEFAULT_SCOPE, period: { kind: 'preset', preset: '90d' } };
@@ -53,6 +57,24 @@ test('the reference is the library unless the URL says pro', () => {
   assert.equal(parseAnalysisScope(new URLSearchParams('ref=pro')).reference, 'pro');
   assert.equal(parseAnalysisScope(new URLSearchParams('ref=hltv')).reference, 'library');
   assert.equal(writeAnalysisScope({ ...DEFAULT_SCOPE, reference: 'library' }, 'ref=pro'), '');
+});
+
+test('the lineup is the latest one unless the URL says all or names valid players', () => {
+  const read = (query: string): AnalysisScope['lineup'] => parseAnalysisScope(new URLSearchParams(query)).lineup;
+  assert.deepEqual(read(''), { kind: 'latest' });
+  assert.deepEqual(read('lineup=all'), { kind: 'all' });
+  assert.deepEqual(read(`lineup=${TWO},${ONE},${TWO}`), { kind: 'players', steamIds: [ONE, TWO] });
+  assert.deepEqual(read(`lineup=${ONE},zywoo`), { kind: 'latest' });
+  assert.deepEqual(read(`lineup=${Array.from({ length: 51 }, () => ONE).join(',')}`), { kind: 'latest' });
+  assert.equal(writeAnalysisScope({ ...DEFAULT_SCOPE, lineup: { kind: 'all' } }, 'tab=preparar'), 'tab=preparar&lineup=all');
+  assert.equal(writeAnalysisScope(DEFAULT_SCOPE, 'lineup=all'), '');
+  assert.deepEqual(lineupOf([TWO, ONE, ONE]), { kind: 'players', steamIds: [ONE, TWO] });
+});
+
+test('a lineup is active until it is back at the latest one', () => {
+  const scope: AnalysisScope = { ...DEFAULT_SCOPE, lineup: { kind: 'all' } };
+  assert.equal(scopeFieldActive(scope, 'lineup'), true);
+  assert.equal(scopeFieldActive(resetScopeFields(scope, ['lineup']), 'lineup'), false);
 });
 
 test('a reversed date range is read in order', () => {

@@ -20,8 +20,8 @@ import { SignificantStats } from './significant-stats';
 
 type Loaded = { prep: TeamPrep; t: TeamPlaybook; ct: TeamPlaybook; scout: ScoutReport | null };
 
-/** What a rival's preparation on one map reads: the team, the map and the days, as the API takes them. */
-export type PrepQuery = { teamId: string; map: string; from?: string; to?: string };
+/** What a rival's preparation on one map reads: the team, the map, the days and the lineup, as the API takes them. */
+export type PrepQuery = { teamId: string; map: string; from?: string; to?: string; lineup?: readonly string[] };
 
 /**
  * The preparation of a rival on one map: what stands out, buys against buys,
@@ -38,7 +38,7 @@ export function PrepBody({
   header?: (prep: TeamPrep) => ReactNode;
   onOpenReplay?: (form: ReplayForm) => void;
 }): ReactNode {
-  const { teamId, map, from, to } = query;
+  const { teamId, map, from, to, lineup } = query;
   const [data, setData] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -50,12 +50,12 @@ export function PrepBody({
     let active = true;
     setData(null);
     setFailed(false);
-    const base = { map, from, to };
+    const base = { map, from, to, lineup };
     Promise.all([
       getTeamPrep(teamId, base),
       getTeamPlaybook(teamId, { ...base, side: 'T' }),
       getTeamPlaybook(teamId, { ...base, side: 'CT' }),
-      getLibraryTeamScout(teamId, { maps: [map], from, to }).catch(() => null),
+      getLibraryTeamScout(teamId, { maps: [map], from, to, lineup }).catch(() => null),
     ])
       .then(([prep, t, ct, scout]) => {
         if (active) setData({ prep, t, ct, scout });
@@ -66,7 +66,7 @@ export function PrepBody({
     return () => {
       active = false;
     };
-  }, [teamId, map, from, to, attempt]);
+  }, [teamId, map, from, to, lineup, attempt]);
 
   if (failed) {
     return (
@@ -106,7 +106,8 @@ export function PrepBody({
       {header?.(prep)}
       {prep.round_count === 0 ? (
         <p className="text-body text-fg-2">
-          No hay rondas de {prep.team_name} en {prettyMapName(prep.map)} en este periodo. Prueba con todas las fechas.
+          No hay rondas de {prep.team_name} en {prettyMapName(prep.map)} en este periodo
+          {lineup !== undefined && lineup.length > 0 ? ' con esta alineación. Prueba con todos los jugadores o con todas las fechas.' : '. Prueba con todas las fechas.'}
         </p>
       ) : (
         <>
