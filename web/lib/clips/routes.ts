@@ -14,7 +14,7 @@ export const TEAMS_HREF = '/equipos' as const;
 const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const LIBRETA_HREF = '/libreta' as const;
-/** The FACEIT follow list, under Jugadores beside the library players. */
+/** Jugadores FACEIT, the follow list in the Crear area of the rail. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 
 export const PRODUCE_FORMAT = {

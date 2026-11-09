@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users } from 'lucide-react';
-import { TEAMS_HREF } from '@/lib/clips/routes';
+import { Users } from 'lucide-react';
 import {
   FACEIT_CODES, FaceitServiceError, followFaceitPlayer, listFollowedFaceitPlayers,
   lookupFaceitPlayer, unfollowFaceitPlayer,
@@ -174,11 +173,7 @@ export default function FaceitPlayersPage(): ReactNode {
 
   return (
     <div className="measure-work flex min-w-0 flex-col gap-8">
-      <Link href={TEAMS_HREF} className="inline-flex w-fit items-center gap-1 text-body-sm font-medium text-fg-2 hover:text-fg-1">
-        <ArrowLeft className="size-4" aria-hidden />
-        Equipos
-      </Link>
-      <StudioPageHeader title="Seguimiento FACEIT" description="Sigue jugadores de FACEIT y convierte sus partidas en clips."
+      <StudioPageHeader title="Jugadores FACEIT" description="Sigue jugadores de FACEIT y convierte sus partidas en clips."
         actions={<FollowPlayerForm query={query} onQueryChange={setQuery} onSubmit={(event) => void onFollow(event)}
           disabled={state !== 'ready'} busy={busy} />} />
       {/* The empty state already says offline with its own Reintentar; a second red line above it is noise. */}

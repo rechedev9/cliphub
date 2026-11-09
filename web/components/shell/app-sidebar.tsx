@@ -17,6 +17,7 @@ import {
   Shield,
   Smartphone,
   Swords,
+  UserSearch,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -42,6 +43,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; tone?: string }> = {
   '/videos-largos': { icon: MonitorPlay, tone: 'text-format-full' },
   '/shorts': { icon: Smartphone, tone: 'text-format-short' },
   '/streams': { icon: Clapperboard, tone: 'text-format-stream' },
+  '/jugadores/faceit': { icon: UserSearch },
   '/mis-videos': { icon: Film },
   '/ideas': { icon: Lightbulb },
   '/partidas': { icon: Swords },
