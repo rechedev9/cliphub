@@ -10,10 +10,10 @@ export const LONG_VIDEOS_HREF = '/videos-largos' as const;
 export const RESULTS_HREF = '/mis-videos' as const;
 export const MATCHES_HREF = '/partidas' as const;
 export const TEAMS_HREF = '/equipos' as const;
-export const PLAYERS_HREF = '/jugadores' as const;
+/** Player sheets live under this prefix; the list itself is retired. */
+const PLAYERS_HREF = '/jugadores' as const;
 export const REPORTS_HREF = '/informes' as const;
 export const LIBRETA_HREF = '/libreta' as const;
-export const RANKING_HREF = '/ranking' as const;
 /** The FACEIT follow list, under Jugadores beside the library players. */
 export const FACEIT_PLAYERS_HREF = '/jugadores/faceit' as const;
 

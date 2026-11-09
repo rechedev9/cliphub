@@ -17,8 +17,6 @@ import {
   Shield,
   Smartphone,
   Swords,
-  Trophy,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -48,8 +46,6 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; tone?: string }> = {
   '/ideas': { icon: Lightbulb },
   '/partidas': { icon: Swords },
   '/equipos': { icon: Shield },
-  '/jugadores': { icon: Users },
-  '/ranking': { icon: Trophy },
   '/libreta': { icon: NotebookPen },
   '/lineups': { icon: Crosshair },
   '/informes': { icon: FileText },

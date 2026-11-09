@@ -1,6 +1,7 @@
 // Package community is the contract between ClipHub Studio and the community
-// server (services/community): the server-built pro reference and the opt-in
-// anonymous rankings, plus the Studio side that fetches, caches and submits.
+// server (services/community): the server-built pro reference, the pro lineups
+// and the wire types of the server's rankings, plus the Studio side that fetches
+// and caches. Studio no longer submits rankings.
 package community
 
 import (
@@ -96,31 +97,4 @@ func Quantiles(values []float64) []float64 {
 		out[i] = math.Round(v*1e4) / 1e4
 	}
 	return out
-}
-
-// Percentile places v in a quantile table: the share of installs, from 0 to
-// 100, with a lower value. A value tied with several points takes their middle.
-func Percentile(quantiles []float64, v float64) float64 {
-	n := len(quantiles)
-	if n < 2 {
-		return 50
-	}
-	if v < quantiles[0] {
-		return 0
-	}
-	if v > quantiles[n-1] {
-		return 100
-	}
-	first := sort.SearchFloat64s(quantiles, v)
-	scale := 100 / float64(n-1)
-	if quantiles[first] == v {
-		last := first
-		for last+1 < n && quantiles[last+1] == v {
-			last++
-		}
-		return math.Round(float64(first+last)/2*scale*10) / 10
-	}
-	lo, hi := quantiles[first-1], quantiles[first]
-	pos := float64(first-1) + (v-lo)/(hi-lo)
-	return math.Round(pos*scale*10) / 10
 }

@@ -10,8 +10,6 @@ const RAIL = [
   ['create', 'Ideas', '/ideas'],
   ['analyze', 'Partidas', '/partidas'],
   ['analyze', 'Equipos', '/equipos'],
-  ['analyze', 'Jugadores', '/jugadores'],
-  ['analyze', 'Ranking', '/ranking'],
   ['analyze', 'Libreta', '/libreta'],
   ['analyze', 'Lineups pro', '/lineups'],
   ['analyze', 'Informes', '/informes'],
@@ -37,8 +35,7 @@ test('nav: every retired door lands inside a live section', () => {
   const live = new Set<string>(NAV_SECTIONS.map((section) => section.href));
   for (const [from, to] of Object.entries(RETIRED_ROUTES)) {
     assert.equal(live.has(from), false, `${from} is retired and must not be in the rail`);
-    const target = to.split('?')[0].split('/').slice(0, 2).join('/');
-    assert.equal(live.has(target), true, `${from} → ${to} must land on a live section`);
+    assert.notEqual(sectionForPath(to.split('?')[0]), null, `${from} → ${to} must land on a live section`);
   }
 });
 
@@ -46,6 +43,8 @@ test('nav: a nested route lights its section, a series lights Short', () => {
   assert.equal(sectionForPath('/partidas/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed')?.href, '/partidas');
   assert.equal(sectionForPath('/mis-videos/abc/publicar/clip')?.href, '/mis-videos');
   assert.equal(sectionForPath('/series/abc')?.href, '/shorts');
+  assert.equal(sectionForPath('/jugadores/76561198000000000')?.href, '/equipos');
+  assert.equal(sectionForPath('/jugadores/faceit')?.href, '/equipos');
   assert.equal(sectionForPath('/videos-largos/serie/abc')?.href, '/videos-largos');
   assert.equal(sectionForPath('/shortsx'), null);
   assert.equal(sectionForPath('/'), null);

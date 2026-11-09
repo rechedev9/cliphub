@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -315,9 +316,12 @@ func proLineupID(ctx context.Context, s *studio, mapName, raw string) (string, e
 	return l.ID, err
 }
 
+// proMapPattern is community.MapPattern without "all".
+var proMapPattern = regexp.MustCompile(`^[a-z]{2,4}_[a-z0-9_]{1,32}$`)
+
 func proMapName(raw string) (string, error) {
 	m := strings.ToLower(strings.TrimSpace(raw))
-	if !rankingMapPattern.MatchString(m) {
+	if !proMapPattern.MatchString(m) {
 		return "", errors.New("map must be a map name such as de_mirage")
 	}
 	return m, nil

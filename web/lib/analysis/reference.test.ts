@@ -5,7 +5,6 @@ import type { PlayerMetrics } from '../api/metrics.ts';
 import {
   METRIC_INFO,
   baselineValue,
-  leaderboardEmptyText,
   metricReliability,
   playerEvidence,
   playerReferenceValues,
@@ -72,11 +71,6 @@ test('reference: a metric no player has gives no reference', () => {
   assert.equal(baselineValue(baseline(3, 2), 'kpr'), 0.7);
   assert.equal(baselineValue(baseline(3, 2), 'dpr'), null);
   assert.equal(baselineValue(null, 'kpr'), null);
-});
-
-test('reference: an empty ranking says what to change', () => {
-  assert.match(leaderboardEmptyText({ matches: 0, min_rounds: 50 }), /Importa demos/);
-  assert.match(leaderboardEmptyText({ matches: 3, min_rounds: 200 }), /llega a 200 rondas/);
 });
 
 test('reference: Pro says where its numbers come from', () => {

@@ -11,7 +11,7 @@ import { GlobalSearch } from '@/components/shell/global-search';
 import { JobTransport } from '@/components/shell/job-transport';
 import { ThemeMenu } from '@/components/shell/theme-menu';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
-import { FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
+import { FACEIT_PLAYERS_HREF, FULL_SERIES_SEGMENT, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { sectionForPath, type NavSection } from '@/lib/nav';
 
@@ -90,6 +90,8 @@ export function CommandStrip(): ReactElement {
 function trailForPath(pathname: string, section: NavSection | null): string | null {
   if (section === null) return null;
   if (pathname.startsWith(SERIES_PREFIX)) return TRAIL.series;
+  // Player sheets live outside their section's path; a sheet names itself once it loads.
+  if (!pathname.startsWith(section.href)) return pathname === FACEIT_PLAYERS_HREF ? 'Seguimiento FACEIT' : null;
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');
   if (rest === '') return null;
   const segments = rest.split('/');

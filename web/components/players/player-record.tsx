@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Link2, PlugZap, User } from 'lucide-react';
+import { ExternalLink, Link2, PlugZap, User } from 'lucide-react';
 import { FACEIT_NOT_CONFIGURED_CODE } from '@/lib/api/types';
 import type { MetricsReport } from '@/lib/api/metrics';
 import type { ScoutMatchSummary } from '@/lib/api/scout';
@@ -21,7 +21,7 @@ import {
   type LibraryPlayer,
   type LibraryPlayerRole,
 } from '@/lib/api/library';
-import { FACEIT_PLAYERS_HREF, PLAYERS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
+import { FACEIT_PLAYERS_HREF, TEAMS_HREF, matchHref, playerHref, teamHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
   OUTCOME_LABEL,
@@ -144,7 +144,7 @@ export function PlayerRecord({ steamId }: { steamId: string }): ReactNode {
         description="Este SteamID64 no aparece en ninguna demo de la biblioteca."
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link href={PLAYERS_HREF}>Ver jugadores</Link>
+            <Link href={TEAMS_HREF}>Ver equipos</Link>
           </Button>
         }
       />
@@ -323,20 +323,12 @@ function PlayerRecordView({ data }: { data: Loaded }): ReactNode {
           { label: 'FACEIT', value: player.faceit_nickname ?? 'Sin vincular' },
         ]}
         actions={
-          <>
-            {player.faceit_player_id ? null : (
-              <Button type="button" variant="ghost" size="xs" disabled={linking} onClick={() => void linkFaceit()}>
-                <Link2 aria-hidden />
-                {linking ? 'Buscando en FACEIT' : 'Vincular FACEIT'}
-              </Button>
-            )}
-            <Button asChild variant="ghost" size="xs">
-              <Link href={PLAYERS_HREF}>
-                <ArrowLeft aria-hidden />
-                Todos los jugadores
-              </Link>
+          player.faceit_player_id ? null : (
+            <Button type="button" variant="ghost" size="xs" disabled={linking} onClick={() => void linkFaceit()}>
+              <Link2 aria-hidden />
+              {linking ? 'Buscando en FACEIT' : 'Vincular FACEIT'}
             </Button>
-          </>
+          )
         }
       />
       {linkError ? <p role="alert" className="text-body-sm text-destructive">{linkError}</p> : null}

@@ -145,9 +145,8 @@ safe. Only uploads are limited (2 concurrent).
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
   `delete_stream`, `delete_demo` (the file names; one approval for every demo in `ids`), `merge_teams` (both team names and the match count of the one that goes),
   `delete_captures` (bytes freed), `delete_storage_file` (file, kind and size), `retry_video`, `change_video_music`,
-  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_library_series` (format and teams),
-  `launch_practice` (map and spot count), turning `set_community_ranking` on and
-  `delete_community_ranking` (what leaves or is erased on the community server).
+  `delete_report`, `delete_play`, `delete_lineup` and `delete_call` (the title), `delete_library_series` (format and teams)
+  and `launch_practice` (map and spot count).
 - On protocol 2026-07-28 the SDK forbids a blocking `Elicit` inside a tool call, so the question
   travels as an input request (`CallToolResult.InputRequests`); the SDK asks it directly for older
   clients. A failed or declined question starts nothing and hands out no code.
@@ -211,8 +210,7 @@ Read:
 | `simulate_veto` | `GET /api/library/teams/{id}/veto` (`opponent_id`, `format`, `first`, repeatable `pool` and `done`): steps with their basis, the maps played and each map's edge |
 | `faceit_player` | `GET /api/faceit/players` (`nickname`, a nick or profile URL): id, level, ELO, country, SteamID64 |
 | `faceit_matches` | `GET /api/faceit/players/{id}/matches` (`limit` 10 by default and at most 20): map, result, score, K/D/A, ADR, match room link |
-| `list_faceit_follows` | `GET /api/faceit/followed`: followed and seeded players of the Jugadores page |
-| `community_ranking` | `GET /api/library/community/settings` and `GET /api/library/community/rankings` (`map`): sharing state and the percentile per metric |
+| `list_faceit_follows` | `GET /api/faceit/followed`: followed and seeded players of Seguimiento FACEIT |
 | `get_player` | `GET /api/library/players/{steamid}`: nicks and teams by date, linked FACEIT account |
 | `scout_team` | `GET /api/library/teams/{id}/scout` (`map`, `side`, `from`, `to`, repeatable `opponent_id` and `match_id`), summarized: maps, buys, sites, round shapes, openings, executes, AWP, players |
 | `player_metrics` | `GET /api/library/players/{steamid}/metrics`; rates with the `get_baseline` definitions |
@@ -300,9 +298,6 @@ Write:
 | `follow_faceit_player`, `unfollow_faceit_player` | `POST /api/faceit/followed` (`nickname`); `DELETE /api/faceit/followed/{id}` (a seeded player is hidden) | no |
 | `link_player_faceit` | `POST /api/library/players/{steamid}/faceit` | no |
 | `launch_practice` | `POST /api/practice/launch` (`map`, at most 20 spots with `label`, `pos`, `ang` as pitch and yaw, `grenade`); a CT molotov becomes an incendiary, as on the grenades page. With `lineup_ids`, `GET /api/library/lineups/{id}` for each, all on `map`, as Practicar selección does in the Libreta. With `pro_lineup_ids` (ids or slugs), `GET /api/library/pro-lineups/{map}`: label the title, `pos` the origin, `ang` pitch and yaw, `grenade` the kind | yes |
-| `set_community_ranking` | `PUT /api/library/community/settings` (`rankings_enabled`); turning it on submits right away | yes, to turn it on |
-| `submit_community_ranking` | `POST /api/library/community/rankings/submit` | no (sharing must be on) |
-| `delete_community_ranking` | `DELETE /api/library/community/rankings`: the server forgets this install, sharing turns off | yes |
 | `merge_teams` | `GET /api/library/teams/{id}` for both teams, then `POST /api/library/teams/{id}/merge` with `into_team_id` | yes |
 
 Short look and Full Demo HUD:
