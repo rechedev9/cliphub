@@ -26,6 +26,7 @@ import {
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
 import type { WorldMark } from '@/lib/tactical-transform';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { cn } from '@/lib/utils';
 import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
@@ -171,7 +172,11 @@ export function HeatmapView({
       );
     }
     if (!data?.geometry || !heatmap || !layer) {
-      return <p className="text-body-sm text-fg-3">No hay partidas analizadas con este filtro.</p>;
+      return (
+        <EmptySample>
+          <p className="text-body-sm text-fg-3">No hay partidas analizadas con este filtro.</p>
+        </EmptySample>
+      );
     }
     return (
       <div className="grid gap-4 @[56rem]:grid-cols-[minmax(0,1fr)_300px]">

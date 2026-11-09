@@ -31,6 +31,7 @@ import {
 import { inScopePeriod, type ScopeField } from '@/lib/analysis/scope';
 import { FILTER_ANY, SEARCH_FILTER } from '@/lib/records/table-view';
 import { lastResults } from '@/lib/analysis/context-bar';
+import { SampleLineupProvider } from '@/components/analysis/empty-sample';
 import { MapLabel } from '@/components/analysis/map-thumb';
 import { ScopeBar, type ScopeCounts, type ScopeEntity } from '@/components/analysis/scope-bar';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
@@ -187,6 +188,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   // Keyed on the ids, so a view refetches only when the players it counts change.
   const lineupKey = lineupSteamIds(scope.lineup, lineups).join(',');
   const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
+  const showEveryone = useCallback(() => setScope({ lineup: { kind: 'all' } }), [setScope]);
   useRouteTitle(team.name);
   useDocumentTitle(`${team.name} · Equipo · ClipHub`);
 
@@ -259,7 +261,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
         />
-        {content}
+        <SampleLineupProvider showEveryone={fields.includes('lineup') && lineup.length > 0 ? showEveryone : null}>{content}</SampleLineupProvider>
       </div>
     );
   }

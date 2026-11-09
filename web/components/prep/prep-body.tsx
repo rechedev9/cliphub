@@ -10,6 +10,7 @@ import type { TeamPlaybook, TeamPrep } from '@/lib/api/playbook';
 import { prettyMapName } from '@/lib/format';
 import type { ReplayForm } from '@/lib/replay/forms';
 import { REPLAY_FORM_LABEL } from '@/lib/replay/forms';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { SkippedNote } from '@/components/playbook/playbook-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -105,10 +106,12 @@ export function PrepBody({
     <>
       {header?.(prep)}
       {prep.round_count === 0 ? (
-        <p className="text-body text-fg-2">
-          No hay rondas de {prep.team_name} en {prettyMapName(prep.map)} en este periodo
-          {lineup !== undefined && lineup.length > 0 ? ' con esta alineación. Prueba con todos los jugadores o con todas las fechas.' : '. Prueba con todas las fechas.'}
-        </p>
+        <EmptySample>
+          <p className="text-body text-fg-2">
+            No hay rondas de {prep.team_name} en {prettyMapName(prep.map)} en este periodo
+            {lineup !== undefined && lineup.length > 0 ? ' con esta alineación. Prueba con todos los jugadores o con todas las fechas.' : '. Prueba con todas las fechas.'}
+          </p>
+        </EmptySample>
       ) : (
         <>
           <PrepSection title="Lo que destaca">

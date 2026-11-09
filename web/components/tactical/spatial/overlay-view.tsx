@@ -27,6 +27,7 @@ import {
 import { TACTICAL_REPLAY_SPEEDS } from '@/lib/tactical-timeline';
 import { isMultiLevelMap, worldToRendered } from '@/lib/tactical-transform';
 import { floorAlpha } from '@/lib/analysis/floors';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -128,10 +129,12 @@ export function OverlayView({
   const { data } = load;
   if (data.overlay === undefined || data.geometry === null || data.overlay.rounds.length === 0) {
     return (
-      <p className="flex items-center gap-2 text-body-sm text-fg-3">
-        <Layers className="size-4" aria-hidden />
-        No hay rondas que superponer con este filtro.
-      </p>
+      <EmptySample>
+        <p className="flex items-center gap-2 text-body-sm text-fg-3">
+          <Layers className="size-4" aria-hidden />
+          No hay rondas que superponer con este filtro.
+        </p>
+      </EmptySample>
     );
   }
   return <OverlayPlayer key={scopeKey} data={data} tramo={tramo} />;

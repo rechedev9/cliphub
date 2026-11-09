@@ -10,6 +10,7 @@ import { RatePool, bombsiteKey, libraryMatchesText, poolBombsites, type AttackFi
 import { replayHref } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import { MapThumb } from '@/components/analysis/map-thumb';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { DisclosureSummary } from '@/components/ui/disclosure-summary';
@@ -192,7 +193,11 @@ export function TeamBombsites({
     );
   }
   if (data.maps.length === 0) {
-    return <p className="text-body-sm text-fg-2">Sin partidas analizadas con este filtro. Amplía las fechas o quita el mapa o el rival.</p>;
+    return (
+      <EmptySample>
+        <p className="text-body-sm text-fg-2">Sin partidas analizadas con este filtro. Amplía las fechas o quita el mapa o el rival.</p>
+      </EmptySample>
+    );
   }
   const heads = columns(data);
   return (

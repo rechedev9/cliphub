@@ -19,6 +19,7 @@ import {
   type ComboMode,
 } from '@/lib/analysis/playbook-combo';
 import { useLibraryNorms } from '@/hooks/use-library-norms';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { Map as MapIcon, Swords } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
@@ -167,9 +168,11 @@ export function TeamPlaybook({
   }
   if (playbook.round_count === 0) {
     return (
-      <p className="text-body text-fg-2">
-        No hay rondas de {side} en {prettyMapName(map)} con este filtro. Prueba con otro periodo o rival.
-      </p>
+      <EmptySample>
+        <p className="text-body text-fg-2">
+          No hay rondas de {side} en {prettyMapName(map)} con este filtro. Prueba con otro periodo o rival.
+        </p>
+      </EmptySample>
     );
   }
 
