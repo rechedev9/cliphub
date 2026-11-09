@@ -17,7 +17,7 @@ import { isMultiLevelMap } from '@/lib/tactical-transform';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
-import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { frameDue, loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { TramoControl } from './tramo-bar';
@@ -47,7 +47,10 @@ import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
+import type { MapCapture } from './gif-export';
+import { GifPanel } from './gif-panel';
 import { PlaylistPicker } from './playlist-picker';
+import { useReplayGif } from './use-replay-gif';
 import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
@@ -131,8 +134,12 @@ export function ReplayWorkspace({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
-  const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
+  const [ownLayers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
+  // One round and the superposed rounds keep their own Nombres chip.
+  const [multiNames, setMultiNames] = useState(true);
+  const layers = useMemo(() => (multi ? { ...ownLayers, names: multiNames } : ownLayers), [multi, multiNames, ownLayers]);
+  const captureRef = useRef<MapCapture | null>(null);
   // The span the superposed rounds play in; one round alone plays whole.
   const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
   const tramo = pageTramo?.tramo ?? ownTramo;
@@ -287,6 +294,7 @@ export function ReplayWorkspace({
   );
 
   const ready = focused !== null;
+  const fps = mapSettings.fps;
   const span = useMemo(
     () => (multi && !isWholeRound(tramo) ? { from: tramo.from, to: Math.min(tramoEnd(tramo), transport.durationSeconds) } : null),
     [multi, tramo, transport.durationSeconds],
@@ -298,6 +306,10 @@ export function ReplayWorkspace({
     // Any move of the clock this loop did not make (a note, multi round on or off) counts as a seek too.
     let written = clock.seconds;
     const step = (now: number): void => {
+      if (!frameDue(now - last, fps)) {
+        frame = requestAnimationFrame(step);
+        return;
+      }
       const next = playbackStep({
         position: clock.seconds,
         elapsedMs: now - last,
@@ -328,7 +340,7 @@ export function ReplayWorkspace({
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span]);
+  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span, fps]);
 
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
@@ -391,7 +403,11 @@ export function ReplayWorkspace({
       const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
     } else if (shortcut === 'fold-left' || shortcut === 'fold-right') toggleFold(shortcut === 'fold-left' ? 'left' : 'right');
-    else if (shortcut === 'playlist') {
+    else if (shortcut === 'gif') {
+      // The first G shows the tramo that goes in; the second records it.
+      if (gif.open) gif.start();
+      else gif.toggle();
+    } else if (shortcut === 'playlist') {
       if (library && entry !== undefined) playlist.toggle(entry);
     } else if (shortcut === 'setpos') {
       const slot = hoverSlot.current ?? (focus.length === 1 ? focus[0] : undefined);
@@ -496,6 +512,19 @@ export function ReplayWorkspace({
     if (notesMatchId === undefined || focused === null) return Promise.resolve(false);
     return notes.create({ match_id: notesMatchId, round: focused.round.number, tick: tickOf(focused, clock.seconds), text, strokes: draft.strokes });
   };
+  const gif = useReplayGif({
+    captureRef,
+    focused,
+    multi,
+    rounds: centreRounds.length,
+    transport,
+    events: transportEvents,
+    tramo,
+    speed,
+    draft: library ? draft.strokes : [],
+    notes: focusTimeline === null ? [] : (notes.notes ?? []).map((note) => ({ at: clockSecondsOf(focusTimeline, note.tick), strokes: note.strokes })),
+    onStart: () => setPlaying(false),
+  });
 
   if (entries.length === 0) {
     return (
@@ -586,12 +615,14 @@ export function ReplayWorkspace({
           onSettings={setMapSettings}
           twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
           layers={layers}
-          onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+          onToggleLayer={(key) => (multi && key === 'names' ? setMultiNames((value) => !value) : setLayers((value) => toggleLayer(value, key)))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           draft={library ? draft : null}
+          gif={{ open: gif.open, onToggle: gif.toggle }}
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
           zoomSlot={setZoomSlot}
         />
+        {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
@@ -611,6 +642,7 @@ export function ReplayWorkspace({
               onCopySlot={copyPlayerSetpos}
               settings={mapSettings}
               barSlot={zoomSlot}
+              captureRef={captureRef}
             />
           )}
           {focused === null ? null : (

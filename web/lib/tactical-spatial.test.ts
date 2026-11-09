@@ -19,6 +19,7 @@ import {
   noteVisibleAt,
   radarProjection,
   renderedToWorld,
+  strokeAt,
   thinStroke,
   topCells,
   trackDeadAt,
@@ -200,4 +201,15 @@ test('a hidden focused round hands the focus to the first visible one, so a note
   assert.equal(visibleFocus(keys, new Set(['m:2']), 'm:2'), 'm:1');
   assert.equal(visibleFocus(keys, new Set(['m:1', 'm:2']), 'm:1'), 'm:3');
   assert.equal(visibleFocus(keys, new Set(keys), 'm:1'), '');
+});
+
+test('the eraser picks the topmost stroke near the pointer, along its segments, and none far from every stroke', () => {
+  const strokes: { points: [number, number][] }[] = [
+    { points: [[0, 0], [100, 0]] },
+    { points: [[50, -50], [50, 50]] },
+  ];
+  assert.equal(strokeAt(strokes, [50, 4], 10), 1);
+  assert.equal(strokeAt(strokes, [90, 6], 10), 0);
+  assert.equal(strokeAt(strokes, [90, 30], 10), null);
+  assert.equal(strokeAt([{ points: [[5, 5]] }], [5, 5], 10), null);
 });

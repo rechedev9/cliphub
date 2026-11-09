@@ -9,6 +9,7 @@ const STUDIO_UPDATE_CHANNEL = 'cliphub:app-update';
 const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
 const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
 const STUDIO_MATCH_MODE_CHANNEL = 'cliphub:match-mode';
+const STUDIO_REPLAY_GIF_CHANNEL = 'cliphub:replay-gif';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -110,4 +111,13 @@ contextBridge.exposeInMainWorld('cliphubReports', {
     }
     return ipcRenderer.invoke(STUDIO_REPORT_PDF_CHANNEL, { html, fileName });
   },
+});
+
+// The save dialog opens on the click; the GIF is written to the picked path once it is encoded.
+contextBridge.exposeInMainWorld('cliphubReplay', {
+  pickGif: (fileName: unknown): Promise<unknown> => {
+    if (!userIsActive()) return Promise.resolve({ ok: false, error: 'El GIF se guarda desde un clic.' });
+    return ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'pick', fileName });
+  },
+  writeGif: (token: unknown, bytes: unknown): Promise<unknown> => ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'write', token, bytes }),
 });

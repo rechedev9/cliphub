@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ArrowUpRight, Bomb, Brush, Eraser, Eye, Flag, Flame, Footprints, Hand, Settings2, Tag, Undo2, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Bomb, Brush, Eraser, Eye, Film, Flag, Flame, Footprints, Hand, Settings2, Tag, Trash2, Undo2, X, Zap } from 'lucide-react';
 import { STROKE_COLORS } from '@/lib/api/spatial';
 import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
 import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
-import { MAP_ARTS, MAP_ART_LABELS, MAP_FLOORS, MAP_FLOORS_LABELS, MAP_SIZES, MAP_SIZE_LABELS } from '@/lib/replay/map-settings';
+import { FRAME_RATES, MAP_ARTS, MAP_ART_LABELS, MAP_FLOORS, MAP_FLOORS_LABELS, MAP_SIZES, MAP_SIZE_LABELS, ZOOM_SPEED_LABELS, frameRateLabel } from '@/lib/replay/map-settings';
 import type { MapSettings } from '@/lib/replay/map-settings';
 import { HIT_TOKENS } from '@/components/tactical/radar-style';
 import { STROKE_LABEL, STROKE_VAR } from '@/components/tactical/spatial/telestrator';
@@ -44,17 +44,19 @@ const HIT_LEGEND: readonly [HitLineKind, string][] = [
 /** The chips name themselves where the bar has room; in a narrow one the icon and its tooltip do. */
 const WIDE_LABEL = 'hidden @5xl:inline';
 
-type DrawMode = 'move' | 'draw' | 'arrow';
+type DrawMode = 'move' | 'draw' | 'arrow' | 'erase';
 
 function drawMode(draft: TelestratorDraft): DrawMode {
   if (!draft.drawing) return 'move';
+  if (draft.tool.erase) return 'erase';
   return draft.tool.arrow ? 'arrow' : 'draw';
 }
 
-const DRAW_MODES: readonly { mode: DrawMode; label: string; icon: ReactNode }[] = [
+const DRAW_MODES: readonly { mode: DrawMode; label: string; hint?: string; icon: ReactNode }[] = [
   { mode: 'move', label: 'Mover', icon: <Hand aria-hidden /> },
   { mode: 'draw', label: 'Dibujar', icon: <Brush aria-hidden /> },
   { mode: 'arrow', label: 'Flecha', icon: <ArrowUpRight aria-hidden /> },
+  { mode: 'erase', label: 'Borrar trazo', hint: 'Borrar trazo: pulsa o arrastra sobre un trazo del dibujo para quitarlo', icon: <Eraser aria-hidden /> },
 ];
 
 function IconButton({ label, disabled = false, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }): ReactNode {
@@ -77,12 +79,12 @@ function DrawTools({ draft }: { draft: TelestratorDraft }): ReactNode {
   const mode = drawMode(draft);
   const choose = (next: DrawMode): void => {
     draft.setDrawing(next !== 'move');
-    if (next !== 'move') draft.setTool({ ...draft.tool, arrow: next === 'arrow' });
+    if (next !== 'move') draft.setTool({ ...draft.tool, arrow: next === 'arrow', erase: next === 'erase' });
   };
   return (
     <div role="toolbar" aria-label="Dibujo sobre el mapa" className="flex items-center gap-1">
       {DRAW_MODES.map((entry) => (
-        <ReplayChip key={entry.mode} pressed={mode === entry.mode} onClick={() => choose(entry.mode)} title={entry.label} aria-label={entry.label}>
+        <ReplayChip key={entry.mode} pressed={mode === entry.mode} onClick={() => choose(entry.mode)} title={entry.hint ?? entry.label} aria-label={entry.label}>
           {entry.icon}
           <span className={WIDE_LABEL}>{entry.label}</span>
         </ReplayChip>
@@ -104,8 +106,8 @@ function DrawTools({ draft }: { draft: TelestratorDraft }): ReactNode {
       <IconButton label="Deshacer el último trazo" disabled={draft.strokes.length === 0} onClick={draft.undo}>
         <Undo2 aria-hidden />
       </IconButton>
-      <IconButton label="Borrar el dibujo" disabled={draft.strokes.length === 0} onClick={draft.clear}>
-        <Eraser aria-hidden />
+      <IconButton label="Borrar todo el dibujo" disabled={draft.strokes.length === 0} onClick={draft.clear}>
+        <Trash2 aria-hidden />
       </IconButton>
     </div>
   );
@@ -123,6 +125,7 @@ export function MapBar({
   onToggleLayer,
   onTrailSeconds,
   draft,
+  gif,
   follow,
   zoomSlot,
 }: {
@@ -135,6 +138,8 @@ export function MapBar({
   onTrailSeconds: (seconds: TrailSeconds) => void;
   /** The drawing of the note being made; null where notes cannot be saved. */
   draft: TelestratorDraft | null;
+  /** The GIF row under the bar, opened with this chip or G. */
+  gif: { open: boolean; onToggle: () => void };
   /** The player the map keeps centred. */
   follow: { name: string; onStop: () => void } | null;
   /** Where the map puts its zoom buttons. */
@@ -193,6 +198,10 @@ export function MapBar({
         )}
         <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {draft === null ? null : <DrawTools draft={draft} />}
+          <ReplayChip pressed={gif.open} aria-expanded={gif.open} onClick={gif.onToggle} title="GIF del tramo (G)" aria-label="GIF del tramo">
+            <Film aria-hidden />
+            GIF
+          </ReplayChip>
           <div ref={zoomSlot} />
         </div>
       </div>
@@ -214,6 +223,24 @@ export function MapBar({
               value={settings.names}
               options={MAP_SIZES.map((size) => ({ value: size, label: MAP_SIZE_LABELS[size] }))}
               onChange={(names) => onSettings({ ...settings, names })}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-meta text-fg-3">
+            Zoom
+            <Segmented
+              label="Velocidad del zoom con la rueda"
+              value={settings.zoom}
+              options={MAP_SIZES.map((size) => ({ value: size, label: ZOOM_SPEED_LABELS[size] }))}
+              onChange={(zoom) => onSettings({ ...settings, zoom })}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-meta text-fg-3" title="Menos imágenes por segundo descargan el PC mientras se reproduce">
+            Imágenes por segundo
+            <Segmented
+              label="Límite de imágenes por segundo"
+              value={String(settings.fps)}
+              options={FRAME_RATES.map((rate) => ({ value: String(rate), label: frameRateLabel(rate) }))}
+              onChange={(value) => onSettings({ ...settings, fps: FRAME_RATES.find((rate) => String(rate) === value) ?? 0 })}
             />
           </div>
           <ul className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-fg-3" aria-label="Colores del daño">

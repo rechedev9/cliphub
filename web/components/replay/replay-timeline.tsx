@@ -6,6 +6,7 @@ import { Pause, Play, Repeat } from 'lucide-react';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent } from '@/lib/api/tactical';
 import { isBombKind } from '@/lib/replay/layers';
+import { postPlantSpan } from '@/lib/replay/map-hud';
 import { SCRUB_STEP_SECONDS } from '@/lib/replay/playback';
 import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
@@ -83,6 +84,7 @@ export function ReplayTimeline({
     scrubbingChangeRef.current(true);
   };
   const freeze = timeline.durationSeconds > 0 ? timeline.freezeSeconds / timeline.durationSeconds : 0;
+  const postPlant = timeline.durationSeconds > 0 ? postPlantSpan(events, timeline.durationSeconds) : null;
   return (
     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3">
       <Button type="button" size="icon-sm" variant="outline" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ]: ronda">
@@ -95,6 +97,15 @@ export function ReplayTimeline({
         <div className="relative h-10">
           <div className="pointer-events-none absolute inset-x-[3px] top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
             <div className="absolute inset-y-0 left-0 bg-surface-3" style={{ width: `${freeze * 100}%` }} aria-hidden />
+            {postPlant === null ? null : (
+              <div
+                className="absolute inset-y-0 overflow-hidden bg-destructive/20 pl-1 text-meta leading-5 font-semibold text-destructive"
+                style={{ left: `${(postPlant.from / timeline.durationSeconds) * 100}%`, width: `${((postPlant.to - postPlant.from) / timeline.durationSeconds) * 100}%` }}
+                aria-hidden
+              >
+                Bomba
+              </div>
+            )}
             {events.map((entry, index) => (
               <span
                 key={`${entry.event.kind}-${entry.event.tick}-${entry.event.actor_slot ?? 'x'}-${index}`}

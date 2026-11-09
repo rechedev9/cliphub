@@ -10,7 +10,7 @@ import { hitLines } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
-import { MAP_SIZE_SCALE } from '@/lib/replay/map-settings';
+import { MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
 import { WHEEL_STEP, boxWindow, followView, paddedView, panView, radarImageFits, rememberZoom, rememberedZoom, sameRect, wheelZooms, zoomLevel, zoomViewAt } from '@/lib/replay/map-view';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
 import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
@@ -79,7 +79,7 @@ function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel)
  * a right-click copies their setpos.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -256,7 +256,6 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       const cursor = frameCursor(round.frames, tick);
       if (cursor === undefined) return [];
       const samples = reader.samples(cursor);
-      if (round.focused) samplesRef.current = samples;
       const nowSeconds = timelineSeconds(round.timeline, tick);
       const deadFor = new Map<number, number>();
       for (const player of round.round.players) {
@@ -313,18 +312,19 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
     [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, projection.size, readers, shown, sightBvh, tickOf],
   );
 
-  const render = useCallback(
-    (seconds: number) => {
-      const canvas = canvasRef.current;
-      if (!drawable || geometry === undefined || focused === undefined || canvas === null) return;
+  // Draws one moment on a canvas the size of the visible one: the screen, or a GIF frame.
+  const paint = useCallback(
+    (canvas: HTMLCanvasElement, seconds: number): { drawn: DrawnPlayer[]; samples: TacticalSample[] } | null => {
+      if (!drawable || geometry === undefined || focused === undefined) return null;
       const ctx = canvas.getContext('2d', { alpha: false });
-      if (ctx === null) return;
+      if (ctx === null) return null;
       const style = styleRef.current ?? readRadarStyle(canvas);
       styleRef.current = style;
       const { dpr } = box;
       const reader = readers.get(focused.key);
       const cursor = frameCursor(focused.frames, tickOf(focused, seconds));
-      const dominant = dominantLevel(geometry.calibration, cursor === undefined || reader === undefined ? [] : reader.samples(cursor));
+      const samples = cursor === undefined || reader === undefined ? [] : reader.samples(cursor);
+      const dominant = dominantLevel(geometry.calibration, samples);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#0b0c0e';
@@ -373,7 +373,20 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         else ctx.fillRect(0, (first.y + first.height) * dpr, canvas.width, (second.y - first.y - first.height) * dpr);
         ctx.globalAlpha = 1;
       }
+      return { drawn, samples };
+    },
+    [bothFloors, box, drawRound, drawable, focused, geometry, panes, plate, projections, readers, rounds, shown, tickOf],
+  );
+
+  const render = useCallback(
+    (seconds: number) => {
+      const canvas = canvasRef.current;
+      if (canvas === null || geometry === undefined) return;
+      const painted = paint(canvas, seconds);
+      if (painted === null) return;
+      const { drawn } = painted;
       drawnRef.current = drawn;
+      samplesRef.current = painted.samples;
 
       const tip = tipRef.current;
       const hovered = hover === null ? undefined : drawn.find((player) => player.slot === hover);
@@ -385,8 +398,35 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
         if (!sameRect(next, view)) setZoomed(next);
       }
     },
-    [base, bothFloors, box, drawRound, drawable, focused, followSlot, geometry, hover, panes, plate, projections, readers, rounds, setZoomed, shown, tickOf, view],
+    [base, box, followSlot, geometry, hover, paint, setZoomed, view],
   );
+
+  useEffect(() => {
+    if (captureRef === undefined) return;
+    if (!drawable || geometry === undefined) {
+      captureRef.current = null;
+      return;
+    }
+    const frame = document.createElement('canvas');
+    const { calibration } = geometry;
+    captureRef.current = {
+      box: { width: box.width, height: box.height },
+      projection,
+      calibration,
+      token: (name) => (canvasRef.current === null ? '' : getComputedStyle(canvasRef.current).getPropertyValue(name).trim()),
+      fontFamily: styleRef.current?.fontFamily ?? 'sans-serif',
+      paint: (seconds) => {
+        const visible = canvasRef.current;
+        if (visible === null) return null;
+        if (frame.width !== visible.width) frame.width = visible.width;
+        if (frame.height !== visible.height) frame.height = visible.height;
+        return paint(frame, seconds) === null ? null : frame;
+      },
+    };
+    return () => {
+      captureRef.current = null;
+    };
+  }, [box.height, box.width, captureRef, drawable, geometry, paint, projection]);
 
   const renderRef = useRef(render);
   useEffect(() => {
@@ -440,8 +480,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   }, [clock]);
 
   // Not passive: a turn that zooms keeps the page still; zooming out of the whole map scrolls the page.
-  const zoomStateRef = useRef({ panes, view, base, setZoomed });
-  zoomStateRef.current = { panes, view, base, setZoomed };
+  const zoomSpeed = ZOOM_SPEED[settings.zoom];
+  const zoomStateRef = useRef({ panes, view, base, setZoomed, zoomSpeed });
+  zoomStateRef.current = { panes, view, base, setZoomed, zoomSpeed };
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
@@ -454,7 +495,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       const hit = paneAt(state.panes, event.clientX - rect.left, event.clientY - rect.top);
       const pane = hit?.pane ?? state.panes[0];
       const cursor = hit === null ? { x: pane.width / 2, y: pane.height / 2 } : { x: hit.x, y: hit.y };
-      const next = zoomViewAt({ box: pane, view: state.view, base: state.base, cursor, factor: WHEEL_STEP ** -event.deltaY });
+      const next = zoomViewAt({ box: pane, view: state.view, base: state.base, cursor, factor: WHEEL_STEP ** (-event.deltaY * state.zoomSpeed) });
       state.setZoomed(sameRect(next, state.base) ? null : next);
     };
     container.addEventListener('wheel', onWheel, { passive: false });

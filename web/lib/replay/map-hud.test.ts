@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalEvent } from '../api/tactical.ts';
 import type { TimelineEvent } from '../tactical-timeline.ts';
-import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed } from './map-hud.ts';
+import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, postPlantSpan } from './map-hud.ts';
 
 function at(kind: TacticalEvent['kind'], seconds: number, site?: TacticalEvent['site']): TimelineEvent {
   return { event: { kind, tick: seconds * 64, site, pos: [0, 0, 0], target_pos: [0, 0, 0] }, seconds, fraction: 0 };
@@ -15,6 +15,13 @@ test('map hud: the bomb counts down from the plant and stops at the defuse', () 
   assert.deepEqual(bombState(events, 60), { kind: 'planted', site: 'A', remaining: BOMB_SECONDS - 10 });
   assert.deepEqual(bombState(events, 85), { kind: 'defused' });
   assert.deepEqual(bombState([at('plant', 0), at('explode', 40)], 41), { kind: 'exploded' });
+});
+
+test('map hud: the post-plant band runs from the plant to the defuse, the explosion or the end of the bar', () => {
+  assert.deepEqual(postPlantSpan([at('kill', 10), at('plant', 50, 'A'), at('defuse', 80)], 100), { from: 50, to: 80 });
+  assert.deepEqual(postPlantSpan([at('plant', 50), at('explode', 90)], 100), { from: 50, to: 90 });
+  assert.deepEqual(postPlantSpan([at('plant', 50)], 70), { from: 50, to: 70 });
+  assert.equal(postPlantSpan([at('kill', 10)], 100), null);
 });
 
 test('map hud: the feed keeps the last few seconds of kills, oldest first', () => {

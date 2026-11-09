@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import type { Stroke } from '@/lib/api/spatial';
 import type { ReplayClock } from '@/lib/replay/clock';
 import type { ReplayLayers } from '@/lib/replay/layers';
@@ -5,6 +6,7 @@ import type { MapSettings } from '@/lib/replay/map-settings';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { TelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import type { MapCapture } from './gif-export';
 
 /**
  * What the map receives. Playback never re-renders it: read
@@ -36,4 +38,6 @@ export type ReplayCentreProps = {
   settings: MapSettings;
   /** Where the map puts its zoom buttons: the bar over it. */
   barSlot: HTMLElement | null;
+  /** Filled with a way to draw any moment off screen, for the GIF; null while the map cannot draw. */
+  captureRef?: RefObject<MapCapture | null>;
 };

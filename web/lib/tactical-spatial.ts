@@ -242,18 +242,44 @@ export function thinStroke(points: readonly [number, number][], minDistance: num
   return out;
 }
 
+function segmentDistance(point: readonly [number, number], a: readonly [number, number], b: readonly [number, number]): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const length = dx * dx + dy * dy;
+  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length));
+  return Math.hypot(point[0] - (a[0] + t * dx), point[1] - (a[1] + t * dy));
+}
+
+/** The topmost stroke passing within `reach` of a world point, for the eraser; null when none does. */
+export function strokeAt(strokes: readonly { points: readonly [number, number][] }[], point: readonly [number, number], reach: number): number | null {
+  for (let index = strokes.length - 1; index >= 0; index--) {
+    const points = strokes[index]?.points ?? [];
+    for (let i = 1; i < points.length; i++) {
+      if (segmentDistance(point, points[i - 1], points[i]) <= reach) return index;
+    }
+  }
+  return null;
+}
+
 /** An SVG path through projected points. */
 export function strokePath(points: readonly RadarPoint[]): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
 }
 
 /** The three corners of an arrowhead at `to`, pointing away from `from`. */
-export function arrowHead(from: RadarPoint, to: RadarPoint, length: number): string {
+export function arrowHeadPoints(from: RadarPoint, to: RadarPoint, length: number): RadarPoint[] {
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
   const spread = Math.PI / 7;
   const left = { x: to.x - length * Math.cos(angle - spread), y: to.y - length * Math.sin(angle - spread) };
   const right = { x: to.x - length * Math.cos(angle + spread), y: to.y - length * Math.sin(angle + spread) };
-  return [to, left, right].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  return [to, left, right];
+}
+
+/** The same corners as SVG polygon points. */
+export function arrowHead(from: RadarPoint, to: RadarPoint, length: number): string {
+  return arrowHeadPoints(from, to, length)
+    .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' ');
 }
 
 type CalloutGeometry = {

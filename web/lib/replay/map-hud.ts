@@ -28,6 +28,15 @@ export function bombState(events: readonly TimelineEvent[], now: number): BombSt
   return state;
 }
 
+/** From the plant to the defuse, the explosion or the end of the bar; null in a round without a plant. */
+export function postPlantSpan(events: readonly TimelineEvent[], durationSeconds: number): { from: number; to: number } | null {
+  const plant = events.find((entry) => entry.event.kind === TACTICAL_EVENT_KINDS.plant);
+  if (plant === undefined) return null;
+  const end = events.find((entry) => entry.seconds >= plant.seconds && (entry.event.kind === TACTICAL_EVENT_KINDS.defuse || entry.event.kind === TACTICAL_EVENT_KINDS.explode));
+  const to = Math.min(durationSeconds, end?.seconds ?? durationSeconds);
+  return to > plant.seconds ? { from: plant.seconds, to } : null;
+}
+
 /** The kills of the last few seconds, oldest first, as the game's feed stacks them. */
 export function killFeed(events: readonly TimelineEvent[], now: number): TimelineEvent[] {
   const out = events.filter((entry) => entry.event.kind === TACTICAL_EVENT_KINDS.kill && entry.seconds <= now && now - entry.seconds < FEED_SECONDS);

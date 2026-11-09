@@ -17,6 +17,7 @@ test('maps the documented keys to replay shortcuts', () => {
   assert.equal(replayShortcut(press('P')), 'fullscreen');
   assert.equal(replayShortcut(press('m')), 'multi');
   assert.equal(replayShortcut(press('f')), 'follow');
+  assert.equal(replayShortcut(press('G')), 'gif');
   assert.equal(replayShortcut(press('Escape')), 'escape');
   assert.equal(replayShortcut(press('x')), null);
 });

@@ -7,7 +7,7 @@ import type { Stroke, StrokeColor } from '@/lib/api/spatial';
 import { RADAR_LEVELS } from '@/lib/api/tactical';
 import type { RadarCalibration, RadarLevel } from '@/lib/api/tactical';
 import { worldToRendered } from '@/lib/tactical-transform';
-import { arrowHead, renderedToWorld, strokePath, thinStroke } from '@/lib/tactical-spatial';
+import { arrowHead, renderedToWorld, strokeAt, strokePath, thinStroke } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,8 +33,11 @@ const STROKE_WIDTH = 3;
 const REFERENCE_SIZE = 1024;
 /** World units a freehand point must move before it is kept. */
 const THIN_WORLD_UNITS = 12;
+/** How close to a stroke the eraser has to pass, in screen pixels. */
+const ERASER_REACH_PX = 8;
 
-export type TelestratorTool = { color: StrokeColor; arrow: boolean };
+/** `erase`: the pen takes off the stroke it passes over instead of drawing. */
+export type TelestratorTool = { color: StrokeColor; arrow: boolean; erase: boolean };
 
 /** The unsaved drawing of a note: its strokes, the active tool and whether the pen is down. */
 export type TelestratorDraft = {
@@ -44,20 +47,27 @@ export type TelestratorDraft = {
   setTool: (tool: TelestratorTool) => void;
   strokes: Stroke[];
   addStroke: (stroke: Stroke) => void;
+  removeStroke: (index: number) => void;
   undo: () => void;
   clear: () => void;
 };
 
 export function useTelestratorDraft(): TelestratorDraft {
   const [drawing, setDrawing] = useState(false);
-  const [tool, setTool] = useState<TelestratorTool>({ color: 'accent', arrow: false });
+  const [tool, setTool] = useState<TelestratorTool>({ color: 'accent', arrow: false, erase: false });
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const addStroke = useCallback((stroke: Stroke) => {
     setStrokes((current) => (current.length >= ANNOTATION_STROKES_MAX ? current : [...current, stroke]));
   }, []);
+  const removeStroke = useCallback((index: number) => setStrokes((current) => current.filter((_, at) => at !== index)), []);
   const undo = useCallback(() => setStrokes((current) => current.slice(0, -1)), []);
   const clear = useCallback(() => setStrokes([]), []);
-  return { drawing, setDrawing, tool, setTool, strokes, addStroke, undo, clear };
+  return { drawing, setDrawing, tool, setTool, strokes, addStroke, removeStroke, undo, clear };
+}
+
+/** A stroke's on-screen width for a plate of this size. */
+export function strokeWidthPx(stroke: Stroke, projection: RadarProjection): number {
+  return Math.max(1.5, stroke.width * (projection.size / REFERENCE_SIZE));
 }
 
 function StrokeShape({
@@ -71,13 +81,12 @@ function StrokeShape({
   projection: RadarProjection;
   faded?: boolean;
 }): ReactNode {
-  const scale = projection.size / REFERENCE_SIZE;
   const points = stroke.points.map(([x, y]) => {
     const p = worldToRendered(calibration, x, y, projection.size);
     return { x: p.x + projection.offsetX, y: p.y + projection.offsetY };
   });
   if (points.length < 2) return null;
-  const width = Math.max(1.5, stroke.width * scale);
+  const width = strokeWidthPx(stroke, projection);
   const color = STROKE_VAR[stroke.color];
   return (
     <g opacity={faded ? 0.55 : 1}>
@@ -115,8 +124,10 @@ export function TelestratorLayer({
   level?: RadarLevel;
 }): ReactNode {
   const live = useRef<[number, number][] | null>(null);
+  const erasing = useRef(false);
   const [preview, setPreview] = useState<Stroke | null>(null);
   const drawing = draft?.drawing ?? false;
+  const eraser = drawing && draft?.tool.erase === true;
 
   const toWorld = (event: PointerEvent<SVGSVGElement>): [number, number] => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -137,19 +148,33 @@ export function TelestratorLayer({
     return level === undefined ? stroke : { ...stroke, level };
   };
 
+  const eraseAt = (event: PointerEvent<SVGSVGElement>): void => {
+    if (draft === undefined) return;
+    const reach = ERASER_REACH_PX * (calibration.size / projection.size) * calibration.scale;
+    const index = strokeAt(draft.strokes, toWorld(event), reach);
+    if (index !== null) draft.removeStroke(index);
+  };
+
   const onPointerDown = (event: PointerEvent<SVGSVGElement>): void => {
     if (!drawing) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (eraser) {
+      erasing.current = true;
+      eraseAt(event);
+      return;
+    }
     live.current = [toWorld(event)];
   };
   const onPointerMove = (event: PointerEvent<SVGSVGElement>): void => {
+    if (erasing.current) eraseAt(event);
     if (live.current === null) return;
     live.current.push(toWorld(event));
     setPreview(strokeFrom(live.current));
   };
   const onPointerUp = (event: PointerEvent<SVGSVGElement>): void => {
+    erasing.current = false;
     if (live.current === null) return;
     event.stopPropagation();
     const stroke = strokeFrom(live.current);
@@ -167,6 +192,7 @@ export function TelestratorLayer({
       onPointerUp={onPointerUp}
       onPointerCancel={() => {
         live.current = null;
+        erasing.current = false;
         setPreview(null);
       }}
       onClick={(event) => {
@@ -193,7 +219,16 @@ export function TelestratorToolbar({ draft }: { draft: TelestratorDraft }): Reac
   const { drawing, setDrawing, tool, setTool, strokes, undo, clear } = draft;
   return (
     <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Dibujo sobre el radar">
-      <Button type="button" size="xs" variant={drawing ? 'outline' : 'ghost'} aria-pressed={drawing} onClick={() => setDrawing(!drawing)}>
+      <Button
+        type="button"
+        size="xs"
+        variant={drawing ? 'outline' : 'ghost'}
+        aria-pressed={drawing}
+        onClick={() => {
+          setTool({ ...tool, erase: false });
+          setDrawing(!drawing);
+        }}
+      >
         <Brush aria-hidden />
         {drawing ? 'Dibujando' : 'Dibujar'}
       </Button>
@@ -218,7 +253,7 @@ export function TelestratorToolbar({ draft }: { draft: TelestratorDraft }): Reac
         size="xs"
         variant={tool.arrow ? 'outline' : 'ghost'}
         aria-pressed={tool.arrow}
-        onClick={() => setTool({ ...tool, arrow: !tool.arrow })}
+        onClick={() => setTool({ ...tool, arrow: !tool.arrow, erase: false })}
       >
         <ArrowUpRight aria-hidden />
         Flecha

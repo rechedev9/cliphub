@@ -6,6 +6,7 @@ export type ReplayShortcut =
   | 'follow'
   | 'setpos'
   | 'playlist'
+  | 'gif'
   | 'fold-left'
   | 'fold-right'
   | 'play'
@@ -40,6 +41,8 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   S: 'setpos',
   b: 'playlist',
   B: 'playlist',
+  g: 'gif',
+  G: 'gif',
   ',': 'fold-left',
   '.': 'fold-right',
   ' ': 'play',
