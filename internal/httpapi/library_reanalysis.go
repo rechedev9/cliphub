@@ -77,7 +77,7 @@ func (h *Handlers) ResumeLibraryScans(ctx context.Context) (int, error) {
 		}
 		for _, d := range page {
 			// A shared match has no demo file to scan; its analysis came with it.
-			if d.Source == library.SourceShared {
+			if d.Source.WithoutDemo() {
 				continue
 			}
 			if d.State != library.ParseReady || h.libraryAnalysisStale(d.ID) {
@@ -127,7 +127,7 @@ func (h *Handlers) AnalyzeLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "get demo", err)
 		return
 	}
-	if d.Source == library.SourceShared {
+	if d.Source.WithoutDemo() {
 		writeCodedError(w, http.StatusConflict, codeSharedMatch, errSharedMatch)
 		return
 	}
@@ -155,7 +155,7 @@ func (h *Handlers) AnalyzeLibraryDemo(w http.ResponseWriter, r *http.Request) {
 // file are fixed until its .dem is imported.
 func (h *Handlers) sharedDemo(w http.ResponseWriter, ctx context.Context, id uuid.UUID) bool {
 	d, err := h.libraryRepo.GetDemo(ctx, id)
-	if err != nil || d.Source != library.SourceShared {
+	if err != nil || !d.Source.WithoutDemo() {
 		return false
 	}
 	writeCodedError(w, http.StatusConflict, codeSharedMatch, errSharedMatch)

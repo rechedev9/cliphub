@@ -31,7 +31,7 @@ const (
 
 // errSharedMatch is the reason every action that needs the .dem gives on a
 // shared match.
-const errSharedMatch = "this match came in a share package without its demo file"
+const errSharedMatch = "this match came without its demo file (a share package or the pro match catalog)"
 
 // errShareUnavailable marks a match whose analysis cannot be packaged.
 var errShareUnavailable = errors.New("match is not analyzed")

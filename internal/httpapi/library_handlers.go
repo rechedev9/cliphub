@@ -71,6 +71,7 @@ type LibraryRepository interface {
 	libretaRepository
 	libraryPlaylistRepository
 	patternRepository
+	libraryProRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.
@@ -340,7 +341,7 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 		h.discardLibraryDemo(id)
 		return libraryImportResult{}, err
 	}
-	if !created && demo.Source == library.SourceShared {
+	if !created && demo.Source.WithoutDemo() {
 		demo, err = h.attachSharedDemo(ctx, demo, upload)
 		h.discardLibraryDemo(id)
 		result.Status, result.Demo = libraryImportImported, &demo
@@ -465,7 +466,7 @@ func (h *Handlers) PatchLibraryDemo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid demo JSON")
 		return
 	}
-	if req.Source != nil && (!library.ValidSource(*req.Source) || *req.Source == library.SourceShared) {
+	if req.Source != nil && (!library.ValidSource(*req.Source) || req.Source.WithoutDemo()) {
 		writeError(w, http.StatusBadRequest, "source must be valve, faceit, hltv, scrim or unknown")
 		return
 	}
@@ -672,28 +673,35 @@ func (h *Handlers) AssignLibraryMatchTeam(w http.ResponseWriter, r *http.Request
 // teamByName returns the team whose name or alias matches name, creating it
 // when no team has it.
 func (h *Handlers) teamByName(ctx context.Context, name string) (library.Team, error) {
-	key := library.NormalizeName(name)
-	for offset := 0; ; offset += library.MaxListLimit {
-		teams, err := h.libraryRepo.ListTeams(ctx, library.TeamFilter{Query: name, Limit: library.MaxListLimit, Offset: offset})
-		if err != nil {
-			return library.Team{}, err
-		}
-		for _, t := range teams {
-			for _, alias := range append([]string{t.Name}, t.Aliases...) {
-				if library.NormalizeName(alias) == key {
-					return t, nil
-				}
-			}
-		}
-		if len(teams) < library.MaxListLimit {
-			break
-		}
+	if t, found, err := h.findTeamByName(ctx, name); found || err != nil {
+		return t, err
 	}
 	team := library.Team{Name: cleanLibraryText(name)}
 	if err := h.libraryRepo.CreateTeam(ctx, &team); err != nil {
 		return library.Team{}, err
 	}
 	return team, nil
+}
+
+// findTeamByName returns the team whose name or alias matches name, if one does.
+func (h *Handlers) findTeamByName(ctx context.Context, name string) (library.Team, bool, error) {
+	key := library.NormalizeName(name)
+	for offset := 0; ; offset += library.MaxListLimit {
+		teams, err := h.libraryRepo.ListTeams(ctx, library.TeamFilter{Query: name, Limit: library.MaxListLimit, Offset: offset})
+		if err != nil {
+			return library.Team{}, false, err
+		}
+		for _, t := range teams {
+			for _, alias := range append([]string{t.Name}, t.Aliases...) {
+				if library.NormalizeName(alias) == key {
+					return t, true, nil
+				}
+			}
+		}
+		if len(teams) < library.MaxListLimit {
+			return library.Team{}, false, nil
+		}
+	}
 }
 
 func (h *Handlers) libraryMatchKeys(w http.ResponseWriter, r *http.Request) (string, string, bool) {

@@ -25,7 +25,8 @@ var (
 
 // Source is where a demo came from. Detection only ever proposes valve,
 // faceit, hltv or unknown; scrim is a fact only the user knows. A shared
-// match came in a share package without its demo file, so it is read only.
+// match came in a share package without its demo file, so it is read only;
+// a pro match came the same way from the community server's pro match catalog.
 type Source string
 
 const (
@@ -35,17 +36,22 @@ const (
 	SourceScrim   Source = "scrim"
 	SourceUnknown Source = "unknown"
 	SourceShared  Source = "shared"
+	SourcePro     Source = "pro"
 )
 
 // ValidSource reports whether s is one of the known sources.
 func ValidSource(s Source) bool {
 	switch s {
-	case SourceValve, SourceFaceit, SourceHLTV, SourceScrim, SourceUnknown, SourceShared:
+	case SourceValve, SourceFaceit, SourceHLTV, SourceScrim, SourceUnknown, SourceShared, SourcePro:
 		return true
 	default:
 		return false
 	}
 }
+
+// WithoutDemo reports a source whose match came without its demo file: it cannot be
+// analyzed again or recorded until the user adds the .dem.
+func (s Source) WithoutDemo() bool { return s == SourceShared || s == SourcePro }
 
 // ParseState is the analysis state of an imported demo.
 type ParseState string

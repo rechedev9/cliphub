@@ -189,7 +189,7 @@ func (h *Handlers) importSharedMatch(ctx context.Context, pkg *sharepkg.Reader, 
 	if !created && d.MatchID != nil {
 		return *d.MatchID, uuid.Nil, nil
 	}
-	if !created && d.Source != library.SourceShared {
+	if !created && !d.Source.WithoutDemo() {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("%w (%s)", errShareDemoPending, d.FileName)
 	}
 	data, err := pkg.Match(entry.Match.ID)

@@ -27,7 +27,7 @@ func (r *MemoryLibraryRepository) AttachDemoFile(ctx context.Context, id uuid.UU
 
 // attachedSource keeps a demo that now has its file from staying shared.
 func attachedSource(s library.Source) library.Source {
-	if s == library.SourceShared || !library.ValidSource(s) {
+	if s.WithoutDemo() || !library.ValidSource(s) {
 		return library.SourceUnknown
 	}
 	return s

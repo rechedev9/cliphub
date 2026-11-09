@@ -42,6 +42,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV16LibraryPlaylists,
 	migrateV17LibraryTeamProfiles,
 	migrateV18LibraryPatterns,
+	migrateV19LibraryProMatches,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -808,6 +809,38 @@ func migrateV18LibraryPatterns(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library patterns: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV19LibraryProMatches records the pro maps imported from the community
+// catalog and the HLTV teams Studio follows. A deleted match leaves its record with no demo.
+func migrateV19LibraryProMatches(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_pro_maps (
+			hltv_match_id    INTEGER NOT NULL,
+			entry            TEXT    NOT NULL,
+			demo_id          TEXT    REFERENCES library_demos(id) ON DELETE SET NULL,
+			map              TEXT    NOT NULL,
+			event            TEXT    NOT NULL DEFAULT '',
+			played_at        INTEGER NOT NULL,
+			teams            TEXT    NOT NULL DEFAULT '[]',
+			analysis_version INTEGER NOT NULL,
+			sha256           TEXT    NOT NULL,
+			imported_at      INTEGER NOT NULL,
+			PRIMARY KEY (hltv_match_id, entry)
+		)`,
+		`CREATE INDEX library_pro_maps_demo ON library_pro_maps (demo_id)`,
+		`CREATE TABLE library_pro_follows (
+			team_id     INTEGER PRIMARY KEY,
+			name        TEXT    NOT NULL,
+			followed_at INTEGER NOT NULL,
+			synced_at   INTEGER
+		)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library pro matches: %w", err)
 		}
 	}
 	return nil
