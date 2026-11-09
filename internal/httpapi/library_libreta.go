@@ -22,6 +22,8 @@ type libretaRepository interface {
 	GetTeamRoles(ctx context.Context, teamID uuid.UUID, mapName string) (library.TeamRoleSheet, error)
 	SetTeamRoles(ctx context.Context, sheet *library.TeamRoleSheet) error
 	ListTeamRoles(ctx context.Context) ([]library.TeamRoleSheet, error)
+	SetTeamProfile(ctx context.Context, p *library.TeamProfile) error
+	ListTeamProfiles(ctx context.Context) ([]library.TeamProfile, error)
 	CreateCall(ctx context.Context, c *library.Call) error
 	GetCall(ctx context.Context, id uuid.UUID) (library.Call, error)
 	ListCalls(ctx context.Context, filter library.CallFilter) ([]library.Call, error)

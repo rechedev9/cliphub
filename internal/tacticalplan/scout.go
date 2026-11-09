@@ -35,27 +35,13 @@ const (
 // awpWeapon is the weapon name the scan gives AWP kills.
 const awpWeapon = "awp"
 
-// ScoutMatch is one match of the scouted team: its document, the key the team
-// played under in it, and the match-level facts the filter reads.
-type ScoutMatch struct {
-	MatchID    uuid.UUID
-	TeamKey    string
-	PlayedAt   time.Time
-	OpponentID string
-	Opponent   string
-	Document   Document
-	// Setup holds, per round number, the frame read ScoutSetupSeconds after
-	// freeze end. It is nil when the match has no position blob.
-	Setup map[int]Frame
-}
-
 // AggregateMatches computes Tendencies over the rounds the scouted team played
 // in the selected matches. Player lines are keyed by SteamID across matches.
 func AggregateMatches(matches []ScoutMatch, f ScoutFilter) Tendencies {
 	selected := f.Select(matches)
 	a := newAggregator(Filter{Side: f.Side})
 	for _, m := range selected {
-		filter := f.roundFilter(m)
+		filter := f.RoundFilter(m)
 		a.add(m.Document, filter, filter.Apply(m.Document))
 	}
 	t := a.finish()
@@ -962,7 +948,7 @@ func newEconomyAcc() *economyAcc {
 // counts as a reaction to the round before it.
 func (e *economyAcc) addMatch(m ScoutMatch, f ScoutFilter) {
 	doc := m.Document
-	filter := f.roundFilter(m)
+	filter := f.RoundFilter(m)
 	for i := 1; i < len(doc.Rounds); i++ {
 		r, prev := doc.Rounds[i], doc.Rounds[i-1]
 		if prev.Number != r.Number-1 || prev.Half != r.Half || r.Class.HasTag(TagPistol) {

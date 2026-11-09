@@ -17,6 +17,7 @@ type memoryLibreta struct {
 	teamRoles    map[teamRolesKey]library.TeamRoleSheet
 	calls        map[uuid.UUID]library.Call
 	calloutNames map[calloutKey]library.CalloutName
+	teamProfiles map[uuid.UUID]library.TeamProfile
 }
 
 func lineupMatches(l library.Lineup, f library.LineupFilter) bool {

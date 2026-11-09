@@ -201,7 +201,7 @@ func (h *Handlers) teamMapHistory(ctx context.Context, team library.Team, from, 
 	}
 	history := make([]library.MapHistoryMatch, 0, len(matches))
 	for _, m := range matches {
-		c, ok := candidateFor(m, team.ID)
+		c, ok := candidateFor(m, team.ID, nil)
 		if !ok {
 			continue
 		}

@@ -290,19 +290,13 @@ func chooseSpatialMap(selected []tacticalplan.ScoutMatch, asked []string) (strin
 }
 
 // teamSpatial reads a team's matches on one map with the scout filter, and
-// follows the team through each with the round filter of the query.
+// follows the team through each with the scout's round filter.
 func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Values) (spatialResponse, []tacticalplan.SpatialMatch, error) {
 	scout, matchIDs, err := scoutQuery(q)
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}
-	rounds, err := tacticalplan.FilterFromValues(q)
-	if err != nil {
-		return spatialResponse{}, nil, errBadSpatialQuery{err}
-	}
-	// Slots differ between demos, so a team view filters by SteamID64 instead.
-	rounds.Slots = nil
-	rounds.Subjects = nil
+	// The round filter comes from scout.Rounds, which never holds slots: they differ between demos.
 	focus, err := spatialPlayers(q)
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
@@ -313,7 +307,8 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	}
 	asked := scout.Maps
 	scout.Maps = nil
-	selected := scout.Select(pending)
+	selected, unrated := selectTeamMatches(scout, pending)
+	skipped = append(skipped, unrated...)
 	mapName, maps, err := chooseSpatialMap(selected, asked)
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
@@ -329,15 +324,13 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 			onMap = append(onMap, sm)
 		}
 	}
-	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: onMap, lineup: scout.Lineup})
+	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: onMap, lineup: scout.Lineup, limit: scout.MaxMatches})
 	resp.Skipped = append(resp.Skipped, more...)
 	matches := make([]tacticalplan.SpatialMatch, 0, len(kept))
 	for _, k := range kept {
 		sm := k.scout
-		filter := rounds
-		filter.TeamKey, filter.Side, filter.Lineup = sm.TeamKey, scout.Side, scout.Lineup
 		matches = append(matches, tacticalplan.SpatialMatch{
-			MatchID: sm.MatchID, Document: sm.Document, Filter: filter, Focus: focus, Blob: h.positionsReader(k.demoID),
+			MatchID: sm.MatchID, Document: sm.Document, Filter: scout.RoundFilter(sm), Focus: focus, Blob: h.positionsReader(k.demoID),
 		})
 		resp.Matches = append(resp.Matches, spatialMatchRef{
 			MatchID: sm.MatchID, Map: mapName, PlayedAt: sm.PlayedAt, TeamKey: sm.TeamKey, Opponent: sm.Opponent,

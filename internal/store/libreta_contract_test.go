@@ -129,6 +129,41 @@ func TestLibretaRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "team profiles replace, list only live teams and follow a merge, where into keeps its own",
+			run: func(t *testing.T, f libraryFixture) {
+				vit, mouz, faze := &library.Team{Name: "Vitality"}, &library.Team{Name: "MOUZ"}, &library.Team{Name: "FaZe"}
+				for _, team := range []*library.Team{vit, mouz, faze} {
+					if err := f.repo.CreateTeam(f.ctx, team); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := f.repo.SetTeamProfile(f.ctx, &library.TeamProfile{TeamID: uuid.New(), Own: true}); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("SetTeamProfile(missing team) = %v, want ErrNotFound", err)
+				}
+				for _, p := range []library.TeamProfile{{TeamID: vit.ID, HLTVRank: 3}, {TeamID: vit.ID, Own: true, HLTVRank: 1},
+					{TeamID: mouz.ID, HLTVRank: 7}, {TeamID: faze.ID, HLTVRank: 9}} {
+					if err := f.repo.SetTeamProfile(f.ctx, &p); err != nil || p.UpdatedAt.IsZero() {
+						t.Fatalf("SetTeamProfile = %+v, %v", p, err)
+					}
+				}
+				if _, err := f.repo.MergeTeams(f.ctx, mouz.ID, vit.ID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.repo.MergeTeams(f.ctx, faze.ID, mouz.ID); !errors.Is(err, library.ErrNotFound) {
+					t.Fatalf("MergeTeams(into a merged team) = %v, want ErrNotFound", err)
+				}
+				got, err := f.repo.ListTeamProfiles(f.ctx)
+				if err != nil || len(got) != 2 {
+					t.Fatalf("ListTeamProfiles = %+v, %v; want Vitality and FaZe", got, err)
+				}
+				for _, p := range got {
+					if p.TeamID == vit.ID && (!p.Own || p.HLTVRank != 1) {
+						t.Fatalf("Vitality after merge = %+v, want its own profile", p)
+					}
+				}
+			},
+		},
+		{
 			name: "calls list by name, a side keeps the calls of both, and callout names replace and clear",
 			run: func(t *testing.T, f libraryFixture) {
 				for _, c := range []*library.Call{

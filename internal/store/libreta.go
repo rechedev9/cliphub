@@ -26,6 +26,10 @@ type LibretaRepository interface {
 	SetTeamRoles(ctx context.Context, sheet *library.TeamRoleSheet) error
 	// ListTeamRoles returns every saved sheet by team and map, for the Libreta file.
 	ListTeamRoles(ctx context.Context) ([]library.TeamRoleSheet, error)
+	// SetTeamProfile replaces whether a team is the user's own and its HLTV rank.
+	SetTeamProfile(ctx context.Context, p *library.TeamProfile) error
+	// ListTeamProfiles returns every saved profile; a team without one is not own and not ranked.
+	ListTeamProfiles(ctx context.Context) ([]library.TeamProfile, error)
 	// CreateCall stores a call; an id that is already stored is ErrConflict.
 	CreateCall(ctx context.Context, c *library.Call) error
 	GetCall(ctx context.Context, id uuid.UUID) (library.Call, error)

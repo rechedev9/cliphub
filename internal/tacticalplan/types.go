@@ -361,6 +361,9 @@ type PlayerRound struct {
 	// inside the trade window; TradeKills counts trades this player made.
 	Traded     bool `json:"traded,omitempty"`
 	TradeKills int  `json:"trade_kills,omitempty"`
+	// AWP reports an AWP in the player's hands once the buy window closed.
+	// Older analyses lack it; the round filter then reads AWP kills and hits.
+	AWP bool `json:"awp,omitempty"`
 }
 
 // Event is one thing that happened at a tick. Positions are world coordinates,

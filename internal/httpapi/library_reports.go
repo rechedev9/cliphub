@@ -32,6 +32,8 @@ const (
 	scoutSkipTeamMissing  = "team_not_in_match"
 	scoutSkipNotAnalyzed  = "analysis_missing"
 	scoutSkipBeyondLimits = "over_match_limit"
+	// The opponent level could not rate the match: its rival has no HLTV rank.
+	scoutSkipUnranked = "opponent_unranked"
 )
 
 // scoutSkipped is a match the scout could not read, and why.
@@ -54,12 +56,16 @@ type scoutCandidate struct {
 	scout tacticalplan.ScoutMatch
 }
 
-// candidateFor reads which side of a match the team played and who the rival was.
-func candidateFor(m library.Match, teamID uuid.UUID) (scoutCandidate, bool) {
+// candidateFor reads which side of a match the team played, who the rival
+// was, its HLTV rank and whether one of the user's own teams played.
+func candidateFor(m library.Match, teamID uuid.UUID, profiles teamProfiles) (scoutCandidate, bool) {
 	c := scoutCandidate{match: m, scout: tacticalplan.ScoutMatch{MatchID: m.ID, PlayedAt: m.PlayedAt}}
 	c.scout.Document.Demo.Map = m.Map
 	found := false
 	for _, t := range m.Teams {
+		if t.TeamID != nil && profiles[*t.TeamID].Own {
+			c.scout.OwnTeam = true
+		}
 		if t.TeamID != nil && *t.TeamID == teamID {
 			c.scout.TeamKey = t.Key
 			found = true
@@ -67,6 +73,7 @@ func candidateFor(m library.Match, teamID uuid.UUID) (scoutCandidate, bool) {
 		}
 		if t.TeamID != nil {
 			c.scout.OpponentID = t.TeamID.String()
+			c.scout.OpponentRank = profiles[*t.TeamID].HLTVRank
 		}
 		c.scout.Opponent = t.TeamName
 		if c.scout.Opponent == "" {
@@ -101,10 +108,14 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 		matches = listed
 	}
 
+	profiles, err := h.teamProfiles(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	candidates := map[uuid.UUID]scoutCandidate{}
 	pending := make([]tacticalplan.ScoutMatch, 0, len(matches))
 	for _, m := range matches {
-		c, ok := candidateFor(m, team.ID)
+		c, ok := candidateFor(m, team.ID, profiles)
 		if !ok {
 			skipped = append(skipped, scoutSkipped{MatchID: m.ID, Reason: scoutSkipTeamMissing})
 			continue
@@ -127,15 +138,21 @@ type keepQuery struct {
 	candidates map[uuid.UUID]scoutCandidate
 	selected   []tacticalplan.ScoutMatch
 	lineup     tacticalplan.Lineup
+	// limit is the user's "last N matches"; 0 reads up to MaxReportMatches.
+	limit int
 }
 
 // keepTeamMatches reads the selected matches' documents and keeps those the
-// lineup played, up to MaxReportMatches kept: a match the lineup drops or one
-// that cannot be read never takes a slot. The rest come back as skipped.
+// lineup played, up to the user's limit or MaxReportMatches kept: a match the
+// lineup drops or one that cannot be read never takes a slot. Matches past
+// MaxReportMatches come back as skipped; past the user's limit they are not read.
 func (h *Handlers) keepTeamMatches(q keepQuery) ([]keptMatch, []scoutSkipped) {
 	kept := make([]keptMatch, 0, min(len(q.selected), library.MaxReportMatches))
 	var skipped []scoutSkipped
 	for _, sm := range q.selected {
+		if q.limit > 0 && q.limit < library.MaxReportMatches && len(kept) >= q.limit {
+			break
+		}
 		if len(kept) >= library.MaxReportMatches {
 			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipBeyondLimits})
 			continue
@@ -164,13 +181,14 @@ func (h *Handlers) loadTeamMatches(ctx context.Context, team library.Team, match
 	if err != nil {
 		return nil, nil, err
 	}
-	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: filter.Select(pending), lineup: filter.Lineup})
+	selected, unrated := selectTeamMatches(filter, pending)
+	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: selected, lineup: filter.Lineup, limit: filter.MaxMatches})
 	loaded := make([]tacticalplan.ScoutMatch, 0, len(kept))
 	for _, k := range kept {
 		k.scout.Setup = h.readSetupFrames(k.demoID, k.scout.Document)
 		loaded = append(loaded, k.scout)
 	}
-	return loaded, append(skipped, more...), nil
+	return loaded, append(append(skipped, unrated...), more...), nil
 }
 
 // buildScout aggregates the tactical documents of the team's selected matches.
@@ -261,6 +279,9 @@ func scoutQuery(q url.Values) (tacticalplan.ScoutFilter, []uuid.UUID, error) {
 		f.Opponents = append(f.Opponents, id.String())
 	}
 	if f.Lineup, err = lineupQuery(q["lineup"]); err != nil {
+		return f, nil, err
+	}
+	if err = teamScopeQuery(q, &f); err != nil {
 		return f, nil, err
 	}
 	matchIDs, err := uuidList(q["match_id"], "match_id", library.MaxReportMatches)
@@ -383,7 +404,7 @@ func (h *Handlers) cleanReportRequest(ctx context.Context, req libraryReportRequ
 			if err != nil {
 				return req, "", err
 			}
-			if _, ok := candidateFor(m, teamID); !ok {
+			if _, ok := candidateFor(m, teamID, nil); !ok {
 				return req, scoutSkipTeamMissing, fmt.Errorf("the team did not play match %s", id)
 			}
 		}
