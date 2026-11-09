@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
@@ -351,8 +352,23 @@ func (in updateLineupIn) patch() (tuiclient.LineupPatch, error) {
 	return p, nil
 }
 
+// setposCommand writes the line byte for byte as the web's setposCommand does.
 func setposCommand(l tuiclient.Lineup) string {
-	return fmt.Sprintf("setpos %.2f %.2f %.2f;setang %.2f %.2f 0", l.Origin[0], l.Origin[1], l.Origin[2], l.Pitch, l.Yaw)
+	return "setpos " + fixed2(l.Origin[0]) + " " + fixed2(l.Origin[1]) + " " + fixed2(l.Origin[2]) +
+		";setang " + fixed2(l.Pitch) + " " + fixed2(l.Yaw) + " 0"
+}
+
+// fixed2 mirrors the web's fixed(): JavaScript's toFixed(2), which rounds an exact half away
+// from zero where %.2f rounds it to even, and never "-0.00".
+func fixed2(v float64) string {
+	r := new(big.Rat).SetFloat64(v)
+	if r == nil {
+		return strconv.FormatFloat(v, 'f', 2, 64)
+	}
+	if s := r.FloatString(2); s != "-0.00" {
+		return s
+	}
+	return "0.00"
 }
 
 func lineupOf(l tuiclient.Lineup) lineupOut {
