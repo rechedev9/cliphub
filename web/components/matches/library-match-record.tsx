@@ -146,7 +146,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
           {
             id: MATCH_REPLAY_TAB,
             label: 'Replay',
-            content: <TacticalAnalysis source={{ kind: 'library', id: match.id }} generatedAt={match.updated_at} />,
+            content: <TacticalAnalysis source={{ kind: 'library', id: match.id }} generatedAt={match.updated_at} match={match} />,
           },
           {
             id: 'metricas',

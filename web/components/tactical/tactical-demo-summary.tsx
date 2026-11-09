@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * warnings behind a toggle so they stay one click away without pushing the
  * replay down.
  */
-export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: TacticalDocument; generatedAt: string; actions?: ReactNode }): ReactNode {
+export function TacticalDemoSummary({ doc, generatedAt }: { doc: TacticalDocument; generatedAt: string }): ReactNode {
   const derived = doc.geometry.calibration.source === RADAR_CALIBRATION_SOURCES.derived;
   const warnings = [
     ...(derived ? ['Este mapa no trae calibración oficial: el encuadre se derivó de las posiciones de esta demo y no es comparable con otra.'] : []),
@@ -47,7 +47,6 @@ export function TacticalDemoSummary({ doc, generatedAt, actions }: { doc: Tactic
           </ul>
         </details>
       )}
-      {actions === undefined ? null : <div className="ml-auto">{actions}</div>}
     </section>
   );
 }

@@ -237,6 +237,7 @@ Read:
 | `match_tendencies` | `GET /api/library/matches/{id}/tactical/aggregate` (`team` required, `side`, repeatable `buy`, `outcome`, `round_from`, `round_to`) |
 | `integrity_dossier` | `GET /api/jobs/{id}/anticheat/dossier/{steamid}`: Markdown body, report channels and the reporting policy; a 409 says to wait for `check_integrity` |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
+| `replay_rounds` | `GET /api/library/matches/{id}/tactical`, filtered with `tacticalplan.Filter` exactly as the Replay's scope bar does; the kept rounds with winner, buys, site and shapes, the kept and total counts, and `studio_path`, which opens the Replay on that scope and form (`forma=repeticion`, `calor`, `recorridos` or `granadas`) |
 | `real_map_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog, sky and post processing (exposure, tonemap and colour LUT), plus how to open the Mapa real floor plan in the Replay and full screen |
 
 Write:

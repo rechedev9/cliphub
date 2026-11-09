@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // RoundFilter selects the rounds of one match a tendencies read aggregates;
@@ -100,5 +102,13 @@ type AnticheatDossier struct {
 func (c *Client) GetAnticheatDossier(ctx context.Context, jobID, steamID string) (AnticheatDossier, error) {
 	var out AnticheatDossier
 	err := c.getJSON(ctx, jobPath(jobID)+"/anticheat/dossier/"+url.PathEscape(steamID), &out)
+	return out, err
+}
+
+// LibraryTacticalPlan returns a library match's tactical document in the
+// orchestrator's own type, so a caller can run tacticalplan.Filter over it.
+func (c *Client) LibraryTacticalPlan(ctx context.Context, matchID string) (tacticalplan.Document, error) {
+	var out tacticalplan.Document
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical", &out)
 	return out, err
 }
