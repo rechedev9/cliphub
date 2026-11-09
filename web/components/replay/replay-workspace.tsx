@@ -25,6 +25,7 @@ import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds }
 import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
+import type { TramoControl } from './tramo-bar';
 import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import {
@@ -89,6 +90,8 @@ export type ReplayWorkspaceProps = {
   title?: string;
   /** The players in the foreground when the page keeps them (the Replay does, in the URL); without it the workspace keeps its own. */
   players?: FocusControl;
+  /** The tramo when the page keeps it in the URL, shared with its other forms; without it the workspace keeps its own. */
+  tramo?: TramoControl;
 };
 
 /**
@@ -107,6 +110,7 @@ export function ReplayWorkspace({
   filters,
   title,
   players,
+  tramo: pageTramo,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -124,7 +128,9 @@ export function ReplayWorkspace({
   const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
   // The span the superposed rounds play in; one round alone plays whole.
-  const [tramo, setTramo] = useState<Tramo>(WHOLE_ROUND);
+  const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
+  const tramo = pageTramo?.tramo ?? ownTramo;
+  const setTramo = pageTramo?.onChange ?? setOwnTramo;
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
   const [ownFocus, setOwnFocus] = useState<number[]>([]);

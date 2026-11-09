@@ -266,6 +266,7 @@ export function TacticalAnalysis({
         onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
         seed={seed}
         players={players}
+        tramo={tramo}
         groupLabel={groupLabel}
       />
     );

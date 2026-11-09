@@ -94,7 +94,11 @@ func (in replayRoundsIn) values(doc tacticalplan.Document) (url.Values, error) {
 			if i < 0 {
 				return nil, fmt.Errorf("player %s did not play this match", id)
 			}
-			v.Add(key, strconv.Itoa(int(doc.Players[i].Slot)))
+			slot := doc.Players[i].Slot
+			if team := scopedTeam(doc, in.TeamKey); key == "subject" && team != nil && !slices.Contains(team.Slots, slot) {
+				return nil, fmt.Errorf("focus player %s is not on team %s: put a player of that team in focus, or drop team_key", id, in.TeamKey)
+			}
+			v.Add(key, strconv.Itoa(int(slot)))
 		}
 	}
 	if in.RoundFrom < 0 || in.RoundTo < 0 {
@@ -107,6 +111,15 @@ func (in replayRoundsIn) values(doc tacticalplan.Document) (url.Values, error) {
 		v.Set("round_to", strconv.Itoa(in.RoundTo))
 	}
 	return v, nil
+}
+
+// scopedTeam is the team a team_key names, or nil when there is none.
+func scopedTeam(doc tacticalplan.Document, key string) *tacticalplan.Team {
+	i := slices.IndexFunc(doc.Teams, func(t tacticalplan.Team) bool { return t.Key == key })
+	if key == "" || i < 0 {
+		return nil
+	}
+	return &doc.Teams[i]
 }
 
 type playerSetposIn struct {

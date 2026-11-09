@@ -118,7 +118,7 @@ function OpeningCard({ tendencies }: { tendencies: TacticalTendencies }): ReactN
           {lines.map((line) => (
             <div key={line.key} role="row" className={cn(OPENER_ROW, 'text-body-sm')}>
               <span role="rowheader" className="truncate text-fg-1">
-                <RoundsLink patch={line.patch}>{line.name}</RoundsLink>
+                {line.name}
               </span>
               <span role="cell" className={cn('text-right font-semibold tabular-nums', TONE_TEXT[line.tone])}>
                 {line.text}

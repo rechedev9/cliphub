@@ -89,3 +89,20 @@ func TestOverlayNamesItsRoundsAndOpensThemAsRecorridos(t *testing.T) {
 		t.Fatalf("empty overlay = %+v", empty)
 	}
 }
+
+func TestReplayRoundsRefusesAFocusOutsideTheScopedTeam(t *testing.T) {
+	doc := tacticalplan.Document{
+		Players: []tacticalplan.Player{{Slot: 1, SteamID64: "76561198000000001"}, {Slot: 7, SteamID64: "76561198000000007"}},
+		Teams:   []tacticalplan.Team{{Key: "ct-start", Slots: []uint8{1}}, {Key: "t-start", Slots: []uint8{7}}},
+	}
+	if _, err := (replayRoundsIn{TeamKey: "ct-start", Focus: []string{"76561198000000007"}}).values(doc); err == nil {
+		t.Fatal("a rival in focus was accepted: the overlay would draw no one")
+	}
+	values, err := (replayRoundsIn{TeamKey: "t-start", Focus: []string{"76561198000000007"}}).values(doc)
+	if err != nil || values.Get("subject") != "7" {
+		t.Fatalf("own player in focus: %v, %v", values, err)
+	}
+	if _, err := (replayRoundsIn{Focus: []string{"76561198000000007"}}).values(doc); err != nil {
+		t.Fatalf("focus without a team: %v", err)
+	}
+}

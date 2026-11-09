@@ -166,7 +166,7 @@ export function tendencyCards(tendencies: TacticalTendencies): TendencyCard[] {
   return cards.filter((card) => card.rows.length > 0);
 }
 
-export type OpeningLine = { key: string; name: string; text: string; tone: OutcomeTone; /** The rounds this player was in. */ patch: TacticalFilter };
+export type OpeningLine = { key: string; name: string; text: string; tone: OutcomeTone };
 
 /** Each player's opening duels won and lost, most won first. */
 export function openingLines(players: TacticalTendencies['players']): OpeningLine[] {
@@ -181,7 +181,6 @@ export function openingLines(players: TacticalTendencies['players']): OpeningLin
         name: player.name === '' ? `Jugador ${player.slot}` : player.name,
         text: `${player.opening_kills}-${player.opening_deaths}`,
         tone,
-        patch: { slots: [player.slot] },
       };
     });
 }

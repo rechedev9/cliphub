@@ -125,7 +125,9 @@ export const TEAM_SPATIAL_QUERY = [
   'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'buy', 'opponent_buy', 'site', 'outcome', 't_pattern',
   'ct_pattern', 'tag', 'phase',
 ] as const;
-export const HEATMAP_QUERY = ['kind', 't_from', 't_to', 'grenade'] as const;
+export const HEATMAP_QUERY = ['kind', 't_from', 't_to', 't_from_plant', 'grenade'] as const;
+/** The players in focus of a match's heatmap or overlay; a team view ignores it, since slots change between demos. */
+export const FOCUS_QUERY = ['subject'] as const;
 export const OVERLAY_QUERY = ['limit'] as const;
 
 /* Replay notes ------------------------------------------------------------ */
