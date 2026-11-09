@@ -146,12 +146,6 @@ export function roundClock(seconds: number): string {
   return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 }
 
-/** The console line that stands the player on the lineup. */
-export function setposCommand(lineup: Pick<ProLineup, 'origin' | 'pitch' | 'yaw'>): string {
-  const [x, y, z] = lineup.origin;
-  return `setpos ${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)};setang ${lineup.pitch.toFixed(2)} ${lineup.yaw.toFixed(2)} 0`;
-}
-
 export type ProLineupFilter = {
   kinds: ReadonlySet<ProLineupKind>;
   side: TacticalSide | '';

@@ -64,10 +64,11 @@ const NO_FOCUS: readonly number[] = [];
 /**
  * The 2D map: a stylized radar drawn from the map's nav mesh (or the game's
  * radar image when Studio has it), the players, their names and the grenades.
- * The wheel zooms on the cursor, a drag pans, a click highlights a player.
+ * The wheel zooms on the cursor, a drag pans, a click highlights a player and
+ * a right-click copies their setpos.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, followSlot, onFollowSlot, settings, barSlot }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -489,6 +490,13 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           if (slot !== null) onPickSlot(slot, event.shiftKey);
         }}
         onPointerLeave={() => setHover(null)}
+        onContextMenu={(event) => {
+          const at = local(event);
+          const slot = playerAt(at.x, at.y);
+          if (slot === null) return;
+          event.preventDefault();
+          onCopySlot(slot);
+        }}
         onDoubleClick={() => setZoomed(null)}
       >
         <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />

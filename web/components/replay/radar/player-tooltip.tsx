@@ -20,7 +20,7 @@ export function placeTooltip(element: HTMLElement, x: number, y: number, box: { 
 
 /**
  * The card a hovered player shows on the map: name, health, armour, the gun in
- * hand and the rest of the gear. The map moves it with `placeTooltip`.
+ * hand, the rest of the gear and how to copy their setpos. The map moves it with `placeTooltip`.
  */
 export function PlayerTooltip({ sample, name, ref }: { sample: TacticalSample; name: string; ref: Ref<HTMLDivElement> }): ReactNode {
   const ct = !hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT);
@@ -57,7 +57,7 @@ export function PlayerTooltip({ sample, name, ref }: { sample: TacticalSample; n
           ))}
         </p>
       )}
-      <p className="text-meta text-fg-3">Pulsa S para copiar su setpos</p>
+      <p className="text-meta text-fg-3">Pulsa S o clic derecho para copiar su setpos</p>
       {(sample.flashed ?? 0) > 0 ? <p className="text-meta font-medium text-fg-1">Cegado {formatDecimal(sample.flashed ?? 0, 1)} s</p> : null}
     </div>
   );

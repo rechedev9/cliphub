@@ -31,6 +31,8 @@ export type ReplayCentreProps = {
   onPickSlot: (slot: number, additive: boolean) => void;
   /** The player under the cursor, for the setpos shortcut. */
   onHoverSlot: (slot: number | null) => void;
+  /** A right-click on a player: copy their setpos, as S does. */
+  onCopySlot: (slot: number) => void;
   settings: MapSettings;
   /** Where the map puts its zoom buttons: the bar over it. */
   barSlot: HTMLElement | null;

@@ -164,8 +164,9 @@ func abs(v int) int {
 	return v
 }
 
+// setposLine writes a sample as the lineups' setpos: z is the feet origin in both.
 func setposLine(s tacticalplan.Sample) string {
-	return fmt.Sprintf("setpos %.2f %.2f %.2f;setang %.2f %.2f 0", s.X, s.Y, s.Z, tacticalplan.SetangPitch(s.Pitch), tacticalplan.SetangYaw(s.Yaw))
+	return setposCommand(tuiclient.Lineup{Origin: [3]float64{s.X, s.Y, s.Z}, Pitch: tacticalplan.SetangPitch(s.Pitch), Yaw: tacticalplan.SetangYaw(s.Yaw)})
 }
 
 type roundGrenadeOut struct {
@@ -339,7 +340,7 @@ func registerReplayTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "player_setpos", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Description: "Read the setpos line of one player at a moment of a round, as the S key over a player in the Replay copies it: paste it in the CS2 console " +
+		Description: "Read the setpos line of one player at a moment of a round, as the S key or a right-click on a player in the Replay copies it: paste it in the CS2 console " +
 			"with sv_cheats 1 to stand where they stood, looking where they looked. Positions are sampled a few times a second; the answer says which moment it read."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in playerSetposIn) (*mcp.CallToolResult, playerSetposOut, error) {
 			if err := checkUUID("match_id", in.MatchID); err != nil {

@@ -149,7 +149,7 @@ function PlayerRow({
 /**
  * Both teams at the playhead, one dense row per player. A click leaves that
  * player in the foreground, Shift and click adds another, and the first row
- * gives the whole team back. Under them, the setpos lines copied with S.
+ * gives the whole team back. Under them, the setpos lines copied with S or a right-click.
  */
 export function PlayerPanel({
   sides,
@@ -173,7 +173,7 @@ export function PlayerPanel({
   onShowAll: () => void;
   /** The setpos lines copied in this visit, newest first. */
   setpos: readonly SetposCopy[];
-  onCopySetpos: (command: string) => void;
+  onCopySetpos: (entry: SetposCopy) => void;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -225,7 +225,7 @@ export function PlayerPanel({
                 <span className="min-w-0 flex-1 truncate text-body-sm text-fg-1" title={entry.command}>
                   {entry.name} <span className="text-meta tabular-nums text-fg-3">{entry.at}</span>
                 </span>
-                <RowAction label={`Copiar otra vez el setpos de ${entry.name}`} pressed={false} onClick={() => onCopySetpos(entry.command)}>
+                <RowAction label={`Copiar otra vez el setpos de ${entry.name}`} pressed={false} onClick={() => onCopySetpos(entry)}>
                   <Copy aria-hidden />
                 </RowAction>
               </li>
