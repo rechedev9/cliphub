@@ -27,6 +27,7 @@ func playlistStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "POST /api/library/playlists", testPlaylistJSON)
 	rec.handle(mux, "PATCH /api/library/playlists/{id}", testPlaylistJSON)
 	rec.handle(mux, "POST /api/library/playlists/{id}/rounds", testPlaylistJSON)
+	rec.handle(mux, "PATCH /api/library/playlists/{id}/rounds/{match}/{round}", testPlaylistJSON)
 	rec.handle(mux, "DELETE /api/library/playlists/{id}", ``)
 	rec.handle(mux, "GET /api/library/playlists/export", `{"format":"cliphub-playlists","version":1,"playlists":[`+testPlaylistJSON+`],"matches":[]}`)
 	rec.handle(mux, "POST /api/library/playlists/import", `{"imported":1,"duplicates":0,"rejected":[],"playlists":[`+testPlaylistJSON+`],`+
@@ -68,6 +69,23 @@ func TestPlaylistToolsListCreateEditAndDelete(t *testing.T) {
 		t.Errorf("patch body = %s", got)
 	}
 	toolFails(t, cs, "update_playlist", map[string]any{"playlist_id": testPlaylistID}, "set name")
+	callTool(t, cs, "update_playlist", map[string]any{"playlist_id": testPlaylistID, "rounds": []map[string]any{{"ref": testMatchID + "/4"}, {"ref": testMatchID + "/3"}}}, &p)
+	if got := rec.get("PATCH /api/library/playlists/{id}"); strings.Contains(got, "comment") {
+		t.Errorf("reorder body = %s; a round without a comment must leave it out so the server keeps it", got)
+	}
+
+	callTool(t, cs, "update_playlist_round", map[string]any{"playlist_id": testPlaylistID, "ref": testMatchID + "/3", "comment": "", "position": 1,
+		"notes": []map[string]any{{"id": "n1", "text": "rota tarde"}, {"tick": 5000, "strokes": []map[string]any{{"color": "t", "width": 2, "points": [][2]float64{{1, 2}, {3, 4}}}}}}}, &p)
+	got = rec.get("PATCH /api/library/playlists/{id}/rounds/{match}/{round}")
+	for _, want := range []string{`"comment":""`, `"position":1`, `{"id":"n1","tick":4200,"text":"rota tarde","strokes":[{"color":"accent"`,
+		`{"tick":5000,"text":"","strokes":[{"color":"t","width":2,"points":[[1,2],[3,4]]}]}`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("round patch body = %s, want %s", got, want)
+		}
+	}
+	toolFails(t, cs, "update_playlist_round", map[string]any{"playlist_id": testPlaylistID, "ref": testMatchID + "/3"}, "set comment")
+	toolFails(t, cs, "update_playlist_round", map[string]any{"playlist_id": testPlaylistID, "ref": testMatchID + "/3", "notes": []map[string]any{{"id": "zz"}}}, "not on this round")
+	toolFails(t, cs, "update_playlist_round", map[string]any{"playlist_id": testPlaylistID, "ref": testMatchID + "/9", "notes": []map[string]any{}}, "not in this playlist")
 
 	callTool(t, cs, "add_playlist_rounds", map[string]any{"playlist_id": testPlaylistID, "position": 0, "rounds": []map[string]any{{"ref": testMatchID + "/5"}}}, &p)
 	if got := rec.get("POST /api/library/playlists/{id}/rounds"); !strings.Contains(got, `"round":5`) || !strings.Contains(got, `"position":0`) {

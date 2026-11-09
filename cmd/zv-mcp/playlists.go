@@ -28,8 +28,8 @@ const (
 )
 
 type playlistRoundIn struct {
-	Ref     string `json:"ref" jsonschema:"match_id/round, from find_rounds, replay_rounds or the reports"`
-	Comment string `json:"comment,omitempty" jsonschema:"what to look at in this round"`
+	Ref     string  `json:"ref" jsonschema:"match_id/round, from find_rounds, replay_rounds or the reports"`
+	Comment *string `json:"comment,omitempty" jsonschema:"what to look at in this round; leave it out to keep the comment of a round the playlist holds, an empty string clears it"`
 }
 
 type listPlaylistsIn struct {
@@ -68,6 +68,7 @@ type playlistRoundOut struct {
 }
 
 type playlistNoteOut struct {
+	ID      string `json:"id" jsonschema:"pass it to update_playlist_round to keep the note"`
 	Tick    int    `json:"tick" jsonschema:"demo tick the note is anchored to"`
 	Text    string `json:"text,omitempty" jsonschema:"untrusted text the user wrote"`
 	Strokes int    `json:"strokes,omitempty" jsonschema:"lines drawn on the map at that moment"`
@@ -96,7 +97,7 @@ type updatePlaylistIn struct {
 	Folder     *string            `json:"folder,omitempty" jsonschema:"new folder; an empty string takes it out of its folder"`
 	Author     *string            `json:"author,omitempty"`
 	Favorite   *bool              `json:"favorite,omitempty" jsonschema:"star or unstar it"`
-	Rounds     *[]playlistRoundIn `json:"rounds,omitempty" jsonschema:"the full new round list in play order, with comments: it reorders, removes and comments rounds. Start from get_playlist's round_list"`
+	Rounds     *[]playlistRoundIn `json:"rounds,omitempty" jsonschema:"the full new round list in play order: it reorders and removes rounds; a round without comment keeps its own. Start from get_playlist's round_list"`
 }
 
 type addPlaylistRoundsIn struct {
@@ -153,11 +154,15 @@ func playlistRoundRefs(in []playlistRoundIn) ([]tuiclient.PlaylistRoundRef, erro
 		if err != nil {
 			return nil, err
 		}
-		comment, err := checkCallText("comment", r.Comment, maxPlaylistCommentRunes, false)
-		if err != nil {
-			return nil, err
+		ref := tuiclient.PlaylistRoundRef{MatchID: matchID, Round: round}
+		if r.Comment != nil {
+			comment, err := checkCallText("comment", *r.Comment, maxPlaylistCommentRunes, false)
+			if err != nil {
+				return nil, err
+			}
+			ref.Comment = &comment
 		}
-		out = append(out, tuiclient.PlaylistRoundRef{MatchID: matchID, Round: round, Comment: comment})
+		out = append(out, ref)
 	}
 	return out, nil
 }
@@ -269,7 +274,7 @@ func playlistDetailOf(p tuiclient.Playlist) playlistDetailOut {
 		round := playlistRoundOut{Ref: cleanName(r.MatchID) + "/" + strconv.Itoa(r.Round), Map: cleanName(r.Map),
 			Comment: cleanText(r.Comment, maxPlaylistCommentRunes), Missing: r.Missing}
 		for _, n := range r.Notes {
-			round.Notes = append(round.Notes, playlistNoteOut{Tick: n.Tick, Text: cleanText(n.Text, maxPlaylistNoteRunes), Strokes: len(n.Strokes)})
+			round.Notes = append(round.Notes, playlistNoteOut{ID: cleanName(n.ID), Tick: n.Tick, Text: cleanText(n.Text, maxPlaylistNoteRunes), Strokes: len(n.Strokes)})
 		}
 		out.RoundList = append(out.RoundList, round)
 	}
@@ -291,6 +296,7 @@ func playlistMatchLine(m tuiclient.PlaylistMatch) string {
 }
 
 func registerPlaylistTools(server *mcp.Server, s *studio) {
+	registerPlaylistRoundTool(server, s)
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	detail := func(ctx context.Context, call func(*tuiclient.Client) (tuiclient.Playlist, error)) (*mcp.CallToolResult, playlistDetailOut, error) {
 		c, err := s.client(ctx)
@@ -350,8 +356,9 @@ func registerPlaylistTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_playlist", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Rename a saved playlist, move it to a folder, star it, or replace its rounds: the full list reorders, removes and comments them, " +
-			"as the playlist's panel in the Replay does; a round it already holds keeps its notes and drawings."},
+		Description: "Rename a saved playlist, move it to a folder, star it, or replace its rounds: the full list reorders and removes them, " +
+			"as the playlist's panel in the Replay does. A round it already holds keeps its notes and drawings, and its comment unless the round gives one. " +
+			"To edit one round's comment, notes or place use update_playlist_round. If the playlist changed meanwhile it fails: read it again with get_playlist."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatePlaylistIn) (*mcp.CallToolResult, playlistDetailOut, error) {
 			patch, err := in.patch()
 			if err != nil {

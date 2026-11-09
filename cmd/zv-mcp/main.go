@@ -113,10 +113,11 @@ player_setpos gives the console line that puts you where a player stood at a mom
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
 round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one passing playlist to open in Studio.
 Saved playlists (Replay > Playlists: rounds of any matches with a comment each, in folders, starred): list_playlists,
-get_playlist, create_playlist, update_playlist (rename, folder, star, or the full round list to reorder, remove and comment),
+get_playlist, create_playlist, update_playlist (rename, folder, star, or the full round list to reorder, remove and comment;
+a round without a comment keeps its own), update_playlist_round (one round's comment, notes and drawings, or place),
 add_playlist_rounds (B in the Replay), delete_playlist, export_playlists and import_playlists (.json files on this PC, to share
 with the team; rounds whose demo is missing come back in missing_matches). studio_path opens one in the Replay with its panel,
-where J and K walk its rounds; the notes and drawings drawn there stay with the playlist round and travel in the file (get_playlist reads them).
+where J and K walk its rounds; the notes and drawings drawn there stay with the playlist round and travel in the file (get_playlist reads them, update_playlist_round writes them).
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary

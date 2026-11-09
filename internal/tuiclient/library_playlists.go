@@ -23,7 +23,7 @@ type PlaylistRound struct {
 
 // PlaylistNote is a note and drawing a coach left on a playlist round, at a demo tick.
 type PlaylistNote struct {
-	ID      string            `json:"id"`
+	ID      string            `json:"id,omitempty"`
 	Tick    int               `json:"tick"`
 	Text    string            `json:"text"`
 	Strokes []json.RawMessage `json:"strokes"`
@@ -42,11 +42,31 @@ type Playlist struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// PlaylistRoundRef names a round to put in a playlist; the server reads its map and demo.
+// PlaylistRoundRef names a round to put in a playlist; the server reads its map
+// and demo. A nil Comment keeps the comment of a round the playlist holds.
 type PlaylistRoundRef struct {
-	MatchID string `json:"match_id"`
-	Round   int    `json:"round"`
-	Comment string `json:"comment"`
+	MatchID string  `json:"match_id"`
+	Round   int     `json:"round"`
+	Comment *string `json:"comment,omitempty"`
+}
+
+// PlaylistRoundEdit edits one round of a playlist; nil fields are left as they
+// are, and Notes replaces the round's whole list.
+type PlaylistRoundEdit struct {
+	PlaylistID string          `json:"-"`
+	MatchID    string          `json:"-"`
+	Round      int             `json:"-"`
+	Comment    *string         `json:"comment,omitempty"`
+	Notes      *[]PlaylistNote `json:"notes,omitempty"`
+	Position   *int            `json:"position,omitempty"`
+}
+
+// UpdatePlaylistRound edits one round's comment, notes and drawings, or place.
+func (c *Client) UpdatePlaylistRound(ctx context.Context, edit PlaylistRoundEdit) (Playlist, error) {
+	var out Playlist
+	path := playlistPath(edit.PlaylistID) + "/rounds/" + url.PathEscape(edit.MatchID) + "/" + strconv.Itoa(edit.Round)
+	err := c.doJSON(ctx, http.MethodPatch, path, edit, &out)
+	return out, err
 }
 
 // PlaylistQuery filters the playlists; zero fields are unset and NoFolder wins over Folder.
