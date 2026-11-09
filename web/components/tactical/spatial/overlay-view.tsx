@@ -26,7 +26,7 @@ import {
 } from '@/lib/tactical-spatial';
 import { TACTICAL_REPLAY_SPEEDS } from '@/lib/tactical-timeline';
 import { isMultiLevelMap, worldToRendered } from '@/lib/tactical-transform';
-import { floorAlpha } from '@/lib/analysis/floors';
+import { floorAlpha, labelOnFloor } from '@/lib/analysis/floors';
 import { EmptySample } from '@/components/analysis/empty-sample';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -250,7 +250,8 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
           if (span === null) trail = [];
           else if (span !== undefined) trail = trackTrail(track, span.to, step, span.to - span.from);
           const index = Math.min(track.points.length - 1, Math.max(0, Math.floor(seconds / step - track.start)));
-          const strength = floorAlpha(floor, track.points[index]?.[2] ?? 0);
+          const z = track.points[index]?.[2] ?? 0;
+          const strength = floorAlpha(floor, z);
           if (trail.length > 1) {
             ctx.strokeStyle = color;
             ctx.lineWidth = Math.max(1.25, size * 0.003);
@@ -271,8 +272,9 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
             ctx.beginPath();
             ctx.arc(p.x, p.y, dot, 0, Math.PI * 2);
             ctx.fill();
-            if (strong && dim && size >= 380) {
-              ctx.globalAlpha = 0.9;
+            // The name follows its dot: never on the plate of the other floor.
+            if (strong && dim && size >= 380 && labelOnFloor(floor, z)) {
+              ctx.globalAlpha = 0.9 * strength;
               ctx.fillStyle = style.text;
               ctx.font = `${Math.max(12, Math.round(size * 0.015))}px ${style.fontFamily}`;
               ctx.textBaseline = 'middle';
