@@ -137,10 +137,14 @@ func TestGroupPlaysJoinsCloseKillsAndScoresThem(t *testing.T) {
 
 type word int
 
+// Each kind of word has its own shape once cut to its box.
 const (
 	wordFull word = iota
-	wordTop
-	wordBottom
+	wordShort
+	wordLong
+	wordStep
+	// wordTall stands for scenery caught in a word, taller than any name.
+	wordTall
 )
 
 func paintRect(frame []byte, r image.Rectangle, c [3]byte) {
@@ -152,79 +156,343 @@ func paintRect(frame []byte, r image.Rectangle, c [3]byte) {
 	}
 }
 
-// drawWord paints four 3px letters 2px apart; the kind changes their shape.
-func drawWord(frame []byte, x, y int, kind word, c [3]byte) {
-	for l := 0; l < 4; l++ {
-		lx := x + l*5
-		switch kind {
-		case wordFull:
-			paintRect(frame, image.Rect(lx, y, lx+3, y+10), c)
-		case wordTop:
-			paintRect(frame, image.Rect(lx, y, lx+3, y+5), c)
-		case wordBottom:
-			paintRect(frame, image.Rect(lx, y+5, lx+3, y+10), c)
-		}
+// pen paints test shapes in one colour.
+type pen struct {
+	frame []byte
+	color [3]byte
+}
+
+// word paints 3px letters 2px apart from at and returns the width it took.
+func (p pen) word(at image.Point, kind word) int {
+	letters := 4
+	if kind == wordLong {
+		letters = 6
 	}
+	for l := 0; l < letters; l++ {
+		lx := at.X + l*5
+		top := at.Y
+		switch {
+		case kind == wordShort || (kind == wordStep && l%2 == 1):
+			top = at.Y + 5
+		case kind == wordTall:
+			top = at.Y - 8
+		}
+		paintRect(p.frame, image.Rect(lx, top, lx+3, at.Y+10), p.color)
+	}
+	return letters*5 - 2
 }
 
 var (
 	blueName   = [3]byte{110, 150, 215}
 	yellowName = [3]byte{228, 193, 94}
+	dimBlueTag = [3]byte{74, 93, 119}
+	greyStroke = [3]byte{112, 110, 118}
 	whiteIcon  = [3]byte{240, 240, 240}
+	plate      = [3]byte{40, 40, 40}
 )
 
-// drawFeedNotice draws a highlighted notice whose names have the given
-// shapes, with a white weapon icon before the last name.
-func drawFeedNotice(frame []byte, y int, names ...word) image.Rectangle {
-	ring := image.Rect(300, y, 756, y+32)
-	paintRect(frame, ring, [3]byte{40, 40, 40})
+// player is one name in a notice, with the clan tag drawn before it if any.
+type player struct {
+	name word
+	tag  bool
+}
+
+func named(w word) player  { return player{name: w} }
+func tagged(w word) player { return player{name: w, tag: true} }
+
+// feedNotice is a highlighted notice "killer [+ assister] weapon victim": a
+// white plus after the killer when there is an assister, and a white weapon
+// before the victim. plusGap is the space after the plus.
+type feedNotice struct {
+	left, top int
+	plusGap   int
+	players   []player
+}
+
+func notice(players ...player) feedNotice {
+	return feedNotice{left: 250, top: 75, plusGap: 6, players: players}
+}
+
+func (n feedNotice) at(left, top int) feedNotice {
+	n.left, n.top = left, top
+	return n
+}
+
+func (n feedNotice) draw(frame []byte) image.Rectangle {
+	y := n.top
+	ring := image.Rect(n.left, y, 756, y+32)
+	paintRect(frame, ring, plate)
 	drawNotice(frame, ring)
-	x := 320
-	for i, n := range names {
-		if i == len(names)-1 {
-			paintRect(frame, image.Rect(x, y+12, x+40, y+20), whiteIcon)
-			x += 55
-		}
+	x := n.left + 12
+	for i, p := range n.players {
 		color := blueName
-		if i == len(names)-1 {
+		if i == len(n.players)-1 {
+			paintRect(frame, image.Rect(x, y+12, x+40, y+20), whiteIcon)
+			x += 50
 			color = yellowName
 		}
-		drawWord(frame, x, y+11, n, color)
-		x += 40
+		if p.tag {
+			// The tag is dimmer than the name, between brackets that blur greys.
+			paintRect(frame, image.Rect(x, y+9, x+2, y+23), greyStroke)
+			x += 4 + pen{frame, dimBlueTag}.word(image.Pt(x+4, y+11), wordShort) + 2
+			paintRect(frame, image.Rect(x, y+9, x+2, y+23), greyStroke)
+			x += 8
+		}
+		x += pen{frame, color}.word(image.Pt(x, y+11), p.name)
+		if i == 0 && len(n.players) == 3 {
+			x += 7
+			paintRect(frame, image.Rect(x, y+15, x+7, y+16), whiteIcon)
+			paintRect(frame, image.Rect(x+3, y+12, x+4, y+19), whiteIcon)
+			x += 7 + n.plusGap
+			continue
+		}
+		x += 10
 	}
 	return ring
 }
 
-func TestReadNamesSkipsIconsAndTheBorder(t *testing.T) {
+// add feeds the notice to the tracker for three samples from at.
+func (n feedNotice) add(tr *Tracker, at float64) {
+	sightingOf(n).seen(tr, at, at+0.25, at+0.5)
+}
+
+// sighting is a notice drawn in a frame of its own.
+type sighting struct {
+	frame []byte
+	ring  image.Rectangle
+}
+
+func sightingOf(n feedNotice) sighting {
 	frame := feedFrame()
-	ring := drawFeedNotice(frame, 75, wordFull, wordTop)
-	names := readNames(frame, ring)
-	if len(names) != 2 || names[0].W != 18 || names[0].H != 10 || names[1].H != 5 {
-		t.Fatalf("names = %+v, want a full and a top-half name", names)
-	}
-	if sameName(names[0], names[1]) {
-		t.Fatal("different names match")
+	return sighting{frame: frame, ring: n.draw(frame)}
+}
+
+// seen feeds the ring to the tracker at each of the given seconds.
+func (s sighting) seen(tr *Tracker, times ...float64) {
+	for _, at := range times {
+		tr.Add(Sample{Seconds: at, Rings: []Ring{{Bounds: s.ring}}, Frame: s.frame})
 	}
 }
 
-func TestKillsKeepOnlyNoticesWhereThePlayerKills(t *testing.T) {
-	notices := [][]word{
-		{wordFull, wordTop},             // the player kills
-		{wordTop, wordFull, wordBottom}, // the player assists
-		{wordBottom, wordFull},          // the player dies
-		{wordFull, wordBottom, wordTop}, // the player kills with an assist
+func TestReadNoticeFindsTheKillerAndAssisterSlots(t *testing.T) {
+	frame := feedFrame()
+	ring := notice(tagged(wordFull), tagged(wordShort), named(wordLong)).draw(frame)
+	r := readNotice(frame, ring)
+	if len(r.Names) != 5 {
+		t.Fatalf("names = %d, want two tags and three names", len(r.Names))
 	}
-	var tr Tracker
-	for i, names := range notices {
-		frame := feedFrame()
-		ring := drawFeedNotice(frame, 75, names...)
-		at := float64(i * 30)
-		for hit := 0; hit < 3; hit++ {
-			tr.Add(Sample{Seconds: at + float64(hit)*0.25, Rings: []Ring{{Bounds: ring}}, Frame: frame})
+	if !sameName(r.Killer, r.Names[1]) || !sameName(r.Assister, r.Names[3]) || sameName(r.Killer, r.Assister) {
+		t.Fatalf("killer and assister are not the words before the plus and the weapon: %+v", r)
+	}
+	if r.Killer.H != 10 || r.Assister.H != 5 {
+		t.Fatalf("killer %dx%d, assister %dx%d, want the names and not their tags", r.Killer.W, r.Killer.H, r.Assister.W, r.Assister.H)
+	}
+}
+
+func TestReadNoticeKeepsThePlusApartFromACloseTag(t *testing.T) {
+	frame := feedFrame()
+	// Two pixels of space would join the plus to the assister's tag if words
+	// were split by gaps alone.
+	n := notice(tagged(wordShort), tagged(wordFull), named(wordLong))
+	n.plusGap = 2
+	r := readNotice(frame, n.draw(frame))
+	if r.Killer.W == 0 || r.Killer.H != 5 {
+		t.Fatalf("killer = %dx%d, want the first name before the plus", r.Killer.W, r.Killer.H)
+	}
+	if r.Assister.W == 0 {
+		t.Fatal("no assister slot: the plus was taken for part of a word")
+	}
+}
+
+func TestReadNoticeIgnoresTheBorderBlurAboveTheText(t *testing.T) {
+	frame := feedFrame()
+	ring := notice(named(wordShort), named(wordFull), named(wordLong)).draw(frame)
+	// Over a bright background the border blurs into a pale line inside the
+	// ring that runs over the killer, the plus and the assister.
+	paintRect(frame, image.Rect(ring.Min.X+5, ring.Min.Y+4, ring.Min.X+150, ring.Min.Y+5), [3]byte{220, 160, 120})
+	r := readNotice(frame, ring)
+	if r.Killer.H != 5 || r.Assister.H != 10 {
+		t.Fatalf("killer %dx%d, assister %dx%d, want the short name and the full one", r.Killer.W, r.Killer.H, r.Assister.W, r.Assister.H)
+	}
+}
+
+func TestReadNoticeLeavesATallShapeInItsSlot(t *testing.T) {
+	frame := feedFrame()
+	// Scenery over the assister's name: its tag must not take the slot.
+	r := readNotice(frame, notice(tagged(wordFull), tagged(wordTall), named(wordLong)).draw(frame))
+	if len(r.Names) != 5 || r.Names[3].W != 0 {
+		t.Fatalf("names = %+v, want the tall shape kept as an unread word", r.Names)
+	}
+	if r.Killer.H != 10 || r.Assister.W != 0 {
+		t.Fatalf("killer %dx%d, assister %dx%d, want the killer and no assister", r.Killer.W, r.Killer.H, r.Assister.W, r.Assister.H)
+	}
+}
+
+func TestTrackReadKeepsAReadingWithItsKiller(t *testing.T) {
+	marked := sightingOf(notice(named(wordShort), named(wordShort)))
+	// Scenery hides the weapon and adds words: more text, but no slot to read.
+	unmarked := feedFrame()
+	paintRect(unmarked, marked.ring, plate)
+	drawNotice(unmarked, marked.ring)
+	for x := marked.ring.Min.X + 12; x < marked.ring.Min.X+200; x += 40 {
+		pen{unmarked, blueName}.word(image.Pt(x, marked.ring.Min.Y+11), wordLong)
+	}
+	for _, order := range [][][]byte{{marked.frame, unmarked}, {unmarked, marked.frame}} {
+		var tr track
+		for _, frame := range order {
+			tr.read(frame, marked.ring)
+		}
+		if tr.reading.Killer.W == 0 {
+			t.Fatalf("reading = %+v, want the one with a killer", tr.reading)
 		}
 	}
-	kills := tr.Kills()
-	if len(kills) != 2 || kills[0].Seconds != 0 || kills[1].Seconds != 90 {
-		t.Fatalf("kills = %+v, want the kills at 0 and 90", kills)
+}
+
+func TestTrackReadKeepsTheReadingMostSightingsAgreeOn(t *testing.T) {
+	clean := sightingOf(notice(named(wordFull), named(wordShort)))
+	// Scenery joins the killer's name to more text in one sighting.
+	spoiled := sightingOf(notice(named(wordLong), named(wordLong)))
+	var tr track
+	for _, frame := range [][]byte{clean.frame, clean.frame, spoiled.frame, clean.frame} {
+		tr.read(frame, clean.ring)
+	}
+	if tr.reading.Killer.W != 18 {
+		t.Fatalf("killer = %dx%d, want the name three sightings agree on", tr.reading.Killer.W, tr.reading.Killer.H)
+	}
+}
+
+func TestTrackerReadsANoticeAgainWhenItComesBack(t *testing.T) {
+	var tr Tracker
+	spoiled := sightingOf(notice(named(wordLong), named(wordLong)))
+	spoiled.seen(&tr, 20, 20.25, 20.5, 20.75)
+	// Back from a flicker, the notice shows its names clean for longer.
+	clean := sightingOf(notice(named(wordFull), named(wordShort)))
+	clean.seen(&tr, 24, 24.25, 24.5, 24.75, 25, 25.25, 25.5)
+	if len(tr.kills) != 1 || tr.kills[0].Killer.W != 18 {
+		t.Fatalf("kills = %d, killer = %+v, want one notice read clean", len(tr.kills), tr.kills[0].Killer)
+	}
+}
+
+func killTimes(kills []Kill) []float64 {
+	var times []float64
+	for _, k := range kills {
+		times = append(times, k.Seconds)
+	}
+	return times
+}
+
+func TestKillsKeepOnlyNoticesWhereThePlayerKills(t *testing.T) {
+	var tr Tracker
+	notice(named(wordFull), named(wordShort)).add(&tr, 0)                   // the player kills
+	notice(named(wordShort), named(wordFull), named(wordLong)).add(&tr, 30) // the player assists
+	notice(named(wordFull), named(wordLong), named(wordShort)).add(&tr, 60) // the player kills with an assist
+	if got := killTimes(tr.Kills()); len(got) != 2 || got[0] != 0 || got[1] != 60 {
+		t.Fatalf("kills at %v, want 0 and 60", got)
+	}
+}
+
+func TestKillsIgnoreAClanTagTheTeamShares(t *testing.T) {
+	var tr Tracker
+	// The player and a teammate wear the same tag, which is then the most
+	// common word; it must not stand for the player.
+	notice(tagged(wordFull), named(wordShort)).add(&tr, 0)
+	notice(tagged(wordLong), tagged(wordFull), named(wordShort)).add(&tr, 30)
+	notice(tagged(wordFull), tagged(wordLong), named(wordStep)).add(&tr, 60)
+	notice(tagged(wordLong), tagged(wordFull), named(wordStep)).add(&tr, 90)
+	if got := killTimes(tr.Kills()); len(got) != 2 || got[0] != 0 || got[1] != 60 {
+		t.Fatalf("kills at %v, want 0 and 60", got)
+	}
+}
+
+func TestKillsNeverTakeARivalForThePlayer(t *testing.T) {
+	var tr Tracker
+	for i := 0; i < 4; i++ {
+		notice(named(wordFull), named(wordStep)).add(&tr, float64(i*30))
+	}
+	// CS2 can highlight the player's death too; the rival who keeps killing
+	// the player holds the killer slot there and must not pass for a nick.
+	for i := 4; i < 7; i++ {
+		notice(named(wordLong), named(wordFull)).add(&tr, float64(i*30))
+	}
+	if got := killTimes(tr.Kills()); len(got) != 4 || got[3] != 90 {
+		t.Fatalf("kills at %v, want the four up to 90", got)
+	}
+}
+
+func TestKillsNeverTakeAFlickeringTeammateForThePlayer(t *testing.T) {
+	var tr Tracker
+	for i := 0; i < 4; i++ {
+		notice(named(wordFull), named(wordShort)).add(&tr, float64(i*30))
+	}
+	// An assist where the player's name was misread flickers out twice: still
+	// one notice, too few for the teammate to pass for a second nick.
+	sightingOf(notice(named(wordLong), named(wordStep), named(wordShort))).seen(&tr, 200, 200.25, 203, 203.25, 206, 206.25)
+	if got := killTimes(tr.Kills()); len(got) != 4 || got[3] != 90 {
+		t.Fatalf("kills at %v, want the four up to 90", got)
+	}
+}
+
+func TestKillsCountAFlickeringNoticeOnce(t *testing.T) {
+	var tr Tracker
+	notice(named(wordFull), named(wordLong)).add(&tr, 0) // another kill, so the player is known
+	// The notice flickers out for longer than a track waits, moves up a row
+	// meanwhile, and comes back with its victim read differently.
+	sightingOf(notice(named(wordFull), named(wordShort)).at(250, 109)).seen(&tr, 20, 20.25)
+	sightingOf(notice(named(wordFull), named(wordStep))).seen(&tr, 23.5, 23.75)
+	// A later kill in the row the first notice left has another width.
+	sightingOf(notice(named(wordFull), named(wordLong)).at(270, 109)).seen(&tr, 27, 27.25)
+	// A double kill: two notices of one width, the newer one below.
+	double := feedFrame()
+	upper := notice(named(wordFull), named(wordShort)).at(230, 75).draw(double)
+	lower := notice(named(wordFull), named(wordStep)).at(230, 109).draw(double)
+	for _, at := range []float64{45, 45.25} {
+		tr.Add(Sample{Seconds: at, Rings: []Ring{{Bounds: upper}, {Bounds: lower}}, Frame: double})
+	}
+	if got := killTimes(tr.Kills()); len(got) != 5 || got[1] != 20 || got[2] != 27 || got[3] != 45 || got[4] != 45 {
+		t.Fatalf("kills at %v, want 0, 20, 27 and two at 45", got)
+	}
+}
+
+func TestKillsCountTwoKillsOfOneWidthInOneRow(t *testing.T) {
+	var tr Tracker
+	notice(named(wordFull), named(wordLong)).add(&tr, 0) // another kill, so the player is known
+	// Detection loses the first notice early, and it leaves the feed later; the
+	// next kill, as wide, then takes its row.
+	sightingOf(notice(named(wordFull), named(wordShort))).seen(&tr, 20, 20.25, 20.5)
+	next := 20 + noticeSeconds + 1
+	sightingOf(notice(named(wordFull), named(wordStep))).seen(&tr, next, next+0.25)
+	if got := killTimes(tr.Kills()); len(got) != 3 || got[1] != 20 || got[2] != next {
+		t.Fatalf("kills at %v, want 0, 20 and %v", got, next)
+	}
+}
+
+func TestTrackerFollowsANoticeStretchedByRedScenery(t *testing.T) {
+	var tr Tracker
+	tr.Add(Sample{Seconds: 10, Rings: []Ring{ring(354, 109, 756, 141)}})
+	tr.Add(Sample{Seconds: 10.25, Rings: []Ring{ring(354, 109, 756, 141)}})
+	// The notice above it leaves; red scenery behind the new row stretches
+	// the ring's right edge, but never its left one.
+	tr.Add(Sample{Seconds: 10.5, Rings: []Ring{ring(354, 75, 768, 107)}})
+	tr.Add(Sample{Seconds: 10.75, Rings: []Ring{ring(354, 75, 768, 107)}})
+	if kills := tr.Kills(); len(kills) != 1 {
+		t.Fatalf("kills = %+v, want one kill", kills)
+	}
+}
+
+func TestKillsFollowThePlayerAcrossARename(t *testing.T) {
+	var tr Tracker
+	// The player kills as wordShort, then renames to wordFull; wordLong is a
+	// teammate the player assists under the new nick.
+	for i := 0; i < 3; i++ {
+		notice(named(wordShort), named(wordStep)).add(&tr, float64(i*30))
+	}
+	for i := 3; i < 7; i++ {
+		notice(named(wordFull), named(wordStep)).add(&tr, float64(i*30))
+	}
+	for i := 7; i < 10; i++ {
+		notice(named(wordLong), named(wordFull), named(wordStep)).add(&tr, float64(i*30))
+	}
+	if got := tr.Kills(); len(got) != 7 || got[6].Seconds != 180 {
+		t.Fatalf("kills at %v, want the seven kills up to 180", killTimes(got))
 	}
 }
