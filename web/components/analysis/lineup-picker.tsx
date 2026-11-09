@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Check, Users } from 'lucide-react';
 import type { LibraryRosterEntry } from '@/lib/api/library';
 import type { TeamLineups } from '@/lib/api/team-insights';
-import { checkedPlayers, lineupLabel, toggleLineupPlayer } from '@/lib/analysis/lineup';
+import { checkedPlayers, lineupLabel, lineupMode, toggleLineupPlayer } from '@/lib/analysis/lineup';
 import type { ScopeLineup } from '@/lib/analysis/scope';
 import { prettyMapName, timeAgo } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,8 @@ export type LineupPickerProps = {
 export function LineupPicker({ lineup, lineups, onChange }: LineupPickerProps): ReactNode {
   const checked = checkedPlayers(lineup, lineups);
   const latest = lineups.latest_match;
+  const mode = lineupMode(lineup, lineups);
+  const label = lineupLabel(lineup, lineups);
 
   function row(player: LibraryRosterEntry, note: string): ReactNode {
     const on = checked.has(player.steamid64);
@@ -44,7 +46,7 @@ export function LineupPicker({ lineup, lineups, onChange }: LineupPickerProps): 
           // Keep the menu open so several players can be checked in a row.
           event.preventDefault();
         }}
-        onCheckedChange={() => onChange(toggleLineupPlayer(lineup, lineups, player.steamid64))}
+        onCheckedChange={() => onChange(toggleLineupPlayer({ lineup, lineups, steamId: player.steamid64 }))}
       >
         <span className="min-w-0 flex-1 truncate">{player.nick || player.steamid64}</span>
         <span className="text-meta whitespace-nowrap text-fg-3 tabular-nums">{note}</span>
@@ -52,11 +54,11 @@ export function LineupPicker({ lineup, lineups, onChange }: LineupPickerProps): 
     );
   }
 
-  function shortcut(target: ScopeLineup, label: string): ReactNode {
+  function shortcut(target: ScopeLineup, name: string): ReactNode {
     return (
       <DropdownMenuItem onSelect={() => onChange(target)}>
-        <span className="flex-1">{label}</span>
-        {lineup.kind === target.kind ? <Check aria-label="Elegida" className="text-fg-1" /> : null}
+        <span className="flex-1">{name}</span>
+        {mode === name ? <Check aria-label="Elegida" className="text-fg-1" /> : null}
       </DropdownMenuItem>
     );
   }
@@ -68,15 +70,16 @@ export function LineupPicker({ lineup, lineups, onChange }: LineupPickerProps): 
           type="button"
           variant="outline"
           size="sm"
-          aria-label={`Alineación: ${lineupLabel(lineup)}`}
-          className={cn('h-8 gap-1.5 px-2.5 text-body-sm', lineup.kind !== 'latest' && 'border-fg-3 text-fg-1')}
+          aria-label={`Alineación: ${mode}, ${label}`}
+          title={mode}
+          className={cn('h-8 gap-1.5 px-2.5 text-body-sm tabular-nums', lineup.kind !== 'latest' && 'border-fg-3 text-fg-1')}
         >
           <Users aria-hidden />
-          {lineupLabel(lineup)}
+          {label}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
-        {shortcut({ kind: 'latest' }, 'Última alineación')}
+        {lineups.latest.length > 0 ? shortcut({ kind: 'latest' }, 'Última alineación') : null}
         {shortcut({ kind: 'all' }, 'Todos los jugadores')}
         {lineups.latest.length > 0 ? (
           <>

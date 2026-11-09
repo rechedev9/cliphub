@@ -44,7 +44,7 @@ type lineupMatchOut struct {
 }
 
 type teamLineupsOut struct {
-	LatestMatch *lineupMatchOut `json:"latest_match,omitempty" jsonschema:"the team's most recent match; absent when it has none"`
+	LatestMatch *lineupMatchOut `json:"latest_match,omitempty" jsonschema:"the team's most recent match; absent when it has none or it names none of the team's players, and latest is then empty: the default lineup counts every player"`
 	Latest      []rosterOut     `json:"latest" jsonschema:"who played the latest match for the team: the default lineup of the team views"`
 	Others      []rosterOut     `json:"others" jsonschema:"everyone else who played for the team, most recent first"`
 }

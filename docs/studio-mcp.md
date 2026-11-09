@@ -192,7 +192,7 @@ Read:
 | `search_studio` | `GET /api/library/search?q=` (`limit` per kind, 8 by default and at most 25): plays, lineups, calls, teams, players and matches holding every word, with accents dropped and `&` read as `y`; a map name (mirage, de_nuke...) keeps that map's plays, lineups and matches, a grenade word (humo, flash, molotov...) keeps those lineups |
 | `list_teams` | `GET /api/library/teams` |
 | `get_team` | `GET /api/library/teams/{id}`: aliases and the roster by date |
-| `team_lineups` | `GET /api/library/teams/{id}/lineups`: the Alineación selector's groups, who played the team's latest match (the UI's default lineup) and everyone else, with first and last dates and match counts |
+| `team_lineups` | `GET /api/library/teams/{id}/lineups`: the Alineación selector's groups, who played the team's latest match (the UI's default lineup) and everyone else, with first and last dates and match counts; when that match names none of the team's players there is no latest group and the default counts every player |
 | `list_players` | `GET /api/library/players` (`q` nick, `team_id`, `limit` 50 by default and at most 200): a nick to a SteamID64 |
 | `list_reports`, `get_report` | `GET /api/library/reports` (`team_id`); `GET /api/library/reports/{id}`, `/scout` and `/metrics`: notes, the `scout_team` summary over the report's matches and side, and each scouted player's metrics |
 | `list_plays`, `get_play` | `GET /api/library/plays` (`team_id`, `map`, `side`, `kind`, `status`, `tag`, `include_archived` (archived plays are left out by default, as in the Jugadas tab), `limit` 50 by default and at most 200, `offset`; `truncated` when more match); `GET /api/library/plays/{id}`: grenades, positions by callout, status, tags, example refs and missing matches |

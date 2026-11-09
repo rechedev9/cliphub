@@ -4,6 +4,7 @@ import { lineupOf, type ScopeLineup } from './scope.ts';
 /**
  * The lineup picker's arithmetic: which players a lineup checks, which
  * SteamID64s it sends, and the lineup a set of checked boxes stands for.
+ * The latest lineup is empty when the latest match names none of the team's players; it then counts everyone.
  */
 
 function latestIds(lineups: TeamLineups): string[] {
@@ -12,6 +13,10 @@ function latestIds(lineups: TeamLineups): string[] {
 
 function everyId(lineups: TeamLineups): string[] {
   return [...latestIds(lineups), ...lineups.others.map((player) => player.steamid64)];
+}
+
+function countsEveryone(lineup: ScopeLineup, lineups: TeamLineups): boolean {
+  return lineup.kind === 'all' || (lineup.kind === 'latest' && lineups.latest.length === 0);
 }
 
 /** The SteamID64s the server filters by; empty keeps every round, as it does while the groups are unknown. */
@@ -23,9 +28,8 @@ export function lineupSteamIds(lineup: ScopeLineup, lineups: TeamLineups | null)
 
 /** The roster players whose boxes are checked. */
 export function checkedPlayers(lineup: ScopeLineup, lineups: TeamLineups): ReadonlySet<string> {
-  if (lineup.kind === 'all') return new Set(everyId(lineups));
-  if (lineup.kind === 'latest') return new Set(latestIds(lineups));
-  return new Set(lineup.steamIds);
+  if (lineup.kind === 'players') return new Set(lineup.steamIds);
+  return new Set(countsEveryone(lineup, lineups) ? everyId(lineups) : latestIds(lineups));
 }
 
 function sameSet(a: ReadonlySet<string>, b: readonly string[]): boolean {
@@ -39,8 +43,10 @@ export function lineupFromChecked(checked: ReadonlySet<string>, lineups: TeamLin
   return lineupOf([...checked]);
 }
 
+export type LineupToggle = { lineup: ScopeLineup; lineups: TeamLineups; steamId: string };
+
 /** The lineup with one player's box flipped; the last checked box stays, since an empty lineup counts nothing. */
-export function toggleLineupPlayer(lineup: ScopeLineup, lineups: TeamLineups, steamId: string): ScopeLineup {
+export function toggleLineupPlayer({ lineup, lineups, steamId }: LineupToggle): ScopeLineup {
   const checked = new Set(checkedPlayers(lineup, lineups));
   if (checked.has(steamId)) {
     if (checked.size === 1) return lineup;
@@ -51,10 +57,16 @@ export function toggleLineupPlayer(lineup: ScopeLineup, lineups: TeamLineups, st
   return lineupFromChecked(checked, lineups);
 }
 
-/** What the picker's button says: "Última alineación", "Todos los jugadores" or "3 jugadores". */
-export function lineupLabel(lineup: ScopeLineup): string {
-  if (lineup.kind === 'latest') return 'Última alineación';
-  if (lineup.kind === 'all') return 'Todos los jugadores';
-  const count = lineup.steamIds.length;
-  return `${count} ${count === 1 ? 'jugador' : 'jugadores'}`;
+/** What the picker's button says: how many of the team's players count, as in "5 de 7 jugadores". */
+export function lineupLabel(lineup: ScopeLineup, lineups: TeamLineups): string {
+  const every = everyId(lineups);
+  const checked = checkedPlayers(lineup, lineups);
+  const count = every.filter((steamId) => checked.has(steamId)).length;
+  return `${count} de ${every.length} ${every.length === 1 ? 'jugador' : 'jugadores'}`;
+}
+
+/** Which lineup counts: "Última alineación", "Todos los jugadores" or "Alineación elegida". */
+export function lineupMode(lineup: ScopeLineup, lineups: TeamLineups): string {
+  if (countsEveryone(lineup, lineups)) return 'Todos los jugadores';
+  return lineup.kind === 'latest' ? 'Última alineación' : 'Alineación elegida';
 }

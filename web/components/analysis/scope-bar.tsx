@@ -346,7 +346,7 @@ export function ScopeBar(props: ScopeBarProps): ReactNode {
       <div className="flex flex-wrap items-center gap-1.5">
         {entity ? <EntityPicker entity={entity} /> : null}
         {players ? <LineupPicker lineup={scope.lineup} lineups={players} onChange={(lineup) => onChange({ lineup })} /> : null}
-        {context ?<div className="flex items-center gap-2 text-body-sm text-fg-2">{context}</div> : null}
+        {context ? <div className="flex items-center gap-2 text-body-sm text-fg-2">{context}</div> : null}
         {primary.map((field) => (
           <FieldControl key={field} field={field} props={props} />
         ))}
