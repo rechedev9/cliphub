@@ -29,6 +29,7 @@ type MemoryLibraryRepository struct {
 	reports      map[uuid.UUID]library.Report
 	annotations  map[uuid.UUID]library.Annotation
 	plays        map[uuid.UUID]library.Play
+	playlists    map[uuid.UUID]library.Playlist
 	libreta      memoryLibreta
 }
 
@@ -79,6 +80,7 @@ func NewMemoryLibraryRepository() *MemoryLibraryRepository {
 		reports:      map[uuid.UUID]library.Report{},
 		annotations:  map[uuid.UUID]library.Annotation{},
 		plays:        map[uuid.UUID]library.Play{},
+		playlists:    map[uuid.UUID]library.Playlist{},
 	}
 }
 

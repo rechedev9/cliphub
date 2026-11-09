@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
-import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
-import { PLAYLIST_TITLE, inPlaylist } from '@/lib/replay/saved-playlist';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
 import { teamScoreBefore } from '@/lib/library/rounds';
@@ -49,7 +47,8 @@ import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
-import { useSavedPlaylist } from './use-saved-playlist';
+import { PlaylistPicker } from './playlist-picker';
+import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
@@ -137,7 +136,7 @@ export function ReplayWorkspace({
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
   const [folds, toggleFold] = usePanelFolds();
-  const playlist = useSavedPlaylist();
+  const playlist = useSavedPlaylists(library);
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
   const setpos = useSetposCopies();
   const hoverSlot = useRef<number | null>(null);
@@ -518,7 +517,7 @@ export function ReplayWorkspace({
           doc={focused.doc}
           round={focused.round}
           currentTick={() => tickOf(focused, clock.seconds)}
-          playlist={{ added: inPlaylist(playlist.refs, entry), onToggle: () => playlist.toggle(entry), count: playlist.refs.length, href: replayHref(playlist.refs, PLAYLIST_TITLE) }}
+          playlist={<PlaylistPicker control={playlist} entry={entry} />}
         />
       ) : null}
     </div>

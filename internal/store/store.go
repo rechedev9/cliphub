@@ -132,6 +132,7 @@ type LibraryRepository interface {
 	// DeletePlay removes a play; a missing id is ErrNotFound.
 	DeletePlay(ctx context.Context, id uuid.UUID) error
 	LibretaRepository
+	PlaylistRepository
 }
 
 type Repositories struct {

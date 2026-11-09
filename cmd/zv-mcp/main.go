@@ -111,7 +111,11 @@ in a clock window (clock_from and clock_to, seconds after the round went live, o
 with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
-round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one playlist to open in Studio.
+round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one passing playlist to open in Studio.
+Saved playlists (Replay > Playlists: rounds of any matches with a comment each, in folders, starred): list_playlists,
+get_playlist, create_playlist, update_playlist (rename, folder, star, or the full round list to reorder, remove and comment),
+add_playlist_rounds (B in the Replay), delete_playlist, export_playlists and import_playlists (.json files on this PC, to share
+with the team; rounds whose demo is missing come back in missing_matches). studio_path opens one in the Replay with its panel.
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
@@ -130,7 +134,7 @@ pick_player. Steam sign-in stays in Studio's UI. Storage: storage_usage, list_st
 rescan_storage_files, reveal_storage_file, delete_storage_file, and delete_captures for Full Demo captures.
 generate_short, render_full_demo, render_stream, render_stream_summary, delete_video, delete_stream,
 delete_demo, merge_teams, delete_storage_file, delete_captures, retry_video, change_video_music,
-delete_report, delete_play, delete_lineup, delete_call, delete_library_series, launch_practice
+delete_report, delete_play, delete_lineup, delete_call, delete_library_series, delete_playlist, launch_practice
 need the user's approval.
 When something fails and the user wants it reported, file a GitHub issue as described in
 https://github.com/rechedev9/cliphub/blob/main/CONTRIBUTING.md; studio_status returns the Studio
