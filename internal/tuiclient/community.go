@@ -123,3 +123,54 @@ func (c *Client) LaunchPractice(ctx context.Context, mapName string, spots []Pra
 	err := c.doJSON(ctx, http.MethodPost, "/api/practice/launch", map[string]any{"map": mapName, "spots": spots}, &out)
 	return out, err
 }
+
+// BotReplayRequest is one library round and the side the user plays in it.
+type BotReplayRequest struct {
+	MatchID        string `json:"-"`
+	Round          int    `json:"-"`
+	Side           string `json:"side"`
+	ReplaceSteamID string `json:"replace_steamid,omitempty"`
+}
+
+// BotReplay is the outcome of "Practicar contra esta ronda".
+type BotReplay struct {
+	PracticeLaunch
+	Map     string `json:"map"`
+	Round   int    `json:"round"`
+	Side    string `json:"side"`
+	BotSide string `json:"bot_side"`
+	Keys    struct {
+		Restart string `json:"restart"`
+		Next    string `json:"next"`
+		Start   string `json:"start"`
+	} `json:"keys"`
+	Bots []struct {
+		Name  string `json:"name"`
+		Index int    `json:"index"`
+	} `json:"bots"`
+	Starts []struct {
+		Name      string `json:"name"`
+		SteamID64 string `json:"steamid64"`
+	} `json:"starts"`
+	Current int `json:"current"`
+	Moments []struct {
+		Seconds float64  `json:"seconds"`
+		Label   string   `json:"label"`
+		Notes   []string `json:"notes"`
+	} `json:"moments"`
+	Lineups []struct {
+		Seconds float64 `json:"seconds"`
+		Kind    string  `json:"kind"`
+		Player  string  `json:"player"`
+		Key     string  `json:"key"`
+	} `json:"lineups"`
+	Limits []string `json:"limits"`
+}
+
+// LaunchBotReplay opens CS2 with bots standing where the other side stood in a library round.
+func (c *Client) LaunchBotReplay(ctx context.Context, req BotReplayRequest) (BotReplay, error) {
+	var out BotReplay
+	path := "/api/library/matches/" + url.PathEscape(req.MatchID) + "/tactical/rounds/" + strconv.Itoa(req.Round) + "/bot-replay"
+	err := c.doJSON(ctx, http.MethodPost, path, req, &out)
+	return out, err
+}

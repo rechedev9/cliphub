@@ -33,12 +33,21 @@ type Result struct {
 // Start writes the practice cfg, then launches CS2 unless it already runs.
 // A running CS2 keeps its session: the player runs ExecCommand in its console.
 func Start(game Game, plan Plan) (Result, error) {
+	return StartCfg(game, plan.Map, RenderCfg(plan))
+}
+
+// StartCfg is Start for a cfg another package rendered, such as the bot replay.
+// mapName must pass ValidMap; text must already be safe to exec.
+func StartCfg(game Game, mapName, text string) (Result, error) {
+	if !ValidMap(mapName) {
+		return Result{}, invalid("map must match de_<name>")
+	}
 	dir, err := game.CfgDir()
 	if err != nil {
 		return Result{}, err
 	}
 	path := filepath.Join(dir, CfgName)
-	if err := writeCfg(path, RenderCfg(plan)); err != nil {
+	if err := writeCfg(path, text); err != nil {
 		return Result{}, fmt.Errorf("write practice cfg: %w", err)
 	}
 	running, err := game.Running()
@@ -48,7 +57,7 @@ func Start(game Game, plan Plan) (Result, error) {
 	if running {
 		return Result{AlreadyRunning: true, CfgPath: path}, nil
 	}
-	if err := game.Launch(plan.Map); err != nil {
+	if err := game.Launch(mapName); err != nil {
 		return Result{}, fmt.Errorf("launch CS2: %w", err)
 	}
 	return Result{Launched: true, CfgPath: path}, nil

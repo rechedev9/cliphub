@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BookmarkPlus, Clapperboard, Crosshair } from 'lucide-react';
+import { BookmarkPlus, Clapperboard, Crosshair, Swords } from 'lucide-react';
 import { LIBRARY_TEAM_KEYS, createLibraryPlay, getRoundLineups, getRoundPlayDraft, type LibraryTeamKey } from '@/lib/api/library';
 import type { LibraryPlay, RoundLineups } from '@/lib/api/stratbook';
 import type { TacticalDocument, TacticalRound, TacticalSide } from '@/lib/api/tactical';
@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { BotReplayDialog } from './bot-replay-dialog';
 import { PlayGrenadeTable, PlayPositionTable } from './play-tables';
 
 function isTeamKey(key: string): key is LibraryTeamKey {
@@ -53,6 +54,7 @@ export function RoundPlayActions({
   const [saving, setSaving] = useState<{ tick: number } | null>(null);
   const [comparing, setComparing] = useState(false);
   const [video, setVideo] = useState(false);
+  const [practicing, setPracticing] = useState(false);
   return (
     <div className="flex flex-wrap gap-1">
       <Button type="button" size="xs" variant="outline" onClick={() => setVideo(true)}>
@@ -67,10 +69,15 @@ export function RoundPlayActions({
         <Crosshair aria-hidden />
         Comparar granadas
       </Button>
+      <Button type="button" size="xs" variant="outline" onClick={() => setPracticing(true)} title="Abre CS2 con bots donde estaba el otro equipo en esta ronda">
+        <Swords aria-hidden />
+        Practicar contra esta ronda
+      </Button>
       {playlist}
       {saving === null ? null : (
         <SavePlayDialog matchId={matchId} doc={doc} round={round} tick={saving.tick} onClose={() => setSaving(null)} />
       )}
+      {practicing ? <BotReplayDialog matchId={matchId} doc={doc} round={round} onClose={() => setPracticing(false)} /> : null}
       {comparing ? <RoundLineupsDialog matchId={matchId} round={round.number} onClose={() => setComparing(false)} /> : null}
       {video ? (
         <AnalysisVideoDialog
