@@ -15,10 +15,6 @@ func communityStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "GET /api/faceit/players/{id}/matches", `{"matches":[{"id":"1-abc","finished_at":"2026-11-02T20:00:00Z",
 		"score":{"for":13,"against":9},"stats":{"map":"de_ancient","result":"win","kills":21,"deaths":14,"assists":4,"adr":88.2,"headshots_percent":51}}]}`)
 	rec.handle(mux, "POST /api/practice/launch", `{"launched":true,"next_key":"F6","spots":[{"label":"Ventana","key":"F7"}]}`)
-	rec.handle(mux, "GET /api/library/community/settings", `{"rankings_enabled":true,"server_enabled":true,"steam_id_set":true,"last_submitted_at":"2026-11-05T10:00:00Z"}`)
-	rec.handle(mux, "GET /api/library/community/rankings", `{"map":"de_mirage","rounds":240,"min_installs":5,"metrics":[{"metric":"adr","value":82.1,"installs":40,"percentile":71,"median":76}]}`)
-	rec.handle(mux, "PUT /api/library/community/settings", `{"rankings_enabled":false}`)
-	rec.handle(mux, "DELETE /api/library/community/rankings", `{"rankings_enabled":false}`)
 	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerCommunityTools(server, s) })
 	return cs, rec
 }
@@ -60,35 +56,4 @@ func TestLaunchPracticeAsksThenSendsPitchYaw(t *testing.T) {
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "mirage", "spots": args["spots"]}, "map")
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "de_mirage", "spots": []map[string]any{{"label": "x", "origin": []float64{0, 0, 0}, "view": []float64{0, 120}}}}, "yaw and pitch")
 	toolFails(t, cs, "launch_practice", map[string]any{"map": "de_mirage", "spots": []map[string]any{{"label": "x", "origin": []float64{0, 0, 0}, "view": []float64{0, 0}, "kind": "c4"}}}, "kind must be")
-}
-
-func TestCommunityRankingSharingNeedsApproval(t *testing.T) {
-	cs, rec := communityStudio(t)
-	var rk communityOut
-	callTool(t, cs, "community_ranking", map[string]any{"map": "de_mirage"}, &rk)
-	if !rk.RankingsEnabled || rk.LastSubmitted != "2026-11-05" || len(rk.Metrics) != 1 || *rk.Metrics[0].Percentile != 71 {
-		t.Errorf("ranking = %+v", rk)
-	}
-	if got := rec.get("GET /api/library/community/rankings"); !strings.Contains(got, "?map=de_mirage") {
-		t.Errorf("rankings request = %s", got)
-	}
-	callTool(t, cs, "community_ranking", map[string]any{"map": "cs_office"}, &rk)
-	toolFails(t, cs, "community_ranking", map[string]any{"map": "all"}, "map")
-
-	var on rankingSettingsOut
-	callTool(t, cs, "set_community_ranking", map[string]any{"enabled": true}, &on)
-	if !on.NeedsApproval || rec.get("PUT /api/library/community/settings") != "" {
-		t.Fatalf("enable = %+v", on)
-	}
-	var off rankingSettingsOut
-	callTool(t, cs, "set_community_ranking", map[string]any{"enabled": false}, &off)
-	if off.NeedsApproval || !strings.HasSuffix(rec.get("PUT /api/library/community/settings"), `{"rankings_enabled":false}`) {
-		t.Errorf("disable = %+v, %s", off, rec.get("PUT /api/library/community/settings"))
-	}
-
-	var del rankingSettingsOut
-	callTool(t, cs, "delete_community_ranking", map[string]any{}, &del)
-	if !del.NeedsApproval || rec.get("DELETE /api/library/community/rankings") != "" {
-		t.Fatalf("delete = %+v", del)
-	}
 }

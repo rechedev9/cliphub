@@ -29,9 +29,7 @@ const (
 var (
 	faceitIDPattern    = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 	practiceMapPattern = regexp.MustCompile(`^de_[a-z0-9_]{1,32}$`)
-	// rankingMapPattern is community.MapPattern without "all", which the empty map means.
-	rankingMapPattern = regexp.MustCompile(`^[a-z]{2,4}_[a-z0-9_]{1,32}$`)
-	practiceGrenades  = []string{"smoke", "flash", "he", "molotov", "decoy"}
+	practiceGrenades   = []string{"smoke", "flash", "he", "molotov", "decoy"}
 )
 
 type faceitLookupIn struct {
@@ -111,46 +109,6 @@ type practiceOut struct {
 	Keys           []string `json:"keys,omitempty" jsonschema:"spot label and its key"`
 }
 
-type communityIn struct {
-	Map string `json:"map,omitempty" jsonschema:"one map, such as de_mirage; empty means all maps"`
-}
-
-type rankingMetricOut struct {
-	Metric     string   `json:"metric"`
-	Value      *float64 `json:"value,omitempty" jsonschema:"the user's own value"`
-	Percentile *float64 `json:"percentile,omitempty" jsonschema:"share of installs the user beats, 0 to 100"`
-	Median     *float64 `json:"median,omitempty"`
-	Installs   int      `json:"installs"`
-}
-
-type communityOut struct {
-	RankingsEnabled bool               `json:"rankings_enabled" jsonschema:"the user shares their numbers for the ranking"`
-	ServerEnabled   bool               `json:"server_enabled"`
-	SteamIDSet      bool               `json:"steam_id_set" jsonschema:"false means the user's Steam account is not set in Studio, so there is no own line"`
-	LastSubmitted   string             `json:"last_submitted,omitempty"`
-	SubmitError     string             `json:"submit_error,omitempty"`
-	Map             string             `json:"map,omitempty"`
-	Rounds          int                `json:"rounds"`
-	MinInstalls     int                `json:"min_installs" jsonschema:"a metric needs this many installs to rank"`
-	Metrics         []rankingMetricOut `json:"metrics"`
-}
-
-type setRankingIn struct {
-	Enabled bool   `json:"enabled" jsonschema:"true shares the user's per-map numbers with the ClipHub community server and submits them now"`
-	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
-}
-
-type rankingSettingsOut struct {
-	pendingOut
-	RankingsEnabled bool   `json:"rankings_enabled"`
-	Maps            int    `json:"maps,omitempty" jsonschema:"maps submitted"`
-	SubmitError     string `json:"submit_error,omitempty"`
-}
-
-type approveIn struct {
-	Approve string `json:"approve,omitempty" jsonschema:"only when asked: the approval code from a previous call, after the user agreed"`
-}
-
 func registerCommunityTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
@@ -197,7 +155,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_faceit_follows", Annotations: readOnly,
-		Description: "List the FACEIT players of the Jugadores page: the ones the user follows and the top players Studio lists by itself."},
+		Description: "List the FACEIT players of Seguimiento FACEIT: the ones the user follows and the top players Studio lists by itself."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, faceitFollowsOut, error) {
 			c, err := s.client(ctx)
 			if err != nil {
@@ -215,7 +173,7 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "follow_faceit_player", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Follow a FACEIT player by nickname or profile URL, as Seguir does on the Jugadores page."},
+		Description: "Follow a FACEIT player by nickname or profile URL, as Seguir does in Seguimiento FACEIT."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in faceitLookupIn) (*mcp.CallToolResult, faceitPlayerOut, error) {
 			nick, err := checkFaceitNickname(in.Nickname)
 			if err != nil {
@@ -294,88 +252,6 @@ func registerCommunityTools(server *mcp.Server, s *studio) {
 			}
 			return nil, out, nil
 		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "community_ranking", Annotations: readOnly,
-		Description: "Read the community ranking: whether the user shares their numbers, and their percentile on each metric against every Studio install that shares, overall or on one map."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in communityIn) (*mcp.CallToolResult, communityOut, error) {
-			if in.Map != "" && !rankingMapPattern.MatchString(in.Map) {
-				return nil, communityOut{}, errors.New("map must be a map name such as de_mirage")
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, communityOut{}, toolError(err)
-			}
-			st, err := c.GetCommunitySettings(ctx)
-			if err != nil {
-				return nil, communityOut{}, toolError(err)
-			}
-			rk, err := c.GetCommunityRankings(ctx, in.Map)
-			if err != nil {
-				return nil, communityOut{}, toolError(err)
-			}
-			return nil, communityOf(st, rk), nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "set_community_ranking", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Turn sharing for the community ranking on (sends the user's per-map numbers to the ClipHub community server now and after new matches) or off. " +
-			"Turning it on sends data off this PC, so the user must approve it. " + deleteApprovalHint},
-		func(ctx context.Context, req *mcp.CallToolRequest, in setRankingIn) (*mcp.CallToolResult, rankingSettingsOut, error) {
-			if in.Enabled {
-				summary := "Compartir tus números por mapa con el servidor de la comunidad de ClipHub para el ranking. Se envían ahora y tras cada partida nueva."
-				ask, pending, err := gate(req, approvalSpec{Tool: "set_community_ranking", JobID: "on", Request: true, Summary: summary, Given: in.Approve, Question: "¿Activar?"})
-				if err != nil || ask != nil {
-					return ask, rankingSettingsOut{}, err
-				}
-				if pending != nil {
-					return nil, rankingSettingsOut{pendingOut: *pending}, nil
-				}
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			st, err := c.SetCommunityRankings(ctx, in.Enabled)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			return nil, rankingSettingsOut{RankingsEnabled: st.RankingsEnabled, SubmitError: cleanName(st.SubmitError)}, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "submit_community_ranking", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Send the user's current per-map numbers to the community ranking now, as Enviar ahora does. Sharing must be on (set_community_ranking)."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, rankingSettingsOut, error) {
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			st, err := c.SubmitCommunityRankings(ctx)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			return nil, rankingSettingsOut{RankingsEnabled: st.RankingsEnabled, Maps: st.Maps}, nil
-		})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "delete_community_ranking", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
-		Description: "Make the community server forget this install's numbers and turn sharing off. It cannot be undone, so the user must approve it. " + deleteApprovalHint},
-		func(ctx context.Context, req *mcp.CallToolRequest, in approveIn) (*mcp.CallToolResult, rankingSettingsOut, error) {
-			summary := "Borrar tus números del servidor de la comunidad y dejar de compartirlos. No se puede deshacer."
-			ask, pending, err := gate(req, approvalSpec{Tool: "delete_community_ranking", JobID: "install", Request: true, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"})
-			if err != nil || ask != nil {
-				return ask, rankingSettingsOut{}, err
-			}
-			if pending != nil {
-				return nil, rankingSettingsOut{pendingOut: *pending}, nil
-			}
-			c, err := s.client(ctx)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			st, err := c.DeleteCommunityRankings(ctx)
-			if err != nil {
-				return nil, rankingSettingsOut{}, toolError(err)
-			}
-			return nil, rankingSettingsOut{pendingOut: pendingOut{Summary: summary}, RankingsEnabled: st.RankingsEnabled}, nil
-		})
 }
 
 func checkFaceitNickname(raw string) (string, error) {
@@ -434,18 +310,6 @@ func faceitMatchOf(m tuiclient.FaceitMatch) faceitMatchOut {
 	if st := m.Stats; st != nil {
 		out.Map, out.Result, out.Kills, out.Deaths, out.Assists = cleanName(st.Map), cleanName(st.Result), st.Kills, st.Deaths, st.Assists
 		out.ADR, out.HeadshotPct = st.ADR, st.HeadshotsPercent
-	}
-	return out
-}
-
-func communityOf(st tuiclient.CommunitySettings, rk tuiclient.CommunityRankings) communityOut {
-	out := communityOut{RankingsEnabled: st.RankingsEnabled, ServerEnabled: st.ServerEnabled, SteamIDSet: st.SteamIDSet,
-		SubmitError: cleanName(st.SubmitError), Map: cleanName(rk.Map), Rounds: rk.Rounds, MinInstalls: rk.MinInstalls, Metrics: []rankingMetricOut{}}
-	if st.LastSubmittedAt != nil {
-		out.LastSubmitted = st.LastSubmittedAt.Format(time.DateOnly)
-	}
-	for _, m := range rk.Metrics {
-		out.Metrics = append(out.Metrics, rankingMetricOut{Metric: cleanName(m.Metric), Value: m.Value, Percentile: m.Percentile, Median: m.Median, Installs: m.Installs})
 	}
 	return out
 }

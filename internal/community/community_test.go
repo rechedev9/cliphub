@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-func TestQuantilesAndPercentileAgree(t *testing.T) {
+func TestQuantiles(t *testing.T) {
 	values := []float64{}
 	for i := range 21 {
 		values = append(values, float64(i)/20)
@@ -18,15 +20,6 @@ func TestQuantilesAndPercentileAgree(t *testing.T) {
 	q := Quantiles(values)
 	if len(q) != QuantilePoints || q[0] != 0 || q[50] != 0.5 || q[100] != 1 {
 		t.Fatalf("quantiles = %v", q)
-	}
-	for v, want := range map[float64]float64{-1: 0, 0.5: 50, 0.525: 52.5, 2: 100} {
-		if got := Percentile(q, v); got != want {
-			t.Errorf("Percentile(%v) = %v, want %v", v, got, want)
-		}
-	}
-	flat := Quantiles([]float64{1, 1, 1, 1})
-	if got := Percentile(flat, 1); got != 50 {
-		t.Fatalf("a value tied with everyone sits in the middle, got %v", got)
 	}
 	if Quantiles(nil) != nil {
 		t.Fatal("no values, no quantiles")
@@ -101,14 +94,41 @@ func TestProReferenceCacheFallsBackAndRevalidates(t *testing.T) {
 	}
 }
 
-func TestSettingsStartOffWithARandomInstallID(t *testing.T) {
-	s := NewSettingsStore(t.TempDir())
-	first, err := s.Load()
-	if err != nil || first.RankingsEnabled || !InstallIDPattern.MatchString(first.InstallID) {
-		t.Fatalf("first load = %+v, %v", first, err)
+func TestRetireRankingsDeletesOnTheServerOnce(t *testing.T) {
+	const id = "0f8fad5b-d9cb-469f-a165-70867728950e"
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/v1/rankings/installs/"+id {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		deletes++
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	client, err := NewClient(srv.URL)
+	if err != nil {
+		t.Fatal(err)
 	}
-	updated, err := s.Update(func(v *Settings) { v.RankingsEnabled = true })
-	if err != nil || !updated.RankingsEnabled || updated.InstallID != first.InstallID {
-		t.Fatalf("update = %+v, %v", updated, err)
+	dir := t.TempDir()
+	path := filepath.Join(dir, rankingsFile)
+	if err := os.WriteFile(path, []byte(`{"rankings_enabled":true,"install_id":"`+id+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	RetireRankings(context.Background(), dir, nil)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("offline, the opt-in must stay for the next start")
+	}
+	RetireRankings(context.Background(), dir, client)
+	RetireRankings(context.Background(), dir, client)
+	if _, err := os.Stat(path); !os.IsNotExist(err) || deletes != 1 {
+		t.Fatalf("after retiring: stat err=%v deletes=%d", err, deletes)
+	}
+
+	if err := os.WriteFile(path, []byte(`{"rankings_enabled":false,"install_id":"`+id+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	RetireRankings(context.Background(), dir, client)
+	if _, err := os.Stat(path); !os.IsNotExist(err) || deletes != 1 {
+		t.Fatalf("an install that never shared: stat err=%v deletes=%d", err, deletes)
 	}
 }

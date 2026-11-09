@@ -254,49 +254,12 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         term: 'Mapas y veto',
         text: 'El historial por mapa cuenta resultados, rondas por lado, pistolas, picks y bans. El simulador de veto recomienda cada paso de un BO1, BO3 o BO5 contra un rival y explica por qué.',
       },
+      {
+        term: 'Ficha de jugador',
+        text: 'Cada nombre de una plantilla, una partida o un informe abre su ficha: nicks, equipos por fecha, partidas, rol y métricas avanzadas. Seguimiento FACEIT sigue jugadores y convierte sus partidas en clips.',
+      },
     ],
     link: { href: '/equipos', label: 'Ir a Equipos' },
-  },
-  {
-    id: 'players',
-    kicker: 'Jugadores',
-    label: 'Jugadores',
-    title: 'La ficha de cada jugador',
-    lead:
-      'Cada jugador de tus demos tiene su ficha por SteamID64: sus nicks, sus equipos por fecha, sus partidas y el rol que se lee de sus rondas.',
-    points: [
-      {
-        term: 'Rol con evidencia',
-        text: 'AWPer, entry o soporte se deciden con umbrales a la vista, y cada cifra enlaza a las rondas de las que sale.',
-      },
-      {
-        term: 'Métricas avanzadas',
-        text: 'WPA, bajas ajustadas por economía, duelos justos e injustos, trades, utilidad y rendimiento por posición. También en la ficha de cada partida y en cada informe.',
-      },
-      {
-        term: 'FACEIT',
-        text: 'Vincula su cuenta de FACEIT o sigue jugadores desde Seguimiento FACEIT. Necesita la conexión con FACEIT del servicio local.',
-      },
-    ],
-    link: { href: '/jugadores', label: 'Ir a Jugadores' },
-  },
-  {
-    id: 'ranking',
-    kicker: 'Ranking',
-    label: 'Ranking',
-    title: 'Quién destaca en tus demos',
-    lead: 'Ordena a los jugadores de la biblioteca por una cifra: bajas, ADR, KAST, aperturas, trades, utilidad o WPA por ronda.',
-    points: [
-      {
-        term: 'Biblioteca o Pro',
-        text: 'Pro lee solo las demos de HLTV. Es la misma media con la que se comparan las cifras de cada jugador.',
-      },
-      {
-        term: 'Mínimo de rondas',
-        text: 'Solo entra quien tiene las rondas que elijas, para que tres partidas buenas no encabecen la lista.',
-      },
-    ],
-    link: { href: '/ranking', label: 'Ir a Ranking' },
   },
   {
     id: 'libreta',

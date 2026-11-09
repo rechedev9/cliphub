@@ -74,46 +74,12 @@ func (c *Client) ProReference(ctx context.Context, etag string) ([]byte, string,
 	return body, resp.Header.Get("ETag"), nil
 }
 
-// Submit replaces the install's rankings on the server.
-func (c *Client) Submit(ctx context.Context, sub RankingSubmission) error {
-	body, err := json.Marshal(sub)
-	if err != nil {
-		return err
-	}
-	return c.send(ctx, http.MethodPost, "/v1/rankings/submit", body)
-}
-
 // Delete removes everything the install submitted.
 func (c *Client) Delete(ctx context.Context, installID string) error {
 	if !InstallIDPattern.MatchString(installID) {
 		return errors.New("community: invalid install id")
 	}
 	return c.send(ctx, http.MethodDelete, "/v1/rankings/installs/"+installID, nil)
-}
-
-// Rankings reads the distribution of every metric on one map.
-func (c *Client) Rankings(ctx context.Context, mapName string) (RankingsResponse, error) {
-	var out RankingsResponse
-	if !MapPattern.MatchString(mapName) {
-		return out, errors.New("community: invalid map")
-	}
-	req, err := c.request(ctx, http.MethodGet, "/v1/rankings?map="+url.QueryEscape(mapName), nil)
-	if err != nil {
-		return out, err
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return out, fmt.Errorf("community: rankings: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := readBody(resp, maxResponseBytes)
-	if err != nil {
-		return out, err
-	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return out, fmt.Errorf("community: rankings: %w", err)
-	}
-	return out, nil
 }
 
 func (c *Client) send(ctx context.Context, method, path string, body []byte) error {
