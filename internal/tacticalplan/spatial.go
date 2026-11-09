@@ -72,9 +72,21 @@ func (m SpatialMatch) positions() (blob []byte, header Positions, ok bool, err e
 type SpatialWindow struct {
 	From float64 `json:"from"`
 	To   float64 `json:"to"`
+	// FromPlant starts the span at each round's plant instead of From; a round
+	// with no plant then counts nothing.
+	FromPlant bool `json:"from_plant,omitempty"`
 }
 
-func (w SpatialWindow) contains(seconds float64) bool {
+// contains reports whether a moment of the round, in seconds after freeze
+// end, falls in the window.
+func (w SpatialWindow) contains(r Round, tickrate, seconds float64) bool {
+	if w.FromPlant {
+		if r.Bomb == nil || r.Bomb.PlantTick <= 0 {
+			return false
+		}
+		plant, ok := secondsSince(r, r.Bomb.PlantTick, tickrate)
+		return ok && seconds >= plant && (w.To <= 0 || seconds <= w.To)
+	}
 	return seconds >= w.From && (w.To <= 0 || seconds <= w.To)
 }
 
@@ -252,7 +264,7 @@ func (b *heatmapBuilder) addEvents(m SpatialMatch, r Round, team map[uint8]Side)
 	cal := doc.Geometry.Calibration
 	for _, ev := range r.Events {
 		seconds, ok := secondsSince(r, ev.Tick, doc.Demo.Tickrate)
-		if !ok || !b.opts.Window.contains(seconds) {
+		if !ok || !b.opts.Window.contains(r, doc.Demo.Tickrate, seconds) {
 			continue
 		}
 		e := Evidence{MatchID: m.MatchID, Round: r.Number, Tick: ev.Tick}
@@ -294,7 +306,7 @@ func (b *heatmapBuilder) addFrames(m SpatialMatch, r Round, team map[uint8]Side,
 			break
 		}
 		seconds, ok := secondsSince(r, frame.Tick, tickrate)
-		if !ok || !b.opts.Window.contains(seconds) {
+		if !ok || !b.opts.Window.contains(r, tickrate, seconds) {
 			continue
 		}
 		if b.opts.Kind == HeatPosition {

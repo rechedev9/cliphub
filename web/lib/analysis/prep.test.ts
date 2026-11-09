@@ -57,8 +57,8 @@ function matchup(side: TacticalSide, buy: TacticalBuyType, opponentBuy: Tactical
 }
 
 test('prep windows read as spans, the last one open', () => {
-  assert.equal(prepWindowLabel({ from_seconds: 20, to_seconds: 40 }), '20-40 s');
-  assert.equal(prepWindowLabel({ from_seconds: 60, to_seconds: 0 }), '60 s o más');
+  assert.equal(prepWindowLabel({ from_seconds: 55, to_seconds: 75 }), '1:00 a 0:40');
+  assert.equal(prepWindowLabel({ from_seconds: 75, to_seconds: 0 }), '0:40 al final');
 });
 
 test('a side matchup grid orders buys economically and drops unknown buys', () => {

@@ -10,6 +10,7 @@ import { prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { EmptyState } from '@/components/records/empty-state';
 import { GrenadeFinder } from '@/components/patterns/grenade-finder';
+import type { TramoControl } from './tramo-bar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -26,6 +27,7 @@ export function MatchGrenades({
   filter,
   rounds,
   onPickTeam,
+  tramo,
 }: {
   match: LibraryMatch;
   doc: TacticalDocument;
@@ -33,6 +35,7 @@ export function MatchGrenades({
   /** The rounds the scope kept. */
   rounds: readonly TacticalRound[];
   onPickTeam: (teamKey: string) => void;
+  tramo: TramoControl;
 }): ReactNode {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -63,6 +66,15 @@ export function MatchGrenades({
     return { ...load.data, grenades: load.data.grenades.filter((grenade) => kept.has(grenade.round)), rounds: kept.size };
   }, [load, kept]);
   const matchLabel = useCallback(() => matchTitle(match), [match]);
+  const plants = useMemo(() => {
+    const out = new Map<number, number>();
+    for (const round of rounds) {
+      const plant = round.bomb?.plant_tick ?? 0;
+      if (plant > round.tick_freeze_end && doc.demo.tickrate > 0) out.set(round.number, (plant - round.tick_freeze_end) / doc.demo.tickrate);
+    }
+    return out;
+  }, [rounds, doc.demo.tickrate]);
+  const plantSeconds = useCallback((_: string, round: number) => plants.get(round) ?? null, [plants]);
 
   if (team === undefined) {
     return (
@@ -122,5 +134,5 @@ export function MatchGrenades({
       />
     );
   }
-  return <GrenadeFinder key={`${teamId}|${match.map}`} map={match.map} geometry={doc.geometry} data={data} buy="" matchLabel={matchLabel} />;
+  return <GrenadeFinder key={`${teamId}|${match.map}`} map={match.map} geometry={doc.geometry} data={data} buy="" matchLabel={matchLabel} tramo={tramo} plantSeconds={plantSeconds} />;
 }

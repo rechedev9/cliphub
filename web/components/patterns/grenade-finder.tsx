@@ -27,7 +27,9 @@ import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { grenadeIcon } from '@/lib/analysis/icons';
 import { GrenadeSpotList, type LabelledSpot } from './grenade-spot-list';
 import { PracticeResult, usePracticeLaunch } from './practice-launch';
-import { ThrowTimeHistogram } from './throw-time-histogram';
+import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/components/replay/tramo-bar';
+import { ROUND_CLOCK_SECONDS, inTramo } from '@/lib/replay/tramo';
 
 const AREAS: readonly { value: GrenadeArea; label: string }[] = [
   { value: 'landing', label: 'Zona de caída' },
@@ -40,10 +42,15 @@ type Props = {
   data: TeamGrenades;
   buy: TacticalBuyType | '';
   matchLabel: (matchId: string) => string;
+  /** The owner's tramo; without it the finder keeps its own. */
+  tramo?: TramoControl;
+  /** When the bomb went down in a round, in seconds after freeze end; needed for the tramo from the plant. */
+  plantSeconds?: (matchId: string, round: number) => number | null;
 };
 
 /** The Pattern Finder on one map: radar with tracers, box filter, throw times and the spots list. */
-export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): ReactNode {
+export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tramoControl, plantSeconds }: Props): ReactNode {
+  const { tramo, onChange: setTramo } = useTramo(tramoControl);
   const [kinds, setKinds] = useState<ReadonlySet<TeamGrenadeKind>>(() => new Set(TEAM_GRENADE_KINDS));
   const [area, setArea] = useState<GrenadeArea>('landing');
   const [box, setBox] = useState<WorldBox | null>(null);
@@ -64,7 +71,12 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
     for (const grenade of onLevel) out.set(grenade.kind, (out.get(grenade.kind) ?? 0) + 1);
     return out;
   }, [onLevel]);
-  const drawn = useMemo(() => onLevel.filter((grenade) => kinds.has(grenade.kind)), [onLevel, kinds]);
+  const ofKinds = useMemo(() => onLevel.filter((grenade) => kinds.has(grenade.kind)), [onLevel, kinds]);
+  // The tramo counts the throw by when the grenade went off, the moment the histogram bins too.
+  const drawn = useMemo(
+    () => ofKinds.filter((grenade) => inTramo(tramo, grenade.seconds, plantSeconds?.(grenade.match_id, grenade.round) ?? null)),
+    [ofKinds, tramo, plantSeconds],
+  );
   const selected = useMemo(
     () => (box === null ? null : new Set(drawn.filter((grenade) => grenadeInBox({ grenade, box, area, floor: { calibration, level } })).map(grenadeId))),
     [drawn, box, area, calibration, level],
@@ -88,7 +100,9 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
     for (const { spot } of spots) for (const grenade of spot.grenades) out.set(grenadeId(grenade), spot.key);
     return out;
   }, [spots]);
-  const bins = useMemo(() => throwTimeBins(matching), [matching]);
+  // Every throw of the kinds in view, so the bars show what a narrower tramo would keep.
+  const bins = useMemo(() => throwTimeBins(ofKinds, 5, ROUND_CLOCK_SECONDS), [ofKinds]);
+  const tallest = bins.reduce((top, bin) => Math.max(top, bin.count), 0);
   const missingOrigins = matching.filter((grenade) => grenade.origin === null).length;
   const chosenSpots = spots.filter(({ spot }) => chosen.includes(spot.key));
 
@@ -151,7 +165,17 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel }: Props): 
           onBox={setBox}
           onHover={setHover}
         />
-        <ThrowTimeHistogram bins={bins} />
+        <TramoBar
+          tramo={tramo}
+          onChange={setTramo}
+          marks={
+            <div className="absolute inset-0 flex items-end gap-px" role="img" aria-label="Cuándo se lanzan las granadas a lo largo de la ronda">
+              {bins.map((bin) => (
+                <span key={bin.start} className="flex-1 rounded-t-xs bg-fg-3" style={{ height: tallest === 0 ? 0 : `${(bin.count / tallest) * 100}%` }} />
+              ))}
+            </div>
+          }
+        />
       </section>
 
       <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-2 lg:sticky lg:top-[calc(var(--shell-strip-height)+3.5rem)] lg:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] lg:overflow-y-auto">

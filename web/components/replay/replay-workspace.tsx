@@ -14,7 +14,9 @@ import { roundOutcome } from '@/lib/replay/round-outcome';
 import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
-import { playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
+import type { Tramo } from '@/lib/replay/tramo';
 import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import {
@@ -105,6 +107,8 @@ export function ReplayWorkspace({
   const [loop, setLoop] = useState(false);
   const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
+  // The span the superposed rounds play in; one round alone plays whole.
+  const [tramo, setTramo] = useState<Tramo>(WHOLE_ROUND);
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -235,6 +239,10 @@ export function ReplayWorkspace({
   );
 
   const ready = focused !== null;
+  const span = useMemo(
+    () => (multi && !isWholeRound(tramo) ? { from: tramo.from, to: Math.min(tramoEnd(tramo), transport.durationSeconds) } : null),
+    [multi, tramo, transport.durationSeconds],
+  );
   useEffect(() => {
     if (!playing || !ready) return;
     let frame = 0;
@@ -253,6 +261,13 @@ export function ReplayWorkspace({
         hasNext: !multi && index < entries.length - 1,
       });
       last = now;
+      if (span !== null && next.action !== 'hold') {
+        seekedRef.current = false;
+        clock.set(loopWithin(next.position, span));
+        written = clock.seconds;
+        frame = requestAnimationFrame(step);
+        return;
+      }
       if (next.action !== 'hold') {
         seekedRef.current = false;
         clock.set(next.position);
@@ -265,7 +280,7 @@ export function ReplayWorkspace({
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select]);
+  }, [playing, ready, speed, loop, transport, clock, multi, index, entries.length, select, span]);
 
   const togglePlay = useCallback(() => {
     setPlaying((value) => {
@@ -617,6 +632,7 @@ export function ReplayWorkspace({
           onToggleLoop={() => setLoop((value) => !value)}
           onSeek={seekTo}
           onScrubbingChange={setScrubbing}
+          tramo={multi ? { tramo, onChange: setTramo } : undefined}
           below={
             moments.length === 0 && winState === null ? undefined : (
               <>

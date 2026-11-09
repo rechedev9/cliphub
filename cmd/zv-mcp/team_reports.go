@@ -127,7 +127,7 @@ type spotOut struct {
 }
 
 type prepWindowOut struct {
-	Window string    `json:"window" jsonschema:"seconds after freeze end, such as 0-20s or 60s+"`
+	Window string    `json:"window" jsonschema:"a span of the round clock, which counts down from 1:55: such as 1:55 to 1:00 or 0:40 to the end; the same tramos the Replay offers"`
 	Rounds int       `json:"rounds"`
 	Spots  []spotOut `json:"spots"`
 }
@@ -312,11 +312,20 @@ func tempoOf(h tuiclient.Histogram) tempoOut {
 	return tempoOut{Samples: h.Samples, MedianSeconds: h.Median}
 }
 
+// roundClockSeconds is the length of a CS2 round; the clock counts down from it.
+const roundClockSeconds = 115
+
+func roundClock(seconds int) string {
+	left := max(roundClockSeconds-seconds, 0)
+	return fmt.Sprintf("%d:%02d", left/60, left%60)
+}
+
+// windowName names a window on the round clock, as the Replay's tramo does.
 func windowName(from, to int) string {
 	if to == 0 {
-		return fmt.Sprintf("%ds+", from)
+		return roundClock(from) + " to the end"
 	}
-	return fmt.Sprintf("%d-%ds", from, to)
+	return roundClock(from) + " to " + roundClock(to)
 }
 
 // refStrings formats the first rounds as match_id/round, the refs find_rounds returns.

@@ -36,6 +36,9 @@ import { RadarSurface } from './radar-surface';
 import type { RadarFrame, RadarSurfaceHandle } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { TelestratorLayer, useTelestratorDraft } from './telestrator';
+import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/components/replay/tramo-bar';
+import { isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 
 /** Seconds of path drawn behind each dot. */
 const TRAIL_SECONDS = 4;
@@ -74,10 +77,14 @@ function patternText(round: OverlayRound): string {
 export function OverlayView({
   scope,
   onLoaded,
+  tramo: tramoControl,
 }: {
   scope: SpatialScope;
   onLoaded?: (response: SpatialResponse) => void;
+  /** The owner's tramo; without it the view keeps its own. */
+  tramo?: TramoControl;
 }): ReactNode {
+  const tramo = useTramo(tramoControl);
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const scopeKey = JSON.stringify(scope);
   const scopeRef = useRef(scope);
@@ -127,10 +134,10 @@ export function OverlayView({
       </p>
     );
   }
-  return <OverlayPlayer key={scopeKey} data={data} />;
+  return <OverlayPlayer key={scopeKey} data={data} tramo={tramo} />;
 }
 
-function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
+function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: SpatialResponse; tramo: TramoControl }): ReactNode {
   const overlay = data.overlay;
   const geometry = data.geometry;
   const rounds = useMemo(() => overlay?.rounds ?? [], [overlay]);
@@ -159,6 +166,24 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
   const byKey = useMemo(() => new Map(rounds.map((round) => [overlayRoundKey(round), round])), [rounds]);
   const focused = byKey.get(focus);
   const now = uiTick / UI_TICKS_PER_SECOND;
+
+  // Each round's tramo in its own seconds: absent for the whole round, null when the round has none (no plant).
+  const spans = useMemo(() => {
+    const out = new Map<string, { from: number; to: number } | null>();
+    if (isWholeRound(tramo)) return out;
+    for (const round of rounds) {
+      const plant = round.events.find((event) => event.kind === TACTICAL_EVENT_KINDS.plant)?.seconds ?? null;
+      if (tramo.fromPlant === true) out.set(overlayRoundKey(round), plant === null ? null : { from: plant, to: round.duration_seconds });
+      else out.set(overlayRoundKey(round), { from: tramo.from, to: Math.min(tramoEnd(tramo), round.duration_seconds) });
+    }
+    return out;
+  }, [rounds, tramo]);
+  // Playback stays inside the tramo and starts over at its end.
+  const bounds = useMemo(() => {
+    const kept = [...spans.values()].filter((span) => span !== null);
+    if (kept.length === 0) return { from: 0, to: duration };
+    return { from: Math.min(...kept.map((span) => span.from)), to: Math.min(duration, Math.max(...kept.map((span) => span.to))) };
+  }, [duration, spans]);
 
   const paint = useCallback(
     ({ ctx, size, style }: RadarFrame) => {
@@ -207,7 +232,11 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
         }
         for (const track of round.tracks) {
           const color = sideColor(track.side);
-          const trail = trackTrail(track, seconds, step, TRAIL_SECONDS);
+          // With a tramo the whole path inside it stays drawn; the dot still plays over it.
+          const span = spans.get(overlayRoundKey(round));
+          let trail = trackTrail(track, seconds, step, TRAIL_SECONDS);
+          if (span === null) trail = [];
+          else if (span !== undefined) trail = trackTrail(track, span.to, step, span.to - span.from);
           const index = Math.min(track.points.length - 1, Math.max(0, Math.floor(seconds / step - track.start)));
           const strength = floorAlpha(floor, track.points[index]?.[2] ?? 0);
           if (trail.length > 1) {
@@ -255,7 +284,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
       }
       ctx.globalAlpha = 1;
     },
-    [focus, geometry, hidden, level, rounds, step],
+    [focus, geometry, hidden, level, rounds, spans, step],
   );
 
   const show = useCallback(
@@ -278,19 +307,23 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
     const loop = (time: number): void => {
       const next = positionRef.current + ((time - last) / 1000) * speed;
       last = time;
-      show(next);
-      if (next >= duration) {
-        setPlaying(false);
-        return;
+      if (next >= bounds.to && bounds.from > 0) {
+        show(bounds.from);
+      } else {
+        show(Math.max(next, bounds.from));
+        if (next >= bounds.to) {
+          setPlaying(false);
+          return;
+        }
       }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [playing, speed, duration, show]);
+  }, [playing, speed, bounds, show]);
 
   const togglePlay = (): void => {
-    if (!playing && positionRef.current >= duration) show(0);
+    if (!playing && positionRef.current >= bounds.to) show(bounds.from);
     setPlaying(!playing);
   };
 
@@ -420,6 +453,7 @@ function OverlayPlayer({ data }: { data: SpatialResponse }): ReactNode {
               />
             ) : null}
           </div>
+          <TramoBar tramo={tramo} onChange={setTramo} />
           <p className="text-meta text-fg-3">
             Cada ronda empieza en su final del tiempo de compra. Puntos cada {step} s, interpolados.
             {overlay.total > rounds.length ? ` Se muestran ${rounds.length} de ${overlay.total} rondas: afina el filtro para ver otras.` : ''}

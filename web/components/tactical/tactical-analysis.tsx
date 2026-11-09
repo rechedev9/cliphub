@@ -9,6 +9,8 @@ import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { LibraryMatch } from '@/lib/api/library';
 import { DEFAULT_REPLAY_FORM, REPLAY_FORMS, replayFormFromQuery, writeReplayForm } from '@/lib/replay/forms';
 import type { ReplayForm } from '@/lib/replay/forms';
+import { tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
+import type { Tramo } from '@/lib/replay/tramo';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { TACTICAL_FILTER_PARAMS } from '@/lib/api/tactical';
@@ -167,6 +169,15 @@ export function TacticalAnalysis({
     },
     [pathname, router, searchParams, setSelectedRound, shownRound],
   );
+  const tramoValue = useMemo(() => tramoFromQuery(searchParams), [searchParams]);
+  const setTramo = useCallback(
+    (next: Tramo) => {
+      const query = writeTramo(searchParams.toString(), next);
+      router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+  const tramo = useMemo(() => ({ tramo: tramoValue, onChange: setTramo }), [tramoValue, setTramo]);
   const setForm = useCallback(
     (next: ReplayForm) => {
       const query = writeReplayForm(searchParams.toString(), next);
@@ -203,11 +214,11 @@ export function TacticalAnalysis({
   if (loaded === null) {
     rounded = <StudioEmptyState icon={FileWarning} title="No se puede reproducir esta demo" description={POSITIONS_MISSING_MESSAGE} compact />;
   } else if (form === 'calor') {
-    rounded = <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch />;
+    rounded = <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} />;
   } else if (form === 'recorridos') {
-    rounded = <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch />;
+    rounded = <SpatialWorkspace scope={spatialScope} view="overlay" hideViewSwitch tramo={tramo} />;
   } else if (form === 'granadas' && match !== undefined) {
-    rounded = <MatchGrenades match={match} doc={doc} filter={filter} rounds={rounds} onPickTeam={(team_key) => applyFilter({ ...filter, team_key })} />;
+    rounded = <MatchGrenades match={match} doc={doc} filter={filter} rounds={rounds} onPickTeam={(team_key) => applyFilter({ ...filter, team_key })} tramo={tramo} />;
   } else {
     rounded = (
       <ReplayWorkspace

@@ -1,10 +1,11 @@
 import type { PrepMatchup, PrepTempo, PrepWindow } from '../api/playbook.ts';
+import { roundClock } from '../replay/tramo.ts';
 import { TACTICAL_BUY_TYPE_ORDER, type TacticalBuyType, type TacticalSide } from '../api/tactical.ts';
 
-/** "0-20 s", or "60 s o más" for the open last window. */
+/** A window on the round clock, as the Replay's tramo reads: "1:55 a 1:00", or "0:40 al final" for the open last one. */
 export function prepWindowLabel(window: PrepWindow): string {
-  if (window.to_seconds === 0) return `${window.from_seconds} s o más`;
-  return `${window.from_seconds}-${window.to_seconds} s`;
+  if (window.to_seconds === 0) return `${roundClock(window.from_seconds)} al final`;
+  return `${roundClock(window.from_seconds)} a ${roundClock(window.to_seconds)}`;
 }
 
 /** Buys in economic order that appear in the rows, `unknown` left out. */

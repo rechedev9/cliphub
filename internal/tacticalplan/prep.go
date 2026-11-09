@@ -20,8 +20,9 @@ func (w PrepWindow) contains(seconds float64) bool {
 	return seconds >= float64(w.FromSeconds) && (w.ToSeconds == 0 || seconds < float64(w.ToSeconds))
 }
 
-// PrepWindows are the windows CT positions are read in.
-var PrepWindows = []PrepWindow{{0, 20}, {20, 40}, {40, 60}, {60, 0}}
+// PrepWindows are the windows CT positions are read in: the Replay's quick
+// tramos on the round clock, 1:55 to 1:00, 1:00 to 0:40 and 0:40 to the end.
+var PrepWindows = []PrepWindow{{0, 55}, {55, 75}, {75, 0}}
 
 // PrepThresholds are the rules the prep applied.
 type PrepThresholds struct {

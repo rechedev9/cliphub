@@ -44,3 +44,8 @@ export function playStartSeconds(position: number, durationSeconds: number): num
 function atEnd(position: number, durationSeconds: number): boolean {
   return position >= durationSeconds - SCRUB_STEP_SECONDS;
 }
+
+/** A playing position kept inside a span: past its end, or before its start, it starts over. */
+export function loopWithin(position: number, span: { from: number; to: number }): number {
+  return position < span.from || position >= span.to ? span.from : position;
+}

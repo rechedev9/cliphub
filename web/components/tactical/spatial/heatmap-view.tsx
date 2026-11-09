@@ -28,15 +28,9 @@ import { RadarSurface } from './radar-surface';
 import type { RadarFrame } from './radar-surface';
 import { Segmented } from '@/components/ui/segmented';
 import { EvidenceChips } from './spatial-controls';
-
-const WINDOWS = [
-  { value: 'all', label: 'Toda la ronda', from: 0, to: 0 },
-  { value: 'early', label: '0 a 20 s', from: 0, to: 20 },
-  { value: 'mid', label: '20 a 40 s', from: 20, to: 40 },
-  { value: 'late', label: '40 a 60 s', from: 40, to: 60 },
-  { value: 'after', label: 'Desde 60 s', from: 60, to: 0 },
-] as const;
-type WindowValue = (typeof WINDOWS)[number]['value'];
+import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
+import type { TramoControl } from '@/components/replay/tramo-bar';
+import { isWholeRound } from '@/lib/replay/tramo';
 
 const TOP_CELLS = 8;
 
@@ -55,13 +49,20 @@ export function HeatmapView({
   scope,
   side: sideHint,
   onLoaded,
+  tramo: tramoControl,
 }: {
   scope: SpatialScope;
   side: TacticalSide | '';
+  /** The owner's tramo; without it the view keeps its own. */
+  tramo?: TramoControl;
   onLoaded?: (response: SpatialResponse) => void;
 }): ReactNode {
   const [kind, setKind] = useState<HeatmapKind>('position');
-  const [windowValue, setWindowValue] = useState<WindowValue>('all');
+  const { tramo, onChange: setTramo } = useTramo(tramoControl);
+  const whole = isWholeRound(tramo);
+  const tramoFrom = whole ? 0 : tramo.from;
+  const tramoTo = whole ? 0 : tramo.to;
+  const fromPlant = tramo.fromPlant === true;
   const [grenades, setGrenades] = useState<HeatmapGrenade[]>([]);
   const [side, setSide] = useState<TacticalSide | ''>(sideHint);
   const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
@@ -80,11 +81,11 @@ export function HeatmapView({
   useEffect(() => {
     let active = true;
     setLoad({ kind: 'loading' });
-    const range = WINDOWS.find((entry) => entry.value === windowValue) ?? WINDOWS[0];
     getSpatialHeatmap(scopeRef.current, {
       kind,
-      from: range.from,
-      to: range.to,
+      from: tramoFrom,
+      to: tramoTo,
+      fromPlant,
       grenades: kind === 'utility' && grenadeKey !== '' ? grenadeKey.split(',').filter(isGrenade) : [],
     })
       .then((data) => {
@@ -98,7 +99,7 @@ export function HeatmapView({
     return () => {
       active = false;
     };
-  }, [scopeKey, kind, windowValue, grenadeKey, onLoaded]);
+  }, [scopeKey, kind, tramoFrom, tramoTo, fromPlant, grenadeKey, onLoaded]);
 
   const data = load.kind === 'ready' ? load.data : null;
   const heatmap = data?.heatmap;
@@ -228,8 +229,8 @@ export function HeatmapView({
             }}
           />
         ) : null}
-        <Segmented label="Momento de la ronda" value={windowValue} options={WINDOWS} onChange={setWindowValue} />
       </div>
+      <TramoBar tramo={tramo} onChange={setTramo} />
       {kind === 'utility' ? (
         <div role="group" aria-label="Granadas" className="flex flex-wrap items-center gap-1.5">
           <span className="text-body-sm text-fg-3">Granadas:</span>
