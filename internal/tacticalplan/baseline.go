@@ -151,22 +151,6 @@ func (s *BaselineSample) Add(r MetricsReport) {
 	}
 }
 
-// PlayerLine is one player's rounds, matches and reference values in a sample.
-type PlayerLine struct {
-	Rounds  int
-	Matches int
-	Values  map[string]float64
-}
-
-// Player returns the line of one player, or false when the sample lacks them.
-func (s *BaselineSample) Player(steamID string) (PlayerLine, bool) {
-	t, ok := s.players[steamID]
-	if !ok {
-		return PlayerLine{}, false
-	}
-	return PlayerLine{Rounds: t.rounds, Matches: t.matches, Values: t.values()}, true
-}
-
 // BaselineValue is the mean of one metric over the players that have it, and
 // how far players spread around it.
 type BaselineValue struct {
