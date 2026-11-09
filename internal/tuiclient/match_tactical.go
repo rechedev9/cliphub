@@ -176,3 +176,37 @@ func (c *Client) LibraryMatchOverlay(ctx context.Context, matchID string, filter
 	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/overlay"+suffix, &out)
 	return out, err
 }
+
+// SpatialHeatmap is the heatmap answer of a match or a team: the map, the
+// matches read, the radar geometry the cells are named on, and the grid.
+type SpatialHeatmap struct {
+	Map     string `json:"map"`
+	Matches []struct {
+		MatchID string `json:"match_id"`
+	} `json:"matches"`
+	Skipped []struct {
+		MatchID string `json:"match_id"`
+	} `json:"skipped"`
+	Geometry *tacticalplan.MapGeometry `json:"geometry"`
+	Heatmap  *tacticalplan.Heatmap     `json:"heatmap"`
+}
+
+// LibraryMatchHeatmap counts one match's rounds that the query keeps into a heatmap.
+func (c *Client) LibraryMatchHeatmap(ctx context.Context, matchID string, query url.Values) (SpatialHeatmap, error) {
+	var out SpatialHeatmap
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/heatmap"+encodeValues(query), &out)
+	return out, err
+}
+
+// LibraryTeamHeatmap counts a team's rounds on one map into a heatmap: q is
+// the team's scope, heat the heatmap's own query and the round filter.
+func (c *Client) LibraryTeamHeatmap(ctx context.Context, teamID string, q AnalysisQuery, heat url.Values) (SpatialHeatmap, error) {
+	q.Limit = 0
+	values := q.values()
+	for key, list := range heat {
+		values[key] = list
+	}
+	var out SpatialHeatmap
+	err := c.getJSON(ctx, teamPath(teamID, "heatmap")+encodeValues(values), &out)
+	return out, err
+}

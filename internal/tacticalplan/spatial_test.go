@@ -71,6 +71,67 @@ func TestHeatmapSubjectsNarrowThePlayersNotTheRounds(t *testing.T) {
 	}
 }
 
+// killMatch adds to round 3 a kill from (100,200,30) and a team kill, both by slot 1 of ct-start.
+func killMatch(t *testing.T, filter Filter) SpatialMatch {
+	t.Helper()
+	m := spatialMatch(t, filter)
+	r := &m.Document.Rounds[2]
+	r.Events = append(r.Events,
+		Event{Tick: 12640, Kind: EventKill, ActorSlot: slotPtr(1), TargetSlot: slotPtr(2), Side: SideT, Pos: [3]float64{100, 200, 30}, TargetPos: [3]float64{-700, 640, -10}},
+		Event{Tick: 12700, Kind: EventKill, ActorSlot: slotPtr(1), TargetSlot: slotPtr(0), Side: SideT, Pos: [3]float64{100, 200, 30}, TargetPos: [3]float64{0, 0, 0}},
+	)
+	return m
+}
+
+func TestHeatmapKillsPlaceTheKillerOrTheVictim(t *testing.T) {
+	m := killMatch(t, Filter{TeamKey: "ct-start"})
+	killers, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatKill})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if killers.KillAt != KillAtKiller || len(killers.Cells) != 2 {
+		t.Fatalf("kills = %+v, want the two kills of ct-start from where the killers stood, not the team kill", killers)
+	}
+	if c, ok := findCell(killers, SideT, 1, 3); !ok || c.Count != 1 || c.Z != 30 || c.Seconds != 31.3 {
+		t.Fatalf("slot 1 kill = %+v, want (1,3) on T at 31.3 s and 30 units up", killers.Cells)
+	}
+	if _, ok := findCell(killers, SideT, 0, 0); !ok {
+		t.Fatalf("slot 0 kill = %+v, want the awp kill from the origin", killers.Cells)
+	}
+	victims, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatKill, KillAt: KillAtVictim})
+	if c, ok := findCell(victims, SideT, -11, 10); !ok || c.Count != 1 || victims.KillAt != KillAtVictim {
+		t.Fatalf("victims = %+v, want slot 2 fallen at (-11,10)", victims.Cells)
+	}
+	if _, ok := findCell(victims, SideT, 14, 14); !ok {
+		t.Fatalf("victims = %+v, want slot 3 fallen at (14,14)", victims.Cells)
+	}
+	beta, _ := BuildHeatmap([]SpatialMatch{killMatch(t, Filter{TeamKey: "t-start"})}, HeatmapOptions{Kind: HeatKill})
+	if len(beta.Cells) != 0 {
+		t.Fatalf("t-start kills = %+v, want none: it only died", beta.Cells)
+	}
+	deaths, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatDeath, KillAt: KillAtVictim})
+	if deaths.KillAt != "" {
+		t.Fatalf("death heatmap kill_at = %q, want none", deaths.KillAt)
+	}
+}
+
+func TestHeatmapFocusFollowsPlayersBySteamID(t *testing.T) {
+	m := killMatch(t, Filter{TeamKey: "ct-start"})
+	m.Focus = []string{"2"}
+	h, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatKill})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Cells) != 1 || h.Cells[0].X != 1 || h.Rounds != 4 {
+		t.Fatalf("focus on a2 = %+v, want only slot 1's kill over all 4 rounds", h)
+	}
+	m.Focus = []string{"999"}
+	none, _ := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatKill})
+	if len(none.Cells) != 0 || none.Rounds != 4 {
+		t.Fatalf("focus on a player not in the match = %+v, want 4 rounds and nothing counted", none)
+	}
+}
+
 func TestHeatmapUtilityByGrenadeAndWindow(t *testing.T) {
 	m := spatialMatch(t, Filter{TeamKey: "ct-start"})
 	all, err := BuildHeatmap([]SpatialMatch{m}, HeatmapOptions{Kind: HeatUtility})

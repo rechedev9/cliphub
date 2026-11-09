@@ -94,7 +94,11 @@ func parseSpatialRequest(q url.Values, overlay bool) (spatialRequest, error) {
 		known = known || k == kind
 	}
 	if !known {
-		return req, errors.New("kind must be position, death, utility or timing")
+		return req, errors.New("kind must be position, death, kill, utility or timing")
+	}
+	killAt := tacticalplan.KillSpot(q.Get("kill_at"))
+	if killAt != "" && killAt != tacticalplan.KillAtKiller && killAt != tacticalplan.KillAtVictim {
+		return req, errors.New("kill_at must be killer or victim")
 	}
 	var err error
 	window := tacticalplan.SpatialWindow{}
@@ -123,8 +127,25 @@ func parseSpatialRequest(q url.Values, overlay bool) (spatialRequest, error) {
 			return req, errors.New("grenade must be smoke, flash, he or molotov")
 		}
 	}
-	req.heatmap = tacticalplan.HeatmapOptions{Kind: kind, Window: window, Grenades: grenades}
+	req.heatmap = tacticalplan.HeatmapOptions{Kind: kind, Window: window, Grenades: grenades, KillAt: killAt}
 	return req, nil
+}
+
+// maxSpatialPlayers bounds the team view's focus: a team and its stand-ins.
+const maxSpatialPlayers = 10
+
+// spatialPlayers reads the team view's focus, SteamID64s that stay the same between demos.
+func spatialPlayers(q url.Values) ([]string, error) {
+	list := q["player"]
+	if len(list) > maxSpatialPlayers {
+		return nil, fmt.Errorf("at most %d player values", maxSpatialPlayers)
+	}
+	for _, id := range list {
+		if !validSteamID(id) {
+			return nil, errors.New("player must be a SteamID64")
+		}
+	}
+	return list, nil
 }
 
 // positionsReader opens a match's blob only when the builder reaches it. A
@@ -274,9 +295,13 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}
-	// Slots differ between demos, so a team view cannot filter by them.
+	// Slots differ between demos, so a team view filters by SteamID64 instead.
 	rounds.Slots = nil
 	rounds.Subjects = nil
+	focus, err := spatialPlayers(q)
+	if err != nil {
+		return spatialResponse{}, nil, errBadSpatialQuery{err}
+	}
 	candidates, pending, skipped, err := h.teamCandidates(ctx, team, matchIDs)
 	if err != nil {
 		return spatialResponse{}, nil, err
@@ -307,7 +332,7 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 		filter := rounds
 		filter.TeamKey, filter.Side, filter.Lineup = sm.TeamKey, scout.Side, scout.Lineup
 		matches = append(matches, tacticalplan.SpatialMatch{
-			MatchID: sm.MatchID, Document: sm.Document, Filter: filter, Blob: h.positionsReader(k.demoID),
+			MatchID: sm.MatchID, Document: sm.Document, Filter: filter, Focus: focus, Blob: h.positionsReader(k.demoID),
 		})
 		resp.Matches = append(resp.Matches, spatialMatchRef{
 			MatchID: sm.MatchID, Map: mapName, PlayedAt: sm.PlayedAt, TeamKey: sm.TeamKey, Opponent: sm.Opponent,

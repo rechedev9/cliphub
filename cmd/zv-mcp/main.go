@@ -106,6 +106,9 @@ replay_rounds reads the rounds of one match that a Replay scope keeps (team, sid
 round range, phase); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
 replay_overlay superposes those rounds from the end of freeze time, as Superponer does, with the same scope and focus.
+match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,
+in a clock window (clock_from and clock_to, seconds after the round went live, or from_plant); it lists the hottest cells
+with their callout and counts. team_heatmap reads a team's matches on one map the same way, with players (SteamID64s) as the focus.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
 round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one playlist to open in Studio.

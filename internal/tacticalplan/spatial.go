@@ -29,17 +29,28 @@ const (
 // HeatmapKind is what a heatmap counts.
 type HeatmapKind string
 
-// Heatmap kinds: where the players stood, where they died, where their
-// grenades landed, and how soon after freeze end they first reached a cell.
+// Heatmap kinds: where the players stood, where they died, where they killed
+// from (or where their victims fell), where their grenades landed, and how
+// soon after freeze end they first reached a cell.
 const (
 	HeatPosition HeatmapKind = "position"
 	HeatDeath    HeatmapKind = "death"
+	HeatKill     HeatmapKind = "kill"
 	HeatUtility  HeatmapKind = "utility"
 	HeatTiming   HeatmapKind = "timing"
 )
 
 // HeatmapKinds lists the kinds in the order the UI offers them.
-var HeatmapKinds = []HeatmapKind{HeatPosition, HeatDeath, HeatUtility, HeatTiming}
+var HeatmapKinds = []HeatmapKind{HeatPosition, HeatDeath, HeatKill, HeatUtility, HeatTiming}
+
+// KillSpot is which end of a kill the kill heatmap places.
+type KillSpot string
+
+// Kill spots: where the followed player stood when they killed, or where their victim fell.
+const (
+	KillAtKiller KillSpot = "killer"
+	KillAtVictim KillSpot = "victim"
+)
 
 // SpatialMatch is one match a heatmap or an overlay reads: its document, the
 // round filter (TeamKey set when one team is followed), and its position blob.
@@ -47,10 +58,27 @@ type SpatialMatch struct {
 	MatchID  uuid.UUID
 	Document Document
 	Filter   Filter
+	// Focus names the counted players by SteamID64, for a team view whose slots
+	// differ between demos. Set, it counts nobody else, even in a match none of them played.
+	Focus []string
 	// Blob reads the zvpos1 sidecar when the builder reaches the match, so only
 	// one blob is in memory at a time. Nil, or nil bytes, means the match has
 	// none, which leaves the positions, timings and overlay tracks without it.
 	Blob func() ([]byte, error)
+}
+
+// subjects is the slots a round counts, narrowed to the focus when there is one.
+func (m SpatialMatch) subjects(r Round) map[uint8]Side {
+	team := subjects(m.Document, m.Filter, r)
+	if len(m.Focus) == 0 {
+		return team
+	}
+	for slot := range team {
+		if p, ok := m.Document.PlayerBySlot(slot); !ok || !slices.Contains(m.Focus, p.SteamID64) {
+			delete(team, slot)
+		}
+	}
+	return team
 }
 
 // positions reads and decodes the header of a match's blob; ok is false when
@@ -91,11 +119,13 @@ func (w SpatialWindow) contains(r Round, tickrate, seconds float64) bool {
 	return seconds >= w.From && (w.To <= 0 || seconds <= w.To)
 }
 
-// HeatmapOptions selects the kind and, for utility, the grenades counted.
+// HeatmapOptions selects the kind, for utility the grenades counted, and for
+// kills which end of the kill is placed (the killer when empty).
 type HeatmapOptions struct {
 	Kind     HeatmapKind
 	Window   SpatialWindow
 	Grenades []EventKind
+	KillAt   KillSpot
 }
 
 // HeatmapCell is one cell of the grid on one side and one level. X and Y index
@@ -109,13 +139,17 @@ type HeatmapCell struct {
 	Rounds int    `json:"rounds"`
 	// Seconds is the median time after freeze end of what the cell counted;
 	// for the timing kind it is the median first arrival.
-	Seconds  float64    `json:"seconds"`
+	Seconds float64 `json:"seconds"`
+	// Z is the median altitude of what the cell counted, which names the
+	// callout where two floors share the cell.
+	Z        int        `json:"z"`
 	Examples []Evidence `json:"examples"`
 }
 
 // Heatmap is a grid of counts over the selected rounds, split by side and level.
 type Heatmap struct {
 	Kind         HeatmapKind   `json:"kind"`
+	KillAt       KillSpot      `json:"kill_at,omitempty"`
 	Window       SpatialWindow `json:"window"`
 	Grenades     []EventKind   `json:"grenades,omitempty"`
 	CellSize     float64       `json:"cell_size"`
@@ -150,6 +184,7 @@ type heatAcc struct {
 	rounds    int
 	lastRound int
 	seconds   []float64
+	zs        []float64
 	examples  []timedEvidence
 }
 
@@ -200,6 +235,7 @@ func (b *heatmapBuilder) add(cal radarmap.Calibration, side Side, pos [3]float64
 	}
 	acc.count++
 	acc.seconds = append(acc.seconds, seconds)
+	acc.zs = append(acc.zs, pos[2])
 	if acc.lastRound != b.roundSeq {
 		acc.lastRound = b.roundSeq
 		acc.rounds++
@@ -278,6 +314,20 @@ func (b *heatmapBuilder) addEvents(m SpatialMatch, r Round, team map[uint8]Side)
 			if side, ok := team[*ev.TargetSlot]; ok {
 				b.add(cal, side, ev.TargetPos, seconds, e)
 			}
+		case HeatKill:
+			if ev.Kind != EventKill || ev.ActorSlot == nil || ev.TargetSlot == nil {
+				continue
+			}
+			side, ok := team[*ev.ActorSlot]
+			if victim, known := playerSide(r, *ev.TargetSlot); !ok || (known && victim == side) {
+				// A team kill is not a kill the side made.
+				continue
+			}
+			pos := ev.Pos
+			if b.opts.KillAt == KillAtVictim {
+				pos = ev.TargetPos
+			}
+			b.add(cal, side, pos, seconds, e)
 		case HeatUtility:
 			if !b.grenade(ev.Kind) || ev.ActorSlot == nil {
 				continue
@@ -350,9 +400,15 @@ func roundFrames(blob []byte, header Positions, doc Document, round int) ([]Fram
 // BuildHeatmap counts the selected rounds of every match into one grid. The
 // matches are read in the given order, which is the order of the examples.
 func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) {
+	switch {
+	case opts.Kind != HeatKill:
+		opts.KillAt = ""
+	case opts.KillAt == "":
+		opts.KillAt = KillAtKiller
+	}
 	b := &heatmapBuilder{opts: opts, cells: map[heatKey]*heatAcc{}, sideTotal: map[heatKey]*HeatmapSide{}, sideRound: map[heatKey]int{}}
 	out := Heatmap{
-		Kind: opts.Kind, Window: opts.Window, Grenades: opts.Grenades, CellSize: HeatmapCellSize,
+		Kind: opts.Kind, KillAt: opts.KillAt, Window: opts.Window, Grenades: opts.Grenades, CellSize: HeatmapCellSize,
 		StepSeconds: HeatmapStepSeconds, ExampleLimit: HeatmapExampleLimit, Matches: len(matches),
 		Sides: []HeatmapSide{}, Cells: []HeatmapCell{},
 	}
@@ -373,7 +429,7 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 		for _, r := range m.Filter.Apply(m.Document) {
 			b.roundSeq++
 			out.Rounds++
-			team := subjects(m.Document, m.Filter, r)
+			team := m.subjects(r)
 			if !positional {
 				b.addEvents(m, r, team)
 				continue
@@ -392,7 +448,7 @@ func BuildHeatmap(matches []SpatialMatch, opts HeatmapOptions) (Heatmap, error) 
 	for key, acc := range b.cells {
 		cell := HeatmapCell{
 			Side: key.side, Level: key.level, X: key.x, Y: key.y, Count: acc.count, Rounds: acc.rounds,
-			Seconds: median(acc.seconds), Examples: make([]Evidence, 0, len(acc.examples)),
+			Seconds: median(acc.seconds), Z: int(math.Round(median(acc.zs))), Examples: make([]Evidence, 0, len(acc.examples)),
 		}
 		for _, e := range acc.examples {
 			cell.Examples = append(cell.Examples, e.ev)
@@ -533,7 +589,7 @@ func overlayRound(m SpatialMatch, r Round) OverlayRound {
 	if doc.Demo.Tickrate > 0 && roundEndTick(r) > r.TickFreezeEnd {
 		out.DurationSeconds = math.Round(float64(roundEndTick(r)-r.TickFreezeEnd)/doc.Demo.Tickrate*10) / 10
 	}
-	team := subjects(doc, m.Filter, r)
+	team := m.subjects(r)
 	for _, ev := range r.Events {
 		seconds, ok := secondsSince(r, ev.Tick, doc.Demo.Tickrate)
 		if !ok {
@@ -573,7 +629,7 @@ func playerSide(r Round, slot uint8) (Side, bool) {
 // freeze end: the first frame at or after each step, until death or round end.
 func overlayTracks(m SpatialMatch, r Round, frames []Frame) []OverlayTrack {
 	doc := m.Document
-	team := subjects(doc, m.Filter, r)
+	team := m.subjects(r)
 	slots := make([]uint8, 0, len(team))
 	for slot := range team {
 		slots = append(slots, slot)
