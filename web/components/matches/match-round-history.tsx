@@ -41,14 +41,15 @@ export function MatchRoundHistory({
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto pb-1">
         <div className="flex min-w-max gap-1">
-          <div className="flex w-28 flex-none flex-col gap-2.5">
+          <div className="flex w-36 flex-none flex-col gap-2.5">
             <span aria-hidden className="h-4" />
             {LIBRARY_TEAM_KEYS.map((key) => (
               <span
                 key={key}
-                className={cn('flex h-7 items-center truncate text-body-sm', key === winner ? 'font-semibold text-fg-1' : 'text-fg-2')}
+                className={cn('flex h-7 min-w-0 items-center text-body-sm', key === winner ? 'font-semibold text-fg-1' : 'text-fg-2')}
               >
-                {names[key]}
+                {/* Ellipsis needs a block child: on the flex row itself the name was clipped mid-letter. */}
+                <span className="truncate" title={names[key]}>{names[key]}</span>
               </span>
             ))}
             <span className="flex h-4 items-center text-meta text-fg-3">Ronda</span>

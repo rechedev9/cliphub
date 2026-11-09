@@ -25,19 +25,19 @@ export type ShortHeroProps = {
   targetSeconds: number;
 };
 
-/** The format-tinted band: title, the running total against the target, and the filmstrip of chosen plays. */
+/** The flow's band: title, the running total against the target, and the filmstrip of chosen plays. */
 export function ShortHero({ tone, title, meta, notices, cues, totalSeconds, targetSeconds }: ShortHeroProps): ReactNode {
   const over = totalSeconds > targetSeconds;
   return (
     <section aria-labelledby="short-hero-title" className={cn('flex min-w-0 flex-col gap-4 rounded-2xl border px-5 py-5 @[56rem]/content:px-6', FORMAT_TONE[tone].tint, FORMAT_TONE[tone].border)}>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="flex min-w-0 flex-[1_1_22rem] flex-col gap-1.5">
-          <h1 id="short-hero-title" className="wrap-anywhere font-display text-display-sm font-extrabold text-fg-1">{title}</h1>
+          <h1 id="short-hero-title" className="wrap-anywhere font-display text-display-sm font-semibold text-fg-1">{title}</h1>
           <p className="wrap-anywhere text-body-sm text-fg-2">{meta}</p>
           {notices}
         </div>
         <p className="flex items-baseline gap-2 tabular-nums">
-          <span className={cn('font-display text-hero font-black leading-none', over ? 'text-warning' : 'text-fg-1')}>{formatClock(totalSeconds)}</span>
+          <span className={cn('font-mono text-display font-medium leading-none tracking-[-0.03em]', over ? 'text-warning' : 'text-fg-1')}>{formatClock(totalSeconds)}</span>
           {/* No tilde: beside the figures it reads as a minus sign ("-0:00"). */}
           <span className="text-body text-fg-2">de {formatClock(targetSeconds)} aprox.</span>
         </p>

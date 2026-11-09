@@ -17,9 +17,9 @@ export function CreateFlowSteps({ flow, step, className }: { flow: CreateFlow; s
         <li key={entry.label} aria-current={entry.state === 'current' ? 'step' : undefined} className="flex min-w-0 flex-col gap-2">
           <span
             aria-hidden
-            className={cn('h-1.5 rounded-full', entry.state === 'pending' ? 'bg-surface-4' : tone.bg, entry.state === 'done' && 'opacity-50')}
+            className={cn('h-1 rounded-full', entry.state === 'pending' ? 'bg-surface-4' : tone.bg, entry.state === 'done' && 'opacity-50')}
           />
-          <span className={cn('truncate text-meta', entry.state === 'current' ? 'font-bold text-fg-1' : 'text-fg-2')}>
+          <span className={cn('truncate font-mono text-meta uppercase tracking-wide', entry.state === 'current' ? 'font-semibold text-fg-1' : 'text-fg-2')}>
             {index + 1} · {entry.label}
             {entry.state === 'done' ? <span className="sr-only"> (hecho)</span> : null}
           </span>

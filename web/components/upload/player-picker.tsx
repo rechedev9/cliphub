@@ -87,7 +87,7 @@ function MatchHeader({ match }: { match: RosterMatch }): ReactNode {
   const tWon = match.scoreT > match.scoreCt;
   const ctWon = match.scoreCt > match.scoreT;
   return (
-    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-[14px] bg-surface-2 px-4 py-3">
+    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xl bg-surface-2 px-4 py-3">
       <span className="min-w-0 truncate font-display text-title font-extrabold text-fg-1">{prettyMapName(match.map)}</span>
       <span role="img" aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`} className="text-title font-extrabold tabular-nums">
         <span className={tWon ? 'text-side-t' : 'text-fg-3'}>{match.scoreT}</span>

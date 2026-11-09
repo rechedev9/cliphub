@@ -96,7 +96,7 @@ export function RosterTeam(props: RosterTeamProps): ReactNode {
   const avg = roster.reduce((s, p) => s + p.rating, 0) / roster.length;
   return (
     <section aria-label={meta.label} className="flex min-w-0 flex-col gap-2">
-      <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[14px] px-3.5 py-3', meta.tint)}>
+      <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-xl px-3.5 py-3', meta.tint)}>
         {side === '' ? null : <span className={cn('inline-flex h-5.5 items-center rounded-md px-1.75 text-meta font-extrabold', meta.chip)}>{side}</span>}
         <span className="min-w-0 flex-1 truncate font-display text-body font-extrabold text-fg-1">{meta.label}</span>
         <span className="text-meta tabular-nums text-fg-3">media {formatDecimal(avg, 2)}</span>
@@ -137,7 +137,7 @@ function PlayerCard({ player: p, team }: { player: PickerPlayer; team: RosterTea
       aria-pressed={active}
       onClick={() => onChoose(p.steamId)}
       className={cn(
-        'grid w-full cursor-pointer items-center gap-3 rounded-[14px] border-[1.5px] px-3.5 py-3 text-left',
+        'grid w-full cursor-pointer items-center gap-3 rounded-xl border-[1.5px] px-3.5 py-3 text-left',
         multi ? 'grid-cols-[1.5rem_2.75rem_minmax(0,1fr)_5.5rem_auto]' : 'grid-cols-[2.75rem_minmax(0,1fr)_5.5rem_auto]',
         'transition-[background-color,border-color] duration-(--dur-fast) ease-standard',
         FOCUS_RING,

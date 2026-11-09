@@ -19,8 +19,8 @@ export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 /**
- * The UI is monochrome: `primary` is the ink colour (near white on dark, near
- * black on light). Colour is kept for data and for stream, never for chrome.
+ * `primary` is the one accent, violet: it marks the main action. Other colours
+ * keep their meaning (sides, outcomes, formats, stream, errors).
  */
 const buttonVariants = cva(
   [

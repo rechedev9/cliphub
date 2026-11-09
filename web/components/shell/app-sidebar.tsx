@@ -83,7 +83,7 @@ export function AppSidebar(): ReactElement {
         {LABELLED_AREAS.map((area) => (
           <SidebarGroup key={area} className="gap-0.5 px-2 pb-4">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an unknown `text-*` under text colour. */}
-            <SidebarGroupLabel className="h-7 px-2 [font-size:var(--text-meta)] font-semibold text-fg-3">
+            <SidebarGroupLabel className="h-7 px-2 font-mono [font-size:var(--text-meta)] font-medium tracking-wider text-fg-3 uppercase">
               {NAV_AREA_LABEL[area]}
             </SidebarGroupLabel>
             <SidebarMenu className="gap-px">

@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { DENSITY_BOOT_SCRIPT } from '@/lib/density';
 import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup';
@@ -11,14 +11,16 @@ import { DesktopPerformance } from '@/components/shell/desktop-performance';
 import { DesktopErrors } from '@/components/shell/desktop-errors';
 import { WebMCPNavigation } from '@/components/shell/webmcp-navigation';
 
-const geistSans = Geist({
+const plexSans = IBM_Plex_Sans({
   subsets: ['latin'],
-  variable: '--font-geist-sans',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-plex-sans',
 });
 
-const geistMono = Geist_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ['latin'],
-  variable: '--font-geist-mono',
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
 });
 
 export const metadata: Metadata = {
@@ -27,7 +29,7 @@ export const metadata: Metadata = {
   description: 'Crea vídeos y analiza tus demos de CS2 en tu propio equipo.',
 };
 
-const fontVars = `${geistSans.variable} ${geistMono.variable}`;
+const fontVars = `${plexSans.variable} ${plexMono.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (

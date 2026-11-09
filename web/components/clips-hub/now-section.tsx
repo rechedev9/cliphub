@@ -91,7 +91,7 @@ function NowHero({ clip, onChange }: { clip: HubClip; onChange: () => void }): R
   const recording = clip.state === OUTPUT_STATE.rec;
   const stage = video.captureProgress?.stage;
   return (
-    <div className={cn('overflow-hidden rounded-[20px] border bg-surface-2', FORMAT_TONE.stream.border)}>
+    <div className={cn('overflow-hidden rounded-2xl border bg-surface-2', FORMAT_TONE.stream.border)}>
       <div className={cn('flex h-full flex-col gap-4 p-5', FORMAT_TONE.stream.tint)}>
         <div className="flex flex-wrap items-center gap-3">
           <span aria-hidden className="size-3 shrink-0 rounded-full bg-format-stream ring-4 ring-format-stream/30" />
@@ -172,7 +172,7 @@ function RowThumbnail({ clip }: { clip: HubClip }): ReactNode {
     <span aria-hidden className="grid h-12 w-[4.25rem] shrink-0 place-items-center">
       <span
         className={cn(
-          'relative block overflow-hidden rounded-[8px] bg-surface-4',
+          'relative block overflow-hidden rounded-lg bg-surface-4',
           clip.type === OUTPUT_TYPE.short ? 'h-12 w-[1.6875rem]' : 'h-[2.375rem] w-[4.25rem]',
         )}
       >
@@ -195,7 +195,7 @@ function SideRow({ clip, onChange }: { clip: HubClip; onChange: () => void }): R
   return (
     <li
       className={cn(
-        'flex flex-wrap items-center gap-3 rounded-[14px] px-3.5 py-3',
+        'flex flex-wrap items-center gap-3 rounded-xl px-3.5 py-3',
         failed ? 'border border-destructive/45 bg-destructive/10' : 'bg-surface-2',
       )}
     >
@@ -237,9 +237,9 @@ function streamActivityLabel(activity: StreamActivity): string {
 function StreamRow({ activity }: { activity: StreamActivity }): ReactNode {
   const label = streamActivityLabel(activity);
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-[14px] bg-surface-2 px-3.5 py-3">
+    <li className="flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 px-3.5 py-3">
       <span aria-hidden className="grid h-12 w-[4.25rem] shrink-0 place-items-center">
-        <span className={cn('grid h-[2.375rem] w-[4.25rem] place-items-center rounded-[8px] text-format-stream', FORMAT_TONE.stream.tint)}>
+        <span className={cn('grid h-[2.375rem] w-[4.25rem] place-items-center rounded-lg text-format-stream', FORMAT_TONE.stream.tint)}>
           <Film className="size-4" />
         </span>
       </span>
