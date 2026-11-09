@@ -63,7 +63,7 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
 });
 
 test('desktop release workflow checks, builds on windows and publishes in a separate job', () => {
-  assert.deepEqual(Object.keys(jobs), ['checks', 'windows-installer', 'releases-token', 'publish']);
+  assert.deepEqual(Object.keys(jobs), ['checks', 'windows-installer', 'publish']);
 });
 
 test('a release publishes only after the checks pass', () => {
@@ -78,7 +78,7 @@ test('a release publishes only after the checks pass', () => {
       assert.ok(checks.includes(`pnpm --dir ${pkg} run ${script}`), `checks must run ${pkg} ${script}`);
     }
   }
-  assert.match(jobs.publish, /needs: \[checks, windows-installer, releases-token\]/);
+  assert.match(jobs.publish, /needs: \[checks, windows-installer\]/);
 });
 
 test('a manual run is a dry run by default', () => {
@@ -103,22 +103,10 @@ test('only the publish job can write releases', () => {
   assert.match(publish, /contents: write/);
   assert.deepEqual(
     [...publish.matchAll(/uses:\s*([^@\s]+)@/g)].map((match) => match[1]),
-    ['actions/download-artifact', 'actions/checkout'],
-    'publish may only download the installer and check out the issue guide',
+    ['actions/download-artifact'],
+    'publish must not check out or run project code',
   );
-  // The one checkout holds the issue guide alone, with no token left on disk; nothing in it is run.
-  assert.match(
-    publish,
-    /sparse-checkout-cone-mode: false\n\s+sparse-checkout: \|\n\s+CONTRIBUTING\.md\n\s+\.github\/ISSUE_TEMPLATE\/\n\n/,
-    'the publish checkout must hold only the issue guide',
-  );
-  assert.match(publish, /persist-credentials: false/);
   assert.doesNotMatch(publish, /^\s*(?:run: )?(?:pnpm|npm|npx|node|bun|go) /m, 'publish must not run project code');
-
-  const token = jobs['releases-token'];
-  assert.match(token, /environment: release/, 'the PAT is only readable inside the release environment');
-  assert.match(token, /permissions: \{\}/, 'the token check needs no scope on this repo');
-  assert.doesNotMatch(token, /uses:/, 'the token check must not check out or run project code');
 });
 
 test('every action in the release workflow is pinned to a full commit SHA', () => {
