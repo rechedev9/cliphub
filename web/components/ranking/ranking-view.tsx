@@ -33,6 +33,12 @@ type Load = { key: string; board: Leaderboard } | { key: string; failed: 'offlin
 const SCOPE_FIELDS: readonly ScopeField[] = ['map', 'side', 'period'];
 const MAP_OPTIONS = [...DEFAULT_MAP_POOL, ...EXTRA_POOL_MAPS].sort();
 
+function failureMessage(failed: 'offline' | 'error', pro: boolean): string {
+  if (failed === 'offline') return 'No se pudo leer el ranking. Comprueba que ClipHub Studio sigue abierto.';
+  if (pro) return 'Los datos pro aún no están disponibles. Prueba de nuevo en un rato o usa los datos de tu biblioteca.';
+  return 'El ranking no se pudo calcular con este filtro. Prueba con otro mapa o periodo.';
+}
+
 function RankingBody({
   load,
   entries,
@@ -54,24 +60,20 @@ function RankingBody({
       </div>
     );
   }
+  const pro = state.scope.reference === 'pro';
   if ('failed' in load) {
-    const message =
-      load.failed === 'offline'
-        ? 'No se pudo leer el ranking. Comprueba que ClipHub Studio sigue abierto.'
-        : 'El ranking no se pudo calcular con este filtro. Prueba con otro mapa o periodo.';
     return (
       <p role="alert" className="text-body-sm text-destructive">
-        {message}
+        {failureMessage(load.failed, pro)}
       </p>
     );
   }
-  const pro = state.scope.reference === 'pro';
   if (entries.length === 0) {
     return (
       <EmptyState
         icon={Trophy}
         title="Nadie llega al mínimo de rondas"
-        description={`Baja las rondas mínimas, amplía el periodo o quita el rol${pro ? ' o el nivel del rival' : ''}. ${
+        description={`Baja las rondas mínimas, amplía el periodo o quita el rol y la posición${pro ? ', el evento o el nivel de los equipos' : ''}. ${
           pro ? 'Los profesionales salen de los mapas de HLTV que indexa el servidor de ClipHub.' : 'El ranking sale de las demos analizadas de tu biblioteca.'
         }`}
       />
@@ -81,8 +83,8 @@ function RankingBody({
     <>
       <RankingTable entries={entries} state={state} boardMetric={load.board.metric} onSort={onSort} onPin={onPin} />
       <p className="measure-read text-meta text-fg-3">
-        {boardSampleText(load.board)}. El rol se lee en los primeros 25 segundos de cada ronda; con menos de 4 rondas leídas no hay rol. El rating es una
-        estimación con la fórmula pública de HLTV 2.0.
+        {boardSampleText(load.board)}. El rol se lee en los primeros 25 segundos de cada ronda; con menos de 4 rondas leídas no hay rol. El rating es el
+        Rating de ClipHub; su fórmula está en la cabecera de la columna.{state.scope.reference === 'pro' && load.board.days ? ` Últimos ${load.board.days} días.` : ''}
         {pro ? ' Estos mapas no están en tu biblioteca, así que sus rondas no se abren en el Replay.' : ''}
       </p>
     </>
@@ -150,8 +152,16 @@ export function RankingView(): ReactNode {
         onRole={(role) => change(patchRanking(state, { role }))}
         onLevel={(level) => change(patchRanking(state, { level }))}
         onTop={(top) => change(patchRanking(state, { top }))}
+        onTeamTop={(teamTop) => change(patchRanking(state, { teamTop }))}
+        onEvent={(event) => change(patchRanking(state, { event }))}
+        onMapRole={(mapRole) => change(patchRanking(state, { mapRole }))}
         onMinRounds={(minRounds) => change(patchRanking(state, { minRounds }))}
-        onReference={(reference) => change(patchRanking(state, { scope: { reference }, role: '', level: '', top: null }))}
+        onReference={(reference) => change(patchRanking(state, { scope: { reference }, role: '', level: '', top: null, teamTop: null, event: '' }))}
+        mapRoles={board?.map_roles ?? []}
+        events={board?.events ?? []}
+        players={board?.players ?? []}
+        pins={pins}
+        onPin={toggle}
       />
       {board !== null && state.scope.reference === 'pro' && board.description ? <p className="measure-read text-meta text-fg-3">{board.description}</p> : null}
       <RankingBody load={current} entries={entries} state={state} onSort={sortBy} onPin={toggle} />

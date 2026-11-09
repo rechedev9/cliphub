@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/community"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/store"
 )
 
@@ -35,7 +36,15 @@ func TestProLeaderboardWithFiltersComesFromTheCommunityServer(t *testing.T) {
 			t.Errorf("the server was asked %s=%q, want %q", key, asked.Get(key), want)
 		}
 	}
-	for _, bad := range []string{"&scope=pro&from=2026-01-01T00:00:00Z", "&scope=pro&source=hltv", "&top=5", "&days=30", "&scope=pro&top=51"} {
+	// The same default period as MCP: nothing named still asks for three months and the shared minimum of rounds.
+	env.json(http.MethodGet, "/api/library/leaderboard?scope=pro&metric=rating", nil, http.StatusOK, &resp)
+	if asked.Get("days") != "90" || resp.Days != 90 {
+		t.Errorf("a pro board without a period asked days=%q, answered %d, want 90", asked.Get("days"), resp.Days)
+	}
+	if resp.MinRounds != tacticalplan.BaselineMinRounds {
+		t.Errorf("min rounds = %d, want the shared %d", resp.MinRounds, tacticalplan.BaselineMinRounds)
+	}
+	for _, bad := range []string{"&scope=pro&team_top=5&map_role=Canal&map=de_anubis", "&scope=pro&from=2026-01-01T00:00:00Z", "&scope=pro&source=hltv", "&top=5", "&days=30", "&scope=pro&top=51", "&map=de_anubis&map_role=Canal", "&map_role=Canal&side=T", "&team_top=15"} {
 		if rw := env.do(http.MethodGet, "/api/library/leaderboard?metric=rating"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Errorf("leaderboard%s = %d, want 400", bad, rw.Code)
 		}

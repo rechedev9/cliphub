@@ -28,10 +28,9 @@ const (
 	proPlayersPrefix   = "pro-players:"
 	proPlayersIndexKey = proPlayersPrefix + "index"
 
-	proPlayersDefaultMinRounds = 30
-	proPlayersDefaultLimit     = 100
-	proPlayersMaxLimit         = 500
-	proPlayersMaxDays          = 365
+	proPlayersDefaultDays = 90
+	proPlayersMaxLimit    = 500
+	proPlayersMaxDays     = 365
 )
 
 // proPlayersPayload is the stored lines of one map.
@@ -106,18 +105,42 @@ func hltvProTeam(h hltvTeam) tacticalplan.ProPlayersTeam {
 	return t
 }
 
-// readProPlayersMatches reads every archived analysis into its pro players lines, by map.
-func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string][]tacticalplan.ProPlayersMatch, error) {
-	files, err := filepath.Glob(filepath.Join(analysesDir, "*"+analysisSuffix))
-	if err != nil {
-		return nil, err
-	}
-	slices.Sort(files)
-	out := map[string][]tacticalplan.ProPlayersMatch{}
-	for _, name := range files {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+// proPart is one analysis file of a map: its document and the opening frames of
+// its rounds, read once so the file's position blob can go.
+type proPart struct {
+	header  analysisHeader
+	opening map[int][]tacticalplan.Frame
+	// first is the part's lowest game round; the later part owns a replayed round.
+	first int
+}
+
+// ownedRounds keeps each game round of a map in one part. A restart part replays
+// the round the server went down in, and the later part's copy is the one played
+// out; a re-upload of the same demo owns nothing the first copy does not.
+func ownedRounds(parts []proPart) []map[int]bool {
+	owner := map[int]int{}
+	for i, p := range parts {
+		for _, r := range p.header.Document.Rounds {
+			g := tacticalplan.GameRound(r)
+			if j, ok := owner[g]; !ok || p.first > parts[j].first {
+				owner[g] = i
+			}
 		}
+	}
+	out := make([]map[int]bool, len(parts))
+	for i := range parts {
+		out[i] = map[int]bool{}
+	}
+	for g, i := range owner {
+		out[i][g] = true
+	}
+	return out
+}
+
+// readProPlayersGroup reads the parts of one map (one HLTV match, one demo entry) and joins them.
+func readProPlayersGroup(files []string) (tacticalplan.ProPlayersMatch, bool) {
+	parts := []proPart{}
+	for _, name := range files {
 		h, blob, err := readAnalysis(name)
 		if err != nil {
 			log.Printf("community stage=pro-players class=unreadable file=%s error=%v", filepath.Base(name), err)
@@ -128,14 +151,74 @@ func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string]
 			log.Printf("community stage=pro-players class=no_positions file=%s error=%v", filepath.Base(name), err)
 			opening = nil
 		}
-		info := tacticalplan.ProPlayersInfo{
-			MatchID: strconv.Itoa(h.Match.MatchID), Event: h.Match.Event, Teams: resolveTeams(h.Document.Teams, h.Match.Teams),
+		p := proPart{header: h, opening: opening}
+		for _, r := range h.Document.Rounds {
+			if g := tacticalplan.GameRound(r); p.first == 0 || g < p.first {
+				p.first = g
+			}
 		}
-		if t, err := time.Parse(time.RFC3339, h.Match.PlayedAt); err == nil {
+		parts = append(parts, p)
+	}
+	if len(parts) == 0 {
+		return tacticalplan.ProPlayersMatch{}, false
+	}
+	owned := ownedRounds(parts)
+	read := []tacticalplan.ProPlayersMatch{}
+	for i, p := range parts {
+		doc := p.header.Document
+		doc.Rounds = nil
+		for _, r := range p.header.Document.Rounds {
+			if owned[i][tacticalplan.GameRound(r)] {
+				doc.Rounds = append(doc.Rounds, r)
+			}
+		}
+		if len(doc.Rounds) == 0 {
+			continue
+		}
+		info := tacticalplan.ProPlayersInfo{
+			MatchID: strconv.Itoa(p.header.Match.MatchID), Event: p.header.Match.Event, Teams: resolveTeams(doc.Teams, p.header.Match.Teams),
+		}
+		if t, err := time.Parse(time.RFC3339, p.header.Match.PlayedAt); err == nil {
 			info.PlayedAt = t
 		}
-		m := tacticalplan.ReadProPlayersMatch(tacticalplan.MetricsMatch{MatchID: uuid.UUID{1}, PlayedAt: info.PlayedAt, Document: h.Document}, opening, info)
-		out[m.Map] = append(out[m.Map], m)
+		read = append(read, tacticalplan.ReadProPlayersMatch(tacticalplan.MetricsMatch{MatchID: uuid.UUID{1}, PlayedAt: info.PlayedAt, Document: doc}, p.opening, info))
+	}
+	if len(read) == 0 {
+		return tacticalplan.ProPlayersMatch{}, false
+	}
+	merged := tacticalplan.MergeProPlayersMatches(read)
+	return merged, merged.Rounds >= minMapRounds
+}
+
+// readProPlayersMatches reads every archived analysis into its pro players
+// lines, by map. Files of one match and map (restart parts, re-uploads) join into one map.
+func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string][]tacticalplan.ProPlayersMatch, error) {
+	files, err := filepath.Glob(filepath.Join(analysesDir, "*"+analysisSuffix))
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(files)
+	groups := map[string][]string{}
+	keys := []string{}
+	for _, name := range files {
+		match, entry, ok := analysisName(filepath.Base(name))
+		if !ok {
+			continue
+		}
+		key := match + "/" + mapKey(entry)
+		if groups[key] == nil {
+			keys = append(keys, key)
+		}
+		groups[key] = append(groups[key], name)
+	}
+	out := map[string][]tacticalplan.ProPlayersMatch{}
+	for _, key := range keys {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if m, ok := readProPlayersGroup(groups[key]); ok {
+			out[m.Map] = append(out[m.Map], m)
+		}
 	}
 	return out, nil
 }
@@ -181,7 +264,7 @@ type proPlayersEntry struct {
 	payload proPlayersPayload
 }
 
-// proPlayersPayload returns one map's lines, decoding it only when it changed.
+// proPlayersFor returns one map's lines, decoding it only when it changed.
 func (a *api) proPlayersFor(ctx context.Context, mapName string) (proPlayersPayload, error) {
 	key := proPlayersPrefix + mapName
 	body, etag, err := a.store.referenceBody(ctx, key)
@@ -209,7 +292,11 @@ type proPlayersRequest struct {
 	mapName   string
 	side      tacticalplan.Side
 	role      string
-	days, top int
+	mapRole   string
+	event     string
+	days      int
+	top       int
+	teamTop   int
 	metric    string
 	minRounds int
 	limit     int
@@ -217,7 +304,10 @@ type proPlayersRequest struct {
 
 func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 	q := r.URL.Query()
-	req := proPlayersRequest{mapName: q.Get("map"), metric: q.Get("metric"), role: q.Get("role"), minRounds: proPlayersDefaultMinRounds, limit: proPlayersDefaultLimit}
+	req := proPlayersRequest{
+		mapName: q.Get("map"), metric: q.Get("metric"), role: q.Get("role"), mapRole: q.Get("map_role"), event: q.Get("event"),
+		days: proPlayersDefaultDays, minRounds: tacticalplan.BaselineMinRounds, limit: community.ProPlayersDefaultLimit,
+	}
 	if req.mapName != "" && (!community.MapPattern.MatchString(req.mapName) || req.mapName == community.AllMaps) {
 		return req, errors.New("map must be a map name like de_mirage")
 	}
@@ -231,7 +321,7 @@ func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 		return req, errors.New("side must be CT or T")
 	}
 	var err error
-	if req.side, err = tacticalplan.RoleFilterSide(req.role, req.side, req.mapName != ""); err != nil {
+	if req.side, err = tacticalplan.RoleFilterSide(req.role, req.mapRole, req.side, req.mapName != ""); err != nil {
 		return req, err
 	}
 	if req.metric == "" {
@@ -240,12 +330,13 @@ func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 	if !slices.Contains(tacticalplan.LeaderboardMetrics, req.metric) {
 		return req, errors.New("metric must be one of " + strings.Join(tacticalplan.LeaderboardMetrics, ", "))
 	}
+	maxTop := community.ProPlayersTops[len(community.ProPlayersTops)-1]
 	ints := []struct {
 		name     string
 		into     *int
 		min, max int
 	}{
-		{"days", &req.days, 1, proPlayersMaxDays}, {"top", &req.top, 1, community.ProPlayersTops[len(community.ProPlayersTops)-1]},
+		{"days", &req.days, 1, proPlayersMaxDays}, {"top", &req.top, 1, maxTop}, {"team_top", &req.teamTop, 1, maxTop},
 		{"min_rounds", &req.minRounds, 1, 10000}, {"limit", &req.limit, 1, proPlayersMaxLimit},
 	}
 	for _, f := range ints {
@@ -263,8 +354,9 @@ func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 }
 
 // handleProPlayers serves GET /v1/pro-players: the pro players of the indexed
-// maps ranked on one metric, over one map or all, by side, role, period and
-// the rank of the team they faced.
+// maps ranked on one metric, over one map or all, by side, role, position,
+// period, event and the HLTV rank of their team and of the team they faced.
+// Without an index yet it answers an empty board.
 func (a *api) handleProPlayers(w http.ResponseWriter, r *http.Request) {
 	req, err := parseProPlayersRequest(r)
 	if err != nil {
@@ -292,26 +384,37 @@ func (a *api) handleProPlayers(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
+// proPlayersMaps lists the maps to read: the named one, or every indexed map.
+func (a *api) proPlayersMaps(ctx context.Context, mapName string) ([]string, error) {
+	if mapName != "" {
+		return []string{mapName}, nil
+	}
+	raw, _, err := a.store.referenceBody(ctx, proPlayersIndexKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var index proPlayersIndex
+	if err := json.Unmarshal(raw, &index); err != nil {
+		return nil, err
+	}
+	return index.Maps, nil
+}
+
 func (a *api) proPlayersBoard(ctx context.Context, req proPlayersRequest, now time.Time) (community.ProPlayersBoard, error) {
-	mapNames := []string{req.mapName}
-	if req.mapName == "" {
-		raw, _, err := a.store.referenceBody(ctx, proPlayersIndexKey)
-		if err != nil {
-			return community.ProPlayersBoard{}, err
-		}
-		var index proPlayersIndex
-		if err := json.Unmarshal(raw, &index); err != nil {
-			return community.ProPlayersBoard{}, err
-		}
-		mapNames = index.Maps
+	mapNames, err := a.proPlayersMaps(ctx, req.mapName)
+	if err != nil {
+		return community.ProPlayersBoard{}, err
 	}
 	matches := []tacticalplan.ProPlayersMatch{}
 	var builtAt time.Time
 	for _, name := range mapNames {
 		p, err := a.proPlayersFor(ctx, name)
 		// A map without pro maps is an empty board, not a failure.
-		if errors.Is(err, sql.ErrNoRows) && req.mapName != "" {
-			break
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
 		}
 		if err != nil {
 			return community.ProPlayersBoard{}, err
@@ -319,12 +422,13 @@ func (a *api) proPlayersBoard(ctx context.Context, req proPlayersRequest, now ti
 		matches = append(matches, p.Matches...)
 		builtAt = p.BuiltAt
 	}
-	rows, maps, rounds := tacticalplan.ProPlayersBoard(matches,
-		tacticalplan.ProPlayersQuery{Side: req.side, Days: req.days, Now: now, Top: req.top, Roles: req.mapName != ""},
-		tacticalplan.LeaderboardOptions{Metric: req.metric, MinRounds: req.minRounds, Limit: req.limit, Role: req.role})
+	res := tacticalplan.ProPlayersBoard(matches,
+		tacticalplan.ProPlayersQuery{Side: req.side, Days: req.days, Now: now, Top: req.top, TeamTop: req.teamTop, Event: req.event, Roles: req.mapName != ""},
+		tacticalplan.LeaderboardOptions{Metric: req.metric, MinRounds: req.minRounds, Limit: req.limit, Role: req.role, MapRole: req.mapRole, MapRoleSide: req.side})
 	board := community.ProPlayersBoard{
-		Map: req.mapName, Side: string(req.side), Role: req.role, Days: req.days, Top: req.top, Metric: req.metric,
-		HigherIsBetter: !tacticalplan.LowerIsBetter(req.metric), MinRounds: req.minRounds, Maps: maps, Rounds: rounds, Players: rows,
+		Map: req.mapName, Side: string(req.side), Role: req.role, MapRole: req.mapRole, Event: req.event, Days: req.days, Top: req.top, TeamTop: req.teamTop,
+		Metric: req.metric, HigherIsBetter: !tacticalplan.LowerIsBetter(req.metric), MinRounds: req.minRounds, Maps: res.Maps, Rounds: res.Rounds,
+		Events: res.Events, MapRoles: res.MapRoles, Players: res.Rows,
 	}
 	if !builtAt.IsZero() {
 		board.BuiltAt = builtAt.Format(time.RFC3339)

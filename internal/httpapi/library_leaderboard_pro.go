@@ -19,7 +19,8 @@ func (h *Handlers) writeProLeaderboard(ctx context.Context, w http.ResponseWrite
 		return
 	}
 	board, err := client.ProPlayers(ctx, community.ProPlayersQuery{
-		Map: out.Map, Side: string(f.side), Role: f.role, Days: f.days, Top: f.top, Metric: out.Metric, MinRounds: out.MinRounds, Limit: limit,
+		Map: out.Map, Side: string(f.side), Role: f.role, MapRole: f.mapRole, Event: f.event, Days: f.days, Top: f.top, TeamTop: f.teamTop,
+		Metric: out.Metric, MinRounds: out.MinRounds, Limit: limit,
 	})
 	if err != nil {
 		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, fmt.Sprintf("the community server could not rank the pro players: %v", err))
@@ -28,6 +29,7 @@ func (h *Handlers) writeProLeaderboard(ctx context.Context, w http.ResponseWrite
 	out.Source = referenceSourceServer
 	out.UpdatedAt = board.BuiltAt
 	out.Matches, out.Rounds, out.Players = board.Maps, board.Rounds, board.Players
+	out.Events, out.MapRoles = board.Events, board.MapRoles
 	out.Description = fmt.Sprintf("%d mapas profesionales de HLTV del servidor de ClipHub.", board.Maps)
 	writeJSON(w, http.StatusOK, out)
 }

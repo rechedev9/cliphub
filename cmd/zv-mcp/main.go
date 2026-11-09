@@ -66,8 +66,11 @@ players of the team's latest match, which team_lineups lists, and an empty lineu
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
-filtered by map, side, role (such as b_lurk on de_anubis), dates and demo source, with each player's metrics, roles and round refs. Scope pro ranks the pro players of the community server by side, role,
-days and the HLTV rank of the rival (top); those rows carry a team and no refs.
+filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
+map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
+position) and round refs. The rating is the Rating de ClipHub. Scope pro ranks the pro players of the community server
+(last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
+(team_top) and event (the answer's events lists them); those rows carry a team and no refs.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.

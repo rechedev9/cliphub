@@ -737,11 +737,11 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
   const params = baselineParams(query);
   params.set('metric', query.metric);
   if (query.limit) params.set('limit', String(query.limit));
-  for (const key of ['side', 'role', 'from', 'to', 'source'] as const) {
+  for (const key of ['side', 'role', 'map_role', 'from', 'to', 'source', 'event'] as const) {
     const value = query[key];
     if (value) params.set(key, value);
   }
-  for (const key of ['days', 'top'] as const) {
+  for (const key of ['days', 'top', 'team_top'] as const) {
     const value = query[key];
     if (value) params.set(key, String(value));
   }

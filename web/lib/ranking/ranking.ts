@@ -12,8 +12,8 @@ import {
   type LeaderboardRow,
   type ProTop,
 } from '../api/baseline.ts';
-import { replayHref, type ReplayRef } from '../analysis/replay-link.ts';
-import { PERIOD_PRESETS, parseAnalysisScope, scopeDateRange, writeAnalysisScope, type AnalysisScope, type ScopeQuery } from '../analysis/scope.ts';
+import { focusedReplayHref, type ReplayRef } from '../analysis/replay-link.ts';
+import { PERIOD_PRESETS, SCOPE_PARAMS, parseAnalysisScope, scopeDateRange, writeAnalysisScope, type AnalysisScope, type ScopeQuery } from '../analysis/scope.ts';
 
 /**
  * The Ranking page: its filters live in the URL (the analysis scope's map,
@@ -30,18 +30,38 @@ export type RankingState = {
   readonly role: LeaderboardRole | '';
   /** Which kind of demos count; empty for all of them. */
   readonly level: LeaderboardMatchSource | '';
+  /** A callout the player holds on the map and side, or `allround`; needs both. Empty for every player. */
+  readonly mapRole: string;
   /** Pro data only: the rival is ranked this high or better in HLTV; null for any rival. */
   readonly top: ProTop | null;
+  /** Pro data only: the player's own team is ranked this high or better; null for any team. */
+  readonly teamTop: ProTop | null;
+  /** Pro data only: one event; empty for all of them. */
+  readonly event: string;
   readonly minRounds: number;
   readonly sort: RankingSort;
   /** Null leaves the column's natural order. */
   readonly dir: 'asc' | 'desc' | null;
 };
 
-export const RANKING_PARAMS = { role: 'role', level: 'nivel', top: 'rival', minRounds: 'min', sort: 'orden', dir: 'sentido' } as const;
+export const RANKING_PARAMS = {
+  role: 'role',
+  mapRole: 'posicion',
+  level: 'nivel',
+  top: 'rival',
+  teamTop: 'equipo',
+  event: 'evento',
+  minRounds: 'min',
+  sort: 'orden',
+  dir: 'sentido',
+} as const;
 
-export const RANKING_MIN_ROUNDS = [10, 25, 50, 100, 200] as const;
-export const DEFAULT_MIN_ROUNDS = 25;
+/** The ranking reads three months unless the link says another period, `all` included. */
+export const DEFAULT_PERIOD = { kind: 'preset', preset: '90d' } as const;
+export const DEFAULT_MIN_ROUNDS = 50;
+export const MAX_MIN_ROUNDS = 10000;
+/** Below this many rounds a figure moves a lot with one match; the table says so. */
+export const LOW_SAMPLE_ROUNDS = 50;
 export const DEFAULT_SORT: LeaderboardMetric = 'rating';
 /** The leaderboard endpoint's cap; the table sorts and filters what it returns. */
 export const RANKING_FETCH_LIMIT = 500;
@@ -49,7 +69,7 @@ export const RANKING_FETCH_LIMIT = 500;
 const ROLES: readonly LeaderboardRole[] = [...CT_ROLES, ...T_ROLES];
 
 export function roleSide(role: LeaderboardRole): 'CT' | 'T' {
-  return (CT_ROLES as readonly string[]).includes(role) ? 'CT' : 'T';
+  return CT_ROLES.some((ct) => ct === role) ? 'CT' : 'T';
 }
 
 function parseRole(value: string | null): LeaderboardRole | '' {
@@ -70,8 +90,23 @@ function parseSort(value: string | null): RankingSort {
 }
 
 function parseMinRounds(value: string | null): number {
+  if (value === null || !/^\d{1,5}$/.test(value)) return DEFAULT_MIN_ROUNDS;
   const n = Number(value);
-  return RANKING_MIN_ROUNDS.find((preset) => preset === n) ?? DEFAULT_MIN_ROUNDS;
+  return n >= 1 && n <= MAX_MIN_ROUNDS ? n : DEFAULT_MIN_ROUNDS;
+}
+
+function parseMapRole(value: string | null): string {
+  return value !== null && /^[^\r\n]{1,64}$/.test(value) ? value : '';
+}
+
+function parseEvent(value: string | null): string {
+  return value !== null && /^[^\r\n]{1,120}$/.test(value) ? value : '';
+}
+
+/** A missing period is the default three months; `period=all` is the explicit "every date". */
+function rankingScope(query: ScopeQuery): AnalysisScope {
+  const scope = parseAnalysisScope(query);
+  return scope.period.kind === 'all' && query.get(SCOPE_PARAMS.period) !== 'all' ? { ...scope, period: DEFAULT_PERIOD } : scope;
 }
 
 /**
@@ -79,14 +114,19 @@ function parseMinRounds(value: string | null): number {
  * is dropped without a map and the side follows it.
  */
 export function parseRanking(query: ScopeQuery): RankingState {
-  const scope = parseAnalysisScope(query);
-  const role = scope.map === '' ? '' : parseRole(query.get(RANKING_PARAMS.role));
+  const base = rankingScope(query);
+  const role = base.map === '' ? '' : parseRole(query.get(RANKING_PARAMS.role));
+  const scope = role === '' ? base : { ...base, side: roleSide(role) };
+  const pro = scope.reference === 'pro';
   const dir = query.get(RANKING_PARAMS.dir);
   return {
-    scope: role === '' ? scope : { ...scope, side: roleSide(role) },
+    scope,
     role,
+    mapRole: scope.map === '' || scope.side === '' ? '' : parseMapRole(query.get(RANKING_PARAMS.mapRole)),
     level: parseLevel(query.get(RANKING_PARAMS.level)),
-    top: scope.reference === 'pro' ? parseTop(query.get(RANKING_PARAMS.top)) : null,
+    top: pro ? parseTop(query.get(RANKING_PARAMS.top)) : null,
+    teamTop: pro ? parseTop(query.get(RANKING_PARAMS.teamTop)) : null,
+    event: pro ? parseEvent(query.get(RANKING_PARAMS.event)) : '',
     minRounds: parseMinRounds(query.get(RANKING_PARAMS.minRounds)),
     sort: parseSort(query.get(RANKING_PARAMS.sort)),
     dir: dir === 'asc' || dir === 'desc' ? dir : null,
@@ -97,9 +137,16 @@ export function parseRanking(query: ScopeQuery): RankingState {
 export function writeRanking(state: RankingState, current: string | URLSearchParams = ''): string {
   const params = new URLSearchParams(writeAnalysisScope(state.scope, current));
   for (const name of Object.values(RANKING_PARAMS)) params.delete(name);
+  const { period } = state.scope;
+  if (period.kind === 'all') params.set(SCOPE_PARAMS.period, 'all');
+  if (period.kind === 'preset' && period.preset !== DEFAULT_PERIOD.preset) params.set(SCOPE_PARAMS.period, period.preset);
+  if (period.kind === 'preset' && period.preset === DEFAULT_PERIOD.preset) params.delete(SCOPE_PARAMS.period);
   if (state.role !== '') params.set(RANKING_PARAMS.role, state.role);
+  if (state.mapRole !== '') params.set(RANKING_PARAMS.mapRole, state.mapRole);
   if (state.level !== '') params.set(RANKING_PARAMS.level, state.level);
   if (state.top !== null) params.set(RANKING_PARAMS.top, String(state.top));
+  if (state.teamTop !== null) params.set(RANKING_PARAMS.teamTop, String(state.teamTop));
+  if (state.event !== '') params.set(RANKING_PARAMS.event, state.event);
   if (state.minRounds !== DEFAULT_MIN_ROUNDS) params.set(RANKING_PARAMS.minRounds, String(state.minRounds));
   if (state.sort !== DEFAULT_SORT) params.set(RANKING_PARAMS.sort, state.sort);
   if (state.dir !== null) params.set(RANKING_PARAMS.dir, state.dir);
@@ -111,7 +158,11 @@ export function patchRanking(state: RankingState, patch: Partial<Omit<RankingSta
   const next: RankingState = { ...state, ...patch, scope: { ...state.scope, ...patch.scope } };
   let { role } = next;
   if (next.scope.map === '' || (patch.scope?.side !== undefined && role !== '' && roleSide(role) !== next.scope.side)) role = '';
-  return { ...next, role, scope: role === '' ? next.scope : { ...next.scope, side: roleSide(role) } };
+  const scope = role === '' ? next.scope : { ...next.scope, side: roleSide(role) };
+  // A position belongs to one map and side, so a change of either drops it.
+  const moved = scope.map !== state.scope.map || scope.side !== state.scope.side;
+  const mapRole = moved && patch.mapRole === undefined ? '' : next.mapRole;
+  return { ...next, role, mapRole: scope.map === '' || scope.side === '' ? '' : mapRole, scope };
 }
 
 const PRO_MAX_DAYS = 365;
@@ -128,8 +179,8 @@ export function proDays(scope: AnalysisScope): number {
 
 /**
  * The request for the state. The library scope asks for every filter; the pro
- * scope takes side, role, period and rival level, from the community server.
- * The metric is the sort column, so a reference that
+ * scope takes side, role, position, period, rival and team level and event, from
+ * the community server. The metric is the sort column, so a reference that
  * returns one value per player ranks on what the table sorts by.
  */
 export function leaderboardRequest(state: RankingState, now: number): LeaderboardQuery {
@@ -146,8 +197,11 @@ export function leaderboardRequest(state: RankingState, now: number): Leaderboar
       ...base,
       side: state.scope.side === '' ? undefined : state.scope.side,
       role: state.role === '' ? undefined : state.role,
+      map_role: state.mapRole === '' ? undefined : state.mapRole,
       days: proDays(state.scope),
       top: state.top ?? undefined,
+      team_top: state.teamTop ?? undefined,
+      event: state.event === '' ? undefined : state.event,
     };
   }
   const { from, to } = scopeDateRange(state.scope.period, now);
@@ -155,6 +209,7 @@ export function leaderboardRequest(state: RankingState, now: number): Leaderboar
     ...base,
     side: state.scope.side === '' ? undefined : state.scope.side,
     role: state.role === '' ? undefined : state.role,
+    map_role: state.mapRole === '' ? undefined : state.mapRole,
     from,
     to,
     source: state.level === '' ? undefined : state.level,
@@ -199,22 +254,40 @@ export type PinnedPlayer = { readonly steamid64: string; readonly name: string }
 export type RankingEntry = {
   readonly row: LeaderboardRow | null;
   readonly pinned: PinnedPlayer | null;
-  /** Place among the ranked rows; null for a pinned player the filter leaves out. */
+  /** Place among the ranked rows; null for a pinned player the filter leaves out (below the minimum or not in it). */
   readonly place: number | null;
 };
 
-/** Pinned players first, in table order, then the rest; a pinned player without a row is kept as a gap. */
+/**
+ * Pinned players first, in table order, then the rest. A pinned player the
+ * filter leaves out closes the table, so it does not read as the best place.
+ */
 export function rankingEntries(sorted: readonly LeaderboardRow[], pins: readonly PinnedPlayer[]): RankingEntry[] {
   const pinIds = new Set(pins.map((pin) => pin.steamid64));
-  const byId = new Map(sorted.map((row, index) => [row.steamid64, { row, place: index + 1 }]));
+  const ranked = new Set(sorted.map((row) => row.steamid64));
   const top: RankingEntry[] = [];
-  for (const row of sorted) {
-    const pin = pins.find((entry) => entry.steamid64 === row.steamid64);
-    if (pin) top.push({ row, pinned: pin, place: byId.get(row.steamid64)?.place ?? null });
-  }
-  for (const pin of pins) if (!byId.has(pin.steamid64)) top.push({ row: null, pinned: pin, place: null });
-  const rest = sorted.flatMap((row, index): RankingEntry[] => (pinIds.has(row.steamid64) ? [] : [{ row, pinned: null, place: index + 1 }]));
-  return [...top, ...rest];
+  const rest: RankingEntry[] = [];
+  sorted.forEach((row, index) => {
+    const pinned = pins.find((entry) => entry.steamid64 === row.steamid64) ?? null;
+    (pinned === null ? rest : top).push({ row, pinned, place: index + 1 });
+  });
+  const missing = pins.filter((pin) => !ranked.has(pin.steamid64) && pinIds.has(pin.steamid64)).map((pin): RankingEntry => ({ row: null, pinned: pin, place: null }));
+  return [...top, ...rest, ...missing];
+}
+
+const PLAYER_SEARCH_LIMIT = 8;
+
+/** The ranked players whose name holds `term`, not pinned yet; at most a few, in table order. */
+export function searchPlayers(rows: readonly LeaderboardRow[], term: string, pins: readonly PinnedPlayer[]): LeaderboardRow[] {
+  const needle = term.trim().toLowerCase();
+  if (needle === '') return [];
+  const pinned = new Set(pins.map((pin) => pin.steamid64));
+  return rows.filter((row) => !pinned.has(row.steamid64) && row.name.toLowerCase().includes(needle)).slice(0, PLAYER_SEARCH_LIMIT);
+}
+
+/** True when the row rests on few rounds, so its figures are a rough read. */
+export function lowSample(row: LeaderboardRow): boolean {
+  return row.rounds < LOW_SAMPLE_ROUNDS;
 }
 
 /** Adds a pin, or removes it when the player is already pinned. */
@@ -241,10 +314,13 @@ export function parsePins(raw: string | null): PinnedPlayer[] {
   }
 }
 
-/** The Replay with the player's newest rounds of the filter, or null when the row has none. */
+/** The Replay with the player's rounds of the filter, the player in focus, or null when the row has none. */
 export function playerRoundsHref(row: LeaderboardRow, title: string): string | null {
-  const refs: ReplayRef[] = (row.examples ?? []).map((example) => ({ matchId: example.match_id, round: example.round, tick: example.tick }));
-  return refs.length === 0 ? null : replayHref(refs, title);
+  const examples = row.examples ?? [];
+  const first = examples[0];
+  if (first === undefined) return null;
+  const refs: ReplayRef[] = examples.map((example) => ({ matchId: example.match_id, round: example.round, tick: example.tick }));
+  return focusedReplayHref({ refs, title, subject: first.slot });
 }
 
 /** What the sample behind the table says: "12 partidas · 340 rondas". */

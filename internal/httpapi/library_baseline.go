@@ -74,8 +74,14 @@ type leaderboardResponse struct {
 	Rounds         int    `json:"rounds"`
 	Skipped        int    `json:"skipped"`
 	// Side, Role, From, To and MatchSource echo the library filters applied.
-	Days        int                           `json:"days,omitempty"`
-	Top         int                           `json:"top,omitempty"`
+	Days    int    `json:"days,omitempty"`
+	Top     int    `json:"top,omitempty"`
+	TeamTop int    `json:"team_top,omitempty"`
+	Event   string `json:"event,omitempty"`
+	MapRole string `json:"map_role,omitempty"`
+	// MapRoles are the positions players have on the side, to offer in a filter; Events the pro events in the period.
+	MapRoles    []tacticalplan.MapRoleOption  `json:"map_roles,omitempty"`
+	Events      []string                      `json:"events,omitempty"`
 	Side        string                        `json:"side,omitempty"`
 	Role        string                        `json:"role,omitempty"`
 	From        *time.Time                    `json:"from,omitempty"`
@@ -166,9 +172,15 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	}
 	out := leaderboardResponse{
 		Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Metric: metric, HigherIsBetter: !tacticalplan.LowerIsBetter(metric),
-		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, Days: filters.days, Top: filters.top, From: filters.from, To: filters.to, MatchSource: string(filters.source),
+		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, MapRole: filters.mapRole, From: filters.from, To: filters.to, MatchSource: string(filters.source),
 	}
-	if q.scope == baselineScopePro && filters.proServer() {
+	// A pro board with the community server on always reads its per-player lines; the same
+	// request without a period gets the same three months on the page and on MCP.
+	if q.scope == baselineScopePro && (filters.proServer() || h.references.community.Client != nil) {
+		if filters.days == 0 {
+			filters.days = proDefaultDays
+		}
+		out.Days, out.Top, out.TeamTop, out.Event = filters.days, filters.top, filters.teamTop, filters.event
 		h.writeProLeaderboard(r.Context(), w, out, filters, limit)
 		return
 	}
@@ -179,7 +191,12 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		out.Matches, out.Rounds, out.Skipped = sample.Matches, sample.Rounds, skipped
-		out.Players = sample.Rows(tacticalplan.LeaderboardOptions{Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role})
+		out.Players = sample.Rows(tacticalplan.LeaderboardOptions{
+			Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role, MapRole: filters.mapRole, MapRoleSide: filters.side,
+		})
+		if q.mapName != "" && filters.side != "" {
+			out.MapRoles = sample.MapRoleOptions(filters.side, q.minRounds)
+		}
 		writeJSON(w, http.StatusOK, out)
 		return
 	}

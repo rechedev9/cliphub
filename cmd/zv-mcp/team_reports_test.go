@@ -82,8 +82,11 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"scope":"library","map":"","metric":"adr","higher_is_better":true,"min_rounds":50,"matches":40,"rounds":900,"skipped":1,
+			"map_roles":[{"key":"Canal","label":"Canal","players":3},{"key":"allround","label":"Todoterreno","players":1}],"events":["IEM Cologne"],
 			"players":[{"rank":1,"steamid64":"` + testSteamID + `","name":"ZywOo\u0007","rounds":400,"matches":18,"value":92.4,
-				"metrics":{"adr":92.4,"rating":1.21},"roles":{"ct":"b_anchor","t":"b_lurk"},"examples":[{"match_id":"` + testMatchID + `","round":3,"tick":10}]}]}`))
+				"metrics":{"adr":92.4,"rating":1.21},"roles":{"ct":"b_anchor","t":"b_lurk"},
+				"breakdown":{"ct":{"role":"b_anchor","roles":[{"key":"b_anchor","pct":80},{"key":"rotator","pct":20}],"map_role":"Canal","places":[{"key":"Canal","label":"Canal","pct":60}]}},
+				"examples":[{"match_id":"` + testMatchID + `","round":3,"tick":10}]}]}`))
 	})
 }
 
@@ -178,6 +181,17 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	if row := board.Players[0]; row.Metrics["rating"] != 1.21 || row.Roles == nil || row.Roles.T != "b_lurk" || len(row.Refs) != 1 || row.Refs[0] != testMatchID+"/3" {
 		t.Fatalf("row = %+v, want the metrics, the roles and the round ref", row)
 	}
+	if len(board.MapRoles) != 2 || board.MapRoles[0].Key != "Canal" || len(board.Events) != 1 {
+		t.Fatalf("map roles = %+v events = %v, want the positions and the events", board.MapRoles, board.Events)
+	}
+	if b := board.Players[0].Breakdown; b == nil || b.CT == nil || b.CT.MapRole != "Canal" || len(b.CT.Roles) != 2 || b.CT.Places[0].Pct != 60 || b.T != nil {
+		t.Fatalf("breakdown = %+v, want the CT shares", b)
+	}
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map_role": "Canal"}, "map_role needs a map and a side")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "map_role": "Canal"}, "map_role needs a map and a side")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "team_top": 15}, "team_top and event are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "event": "IEM"}, "team_top and event are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "team_top": 20}, "team_top must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "nope"}, "metric must be one of")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "b_lurk"}, "role needs a map")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")

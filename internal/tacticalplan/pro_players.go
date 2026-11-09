@@ -1,6 +1,10 @@
 package tacticalplan
 
-import "time"
+import (
+	"slices"
+	"strings"
+	"time"
+)
 
 // ProPlayersTeam is a team of a pro map as HLTV lists it; Rank is its HLTV
 // world rank at the match, 0 when unknown.
@@ -19,12 +23,14 @@ type ProPlayersInfo struct {
 }
 
 // ProPlayerSide is one player's additive totals on one side of one pro map,
-// with the rank of the team they faced and the counts their role is read from.
+// with the ranks of their team and of the team they faced and the counts their
+// role is read from.
 type ProPlayerSide struct {
 	SteamID64     string     `json:"steamid64"`
 	Name          string     `json:"name"`
 	Team          string     `json:"team"`
 	Side          Side       `json:"side"`
+	OwnRank       int        `json:"own_rank,omitempty"`
 	OpponentRank  int        `json:"opponent_rank,omitempty"`
 	Rounds        int        `json:"rounds"`
 	Kills         int        `json:"kills"`
@@ -64,20 +70,72 @@ func ReadProPlayersMatch(m MetricsMatch, opening map[int][]Frame, info ProPlayer
 	for _, p := range m.Document.Players {
 		teamKey[p.SteamID64] = p.TeamKey
 	}
+	keys := make([]string, 0, len(info.Teams))
+	for key := range info.Teams {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
 	for _, side := range []Side{SideCT, SideT} {
-		for steam, t := range read.totals[side] {
+		steams := make([]string, 0, len(read.totals[side]))
+		for steam := range read.totals[side] {
+			steams = append(steams, steam)
+		}
+		slices.Sort(steams)
+		for _, steam := range steams {
+			t := read.totals[side][steam]
 			own := info.Teams[teamKey[steam]]
 			line := ProPlayerSide{
-				SteamID64: steam, Name: t.name, Team: own.Name, Side: side, Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths,
+				SteamID64: steam, Name: t.name, Team: own.Name, Side: side, OwnRank: own.Rank, Rounds: t.rounds, Kills: t.kills, Deaths: t.deaths,
 				TradedDeaths: t.tradedDeaths, FlashAssists: t.flashAssists, UtilityDamage: t.utilityDamage, WPA: t.wpa, Box: t.box,
-				Roles: read.roles[side][steam],
+				Roles: read.roles[side][steam].trimmed(),
 			}
-			for key, other := range info.Teams {
+			// The first other team by key is the rival; a map has two.
+			for _, key := range keys {
 				if key != teamKey[steam] {
-					line.OpponentRank = other.Rank
+					line.OpponentRank = info.Teams[key].Rank
+					break
 				}
 			}
 			out.Sides = append(out.Sides, line)
+		}
+	}
+	return out
+}
+
+// MergeProPlayersMatches joins the parts of one map (a server restart splits a
+// demo in two): lines of the same player and side add up. The first part names the map.
+func MergeProPlayersMatches(parts []ProPlayersMatch) ProPlayersMatch {
+	if len(parts) == 0 {
+		return ProPlayersMatch{}
+	}
+	out := parts[0]
+	out.Sides, out.Rounds = nil, 0
+	type key struct {
+		steam string
+		side  Side
+	}
+	at := map[key]int{}
+	for _, part := range parts {
+		out.Rounds += part.Rounds
+		for _, l := range part.Sides {
+			k := key{l.SteamID64, l.Side}
+			i, ok := at[k]
+			if !ok {
+				at[k] = len(out.Sides)
+				l.Roles = l.Roles.trimmed()
+				out.Sides = append(out.Sides, l)
+				continue
+			}
+			sum := out.Sides[i]
+			t := sum.totals()
+			t.merge(l.totals())
+			sum.Rounds, sum.Kills, sum.Deaths, sum.TradedDeaths = t.rounds, t.kills, t.deaths, t.tradedDeaths
+			sum.FlashAssists, sum.UtilityDamage, sum.WPA, sum.Box = t.flashAssists, t.utilityDamage, t.wpa, t.box
+			roles := RoleCounts{}
+			roles.add(sum.Roles)
+			roles.add(l.Roles)
+			sum.Roles = roles.trimmed()
+			out.Sides[i] = sum
 		}
 	}
 	return out
@@ -89,18 +147,40 @@ type ProPlayersQuery struct {
 	// Days keeps the maps played within this many days of Now; 0 keeps all.
 	Days int
 	Now  time.Time
-	// Top keeps the lines against a team ranked Top or better; 0 keeps all.
-	Top int
+	// Top keeps the lines against a team ranked Top or better; TeamTop keeps
+	// the lines of players whose own team is ranked that high. 0 keeps all.
+	Top     int
+	TeamTop int
+	// Event keeps the maps of one event, compared without case; empty keeps all.
+	Event string
 	// Roles reads the roles; the lines must come from one map.
 	Roles bool
 }
 
+// ProPlayersResult is a ranked pro board: the rows, the maps and rounds read and
+// the events of the maps in the period, before the event filter.
+type ProPlayersResult struct {
+	Rows   []LeaderboardRow
+	Maps   int
+	Rounds int
+	Events []string
+	// MapRoles are the map roles on the filtered side, when it is set and one map is read.
+	MapRoles []MapRoleOption
+}
+
 // ProPlayersBoard ranks the players of the pro maps that pass the query, the
-// way a library leaderboard does, and says how many maps and rounds it read.
-func ProPlayersBoard(matches []ProPlayersMatch, q ProPlayersQuery, opts LeaderboardOptions) (rows []LeaderboardRow, maps, rounds int) {
+// way a library leaderboard does.
+func ProPlayersBoard(matches []ProPlayersMatch, q ProPlayersQuery, opts LeaderboardOptions) ProPlayersResult {
 	var s LeaderboardSample
+	events := map[string]bool{}
 	for _, m := range matches {
 		if q.Days > 0 && (m.PlayedAt.IsZero() || m.PlayedAt.Before(q.Now.AddDate(0, 0, -q.Days))) {
+			continue
+		}
+		if m.Event != "" {
+			events[m.Event] = true
+		}
+		if q.Event != "" && !strings.EqualFold(m.Event, q.Event) {
 			continue
 		}
 		read := MatchRead{
@@ -112,6 +192,9 @@ func ProPlayersBoard(matches []ProPlayersMatch, q ProPlayersQuery, opts Leaderbo
 			if q.Top > 0 && (l.OpponentRank < 1 || l.OpponentRank > q.Top) {
 				continue
 			}
+			if q.TeamTop > 0 && (l.OwnRank < 1 || l.OwnRank > q.TeamTop) {
+				continue
+			}
 			kept = kept || q.Side == "" || l.Side == q.Side
 			read.totals[l.Side][l.SteamID64] = l.totals()
 			read.roles[l.Side][l.SteamID64] = l.Roles
@@ -121,5 +204,13 @@ func ProPlayersBoard(matches []ProPlayersMatch, q ProPlayersQuery, opts Leaderbo
 			s.Add(read, q.Side)
 		}
 	}
-	return s.Rows(opts), s.Matches, s.Rounds
+	out := ProPlayersResult{Rows: s.Rows(opts), Maps: s.Matches, Rounds: s.Rounds, Events: make([]string, 0, len(events))}
+	for event := range events {
+		out.Events = append(out.Events, event)
+	}
+	slices.Sort(out.Events)
+	if q.Roles && q.Side != "" {
+		out.MapRoles = s.MapRoleOptions(q.Side, opts.MinRounds)
+	}
+	return out
 }

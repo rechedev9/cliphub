@@ -50,7 +50,7 @@ export type Baseline = {
   metrics: Record<BaselineMetric, BaselineValue>;
 };
 
-/** Metrics a leaderboard ranks on: the reference ones plus the rating (HLTV 2.0 approximation) and K/D. */
+/** Metrics a leaderboard ranks on: the reference ones plus ClipHub's own rating and K/D. */
 export const LEADERBOARD_METRICS = ['rating', 'kd', ...BASELINE_METRICS] as const;
 export type LeaderboardMetric = (typeof LEADERBOARD_METRICS)[number];
 
@@ -61,8 +61,17 @@ export type LeaderboardRole = (typeof CT_ROLES)[number] | (typeof T_ROLES)[numbe
 
 export type LeaderboardRoles = { ct?: LeaderboardRole; t?: LeaderboardRole };
 
-/** A round of the row to open in the Replay (`LeaderboardRow.examples`). */
-export type LeaderboardRound = { match_id: string; round: number; tick: number };
+/** A round of the row to open in the Replay (`LeaderboardRow.examples`), with the player's slot in that match. */
+export type LeaderboardRound = { match_id: string; round: number; tick: number; slot: number };
+
+/** A role or a position and the share of the player's rounds it covers, in percent. */
+export type BreakdownShare = { key: string; label?: string; pct: number };
+
+/** How a player's rounds on one side split between roles and between positions (callouts). */
+export type SideBreakdown = { role?: LeaderboardRole; roles: BreakdownShare[]; map_role?: string; places: BreakdownShare[] };
+
+/** A position players hold on the map and side, with how many. */
+export type MapRoleOption = { key: string; label: string; players: number };
 
 export type LeaderboardRow = {
   rank: number;
@@ -77,15 +86,17 @@ export type LeaderboardRow = {
   metrics?: Partial<Record<LeaderboardMetric, number>>;
   /** The role per side on the map; present when the query names a map. */
   roles?: LeaderboardRoles;
-  /** The newest rounds in the filter, library rows only. */
+  /** Roles and positions as shares of the player's rounds per side; present when the query names a map. */
+  breakdown?: { ct?: SideBreakdown; t?: SideBreakdown };
+  /** The rounds of the filtered role or position, else the newest of the side; library rows only. */
   examples?: LeaderboardRound[];
 };
 
-/** Where demos come from: the Valve matchmaking, FACEIT, tournaments or scrims. */
-/** Rival levels of the pro board: the opponent's HLTV world rank. */
+/** Team levels of the pro board: the HLTV world rank of the rival or of the player's own team. */
 export const PRO_TOPS = [5, 15, 30, 50] as const;
 export type ProTop = (typeof PRO_TOPS)[number];
 
+/** Where demos come from: the Valve matchmaking, FACEIT, tournaments or scrims. */
 export const LEADERBOARD_SOURCES = ['valve', 'faceit', 'hltv', 'scrim'] as const;
 export type LeaderboardMatchSource = (typeof LEADERBOARD_SOURCES)[number];
 
@@ -102,6 +113,12 @@ export type Leaderboard = {
   matches: number;
   rounds: number;
   skipped: number;
+  /** Pro scope: the period the board read, in days. */
+  days?: number;
+  /** Positions players hold on the filtered map and side, to pick `map_role` from. */
+  map_roles?: MapRoleOption[];
+  /** Pro events in the period, to pick `event` from. */
+  events?: string[];
   players: LeaderboardRow[];
 };
 
@@ -117,18 +134,22 @@ export type LeaderboardQuery = BaselineQuery & {
   from?: string;
   to?: string;
   source?: LeaderboardMatchSource;
-  /** Pro scope: only maps from the last N days, and only players who faced a team ranked this high or better. */
+  /** A callout, or `allround`, held on `side`; needs the map and the side. */
+  map_role?: string;
+  /** Pro scope: only maps from the last N days, of one event, against a team ranked `top` or better, and players whose own team is ranked `team_top` or better. */
   days?: number;
-  top?: number;
+  top?: ProTop;
+  team_top?: ProTop;
+  event?: string;
 };
 
 export const BASELINE_KEYS = ['scope', 'map', 'source', 'description', 'updated_at', 'min_rounds', 'players', 'rounds', 'matches', 'skipped', 'metrics'] as const;
 
 export const LEADERBOARD_KEYS = [
   'scope', 'map', 'source', 'description', 'updated_at', 'metric', 'higher_is_better', 'min_rounds', 'matches', 'rounds', 'skipped', 'players',
-  'side', 'role', 'from', 'to', 'match_source', 'days', 'top',
+  'side', 'role', 'from', 'to', 'match_source', 'days', 'top', 'team_top', 'event', 'map_role', 'map_roles', 'events',
 ] as const;
 
 export const BASELINE_QUERY = ['scope', 'map', 'min_rounds'] as const;
 
-export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit', 'side', 'role', 'from', 'to', 'source', 'days', 'top'] as const;
+export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit', 'side', 'role', 'from', 'to', 'source', 'days', 'top', 'team_top', 'event', 'map_role'] as const;

@@ -2,12 +2,14 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowUp, Pin, PinOff, Play } from 'lucide-react';
+import { ArrowDown, ArrowUp, Pin, PinOff, Play, TriangleAlert } from 'lucide-react';
 import type { LeaderboardMetric, LeaderboardRow } from '@/lib/api/baseline';
 import { playerHref } from '@/lib/clips/routes';
-import { RANKING_COLUMNS, rolesText } from '@/lib/ranking/columns';
+import { RANKING_COLUMNS, breakdownText, rolesText } from '@/lib/ranking/columns';
 import {
+  LOW_SAMPLE_ROUNDS,
   cellValue,
+  lowSample,
   naturalDir,
   playerRoundsHref,
   type PinnedPlayer,
@@ -84,7 +86,8 @@ function PlayerRow({
   const pin: PinnedPlayer = entry.pinned ?? { steamid64: row?.steamid64 ?? '', name: row?.name ?? '' };
   const name = row?.name ?? pin.name;
   const steamId = row?.steamid64 ?? pin.steamid64;
-  const roles = row === null ? '' : rolesText(row.roles, state.scope.side);
+  const detail = row === null ? '' : breakdownText(row, state.scope.side);
+  const roles = row === null || detail !== '' ? detail : rolesText(row.roles, state.scope.side);
   const href = row === null ? null : playerRoundsHref(row, name);
   return (
     <tr className={cn('border-t border-border-subtle', entry.pinned && 'bg-surface-2')}>
@@ -101,9 +104,9 @@ function PlayerRow({
               <span className="truncate font-medium text-fg-1">{name}</span>
             )}
             {row === null ? (
-              <span className="text-meta text-fg-3">Sin rondas con este filtro</span>
+              <span className="text-meta text-fg-3">Bajo el mínimo de rondas con este filtro</span>
             ) : (
-              <span className="truncate text-meta text-fg-2">
+              <span className="truncate text-meta text-fg-2" title={roles}>
                 {subtitle(row, roles)}
               </span>
             )}
@@ -115,6 +118,12 @@ function PlayerRow({
         return (
           <td key={column.sort} className={cn('px-2 py-1.5 text-right tabular-nums', state.sort === column.sort ? 'text-fg-1' : 'text-fg-2')}>
             {value === null ? <span className="text-fg-4">-</span> : column.format(value)}
+            {column.sort === 'rounds' && row !== null && lowSample(row) ? (
+              <TriangleAlert
+                aria-label={`Menos de ${LOW_SAMPLE_ROUNDS} rondas: las cifras son una lectura aproximada`}
+                className="ml-1 inline size-3 text-fg-3"
+              />
+            ) : null}
           </td>
         );
       })}

@@ -62,6 +62,24 @@ func TestLeaderboardReadsTRolesFromDistanceAndLean(t *testing.T) {
 	}
 }
 
+func TestLeaderboardTeammateDistanceIsThreeDimensional(t *testing.T) {
+	m, frames := roleMatch("00000000-0000-0000-0000-0000000000d4", true)
+	// Slot 0 sits right under its mates: 2D distance is nil, but a floor away in 3D.
+	for _, round := range frames {
+		for _, frame := range round {
+			frame.Samples[0].X, frame.Samples[0].Y, frame.Samples[0].Z = 0, 0, 0
+			frame.Samples[1].Z, frame.Samples[2].Z = 2000, 2000
+		}
+	}
+	var s LeaderboardSample
+	s.Add(ReadMatch(m, MatchReadOptions{Roles: true, Opening: frames}), SideT)
+	for _, row := range s.Rows(LeaderboardOptions{Metric: MetricKPR, MinRounds: 1}) {
+		if row.SteamID64 == "p0" && (row.Roles == nil || row.Roles.T == "" || row.Roles.T == PositionPack) {
+			t.Fatalf("player a floor under the pack has role %+v, want a lurk role", row.Roles)
+		}
+	}
+}
+
 func TestLeaderboardRoleFilterKeepsOnlyThatRole(t *testing.T) {
 	m, frames := roleMatch("00000000-0000-0000-0000-0000000000d2", true)
 	var s LeaderboardSample

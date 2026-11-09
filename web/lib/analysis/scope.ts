@@ -9,8 +9,11 @@ import { TACTICAL_BUY_TYPES, TACTICAL_FILTER_PARAMS, type TacticalBuyType } from
  */
 
 export const PERIOD_PRESETS = [
+  { value: '7d', label: 'Últimos 7 días', days: 7 },
+  { value: '14d', label: 'Últimos 14 días', days: 14 },
   { value: '30d', label: 'Últimos 30 días', days: 30 },
   { value: '90d', label: 'Últimos 90 días', days: 90 },
+  { value: '180d', label: 'Últimos 180 días', days: 180 },
   { value: '365d', label: 'Último año', days: 365 },
 ] as const;
 export type PeriodPreset = (typeof PERIOD_PRESETS)[number]['value'];
