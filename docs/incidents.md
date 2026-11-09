@@ -473,3 +473,9 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
   `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
   builds the installer and publishes the GitHub Release as `latest`, which
   is what the in-app updater reads.
+- Releases live in the public `rechedev9/cliphub`, not in this private source
+  repo: installed apps, the landing and first-start FFmpeg (`v2.2.12`) fetch
+  from it without a token. `publish` writes there with the `RELEASES_TOKEN`
+  secret, a fine-grained PAT with Contents read and write on that repo only.
+  The `releases-token` job proves the PAT on every run, dry runs included.
+  When the PAT expires, make a new one and replace the secret.

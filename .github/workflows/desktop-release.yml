@@ -181,8 +181,26 @@ jobs:
             desktop/dist-installer/ClipHub.Studio.Setup.${{ steps.version.outputs.version }}.exe.blockmap
             desktop/dist-installer/SHA256SUMS.txt
 
+  # Releases go to the public repo, which installed apps read without a token. A dry run
+  # proves the PAT can write there with a draft that never gets a tag.
+  releases-token:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - name: Create and delete a draft release in the releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_REPO: rechedev9/cliphub
+          PROBE: token-check-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          gh release create "$PROBE" --draft --title "$PROBE" --notes "Token check from run ${{ github.run_id }}" --target main
+          gh release delete "$PROBE" --yes
+
   publish:
-    needs: [checks, windows-installer]
+    needs: [checks, windows-installer, releases-token]
     # A manual run is a dry run unless dry_run is unticked; a tag push always publishes.
     if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
@@ -204,8 +222,8 @@ jobs:
 
       - name: Publish GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_REPO: rechedev9/cliphub
           RELEASE_NOTES: ${{ github.event.inputs.notes || '' }}
           VERSION: ${{ needs.windows-installer.outputs.version }}
         shell: pwsh
@@ -219,13 +237,13 @@ jobs:
 
           $notes = $env:RELEASE_NOTES
           if ([string]::IsNullOrWhiteSpace($notes)) {
-            $notes = "Studio $version is the unsigned Windows installer built by this repository's windows-latest job.`n`nUnsigned by policy; verify SHA256SUMS.txt."
+            $notes = "Studio $version is the unsigned Windows installer built by the ClipHub release workflow.`n`nUnsigned by policy; verify SHA256SUMS.txt."
           }
 
           # A new release stays a draft until every asset is uploaded, so a partial run is never public.
           $release = gh release view $tag --json assets 2>$null | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --draft --title "ClipHub Studio $version" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --draft --title "ClipHub Studio $version" --notes $notes --target main
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit $LASTEXITCODE" }
             $release = @{ assets = @() }
           }
@@ -245,3 +263,36 @@ jobs:
           }
           gh release edit $tag --title "ClipHub Studio $version" --notes $notes --latest --draft=false --prerelease=false
           if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit $LASTEXITCODE" }
+
+      - name: Checkout the issue guide
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: source
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            CONTRIBUTING.md
+            .github/ISSUE_TEMPLATE/
+
+      - name: Copy the issue guide to the releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_REPO: rechedev9/cliphub
+          VERSION: ${{ needs.windows-installer.outputs.version }}
+        working-directory: source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $files = @('CONTRIBUTING.md') + @(Get-ChildItem -File .github/ISSUE_TEMPLATE | ForEach-Object { ".github/ISSUE_TEMPLATE/$($_.Name)" })
+          foreach ($path in $files) {
+            $content = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $path)))
+            $remote = gh api "repos/$env:GH_REPO/contents/$path" 2>$null | ConvertFrom-Json
+            $fields = @('-f', "message=Copy $path from Studio $env:VERSION", '-f', "content=$content")
+            if ($LASTEXITCODE -eq 0) {
+              if (($remote.content -replace '\s', '') -eq $content) { continue }
+              $fields += @('-f', "sha=$($remote.sha)")
+            }
+            gh api --method PUT "repos/$env:GH_REPO/contents/$path" @fields --silent
+            if ($LASTEXITCODE -ne 0) { throw "copy of $path failed with exit $LASTEXITCODE" }
+          }
