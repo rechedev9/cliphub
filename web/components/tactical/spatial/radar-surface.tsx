@@ -36,8 +36,6 @@ export type RadarFrame = {
 /** Lets the owner repaint the marks without React rendering, from an animation loop. */
 export type RadarSurfaceHandle = { repaint: () => void };
 
-const FULL_VIEW: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
-
 /** Same height ceiling as the round replay, so the two views share one plate size. */
 const RADAR_MAX_HEIGHT_VH = 74;
 /** Greys CS2's radar down so team colours and marks stay the loudest thing on it. */
@@ -107,11 +105,10 @@ export function RadarSurface({
   // A derived calibration does not line up with the image, so such a map keeps its cells.
   const radar = useRadarImage(geometry.map, level === RADAR_LEVELS.lower ? 'lower' : 'upper');
   const image = radarImageFits(geometry.calibration) ? radar : null;
-  // Until the image settles the framing is unknown: nothing is drawn and the map takes no zoom,
-  // so the crop does not jump and no zoom is lost when it settles.
+  // Until the image settles nothing is drawn, so the cells never flash before it, and the map takes no zoom.
   const settled = image !== undefined;
-  // The whole map like the game's radar; only the play-derived cells are cropped to where people played.
-  const base = useMemo(() => (image === null ? radarViewRect(geometry) : FULL_VIEW), [geometry, image]);
+  // Image or cells, the plate is cropped to where people played: a tall map stays tall, a wide one wide.
+  const base = useMemo(() => radarViewRect(geometry), [geometry]);
   const zoom = useMapZoom(base, { enabled: settled });
   const view = zoom.view;
   const projection = useMemo<RadarProjection>(() => radarProjection(box, view), [box, view]);
