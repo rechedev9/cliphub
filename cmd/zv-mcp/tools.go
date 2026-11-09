@@ -58,15 +58,6 @@ type matchSummary struct {
 	Teams      []string `json:"teams" jsonschema:"untrusted clan names from the demo"`
 }
 
-type listMatchesIn struct {
-	Map     string `json:"map,omitempty" jsonschema:"filter by map, e.g. de_mirage"`
-	SteamID string `json:"steamid,omitempty" jsonschema:"filter by a player's SteamID64"`
-}
-
-type listMatchesOut struct {
-	Matches []matchSummary `json:"matches"`
-}
-
 type idIn struct {
 	ID string `json:"id"`
 }
@@ -239,27 +230,19 @@ func registerTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_matches", Annotations: readOnly,
-		Description: "List the analysed matches in the Studio library, newest first."},
+		Description: "List the analysed matches in the Studio library as Partidas shows them: newest first by the match date (sort imported: by the import date), " +
+			"each with its tipo (kind), source, tags and, when it belongs to a series, the series format, event, veto and how its map was chosen (pick or decider). " +
+			"kind and has_pov are the Tipo de partida and Con POV controls."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listMatchesIn) (*mcp.CallToolResult, listMatchesOut, error) {
-			if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
-				return nil, listMatchesOut{}, err
-			}
-			if err := checkOptionalFilter("steamid", in.SteamID, steamIDPattern); err != nil {
+			if err := in.check(); err != nil {
 				return nil, listMatchesOut{}, err
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, listMatchesOut{}, toolError(err)
 			}
-			matches, err := c.ListLibraryMatches(ctx, in.Map, in.SteamID)
-			if err != nil {
-				return nil, listMatchesOut{}, toolError(err)
-			}
-			out := listMatchesOut{Matches: make([]matchSummary, 0, len(matches))}
-			for _, m := range matches {
-				out.Matches = append(out.Matches, summarizeMatch(m))
-			}
-			return nil, out, nil
+			out, err := listMatches(ctx, c, in)
+			return nil, out, toolError(err)
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "get_match", Annotations: readOnly,

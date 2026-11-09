@@ -99,6 +99,11 @@ export function matchHref(matchId: string): string {
   return `${MATCHES_HREF}/${encodeURIComponent(matchId)}`;
 }
 
+/** A partida's record opened on its 2D Replay. */
+export function matchReplayHref(matchId: string): string {
+  return `${matchHref(matchId)}?tab=replay`;
+}
+
 /** A library team's record. */
 export function teamHref(teamId: string): string {
   return `${TEAMS_HREF}/${encodeURIComponent(teamId)}`;

@@ -39,6 +39,8 @@ type LibraryImportResult struct {
 type LibraryMatch struct {
 	ID         string               `json:"id"`
 	DemoID     string               `json:"demo_id"`
+	SeriesID   string               `json:"series_id,omitempty"`
+	Source     string               `json:"source"`
 	Map        string               `json:"map"`
 	PlayedAt   time.Time            `json:"played_at"`
 	RoundCount int                  `json:"round_count"`
@@ -141,6 +143,31 @@ func (c *Client) GetLibraryMatch(ctx context.Context, id string) (LibraryMatch, 
 	var out LibraryMatch
 	err := c.getJSON(ctx, "/api/library/matches/"+url.PathEscape(id), &out)
 	return out, err
+}
+
+// libraryPage is the page size of the library lists (library.MaxListLimit); libraryMaxPages stops a runaway read.
+const (
+	libraryPage     = 200
+	libraryMaxPages = 50
+)
+
+// ListLibraryDemos reads every page of the library's demos.
+func (c *Client) ListLibraryDemos(ctx context.Context) ([]LibraryDemo, error) {
+	var all []LibraryDemo
+	for page := range libraryMaxPages {
+		var out struct {
+			Demos []LibraryDemo `json:"demos"`
+		}
+		params := map[string]string{"limit": strconv.Itoa(libraryPage), "offset": strconv.Itoa(page * libraryPage)}
+		if err := c.getJSON(ctx, "/api/library/demos"+query(params), &out); err != nil {
+			return nil, err
+		}
+		all = append(all, out.Demos...)
+		if len(out.Demos) < libraryPage {
+			break
+		}
+	}
+	return all, nil
 }
 
 // GetLibraryDemo returns one library demo with its parse state.

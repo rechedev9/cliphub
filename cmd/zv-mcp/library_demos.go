@@ -44,6 +44,9 @@ type updateDemoIn struct {
 	ID     string    `json:"id" jsonschema:"demo_id from get_match, list_matches or import_demo"`
 	Source string    `json:"source,omitempty" jsonschema:"valve, faceit, hltv, scrim or unknown; empty keeps the source"`
 	Tags   *[]string `json:"tags,omitempty" jsonschema:"the whole new tag set, replacing the old one (at most 32 of 40 characters, no commas); an empty list clears it; omit to keep the tags"`
+	// AddTags and RemoveTags are the "+ Etiqueta" and remove of a Partidas row: they change the demo's tags without sending the whole set.
+	AddTags    []string `json:"add_tags,omitempty" jsonschema:"tags to add to the ones the demo has (the Etiqueta button of a row); not with tags"`
+	RemoveTags []string `json:"remove_tags,omitempty" jsonschema:"tags to remove from the ones the demo has; not with tags"`
 }
 
 // maxDeleteDemos caps one delete_demo call, so the approval summary stays readable.
@@ -131,10 +134,17 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_demo", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Change a library demo's source (Fuente) or replace its tags (Etiquetas), as the Demo panel of a match does. " +
+		Description: "Change a library demo's source (Fuente) or its tags (Etiquetas), as the Demo panel of a match and the Etiqueta button of a Partidas row do: " +
+			"tags replaces the whole set, add_tags and remove_tags change single tags. " +
 			"A source picked here survives every re-analysis. A shared match keeps its source."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateDemoIn) (*mcp.CallToolResult, demoOut, error) {
 			if err := checkUUID("id", in.ID); err != nil {
+				return nil, demoOut{}, err
+			}
+			if in.Tags != nil && (len(in.AddTags) > 0 || len(in.RemoveTags) > 0) {
+				return nil, demoOut{}, errors.New("pass tags, or add_tags and remove_tags, not both")
+			}
+			if err := checkDemoTags(in.AddTags); err != nil {
 				return nil, demoOut{}, err
 			}
 			patch := tuiclient.LibraryDemoPatch{Tags: in.Tags}
@@ -149,12 +159,24 @@ func registerLibraryDemoTools(server *mcp.Server, s *studio) {
 					return nil, demoOut{}, err
 				}
 			}
-			if patch.Source == nil && patch.Tags == nil {
-				return nil, demoOut{}, errors.New("nothing to change: pass source, tags or both")
+			editsTags := len(in.AddTags) > 0 || len(in.RemoveTags) > 0
+			if patch.Source == nil && patch.Tags == nil && !editsTags {
+				return nil, demoOut{}, errors.New("nothing to change: pass source, tags, add_tags or remove_tags")
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, demoOut{}, toolError(err)
+			}
+			if editsTags {
+				current, err := c.GetLibraryDemo(ctx, in.ID)
+				if err != nil {
+					return nil, demoOut{}, toolError(err)
+				}
+				next := editTags(current.Tags, in.AddTags, in.RemoveTags)
+				if err := checkDemoTags(next); err != nil {
+					return nil, demoOut{}, err
+				}
+				patch.Tags = &next
 			}
 			d, err := c.UpdateLibraryDemo(ctx, in.ID, patch)
 			if err != nil {
@@ -230,6 +252,22 @@ func deleteDemosSummary(names []string) string {
 	}
 	return fmt.Sprintf("Quitar %d partidas de la biblioteca (%s): se borran las copias de las demos, sus análisis y sus correcciones. %s",
 		len(names), list, effect)
+}
+
+// editTags removes, then appends, keeping the order and leaving no duplicate.
+func editTags(current, add, remove []string) []string {
+	next := make([]string, 0, len(current)+len(add))
+	for _, tag := range current {
+		if !slices.Contains(remove, tag) && !slices.Contains(next, tag) {
+			next = append(next, tag)
+		}
+	}
+	for _, tag := range add {
+		if !slices.Contains(next, tag) {
+			next = append(next, tag)
+		}
+	}
+	return next
 }
 
 func checkDemoTags(tags []string) error {
