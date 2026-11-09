@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SavedPlaylist } from '../api/playlists.ts';
-import { holdsRound, legacyRoundsToSave, parseLegacyPlaylist, playlistRefs, savedPlaylistHref, targetPlaylist } from './saved-playlist.ts';
+import {
+  editRoundNotes,
+  holdsRound,
+  legacyRoundsToSave,
+  parseLegacyPlaylist,
+  playlistRefs,
+  playlistRound,
+  roundAnnotations,
+  savedPlaylistHref,
+  targetPlaylist,
+} from './saved-playlist.ts';
 
 const MATCH = '82b2365b-3c63-48d4-8d9c-00342b71c5a1';
 const GONE = '0b9c1f9e-0f4d-4c7a-9a59-2f4f6c1d2e3a';
@@ -30,6 +40,18 @@ test('the Replay plays the rounds it can find, and B knows which it holds', () =
   assert.deepEqual(playlistRefs(p), [{ matchId: MATCH, round: 4 }]);
   assert.equal(holdsRound(p, { matchId: MATCH, round: 4, tick: 9 }), true);
   assert.equal(holdsRound(p, { matchId: MATCH, round: 5 }), false);
+});
+
+test('a round drawing reads as a note of its round, and edits send the whole list back', () => {
+  const stroke = { color: 'accent' as const, width: 3, arrow: true, points: [[0, 0], [9, 9]] satisfies [number, number][] };
+  const p = playlist('a', [{ match_id: MATCH, round: 4, map: 'de_mirage', comment: '', notes: [{ id: 'n1', tick: 640, text: 'rota', strokes: [stroke] }] }]);
+  const round = playlistRound(p, { matchId: MATCH, round: 4 });
+  assert.ok(round);
+  assert.deepEqual(roundAnnotations(round)[0], { id: 'n1', match_id: MATCH, round: 4, tick: 640, text: 'rota', strokes: [stroke], created_at: '', updated_at: '' });
+  const notes = round.notes ?? [];
+  assert.deepEqual(editRoundNotes(notes, { add: { tick: 10, text: '', strokes: [stroke] } }).map((n) => n.tick), [640, 10]);
+  assert.equal(editRoundNotes(notes, { id: 'n1', text: 'tarde' })[0]?.text, 'tarde');
+  assert.deepEqual(editRoundNotes(notes, { remove: 'n1' }), []);
 });
 
 test('B adds to the playlist picked last, else the newest', () => {

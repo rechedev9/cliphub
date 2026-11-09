@@ -13,7 +13,8 @@ import (
 const (
 	testPlaylistID   = "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d"
 	testPlaylistJSON = `{"id":"` + testPlaylistID + `","name":"FUT T","folder":"Rivales","favorite":true,"author":"mopoz","maps":["de_mirage"],` +
-		`"rounds":[{"match_id":"` + testMatchID + `","round":3,"map":"de_mirage","comment":"humo tarde"},` +
+		`"rounds":[{"match_id":"` + testMatchID + `","round":3,"map":"de_mirage","comment":"humo tarde",` +
+		`"notes":[{"id":"n1","tick":4200,"text":"aquí rota","strokes":[{"color":"accent","width":3,"arrow":true,"points":[[0,0],[5,5]]}]}]},` +
 		`{"match_id":"` + testMatchID + `","round":4,"map":"de_inferno","comment":"","missing":true}],"updated_at":"2026-11-09T10:00:00Z"}`
 )
 
@@ -55,6 +56,9 @@ func TestPlaylistToolsListCreateEditAndDelete(t *testing.T) {
 	}
 	if len(p.RoundList) != 2 || p.RoundList[0].Ref != testMatchID+"/3" || p.RoundList[0].Comment != "humo tarde" || !p.RoundList[1].Missing {
 		t.Fatalf("created = %+v", p)
+	}
+	if n := p.RoundList[0].Notes; len(n) != 1 || n[0].Tick != 4200 || n[0].Text != "aquí rota" || n[0].Strokes != 1 || p.RoundList[1].Notes != nil {
+		t.Fatalf("round notes = %+v; want the drawing named by its tick and stroke count", p.RoundList)
 	}
 	toolFails(t, cs, "create_playlist", map[string]any{"name": ""}, "name must not be empty")
 	toolFails(t, cs, "create_playlist", map[string]any{"name": "x", "rounds": []map[string]any{{"ref": "nope"}}}, "not a round ref")

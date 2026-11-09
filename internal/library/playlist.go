@@ -21,6 +21,7 @@ const (
 	MaxPlaylistRounds       = 200
 	MaxPlaylistList         = 1000
 	MaxPlaylistRound        = 999
+	MaxPlaylistRoundNotes   = 20
 )
 
 var (
@@ -47,12 +48,23 @@ type Playlist struct {
 // match is gone, or that came from another PC, still says what it was and
 // finds its match again once that demo is imported. Missing is set on read.
 type PlaylistRound struct {
-	MatchID    uuid.UUID `json:"match_id"`
-	Round      int       `json:"round"`
-	Map        string    `json:"map"`
-	DemoSHA256 string    `json:"demo_sha256,omitempty"`
-	Comment    string    `json:"comment"`
-	Missing    bool      `json:"missing,omitempty"`
+	MatchID    uuid.UUID      `json:"match_id"`
+	Round      int            `json:"round"`
+	Map        string         `json:"map"`
+	DemoSHA256 string         `json:"demo_sha256,omitempty"`
+	Comment    string         `json:"comment"`
+	Notes      []PlaylistNote `json:"notes"`
+	Missing    bool           `json:"missing,omitempty"`
+}
+
+// PlaylistNote is a note and drawing on a playlist round, anchored to a tick as
+// an Annotation is. It lives with the round, not the match, so it travels in the
+// playlist file and outlives a demo that is deleted or not imported yet.
+type PlaylistNote struct {
+	ID      uuid.UUID `json:"id"`
+	Tick    int       `json:"tick"`
+	Text    string    `json:"text"`
+	Strokes []Stroke  `json:"strokes"`
 }
 
 // PlaylistFilter selects playlists for a list read; zero fields do not filter.
@@ -167,6 +179,31 @@ func cleanPlaylistRound(r PlaylistRound) (PlaylistRound, error) {
 		return r, fmt.Errorf("a comment takes at most %d characters", MaxPlaylistCommentRunes)
 	case strings.ContainsFunc(r.Comment, func(c rune) bool { return unicode.IsControl(c) && c != '\n' && c != '\t' }):
 		return r, errors.New("a comment must not hold control characters")
+	case len(r.Notes) > MaxPlaylistRoundNotes:
+		return r, fmt.Errorf("a round holds at most %d notes", MaxPlaylistRoundNotes)
 	}
-	return r, nil
+	notes, err := cleanPlaylistNotes(r.Notes, r.Round)
+	r.Notes = notes
+	return r, err
+}
+
+// cleanPlaylistNotes checks each note as an Annotation of the round, gives a new
+// note its id and orders them by tick.
+func cleanPlaylistNotes(in []PlaylistNote, round int) ([]PlaylistNote, error) {
+	out := make([]PlaylistNote, 0, len(in))
+	for i, n := range in {
+		a, err := CleanAnnotation(Annotation{Round: round, Tick: n.Tick, Text: n.Text, Strokes: n.Strokes})
+		if err != nil {
+			return nil, fmt.Errorf("round %d note %d: %w", round, i, err)
+		}
+		if n.ID == uuid.Nil {
+			n.ID = uuid.New()
+		}
+		if slices.ContainsFunc(out, func(v PlaylistNote) bool { return v.ID == n.ID }) {
+			return nil, fmt.Errorf("round %d: two notes share the id %s", round, n.ID)
+		}
+		out = append(out, PlaylistNote{ID: n.ID, Tick: a.Tick, Text: a.Text, Strokes: a.Strokes})
+	}
+	slices.SortStableFunc(out, func(a, b PlaylistNote) int { return a.Tick - b.Tick })
+	return out, nil
 }

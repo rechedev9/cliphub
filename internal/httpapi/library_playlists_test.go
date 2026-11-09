@@ -60,10 +60,18 @@ func TestLibraryPlaylistsKeepRoundsInOrderWithComments(t *testing.T) {
 	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/2: "+ka+"/1:humo "+kb+"/2:" {
 		t.Fatalf("after add = %s; want the new round first and the held one kept", got)
 	}
-	env.json(http.MethodPatch, path+"/rounds/"+a.ID.String()+"/1", map[string]any{"position": 2, "comment": "tarde"}, http.StatusOK, &p)
+	drawing := map[string]any{"tick": 900, "text": "", "strokes": []map[string]any{{"color": "ct", "width": 3, "arrow": true, "points": [][2]float64{{0, 0}, {50, 80}}}}}
+	env.json(http.MethodPatch, path+"/rounds/"+a.ID.String()+"/1", map[string]any{"position": 2, "comment": "tarde", "notes": []any{drawing}}, http.StatusOK, &p)
 	env.json(http.MethodDelete, path+"/rounds/"+b.ID.String()+"/2", nil, http.StatusOK, &p)
 	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/2: "+ka+"/1:tarde" {
 		t.Fatalf("after move and remove = %s", got)
+	}
+	if notes := p.Rounds[1].Notes; len(notes) != 1 || notes[0].ID == uuid.Nil || notes[0].Tick != 900 || !notes[0].Strokes[0].Arrow {
+		t.Fatalf("round notes = %+v; want the drawing with an id", notes)
+	}
+	bad := map[string]any{"notes": []any{map[string]any{"tick": 1, "text": "", "strokes": []any{}}}}
+	if rw := env.do(http.MethodPatch, path+"/rounds/"+a.ID.String()+"/1", mustJSON(t, bad), "application/json"); rw.Code != http.StatusBadRequest {
+		t.Fatalf("PATCH an empty note = %d, want 400", rw.Code)
 	}
 	env.json(http.MethodDelete, path+"/rounds/"+b.ID.String()+"/2", nil, http.StatusNotFound, nil)
 	updated := p.UpdatedAt
@@ -72,8 +80,8 @@ func TestLibraryPlaylistsKeepRoundsInOrderWithComments(t *testing.T) {
 		t.Fatalf("starred = %+v; want the rounds and updated_at kept", p)
 	}
 	env.json(http.MethodPatch, path, map[string]any{"rounds": []map[string]any{{"match_id": a.ID, "round": 1, "comment": "solo"}}}, http.StatusOK, &p)
-	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/1:solo" {
-		t.Fatalf("after replace = %s", got)
+	if got := strings.Join(playlistRoundKeys(p), " "); got != ka+"/1:solo" || len(p.Rounds[0].Notes) != 1 {
+		t.Fatalf("after replace = %s, notes %+v; want the held round's drawing kept", got, p.Rounds[0].Notes)
 	}
 	env.json(http.MethodDelete, path, nil, http.StatusNoContent, nil)
 	env.json(http.MethodGet, path, nil, http.StatusNotFound, nil)
@@ -84,7 +92,8 @@ func TestLibraryPlaylistFileFindsTheMatchByItsDemoOnAnotherPC(t *testing.T) {
 	src := newLibraryTestEnv(t)
 	m := src.seedLibraryMatch(sha, "Vitality", "MOUZ")
 	var p library.Playlist
-	src.json(http.MethodPost, "/api/library/playlists", map[string]any{"name": "Antis", "rounds": []map[string]any{{"match_id": m.ID, "round": 2, "comment": "fake B"}}}, http.StatusCreated, &p)
+	note := map[string]any{"tick": 320, "text": "rotan dos", "strokes": []map[string]any{{"color": "t", "width": 2, "arrow": false, "points": [][2]float64{{-10, 5}, {40, 60}}}}}
+	src.json(http.MethodPost, "/api/library/playlists", map[string]any{"name": "Antis", "rounds": []map[string]any{{"match_id": m.ID, "round": 2, "comment": "fake B", "notes": []any{note}}}}, http.StatusCreated, &p)
 	var file playlistFile
 	src.json(http.MethodGet, "/api/library/playlists/export?id="+p.ID.String(), nil, http.StatusOK, &file)
 	if file.Format != playlistFormat || len(file.Playlists) != 1 || len(file.Matches) != 1 || file.Matches[0].DemoSHA256 != sha ||
@@ -102,8 +111,8 @@ func TestLibraryPlaylistFileFindsTheMatchByItsDemoOnAnotherPC(t *testing.T) {
 	local := dst.seedLibraryMatch(sha, "Vitality", "MOUZ")
 	var got library.Playlist
 	dst.json(http.MethodGet, "/api/library/playlists/"+p.ID.String(), nil, http.StatusOK, &got)
-	if r := got.Rounds[0]; r.Missing || r.MatchID != local.ID || r.Comment != "fake B" {
-		t.Fatalf("after the demo came = %+v; want the round on the local match", got.Rounds)
+	if r := got.Rounds[0]; r.Missing || r.MatchID != local.ID || r.Comment != "fake B" || len(r.Notes) != 1 || r.Notes[0].Text != "rotan dos" || len(r.Notes[0].Strokes) != 1 {
+		t.Fatalf("after the demo came = %+v; want the round on the local match with its drawing", got.Rounds)
 	}
 	dst.json(http.MethodPost, "/api/library/playlists/import", json.RawMessage(raw), http.StatusOK, &resp)
 	if resp.Imported != 0 || resp.Duplicates != 1 || len(resp.MissingMatches) != 0 {

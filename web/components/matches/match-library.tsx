@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Clapperboard, Layers, Link2, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
+import { Clapperboard, Layers, Link2, ListVideo, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
@@ -40,6 +40,7 @@ import {
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
+import { PLAYLISTS_HREF } from '@/lib/replay/saved-playlist';
 import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
@@ -301,6 +302,12 @@ function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
             <Link href={LIBRARY_SERIES_HREF}>
               <Layers aria-hidden />
               Series y veto
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={PLAYLISTS_HREF}>
+              <ListVideo aria-hidden />
+              Playlists
             </Link>
           </Button>
           {importer}

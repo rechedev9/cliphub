@@ -210,7 +210,13 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'PATCH', segments: ['playlists', UUID], body: fields(PLAYLIST_FIELDS), response: json(PLAYLIST_KEYS) },
   { method: 'DELETE', segments: ['playlists', UUID], response: { kind: 'empty' } },
   { method: 'POST', segments: ['playlists', UUID, 'rounds'], body: fields(PLAYLIST_ADD_FIELDS), response: json(PLAYLIST_KEYS) },
-  { method: 'PATCH', segments: ['playlists', UUID, 'rounds', UUID, ROUND], body: fields(PLAYLIST_ROUND_FIELDS), response: json(PLAYLIST_KEYS) },
+  {
+    method: 'PATCH',
+    segments: ['playlists', UUID, 'rounds', UUID, ROUND],
+    // A round's drawings can pass the default body cap.
+    body: { kind: 'json', fields: PLAYLIST_ROUND_FIELDS, maxBytes: STRATBOOK_FILE_BYTES },
+    response: json(PLAYLIST_KEYS),
+  },
   { method: 'DELETE', segments: ['playlists', UUID, 'rounds', UUID, ROUND], response: json(PLAYLIST_KEYS) },
   { method: 'GET', segments: ['maps', MAP, 'callouts'], query: MAP_CALLOUTS_QUERY, response: json(MAP_CALLOUTS_KEYS) },
   { method: 'PUT', segments: ['maps', MAP, 'callouts', PLACE], body: fields(CALLOUT_NAME_FIELDS), response: json(CALLOUT_NAME_KEYS) },

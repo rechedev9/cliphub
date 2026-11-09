@@ -12,12 +12,21 @@ import (
 // PlaylistRound is one round of a saved playlist. Missing marks a round whose
 // match is not in this library; it keeps its map and demo hash.
 type PlaylistRound struct {
-	MatchID    string `json:"match_id"`
-	Round      int    `json:"round"`
-	Map        string `json:"map,omitempty"`
-	DemoSHA256 string `json:"demo_sha256,omitempty"`
-	Comment    string `json:"comment"`
-	Missing    bool   `json:"missing,omitempty"`
+	MatchID    string         `json:"match_id"`
+	Round      int            `json:"round"`
+	Map        string         `json:"map,omitempty"`
+	DemoSHA256 string         `json:"demo_sha256,omitempty"`
+	Comment    string         `json:"comment"`
+	Notes      []PlaylistNote `json:"notes,omitempty"`
+	Missing    bool           `json:"missing,omitempty"`
+}
+
+// PlaylistNote is a note and drawing a coach left on a playlist round, at a demo tick.
+type PlaylistNote struct {
+	ID      string            `json:"id"`
+	Tick    int               `json:"tick"`
+	Text    string            `json:"text"`
+	Strokes []json.RawMessage `json:"strokes"`
 }
 
 // Playlist is a saved, ordered list of rounds to watch in the Replay.

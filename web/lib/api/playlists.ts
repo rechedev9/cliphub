@@ -1,4 +1,5 @@
 import { jsonInit, readAll, request } from './library.ts';
+import type { Stroke } from './spatial.ts';
 
 /**
  * Browser-side contract of the saved round playlists (`library.Playlist` in
@@ -11,6 +12,10 @@ export const MAX_PLAYLIST_FOLDER = 60;
 export const MAX_PLAYLIST_AUTHOR = 60;
 export const MAX_PLAYLIST_COMMENT = 1000;
 export const MAX_PLAYLIST_ROUNDS = 200;
+export const MAX_PLAYLIST_ROUND_NOTES = 20;
+
+/** A note and drawing on a playlist round, anchored to a tick as a match's note is; a new one has no id yet. */
+export type PlaylistNote = { id?: string; tick: number; text: string; strokes: Stroke[] };
 
 export type PlaylistRound = {
   match_id: string;
@@ -18,6 +23,8 @@ export type PlaylistRound = {
   map: string;
   demo_sha256?: string;
   comment: string;
+  /** In tick order; an older server may leave it out. */
+  notes?: PlaylistNote[];
   /** The match is not in this library; the round keeps its map and its demo's hash. */
   missing?: boolean;
 };
@@ -58,7 +65,7 @@ export const PLAYLIST_KEYS = [
 export const PLAYLIST_FIELDS = ['name', 'folder', 'author', 'favorite', 'rounds'] as const satisfies readonly (keyof PlaylistInput)[];
 export const PLAYLIST_LIST_QUERY = ['q', 'map', 'folder', 'no_folder', 'favorite'] as const;
 export const PLAYLIST_ADD_FIELDS = ['rounds', 'position'] as const;
-export const PLAYLIST_ROUND_FIELDS = ['comment', 'position'] as const;
+export const PLAYLIST_ROUND_FIELDS = ['comment', 'notes', 'position'] as const;
 
 export const PLAYLIST_FILE_FORMAT = 'cliphub-playlists';
 export const PLAYLIST_FILE_VERSION = 1;
@@ -125,7 +132,8 @@ export function addPlaylistRounds(id: string, add: { rounds: PlaylistRoundInput[
   return request<SavedPlaylist>(`${playlistPath(id)}/rounds`, jsonInit('POST', add));
 }
 
-export function patchPlaylistRound(target: PlaylistRoundTarget, patch: { comment?: string; position?: number }): Promise<SavedPlaylist> {
+/** `notes` replaces the round's whole list. */
+export function patchPlaylistRound(target: PlaylistRoundTarget, patch: { comment?: string; notes?: PlaylistNote[]; position?: number }): Promise<SavedPlaylist> {
   return request<SavedPlaylist>(roundPath(target), jsonInit('PATCH', patch));
 }
 

@@ -115,7 +115,8 @@ round_lineups compares its grenades with the lineup catalog, and replay_playlist
 Saved playlists (Replay > Playlists: rounds of any matches with a comment each, in folders, starred): list_playlists,
 get_playlist, create_playlist, update_playlist (rename, folder, star, or the full round list to reorder, remove and comment),
 add_playlist_rounds (B in the Replay), delete_playlist, export_playlists and import_playlists (.json files on this PC, to share
-with the team; rounds whose demo is missing come back in missing_matches). studio_path opens one in the Replay with its panel.
+with the team; rounds whose demo is missing come back in missing_matches). studio_path opens one in the Replay with its panel,
+where J and K walk its rounds; the notes and drawings drawn there stay with the playlist round and travel in the file (get_playlist reads them).
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary

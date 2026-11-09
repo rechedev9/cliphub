@@ -12,7 +12,7 @@ const PLAYBACK: readonly Shortcut[] = [
   { keys: ['Mayús', '←', '→'], does: 'Saltar al evento anterior o siguiente' },
   { keys: ['[', ']'], or: ['J', 'K'], does: 'Ronda anterior o siguiente' },
   { keys: ['M'], does: 'Superponer rondas, o dejar de hacerlo' },
-  { keys: ['B'], does: 'Añadir la ronda a la playlist, o quitarla' },
+  { keys: ['B'], does: 'Añadir la ronda a la última playlist elegida, o quitarla' },
   { keys: [',', '.'], does: 'Plegar el panel de la ronda o el de jugadores' },
   { keys: ['P'], does: 'Pantalla completa; otra vez o Esc para salir' },
   { keys: ['?'], does: 'Mostrar estos atajos' },

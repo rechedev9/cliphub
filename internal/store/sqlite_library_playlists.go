@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,7 +16,7 @@ import (
 const libraryPlaylistColumns = `SELECT p.id, p.name, p.folder, p.favorite, p.author, p.created_at, p.updated_at FROM library_playlists p`
 
 // libraryPlaylistRounds resolves each round's match by id, else by its demo's hash.
-const libraryPlaylistRounds = `SELECT pr.playlist_id, pr.match_id, pr.round, pr.map, pr.demo_sha256, pr.comment,
+const libraryPlaylistRounds = `SELECT pr.playlist_id, pr.match_id, pr.round, pr.map, pr.demo_sha256, pr.comment, pr.notes,
 	COALESCE(m.id, m2.id, ''), COALESCE(m.map, m2.map, '')
 	FROM library_playlist_rounds pr
 	LEFT JOIN library_matches m ON m.id = pr.match_id
@@ -60,10 +61,16 @@ func withPlaylistRounds(ctx context.Context, q libraryQuerier, playlists []libra
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var playlistID, matchID, resolvedID, resolvedMap string
+		var playlistID, matchID, notes, resolvedID, resolvedMap string
 		var r library.PlaylistRound
-		if err := rows.Scan(&playlistID, &matchID, &r.Round, &r.Map, &r.DemoSHA256, &r.Comment, &resolvedID, &resolvedMap); err != nil {
+		if err := rows.Scan(&playlistID, &matchID, &r.Round, &r.Map, &r.DemoSHA256, &r.Comment, &notes, &resolvedID, &resolvedMap); err != nil {
 			return err
+		}
+		if err := json.Unmarshal([]byte(notes), &r.Notes); err != nil {
+			return fmt.Errorf("decode playlist %s round notes: %w", playlistID, err)
+		}
+		if r.Notes == nil {
+			r.Notes = []library.PlaylistNote{}
 		}
 		if resolvedID == "" {
 			r.Missing = true
@@ -99,8 +106,15 @@ func getLibraryPlaylist(ctx context.Context, q libraryQuerier, id uuid.UUID) (li
 
 func insertPlaylistRounds(ctx context.Context, tx *sql.Tx, id uuid.UUID, rounds []library.PlaylistRound) error {
 	for i, r := range rounds {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_playlist_rounds (playlist_id, position, match_id, round, map, demo_sha256, comment)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, id.String(), i, r.MatchID.String(), r.Round, r.Map, r.DemoSHA256, r.Comment); err != nil {
+		if r.Notes == nil {
+			r.Notes = []library.PlaylistNote{}
+		}
+		notes, err := json.Marshal(r.Notes)
+		if err != nil {
+			return fmt.Errorf("encode playlist round notes: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO library_playlist_rounds (playlist_id, position, match_id, round, map, demo_sha256, comment, notes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, id.String(), i, r.MatchID.String(), r.Round, r.Map, r.DemoSHA256, r.Comment, string(notes)); err != nil {
 			return fmt.Errorf("insert playlist round: %w", err)
 		}
 	}

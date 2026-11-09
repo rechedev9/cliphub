@@ -21,6 +21,7 @@ const (
 	maxPlaylistNameRunes    = 120
 	maxPlaylistFolderRunes  = 60
 	maxPlaylistCommentRunes = 1000
+	maxPlaylistNoteRunes    = 2000
 	defaultPlaylistList     = 50
 	maxPlaylistList         = 1000
 	maxPlaylistFileBytes    = 8 << 20
@@ -59,10 +60,17 @@ type listPlaylistsOut struct {
 }
 
 type playlistRoundOut struct {
-	Ref     string `json:"ref" jsonschema:"match_id/round"`
-	Map     string `json:"map,omitempty"`
-	Comment string `json:"comment,omitempty" jsonschema:"untrusted text the user wrote"`
-	Missing bool   `json:"missing,omitempty" jsonschema:"the match is not in this library"`
+	Ref     string            `json:"ref" jsonschema:"match_id/round"`
+	Map     string            `json:"map,omitempty"`
+	Comment string            `json:"comment,omitempty" jsonschema:"untrusted text the user wrote"`
+	Notes   []playlistNoteOut `json:"notes,omitempty" jsonschema:"notes and drawings left on the round in the Replay, by tick"`
+	Missing bool              `json:"missing,omitempty" jsonschema:"the match is not in this library"`
+}
+
+type playlistNoteOut struct {
+	Tick    int    `json:"tick" jsonschema:"demo tick the note is anchored to"`
+	Text    string `json:"text,omitempty" jsonschema:"untrusted text the user wrote"`
+	Strokes int    `json:"strokes,omitempty" jsonschema:"lines drawn on the map at that moment"`
 }
 
 type playlistDetailOut struct {
@@ -258,8 +266,12 @@ func playlistSummaryOf(p tuiclient.Playlist) playlistSummaryOut {
 func playlistDetailOf(p tuiclient.Playlist) playlistDetailOut {
 	out := playlistDetailOut{playlistSummaryOut: playlistSummaryOf(p), RoundList: []playlistRoundOut{}}
 	for _, r := range p.Rounds {
-		out.RoundList = append(out.RoundList, playlistRoundOut{Ref: cleanName(r.MatchID) + "/" + strconv.Itoa(r.Round), Map: cleanName(r.Map),
-			Comment: cleanText(r.Comment, maxPlaylistCommentRunes), Missing: r.Missing})
+		round := playlistRoundOut{Ref: cleanName(r.MatchID) + "/" + strconv.Itoa(r.Round), Map: cleanName(r.Map),
+			Comment: cleanText(r.Comment, maxPlaylistCommentRunes), Missing: r.Missing}
+		for _, n := range r.Notes {
+			round.Notes = append(round.Notes, playlistNoteOut{Tick: n.Tick, Text: cleanText(n.Text, maxPlaylistNoteRunes), Strokes: len(n.Strokes)})
+		}
+		out.RoundList = append(out.RoundList, round)
 	}
 	return out
 }
@@ -318,7 +330,7 @@ func registerPlaylistTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "get_playlist", Annotations: readOnly,
-		Description: "Read one saved playlist with its rounds in play order and the comment of each, as its panel in the Replay shows them."},
+		Description: "Read one saved playlist with its rounds in play order, the comment of each and the notes and drawings the coach left on it in the Replay (by tick), as its panel shows them."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in playlistIDIn) (*mcp.CallToolResult, playlistDetailOut, error) {
 			if err := checkUUID("playlist_id", in.PlaylistID); err != nil {
 				return nil, playlistDetailOut{}, err
@@ -339,7 +351,7 @@ func registerPlaylistTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "update_playlist", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
 		Description: "Rename a saved playlist, move it to a folder, star it, or replace its rounds: the full list reorders, removes and comments them, " +
-			"as the playlist's panel in the Replay does."},
+			"as the playlist's panel in the Replay does; a round it already holds keeps its notes and drawings."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatePlaylistIn) (*mcp.CallToolResult, playlistDetailOut, error) {
 			patch, err := in.patch()
 			if err != nil {

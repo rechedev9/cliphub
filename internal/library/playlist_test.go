@@ -26,6 +26,25 @@ func TestCleanPlaylistKeepsTheFirstOfARepeatedRoundAndDerivesTheMaps(t *testing.
 	}
 }
 
+func TestCleanPlaylistGivesANewNoteItsIDAndOrdersTheNotesByTick(t *testing.T) {
+	kept := uuid.New()
+	p, err := CleanPlaylist(Playlist{Name: "x", Rounds: []PlaylistRound{{MatchID: uuid.New(), Round: 2, Notes: []PlaylistNote{
+		{ID: kept, Tick: 900, Text: " tarde "},
+		{Tick: 100, Strokes: []Stroke{{Color: "t", Width: 4, Points: [][2]float64{{0, 0}, {10, 10}}}}},
+	}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := p.Rounds[0].Notes
+	if len(notes) != 2 || notes[0].Tick != 100 || notes[0].ID == uuid.Nil || notes[1].ID != kept || notes[1].Text != "tarde" {
+		t.Fatalf("notes = %+v; want the drawing first with a new id, then the kept note trimmed", notes)
+	}
+	twice := []PlaylistNote{{ID: kept, Text: "a"}, {ID: kept, Text: "b"}}
+	if _, err := CleanPlaylist(Playlist{Name: "x", Rounds: []PlaylistRound{{MatchID: uuid.New(), Round: 1, Notes: twice}}}); err == nil {
+		t.Fatal("two notes with one id: no error")
+	}
+}
+
 func TestCleanPlaylistRefusesWhatAPlaylistCannotHold(t *testing.T) {
 	id := uuid.New()
 	tooMany := make([]PlaylistRound, MaxPlaylistRounds+1)
@@ -42,6 +61,10 @@ func TestCleanPlaylistRefusesWhatAPlaylistCannotHold(t *testing.T) {
 		"a bad hash":            {Name: "x", Rounds: []PlaylistRound{{MatchID: id, Round: 1, DemoSHA256: "abc"}}},
 		"a bad map":             {Name: "x", Rounds: []PlaylistRound{{MatchID: id, Round: 1, Map: "../x"}}},
 		"too many rounds":       {Name: "x", Rounds: tooMany},
+		"an empty note":         {Name: "x", Rounds: []PlaylistRound{{MatchID: id, Round: 1, Notes: []PlaylistNote{{Tick: 5}}}}},
+		"a note off the map": {Name: "x", Rounds: []PlaylistRound{{MatchID: id, Round: 1, Notes: []PlaylistNote{
+			{Strokes: []Stroke{{Color: "accent", Width: 2, Points: [][2]float64{{0, 0}, {1e9, 0}}}}},
+		}}}},
 	} {
 		if _, err := CleanPlaylist(p); err == nil {
 			t.Errorf("%s: no error", name)

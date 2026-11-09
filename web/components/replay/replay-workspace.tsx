@@ -39,7 +39,7 @@ import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
 import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
-import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
+import type { AnnotationStore, NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -90,7 +90,11 @@ export type ReplayWorkspaceProps = {
   players?: FocusControl;
   /** The tramo when the page keeps it in the URL, shared with its other forms; without it the workspace keeps its own. */
   tramo?: TramoControl;
+  /** Where the round's notes and drawings live instead of its match, such as an open playlist (`where` names it). */
+  roundNotes?: { store: AnnotationStore; where: string };
 };
+
+const NO_MATCHES: readonly string[] = [];
 
 /**
  * The replay: filters, layers and saved moments on the left, the map in the
@@ -109,6 +113,7 @@ export function ReplayWorkspace({
   title,
   players,
   tramo: pageTramo,
+  roundNotes,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -464,7 +469,8 @@ export function ReplayWorkspace({
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
-  const notes = useAnnotations(noteMatchIds, entry?.round);
+  const matchNotes = useAnnotations(roundNotes === undefined ? noteMatchIds : NO_MATCHES, entry?.round);
+  const notes = roundNotes?.store ?? matchNotes;
   const noteItems: NoteItem[] =
     focusTimeline === null
       ? []
@@ -669,7 +675,7 @@ export function ReplayWorkspace({
                   store: notes,
                   items: noteItems,
                   draft,
-                  anchorLabel: `Se ancla a la ronda ${focused.round.number} · ${roundClockLabelFor(focusTimeline, timelineSeconds(focusTimeline, tickOf(focused, nowSeconds)))}`,
+                  anchorLabel: `${roundNotes === undefined ? 'Se ancla a' : `Se guarda en ${roundNotes.where},`} la ronda ${focused.round.number} · ${roundClockLabelFor(focusTimeline, timelineSeconds(focusTimeline, tickOf(focused, nowSeconds)))}`,
                   onCreate: saveNote,
                 }
           }

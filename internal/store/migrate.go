@@ -737,7 +737,8 @@ func migrateV15LibraryCalls(tx *sql.Tx) error {
 
 // migrateV16LibraryPlaylists stores saved playlists of rounds. A round keeps its
 // match id without a foreign key: a deleted or not yet imported match leaves the
-// round in place, read as missing, and its demo hash finds the match again.
+// round in place, read as missing, and its demo hash finds the match again. Its
+// notes and drawings are JSON on the round, so they go wherever the round goes.
 func migrateV16LibraryPlaylists(tx *sql.Tx) error {
 	for _, stmt := range []string{
 		`CREATE TABLE library_playlists (
@@ -757,6 +758,7 @@ func migrateV16LibraryPlaylists(tx *sql.Tx) error {
 			map         TEXT    NOT NULL DEFAULT '',
 			demo_sha256 TEXT    NOT NULL DEFAULT '',
 			comment     TEXT    NOT NULL DEFAULT '',
+			notes       TEXT    NOT NULL DEFAULT '[]',
 			PRIMARY KEY (playlist_id, position)
 		)`,
 		`CREATE INDEX library_playlists_updated ON library_playlists(updated_at, id)`,

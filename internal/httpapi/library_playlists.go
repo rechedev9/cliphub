@@ -95,11 +95,20 @@ func playlistFilterQuery(q url.Values) (library.PlaylistFilter, error) {
 	return f, nil
 }
 
-// playlistRoundRequest is a round as a client names it: the server fills its map and demo.
+// playlistRoundRequest is a round as a client names it: the server fills its map
+// and demo. Without notes a round the playlist holds keeps its own.
 type playlistRoundRequest struct {
-	MatchID uuid.UUID `json:"match_id"`
-	Round   int       `json:"round"`
-	Comment string    `json:"comment"`
+	MatchID uuid.UUID               `json:"match_id"`
+	Round   int                     `json:"round"`
+	Comment string                  `json:"comment"`
+	Notes   *[]library.PlaylistNote `json:"notes"`
+}
+
+func (in playlistRoundRequest) notesOr(held []library.PlaylistNote) []library.PlaylistNote {
+	if in.Notes == nil {
+		return held
+	}
+	return *in.Notes
 }
 
 // playlistRequest is a playlist as a client sends it; nil fields are not set.
@@ -137,7 +146,7 @@ func (h *Handlers) playlistRounds(ctx context.Context, current []library.Playlis
 		want := library.PlaylistRound{MatchID: req.MatchID, Round: req.Round}
 		if i := slices.IndexFunc(current, func(r library.PlaylistRound) bool { return library.SamePlaylistRound(r, want) }); i >= 0 {
 			kept := current[i]
-			kept.Comment = req.Comment
+			kept.Comment, kept.Notes = req.Comment, req.notesOr(kept.Notes)
 			out = append(out, kept)
 			continue
 		}
@@ -158,7 +167,7 @@ func (h *Handlers) playlistRounds(ctx context.Context, current []library.Playlis
 		if req.Round < 1 || req.Round > m.RoundCount {
 			return nil, badPlaylistInput{"invalid_request", fmt.Sprintf("match %s has no round %d", req.MatchID, req.Round)}
 		}
-		out = append(out, library.PlaylistRound{MatchID: m.ID, Round: req.Round, Map: m.Map, DemoSHA256: shas[req.MatchID], Comment: req.Comment})
+		out = append(out, library.PlaylistRound{MatchID: m.ID, Round: req.Round, Map: m.Map, DemoSHA256: shas[req.MatchID], Comment: req.Comment, Notes: req.notesOr(nil)})
 	}
 	return out, nil
 }
@@ -331,10 +340,12 @@ func playlistRoundIndex(r *http.Request, p library.Playlist) (int, error) {
 	return i, nil
 }
 
-// playlistRoundPatch edits one round: its comment, or where it goes (0 is the start).
+// playlistRoundPatch edits one round: its comment, its notes (the whole list,
+// each anchored to a tick), or where it goes (0 is the start).
 type playlistRoundPatch struct {
-	Comment  *string `json:"comment"`
-	Position *int    `json:"position"`
+	Comment  *string                 `json:"comment"`
+	Notes    *[]library.PlaylistNote `json:"notes"`
+	Position *int                    `json:"position"`
 }
 
 // PatchLibraryPlaylistRound handles PATCH /api/library/playlists/{id}/rounds/{match}/{round}.
@@ -345,12 +356,16 @@ func (h *Handlers) PatchLibraryPlaylistRound(w http.ResponseWriter, r *http.Requ
 			return library.PlaylistPatch{}, err
 		}
 		var req playlistRoundPatch
-		if err := decodeSingleJSONBody(w, r, &req, true); err != nil || (req.Comment == nil && req.Position == nil) {
-			return library.PlaylistPatch{}, badPlaylistInput{"invalid_request", "send a comment or a position"}
+		// A round's drawings can pass the 1 MiB of other control bodies.
+		if err := decodeJSONBody(w, r, &req, true, maxPlaylistFileBytes); err != nil || (req.Comment == nil && req.Notes == nil && req.Position == nil) {
+			return library.PlaylistPatch{}, badPlaylistInput{"invalid_request", "send a comment, notes or a position"}
 		}
 		round := current.Rounds[i]
 		if req.Comment != nil {
 			round.Comment = *req.Comment
+		}
+		if req.Notes != nil {
+			round.Notes = *req.Notes
 		}
 		rounds := slices.Delete(slices.Clone(current.Rounds), i, i+1)
 		at := i

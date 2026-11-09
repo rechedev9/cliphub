@@ -98,8 +98,11 @@ func TestPlaylistRepositoryContract(t *testing.T) {
 				mirageDemo := f.demo("mirage", 0)
 				mirage := f.analyze(mirageDemo, "de_mirage", ct, tside)
 				foreign := uuid.New()
+				drawing := library.PlaylistNote{ID: uuid.New(), Tick: 640, Text: "rotación", Strokes: []library.Stroke{
+					{Color: "accent", Width: 3, Arrow: true, Points: [][2]float64{{-120, 40}, {300, 812.5}}},
+				}}
 				p := &library.Playlist{Name: "De otro PC", Rounds: []library.PlaylistRound{
-					{MatchID: mirage.ID, Round: 2, Map: "de_mirage", DemoSHA256: "mirage"},
+					{MatchID: mirage.ID, Round: 2, Map: "de_mirage", DemoSHA256: "mirage", Notes: []library.PlaylistNote{drawing}},
 					{MatchID: foreign, Round: 4, Map: "de_inferno", DemoSHA256: "inferno", Comment: "su ejecución"},
 				}}
 				if err := f.repo.CreatePlaylist(f.ctx, p); err != nil {
@@ -107,6 +110,9 @@ func TestPlaylistRepositoryContract(t *testing.T) {
 				}
 				if p.Rounds[0].Missing || !p.Rounds[1].Missing || p.Rounds[1].Map != "de_inferno" || p.Rounds[1].MatchID != foreign {
 					t.Fatalf("rounds = %+v; want the foreign round missing with its map", p.Rounds)
+				}
+				if p.Rounds[1].Notes == nil || len(p.Rounds[1].Notes) != 0 {
+					t.Fatalf("notes of a round without any = %#v; want an empty list", p.Rounds[1].Notes)
 				}
 				inferno := f.analyze(f.demo("inferno", 1), "de_inferno", ct, tside)
 				got, err := f.repo.GetPlaylist(f.ctx, p.ID)
@@ -119,6 +125,10 @@ func TestPlaylistRepositoryContract(t *testing.T) {
 				got, err = f.repo.GetPlaylist(f.ctx, p.ID)
 				if err != nil || len(got.Rounds) != 2 || !got.Rounds[0].Missing || got.Rounds[0].MatchID != mirage.ID || got.Rounds[0].Map != "de_mirage" {
 					t.Fatalf("after the delete = %+v, %v; want the round kept and missing", got.Rounds, err)
+				}
+				if notes := got.Rounds[0].Notes; len(notes) != 1 || notes[0].ID != drawing.ID || notes[0].Tick != 640 || len(notes[0].Strokes) != 1 ||
+					!notes[0].Strokes[0].Arrow || notes[0].Strokes[0].Points[1] != [2]float64{300, 812.5} {
+					t.Fatalf("notes after the demo went = %+v; want the drawing kept with its round", notes)
 				}
 				if list, err := f.repo.ListPlaylists(f.ctx, library.PlaylistFilter{Map: "de_mirage"}); err != nil || len(list) != 1 {
 					t.Fatalf("map filter over a missing round = %d, %v; want the stored map to count", len(list), err)

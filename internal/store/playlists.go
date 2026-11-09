@@ -50,9 +50,13 @@ func playlistMatches(p library.Playlist, f library.PlaylistFilter) bool {
 	return q == "" || strings.Contains(playlistSearchKey(p), q)
 }
 
-// playlistCopy gives a playlist its own round list and its derived maps.
+// playlistCopy gives a playlist its own round and note lists and its derived
+// maps; a round without notes reads as an empty list, as SQLite gives it.
 func playlistCopy(p library.Playlist) library.Playlist {
 	p.Rounds = append([]library.PlaylistRound{}, p.Rounds...)
+	for i, r := range p.Rounds {
+		p.Rounds[i].Notes = append([]library.PlaylistNote{}, r.Notes...)
+	}
 	p.Maps = library.PlaylistMaps(p.Rounds)
 	return p
 }

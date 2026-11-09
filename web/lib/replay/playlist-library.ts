@@ -1,5 +1,7 @@
 import { PLAYLIST_FILE_FORMAT, PLAYLIST_FILE_VERSION } from '../api/playlists.ts';
 import type { PlaylistFile, PlaylistImport, SavedPlaylist } from '../api/playlists.ts';
+import { countOf } from '../records/selection.ts';
+import type { CountNoun } from '../records/selection.ts';
 
 /** What the Playlists page lists: everything, the starred ones, the ones outside every folder, or one folder. */
 export type PlaylistShelf = { kind: 'all' } | { kind: 'favorites' } | { kind: 'none' } | { kind: 'folder'; name: string };
@@ -83,15 +85,14 @@ export function parsePlaylistFile(text: string): { ok: true; file: PlaylistUploa
   };
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
+const IMPORTED: CountNoun = { one: 'playlist importada', many: 'playlists importadas', feminine: true };
+const HELD: CountNoun = { one: 'ya estaba', many: 'ya estaban', feminine: true };
 
 /** What an import did, in one or two sentences, naming the demos still to import. */
 export function playlistImportMessage(result: PlaylistImport): string {
   const parts: string[] = [];
-  if (result.imported > 0) parts.push(plural(result.imported, 'playlist importada', 'playlists importadas'));
-  if (result.duplicates > 0) parts.push(`${plural(result.duplicates, 'ya estaba', 'ya estaban')} en Studio`);
+  if (result.imported > 0) parts.push(countOf(result.imported, IMPORTED));
+  if (result.duplicates > 0) parts.push(`${countOf(result.duplicates, HELD)} en Studio`);
   if (result.rejected.length > 0) parts.push(`${result.rejected.length} no se ${result.rejected.length === 1 ? 'pudo' : 'pudieron'} leer`);
   const head = parts.length === 0 ? 'El fichero no traía playlists.' : `${parts.join(', ')}.`;
   const missing = result.missing_matches;
