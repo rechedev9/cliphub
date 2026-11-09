@@ -479,9 +479,14 @@ function Legend({ kind, maxCount, maxSeconds }: { kind: HeatmapKind; maxCount: n
       <span className="text-meta text-fg-2">{HEATMAP_LEGEND_LABEL[kind]}</span>
       <div className="h-2 rounded-sm" style={{ background: HEAT_GRADIENT }} aria-hidden />
       <div className="flex justify-between text-meta tabular-nums text-fg-3">
-        <span>{timing ? `${maxSeconds} s, más tarde` : `0 ${unit}`}</span>
-        <span>{timing ? '0 s, antes' : `${maxCount} ${unit}`}</span>
+        <span>{timing ? `${maxSeconds} s, más tarde` : `Menos ${unit}`}</span>
+        <span>{timing ? '0 s, antes' : `Más ${unit}`}</span>
       </div>
+      {timing ? null : (
+        <span className="text-meta tabular-nums text-fg-2">
+          Zona más activa: {maxCount} {unit}
+        </span>
+      )}
     </div>
   );
 }
