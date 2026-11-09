@@ -60,6 +60,7 @@ type teamScopeIn struct {
 	OpponentID []string `json:"opponent_id,omitempty" jsonschema:"only matches against these teams, ids from list_teams"`
 	MatchID    []string `json:"match_id,omitempty" jsonschema:"only these matches, ids from list_matches; at most 50"`
 	Lineup     []string `json:"lineup,omitempty" jsonschema:"the team's players to keep, SteamID64s from team_lineups or get_team, at most 50: a round counts only when every player of the team in it is listed, and matches with no such round drop out; empty keeps every round (not a grenade lineup)"`
+	teamRoundScopeIn
 }
 
 // teamQuery validates the filter and the scope of a team report.
@@ -93,7 +94,7 @@ func teamQuery(filter analysisFilterIn, scope teamScopeIn) (tuiclient.AnalysisQu
 		}
 	}
 	q.Opponents, q.Matches, q.Lineup = scope.OpponentID, scope.MatchID, scope.Lineup
-	return q, nil
+	return scope.teamRoundScopeIn.apply(q)
 }
 
 func parseSide(raw string) (string, error) {
@@ -114,6 +115,9 @@ type teamOut struct {
 	Name    string   `json:"name" jsonschema:"untrusted team name from the demos"`
 	Aliases []string `json:"aliases,omitempty" jsonschema:"untrusted clan names from the demos"`
 	Matches int      `json:"matches"`
+	// Own and HLTVRank are set by update_team when it changes them.
+	Own      *bool `json:"own,omitempty"`
+	HLTVRank *int  `json:"hltv_rank,omitempty" jsonschema:"0 when the team is not ranked"`
 }
 
 type listTeamsOut struct {

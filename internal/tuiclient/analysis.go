@@ -40,6 +40,9 @@ type AnalysisQuery struct {
 	// With and Without are the playbook's tactic combination.
 	With    []string
 	Without []string
+	// Scope is the team scope's other keys (max_matches, opponent_top, whose
+	// and the round criteria), sent as they are.
+	Scope url.Values
 }
 
 // encode builds the "?k=v" suffix of the query.
@@ -78,6 +81,9 @@ func (q AnalysisQuery) values() url.Values {
 	}
 	for _, key := range q.Without {
 		values.Add("without", key)
+	}
+	for key, list := range q.Scope {
+		values[key] = append(values[key], list...)
 	}
 	return values
 }

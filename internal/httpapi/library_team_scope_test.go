@@ -76,4 +76,9 @@ func TestTeamScopeRoundCriteriaReachEveryTeamFigure(t *testing.T) {
 	if heat.Heatmap == nil || heat.Heatmap.Rounds != len(heat.Matches) {
 		t.Fatalf("heatmap of round 1 = %+v, want one round per match read", heat.Heatmap)
 	}
+	var rounds teamRoundsResponse
+	f.env.json(http.MethodGet, "/api/library/teams/"+f.vitality.String()+"/rounds?round_from=1&round_to=1&max_matches=50", nil, http.StatusOK, &rounds)
+	if rounds.Rounds != pistols.Tendencies.RoundCount || len(rounds.Matches) != 2 || rounds.Matches[0].Rounds[0].Round != 1 || rounds.Matches[0].Total != 2 {
+		t.Fatalf("rounds = %+v, want round 1 of both matches, as the scout counts", rounds)
+	}
 }

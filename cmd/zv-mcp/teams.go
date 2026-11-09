@@ -18,6 +18,8 @@ const (
 	// maxTeamNameRunes is the server's cap on library text.
 	maxTeamNameRunes = 120
 	maxTeamAliases   = 50
+	// maxHLTVRank is the server's cap (library.MaxHLTVRank).
+	maxHLTVRank = 1000
 )
 
 type getTeamIn struct {
@@ -50,9 +52,11 @@ type teamLineupsOut struct {
 }
 
 type updateTeamIn struct {
-	TeamID  string    `json:"team_id" jsonschema:"team id from list_teams"`
-	Name    string    `json:"name,omitempty" jsonschema:"new team name; empty keeps it"`
-	Aliases *[]string `json:"aliases,omitempty" jsonschema:"the full new alias list (clan names that resolve to this team): start from get_team and keep the ones still used, or demos under a dropped clan name make a new team; omit to keep it"`
+	TeamID   string    `json:"team_id" jsonschema:"team id from list_teams"`
+	Name     string    `json:"name,omitempty" jsonschema:"new team name; empty keeps it"`
+	Aliases  *[]string `json:"aliases,omitempty" jsonschema:"the full new alias list (clan names that resolve to this team): start from get_team and keep the ones still used, or demos under a dropped clan name make a new team; omit to keep it"`
+	Own      *bool     `json:"own,omitempty" jsonschema:"true marks the team as one of the user's own (Mi equipo); false clears it; omit to keep it"`
+	HLTVRank *int      `json:"hltv_rank,omitempty" jsonschema:"the team's HLTV rank, 1 to 1000; 0 clears it; omit to keep it"`
 }
 
 type mergeTeamsIn struct {
@@ -136,7 +140,8 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "update_team", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
 		Description: "Rename a team or replace its aliases, as the team page does. Aliases are the clan names that resolve to the team; " +
 			"matches whose clan name becomes an alias follow it, and a demo whose clan name is no alias makes a new team. " +
-			"An alias another team owns is refused; a name is not checked, so two teams can share one."},
+			"An alias another team owns is refused; a name is not checked, so two teams can share one. " +
+			"own marks the team as one of the user's own (Mi equipo), which whose=own reads; hltv_rank is its HLTV rank, which opponent_top reads."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updateTeamIn) (*mcp.CallToolResult, teamOut, error) {
 			patch, err := in.patch()
 			if err != nil {
@@ -146,11 +151,26 @@ func registerTeamTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamOut{}, toolError(err)
 			}
-			t, err := c.UpdateLibraryTeam(ctx, in.TeamID, patch)
+			var t tuiclient.LibraryTeam
+			if patch.Name != nil || patch.Aliases != nil {
+				t, err = c.UpdateLibraryTeam(ctx, in.TeamID, patch)
+			} else {
+				var detail tuiclient.LibraryTeamDetail
+				detail, err = c.GetLibraryTeam(ctx, in.TeamID)
+				t = detail.LibraryTeam
+			}
 			if err != nil {
 				return nil, teamOut{}, toolError(err)
 			}
-			return nil, teamOf(t), nil
+			out := teamOf(t)
+			if in.Own != nil || in.HLTVRank != nil {
+				p, err := c.SetTeamProfile(ctx, in.TeamID, tuiclient.TeamProfilePatch{Own: in.Own, HLTVRank: in.HLTVRank})
+				if err != nil {
+					return nil, teamOut{}, toolError(err)
+				}
+				out.Own, out.HLTVRank = &p.Own, &p.HLTVRank
+			}
+			return nil, out, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "merge_teams", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
@@ -225,8 +245,11 @@ func (in updateTeamIn) patch() (tuiclient.TeamPatch, error) {
 	if err := checkUUID("team_id", in.TeamID); err != nil {
 		return patch, err
 	}
-	if in.Name == "" && in.Aliases == nil {
-		return patch, errors.New("set name, aliases or both")
+	if in.Name == "" && in.Aliases == nil && in.Own == nil && in.HLTVRank == nil {
+		return patch, errors.New("set name, aliases, own or hltv_rank")
+	}
+	if in.HLTVRank != nil && (*in.HLTVRank < 0 || *in.HLTVRank > maxHLTVRank) {
+		return patch, fmt.Errorf("hltv_rank must be from 0 (not ranked) to %d", maxHLTVRank)
 	}
 	if in.Name != "" {
 		name, err := checkUserText("name", in.Name)
