@@ -62,6 +62,9 @@ For a team: team_bombsites, team_playbook (one map and side), team_prep (one map
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
 one card per player; its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
+team_grenades is the Granadas finder: clock (throws per 10 s of the round clock by player), spots (repeated throws with
+what the team does in the 20 s after) and, with spot, one grenade in full: its rounds over the scope's rounds, what follows,
+a setpos and a studio_path that superposes its rounds. players, buy, rivals (their utility) and invert (rounds without it) narrow it.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 these and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
@@ -111,7 +114,8 @@ Lineups pro are grenades pros repeat in pro matches, served by the ClipHub commu
 list_pro_lineup_maps, find_pro_lineups (kind, side, landing and throw callouts, insta, video for lineups with a recorded clip), get_pro_lineup
 (setpos, teams, partners, examples, and clip_url: the recorded throw with the thrower's keys, once one is
 recorded) and list_pro_combos (each with clip_url once a round of it is recorded); save_pro_lineup copies
-one into the Libreta.
+one into the Libreta. pro_grenade_meta is the Meta view: one map side's grenades ranked by throws per 100 rounds in a
+period, the teams that use each and the trend (new, rising, falling or steady), so a grenade entering the meta shows.
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.
 launch_bot_replay (match_id, round, side, replace_steamid) is Practicar contra esta ronda: CS2 opens with frozen bots
