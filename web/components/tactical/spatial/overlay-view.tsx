@@ -157,7 +157,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [uiTick, setUiTick] = useState(0);
-  const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
+  const [floor, setFloor] = useState<RadarLevel | 'both'>('both');
   const positionRef = useRef(0);
   const surfaceRef = useRef<RadarSurfaceHandle | null>(null);
   const scrubRef = useRef<HTMLInputElement>(null);
@@ -170,6 +170,13 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
   // Hidden rounds too, so hiding one never reframes the map.
   const marks = useMemo(() => rounds.flatMap((round) => [...round.events.map((event) => event.pos), ...round.tracks.flatMap((track) => track.points)]), [rounds]);
   const focused = byKey.get(focus);
+  const twoFloors = geometry !== null && isMultiLevelMap(geometry.calibration);
+  // On Nuke and Vertigo both floors sit side by side by default, each mark on its own plate.
+  const levels = useMemo<RadarLevel[]>(
+    () => (twoFloors && floor === 'both' ? [RADAR_LEVELS.default, RADAR_LEVELS.lower] : [floor === 'both' ? RADAR_LEVELS.default : floor]),
+    [twoFloors, floor],
+  );
+  const split = levels.length > 1;
   const now = uiTick / UI_TICKS_PER_SECOND;
 
   // Each round's tramo in its own seconds: absent for the whole round, null when the round has none (no plant).
@@ -191,7 +198,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
   }, [duration, spans]);
 
   const paint = useCallback(
-    ({ ctx, size, style }: RadarFrame) => {
+    ({ ctx, size, style, level }: RadarFrame) => {
       if (geometry === null) return;
       const calibration = geometry.calibration;
       const seconds = positionRef.current;
@@ -201,8 +208,8 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
       const ordered = rounds.filter((round) => !hidden.has(overlayRoundKey(round)));
       ordered.sort((a, b) => Number(overlayRoundKey(a) === focus) - Number(overlayRoundKey(b) === focus));
       const dim = ordered.length > 1;
-      // Marks on the other floor of a two-floor map recede like the players there.
-      const floor = { calibration, level };
+      // Marks on the other floor recede like the players there; side by side, the other plate has them.
+      const floor = { calibration, level, offFloorAlpha: split ? 0 : undefined };
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (const round of ordered) {
@@ -289,7 +296,7 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
       }
       ctx.globalAlpha = 1;
     },
-    [focus, geometry, hidden, level, rounds, spans, step],
+    [focus, geometry, hidden, rounds, spans, split, step],
   );
 
   const show = useCallback(
@@ -404,14 +411,21 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
         <div className="flex min-w-0 flex-col gap-3">
           <RadarSurface
             geometry={geometry}
-            level={level}
+            level={levels[0] ?? RADAR_LEVELS.default}
+            levels={levels}
             paint={paint}
             marks={marks}
             handleRef={surfaceRef}
             label={`${rounds.length - hidden.size} rondas superpuestas desde el final del tiempo de compra. La lista de rondas las describe en texto.`}
           >
-            {(projection) => (
-              <TelestratorLayer calibration={geometry.calibration} projection={projection} shown={shown} draft={draft} />
+            {(projection, _zoomed, plateLevel) => (
+              <TelestratorLayer
+                calibration={geometry.calibration}
+                projection={projection}
+                shown={shown}
+                draft={draft}
+                level={twoFloors ? plateLevel : undefined}
+              />
             )}
           </RadarSurface>
           <div className="mx-auto flex w-full flex-wrap items-center gap-2">
@@ -450,12 +464,15 @@ function OverlayPlayer({ data, tramo: { tramo, onChange: setTramo } }: { data: S
               options={TACTICAL_REPLAY_SPEEDS.filter((s) => s >= 0.5).map((s) => ({ value: String(s), label: formatRate(s) }))}
               onChange={(value) => setSpeed(Number(value))}
             />
-            {isMultiLevelMap(geometry.calibration) ? (
-              <Segmented
+            {twoFloors ? (
+              <Segmented<RadarLevel | 'both'>
                 label="Piso"
-                value={level}
-                options={[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))}
-                onChange={setLevel}
+                value={floor}
+                options={[
+                  { value: 'both', label: 'Los dos' },
+                  ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] })),
+                ]}
+                onChange={setFloor}
               />
             ) : null}
           </div>
