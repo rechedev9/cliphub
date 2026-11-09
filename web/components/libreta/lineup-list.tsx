@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Crosshair, Plus, PlugZap, Users } from 'lucide-react';
 import { GRENADE_KIND_LABEL } from '@/lib/analysis/grenade-patterns';
+import type { CountNoun } from '@/lib/records/selection';
 import { TEAM_GRENADE_KINDS } from '@/lib/api/grenades';
 import { isLibraryOffline } from '@/lib/api/library';
 import type { LibretaStatus } from '@/lib/api/libreta';
@@ -23,10 +24,12 @@ import { TableSkeleton } from '@/components/records/table-skeleton';
 import { PracticeResult, usePracticeLaunch } from '@/components/patterns/practice-launch';
 import { Button } from '@/components/ui/button';
 import { useCalloutNames } from '@/hooks/use-callout-names';
-import { BulkBar } from './bulk-bar';
+import { LibretaBulkActions } from './bulk-actions';
 import { GrenadeName, TechniqueText } from './lineup-fields';
 import { NewLineupDialog } from './new-lineup-dialog';
 import { STATUS_FILTER_OPTIONS, StatusBadge } from './status-badge';
+
+const LINEUP: CountNoun = { one: 'lineup', many: 'lineups', feminine: false };
 
 function Callout({ text }: { text: string }): ReactNode {
   return text || <span className="text-fg-3">Sin callout</span>;
@@ -227,30 +230,6 @@ export function LineupList({
           {hiddenArchived === 1 ? 'Un lineup archivado no se muestra.' : `${hiddenArchived} lineups archivados no se muestran.`} Elige Estado: Archivo para verlos.
         </p>
       ) : null}
-      {chosen.length > 0 ? (
-        <BulkBar
-          count={chosen.length}
-          noun={chosen.length === 1 ? 'lineup' : 'lineups'}
-          busy={busy}
-          onStatus={(next) => void bulkStatus(next)}
-          onDelete={() => void bulkDelete()}
-          onClear={() => setSelected(new Set())}
-          extra={
-            <span title={blocked ?? undefined}>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                disabled={busy || blocked !== null || practice.state.kind === 'busy'}
-                onClick={() => practice.launch(chosen.map(lineupSpot))}
-              >
-                <Crosshair aria-hidden />
-                Practicar en CS2
-              </Button>
-            </span>
-          }
-        />
-      ) : null}
       <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
       <DataTable
         toolbar={
@@ -275,7 +254,34 @@ export function LineupList({
         rowKey={(lineup) => lineup.id}
         rowHref={(lineup) => lineupHref(lineup.id)}
         view={view}
-        selection={{ selected, onChange: setSelected }}
+        selection={{
+          selected,
+          onChange: setSelected,
+          noun: LINEUP,
+          actions: (
+            <LibretaBulkActions
+              count={chosen.length}
+              noun={LINEUP}
+              busy={busy}
+              onStatus={(next) => void bulkStatus(next)}
+              onDelete={() => void bulkDelete()}
+              extra={
+                <span title={blocked ?? undefined}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={busy || blocked !== null || practice.state.kind === 'busy'}
+                    onClick={() => practice.launch(chosen.map(lineupSpot))}
+                  >
+                    <Crosshair aria-hidden />
+                    Practicar en CS2
+                  </Button>
+                </span>
+              }
+            />
+          ),
+        }}
         empty={<p className="text-body-sm text-fg-2">Ningún lineup cumple estos filtros.</p>}
       />
       {dialog}

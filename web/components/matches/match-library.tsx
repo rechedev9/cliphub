@@ -37,14 +37,15 @@ import {
   type Outcome,
   type PartidaRow,
 } from '@/lib/library/partidas';
+import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
 import { settleEach, withoutKeys } from '@/lib/settle-each';
 import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
+import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
 import { EmptyState } from '@/components/records/empty-state';
 import { FilterBar } from '@/components/records/filter-bar';
-import { SelectionBar } from '@/components/records/selection-bar';
 import { useTableView } from '@/components/records/use-table-view';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { DemoImport } from '@/components/matches/demo-import';
@@ -58,6 +59,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 const STATE_OPTIONS = LIBRARY_PARSE_STATES.map((state) => ({ value: state, label: PARSE_STATE_LABEL[state] }));
 const SOURCE_OPTIONS = LIBRARY_SOURCES.map((source) => ({ value: source, label: SOURCE_LABEL[source] }));
 const DATE_OPTIONS = DATE_RANGES.map((range) => ({ value: range.value, label: range.label }));
+
+const PARTIDA: CountNoun = { one: 'partida', many: 'partidas', feminine: true };
 
 const FAST_POLL_MS = 3_000;
 const IDLE_POLL_MS = 30_000;
@@ -367,7 +370,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
       bulkDeleteSummary({
         deleted: done.length,
         failed: failed.length,
-        noun: { one: 'partida', many: 'partidas', feminine: true },
+        noun: PARTIDA,
         reason: failed[0] ? deleteErrorMessage(failed[0].error) : undefined,
       }),
     );
@@ -512,20 +515,23 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
           <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
         ) : null}
-        {chosenIds.length > 0 ? (
-          <SelectionBar
-            count={chosenIds.length}
-            noun={chosenIds.length === 1 ? 'partida' : 'partidas'}
-            busy={deleting}
-            confirmDescription="Se borran la copia de la demo en la biblioteca, su análisis y sus correcciones. Los vídeos ya creados y las demos de Crear no se tocan."
-            onDelete={() => void deleteChosen(chosenIds)}
-            onClear={() => setSelected(new Set())}
-          />
-        ) : null}
         <DataTable
           label="Partidas"
           rows={shown}
-          selection={{ selected, onChange: setSelected }}
+          selection={{
+            selected,
+            onChange: setSelected,
+            noun: PARTIDA,
+            actions: (
+              <DeleteChosenButton
+                count={chosenIds.length}
+                noun={PARTIDA}
+                loading={deleting}
+                description="La biblioteca pierde la copia de la demo, el análisis y las correcciones. Los vídeos ya creados y las demos de Crear se quedan. No se puede deshacer."
+                onConfirm={() => void deleteChosen(chosenIds)}
+              />
+            ),
+          }}
           columns={columns(handlers)}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
