@@ -1,7 +1,8 @@
 'use client';
 
 import type { MouseEvent, ReactNode } from 'react';
-import { Copy, Crosshair, Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link';
+import { Copy, Crosshair, Eye, EyeOff, Video } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { equipmentId, rowInventory } from '@/lib/replay/equipment';
@@ -13,6 +14,9 @@ import { formatDecimal } from '@/lib/format';
 import { inFocus } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { SetposCopy } from '@/lib/replay/setpos';
+import { roundPovLabel } from '@/lib/replay/round-pov';
+import type { RoundPovRun } from '@/lib/replay/round-pov';
+import { RESULTS_HREF } from '@/lib/clips/routes';
 import { Button } from '@/components/ui/button';
 import { AllTeamRow, FOCUS_HINT } from './replay-players';
 
@@ -74,6 +78,7 @@ function PlayerRow({
   dimmed,
   onSelect,
   onToggle,
+  onRecordPov,
 }: {
   card: PlayerCard;
   hidden: boolean;
@@ -82,6 +87,7 @@ function PlayerRow({
   dimmed: boolean;
   onSelect: (event: MouseEvent) => void;
   onToggle: () => void;
+  onRecordPov: (() => void) | null;
 }): ReactNode {
   const ct = card.side === TACTICAL_SIDES.ct;
   const health = card.health ?? 0;
@@ -138,11 +144,44 @@ function PlayerRow({
         </span>
       </span>
       <span className="absolute top-1 right-1 hidden items-center gap-0.5 rounded-sm bg-surface-3 group-focus-within:flex group-hover:flex">
+        {onRecordPov === null ? null : (
+          <RowAction label={`Grabar su POV de esta ronda (${card.name})`} pressed={false} onClick={onRecordPov}>
+            <Video aria-hidden />
+          </RowAction>
+        )}
         <RowAction label={hidden ? `Devolver a ${card.name} al mapa` : `Atenuar a ${card.name} en el mapa`} pressed={!hidden} onClick={onToggle}>
           {hidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
         </RowAction>
       </span>
     </li>
+  );
+}
+
+function PovRuns({ runs }: { runs: readonly RoundPovRun[] }): ReactNode {
+  return (
+    <section aria-label="POV grabados" className="flex flex-col gap-1 border-t border-border-subtle pt-2">
+      <h3 className="px-1 text-meta font-semibold text-fg-3">POV grabados</h3>
+      <ul className="flex flex-col gap-px">
+        {runs.map((run) => (
+          <li key={run.key} className="flex flex-col gap-0.5 rounded-sm px-1 py-0.5 hover:bg-surface-3">
+            <span className="flex items-center gap-1.5 text-body-sm text-fg-1">
+              <span className="min-w-0 flex-1 truncate">
+                {run.name} <span className="text-meta tabular-nums text-fg-3">ronda {run.round}</span>
+              </span>
+              <span role="status" className={cn('text-meta', run.phase === 'failed' ? 'text-destructive' : 'text-fg-2')}>
+                {roundPovLabel(run)}
+              </span>
+            </span>
+            {run.phase === 'ready' ? (
+              <Link href={RESULTS_HREF} className="text-meta text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
+                Ver en Mis vídeos
+              </Link>
+            ) : null}
+            {run.error === undefined ? null : <span className="text-meta text-fg-3">{run.error}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -162,6 +201,7 @@ export function PlayerPanel({
   onShowAll,
   setpos,
   onCopySetpos,
+  pov,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   teamNames: Readonly<Record<TacticalSide, string>>;
@@ -174,6 +214,8 @@ export function PlayerPanel({
   /** The setpos lines copied in this visit, newest first. */
   setpos: readonly SetposCopy[];
   onCopySetpos: (entry: SetposCopy) => void;
+  /** Library matches only: records a player's POV of the round shown; the runs of this visit follow. */
+  pov: { runs: readonly RoundPovRun[]; onRecord: (slot: number) => void } | null;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -210,12 +252,14 @@ export function PlayerPanel({
                   dimmed={!inFocus(focus, card.slot)}
                   onSelect={(event) => onPick(card.slot, event.shiftKey)}
                   onToggle={() => onTogglePlayer(card.slot)}
+                  onRecordPov={pov === null ? null : () => pov.onRecord(card.slot)}
                 />
               ))}
             </ul>
           </section>
         );
       })}
+      {pov === null || pov.runs.length === 0 ? null : <PovRuns runs={pov.runs} />}
       {setpos.length === 0 ? null : (
         <section aria-label="Setpos copiados" className="flex flex-col gap-1 border-t border-border-subtle pt-2">
           <h3 className="px-1 text-meta font-semibold text-fg-3">Setpos copiados</h3>

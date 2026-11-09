@@ -199,40 +199,54 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if doc.PlanHash == "" || doc.PlanHash != in.PlanHash {
 				return nil, generateOut{}, errors.New("plan_hash is not the saved plan of this job (it was replaced or is stale); call plan_full_demo again")
 			}
-			plan := describeFullDemoPlan(in.JobID, *doc)
-			if !plan.Ready {
-				return nil, generateOut{}, fmt.Errorf("the plan cannot be rendered yet: %s", strings.Join(plan.Blockers, "; "))
-			}
-			caps, err := c.Capabilities(ctx)
-			if err != nil {
-				return nil, generateOut{}, toolError(err)
-			}
-			if !caps.Record.Enabled {
-				return nil, generateOut{}, errors.New("capture is not available: Steam, CS2 or HLAE is missing, so the video cannot be recorded")
-			}
-			summary := plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
-			ok, err := sessionApprovals.approve(req, approvalSpec{Tool: "render_full_demo", JobID: in.JobID,
-				Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: in.Approve})
-			if err != nil {
-				return nil, generateOut{}, err
-			}
-			if ok.Ask != nil {
-				return ok.Ask, generateOut{}, nil
-			}
-			if !ok.Approved {
-				return nil, generateOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: summary}, nil
-			}
-			edit, err := fullDemoEdit(*doc)
-			if err != nil {
-				return nil, generateOut{}, err
-			}
-			res, err := c.GenerateFullDemo(ctx, in.JobID, edit)
-			if err != nil {
-				return nil, generateOut{}, toolError(err)
-			}
-			recentCaptures.mark(in.JobID)
-			return nil, startedOut(summary, res, fullDemoVariant), nil
+			return startFullDemo(ctx, req, c, fullDemoStart{Tool: "render_full_demo", JobID: in.JobID, Doc: *doc, Approve: in.Approve})
 		})
+}
+
+type fullDemoStart struct {
+	Tool    string
+	JobID   string
+	Doc     recapplan.Document
+	Approve string
+}
+
+// startFullDemo asks for approval and starts the capture of a saved plan; the
+// tool name keeps an approval code from one tool out of another.
+func startFullDemo(ctx context.Context, req *mcp.CallToolRequest, c *tuiclient.Client, start fullDemoStart) (*mcp.CallToolResult, generateOut, error) {
+	doc := start.Doc
+	plan := describeFullDemoPlan(start.JobID, doc)
+	if !plan.Ready {
+		return nil, generateOut{}, fmt.Errorf("the plan cannot be rendered yet: %s", strings.Join(plan.Blockers, "; "))
+	}
+	caps, err := c.Capabilities(ctx)
+	if err != nil {
+		return nil, generateOut{}, toolError(err)
+	}
+	if !caps.Record.Enabled {
+		return nil, generateOut{}, errors.New("capture is not available: Steam, CS2 or HLAE is missing, so the video cannot be recorded")
+	}
+	summary := plan.Summary + " CS2 se abrirá a pantalla completa y grabará durante bastante tiempo."
+	ok, err := sessionApprovals.approve(req, approvalSpec{Tool: start.Tool, JobID: start.JobID,
+		Request: struct{ PlanHash string }{doc.PlanHash}, Summary: summary, Given: start.Approve})
+	if err != nil {
+		return nil, generateOut{}, err
+	}
+	if ok.Ask != nil {
+		return ok.Ask, generateOut{}, nil
+	}
+	if !ok.Approved {
+		return nil, generateOut{NeedsApproval: true, ApprovalCode: ok.Code, Summary: summary}, nil
+	}
+	edit, err := fullDemoEdit(doc)
+	if err != nil {
+		return nil, generateOut{}, err
+	}
+	res, err := c.GenerateFullDemo(ctx, start.JobID, edit)
+	if err != nil {
+		return nil, generateOut{}, toolError(err)
+	}
+	recentCaptures.mark(start.JobID)
+	return nil, startedOut(summary, res, fullDemoVariant), nil
 }
 
 func loadFullDemoState(ctx context.Context, c *tuiclient.Client, jobID string) (fullDemoState, error) {
