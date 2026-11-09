@@ -10,6 +10,7 @@ const RAIL = [
   ['create', 'Mis vídeos', '/mis-videos'],
   ['create', 'Ideas', '/ideas'],
   ['analyze', 'Partidas', '/partidas'],
+  ['analyze', 'Replay', '/replay'],
   ['analyze', 'Equipos', '/equipos'],
   ['analyze', 'Libreta', '/libreta'],
   ['analyze', 'Lineups pro', '/lineups'],

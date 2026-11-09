@@ -110,7 +110,7 @@ export function ReplayTimeline({
               if (event.button === 0) startScrub();
             }}
             onChange={(event) => onSeek(Number(event.target.value))}
-            aria-label="Posición de la repetición"
+            aria-label="Posición de la reproducción"
             className={cn(
               'absolute inset-0 h-10 w-full cursor-pointer appearance-none bg-transparent outline-none',
               '[&::-webkit-slider-runnable-track]:h-10 [&::-webkit-slider-runnable-track]:bg-transparent',

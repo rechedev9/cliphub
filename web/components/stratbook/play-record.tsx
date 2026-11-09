@@ -272,7 +272,7 @@ function PlayRecordView({ play, onChanged }: { play: LibraryPlayDetail; onChange
           },
           {
             id: 'radar',
-            label: 'Radar 2D',
+            label: 'Mapa',
             content: <PlayRadar matchId={available[0]?.match_id} side={play.side} grenades={play.grenades} positions={play.positions} />,
           },
           {
@@ -402,7 +402,7 @@ function ExampleList({
               {missing.has(example.match_id) ? null : (
                 <>
                   <Button asChild variant="outline" size="sm">
-                    <Link href={evidencePath(example)}>Abrir en la repetición</Link>
+                    <Link href={evidencePath(example)}>Abrir en el Replay</Link>
                   </Button>
                   <Button type="button" variant="outline" size="sm" onClick={() => onVideo(example)}>
                     <Clapperboard aria-hidden />

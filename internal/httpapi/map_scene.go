@@ -24,11 +24,11 @@ func (h *Handlers) GetMapScene(w http.ResponseWriter, r *http.Request) {
 	if !ok || h.serveCachedScene(w, r, key) {
 		return
 	}
-	writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read back the 3D scene of map "+chi.URLParam(r, "map"))
+	writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read back the render scene of map "+chi.URLParam(r, "map"))
 }
 
 // GetMapSceneSummary handles GET /api/maps/{map}/scene/summary: what the
-// map's 3D scene holds (triangles, textures, sun, fog, sky), building it first
+// map's render scene holds (triangles, textures, sun, fog, sky), building it first
 // when it is not cached yet.
 func (h *Handlers) GetMapSceneSummary(w http.ResponseWriter, r *http.Request) {
 	key, ok := h.mapSceneKey(w, r)
@@ -37,14 +37,14 @@ func (h *Handlers) GetMapSceneSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	rc, err := h.storage.Open(key)
 	if err != nil {
-		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read back the 3D scene of map "+chi.URLParam(r, "map"))
+		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read back the render scene of map "+chi.URLParam(r, "map"))
 		return
 	}
 	defer rc.Close()
 	summary, err := mapgeo.ReadSceneSummary(rc)
 	if err != nil {
 		log.Printf("httpapi: read map scene summary %s: %v", key, err)
-		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read the 3D scene of map "+chi.URLParam(r, "map"))
+		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not read the render scene of map "+chi.URLParam(r, "map"))
 		return
 	}
 	writeJSON(w, http.StatusOK, summary)
@@ -85,7 +85,7 @@ func (h *Handlers) mapSceneKey(w http.ResponseWriter, r *http.Request) (string, 
 	if err := h.storage.Put(key, reader); err != nil {
 		_ = reader.CloseWithError(err)
 		log.Printf("httpapi: cache map scene %s: %v", key, err)
-		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not store the 3D scene of map "+name)
+		writeCodedError(w, http.StatusUnprocessableEntity, codeMapUnreadable, "could not store the render scene of map "+name)
 		return "", false
 	}
 	h.pruneStaleScenes(name, key)

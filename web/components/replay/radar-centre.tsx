@@ -23,7 +23,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { MapZoomControls } from '@/components/analysis/map-zoom-controls';
 import { cn } from '@/lib/utils';
 import type { CentreRound } from '@/lib/replay/centre-round';
-import type { ReplayCentreProps, ReplayCentreView } from './centre';
+import type { ReplayCentreProps } from './centre';
 import { loadNavRadar, loadRadarImage } from './radar/map-art';
 import { PlayerTooltip, placeTooltip } from './radar/player-tooltip';
 import { bakeMapPlate } from './radar/radar-bake';
@@ -68,7 +68,7 @@ const GRID: MapArt = { kind: 'grid' };
  * The wheel zooms on the cursor, a drag pans, a click highlights a player.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot, followSlot, onFollowSlot }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selectedSlot, onSelectSlot, followSlot, onFollowSlot }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -99,7 +99,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
   const art = navArt?.map === map ? navArt.art : GRID;
   const navFailed = navArt?.map === map && navArt.failed;
   const official = imageFits && officialArt?.map === map ? officialArt : null;
-  // The zoom outlives a trip to the 3D view and back, per map.
+  // The zoom outlives a remount, per map.
   const zoomed = zoomState?.map === map ? zoomState.view : rememberedZoom(map);
   const setZoomed = useCallback(
     (view: RadarRect | null) => {
@@ -203,11 +203,11 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
       if (geometry === undefined) return null;
       const key = `${shownArt.kind}|${level}|${projection.size}|${box.dpr}|${shown.x},${shown.y},${shown.width},${shown.height}|${map}`;
       if (plateRef.current?.key === key) return plateRef.current.canvas;
-      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size: projection.size, dpr: box.dpr, view: shown, style, zoom });
+      const canvas = bakeMapPlate({ art: shownArt, geometry, level, size: projection.size, dpr: box.dpr, view: shown, style });
       plateRef.current = { key, canvas };
       return canvas;
     },
-    [box.dpr, geometry, map, projection.size, shown, shownArt, zoom],
+    [box.dpr, geometry, map, projection.size, shown, shownArt],
   );
 
   const drawRound = useCallback(
@@ -542,7 +542,7 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
 
       {drawable ? null : (
         <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
-          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la repetición. Los eventos siguen en la lista.
+          Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar el Replay. Los eventos siguen en la lista.
         </p>
       )}
       {drawable && decodeError !== null ? (
@@ -556,10 +556,3 @@ function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, selecte
     </div>
   );
 }
-
-/** The default centre view. Put a 3D view after it in `centreViews` to offer both. */
-export const RADAR_2D_VIEW: ReplayCentreView = {
-  id: '2d',
-  label: '2D',
-  render: (props) => <RadarCentre {...props} />,
-};

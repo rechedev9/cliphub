@@ -234,10 +234,6 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
         text: 'Cada ronda por tipo de compra (pistola, eco, semi, force, full) y por patrón de ataque o defensa, con etiquetas como ace o post-plant.',
       },
       {
-        term: 'Repetición 2D',
-        text: 'Revive cada ronda en un radar con línea de tiempo y lista de eventos.',
-      },
-      {
         term: 'Tendencias',
         text: 'Cómo juega cada equipo. Con pocas rondas ClipHub te avisa de que aún no es una tendencia.',
       },
@@ -251,6 +247,29 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
     ],
     link: { href: '/partidas', label: 'Ir a Partidas' },
+  },
+  {
+    id: 'replay',
+    kicker: 'Replay',
+    label: 'Replay',
+    title: 'Cada ronda, sobre el mapa',
+    lead:
+      'Abre una partida y revive sus rondas con todos los jugadores a la vez. Desde un equipo, una jugada o un informe llegas a las mismas rondas con el filtro ya puesto.',
+    points: [
+      {
+        term: 'Repetición',
+        text: 'Reproduce la ronda con su línea de tiempo, las bajas, las granadas y la bomba. Superpón varias rondas para compararlas.',
+      },
+      {
+        term: 'Mapa de calor',
+        text: 'Dónde se coloca cada lado, dónde muere y dónde cae su utilidad.',
+      },
+      {
+        term: 'Notas y dibujos',
+        text: 'Dibuja sobre el mapa y deja una nota anclada al momento para enseñarla al equipo.',
+      },
+    ],
+    link: { href: '/replay', label: 'Ir al Replay' },
   },
   {
     id: 'teams',

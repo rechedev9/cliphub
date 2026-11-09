@@ -98,7 +98,7 @@ One match: get_round (a round ref's buys, patterns, kills and win probability), 
 player and each round's biggest swing) and match_tendencies (one side key's rounds, filtered).
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
 integrity_dossier is one screened player's evidence pack and the official ways to report them.
-map_3d_status checks that the tactical replay can draw a map as CS2 does, in 3D and as the 2D Mapa real floor plan, and says how to open them and full screen.
+real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary
 makes one 16:9 video of the plays (all, or play_ids); render_stream makes one video per moment in a

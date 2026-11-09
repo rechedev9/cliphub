@@ -245,11 +245,11 @@ export function PlayList({
         <EmptyState
           icon={BookMarked}
           title="Todavía no hay jugadas"
-          description="Guarda una ronda desde la repetición 2D de una partida, deja que Studio encuentre las jugadas que un equipo repite, escribe una a mano o importa un fichero."
+          description="Guarda una ronda desde el Replay de una partida, deja que Studio encuentre las jugadas que un equipo repite, escribe una a mano o importa un fichero."
           preview={[
             'Mapa, lado y tipo de jugada, con sus granadas y posiciones.',
             'Estado (en uso, para practicar, en revisión) y etiquetas.',
-            'Rondas de ejemplo que abren la repetición 2D en su tick.',
+            'Rondas de ejemplo que abren el Replay en su tick.',
           ]}
           actions={
             <>

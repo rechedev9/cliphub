@@ -1,7 +1,7 @@
 import { TACTICAL_EVENT_KINDS } from '../../api/tactical.ts';
 import type { TacticalEvent, TacticalEventKind } from '../../api/tactical.ts';
 import type { TimelineEvent } from '../../tactical-timeline.ts';
-import type { Vec3 } from './orbit.ts';
+import type { Vec3 } from '../vec3.ts';
 
 /** CS2 demos record 22.06 s from SmokeStart to SmokeExpired for every smoke; it thins over the last 2. */
 export const SMOKE_SECONDS = 22;

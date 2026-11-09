@@ -6,10 +6,13 @@ import type { RadarRect } from '@/lib/tactical-transform';
 import { loadMapScene, loadNavGeometry } from '../three/geometry-cache';
 import { disposeUniforms, mapUniforms } from '../three/map-shader';
 import type { MapUniforms } from '../three/map-shader';
-import { SLAB_CUT, WALL_CUT } from '../three/map-mesh';
 import { DEFAULT_LOOK, RealMap } from '../three/real-map';
 
-/** The floor field's cell, as the 3D view cuts roofs with. */
+
+/** Walls stop this high over the floor under them; flat faces higher than `SLAB_CUT` go. */
+const WALL_CUT = 160;
+const SLAB_CUT = 100;
+/** The floor field's cell, which roofs are cut with. */
 const FIELD_CELL = 32;
 /** The camera sits this far over the map's top and sees this far under its bottom. */
 const CAMERA_MARGIN = 2000;
@@ -18,7 +21,7 @@ const LOWER_DEPTH = 64;
 
 /**
  * The real CS2 map seen straight from above, for the 2D view: the same
- * surfaces, baked light and colour grading as the 3D view, with roofs and
+ * surfaces, baked light and colour grading, with roofs and
  * ceilings over the playable floor cut away so the floor plan shows. It draws
  * only the window on screen, at device resolution, so it stays sharp at any zoom.
  */

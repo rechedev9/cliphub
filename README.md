@@ -42,7 +42,7 @@ The app updates itself from the latest GitHub Release.
 | Resultados | Every video you made, with download and the publish assistant. |
 | Clips de stream | Cut moments from a Twitch, YouTube or Kick link or an MP4 into vertical Shorts, with facecam framing. |
 | Jugadores | Follow FACEIT players and turn their matches into clips. |
-| Táctica | Round classification, a 2D replay and tendencies, all derived from the demo. |
+| Replay | Round classification, the replay of every round on the map and tendencies, all derived from the demo. |
 | Anti-cheat | CheaterDetect compares each player's aim, information and reaction times with a measured baseline. It flags what to review by hand and gives no verdict. |
 | Ajustes | Get this PC ready to record and manage optional connections such as Steam and diagnostics. |
 

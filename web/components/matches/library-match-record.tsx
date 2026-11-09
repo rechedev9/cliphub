@@ -10,7 +10,7 @@ import type { LibraryDemo, LibraryMatch } from '@/lib/api/library';
 import { MATCHES_HREF, librarySeriesHref } from '@/lib/clips/routes';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { SOURCE_LABEL, matchTitle, scoreline } from '@/lib/library/partidas';
-import { MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
+import { LEGACY_REPLAY_TAB, MATCH_REPLAY_TAB } from '@/lib/library/rounds';
 import { useRecordTab } from '@/hooks/use-record-tab';
 import { RecordHeader } from '@/components/records/record-header';
 import { RecordTabs } from '@/components/records/record-tabs';
@@ -23,10 +23,12 @@ import { MatchSummary } from '@/components/matches/match-summary';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { Button } from '@/components/ui/button';
 
-const TABS = ['resumen', 'rondas', MATCH_TACTICAL_TAB, 'metricas', 'videos'] as const;
+const TABS = ['resumen', 'rondas', MATCH_REPLAY_TAB, 'metricas', 'videos'] as const;
 type MatchTab = (typeof TABS)[number];
+const QUERY_TABS = [...TABS, LEGACY_REPLAY_TAB] as const;
 
 function tabFromQuery(raw: string | null): MatchTab | null {
+  if (raw === LEGACY_REPLAY_TAB) return MATCH_REPLAY_TAB;
   return TABS.find((tab) => tab === raw) ?? null;
 }
 
@@ -63,7 +65,7 @@ function matchMeta(match: LibraryMatch, demo: LibraryDemo): ReactNode {
 
 /**
  * The record of one library partida: the teams and their scoreboards, every
- * round with a link into the replay, the 2D tactical analysis, and the videos
+ * round with a link into the replay, the Replay, and the videos
  * Crear made from the same demo.
  */
 export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { match: LibraryMatch; demo: LibraryDemo }): ReactNode {
@@ -71,7 +73,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
   const [match, setMatch] = useState(loadedMatch);
   const [demo, setDemo] = useState(loadedDemo);
   // The open tab lives in `?tab=`, so a reload or an evidence link lands on it.
-  const [tabValue, setTab] = useRecordTab(TABS, 'resumen');
+  const [tabValue, setTab] = useRecordTab(QUERY_TABS, 'resumen');
   const tab = tabFromQuery(tabValue) ?? 'resumen';
   // `undefined` while loading, `null` when the list could not be read.
   const [videos, setVideos] = useState<Video[] | null | undefined>(undefined);
@@ -96,7 +98,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
   const map = prettyMapName(match.map);
   useRouteTitle(`${map} · ${matchTitle(match)}`);
   useDocumentTitle(`${map} · Partida · ClipHub`);
-  const openTactical = (): void => setTab(MATCH_TACTICAL_TAB);
+  const openReplay = (): void => setTab(MATCH_REPLAY_TAB);
 
   return (
     <div className="flex flex-col gap-5">
@@ -131,7 +133,7 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
                 pathname={pathname}
                 onMatchChange={setMatch}
                 onDemoChange={setDemo}
-                onOpenTactical={openTactical}
+                onOpenReplay={openReplay}
               />
             ),
           },
@@ -139,17 +141,17 @@ export function LibraryMatchRecord({ match: loadedMatch, demo: loadedDemo }: { m
             id: 'rondas',
             label: 'Rondas',
             count: match.round_count,
-            content: <MatchRounds match={match} pathname={pathname} onOpenRound={openTactical} />,
+            content: <MatchRounds match={match} pathname={pathname} onOpenRound={openReplay} />,
           },
           {
-            id: MATCH_TACTICAL_TAB,
-            label: 'Táctica',
+            id: MATCH_REPLAY_TAB,
+            label: 'Replay',
             content: <TacticalAnalysis source={{ kind: 'library', id: match.id }} generatedAt={match.updated_at} />,
           },
           {
             id: 'metricas',
             label: 'Métricas',
-            content: <MatchMetrics match={match} onOpenTactical={openTactical} />,
+            content: <MatchMetrics match={match} onOpenReplay={openReplay} />,
           },
           {
             id: 'videos',

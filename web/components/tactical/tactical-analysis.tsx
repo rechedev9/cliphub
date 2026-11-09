@@ -11,9 +11,7 @@ import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { POSITIONS_MISSING_MESSAGE, analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { RADAR_2D_VIEW } from '@/components/replay/radar-centre';
 import { ReplayWorkspace } from '@/components/replay/replay-workspace';
-import { THREE_D_VIEW } from '@/components/replay/three-centre';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
 import { TacticalFilterBar } from '@/components/tactical/tactical-filter-bar';
 import { ReplayFilters } from '@/components/replay/replay-filters';
@@ -22,9 +20,6 @@ import { useTeamTendencies } from '@/components/tactical/use-team-tendencies';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Segmented } from '@/components/ui/segmented';
 import { SpatialWorkspace } from '@/components/tactical/spatial/spatial-workspace';
-
-/** The radar first; the 3D view next to it. */
-const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
 /** Between the top bar and the replay once the tab list sits under the bar: the tab list, its gap, the summary line and its gap. */
 /** Until the first measure: the tab list and the one-line summary over the replay. */
@@ -217,7 +212,6 @@ export function TacticalAnalysis({
         onIndexChange={(next) => setSelectedRound(rounds[next]?.number ?? null)}
         seed={seed}
         filters={<ReplayFilters doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />}
-        centreViews={CENTRE_VIEWS}
       />
     );
   }

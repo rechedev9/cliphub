@@ -35,15 +35,13 @@ import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
-import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { ReplayCentreView } from './centre';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapHud } from './map-hud';
 import { ReplayLeftPanel } from './replay-left-panel';
 import { ReplayTimeline } from './replay-timeline';
-import { RADAR_2D_VIEW } from './radar-centre';
+import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
 import { RoundStrip } from './round-strip';
 import { ShortcutHelp } from './shortcut-help';
@@ -59,27 +57,6 @@ const UI_TICKS_PER_SECOND = 4;
 
 const EMPTY_TIMELINE = roundTimeline({ tick_start: 0, tick_freeze_end: 0, tick_end: 64, tick_official: 64 }, 64);
 
-const DEFAULT_VIEWS: readonly ReplayCentreView[] = [RADAR_2D_VIEW];
-
-/** The centre view the user picked last in this window. */
-const VIEW_STORAGE_KEY = 'cliphub.replay.view';
-
-function storedView(): string | null {
-  try {
-    return window.sessionStorage.getItem(VIEW_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function storeView(id: string): void {
-  try {
-    window.sessionStorage.setItem(VIEW_STORAGE_KEY, id);
-  } catch {
-    // Storage can be off; the view still switches for this page.
-  }
-}
-
 export type ReplayWorkspaceProps = {
   /** `library`: strip ids are library match ids, which also enables moments, notes and plays. `job`: a Crear job id. */
   source: TacticalSource['kind'];
@@ -93,8 +70,6 @@ export type ReplayWorkspaceProps = {
   groupLabel?: (matchId: string) => string | null;
   /** Round filters, at the top of the left panel. */
   filters?: ReactNode;
-  /** Centre views; the first is the default. Without it, the 2D radar. */
-  centreViews?: readonly ReplayCentreView[];
   /** Shown above the round line, such as a playlist's name. */
   title?: string;
 };
@@ -113,7 +88,6 @@ export function ReplayWorkspace({
   seed,
   groupLabel,
   filters,
-  centreViews = DEFAULT_VIEWS,
   title,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
@@ -132,7 +106,6 @@ export function ReplayWorkspace({
   const [layers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
   const [multiKeys, setMultiKeys] = useState<string[]>([]);
-  const [viewId, setViewId] = useState(centreViews[0]?.id ?? RADAR_2D_VIEW.id);
   const [followSlot, setFollowSlot] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [uiTick, setUiTick] = useState(0);
@@ -417,17 +390,6 @@ export function ReplayWorkspace({
     },
     [analyses, groupLabel],
   );
-  const view = centreViews.find((option) => option.id === viewId) ?? centreViews[0] ?? RADAR_2D_VIEW;
-  const selectView = useCallback((id: string) => {
-    setViewId(id);
-    setFollowSlot(null);
-    storeView(id);
-  }, []);
-  const viewIds = centreViews.map((option) => option.id).join('|');
-  useEffect(() => {
-    const saved = storedView();
-    if (saved !== null && viewIds.split('|').includes(saved)) setViewId(saved);
-  }, [viewIds]);
   const nowSeconds = uiTick / UI_TICKS_PER_SECOND;
   const notesMatchId = library && entry !== undefined ? entry.matchId : undefined;
   const noteMatchIds = useMemo(() => (notesMatchId === undefined ? [] : [notesMatchId]), [notesMatchId]);
@@ -507,9 +469,6 @@ export function ReplayWorkspace({
               }}>
               <Keyboard aria-hidden />
             </Button>
-            {centreViews.length > 1 ? (
-              <Segmented label="Vista" value={view.id} options={centreViews.map((option) => ({ value: option.id, label: option.label }))} onChange={selectView} />
-            ) : null}
             <Button
               type="button"
               size="icon-xs"
@@ -527,19 +486,18 @@ export function ReplayWorkspace({
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
           ) : (
-            view.render({
-              mode: multi ? 'multi' : 'single',
-              rounds: centreRounds,
-              clock,
-              tickOf,
-              layers,
-              telestrator: library ? { draft, shown: shownDrawings } : null,
-              onSelectView: selectView,
-              followSlot,
-              onFollowSlot: setFollowSlot,
-              selectedSlot,
-              onSelectSlot: setSelectedSlot,
-            })
+            <RadarCentre
+              mode={multi ? 'multi' : 'single'}
+              rounds={centreRounds}
+              clock={clock}
+              tickOf={tickOf}
+              layers={layers}
+              telestrator={library ? { draft, shown: shownDrawings } : null}
+              followSlot={followSlot}
+              onFollowSlot={setFollowSlot}
+              selectedSlot={selectedSlot}
+              onSelectSlot={setSelectedSlot}
+            />
           )}
           {focused === null ? null : (
             <MapHud
@@ -590,7 +548,6 @@ export function ReplayWorkspace({
           selectedSlot={selectedSlot}
           onSelectSlot={setSelectedSlot}
           onTogglePlayer={(slot) => setLayers((value) => togglePlayer(value, slot))}
-          follow={view.followsPlayers === true ? { slot: followSlot, onFollow: setFollowSlot } : null}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null

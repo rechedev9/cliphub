@@ -237,7 +237,7 @@ Read:
 | `match_tendencies` | `GET /api/library/matches/{id}/tactical/aggregate` (`team` required, `side`, repeatable `buy`, `outcome`, `round_from`, `round_to`) |
 | `integrity_dossier` | `GET /api/jobs/{id}/anticheat/dossier/{steamid}`: Markdown body, report channels and the reporting policy; a 409 says to wait for `check_integrity` |
 | `check_integrity` | `GET /api/jobs/{id}/anticheat`; a 409 (never screened) starts it with `POST`; players most suspicious first with their top 3 metrics and the report's limitations |
-| `map_3d_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog, sky and post processing (exposure, tonemap and colour LUT), plus how to open the real map in the Táctica 3D view, the 2D Mapa real floor plan and full screen |
+| `real_map_status` | `GET /api/maps/{map}/scene/summary`, which reads the map's render scene from the CS2 install on first use; triangles, textures and whether it has baked light, sun, fog, sky and post processing (exposure, tonemap and colour LUT), plus how to open the Mapa real floor plan in the Replay and full screen |
 
 Write:
 

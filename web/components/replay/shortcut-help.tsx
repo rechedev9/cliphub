@@ -19,14 +19,7 @@ const MAP: readonly Shortcut[] = [
   { keys: ['F'], does: 'Seguir al jugador seleccionado; otra vez para soltarlo' },
   { keys: ['Esc'], does: 'Dejar de seguir y quitar la selección' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
-  { keys: ['Arrastrar'], does: 'Mover el mapa (en 3D, girar la cámara)' },
-  { keys: ['Clic derecho'], does: 'En 3D, desplazar la cámara' },
-];
-
-const THREE_D: readonly Shortcut[] = [
-  { keys: ['1'], does: 'Cámara en órbita' },
-  { keys: ['2'], does: 'Cámara cenital' },
-  { keys: ['3'], does: 'Cámara del jugador' },
+  { keys: ['Arrastrar'], does: 'Mover el mapa' },
 ];
 
 function Group({ title, items }: { title: string; items: readonly Shortcut[] }): ReactNode {
@@ -58,11 +51,10 @@ export function ShortcutHelp({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className="gap-4 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Atajos de teclado</DialogTitle>
-          <DialogDescription>Funcionan mientras la repetición está en pantalla y no escribes en un campo.</DialogDescription>
+          <DialogDescription>Funcionan mientras el Replay está en pantalla y no escribes en un campo.</DialogDescription>
         </DialogHeader>
         <Group title="Reproducción" items={PLAYBACK} />
         <Group title="Mapa" items={MAP} />
-        <Group title="Vista 3D" items={THREE_D} />
       </DialogContent>
     </Dialog>
   );

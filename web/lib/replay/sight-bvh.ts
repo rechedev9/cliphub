@@ -1,4 +1,4 @@
-import type { Vec3 } from './three/orbit.ts';
+import type { Vec3 } from './vec3.ts';
 
 /**
  * A bounding volume hierarchy over the map's collision triangles, flat in typed

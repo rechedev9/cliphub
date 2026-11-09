@@ -156,7 +156,7 @@ function RoundTableRow({ row, table }: { row: RoundRow; table: RoundTableProps }
             <Link
               href={roundEvidenceHref(table.pathname, row.number, row.tick)}
               onClick={table.onOpenRound}
-              aria-label={`Abrir la ronda ${row.number} en Táctica`}
+              aria-label={`Abrir la ronda ${row.number} en el Replay`}
             >
               <Radar aria-hidden />
               Táctica
@@ -231,7 +231,7 @@ function SwingCell({ row, table }: { row: RoundRow; table: RoundTableProps }): R
       <Link
         href={roundEvidenceHref(table.pathname, row.number, swing.tick)}
         onClick={table.onOpenRound}
-        aria-label={`Ver en Táctica: ${kill.spoken}`}
+        aria-label={`Ver en el Replay: ${kill.spoken}`}
         className="max-w-44 truncate text-fg-1 hover:text-primary hover:underline"
       >
         {kill.shown}

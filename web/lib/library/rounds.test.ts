@@ -159,5 +159,5 @@ test('a filtered half keeps the score of the whole half and an empty half is dro
 });
 
 test('an evidence link opens the replay tab on the round and tick', () => {
-  assert.equal(roundEvidenceHref('/partidas/abc', 7, 51234), '/partidas/abc?tab=tactica&round=7&tick=51234');
+  assert.equal(roundEvidenceHref('/partidas/abc', 7, 51234), '/partidas/abc?tab=replay&round=7&tick=51234');
 });

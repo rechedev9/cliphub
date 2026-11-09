@@ -49,7 +49,7 @@ function buildOffThread(vertices: Float32Array, triangles: Uint32Array): Promise
     });
     worker.addEventListener('error', local);
     worker.addEventListener('messageerror', local);
-    // Copies, so the 3D view's cached mesh keeps its own arrays.
+    // Copies, so the cached mesh keeps its own arrays.
     const copy = { vertices: vertices.slice(), triangles: triangles.slice() };
     worker.postMessage(copy, [copy.vertices.buffer, copy.triangles.buffer]);
   });

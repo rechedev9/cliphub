@@ -2,18 +2,18 @@ import { useId, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Radar } from 'lucide-react';
 import type { StoryFact } from '@/lib/library/match-story';
-import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
+import { MATCH_TAB_QUERY, MATCH_REPLAY_TAB } from '@/lib/library/rounds';
 import { Button } from '@/components/ui/button';
 
 /** "Cómo fue la partida": the facts the rounds prove, each beside the rounds it is about. */
 export function MatchStoryPanel({
   facts,
   pathname,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   facts: readonly StoryFact[];
   pathname: string;
-  onOpenTactical: () => void;
+  onOpenReplay: () => void;
 }): ReactNode {
   const titleId = useId();
   return (
@@ -31,9 +31,9 @@ export function MatchStoryPanel({
       </ol>
       <div className="mt-1 flex flex-wrap gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link href={`${pathname}?${MATCH_TAB_QUERY}=${MATCH_TACTICAL_TAB}`} onClick={onOpenTactical}>
+          <Link href={`${pathname}?${MATCH_TAB_QUERY}=${MATCH_REPLAY_TAB}`} onClick={onOpenReplay}>
             <Radar aria-hidden />
-            Abrir en Táctica
+            Abrir en el Replay
           </Link>
         </Button>
       </div>

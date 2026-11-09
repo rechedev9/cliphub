@@ -1,25 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ListVideo } from 'lucide-react';
 import { parseReplayRefs } from '@/lib/analysis/replay-link';
 import { listLibraryMatches } from '@/lib/api/library';
 import type { LibraryMatch } from '@/lib/api/library';
-import { TEAMS_HREF } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
-import { EmptyState } from '@/components/records/empty-state';
 import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
-import { Button } from '@/components/ui/button';
-import { RADAR_2D_VIEW } from './radar-centre';
+import { ReplayHome } from './replay-home';
 import { ReplayWorkspace } from './replay-workspace';
-import { THREE_D_VIEW } from './three-centre';
-
-/** The radar first; the 3D view next to it. */
-const CENTRE_VIEWS = [RADAR_2D_VIEW, THREE_D_VIEW] as const;
 
 function matchLabel(match: LibraryMatch): string {
   return `${prettyMapName(match.map)} · ${matchTitle(match)}`;
@@ -37,8 +28,8 @@ export function PlaylistReplay(): ReactNode {
   const [matches, setMatches] = useState<ReadonlyMap<string, LibraryMatch> | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [currentKey, setCurrentKey] = useState<string | null>(null);
-  useRouteTitle(title ?? 'Repetición');
-  useDocumentTitle(`${title ?? 'Repetición'} · ClipHub`);
+  useRouteTitle(title ?? 'Replay');
+  useDocumentTitle(`${title ?? 'Replay'} · ClipHub`);
 
   useEffect(() => {
     let active = true;
@@ -70,20 +61,7 @@ export function PlaylistReplay(): ReactNode {
     return match === undefined ? null : matchLabel(match);
   }, [matches]);
 
-  if (refs.length === 0) {
-    return (
-      <EmptyState
-        icon={ListVideo}
-        title="Esta lista no tiene rondas"
-        description="Abre un equipo y, en su Playbook, pulsa Reproducir para ver sus rondas una tras otra."
-        actions={
-          <Button asChild size="sm">
-            <Link href={TEAMS_HREF}>Ver equipos</Link>
-          </Button>
-        }
-      />
-    );
-  }
+  if (refs.length === 0) return <ReplayHome />;
 
   const filters = matchIds.length < 2 && missing.size === 0 ? undefined : (
     <section className="flex flex-col gap-2" aria-label="Partidas de la lista">
@@ -133,7 +111,6 @@ export function PlaylistReplay(): ReactNode {
       groupLabel={groupLabel}
       filters={filters}
       title={title}
-      centreViews={CENTRE_VIEWS}
     />
   );
 }

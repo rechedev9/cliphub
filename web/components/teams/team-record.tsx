@@ -334,7 +334,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           },
           {
             id: 'radar',
-            label: 'Radar 2D',
+            label: 'Replay',
             content: withScope(
               'radar',
               <TeamSpatial teamId={team.id} scope={scope} onMapChange={onMapChange} onCounts={onCounts} />,

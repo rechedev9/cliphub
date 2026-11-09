@@ -11,7 +11,7 @@ import { cellRadarRect, maxCellWeight, worldToRendered, yawToRadarAngle } from '
 import type { RadarPoint, RadarRect } from '@/lib/tactical-transform';
 import type { TimelineEvent } from '@/lib/tactical-timeline';
 import type { TrailPoint } from '@/lib/tactical-replay';
-import { opponentSide, placeLabel } from '@/lib/tactical-labels';
+import { opponentSide } from '@/lib/tactical-labels';
 import type { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 
 /**
@@ -36,7 +36,6 @@ export type RadarStyle = {
   /** The ramp's raised step: the only foreground plate the map carries. */
   plate: string;
   map: string;
-  callout: string;
   ct: string;
   t: string;
   bomb: string;
@@ -75,10 +74,6 @@ const CELL_MIN_ALPHA = 0.07;
 const CELL_ALPHA_RANGE = 0.38;
 /** Levels the player is not on stay legible but recede. */
 const INACTIVE_LEVEL_ALPHA = 0.22;
-/** Callouts below this share of the busiest one would only add noise. */
-const CALLOUT_SAMPLE_SHARE = 0.12;
-/** Below this size a callout label costs more legibility than it adds. */
-const CALLOUT_MIN_SIZE = 380;
 /** An event mark fades to its resting alpha over this many seconds. */
 const EVENT_FRESH_SECONDS = 4;
 
@@ -144,36 +139,9 @@ function drawLevelCells(
   ctx.globalAlpha = 1;
 }
 
-function drawCallouts(
-  ctx: CanvasRenderingContext2D,
-  geometry: TacticalGeometry,
-  size: number,
-  style: RadarStyle,
-  activeLevel: RadarLevel,
-): void {
-  if (size < CALLOUT_MIN_SIZE || geometry.callouts.length === 0) return;
-  const busiest = geometry.callouts.reduce((max, callout) => Math.max(max, callout.samples), 0);
-  if (busiest <= 0) return;
-
-  // Static map furniture sits BEHIND the blips, so it is set smaller than the
-  // identity chips (0.016, floored at 12px) rather than larger.
-  ctx.font = `${Math.round(size * 0.0145)}px ${style.fontFamily}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = style.callout;
-  for (const callout of geometry.callouts) {
-    if (callout.samples / busiest < CALLOUT_SAMPLE_SHARE) continue;
-    if (callout.level !== activeLevel) continue;
-    const point = worldToRendered(geometry.calibration, callout.center[0], callout.center[1], size);
-    ctx.globalAlpha = 0.32;
-    ctx.fillText(placeLabel(callout.name).toUpperCase(), point.x, point.y);
-  }
-  ctx.globalAlpha = 1;
-}
-
 /**
  * Bakes the visible window of the play-derived map: every level's occupancy
- * grid, the active one at full strength, plus the callout labels. The bitmap is
+ * grid, the active one at full strength. The bitmap is
  * device-resolution and is exactly the plate's box rather than the whole square,
  * so it does not grow as the crop zooms in. `view` is a window in fractions of
  * the square (see `radarViewRect`), never a change of transform.
@@ -212,7 +180,6 @@ export function renderRadarBackground(
     if (fallback !== undefined) drawLevelCells(ctx, geometry, fallback, size, style, 1);
   }
 
-  drawCallouts(ctx, geometry, size, style, activeLevel);
   return canvas;
 }
 

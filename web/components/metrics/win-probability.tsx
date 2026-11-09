@@ -33,7 +33,7 @@ export function WinProbability({
   players,
   round,
   onRoundChange,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   matchId: string;
   timelines: readonly RoundTimeline[];
@@ -41,7 +41,7 @@ export function WinProbability({
   round: number;
   onRoundChange: (round: number) => void;
   /** Called before a link opens the replay, so the page can switch to its tab. */
-  onOpenTactical?: () => void;
+  onOpenReplay?: () => void;
 }): ReactNode {
   const router = useRouter();
   const timeline = timelines.find((t) => t.round === round) ?? timelines[0];
@@ -100,7 +100,7 @@ export function WinProbability({
               className="cursor-pointer fill-surface-1 stroke-primary"
               strokeWidth={2}
               onClick={() => {
-                onOpenTactical?.();
+                onOpenReplay?.();
                 router.push(href(point));
               }}
             >
@@ -115,7 +115,7 @@ export function WinProbability({
             return (
               <li key={`${point.tick}:${i}`} className="flex flex-wrap items-baseline gap-x-3 py-1.5">
                 <span className="w-10 text-fg-3">{secondsText(point.seconds)}</span>
-                <Link href={href(point)} onClick={onOpenTactical} className="min-w-48 flex-1 text-fg-1 hover:text-primary hover:underline">
+                <Link href={href(point)} onClick={onOpenReplay} className="min-w-48 flex-1 text-fg-1 hover:text-primary hover:underline">
                   {winPointText(point, names)}
                 </Link>
                 <span className="text-fg-3">

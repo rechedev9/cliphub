@@ -13,7 +13,7 @@ import {
 } from '@/lib/api/library';
 import { playerHref, teamHref } from '@/lib/clips/routes';
 import { adrLabel, teamLabel } from '@/lib/library/partidas';
-import { MATCH_TAB_QUERY, MATCH_TACTICAL_TAB } from '@/lib/library/rounds';
+import { MATCH_TAB_QUERY, MATCH_REPLAY_TAB } from '@/lib/library/rounds';
 import { tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
@@ -46,7 +46,7 @@ export function MatchTeamPanel({
   pathname,
   bestAdr,
   onMatchChange,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   match: LibraryMatch;
   team: LibraryMatchTeam;
@@ -54,7 +54,7 @@ export function MatchTeamPanel({
   /** The match's best ADR: the bars' full width and the player the badge goes to. */
   bestAdr: { steamid64: string; adr: number } | null;
   onMatchChange: (match: LibraryMatch) => void;
-  onOpenTactical: () => void;
+  onOpenReplay: () => void;
 }): ReactNode {
   const [editing, setEditing] = useState(false);
   const players = (match.players ?? [])
@@ -111,7 +111,7 @@ export function MatchTeamPanel({
                 best={bestAdr?.steamid64 === player.steamid64}
                 maxAdr={bestAdr?.adr ?? 0}
                 pathname={pathname}
-                onOpenTactical={onOpenTactical}
+                onOpenReplay={onOpenReplay}
               />
             ))}
           </tbody>
@@ -136,19 +136,19 @@ function PlayerRow({
   best,
   maxAdr,
   pathname,
-  onOpenTactical,
+  onOpenReplay,
 }: {
   player: LibraryMatchPlayer;
   best: boolean;
   maxAdr: number;
   pathname: string;
-  onOpenTactical: () => void;
+  onOpenReplay: () => void;
 }): ReactNode {
   const name = player.name || player.steamid64;
   const diff = player.kills - player.deaths;
   const bar = maxAdr > 0 ? Math.round((playerAdr(player) / maxAdr) * 100) : 0;
   // The player's rounds in the replay: the same rounds these sums were read from.
-  const rounds = `${pathname}?${MATCH_TAB_QUERY}=${MATCH_TACTICAL_TAB}&${tacticalFilterToQuery({ slots: [player.slot] })}`;
+  const rounds = `${pathname}?${MATCH_TAB_QUERY}=${MATCH_REPLAY_TAB}&${tacticalFilterToQuery({ slots: [player.slot] })}`;
   return (
     <tr className="border-t border-border-subtle hover:bg-surface-3">
       <td className="h-10 px-4">
@@ -159,9 +159,9 @@ function PlayerRow({
           {best ? <Badge variant="outline">Mejor ADR</Badge> : null}
           <Link
             href={rounds}
-            onClick={onOpenTactical}
-            aria-label={`Ver las ${player.rounds} rondas de ${name} en Táctica`}
-            title={`Ver sus ${player.rounds} rondas en Táctica`}
+            onClick={onOpenReplay}
+            aria-label={`Ver las ${player.rounds} rondas de ${name} en el Replay`}
+            title={`Ver sus ${player.rounds} rondas en el Replay`}
             className={cn('ml-auto grid size-7 shrink-0 place-items-center rounded-sm text-fg-3 hover:bg-surface-4 hover:text-fg-1', FOCUS_RING)}
           >
             <Radar aria-hidden className="size-3.5" />

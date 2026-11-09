@@ -151,7 +151,7 @@ function SavePlayDialog({
             </DialogHeader>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
-                Seguir en la repetición
+                Seguir en el Replay
               </Button>
               <Button asChild>
                 <Link href={playHref(saved.id)}>Abrir la jugada</Link>
@@ -163,7 +163,7 @@ function SavePlayDialog({
             <DialogHeader>
               <DialogTitle>Guardar la ronda {round.number} como jugada</DialogTitle>
               <DialogDescription>
-                Se guardan las granadas del equipo hasta la plantada y dónde estaba cada jugador en el momento de la repetición en que estás.
+                Se guardan las granadas del equipo hasta la plantada y dónde estaba cada jugador en el momento del Replay en que estás.
               </DialogDescription>
             </DialogHeader>
             <Segmented

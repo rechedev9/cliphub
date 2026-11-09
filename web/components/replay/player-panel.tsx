@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Crosshair, Eye, EyeOff, ScanEye } from 'lucide-react';
+import { Crosshair, Eye, EyeOff } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { equipmentId, rowInventory } from '@/lib/replay/equipment';
@@ -13,7 +13,6 @@ import { formatDecimal } from '@/lib/format';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
-type Follow = { slot: number | null; onFollow: (slot: number | null) => void };
 
 function hpTone(health: number): string {
   if (health > 50) return 'bg-fg-2';
@@ -69,16 +68,13 @@ function PlayerRow({
   selected,
   onSelect,
   onToggle,
-  follow,
 }: {
   card: PlayerCard;
   hidden: boolean;
   selected: boolean;
   onSelect: () => void;
   onToggle: () => void;
-  follow: Follow | null;
 }): ReactNode {
-  const followed = follow !== null && follow.slot === card.slot;
   const ct = card.side === TACTICAL_SIDES.ct;
   const health = card.health ?? 0;
   const armorLabel = card.helmet === true ? 'Chaleco y casco' : 'Chaleco';
@@ -133,11 +129,6 @@ function PlayerRow({
         </span>
       </span>
       <span className="absolute top-1 right-1 hidden items-center gap-0.5 rounded-sm bg-surface-3 group-focus-within:flex group-hover:flex">
-        {follow === null ? null : (
-          <RowAction label={followed ? `Dejar de ver con los ojos de ${card.name}` : `Ver con los ojos de ${card.name}`} pressed={followed} onClick={() => follow.onFollow(followed ? null : card.slot)}>
-            <ScanEye aria-hidden />
-          </RowAction>
-        )}
         <RowAction label={hidden ? `Mostrar a ${card.name} en el mapa` : `Ocultar a ${card.name} del mapa`} pressed={!hidden} onClick={onToggle}>
           {hidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
         </RowAction>
@@ -154,7 +145,6 @@ export function PlayerPanel({
   selectedSlot,
   onSelect,
   onTogglePlayer,
-  follow,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   teamNames: Readonly<Record<TacticalSide, string>>;
@@ -162,7 +152,6 @@ export function PlayerPanel({
   selectedSlot: number | null;
   onSelect: (slot: number | null) => void;
   onTogglePlayer: (slot: number) => void;
-  follow: Follow | null;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -190,7 +179,6 @@ export function PlayerPanel({
                   selected={selectedSlot === card.slot}
                   onSelect={() => onSelect(selectedSlot === card.slot ? null : card.slot)}
                   onToggle={() => onTogglePlayer(card.slot)}
-                  follow={follow}
                 />
               ))}
             </ul>

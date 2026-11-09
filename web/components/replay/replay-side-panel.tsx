@@ -24,7 +24,6 @@ export function ReplaySidePanel({
   selectedSlot,
   onSelectSlot,
   onTogglePlayer,
-  follow,
   notes,
 }: {
   focused: CentreRound | null;
@@ -34,8 +33,6 @@ export function ReplaySidePanel({
   selectedSlot: number | null;
   onSelectSlot: (slot: number | null) => void;
   onTogglePlayer: (slot: number) => void;
-  /** The first-person button on each row, while the centre view can follow a player. */
-  follow: { slot: number | null; onFollow: (slot: number | null) => void } | null;
   notes: ComponentProps<typeof AnnotationPanel> | null;
 }): ReactNode {
   const names = useMemo(() => (focused === null ? new Map<number, string>() : docNames(focused.doc)), [focused]);
@@ -65,7 +62,6 @@ export function ReplaySidePanel({
         selectedSlot={selectedSlot}
         onSelect={onSelectSlot}
         onTogglePlayer={onTogglePlayer}
-        follow={follow}
       />
       {notes === null ? null : (
         <section aria-label="Notas de la ronda" className="flex min-h-0 flex-1 flex-col gap-1.5 border-t border-border-subtle pt-2">
