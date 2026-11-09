@@ -188,6 +188,7 @@ func registerTools(server *mcp.Server, s *studio) {
 	registerLineupTools(server, s)
 	registerProLineupTools(server, s)
 	registerProGrenadeMetaTool(server, s)
+	registerProMatchTools(server, s)
 	registerRoleTools(server, s)
 	registerCallTools(server, s)
 	registerSearchTool(server, s)
