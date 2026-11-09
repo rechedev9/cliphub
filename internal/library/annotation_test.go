@@ -21,6 +21,8 @@ func TestCleanAnnotation(t *testing.T) {
 		{name: "long text", in: Annotation{Round: 1, Text: strings.Repeat("a", MaxAnnotationTextRunes+1)}, wantErr: "at most"},
 		{name: "unknown colour", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "red", Width: 2, Points: line.Points}}}, wantErr: "color"},
 		{name: "width", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "ct", Width: 0, Points: line.Points}}}, wantErr: "width"},
+		{name: "lower floor", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "ct", Width: 2, Points: line.Points, Level: "lower"}}}},
+		{name: "unknown floor", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "ct", Width: 2, Points: line.Points, Level: "attic"}}}, wantErr: "level"},
 		{name: "one point", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "t", Width: 2, Points: [][2]float64{{1, 1}}}}}, wantErr: "points"},
 		{name: "infinite point", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "t", Width: 2, Points: [][2]float64{{1, 1}, {math.Inf(1), 0}}}}}, wantErr: "finite"},
 		{name: "off the map", in: Annotation{Round: 1, Strokes: []Stroke{{Color: "t", Width: 2, Points: [][2]float64{{1, 1}, {1e6, 0}}}}}, wantErr: "finite"},

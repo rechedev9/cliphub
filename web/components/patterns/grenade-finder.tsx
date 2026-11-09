@@ -55,17 +55,23 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
   const [kinds, setKinds] = useState<ReadonlySet<TeamGrenadeKind>>(() => new Set(TEAM_GRENADE_KINDS));
   const [area, setArea] = useState<GrenadeArea>('landing');
   const [box, setBox] = useState<WorldBox | null>(null);
-  const [level, setLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
+  const [boxLevel, setBoxLevel] = useState<RadarLevel>(RADAR_LEVELS.default);
+  const [floor, setFloor] = useState<RadarLevel | 'both'>('both');
   const [hover, setHover] = useState<string | null>(null);
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const practice = usePracticeLaunch(map);
   const calloutLabel = useCalloutNames([map]);
   const { calibration } = geometry;
   const multiLevel = isMultiLevelMap(calibration);
+  // On Nuke and Vertigo both floors sit side by side by default; a grenade belongs to the floor it lands on.
+  const levels = useMemo<RadarLevel[]>(
+    () => (multiLevel && floor === 'both' ? [RADAR_LEVELS.default, RADAR_LEVELS.lower] : [floor === 'both' ? RADAR_LEVELS.default : floor]),
+    [multiLevel, floor],
+  );
 
   const onLevel = useMemo(
-    () => data.grenades.filter((grenade) => (buy === '' || grenade.buy === buy) && levelForAltitude(calibration, grenade.landing[2]) === level),
-    [data.grenades, buy, calibration, level],
+    () => data.grenades.filter((grenade) => (buy === '' || grenade.buy === buy) && levels.includes(levelForAltitude(calibration, grenade.landing[2]))),
+    [data.grenades, buy, calibration, levels],
   );
   const counts = useMemo(() => {
     const out = new Map<TeamGrenadeKind, number>();
@@ -79,23 +85,24 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
     [ofKinds, tramo, plantSeconds],
   );
   const selected = useMemo(
-    () => (box === null ? null : new Set(drawn.filter((grenade) => grenadeInBox({ grenade, box, area, floor: { calibration, level } })).map(grenadeId))),
-    [drawn, box, area, calibration, level],
+    () => (box === null ? null : new Set(drawn.filter((grenade) => grenadeInBox({ grenade, box, area, floor: { calibration, level: boxLevel } })).map(grenadeId))),
+    [drawn, box, area, calibration, boxLevel],
   );
   const matching = useMemo(() => (selected === null ? drawn : drawn.filter((grenade) => selected.has(grenadeId(grenade)))), [drawn, selected]);
 
   const spots = useMemo((): LabelledSpot[] => {
-    const callouts = geometry.callouts.filter((callout) => callout.level === level);
     const place = (token: string): string => calloutLabel(map, token);
-    return clusterGrenades(matching).map((spot) => ({
-      spot,
-      label: spotLabel(
+    return clusterGrenades(matching).map((spot) => {
+      const level = levelForAltitude(calibration, spot.grenades[0]?.landing[2] ?? 0);
+      const callouts = geometry.callouts.filter((callout) => callout.level === level);
+      const label = spotLabel(
         spot.kind,
         { landing: nearestCallout(callouts, spot.landing), origin: spot.origin === null ? null : nearestCallout(callouts, spot.origin) },
         place,
-      ),
-    }));
-  }, [matching, geometry.callouts, level, calloutLabel, map]);
+      );
+      return { spot, label };
+    });
+  }, [matching, geometry.callouts, calibration, calloutLabel, map]);
   const spotOf = useMemo(() => {
     const out = new Map<string, string>();
     for (const { spot } of spots) for (const grenade of spot.grenades) out.set(grenadeId(grenade), spot.key);
@@ -133,12 +140,15 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
             ))}
           </div>
           {multiLevel ? (
-            <Segmented
+            <Segmented<RadarLevel | 'both'>
               label="Piso"
-              value={level}
-              options={[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] }))}
+              value={floor}
+              options={[
+                { value: 'both', label: 'Los dos' },
+                ...[RADAR_LEVELS.default, RADAR_LEVELS.lower].map((value) => ({ value, label: LEVEL_LABEL[value] })),
+              ]}
               onChange={(next) => {
-                setLevel(next);
+                setFloor(next);
                 setBox(null);
               }}
             />
@@ -157,13 +167,16 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
         </div>
         <GrenadeRadar
           geometry={geometry}
-          level={level}
+          levels={levels}
           grenades={drawn}
           spotOf={spotOf}
           selected={selected}
           highlight={hover}
-          box={box}
-          onBox={setBox}
+          box={box === null ? null : { box, level: boxLevel }}
+          onBox={(next) => {
+            setBox(next?.box ?? null);
+            if (next !== null) setBoxLevel(next.level);
+          }}
           onHover={setHover}
         />
         <TramoBar

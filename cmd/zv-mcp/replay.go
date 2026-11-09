@@ -19,6 +19,12 @@ import (
 var replayForms = []string{"repeticion", "calor", "recorridos", "granadas"}
 
 type replayRoundsIn struct {
+	replayScopeIn
+	Form string `json:"form,omitempty" jsonschema:"which form studio_path opens: repeticion (default), calor, recorridos or granadas"`
+}
+
+// replayScopeIn is the scope bar of a match's Replay and its focus, shared by every form.
+type replayScopeIn struct {
 	MatchID      string   `json:"match_id" jsonschema:"match id from list_matches"`
 	TeamKey      string   `json:"team_key,omitempty" jsonschema:"follow one team across the side swap: ct-start or t-start, from get_match"`
 	Side         string   `json:"side,omitempty" jsonschema:"only rounds seen from CT or T"`
@@ -34,7 +40,6 @@ type replayRoundsIn struct {
 	RoundFrom    int      `json:"round_from,omitempty"`
 	RoundTo      int      `json:"round_to,omitempty"`
 	Phase        string   `json:"phase,omitempty" jsonschema:"regulation or overtime"`
-	Form         string   `json:"form,omitempty" jsonschema:"which form studio_path opens: repeticion (default), calor, recorridos or granadas"`
 }
 
 type replayRoundOut struct {
@@ -59,7 +64,7 @@ type replayRoundsOut struct {
 
 // values turns the tool input into the query the Replay keeps in its URL, the
 // same one tacticalplan.FilterFromValues reads.
-func (in replayRoundsIn) values(doc tacticalplan.Document) (url.Values, error) {
+func (in replayScopeIn) values(doc tacticalplan.Document) (url.Values, error) {
 	v := url.Values{}
 	if in.TeamKey != "" && in.TeamKey != "ct-start" && in.TeamKey != "t-start" {
 		return nil, fmt.Errorf("team_key must be ct-start or t-start, not %q", cleanName(in.TeamKey))

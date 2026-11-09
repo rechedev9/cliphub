@@ -15,8 +15,12 @@ import type { ScoutEvidence } from './scout.ts';
  * replay notes of `library.Annotation`. Field names are the Go JSON names.
  */
 
-export const HEATMAP_KINDS = ['position', 'death', 'utility', 'timing'] as const;
+export const HEATMAP_KINDS = ['position', 'death', 'kill', 'utility', 'timing'] as const;
 export type HeatmapKind = (typeof HEATMAP_KINDS)[number];
+
+/** Which end of a kill the kill heatmap places (`tacticalplan.KillSpot`). */
+export const KILL_SPOTS = ['killer', 'victim'] as const;
+export type KillSpot = (typeof KILL_SPOTS)[number];
 
 /** The grenades a utility heatmap can count (`isScoutUtility`). */
 export const HEATMAP_GRENADES = ['smoke', 'flash', 'molotov', 'he'] as const;
@@ -33,23 +37,38 @@ export type HeatmapCell = {
   rounds: number;
   /** Median seconds after freeze end; for timing, the median first arrival. */
   seconds: number;
+  /** Median altitude of what the cell counted; absent from older orchestrators. */
+  z?: number;
   examples: ScoutEvidence[];
 };
 
 export type HeatmapSideTotal = { side: TacticalSide; level: string; total: number; rounds: number; max_count: number };
 
+/** The marks of one side and level on a `density_grid` square grid over the radar square: [column, row, count], row 0 at the top. */
+export type HeatDensityLayer = {
+  side: TacticalSide;
+  level: string;
+  bins: [number, number, number][];
+  /** Each bin's mean seconds after freeze end, in `bins` order; only for timing. */
+  seconds?: number[];
+};
+
 export type Heatmap = {
   kind: HeatmapKind;
+  kill_at?: KillSpot;
   window: HeatmapWindow;
   grenades?: TacticalEventKind[];
   cell_size: number;
-  step_seconds: number;
+  /** Instants of each round the position kind reads. */
+  samples_per_round: number;
   example_limit: number;
   matches: number;
   rounds: number;
   missing_positions: number;
   sides: HeatmapSideTotal[];
   cells: HeatmapCell[];
+  density_grid: number;
+  density: HeatDensityLayer[];
 };
 
 export type OverlayTrack = {
@@ -123,10 +142,10 @@ export const SPATIAL_RESPONSE_KEYS = [
 /** Query names of the team views: the scout filter, the round filter and the view's own. */
 export const TEAM_SPATIAL_QUERY = [
   'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'buy', 'opponent_buy', 'site', 'outcome', 't_pattern',
-  'ct_pattern', 'tag', 'phase',
+  'ct_pattern', 'tag', 'phase', 'player',
 ] as const;
-export const HEATMAP_QUERY = ['kind', 't_from', 't_to', 't_from_plant', 'grenade'] as const;
-/** The players in focus of a match's heatmap or overlay; a team view ignores it, since slots change between demos. */
+export const HEATMAP_QUERY = ['kind', 'kill_at', 't_from', 't_to', 't_from_plant', 'grenade'] as const;
+/** The players in focus of a match's heatmap or overlay by slot; a team view names them by SteamID64 (`player`), since slots change between demos. */
 export const FOCUS_QUERY = ['subject'] as const;
 export const OVERLAY_QUERY = ['limit'] as const;
 
@@ -136,8 +155,8 @@ export const OVERLAY_QUERY = ['limit'] as const;
 export const STROKE_COLORS = ['accent', 'ct', 't', 'mark'] as const;
 export type StrokeColor = (typeof STROKE_COLORS)[number];
 
-/** One line of a drawing, its points in world x and y. */
-export type Stroke = { color: StrokeColor; width: number; arrow: boolean; points: [number, number][] };
+/** One line of a drawing, its points in world x and y; on a two-floor map, the floor it was drawn on (upper when absent). */
+export type Stroke = { color: StrokeColor; width: number; arrow: boolean; points: [number, number][]; level?: 'default' | 'lower' };
 
 export type Annotation = {
   id: string;

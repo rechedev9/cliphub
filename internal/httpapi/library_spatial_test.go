@@ -50,6 +50,21 @@ func TestLibraryTeamHeatmapAndOverlayFollowTheTeam(t *testing.T) {
 			t.Fatalf("T overlay has a %s round: %+v", r.Side, r)
 		}
 	}
+	var focused spatialResponse
+	f.env.json(http.MethodGet, base+"/heatmap?kind=position&player=76561198000000001", nil, http.StatusOK, &focused)
+	if len(focused.Heatmap.Cells) != 1 || focused.Heatmap.Rounds != heat.Heatmap.Rounds {
+		t.Fatalf("focus on slot 0's player = %+v, want the same sample over the same rounds", focused.Heatmap)
+	}
+	var stranger spatialResponse
+	f.env.json(http.MethodGet, base+"/heatmap?kind=position&player=76561198000000009", nil, http.StatusOK, &stranger)
+	if len(stranger.Heatmap.Cells) != 0 || stranger.Heatmap.Rounds != heat.Heatmap.Rounds {
+		t.Fatalf("focus on a player who never played = %+v, want the rounds and no cell", stranger.Heatmap)
+	}
+	var kills spatialResponse
+	f.env.json(http.MethodGet, base+"/heatmap?kind=kill&kill_at=victim", nil, http.StatusOK, &kills)
+	if kills.Heatmap.Kind != tacticalplan.HeatKill || kills.Heatmap.KillAt != tacticalplan.KillAtVictim {
+		t.Fatalf("kill heatmap = %+v, want the victims' spots", kills.Heatmap)
+	}
 	var nuke spatialResponse
 	f.env.json(http.MethodGet, base+"/heatmap?map=de_nuke", nil, http.StatusOK, &nuke)
 	if len(nuke.Matches) != 0 || nuke.Geometry != nil || len(nuke.Heatmap.Cells) != 0 {
@@ -58,7 +73,7 @@ func TestLibraryTeamHeatmapAndOverlayFollowTheTeam(t *testing.T) {
 
 	for _, bad := range []string{
 		"/heatmap?kind=smell", "/heatmap?t_from=20&t_to=10", "/heatmap?grenade=decoy", "/heatmap?map=de_nuke&map=de_mirage",
-		"/overlay?limit=99", "/heatmap?buy=lots",
+		"/overlay?limit=99", "/heatmap?buy=lots", "/heatmap?kind=kill&kill_at=elbow", "/heatmap?player=slot0",
 	} {
 		if rw := f.env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("GET %s = %d, want 400", bad, rw.Code)

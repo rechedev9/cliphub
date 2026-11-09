@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,13 +31,18 @@ const (
 // to the theme, so a drawing follows light and dark mode.
 var StrokeColors = []string{"accent", "ct", "t", "mark"}
 
+// StrokeLevels are the floors a stroke may name; empty is the upper one, or a one-floor map.
+var StrokeLevels = []string{"", "default", "lower"}
+
 // Stroke is one line of a drawing: a colour token, a width in radar pixels at
-// the 1024 reference size, and its points as world x and y.
+// the 1024 reference size, its points as world x and y, and on a two-floor map
+// the floor it was drawn on.
 type Stroke struct {
 	Color  string       `json:"color"`
 	Width  int          `json:"width"`
 	Arrow  bool         `json:"arrow"`
 	Points [][2]float64 `json:"points"`
+	Level  string       `json:"level,omitempty"`
 }
 
 // Annotation is a note and an optional drawing anchored to one tick of one
@@ -94,6 +100,9 @@ func CleanAnnotation(a Annotation) (Annotation, error) {
 		}
 		if s.Width < minStrokeWidth || s.Width > maxStrokeWidth {
 			return a, fmt.Errorf("stroke %d: width must be from %d to %d", i, minStrokeWidth, maxStrokeWidth)
+		}
+		if !slices.Contains(StrokeLevels, s.Level) {
+			return a, fmt.Errorf("stroke %d: level must be default or lower", i)
 		}
 		if len(s.Points) < 2 || len(s.Points) > MaxAnnotationStrokePoint {
 			return a, fmt.Errorf("stroke %d: a stroke has from 2 to %d points", i, MaxAnnotationStrokePoint)

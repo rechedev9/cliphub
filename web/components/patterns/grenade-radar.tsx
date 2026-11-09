@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import type { TeamGrenade, TeamGrenadeKind } from '@/lib/api/grenades';
-import type { RadarLevel, TacticalGeometry } from '@/lib/api/tactical';
+import { RADAR_LEVELS, type RadarLevel, type TacticalGeometry } from '@/lib/api/tactical';
 import {
   dragWorldBox,
   grenadeId,
@@ -12,7 +12,7 @@ import {
   type WorldBox,
 } from '@/lib/analysis/grenade-patterns';
 import type { RadarPoint, WorldMark } from '@/lib/tactical-transform';
-import { worldToRendered } from '@/lib/tactical-transform';
+import { levelForAltitude, worldToRendered } from '@/lib/tactical-transform';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { RadarSurface, type RadarFrame } from '@/components/tactical/spatial/radar-surface';
 import { cn } from '@/lib/utils';
@@ -30,17 +30,21 @@ export const GRENADE_KIND_TOKEN: Record<TeamGrenadeKind, string> = {
 const DRAG_MIN = 4;
 const HOVER_REACH = 8;
 
+/** A zone box and the floor it was drawn on. */
+export type FloorBox = { box: WorldBox; level: RadarLevel };
+
 type Props = {
   geometry: TacticalGeometry;
-  level: RadarLevel;
+  /** The floors shown; two put them side by side, each grenade on the floor it lands on. */
+  levels: readonly RadarLevel[];
   grenades: readonly TeamGrenade[];
   /** Grenade id to its spot key, for hover and highlight. */
   spotOf: ReadonlyMap<string, string>;
   /** Ids inside the box; null when no box is drawn. */
   selected: ReadonlySet<string> | null;
   highlight: string | null;
-  box: WorldBox | null;
-  onBox: (box: WorldBox | null) => void;
+  box: FloorBox | null;
+  onBox: (box: FloorBox | null) => void;
   onHover: (spotKey: string | null) => void;
 };
 
@@ -67,9 +71,14 @@ function paintTracer(ctx: CanvasRenderingContext2D, tracer: GrenadeTracer, color
  * coloured by kind. Dragging draws a box that filters the list (Shift + drag
  * once zoomed, when a plain drag pans); hovering a tracer highlights its spot.
  */
-export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, highlight, box, onBox, onHover }: Props): ReactNode {
+export function GrenadeRadar({ geometry, levels, grenades, spotOf, selected, highlight, box, onBox, onHover }: Props): ReactNode {
+  const split = levels.length > 1;
+  const onPlate = useCallback(
+    (level: RadarLevel) => (split ? grenades.filter((grenade) => levelForAltitude(geometry.calibration, grenade.landing[2]) === level) : grenades),
+    [geometry.calibration, grenades, split],
+  );
   const paint = useCallback(
-    ({ ctx, size }: RadarFrame) => {
+    ({ ctx, size, level }: RadarFrame) => {
       const computed = getComputedStyle(ctx.canvas);
       const colors = new Map<TeamGrenadeKind, string>();
       const colorOf = (kind: TeamGrenadeKind): string => {
@@ -80,7 +89,7 @@ export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, high
         return value;
       };
       const strong: { tracer: GrenadeTracer; kind: TeamGrenadeKind }[] = [];
-      for (const grenade of grenades) {
+      for (const grenade of onPlate(level)) {
         const tracer = grenadeTracer(geometry.calibration, size, grenade);
         if (tracer === null) continue;
         const id = grenadeId(grenade);
@@ -96,21 +105,28 @@ export function GrenadeRadar({ geometry, level, grenades, spotOf, selected, high
       ctx.globalAlpha = 1;
       for (const entry of strong) paintTracer(ctx, entry.tracer, colorOf(entry.kind), true);
     },
-    [geometry.calibration, grenades, highlight, selected, spotOf],
+    [geometry.calibration, highlight, onPlate, selected, spotOf],
   );
   const marks = useMemo(() => grenades.flatMap((grenade): WorldMark[] => (grenade.origin === null ? [grenade.landing] : [grenade.landing, grenade.origin])), [grenades]);
 
   return (
-    <RadarSurface geometry={geometry} level={level} paint={paint} marks={marks} label="Radar con las granadas del equipo">
-      {(projection, zoomed) => (
+    <RadarSurface
+      geometry={geometry}
+      level={levels[0] ?? RADAR_LEVELS.default}
+      levels={levels}
+      paint={paint}
+      marks={marks}
+      label="Radar con las granadas del equipo"
+    >
+      {(projection, zoomed, level) => (
         <DragLayer
           geometry={geometry}
           projection={projection}
           zoomed={zoomed}
-          grenades={grenades}
+          grenades={onPlate(level)}
           spotOf={spotOf}
-          box={box}
-          onBox={onBox}
+          box={box !== null && (!split || box.level === level) ? box.box : null}
+          onBox={(next) => onBox(next === null ? null : { box: next, level })}
           onHover={onHover}
         />
       )}
@@ -127,7 +143,12 @@ function DragLayer({
   onBox,
   onHover,
   zoomed,
-}: Pick<Props, 'geometry' | 'grenades' | 'spotOf' | 'box' | 'onBox' | 'onHover'> & { projection: RadarProjection; zoomed: boolean }): ReactNode {
+}: Pick<Props, 'geometry' | 'grenades' | 'spotOf' | 'onHover'> & {
+  projection: RadarProjection;
+  zoomed: boolean;
+  box: WorldBox | null;
+  onBox: (box: WorldBox | null) => void;
+}): ReactNode {
   const start = useRef<RadarPoint | null>(null);
   const [drag, setDrag] = useState<{ a: RadarPoint; b: RadarPoint } | null>(null);
   const { size, offsetX, offsetY } = projection;

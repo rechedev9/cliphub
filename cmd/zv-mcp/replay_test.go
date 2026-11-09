@@ -10,7 +10,7 @@ import (
 
 func TestReplayRoundsScopeReadsAsTheReplayURL(t *testing.T) {
 	doc := tacticalplan.Document{Players: []tacticalplan.Player{{Slot: 4, SteamID64: "76561198000000001"}}}
-	in := replayRoundsIn{TeamKey: "ct-start", Side: "t", Result: "won", Buy: []string{"full"}, OpponentBuy: []string{"eco", "semi"},
+	in := replayScopeIn{TeamKey: "ct-start", Side: "t", Result: "won", Buy: []string{"full"}, OpponentBuy: []string{"eco", "semi"},
 		Players: []string{"76561198000000001"}, Focus: []string{"76561198000000001"}, RoundFrom: 3, RoundTo: 12}
 	values, err := in.values(doc)
 	if err != nil {
@@ -30,7 +30,7 @@ func TestReplayRoundsScopeReadsAsTheReplayURL(t *testing.T) {
 
 func TestReplayRoundsScopeRefusesWhatTheBarCannotSay(t *testing.T) {
 	doc := tacticalplan.Document{}
-	for name, in := range map[string]replayRoundsIn{
+	for name, in := range map[string]replayScopeIn{
 		"a result with no one to win it": {Result: "won"},
 		"a team key that is not a side":  {TeamKey: "FUT"},
 		"a player who did not play":      {Players: []string{"76561198000000001"}},
@@ -95,14 +95,14 @@ func TestReplayRoundsRefusesAFocusOutsideTheScopedTeam(t *testing.T) {
 		Players: []tacticalplan.Player{{Slot: 1, SteamID64: "76561198000000001"}, {Slot: 7, SteamID64: "76561198000000007"}},
 		Teams:   []tacticalplan.Team{{Key: "ct-start", Slots: []uint8{1}}, {Key: "t-start", Slots: []uint8{7}}},
 	}
-	if _, err := (replayRoundsIn{TeamKey: "ct-start", Focus: []string{"76561198000000007"}}).values(doc); err == nil {
+	if _, err := (replayScopeIn{TeamKey: "ct-start", Focus: []string{"76561198000000007"}}).values(doc); err == nil {
 		t.Fatal("a rival in focus was accepted: the overlay would draw no one")
 	}
-	values, err := (replayRoundsIn{TeamKey: "t-start", Focus: []string{"76561198000000007"}}).values(doc)
+	values, err := (replayScopeIn{TeamKey: "t-start", Focus: []string{"76561198000000007"}}).values(doc)
 	if err != nil || values.Get("subject") != "7" {
 		t.Fatalf("own player in focus: %v, %v", values, err)
 	}
-	if _, err := (replayRoundsIn{Focus: []string{"76561198000000007"}}).values(doc); err != nil {
+	if _, err := (replayScopeIn{Focus: []string{"76561198000000007"}}).values(doc); err != nil {
 		t.Fatalf("focus without a team: %v", err)
 	}
 }

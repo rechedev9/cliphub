@@ -386,6 +386,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
                 scope={scope}
                 lineup={lineup}
                 matches={matches}
+                roster={team.roster ?? []}
                 form={replayForm}
                 onFormChange={(form) => {
                   setReported(null);

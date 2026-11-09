@@ -4,7 +4,8 @@ import { useCallback, useRef, useState, type PointerEvent, type ReactNode } from
 import { ArrowUpRight, Brush, Eraser, Undo2 } from 'lucide-react';
 import { ANNOTATION_STROKES_MAX, STROKE_COLORS, STROKE_POINTS_MAX } from '@/lib/api/spatial';
 import type { Stroke, StrokeColor } from '@/lib/api/spatial';
-import type { RadarCalibration } from '@/lib/api/tactical';
+import { RADAR_LEVELS } from '@/lib/api/tactical';
+import type { RadarCalibration, RadarLevel } from '@/lib/api/tactical';
 import { worldToRendered } from '@/lib/tactical-transform';
 import { arrowHead, renderedToWorld, strokePath, thinStroke } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
@@ -88,22 +89,30 @@ function StrokeShape({
   );
 }
 
+/** Whether a stroke belongs on a floor's pane; a stroke drawn with one floor on screen sits on the upper pane. */
+function onLevel(stroke: Stroke, level: RadarLevel | undefined): boolean {
+  return level === undefined || (stroke.level ?? RADAR_LEVELS.default) === level;
+}
+
 /**
  * The drawing layer over a radar plate: saved drawings, the draft being made,
  * and, while the pen is down, the pointer capture that turns a drag into a
  * stroke in world units. Arrows are straight; free strokes are thinned.
+ * With `level` it is one floor's pane: it shows that floor's strokes and tags new ones with it.
  */
 export function TelestratorLayer({
   calibration,
   projection,
   shown,
   draft,
+  level,
 }: {
   calibration: RadarCalibration;
   projection: RadarProjection;
   /** Saved drawings to show, already filtered to the moment on screen. */
   shown: readonly { id: string; strokes: readonly Stroke[]; faded?: boolean }[];
   draft?: TelestratorDraft;
+  level?: RadarLevel;
 }): ReactNode {
   const live = useRef<[number, number][] | null>(null);
   const [preview, setPreview] = useState<Stroke | null>(null);
@@ -124,7 +133,8 @@ export function TelestratorLayer({
     if (draft === undefined || points.length < 2) return null;
     const kept = draft.tool.arrow ? [points[0], points[points.length - 1]] : thinStroke(points, THIN_WORLD_UNITS);
     if (kept.length < 2) return null;
-    return { color: draft.tool.color, width: STROKE_WIDTH, arrow: draft.tool.arrow, points: kept.slice(0, STROKE_POINTS_MAX) };
+    const stroke: Stroke = { color: draft.tool.color, width: STROKE_WIDTH, arrow: draft.tool.arrow, points: kept.slice(0, STROKE_POINTS_MAX) };
+    return level === undefined ? stroke : { ...stroke, level };
   };
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>): void => {
@@ -151,7 +161,7 @@ export function TelestratorLayer({
   return (
     <svg
       aria-hidden="true"
-      className={cn('absolute inset-0 h-full w-full', drawing ? 'cursor-crosshair touch-none' : 'pointer-events-none')}
+      className={cn('absolute inset-0 h-full w-full', drawing ? 'pointer-events-auto cursor-crosshair touch-none' : 'pointer-events-none')}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -164,13 +174,15 @@ export function TelestratorLayer({
       }}
     >
       {shown.map((note) =>
-        note.strokes.map((stroke, i) => (
-          <StrokeShape key={`${note.id}:${i}`} stroke={stroke} calibration={calibration} projection={projection} faded={note.faded} />
-        )),
+        note.strokes.map((stroke, i) =>
+          onLevel(stroke, level) ? (
+            <StrokeShape key={`${note.id}:${i}`} stroke={stroke} calibration={calibration} projection={projection} faded={note.faded} />
+          ) : null,
+        ),
       )}
-      {draft?.strokes.map((stroke, i) => (
-        <StrokeShape key={`draft:${i}`} stroke={stroke} calibration={calibration} projection={projection} />
-      ))}
+      {draft?.strokes.map((stroke, i) =>
+        onLevel(stroke, level) ? <StrokeShape key={`draft:${i}`} stroke={stroke} calibration={calibration} projection={projection} /> : null,
+      )}
       {preview ? <StrokeShape stroke={preview} calibration={calibration} projection={projection} /> : null}
     </svg>
   );

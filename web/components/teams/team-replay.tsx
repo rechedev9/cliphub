@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { LibraryMatch } from '@/lib/api/library';
+import type { LibraryMatch, LibraryRosterEntry } from '@/lib/api/library';
 import type { AnalysisScope } from '@/lib/analysis/scope';
 import type { ReplayForm } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
@@ -19,6 +19,7 @@ export function TeamReplay({
   scope,
   lineup,
   matches,
+  roster,
   form,
   onFormChange,
   onMapChange,
@@ -29,6 +30,8 @@ export function TeamReplay({
   /** The scope's lineup as SteamID64s; empty counts every round. */
   lineup: readonly string[];
   matches: readonly LibraryMatch[];
+  /** The players a heatmap or the paths can count alone. */
+  roster: readonly LibraryRosterEntry[];
   form: TeamReplayForm;
   onFormChange: (form: TeamReplayForm) => void;
   onMapChange: (map: string) => void;
@@ -52,6 +55,7 @@ export function TeamReplay({
           scope={scope}
           lineup={lineup}
           view={form === 'calor' ? 'heatmap' : 'overlay'}
+          roster={roster}
           onMapChange={onMapChange}
           onCounts={onCounts}
         />

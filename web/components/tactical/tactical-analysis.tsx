@@ -12,6 +12,8 @@ import { matchTitle } from '@/lib/library/partidas';
 import { DEFAULT_REPLAY_FORM, REPLAY_FORMS, replayFormFromQuery, writeReplayForm } from '@/lib/replay/forms';
 import type { ReplayForm } from '@/lib/replay/forms';
 import { tramoFromQuery, writeTramo } from '@/lib/replay/tramo';
+import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
+import type { HeatChoice } from '@/lib/replay/heat-choice';
 import type { Tramo } from '@/lib/replay/tramo';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery, withoutOrphanOutcome } from '@/lib/tactical-filter';
 import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
@@ -182,6 +184,15 @@ export function TacticalAnalysis({
     [pathname, router, searchParams],
   );
   const tramo = useMemo(() => ({ tramo: tramoValue, onChange: setTramo }), [tramoValue, setTramo]);
+  const heatValue = useMemo(() => heatChoiceFromQuery(searchParams), [searchParams]);
+  const setHeat = useCallback(
+    (next: HeatChoice) => {
+      const query = writeHeatChoice(searchParams.toString(), next);
+      router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+  const heat = useMemo(() => ({ choice: heatValue, onChange: setHeat }), [heatValue, setHeat]);
   // The players in the foreground: one choice for the four forms, kept in the URL.
   const focus = useMemo(() => focusFromQuery(searchParams, doc?.players.map((player) => player.slot) ?? []), [doc, searchParams]);
   const setFocus = useCallback(
@@ -240,7 +251,7 @@ export function TacticalAnalysis({
     rounded = (
       <>
         {playerList}
-        <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} />
+        <SpatialWorkspace scope={spatialScope} view="heatmap" hideViewSwitch tramo={tramo} heat={heat} />
       </>
     );
   } else if (form === 'recorridos') {

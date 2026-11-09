@@ -1,7 +1,7 @@
 import type { TeamGrenadeKind, TeamGrenades } from './grenades.ts';
 import type { MetricsReport } from './metrics.ts';
 import type { LibraryReport, ReportSide, ScoutReport } from './scout.ts';
-import type { Annotation, HeatmapGrenade, HeatmapKind, SpatialResponse, Stroke } from './spatial.ts';
+import type { Annotation, HeatmapGrenade, HeatmapKind, KillSpot, SpatialResponse, Stroke } from './spatial.ts';
 import type {
   LibraryPlay,
   LibraryPlayDetail,
@@ -512,9 +512,20 @@ export type TeamSpatialQuery = {
   lineup?: readonly string[];
   buys?: readonly TacticalBuyType[];
   opponent_buys?: readonly TacticalBuyType[];
+  /** SteamID64s counted alone; the team's rounds all stay. */
+  players?: readonly string[];
 };
 
-export type HeatmapQuery = { kind: HeatmapKind; from?: number; to?: number; /** Count each round from its plant on. */ fromPlant?: boolean; grenades?: readonly HeatmapGrenade[] };
+export type HeatmapQuery = {
+  kind: HeatmapKind;
+  /** For kills: where the killer stood (the default) or where the victim fell. */
+  killAt?: KillSpot;
+  from?: number;
+  to?: number;
+  /** Count each round from its plant on. */
+  fromPlant?: boolean;
+  grenades?: readonly HeatmapGrenade[];
+};
 
 /** The path of a scope's heatmap or overlay with its query, in a stable order. */
 export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', extra: URLSearchParams): string {
@@ -530,6 +541,7 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
     for (const steamId of q.lineup ?? []) params.append('lineup', steamId);
     for (const buy of q.buys ?? []) params.append('buy', buy);
     for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
+    for (const player of q.players ?? []) params.append('player', player);
   }
   for (const [key, value] of extra) params.append(key, value);
   const search = params.toString();
@@ -540,6 +552,7 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
 /** A heatmap of the scope's rounds, with the radar it is drawn on. */
 export function getSpatialHeatmap(scope: SpatialScope, heat: HeatmapQuery): Promise<SpatialResponse> {
   const extra = new URLSearchParams({ kind: heat.kind });
+  if (heat.kind === 'kill' && heat.killAt === 'victim') extra.set('kill_at', 'victim');
   if (heat.from !== undefined && heat.from > 0) extra.set('t_from', String(heat.from));
   if (heat.to !== undefined && heat.to > 0) extra.set('t_to', String(heat.to));
   if (heat.fromPlant === true) extra.set('t_from_plant', '1');

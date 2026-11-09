@@ -37,6 +37,31 @@ export function writeFocus(query: string, focus: PlayerFocus): string {
   return params.toString();
 }
 
+/** A team's Replay names its players by SteamID64 (`jugador`), since slots change between demos. */
+export const TEAM_FOCUS_QUERY = 'jugador';
+/** The orchestrator's ceiling on players in focus (`maxSpatialPlayers`). */
+export const TEAM_FOCUS_MAX = 10;
+
+export function teamFocusFromQuery(params: Pick<URLSearchParams, 'getAll'>): string[] {
+  const out: string[] = [];
+  for (const raw of params.getAll(TEAM_FOCUS_QUERY)) {
+    if (/^\d{17}$/.test(raw) && !out.includes(raw) && out.length < TEAM_FOCUS_MAX) out.push(raw);
+  }
+  return out;
+}
+
+export function writeTeamFocus(query: string, focus: readonly string[]): string {
+  const params = new URLSearchParams(query);
+  params.delete(TEAM_FOCUS_QUERY);
+  for (const id of focus) params.append(TEAM_FOCUS_QUERY, id);
+  return params.toString();
+}
+
+/** A click on a roster chip: adds or removes that player; nobody chosen means the whole team. */
+export function toggleTeamFocus(focus: readonly string[], id: string): string[] {
+  return focus.includes(id) ? focus.filter((entry) => entry !== id) : [...focus, id].slice(0, TEAM_FOCUS_MAX);
+}
+
 /** Two letters that stand for a player in the folded panel: the first two letters or digits of the name. */
 export function playerInitials(name: string): string {
   const letters = [...name].filter((char) => /[\p{L}\p{N}]/u.test(char));

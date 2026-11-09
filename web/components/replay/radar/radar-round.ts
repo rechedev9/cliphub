@@ -35,6 +35,8 @@ export type RoundFrame = {
   calibration: RadarCalibration;
   /** The floor the plate shows; on a two-floor map, everything on the other one recedes. */
   level: RadarLevel;
+  /** How much of the other floor shows; 0 when that floor has its own pane beside this one. */
+  offFloorAlpha?: number;
   /** Side of the radar square in CSS pixels. */
   size: number;
   samples: readonly TacticalSample[];
@@ -102,6 +104,7 @@ function softDisc(ctx: CanvasRenderingContext2D, options: { at: RadarPoint; radi
 /** Draws with everything faded when `z` is on the floor the plate is not showing. */
 function onFloor(ctx: CanvasRenderingContext2D, frame: RoundFrame, z: number, draw: () => void): void {
   const alpha = floorAlpha(frame, z);
+  if (alpha <= 0) return;
   if (alpha >= 1) {
     draw();
     return;
@@ -281,6 +284,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
     ctx.strokeStyle = sideColor(frame.style, sampleSide(sample));
     // A trail recedes with its player, by the floor the player stands on now.
     const strength = floorAlpha(frame, sample.z);
+    if (strength <= 0) continue;
     for (let i = 1; i < points.length; i += 1) {
       const from = worldToRendered(frame.calibration, points[i - 1].x, points[i - 1].y, frame.size);
       const to = worldToRendered(frame.calibration, points[i].x, points[i].y, frame.size);
@@ -468,6 +472,7 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     if (player === undefined || !player.alive) continue;
     // A filter fades the whole player, whatever globalAlpha each stroke sets.
     const alpha = floorAlpha(frame, sample.z) * (inFocus(frame.focus, sample.slot) ? 1 : UNFOCUSED_ALPHA);
+    if (alpha <= 0) continue;
     if (alpha < 1) ctx.filter = `opacity(${alpha})`;
     drawAlive(ctx, frame, sample, player);
     ctx.filter = 'none';
