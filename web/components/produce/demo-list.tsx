@@ -50,8 +50,8 @@ export function DemoList({ format, onCount, addTile }: DemoListProps): ReactNode
       const next = buildHubModel(matches, videos);
       const prev = stateRef.current;
       setOffline(null);
-      const extra = library === null ? null : libraryOnlyRows(library.demos, library.matches, next.rows);
-      if (extra !== null) setLibraryRows((old) => (sameDemoIds(old, extra) ? old : extra));
+      const extra = library === null ? null : libraryOnlyRows({ demos: library.demos, matches: library.matches, rows: next.rows });
+      if (extra !== null) setLibraryRows((old) => (sameLibraryRows(old, extra) ? old : extra));
       const extraCount = extra?.length ?? 0;
       if (prev !== null && sameHubProps(prev, next)) {
         onCount?.(oneRowPerDemo(next.rows).length + extraCount);
@@ -149,8 +149,11 @@ async function readLibrary(): Promise<{ demos: LibraryDemo[]; matches: LibraryMa
   }
 }
 
-function sameDemoIds(a: readonly LibraryDemoRow[], b: readonly LibraryDemoRow[]): boolean {
-  return a.length === b.length && a.every((row, index) => row.demo.id === b[index]?.demo.id && row.demo.updated_at === b[index]?.demo.updated_at);
+function sameLibraryRows(a: readonly LibraryDemoRow[], b: readonly LibraryDemoRow[]): boolean {
+  return a.length === b.length && a.every((row, index) => {
+    const other = b[index];
+    return other !== undefined && row.demo.id === other.demo.id && row.demo.updated_at === other.demo.updated_at && row.match.updated_at === other.match.updated_at;
+  });
 }
 
 /** The row stands for every job of its demo, so deleting it deletes all of them. A busy job

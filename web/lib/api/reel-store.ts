@@ -139,8 +139,8 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
 }
 
 function coerceAdmissionFailure(value: unknown): AdmissionFailure | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const { failureReason, retryAction } = value as Record<string, unknown>;
+  if (!value || typeof value !== 'object' || !('failureReason' in value) || !('retryAction' in value)) return undefined;
+  const { failureReason, retryAction } = value;
   if (typeof failureReason !== 'string' || failureReason === '') return undefined;
   if (retryAction !== 'record' && retryAction !== 'render') return undefined;
   return { failureReason, retryAction };

@@ -42,14 +42,14 @@ func TestFaceitMapsOfOneMatchJoinOneSeries(t *testing.T) {
 	w := NewLibraryWorker(repo, newFakeStorage())
 	first := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-1-1.dem")
 	other := analyseLibraryDemo(t, repo, "1-11111111-2222-3333-4444-555555555555-2-1.dem")
-	w.groupFaceitSeries(context.Background(), first.DemoID, "1-"+faceitMatchID+"-1-1.dem")
+	w.groupFaceitSeries(context.Background(), library.Demo{ID: first.DemoID, FileName: "1-" + faceitMatchID + "-1-1.dem"})
 	if matchSeries(t, repo, first.ID) != nil {
 		t.Fatal("a lone FACEIT map got a series")
 	}
 	second := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-2-1.dem")
-	w.groupFaceitSeries(context.Background(), second.DemoID, "1-"+faceitMatchID+"-2-1.dem")
+	w.groupFaceitSeries(context.Background(), library.Demo{ID: second.DemoID, FileName: "1-" + faceitMatchID + "-2-1.dem"})
 	third := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-3-1.dem")
-	w.groupFaceitSeries(context.Background(), third.DemoID, "1-"+faceitMatchID+"-3-1.dem")
+	w.groupFaceitSeries(context.Background(), library.Demo{ID: third.DemoID, FileName: "1-" + faceitMatchID + "-3-1.dem"})
 
 	series := matchSeries(t, repo, first.ID)
 	if series == nil {
@@ -84,7 +84,7 @@ func TestFaceitGroupingKeepsTheUsersSeries(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-2-1.dem")
-	w.groupFaceitSeries(context.Background(), second.DemoID, "1-"+faceitMatchID+"-2-1.dem")
+	w.groupFaceitSeries(context.Background(), library.Demo{ID: second.DemoID, FileName: "1-" + faceitMatchID + "-2-1.dem"})
 	if got := matchSeries(t, repo, second.ID); got == nil || *got != own.ID {
 		t.Fatalf("map 2 series = %v, want the user's %s", got, own.ID)
 	}
@@ -97,5 +97,25 @@ func TestFaceitMatchKeyReadsTheFileName(t *testing.T) {
 	}
 	if _, _, ok := faceitMatchKey("match730_003.dem"); ok {
 		t.Fatal("a Valve demo name read as FACEIT")
+	}
+}
+
+func TestFaceitGroupingLeavesAMapTheUserTookOut(t *testing.T) {
+	repo := store.NewMemoryLibraryRepository()
+	w := NewLibraryWorker(repo, newFakeStorage())
+	ctx := context.Background()
+	first := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-1-1.dem")
+	second := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-2-1.dem")
+	w.groupFaceitSeries(ctx, library.Demo{ID: second.DemoID, FileName: "1-" + faceitMatchID + "-2-1.dem"})
+	if _, err := repo.UpdateMatch(ctx, second.ID, library.MatchPatch{ClearSeries: true}); err != nil {
+		t.Fatal(err)
+	}
+	third := analyseLibraryDemo(t, repo, "1-"+faceitMatchID+"-3-1.dem")
+	w.groupFaceitSeries(ctx, library.Demo{ID: third.DemoID, FileName: "1-" + faceitMatchID + "-3-1.dem"})
+	if got := matchSeries(t, repo, second.ID); got != nil {
+		t.Fatalf("map 2 series = %s, want it left out as the user set", got)
+	}
+	if got, want := matchSeries(t, repo, third.ID), matchSeries(t, repo, first.ID); got == nil || want == nil || *got != *want {
+		t.Fatalf("map 3 series = %v, want map 1's %v", got, want)
 	}
 }

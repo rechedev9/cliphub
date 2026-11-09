@@ -32,11 +32,11 @@ test('ready library demos without a Crear job join the list, newest played first
   const demos = [demo('a'), demo('b'), demo('c', { state: 'parsing' }), demo('d', { job_ids: ['job-d'] }), demo('e')];
   const matches = [match('a', '2026-11-01'), match('b', '2026-11-08'), match('c', '2026-11-08'), match('d', '2026-11-08'), match('e', '2026-11-08')];
   const rows = [jobRow('job-d'), jobRow('job-x', 'sha-e')];
-  assert.deepEqual(libraryOnlyRows(demos, matches, rows).map((row) => row.demo.id), ['b', 'a']);
+  assert.deepEqual(libraryOnlyRows({ demos, matches, rows }).map((row) => row.demo.id), ['b', 'a']);
 });
 
 test('a demo whose match is not listed yet waits for the next read', () => {
-  assert.deepEqual(libraryOnlyRows([demo('a')], [], []), []);
+  assert.deepEqual(libraryOnlyRows({ demos: [demo('a')], matches: [], rows: [] }), []);
 });
 
 test('the card names both teams in start order and prefers the corrected team name', () => {

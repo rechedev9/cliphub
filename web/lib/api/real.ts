@@ -293,7 +293,7 @@ export class RealApiClient implements ApiClient {
     // series_id rides the multipart body so the orchestrator groups the scan.
     if (opts?.seriesId) form.append(dp.scanSeriesField, opts.seriesId);
     const scanned = await readJson<unknown>(
-      await uploadForm({ url: dp.scanUrl, body: form, headers: dp.headers, onProgress: opts?.onUploadProgress }),
+      await uploadForm({ url: dp.scanUrl, body: form, headers: dp.headers, onProgress: opts?.onUploadProgress }).finally(() => this.jobsRead.drop()),
     );
     const jobId = dp.scanJobId(scanned);
 
@@ -521,7 +521,7 @@ export class RealApiClient implements ApiClient {
     this.intents.set(videoId, intent);
     saveReelIntents(Array.from(this.intents.values()));
     this.reels.set(videoId, videoFromIntent(intent));
-    await this.reconcile().catch(() => undefined); // the first POST's answer, so a refused start reads as failed
+    await this.reconcileOne(intent).catch(() => undefined); // this reel's first POST, so a refused start reads as failed
     return { ...(this.reels.get(videoId) ?? videoFromIntent(intent)) };
   }
 

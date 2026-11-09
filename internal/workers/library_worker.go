@@ -108,7 +108,7 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 		return scanErr
 	}
 	logWorkerArtifacts(id, tasks.TypeAnalyzeLibraryDemo, []string{artifacts.LibraryTacticalIndexKey(id), artifacts.LibraryTacticalPositionsKey(id)})
-	w.groupFaceitSeries(ctx, id, d.FileName)
+	w.groupFaceitSeries(ctx, d)
 	return nil
 }
 

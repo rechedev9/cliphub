@@ -96,7 +96,7 @@ type DemoCoverProps = {
   map: string;
   thumbnailUrl?: string | undefined;
   striped?: boolean;
-  badge: ReactNode;
+  badge?: ReactNode;
   dateLabel: string;
   score: string;
 };
@@ -121,7 +121,7 @@ export function DemoCover({ map, thumbnailUrl, striped = false, badge, dateLabel
       </span>
       <div className="relative flex items-center justify-between gap-2">
         {badge}
-        <span className="truncate text-meta text-fg-2">{dateLabel}</span>
+        <span className="ml-auto truncate text-meta text-fg-2">{dateLabel}</span>
       </div>
       <div className="relative flex items-baseline justify-between gap-2">
         <h3 className="min-w-0 truncate font-display text-[1.875rem] font-extrabold leading-none tracking-[-0.02em] text-fg-1">{mapName}</h3>

@@ -46,11 +46,17 @@ type faceitMap struct {
 	match  library.Match
 }
 
-// groupFaceitSeries joins the analysed maps of one FACEIT match into a series:
-// the one a map already belongs to, else a new BO3 or BO5 with both teams. It
+// faceitGrouping is the map a scan just analysed and the store it groups in.
+type faceitGrouping struct {
+	repo   librarySeriesGrouper
+	key    string
+	demoID uuid.UUID
+}
+
+// groupFaceitSeries puts the analysed maps of one FACEIT match in a series. It
 // never fails the scan; a store error is only logged.
-func (w *LibraryWorker) groupFaceitSeries(ctx context.Context, demoID uuid.UUID, fileName string) {
-	key, _, ok := faceitMatchKey(fileName)
+func (w *LibraryWorker) groupFaceitSeries(ctx context.Context, d library.Demo) {
+	key, _, ok := faceitMatchKey(d.FileName)
 	if !ok {
 		return
 	}
@@ -61,12 +67,15 @@ func (w *LibraryWorker) groupFaceitSeries(ctx context.Context, demoID uuid.UUID,
 	// Maps of one match finish their scans together; one grouping at a time keeps them in one series.
 	w.seriesMu.Lock()
 	defer w.seriesMu.Unlock()
-	if err := groupFaceitMaps(ctx, grouper, key); err != nil {
-		log.Printf("worker demo=%s group faceit series: %v", demoID, err)
+	if err := (faceitGrouping{repo: grouper, key: key, demoID: d.ID}).run(ctx); err != nil {
+		log.Printf("worker demo=%s group faceit series: %v", d.ID, err)
 	}
 }
 
-func groupFaceitMaps(ctx context.Context, repo librarySeriesGrouper, key string) error {
+// run makes the series once two maps are analysed. After that only the map just
+// analysed joins it, so a map the user took out of the series stays out.
+func (g faceitGrouping) run(ctx context.Context) error {
+	repo, key := g.repo, g.key
 	demos, err := readyDemos(ctx, repo)
 	if err != nil {
 		return err
@@ -94,6 +103,8 @@ func groupFaceitMaps(ctx context.Context, repo librarySeriesGrouper, key string)
 			return fmt.Errorf("create series: %w", err)
 		}
 		seriesID = &created.ID
+	} else {
+		maps = slices.DeleteFunc(maps, func(entry faceitMap) bool { return entry.match.DemoID != g.demoID })
 	}
 	for _, entry := range maps {
 		if entry.match.SeriesID != nil {

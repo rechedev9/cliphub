@@ -7,7 +7,7 @@ export type LibraryDemoRow = { readonly demo: LibraryDemo; readonly match: Libra
 
 /** Ready library demos that the job rows miss, newest played first. A demo counts as covered
  * when a row shares its checksum or is one of its jobs. */
-export function libraryOnlyRows(demos: readonly LibraryDemo[], matches: readonly LibraryMatch[], rows: readonly HubMatch[]): LibraryDemoRow[] {
+export function libraryOnlyRows({ demos, matches, rows }: { demos: readonly LibraryDemo[]; matches: readonly LibraryMatch[]; rows: readonly HubMatch[] }): LibraryDemoRow[] {
   const covered = new Set<string>();
   for (const row of rows) {
     covered.add(row.match.id);

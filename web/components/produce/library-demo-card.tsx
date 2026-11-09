@@ -15,7 +15,7 @@ export function LibraryDemoCard({ row, format }: { row: LibraryDemoRow; format: 
   const { title, score } = libraryRowTeams(row.match);
   return (
     <DemoCardFrame>
-      <DemoCover map={row.match.map} badge={<span />} dateLabel={matchDateLabel({ playedAt: row.demo.imported_at, source: 'upload' })} score={score} />
+      <DemoCover map={row.match.map} dateLabel={matchDateLabel({ playedAt: row.demo.imported_at, source: 'upload' })} score={score} />
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
         {title === '' ? null : <p className="text-body-sm wrap-anywhere text-fg-2">{title}</p>}
         <span className="text-body-sm text-fg-2">{MATCH_ROW_UNPICKED_HINT}</span>
