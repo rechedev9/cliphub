@@ -238,7 +238,9 @@ func (b *heatmapBuilder) add(cal radarmap.Calibration, side Side, pos [3]float64
 		square := densityKey{side: side, level: key.level, column: column, row: row}
 		bin := b.bins[square]
 		bin.count++
-		bin.seconds += seconds
+		if b.opts.Kind == HeatTiming {
+			bin.seconds = append(bin.seconds, seconds)
+		}
 		b.bins[square] = bin
 	}
 	acc, ok := b.cells[key]

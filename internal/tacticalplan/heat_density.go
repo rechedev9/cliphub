@@ -38,8 +38,9 @@ type densityKey struct {
 }
 
 type densityAcc struct {
-	count   int
-	seconds float64
+	count int
+	// seconds is kept only for timing, the one kind that sends them.
+	seconds []float64
 }
 
 // densityCell is the square of the density grid under a position, false off the radar.
@@ -57,7 +58,6 @@ func (b *heatmapBuilder) densityCell(pos [3]float64) (column, row int, ok bool) 
 
 // density lists the grid by side and level, each in row then column order.
 func (b *heatmapBuilder) density() []HeatDensity {
-	layers := map[heatKey]*HeatDensity{}
 	keys := make([]densityKey, 0, len(b.bins))
 	for key := range b.bins {
 		keys = append(keys, key)
@@ -75,20 +75,26 @@ func (b *heatmapBuilder) density() []HeatDensity {
 			return a.column < c.column
 		}
 	})
-	out := []HeatDensity{}
+	layers := map[heatKey]*HeatDensity{}
+	order := []heatKey{}
 	for _, key := range keys {
 		id := heatKey{side: key.side, level: key.level}
 		layer, ok := layers[id]
 		if !ok {
-			out = append(out, HeatDensity{Side: key.side, Level: key.level, Bins: [][3]int{}})
-			layer = &out[len(out)-1]
+			layer = &HeatDensity{Side: key.side, Level: key.level, Bins: [][3]int{}}
 			layers[id] = layer
+			order = append(order, id)
 		}
 		acc := b.bins[key]
 		layer.Bins = append(layer.Bins, [3]int{key.column, key.row, acc.count})
 		if b.opts.Kind == HeatTiming {
-			layer.Seconds = append(layer.Seconds, math.Round(acc.seconds/float64(acc.count)*10)/10)
+			// The median, as the cells use, so the colour and the zone table agree.
+			layer.Seconds = append(layer.Seconds, math.Round(median(acc.seconds)*10)/10)
 		}
+	}
+	out := make([]HeatDensity, 0, len(order))
+	for _, id := range order {
+		out = append(out, *layers[id])
 	}
 	return out
 }

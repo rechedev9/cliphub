@@ -84,7 +84,7 @@ func (in heatmapViewIn) query() (url.Values, error) {
 		v.Set("t_to", strconv.FormatFloat(in.ClockTo, 'f', -1, 64))
 	}
 	if in.Limit < 0 || in.Limit > maxHeatCells {
-		return nil, fmt.Errorf("limit must be from 1 to %d", maxHeatCells)
+		return nil, fmt.Errorf("limit must be from 1 to %d, or 0 for the default %d", maxHeatCells, defaultHeatCells)
 	}
 	return v, nil
 }
