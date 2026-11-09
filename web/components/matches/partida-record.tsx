@@ -22,6 +22,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { EmptyState } from '@/components/records/empty-state';
 import { LibraryMatchRecord } from '@/components/matches/library-match-record';
 import { MatchRecord } from '@/components/matches/match-record';
+import { ProMatchNotice } from '@/components/pro-matches/pro-match-notice';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
 
@@ -108,6 +109,14 @@ export function PartidaRecord({ id }: { id: string }): ReactNode {
     case 'loading':
       return <TacticalWorkspaceSkeleton />;
     case 'library':
+      if (resolved.demo.source === 'pro') {
+        return (
+          <div className="flex flex-col gap-4">
+            <ProMatchNotice matchId={resolved.match.id} />
+            <LibraryMatchRecord key={resolved.match.id} match={resolved.match} demo={resolved.demo} />
+          </div>
+        );
+      }
       return <LibraryMatchRecord key={resolved.match.id} match={resolved.match} demo={resolved.demo} />;
     case 'legacy':
       return <MatchRecord matchId={id} />;

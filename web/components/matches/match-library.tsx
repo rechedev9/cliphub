@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Layers, Link2, ListVideo, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
+import { Layers, Link2, ListVideo, MonitorPlay, PlugZap, Swords, TriangleAlert, Trophy } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
@@ -18,7 +18,7 @@ import {
   type LibrarySource,
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
-import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
+import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRO_MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import {
@@ -253,6 +253,12 @@ function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
             <Link href={PLAYLISTS_HREF}>
               <ListVideo aria-hidden />
               Playlists
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={PRO_MATCHES_HREF}>
+              <Trophy aria-hidden />
+              Partidas pro
             </Link>
           </Button>
           {importer}

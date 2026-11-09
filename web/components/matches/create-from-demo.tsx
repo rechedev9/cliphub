@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MonitorPlay, Smartphone } from 'lucide-react';
 import type { LibraryDemo } from '@/lib/api/library';
 import { PRODUCE_FORMAT, flowHref, type ProduceFormat } from '@/lib/clips/routes';
-import { SHARED_MATCH_REASON } from '@/lib/library/partidas';
+import { withoutDemo, withoutDemoReason } from '@/lib/library/partidas';
 import { crearJobFor } from '@/components/matches/open-in-crear-button';
 import { Button } from '@/components/ui/button';
 
@@ -26,8 +26,8 @@ export function CreateFromDemo({ demo }: { demo: LibraryDemo }): ReactNode {
     }
   }
 
-  if (demo.source === 'shared') {
-    return <span className="max-w-sm text-meta text-fg-3">{SHARED_MATCH_REASON}</span>;
+  if (withoutDemo(demo.source)) {
+    return <span className="max-w-sm text-meta text-fg-3">{withoutDemoReason(demo.source)}</span>;
   }
 
   return (

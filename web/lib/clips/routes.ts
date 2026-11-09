@@ -193,6 +193,9 @@ export function librarySeriesHref(seriesId: string): string {
 
 export const LIBRARY_SERIES_HREF = `${MATCHES_HREF}/series` as const;
 
+/** Partidas pro: the community server's recent HLTV matches. */
+export const PRO_MATCHES_HREF = `${MATCHES_HREF}/pro` as const;
+
 /** The segment under /videos-largos that holds a Demo completa series. */
 export const FULL_SERIES_SEGMENT = 'serie' as const;
 
