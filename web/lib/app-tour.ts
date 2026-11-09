@@ -6,7 +6,7 @@
  * app-tour.test.ts): a section added to the rail without a chapter here would
  * leave the tour describing an app that no longer exists.
  */
-import { LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
+import { FACEIT_PLAYERS_HREF, LONG_VIDEOS_HREF, RESULTS_HREF, SHORTS_HREF } from './clips/routes.ts';
 
 export const TOUR_TITLE = 'Guía de ClipHub Studio';
 
@@ -163,6 +163,24 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     link: { href: '/streams', label: 'Ir a Clips de stream' },
   },
   {
+    id: 'faceit-players',
+    kicker: 'Jugadores FACEIT',
+    label: 'Jugadores FACEIT',
+    title: 'Sigue jugadores de FACEIT y saca vídeos de sus partidas',
+    lead: 'Una lista de jugadores con su nivel, su ELO y sus últimas partidas, para encontrar la demo de la que sale tu próximo vídeo.',
+    points: [
+      {
+        term: 'Tus listas',
+        text: 'Busca un nick o pega la URL de un perfil para seguirlo. Las listas CIS y LATAM ya traen jugadores conocidos de cada región.',
+      },
+      {
+        term: 'Sus partidas',
+        text: 'Cada jugador muestra sus partidas recientes con mapa, resultado, K/D y ADR, y el enlace a la sala de FACEIT para descargar la demo.',
+      },
+    ],
+    link: { href: FACEIT_PLAYERS_HREF, label: 'Ir a Jugadores FACEIT' },
+  },
+  {
     id: 'deliver',
     kicker: 'Mis vídeos',
     label: 'Descargar y publicar',
@@ -256,7 +274,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Ficha de jugador',
-        text: 'Cada nombre de una plantilla, una partida o un informe abre su ficha: nicks, equipos por fecha, partidas, rol y métricas avanzadas. Seguimiento FACEIT sigue jugadores y convierte sus partidas en clips.',
+        text: 'Cada nombre de una plantilla, una partida o un informe abre su ficha: nicks, equipos por fecha, partidas, rol y métricas avanzadas.',
       },
     ],
     link: { href: '/equipos', label: 'Ir a Equipos' },

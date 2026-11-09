@@ -6,6 +6,7 @@ const RAIL = [
   ['create', 'Demo completa', '/videos-largos'],
   ['create', 'Short', '/shorts'],
   ['create', 'Clips de stream', '/streams'],
+  ['create', 'Jugadores FACEIT', '/jugadores/faceit'],
   ['create', 'Mis vídeos', '/mis-videos'],
   ['create', 'Ideas', '/ideas'],
   ['analyze', 'Partidas', '/partidas'],
@@ -44,7 +45,7 @@ test('nav: a nested route lights its section, a series lights Short', () => {
   assert.equal(sectionForPath('/mis-videos/abc/publicar/clip')?.href, '/mis-videos');
   assert.equal(sectionForPath('/series/abc')?.href, '/shorts');
   assert.equal(sectionForPath('/jugadores/76561198000000000')?.href, '/equipos');
-  assert.equal(sectionForPath('/jugadores/faceit')?.href, '/equipos');
+  assert.equal(sectionForPath('/jugadores/faceit')?.href, '/jugadores/faceit');
   assert.equal(sectionForPath('/videos-largos/serie/abc')?.href, '/videos-largos');
   assert.equal(sectionForPath('/shortsx'), null);
   assert.equal(sectionForPath('/'), null);

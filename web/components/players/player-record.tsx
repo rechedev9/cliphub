@@ -525,7 +525,7 @@ function PlayerFaceit({ player, linking, onLink }: { player: LibraryPlayer; link
               {linking ? 'Buscando en FACEIT' : 'Vincular FACEIT'}
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href={FACEIT_PLAYERS_HREF}>Seguimiento FACEIT</Link>
+              <Link href={FACEIT_PLAYERS_HREF}>Jugadores FACEIT</Link>
             </Button>
           </>
         }
