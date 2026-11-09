@@ -21,6 +21,14 @@ test('maps the documented keys to replay shortcuts', () => {
   assert.equal(replayShortcut(press('x')), null);
 });
 
+test('J and K change round like [ and ], with or without Shift, and leave Ctrl K to the search', () => {
+  assert.equal(replayShortcut(press('j')), 'round-prev');
+  assert.equal(replayShortcut(press('K', { shiftKey: true })), 'round-next');
+  assert.equal(replayShortcut(press('k', { ctrlKey: true })), null);
+  assert.equal(targetTakesKey(target({ tag: 'INPUT', inputType: 'search' }), 'round-next'), false);
+  assert.equal(targetTakesKey(target({ tag: 'INPUT', inputType: 'range', keyboardFocus: true }), 'round-prev'), true);
+});
+
 test('AltGr characters still work, as on a Spanish keyboard where ] is AltGr and +', () => {
   // Chromium on Windows reports AltGr as Ctrl and Alt held together.
   assert.equal(replayShortcut(press(']', { ctrlKey: true, altKey: true })), 'round-next');
