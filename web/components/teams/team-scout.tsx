@@ -51,6 +51,7 @@ export function TeamScout({
   scope,
   lineup,
   onCounts,
+  onReport,
 }: {
   teamId: string;
   scope: AnalysisScope;
@@ -58,6 +59,8 @@ export function TeamScout({
   lineup: readonly string[];
   /** The sample the answer stands on, or null while it is read. */
   onCounts: (counts: ScopeCounts | null) => void;
+  /** The report once read, or null while it is read or when it failed. */
+  onReport?: (report: ScoutReport | null) => void;
 }): ReactNode {
   const [scout, setScout] = useState<ScoutReport | null>(null);
   const [failed, setFailed] = useState(false);
@@ -70,6 +73,7 @@ export function TeamScout({
     setScout(null);
     setFailed(false);
     onCounts(null);
+    onReport?.(null);
     getLibraryTeamScout(teamId, {
       maps: map === '' ? [] : [map],
       side,
@@ -82,6 +86,7 @@ export function TeamScout({
         if (!active) return;
         setScout(report);
         onCounts({ maps: report.matches.length, rounds: report.tendencies.round_count });
+        onReport?.(report);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -89,7 +94,7 @@ export function TeamScout({
     return () => {
       active = false;
     };
-  }, [teamId, map, side, opponent, from, to, lineup, onCounts]);
+  }, [teamId, map, side, opponent, from, to, lineup, onCounts, onReport]);
 
   return (
     <ScoutResult

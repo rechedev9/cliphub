@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Printer, TriangleAlert } from 'lucide-react';
 import type { LibraryMatch, LibraryTeam } from '@/lib/api/library';
+import type { ScoutReport } from '@/lib/api/scout';
 import { prepareWarnings } from '@/lib/analysis/prepare-warnings';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prepHref } from '@/lib/clips/routes';
@@ -44,11 +45,11 @@ export function TeamPrepare({
 }): ReactNode {
   const [now] = useState(() => Date.now());
   const { from, to } = scopeDateRange(scope.period, now);
-  // A chosen lineup already drops the rounds of whoever came and went, so only every player warns about it.
-  const roster = scope.lineup.kind === 'all' ? team.roster : undefined;
+  const [kept, setKept] = useState<readonly string[] | null>(null);
+  const onReport = useCallback((report: ScoutReport | null) => setKept(report === null ? null : report.matches.map((match) => match.played_at)), []);
   const warnings = useMemo(
-    () => prepareWarnings({ roster: roster ?? [], playedAt: matches.map((match) => match.played_at), now }),
-    [roster, matches, now],
+    () => prepareWarnings({ roster: team.roster ?? [], periodPlayedAt: matches.map((match) => match.played_at), keptPlayedAt: kept, now }),
+    [team.roster, matches, kept, now],
   );
   return (
     <div className="flex flex-col gap-5">
@@ -97,7 +98,7 @@ export function TeamPrepare({
       )}
       <section aria-label="Scouting" className="flex flex-col gap-2 border-t border-border pt-4">
         <h2 className="text-body font-semibold text-fg-1">Cómo juegan</h2>
-        <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />
+        <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} onReport={onReport} />
       </section>
     </div>
   );
