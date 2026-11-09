@@ -7,6 +7,7 @@ import { getLibraryTeamScout } from '@/lib/api/library';
 import type { ScoutReport } from '@/lib/api/scout';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { newReportHref } from '@/lib/clips/routes';
+import { EmptySample } from '@/components/analysis/empty-sample';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
 import { ScoutView } from '@/components/reports/scout-view';
 import { AnalysisVideoDialog } from '@/components/analysis-video/analysis-video-dialog';
@@ -137,9 +138,11 @@ function ScoutResult({ failed, scout, teamId, actions }: { failed: boolean; scou
       </div>
     );
   }
+  const view = <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />;
   return (
     <>
-      <ScoutView scout={scout} actions={actions} onRowVideo={(evidence) => setVideo(groupEvidenceByMatch(evidence))} />
+      {/* An empty report empties every sub-tab, so the lineup's note replaces them all. */}
+      {scout.matches.length === 0 ? <EmptySample>{view}</EmptySample> : view}
       {video ? <AnalysisVideoDialog title="Crear vídeo de estas rondas" sources={video} teamId={teamId} onClose={() => setVideo(null)} /> : null}
     </>
   );
