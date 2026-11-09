@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -136,6 +137,9 @@ func (h *Handlers) loadTeamMatches(ctx context.Context, team library.Team, match
 			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
 			continue
 		}
+		if !filter.Lineup.PlayedIn(doc, sm.TeamKey) {
+			continue
+		}
 		sm.Document = doc
 		sm.Setup = h.readSetupFrames(c.match.DemoID, doc)
 		loaded = append(loaded, sm)
@@ -230,11 +234,31 @@ func scoutQuery(q url.Values) (tacticalplan.ScoutFilter, []uuid.UUID, error) {
 	for _, id := range opponents {
 		f.Opponents = append(f.Opponents, id.String())
 	}
+	if f.Lineup, err = lineupQuery(q["lineup"]); err != nil {
+		return f, nil, err
+	}
 	matchIDs, err := uuidList(q["match_id"], "match_id", library.MaxReportMatches)
 	if err != nil {
 		return f, nil, err
 	}
 	return f, matchIDs, nil
+}
+
+// lineupQuery reads the repeatable lineup parameter: the SteamID64s whose rounds a team view keeps.
+func lineupQuery(raw []string) (tacticalplan.Lineup, error) {
+	if len(raw) > tacticalplan.MaxLineupPlayers {
+		return nil, fmt.Errorf("at most %d lineup values", tacticalplan.MaxLineupPlayers)
+	}
+	var out tacticalplan.Lineup
+	for _, id := range raw {
+		if !validSteamID(id) {
+			return nil, errors.New("lineup must hold SteamID64s")
+		}
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 // GetLibraryTeamScout handles GET /api/library/teams/{id}/scout: the scouting

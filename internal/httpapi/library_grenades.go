@@ -31,7 +31,7 @@ func grenadeKindsQuery(q url.Values) ([]tacticalplan.EventKind, error) {
 
 // ListLibraryTeamGrenades handles GET /api/library/teams/{id}/grenades: every
 // grenade the team threw, where from and where it landed. It takes the scout
-// filter (map, side, from, to, opponent_id, match_id) and a repeatable kind.
+// filter (map, side, from, to, opponent_id, match_id, lineup) and a repeatable kind.
 func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return

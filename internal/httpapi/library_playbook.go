@@ -57,6 +57,9 @@ func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tact
 			skipped = append(skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
 			continue
 		}
+		if !q.filter.Lineup.PlayedIn(doc, sm.TeamKey) {
+			continue
+		}
 		sm.Document = doc
 		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: sm, Blob: h.positionsReader(c.match.DemoID)})
 	}

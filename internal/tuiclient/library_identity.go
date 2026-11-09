@@ -84,6 +84,25 @@ func (c *Client) GetLibraryTeam(ctx context.Context, id string) (LibraryTeamDeta
 	return out, err
 }
 
+// TeamLineups is GET /api/library/teams/{id}/lineups: who played the team's
+// latest match, then everyone else who played for it.
+type TeamLineups struct {
+	LatestMatch *struct {
+		MatchID  string    `json:"match_id"`
+		Map      string    `json:"map"`
+		PlayedAt time.Time `json:"played_at"`
+	} `json:"latest_match"`
+	Latest []RosterEntry `json:"latest"`
+	Others []RosterEntry `json:"others"`
+}
+
+// GetTeamLineups returns the players a team view's lineup picks from.
+func (c *Client) GetTeamLineups(ctx context.Context, id string) (TeamLineups, error) {
+	var out TeamLineups
+	err := c.getJSON(ctx, "/api/library/teams/"+url.PathEscape(id)+"/lineups", &out)
+	return out, err
+}
+
 // TeamPatch renames a team or replaces its aliases; nil fields stay unchanged.
 type TeamPatch struct {
 	Name    *string   `json:"name,omitempty"`

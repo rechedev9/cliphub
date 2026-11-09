@@ -60,6 +60,8 @@ func teamsStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "POST /api/library/teams/{id}/merge", `{"id":"`+testRivalID+`","name":"MOUZ","aliases":["VIT"],"match_count":7}`)
 	rec.handle(mux, "PUT /api/library/matches/{id}/teams/{key}", `{"id":"`+testMatchID+`","teams":[{"key":"ct-start","start_side":"ct","clan_name":"VIT","team_id":"`+testTeamID+`","team_name":"Vitality","assignment":"manual"}]}`)
 	rec.handle(mux, "GET /api/library/teams/{id}/scout", `{"team_name":"Vitality"}`)
+	rec.handle(mux, "GET /api/library/teams/{id}/lineups", `{"latest_match":{"match_id":"`+testMatchID+`","map":"de_mirage","played_at":"2026-10-12T18:00:00Z"},
+		"latest":[{"steamid64":"`+testSteamID+`","nick":"ZywOo","first_played_at":"2026-01-02T00:00:00Z","last_played_at":"2026-10-12T00:00:00Z","matches":3}],"others":[]}`)
 	rec.handle(mux, "GET /api/library/baseline", `{"scope":"library","min_rounds":200,"metrics":{}}`)
 	rec.handle(mux, "GET /api/library/players", `{"players":[{"steamid64":"`+testSteamID+`","nick":"ZywOo","match_count":3,"faceit_nickname":"zywoo"}]}`)
 	rec.handle(mux, "GET /api/library/players/{steamid}", `{"steamid64":"`+testSteamID+`","nick":"ZywOo","match_count":3,
@@ -137,6 +139,17 @@ func TestTeamScopeAndBaselineMinRounds(t *testing.T) {
 		t.Errorf("scout query = %s, want repeated match_id and opponent_id", got)
 	}
 	toolFails(t, cs, "scout_team", map[string]any{"team_id": testTeamID, "opponent_id": []string{"MOUZ"}}, "opponent_id")
+
+	var lineups teamLineupsOut
+	callTool(t, cs, "team_lineups", map[string]any{"team_id": testTeamID}, &lineups)
+	if lineups.LatestMatch == nil || lineups.LatestMatch.PlayedAt != "2026-10-12" || len(lineups.Latest) != 1 || len(lineups.Others) != 0 {
+		t.Fatalf("lineups = %+v", lineups)
+	}
+	callTool(t, cs, "scout_team", map[string]any{"team_id": testTeamID, "lineup": []string{testSteamID, "76561198000000002"}}, &scout)
+	if got := rec.get("GET /api/library/teams/{id}/scout"); !strings.Contains(got, "lineup="+testSteamID+"&lineup=76561198000000002") {
+		t.Errorf("scout query = %s, want repeated lineup", got)
+	}
+	toolFails(t, cs, "scout_team", map[string]any{"team_id": testTeamID, "lineup": []string{"ZywOo"}}, "lineup")
 
 	var b baselineOut
 	callTool(t, cs, "get_baseline", map[string]any{"min_rounds": 200}, &b)

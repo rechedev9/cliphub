@@ -46,17 +46,20 @@ type Filter struct {
 	Tags         []string    `json:"tags,omitempty"`
 	Slots        []uint8     `json:"slots,omitempty"`
 	// Subjects narrows whom a heatmap or an overlay counts; it never drops a round.
-	Subjects []uint8 `json:"subjects,omitempty"`
-	RoundFrom    int         `json:"round_from,omitempty"`
-	RoundTo      int         `json:"round_to,omitempty"`
-	Phase        Phase       `json:"phase,omitempty"`
+	Subjects  []uint8 `json:"subjects,omitempty"`
+	RoundFrom int     `json:"round_from,omitempty"`
+	RoundTo   int     `json:"round_to,omitempty"`
+	Phase     Phase   `json:"phase,omitempty"`
+	// Lineup keeps the rounds in which every player of the perspective's side is in it.
+	Lineup Lineup `json:"lineup,omitempty"`
 }
 
 // Empty reports whether the filter selects everything.
 func (f Filter) Empty() bool {
 	return f.TeamKey == "" && f.Side == "" && len(f.Buys) == 0 && len(f.OpponentBuys) == 0 &&
 		len(f.Sites) == 0 && f.Outcome == "" && len(f.TPatterns) == 0 && len(f.CTPatterns) == 0 &&
-		len(f.Tags) == 0 && len(f.Slots) == 0 && f.RoundFrom == 0 && f.RoundTo == 0 && f.Phase == ""
+		len(f.Tags) == 0 && len(f.Slots) == 0 && f.RoundFrom == 0 && f.RoundTo == 0 && f.Phase == "" &&
+		len(f.Lineup) == 0
 }
 
 // Perspective returns the side the filter looks from in a given round, or the
@@ -123,7 +126,7 @@ func (f Filter) Match(d Document, r Round) bool {
 	if len(f.Slots) > 0 && !matchSlots(r, f.Slots, side) {
 		return false
 	}
-	return true
+	return f.Lineup.Keeps(d, r, side)
 }
 
 // Apply returns the rounds that pass the filter, in document order.

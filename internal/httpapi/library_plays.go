@@ -605,7 +605,7 @@ type playDetectionResponse struct {
 
 // DetectLibraryTeamPlays handles GET /api/library/teams/{id}/plays: the
 // rounds the team repeats, grouped by utility and positions. It takes the
-// scout filter (map, side, from, to, opponent_id, match_id).
+// scout filter (map, side, from, to, opponent_id, match_id, lineup).
 func (h *Handlers) DetectLibraryTeamPlays(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return

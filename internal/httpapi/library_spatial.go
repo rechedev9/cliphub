@@ -309,8 +309,11 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 			resp.Skipped = append(resp.Skipped, scoutSkipped{MatchID: sm.MatchID, Reason: scoutSkipNotAnalyzed})
 			continue
 		}
+		if !scout.Lineup.PlayedIn(doc, sm.TeamKey) {
+			continue
+		}
 		filter := rounds
-		filter.TeamKey, filter.Side = sm.TeamKey, scout.Side
+		filter.TeamKey, filter.Side, filter.Lineup = sm.TeamKey, scout.Side, scout.Lineup
 		matches = append(matches, tacticalplan.SpatialMatch{
 			MatchID: sm.MatchID, Document: doc, Filter: filter, Blob: h.positionsReader(c.match.DemoID),
 		})

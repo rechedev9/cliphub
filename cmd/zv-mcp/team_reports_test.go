@@ -5,7 +5,19 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
+
+func TestPreparePathOpensTheSameLineup(t *testing.T) {
+	if got, want := preparePath("t1", tuiclient.AnalysisQuery{Map: "de_nuke"}), "/equipos/t1?lineup=all&map=de_nuke&tab=preparar"; got != want {
+		t.Errorf("no lineup = %s, want %s", got, want)
+	}
+	q := tuiclient.AnalysisQuery{Lineup: []string{"76561198000000002", "76561198000000001", "76561198000000002"}}
+	if got, want := preparePath("t1", q), "/equipos/t1?lineup=76561198000000001%2C76561198000000002&tab=preparar"; got != want {
+		t.Errorf("lineup = %s, want %s", got, want)
+	}
+}
 
 // addTeamReportRoutes serves the team and player reports of fakeAnalysisStudio.
 func addTeamReportRoutes(mux *http.ServeMux) {
