@@ -125,6 +125,7 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
       filters={panel}
       title={playlist.name}
       roundNotes={{ store: notes, where: `«${playlist.name}»` }}
+      openPlaylistId={playlist.id}
     />
   );
 }

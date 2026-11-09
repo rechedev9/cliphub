@@ -92,6 +92,8 @@ export type ReplayWorkspaceProps = {
   tramo?: TramoControl;
   /** Where the round's notes and drawings live instead of its match, such as an open playlist (`where` names it). */
   roundNotes?: { store: AnnotationStore; where: string };
+  /** The saved playlist open in the page: B adds to it whatever was picked before. */
+  openPlaylistId?: string;
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -114,6 +116,7 @@ export function ReplayWorkspace({
   players,
   tramo: pageTramo,
   roundNotes,
+  openPlaylistId,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -141,7 +144,7 @@ export function ReplayWorkspace({
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
   const [folds, toggleFold] = usePanelFolds();
-  const playlist = useSavedPlaylists(library);
+  const playlist = useSavedPlaylists({ enabled: library, openId: openPlaylistId });
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
   const setpos = useSetposCopies();
   const hoverSlot = useRef<number | null>(null);

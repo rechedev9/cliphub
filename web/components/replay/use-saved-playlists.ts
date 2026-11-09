@@ -97,7 +97,7 @@ export type SavedPlaylistsControl = {
 type NewPlaylist = { name: string; folder: string; author: string; ref: ReplayRef };
 
 /** The saved playlists the Replay's round panel adds to; `enabled` is false where rounds are not library rounds. */
-export function useSavedPlaylists(enabled: boolean): SavedPlaylistsControl {
+export function useSavedPlaylists({ enabled, openId }: { enabled: boolean; openId?: string }): SavedPlaylistsControl {
   const [playlists, setPlaylists] = useState<SavedPlaylist[] | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -166,8 +166,9 @@ export function useSavedPlaylists(enabled: boolean): SavedPlaylistsControl {
       ),
     [save],
   );
-  const target = playlists === null ? undefined : targetPlaylist(playlists, picked);
-  const targetId = target?.id;
+  const target = playlists === null ? undefined : targetPlaylist(playlists, openId ?? picked);
+  // The open playlist is the target even when the list has not loaded it.
+  const targetId = openId ?? target?.id;
   const toggle = useCallback(
     (ref: ReplayRef) => {
       if (playlists === null || busy) return;
