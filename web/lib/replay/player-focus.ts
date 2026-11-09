@@ -36,3 +36,9 @@ export function writeFocus(query: string, focus: PlayerFocus): string {
   for (const slot of focus) params.append(FOCUS_QUERY, String(slot));
   return params.toString();
 }
+
+/** Two letters that stand for a player in the folded panel: the first two letters or digits of the name. */
+export function playerInitials(name: string): string {
+  const letters = [...name].filter((char) => /[\p{L}\p{N}]/u.test(char));
+  return (letters.slice(0, 2).join('') || '?').toUpperCase();
+}

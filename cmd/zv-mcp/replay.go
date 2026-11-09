@@ -154,7 +154,104 @@ func setposLine(s tacticalplan.Sample) string {
 	return fmt.Sprintf("setpos %.2f %.2f %.2f;setang %.2f %.2f 0", s.X, s.Y, s.Z, tacticalplan.SetangPitch(s.Pitch), tacticalplan.SetangYaw(s.Yaw))
 }
 
+type roundGrenadeOut struct {
+	Second  float64 `json:"second" jsonschema:"seconds after the round went live"`
+	Kind    string  `json:"kind"`
+	Side    string  `json:"side,omitempty"`
+	Player  string  `json:"player,omitempty"`
+	Callout string  `json:"callout,omitempty" jsonschema:"where it landed"`
+	Status  string  `json:"status" jsonschema:"whether the catalog has a lineup for it"`
+	Lineup  string  `json:"lineup,omitempty" jsonschema:"the catalog lineup it matches: from area to destination"`
+}
+
+type roundLineupsOut struct {
+	Ref         string            `json:"ref"`
+	Map         string            `json:"map"`
+	CatalogSize int               `json:"catalog_size" jsonschema:"lineups the catalog has for this map"`
+	Smokes      int               `json:"smokes"`
+	Matched     int               `json:"matched" jsonschema:"smokes that match a catalog lineup"`
+	Grenades    []roundGrenadeOut `json:"grenades"`
+}
+
+type replayPlaylistIn struct {
+	Rounds []string `json:"rounds" jsonschema:"round refs (match_id/round) in play order, from find_rounds, replay_rounds or the reports; at most 200"`
+	Title  string   `json:"title,omitempty" jsonschema:"the playlist's name, shown over the rounds"`
+}
+
+type replayPlaylistOut struct {
+	Rounds     int    `json:"rounds"`
+	StudioPath string `json:"studio_path" jsonschema:"the path that opens these rounds in the Replay as one playlist"`
+}
+
+// maxPlaylistRounds mirrors REPLAY_MAX_REFS in the web: a longer URL is cut there.
+const maxPlaylistRounds = 200
+
+// playlistPath is the Replay URL of a list of round refs, as the web's replayHref writes it.
+func playlistPath(refs []string, title string) (string, error) {
+	if len(refs) == 0 || len(refs) > maxPlaylistRounds {
+		return "", fmt.Errorf("rounds must have from 1 to %d round refs", maxPlaylistRounds)
+	}
+	v := url.Values{}
+	for _, ref := range refs {
+		matchID, round, ok := strings.Cut(strings.TrimSpace(ref), "/")
+		n, err := strconv.Atoi(round)
+		if !ok || err != nil || n < 1 || n > maxPlayRound {
+			return "", fmt.Errorf("%q is not a round ref (match_id/round)", cleanName(ref))
+		}
+		if err := checkUUID("match_id", matchID); err != nil {
+			return "", err
+		}
+		v.Add("r", matchID+":"+strconv.Itoa(n))
+	}
+	if title = strings.TrimSpace(title); title != "" {
+		v.Set("t", title)
+	}
+	return "/replay?" + v.Encode(), nil
+}
+
 func registerReplayTools(server *mcp.Server, s *studio) {
+	mcp.AddTool(server, &mcp.Tool{Name: "round_lineups", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Compare one round's grenades with the lineup catalog, as Comparar granadas does in the Replay's round panel: each smoke, flash, HE and molotov, " +
+			"who threw it, where it landed and the catalog lineup it matches."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in roundIn) (*mcp.CallToolResult, roundLineupsOut, error) {
+			if err := checkUUID("match_id", in.MatchID); err != nil {
+				return nil, roundLineupsOut{}, err
+			}
+			if in.Round < 1 || in.Round > maxPlayRound {
+				return nil, roundLineupsOut{}, fmt.Errorf("round must be from 1 to %d", maxPlayRound)
+			}
+			c, err := s.client(ctx)
+			if err != nil {
+				return nil, roundLineupsOut{}, toolError(err)
+			}
+			got, err := c.LibraryRoundLineups(ctx, in.MatchID, in.Round)
+			if err != nil {
+				return nil, roundLineupsOut{}, toolError(err)
+			}
+			out := roundLineupsOut{Ref: fmt.Sprintf("%s/%d", in.MatchID, in.Round), Map: cleanName(got.Map), CatalogSize: got.CatalogSize,
+				Smokes: got.Smokes, Matched: got.Matched, Grenades: []roundGrenadeOut{}}
+			for _, g := range got.Grenades {
+				row := roundGrenadeOut{Second: g.Seconds, Kind: cleanName(g.Kind), Side: cleanName(g.Side), Player: cleanName(g.Player),
+					Callout: cleanName(g.Callout), Status: cleanName(g.Status)}
+				if g.Lineup != nil {
+					row.Lineup = cleanName(strings.TrimSpace(g.Lineup.FromArea + " to " + g.Lineup.Destination))
+				}
+				out.Grenades = append(out.Grenades, row)
+			}
+			return nil, out, nil
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "replay_playlist", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Put rounds of any matches in one playlist, as B does on each round in the Replay: studio_path opens them in the Replay in the order given, " +
+			"to play one after another or to superpose. Nothing is saved; the playlist is the path."},
+		func(_ context.Context, _ *mcp.CallToolRequest, in replayPlaylistIn) (*mcp.CallToolResult, replayPlaylistOut, error) {
+			path, err := playlistPath(in.Rounds, in.Title)
+			if err != nil {
+				return nil, replayPlaylistOut{}, err
+			}
+			return nil, replayPlaylistOut{Rounds: len(in.Rounds), StudioPath: path}, nil
+		})
+
 	mcp.AddTool(server, &mcp.Tool{Name: "player_setpos", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		Description: "Read the setpos line of one player at a moment of a round, as the S key over a player in the Replay copies it: paste it in the CS2 console " +
 			"with sv_cheats 1 to stand where they stood, looking where they looked. Positions are sampled a few times a second; the answer says which moment it read."},

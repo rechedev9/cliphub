@@ -55,3 +55,19 @@ func TestSetposReadsTheNearestSampleAndNormalizesTheAngles(t *testing.T) {
 		t.Fatal("a slot with no sample answered")
 	}
 }
+
+func TestPlaylistPathReadsAsTheReplayURL(t *testing.T) {
+	const match = "82b2365b-3c63-48d4-8d9c-00342b71c5a1"
+	got, err := playlistPath([]string{match + "/4", " " + match + "/11"}, "FUT T Ancient")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/replay?r=" + match + "%3A4&r=" + match + "%3A11&t=FUT+T+Ancient"; got != want {
+		t.Fatalf("path = %s, want %s", got, want)
+	}
+	for _, refs := range [][]string{nil, {"nope"}, {match + "/0"}, {"x/3"}} {
+		if _, err := playlistPath(refs, ""); err == nil {
+			t.Errorf("%v: no error", refs)
+		}
+	}
+}

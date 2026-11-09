@@ -102,6 +102,8 @@ replay_rounds reads the rounds of one match that a Replay scope keeps (team, sid
 round range, phase); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (the S key in the Replay).
+What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,
+round_lineups compares its grenades with the lineup catalog, and replay_playlist puts round refs in one playlist to open in Studio.
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills. render_stream_summary

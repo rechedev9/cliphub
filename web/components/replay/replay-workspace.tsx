@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import { replayHref } from '@/lib/analysis/replay-link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
+import { PLAYLIST_TITLE, inPlaylist } from '@/lib/replay/saved-playlist';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { prettyMapName } from '@/lib/format';
 import { teamScoreBefore } from '@/lib/library/rounds';
@@ -48,6 +50,8 @@ import { cn } from '@/lib/utils';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
+import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
+import { useSavedPlaylist } from './use-saved-playlist';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
@@ -127,6 +131,8 @@ export function ReplayWorkspace({
   const focus = players?.focus ?? ownFocus;
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
+  const [folds, toggleFold] = usePanelFolds();
+  const playlist = useSavedPlaylist();
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
   const [setposList, setSetposList] = useState<SetposCopy[]>([]);
   const [setposNote, setSetposNote] = useState<string | null>(null);
@@ -385,6 +391,9 @@ export function ReplayWorkspace({
     else if (shortcut === 'follow') {
       const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
+    } else if (shortcut === 'fold-left' || shortcut === 'fold-right') toggleFold(shortcut === 'fold-left' ? 'left' : 'right');
+    else if (shortcut === 'playlist') {
+      if (library && entry !== undefined) playlist.toggle(entry);
     } else if (shortcut === 'setpos') {
       const slot = hoverSlot.current ?? (focus.length === 1 ? focus[0] : undefined);
       if (slot !== undefined) copyPlayerSetpos(slot);
@@ -494,11 +503,21 @@ export function ReplayWorkspace({
     );
   }
 
+  const panelWidths: CSSProperties & { '--replay-left': string; '--replay-right': string } = {
+    '--replay-left': folds.left ? '2.75rem' : '236px',
+    '--replay-right': folds.right ? '2.75rem' : '288px',
+  };
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
-        <RoundPlayActions matchId={entry.matchId} doc={focused.doc} round={focused.round} currentTick={() => tickOf(focused, clock.seconds)} />
+        <RoundPlayActions
+          matchId={entry.matchId}
+          doc={focused.doc}
+          round={focused.round}
+          currentTick={() => tickOf(focused, clock.seconds)}
+          playlist={{ added: inPlaylist(playlist.refs, entry), onToggle: () => playlist.toggle(entry), count: playlist.refs.length, href: replayHref(playlist.refs, PLAYLIST_TITLE) }}
+        />
       ) : null}
     </div>
   );
@@ -510,13 +529,14 @@ export function ReplayWorkspace({
       // Takes the focus a click on the map or a panel would drop, so the shortcuts keep working.
       tabIndex={-1}
       data-fullscreen={fullscreen.active ? '' : undefined}
+      style={panelWidths}
       className={cn(
         'grid grid-cols-1 gap-2 outline-none',
         fullscreen.active
-          ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_288px] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
+          ? 'fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none grid-cols-[minmax(0,1fr)_var(--replay-right)] grid-rows-[minmax(0,1fr)_auto] border-0 bg-surface-0 p-2'
           : [
-              'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[620px]',
-              'min-[1180px]:grid-cols-[236px_minmax(0,1fr)_288px] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
+              'min-[1180px]:h-[calc(100dvh-var(--shell-strip-height)-var(--replay-above,0px)-1.5rem)] min-[1180px]:min-h-[460px]',
+              'min-[1180px]:grid-cols-[var(--replay-left)_minmax(0,1fr)_var(--replay-right)] min-[1180px]:grid-rows-[minmax(0,1fr)_auto]',
             ],
       )}
     >
@@ -526,7 +546,7 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-1 row-start-1' : 'h-[72vh] min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:h-auto',
         )}
       >
-        <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
+        <header className="flex h-9 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
           <h2 className="flex min-w-0 items-baseline gap-2 truncate">
             {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
@@ -602,26 +622,34 @@ export function ReplayWorkspace({
       <aside
         aria-label="Ronda y filtros"
         className={cn(
-          'min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 p-3 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
+          'flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-1 [scrollbar-width:thin] min-[1180px]:col-start-1 min-[1180px]:row-start-1',
+          folds.left ? 'items-center p-1' : 'p-3',
           fullscreen.active && 'hidden',
         )}
       >
+        <PanelFoldButton side="left" folded={folds.left} onToggle={() => toggleFold('left')} className={folds.left ? undefined : 'self-end -mt-1 -mr-1 -mb-9 relative z-10'} />
+        {folds.left ? <FoldedRounds entries={entries} index={index} onSelect={(at) => select(at)} /> : null}
+        {folds.left ? null : (
         <ReplayLeftPanel
           focused={focused}
           actions={roundActions}
           filters={filters}
           moments={layers.moments && focused !== null ? { count: moments.length, list: <KeyMomentList moments={moments} /> } : null}
         />
+        )}
       </aside>
 
       <aside
         aria-label="Jugadores y notas de la ronda"
         className={cn(
-          'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-1 p-2',
+          'flex min-h-0 min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border bg-surface-1',
+          folds.right ? 'items-center overflow-y-auto p-1 [scrollbar-width:thin]' : 'p-2',
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-3 min-[1180px]:row-start-1',
         )}
       >
+        <PanelFoldButton side="right" folded={folds.right} onToggle={() => toggleFold('right')} className={folds.right ? undefined : 'self-end -mb-8 relative z-10'} />
         <ReplaySidePanel
+          folded={folds.right}
           focused={focused}
           nowSeconds={nowSeconds}
           tickOf={tickOf}

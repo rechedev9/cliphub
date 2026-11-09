@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BookmarkPlus, Clapperboard, Crosshair } from 'lucide-react';
+import { BookmarkPlus, Clapperboard, Crosshair, ListPlus, ListVideo } from 'lucide-react';
 import { LIBRARY_TEAM_KEYS, createLibraryPlay, getRoundLineups, getRoundPlayDraft, type LibraryTeamKey } from '@/lib/api/library';
 import type { LibraryPlay, RoundLineups } from '@/lib/api/stratbook';
 import type { TacticalDocument, TacticalRound, TacticalSide } from '@/lib/api/tactical';
@@ -40,12 +40,15 @@ export function RoundPlayActions({
   doc,
   round,
   currentTick,
+  playlist,
 }: {
   matchId: string;
   doc: TacticalDocument;
   round: TacticalRound;
   /** Reads the replay's tick when a dialog opens, so playback never re-renders this. */
   currentTick: () => number;
+  /** The Replay's playlist: whether this round is in it, how to add it, and the link that opens it. */
+  playlist?: { added: boolean; onToggle: () => void; count: number; href: string };
 }): ReactNode {
   const [saving, setSaving] = useState<{ tick: number } | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -60,10 +63,26 @@ export function RoundPlayActions({
         <BookmarkPlus aria-hidden />
         Guardar como jugada
       </Button>
-      <Button type="button" size="xs" variant="ghost" onClick={() => setComparing(true)}>
+      <Button type="button" size="xs" variant="outline" onClick={() => setComparing(true)} title="Compara las granadas de la ronda con el catálogo de lineups">
         <Crosshair aria-hidden />
-        Lineups
+        Comparar granadas
       </Button>
+      {playlist === undefined ? null : (
+        <>
+          <Button type="button" size="xs" variant="outline" aria-pressed={playlist.added} onClick={playlist.onToggle} title="Tecla B">
+            <ListPlus aria-hidden />
+            {playlist.added ? 'En la playlist' : 'Añadir a playlist'}
+          </Button>
+          {playlist.count === 0 ? null : (
+            <Button asChild size="xs" variant="ghost">
+              <Link href={playlist.href}>
+                <ListVideo aria-hidden />
+                Abrir playlist <span className="tabular-nums text-fg-3">{playlist.count}</span>
+              </Link>
+            </Button>
+          )}
+        </>
+      )}
       {saving === null ? null : (
         <SavePlayDialog matchId={matchId} doc={doc} round={round} tick={saving.tick} onClose={() => setSaving(null)} />
       )}

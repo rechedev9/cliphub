@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { focusFromQuery, inFocus, pickPlayer, writeFocus } from './player-focus.ts';
+import { focusFromQuery, inFocus, pickPlayer, playerInitials, writeFocus } from './player-focus.ts';
 
 test('a click focuses one player and a second click gives the team back', () => {
   assert.deepEqual(pickPlayer([], 3, false), [3]);
@@ -23,4 +23,10 @@ test('the focus round-trips through the URL and drops unknown slots', () => {
   assert.equal(query, 'tab=replay&subject=5&subject=2');
   assert.deepEqual(focusFromQuery(new URLSearchParams(`${query}&subject=12&subject=x`), [2, 5]), [2, 5]);
   assert.equal(writeFocus(query, []), 'tab=replay');
+});
+
+test('initials skip the decoration around a name', () => {
+  assert.equal(playerInitials('-_Odysseus_-'), 'OD');
+  assert.equal(playerInitials('g1father'), 'G1');
+  assert.equal(playerInitials('***'), '?');
 });

@@ -11,6 +11,8 @@ const PLAYBACK: readonly Shortcut[] = [
   { keys: ['Mayús', '←', '→'], does: 'Saltar al evento anterior o siguiente' },
   { keys: ['[', ']'], does: 'Ronda anterior o siguiente' },
   { keys: ['M'], does: 'Activar o quitar Multi ronda' },
+  { keys: ['B'], does: 'Añadir la ronda a la playlist, o quitarla' },
+  { keys: [',', '.'], does: 'Plegar el panel de la ronda o el de jugadores' },
   { keys: ['P'], does: 'Pantalla completa; otra vez o Esc para salir' },
   { keys: ['?'], does: 'Mostrar estos atajos' },
 ];

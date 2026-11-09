@@ -126,3 +126,35 @@ func (c *Client) LibraryTacticalRound(ctx context.Context, matchID string, round
 	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round), &out)
 	return out, err
 }
+
+// RoundLineups is GET /api/library/matches/{id}/tactical/rounds/{round}/lineups:
+// a round's grenades against the lineup catalog.
+type RoundLineups struct {
+	Map         string         `json:"map"`
+	CatalogSize int            `json:"catalog_size"`
+	Smokes      int            `json:"smokes"`
+	Matched     int            `json:"matched"`
+	Grenades    []RoundGrenade `json:"grenades"`
+}
+
+// RoundGrenade is one grenade of the round and the catalog lineup it matches, if any.
+type RoundGrenade struct {
+	Seconds float64 `json:"seconds"`
+	Kind    string  `json:"kind"`
+	Side    string  `json:"side"`
+	Player  string  `json:"player"`
+	Callout string  `json:"callout"`
+	Status  string  `json:"status"`
+	Lineup  *struct {
+		ID          string `json:"id"`
+		Destination string `json:"destination"`
+		FromArea    string `json:"from_area"`
+	} `json:"lineup"`
+}
+
+// LibraryRoundLineups compares one round's grenades with the lineup catalog.
+func (c *Client) LibraryRoundLineups(ctx context.Context, matchID string, round int) (RoundLineups, error) {
+	var out RoundLineups
+	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round)+"/lineups", &out)
+	return out, err
+}

@@ -86,7 +86,7 @@ export function ReplayLeftPanel({
         </Fold>
       )}
       {reasons.length === 0 ? null : (
-        <Fold title="Por qué se clasificó así" defaultOpen={false}>
+        <Fold title="Por qué se clasificó así" defaultOpen>
           <ul className="flex flex-col gap-1 font-mono text-meta break-words text-fg-2">
             {reasons.map((reason) => (
               <li key={reason}>{reason}</li>
