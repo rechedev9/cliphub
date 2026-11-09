@@ -59,7 +59,7 @@ export function PlayRow({ play, selected, reelPosition, ordinal, clashWith, tone
       {play.side ? (
         <>
           <span aria-hidden className={cn('absolute inset-y-0 left-0 w-1', SIDE_STRIPE[play.side])} />
-          <span className={cn('min-w-6 shrink-0 font-mono text-meta font-semibold', SIDE_LABEL[play.side])}>{play.side}</span>
+          <span className={cn('w-5 shrink-0 font-mono text-meta font-semibold', SIDE_LABEL[play.side])}>{play.side}</span>
         </>
       ) : null}
       {play.thumbnailUrl ? <PlayThumbnail play={play} compact className="hidden h-9 w-16 rounded-md @[30rem]/reel:flex" /> : null}
