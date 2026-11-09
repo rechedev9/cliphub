@@ -24,7 +24,7 @@ import {
   type FileGroup,
   type LibraryCopyMatch,
 } from '@/lib/storage-files';
-import { SelectionBar } from '@/components/records/selection-bar';
+import { DeleteResult, SelectionBar } from '@/components/records/selection-bar';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -272,9 +272,7 @@ function ReadyBody({
           </ul>
         )}
       </Section>
-      {bulkResult ? (
-        <p role="status" className={`text-body-sm ${bulkResult.failed ? 'text-destructive' : 'text-success'}`}>{bulkResult.text}</p>
-      ) : null}
+      {bulkResult && chosen.length === 0 ? <DeleteResult result={bulkResult} /> : null}
       {chosen.length > 0 ? (
         <SelectionBar
           count={chosen.length}
@@ -282,6 +280,7 @@ function ReadyBody({
           busy={bulkBusy}
           detail={formatBytes(totalBytes(chosen))}
           confirmDescription={`${bulkDeleteWarning(chosen)} No se puede deshacer.`}
+          result={bulkResult}
           onDelete={() => void deleteChosen()}
           onClear={() => setSelected(new Set())}
         />

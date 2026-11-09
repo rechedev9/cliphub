@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, ArrowUpDown, BookmarkPlus, Check, Columns3, Eye, Trash2, X } from 'lucide-react';
@@ -69,8 +69,6 @@ export type DataTableSelection = {
   busy?: boolean;
 };
 
-type FocusTarget = 'bar' | 'header' | null;
-
 /** Dense, sortable record list with configurable columns and saved views. */
 export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, empty, toolbar, actions, selection }: DataTableProps<Row>): ReactNode {
   const router = useRouter();
@@ -80,17 +78,20 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
   const shownKeys = sorted.map(rowKey);
   const chosenCount = selection === undefined ? 0 : shownKeys.filter((key) => selection.selected.has(key)).length;
   const allChosen = chosenCount > 0 && chosenCount === shownKeys.length;
-  // The select-all box swaps between the header row and the bar, so focus follows it across the swap.
-  const focusNext = useRef<FocusTarget>(null);
+  const barShown = chosenCount > 0;
+  // Focus follows the select-all box into the bar, and lands back on it when the bar goes with the focus inside.
+  const focusBar = useRef(false);
+  const headerBox = useRef<HTMLInputElement>(null);
+  const barWasShown = useRef(barShown);
+
+  useEffect(() => {
+    const focusLost = document.activeElement === null || document.activeElement === document.body;
+    if (barWasShown.current && !barShown && focusLost) headerBox.current?.focus();
+    barWasShown.current = barShown;
+  }, [barShown]);
 
   function toggleAll(): void {
     selection?.onChange(allChosen ? new Set() : new Set(shownKeys));
-  }
-
-  function focusIf(target: FocusTarget, box: HTMLInputElement | null): void {
-    if (box === null || focusNext.current !== target) return;
-    focusNext.current = null;
-    box.focus();
   }
 
   function toggleRow(key: string): void {
@@ -120,34 +121,32 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
       </div>
       {/* No overflow on the panel itself, so the selection bar can stick below the command strip. */}
       <div className="studio-panel">
-        {selection !== undefined && chosenCount > 0 ? (
+        {selection !== undefined && barShown ? (
           <SelectionHeader
             count={chosenCount}
             all={allChosen}
             noun={selection.noun}
             actions={selection.actions}
             busy={selection.busy === true}
-            boxRef={(box) => focusIf('bar', box)}
-            onToggleAll={() => {
-              if (allChosen) focusNext.current = 'header';
-              toggleAll();
+            boxRef={(box) => {
+              if (box === null || !focusBar.current) return;
+              focusBar.current = false;
+              box.focus();
             }}
-            onClear={() => {
-              focusNext.current = 'header';
-              selection.onChange(new Set());
-            }}
+            onToggleAll={toggleAll}
+            onClear={() => selection.onChange(new Set())}
           />
         ) : null}
         {selection !== undefined ? (
           <span aria-live="polite" className="sr-only">
-            {chosenCount > 0 ? selectedCount(chosenCount, selection.noun) : ''}
+            {barShown ? selectedCount(chosenCount, selection.noun) : ''}
           </span>
         ) : null}
         <div className="overflow-x-auto rounded-[inherit]">
           <table aria-label={label} className="w-full border-collapse text-left text-body-sm">
             <thead className="bg-surface-2">
               {/* Collapsed, not removed, while the selection bar stands in: the columns keep the widths the headers give them. */}
-              <tr className={cn('border-b border-border', chosenCount > 0 && 'collapse')}>
+              <tr className={cn('border-b border-border', barShown && 'collapse')}>
                 {selection ? (
                   <th scope="col" className="h-9 w-9 px-3">
                     <input
@@ -155,9 +154,9 @@ export function DataTable<Row>({ label, rows, columns, rowKey, view, rowHref, em
                       aria-label={allChosen ? 'Quitar la selección' : 'Elegir todas las filas'}
                       checked={allChosen}
                       disabled={shownKeys.length === 0}
-                      ref={(box) => focusIf('header', box)}
+                      ref={headerBox}
                       onChange={() => {
-                        focusNext.current = 'bar';
+                        focusBar.current = true;
                         toggleAll();
                       }}
                       className="size-4 accent-primary"
