@@ -23,19 +23,21 @@ type MatchRead struct {
 	// HasRoles is true when the role tallies were read.
 	HasRoles bool
 	totals   map[Side]map[string]playerTotals
-	roles    map[Side]map[string]roleTally
+	roles    map[Side]map[string]RoleCounts
 	rounds   map[Side]map[string][]Evidence
+	// teams names each player's team; set on pro reads only.
+	teams map[string]string
 }
 
 // ReadMatch reads the totals of every player on each side of a match.
 func ReadMatch(m MetricsMatch, opts MatchReadOptions) MatchRead {
 	read := MatchRead{
 		Rounds: len(m.Document.Rounds), HasRoles: opts.Roles,
-		totals: map[Side]map[string]playerTotals{}, roles: map[Side]map[string]roleTally{}, rounds: map[Side]map[string][]Evidence{},
+		totals: map[Side]map[string]playerTotals{}, roles: map[Side]map[string]RoleCounts{}, rounds: map[Side]map[string][]Evidence{},
 	}
 	for _, side := range []Side{SideCT, SideT} {
 		read.totals[side] = map[string]playerTotals{}
-		read.roles[side] = map[string]roleTally{}
+		read.roles[side] = map[string]RoleCounts{}
 		read.rounds[side] = map[string][]Evidence{}
 		report := Metrics([]MetricsMatch{m}, MetricsOptions{Side: side})
 		for _, p := range report.Players {
@@ -83,8 +85,9 @@ type LeaderboardOptions struct {
 
 type leaderboardPlayer struct {
 	totals   playerTotals
-	roles    map[Side]*roleTally
+	roles    map[Side]*RoleCounts
 	examples []Evidence
+	team     string
 }
 
 // LeaderboardSample folds MatchReads into per-player totals over the chosen
@@ -113,8 +116,11 @@ func (s *LeaderboardSample) Add(m MatchRead, side Side) {
 		for steam, t := range m.totals[sd] {
 			p := s.players[steam]
 			if p == nil {
-				p = &leaderboardPlayer{totals: playerTotals{steamID: steam, name: t.name}, roles: map[Side]*roleTally{}}
+				p = &leaderboardPlayer{totals: playerTotals{steamID: steam, name: t.name}, roles: map[Side]*RoleCounts{}}
 				s.players[steam] = p
+			}
+			if p.team == "" {
+				p.team = m.teams[steam]
 			}
 			if !counted[steam] {
 				counted[steam] = true
@@ -123,7 +129,7 @@ func (s *LeaderboardSample) Add(m MatchRead, side Side) {
 			p.totals.merge(t)
 			if tally, ok := m.roles[sd][steam]; ok {
 				if p.roles[sd] == nil {
-					p.roles[sd] = &roleTally{}
+					p.roles[sd] = &RoleCounts{}
 				}
 				p.roles[sd].add(tally)
 			}
@@ -161,7 +167,7 @@ func (s *LeaderboardSample) Rows(opts LeaderboardOptions) []LeaderboardRow {
 		}
 		row := LeaderboardRow{
 			SteamID64: p.totals.steamID, Name: p.totals.name, Rounds: p.totals.rounds, Matches: p.totals.matches,
-			Value: v, Metrics: values, Examples: p.examples,
+			Value: v, Metrics: values, Examples: p.examples, Team: p.team,
 		}
 		if s.roles {
 			row.Roles = &PlayerRoles{CT: p.roleOn(SideCT), T: p.roleOn(SideT)}

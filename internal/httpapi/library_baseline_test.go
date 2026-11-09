@@ -83,7 +83,7 @@ func TestLibraryLeaderboard(t *testing.T) {
 	if resp.Source != "bundled" || len(resp.Players) != 5 || resp.Players[0].Team == "" || resp.Players[0].Value < resp.Players[4].Value {
 		t.Fatalf("pro leaderboard without HLTV demos = %+v, want the bundled pros best first", resp)
 	}
-	for _, bad := range []string{"", "?metric=nope", "?metric=kpr&role=a_lurk", "?metric=kpr&map=de_anubis&role=a_lurk&side=CT", "?metric=kpr&scope=pro&side=CT", "?metric=kpr&source=x", "?metric=kpr&limit=0", "?metric=kpr&min_rounds=x"} {
+	for _, bad := range []string{"", "?metric=nope", "?metric=kpr&role=a_lurk", "?metric=kpr&map=de_anubis&role=a_lurk&side=CT", "?metric=kpr&source=x", "?metric=kpr&limit=0", "?metric=kpr&min_rounds=x"} {
 		if rw := env.do(http.MethodGet, "/api/library/leaderboard"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("leaderboard%s = %d, want 400", bad, rw.Code)
 		}

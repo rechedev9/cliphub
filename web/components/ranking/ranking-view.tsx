@@ -65,12 +65,15 @@ function RankingBody({
       </p>
     );
   }
+  const pro = state.scope.reference === 'pro';
   if (entries.length === 0) {
     return (
       <EmptyState
         icon={Trophy}
         title="Nadie llega al mínimo de rondas"
-        description="Baja las rondas mínimas, amplía el periodo o quita el rol. El ranking sale de las demos analizadas de tu biblioteca."
+        description={`Baja las rondas mínimas, amplía el periodo o quita el rol${pro ? ' o el nivel del rival' : ''}. ${
+          pro ? 'Los profesionales salen de los mapas de HLTV que indexa el servidor de ClipHub.' : 'El ranking sale de las demos analizadas de tu biblioteca.'
+        }`}
       />
     );
   }
@@ -80,6 +83,7 @@ function RankingBody({
       <p className="measure-read text-meta text-fg-3">
         {boardSampleText(load.board)}. El rol se lee en los primeros 25 segundos de cada ronda; con menos de 4 rondas leídas no hay rol. El rating es una
         estimación con la fórmula pública de HLTV 2.0.
+        {pro ? ' Estos mapas no están en tu biblioteca, así que sus rondas no se abren en el Replay.' : ''}
       </p>
     </>
   );
@@ -135,7 +139,7 @@ export function RankingView(): ReactNode {
     <div className="flex flex-col gap-3">
       <ScopeBar
         scope={state.scope}
-        fields={state.scope.reference === 'pro' ? ['map'] : SCOPE_FIELDS}
+        fields={SCOPE_FIELDS}
         maps={MAP_OPTIONS}
         onChange={patchScope}
         onReset={resetScope}
@@ -145,8 +149,9 @@ export function RankingView(): ReactNode {
         state={state}
         onRole={(role) => change(patchRanking(state, { role }))}
         onLevel={(level) => change(patchRanking(state, { level }))}
+        onTop={(top) => change(patchRanking(state, { top }))}
         onMinRounds={(minRounds) => change(patchRanking(state, { minRounds }))}
-        onReference={(reference) => change(patchRanking(state, { scope: { reference }, role: '', level: '' }))}
+        onReference={(reference) => change(patchRanking(state, { scope: { reference }, role: '', level: '', top: null }))}
       />
       {board !== null && state.scope.reference === 'pro' && board.description ? <p className="measure-read text-meta text-fg-3">{board.description}</p> : null}
       <RankingBody load={current} entries={entries} state={state} onSort={sortBy} onPin={toggle} />

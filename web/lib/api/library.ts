@@ -741,6 +741,10 @@ export function getLeaderboard(query: LeaderboardQuery): Promise<Leaderboard> {
     const value = query[key];
     if (value) params.set(key, value);
   }
+  for (const key of ['days', 'top'] as const) {
+    const value = query[key];
+    if (value) params.set(key, String(value));
+  }
   return request<Leaderboard>(`/leaderboard?${params.toString()}`);
 }
 

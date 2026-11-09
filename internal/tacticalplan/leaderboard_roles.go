@@ -1,6 +1,10 @@
 package tacticalplan
 
-import "math"
+import (
+	"errors"
+	"fmt"
+	"math"
+)
 
 // Roles by side, read from where a player stands in the opening window. They
 // extend the CT roles of PlayerPositions (anchor, rotator) with the T ones.
@@ -41,44 +45,69 @@ func RoleSide(role string) Side {
 	return ""
 }
 
-// roleTally counts what a player did in the opening window of the rounds of one side.
-type roleTally struct {
-	sampled                  int
-	zoneA, zoneB             int
-	lurkA, lurkB, lurk, half int
+// RoleFilterSide is the side a board reads when it filters on a role. A role is
+// read on one map and played on one side, so it needs a map and a matching side
+// (or none, which the role then sets). An empty role keeps the side as given.
+func RoleFilterSide(role string, side Side, haveMap bool) (Side, error) {
+	if role == "" {
+		return side, nil
+	}
+	roleSide := RoleSide(role)
+	switch {
+	case roleSide == "":
+		return side, fmt.Errorf("role must be a_anchor, b_anchor, rotator, a_lurk, b_lurk, half_lurk or pack, not %q", role)
+	case !haveMap:
+		return side, errors.New("role needs a map: a role is read on one map")
+	case side != "" && side != roleSide:
+		return side, fmt.Errorf("role %s is played on %s, not %s", role, roleSide, side)
+	}
+	return roleSide, nil
 }
 
-func (t *roleTally) add(o roleTally) {
-	t.sampled += o.sampled
-	t.zoneA += o.zoneA
-	t.zoneB += o.zoneB
-	t.lurkA += o.lurkA
-	t.lurkB += o.lurkB
-	t.lurk += o.lurk
-	t.half += o.half
+// RoleCounts counts what a player did in the opening window of the rounds of
+// one side: the rounds read, the CT rounds held on each site and the T rounds
+// lurked (toward each site) or half lurked. Counts add up across matches.
+type RoleCounts struct {
+	Sampled int `json:"sampled"`
+	InA     int `json:"in_a,omitempty"`
+	InB     int `json:"in_b,omitempty"`
+	LurkA   int `json:"lurk_a,omitempty"`
+	LurkB   int `json:"lurk_b,omitempty"`
+	Lurk    int `json:"lurk,omitempty"`
+	Half    int `json:"half,omitempty"`
 }
 
-func (t roleTally) role(side Side) string {
-	if t.sampled < MinReliableSample {
+func (t *RoleCounts) add(o RoleCounts) {
+	t.Sampled += o.Sampled
+	t.InA += o.InA
+	t.InB += o.InB
+	t.LurkA += o.LurkA
+	t.LurkB += o.LurkB
+	t.Lurk += o.Lurk
+	t.Half += o.Half
+}
+
+func (t RoleCounts) role(side Side) string {
+	if t.Sampled < MinReliableSample {
 		return ""
 	}
-	n := float64(t.sampled)
+	n := float64(t.Sampled)
 	if side == SideCT {
 		switch {
-		case float64(t.zoneA) >= PositionAnchorShare*n:
+		case float64(t.InA) >= PositionAnchorShare*n:
 			return PositionAnchorA
-		case float64(t.zoneB) >= PositionAnchorShare*n:
+		case float64(t.InB) >= PositionAnchorShare*n:
 			return PositionAnchorB
 		}
 		return PositionRotator
 	}
-	lurker := float64(t.lurk) >= PositionLurkShare*n
+	lurker := float64(t.Lurk) >= PositionLurkShare*n
 	switch {
-	case lurker && t.lurkA >= t.lurkB && t.lurkA > 0:
+	case lurker && t.LurkA >= t.LurkB && t.LurkA > 0:
 		return PositionLurkA
-	case lurker && t.lurkB > 0:
+	case lurker && t.LurkB > 0:
 		return PositionLurkB
-	case float64(t.lurk+t.half) >= PositionHalfLurkShare*n:
+	case float64(t.Lurk+t.Half) >= PositionHalfLurkShare*n:
 		return PositionHalfLurk
 	}
 	return PositionPack
@@ -86,8 +115,8 @@ func (t roleTally) role(side Side) string {
 
 // readRoleRound reads one player's opening window of one round into a tally;
 // false when the window holds no usable position.
-func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, round Round, slot uint8, side Side) (roleTally, bool) {
-	var out roleTally
+func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, round Round, slot uint8, side Side) (RoleCounts, bool) {
+	var out RoleCounts
 	if side == SideCT {
 		zoneTally := newTally()
 		for i, frame := range frames {
@@ -101,12 +130,12 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 		if top == "" {
 			return out, false
 		}
-		out.sampled = 1
+		out.Sampled = 1
 		switch top {
 		case ZoneA:
-			out.zoneA = 1
+			out.InA = 1
 		case ZoneB:
-			out.zoneB = 1
+			out.InB = 1
 		}
 		return out, true
 	}
@@ -145,19 +174,19 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 	if withMates < minTeammateFrames {
 		return out, false
 	}
-	out.sampled = 1
+	out.Sampled = 1
 	mean := gap / float64(withMates)
 	switch {
 	case mean >= PositionLurkDistance:
-		out.lurk = 1
+		out.Lurk = 1
 		switch leanedSite(zones, sumX/float64(seen), sumY/float64(seen)) {
 		case ZoneA:
-			out.lurkA = 1
+			out.LurkA = 1
 		case ZoneB:
-			out.lurkB = 1
+			out.LurkB = 1
 		}
 	case mean >= PositionHalfLurkDistance:
-		out.half = 1
+		out.Half = 1
 	}
 	return out, true
 }

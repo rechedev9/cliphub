@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -17,12 +18,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// leaderboardRoles are the role keys the leaderboard filters on.
-var leaderboardRoles = []string{
-	tacticalplan.PositionAnchorA, tacticalplan.PositionAnchorB, tacticalplan.PositionRotator,
-	tacticalplan.PositionLurkA, tacticalplan.PositionLurkB, tacticalplan.PositionHalfLurk, tacticalplan.PositionPack,
-}
-
 // leaderboardFilters narrow the matches and the rounds a library leaderboard reads.
 type leaderboardFilters struct {
 	side   tacticalplan.Side
@@ -30,10 +25,18 @@ type leaderboardFilters struct {
 	from   *time.Time
 	to     *time.Time
 	source library.Source
+	// days and top apply to the pro scope: the period and the rival's HLTV rank.
+	days, top int
 }
 
-func (f leaderboardFilters) any() bool {
-	return f.side != "" || f.role != "" || f.from != nil || f.to != nil || f.source != ""
+// libraryOnly reports a filter only the library scope reads.
+func (f leaderboardFilters) libraryOnly() bool {
+	return f.from != nil || f.to != nil || f.source != ""
+}
+
+// proServer reports whether the pro scope should ask the community server for per-player lines.
+func (f leaderboardFilters) proServer() bool {
+	return f.side != "" || f.role != "" || f.days > 0 || f.top > 0
 }
 
 // parseLeaderboardFilters reads side, role, from, to and source. A role sits on
@@ -57,21 +60,29 @@ func parseLeaderboardFilters(q url.Values, base baselineQuery) (leaderboardFilte
 		}
 	}
 	f.role = q.Get("role")
-	if f.role != "" {
-		if !slices.Contains(leaderboardRoles, f.role) {
-			return f, fmt.Errorf("role must be one of %v", leaderboardRoles)
-		}
-		if base.mapName == "" {
-			return f, errors.New("role needs a map: a role is read on one map")
-		}
-		roleSide := tacticalplan.RoleSide(f.role)
-		if f.side != "" && f.side != roleSide {
-			return f, fmt.Errorf("role %s is played on %s, not %s", f.role, roleSide, f.side)
-		}
-		f.side = roleSide
+	if f.side, err = tacticalplan.RoleFilterSide(f.role, f.side, base.mapName != ""); err != nil {
+		return f, err
 	}
-	if base.scope != baselineScopeLibrary && f.any() {
-		return f, errors.New("side, role, from, to and source need scope library")
+	for _, in := range []struct {
+		name string
+		into *int
+		max  int
+	}{{"days", &f.days, 365}, {"top", &f.top, 50}} {
+		raw := q.Get(in.name)
+		if raw == "" {
+			continue
+		}
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > in.max {
+			return f, fmt.Errorf("%s must be an integer from 1 to %d", in.name, in.max)
+		}
+		*in.into = n
+	}
+	if base.scope == baselineScopePro && f.libraryOnly() {
+		return f, errors.New("from, to and source need scope library; the pro scope takes days and top")
+	}
+	if base.scope == baselineScopeLibrary && (f.days > 0 || f.top > 0) {
+		return f, errors.New("days and top need scope pro; the library scope takes from and to")
 	}
 	return f, nil
 }

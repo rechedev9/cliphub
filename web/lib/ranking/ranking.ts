@@ -2,6 +2,7 @@ import {
   CT_ROLES,
   LEADERBOARD_METRICS,
   LEADERBOARD_SOURCES,
+  PRO_TOPS,
   T_ROLES,
   type Leaderboard,
   type LeaderboardMatchSource,
@@ -9,9 +10,10 @@ import {
   type LeaderboardQuery,
   type LeaderboardRole,
   type LeaderboardRow,
+  type ProTop,
 } from '../api/baseline.ts';
 import { replayHref, type ReplayRef } from '../analysis/replay-link.ts';
-import { parseAnalysisScope, scopeDateRange, writeAnalysisScope, type AnalysisScope, type ScopeQuery } from '../analysis/scope.ts';
+import { PERIOD_PRESETS, parseAnalysisScope, scopeDateRange, writeAnalysisScope, type AnalysisScope, type ScopeQuery } from '../analysis/scope.ts';
 
 /**
  * The Ranking page: its filters live in the URL (the analysis scope's map,
@@ -28,13 +30,15 @@ export type RankingState = {
   readonly role: LeaderboardRole | '';
   /** Which kind of demos count; empty for all of them. */
   readonly level: LeaderboardMatchSource | '';
+  /** Pro data only: the rival is ranked this high or better in HLTV; null for any rival. */
+  readonly top: ProTop | null;
   readonly minRounds: number;
   readonly sort: RankingSort;
   /** Null leaves the column's natural order. */
   readonly dir: 'asc' | 'desc' | null;
 };
 
-export const RANKING_PARAMS = { role: 'role', level: 'nivel', minRounds: 'min', sort: 'orden', dir: 'sentido' } as const;
+export const RANKING_PARAMS = { role: 'role', level: 'nivel', top: 'rival', minRounds: 'min', sort: 'orden', dir: 'sentido' } as const;
 
 export const RANKING_MIN_ROUNDS = [10, 25, 50, 100, 200] as const;
 export const DEFAULT_MIN_ROUNDS = 25;
@@ -54,6 +58,10 @@ function parseRole(value: string | null): LeaderboardRole | '' {
 
 function parseLevel(value: string | null): LeaderboardMatchSource | '' {
   return LEADERBOARD_SOURCES.find((source) => source === value) ?? '';
+}
+
+function parseTop(value: string | null): ProTop | null {
+  return PRO_TOPS.find((top) => String(top) === value) ?? null;
 }
 
 function parseSort(value: string | null): RankingSort {
@@ -78,6 +86,7 @@ export function parseRanking(query: ScopeQuery): RankingState {
     scope: role === '' ? scope : { ...scope, side: roleSide(role) },
     role,
     level: parseLevel(query.get(RANKING_PARAMS.level)),
+    top: scope.reference === 'pro' ? parseTop(query.get(RANKING_PARAMS.top)) : null,
     minRounds: parseMinRounds(query.get(RANKING_PARAMS.minRounds)),
     sort: parseSort(query.get(RANKING_PARAMS.sort)),
     dir: dir === 'asc' || dir === 'desc' ? dir : null,
@@ -90,6 +99,7 @@ export function writeRanking(state: RankingState, current: string | URLSearchPar
   for (const name of Object.values(RANKING_PARAMS)) params.delete(name);
   if (state.role !== '') params.set(RANKING_PARAMS.role, state.role);
   if (state.level !== '') params.set(RANKING_PARAMS.level, state.level);
+  if (state.top !== null) params.set(RANKING_PARAMS.top, String(state.top));
   if (state.minRounds !== DEFAULT_MIN_ROUNDS) params.set(RANKING_PARAMS.minRounds, String(state.minRounds));
   if (state.sort !== DEFAULT_SORT) params.set(RANKING_PARAMS.sort, state.sort);
   if (state.dir !== null) params.set(RANKING_PARAMS.dir, state.dir);
@@ -104,9 +114,22 @@ export function patchRanking(state: RankingState, patch: Partial<Omit<RankingSta
   return { ...next, role, scope: role === '' ? next.scope : { ...next.scope, side: roleSide(role) } };
 }
 
+const PRO_MAX_DAYS = 365;
+
+/**
+ * The pro board always names a period, which is what makes the server rank
+ * the pros' maps player by player. "Every date" is the longest it keeps.
+ */
+export function proDays(scope: AnalysisScope): number {
+  if (scope.period.kind !== 'preset') return PRO_MAX_DAYS;
+  const { preset } = scope.period;
+  return PERIOD_PRESETS.find((entry) => entry.value === preset)?.days ?? PRO_MAX_DAYS;
+}
+
 /**
  * The request for the state. The library scope asks for every filter; the pro
- * scope takes the map only. The metric is the sort column, so a reference that
+ * scope takes side, role, period and rival level, from the community server.
+ * The metric is the sort column, so a reference that
  * returns one value per player ranks on what the table sorts by.
  */
 export function leaderboardRequest(state: RankingState, now: number): LeaderboardQuery {
@@ -118,7 +141,15 @@ export function leaderboardRequest(state: RankingState, now: number): Leaderboar
     min_rounds: state.minRounds,
     limit: RANKING_FETCH_LIMIT,
   };
-  if (state.scope.reference === 'pro') return base;
+  if (state.scope.reference === 'pro') {
+    return {
+      ...base,
+      side: state.scope.side === '' ? undefined : state.scope.side,
+      role: state.role === '' ? undefined : state.role,
+      days: proDays(state.scope),
+      top: state.top ?? undefined,
+    };
+  }
   const { from, to } = scopeDateRange(state.scope.period, now);
   return {
     ...base,

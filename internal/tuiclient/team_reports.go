@@ -277,6 +277,9 @@ type LeaderboardQuery struct {
 	From   time.Time
 	To     time.Time
 	Source string
+	// Days and Top narrow a pro leaderboard: the period and the rival's HLTV rank.
+	Days int
+	Top  int
 }
 
 // Leaderboard is GET /api/library/leaderboard.
@@ -297,6 +300,7 @@ type LeaderboardPlayer struct {
 	Rank      int                `json:"rank"`
 	SteamID64 string             `json:"steamid64"`
 	Name      string             `json:"name"`
+	Team      string             `json:"team"`
 	Rounds    int                `json:"rounds"`
 	Matches   int                `json:"matches"`
 	Value     float64            `json:"value"`
@@ -314,6 +318,12 @@ type LeaderboardPlayer struct {
 // LibraryLeaderboard ranks the library's players on one reference metric.
 func (c *Client) LibraryLeaderboard(ctx context.Context, q LeaderboardQuery) (Leaderboard, error) {
 	params := map[string]string{"metric": q.Metric, "scope": q.Scope, "map": q.Map, "side": q.Side, "role": q.Role, "source": q.Source}
+	if q.Days > 0 {
+		params["days"] = strconv.Itoa(q.Days)
+	}
+	if q.Top > 0 {
+		params["top"] = strconv.Itoa(q.Top)
+	}
 	if !q.From.IsZero() {
 		params["from"] = q.From.UTC().Format(time.RFC3339)
 	}

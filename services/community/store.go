@@ -101,7 +101,7 @@ func (s *store) replaceReference(ctx context.Context, payloads map[string][]byte
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM pro_reference WHERE map NOT LIKE 'lineups:%'`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM pro_reference WHERE map NOT LIKE 'lineups:%' AND map NOT LIKE 'pro-players:%'`); err != nil {
 		return err
 	}
 	at := now()

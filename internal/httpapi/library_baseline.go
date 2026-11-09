@@ -74,6 +74,8 @@ type leaderboardResponse struct {
 	Rounds         int    `json:"rounds"`
 	Skipped        int    `json:"skipped"`
 	// Side, Role, From, To and MatchSource echo the library filters applied.
+	Days        int                           `json:"days,omitempty"`
+	Top         int                           `json:"top,omitempty"`
 	Side        string                        `json:"side,omitempty"`
 	Role        string                        `json:"role,omitempty"`
 	From        *time.Time                    `json:"from,omitempty"`
@@ -164,7 +166,11 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	}
 	out := leaderboardResponse{
 		Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Metric: metric, HigherIsBetter: !tacticalplan.LowerIsBetter(metric),
-		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, From: filters.from, To: filters.to, MatchSource: string(filters.source),
+		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, Days: filters.days, Top: filters.top, From: filters.from, To: filters.to, MatchSource: string(filters.source),
+	}
+	if q.scope == baselineScopePro && filters.proServer() {
+		h.writeProLeaderboard(r.Context(), w, out, filters, limit)
+		return
 	}
 	if q.scope == baselineScopeLibrary {
 		sample, skipped, err := h.leaderboardSample(r.Context(), q, filters)

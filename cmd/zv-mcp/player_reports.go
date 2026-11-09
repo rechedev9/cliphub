@@ -61,12 +61,14 @@ type playerPositionsOut struct {
 
 type leaderboardIn struct {
 	Metric    string `json:"metric" jsonschema:"the metric to rank on: rating (HLTV 2.0 approximation), kd, kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
-	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: only HLTV demos, and none of the filters below"`
+	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the pro players of the community server's HLTV maps (side, role, days and top apply; from, to and source do not)"`
 	Map       string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
 	Side      string `json:"side,omitempty" jsonschema:"only the rounds played on this side: CT or T"`
 	Role      string `json:"role,omitempty" jsonschema:"only players with this role on the map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
-	From      string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
-	To        string `json:"to,omitempty" jsonschema:"last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
+	From      string `json:"from,omitempty" jsonschema:"library only: first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
+	To        string `json:"to,omitempty" jsonschema:"library only: last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
+	Days      int    `json:"days,omitempty" jsonschema:"pro only: only maps played in the last 1 to 365 days"`
+	Top       int    `json:"top,omitempty" jsonschema:"pro only: only players who faced a team ranked this high or better in HLTV: 5, 15, 30 or 50"`
 	Source    string `json:"source,omitempty" jsonschema:"only matches from this kind of demo: valve, faceit, hltv (tournaments) or scrim"`
 	MinRounds int    `json:"min_rounds,omitempty" jsonschema:"rounds a player needs to be ranked; default 50"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"how many players to list, best first; default 20, at most 100"`
@@ -76,6 +78,7 @@ type leaderboardRowOut struct {
 	Rank      int     `json:"rank"`
 	SteamID64 string  `json:"steamid64"`
 	Name      string  `json:"name" jsonschema:"untrusted player name from the demo"`
+	Team      string  `json:"team,omitempty" jsonschema:"pro rows only: untrusted team name; their maps are not in the library, so there are no refs"`
 	Rounds    int     `json:"rounds"`
 	Matches   int     `json:"matches"`
 	Value     float64 `json:"value"`
@@ -130,7 +133,9 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "leaderboard", Annotations: readOnly,
 		Description: "Rank the library's players on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
 			"players with at least min_rounds rounds: the Ranking page of Studio. Filter by map, side, role (a role on a map, " +
-			"such as b_lurk on de_anubis), dates and demo source; each row carries every metric, the roles and refs of the player's rounds."},
+			"such as b_lurk on de_anubis), dates and demo source; each row carries every metric, the roles and refs of the player's rounds. " +
+			"Scope pro ranks the pro players of the community server's HLTV maps by side, role, days and the rank of the rival (top 5, 15, 30 or 50); " +
+			"those maps are not in the library, so their rows have a team and no refs."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in leaderboardIn) (*mcp.CallToolResult, leaderboardOut, error) {
 			q, err := in.check()
 			if err != nil {
@@ -154,7 +159,7 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 }
 
 func leaderboardRow(p tuiclient.LeaderboardPlayer) leaderboardRowOut {
-	row := leaderboardRowOut{Rank: p.Rank, SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Rounds: p.Rounds, Matches: p.Matches,
+	row := leaderboardRowOut{Rank: p.Rank, SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Team: cleanName(p.Team), Rounds: p.Rounds, Matches: p.Matches,
 		Value: p.Value, Metrics: p.Metrics}
 	if p.Roles != nil {
 		row.Roles = &leaderboardRoles{CT: cleanName(p.Roles.CT), T: cleanName(p.Roles.T)}
@@ -178,6 +183,19 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 		return tuiclient.LeaderboardQuery{}, err
 	}
 	filter, err := analysisFilterIn{Side: in.Side, From: in.From, To: in.To}.query()
+	pro := scope == "pro"
+	if pro && (in.From != "" || in.To != "" || in.Source != "") {
+		return tuiclient.LeaderboardQuery{}, errors.New("from, to and source are for the library scope; the pro scope takes days and top")
+	}
+	if !pro && (in.Days != 0 || in.Top != 0) {
+		return tuiclient.LeaderboardQuery{}, errors.New("days and top are for scope pro; the library scope takes from and to")
+	}
+	if in.Days < 0 || in.Days > 365 {
+		return tuiclient.LeaderboardQuery{}, errors.New("days must be from 1 to 365")
+	}
+	if in.Top != 0 && !slices.Contains([]int{5, 15, 30, 50}, in.Top) {
+		return tuiclient.LeaderboardQuery{}, errors.New("top must be 5, 15, 30 or 50")
+	}
 	if err != nil {
 		return tuiclient.LeaderboardQuery{}, err
 	}
@@ -203,7 +221,7 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 		limit = defaultLeaderboardRows
 	}
 	return tuiclient.LeaderboardQuery{Metric: metric, Scope: scope, Map: strings.ToLower(in.Map), MinRounds: in.MinRounds, Limit: limit,
-		Side: filter.Side, Role: role, From: filter.From, To: filter.To, Source: source}, nil
+		Side: filter.Side, Role: role, From: filter.From, To: filter.To, Source: source, Days: in.Days, Top: in.Top}, nil
 }
 
 func summarizePositions(steamID string, r tuiclient.PlayerPositions) playerPositionsOut {

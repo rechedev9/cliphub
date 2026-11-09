@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, Pin, PinOff, Play } from 'lucide-react';
-import type { LeaderboardMetric } from '@/lib/api/baseline';
+import type { LeaderboardMetric, LeaderboardRow } from '@/lib/api/baseline';
 import { playerHref } from '@/lib/clips/routes';
 import { RANKING_COLUMNS, rolesText } from '@/lib/ranking/columns';
 import {
@@ -16,6 +16,12 @@ import {
   type RankingState,
 } from '@/lib/ranking/ranking';
 import { cn } from '@/lib/utils';
+
+function subtitle(row: LeaderboardRow, roles: string): string {
+  const matches = `${row.matches} ${row.matches === 1 ? 'partida' : 'partidas'}`;
+  if (row.team !== undefined) return [row.team, roles, matches].filter((part) => part !== '').join(' · ');
+  return roles !== '' ? roles : matches;
+}
 
 function ariaSort(active: boolean, dir: 'asc' | 'desc'): 'ascending' | 'descending' | 'none' {
   if (!active) return 'none';
@@ -98,7 +104,7 @@ function PlayerRow({
               <span className="text-meta text-fg-3">Sin rondas con este filtro</span>
             ) : (
               <span className="truncate text-meta text-fg-2">
-                {row.team ?? (roles !== '' ? roles : `${row.matches} ${row.matches === 1 ? 'partida' : 'partidas'}`)}
+                {subtitle(row, roles)}
               </span>
             )}
           </div>

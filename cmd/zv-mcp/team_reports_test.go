@@ -182,5 +182,8 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "b_lurk"}, "role needs a map")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "source": "x"}, "source must be")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "days": 30}, "days and top are for scope pro")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "from": "2026-10-01"}, "for the library scope")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "top": 20}, "top must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "limit": 101}, "limit")
 }

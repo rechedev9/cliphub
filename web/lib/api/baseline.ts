@@ -82,6 +82,10 @@ export type LeaderboardRow = {
 };
 
 /** Where demos come from: the Valve matchmaking, FACEIT, tournaments or scrims. */
+/** Rival levels of the pro board: the opponent's HLTV world rank. */
+export const PRO_TOPS = [5, 15, 30, 50] as const;
+export type ProTop = (typeof PRO_TOPS)[number];
+
 export const LEADERBOARD_SOURCES = ['valve', 'faceit', 'hltv', 'scrim'] as const;
 export type LeaderboardMatchSource = (typeof LEADERBOARD_SOURCES)[number];
 
@@ -113,15 +117,18 @@ export type LeaderboardQuery = BaselineQuery & {
   from?: string;
   to?: string;
   source?: LeaderboardMatchSource;
+  /** Pro scope: only maps from the last N days, and only players who faced a team ranked this high or better. */
+  days?: number;
+  top?: number;
 };
 
 export const BASELINE_KEYS = ['scope', 'map', 'source', 'description', 'updated_at', 'min_rounds', 'players', 'rounds', 'matches', 'skipped', 'metrics'] as const;
 
 export const LEADERBOARD_KEYS = [
   'scope', 'map', 'source', 'description', 'updated_at', 'metric', 'higher_is_better', 'min_rounds', 'matches', 'rounds', 'skipped', 'players',
-  'side', 'role', 'from', 'to', 'match_source',
+  'side', 'role', 'from', 'to', 'match_source', 'days', 'top',
 ] as const;
 
 export const BASELINE_QUERY = ['scope', 'map', 'min_rounds'] as const;
 
-export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit', 'side', 'role', 'from', 'to', 'source'] as const;
+export const LEADERBOARD_QUERY = [...BASELINE_QUERY, 'metric', 'limit', 'side', 'role', 'from', 'to', 'source', 'days', 'top'] as const;

@@ -63,8 +63,19 @@ test('the library request carries every filter and the pro request only the map'
     { metric: 'adr', map: 'de_anubis', role: 'b_lurk', side: 'T', source: 'hltv', min: 50, limit: RANKING_FETCH_LIMIT },
   );
   assert.equal(library.from, new Date(NOW - 90 * 24 * 3600 * 1000).toISOString());
-  const pro = leaderboardRequest(parse('map=de_anubis&ref=pro&role=b_lurk&nivel=hltv'), NOW);
-  assert.deepEqual([pro.scope, pro.map, pro.role, pro.source, pro.from], ['pro', 'de_anubis', undefined, undefined, undefined]);
+});
+
+test('the pro request names a period and a rival level, and never the library filters', () => {
+  const pro = leaderboardRequest(parse('map=de_anubis&ref=pro&role=b_lurk&nivel=hltv&period=30d&rival=30'), NOW);
+  assert.deepEqual(
+    [pro.scope, pro.map, pro.role, pro.side, pro.days, pro.top, pro.source, pro.from],
+    ['pro', 'de_anubis', 'b_lurk', 'T', 30, 30, undefined, undefined],
+  );
+  assert.equal(leaderboardRequest(parse('ref=pro'), NOW).days, 365);
+  assert.equal(leaderboardRequest(parse('ref=pro&rival=7'), NOW).top, undefined);
+  assert.equal(parse('rival=30').top, null);
+  assert.equal(parse('ref=pro&rival=30').top, 30);
+  assert.equal(parse(writeRanking(parse('ref=pro&rival=15&map=de_anubis'))).top, 15);
 });
 
 test('sorting puts the best first, deaths per round lowest first, and rows without the value last', () => {

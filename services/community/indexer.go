@@ -152,6 +152,9 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		if _, err := buildLineups(ctx, ix.store, lineupDirs{analyses: ix.archiveDir, clips: ix.clipsDir}, time.Now()); err != nil {
 			log.Printf("community stage=lineups class=kept error=%v", err)
 		}
+		if _, err := buildProPlayers(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
+			log.Printf("community stage=pro-players class=kept error=%v", err)
+		}
 	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)
 	for _, m := range index.Maps {

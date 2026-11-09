@@ -21,6 +21,8 @@ type api struct {
 	limiter *ipLimiter
 	// clipsDir holds the recorded pro lineup clips; empty serves none.
 	clipsDir string
+	// proPlayers keeps the decoded pro players payloads.
+	proPlayers proPlayersCache
 }
 
 func newAPI(s *store) *api {
@@ -31,6 +33,7 @@ func (a *api) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/pro-reference", a.handleProReference)
 	mux.HandleFunc("GET /v1/pro-lineups", a.handleProLineups)
+	mux.HandleFunc("GET /v1/pro-players", a.handleProPlayers)
 	mux.HandleFunc("GET /v1/pro-clips/{match}/{file}", a.handleProClip)
 	mux.HandleFunc("GET /v1/rankings", a.handleRankings)
 	mux.HandleFunc("POST /v1/rankings/submit", a.handleSubmit)
