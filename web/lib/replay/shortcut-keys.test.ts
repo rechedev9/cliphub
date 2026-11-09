@@ -18,6 +18,13 @@ test('maps the documented keys to replay shortcuts', () => {
   assert.equal(replayShortcut(press('m')), 'multi');
   assert.equal(replayShortcut(press('f')), 'follow');
   assert.equal(replayShortcut(press('G')), 'gif');
+  assert.equal(replayShortcut(press('h')), 'tool-move');
+  assert.equal(replayShortcut(press('D')), 'tool-draw');
+  assert.equal(replayShortcut(press('a')), 'tool-arrow');
+  assert.equal(replayShortcut(press('e')), 'tool-erase');
+  assert.equal(replayShortcut(press('t')), 'tool-timed');
+  assert.equal(replayShortcut(press('z')), 'undo-stroke');
+  assert.equal(replayShortcut(press('z', { ctrlKey: true })), null);
   assert.equal(replayShortcut(press('Escape')), 'escape');
   assert.equal(replayShortcut(press('x')), null);
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { ArrowUpRight, Brush, Eraser, Undo2 } from 'lucide-react';
 import { ANNOTATION_STROKES_MAX, STROKE_COLORS, STROKE_POINTS_MAX } from '@/lib/api/spatial';
 import type { Stroke, StrokeColor } from '@/lib/api/spatial';
@@ -36,8 +36,15 @@ const THIN_WORLD_UNITS = 12;
 /** How close to a stroke the eraser has to pass, in screen pixels. */
 const ERASER_REACH_PX = 8;
 
-/** `erase`: the pen takes off the stroke it passes over instead of drawing. */
-export type TelestratorTool = { color: StrokeColor; arrow: boolean; erase: boolean };
+/**
+ * `erase`: the pen takes off the stroke it passes over instead of drawing.
+ * `timed`: each stroke fades out on its own and stays out of the note, for explaining live.
+ */
+export type TelestratorTool = { color: StrokeColor; arrow: boolean; erase: boolean; timed: boolean };
+
+/** How long a timed stroke stays on the map; it fades out over the last second. */
+export const TIMED_STROKE_MS = 4000;
+const TIMED_FADE_MS = 1000;
 
 /** The unsaved drawing of a note: its strokes, the active tool and whether the pen is down. */
 export type TelestratorDraft = {
@@ -46,6 +53,8 @@ export type TelestratorDraft = {
   tool: TelestratorTool;
   setTool: (tool: TelestratorTool) => void;
   strokes: Stroke[];
+  /** Strokes drawn with `timed`, until each fades out. */
+  fleeting: readonly { id: number; stroke: Stroke }[];
   addStroke: (stroke: Stroke) => void;
   removeStroke: (index: number) => void;
   undo: () => void;
@@ -54,15 +63,54 @@ export type TelestratorDraft = {
 
 export function useTelestratorDraft(): TelestratorDraft {
   const [drawing, setDrawing] = useState(false);
-  const [tool, setTool] = useState<TelestratorTool>({ color: 'accent', arrow: false, erase: false });
+  const [tool, setTool] = useState<TelestratorTool>({ color: 'accent', arrow: false, erase: false, timed: false });
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const addStroke = useCallback((stroke: Stroke) => {
-    setStrokes((current) => (current.length >= ANNOTATION_STROKES_MAX ? current : [...current, stroke]));
+  const [fleeting, setFleeting] = useState<{ id: number; stroke: Stroke }[]>([]);
+  const nextFleeting = useRef(0);
+  const timers = useRef(new Set<number>());
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach((timer) => window.clearTimeout(timer));
   }, []);
+  const timed = tool.timed;
+  const addStroke = useCallback(
+    (stroke: Stroke) => {
+      if (!timed) {
+        setStrokes((current) => (current.length >= ANNOTATION_STROKES_MAX ? current : [...current, stroke]));
+        return;
+      }
+      nextFleeting.current += 1;
+      const id = nextFleeting.current;
+      setFleeting((current) => [...current, { id, stroke }]);
+      const timer = window.setTimeout(() => {
+        timers.current.delete(timer);
+        setFleeting((current) => current.filter((entry) => entry.id !== id));
+      }, TIMED_STROKE_MS);
+      timers.current.add(timer);
+    },
+    [timed],
+  );
   const removeStroke = useCallback((index: number) => setStrokes((current) => current.filter((_, at) => at !== index)), []);
   const undo = useCallback(() => setStrokes((current) => current.slice(0, -1)), []);
-  const clear = useCallback(() => setStrokes([]), []);
-  return { drawing, setDrawing, tool, setTool, strokes, addStroke, removeStroke, undo, clear };
+  const clear = useCallback(() => {
+    setStrokes([]);
+    setFleeting([]);
+  }, []);
+  return { drawing, setDrawing, tool, setTool, strokes, fleeting, addStroke, removeStroke, undo, clear };
+}
+
+/** What a press on the map does: move it, draw, draw an arrow, or erase a stroke. */
+export type DrawMode = 'move' | 'draw' | 'arrow' | 'erase';
+
+export function drawMode(draft: TelestratorDraft): DrawMode {
+  if (!draft.drawing) return 'move';
+  if (draft.tool.erase) return 'erase';
+  return draft.tool.arrow ? 'arrow' : 'draw';
+}
+
+export function chooseDrawMode(draft: TelestratorDraft, mode: DrawMode): void {
+  draft.setDrawing(mode !== 'move');
+  if (mode !== 'move') draft.setTool({ ...draft.tool, arrow: mode === 'arrow', erase: mode === 'erase' });
 }
 
 /** A stroke's on-screen width for a plate of this size. */
@@ -75,11 +123,14 @@ function StrokeShape({
   calibration,
   projection,
   faded,
+  fading = false,
 }: {
   stroke: Stroke;
   calibration: RadarCalibration;
   projection: RadarProjection;
   faded?: boolean;
+  /** A timed stroke: it fades out by itself before it is removed. */
+  fading?: boolean;
 }): ReactNode {
   const points = stroke.points.map(([x, y]) => {
     const p = worldToRendered(calibration, x, y, projection.size);
@@ -90,6 +141,7 @@ function StrokeShape({
   const color = STROKE_VAR[stroke.color];
   return (
     <g opacity={faded ? 0.55 : 1}>
+      {fading ? <animate attributeName="opacity" from="1" to="0" begin={`${(TIMED_STROKE_MS - TIMED_FADE_MS) / 1000}s`} dur={`${TIMED_FADE_MS / 1000}s`} fill="freeze" /> : null}
       <path d={strokePath(points)} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
       {stroke.arrow ? (
         <polygon points={arrowHead(points[points.length - 2], points[points.length - 1], width * 4)} fill={color} />
@@ -208,6 +260,9 @@ export function TelestratorLayer({
       )}
       {draft?.strokes.map((stroke, i) =>
         onLevel(stroke, level) ? <StrokeShape key={`draft:${i}`} stroke={stroke} calibration={calibration} projection={projection} /> : null,
+      )}
+      {draft?.fleeting.map((entry) =>
+        onLevel(entry.stroke, level) ? <StrokeShape key={`timed:${entry.id}`} stroke={entry.stroke} calibration={calibration} projection={projection} fading /> : null,
       )}
       {preview ? <StrokeShape stroke={preview} calibration={calibration} projection={projection} /> : null}
     </svg>

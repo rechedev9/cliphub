@@ -15,7 +15,7 @@ export type ReplayLayers = {
   moments: boolean;
   /** How far back the trails reach. */
   trailSeconds: TrailSeconds;
-  /** Slots of the players taken off the map. */
+  /** Slots of the players set aside: the map draws them translucent, without trail, name or lines. */
   hiddenSlots: readonly number[];
 };
 

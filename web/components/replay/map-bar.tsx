@@ -1,16 +1,29 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ArrowUpRight, Bomb, Brush, Eraser, Eye, Film, Flag, Flame, Footprints, Hand, Settings2, Tag, Trash2, Undo2, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Bomb, Brush, Eraser, Eye, Film, Flag, Flame, Footprints, Hand, Settings2, Tag, Timer, Trash2, Undo2, X, Zap } from 'lucide-react';
 import { STROKE_COLORS } from '@/lib/api/spatial';
 import type { HitLineKind } from '@/lib/replay/hit-lines';
 import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
 import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
-import { FRAME_RATES, MAP_ARTS, MAP_ART_LABELS, MAP_FLOORS, MAP_FLOORS_LABELS, MAP_SIZES, MAP_SIZE_LABELS, ZOOM_SPEED_LABELS, frameRateLabel } from '@/lib/replay/map-settings';
+import {
+  FRAME_RATES,
+  MAP_ARTS,
+  MAP_ART_LABELS,
+  MAP_FLOORS,
+  MAP_FLOORS_LABELS,
+  MAP_SHOWS,
+  MAP_SHOW_HINTS,
+  MAP_SHOW_LABELS,
+  MAP_SIZES,
+  MAP_SIZE_LABELS,
+  ZOOM_SPEED_LABELS,
+  frameRateLabel,
+} from '@/lib/replay/map-settings';
 import type { MapSettings } from '@/lib/replay/map-settings';
 import { HIT_TOKENS } from '@/components/tactical/radar-style';
-import { STROKE_LABEL, STROKE_VAR } from '@/components/tactical/spatial/telestrator';
-import type { TelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import { STROKE_LABEL, STROKE_VAR, chooseDrawMode, drawMode } from '@/components/tactical/spatial/telestrator';
+import type { DrawMode, TelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { FOCUS_RING } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
@@ -44,19 +57,11 @@ const HIT_LEGEND: readonly [HitLineKind, string][] = [
 /** The chips name themselves where the bar has room; in a narrow one the icon and its tooltip do. */
 const WIDE_LABEL = 'hidden @5xl:inline';
 
-type DrawMode = 'move' | 'draw' | 'arrow' | 'erase';
-
-function drawMode(draft: TelestratorDraft): DrawMode {
-  if (!draft.drawing) return 'move';
-  if (draft.tool.erase) return 'erase';
-  return draft.tool.arrow ? 'arrow' : 'draw';
-}
-
-const DRAW_MODES: readonly { mode: DrawMode; label: string; hint?: string; icon: ReactNode }[] = [
-  { mode: 'move', label: 'Mover', icon: <Hand aria-hidden /> },
-  { mode: 'draw', label: 'Dibujar', icon: <Brush aria-hidden /> },
-  { mode: 'arrow', label: 'Flecha', icon: <ArrowUpRight aria-hidden /> },
-  { mode: 'erase', label: 'Borrar trazo', hint: 'Borrar trazo: pulsa o arrastra sobre un trazo del dibujo para quitarlo', icon: <Eraser aria-hidden /> },
+const DRAW_MODES: readonly { mode: DrawMode; label: string; hint: string; icon: ReactNode }[] = [
+  { mode: 'move', label: 'Mover', hint: 'Mover el mapa (H)', icon: <Hand aria-hidden /> },
+  { mode: 'draw', label: 'Dibujar', hint: 'Dibujar (D)', icon: <Brush aria-hidden /> },
+  { mode: 'arrow', label: 'Flecha', hint: 'Flecha (A)', icon: <ArrowUpRight aria-hidden /> },
+  { mode: 'erase', label: 'Borrar trazo', hint: 'Borrar trazo: pulsa o arrastra sobre un trazo del dibujo para quitarlo (E)', icon: <Eraser aria-hidden /> },
 ];
 
 function IconButton({ label, disabled = false, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }): ReactNode {
@@ -77,18 +82,23 @@ function IconButton({ label, disabled = false, onClick, children }: { label: str
 /** Mover, Dibujar and Flecha, the stroke colours and undo: the one drawing bar of the Replay. */
 function DrawTools({ draft }: { draft: TelestratorDraft }): ReactNode {
   const mode = drawMode(draft);
-  const choose = (next: DrawMode): void => {
-    draft.setDrawing(next !== 'move');
-    if (next !== 'move') draft.setTool({ ...draft.tool, arrow: next === 'arrow', erase: next === 'erase' });
-  };
   return (
     <div role="toolbar" aria-label="Dibujo sobre el mapa" className="flex items-center gap-1">
       {DRAW_MODES.map((entry) => (
-        <ReplayChip key={entry.mode} pressed={mode === entry.mode} onClick={() => choose(entry.mode)} title={entry.hint ?? entry.label} aria-label={entry.label}>
+        <ReplayChip key={entry.mode} pressed={mode === entry.mode} onClick={() => chooseDrawMode(draft, entry.mode)} title={entry.hint} aria-label={entry.label}>
           {entry.icon}
           <span className={WIDE_LABEL}>{entry.label}</span>
         </ReplayChip>
       ))}
+      <ReplayChip
+        pressed={draft.tool.timed}
+        onClick={() => draft.setTool({ ...draft.tool, timed: !draft.tool.timed })}
+        title="Temporal: cada trazo se desvanece solo a los 4 s y no entra en la nota (T)"
+        aria-label="Trazo temporal"
+      >
+        <Timer aria-hidden />
+        <span className={WIDE_LABEL}>Temporal</span>
+      </ReplayChip>
       <div className="flex items-center gap-1 px-1" role="group" aria-label="Color del trazo">
         {STROKE_COLORS.map((color) => (
           <button
@@ -103,7 +113,7 @@ function DrawTools({ draft }: { draft: TelestratorDraft }): ReactNode {
           />
         ))}
       </div>
-      <IconButton label="Deshacer el último trazo" disabled={draft.strokes.length === 0} onClick={draft.undo}>
+      <IconButton label="Deshacer el último trazo (Z)" disabled={draft.strokes.length === 0} onClick={draft.undo}>
         <Undo2 aria-hidden />
       </IconButton>
       <IconButton label="Borrar todo el dibujo" disabled={draft.strokes.length === 0} onClick={draft.clear}>
@@ -242,6 +252,18 @@ export function MapBar({
               options={FRAME_RATES.map((rate) => ({ value: String(rate), label: frameRateLabel(rate) }))}
               onChange={(value) => onSettings({ ...settings, fps: FRAME_RATES.find((rate) => String(rate) === value) ?? 0 })}
             />
+          </div>
+          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Qué dibuja el mapa">
+            {MAP_SHOWS.map((key) => (
+              <ReplayChip
+                key={key}
+                pressed={settings.show[key]}
+                onClick={() => onSettings({ ...settings, show: { ...settings.show, [key]: !settings.show[key] } })}
+                title={`${MAP_SHOW_LABELS[key]}. ${MAP_SHOW_HINTS[key]}`}
+              >
+                {MAP_SHOW_LABELS[key]}
+              </ReplayChip>
+            ))}
           </div>
           <ul className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-fg-3" aria-label="Colores del daño">
             {HIT_LEGEND.map(([kind, label]) => (

@@ -138,7 +138,7 @@ function PlayerRow({
         </span>
       </span>
       <span className="absolute top-1 right-1 hidden items-center gap-0.5 rounded-sm bg-surface-3 group-focus-within:flex group-hover:flex">
-        <RowAction label={hidden ? `Mostrar a ${card.name} en el mapa` : `Ocultar a ${card.name} del mapa`} pressed={!hidden} onClick={onToggle}>
+        <RowAction label={hidden ? `Devolver a ${card.name} al mapa` : `Atenuar a ${card.name} en el mapa`} pressed={!hidden} onClick={onToggle}>
           {hidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
         </RowAction>
       </span>
@@ -185,7 +185,7 @@ export function PlayerPanel({
         <AllTeamRow focus={focus} onChange={onFocus} />
         {hiddenSlots.length === 0 ? null : (
           <Button type="button" size="xs" variant="ghost" onClick={onShowAll} className="h-6">
-            Mostrar {hiddenSlots.length === 1 ? 'el oculto' : `los ${hiddenSlots.length} ocultos`}
+            Mostrar {hiddenSlots.length === 1 ? 'el atenuado' : `los ${hiddenSlots.length} atenuados`}
           </Button>
         )}
       </div>

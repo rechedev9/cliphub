@@ -7,6 +7,12 @@ export type ReplayShortcut =
   | 'setpos'
   | 'playlist'
   | 'gif'
+  | 'tool-move'
+  | 'tool-draw'
+  | 'tool-arrow'
+  | 'tool-erase'
+  | 'tool-timed'
+  | 'undo-stroke'
   | 'fold-left'
   | 'fold-right'
   | 'play'
@@ -43,6 +49,18 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   B: 'playlist',
   g: 'gif',
   G: 'gif',
+  h: 'tool-move',
+  H: 'tool-move',
+  d: 'tool-draw',
+  D: 'tool-draw',
+  a: 'tool-arrow',
+  A: 'tool-arrow',
+  e: 'tool-erase',
+  E: 'tool-erase',
+  t: 'tool-timed',
+  T: 'tool-timed',
+  z: 'undo-stroke',
+  Z: 'undo-stroke',
   ',': 'fold-left',
   '.': 'fold-right',
   ' ': 'play',

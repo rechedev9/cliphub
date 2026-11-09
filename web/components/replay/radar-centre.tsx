@@ -6,8 +6,8 @@ import { RADAR_LEVELS } from '@/lib/api/tactical';
 import type { RadarLevel, TacticalSample } from '@/lib/api/tactical';
 import { OFF_FLOOR_ALPHA } from '@/lib/analysis/floors';
 import { BOTH_FLOORS, floorPanes, localProjection, onFloorOf, paneAt, paneProjection } from '@/lib/replay/floor-split';
-import { hitLines } from '@/lib/replay/hit-lines';
-import { layerSamples, layerTrails } from '@/lib/replay/layers';
+import { hitLines, recentDamage } from '@/lib/replay/hit-lines';
+import { layerSamples, layerTrails, showAllPlayers } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
 import { MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
@@ -62,6 +62,7 @@ type OfficialArt = { map: string; upper: HTMLImageElement; lower: HTMLImageEleme
 
 const GRID: MapArt = { kind: 'grid' };
 const NO_FOCUS: readonly number[] = [];
+const NO_HURT: ReadonlyMap<number, number> = new Map();
 
 /** The tag spots of one floor's pane, so laying out one pane's tags never forgets the other's. */
 function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel): Map<number, number> {
@@ -97,6 +98,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const source = settings.art;
   const dotScale = MAP_SIZE_SCALE[settings.dots];
   const nameScale = MAP_SIZE_SCALE[settings.names];
+  const show = settings.show;
   const [real, setReal] = useState<RealArt | null>(null);
   const [zoomState, setZoomState] = useState<{ map: string; view: RadarRect | null } | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -265,7 +267,9 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
       const roundFocus = focusByMatch.get(round.matchId) ?? NO_FOCUS;
       // With players in focus, a superposed round shows only them: forty rounds of one player stay readable.
       const alone = focus.length > 0 && !round.focused;
-      const layered = alone ? layerSamples(samples, layers).filter((sample) => roundFocus.includes(sample.slot)) : layerSamples(samples, layers);
+      // A player taken off the map stays on it, translucent.
+      const kept = layerSamples(samples, showAllPlayers(layers));
+      const layered = alone ? kept.filter((sample) => roundFocus.includes(sample.slot)) : kept;
       const drawn = bothFloors ? onFloorOf(calibration, level, layered) : layered;
       const secondsOf = (at: number): number => timelineSeconds(round.timeline, at);
       let analysis: FrameAnalysis | null = null;
@@ -299,17 +303,20 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           deadFor,
           labels: round.focused ? round.labels : new Map(),
           focus: roundFocus,
+          dimmed: layers.hiddenSlots,
           dotScale,
           nameScale,
           utility: layers.utility && !alone,
           bomb: layers.bomb && !alone,
+          show,
+          hurt: show.damage ? recentDamage({ hits: round.round.hits ?? [], nowSeconds, secondsOf }) : NO_HURT,
           style,
           analysis,
         },
         round.focused ? { visible, spots: spotsOf(spotsRef.current, level) } : null,
       );
     },
-    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, projection.size, readers, shown, sightBvh, tickOf],
+    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, projection.size, readers, show, shown, sightBvh, tickOf],
   );
 
   // Draws one moment on a canvas the size of the visible one: the screen, or a GIF frame.

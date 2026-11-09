@@ -43,6 +43,30 @@ export function killFeed(events: readonly TimelineEvent[], now: number): Timelin
   return out.slice(-FEED_MAX);
 }
 
+export type KillMark = { short: string; label: string };
+
+/**
+ * How a kill was made, as the feed marks it. The parser records all but the
+ * air, which comes from the killer's sample at the kill: `airborne`.
+ */
+export function killMarks(event: TimelineEvent['event'], airborne: boolean): KillMark[] {
+  const marks: [boolean | undefined, KillMark][] = [
+    [event.headshot, { short: 'HS', label: 'Disparo a la cabeza' }],
+    [event.wallbang, { short: 'WB', label: 'A través de una pared' }],
+    [event.through_smoke, { short: 'Humo', label: 'A través de un humo' }],
+    [event.no_scope, { short: 'Sin mira', label: 'Sin apuntar con la mira' }],
+    [airborne, { short: 'Aire', label: 'Desde el aire' }],
+    [event.attacker_blind, { short: 'Cegado', label: 'Con el tirador cegado' }],
+  ];
+  return marks.filter(([on]) => on === true).map(([, mark]) => mark);
+}
+
+/** Whether a slot was in the air in these samples, the frame of a kill. */
+export function airborneIn(samples: readonly Pick<TacticalSample, 'slot' | 'flags'>[], slot: number | undefined): boolean {
+  const sample = slot === undefined ? undefined : samples.find((entry) => entry.slot === slot);
+  return sample !== undefined && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.airborne);
+}
+
 /** Living players by side in one frame. */
 export function aliveCounts(samples: readonly Pick<TacticalSample, 'flags'>[]): Record<TacticalSide, number> {
   const out: Record<TacticalSide, number> = { CT: 0, T: 0 };

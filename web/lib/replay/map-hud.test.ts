@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalEvent } from '../api/tactical.ts';
 import type { TimelineEvent } from '../tactical-timeline.ts';
-import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, postPlantSpan } from './map-hud.ts';
+import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, postPlantSpan } from './map-hud.ts';
 
 function at(kind: TacticalEvent['kind'], seconds: number, site?: TacticalEvent['site']): TimelineEvent {
   return { event: { kind, tick: seconds * 64, site, pos: [0, 0, 0], target_pos: [0, 0, 0] }, seconds, fraction: 0 };
@@ -34,6 +34,20 @@ test('map hud: the feed keeps the last few seconds of kills, oldest first', () =
 test('map hud: living players are counted per side', () => {
   const { alive, sideT } = TACTICAL_SAMPLE_FLAGS;
   assert.deepEqual(aliveCounts([{ flags: alive }, { flags: alive | sideT }, { flags: sideT }, { flags: alive | sideT }]), { CT: 1, T: 2 });
+});
+
+test('map hud: the feed marks how each kill was made, the air read from the killer', () => {
+  const kill = { ...at('kill', 10).event, actor_slot: 3, headshot: true, through_smoke: true, attacker_blind: true };
+  assert.deepEqual(
+    killMarks(kill, true).map((mark) => mark.short),
+    ['HS', 'Humo', 'Aire', 'Cegado'],
+  );
+  assert.deepEqual(killMarks(at('kill', 10).event, false), []);
+  const { alive, airborne } = TACTICAL_SAMPLE_FLAGS;
+  const samples = [{ slot: 3, flags: alive | airborne }, { slot: 4, flags: alive }];
+  assert.equal(airborneIn(samples, 3), true);
+  assert.equal(airborneIn(samples, 4), false);
+  assert.equal(airborneIn(samples, undefined), false);
 });
 
 test('map hud: the clock shows whole seconds', () => {

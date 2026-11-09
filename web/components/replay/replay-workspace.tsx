@@ -18,11 +18,13 @@ import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
 import { frameDue, loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
+import { namesShown, toggleNames } from '@/lib/replay/map-settings';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { TramoControl } from './tramo-bar';
 import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
+import type { ReplayShortcut } from '@/lib/replay/shortcut-keys';
 import {
   SEEK_STEP_SECONDS,
   clampToTimeline,
@@ -37,7 +39,8 @@ import { noteVisibleAt } from '@/lib/tactical-spatial';
 import { useMatchAnalyses } from '@/hooks/use-match-analyses';
 import type { MatchAnalysis } from '@/hooks/use-match-analyses';
 import { RoundPlayActions } from '@/components/stratbook/round-play-actions';
-import { useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import { chooseDrawMode, useTelestratorDraft } from '@/components/tactical/spatial/telestrator';
+import type { DrawMode, TelestratorDraft } from '@/components/tactical/spatial/telestrator';
 import { useAnnotations } from '@/components/tactical/spatial/annotation-panel';
 import type { AnnotationStore, NoteItem } from '@/components/tactical/spatial/annotation-panel';
 import { Button } from '@/components/ui/button';
@@ -136,9 +139,6 @@ export function ReplayWorkspace({
   const [loop, setLoop] = useState(false);
   const [ownLayers, setLayers] = useState<ReplayLayers>(DEFAULT_LAYERS);
   const [multi, setMulti] = useState(false);
-  // One round and the superposed rounds keep their own Nombres chip.
-  const [multiNames, setMultiNames] = useState(true);
-  const layers = useMemo(() => (multi ? { ...ownLayers, names: multiNames } : ownLayers), [multi, multiNames, ownLayers]);
   const captureRef = useRef<MapCapture | null>(null);
   // The span the superposed rounds play in; one round alone plays whole.
   const [ownTramo, setOwnTramo] = useState<Tramo>(WHOLE_ROUND);
@@ -150,6 +150,8 @@ export function ReplayWorkspace({
   const focus = players?.focus ?? ownFocus;
   const setFocus = players?.onChange ?? setOwnFocus;
   const [mapSettings, setMapSettings] = useMapSettings();
+  const namesOn = namesShown(mapSettings, multi);
+  const layers = useMemo(() => ({ ...ownLayers, names: namesOn }), [namesOn, ownLayers]);
   const [folds, toggleFold] = usePanelFolds();
   const playlist = useSavedPlaylists({ enabled: library, openId: openPlaylistId });
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
@@ -403,7 +405,9 @@ export function ReplayWorkspace({
       const slot = focus[0] ?? followSlot;
       setFollowSlot(followSlot !== null && followSlot === slot ? null : slot);
     } else if (shortcut === 'fold-left' || shortcut === 'fold-right') toggleFold(shortcut === 'fold-left' ? 'left' : 'right');
-    else if (shortcut === 'gif') {
+    else if (shortcut.startsWith('tool-') || shortcut === 'undo-stroke') {
+      if (library) drawShortcut(draft, shortcut);
+    } else if (shortcut === 'gif') {
       // The first G shows the tramo that goes in; the second records it.
       if (gif.open) gif.start();
       else gif.toggle();
@@ -615,7 +619,7 @@ export function ReplayWorkspace({
           onSettings={setMapSettings}
           twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
           layers={layers}
-          onToggleLayer={(key) => (multi && key === 'names' ? setMultiNames((value) => !value) : setLayers((value) => toggleLayer(value, key)))}
+          onToggleLayer={(key) => (key === 'names' ? setMapSettings(toggleNames(mapSettings, multi)) : setLayers((value) => toggleLayer(value, key)))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
           draft={library ? draft : null}
           gif={{ open: gif.open, onToggle: gif.toggle }}
@@ -650,6 +654,7 @@ export function ReplayWorkspace({
               focused={focused}
               roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
               eventsOpen={eventsOpen}
+              showFeed={mapSettings.show.killfeed}
               onToggleEvents={() => setEventsOpen((value) => !value)}
               onSeek={(seconds) => {
                 setPlaying(false);
@@ -791,6 +796,16 @@ export function ReplayWorkspace({
       <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
   );
+}
+
+const DRAW_KEYS: Partial<Record<ReplayShortcut, DrawMode>> = { 'tool-move': 'move', 'tool-draw': 'draw', 'tool-arrow': 'arrow', 'tool-erase': 'erase' };
+
+/** H, D, A and E pick the map's tool as its buttons do; T turns timed strokes on or off; Z undoes. */
+function drawShortcut(draft: TelestratorDraft, shortcut: ReplayShortcut): void {
+  const mode = DRAW_KEYS[shortcut];
+  if (mode !== undefined) chooseDrawMode(draft, mode);
+  else if (shortcut === 'tool-timed') draft.setTool({ ...draft.tool, timed: !draft.tool.timed });
+  else if (shortcut === 'undo-stroke') draft.undo();
 }
 
 function CentreState({

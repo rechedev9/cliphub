@@ -29,6 +29,15 @@ const MAP: readonly Shortcut[] = [
   { keys: ['Arrastrar'], does: 'Mover el mapa' },
 ];
 
+const DRAW: readonly Shortcut[] = [
+  { keys: ['H'], does: 'Mover el mapa con el ratón' },
+  { keys: ['D'], does: 'Dibujar' },
+  { keys: ['A'], does: 'Dibujar una flecha' },
+  { keys: ['E'], does: 'Borrar un trazo' },
+  { keys: ['T'], does: 'Trazo temporal, que se desvanece solo' },
+  { keys: ['Z'], does: 'Deshacer el último trazo' },
+];
+
 function Keys({ keys }: { keys: readonly string[] }): ReactNode {
   return keys.map((key) => (
     <kbd key={key} className="min-w-6 rounded-sm border border-border-strong bg-surface-2 px-1.5 text-center text-meta leading-5 font-semibold text-fg-1">
@@ -72,6 +81,7 @@ export function ShortcutHelp({ open, onOpenChange }: { open: boolean; onOpenChan
         </DialogHeader>
         <Group title="Reproducción" items={PLAYBACK} />
         <Group title="Mapa" items={MAP} />
+        <Group title="Dibujo, en las partidas de la biblioteca" items={DRAW} />
       </DialogContent>
     </Dialog>
   );

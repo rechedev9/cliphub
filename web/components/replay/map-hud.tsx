@@ -6,7 +6,7 @@ import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { docNames } from '@/lib/replay/centre-round';
-import { BOMB_SECONDS, aliveCounts, bombState, hudClock, killFeed, teamNamesFor } from '@/lib/replay/map-hud';
+import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, teamNamesFor } from '@/lib/replay/map-hud';
 import type { BombState } from '@/lib/replay/map-hud';
 import { opponentSide, siteLabel } from '@/lib/tactical-labels';
 import { frameCursor } from '@/lib/tactical-replay';
@@ -33,8 +33,11 @@ export function MapHud({
   eventsOpen,
   onToggleEvents,
   onSeek,
+  showFeed,
 }: {
   focused: CentreRound;
+  /** Feed de bajas in Ajustes del mapa. */
+  showFeed: boolean;
   /** The playhead in seconds on the focused round's own bar. */
   roundSeconds: number;
   eventsOpen: boolean;
@@ -49,7 +52,11 @@ export function MapHud({
   const cursor = frameCursor(focused.frames, tick);
   const alive = aliveCounts(cursor === undefined ? [] : (focused.frames[cursor.index]?.samples ?? []));
   const bomb = bombState(allEvents, roundSeconds);
-  const feed = killFeed(focused.events, roundSeconds);
+  const feed = showFeed ? killFeed(focused.events, roundSeconds) : [];
+  const airborneAt = (at: number, slot: number | undefined): boolean => {
+    const killCursor = frameCursor(focused.frames, at);
+    return airborneIn(killCursor === undefined ? [] : (focused.frames[killCursor.index]?.samples ?? []), slot);
+  };
   const score: Record<TacticalSide, number> = { CT: focused.round.score_ct_before, T: focused.round.score_t_before };
 
   return (
@@ -96,8 +103,11 @@ export function MapHud({
                 >
                   <span className={cn('truncate', SIDE_TEXT[killer])}>{names.get(event.actor_slot ?? -1) ?? 'alguien'}</span>
                   {event.weapon ? <EquipmentIcon name={event.weapon} active className="shrink-0" /> : null}
-                  {event.headshot ? <span className="shrink-0 text-white/70" title="Disparo a la cabeza">HS</span> : null}
-                  {event.wallbang ? <span className="shrink-0 text-white/70" title="A través de una pared">WB</span> : null}
+                  {killMarks(event, airborneAt(event.tick, event.actor_slot)).map((mark) => (
+                    <span key={mark.short} className="shrink-0 text-white/70" title={mark.label}>
+                      {mark.short}
+                    </span>
+                  ))}
                   <span className={cn('truncate', SIDE_TEXT[opponentSide(killer)])}>{names.get(event.target_slot ?? -1) ?? 'alguien'}</span>
                 </li>
               );
