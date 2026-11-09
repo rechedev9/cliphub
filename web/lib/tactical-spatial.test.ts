@@ -6,6 +6,7 @@ import { worldToRendered } from './tactical-transform.ts';
 import {
   arrowHead,
   elapsedLabel,
+  heatColor,
   heatStrength,
   heatmapCellAt,
   heatmapLayer,
@@ -73,6 +74,13 @@ test('a heatmap layer is one side and level with its own scale', () => {
   assert.deepEqual(heatmapLevels(HEATMAP), ['default', 'lower']);
   assert.equal(heatmapSide(HEATMAP, ''), 'T');
   assert.equal(heatmapSide(HEATMAP, 'CT'), 'CT');
+});
+
+test('the heat scale runs from green to yellow and clamps', () => {
+  assert.equal(heatColor(0), 'rgb(34 160 92)');
+  assert.equal(heatColor(1), 'rgb(250 224 60)');
+  assert.equal(heatColor(-1), heatColor(0));
+  assert.equal(heatColor(4), heatColor(1));
 });
 
 test('the cell under a world point uses the floor of each axis', () => {
