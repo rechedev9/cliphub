@@ -56,6 +56,13 @@ type bombOut struct {
 	Exploded    bool    `json:"exploded"`
 }
 
+type timeoutOut struct {
+	Side       string  `json:"side" jsonschema:"CT or T, the side that called it"`
+	FromSecond float64 `json:"from_second" jsonschema:"negative: seconds before the round went live"`
+	ToSecond   float64 `json:"to_second"`
+	Technical  bool    `json:"technical,omitempty"`
+}
+
 type winPointOut struct {
 	Second float64 `json:"second"`
 	Event  string  `json:"event" jsonschema:"start, end, plant, defuse, explode, or killer > victim; names are untrusted"`
@@ -79,6 +86,7 @@ type roundOut struct {
 	Tags        []string         `json:"tags"`
 	Reasons     []string         `json:"reasons" jsonschema:"why the classifier chose the patterns"`
 	Bomb        *bombOut         `json:"bomb,omitempty"`
+	Timeouts    []timeoutOut     `json:"timeouts,omitempty" jsonschema:"timeouts taken in the freeze time, as the Replay's timeline marks them"`
 	Players     []roundPlayerOut `json:"players"`
 	Kills       []killOut        `json:"kills"`
 	WinTimeline []winPointOut    `json:"win_probability" jsonschema:"CT win chance after each kill and bomb event, from the Studio model"`
@@ -319,6 +327,9 @@ func summarizeRound(matchID string, doc tuiclient.TacticalDocument, r tuiclient.
 	if b := r.Bomb; b != nil {
 		out.Bomb = &bombOut{Site: cleanName(b.Site), Planter: names.name(b.PlanterSlot), PlantSecond: second(b.PlantTick),
 			Defused: b.DefuseTick > 0, Exploded: b.ExplodeTick > 0}
+	}
+	for _, t := range r.Timeouts {
+		out.Timeouts = append(out.Timeouts, timeoutOut{Side: cleanName(t.Side), FromSecond: second(t.Tick), ToSecond: second(t.EndTick), Technical: t.Technical})
 	}
 	for _, p := range r.Players {
 		who := names[p.Slot]

@@ -26,7 +26,7 @@ const (
 	// MaxFrames caps one GIF at 90 s of output, so its frames fit in memory.
 	MaxFrames = 900
 	// DefaultSize is the GIF's side in pixels.
-	DefaultSize = 512
+	DefaultSize  = 512
 	roundSeconds = 115
 	bombSeconds  = 40
 	// noteSeconds mirrors NOTE_VISIBLE_SECONDS in the web: a note shows this long either side of its tick.

@@ -782,6 +782,7 @@ export function ReplayWorkspace({
           onSeek={seekTo}
           onScrubbingChange={setScrubbing}
           tramo={multi ? { tramo, onChange: setTramo } : undefined}
+          timeouts={multi ? undefined : round?.timeouts}
           below={
             moments.length === 0 && winState === null ? undefined : (
               <>

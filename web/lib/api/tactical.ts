@@ -304,7 +304,12 @@ export type TacticalRound = {
   events: TacticalEvent[];
   /** Damage dealt to enemies in tick order; absent on analyses before version 6. */
   hits?: TacticalHit[];
+  /** Timeouts taken in the freeze time, in tick order; absent before version 10. */
+  timeouts?: TacticalTimeout[];
 };
+
+/** A timeout one side called (`tacticalplan.Timeout`), until the freeze countdown resumed. */
+export type TacticalTimeout = { side: TacticalSide; tick: number; end_tick: number; technical?: boolean };
 
 /** Damage one player dealt to an enemy (`tacticalplan.Hit`); a spray within 0.25 s is one hit. */
 export type TacticalHit = { tick: number; actor_slot: number; target_slot: number; damage: number; weapon?: string; headshot?: boolean };

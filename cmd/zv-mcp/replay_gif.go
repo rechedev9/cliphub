@@ -149,4 +149,3 @@ func drawnNotes(notes []replaygif.Note) int {
 	}
 	return n
 }
-

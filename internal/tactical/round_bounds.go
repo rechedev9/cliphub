@@ -22,7 +22,7 @@ const freezeSlackSeconds = 3
 // settleFreeze fixes a round's freeze band against the server's freeze time.
 // A missing freeze end is estimated from it; a freeze longer than it by more
 // than slack (the halftime break, FACEIT's wait before going live) loses its
-// head, with the frames and events in it.
+// head, with the frames and events in it. A timeout keeps its part of the freeze.
 func (r *roundAcc) settleFreeze(freezeTicks, slackTicks int) freezeSettle {
 	if freezeTicks <= 0 {
 		return freezeKept
@@ -34,7 +34,14 @@ func (r *roundAcc) settleFreeze(freezeTicks, slackTicks int) freezeSettle {
 	if r.tickFreezeEnd-r.tickStart <= freezeTicks+slackTicks {
 		return freezeKept
 	}
-	r.tickStart = r.tickFreezeEnd - freezeTicks
+	start := r.tickFreezeEnd - freezeTicks
+	if len(r.timeouts) > 0 {
+		start = min(start, r.timeouts[0].Tick)
+	}
+	if start <= r.tickStart {
+		return freezeKept
+	}
+	r.tickStart = start
 	r.frames = slices.DeleteFunc(r.frames, func(f tacticalplan.Frame) bool { return f.Tick < r.tickStart })
 	r.events = slices.DeleteFunc(r.events, func(e tacticalplan.Event) bool { return e.Tick < r.tickStart })
 	return freezeTrimmed

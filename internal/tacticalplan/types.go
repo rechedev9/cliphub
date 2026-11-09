@@ -29,9 +29,10 @@ const SchemaVersion = "1.0"
 // mark a player defusing; 7: overtime keeps the sides regulation ended on;
 // 8: Cache uses its shipped radar calibration instead of a derived one;
 // 9: dropped bombs, utility end ticks, no freeze time deaths, halftime and
-// pre-live waits cut from the round start).
+// pre-live waits cut from the round start; 10: timeouts, which keep their part
+// of the freeze time).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 9
+const AnalysisVersion = 10
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -241,6 +242,17 @@ type Round struct {
 	// Hits is the damage dealt to enemies, in tick order. Analyses before
 	// version 6 lack it.
 	Hits []Hit `json:"hits,omitempty"`
+	// Timeouts are the timeouts taken in the round's freeze time, in tick order.
+	Timeouts []Timeout `json:"timeouts,omitempty"`
+}
+
+// Timeout is a timeout one side called, tactical or technical, from its start
+// to the tick play resumed the freeze countdown.
+type Timeout struct {
+	Side      Side `json:"side"`
+	Tick      int  `json:"tick"`
+	EndTick   int  `json:"end_tick"`
+	Technical bool `json:"technical,omitempty"`
 }
 
 // Hit is damage one player dealt to an enemy. Hits of the same pair and weapon

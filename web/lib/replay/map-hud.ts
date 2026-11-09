@@ -1,6 +1,7 @@
 import { TACTICAL_EVENT_KINDS, TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '../api/tactical.ts';
-import type { TacticalDocument, TacticalRound, TacticalSample, TacticalSide, TacticalSite } from '../api/tactical.ts';
-import type { TimelineEvent } from '../tactical-timeline.ts';
+import type { TacticalDocument, TacticalRound, TacticalSample, TacticalSide, TacticalSite, TacticalTimeout } from '../api/tactical.ts';
+import { timelineSeconds } from '../tactical-timeline.ts';
+import type { RoundTimeline, TimelineEvent } from '../tactical-timeline.ts';
 
 /** What the HUD over the map shows at the playhead: score bug, bomb timer and kill feed, as in the game. */
 
@@ -35,6 +36,20 @@ export function postPlantSpan(events: readonly TimelineEvent[], durationSeconds:
   const end = events.find((entry) => entry.seconds >= plant.seconds && (entry.event.kind === TACTICAL_EVENT_KINDS.defuse || entry.event.kind === TACTICAL_EVENT_KINDS.explode));
   const to = Math.min(durationSeconds, end?.seconds ?? durationSeconds);
   return to > plant.seconds ? { from: plant.seconds, to } : null;
+}
+
+export type TimeoutSpan = { from: number; to: number; side: TacticalSide; label: string };
+
+/** The round's timeouts on its bar, clipped to it, each named by the side that called it. */
+export function timeoutSpans(timeouts: readonly TacticalTimeout[], timeline: RoundTimeline): TimeoutSpan[] {
+  const out: TimeoutSpan[] = [];
+  for (const timeout of timeouts) {
+    const from = Math.max(0, timelineSeconds(timeline, timeout.tick));
+    const to = Math.min(timeline.durationSeconds, timelineSeconds(timeline, timeout.end_tick));
+    if (to <= from) continue;
+    out.push({ from, to, side: timeout.side, label: `${timeout.side} Timeout${timeout.technical === true ? ' técnico' : ''}` });
+  }
+  return out;
 }
 
 /** The kills of the last few seconds, oldest first, as the game's feed stacks them. */

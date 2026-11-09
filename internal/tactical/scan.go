@@ -170,6 +170,7 @@ type scanner struct {
 	occupancy *tacticalplan.OccupancyBuilder
 	warnings  []string
 	throws    throwLog
+	timeouts  timeoutLog
 }
 
 type playerAcc struct {
@@ -198,10 +199,11 @@ type roundAcc struct {
 	half          int
 	overtime      int
 
-	bomb    *tacticalplan.Bomb
-	economy tacticalplan.Economy
-	events  []tacticalplan.Event
-	frames  []tacticalplan.Frame
+	bomb     *tacticalplan.Bomb
+	economy  tacticalplan.Economy
+	events   []tacticalplan.Event
+	frames   []tacticalplan.Frame
+	timeouts []tacticalplan.Timeout
 
 	kills          []killRecord
 	utilityHits    []utilityHit
@@ -364,6 +366,7 @@ func (s *scanner) register() {
 		s.addUtility(tacticalplan.EventSmoke, e.GrenadeEvent)
 	})
 	s.registerLifetimes()
+	s.registerTimeouts()
 	p.RegisterEventHandler(func(e events.FlashExplode) {
 		s.addUtility(tacticalplan.EventFlash, e.GrenadeEvent)
 	})

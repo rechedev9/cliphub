@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalEvent } from '../api/tactical.ts';
+import { roundTimeline } from '../tactical-timeline.ts';
 import type { TimelineEvent } from '../tactical-timeline.ts';
-import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, postPlantSpan } from './map-hud.ts';
+import { BOMB_SECONDS, airborneIn, aliveCounts, bombState, hudClock, killFeed, killMarks, postPlantSpan, timeoutSpans } from './map-hud.ts';
 
 function at(kind: TacticalEvent['kind'], seconds: number, site?: TacticalEvent['site']): TimelineEvent {
   return { event: { kind, tick: seconds * 64, site, pos: [0, 0, 0], target_pos: [0, 0, 0] }, seconds, fraction: 0 };
@@ -22,6 +23,13 @@ test('map hud: the post-plant band runs from the plant to the defuse, the explos
   assert.deepEqual(postPlantSpan([at('plant', 50), at('explode', 90)], 100), { from: 50, to: 90 });
   assert.deepEqual(postPlantSpan([at('plant', 50)], 70), { from: 50, to: 70 });
   assert.equal(postPlantSpan([at('kill', 10)], 100), null);
+});
+
+test('map hud: a timeout is a band on the bar named by the side that called it', () => {
+  const timeline = roundTimeline({ tick_start: 63048, tick_freeze_end: 70525, tick_end: 74679, tick_official: 75000 }, 64);
+  const spans = timeoutSpans([{ side: 'T', tick: 63048, end_tick: 69565, technical: true }, { side: 'CT', tick: 60000, end_tick: 63048 }], timeline);
+  assert.deepEqual(spans, [{ from: 0, to: (69565 - 63048) / 64, side: 'T', label: 'T Timeout técnico' }]);
+  assert.equal(timeoutSpans([{ side: 'CT', tick: 63100, end_tick: 64000 }], timeline)[0]?.label, 'CT Timeout');
 });
 
 test('map hud: the feed keeps the last few seconds of kills, oldest first', () => {
