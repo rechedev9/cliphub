@@ -1,6 +1,7 @@
 package tuiclient
 
 import (
+	"bytes"
 	"context"
 	"net/url"
 	"strconv"
@@ -125,6 +126,35 @@ func (c *Client) LibraryTacticalRound(ctx context.Context, matchID string, round
 	var out TacticalRoundFrames
 	err := c.getJSON(ctx, libraryMatchPath(matchID)+"/tactical/rounds/"+strconv.Itoa(round), &out)
 	return out, err
+}
+
+// MapRadar returns CS2's overview image of a map as PNG, read from the user's
+// install; a 404 APIError means Studio has no radar for it.
+func (c *Client) MapRadar(ctx context.Context, mapName string) ([]byte, error) {
+	var buf bytes.Buffer
+	_, err := c.stream(ctx, "/api/maps/"+url.PathEscape(mapName)+"/radar", &buf)
+	return buf.Bytes(), err
+}
+
+// RoundNote is a saved note of a round: its tick and its drawing.
+type RoundNote struct {
+	Tick    int `json:"tick"`
+	Strokes []struct {
+		Color  string       `json:"color"`
+		Width  int          `json:"width"`
+		Arrow  bool         `json:"arrow"`
+		Points [][2]float64 `json:"points"`
+	} `json:"strokes"`
+}
+
+// LibraryRoundNotes lists the notes saved on one round of a library match.
+func (c *Client) LibraryRoundNotes(ctx context.Context, matchID string, round int) ([]RoundNote, error) {
+	var out struct {
+		Annotations []RoundNote `json:"annotations"`
+	}
+	q := url.Values{"match_id": {matchID}, "round": {strconv.Itoa(round)}}
+	err := c.getJSON(ctx, "/api/library/annotations?"+q.Encode(), &out)
+	return out.Annotations, err
 }
 
 // RoundLineups is GET /api/library/matches/{id}/tactical/rounds/{round}/lineups:
