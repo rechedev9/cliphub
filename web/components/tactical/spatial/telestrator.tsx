@@ -151,7 +151,7 @@ function StrokeShape({
 }
 
 /** Whether a stroke belongs on a floor's pane; a stroke drawn with one floor on screen sits on the upper pane. */
-function onLevel(stroke: Stroke, level: RadarLevel | undefined): boolean {
+export function onLevel(stroke: Stroke, level: RadarLevel | undefined): boolean {
   return level === undefined || (stroke.level ?? RADAR_LEVELS.default) === level;
 }
 

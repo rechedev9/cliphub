@@ -81,6 +81,8 @@ export function replayShortcut(press: ReplayKey): ReplayShortcut | null {
   if (press.metaKey) return null;
   if ((press.ctrlKey || press.altKey) && !(altGraph && character)) return null;
   if (press.key === 'Escape') return 'escape';
+  // Supr picks the eraser too, as in the owner's key table; E stays.
+  if (press.key === 'Delete') return 'tool-erase';
   if (press.key === '/' && press.shiftKey) return 'help';
   return CHARACTER_KEYS[press.key] ?? arrow(press.key, press.shiftKey);
 }

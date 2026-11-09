@@ -33,7 +33,7 @@ const DRAW: readonly Shortcut[] = [
   { keys: ['H'], does: 'Mover el mapa con el ratón' },
   { keys: ['D'], does: 'Dibujar' },
   { keys: ['A'], does: 'Dibujar una flecha' },
-  { keys: ['E'], does: 'Borrar un trazo' },
+  { keys: ['E'], or: ['Supr'], does: 'Borrar un trazo' },
   { keys: ['T'], does: 'Trazo temporal, que se desvanece solo' },
   { keys: ['Z'], does: 'Deshacer el último trazo' },
 ];

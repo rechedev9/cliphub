@@ -1,25 +1,30 @@
 import { GIFEncoder, applyPalette, quantize } from 'gifenc';
 import type { GifPalette } from 'gifenc';
 import type { Stroke } from '@/lib/api/spatial';
-import type { RadarCalibration } from '@/lib/api/tactical';
+import type { RadarCalibration, RadarLevel } from '@/lib/api/tactical';
 import { GIF_COLORS, GIF_TRANSPARENT, gifPalette, gifSize, keepChanged, paletteSample } from '@/lib/replay/replay-gif';
 import type { GifFrame } from '@/lib/replay/replay-gif';
 import { arrowHeadPoints } from '@/lib/tactical-spatial';
 import type { RadarProjection } from '@/lib/tactical-spatial';
 import { worldToRendered } from '@/lib/tactical-transform';
-import { STROKE_VAR, strokeWidthPx } from '@/components/tactical/spatial/telestrator';
+import { STROKE_VAR, onLevel, strokeWidthPx } from '@/components/tactical/spatial/telestrator';
 
 /** What the map hands the GIF: a way to draw any moment off screen, framed as it is on screen. */
 export type MapCapture = {
   box: { width: number; height: number };
-  projection: RadarProjection;
   calibration: RadarCalibration;
   /** A design token's value on the map, such as `--side-ct`. */
   token: (name: string) => string;
   fontFamily: string;
-  /** The map at `seconds` on the transport's clock, at the visible canvas's pixel size; null when it cannot draw. */
-  paint: (seconds: number) => HTMLCanvasElement | null;
+  /**
+   * The map at `seconds` on the transport's clock, at the visible canvas's pixel size, with each
+   * floor pane's projection for the drawings; null when it cannot draw. Called in frame order.
+   */
+  paint: (seconds: number) => { canvas: HTMLCanvasElement; panes: MapPane[] } | null;
 };
+
+/** One floor's pane of a frame; `level` is undefined when one pane shows the whole map. */
+export type MapPane = { level: RadarLevel | undefined; projection: RadarProjection };
 
 /** What goes over the map in each frame: the drawings on screen at that moment and the HUD's line. */
 export type GifOverlay = { strokesAt: (seconds: number) => readonly Stroke[]; captionAt: (seconds: number) => string };
@@ -38,9 +43,12 @@ function cssColor(value: string, capture: MapCapture): string {
   return resolved === '' ? HUD_TEXT : resolved;
 }
 
-function drawStrokes(ctx: CanvasRenderingContext2D, strokes: readonly Stroke[], capture: MapCapture): void {
-  const { calibration, projection } = capture;
+function drawStrokes(ctx: CanvasRenderingContext2D, strokes: readonly Stroke[], frame: { capture: MapCapture; pane: MapPane }): void {
+  const { capture, pane } = frame;
+  const { calibration } = capture;
+  const { projection } = pane;
   for (const stroke of strokes) {
+    if (!onLevel(stroke, pane.level)) continue;
     const points = stroke.points.map(([x, y]) => {
       const p = worldToRendered(calibration, x, y, projection.size);
       return { x: p.x + projection.offsetX, y: p.y + projection.offsetY };
@@ -122,9 +130,10 @@ export async function encodeReplayGif(options: {
     const map = capture.paint(seconds);
     if (map === null) throw new Error('the map could not draw');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(map, 0, 0, size.width, size.height);
+    ctx.drawImage(map.canvas, 0, 0, size.width, size.height);
     ctx.setTransform(size.scale, 0, 0, size.scale, 0, 0);
-    drawStrokes(ctx, overlay.strokesAt(seconds), capture);
+    const strokes = overlay.strokesAt(seconds);
+    for (const pane of map.panes) drawStrokes(ctx, strokes, { capture, pane });
     drawCaption(ctx, overlay.captionAt(seconds), capture);
     return ctx.getImageData(0, 0, size.width, size.height).data;
   };
