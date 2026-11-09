@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import type { Match, Play } from '@/lib/api/types';
 import { flowHref, PRODUCE_FORMAT, RESULTS_HREF, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
@@ -148,9 +149,10 @@ export function FullPovProducer({ active, matchId, match, rounds: recap, recBusy
     try {
       const planned = document && fullDemoApprovalKey(document, options) ? document : await saveCurrentPlan(controller.signal);
       if (controller.signal.aborted) return;
-      await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
+      const video = await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
-      toast('Demo completa en cola', fullDemoQueueToast(recBusy, planned.warnings));
+      if (video.status === 'failed') toast.error('La demo completa no ha empezado', { description: parseFailureReason(video.failureReason, { fullDemo: true }).message });
+      else toast('Demo completa en cola', fullDemoQueueToast(recBusy, planned.warnings));
       router.push(doneHref);
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }

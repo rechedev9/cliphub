@@ -77,3 +77,24 @@ func TestSiblingsOfRenderVideo(t *testing.T) {
 		t.Fatal("a file outside videos/ has no siblings")
 	}
 }
+
+func TestScanStudioListsAHardLinkedDemoOnce(t *testing.T) {
+	dataDir := t.TempDir()
+	library := filepath.Join(dataDir, "library", "l1", "demo.dem")
+	writeFile(t, library, "the same demo")
+	if err := os.MkdirAll(filepath.Join(dataDir, "demos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(library, filepath.Join(dataDir, "demos", "j1.dem")); err != nil {
+		t.Skipf("hard links unsupported here: %v", err)
+	}
+	writeFile(t, filepath.Join(dataDir, "library", "l2", "demo.dem"), "other demo")
+
+	files, err := ScanStudio(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("got %d files, want the linked demo once plus the other: %+v", len(files), files)
+	}
+}

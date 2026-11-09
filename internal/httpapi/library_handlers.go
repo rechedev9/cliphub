@@ -317,7 +317,8 @@ func (h *Handlers) importLibraryDemo(ctx context.Context, src io.Reader, rawName
 	}
 	if err := counted.checkLength(); err != nil {
 		h.discardLibraryDemo(id)
-		log.Printf("httpapi: refuse library demo code=%s: %v", codeTruncatedDemo, err)
+		// The same shape as every other refusal; the parser error already starts with the code.
+		log.Printf("httpapi: refuse library demo %q code=%s: %s", name, codeTruncatedDemo, strings.TrimPrefix(err.Error(), codeTruncatedDemo+": "))
 		result.ErrorCode, result.Error = codeTruncatedDemo, "the demo file is incomplete"
 		return result, nil
 	}

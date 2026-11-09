@@ -52,36 +52,14 @@ type DemoCardProps = {
 export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): ReactNode {
   const { match, stage } = row;
   const mapName = prettyMapName(match.map);
-  const hue = mapHue(match.map);
   const parsing = stage === HUB_ROW_STAGE.parsing;
   const ready = stage === HUB_ROW_STAGE.ready;
   const made = madeCount(row, format);
   const meta = matchMetaParts(match, '').filter((part) => part !== '');
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 transition-colors duration-(--dur-fast) hover:border-border-strong">
-      <div className="relative flex h-33 flex-col justify-between overflow-hidden bg-surface-3 px-4 py-3.5">
-        <span aria-hidden className="absolute inset-0">
-          <MapCover map={match.map} />
-          <span className="absolute inset-0">
-            <CoverImage src={match.thumbnailUrl} />
-          </span>
-        </span>
-        <span aria-hidden className={cn('absolute inset-0', hue.tint)} />
-        <span aria-hidden className="absolute inset-0 bg-linear-to-t from-surface-2/90 via-surface-2/30 to-surface-2/60" />
-        {parsing ? <span aria-hidden className="absolute inset-0 bg-[repeating-linear-gradient(-45deg,transparent_0_8px,var(--surface-5)_8px_16px)] opacity-40" /> : null}
-        <span aria-hidden className={cn('pointer-events-none absolute -right-2 -bottom-9 select-none font-display text-[150px] font-black leading-none tracking-[-0.06em] opacity-15', hue.text)}>
-          {mapName.charAt(0)}
-        </span>
-        <div className="relative flex items-center justify-between gap-2">
-          <ResultBadge row={row} />
-          <span className="truncate text-meta text-fg-2">{matchDateLabel(match)}</span>
-        </div>
-        <div className="relative flex items-baseline justify-between gap-2">
-          <h3 className="min-w-0 truncate font-display text-[1.875rem] font-extrabold leading-none tracking-[-0.02em] text-fg-1">{mapName}</h3>
-          <Score score={match.score} />
-        </div>
-      </div>
+    <DemoCardFrame>
+      <DemoCover map={match.map} thumbnailUrl={match.thumbnailUrl} striped={parsing} badge={<ResultBadge row={row} />} dateLabel={matchDateLabel(match)} score={match.score} />
 
       <div className="flex flex-1 flex-col gap-2.5 px-4 pt-3.5 pb-4">
         {meta.length > 0 ? <p className="text-body-sm wrap-anywhere text-fg-2">{meta.join(' · ')}</p> : null}
@@ -102,7 +80,54 @@ export function DemoCard({ row, format, onChange, onDelete }: DemoCardProps): Re
           <DeleteMatchButton label={mapName} confirmText={demoDeletePrompt(row)} onConfirm={onDelete} onDeleted={onChange} messageBelow />
         </div>
       </div>
+    </DemoCardFrame>
+  );
+}
+
+export function DemoCardFrame({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <article className="flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 transition-colors duration-(--dur-fast) hover:border-border-strong">
+      {children}
     </article>
+  );
+}
+
+type DemoCoverProps = {
+  map: string;
+  thumbnailUrl?: string | undefined;
+  striped?: boolean;
+  badge?: ReactNode;
+  dateLabel: string;
+  score: string;
+};
+
+/** The card's top: the map cover (or the demo's thumbnail) under the map tint, with the map, date and score. */
+export function DemoCover({ map, thumbnailUrl, striped = false, badge, dateLabel, score }: DemoCoverProps): ReactNode {
+  const mapName = prettyMapName(map);
+  const hue = mapHue(map);
+  return (
+    <div className="relative flex h-33 flex-col justify-between overflow-hidden bg-surface-3 px-4 py-3.5">
+      <span aria-hidden className="absolute inset-0">
+        <MapCover map={map} />
+        <span className="absolute inset-0">
+          <CoverImage src={thumbnailUrl} />
+        </span>
+      </span>
+      <span aria-hidden className={cn('absolute inset-0', hue.tint)} />
+      <span aria-hidden className="absolute inset-0 bg-linear-to-t from-surface-2/90 via-surface-2/30 to-surface-2/60" />
+      {striped ? <span aria-hidden className="absolute inset-0 bg-[repeating-linear-gradient(-45deg,transparent_0_8px,var(--surface-5)_8px_16px)] opacity-40" /> : null}
+      <span aria-hidden className={cn('pointer-events-none absolute -right-2 -bottom-9 select-none font-display text-[150px] font-black leading-none tracking-[-0.06em] opacity-15', hue.text)}>
+        {mapName.charAt(0)}
+      </span>
+      <div className="relative flex items-center justify-between gap-2">
+        {badge}
+        <span className="ml-auto truncate text-meta text-fg-2">{dateLabel}</span>
+      </div>
+      <div className="relative flex items-baseline justify-between gap-2">
+        <h3 className="min-w-0 truncate font-display text-[1.875rem] font-extrabold leading-none tracking-[-0.02em] text-fg-1">{mapName}</h3>
+        <Score score={score} />
+      </div>
+    </div>
   );
 }
 

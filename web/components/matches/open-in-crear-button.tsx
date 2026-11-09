@@ -7,6 +7,7 @@ import { createJobFromLibraryDemo, type LibraryDemo } from '@/lib/api/library';
 import { MATCH_STATUS_FAILED } from '@/lib/api/types';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { flowHref, type ProduceFormat } from '@/lib/clips/routes';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 /** A job in one of these has no player picked yet, so its flow opens on the player picker. */
@@ -36,11 +37,14 @@ export function OpenInCrearButton({
   request,
   variant,
   size,
+  className,
   children,
 }: {
   request: CrearRequest;
   variant?: ButtonProps['variant'];
   size?: ButtonProps['size'];
+  /** Classes of the button itself; the wrapper grows with it in a flex row. */
+  className?: string;
   children: ReactNode;
 }): ReactNode {
   const router = useRouter();
@@ -59,8 +63,8 @@ export function OpenInCrearButton({
   }
 
   return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <Button type="button" variant={variant} size={size} loading={busy} onClick={open}>
+    <span className={cn('inline-flex flex-wrap items-center gap-2', className === undefined ? undefined : 'min-w-0 flex-1')}>
+      <Button type="button" variant={variant} size={size} loading={busy} onClick={open} className={className}>
         {children}
       </Button>
       {failed ? (

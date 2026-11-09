@@ -150,9 +150,13 @@ export function PlayerSummaryRow({
       aria-expanded={expanded}
       className="flex w-full flex-wrap items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-surface-3 @[44rem]/content:flex-nowrap sm:px-5"
     >
-      <span className="flex w-14 shrink-0 flex-col" title="Índice de sospecha, de 0 a 100">
-        <span className="text-title leading-tight font-semibold tabular-nums text-fg-1">{player.score.toFixed(0)}</span>
-        <span className="text-meta text-fg-3">sospecha</span>
+      {/* A 0-100 scale, muted on a clean verdict so it never reads as a suspicion. */}
+      <span className="flex w-14 shrink-0 flex-col" title="Índice de anomalía, de 0 a 100">
+        <span className={cn('text-title leading-tight font-semibold tabular-nums', player.verdict === ANTICHEAT_VERDICT.clean ? 'text-fg-3' : 'text-fg-1')}>
+          {player.score.toFixed(0)}
+          <span className="text-meta font-normal text-fg-3">/100</span>
+        </span>
+        <span className="text-meta text-fg-3">índice</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium text-fg-1">{player.name || player.steamid64}</span>

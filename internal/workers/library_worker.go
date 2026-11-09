@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -43,8 +44,9 @@ type libraryTreeDeleter interface {
 // an imported demo, stores the document and position blob next to the demo,
 // and records the match, its teams and its players in the library.
 type LibraryWorker struct {
-	repo    LibraryRepository
-	storage storage.Storage
+	repo     LibraryRepository
+	storage  storage.Storage
+	seriesMu sync.Mutex
 }
 
 // NewLibraryWorker returns a worker that processes library demo scans.
@@ -106,6 +108,7 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 		return scanErr
 	}
 	logWorkerArtifacts(id, tasks.TypeAnalyzeLibraryDemo, []string{artifacts.LibraryTacticalIndexKey(id), artifacts.LibraryTacticalPositionsKey(id)})
+	w.groupFaceitSeries(ctx, d)
 	return nil
 }
 

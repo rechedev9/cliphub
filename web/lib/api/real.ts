@@ -13,7 +13,7 @@ import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-r
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { customHudTheme } from '../custom-hud.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, recordAdmissionPending, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
-import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
+import { loadReelIntents, saveReelIntents, videoFromIntent, withAdmissionFailure, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type AdmissionFailure, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
 import {
@@ -38,6 +38,7 @@ import { reconcileReels } from './reconcile-batch.ts';
 import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
 import { importedVideo, importedVideoId, isImportedVideo, parseImportedVideos, type ImportedVideo } from './imported-videos.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
+import { RecentRead } from './recent-read.ts';
 import type { StorageFiles, StorageUsage } from './storage.ts';
 import { batchItemError, parseRenderView, parseStatusView, type RawRenderView, type RawStatusView, type RenderView } from './status-view.ts';
 import { playsSelectionLabel } from '../format.ts';
@@ -181,26 +182,6 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
 }
 
-function videoFromIntent(intent: ReelIntent): Video {
-  return {
-    id: intent.videoId,
-    jobId: intent.jobId,
-    title: intent.title,
-    map: intent.map,
-    score: intent.score,
-    targetName: intent.targetName,
-    mode: intent.mode,
-    variant: intent.variant,
-    songId: intent.songId,
-    musicVolume: intent.musicVolume,
-    gameVolume: intent.gameVolume,
-    editConfig: intent.editConfig,
-    status: 'queued',
-    createdAt: intent.createdAt,
-    availableForSec: 14 * 3600,
-  };
-}
-
 /** Local orchestrator client: persist intents, reconcile live status via proxy. */
 export class RealApiClient implements ApiClient {
   /** Live, derived view of each tracked reel (status/downloadUrl/failureReason). */
@@ -228,6 +209,8 @@ export class RealApiClient implements ApiClient {
   private readonly beatReads = new Map<string, Promise<unknown>>();
   /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
   private jobsListCache: ConditionalJSONCache<IndexedJob[]> | null = null;
+  /** The jobs list every poll of one beat shares; any write through `send` drops it. */
+  private readonly jobsRead = new RecentRead(() => this.fetchJobs(), { keepMs: 1000 });
   /** Delivered renders with no local intent (see recovered-renders.ts); read-only. */
   private readonly recovered = new Map<string, RecoveredVideo>();
   /** Job status each job's renders were last read at; a status change re-reads them. */
@@ -240,6 +223,7 @@ export class RealApiClient implements ApiClient {
     for (const intent of loadReelIntents()) {
       this.intents.set(intent.videoId, intent);
       this.reels.set(intent.videoId, videoFromIntent(intent));
+      if (intent.admissionFailure !== undefined) this.driveLatch.set(intent.videoId, intent.admissionFailure);
     }
   }
 
@@ -252,6 +236,7 @@ export class RealApiClient implements ApiClient {
   private async send(build: (dp: DataPlane) => { url: string; init?: RequestInit }): Promise<Response> {
     const dp = this.dp();
     const { url, init } = build(dp);
+    if (init?.method !== undefined && init.method !== 'GET') this.jobsRead.drop();
     const headers = { ...dp.headers, ...((init?.headers as Record<string, string> | undefined) ?? {}) };
     return fetch(url, { ...init, headers });
   }
@@ -271,14 +256,9 @@ export class RealApiClient implements ApiClient {
    * constructor asks for the match, the Short plays and the recap rounds at the
    * same time; they all need `/status` first and two of them need the same kill
    * plan, so this turns a beat into one status read plus one document wave
-   * instead of three independent status → document waterfalls.
-   *
-   * The promise is dropped the moment it settles, so nothing is ever served
-   * from an earlier beat. That is deliberate: re-picking a POV rewrites the
-   * kill plan while the job walks parsed → parsing → parsed, so a memo keyed on
-   * the job (or on the job and its status) would hand out the previous target's
-   * kills. Sharing only what is still open cannot return anything older than a
-   * request issued right now.
+   * instead of three independent status → document waterfalls. The promise is dropped the moment it settles: re-picking a POV rewrites the
+   * kill plan while the job walks parsed → parsing → parsed, so any memo past
+   * that would hand out the previous target's kills.
    */
   private sharedRead<T>(key: string, read: () => Promise<T>): Promise<T> {
     const open = this.beatReads.get(key) as Promise<T> | undefined;
@@ -313,7 +293,7 @@ export class RealApiClient implements ApiClient {
     // series_id rides the multipart body so the orchestrator groups the scan.
     if (opts?.seriesId) form.append(dp.scanSeriesField, opts.seriesId);
     const scanned = await readJson<unknown>(
-      await uploadForm({ url: dp.scanUrl, body: form, headers: dp.headers, onProgress: opts?.onUploadProgress }),
+      await uploadForm({ url: dp.scanUrl, body: form, headers: dp.headers, onProgress: opts?.onUploadProgress }).finally(() => this.jobsRead.drop()),
     );
     const jobId = dp.scanJobId(scanned);
 
@@ -541,8 +521,8 @@ export class RealApiClient implements ApiClient {
     this.intents.set(videoId, intent);
     saveReelIntents(Array.from(this.intents.values()));
     this.reels.set(videoId, videoFromIntent(intent));
-    void this.reconcile();
-    return { ...videoFromIntent(intent) };
+    await this.reconcileOne(intent).catch(() => undefined); // this reel's first POST, so a refused start reads as failed
+    return { ...(this.reels.get(videoId) ?? videoFromIntent(intent)) };
   }
 
   async listVideos(): Promise<Video[]> {
@@ -575,7 +555,7 @@ export class RealApiClient implements ApiClient {
       }
     }
     if (this.imported.length === 0) return [];
-    const jobs = await this.sharedRead('jobs', () => this.fetchJobs()).catch((): IndexedJob[] => []);
+    const jobs = await this.jobsRead.get().catch((): IndexedJob[] => []);
     const dp = dataPlane();
     return this.imported.map((video) => importedVideo(video, dp.importedVideoUrl(video.cloudJobId, video.name), jobs));
   }
@@ -587,7 +567,7 @@ export class RealApiClient implements ApiClient {
   private async recoverServerRenders(): Promise<void> {
     let jobs: IndexedJob[];
     try {
-      jobs = await this.sharedRead('jobs', () => this.fetchJobs());
+      jobs = await this.jobsRead.get();
     } catch {
       return;
     }
@@ -893,6 +873,14 @@ export class RealApiClient implements ApiClient {
   private forgetDriveState(videoId: string): void {
     this.redrivenRevisions.delete(videoId);
     this.driveLatch.delete(videoId);
+    this.keepAdmissionFailure(videoId, undefined);
+  }
+
+  private keepAdmissionFailure(videoId: string, failure: AdmissionFailure | undefined): void {
+    const intent = this.intents.get(videoId);
+    if (intent === undefined || (failure === undefined && intent.admissionFailure === undefined)) return;
+    this.intents.set(videoId, withAdmissionFailure(intent, failure));
+    saveReelIntents(Array.from(this.intents.values()));
   }
 
   /** Reconcile non-terminal reels against the orchestrator and drive the next step. */
@@ -1015,7 +1003,7 @@ export class RealApiClient implements ApiClient {
     this.applyView(intent, decision.view);
     if (decision.view.action === 'none') return;
     const redriveFrom = decision.mismatchRedrive === 'drive' ? { artifactPrefix: render.artifactPrefix } : undefined;
-    void this.drive(intent, decision.view.action, redriveFrom);
+    await this.drive(intent, decision.view.action, redriveFrom);
   }
 
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
@@ -1123,6 +1111,7 @@ export class RealApiClient implements ApiClient {
       if (view === null) return;
       if (isDurableAdmissionFailure(view)) {
         this.driveLatch.set(intent.videoId, { failureReason: view.failureReason, retryAction: action });
+        this.keepAdmissionFailure(intent.videoId, { failureReason: view.failureReason, retryAction: action });
       }
       this.applyView(intent, view);
     } catch {
@@ -1251,18 +1240,18 @@ export class RealApiClient implements ApiClient {
   }
   /** Persisted jobs as Partidas rows; roster enrichment is best-effort. */
   async listMatches(): Promise<Match[]> {
-    const jobs = await this.fetchJobs();
+    const jobs = await this.jobsRead.get();
     return Promise.all(listableJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
   }
 
   async listPlanReadyMatches(): Promise<Match[]> {
-    const jobs = await this.fetchJobs();
+    const jobs = await this.jobsRead.get();
     return Promise.all(planReadyJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
   }
 
   /** One series row per bulk upload, including maps still scanning. */
   async listSeriesSummaries(): Promise<SeriesSummary[]> {
-    return summarizeSeries(await this.fetchJobs());
+    return summarizeSeries(await this.jobsRead.get());
   }
 
   /** The recent demo jobs the orchestrator persists (the Partidas index feed). */

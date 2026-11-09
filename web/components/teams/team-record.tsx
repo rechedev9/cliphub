@@ -227,6 +227,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
           fields={fields}
           entity={entity}
           maps={[...new Set(matches.map((match) => match.map))].sort()}
+          mapRequired={id === 'playbook' || id === 'granadas'}
           opponents={id === 'veto' ? (teams ?? []).map((entry) => ({ value: entry.id, label: entry.name })) : playedRivals}
           counts={counts}
           results={id === 'veto' || id === 'series' ? undefined : results}
