@@ -112,7 +112,7 @@ export function AppSidebar(): ReactElement {
               <span aria-hidden className="text-slash">
                 /
               </span>
-              <span>{group.label}</span>
+              <span className="truncate whitespace-nowrap">{group.label}</span>
               <span aria-hidden className="ml-1 h-px min-w-0 flex-1 bg-border" />
               <span aria-hidden className="h-px w-1.5 bg-fg-4" />
             </SidebarGroupLabel>

@@ -87,7 +87,7 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
   },
   {
     id: 'otras-herramientas',
-    label: 'Otras herramientas',
+    label: 'Más',
     entries: [
       { id: 'simulacion-de-veto', label: 'Simulación de veto', href: '/equipos?tab=veto', carry: 'veto' },
       { id: 'preparar-rival', label: 'Preparar rival', href: '/equipos?tab=preparar', carry: 'prep' },
