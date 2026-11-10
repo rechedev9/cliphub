@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -134,7 +133,7 @@ func (h *Handlers) GetLibraryTeamPrep(w http.ResponseWriter, r *http.Request) {
 		metrics = append(metrics, tacticalplan.MetricsMatch{MatchID: m.MatchID, Document: m.Document, TeamKey: m.TeamKey})
 	}
 	prep := tacticalplan.BuildPrep(loaded, tacticalplan.PrepOptions{
-		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)), Now: time.Now(),
+		Filter: q.filter, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)),
 	})
 	writeJSON(w, http.StatusOK, prepResponse{TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, Prep: prep})
 }

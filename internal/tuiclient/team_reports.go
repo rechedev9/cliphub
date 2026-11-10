@@ -173,16 +173,15 @@ type PrepPlayer struct {
 
 // TeamPrep is GET /api/library/teams/{id}/prep.
 type TeamPrep struct {
-	TeamName   string                     `json:"team_name"`
-	Skipped    []AnalysisSkipped          `json:"skipped"`
-	Map        string                     `json:"map"`
-	Matches    int                        `json:"matches"`
-	RoundCount int                        `json:"round_count"`
-	Framed     int                        `json:"framed"`
-	Matchups   []PrepRow                  `json:"matchups"`
-	Tempo      []PrepRow                  `json:"tempo"`
-	CTPlayers  []PrepPlayer               `json:"ct_players"`
-	Warnings   []tacticalplan.DataWarning `json:"warnings"`
+	TeamName   string            `json:"team_name"`
+	Skipped    []AnalysisSkipped `json:"skipped"`
+	Map        string            `json:"map"`
+	Matches    int               `json:"matches"`
+	RoundCount int               `json:"round_count"`
+	Framed     int               `json:"framed"`
+	Matchups   []PrepRow         `json:"matchups"`
+	Tempo      []PrepRow         `json:"tempo"`
+	CTPlayers  []PrepPlayer      `json:"ct_players"`
 }
 
 // TeamPrepReport returns the match prep against a team on one map.

@@ -1,4 +1,3 @@
-import type { PrepWarning } from './first-death.ts';
 import type { ScoutEvidence, ScoutRounds, ScoutSkipReason, ScoutSpot } from './scout.ts';
 import type { TacticalBuyType, TacticalHistogram, TacticalRate, TacticalSide, TacticalSite } from './tactical.ts';
 
@@ -149,8 +148,6 @@ export type TeamPrep = {
   matchups: PrepMatchup[];
   tempo: PrepTempo[];
   ct_players: PrepPlayer[];
-  /** What to distrust in the kept sample: old matches, lineup changes, few rounds. */
-  warnings: PrepWarning[];
 };
 
 export const PLAYBOOK_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'with', 'without'] as const;
@@ -160,7 +157,7 @@ export const PLAYBOOK_KEYS = [
   'categories', 'tempo', 'sites', 'zones', 'tactics', 'combo', 'rounds',
 ] as const;
 export const PREP_KEYS = [
-  'team_id', 'team_name', 'skipped', 'map', 'thresholds', 'matches', 'round_count', 'framed', 'matchups', 'tempo', 'ct_players', 'warnings',
+  'team_id', 'team_name', 'skipped', 'map', 'thresholds', 'matches', 'round_count', 'framed', 'matchups', 'tempo', 'ct_players',
 ] as const;
 
 export type TeamPlaybookQuery = {

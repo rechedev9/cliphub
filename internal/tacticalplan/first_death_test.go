@@ -70,7 +70,7 @@ func TestParseMovement(t *testing.T) {
 	}
 }
 
-func TestPrepDataWarnings(t *testing.T) {
+func TestDataWarnings(t *testing.T) {
 	base := pbMatch(t).ScoutMatch
 	usual := base
 	usual.PlayedAt = time.Date(2026, 10, 1, 18, 0, 0, 0, time.UTC)
@@ -82,17 +82,22 @@ func TestPrepDataWarnings(t *testing.T) {
 	stand.Document.Players[3].SteamID64 = "steam9"
 	matches := []ScoutMatch{usual, stand, older}
 
-	got := DataWarnings(DataWarningInput{Matches: matches, Rounds: 12, Now: usual.PlayedAt.AddDate(0, 0, 16)})
+	filter := ScoutFilter{Maps: []string{"de_mirage"}}
+	// 2 a.m. sixteen calendar days later is under 16 x 24 hours: the age counts days, not hours.
+	now := time.Date(2026, 10, 17, 2, 0, 0, 0, time.UTC)
+	got := DataWarnings(DataWarningInput{Newest: usual.PlayedAt, Compared: matches, Kept: []ScoutMatch{usual}, Filter: filter, Now: now})
 	at := usual.PlayedAt
 	want := []DataWarning{
 		{Kind: DataWarningStale, Days: 16, LastPlayedAt: &at},
 		{Kind: DataWarningLineup, Changed: 1, Matches: 3},
-		{Kind: DataWarningSmallSample, Rounds: 12},
+		{Kind: DataWarningSmallSample, Rounds: 9},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("warnings = %+v, want %+v", got, want)
 	}
-	fresh := DataWarnings(DataWarningInput{Matches: matches, Lineup: Lineup{"steam2", "steam3"}, Rounds: 40, Now: usual.PlayedAt.AddDate(0, 0, 14)})
+	filter.Lineup = Lineup{"steam2", "steam3"}
+	big := slices.Repeat([]ScoutMatch{usual}, 4)
+	fresh := DataWarnings(DataWarningInput{Newest: usual.PlayedAt, Compared: matches, Kept: big, Filter: filter, Now: usual.PlayedAt.AddDate(0, 0, 14)})
 	if !reflect.DeepEqual(fresh, []DataWarning{{Kind: DataWarningLineup, Changed: 1, Matches: 3}}) {
 		t.Errorf("fresh warnings = %+v, want only the stand-in against the lineup", fresh)
 	}

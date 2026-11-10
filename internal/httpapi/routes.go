@@ -198,6 +198,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/library/teams/{id}/prep", h.GetLibraryTeamPrep)
 	r.Get("/api/library/teams/{id}/attack", h.GetLibraryTeamAttack)
 	r.Get("/api/library/teams/{id}/first-death", h.GetLibraryTeamFirstDeath)
+	r.Get("/api/library/teams/{id}/warnings", h.GetLibraryTeamWarnings)
 	r.Get("/api/library/teams/{id}/roles", h.GetLibraryTeamRoles)
 	r.Put("/api/library/teams/{id}/roles", h.PutLibraryTeamRoles)
 	r.Get("/api/library/teams/{id}/rounds", h.GetLibraryTeamRounds)

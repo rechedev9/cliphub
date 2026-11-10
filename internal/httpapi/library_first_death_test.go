@@ -26,16 +26,7 @@ func TestLibraryTeamFirstDeathReadsOneSide(t *testing.T) {
 		}
 	}
 
-	// The fixture's two rounds are a small sample for the prep and for the scout that Preparar reads.
-	var prep prepResponse
-	env.json(http.MethodGet, base+"/prep?map=de_mirage", nil, http.StatusOK, &prep)
-	small := tacticalplan.DataWarning{Kind: tacticalplan.DataWarningSmallSample, Rounds: 2}
-	if len(prep.Warnings) == 0 || prep.Warnings[len(prep.Warnings)-1] != small {
-		t.Fatalf("prep warnings = %+v", prep.Warnings)
-	}
-	var scout scoutResponse
-	env.json(http.MethodGet, base+"/scout?map=de_mirage", nil, http.StatusOK, &scout)
-	if len(scout.Warnings) == 0 || scout.Warnings[len(scout.Warnings)-1] != small {
-		t.Fatalf("scout warnings = %+v", scout.Warnings)
+	if len(fd.MatchList) != 1 || fd.MatchList[0].Opponent != "MOUZ" {
+		t.Errorf("match list = %+v, want the rival named", fd.MatchList)
 	}
 }

@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	// PrepStaleDays is the age of the newest match past which a team may have changed its playbook.
-	PrepStaleDays = 14
-	// PrepSmallSampleRounds is the round count under which a preparation rests on too little.
-	PrepSmallSampleRounds = 30
+	// DataStaleDays is the age of the team's newest match past which it may have changed its playbook.
+	DataStaleDays = 14
+	// DataSmallSampleRounds is the round count under which a preparation rests on too little.
+	DataSmallSampleRounds = 30
 	// lineupSize is the five a team fields.
 	lineupSize = 5
 )
@@ -26,8 +26,8 @@ const (
 	DataWarningSmallSample DataWarningKind = "small_sample"
 )
 
-// DataWarning is one data warning: Days and LastPlayedAt for stale, Changed of
-// Matches for lineup, Rounds for small_sample.
+// DataWarning is one data warning of Preparar: Days and LastPlayedAt for stale,
+// Changed of Matches for lineup, Rounds for small_sample.
 type DataWarning struct {
 	Kind         DataWarningKind `json:"kind"`
 	Days         int             `json:"days,omitempty"`
@@ -37,45 +37,43 @@ type DataWarning struct {
 	Rounds       int             `json:"rounds,omitempty"`
 }
 
-// DataWarningInput is the sample a preparation kept: its matches, the scope's
-// lineup, the rounds it counted and the time it is read at.
+// DataWarningInput is what the warnings read, each set already loaded with its documents.
 type DataWarningInput struct {
-	Matches []ScoutMatch
-	Lineup  Lineup
-	Rounds  int
-	Now     time.Time
+	// Newest is when the team's newest analysed match was played, whatever the filters; zero for none.
+	Newest time.Time
+	// Compared is the matches the scope keeps before its lineup filter.
+	Compared []ScoutMatch
+	// Kept is the matches the whole scope keeps; Filter's rounds of them are the sample.
+	Kept   []ScoutMatch
+	Filter ScoutFilter
+	Now    time.Time
 }
 
 // DataWarnings lists what a coach must know before trusting the sample: the
-// newest match is old, the five changed between matches, or the rounds are few.
+// team's newest match is old, its five changed between matches, or the rounds are few.
 func DataWarnings(in DataWarningInput) []DataWarning {
 	out := []DataWarning{}
-	if len(in.Matches) == 0 {
-		return out
-	}
-	newest := in.Matches[0].PlayedAt
-	for _, m := range in.Matches[1:] {
-		if m.PlayedAt.After(newest) {
-			newest = m.PlayedAt
-		}
-	}
-	if !newest.IsZero() && !in.Now.IsZero() {
-		if days := int(in.Now.Sub(newest).Hours() / 24); days > PrepStaleDays {
-			at := newest
+	if !in.Newest.IsZero() && !in.Now.IsZero() {
+		if days := int(dayOf(in.Now) - dayOf(in.Newest)); days > DataStaleDays {
+			at := in.Newest
 			out = append(out, DataWarning{Kind: DataWarningStale, Days: days, LastPlayedAt: &at})
 		}
 	}
-	if changed := lineupChanges(in.Matches, in.Lineup); changed > 0 {
-		out = append(out, DataWarning{Kind: DataWarningLineup, Changed: changed, Matches: len(in.Matches)})
+	if changed := lineupChanges(in.Compared, in.Filter.Lineup); changed > 0 {
+		out = append(out, DataWarning{Kind: DataWarningLineup, Changed: changed, Matches: len(in.Compared)})
+	}
+	rounds := 0
+	for _, m := range in.Kept {
+		rounds += len(in.Filter.rounds(m))
 	}
 	// No rounds at all is the empty sample the views already say, not a small one.
-	if in.Rounds > 0 && in.Rounds < PrepSmallSampleRounds {
-		out = append(out, DataWarning{Kind: DataWarningSmallSample, Rounds: in.Rounds})
+	if rounds > 0 && rounds < DataSmallSampleRounds {
+		out = append(out, DataWarning{Kind: DataWarningSmallSample, Rounds: rounds})
 	}
 	return out
 }
 
-// matchFive is the team's five who played the most rounds of the match, as a sorted key.
+// matchFive is the team's five who played the most rounds of the match, sorted by SteamID64.
 func matchFive(m ScoutMatch) []string {
 	rounds := map[string]int{}
 	for _, r := range m.Document.Rounds {
@@ -106,8 +104,8 @@ func matchFive(m ScoutMatch) []string {
 	return ids
 }
 
-// lineupChanges counts the matches whose five differ from the scope's lineup
-// or, without one, from the five the team fielded most (the newest on a tie).
+// lineupChanges counts the matches whose five hold a player outside the chosen
+// lineup or, without one, differ from the five the team fielded most (the newest on a tie).
 func lineupChanges(matches []ScoutMatch, lineup Lineup) int {
 	fives := make([][]string, 0, len(matches))
 	for _, m := range matches {

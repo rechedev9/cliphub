@@ -17,13 +17,21 @@ func addFirstDeathRoutes(mux *http.ServeMux) {
 			"movement":"slow","matches":1,"round_count":12,"framed":10,"players":[{"steamid64":"` + testSteamID + `","name":"ZywOo","role":"awp","rounds":10,
 			"zones":[{"callout":"Outside","seconds":1.3,"rounds":7,"refs":[{"match_id":"` + testMatchID + `","round":2,"tick":100}],"samples":[[1,2,3]]}]}]}`))
 	})
+	// The warnings count the scope side: T in this fake, none without it.
+	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/warnings", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("side") != "T" {
+			_, _ = w.Write([]byte(`{"warnings":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"warnings":[{"kind":"small_sample","rounds":22},{"kind":"lineup","changed":2,"matches":5}]}`))
+	})
 }
 
 func TestTeamPrepReadsFirstDeathAndWarnings(t *testing.T) {
 	cs := fakeAnalysisStudio(t)
 	var prep teamPrepOut
 	callTool(t, cs, "team_prep", map[string]any{"team_id": testTeamID, "map": "de_nuke", "side": "t", "movement": "slow"}, &prep)
-	if len(prep.Warnings) != 1 || prep.Warnings[0].Kind != "small_sample" || prep.Warnings[0].Message != "Small sample: 22 rounds." {
+	if len(prep.Warnings) != 2 || prep.Warnings[0].Message != "Small sample: 22 rounds." || prep.Warnings[1].Message != "Different lineup in 2 of 5 matches." {
 		t.Errorf("warnings = %+v", prep.Warnings)
 	}
 	fd := prep.FirstDeath
@@ -31,12 +39,12 @@ func TestTeamPrepReadsFirstDeathAndWarnings(t *testing.T) {
 		t.Fatalf("first death = %+v", fd)
 	}
 	z := fd.Players[0].Zones
-	if fd.Players[0].RoundsPlayed != 10 || len(z) != 1 || z[0].Rank != 1 || z[0].Seconds != 1.3 || z[0].Refs[0] != testMatchID+"/2" {
+	if fd.Players[0].RoundsWithPositions != 10 || len(z) != 1 || z[0].Rank != 1 || z[0].Seconds != 1.3 || z[0].Refs[0] != testMatchID+"/2" {
 		t.Errorf("player = %+v", fd.Players[0])
 	}
 	var plain teamPrepOut
 	callTool(t, cs, "team_prep", map[string]any{"team_id": testTeamID, "map": "de_nuke"}, &plain)
-	if plain.FirstDeath != nil {
+	if plain.FirstDeath != nil || len(plain.Warnings) != 0 {
 		t.Errorf("first death without side = %+v", plain.FirstDeath)
 	}
 	toolFails(t, cs, "team_prep", map[string]any{"team_id": testTeamID, "map": "de_nuke", "movement": "fast"}, "need side")

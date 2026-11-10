@@ -32,10 +32,12 @@ export type TeamFirstDeath = {
   round_count: number;
   framed: number;
   players: FirstDeathPlayer[];
+  /** The rival and date of every match a ref points to. */
+  match_list: { match_id: string; opponent: string; played_at: string }[];
 };
 
 export const FIRST_DEATH_KEYS = [
-  'team_id', 'team_name', 'skipped', 'map', 'side', 'window', 'movement', 'thresholds', 'matches', 'round_count', 'framed', 'players',
+  'team_id', 'team_name', 'skipped', 'map', 'side', 'window', 'movement', 'thresholds', 'matches', 'round_count', 'framed', 'players', 'match_list',
 ] as const satisfies readonly (keyof TeamFirstDeath)[];
 export const FIRST_DEATH_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 't_from', 't_to', 'movement'] as const;
 
@@ -50,8 +52,18 @@ export function getTeamFirstDeath(teamId: string, query: FirstDeathQuery): Promi
   return request<TeamFirstDeath>(`/teams/${encodeURIComponent(teamId)}/first-death?${params.toString()}`);
 }
 
-/** One reason to distrust a preparation, as the server found it over the kept matches. */
-export type PrepWarning =
+/** One reason to distrust a preparation: the team's newest match is old, its five changed, or the rounds are few. */
+export type DataWarning =
   | { kind: 'stale'; days: number; last_played_at?: string }
   | { kind: 'lineup'; changed: number; matches: number }
   | { kind: 'small_sample'; rounds: number };
+
+export type TeamDataWarnings = { team_id: string; team_name: string; warnings: DataWarning[] };
+export const DATA_WARNINGS_KEYS = ['team_id', 'team_name', 'warnings'] as const satisfies readonly (keyof TeamDataWarnings)[];
+export const DATA_WARNINGS_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup'] as const;
+
+/** The line on top of Preparar over the scope the bar keeps; map and side are optional. */
+export function getTeamDataWarnings(teamId: string, query: TeamSpatialQuery): Promise<TeamDataWarnings> {
+  const search = teamSpatialParams(query).toString();
+  return request<TeamDataWarnings>(`/teams/${encodeURIComponent(teamId)}/warnings${search === '' ? '' : `?${search}`}`);
+}

@@ -57,7 +57,7 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			"tempo":[{"side":"T","buy":"full","rounds":6,"win_rate":{"pct":66.7},"tempo":{"samples":6,"median":50},"plant":{"samples":2,"median":60}}],
 			"ct_players":[{"steamid64":"` + testSteamID + `","name":"Zyw‮Oo","role":"awp","rounds":10,
 			"windows":[{"from_seconds":0,"to_seconds":20,"rounds":10,"spots":[{"callout":"Ramp","share":{"count":6,"pct":60},"refs":` + refs("13") + `}]},
-			{"from_seconds":60,"to_seconds":0,"rounds":3,"spots":[]}]}],"warnings":[{"kind":"small_sample","rounds":22}]}`))
+			{"from_seconds":60,"to_seconds":0,"rounds":3,"spots":[]}]}]}`))
 	})
 	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/grenades", func(w http.ResponseWriter, r *http.Request) {
 		if kinds := r.URL.Query()["kind"]; len(kinds) != 2 || kinds[0] != "smoke" || kinds[1] != "flash" {

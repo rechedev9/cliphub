@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/radarmap"
 )
@@ -105,6 +108,15 @@ type FirstDeathPositions struct {
 	// Framed counts the rounds with positions, which the players are read from.
 	Framed  int                `json:"framed"`
 	Players []FirstDeathPlayer `json:"players"`
+	// MatchList names the rival and date of every match a ref can point to.
+	MatchList []FirstDeathMatch `json:"match_list"`
+}
+
+// FirstDeathMatch is one match the view read.
+type FirstDeathMatch struct {
+	MatchID  uuid.UUID `json:"match_id"`
+	Opponent string    `json:"opponent"`
+	PlayedAt time.Time `json:"played_at"`
 }
 
 type firstDeathZoneAcc struct {
@@ -142,7 +154,9 @@ func BuildFirstDeathPositions(matches []FramedMatch, opts FirstDeathOptions) Fir
 	run := firstDeathRun{opts: opts, players: map[string]*firstDeathPlayerAcc{}}
 	selected := selectFramed(matches, f)
 	out.Matches = len(selected)
+	out.MatchList = make([]FirstDeathMatch, 0, len(selected))
 	for _, m := range selected {
+		out.MatchList = append(out.MatchList, FirstDeathMatch{MatchID: m.MatchID, Opponent: m.Opponent, PlayedAt: m.PlayedAt})
 		src := openFrames(m)
 		for _, r := range f.rounds(m.ScoutMatch) {
 			if m.Document.TeamSide(m.TeamKey, r) != f.Side {
@@ -154,7 +168,7 @@ func BuildFirstDeathPositions(matches []FramedMatch, opts FirstDeathOptions) Fir
 				continue
 			}
 			out.Framed++
-			run.addRound(m, r, frames)
+			run.addRound(framedRound{m: m, r: r, frames: frames})
 		}
 	}
 	out.Players = run.rows(out.Map)
@@ -168,7 +182,8 @@ type lastSample struct {
 
 // addRound counts the round for each player and adds the window's samples before the first death
 // that match the movement; a sample stands for the time since the player's previous one (1/8 s at 8 Hz).
-func (run *firstDeathRun) addRound(m FramedMatch, r Round, frames []Frame) {
+func (run *firstDeathRun) addRound(in framedRound) {
+	m, r := in.m, in.r
 	doc := m.Document
 	team := teamSlots(r, run.opts.Filter.Side)
 	for slot := range team {
@@ -181,7 +196,7 @@ func (run *firstDeathRun) addRound(m FramedMatch, r Round, frames []Frame) {
 	}
 	prev := map[uint8]lastSample{}
 	seen := map[string]bool{}
-	for _, fr := range teamTrack(doc, r, team, frames) {
+	for _, fr := range teamTrack(doc, r, team, run.windowFrames(in, cut)) {
 		if cut > 0 && fr.tick >= cut {
 			break
 		}
@@ -210,6 +225,32 @@ func (run *firstDeathRun) addRound(m FramedMatch, r Round, frames []Frame) {
 			}
 		}
 	}
+}
+
+// windowFrames keeps the frames from a second before the window, for the first
+// sample's speed, to the window's end or the first death, so callouts are named only there.
+func (run *firstDeathRun) windowFrames(in framedRound, cut int) []Frame {
+	rate := in.m.Document.Demo.Tickrate
+	if rate <= 0 || in.r.TickFreezeEnd <= 0 {
+		return in.frames
+	}
+	w := run.opts.Window
+	start := in.r.TickFreezeEnd + int((float64(w.FromSeconds)-maxSampleGapSeconds)*rate)
+	stop := cut
+	if w.ToSeconds > 0 {
+		end := in.r.TickFreezeEnd + int(float64(w.ToSeconds)*rate)
+		if stop <= 0 || end < stop {
+			stop = end
+		}
+	}
+	lo, hi := 0, len(in.frames)
+	for lo < hi && in.frames[lo].Tick < start {
+		lo++
+	}
+	for hi > lo && stop > 0 && in.frames[hi-1].Tick >= stop {
+		hi--
+	}
+	return in.frames[lo:hi]
 }
 
 func (run *firstDeathRun) player(id, name string) *firstDeathPlayerAcc {

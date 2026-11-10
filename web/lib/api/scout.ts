@@ -1,4 +1,3 @@
-import type { PrepWarning } from './first-death.ts';
 import type {
   TacticalBuyType,
   TacticalEventKind,
@@ -177,8 +176,6 @@ export type ScoutReport = {
   economy: { contexts: ScoutEconomyContext[]; rows: ScoutEconomyRow[] };
   awp: { sides: ScoutAWPSide[]; rows: ScoutAWPRow[] };
   openings: ScoutOpening[];
-  /** The data warnings over the kept matches, as Preparar shows them on top. */
-  warnings: PrepWarning[];
 };
 
 /** "" reads both sides. */

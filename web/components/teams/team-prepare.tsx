@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Printer, TriangleAlert } from 'lucide-react';
-import type { LibraryMatch, LibraryTeam } from '@/lib/api/library';
-import type { PrepWarning } from '@/lib/api/first-death';
-import type { ScoutReport } from '@/lib/api/scout';
+import type { LibraryTeam } from '@/lib/api/library';
+import { getTeamDataWarnings, type DataWarning } from '@/lib/api/first-death';
 import { NO_MATCHES_TEXT, mapCountText, type MapCounts } from '@/lib/analysis/map-counts';
 import { prepareWarnings } from '@/lib/analysis/prepare-warnings';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
@@ -27,7 +26,6 @@ import { TeamScout } from './team-scout';
  */
 export function TeamPrepare({
   team,
-  matches,
   maps,
   mapCounts,
   scope,
@@ -37,8 +35,6 @@ export function TeamPrepare({
   onCounts,
 }: {
   team: LibraryTeam;
-  /** The team's matches the scope keeps. */
-  matches: readonly LibraryMatch[];
   maps: readonly string[];
   /** Matches per map in the scope; null leaves every map choosable. */
   mapCounts: MapCounts | null;
@@ -52,17 +48,27 @@ export function TeamPrepare({
   const [now] = useState(() => Date.now());
   const { from, to } = scopeDateRange(scope.period, now);
   const opponentIds = useMemo(() => (scope.opponent === '' ? [] : [scope.opponent]), [scope.opponent]);
-  const [sample, setSample] = useState<readonly PrepWarning[] | null>(null);
-  const onReport = useCallback((report: ScoutReport | null) => setSample(report === null ? null : report.warnings), []);
-  const warnings = useMemo(
-    () => prepareWarnings({ roster: team.roster ?? [], periodPlayedAt: matches.map((match) => match.played_at), sample, team: team.name }),
-    [team.roster, team.name, matches, sample],
-  );
-  // Preparar's bar is lineup, map, side, period and rival; the section counts what it keeps.
-  const firstDeathQuery = useMemo(
+  // Preparar's bar is lineup, map, side, period and rival; the warnings and the first deaths count what it keeps.
+  const barQuery = useMemo(
     () => ({ map: scope.map, from, to, lineup, opponent_ids: scope.opponent === '' ? [] : [scope.opponent] }),
     [scope.map, scope.opponent, from, to, lineup],
   );
+  const [sample, setSample] = useState<readonly DataWarning[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    setSample(null);
+    getTeamDataWarnings(team.id, { ...barQuery, side: scope.side })
+      .then((report) => {
+        if (active) setSample(report.warnings);
+      })
+      .catch(() => {
+        if (active) setSample(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [team.id, barQuery, scope.side]);
+  const warnings = useMemo(() => prepareWarnings(sample, team.name), [sample, team.name]);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -120,10 +126,10 @@ export function TeamPrepare({
             if (known !== undefined) onOpenReplay(known);
           }} />
       )}
-      {scope.map === '' ? null : <FirstDeathPositions teamId={team.id} query={firstDeathQuery} scopeSide={scope.side} />}
+      {scope.map === '' ? null : <FirstDeathPositions teamId={team.id} query={barQuery} scopeSide={scope.side} />}
       <section aria-label="Scouting" className="flex flex-col gap-2 border-t border-border pt-4">
         <h2 className="text-body font-semibold text-fg-1">Cómo juegan</h2>
-        <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} onReport={onReport} />
+        <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} />
       </section>
     </div>
   );
