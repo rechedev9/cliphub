@@ -1,4 +1,5 @@
 import { COMPARE_TEAMS_MAX, type SideStat, type SideStatKey } from '../api/side-stats.ts';
+import type { ReportSide } from '../api/scout.ts';
 import { formatDecimal } from '../format.ts';
 import { compareDelta, deltaArrow, type DeltaTone } from './compare.ts';
 
@@ -31,6 +32,15 @@ export const SIDE_STAT_TILES: readonly SideStatTile[] = [
   },
   { key: 'rounds_played', label: 'Rondas jugadas', unit: 'count', formula: 'Rondas con ganador que cuentan en el alcance.' },
 ];
+
+export type SideKey = 'ct' | 't';
+
+/** The side the scope bar leaves out, which the Sides card greys; null when both sides are read. */
+export function dimmedSide(side: ReportSide): SideKey | null {
+  if (side === 'CT') return 't';
+  if (side === 'T') return 'ct';
+  return null;
+}
 
 const NO_DATA = '-';
 

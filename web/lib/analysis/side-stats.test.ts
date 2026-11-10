@@ -3,6 +3,7 @@ import test from 'node:test';
 import { SIDE_STAT_KEYS, type SideStat } from '../api/side-stats.ts';
 import {
   SIDE_STAT_TILES,
+  dimmedSide,
   formatSideValue,
   groupMeanText,
   parseCompareTeams,
@@ -58,4 +59,10 @@ test('the compare teams round trip through the URL, sorted and checked', () => {
   assert.equal(writeCompareTeams(`tab=estadisticas&comparar=${A}`, []), 'tab=estadisticas');
   assert.deepEqual(toggleCompareTeam([A], B), [A, B]);
   assert.deepEqual(toggleCompareTeam([A, B], A), [B]);
+});
+
+test('a chosen side greys the other one; both sides stay lit without a choice', () => {
+  assert.equal(dimmedSide('T'), 'ct');
+  assert.equal(dimmedSide('CT'), 't');
+  assert.equal(dimmedSide(''), null);
 });
