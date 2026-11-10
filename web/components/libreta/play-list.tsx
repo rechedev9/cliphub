@@ -112,6 +112,7 @@ export function PlayList({
   onImported,
   onDetect,
   tableId = 'libreta-plays',
+  fixedFilters = [],
 }: {
   plays: LibraryPlay[] | null;
   offline: boolean;
@@ -122,6 +123,8 @@ export function PlayList({
   onDetect: () => void;
   /** Where the table keeps its sort and filters; a team's Playbook keeps its own, apart from the Libreta's. */
   tableId?: string;
+  /** Filters the caller already fixed, such as the team, map and side of a Playbook; their menus are left out. */
+  fixedFilters?: readonly string[];
 }): ReactNode {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -130,7 +133,7 @@ export function PlayList({
   const fileRef = useRef<HTMLInputElement>(null);
   const view = useTableView(tableId, {
     sort: { column: 'updated', direction: 'desc' },
-    hidden: ['tags', 'origin'],
+    hidden: ['tags', 'origin', ...fixedFilters],
     filters: { [SEARCH_FILTER]: FILTER_ANY },
   });
   const { setFilter } = view;
@@ -320,7 +323,7 @@ export function PlayList({
                 label: 'Origen',
                 options: (['round', 'detected', 'import', 'manual', 'playbook'] as const).map((value) => ({ value, label: PLAY_ORIGIN_LABEL[value] })),
               },
-            ]}
+            ].filter((filter) => !fixedFilters.includes(filter.id))}
             count={{ shown: shown.length, total: plays.length, noun: plays.length === 1 ? 'jugada' : 'jugadas' }}
           />
         }

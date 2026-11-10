@@ -6,6 +6,8 @@ import { teamLibretaHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { PlayList, useLibretaPlays } from '@/components/libreta/play-list';
 
+const FIXED_FILTERS = ['team', 'map', 'side'] as const;
+
 /**
  * "Gestionar": the team's Libreta plays on the Playbook's map and side, with the Libreta's own
  * table, so a play is renamed, archived, exported or deleted without leaving the team.
@@ -23,6 +25,7 @@ export function ManagePlays({ teamId, map, side }: { teamId: string; map: string
         plays={mine}
         offline={offline}
         tableId="team-playbook-plays"
+        fixedFilters={FIXED_FILTERS}
         onReload={reload}
         onImported={reload}
         onDetect={() => router.push(teamLibretaHref(teamId, true))}
