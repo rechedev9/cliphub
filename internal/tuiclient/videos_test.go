@@ -3,6 +3,7 @@ package tuiclient
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,5 +67,29 @@ func TestSearchLibraryMatchesSendsTheRangeAndLimit(t *testing.T) {
 	}
 	if want := "from=2026-10-01T00%3A00%3A00Z&limit=11&steamid=76561198000000000&to=2026-10-31T23%3A59%3A59.999Z"; seen != want {
 		t.Errorf("query = %q, want %q", seen, want)
+	}
+}
+
+func TestListLibraryMatchesReadsEveryPage(t *testing.T) {
+	var offsets []string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		offset := r.URL.Query().Get("offset")
+		offsets = append(offsets, offset)
+		if offset != "" {
+			_, _ = w.Write([]byte(`{"matches":[{"id":"last"}]}`))
+			return
+		}
+		page := make([]string, libraryPage)
+		for i := range page {
+			page[i] = `{"id":"m"}`
+		}
+		_, _ = w.Write([]byte(`{"matches":[` + strings.Join(page, ",") + `]}`))
+	})
+	got, err := c.ListLibraryMatches(context.Background(), LibraryMatchQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != libraryPage+1 || got[libraryPage].ID != "last" || len(offsets) != 2 || offsets[1] != "200" {
+		t.Errorf("got %d matches, offsets %v", len(got), offsets)
 	}
 }

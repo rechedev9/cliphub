@@ -4,6 +4,8 @@
  * than strings repeated across pages.
  */
 
+import { MATCH_REPLAY_TAB, MATCH_TAB_QUERY } from '../library/rounds.ts';
+
 export const SHORTS_HREF = '/shorts' as const;
 export const STREAMS_HREF = '/streams' as const;
 export const LONG_VIDEOS_HREF = '/videos-largos' as const;
@@ -84,12 +86,14 @@ export function produceHref(matchId: string, format: ProduceFormat, seriesId?: s
 }
 
 /** Query keys that open Partidas already filtered, such as a team's matches on one map. */
-export const MATCHES_QUERY = { team: 'team', map: 'map' } as const;
+export const MATCHES_QUERY = { team: 'team', map: 'map', rival: 'rival', event: 'evento' } as const;
 
-export function matchesHref(filters: { team?: string; map?: string } = {}): string {
+export function matchesHref(filters: { team?: string; map?: string; rival?: string; event?: string } = {}): string {
   const params = new URLSearchParams();
   if (filters.team) params.set(MATCHES_QUERY.team, filters.team);
   if (filters.map) params.set(MATCHES_QUERY.map, filters.map);
+  if (filters.rival) params.set(MATCHES_QUERY.rival, filters.rival);
+  if (filters.event) params.set(MATCHES_QUERY.event, filters.event);
   const query = params.toString();
   return query === '' ? MATCHES_HREF : `${MATCHES_HREF}?${query}`;
 }
@@ -97,6 +101,11 @@ export function matchesHref(filters: { team?: string; map?: string } = {}): stri
 /** A partida's record: its tactical analysis, rounds and replay. */
 export function matchHref(matchId: string): string {
   return `${MATCHES_HREF}/${encodeURIComponent(matchId)}`;
+}
+
+/** A partida's record opened on its 2D Replay. */
+export function matchReplayHref(matchId: string): string {
+  return `${matchHref(matchId)}?${MATCH_TAB_QUERY}=${MATCH_REPLAY_TAB}`;
 }
 
 /** A library team's record. */

@@ -180,7 +180,7 @@ Read:
 | Tool | Orchestrator calls |
 | --- | --- |
 | `studio_status` | `/healthz`, `/api/capabilities` (`record.enabled`), session file state; Studio version (session file), support code (`telemetry.json`) and `studio.log` path for a bug report (`CONTRIBUTING.md`) |
-| `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs, side keys and their library team) |
+| `list_matches`, `get_match` | `GET /api/library/matches`, `GET /api/library/matches/{id}` (players with SteamIDs, side keys and their library team). `list_matches` reads every page of the matches, then the demos and series, as the Partidas list does: each match has its `kind` (Tipo de partida, derived: `scrim` for scrim demos, `oficial` for tournament (`hltv`) demos and for any match in a series with an event, `importada` for the rest, such as FACEIT pugs), source, tags, import date and, in a series, its format, event, veto and `map_role` (pick or decider). `kind`, `has_pov` (Con POV: a ready render with a video among the demo's jobs, the same rule as the POV chip), `sort` (`played` or `imported`), `team`, `opponent` and `event` are the controls above the list |
 | `list_moments` | `GET /api/jobs/{id}/moments`: the same segment ids as the "Prepara tu Short" list, with scores; the top 10 by default (`limit`), plus `total`; `weapon`, `kinds` (clutch, ace, multi_kill) and `side` (CT, T) filter the list; in a multi-POV job each play carries `player` and `steamid`, and `player` filters by SteamID64 or name |
 | `list_series_moments` | `GET /api/jobs/{id}` (same `target_steamid`, different demos) and `GET /api/jobs/{id}/moments` per map; plays of every map tagged with `map_number`, `map` and `job_id`, in play order (map, round, tick) or best first; same filters as `list_moments` |
 | `find_player_moments` | `GET /api/library/matches?steamid=`, `POST /api/library/demos/{id}/jobs` and the filtered `GET /api/jobs/{id}/moments` per match; one player's plays between two dates (`from`, `to`) and on one map, up to 10 matches per call; a match still parsing comes back `pending` |
@@ -255,7 +255,7 @@ Write:
 | Tool | Orchestrator calls | Approval |
 | --- | --- | --- |
 | `import_demo` | `POST /api/library/demos` (multipart `tag` fields, then `demo`; the server applies only tags sent before the file, and a duplicate keeps its own tags) | no |
-| `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set | no |
+| `update_demo` | `PATCH /api/library/demos/{id}` with `source` (not `shared`) and/or the whole `tags` set, or `add_tags` and `remove_tags` for single tags (the Etiqueta button of a Partidas row) | no |
 | `reanalyze_demo` | `POST /api/library/demos/{id}/analyze`; a demo already queued or parsing is left alone, a shared match answers 409 | no |
 | `create_job` | `POST /api/library/demos/{id}/jobs` with `target_steamid`; with `reparse` on a reused job, also `POST /api/jobs/{id}/parse` | no |
 | `create_multi_pov_job` | `POST /api/library/demos/{id}/jobs` with `target_steamids` (2 to 5 teammates of one team, checked against the analysed match); the first is the anchor for recap, deaths and team comms. The job never reuses a single-player job and Full Demo refuses it | no |

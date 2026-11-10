@@ -39,6 +39,8 @@ type LibraryImportResult struct {
 type LibraryMatch struct {
 	ID         string               `json:"id"`
 	DemoID     string               `json:"demo_id"`
+	SeriesID   string               `json:"series_id,omitempty"`
+	Source     string               `json:"source"`
 	Map        string               `json:"map"`
 	PlayedAt   time.Time            `json:"played_at"`
 	RoundCount int                  `json:"round_count"`
@@ -101,13 +103,25 @@ func (c *Client) Healthy(ctx context.Context) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// ListLibraryMatches lists analysed matches, optionally for one map or player.
-func (c *Client) ListLibraryMatches(ctx context.Context, mapName, steamID string) ([]LibraryMatch, error) {
-	return c.SearchLibraryMatches(ctx, LibraryMatchQuery{Map: mapName, SteamID: steamID})
+// ListLibraryMatches reads every page of the matches q keeps, newest first; q.Limit and q.Offset are ignored.
+func (c *Client) ListLibraryMatches(ctx context.Context, q LibraryMatchQuery) ([]LibraryMatch, error) {
+	var all []LibraryMatch
+	for page := range libraryMaxPages {
+		q.Limit, q.Offset = libraryPage, page*libraryPage
+		part, err := c.SearchLibraryMatches(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, part...)
+		if len(part) < libraryPage {
+			break
+		}
+	}
+	return all, nil
 }
 
 // LibraryMatchQuery filters GET /api/library/matches; zero fields are unset.
-// From and To bound played_at, both included; Limit 0 is the server default.
+// From and To bound played_at, both included; Limit 0 is the server default and Offset skips that many matches.
 type LibraryMatchQuery struct {
 	Map     string
 	SteamID string
@@ -115,6 +129,7 @@ type LibraryMatchQuery struct {
 	From    time.Time
 	To      time.Time
 	Limit   int
+	Offset  int
 }
 
 // SearchLibraryMatches lists analysed matches newest first, filtered on the server.
@@ -129,6 +144,9 @@ func (c *Client) SearchLibraryMatches(ctx context.Context, q LibraryMatchQuery) 
 	if q.Limit > 0 {
 		params["limit"] = strconv.Itoa(q.Limit)
 	}
+	if q.Offset > 0 {
+		params["offset"] = strconv.Itoa(q.Offset)
+	}
 	var out struct {
 		Matches []LibraryMatch `json:"matches"`
 	}
@@ -141,6 +159,31 @@ func (c *Client) GetLibraryMatch(ctx context.Context, id string) (LibraryMatch, 
 	var out LibraryMatch
 	err := c.getJSON(ctx, "/api/library/matches/"+url.PathEscape(id), &out)
 	return out, err
+}
+
+// libraryPage is the page size of the library lists (library.MaxListLimit); libraryMaxPages stops a runaway read.
+const (
+	libraryPage     = 200
+	libraryMaxPages = 50
+)
+
+// ListLibraryDemos reads every page of the library's demos.
+func (c *Client) ListLibraryDemos(ctx context.Context) ([]LibraryDemo, error) {
+	var all []LibraryDemo
+	for page := range libraryMaxPages {
+		var out struct {
+			Demos []LibraryDemo `json:"demos"`
+		}
+		params := map[string]string{"limit": strconv.Itoa(libraryPage), "offset": strconv.Itoa(page * libraryPage)}
+		if err := c.getJSON(ctx, "/api/library/demos"+query(params), &out); err != nil {
+			return nil, err
+		}
+		all = append(all, out.Demos...)
+		if len(out.Demos) < libraryPage {
+			break
+		}
+	}
+	return all, nil
 }
 
 // GetLibraryDemo returns one library demo with its parse state.

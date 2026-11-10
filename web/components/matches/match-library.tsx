@@ -3,40 +3,54 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Clapperboard, Layers, Link2, ListVideo, MonitorPlay, PlugZap, RefreshCw, Swords, TriangleAlert } from 'lucide-react';
+import { Layers, Link2, ListVideo, MonitorPlay, PlugZap, Swords, TriangleAlert } from 'lucide-react';
 import {
   LIBRARY_PARSE_STATES,
   LIBRARY_SOURCES,
   analyzeLibraryDemo,
-  deleteLibraryDemo,
-  isLibraryNotFound,
   isLibraryOffline,
   linkAllLibraryJobs,
   listLibraryDemos,
   listLibraryMatches,
+  listLibrarySeries,
   listUnlinkedLibraryJobs,
-  type LibraryMatch,
+  patchLibraryDemo,
+  type LibrarySource,
 } from '@/lib/api/library';
-import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRODUCE_FORMAT, matchHref } from '@/lib/clips/routes';
+import type { LibrarySeries } from '@/lib/api/veto';
+import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
+import {
+  eventOptions,
+  groupPartidas,
+  hasPov,
+  libraryTags,
+  ownTeamId,
+  ownTeamName,
+  parseListView,
+  rowEvent,
+  rowKind,
+  seriesIndex,
+  withListView,
+  withoutListView,
+  type LibraryListView,
+} from '@/lib/library/partida-groups';
 import {
   DATE_RANGES,
   PARSE_STATE_LABEL,
   SOURCE_LABEL,
   buildPartidaRows,
-  demoErrorLabel,
   inDateRange,
   mapChips,
   matchScoreMargin,
   matchTitle,
   partidaDate,
-  scoreline,
   teamFilterOptions,
   type MapChip,
-  type Outcome,
   type PartidaRow,
 } from '@/lib/library/partidas';
+import { loadPovJobs } from '@/lib/library/pov-jobs';
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -46,16 +60,17 @@ import { cn } from '@/lib/utils';
 import { DataTable, type DataTableColumn } from '@/components/records/data-table';
 import { DeleteChosenButton } from '@/components/records/delete-chosen-button';
 import { EmptyState } from '@/components/records/empty-state';
+import { SelectionBar } from '@/components/records/selection-bar';
 import { FilterBar } from '@/components/records/filter-bar';
 import { useTableView } from '@/components/records/use-table-view';
-import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { DemoImport } from '@/components/matches/demo-import';
-import { OpenInCrearButton } from '@/components/matches/open-in-crear-button';
+import { LibraryListControls } from '@/components/matches/library-list-controls';
+import { PartidaGroupsList } from '@/components/matches/partida-groups-list';
+import { DemoStatus, RowActions, Scoreline, isPending, removeDemo, type RowHandlers } from '@/components/matches/partida-cells';
 import { StudioPageHeader } from '@/components/studio/page-header';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const STATE_OPTIONS = LIBRARY_PARSE_STATES.map((state) => ({ value: state, label: PARSE_STATE_LABEL[state] }));
 const SOURCE_OPTIONS = LIBRARY_SOURCES.map((source) => ({ value: source, label: SOURCE_LABEL[source] }));
@@ -63,95 +78,21 @@ const DATE_OPTIONS = DATE_RANGES.map((range) => ({ value: range.value, label: ra
 
 const PARTIDA: CountNoun = { one: 'partida', many: 'partidas', feminine: true };
 
+const DELETE_DESCRIPTION =
+  'La biblioteca pierde la copia de la demo, el análisis y las correcciones. Los vídeos ya creados y las demos de Crear se quedan. No se puede deshacer.';
+
+function toggled(current: ReadonlySet<string>, key: string): Set<string> {
+  const next = new Set(current);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+}
+
 const FAST_POLL_MS = 3_000;
 const IDLE_POLL_MS = 30_000;
 
 // Radix refuses an empty item value, so "every map" travels as this sentinel inside the chips only.
 const ALL_MAPS = '__all__';
-
-const OUTCOME_CLASS: Record<Outcome, string> = {
-  win: 'font-semibold text-fg-1',
-  loss: 'text-fg-3',
-  draw: 'text-fg-2',
-};
-
-function isPending(row: PartidaRow): boolean {
-  return row.demo.state === 'queued' || row.demo.state === 'parsing';
-}
-
-/** "Vitality 13 : 7 MOUZ", the winner in full ink and the loser dimmed. */
-function Scoreline({ match }: { match: LibraryMatch }): ReactNode {
-  const [left, right] = scoreline(match);
-  return (
-    <span title={matchTitle(match)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-      <span className={cn('truncate text-right', OUTCOME_CLASS[left.outcome])}>{left.name}</span>
-      <span className="text-body whitespace-nowrap tabular-nums">
-        <span className={OUTCOME_CLASS[left.outcome]}>{left.score}</span>
-        <span aria-hidden className="px-1.5 text-fg-3">:</span>
-        <span className="sr-only"> a </span>
-        <span className={OUTCOME_CLASS[right.outcome]}>{right.score}</span>
-      </span>
-      <span className={cn('truncate', OUTCOME_CLASS[right.outcome])}>{right.name}</span>
-    </span>
-  );
-}
-
-/** Why a row has no score yet: still in the queue, being analysed, or the reason the scan failed. */
-function DemoStatus({ row }: { row: PartidaRow }): ReactNode {
-  const { demo } = row;
-  if (demo.state !== 'failed') return <span className="text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
-  const reason = demoErrorLabel(demo.error_code);
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* Focusable so the full reason also opens from the keyboard. */}
-        <span tabIndex={0} className={cn('block truncate rounded-sm text-destructive', FOCUS_RING)}>
-          {reason}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" align="start" className="max-w-sm">
-        {reason}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-type RowHandlers = { onRetry: (demoId: string) => void; onRemoved: () => void };
-
-/** A demo already gone counts as removed: the row only has to leave the list. */
-async function removeDemo(demoId: string): Promise<void> {
-  try {
-    await deleteLibraryDemo(demoId);
-  } catch (error) {
-    if (!isLibraryNotFound(error)) throw error;
-  }
-}
-
-/** A ready row offers its Short; a failed one, a new try or its removal; a match still re-analysing says so. */
-function RowActions({ row, handlers }: { row: PartidaRow; handlers: RowHandlers }): ReactNode {
-  const { demo, match } = row;
-  if (demo.state === 'failed') {
-    return (
-      <span className="flex items-center justify-end gap-2">
-        <Button type="button" variant="outline" size="xs" onClick={() => handlers.onRetry(demo.id)}>
-          <RefreshCw aria-hidden />
-          Reintentar
-        </Button>
-        <DeleteMatchButton label={match ? prettyMapName(match.map) : demo.file_name} onConfirm={() => removeDemo(demo.id)} onDeleted={handlers.onRemoved} />
-      </span>
-    );
-  }
-  if (match === null || demo.source === 'shared') return null;
-  if (demo.state !== 'ready') return <span className="block text-right whitespace-nowrap text-fg-3">{PARSE_STATE_LABEL[demo.state]}</span>;
-  return (
-    <span className="flex justify-end">
-      <OpenInCrearButton request={{ demo, format: PRODUCE_FORMAT.short }} variant="ghost" size="xs">
-        <Clapperboard aria-hidden />
-        Crear Short
-      </OpenInCrearButton>
-    </span>
-  );
-}
 
 function columns(handlers: RowHandlers): DataTableColumn<PartidaRow>[] {
   return [
@@ -271,6 +212,8 @@ function initialView(search: URLSearchParams): TableViewState {
       [SEARCH_FILTER]: FILTER_ANY,
       map: search.get(MATCHES_QUERY.map) ?? FILTER_ANY,
       team: search.get(MATCHES_QUERY.team) ?? FILTER_ANY,
+      rival: search.get(MATCHES_QUERY.rival) ?? FILTER_ANY,
+      event: search.get(MATCHES_QUERY.event) ?? FILTER_ANY,
       date: FILTER_ANY,
       source: FILTER_ANY,
       state: FILTER_ANY,
@@ -278,16 +221,18 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; unlinkedJobs: number };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked] = await Promise.all([
+  const [demos, matches, unlinked, series] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it.
     listUnlinkedLibraryJobs().catch(() => []),
+    // Without series every partida stands alone, as before.
+    listLibrarySeries().catch((): LibrarySeries[] => []),
   ]);
-  return { rows: buildPartidaRows(demos, matches), unlinkedJobs: unlinked.length };
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length };
 }
 
 /** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
@@ -320,8 +265,8 @@ function PartidasHeader({ importer }: { importer: ReactNode }): ReactNode {
 /** Partidas: every demo in the library with its match, filterable, importable, and live while scans run. */
 export function MatchLibrary(): ReactNode {
   const search = useSearchParams();
-  // Another page's filter link is a new starting view, not an edit of this one.
-  return <MatchLibraryTable key={search.toString()} search={search} />;
+  // Another page's filter link is a new starting view, not an edit of this one; the list view keys are this page's own.
+  return <MatchLibraryTable key={withoutListView(search)} search={search} />;
 }
 
 function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
@@ -333,20 +278,60 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const view = useTableView('partidas', initialView(search));
+  const [listView, setListView] = useState<LibraryListView>(() => parseListView(search));
+  const [povJobs, setPovJobs] = useState<ReadonlySet<string>>(new Set());
   const pendingRef = useRef(false);
   const pollRef = useRef<() => void>(() => {});
+  // Only the newest read may land, so a slow poll that began before an edit cannot undo it.
+  const readRef = useRef(0);
 
   const load = useCallback(async () => {
+    const read = ++readRef.current;
     try {
       const next = await loadLibrary();
+      if (read !== readRef.current) return;
       setLoaded(next);
       setReadError(null);
       pendingRef.current = next.rows.some(isPending);
     } catch (error) {
+      if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], unlinkedJobs: 0 });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0 });
     }
   }, []);
+
+  // The jobs of every demo, joined: the POV read repeats only when the set of jobs changes, not on each poll.
+  const jobKey = loaded === null ? '' : loaded.rows.flatMap(({ demo }) => demo.job_ids).sort().join(',');
+  useEffect(() => {
+    let active = true;
+    void loadPovJobs(jobKey === '' ? [] : jobKey.split(',')).then((jobs) => {
+      if (active) setPovJobs(jobs);
+    });
+    return () => {
+      active = false;
+    };
+  }, [jobKey]);
+
+  // The list view lives in the address, so a reload or a shared link keeps it; the history entry is replaced, not added.
+  function changeListView(next: LibraryListView): void {
+    setListView(next);
+    const query = withListView(new URLSearchParams(window.location.search), next);
+    window.history.replaceState(null, '', query === '' ? window.location.pathname : `${window.location.pathname}?${query}`);
+  }
+
+  const changeTags = useCallback((demoId: string, tags: string[]) => {
+    setLoaded((current) =>
+      current === null ? current : { ...current, rows: current.rows.map((row) => (row.demo.id === demoId ? { ...row, demo: { ...row.demo, tags } } : row)) },
+    );
+    pollRef.current();
+  }, []);
+
+  async function changeSources(demoIds: readonly string[], source: LibrarySource): Promise<boolean> {
+    const { failed } = await settleEach(demoIds, (demoId) => patchLibraryDemo(demoId, { source }));
+    setNotice(failed.length > 0 ? 'No se pudo cambiar la fuente de alguna partida.' : null);
+    pollRef.current();
+    return failed.length === 0;
+  }
 
   useEffect(() => {
     const stop = startPollLoop({
@@ -479,23 +464,54 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   }
 
   const now = Date.now();
+  const seriesById = seriesIndex(loaded.series);
+  // Mi equipo comes from the team profile of #411; until it is read here, the scrims decide.
+  const ownTeam = ownTeamId({ rows, explicit: null });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
   // Every filter but the map: the chips count over these rows, and the map chip then narrows them.
   const facet = filterRows(rows, { ...view.state.filters, map: FILTER_ANY }, {
     fields: {
       team: ({ match }) => match?.teams.map((team) => team.team_id ?? '') ?? [],
+      rival: ({ match }) => match?.teams.map((team) => team.team_id ?? '') ?? [],
+      event: (row) => rowEvent(row, seriesById),
       source: ({ demo }) => demo.source,
       state: ({ demo }) => demo.state,
     },
     searchText: ({ demo, match }) =>
       [match ? prettyMapName(match.map) : '', match ? matchTitle(match) : '', demo.file_name, ...demo.tags].join(' '),
-  }).filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now));
+  })
+    .filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now))
+    .filter((row) => listView.kind === null || rowKind(row, seriesById) === listView.kind)
+    .filter((row) => !listView.pov || hasPov(row, povJobs));
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
   const handlers: RowHandlers = { onRetry: (demoId) => void retry(demoId), onRemoved: () => pollRef.current() };
   // Only rows the filters show count as chosen, so a bulk delete never reaches a hidden one.
   const chosenIds = shown.map((row) => row.demo.id).filter((demoId) => selected.has(demoId));
+  const markScrimButton = (
+    <Button type="button" variant="outline" size="xs" disabled={deleting} onClick={() => void changeSources(chosenIds, 'scrim').then((ok) => ok && setSelected(new Set()))}>
+      <Swords aria-hidden />
+      Marcar como scrim
+    </Button>
+  );
+  const filterBar = (
+    <FilterBar
+      values={view.state.filters}
+      onChange={view.setFilter}
+      onReset={view.resetFilters}
+      searchPlaceholder="Buscar por mapa, equipo, archivo o etiqueta"
+      filters={[
+        { id: 'team', label: 'Equipo', options: teamFilterOptions(rows.map(({ match }) => match)) },
+        { id: 'rival', label: 'Rival', options: teamFilterOptions(rows.map(({ match }) => match)) },
+        { id: 'event', label: 'Evento', options: eventOptions(loaded.series) },
+        { id: 'date', label: 'Fecha', options: DATE_OPTIONS },
+        { id: 'source', label: 'Fuente', options: SOURCE_OPTIONS },
+        { id: 'state', label: 'Estado', options: STATE_OPTIONS },
+      ]}
+      count={{ shown: shown.length, total: rows.length, noun: rows.length === 1 ? 'partida' : 'partidas' }}
+    />
+  );
 
   return (
     <>
@@ -522,6 +538,39 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         {chips.length > 1 || selectedMap !== FILTER_ANY ? (
           <MapChips chips={chips} total={facet.length} value={selectedMap} onChange={(map) => view.setFilter('map', map)} />
         ) : null}
+        <LibraryListControls view={listView} onChange={changeListView} />
+        {listView.mode === 'series' ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-start gap-2">
+              {filterBar}
+            </div>
+            <PartidaGroupsList
+              days={groupPartidas({ rows: shown, series: loaded.series, sort: listView.sort })}
+              context={{
+                ownTeam,
+                ownName: ownTeam === null ? '' : ownTeamName(rows, ownTeam),
+                povJobs,
+                allTags: libraryTags(rows),
+                handlers,
+                selected,
+                onToggle: (demoId) => setSelected((current) => toggled(current, demoId)),
+                onTagsChanged: changeTags,
+                onSourceChange: (demoId, source) => void changeSources([demoId], source),
+              }}
+            />
+            {chosenIds.length > 0 ? (
+              <SelectionBar
+                count={chosenIds.length}
+                noun={PARTIDA}
+                busy={deleting}
+                confirmDescription={DELETE_DESCRIPTION}
+                actions={markScrimButton}
+                onDelete={() => void deleteChosen(chosenIds)}
+                onClear={() => setSelected(new Set())}
+              />
+            ) : null}
+          </div>
+        ) : (
         <DataTable
           label="Partidas"
           rows={shown}
@@ -531,36 +580,26 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
             noun: PARTIDA,
             busy: deleting,
             actions: (
-              <DeleteChosenButton
-                count={chosenIds.length}
-                noun={PARTIDA}
-                loading={deleting}
-                description="La biblioteca pierde la copia de la demo, el análisis y las correcciones. Los vídeos ya creados y las demos de Crear se quedan. No se puede deshacer."
-                onConfirm={() => void deleteChosen(chosenIds)}
-              />
+              <>
+                {markScrimButton}
+                <DeleteChosenButton
+                  count={chosenIds.length}
+                  noun={PARTIDA}
+                  loading={deleting}
+                  description={DELETE_DESCRIPTION}
+                  onConfirm={() => void deleteChosen(chosenIds)}
+                />
+              </>
             ),
           }}
           columns={columns(handlers)}
           rowKey={(row) => row.demo.id}
           rowHref={(row) => (row.match ? matchHref(row.match.id) : undefined)}
           view={view}
-          toolbar={
-            <FilterBar
-              values={view.state.filters}
-              onChange={view.setFilter}
-              onReset={view.resetFilters}
-              searchPlaceholder="Buscar por mapa, equipo, archivo o etiqueta"
-              filters={[
-                { id: 'team', label: 'Equipo', options: teamFilterOptions(rows.map(({ match }) => match)) },
-                { id: 'date', label: 'Fecha', options: DATE_OPTIONS },
-                { id: 'source', label: 'Fuente', options: SOURCE_OPTIONS },
-                { id: 'state', label: 'Estado', options: STATE_OPTIONS },
-              ]}
-              count={{ shown: shown.length, total: rows.length, noun: rows.length === 1 ? 'partida' : 'partidas' }}
-            />
-          }
+          toolbar={filterBar}
           empty={<p className="text-body-sm text-fg-2">Ninguna partida cumple estos filtros.</p>}
         />
+        )}
       </div>
     </>
   );

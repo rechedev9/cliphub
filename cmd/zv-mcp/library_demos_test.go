@@ -86,6 +86,19 @@ func TestUpdateDemoSendsOnlyTheFieldsGiven(t *testing.T) {
 	}
 }
 
+func TestUpdateDemoAddsAndRemovesSingleTags(t *testing.T) {
+	f := &fakeLibrary{}
+	cs := f.connect(t)
+	var out demoOut
+	callTool(t, cs, "update_demo", map[string]any{"id": testDemoID, "add_tags": []string{"scrim", "ESL"}, "remove_tags": []string{"nada"}}, &out)
+	callTool(t, cs, "update_demo", map[string]any{"id": testDemoID, "remove_tags": []string{"ESL"}}, &out)
+	if want := []string{`{"tags":["ESL","scrim"]}`, `{"tags":[]}`}; !slices.Equal(f.patches, want) {
+		t.Fatalf("patches = %q, want %q", f.patches, want)
+	}
+	toolFails(t, cs, "update_demo", map[string]any{"id": testDemoID, "tags": []string{"a"}, "add_tags": []string{"b"}}, "not both")
+	toolFails(t, cs, "update_demo", map[string]any{"id": testDemoID, "add_tags": []string{"a,b"}}, "comma")
+}
+
 func TestDeleteDemoNeedsTheApprovalCode(t *testing.T) {
 	f := &fakeLibrary{}
 	cs := f.connect(t)

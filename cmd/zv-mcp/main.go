@@ -129,7 +129,10 @@ edit_stream_plan changes them with expected_updated_at set to the updated_at it 
 the save fails). Both renders return a variant for wait_for_stream_render, which reports the percent
 and, for render_stream, the video being encoded (video 2 of 3); then list_stream_videos for the
 videos and extra files. list_streams shows the streams already in Studio.
-The library: import_demo takes tags; update_demo changes a demo's source or tags; reanalyze_demo
+The library: list_matches reads Partidas as the Studio shows it (kind, has_pov, sort, team, opponent and event are its controls; a match in a
+series carries its format, event, veto and whether its map was a pick or the decider; kind is scrim, oficial (tournament demos and series with an
+event) or importada, and update_demo's source moves a match between them); import_demo takes tags; update_demo changes a demo's source or
+tags (add_tags and remove_tags for single ones); reanalyze_demo
 analyses it again, then wait_for_demo; delete_demo removes it from the library (videos stay), or several with ids.
 Steam: steam_matches lists recent matches (sync_steam_matches looks for new ones); import_share_code
 downloads one by share code and makes a job: wait_for_job, and on "scanned" job_players then
