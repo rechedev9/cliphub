@@ -116,10 +116,14 @@ func (l findingLink) path() string {
 	return "/replay?" + strings.Join(parts, "&")
 }
 
-// windowTramo is a prep window as the Replay's tramo query writes it; an open end is the round's.
+// windowTramo is a prep window as the Replay's tramo query writes it; an open end is the round's,
+// and a window that is empty once clamped to the round clock has no tramo.
 func windowTramo(from, to int) string {
-	if to == 0 {
+	if to <= 0 || to > roundClockSeconds {
 		to = roundClockSeconds
+	}
+	if from < 0 || from >= to {
+		return ""
 	}
 	return fmt.Sprintf("%d-%d", from, to)
 }

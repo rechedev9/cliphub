@@ -102,6 +102,9 @@ func TestDetectPlaysGroupsRepeatedRoundsAcrossMatches(t *testing.T) {
 		{MatchID: scoutMatchOne, Round: 1, Tick: 640},
 		{MatchID: scoutMatchOne, Round: 2, Tick: 10640},
 	}
+	if !reflect.DeepEqual(p.Refs, want) {
+		t.Fatalf("refs = %+v, want every round of the group %+v", p.Refs, want)
+	}
 	if p.Seed != want[0] || !reflect.DeepEqual(p.Examples, want) {
 		t.Fatalf("seed/examples = %+v / %+v, want %+v", p.Seed, p.Examples, want)
 	}

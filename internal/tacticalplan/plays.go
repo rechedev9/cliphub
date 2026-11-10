@@ -231,6 +231,8 @@ type DetectedPlay struct {
 	Positions []PlayPosition `json:"positions"`
 	Seed      Evidence       `json:"seed"`
 	Examples  []Evidence     `json:"examples"`
+	// Refs holds every round of the group, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // PlayDetection is the repeated plays of a team over the selected matches.
@@ -407,7 +409,7 @@ func summarizePlay(members []playRound, total int) DetectedPlay {
 	sort.SliceStable(members[1:], func(i, j int) bool { return members[1+i].order < members[1+j].order })
 	p := DetectedPlay{
 		Map: seed.match.Document.Demo.Map, Side: seed.side, Rounds: len(members),
-		Share: newRate(len(members), total), Seed: seed.evidence(), Examples: []Evidence{},
+		Share: newRate(len(members), total), Seed: seed.evidence(), Examples: []Evidence{}, Refs: []Evidence{},
 	}
 	kinds, sites := map[string]int{}, map[string]int{}
 	won := 0
@@ -417,6 +419,7 @@ func summarizePlay(members []playRound, total int) DetectedPlay {
 		if m.won {
 			won++
 		}
+		p.Refs = append(p.Refs, m.evidence())
 		if len(p.Examples) < PlayExampleLimit {
 			p.Examples = append(p.Examples, m.evidence())
 		}

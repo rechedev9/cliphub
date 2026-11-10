@@ -261,10 +261,6 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
-			scoutRounds, err := c.TeamRounds(ctx, in.TeamID, scoped)
-			if err != nil {
-				return nil, prepareTeamOut{}, toolError(err)
-			}
 			prep, err := c.TeamPrepReport(ctx, in.TeamID, q)
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
@@ -277,9 +273,7 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, err
 			}
-			scouting := summarizeScout(scout)
-			addScoutLinks(&scouting, scoutRounds)
-			return nil, prepareTeamOut{Scouting: scouting, Prep: out, Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
+			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: out, Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
 		})
 }
 
@@ -327,8 +321,8 @@ func summarizeBombsites(r tuiclient.BombsiteReport) teamBombsitesOut {
 		mo := bombsiteMapOut{Map: cleanName(m.Map), Matches: m.Matches, CTRounds: m.CTRounds, TRounds: m.TRounds, Sites: []bombsiteOut{}}
 		for _, site := range m.Sites {
 			ct, t := site.CT, site.T
-			ctLink := findingLink{title: joinTitle(team, mo.Map, "defensa del sitio "+site.Site), refs: firstNonEmpty(ct.Refs, ct.Examples), zones: siteZone(site.Site)}
-			tLink := findingLink{title: joinTitle(team, mo.Map, "ataque al sitio "+site.Site), refs: firstNonEmpty(t.Refs, t.Examples), zones: siteZone(site.Site)}
+			ctLink := findingLink{title: titleScope{team: team, side: "CT", mapName: mo.Map}.of("Defensa del sitio " + siteLabel(site.Site)), refs: firstNonEmpty(ct.Refs, ct.Examples), zones: siteZone(site.Site)}
+			tLink := findingLink{title: titleScope{team: team, side: "T", mapName: mo.Map}.of("Ataque al sitio " + siteLabel(site.Site)), refs: firstNonEmpty(t.Refs, t.Examples), zones: siteZone(site.Site)}
 			mo.Sites = append(mo.Sites, bombsiteOut{
 				Site: cleanName(site.Site),
 				CT: defenseOut{HitRounds: ct.Hit.Count, HitPct: ct.Hit.Pct, HeldPct: ct.Held.Pct, PlantsAllowedPct: ct.PlantsAllowed.Pct,
@@ -349,21 +343,21 @@ func summarizePlaybook(pb tuiclient.TeamPlaybook) teamPlaybookOut {
 		WinPct: pb.WinRate.Pct, FramedRounds: pb.Framed, Tempo: tempoOf(pb.Tempo),
 		Categories: []groupOut{}, Sites: []groupOut{}, Zones: []groupOut{}, SkippedMatches: len(pb.Skipped),
 	}
-	scope := joinTitle(out.Team, out.Map, out.Side)
+	scope := titleScope{team: out.Team, side: out.Side, mapName: out.Map}
 	for _, g := range pb.Categories {
 		if g.Rounds > 0 {
-			out.Categories = append(out.Categories, groupOf(groupSpec{title: joinTitle(scope, g.Category), name: g.Category, group: g.ReportGroup}))
+			out.Categories = append(out.Categories, groupOf(groupSpec{title: scope.of(labelOr(categoryLabels, g.Category)), name: g.Category, group: g.ReportGroup}))
 		}
 	}
 	for _, g := range pb.Sites {
-		out.Sites = append(out.Sites, groupOf(groupSpec{title: joinTitle(scope, "sitio "+g.Site), name: g.Site, group: g.ReportGroup, zones: siteZone(g.Site)}))
+		out.Sites = append(out.Sites, groupOf(groupSpec{title: scope.of("Rondas en " + siteLabel(g.Site)), name: g.Site, group: g.ReportGroup, zones: siteZone(g.Site)}))
 	}
 	for _, g := range pb.Zones {
-		name := g.Label
+		name, zoneName := g.Label, g.Label
 		if name == "" {
-			name = g.Zone
+			name, zoneName = g.Zone, placeLabel(g.Zone)
 		}
-		out.Zones = append(out.Zones, groupOf(groupSpec{title: joinTitle(scope, name), name: name, group: g.ReportGroup, zones: []string{g.Zone}}))
+		out.Zones = append(out.Zones, groupOf(groupSpec{title: scope.of("Control de " + zoneName), name: name, group: g.ReportGroup, zones: []string{g.Zone}}))
 	}
 	out.Tactics, out.With, out.Without = tacticsOf(pb, scope)
 	return out
@@ -374,11 +368,12 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 		Team: cleanName(p.TeamName), Map: cleanName(p.Map), Matches: p.Matches, Rounds: p.RoundCount, FramedRounds: p.Framed,
 		Matchups: []matchupOut{}, Tempo: []prepTempoOut{}, CTPlayers: []prepPlayerOut{}, SkippedMatches: len(p.Skipped),
 	}
-	scope := joinTitle(out.Team, out.Map)
+	scope := titleScope{team: out.Team, mapName: out.Map}
 	for _, m := range p.Matchups {
 		name := m.Buy + " vs " + m.OpponentBuy
+		what := buyLabel(m.Buy) + " contra " + strings.ToLower(buyLabel(m.OpponentBuy)) + " en " + m.Side
 		out.Matchups = append(out.Matchups, matchupOut{Side: cleanName(m.Side), Buy: cleanName(m.Buy), OpponentBuy: cleanName(m.OpponentBuy),
-			groupOut: groupOf(groupSpec{title: joinTitle(scope, m.Side, name), name: name, group: m.ReportGroup})})
+			groupOut: groupOf(groupSpec{title: scope.of(what), name: name, group: m.ReportGroup})})
 	}
 	for _, t := range p.Tempo {
 		out.Tempo = append(out.Tempo, prepTempoOut{Side: cleanName(t.Side), Buy: cleanName(t.Buy), Rounds: t.Rounds, WinPct: t.WinRate.Pct,
@@ -389,7 +384,7 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 		for _, w := range pl.Windows {
 			wo := prepWindowOut{Window: windowName(w.FromSeconds, w.ToSeconds), Rounds: w.Rounds, Spots: []spotOut{}}
 			for _, sp := range w.Spots {
-				link := findingLink{title: joinTitle(scope, po.Name, sp.Callout), refs: sp.Refs, focus: []string{pl.SteamID64}, tramo: windowTramo(w.FromSeconds, w.ToSeconds), zones: []string{sp.Callout}}
+				link := findingLink{title: scope.of(po.Name + " en " + placeLabel(sp.Callout)), refs: sp.Refs, focus: []string{pl.SteamID64}, tramo: windowTramo(w.FromSeconds, w.ToSeconds), zones: []string{sp.Callout}}
 				wo.Spots = append(wo.Spots, spotOut{Callout: cleanName(sp.Callout), Rounds: sp.Share.Count, SharePct: sp.Share.Pct, Refs: refStrings(sp.Refs),
 					linkOut: link.outFor(sp.Share.Count)})
 			}

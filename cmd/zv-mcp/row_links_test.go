@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 // wantRounds checks the r values of a studio_path, the match:round form the Replay parses.
@@ -57,11 +59,11 @@ func TestBombsiteRowsLinkTheirRounds(t *testing.T) {
 	site := out.Maps[0].Sites[0]
 	wantRounds(t, site.CT.StudioPath, 1, 2, 3, 4, 5, 6)
 	ct := query(t, site.CT.StudioPath)
-	if strings.Join(ct["zona"], ",") != "BombsiteA" || !strings.Contains(ct.Get("t"), "defensa del sitio A") || site.CT.RoundsLinked != 0 || len(site.CT.Refs) != 1 {
+	if strings.Join(ct["zona"], ",") != "BombsiteA" || !strings.Contains(ct.Get("t"), "Defensa del sitio A en CT") || site.CT.RoundsLinked != 0 || len(site.CT.Refs) != 1 {
 		t.Errorf("CT link = %v, rounds_linked %d, refs %v", ct, site.CT.RoundsLinked, site.CT.Refs)
 	}
 	wantRounds(t, site.T.StudioPath, 2, 3)
-	if site.T.RoundsLinked != 2 || !strings.Contains(query(t, site.T.StudioPath).Get("t"), "ataque al sitio A") {
+	if site.T.RoundsLinked != 2 || !strings.Contains(query(t, site.T.StudioPath).Get("t"), "Ataque al sitio A en T") {
 		t.Errorf("T link = %s, rounds_linked %d: the attack counts 5 rounds, the server listed 2", site.T.StudioPath, site.T.RoundsLinked)
 	}
 }
@@ -72,7 +74,7 @@ func TestPlaybookRowsLinkAllTheirRounds(t *testing.T) {
 	callTool(t, cs, "team_playbook", map[string]any{"team_id": testTeamID, "map": "de_nuke", "side": "t"}, &pb)
 	rush := pb.Categories[0]
 	wantRounds(t, rush.StudioPath, 1, 2, 3, 4, 5, 6, 7)
-	if len(rush.Refs) != maxGroupRefs || rush.RoundsLinked != 0 || !strings.Contains(query(t, rush.StudioPath).Get("t"), "Vitality · de_nuke · T · rush") {
+	if len(rush.Refs) != maxGroupRefs || rush.RoundsLinked != 0 || !strings.Contains(query(t, rush.StudioPath).Get("t"), "Vitality · Rush en T · Nuke") {
 		t.Errorf("rush = %+v, want 5 refs and a path over its 7 rounds", rush)
 	}
 	zone := pb.Zones[0]
@@ -111,32 +113,32 @@ func TestDetectedPlaysLinkTheirExamples(t *testing.T) {
 	var out detectPlaysOut
 	callTool(t, cs, "detect_team_plays", map[string]any{"team_id": testTeamID}, &out)
 	p := out.Plays[0]
-	wantRounds(t, p.StudioPath, 7, 9)
-	if p.RoundsLinked != 2 || !strings.Contains(query(t, p.StudioPath).Get("t"), "Vitality · de_mirage · T · execute · B") {
-		t.Errorf("play = %+v, want its 2 example rounds of 5", p)
+	wantRounds(t, p.StudioPath, 7, 9, 11)
+	if p.RoundsLinked != 3 || !strings.Contains(query(t, p.StudioPath).Get("t"), "Vitality · Ejecución B en T · Mirage") {
+		t.Errorf("play = %+v, want its 3 listed rounds of 5", p)
 	}
 }
 
-// scoutLinksStudio serves a scouting report and the T rounds its scope kept.
+// scoutLinksStudio serves a scouting report whose buckets carry every round they count.
 func scoutLinksStudio(t *testing.T) *mcp.ClientSession {
 	t.Helper()
-	round := func(n int, buy, site, pattern, winner string) string {
-		return fmt.Sprintf(`{"round":%d,"side":"T","winner":"%s","buy":"%s","opponent_buy":"full","site":"%s","pattern":"%s"}`, n, winner, buy, site, pattern)
+	refs := func(rounds ...int) string {
+		parts := make([]string, 0, len(rounds))
+		for _, r := range rounds {
+			parts = append(parts, fmt.Sprintf(`{"match_id":"%s","round":%d,"tick":10}`, testMatchID, r))
+		}
+		return "[" + strings.Join(parts, ",") + "]"
 	}
-	rounds := strings.Join([]string{round(1, "pistol", "A", "execute", "T"), round(2, "full", "A", "split", "CT"),
-		round(3, "full", "B", "default", "T"), round(4, "full", "A", "execute", "T")}, ",")
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/scout", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"team_name":"Vitality","skipped":[],"matches":[],"maps":[],"tendencies":{"round_count":4,"wins":3,
-			"buys":[{"buy":"full","rounds":3,"share":{"pct":75},"win_rate":{"pct":66.7}},{"buy":"pistol","rounds":1,"share":{"pct":25},"win_rate":{"pct":100}}],
-			"sites":[{"site":"A","rounds":3,"share":{"pct":75},"win_rate":{"pct":66.7}},{"site":"B","rounds":1,"share":{"pct":25},"win_rate":{"pct":100}}],
-			"t_patterns":[{"pattern":"execute","rounds":2,"share":{"pct":50},"win_rate":{"pct":100}}],
-			"ct_patterns":[{"pattern":"execute","rounds":1,"share":{"pct":100},"win_rate":{"pct":0}}],
-			"openings":{},"players":[]},"executes":[{"site":"A","rounds":3,"win_rate":{"pct":66.7},"plants":{"pct":100}}],"awp":{"sides":[]}}`))
-	})
-	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/rounds", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"team_name":"Vitality","rounds":4,"skipped":[],"matches":[{"match_id":"` + testMatchID +
-			`","map":"de_nuke","played_at":"2026-10-12T18:00:00Z","opponent":"MOUZ","total":4,"rounds":[` + rounds + `]}]}`))
+		_, _ = w.Write([]byte(`{"team_name":"Vitality","skipped":[],"matches":[],"maps":[{"map":"de_nuke"}],"tendencies":{"round_count":4,"wins":3,
+			"buys":[{"buy":"full","rounds":3,"share":{"pct":75},"win_rate":{"pct":66.7},"refs":` + refs(2, 3, 4) + `},
+				{"buy":"pistol","rounds":1,"share":{"pct":25},"win_rate":{"pct":100},"refs":` + refs(1) + `}],
+			"sites":[{"site":"A","rounds":3,"share":{"pct":75},"win_rate":{"pct":66.7},"refs":` + refs(1, 2, 4) + `},
+				{"site":"B","rounds":1,"share":{"pct":25},"win_rate":{"pct":100},"refs":` + refs(3) + `}],
+			"t_patterns":[{"pattern":"eco_rush","rounds":2,"share":{"pct":50},"win_rate":{"pct":100},"refs":` + refs(1, 4) + `}],
+			"ct_patterns":[{"pattern":"hold","rounds":5,"share":{"pct":100},"win_rate":{"pct":0},"refs":` + refs(5, 6) + `}],
+			"openings":{},"players":[]},"executes":[{"site":"A","rounds":3,"win_rate":{"pct":66.7},"plants":{"pct":100},"refs":` + refs(1, 2, 4) + `}],"awp":{"sides":[]}}`))
 	})
 	return serveTools(t, mux, func(server *mcp.Server, s *studio) { registerAnalysisTools(server, s) })
 }
@@ -150,11 +152,50 @@ func TestScoutRowsLinkTheRoundsTheyCount(t *testing.T) {
 	wantRounds(t, out.Sites[0].StudioPath, 1, 2, 4)
 	wantRounds(t, out.Sites[1].StudioPath, 3)
 	wantRounds(t, out.TPatterns[0].StudioPath, 1, 4)
-	if out.CTPatterns[0].StudioPath != "" || out.CTPatterns[0].RoundsLinked != 0 {
-		t.Errorf("a CT shape with no CT rounds links %+v", out.CTPatterns[0].linkOut)
+	wantRounds(t, out.CTPatterns[0].StudioPath, 5, 6)
+	if out.CTPatterns[0].RoundsLinked != 2 {
+		t.Errorf("CT shape rounds_linked = %d, want 2 of 5", out.CTPatterns[0].RoundsLinked)
 	}
 	wantRounds(t, out.Executes[0].StudioPath, 1, 2, 4)
-	if title := query(t, out.Buys[0].StudioPath).Get("t"); title != "Vitality · compra full" {
-		t.Errorf("buy link title = %q", title)
+	for path, want := range map[string]string{
+		out.Buys[0].StudioPath:       "Vitality · Compra full · Nuke",
+		out.Sites[1].StudioPath:      "Vitality · Rondas en B · Nuke",
+		out.TPatterns[0].StudioPath:  "Vitality · Rush de eco en T · Nuke",
+		out.CTPatterns[0].StudioPath: "Vitality · Defensa en CT · Nuke",
+		out.Executes[0].StudioPath:   "Vitality · Ejecución A en T · Nuke",
+	} {
+		if got := query(t, path).Get("t"); got != want {
+			t.Errorf("title = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestLinkTitlesReadLikeTheWeb(t *testing.T) {
+	scope := titleScope{team: "Navi", side: "T", mapName: "de_mirage"}
+	if got, want := scope.of("Rush"), "Navi · Rush en T · Mirage"; got != want {
+		t.Errorf("playbook title = %q, want %q", got, want)
+	}
+	if got := (titleScope{team: "Navi", mapName: "de_nuke"}).of("Full contra eco en T"); got != "Navi · Full contra eco en T · Nuke" {
+		t.Errorf("prep title = %q", got)
+	}
+	for place, want := range map[string]string{"BombsiteA": "Bombsite A", "CTSpawn": "CT Spawn", "TopofMid": "Top of Mid", "Floor50": "50th Floor"} {
+		if got := placeLabel(place); got != want {
+			t.Errorf("placeLabel(%s) = %q, want %q", place, got, want)
+		}
+	}
+	tactic := tuiclient.PlaybookTactic{Kind: "utility", Grenade: "smoke", Value: "Window", Label: "Ventana"}
+	if got := tacticLabel(tactic); got != "Humo en Ventana" {
+		t.Errorf("tacticLabel = %q", got)
+	}
+	if got := playShapeLabel("execute", "A"); got != "Ejecución A" {
+		t.Errorf("playShapeLabel = %q", got)
+	}
+	for _, c := range []struct {
+		from, to int
+		want     string
+	}{{0, 0, "0-115"}, {0, 55, "0-55"}, {75, 0, "75-115"}, {0, 300, "0-115"}, {120, 0, ""}, {60, 60, ""}, {70, 20, ""}} {
+		if got := windowTramo(c.from, c.to); got != c.want {
+			t.Errorf("windowTramo(%d, %d) = %q, want %q", c.from, c.to, got, c.want)
+		}
 	}
 }

@@ -19,6 +19,8 @@ export type BombsiteDefense = {
   retakes_attempted: TacticalRate;
   retakes_won: TacticalRate;
   examples: ScoutEvidence[];
+  /** Every hit round; `examples` holds the first ones. */
+  refs?: ScoutEvidence[];
 };
 
 /** Attacking one site: `attacks` is over the T rounds of the map, `post_plant_won` over the plants. */
@@ -28,6 +30,8 @@ export type BombsiteAttack = {
   won: TacticalRate;
   post_plant_won: TacticalRate;
   examples: ScoutEvidence[];
+  /** Every attacked round; `examples` holds the first ones. */
+  refs?: ScoutEvidence[];
 };
 
 export type BombsiteSite = { site: 'A' | 'B'; ct: BombsiteDefense; t: BombsiteAttack };

@@ -137,6 +137,37 @@ func TestAggregateMatchesSumsMatchesAndKeysPlayersBySteamID(t *testing.T) {
 	}
 }
 
+// Every bucket of a scouting aggregate lists each round it counts, and a single document lists none.
+func TestAggregateMatchesKeepsEveryRoundOfEachBucket(t *testing.T) {
+	ms := scoutMatches()
+	tend := AggregateMatches(ms, ScoutFilter{})
+	for _, b := range tend.Buys {
+		if len(b.Refs) != b.Rounds {
+			t.Errorf("buy %s refs = %d, want its %d rounds", b.Buy, len(b.Refs), b.Rounds)
+		}
+	}
+	for _, b := range tend.Sites {
+		if len(b.Refs) != b.Rounds {
+			t.Errorf("site %s refs = %d, want its %d rounds", b.Site, len(b.Refs), b.Rounds)
+		}
+	}
+	for _, b := range append(append([]PatternBucket{}, tend.TPatterns...), tend.CTPatterns...) {
+		if len(b.Refs) != b.Rounds || b.Refs[0].MatchID == (uuid.UUID{}) {
+			t.Errorf("pattern %s refs = %+v, want its %d rounds with a match", b.Pattern, b.Refs, b.Rounds)
+		}
+	}
+	for _, e := range Scout(ms, ScoutFilter{}).Executes {
+		if len(e.Refs) != e.Rounds {
+			t.Errorf("execute %s refs = %d, want its %d rounds", e.Site, len(e.Refs), e.Rounds)
+		}
+	}
+	for _, b := range Aggregate(ms[0].Document, Filter{TeamKey: "ct-start"}).Buys {
+		if len(b.Refs) != 0 {
+			t.Errorf("a single document lists refs: %+v", b.Refs)
+		}
+	}
+}
+
 func TestAggregateMatchesSideFilterKeepsOneSide(t *testing.T) {
 	tend := AggregateMatches(scoutMatches(), ScoutFilter{Side: SideT})
 	if tend.RoundCount != 4 {

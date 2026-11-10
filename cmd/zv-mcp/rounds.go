@@ -32,7 +32,7 @@ var buyTypes = []string{"pistol", "eco", "semi", "force", "full"}
 type findRoundsIn struct {
 	TeamID  string `json:"team_id,omitempty" jsonschema:"team id from list_teams; set this or steamid (a Libreta play's own team when only play_id is set)"`
 	SteamID string `json:"steamid,omitempty" jsonschema:"SteamID64 of a player; set this or team_id"`
-	PlayID  string `json:"play_id,omitempty" jsonschema:"only the rounds of one play, the ones it opens in the Replay: a Libreta play id from list_plays (its example rounds), or a detected play's ref from detect_team_plays called with this same team_id and filter (its example rounds, at most 20; play_rounds_capped says when the group has more)"`
+	PlayID  string `json:"play_id,omitempty" jsonschema:"only the rounds of one play, the ones it opens in the Replay: a Libreta play id from list_plays (its example rounds), or a detected play's ref from detect_team_plays called with this same team_id and filter (every round of the group)"`
 	Result  string `json:"result,omitempty" jsonschema:"only rounds the team won or lost: won or lost"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"how many rounds to return, newest match first; default 30, at most 200"`
 	analysisFilterIn
@@ -214,7 +214,7 @@ func (in findRoundsIn) playRounds(call roundsCall) (*playRounds, error) {
 			return nil, errors.New("no detected play has that ref with this filter; call detect_team_plays again with the same filter")
 		}
 		found := det.Plays[i]
-		examples, out.title, out.teamID, out.rounds = found.Examples, fmt.Sprintf("%s %s %s", found.Side, found.Kind, found.Site), in.TeamID, found.Rounds
+		examples, out.title, out.teamID, out.rounds = found.Refs, fmt.Sprintf("%s %s %s", found.Side, found.Kind, found.Site), in.TeamID, found.Rounds
 	}
 	for _, e := range examples {
 		out.keys[playRoundKey(e.MatchID, e.Round)] = true

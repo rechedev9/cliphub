@@ -175,6 +175,8 @@ type DetectedPlay struct {
 	Positions []PlayPosition `json:"positions"`
 	Seed      Evidence       `json:"seed"`
 	Examples  []Evidence     `json:"examples"`
+	// Refs holds every round of the group, Examples only the first ones.
+	Refs []Evidence `json:"refs"`
 }
 
 // PlayDetection is GET /api/library/teams/{id}/plays.
