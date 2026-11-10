@@ -3,6 +3,7 @@ package replaygif
 import (
 	"context"
 	"image"
+	"image/color"
 	"testing"
 )
 
@@ -22,6 +23,9 @@ func TestRenderDrawsEveryVideoFrame(t *testing.T) {
 		if img.Bounds().Dx() != 256 || img.Bounds().Dy() != 256 {
 			t.Fatalf("frame is %v, want 256 px", img.Bounds())
 		}
+		if got == 0 && !hasColor(img, ctColor) {
+			t.Fatal("the CT player is not drawn in the Replay's exact blue")
+		}
 		got++
 		return nil
 	})
@@ -30,14 +34,26 @@ func TestRenderDrawsEveryVideoFrame(t *testing.T) {
 	}
 }
 
+func hasColor(img image.Image, c color.RGBA) bool {
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if color.RGBAModel.Convert(img.At(x, y)) == c {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func TestHiddenPlayersLeaveThePlate(t *testing.T) {
 	s := scene(t)
 	s.Hide = Layers{Players: true, Utility: true, Bomb: true, Clock: true}
 	var first []uint8
 	err := Render(context.Background(), s, 30, func(img image.Image) error {
-		p, ok := img.(*image.Paletted)
+		p, ok := img.(*image.RGBA)
 		if !ok {
-			t.Fatal("frame is not paletted")
+			t.Fatal("frame is not RGBA")
 		}
 		if first == nil {
 			first = append([]uint8{}, p.Pix...)

@@ -197,6 +197,14 @@ func frameTicks(from, to int, tickrate, step float64) []int {
 
 // plate is the radar scaled to the GIF and reduced to its palette once.
 func plate(s Scene, pal color.Palette) *image.Paletted {
+	rgba := radarRGBA(s)
+	out := image.NewPaletted(rgba.Rect, pal)
+	xdraw.FloydSteinberg.Draw(out, rgba.Rect, rgba, image.Point{})
+	return out
+}
+
+// radarRGBA is the radar scaled to the scene's size, in full colour.
+func radarRGBA(s Scene) *image.RGBA {
 	r := image.Rect(0, 0, s.Size, s.Size)
 	rgba := image.NewRGBA(r)
 	xdraw.Draw(rgba, r, image.NewUniform(plateColor), image.Point{}, xdraw.Src)
@@ -204,9 +212,7 @@ func plate(s Scene, pal color.Palette) *image.Paletted {
 		// The overview spans the calibration's native size whatever its pixel count.
 		xdraw.ApproxBiLinear.Scale(rgba, r, s.Radar, s.Radar.Bounds(), xdraw.Over, nil)
 	}
-	out := image.NewPaletted(r, pal)
-	xdraw.FloydSteinberg.Draw(out, r, rgba, image.Point{})
-	return out
+	return rgba
 }
 
 // changed is the smallest rectangle where two frames of the same size differ.

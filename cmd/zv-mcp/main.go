@@ -195,7 +195,7 @@ get_play lists the patterns linked to a play.
 player_setpos gives the console line that puts you where a player stood at a moment of a round (S or a right-click on a player in the Replay).
 export_replay_gif saves a round's tramo as a looping GIF with the radar, players, utility, clock and saved drawings, as Exportar GIF (G) does.
 export_replay_video saves the tramo of one round, or of several rounds one after another, as an H.264 MP4 (Exportar MP4), with layers
-to pick what is drawn and include_voice for the synced team voice cut to the same moments.
+to pick what is drawn, include_voice for the synced team voice cut to the same moments and freeze_only for its freeze-time comms only.
 record_round_pov is the Replay's "Grabar su POV de esta ronda": one player's first-person video of one round (match_id, round, steamid),
 from the end of freeze time to the end of the round with Studio's default look; it asks for approval, then follow with wait_for_job and the variant it returns.
 What the Replay's round panel does with a round: create_job and generate_short make its video, save_round_as_play saves it as a play,

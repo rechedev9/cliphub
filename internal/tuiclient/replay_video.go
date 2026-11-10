@@ -27,6 +27,8 @@ type ReplayVideoSegment struct {
 	FromTick int `json:"from_tick"`
 	ToTick   int `json:"to_tick"`
 	Frames   int `json:"frames"`
+	// VoiceToTick, when set, is where the voice goes quiet, such as the end of freeze time.
+	VoiceToTick int `json:"voice_to_tick,omitempty"`
 }
 
 // ReplayVideoResult is the encoded MP4, waiting at GET /api/library/replay-videos/{video_id}.

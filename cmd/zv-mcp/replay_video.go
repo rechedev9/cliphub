@@ -25,10 +25,11 @@ type replayVideoIn struct {
 	FromSecond   float64  `json:"from_second,omitempty" jsonschema:"start of the tramo, in seconds after the round went live (or after the plant with from_plant); 0 by default"`
 	ToSecond     float64  `json:"to_second,omitempty" jsonschema:"end of the tramo, on the same clock; the end of the round by default"`
 	FromPlant    bool     `json:"from_plant,omitempty" jsonschema:"count from_second and to_second from the bomb plant"`
-	Speed        float64  `json:"speed,omitempty" jsonschema:"how fast the video plays the tramo: 0.5, 1 (default), 2 or 4; the voice follows"`
+	Speed        float64  `json:"speed,omitempty" jsonschema:"how fast the video plays the tramo: 0.25, 0.5, 1 (default), 2 or 4; the voice follows"`
 	FPS          int      `json:"fps,omitempty" jsonschema:"frames a second: 24, 30 (default) or 60"`
 	Size         int      `json:"size,omitempty" jsonschema:"side of the square video in pixels, from 256 to 1024; 1024 by default"`
 	IncludeVoice bool     `json:"include_voice,omitempty" jsonschema:"true adds the match's synced team voice (TeamSpeak recording), cut to each round's tramo"`
+	FreezeOnly   bool     `json:"freeze_only,omitempty" jsonschema:"with include_voice, only the freeze-time comms: the voice goes quiet once the round is live, as the Replay's Solo tiempo de compra"`
 	Layers       []string `json:"layers,omitempty" jsonschema:"what to draw: players, utility, bomb, drawings and clock; every layer by default"`
 	Path         string   `json:"path" jsonschema:"absolute path of a new .mp4 file on this PC"`
 }
@@ -89,7 +90,7 @@ func checkVideoIn(in replayVideoIn) (replayVideoIn, error) {
 		in.Speed = 1
 	}
 	if !slices.Contains(replayvideo.Speeds, in.Speed) {
-		return in, errors.New("speed must be 0.5, 1, 2 or 4")
+		return in, errors.New("speed must be 0.25, 0.5, 1, 2 or 4")
 	}
 	if in.FPS == 0 {
 		in.FPS = 30
@@ -152,7 +153,11 @@ func videoScenes(ctx context.Context, c *tuiclient.Client, in replayVideoIn, rou
 			return nil, nil, err
 		}
 		scenes = append(scenes, scene)
-		segments = append(segments, tuiclient.ReplayVideoSegment{Round: n, FromTick: from, ToTick: to, Frames: frames})
+		seg := tuiclient.ReplayVideoSegment{Round: n, FromTick: from, ToTick: to, Frames: frames}
+		if in.FreezeOnly {
+			seg.VoiceToTick = max(from, round.Round.TickFreezeEnd)
+		}
+		segments = append(segments, seg)
 	}
 	return scenes, segments, nil
 }
