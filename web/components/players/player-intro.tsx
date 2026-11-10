@@ -21,7 +21,9 @@ import { formatShortDate, prettyMapName } from '@/lib/format';
 import { dateText } from '@/lib/reports/scout-sections';
 import { LineChart } from '@/components/ui/line-chart';
 import { Segmented } from '@/components/ui/segmented';
-import { StatCard, StatCardGroup } from '@/components/ui/stat-card';
+import { SlashTitle } from '@/components/records/document-page';
+import { EdgeTileGrid } from '@/components/records/edge-tile';
+import { PlayerMetricTile } from '@/components/players/player-metric-tile';
 import { useReferences } from '@/hooks/use-references';
 
 /** Trend points need a few matches to say anything. */
@@ -101,33 +103,32 @@ export function PlayerIntro({
   return (
     <div className="flex flex-col gap-3">
       <section aria-label="Cifras frente a la referencia" className="@container flex flex-col gap-1.5">
-        <h2 className="text-body-sm font-semibold text-fg-1">Frente a la {referenceLabel(scope).toLowerCase()}</h2>
+        <SlashTitle>Frente a la {referenceLabel(scope).toLowerCase()}</SlashTitle>
         {references === 'failed' ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo leer la media de la biblioteca. Las cifras salen sin comparar.
           </p>
         ) : null}
-        {/* The nine figures as 3×3, 5 + 4 (the last one twice as wide) or one row: no card alone, no empty cell. */}
-        <StatCardGroup label="Cifras principales" className="grid-cols-3 @min-[34rem]:grid-cols-5 @min-[34rem]:[&>:last-child]:col-span-2 @min-[60rem]:grid-cols-9 @min-[60rem]:[&>:last-child]:col-span-1">
+        <EdgeTileGrid label="Cifras principales" className="grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]">
           {BASELINE_METRICS.map((metric, index) => {
             const info = METRIC_INFO[metric];
-            const mean = baselineValue(baseline, metric);
             const cardReliability = reliabilities[index] ?? null;
             return (
-              <StatCard
+              <PlayerMetricTile
                 key={metric}
                 label={info.label}
                 value={values[metric] ?? null}
                 format={info.format}
                 higherIsBetter={info.higherIsBetter}
                 epsilon={info.epsilon}
-                comparison={mean === null ? undefined : { value: mean, label }}
+                mean={baselineValue(baseline, metric)}
+                meanLabel={label}
                 reliability={cardReliability && allWeak ? { ...cardReliability, weak: false } : cardReliability}
                 trend={trends[metric]}
               />
             );
           })}
-        </StatCardGroup>
+        </EdgeTileGrid>
         <p className="measure-read text-meta text-fg-3">
           {player.rounds} rondas en {report.matches} {report.matches === 1 ? 'partida' : 'partidas'}.{allWeak ? ' Poca muestra en todas las cifras: pesa más la media que sus rondas.' : ''} ▲▼ solo cuando la diferencia es fiable.
           {baseline ? ` ${sourceText(baseline, map)}` : ''}
@@ -136,7 +137,7 @@ export function PlayerIntro({
         </p>
       </section>
       <section aria-label="Rendimiento reciente" className="studio-panel flex flex-col gap-2 px-3 py-2.5">
-        <h2 className="text-body-sm font-semibold text-fg-1">Rendimiento reciente</h2>
+        <SlashTitle>Rendimiento reciente</SlashTitle>
         {chartPoints.length < MIN_TREND_POINTS ? (
           <p className="text-body-sm text-fg-2">Hacen falta al menos dos partidas con este filtro para dibujar la evolución.</p>
         ) : (

@@ -47,7 +47,10 @@ function RoleChips({ player, side }: { player: SideStatsPlayer; side: ReportSide
   );
 }
 
-/** A player's card in Estadísticas: role chips, rating and the per-round figures. */
+/**
+ * A player's card in the EDGE Jugadores row: the nick and the avatar (FACEIT's when known, else the
+ * initial), the role chips, the big rating and the 2x2 of K/D, ADR, KPR and DPR.
+ */
 export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side: ReportSide }): ReactNode {
   const name = player.name || player.steamid64;
   const lines = [
@@ -57,24 +60,24 @@ export function PlayerStatCard({ player, side }: { player: SideStatsPlayer; side
     { label: 'DPR', value: formatDecimal(player.dpr, 2) },
   ];
   return (
-    <li className="studio-panel flex min-w-0 flex-col gap-2 p-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <PlayerAvatar nickname={name} playerID={player.steamid64} size={32} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="truncate text-body font-semibold text-fg-1">{name}</p>
+    <li className="flex min-w-0 flex-col gap-2 border border-border bg-surface-2 p-3">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="truncate text-body font-bold text-fg-1">{name}</p>
           <RoleChips player={player} side={side} />
         </div>
+        <PlayerAvatar nickname={name} playerID={player.steamid64} size={32} />
       </div>
       <p className="flex items-baseline gap-1.5">
-        <span className="text-display font-semibold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
-        <span className="text-meta text-fg-3">{RATING_LABEL}</span>
+        <span className="text-stat leading-none font-bold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
+        <span className="text-meta font-medium tracking-wider text-fg-3 uppercase">{RATING_LABEL}</span>
         <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
       </p>
-      <dl className="grid grid-cols-4 gap-2">
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {lines.map((line) => (
           <div key={line.label} className="flex flex-col">
-            <dt className="text-meta text-fg-3">{line.label}</dt>
-            <dd className="text-body-sm font-medium text-fg-1 tabular-nums">{line.value}</dd>
+            <dt className="text-meta font-medium tracking-wider text-fg-3 uppercase">{line.label}</dt>
+            <dd className="text-body font-bold text-fg-1 tabular-nums">{line.value}</dd>
           </div>
         ))}
       </dl>

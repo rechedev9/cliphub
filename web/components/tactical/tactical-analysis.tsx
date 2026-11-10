@@ -20,6 +20,7 @@ import { TACTICAL_EVIDENCE_QUERY } from '@/lib/library/rounds';
 import { TACTICAL_FILTER_PARAMS } from '@/lib/api/tactical';
 import { POSITIONS_MISSING_MESSAGE, analysisErrorMessage, loadAnalysis } from '@/lib/replay/loaded-analysis';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
+import { MATCHES_HREF } from '@/lib/clips/routes';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { ReplayWorkspace } from '@/components/replay/replay-workspace';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
@@ -281,6 +282,7 @@ export function TacticalAnalysis({
         tramo={tramo}
         groupLabel={groupLabel}
         matchDate={matchDate}
+        back={sourceKind === 'library' ? { href: MATCHES_HREF, label: 'Volver' } : undefined}
       />
     );
   }

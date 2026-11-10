@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { NO_MATCHES_TEXT, mapCountText, type MapCounts } from '@/lib/analysis/map-counts';
 import { prettyMapName } from '@/lib/format';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import { FIELD, FIELD_SET } from '@/components/analysis/scope-field-style';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +19,7 @@ export type ScopeMapSelectProps = {
   /** Matches per map in the scope; null leaves the maps uncounted and all choosable. */
   counts: MapCounts | null;
   onChange: (map: string) => void;
+  className?: string;
 };
 
 function MapName({ map }: { map: string }): ReactNode {
@@ -30,7 +32,7 @@ function MapName({ map }: { map: string }): ReactNode {
 }
 
 /** The map control of the scope bar: each map says how many matches it has in the scope and a map with none cannot be chosen. */
-export function ScopeMapSelect({ value, maps, required, counts, onChange }: ScopeMapSelectProps): ReactNode {
+export function ScopeMapSelect({ value, maps, required, counts, onChange, className }: ScopeMapSelectProps): ReactNode {
   const allLabel = required ? 'Elige un mapa' : 'Todos los mapas';
   // A map reached through the URL, a chip or a changed scope can still have none: say so on the trigger.
   const emptyChoice = value !== '' && counts?.[value] === 0;
@@ -39,7 +41,7 @@ export function ScopeMapSelect({ value, maps, required, counts, onChange }: Scop
       <SelectTrigger
         aria-label="Mapa"
         title={emptyChoice ? NO_MATCHES_TEXT : undefined}
-        className={cn('h-8 gap-1.5 px-2.5 text-body-sm', value !== '' && 'border-fg-3 text-fg-1')}
+        className={cn(FIELD, value !== '' && FIELD_SET, className)}
       >
         <SelectValue>
           <span className="flex items-center gap-2">

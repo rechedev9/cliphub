@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Pause, Play, Repeat } from 'lucide-react';
+import { Bomb, Pause, Play, Repeat } from 'lucide-react';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent, TacticalTimeout } from '@/lib/api/tactical';
 import { isBombKind } from '@/lib/replay/layers';
@@ -17,6 +17,9 @@ import { cn } from '@/lib/utils';
 import { isWholeRound, tramoLabel } from '@/lib/replay/tramo';
 import { QuickTramos, TramoBracket } from './tramo-bar';
 import type { TramoControl } from './tramo-bar';
+
+/** A faint vertical tick every this many seconds, the scale of the track. */
+const GRID_STEP_SECONDS = 15;
 
 /** Kills in the killer's colour, the bomb in white, grenades as short grey ticks. */
 function tickClass(event: TacticalEvent): string {
@@ -90,7 +93,7 @@ export function ReplayTimeline({
   const postPlant = timeline.durationSeconds > 0 ? postPlantSpan(events, timeline.durationSeconds) : null;
   return (
     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3">
-      <Button type="button" size="icon-sm" variant="outline" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ] o J K: ronda">
+      <Button type="button" size="icon-sm" variant="outline" className="size-10" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'} title="Espacio: reproducir o pausar · ←/→: 1 s · Mayús + ←/→: evento · [ ] o J K: ronda">
         {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
       </Button>
       <span ref={clockRef} className="flex h-10 w-[6ch] items-center justify-end font-display text-title font-semibold tabular-nums text-fg-1">
@@ -99,7 +102,12 @@ export function ReplayTimeline({
       <div className="flex min-w-0 flex-col gap-1">
         <div className="relative h-10">
           <div className="pointer-events-none absolute inset-x-[3px] top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-sm bg-surface-0 shadow-[inset_0_0_0_1px_var(--border)]">
-            <div className="absolute inset-y-0 left-0 bg-surface-3" style={{ width: `${freeze * 100}%` }} aria-hidden />
+            {Array.from({ length: Math.floor(timeline.durationSeconds / GRID_STEP_SECONDS) }, (_, step) => (
+              <span key={step} className="absolute inset-y-0 w-px bg-border" style={{ left: `${(((step + 1) * GRID_STEP_SECONDS) / timeline.durationSeconds) * 100}%` }} aria-hidden />
+            ))}
+            <div className="absolute inset-y-0 left-0 flex items-center justify-center overflow-hidden bg-surface-3 text-meta whitespace-nowrap text-fg-3" style={{ width: `${freeze * 100}%` }} aria-hidden>
+              Congelación
+            </div>
             {timeoutSpans(timeouts, timeline).map((span) => (
               <div
                 key={`${span.side}-${span.from}`}
@@ -116,11 +124,13 @@ export function ReplayTimeline({
             ))}
             {postPlant === null ? null : (
               <div
-                className="absolute inset-y-0 overflow-hidden bg-destructive/20 pl-1 text-meta leading-5 font-semibold text-destructive"
+                className="absolute inset-y-0 flex items-center justify-center overflow-hidden bg-destructive/30 text-meta font-semibold text-destructive"
                 style={{ left: `${(postPlant.from / timeline.durationSeconds) * 100}%`, width: `${((postPlant.to - postPlant.from) / timeline.durationSeconds) * 100}%` }}
                 aria-hidden
               >
+                <Bomb className="absolute left-0.5 size-3 text-fg-1" />
                 Bomba
+                <span className="absolute inset-y-0 right-0 w-0.5 bg-fg-1" />
               </div>
             )}
             {events.map((entry, index) => (

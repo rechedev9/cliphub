@@ -28,7 +28,7 @@ import { hitLines, recentDamage } from '@/lib/replay/hit-lines';
 import { layerSamples, layerTrails, showAllPlayers } from '@/lib/replay/layers';
 import { blockingSmokes, frameSight } from '@/lib/replay/sight-lines';
 import type { FrameSight } from '@/lib/replay/sight-lines';
-import { MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
+import { DOT_SIZE_SCALE, MAP_SIZE_SCALE, ZOOM_SPEED } from '@/lib/replay/map-settings';
 import { WHEEL_STEP, boxWindow, paddedView, radarImageFits } from '@/lib/replay/map-view';
 import { floorBounds, floorPolygons } from '@/lib/replay/nav-radar';
 import { framesDecodeError } from '@/lib/replay/loaded-analysis';
@@ -135,7 +135,7 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
   const [navArt, setNavArt] = useState<{ map: string; art: MapArt; failed: boolean } | null>(null);
   const [officialArt, setOfficialArt] = useState<OfficialArt | null>(null);
   const source = settings.art;
-  const dotScale = MAP_SIZE_SCALE[settings.dots];
+  const dotScale = DOT_SIZE_SCALE[settings.dots];
   const nameScale = MAP_SIZE_SCALE[settings.names];
   const show = settings.show;
   const [real, setReal] = useState<RealArt | null>(null);

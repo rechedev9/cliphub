@@ -34,8 +34,11 @@ export function MapHud({
   onToggleEvents,
   onSeek,
   showFeed,
+  showScore,
 }: {
   focused: CentreRound;
+  /** Marcador arriba in the replay preferences. */
+  showScore: boolean;
   /** Feed de bajas in Ajustes del mapa. */
   showFeed: boolean;
   /** The playhead in seconds on the focused round's own bar. */
@@ -57,11 +60,13 @@ export function MapHud({
 
   return (
     <>
-      <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 left-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', HUD_SURFACE)}>
-        <TeamCell side={TACTICAL_SIDES.ct} name={teams.CT} score={score.CT} alive={alive.CT} />
-        <ClockCell bomb={bomb} clock={hudClock(roundClockSeconds(focused.timeline, roundSeconds))} />
-        <TeamCell side={TACTICAL_SIDES.t} name={teams.T} score={score.T} alive={alive.T} mirrored />
-      </div>
+      {showScore ? (
+        <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 left-2 flex h-11 items-stretch overflow-hidden rounded-md text-body-sm', HUD_SURFACE)}>
+          <TeamCell side={TACTICAL_SIDES.ct} name={teams.CT} score={score.CT} alive={alive.CT} />
+          <ClockCell bomb={bomb} clock={hudClock(roundClockSeconds(focused.timeline, roundSeconds))} />
+          <TeamCell side={TACTICAL_SIDES.t} name={teams.T} score={score.T} alive={alive.T} mirrored />
+        </div>
+      ) : null}
 
       <div className={cn(HUD_SCOPE, 'pointer-events-none absolute top-2 right-2 bottom-14 flex w-80 max-w-[45%] flex-col items-end gap-1')}>
         <button

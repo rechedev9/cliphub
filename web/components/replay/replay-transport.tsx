@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { ReplayTimeline } from './replay-timeline';
 import { RoundStrip } from './round-strip';
 
-/** What the Superponer button says it superposes, and its tooltip, for the rounds and players in play. */
+/** What the Multi ronda button says it superposes, and its tooltip, for the rounds and players in play. */
 export function superposeCopy({
   multi,
   everyRound,
@@ -39,21 +39,26 @@ export function superposeCopy({
 }
 
 /**
- * The transport under the map and the side panels: Superponer and the strip of
- * rounds, the timeline with its marks, and the round's team voice.
+ * The transport under the map and the side panels: the toolbar, Multi ronda
+ * and the strip of rounds, the team voice row, and the timeline with its
+ * marks. While the voice is being synced a slim offset bar replaces the toolbar
+ * and the round row and the voice row steps aside.
  */
 export function ReplayTransport({
   fullscreen,
   superpose,
+  toolbar,
   strip,
   timeline,
   voice,
 }: {
   fullscreen: boolean;
   superpose: { on: boolean; disabled: boolean; note: string; hint: string; onToggle: () => void };
+  toolbar: ReactNode;
   strip: ComponentProps<typeof RoundStrip>;
   timeline: ComponentProps<typeof ReplayTimeline>;
-  voice: ReactNode;
+  /** `sync` is the offset bar of the voice being synced, null otherwise. */
+  voice: { row: ReactNode; sync: ReactNode };
 }): ReactNode {
   return (
     <div
@@ -62,27 +67,32 @@ export function ReplayTransport({
         fullscreen ? 'col-span-2 row-start-2' : 'min-[1180px]:col-span-3 min-[1180px]:row-start-2',
       )}
     >
-      <div className="flex min-w-0 items-end gap-3">
-        <Button
-          type="button"
-          size="xs"
-          variant={superpose.on ? 'outline-primary' : 'outline'}
-          aria-pressed={superpose.on}
-          disabled={superpose.disabled}
-          onClick={superpose.onToggle}
-          className="h-11 shrink-0"
-          title={`${superpose.hint} (M)`}
-        >
-          <Layers aria-hidden />
-          <span className="flex flex-col items-start leading-tight">
-            Superponer
-            <span className="text-meta font-normal text-fg-3">{superpose.note}</span>
-          </span>
-        </Button>
-        <RoundStrip {...strip} />
-      </div>
+      {voice.sync === null ? (
+        <>
+          {toolbar}
+          <div className="flex min-w-0 items-end gap-3">
+            <Button
+              type="button"
+              size="xs"
+              variant={superpose.on ? 'outline-primary' : 'outline'}
+              aria-pressed={superpose.on}
+              disabled={superpose.disabled}
+              onClick={superpose.onToggle}
+              className="h-9 shrink-0 uppercase tracking-wide"
+              title={`${superpose.hint} (M)`}
+            >
+              <Layers aria-hidden />
+              Multi ronda
+              {superpose.on ? <span className="text-meta font-normal tracking-normal text-fg-3 normal-case">{superpose.note}</span> : null}
+            </Button>
+            <RoundStrip {...strip} />
+          </div>
+          {voice.row}
+        </>
+      ) : (
+        voice.sync
+      )}
       <ReplayTimeline {...timeline} />
-      {voice}
     </div>
   );
 }

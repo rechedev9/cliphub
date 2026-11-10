@@ -66,7 +66,7 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     label: 'Estadísticas',
     entries: [
       { id: 'estadisticas-de-equipo', label: 'Estadísticas de equipo', href: '/equipos' },
-      { id: 'estadisticas-de-jugador', label: 'Estadísticas de jugador', href: '/equipos', temporary: true },
+      { id: 'estadisticas-de-jugador', label: 'Estadísticas de jugador', href: '/jugadores', temporary: true },
       { id: 'ranking', label: 'Ranking', href: '/ranking' },
     ],
   },
@@ -85,7 +85,7 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     label: 'Otras herramientas',
     entries: [
       { id: 'simulacion-de-veto', label: 'Simulación de veto', href: '/partidas/series', temporary: true },
-      { id: 'preparar-rival', label: 'Preparar rival', href: '/informes/prep', temporary: true },
+      { id: 'preparar-rival', label: 'Preparar rival', href: '/equipos', temporary: true },
       { id: 'informes', label: 'Informes', href: '/informes' },
       { id: 'integridad', label: 'Integridad', href: '/integridad' },
     ],

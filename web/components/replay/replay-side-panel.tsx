@@ -10,6 +10,7 @@ import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FOLLOW_HINT } from './replay-players';
 import type { SetposCopy } from '@/lib/replay/setpos';
+import type { RoundPovRun } from '@/lib/replay/round-pov';
 import { teamNamesFor } from '@/lib/replay/map-hud';
 import { playerCards } from '@/lib/replay/player-cards';
 import { frameCursor } from '@/lib/tactical-replay';
@@ -17,10 +18,11 @@ import { timelineEvents, timelineSeconds } from '@/lib/tactical-timeline';
 import { AnnotationPanel } from '@/components/tactical/spatial/annotation-panel';
 import { PlayerPanel } from './player-panel';
 import { RoundPatterns } from './round-patterns';
+import { PovRuns, SetposList } from './round-logs';
 
 /**
- * The right column: both teams at the playhead, whole, and under them the
- * round's notes. The events live in the kill feed over the map. It reads the
+ * The right column: both teams at the playhead as two cards, and under them the
+ * round's notes, POV runs, copied setpos lines and saved patterns. The events live in the kill feed over the map. It reads the
  * playhead a few times a second, never per frame.
  */
 export function ReplaySidePanel({
@@ -51,7 +53,8 @@ export function ReplaySidePanel({
   onShowAll: () => void;
   setpos: readonly SetposCopy[];
   onCopySetpos: (entry: SetposCopy) => void;
-  pov: ComponentProps<typeof PlayerPanel>['pov'];
+  /** Library matches only: the POV runs of this visit and the button that records one. */
+  pov: { runs: readonly RoundPovRun[]; onRecord: (slot: number) => void } | null;
   notes: ComponentProps<typeof AnnotationPanel> | null;
   /** Library rounds list the saved patterns they meet. */
   patterns: boolean;
@@ -115,16 +118,16 @@ export function ReplaySidePanel({
         onFocus={onFocus}
         onTogglePlayer={onTogglePlayer}
         onShowAll={onShowAll}
-        setpos={setpos}
-        onCopySetpos={onCopySetpos}
         pov={pov}
       />
       {notes === null ? null : (
-        <section aria-label="Notas de la ronda" className="flex flex-col gap-1.5 border-t border-border-subtle pt-2">
+        <section aria-label="Notas de la ronda" className="flex flex-col gap-1.5 pt-1">
           <h3 className="px-1 text-meta font-semibold text-fg-3">Notas</h3>
           <AnnotationPanel {...notes} tools={false} />
         </section>
       )}
+      {pov === null || pov.runs.length === 0 ? null : <PovRuns runs={pov.runs} />}
+      {setpos.length === 0 ? null : <SetposList setpos={setpos} onCopy={onCopySetpos} />}
       {patterns ? <RoundPatterns matchId={focused.matchId} round={focused.round.number} /> : null}
     </div>
   );

@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Shield, User } from 'lucide-react';
 import { switchEntityHref } from '@/lib/analysis/context-bar';
 import { searchOptions } from '@/lib/analysis/entity-search';
 import { recentTeamOptions, rememberRecentTeam } from '@/lib/analysis/recent-teams';
 import type { ScopeEntity, ScopeOption } from '@/components/analysis/scope-bar';
+import { TEAM_RED } from '@/components/analysis/scope-field-style';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -65,6 +66,7 @@ export function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
   const found = searchOptions(entity.options, text);
   const recents = remembers ? recentTeamOptions(recent, entity.options, entity.id) : [];
   const noun = entity.noun.toLowerCase();
+  const team = entity.tone === 'team';
 
   function pick(id: string): void {
     setOpen(false);
@@ -89,8 +91,15 @@ export function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
       }}
     >
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="xs" aria-label={entity.noun} className="max-w-56 justify-between gap-1.5 text-body-sm">
-          <span className="truncate">{current?.label}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={entity.noun}
+          className={cn('h-7 max-w-56 min-w-36 justify-between gap-1.5 px-2 text-body-sm normal-case tracking-normal', team && TEAM_RED)}
+        >
+          {team ? <Shield aria-hidden className="size-3.5 shrink-0 text-fg-3" /> : <User aria-hidden className="size-3.5 shrink-0 text-fg-3" />}
+          <span className="flex-1 truncate text-left">{current?.label}</span>
           <ChevronDown aria-hidden className="size-4 shrink-0 text-fg-3" />
         </Button>
       </PopoverTrigger>

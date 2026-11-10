@@ -11,153 +11,105 @@ import {
   groupMeanText,
   sideDelta,
   type SideKey,
-  type SideStatTile,
 } from '@/lib/analysis/side-stats';
+import { prettyMapName } from '@/lib/format';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { cn } from '@/lib/utils';
 
-const ROW_TILES = SIDE_STAT_TILES.filter((tile) => tile.key !== 'maps_won');
 const ROUNDS_WON = SIDE_STAT_TILES.find((tile) => tile.key === 'rounds_won');
+const ROW_TILES = SIDE_STAT_TILES.filter((tile) => tile.key !== 'maps_won' && tile.key !== 'rounds_won');
 
 const SIDE_NAME: Record<SideKey, string> = { t: 'T', ct: 'CT' };
 const SIDE_TEXT: Record<SideKey, string> = { t: 'text-side-t', ct: 'text-side-ct' };
-const SIDE_RING: Record<SideKey, string> = { t: 'border-side-t/50', ct: 'border-side-ct/50' };
-
+const CAPS = 'text-meta font-medium tracking-wider text-fg-3 uppercase';
 const OUT_OF_FILTER = 'Fuera del filtro';
 
-type BigSideProps = { id: SideKey; tile: SideStatTile; stat: SideStat; empty: boolean; dimmed: boolean; lit: boolean };
+const VERSUS: Record<'better' | 'worse' | 'even', string> = {
+  better: 'por encima de la media',
+  worse: 'por debajo de la media',
+  even: 'en la media',
+};
 
-function BigSide({ id, tile, stat, empty, dimmed, lit }: BigSideProps): ReactNode {
-  const delta = sideDelta(stat, tile.unit);
+function SideColumnHead({ id, dimmed }: { id: SideKey; dimmed: boolean }): ReactNode {
   return (
-    <div
-      data-side={id}
-      data-dimmed={dimmed}
-      className={cn(
-        'flex min-w-0 flex-col items-center gap-0.5 rounded-md border bg-surface-2 px-4 py-3 text-center',
-        lit ? SIDE_RING[id] : 'border-transparent',
-      )}
-    >
-      <span className={cn('text-body font-semibold', dimmed ? 'text-fg-3' : SIDE_TEXT[id])}>{SIDE_NAME[id]}</span>
-      {dimmed ? <span className="text-meta text-fg-3">{OUT_OF_FILTER}</span> : null}
-      {empty ? (
-        <span className="py-3 text-body font-medium text-fg-3">Sin rondas en {SIDE_NAME[id]}</span>
-      ) : (
-        <>
-          <span className={cn('text-display font-semibold tabular-nums', dimmed ? 'text-fg-3' : 'text-fg-1')}>
-            {formatSideValue(stat.value, tile.unit)}
-          </span>
-          <span className="text-meta text-fg-3">{tile.label}</span>
-          {delta ? <span className={cn('text-body-sm font-medium tabular-nums', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
-          <span className="text-meta text-fg-3 tabular-nums">{groupMeanText(stat, tile.unit)}</span>
-        </>
-      )}
-    </div>
+    <span className={cn('text-center text-meta font-bold tracking-wider uppercase', dimmed ? 'text-fg-4' : SIDE_TEXT[id])}>
+      Lado {SIDE_NAME[id]}
+      {dimmed ? <span className="sr-only"> ({OUT_OF_FILTER.toLowerCase()})</span> : null}
+    </span>
   );
 }
 
-type RowCellProps = { id: SideKey; tile: SideStatTile; stat: SideStat; dimmed: boolean; inline: boolean };
-
-function RowCell({ id, tile, stat, dimmed, inline }: RowCellProps): ReactNode {
-  const delta = sideDelta(stat, tile.unit);
+function RowCell({ stat, unit, dimmed }: { stat: SideStat; unit: (typeof SIDE_STAT_TILES)[number]['unit']; dimmed: boolean }): ReactNode {
+  const delta = sideDelta(stat, unit);
   return (
-    <div data-side={id} className={cn(
-        'flex min-w-0 flex-col items-center px-2 text-center tabular-nums',
-        inline && '@3xl:flex-row @3xl:flex-wrap @3xl:items-baseline @3xl:justify-end @3xl:gap-x-2 @3xl:text-end',
-      )}
-    >
-      <span className={cn('font-medium', dimmed ? 'text-fg-3' : 'text-fg-1')}>{formatSideValue(stat.value, tile.unit)}</span>
+    <span title={groupMeanText(stat, unit)} className={cn('flex min-w-0 flex-col items-center tabular-nums', dimmed && 'opacity-45')}>
+      <span className="font-bold text-fg-1">{formatSideValue(stat.value, unit)}</span>
       {delta ? <span className={cn('text-meta', DELTA_TONE_CLASS[delta.tone])}>{delta.text}</span> : null}
-      <span className="text-meta text-fg-3">{groupMeanText(stat, tile.unit)}</span>
-    </div>
+    </span>
   );
 }
 
-function ColumnHead({ id, dimmed, className }: { id: SideKey; dimmed: boolean; className: string }): ReactNode {
-  return (
-    <div className={cn('flex flex-col items-center text-center', className)}>
-      <span className={cn('text-body-sm font-semibold', dimmed ? 'text-fg-3' : SIDE_TEXT[id])}>
-        {SIDE_NAME[id]}
-        {dimmed ? <span className="sr-only"> ({OUT_OF_FILTER.toLowerCase()})</span> : null}
-      </span>
-      {dimmed ? <span aria-hidden className="text-meta text-fg-3">{OUT_OF_FILTER}</span> : null}
-    </div>
-  );
-}
-
-function headPlace(single: boolean, index: number): string {
-  if (single) return '@3xl:items-end';
-  return index === 0 ? '' : '@3xl:col-start-3';
-}
-
-function cellPlace(single: boolean, index: number): string {
-  if (single) return '';
-  return index === 0 ? '@3xl:col-start-1 @3xl:row-start-1' : '@3xl:col-start-3 @3xl:row-start-1';
-}
-
-export type TeamSidesCardProps = { ct: SideStats; t: SideStats; side: ReportSide };
+export type TeamSidesCardProps = {
+  ct: SideStats;
+  t: SideStats;
+  /** The scope's own figures, the ones the big rate and its delta read. */
+  overall: SideStats;
+  side: ReportSide;
+  /** The scope's map; its photo fades into the banner. */
+  map: string;
+};
 
 /**
- * The Sides card of Estadísticas: T and CT round win rate large, the other figures per side between them.
- * With a side chosen, "Estadísticas generales" already shows its figures, so the table keeps only the other side.
+ * The "Lados" banner: the round win rate large with its delta to the group, the group's own mean mirrored
+ * at the right, and between them the T and CT figures row by row. A side left out of the filter is dimmed.
  */
-export function TeamSidesCard({ ct, t, side }: TeamSidesCardProps): ReactNode {
+export function TeamSidesCard({ ct, t, overall, side, map }: TeamSidesCardProps): ReactNode {
   const dimmed = dimmedSide(side);
-  const columns = (['t', 'ct'] as const).filter((id) => dimmed === null || id === dimmed);
   const stats: Record<SideKey, SideStats> = { t, ct };
-  const single = columns.length === 1;
-  const rowGrid = single ? 'grid-cols-1 @3xl:grid-cols-[1fr_auto]' : 'grid-cols-2 @3xl:grid-cols-[1fr_11rem_1fr]';
+  const rate = overall.rounds_won;
+  const delta = ROUNDS_WON === undefined ? null : sideDelta(rate, ROUNDS_WON.unit);
+  const played = overall.rounds_played.value ?? 0;
   return (
-    <section aria-labelledby="side-stats-sides" className="studio-panel @container flex flex-col gap-3 p-3">
-      <h2 id="side-stats-sides" className="text-body font-semibold text-fg-1">
-        Por lado
-      </h2>
-      <div className="grid items-start gap-3 @3xl:grid-cols-[11rem_minmax(0,1fr)_11rem]">
-        {ROUNDS_WON ? (
-          <BigSide
-            id="t"
-            tile={ROUNDS_WON}
-            stat={t.rounds_won}
-            empty={(t.rounds_played.value ?? 0) === 0}
-            dimmed={dimmed === 't'}
-            lit={dimmed === 'ct'}
-          />
-        ) : null}
-        <div className="order-last flex min-w-0 flex-col @3xl:order-none">
-          <div className={cn('grid gap-x-2 border-b border-border-subtle pb-1.5', rowGrid)}>
-            {columns.map((id, index) => (
-              <ColumnHead key={id} id={id} dimmed={dimmed === id} className={headPlace(single, index)} />
-            ))}
+    <section aria-label="Lados" className="relative @container isolate overflow-hidden border border-border bg-surface-2">
+      {map === '' ? null : <MapThumb map={map} className="absolute inset-0 -z-20 size-full rounded-none opacity-35" crop={1.1} />}
+      <div aria-hidden className="absolute inset-0 -z-10 bg-linear-to-r from-surface-2 via-surface-2/70 to-surface-2" />
+      <div className="grid items-center gap-4 p-4 @3xl:grid-cols-[11rem_minmax(0,1fr)_11rem]">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-body font-bold tracking-wider text-fg-1 uppercase">{map === '' ? 'Todos los mapas' : prettyMapName(map)}</span>
+          <span className={CAPS}>Rondas ganadas</span>
+          <span className="text-display leading-none font-bold text-fg-1 tabular-nums">
+            {ROUNDS_WON === undefined ? '' : formatSideValue(rate.value, ROUNDS_WON.unit)}
+          </span>
+          {delta ? (
+            <span className={cn('text-body-sm font-medium tabular-nums', DELTA_TONE_CLASS[delta.tone])}>
+              {delta.text} {VERSUS[delta.tone]}
+            </span>
+          ) : null}
+          <span className={cn(CAPS, 'mt-1')}>{played === 1 ? '1 ronda jugada' : `${played} rondas jugadas`}</span>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] items-end gap-x-2 border-b border-border-subtle pb-1.5">
+            <span />
+            <SideColumnHead id="t" dimmed={dimmed === 't'} />
+            <SideColumnHead id="ct" dimmed={dimmed === 'ct'} />
           </div>
           <ul>
             {ROW_TILES.map((tile) => (
-              <li key={tile.key} className={cn('grid gap-x-2 gap-y-1 border-b border-border-subtle py-1.5 last:border-0', rowGrid)}>
-                <span
-                  className={cn(
-                    'text-center text-body-sm text-fg-2',
-                    single ? '@3xl:text-start' : 'order-first col-span-2 @3xl:order-none @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1',
-                  )}
-                >
-                  {tile.label}
-                </span>
-                {columns.map((id, index) => (
-                  <div key={id} className={cellPlace(single, index)}>
-                    <RowCell id={id} tile={tile} stat={stats[id][tile.key]} dimmed={dimmed === id} inline={single} />
-                  </div>
-                ))}
+              <li key={tile.key} className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] items-center gap-x-2 border-b border-border-subtle py-1.5 text-body-sm last:border-0">
+                <span className={cn(CAPS, 'truncate')}>{tile.label}</span>
+                <RowCell stat={stats.t[tile.key]} unit={tile.unit} dimmed={dimmed === 't'} />
+                <RowCell stat={stats.ct[tile.key]} unit={tile.unit} dimmed={dimmed === 'ct'} />
               </li>
             ))}
           </ul>
         </div>
-        {ROUNDS_WON ? (
-          <BigSide
-            id="ct"
-            tile={ROUNDS_WON}
-            stat={ct.rounds_won}
-            empty={(ct.rounds_played.value ?? 0) === 0}
-            dimmed={dimmed === 'ct'}
-            lit={dimmed === 't'}
-          />
-        ) : null}
+        <div className="hidden flex-col items-end gap-0.5 text-right opacity-60 @3xl:flex">
+          <span className={CAPS}>Media del grupo</span>
+          <span className="text-display leading-none font-bold text-fg-1 tabular-nums">
+            {ROUNDS_WON === undefined ? '' : formatSideValue(rate.group_avg, ROUNDS_WON.unit)}
+          </span>
+          <span className="text-meta text-fg-3 tabular-nums">{ROUNDS_WON === undefined ? '' : groupMeanText(rate, ROUNDS_WON.unit)}</span>
+        </div>
       </div>
     </section>
   );

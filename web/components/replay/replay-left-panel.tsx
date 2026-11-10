@@ -8,22 +8,22 @@ import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactic
 import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** A section that folds; the count says what is inside while it is closed. */
+/** A card of the column that folds; the count says what is inside while it is closed. */
 function Fold({ title, count, defaultOpen, children }: { title: string; count?: number; defaultOpen: boolean; children: ReactNode }): ReactNode {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="flex flex-col gap-1.5" aria-label={title}>
+    <section className="flex flex-col rounded-sm border border-border-subtle bg-surface-0" aria-label={title}>
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className={cn('flex h-7 items-center gap-1.5 rounded-sm text-meta font-medium text-fg-3 outline-none hover:text-fg-1', FOCUS_RING)}
+        className={cn('flex h-8 items-center gap-1.5 rounded-sm px-2 text-meta font-semibold text-fg-2 outline-none hover:text-fg-1', FOCUS_RING)}
       >
         <ChevronRight className={cn('size-3.5 transition-transform duration-(--dur-fast)', open && 'rotate-90')} aria-hidden />
         {title}
-        {count === undefined || count === 0 ? null : <span className="tabular-nums text-fg-2">{count}</span>}
+        {count === undefined || count === 0 ? null : <span className="tabular-nums text-fg-3">{count}</span>}
       </button>
-      {open ? children : null}
+      {open ? <div className="border-t border-border-subtle p-2">{children}</div> : null}
     </section>
   );
 }
@@ -79,10 +79,14 @@ export function ReplayLeftPanel({
 }): ReactNode {
   const reasons = focused?.round.class.reasons ?? [];
   return (
-    <div className="flex flex-col gap-4">
-      {focused === null ? null : <RoundContext round={focused} />}
+    <div className="flex flex-col gap-2">
+      {focused === null ? null : (
+        <Fold title="Contexto de la ronda" defaultOpen>
+          <RoundContext round={focused} />
+        </Fold>
+      )}
       {actions}
-      {filters === undefined || filters === null ? null : <div className="border-t border-border-subtle pt-3">{filters}</div>}
+      {filters === undefined || filters === null ? null : <div className="rounded-sm border border-border-subtle bg-surface-0 p-2">{filters}</div>}
       {moments === null ? null : (
         <Fold title="Momentos clave" count={moments.count} defaultOpen>
           {moments.list}

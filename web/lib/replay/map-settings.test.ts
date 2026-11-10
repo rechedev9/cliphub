@@ -5,7 +5,8 @@ import { DEFAULT_MAP_SETTINGS, floorsSeparated, namesShown, parseMapSettings, to
 test('stored map settings keep what is valid and default the rest', () => {
   assert.deepEqual(parseMapSettings(null), DEFAULT_MAP_SETTINGS);
   assert.deepEqual(parseMapSettings('not json'), DEFAULT_MAP_SETTINGS);
-  assert.deepEqual(parseMapSettings('{"art":"real","dots":"xl","names":"s"}'), { ...DEFAULT_MAP_SETTINGS, art: 'real', names: 's' });
+  assert.deepEqual(parseMapSettings('{"art":"real","dots":"xl","names":"s"}'), { ...DEFAULT_MAP_SETTINGS, art: 'real', dots: 'xl', names: 's' });
+  assert.equal(parseMapSettings('{"dots":"huge"}').dots, 'm');
   assert.equal(parseMapSettings('{"floors":"one"}').floors, 'one');
   assert.equal(parseMapSettings('{"floors":"three"}').floors, 'both');
   assert.deepEqual(parseMapSettings('{"zoom":"l","fps":60}'), { ...DEFAULT_MAP_SETTINGS, zoom: 'l', fps: 60 });

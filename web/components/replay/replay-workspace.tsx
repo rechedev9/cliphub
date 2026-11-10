@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Keyboard, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { TacticalSource } from '@/lib/api/tactical';
 import { matchHref } from '@/lib/clips/routes';
@@ -20,7 +21,7 @@ import type { ReplayLayers } from '@/lib/replay/layers';
 import type { LoadedAnalysis } from '@/lib/replay/loaded-analysis';
 import { alignedTick, fromLiveSeconds, liveEvents, liveTimeline, toLiveSeconds } from '@/lib/replay/multi-round';
 import { frameDue, loopWithin, playStartSeconds, playbackStep } from '@/lib/replay/playback';
-import { namesShown, toggleNames } from '@/lib/replay/map-settings';
+import { namesShown } from '@/lib/replay/map-settings';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { TramoControl } from './tramo-bar';
@@ -49,10 +50,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
-import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
-import { MapToolsBar } from './map-tools-bar';
-import type { DemoLink } from './map-tools-bar';
+import { MapFooter } from './map-footer';
+import type { DemoLink } from './map-footer';
+import { ReplayToolbar } from './replay-toolbar';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
 import type { MapCapture } from './gif-export';
 import { GifPanel } from './gif-panel';
@@ -77,7 +78,7 @@ import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
 import { CommsPanel } from './comms-panel';
 import { useReplayVoice } from './use-replay-voice';
-import { VoiceBar } from './voice-bar';
+import { VoiceRow, VoiceSyncBar, voiceSyncing } from './voice-bar';
 import type { WinStripState } from './win-strip';
 import { winProbabilityAt, winStripPoints } from '@/lib/replay/win-strip';
 import type { VoiceCommsLine } from '@/lib/api/voice';
@@ -119,6 +120,8 @@ export type ReplayWorkspaceProps = {
   superpose?: boolean;
   /** Zones a finding's link marks on the map, as CS2 place tokens. */
   zones?: readonly string[];
+  /** A Volver link over the map, such as the single match's way back to the library. */
+  back?: { href: string; label: string };
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -146,6 +149,7 @@ export function ReplayWorkspace({
   focusPlayers,
   superpose = false,
   zones,
+  back,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -189,7 +193,7 @@ export function ReplayWorkspace({
   const [help, setHelp] = useState(false);
   const [preferences, setPreferences] = useState(false);
   const preferencesChip = useRef<HTMLButtonElement>(null);
-  // The sheet opens inside the replay only in full screen, so entering or leaving it closes the sheet instead of moving it.
+  // The dialog opens inside the replay only in full screen, so entering or leaving it closes the dialog instead of moving it.
   const [rootElement, setRootElement] = useState<HTMLElement | null>(null);
   const setRoot = useCallback((element: HTMLElement | null) => {
     rootRef.current = element;
@@ -421,7 +425,7 @@ export function ReplayWorkspace({
     if (shortcut === null) return;
     const target = event.target;
     const root = rootRef.current;
-    // Ajustes del mapa is part of the replay wherever it mounts; any other dialog keeps its keys.
+    // Preferencias del replay is part of the replay wherever it mounts; any other dialog keeps its keys.
     const inPreferences = target instanceof Element && target.closest('[data-replay-preferences]') !== null;
     if (!inPreferences && target instanceof Element && target.closest('[role="dialog"]') !== null) return;
     if (target instanceof HTMLElement && target !== document.body) {
@@ -629,7 +633,7 @@ export function ReplayWorkspace({
 
   const panelWidths: CSSProperties & { '--replay-left': string; '--replay-right': string } = {
     '--replay-left': folds.left ? '2.75rem' : '236px',
-    '--replay-right': folds.right ? '2.75rem' : '288px',
+    '--replay-right': folds.right ? '2.75rem' : '272px',
   };
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
@@ -682,17 +686,17 @@ export function ReplayWorkspace({
         )}
       >
         <header className="flex h-9 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-1 px-3">
+          {back === undefined ? null : (
+            <Link href={back.href} className="flex shrink-0 items-center gap-0.5 rounded-sm pr-1 text-meta text-fg-2 outline-none hover:text-fg-1 focus-visible:ring-2 focus-visible:ring-ring">
+              <ChevronLeft className="size-3.5" aria-hidden />
+              {back.label}
+            </Link>
+          )}
           <h2 className="flex min-w-0 items-baseline gap-2 truncate">
             {title === undefined ? null : <span className="truncate text-meta text-fg-3">{title}</span>}
             <span className="font-display text-body font-bold text-fg-1">Ronda {entry?.round}</span>
           </h2>
           <div className="ml-auto flex items-center gap-1.5">
-            <Button type="button" size="icon-xs" variant="ghost" aria-label="Atajos de teclado" title="Atajos de teclado (?)" onClick={() => {
-                if (fullscreen.active) fullscreen.toggle();
-                setHelp(true);
-              }}>
-              <Keyboard aria-hidden />
-            </Button>
             <Button
               type="button"
               size="icon-xs"
@@ -706,16 +710,6 @@ export function ReplayWorkspace({
             </Button>
           </div>
         </header>
-        <MapBar
-          settings={mapSettings}
-          onSettings={setMapSettings}
-          twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
-          layers={layers}
-          onToggleLayer={(key) => (key === 'names' ? setMapSettings(toggleNames(mapSettings, multi)) : setLayers((value) => toggleLayer(value, key)))}
-          onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
-          follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
-          preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
-        />
         <div className={cn('relative flex-1', gif.open ? 'min-h-[200px]' : 'min-h-0')}>
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
@@ -746,6 +740,7 @@ export function ReplayWorkspace({
               roundSeconds={timelineSeconds(focused.timeline, tickOf(focused, clock.seconds))}
               eventsOpen={eventsOpen}
               showFeed={mapSettings.show.killfeed}
+              showScore={mapSettings.show.scoreline}
               onToggleEvents={() => setEventsOpen((value) => !value)}
               onSeek={(seconds) => {
                 setPlaying(false);
@@ -756,7 +751,7 @@ export function ReplayWorkspace({
           <SetposNotice note={setpos.note} />
         </div>
         {gif.open ? <GifPanel gif={gif} video={video} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
-        <MapToolsBar draft={library ? draft : null} gif={{ open: gif.open, onToggle: gif.toggle }} demo={demoLink} zoomSlot={setZoomSlot} />
+        <MapFooter demo={demoLink} zoomSlot={setZoomSlot} />
       </div>
 
       <aside
@@ -820,6 +815,19 @@ export function ReplayWorkspace({
 
       <ReplayTransport
         fullscreen={fullscreen.active}
+        toolbar={
+          <ReplayToolbar
+            draft={library ? draft : null}
+            gif={{ open: gif.open, onToggle: gif.toggle }}
+            preferences={{ open: preferences, onOpen: () => setPreferences((value) => !value), triggerRef: preferencesChip }}
+            onHelp={() => {
+              // Dialogs open outside the full-screen layer, so leave it to show them.
+              if (fullscreen.active) fullscreen.toggle();
+              setHelp(true);
+            }}
+            follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
+          />
+        }
         superpose={{ on: multi, disabled: focused === null, ...superposeText, onToggle: toggleMulti }}
         strip={{
           entries,
@@ -864,7 +872,7 @@ export function ReplayWorkspace({
               </>
             ),
         }}
-        voice={library ? <VoiceBar voice={voice} /> : null}
+        voice={{ row: library ? <VoiceRow voice={voice} /> : null, sync: library && voiceSyncing(voice) ? <VoiceSyncBar voice={voice} /> : null }}
       />
 
       <ReplayPreferences
@@ -872,6 +880,10 @@ export function ReplayWorkspace({
         onOpenChange={setPreferences}
         settings={mapSettings}
         onSettings={setMapSettings}
+        layers={layers}
+        onToggleLayer={(key) => setLayers((value) => toggleLayer(value, key))}
+        onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
+        twoFloors={focused !== null && isMultiLevelMap(focused.doc.geometry.calibration)}
         drawing={library}
         container={fullscreen.active ? rootElement : null}
         returnFocus={preferencesChip}

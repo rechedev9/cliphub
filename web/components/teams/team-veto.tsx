@@ -163,7 +163,7 @@ export function TeamVeto({
             <label
               key={map}
               className={cn(
-                'flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-body-sm',
+                'flex cursor-pointer items-center gap-1.5 rounded-sm border px-2 py-1 text-body-sm',
                 pool.includes(map) ? 'border-primary text-fg-1' : 'border-border text-fg-3',
               )}
             >
@@ -217,7 +217,7 @@ export function TeamVeto({
           <RelatedList title="Mapas del pool" count={plan.maps.length}>
             <div className="overflow-x-auto">
               <table aria-label="Mapas del pool" className="w-full border-collapse text-left text-body-sm">
-                <thead className="bg-surface-2 text-meta text-fg-3">
+                <thead className="bg-surface-2 text-meta tracking-wider text-fg-3 uppercase">
                   <tr className="border-b border-border">
                     {['Mapa', 'Nuestras rondas', 'Nosotros', 'Sus rondas', 'Ellos', 'Ventaja', 'Nuestra preferencia', 'Su preferencia', 'Sus bans', 'Sus picks'].map((header, index) => (
                       <th key={header} scope="col" className={cn('h-8 px-2.5 font-medium whitespace-nowrap', index === 0 && 'sticky left-0 z-10 bg-surface-2')}>

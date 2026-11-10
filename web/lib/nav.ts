@@ -29,10 +29,10 @@ export const NAV_SECTIONS = [
 export type NavSection = (typeof NAV_SECTIONS)[number];
 export type NavHref = NavSection['href'];
 
-/** Routes outside the rail that belong to a section: a Short series (Demo completa ones live under /videos-largos), a player sheet. /jugadores/faceit is its own section. */
+/** Routes outside the rail that belong to a section: a Short series (Demo completa ones live under /videos-largos), the player hub and a player sheet. /jugadores/faceit is its own section. */
 const SECTION_PREFIXES: ReadonlyArray<readonly [prefix: string, href: NavHref]> = [
   ['/series/', '/shorts'],
-  ['/jugadores/', '/equipos'],
+  ['/jugadores', '/equipos'],
 ];
 
 /** The rail section a pathname lives in, including nested routes under it. */
@@ -65,7 +65,6 @@ export const RETIRED_ROUTES = {
   '/players': '/jugadores/faceit',
   '/tactical': '/partidas',
   '/stratbook': '/libreta',
-  '/jugadores': '/equipos',
 } as const;
 
 export type RetiredRoute = keyof typeof RETIRED_ROUTES;

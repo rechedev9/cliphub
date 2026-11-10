@@ -16,21 +16,31 @@ export function EdgeTile({
   label,
   value,
   note,
+  detail,
+  info,
   tone = 'neutral',
   className,
 }: {
   label: string;
   value: ReactNode;
   note?: ReactNode;
+  /** A second dim line under the note, such as the group mean. */
+  detail?: ReactNode;
+  /** Sits right of the label, such as the info tip that explains the formula. */
+  info?: ReactNode;
   tone?: EdgeTone;
   className?: string;
 }): ReactNode {
   return (
     <div className={cn('flex min-w-0 flex-col gap-0.5 border border-l-2 border-border bg-surface-2 px-3 py-2', EDGE[tone], className)}>
-      <dt className="truncate text-meta font-medium tracking-wider text-fg-3 uppercase">{label}</dt>
+      <dt className="flex min-w-0 items-center gap-1 text-meta font-medium tracking-wider text-fg-3 uppercase">
+        <span className="truncate">{label}</span>
+        {info}
+      </dt>
       <dd className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-stat leading-tight font-bold text-fg-1 tabular-nums">{value}</span>
         {note ? <span className="truncate text-meta text-fg-3">{note}</span> : null}
+        {detail ? <span className="truncate text-meta text-fg-3">{detail}</span> : null}
       </dd>
     </div>
   );
