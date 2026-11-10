@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Cloud, Layers, ListVideo, Trophy, type LucideIcon } from 'lucide-react';
+import { Cloud, Layers, ListVideo, ShieldAlert, Trophy, type LucideIcon } from 'lucide-react';
 import { LIBRARY_SERIES_HREF, MATCHES_HREF, PRO_MATCHES_HREF } from '@/lib/clips/routes';
 import { PLAYLISTS_HREF } from '@/lib/replay/saved-playlist';
 import { cn } from '@/lib/utils';
@@ -15,9 +15,10 @@ const TABS: readonly PartidasTab[] = [
   { href: MATCHES_HREF, label: 'Privadas', icon: Cloud },
   { href: PRO_MATCHES_HREF, label: 'Públicas', icon: Trophy },
   { href: PLAYLISTS_HREF, label: 'Playlists', icon: ListVideo },
+  { href: '/integridad', label: 'Integridad', icon: ShieldAlert },
 ];
 
-/** Privadas, Públicas and Playlists: three routes read as one screen, with the tab of the open route underlined. */
+/** Privadas, Públicas, Playlists and Integridad: four routes read as one screen, with the tab of the open route underlined. */
 function PartidasTabs({ importer }: { importer?: ReactNode }): ReactNode {
   const pathname = usePathname();
   return (

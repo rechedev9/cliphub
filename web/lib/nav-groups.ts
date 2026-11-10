@@ -15,12 +15,9 @@ export type SidebarEntryId =
   | 'ranking'
   | 'editor-de-tacticas'
   | 'playbook'
-  | 'libreta'
   | 'lineups-pro'
   | 'simulacion-de-veto'
   | 'preparar-rival'
-  | 'informes'
-  | 'integridad'
   | 'almacenamiento'
   | 'ajustes';
 
@@ -32,8 +29,6 @@ export type SidebarEntry = {
   label: string;
   /** Where the entry goes while no team is in scope. */
   href: `/${string}`;
-  /** Shows the NUEVO pill. */
-  isNew?: true;
   carry?: ScopeCarry;
 };
 
@@ -63,7 +58,7 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     label: 'Herramientas 2D',
     entries: [
       { id: 'replay', label: 'Replay 2D', href: '/replay', carry: 'replay' },
-      { id: 'buscador-de-patrones', label: 'Buscador de patrones', href: '/patrones', isNew: true, carry: 'patrones' },
+      { id: 'buscador-de-patrones', label: 'Buscador de patrones', href: '/patrones', carry: 'patrones' },
     ],
   },
   {
@@ -79,9 +74,8 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     id: 'playbook',
     label: 'Playbook',
     entries: [
-      { id: 'editor-de-tacticas', label: 'Editor de tácticas', href: '/tacticas/nueva', isNew: true, carry: 'tacticas' },
+      { id: 'editor-de-tacticas', label: 'Editor de tácticas', href: '/tacticas/nueva', carry: 'tacticas' },
       { id: 'playbook', label: 'Playbook', href: '/equipos?tab=playbook', carry: 'playbook' },
-      { id: 'libreta', label: 'Libreta', href: '/libreta' },
       { id: 'lineups-pro', label: 'Lineups pro', href: '/lineups' },
     ],
   },
@@ -91,8 +85,6 @@ export const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
     entries: [
       { id: 'simulacion-de-veto', label: 'Simulación de veto', href: '/equipos?tab=veto', carry: 'veto' },
       { id: 'preparar-rival', label: 'Preparar rival', href: '/equipos?tab=preparar', carry: 'prep' },
-      { id: 'informes', label: 'Informes', href: '/informes' },
-      { id: 'integridad', label: 'Integridad', href: '/integridad' },
     ],
   },
 ];
@@ -130,6 +122,10 @@ export function activeEntryId(where: { pathname: string; tab: string | null }): 
   if (under(pathname, '/tacticas')) return 'editor-de-tacticas';
   if (under(pathname, '/equipos')) return (tab === null ? undefined : TEAM_TAB_ENTRY[tab]) ?? 'estadisticas-de-equipo';
   if (under(pathname, '/jugadores') && !under(pathname, '/jugadores/faceit')) return 'estadisticas-de-jugador';
+  // Tools reached from inside another screen light that screen's row.
+  if (under(pathname, '/libreta')) return 'playbook';
+  if (under(pathname, '/informes')) return 'preparar-rival';
+  if (under(pathname, '/integridad')) return 'partidas';
   const section = sectionForPath(pathname);
   if (section === null) return null;
   const all = [...SIDEBAR_GROUPS.flatMap((group) => group.entries), ...SIDEBAR_FOOTER_ENTRIES];

@@ -4,12 +4,10 @@ import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
-  BookMarked,
   BookOpen,
   ChartColumn,
   Clapperboard,
   Crosshair,
-  FileText,
   Film,
   HardDrive,
   Lightbulb,
@@ -20,7 +18,6 @@ import {
   Search,
   Settings,
   Shield,
-  ShieldCheck,
   Smartphone,
   Swords,
   Trophy,
@@ -73,12 +70,9 @@ const ENTRY_META: Record<SidebarEntryId, { icon: LucideIcon; dot?: string }> = {
   ranking: { icon: Trophy },
   'editor-de-tacticas': { icon: NotebookPen },
   playbook: { icon: BookOpen },
-  libreta: { icon: BookMarked },
   'lineups-pro': { icon: Crosshair },
   'simulacion-de-veto': { icon: Vote },
   'preparar-rival': { icon: ListChecks },
-  informes: { icon: FileText },
-  integridad: { icon: ShieldCheck },
   almacenamiento: { icon: HardDrive },
   ajustes: { icon: Settings },
 };
@@ -179,11 +173,6 @@ function NavRow({ entry, href, active }: { entry: SidebarEntry; href: string; ac
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{entry.label}</span>
           {meta.dot === undefined ? null : (
             <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden', meta.dot)} />
-          )}
-          {entry.isNew === undefined ? null : (
-            <span className="shrink-0 rounded-sm border border-primary/60 px-1 text-meta leading-4 font-semibold tracking-wider text-primary uppercase group-data-[collapsible=icon]:hidden">
-              Nuevo
-            </span>
           )}
           <NavPending />
         </Link>

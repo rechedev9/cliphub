@@ -19,6 +19,7 @@ import { DossierDialog } from '@/components/cheaters/dossier-dialog';
 import { PlayerDetail, PlayerSummaryRow } from '@/components/cheaters/player-detail';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { DocumentPage } from '@/components/records/document-page';
+import { PartidasFrame } from '@/components/matches/partidas-frame';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -550,14 +551,16 @@ export default function CheatersPage(): ReactNode {
   }
 
   return (
-    <DocumentPage
-      className="gap-8 sm:gap-10"
-      title="Integridad"
-      description="Analiza una demo subida y compara la puntería, la información y los tiempos de reacción de cada jugador con una distribución de referencia medida. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto."
-    >
-      {body}
+    <PartidasFrame>
+      <DocumentPage
+        className="gap-8 sm:gap-10"
+        title="Integridad"
+        description="Analiza una demo subida y compara la puntería, la información y los tiempos de reacción de cada jugador con una distribución de referencia medida. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto."
+      >
+        {body}
 
-      <DossierDialog dossier={dossier} onClose={() => setDossier(null)} />
-    </DocumentPage>
+        <DossierDialog dossier={dossier} onClose={() => setDossier(null)} />
+      </DocumentPage>
+    </PartidasFrame>
   );
 }

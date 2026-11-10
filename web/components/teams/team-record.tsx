@@ -478,7 +478,15 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
             label: 'Playbook',
             content: withScope(
               'playbook',
-              <TeamPlaybook teamId={team.id} scope={scope} lineup={lineup} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />,
+              <div className="flex flex-col gap-2">
+                <Button asChild variant="ghost" size="xs" className="self-end">
+                  <Link href={teamLibretaHref(team.id, false)}>
+                    <BookMarked aria-hidden />
+                    Libreta del equipo
+                  </Link>
+                </Button>
+                <TeamPlaybook teamId={team.id} scope={scope} lineup={lineup} maps={teamMaps} onScopeChange={setScope} onCounts={onCounts} />
+              </div>,
             ),
           },
           {

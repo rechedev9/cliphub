@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Printer, TriangleAlert } from 'lucide-react';
+import { FileText, Printer, TriangleAlert } from 'lucide-react';
 import type { LibraryTeam } from '@/lib/api/library';
 import { getTeamDataWarnings, type DataWarning } from '@/lib/api/first-death';
 import { NO_MATCHES_TEXT, mapCountText, type MapCounts } from '@/lib/analysis/map-counts';
@@ -82,14 +82,22 @@ export function TeamPrepare({
             </Button>
           ))}
         </div>
-        {scope.map === '' ? null : (
+        <div className="flex items-center gap-1">
+          {scope.map === '' ? null : (
+            <Button asChild variant="ghost" size="xs">
+              <Link href={prepHref({ teamId: team.id, map: scope.map, from: from?.slice(0, 10), to: to?.slice(0, 10), lineup })}>
+                <Printer aria-hidden />
+                Imprimir la preparación
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="ghost" size="xs">
-            <Link href={prepHref({ teamId: team.id, map: scope.map, from: from?.slice(0, 10), to: to?.slice(0, 10), lineup })}>
-              <Printer aria-hidden />
-              Imprimir la preparación
+            <Link href="/informes">
+              <FileText aria-hidden />
+              Informes
             </Link>
           </Button>
-        )}
+        </div>
       </div>
       {warnings.length === 0 ? null : (
         <ul className="flex flex-col gap-1 rounded-md border border-border-strong bg-surface-2 px-3 py-2">

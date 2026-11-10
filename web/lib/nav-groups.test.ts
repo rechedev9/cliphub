@@ -12,11 +12,9 @@ function entry(id: SidebarEntry['id']): SidebarEntry {
   return found;
 }
 
-test('rail: only the two new tools carry the NUEVO pill, and every entry has a real destination', () => {
-  assert.deepEqual(
-    ENTRIES.filter((candidate) => candidate.isNew).map((candidate) => candidate.id),
-    ['buscador-de-patrones', 'editor-de-tacticas'],
-  );
+test('rail: the analysis side holds EDGE\'s eleven tools, and every entry has a real destination', () => {
+  const analysis = SIDEBAR_GROUPS.filter((group) => group.id !== 'crear').flatMap((group) => group.entries);
+  assert.equal(analysis.length, 11);
   assert.equal(entry('buscador-de-patrones').href, '/patrones');
   assert.equal(entry('editor-de-tacticas').href, '/tacticas/nueva');
   assert.equal(entry('estadisticas-de-equipo').href, '/equipos');
@@ -40,8 +38,10 @@ test('rail: each page lights exactly one entry, the tools inside a section light
   assert.equal(at('/jugadores/76561198000000000'), 'estadisticas-de-jugador');
   assert.equal(at('/jugadores/faceit'), 'jugadores-faceit');
   assert.equal(at('/partidas/series'), 'partidas');
-  assert.equal(at('/libreta'), 'libreta');
-  assert.equal(at('/informes/prep'), 'informes');
+  assert.equal(at('/libreta'), 'playbook');
+  assert.equal(at('/informes/prep'), 'preparar-rival');
+  assert.equal(at('/integridad'), 'partidas');
+  assert.equal(at('/lineups/de_nuke'), 'lineups-pro');
   assert.equal(at('/settings'), 'ajustes');
   assert.equal(at('/nope'), null);
 });
@@ -86,7 +86,7 @@ test('scope carry: with no team in scope an entry opens its own door, and the ot
   assert.equal(sidebarHref(entry('preparar-rival'), where), '/equipos?tab=preparar');
   const onTeam = { pathname: `/equipos/${TEAM}`, search: 'map=de_nuke' };
   assert.equal(sidebarHref(entry('ranking'), onTeam), '/ranking');
-  assert.equal(sidebarHref(entry('libreta'), onTeam), '/libreta');
+  assert.equal(sidebarHref(entry('lineups-pro'), onTeam), '/lineups');
 });
 
 test('scope carry: switching team keeps the scope but drops the rival and the lineup of the old one', () => {
