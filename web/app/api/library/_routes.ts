@@ -14,6 +14,7 @@ import { BASELINE_KEYS, BASELINE_QUERY, LEADERBOARD_KEYS, LEADERBOARD_QUERY } fr
 import { NORMS_KEYS, NORMS_QUERY } from '../../../lib/api/norms.ts';
 import { PLAYBOOK_KEYS, PLAYBOOK_QUERY, PREP_KEYS, PREP_QUERY } from '../../../lib/api/playbook.ts';
 import { ATTACK_KEYS, ATTACK_QUERY } from '../../../lib/api/attack.ts';
+import { DATA_WARNINGS_KEYS, DATA_WARNINGS_QUERY, FIRST_DEATH_KEYS, FIRST_DEATH_QUERY } from '../../../lib/api/first-death.ts';
 import {
   PLAY_CREATE_FIELDS,
   PLAY_DETAIL_KEYS,
@@ -221,6 +222,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['teams', UUID, 'playbook'], query: [...PLAYBOOK_QUERY, ...TEAM_SCOPE_QUERY], response: json(PLAYBOOK_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'prep'], query: [...PREP_QUERY, ...TEAM_SCOPE_QUERY], response: json(PREP_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'attack'], query: ATTACK_QUERY, response: json(ATTACK_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'first-death'], query: [...FIRST_DEATH_QUERY, ...TEAM_SCOPE_QUERY], response: json(FIRST_DEATH_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'warnings'], query: [...DATA_WARNINGS_QUERY, ...TEAM_SCOPE_QUERY], response: json(DATA_WARNINGS_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'roles'], query: PREP_QUERY, response: json(TEAM_ROLES_KEYS) },
   { method: 'PUT', segments: ['teams', UUID, 'roles'], body: fields(ROLE_SHEET_FIELDS), response: json(ROLE_SHEET_KEYS) },
   { method: 'GET', segments: ['teams', UUID, 'maps'], query: ['from', 'to'], response: json(TEAM_MAPS_KEYS) },

@@ -25,6 +25,16 @@ export const QUICK_TRAMOS = [
 
 export type QuickTramoId = (typeof QUICK_TRAMOS)[number]['id'];
 
+/** The tramos of "Posiciones hasta la primera muerte": 15 s each from 1:55, then the rest of the round. */
+export const FIRST_DEATH_TRAMOS = [
+  { id: 'opening', label: '1:55-1:40', tramo: { from: 0, to: 15 } },
+  { id: 'early', label: '1:40-1:25', tramo: { from: 15, to: 30 } },
+  { id: 'mid', label: '1:25-1:10', tramo: { from: 30, to: 45 } },
+  { id: 'late', label: '1:10-0:00', tramo: { from: 45, to: 0 } },
+] as const satisfies readonly { id: string; label: string; tramo: Tramo }[];
+
+export type FirstDeathTramoId = (typeof FIRST_DEATH_TRAMOS)[number]['id'];
+
 /** Seconds since freeze end as the round clock shows them: 15 s is "1:40". */
 export function roundClock(seconds: number): string {
   const left = Math.max(0, Math.round(ROUND_CLOCK_SECONDS - seconds));

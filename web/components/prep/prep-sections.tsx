@@ -136,7 +136,7 @@ export function TempoByBuy({ prep }: { prep: TeamPrep }): ReactNode {
   );
 }
 
-function roleText(role: string): string {
+export function roleText(role: string): string {
   const known = LIBRARY_ROLES.find((entry) => entry === role);
   return known === undefined || known === 'unknown' ? '' : ROLE_LABEL[known];
 }

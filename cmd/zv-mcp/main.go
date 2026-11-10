@@ -72,7 +72,11 @@ a Tras la plant bin), spots (repeated throws with what the team does in the 20 s
 rounds over the scope's rounds, what follows, a setpos and a studio_path that superposes its rounds. players, opponents (the
 rivals' utility; the team scope below still reads the scouted team) and invert (rounds without it) narrow it.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
-these and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
+team_prep's warnings are the data warnings Preparar shows on top (the team's newest match over 14 days old, the five changed
+in N of M matches, under 30 rounds): say them before the figures. side is the bar's side: the warnings (and prepare_team's
+scouting) count it, and with t_from, t_to and movement (static, slow, fast) team_prep and prepare_team add first_death,
+each player's 5 zones with most seconds per round with positions until the round's first death.
+The team tools and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the

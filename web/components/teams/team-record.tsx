@@ -411,7 +411,6 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
               'preparar',
               <TeamPrepare
                 team={team}
-                matches={scoped}
                 maps={teamMaps}
                 mapCounts={mapCounts}
                 scope={scope}

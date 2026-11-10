@@ -28,6 +28,7 @@ type teamPrepIn struct {
 	From   string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
 	To     string `json:"to,omitempty" jsonschema:"last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
 	teamScopeIn
+	prepFirstDeathIn
 }
 
 type defenseOut struct {
@@ -144,15 +145,17 @@ type prepPlayerOut struct {
 }
 
 type teamPrepOut struct {
-	Team           string          `json:"team" jsonschema:"untrusted team name"`
-	Map            string          `json:"map"`
-	Matches        int             `json:"matches"`
-	Rounds         int             `json:"rounds"`
-	FramedRounds   int             `json:"framed_rounds" jsonschema:"CT rounds with positions, which the CT players are read from"`
-	Matchups       []matchupOut    `json:"matchups" jsonschema:"the team's buy against the rival's; share is over the team's rounds on that side"`
-	Tempo          []prepTempoOut  `json:"tempo"`
-	CTPlayers      []prepPlayerOut `json:"ct_players"`
-	SkippedMatches int             `json:"skipped_matches,omitempty"`
+	Team           string           `json:"team" jsonschema:"untrusted team name"`
+	Map            string           `json:"map"`
+	Matches        int              `json:"matches"`
+	Rounds         int              `json:"rounds"`
+	FramedRounds   int              `json:"framed_rounds" jsonschema:"CT rounds with positions, which the CT players are read from"`
+	Matchups       []matchupOut     `json:"matchups" jsonschema:"the team's buy against the rival's; share is over the team's rounds on that side"`
+	Tempo          []prepTempoOut   `json:"tempo"`
+	CTPlayers      []prepPlayerOut  `json:"ct_players"`
+	SkippedMatches int              `json:"skipped_matches,omitempty"`
+	Warnings       []dataWarningOut `json:"warnings" jsonschema:"what to distrust before using the prep, as the line on top of Preparar"`
+	FirstDeath     *firstDeathOut   `json:"first_death,omitempty" jsonschema:"with side: each player's 5 zones with most time until the round's first death"`
 }
 
 func registerTeamReportTools(server *mcp.Server, s *studio) {
@@ -193,7 +196,9 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_prep", Annotations: readOnly,
 		Description: "Prepare a match against a team on one map: how it fares in each buy matchup, how fast it plays per buy, " +
-			"and where each CT player stands in each time window. map is required; both sides are read."},
+			"where each CT player stands in each time window and the data warnings Preparar shows on top (stale, lineup, small_sample), " +
+			"counted on side when given. With side (T or CT), t_from, t_to and movement it also gives first_death: each player's 5 zones " +
+			"with most seconds until the round's first death, as Posiciones hasta la primera muerte. map is required; the prep reads both sides."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, teamPrepOut, error) {
 			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
 				teamScopeIn: in.teamScopeIn}.check(false)
@@ -207,16 +212,23 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamPrepOut{}, toolError(err)
 			}
+			window, err := in.prepFirstDeathIn.check()
+			if err != nil {
+				return nil, teamPrepOut{}, err
+			}
 			prep, err := c.TeamPrepReport(ctx, in.TeamID, q)
 			if err != nil {
 				return nil, teamPrepOut{}, toolError(err)
 			}
-			return nil, summarizePrep(prep), nil
+			out, err := addPrepExtras(ctx, c, prepExtrasRequest{teamID: in.TeamID, window: window, q: q, out: summarizePrep(prep)})
+			return nil, out, err
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "prepare_team", Annotations: readOnly,
 		Description: "Everything the team's Preparar tab shows for one map, in one call: the scouting (scout_team), the map preparation (team_prep) " +
-			"and the T side (team_attack) over the same matches. studio_path opens that tab. Use one of those tools alone when only one part is needed."},
+			"and the T side (team_attack) over the same matches. side is the bar's side: the scouting and prep.warnings (the data warnings on top " +
+			"of Preparar: stale, lineup, small_sample) count that side, and with side, t_from, t_to and movement prep.first_death gives each player's " +
+			"5 zones until the round's first death. studio_path opens that tab. Use one of those tools alone when only one part is needed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, prepareTeamOut, error) {
 			q, err := teamReportIn{TeamID: in.TeamID, analysisFilterIn: analysisFilterIn{Map: in.Map, From: in.From, To: in.To},
 				teamScopeIn: in.teamScopeIn}.check(false)
@@ -230,7 +242,13 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
-			scout, err := c.TeamScout(ctx, in.TeamID, q)
+			window, err := in.prepFirstDeathIn.check()
+			if err != nil {
+				return nil, prepareTeamOut{}, err
+			}
+			scoped := q
+			scoped.Side = window.side
+			scout, err := c.TeamScout(ctx, in.TeamID, scoped)
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
@@ -242,7 +260,11 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, prepareTeamOut{}, toolError(err)
 			}
-			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: summarizePrep(prep), Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
+			out, err := addPrepExtras(ctx, c, prepExtrasRequest{teamID: in.TeamID, window: window, q: q, out: summarizePrep(prep)})
+			if err != nil {
+				return nil, prepareTeamOut{}, err
+			}
+			return nil, prepareTeamOut{Scouting: summarizeScout(scout), Prep: out, Attack: summarizeAttack(attack), StudioPath: preparePath(in.TeamID, q)}, nil
 		})
 }
 
