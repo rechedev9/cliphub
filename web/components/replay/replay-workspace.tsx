@@ -66,6 +66,7 @@ import { SetposNotice } from './setpos-notice';
 import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
 import { useKeyMoments } from './use-key-moments';
+import { useRoundPov } from './use-round-pov';
 import { useSetposCopies } from './use-setpos-copies';
 import { useWinTimelines } from './use-win-timelines';
 import { WinStrip } from './win-strip';
@@ -156,6 +157,7 @@ export function ReplayWorkspace({
   const playlist = useSavedPlaylists({ enabled: library, openId: openPlaylistId });
   const [zoomSlot, setZoomSlot] = useState<HTMLDivElement | null>(null);
   const setpos = useSetposCopies();
+  const roundPov = useRoundPov();
   const hoverSlot = useRef<number | null>(null);
   const onHoverSlot = useCallback((slot: number | null) => {
     hoverSlot.current = slot;
@@ -358,6 +360,11 @@ export function ReplayWorkspace({
     const { frames, doc, timeline } = focused;
     const copied = playerSetpos({ frames, players: doc.players, round: focused.round.number, timeline, slot, tick: tickOf(focused, clock.seconds) });
     if (copied !== null) setpos.copy(copied);
+  };
+
+  const recordPov = (slot: number): void => {
+    const player = focused?.doc.players.find((candidate) => candidate.slot === slot);
+    if (focused !== null && player !== undefined) roundPov.record({ matchId: focused.matchId, round: focused.round.number, steamId: player.steamid64, name: player.name });
   };
 
   const toggleMulti = (): void => {
@@ -708,6 +715,7 @@ export function ReplayWorkspace({
           onShowAll={() => setLayers((value) => showAllPlayers(value))}
           setpos={setpos.list}
           onCopySetpos={setpos.copyAgain}
+          pov={library ? { runs: roundPov.runs, onRecord: recordPov } : null}
           notes={
             notesMatchId === undefined || focused === null || focusTimeline === null
               ? null

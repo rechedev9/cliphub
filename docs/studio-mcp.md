@@ -49,7 +49,7 @@ Decide in phase 1 whether the WebMCP preview stays.
   Full Demo plans and options as strictly as Studio stores them, so a field one side lacks asks
   for an assistant restart instead of passing as a stale plan.
 - With the switch off, every tool answers with a clear message saying where to turn it on.
-- Starting a Short or a Full Demo launches CS2 and records for minutes, so both ask for approval
+- Starting a Short, a Full Demo or a round POV (`record_round_pov`) launches CS2 and records for minutes, so all ask for approval
   in the chat before they run. Rendering stream videos (`render_stream`, `render_stream_summary`)
   encodes for minutes and deleting (`delete_video`, `delete_stream`, `delete_demo`, `delete_captures`,
   `delete_storage_file`) or merging teams (`merge_teams`), and deleting a report or a play
@@ -139,7 +139,7 @@ safe. Only uploads are limited (2 concurrent).
 
 ### Approval
 
-- Elicitation before `generate_short` and `render_full_demo`, showing what will run: player, map,
+- Elicitation before `generate_short`, `render_full_demo` and `record_round_pov`, showing what will run: player, map,
   rounds and kills of the chosen plays plus every option, or the Full Demo plan summary.
 - The same approval guards `render_stream` (layout, how many videos, which are saved moments and
   which are new plays), `render_stream_summary` (play count, of how many, and length), `delete_video`,
@@ -262,6 +262,7 @@ Write:
 | `create_series_jobs` | per map: `GET /api/library/demos/{id}` and `GET /api/library/matches/{id}` to find the player by SteamID in every map, then `POST /api/library/demos/{id}/jobs`; nothing is created if one map lacks the player. Each job then takes `generate_short` (a Short per map) or `plan_full_demo` and `render_full_demo` (a full demo per map), like the series page in Shorts and in Demo completa | no |
 | `generate_short` | `POST /api/jobs/{id}/generate` with `preset` (default from `list_presets`) and `segment_ids` from the plan; one job (one map) per call, so a series gets one Short per map. A multi-POV job mixes players in one capture: the server refuses plays of two players less than half a second apart, a death reel and an empty pick. `music` goes as `{key, volume, game_volume}` when `music_volume` or `game_volume` is set (percents in the tool, gains on the wire, full music volume left unset like the UI); `intro_text`/`outro_text` and the affiliate banner (`keydrop_family`, `keydrop_style`, `keydrop_code`, a 0 to 4 s window by default) go in `edit` | yes |
 | `render_full_demo` | `GET /full-demo/plan` defaults, `POST /full-demo/plan`, then `POST /generate` with preset `gameplay-pov-60` and the approval (`tuiclient.GenerateFullDemo`) | yes |
+| `record_round_pov` | the Replay's "Grabar su POV de esta ronda" in one call: `GET /api/library/matches/{id}` (round and player checked), `POST /api/library/demos/{id}/jobs`, polls `?view=status` until `parsed` (`running` when `wait_seconds` ends first: call again), `GET`/`POST /full-demo/plan` with `rounds` of that one round and no effects between rounds, then `POST /generate` like `render_full_demo` (same approval, own code; variant `gameplay-pov-60`) | yes |
 | `wait_for_job` | polls a job; takes the render `variant`; shows the progress view | no |
 | `wait_for_demo` | polls a library demo until `ready` or `failed`; shows the progress view | no |
 | `plan_full_demo` | defaults plus the user's HUD and voices, `POST /full-demo/plan`; returns duration and `plan_hash`. `pro_settings` resolves a catalog pro into the capture (or `none`); `hud_portrait` uploads a PNG or JPG to `POST /api/full-demo/overlay-images` (focus HUD only); `intro_bumper`, `sponsor_bumper` and `outro_bumper` upload an MP4 to `POST /api/editor/assets` with the UI's local-file provenance. Like every option, they start from the defaults, not from a plan saved in the UI | no (saves the plan the UI also shows) |
@@ -326,7 +327,7 @@ Short look and Full Demo HUD:
 | `list_hud_themes` | the 11 custom HUDs plus "Original de CS2", with 640x360 JPEG thumbnails of the previews as image content (about 4k tokens for all 11) |
 | `choose_short_options` | MCP App `ui://cliphub/short-options`: picker with play buttons; text fallback without UI |
 | `choose_hud` | MCP App `ui://cliphub/hud-gallery`: preview grid that calls `plan_full_demo` |
-| `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `render_full_demo`, `retry_video`, `change_video_music`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
+| `import_demo`, `wait_for_demo`, `wait_for_job`, `generate_short`, `render_full_demo`, `record_round_pov`, `retry_video`, `change_video_music`, `render_stream`, `render_stream_summary`, `wait_for_stream_render` | MCP App `ui://cliphub/job-progress` (React, `mcp-apps/`): live progress bar that follows the job by itself; nothing shows while a start waits for approval |
 
 `import_demo` accepts only an absolute local-drive path to a `.dem` or `.dem.zst` file (no UNC
 paths), refuses directories and files above the server's 700 MiB per-demo limit, and leaves real

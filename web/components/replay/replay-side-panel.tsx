@@ -34,6 +34,7 @@ export function ReplaySidePanel({
   onShowAll,
   setpos,
   onCopySetpos,
+  pov,
   notes,
   folded,
 }: {
@@ -48,6 +49,7 @@ export function ReplaySidePanel({
   onShowAll: () => void;
   setpos: readonly SetposCopy[];
   onCopySetpos: (entry: SetposCopy) => void;
+  pov: ComponentProps<typeof PlayerPanel>['pov'];
   notes: ComponentProps<typeof AnnotationPanel> | null;
   /** Folded, the panel is a strip with each player's initials. */
   folded: boolean;
@@ -110,6 +112,7 @@ export function ReplaySidePanel({
         onShowAll={onShowAll}
         setpos={setpos}
         onCopySetpos={onCopySetpos}
+        pov={pov}
       />
       {notes === null ? null : (
         <section aria-label="Notas de la ronda" className="flex flex-col gap-1.5 border-t border-border-subtle pt-2">
