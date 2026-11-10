@@ -352,8 +352,7 @@ func capVoiceOnly(alone []Play) []Play {
 }
 
 // fitAlone adds the peak-only plays, trimmed so they do not overlap the
-// plays beside them; one that no longer holds minVoicePlaySeconds is dropped,
-// except a marked one, which keeps its whole span and may touch its neighbours.
+// plays beside them; one that no longer holds minVoicePlaySeconds is dropped.
 func fitAlone(plays, alone []Play) []Play {
 	all := append(append([]Play(nil), plays...), alone...)
 	sort.SliceStable(all, func(a, b int) bool { return all[a].StartSeconds < all[b].StartSeconds })
@@ -361,20 +360,16 @@ func fitAlone(plays, alone []Play) []Play {
 		if all[i].Kind != VoiceKind {
 			continue
 		}
-		start, end := all[i].StartSeconds, all[i].EndSeconds
 		if i > 0 {
 			all[i].StartSeconds = math.Max(all[i].StartSeconds, all[i-1].EndSeconds)
 		}
 		if i+1 < len(all) {
 			all[i].EndSeconds = math.Min(all[i].EndSeconds, all[i+1].StartSeconds)
 		}
-		if all[i].Marked && all[i].EndSeconds-all[i].StartSeconds < minVoicePlaySeconds {
-			all[i].StartSeconds, all[i].EndSeconds = start, end
-		}
 	}
 	kept := all[:0]
 	for _, p := range all {
-		if p.Kind == VoiceKind && !p.Marked && p.EndSeconds-p.StartSeconds < minVoicePlaySeconds {
+		if p.Kind == VoiceKind && p.EndSeconds-p.StartSeconds < minVoicePlaySeconds {
 			continue
 		}
 		kept = append(kept, p)

@@ -205,16 +205,6 @@ func TestAddVoicePeaksTrimsReactionAgainstNeighbours(t *testing.T) {
 	}
 }
 
-func TestFitAloneKeepsAMarkedShoutSqueezedBetweenPlays(t *testing.T) {
-	kills := []Play{{Kind: KillKind, StartSeconds: 0, EndSeconds: 10}, {Kind: KillKind, StartSeconds: 11, EndSeconds: 20}}
-	for _, marked := range []bool{false, true} {
-		got := fitAlone(kills, []Play{{Kind: VoiceKind, StartSeconds: 8, EndSeconds: 13, Marked: marked}})
-		if kept := len(got) == 3; kept != marked {
-			t.Fatalf("marked=%v: %d plays; a marked shout stays and a plain one squeezed under %vs goes", marked, len(got), minVoicePlaySeconds)
-		}
-	}
-}
-
 func TestWindowLevelsMeasuresRMSInDecibels(t *testing.T) {
 	perWindow := int(VoiceWindowSeconds * voiceSampleRate)
 	var pcm bytes.Buffer

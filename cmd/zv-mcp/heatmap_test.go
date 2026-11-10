@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -75,6 +76,8 @@ func TestRestrictToAreaKeepsTheCellsInTheZoneAndFloor(t *testing.T) {
 	got := tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{CellSize: 100, Cells: []tacticalplan.HeatmapCell{
 		{X: 1, Y: 1, Count: 3}, {X: 5, Y: 5, Count: 9}, {X: 1, Y: 1, Level: "lower", Count: 2},
 	}}}
+	lowerCut := -495.0
+	got.Geometry = &tacticalplan.MapGeometry{Calibration: radarmap.Calibration{LowerAltitudeMax: &lowerCut}}
 	area := &tacticalplan.PatternArea{MinX: 0, MinY: 0, MaxX: 300, MaxY: 300, Level: "lower"}
 	if cells := restrictToArea(got, area).Heatmap.Cells; len(cells) != 1 || cells[0].Count != 2 {
 		t.Fatalf("lower area cells = %+v, want the lower cell in the zone", cells)
@@ -85,6 +88,41 @@ func TestRestrictToAreaKeepsTheCellsInTheZoneAndFloor(t *testing.T) {
 	}
 	if len(got.Heatmap.Cells) != 3 {
 		t.Fatal("the answer was changed in place")
+	}
+}
+
+func TestRestrictToAreaIgnoresTheFloorOnAOneFloorMapAndKeepsTheEdge(t *testing.T) {
+	got := tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{CellSize: 100, Cells: []tacticalplan.HeatmapCell{
+		{X: 1, Y: 1, Count: 3}, {X: 2, Y: 1, Count: 4},
+	}}}
+	// The first cell's centre is (150, 150): exactly on the box edge, which counts as inside.
+	area := &tacticalplan.PatternArea{MinX: 0, MinY: 0, MaxX: 150, MaxY: 150, Level: "lower"}
+	if cells := restrictToArea(got, area).Heatmap.Cells; len(cells) != 1 || cells[0].Count != 3 {
+		t.Fatalf("cells = %+v, want the edge cell kept on a map with one floor", cells)
+	}
+}
+
+func TestByPlayerNeedsOneToFiveDifferentPlayers(t *testing.T) {
+	ids := []string{"76561198000000001", "76561198000000002", "76561198000000003", "76561198000000004", "76561198000000005", "76561198000000006"}
+	for name, players := range map[string][]string{"none": nil, "six": ids} {
+		if _, err := (teamHeatmapIn{ByPlayer: true, Players: players}).teamValues(); err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+	in := teamHeatmapIn{ByPlayer: true, Players: append(ids[:5:5], ids[0])}
+	if _, err := in.teamValues(); err != nil || len(in.playerIDs()) != 5 {
+		t.Fatalf("five different players with a repeat: err = %v, ids = %v", err, in.playerIDs())
+	}
+}
+
+func TestPlayerHeatValuesReplacesThePlayerAndKeepsTheView(t *testing.T) {
+	heat := url.Values{"kind": {"death"}, "t_to": {"55"}, "player": {"1", "2"}}
+	one := playerHeatValues(heat, "2")
+	if one.Encode() != "kind=death&player=2&t_to=55" {
+		t.Fatalf("query = %s", one.Encode())
+	}
+	if len(heat["player"]) != 2 {
+		t.Fatal("the shared query was changed")
 	}
 }
 
