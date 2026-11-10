@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, selectCandidates, sidecarFor, windowMs } from "./hltv.ts";
+import { cutRanking, isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, selectCandidates, sidecarFor, windowMs } from "./hltv.ts";
 
 test("parseRanking keeps teams with an id, rank and name", () => {
   const got = parseRanking([
@@ -43,6 +43,20 @@ test("only matches never seen or still without a demo are visited again", () => 
 
 test("parseArgs ignores invalid numbers", () => {
   assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false });
+});
+
+test("cutRanking keeps the whole ranking unless the run keeps ranked matches only", () => {
+  const ranked = [{ id: 1, name: "a", rank: 1 }, { id: 2, name: "b", rank: 51 }];
+  assert.equal(cutRanking(ranked, { top: 50, cut: false }).length, 2);
+  assert.deepEqual(cutRanking(ranked, { top: 50, cut: true }).map((t) => t.rank), [1]);
+  const match = { teams: [{ id: 2, name: "b" }], event: "", unixMs: 5, demoPaths: [], maps: [], format: "", veto: [] };
+  assert.equal(sidecarFor(1, "/download/demo/1", match, ranked).teams[0].rank, 51);
+});
+
+test("a flag after --hours is not taken as its value", () => {
+  const o = parseArgs(["--hours", "--ranked-only"], "out");
+  assert.deepEqual([o.hours, o.rankedOnly], [0, true]);
+  assert.equal(parseArgs(["--out", "--best-maps"], "out").bestMaps, true);
 });
 
 test("--hours shortens the window and --ranked-only restores the top filter", () => {

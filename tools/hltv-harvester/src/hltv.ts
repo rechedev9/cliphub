@@ -224,22 +224,30 @@ export type HarvestOptions = {
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
   const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false };
   for (let i = 0; i < argv.length; i++) {
-    const next = argv[i + 1] ?? "";
+    // A following flag is never a value, so `--hours --ranked-only` keeps the flag.
+    const raw = argv[i + 1] ?? "";
+    const next = raw.startsWith("--") ? "" : raw;
+    const skip = next === "" ? 0 : 1;
     switch (argv[i]) {
-      case "--days": opts.days = positive(next, opts.days); i++; break;
-      case "--top": opts.top = positive(next, opts.top); i++; break;
-      case "--max": opts.maxMatches = positive(next, opts.maxMatches); i++; break;
-      case "--out": if (next !== "") opts.outDir = next; i++; break;
-      case "--refetch": if (next !== "") opts.refetch = next; i++; break;
+      case "--days": opts.days = positive(next, opts.days); i += skip; break;
+      case "--top": opts.top = positive(next, opts.top); i += skip; break;
+      case "--max": opts.maxMatches = positive(next, opts.maxMatches); i += skip; break;
+      case "--out": if (next !== "") opts.outDir = next; i += skip; break;
+      case "--refetch": if (next !== "") opts.refetch = next; i += skip; break;
       case "--best-maps": opts.bestMaps = true; break;
-      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i++; break;
-      case "--per-map": opts.perMap = positive(next, opts.perMap); i++; break;
-      case "--hours": opts.hours = positive(next, opts.hours); i++; break;
+      case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i += skip; break;
+      case "--per-map": opts.perMap = positive(next, opts.perMap); i += skip; break;
+      case "--hours": opts.hours = positive(next, opts.hours); i += skip; break;
       case "--ranked-only": opts.rankedOnly = true; break;
-      case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i++; break;
+      case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i += skip; break;
     }
   }
   return opts;
+}
+
+/** The ranking to use: cut at the top N only when the run keeps ranked matches, else whole so every sidecar gets its rank. */
+export function cutRanking(ranked: RankedTeam[], opts: { top: number; cut: boolean }): RankedTeam[] {
+  return opts.cut ? ranked.filter((t) => t.rank <= opts.top) : ranked;
 }
 
 /** The length of the results window in milliseconds: hours when given, else days. */
