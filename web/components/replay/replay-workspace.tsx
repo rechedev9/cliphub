@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Keyboard, Layers, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
+import { Keyboard, Maximize, Minimize, Radar, RefreshCw } from 'lucide-react';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import type { TacticalSource } from '@/lib/api/tactical';
+import { matchHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
+import { MATCH_TAB_QUERY } from '@/lib/library/rounds';
 import { scoreAfter, teamsInScoreOrder, winnerTeamName } from '@/lib/replay/strip-round';
 import { centreRound } from '@/lib/replay/centre-round';
 import type { CentreRound } from '@/lib/replay/centre-round';
@@ -22,7 +24,7 @@ import { namesShown, toggleNames } from '@/lib/replay/map-settings';
 import { WHOLE_ROUND, isWholeRound, tramoEnd } from '@/lib/replay/tramo';
 import type { Tramo } from '@/lib/replay/tramo';
 import type { TramoControl } from './tramo-bar';
-import { MULTI_MAX_ROUNDS, defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
+import { defaultMultiSelection, entryKey, matchesToLoad, stepIndex, toggleMultiKey, withFocus } from '@/lib/replay/playlist';
 import { replayShortcut, targetTakesKey } from '@/lib/replay/shortcut-keys';
 import type { ReplayShortcut } from '@/lib/replay/shortcut-keys';
 import {
@@ -49,6 +51,8 @@ import { cn } from '@/lib/utils';
 import { KeyMomentList, KeyMomentMarks } from './key-moments-panel';
 import { MapBar } from './map-bar';
 import { MapHud } from './map-hud';
+import { MapToolsBar } from './map-tools-bar';
+import type { DemoLink } from './map-tools-bar';
 import { FoldedRounds, PanelFoldButton, usePanelFolds } from './panel-folds';
 import type { MapCapture } from './gif-export';
 import { GifPanel } from './gif-panel';
@@ -58,10 +62,10 @@ import { useSavedPlaylists } from './use-saved-playlists';
 import type { FocusControl } from './replay-players';
 import { useMapSettings } from './use-map-settings';
 import { ReplayLeftPanel } from './replay-left-panel';
-import { ReplayTimeline } from './replay-timeline';
+import { ReplayPreferences } from './replay-preferences';
 import { RadarCentre } from './radar-centre';
 import { ReplaySidePanel } from './replay-side-panel';
-import { RoundStrip } from './round-strip';
+import { ReplayTransport, superposeCopy } from './replay-transport';
 import { SetposNotice } from './setpos-notice';
 import { ShortcutHelp } from './shortcut-help';
 import { useFullscreen } from './use-fullscreen';
@@ -94,6 +98,8 @@ export type ReplayWorkspaceProps = {
   seed?: { id: string; analysis: LoadedAnalysis };
   /** The match's name before its analysis arrives, such as `Mirage · NAVI vs FaZe`. */
   groupLabel?: (matchId: string) => string | null;
+  /** The day a library match was played, shown by Detalles de la demo under the map. */
+  matchDate?: (matchId: string) => string | null;
   /** Round filters, at the top of the left panel. */
   filters?: ReactNode;
   /** Shown above the round line, such as a playlist's name. */
@@ -129,6 +135,7 @@ export function ReplayWorkspace({
   onIndexChange,
   seed,
   groupLabel,
+  matchDate,
   filters,
   title,
   players,
@@ -179,6 +186,7 @@ export function ReplayWorkspace({
   const [uiTick, setUiTick] = useState(0);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [help, setHelp] = useState(false);
+  const [preferences, setPreferences] = useState(false);
   const fullscreen = useFullscreen(rootRef);
   const draft = useTelestratorDraft();
 
@@ -404,6 +412,8 @@ export function ReplayWorkspace({
     if (shortcut === null) return;
     const target = event.target;
     const root = rootRef.current;
+    // Ajustes del mapa opens inside the replay in full screen; its controls keep their keys.
+    if (target instanceof Element && target.closest('[role="dialog"]') !== null) return;
     if (target instanceof HTMLElement && target !== document.body) {
       // Clicking the map focuses the replay or leaves focus on a wrapper around it, such as the tab panel.
       if (root === null || (!root.contains(target) && !target.contains(root))) return;
@@ -588,13 +598,10 @@ export function ReplayWorkspace({
   };
   const followedName = followSlot === null || focused === null ? null : (focused.doc.players.find((player) => player.slot === followSlot)?.name ?? null);
   const focusNames = focused === null ? '' : focused.doc.players.filter((player) => focus.includes(player.slot)).map((player) => player.name).join(' y ');
-  let superposeNote = `hasta ${MULTI_MAX_ROUNDS} rondas`;
-  if (everyRound && focus.length === 0) superposeNote = multi ? `${centreRounds.length} de ${entries.length}` : 'todas las de la lista';
-  else if (everyRound) superposeNote = multi ? `${centreRounds.length} de ${focusNames}` : `todas las de ${focusNames}`;
-  else if (multi) superposeNote = `${centreRounds.length} de ${MULTI_MAX_ROUNDS} como máximo`;
-  let superposeHint = `Superpone todas las rondas del alcance con ${focusNames} en primer plano, desde el final del tiempo de compra`;
-  if (everyRound && focus.length === 0) superposeHint = 'Superpone todas las rondas de la lista desde el final del tiempo de compra';
-  else if (!everyRound) superposeHint = `Superpone hasta ${MULTI_MAX_ROUNDS} rondas desde el final del tiempo de compra: pulsa una ronda para sumarla. Elige un jugador para ver todas las suyas`;
+  const superposeText = superposeCopy({ multi, everyRound, anyFocus: focus.length > 0, focusNames, shown: centreRounds.length, total: entries.length });
+  // Detalles de la demo sit at the end of the partida's Resumen; a Crear job has no partida.
+  const demoLink: DemoLink | null =
+    library && entry !== undefined ? { date: matchDate?.(entry.matchId) ?? null, href: `${matchHref(entry.matchId)}?${MATCH_TAB_QUERY}=resumen` } : null;
   const roundActions = !library ? null : (
     <div className="flex flex-wrap gap-1">
       {focused !== null && entry !== undefined && !multi ? (
@@ -665,12 +672,9 @@ export function ReplayWorkspace({
           layers={layers}
           onToggleLayer={(key) => (key === 'names' ? setMapSettings(toggleNames(mapSettings, multi)) : setLayers((value) => toggleLayer(value, key)))}
           onTrailSeconds={(trailSeconds) => setLayers((value) => ({ ...value, trailSeconds }))}
-          draft={library ? draft : null}
-          gif={{ open: gif.open, onToggle: gif.toggle }}
           follow={followedName === null ? null : { name: followedName, onStop: () => setFollowSlot(null) }}
-          zoomSlot={setZoomSlot}
+          preferences={{ open: preferences, onOpen: () => setPreferences(true) }}
         />
-        {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
         <div className="relative min-h-0 flex-1">
           {focused === null ? (
             <CentreState state={current} round={entry?.round} onRetry={() => entry !== undefined && retry(entry.matchId)} />
@@ -710,6 +714,8 @@ export function ReplayWorkspace({
           )}
           <SetposNotice note={setpos.note} />
         </div>
+        {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
+        <MapToolsBar draft={library ? draft : null} gif={{ open: gif.open, onToggle: gif.toggle }} demo={demoLink} zoomSlot={setZoomSlot} />
       </div>
 
       <aside
@@ -770,79 +776,63 @@ export function ReplayWorkspace({
         />
       </aside>
 
-      <div
-        className={cn(
-          'flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2',
-          fullscreen.active ? 'col-span-2 row-start-2' : 'min-[1180px]:col-span-3 min-[1180px]:row-start-2',
-        )}
-      >
-        <div className="flex min-w-0 items-end gap-3">
-          <Button
-            type="button"
-            size="xs"
-            variant={multi ? 'outline-primary' : 'outline'}
-            aria-pressed={multi}
-            disabled={focused === null}
-            onClick={toggleMulti}
-            className="h-11 shrink-0"
-            title={`${superposeHint} (M)`}
-          >
-            <Layers aria-hidden />
-            <span className="flex flex-col items-start leading-tight">
-              Superponer
-              <span className="text-meta font-normal text-fg-3">{superposeNote}</span>
-            </span>
-          </Button>
-          <RoundStrip
-            entries={entries}
-            index={index}
-            onSelect={(at) => select(at)}
-            groupLabel={labelOf}
-            roundInfo={roundInfo}
-            multi={
-              multi
-                ? {
-                    selected: selectedKeys,
-                    locked: everyRound,
-                    blocked: (candidate) => {
-                      const state = analyses.get(candidate.matchId);
-                      if (state?.state === 'failed') return 'Esta partida no tiene análisis';
-                      if (state?.state === 'ready' && focused !== null && state.analysis.doc.demo.map !== focused.doc.demo.map) return 'Es de otro mapa';
-                      return null;
-                    },
-                  }
-                : null
-            }
-            onToggleMulti={(key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey))}
-          />
-        </div>
-        <ReplayTimeline
-          timeline={transport}
-          events={transportEvents}
-          playing={playing}
-          speed={speed}
-          loop={loop}
-          scrubRef={scrubRef}
-          clockRef={clockLabelRef}
-          onTogglePlay={togglePlay}
-          onSpeedChange={setSpeed}
-          onToggleLoop={() => setLoop((value) => !value)}
-          onSeek={seekTo}
-          onScrubbingChange={setScrubbing}
-          tramo={multi ? { tramo, onChange: setTramo } : undefined}
-          timeouts={multi ? undefined : round?.timeouts}
-          below={
+      <ReplayTransport
+        fullscreen={fullscreen.active}
+        superpose={{ on: multi, disabled: focused === null, ...superposeText, onToggle: toggleMulti }}
+        strip={{
+          entries,
+          index,
+          onSelect: (at) => select(at),
+          groupLabel: labelOf,
+          roundInfo,
+          multi: multi
+            ? {
+                selected: selectedKeys,
+                locked: everyRound,
+                blocked: (candidate) => {
+                  const state = analyses.get(candidate.matchId);
+                  if (state?.state === 'failed') return 'Esta partida no tiene análisis';
+                  if (state?.state === 'ready' && focused !== null && state.analysis.doc.demo.map !== focused.doc.demo.map) return 'Es de otro mapa';
+                  return null;
+                },
+              }
+            : null,
+          onToggleMulti: (key) => setMultiKeys((value) => toggleMultiKey(withFocus(value, focusKey), key, focusKey)),
+        }}
+        timeline={{
+          timeline: transport,
+          events: transportEvents,
+          playing,
+          speed,
+          loop,
+          scrubRef,
+          clockRef: clockLabelRef,
+          onTogglePlay: togglePlay,
+          onSpeedChange: setSpeed,
+          onToggleLoop: () => setLoop((value) => !value),
+          onSeek: seekTo,
+          onScrubbingChange: setScrubbing,
+          tramo: multi ? { tramo, onChange: setTramo } : undefined,
+          timeouts: multi ? undefined : round?.timeouts,
+          below:
             moments.length === 0 && winState === null ? undefined : (
               <>
                 <KeyMomentMarks moments={moments} />
                 {winState === null ? null : <WinStrip state={winState} />}
               </>
-            )
-          }
-        />
-        {library ? <VoiceBar voice={voice} /> : null}
-      </div>
+            ),
+        }}
+        voice={library ? <VoiceBar voice={voice} /> : null}
+      />
 
+      <ReplayPreferences
+        open={preferences}
+        onOpenChange={setPreferences}
+        settings={mapSettings}
+        onSettings={setMapSettings}
+        drawing={library}
+        container={fullscreen.active ? rootRef.current : null}
+      />
       <ShortcutHelp open={help} onOpenChange={setHelp} />
     </section>
   );

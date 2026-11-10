@@ -224,6 +224,7 @@ export function TacticalAnalysis({
     () => (match === undefined ? null : `${prettyMapName(match.map)} · ${matchTitle(match)} · ${formatShortDate(match.played_at)}`),
     [match],
   );
+  const matchDate = useCallback(() => (match === undefined ? null : formatShortDate(match.played_at)), [match]);
   const seed = useMemo(() => (loaded === null ? undefined : { id: sourceId, analysis: loaded }), [loaded, sourceId]);
 
   if (loadError !== null) {
@@ -279,6 +280,7 @@ export function TacticalAnalysis({
         players={players}
         tramo={tramo}
         groupLabel={groupLabel}
+        matchDate={matchDate}
       />
     );
   }

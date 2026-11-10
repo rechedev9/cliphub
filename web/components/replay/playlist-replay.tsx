@@ -49,6 +49,17 @@ function useLibraryMatches(): ReadonlyMap<string, LibraryMatch> | null {
   return matches;
 }
 
+/** The day each library match was played, once the list loads. */
+function useMatchDate(matches: ReadonlyMap<string, LibraryMatch> | null): (matchId: string) => string | null {
+  return useCallback(
+    (matchId: string) => {
+      const match = matches?.get(matchId);
+      return match === undefined ? null : formatShortDate(match.played_at);
+    },
+    [matches],
+  );
+}
+
 /**
  * The Replay of a list of rounds from any matches: a saved playlist (`?p=`)
  * with its panel, or a passing list from `replayHref`. Each match's analysis
@@ -80,6 +91,7 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
     },
     [matches],
   );
+  const matchDate = useMatchDate(matches);
   const labelOf = (round: PlaylistRound): string => groupLabel(round.match_id) ?? prettyMapName(round.map);
 
   if (playlist === undefined) return <Skeleton className="h-[60vh] w-full rounded-lg" />;
@@ -126,6 +138,7 @@ function SavedPlaylistReplay({ id }: { id: string }): ReactNode {
       index={index}
       onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
       groupLabel={groupLabel}
+      matchDate={matchDate}
       filters={panel}
       title={playlist.name}
       roundNotes={{ store: notes, where: `«${playlist.name}»` }}
@@ -172,6 +185,7 @@ function PassingPlaylistReplay(): ReactNode {
     const match = matches?.get(matchId);
     return match === undefined ? null : `${matchLabel(match)} · ${formatShortDate(match.played_at)}`;
   }, [matches]);
+  const matchDate = useMatchDate(matches);
 
   if (refs.length === 0) return <ReplayHome />;
 
@@ -221,6 +235,7 @@ function PassingPlaylistReplay(): ReactNode {
       index={index}
       onIndexChange={(next) => setCurrentKey(entries[next] === undefined ? null : entryKey(entries[next]))}
       groupLabel={groupLabel}
+      matchDate={matchDate}
       filters={filters}
       title={title}
       focusPlayers={focusPlayers}
