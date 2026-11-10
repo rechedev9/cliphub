@@ -33,14 +33,11 @@ export type PrepQuery = { teamId: string; map: string; from?: string; to?: strin
 export function PrepBody({
   query,
   header,
-  lead,
   onOpenReplay,
 }: {
   query: PrepQuery;
   /** Drawn over the sections once the prep is read, such as the printed sheet's title. */
   header?: (prep: TeamPrep) => ReactNode;
-  /** Drawn before the buys whether or not the map has rounds, such as the players and the first-death positions. */
-  lead?: ReactNode;
   onOpenReplay?: (form: ReplayForm) => void;
 }): ReactNode {
   const { teamId, map, from, to, lineup, opponentIds } = query;
@@ -109,7 +106,6 @@ export function PrepBody({
   return (
     <>
       {header?.(prep)}
-      {lead}
       {prep.round_count === 0 ? (
         <EmptySample>
           <p className="text-body text-fg-2">

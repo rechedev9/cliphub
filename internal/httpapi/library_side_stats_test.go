@@ -54,3 +54,21 @@ func TestLibraryTeamSideStatsComparesWithTheLibraryOrChosenTeams(t *testing.T) {
 		}
 	}
 }
+
+func TestLibraryTeamSideStatsGroupNoneSkipsTheComparison(t *testing.T) {
+	f := newScoutFixture(t)
+	base := "/api/library/teams/" + f.vitality.String() + "/side-stats"
+
+	var full, only sideStatsResponse
+	f.env.json(http.MethodGet, base, nil, http.StatusOK, &full)
+	f.env.json(http.MethodGet, base+"?group=none", nil, http.StatusOK, &only)
+	if only.GroupTeams != 0 || only.GroupMatches != 0 || only.Overall.RoundsWon.GroupAvg != nil {
+		t.Fatalf("group=none folded the group: %d teams over %d matches", only.GroupTeams, only.GroupMatches)
+	}
+	if only.Rounds != full.Rounds || len(only.Players) != len(full.Players) || len(only.Players) == 0 {
+		t.Fatalf("players = %d over %d rounds, want %d over %d", len(only.Players), only.Rounds, len(full.Players), full.Rounds)
+	}
+	if rw := f.env.do(http.MethodGet, base+"?group=all", nil, ""); rw.Code != http.StatusBadRequest {
+		t.Fatalf("group=all = %d, want 400", rw.Code)
+	}
+}

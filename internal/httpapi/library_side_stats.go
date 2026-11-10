@@ -54,6 +54,10 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 	if err == nil {
 		asked, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)
 	}
+	groupNone := q.Get("group") == "none"
+	if err == nil && q.Get("group") != "" && !groupNone {
+		err = errors.New("group must be none or empty")
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -101,10 +105,13 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		opts.MapRoles = h.teamMapRoles(kept)
 	}
 	group := tacticalplan.NewSideStatsGroup(opts)
-	resp.GroupCapped, err = h.foldSideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, ownDocs: ownDocs, group: group})
-	if err != nil {
-		internalError(w, "team side stats group", err)
-		return
+	// group=none is the players-only read: the comparison group is not folded.
+	if !groupNone {
+		resp.GroupCapped, err = h.foldSideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, ownDocs: ownDocs, group: group})
+		if err != nil {
+			internalError(w, "team side stats group", err)
+			return
+		}
 	}
 	resp.SideStatsReport = tacticalplan.TeamSideStats(tacticalplan.SideStatsInput{Team: own, Options: opts, Group: group})
 	writeJSON(w, http.StatusOK, resp)

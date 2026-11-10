@@ -71,7 +71,6 @@ export function TeamPrepare({
     };
   }, [team.id, barQuery, scope.side]);
   const warnings = useMemo(() => prepareWarnings(sample, team.name), [sample, team.name]);
-  const players = <PrepPlayers teamId={team.id} scope={{ side: scope.side, map: scope.map, from, to, opponentIds, lineup }} />;
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -102,39 +101,32 @@ export function TeamPrepare({
           ))}
         </ul>
       )}
+      <PrepPlayers teamId={team.id} scope={{ side: scope.side, map: scope.map, from, to, opponentIds, lineup }} />
+      {scope.map === '' ? null : <FirstDeathPositions teamId={team.id} query={barQuery} scopeSide={scope.side} />}
       {scope.map === '' ? (
-        <>
-          {players}
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-1 px-3 py-2.5">
-            <p className="text-body-sm text-fg-2">Elige un mapa para ver compras contra compras, ritmo, posiciones de CT y playbooks:</p>
-            {maps.map((map) => {
-              const count = mapCounts?.[map];
-              return (
-                <Button
-                  key={map}
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  disabled={count === 0}
-                  title={count === 0 ? NO_MATCHES_TEXT : undefined}
-                  onClick={() => onMapChange(map)}
-                >
-                  {prettyMapName(map)}
-                  {count === undefined ? null : <span className="font-normal text-fg-3 tabular-nums">{mapCountText(count)}</span>}
-                </Button>
-              );
-            })}
-          </div>
-        </>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-1 px-3 py-2.5">
+          <p className="text-body-sm text-fg-2">Elige un mapa para ver compras contra compras, ritmo, posiciones de CT y playbooks:</p>
+          {maps.map((map) => {
+            const count = mapCounts?.[map];
+            return (
+              <Button
+                key={map}
+                type="button"
+                variant="outline"
+                size="xs"
+                disabled={count === 0}
+                title={count === 0 ? NO_MATCHES_TEXT : undefined}
+                onClick={() => onMapChange(map)}
+              >
+                {prettyMapName(map)}
+                {count === undefined ? null : <span className="font-normal text-fg-3 tabular-nums">{mapCountText(count)}</span>}
+              </Button>
+            );
+          })}
+        </div>
       ) : (
         <PrepBody
           query={{ teamId: team.id, map: scope.map, from, to, lineup, opponentIds }}
-          lead={
-            <>
-              {players}
-              <FirstDeathPositions teamId={team.id} query={barQuery} scopeSide={scope.side} />
-            </>
-          }
           onOpenReplay={(form) => {
             const known = TEAM_REPLAY_FORMS.find((entry) => entry === form);
             if (known !== undefined) onOpenReplay(known);

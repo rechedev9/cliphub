@@ -33,6 +33,7 @@ export function PrepPlayers({ teamId, scope }: { teamId: string; scope: PrepPlay
       to,
       opponent_ids: opponentKey === '' ? [] : opponentKey.split(','),
       lineup,
+      group: 'none',
     })
       .then((report) => {
         if (active) setData(report);
