@@ -200,7 +200,7 @@ func ProPlayersBoard(in ProPlayersBoardInput) ProPlayersResult {
 			continue
 		}
 		read := MatchRead{
-			Rounds: m.Rounds, HasRoles: q.Roles, teams: map[string]string{},
+			Rounds: m.Rounds, Map: m.Map, HasRoles: q.Roles, teams: map[string]string{},
 			totals: map[Side]map[string]playerTotals{SideCT: {}, SideT: {}}, roles: map[Side]map[string]RoleCounts{SideCT: {}, SideT: {}},
 		}
 		kept := false

@@ -53,6 +53,33 @@ func (t RoleCounts) sideMapRole(side Side) *SideMapRole {
 	return &SideMapRole{Role: role, MapRole: mapRole, Label: label}
 }
 
+// positionKey is the side's map role as a board filters on it: the callout held,
+// or allround only when no site role comes first, as in sideMapRole's label.
+func (t RoleCounts) positionKey(side Side) string {
+	key := t.mapRole()
+	if _, site := siteRoleLabels[t.role(side)]; site && key == MapRoleAllround {
+		return ""
+	}
+	return key
+}
+
+// allroundOn reports Todoterreno on a side: every map with a reliable sample
+// reads allround, and at least one map has such a sample.
+func (p *leaderboardPlayer) allroundOn(side Side) bool {
+	read := false
+	for _, sides := range p.mapRoles {
+		t := sides[side]
+		if t == nil || t.Sampled < MinReliableSample {
+			continue
+		}
+		if t.positionKey(side) != MapRoleAllround {
+			return false
+		}
+		read = true
+	}
+	return read
+}
+
 // MapRoles is each player's role per side over the folded matches, by SteamID64;
 // players without a read on either side are left out.
 func (s *LeaderboardSample) MapRoles() map[string]PlayerMapRoles {

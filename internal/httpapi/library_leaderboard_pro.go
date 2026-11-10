@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/community"
+	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
@@ -47,16 +51,38 @@ func (h *Handlers) writeProLeaderboard(w http.ResponseWriter, b proBoard) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// libraryRoundsDays is the window of the library rounds a pro row opens, the library board's own.
+const libraryRoundsDays = 90
+
 // attachLibraryRounds gives the pro rows without rounds the library's rounds of
-// each player on the board's map, side, role and position, newest first, so
-// "Rondas en el Replay" opens them with the player in focus.
+// each player on the board's map, side, role and position over the last
+// libraryRoundsDays, newest first, so "Ver sus rondas" opens them with the player in focus.
+// It reads only the matches of the rows' players, and roles only when the board filters on one.
 func (h *Handlers) attachLibraryRounds(ctx context.Context, rows []tacticalplan.LeaderboardRow, in leaderboardRead) {
-	if len(rows) == 0 {
+	f := in.filters
+	from := time.Now().AddDate(0, 0, -libraryRoundsDays)
+	seen := map[uuid.UUID]bool{}
+	var matches []library.Match
+	for _, row := range rows {
+		if len(row.Examples) > 0 || row.SteamID64 == "" {
+			continue
+		}
+		listed, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: in.query.mapName, SteamID: row.SteamID64, From: &from})
+		if err != nil {
+			log.Printf("httpapi: pro leaderboard without library rounds: %v", err)
+			return
+		}
+		for _, m := range listed {
+			if !seen[m.ID] {
+				seen[m.ID] = true
+				matches = append(matches, m)
+			}
+		}
+	}
+	if len(matches) == 0 {
 		return
 	}
-	f := in.filters
-	lib := leaderboardRead{query: in.query, filters: leaderboardFilters{side: f.side, role: f.role, mapRole: f.mapRole}}
-	fold, err := h.leaderboardSample(ctx, lib)
+	fold, err := h.foldLeaderboard(ctx, foldInput{matches: matches, side: f.side, withRoles: f.role != "" || f.mapRole != ""})
 	if err != nil {
 		log.Printf("httpapi: pro leaderboard without library rounds: %v", err)
 		return

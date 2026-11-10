@@ -194,7 +194,7 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 		}
 		out.Matches, out.Rounds, out.Skipped = fold.sample.Matches, fold.sample.Rounds, fold.skipped
 		out.Players = fold.sample.Rows(tacticalplan.LeaderboardOptions{
-			Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role, MapRole: filters.mapRole, MapRoleSide: filters.side,
+			Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role, MapRole: filters.mapRole, MapRoleSide: filters.side, AnyMap: q.mapName == "",
 			LibraryRoles: fold.libraryRoles, LibraryRole: filters.libraryRole,
 		})
 		if q.mapName != "" && filters.side != "" {

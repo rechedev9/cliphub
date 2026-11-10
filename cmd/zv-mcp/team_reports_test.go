@@ -303,6 +303,8 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "role": "awp"}, "need scope library")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "side": "T", "map_role": "allround"}, "pro scope reads map_role on one map")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map_role": "allround"}, "map_role needs a map and a side")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "awp", "map_role": "allround"}, "map_role needs a map and a side")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "rifler", "map_role": "Canal"}, "map_role needs a map and a side")
 	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "awp"}, &board)
 	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "side": "T", "map_role": "allround"}, &board)
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")

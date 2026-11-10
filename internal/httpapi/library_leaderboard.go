@@ -223,8 +223,21 @@ func (h *Handlers) leaderboardSample(ctx context.Context, in leaderboardRead) (l
 	if err != nil {
 		return leaderboardFold{}, err
 	}
+	return h.foldLeaderboard(ctx, foldInput{matches: matches, side: f.side, withRoles: q.mapName != "" || f.mapRole == tacticalplan.MapRoleAllround})
+}
+
+// foldInput is the matches a board folds, the side it counts and whether it reads roles by side.
+type foldInput struct {
+	matches   []library.Match
+	side      tacticalplan.Side
+	withRoles bool
+}
+
+// foldLeaderboard folds the matches newest first, from the cached reads.
+func (h *Handlers) foldLeaderboard(ctx context.Context, in foldInput) (leaderboardFold, error) {
+	matches := in.matches
 	sort.SliceStable(matches, func(i, j int) bool { return matches[i].PlayedAt.After(matches[j].PlayedAt) })
-	withRoles := q.mapName != "" || f.mapRole == tacticalplan.MapRoleAllround
+	withRoles := in.withRoles
 	out := leaderboardFold{sample: &tacticalplan.LeaderboardSample{}, libraryRoles: map[string]string{}}
 	parts := map[string][]library.PlayerRole{}
 	for _, m := range matches {
@@ -237,7 +250,7 @@ func (h *Handlers) leaderboardSample(ctx context.Context, in leaderboardRead) (l
 			out.skipped++
 			continue
 		}
-		out.sample.Add(e.read, f.side)
+		out.sample.Add(e.read, in.side)
 		for steam, role := range e.roles {
 			parts[steam] = append(parts[steam], role)
 		}

@@ -287,7 +287,9 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 		return tuiclient.LeaderboardQuery{}, errors.New("team_top must be 5, 15, 30 or 50")
 	}
 	anyMapAllround := in.Map == "" && in.MapRole == tacticalplan.MapRoleAllround
-	if in.MapRole != "" && ((in.Side == "" && in.Role == "") || (in.Map == "" && !anyMapAllround)) {
+	// Only a map role sets the side; a library role has none.
+	roleSetsSide := tacticalplan.RoleSide(strings.ToLower(strings.TrimSpace(in.Role))) != ""
+	if in.MapRole != "" && ((in.Side == "" && !roleSetsSide) || (in.Map == "" && !anyMapAllround)) {
 		return tuiclient.LeaderboardQuery{}, errors.New("map_role needs a map and a side; allround (Todoterreno) needs only a side")
 	}
 	if pro && anyMapAllround {
