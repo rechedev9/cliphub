@@ -10,13 +10,15 @@ export type TeamMapCountsOptions = {
   scope: AnalysisScope;
   fields: readonly ScopeField[];
   lineup: readonly string[];
+  /** The tab shows a map picker that reads these counts; the fields alone do not say so (the Replay has none in the bar). */
+  enabled: boolean;
 };
 
 /** Matches per map under the scope the view reads, counted by the server; null while counting or on failure. */
-export function useTeamMapCounts({ teamId, scope, fields, lineup }: TeamMapCountsOptions): MapCounts | null {
+export function useTeamMapCounts({ teamId, scope, fields, lineup, enabled }: TeamMapCountsOptions): MapCounts | null {
   const [counts, setCounts] = useState<MapCounts | null>(null);
   const [now] = useState(() => Date.now());
-  const reads = fields.includes('map');
+  const reads = enabled;
   const query = mapCountsQuery({ scope, fields, lineup, now });
   const key = JSON.stringify(query);
   // The effect reruns on the key, not on the object a render rebuilds.

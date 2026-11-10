@@ -277,7 +277,7 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
     hrefFor: teamHref,
   };
   const activeScopeId = tab === 'replay' && (replayForm === 'granadas' || replayForm === 'patrones') ? `replay-${replayForm}` : tab;
-  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: COUNTED_TABS.has(tab) ? (TAB_FIELDS[activeScopeId] ?? []) : [], lineup });
+  const mapCounts = useTeamMapCounts({ teamId: team.id, scope, fields: TAB_FIELDS[activeScopeId] ?? [], lineup, enabled: COUNTED_TABS.has(tab) });
 
   function withScope(id: string, content: ReactNode): ReactNode {
     const fields = TAB_FIELDS[id] ?? [];

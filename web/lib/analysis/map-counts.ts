@@ -7,7 +7,7 @@ import { teamScopeEntries } from './team-scope.ts';
 export type MapCounts = Readonly<Record<string, number>>;
 
 /** Why the map selector greys a map out. */
-export const NO_MATCHES_TEXT = 'Sin partidas con esta alineación';
+export const NO_MATCHES_TEXT = 'Sin partidas en este alcance';
 
 /** The scope fields that decide which matches a map has; the round criteria only filter rounds. */
 const MATCH_FIELDS: readonly ScopeField[] = ['limit', 'opponentTop', 'whose'];

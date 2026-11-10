@@ -104,7 +104,7 @@ type mapRecordOut struct {
 	Vetoes      map[string]int `json:"vetoes" jsonschema:"picked, banned, opponent_picked, opponent_banned and decider counts from the series"`
 	Preference  int            `json:"preference" jsonschema:"-100 to 100: how much the team seeks this map"`
 	// ScopeMatches is the N partidas of the map selector.
-	ScopeMatches int `json:"scope_matches" jsonschema:"matches on this map under the scope keys, the N partidas of the map selector; 0 is a map the selector greys out (Sin partidas con esta alineación)"`
+	ScopeMatches int `json:"scope_matches" jsonschema:"matches on this map under the scope keys, the N partidas of the map selector; 0 is a map the selector greys out (Sin partidas en este alcance)"`
 }
 
 type teamMapsOut struct {
