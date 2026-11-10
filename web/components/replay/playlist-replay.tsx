@@ -10,6 +10,7 @@ import type { LibraryMatch } from '@/lib/api/library';
 import type { PlaylistRound } from '@/lib/api/playlists';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { matchTitle } from '@/lib/library/partidas';
+import { teamFocusFromQuery } from '@/lib/replay/player-focus';
 import { entryKey, indexOfKey } from '@/lib/replay/playlist';
 import { PLAYLISTS_HREF, PLAYLIST_QUERY, isPlaylistId, playlistRefs } from '@/lib/replay/saved-playlist';
 import { EmptyState } from '@/components/records/empty-state';
@@ -135,6 +136,7 @@ function PassingPlaylistReplay(): ReactNode {
   const search = useSearchParams();
   const refs = useMemo(() => parseReplayRefs(search), [search]);
   const title = search.get('t') ?? undefined;
+  const focusPlayers = useMemo(() => teamFocusFromQuery(search), [search]);
   const matches = useLibraryMatches();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [currentKey, setCurrentKey] = useState<string | null>(null);
@@ -206,6 +208,7 @@ function PassingPlaylistReplay(): ReactNode {
       groupLabel={groupLabel}
       filters={filters}
       title={title}
+      focusPlayers={focusPlayers}
     />
   );
 }

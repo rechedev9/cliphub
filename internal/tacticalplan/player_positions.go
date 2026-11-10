@@ -158,7 +158,7 @@ func siteZones(d Document) map[string]siteZone {
 		}
 	}
 	for _, c := range d.Geometry.Callouts {
-		zone := map[string]string{"BombsiteA": ZoneA, "BombsiteB": ZoneB}[c.Name]
+		zone, _ := isSiteCallout(c.Name)
 		if _, known := out[zone]; zone != "" && !known {
 			out[zone] = siteZone{center: c.Center, level: c.Level}
 		}
@@ -196,7 +196,8 @@ func (t tally) add(key string, at int) {
 func (t tally) top() string {
 	best := ""
 	for key, n := range t.counts {
-		if best == "" || n > t.counts[best] || (n == t.counts[best] && t.last[key] > t.last[best]) {
+		tie := n == t.counts[best] && (t.last[key] > t.last[best] || (t.last[key] == t.last[best] && key < best))
+		if best == "" || n > t.counts[best] || tie {
 			best = key
 		}
 	}

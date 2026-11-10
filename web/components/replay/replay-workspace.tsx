@@ -101,6 +101,8 @@ export type ReplayWorkspaceProps = {
   roundNotes?: { store: AnnotationStore; where: string };
   /** The saved playlist open in the page: B adds to it whatever was picked before. */
   openPlaylistId?: string;
+  /** Players to put in the foreground by SteamID64, found in each match by it since slots change between demos. */
+  focusPlayers?: readonly string[];
 };
 
 const NO_MATCHES: readonly string[] = [];
@@ -124,6 +126,7 @@ export function ReplayWorkspace({
   tramo: pageTramo,
   roundNotes,
   openPlaylistId,
+  focusPlayers,
 }: ReplayWorkspaceProps): ReactNode {
   const library = source === 'library';
   const clock = useMemo(() => new ReplayClock(), []);
@@ -193,6 +196,12 @@ export function ReplayWorkspace({
   const current = entry === undefined ? undefined : analyses.get(entry.matchId);
   const loaded = current?.state === 'ready' ? current.analysis : null;
   const round = entry === undefined ? undefined : loaded?.round(entry.round);
+  const loadedDoc = loaded?.doc;
+  // Declared after the reset above, so a match that is already loaded gets its slots in the same commit.
+  useEffect(() => {
+    if (focusPlayers === undefined || focusPlayers.length === 0 || loadedDoc === undefined) return;
+    setOwnFocus(loadedDoc.players.filter((player) => focusPlayers.includes(player.steamid64)).map((player) => player.slot).sort((a, b) => a - b));
+  }, [focusPlayers, loadedDoc]);
 
   const focused = useMemo<CentreRound | null>(() => {
     if (entry === undefined || loaded === null || round === undefined) return null;

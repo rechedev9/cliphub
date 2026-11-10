@@ -1,3 +1,5 @@
+import { writeTeamFocus } from '../replay/player-focus.ts';
+
 /** One round to replay, optionally starting at a tick. */
 export type ReplayRef = { matchId: string; round: number; tick?: number };
 
@@ -13,6 +15,12 @@ export function replayHref(refs: readonly ReplayRef[], title?: string): string {
   }
   if (title) params.set('t', title);
   return `/replay?${params.toString()}`;
+}
+
+/** The replay page with these rounds and a player in focus, named by SteamID64 since slots change between demos. */
+export function focusedReplayHref(options: { refs: readonly ReplayRef[]; title?: string; steamId: string }): string {
+  const [path = '/replay', query = ''] = replayHref(options.refs, options.title).split('?');
+  return `${path}?${writeTeamFocus(query, [options.steamId])}`;
 }
 
 /** Reads the refs back; malformed entries are dropped. */

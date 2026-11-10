@@ -18,6 +18,7 @@ import {
   Shield,
   Smartphone,
   Swords,
+  Trophy,
   UserSearch,
   type LucideIcon,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; tone?: string }> = {
   '/partidas': { icon: Swords },
   '/replay': { icon: Radar },
   '/equipos': { icon: Shield },
+  '/ranking': { icon: Trophy },
   '/libreta': { icon: NotebookPen },
   '/lineups': { icon: Crosshair },
   '/informes': { icon: FileText },
