@@ -14,12 +14,18 @@ export type ResultRow = {
   unixMs: number;
 };
 
+/** One line of the match page veto; team is empty for the map left over. */
+export type VetoLine = { team: string; action: "ban" | "pick" | "decider"; map: string };
+
 export type MatchPage = {
   teams: { id: number; name: string }[];
   event: string;
   unixMs: number;
   demoPaths: string[];
   maps: string[];
+  /** bo1, bo3 or bo5 from the veto box, or empty when the page does not say. */
+  format: string;
+  veto: VetoLine[];
 };
 
 export type HarvestRecord = { at: string; status: "downloaded" | "skipped" | "no_demo"; reason?: string; file?: string };
@@ -46,7 +52,11 @@ export const MATCH_SCRIPT = `({
   event: document.querySelector('.timeAndEvent .event a')?.textContent?.trim() ?? '',
   unix: document.querySelector('.timeAndEvent .time')?.getAttribute('data-unix') ?? '',
   demos: [...document.querySelectorAll('[data-demo-link]')].map(a => a.getAttribute('data-demo-link') ?? ''),
-  maps: [...document.querySelectorAll('.mapholder .mapname')].map(m => m.textContent?.trim() ?? '')
+  maps: [...document.querySelectorAll('.mapholder .mapname')].map(m => m.textContent?.trim() ?? ''),
+  vetoBoxes: [...document.querySelectorAll('.veto-box')].map(b => {
+    const lines = [...b.querySelectorAll('.padding > div')].map(d => d.textContent?.trim() ?? '');
+    return lines.length > 0 ? lines : [b.textContent?.trim() ?? ''];
+  })
 })`;
 
 export const CHALLENGE_SCRIPT = `Boolean(document.querySelector('#challenge-form, .cf-turnstile, #cf-wrapper, #challenge-stage')) || /just a moment|un momento/i.test(document.title)`;
@@ -95,6 +105,28 @@ export function parseResults(raw: unknown): ResultRow[] {
   return out;
 }
 
+const FORMAT_TEXT = /best of (\d)/i;
+const VETO_STEP = /^\d+\.\s+(.+?)\s+(removed|picked)\s+(\S+)$/;
+const VETO_LEFT = /^\d+\.\s+(\S+)\s+was left over$/;
+
+/** The series format and the ordered veto in the veto box lines, as HLTV writes them. */
+export function parseVeto(lines: string[]): { format: string; veto: VetoLine[] } {
+  const text = lines.join("\n");
+  const n = FORMAT_TEXT.exec(text)?.[1];
+  const veto: VetoLine[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const step = VETO_STEP.exec(line);
+    if (step) {
+      veto.push({ team: step[1] ?? "", action: step[2] === "picked" ? "pick" : "ban", map: step[3] ?? "" });
+      continue;
+    }
+    const left = VETO_LEFT.exec(line);
+    if (left) veto.push({ team: "", action: "decider", map: left[1] ?? "" });
+  }
+  return { format: n ? `bo${n}` : "", veto };
+}
+
 export function parseMatch(raw: unknown): MatchPage | null {
   if (!isRecord(raw)) return null;
   const teams = (Array.isArray(raw.teams) ? raw.teams : [])
@@ -104,7 +136,9 @@ export function parseMatch(raw: unknown): MatchPage | null {
   const demoPaths = (Array.isArray(raw.demos) ? raw.demos : []).map(str).filter((p) => DEMO_PATH.test(p));
   const maps = (Array.isArray(raw.maps) ? raw.maps : []).map(str).filter((m) => m !== "" && m !== "TBA");
   const unixMs = Number(str(raw.unix));
-  return { teams, event: str(raw.event), unixMs: Number.isFinite(unixMs) ? unixMs : 0, demoPaths: [...new Set(demoPaths)], maps };
+  const boxes = Array.isArray(raw.vetoBoxes) ? raw.vetoBoxes : [];
+  const { format, veto } = parseVeto(boxes.flatMap((b: unknown) => (Array.isArray(b) ? b.map(str) : [str(b)])));
+  return { teams, event: str(raw.event), unixMs: Number.isFinite(unixMs) ? unixMs : 0, demoPaths: [...new Set(demoPaths)], maps, format, veto };
 }
 
 export function normalizeName(name: string): string {
@@ -152,10 +186,12 @@ export function parseState(raw: unknown): HarvestState {
 export type HarvestOptions = {
   days: number; top: number; outDir: string; maxMatches: number; refetch: string;
   bestMaps: boolean; minMaps: number; perMap: number;
+  /** A folder of sidecars whose format and veto are read from their match pages, without downloading a demo. */
+  vetoBackfill: string;
 };
 
 export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
-  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 };
+  const opts: HarvestOptions = { days: 30, top: 50, outDir: defaultOut, maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "" };
   for (let i = 0; i < argv.length; i++) {
     const next = argv[i + 1] ?? "";
     switch (argv[i]) {
@@ -167,6 +203,7 @@ export function parseArgs(argv: string[], defaultOut: string): HarvestOptions {
       case "--best-maps": opts.bestMaps = true; break;
       case "--min-maps": opts.minMaps = positive(next, opts.minMaps); i++; break;
       case "--per-map": opts.perMap = positive(next, opts.perMap); i++; break;
+      case "--veto-backfill": if (next !== "") opts.vetoBackfill = next; i++; break;
     }
   }
   return opts;
@@ -186,6 +223,8 @@ export type Sidecar = {
   played_at: string;
   teams: { id: number; name: string; rank: number | null }[];
   maps: string[];
+  format?: string;
+  veto?: VetoLine[];
 };
 
 export function sidecarFor(matchId: number, demoPath: string, match: MatchPage, ranked: RankedTeam[]): Sidecar {
@@ -198,6 +237,8 @@ export function sidecarFor(matchId: number, demoPath: string, match: MatchPage, 
     played_at: new Date(match.unixMs).toISOString(),
     teams: match.teams.map((t) => ({ id: t.id, name: t.name, rank: rankOf.get(t.id) ?? null })),
     maps: match.maps,
+    format: match.format || undefined,
+    veto: match.veto.length > 0 ? match.veto : undefined,
   };
 }
 
@@ -213,5 +254,19 @@ export function parseSidecar(v: unknown): Sidecar | null {
     rank: typeof t.rank === "number" ? t.rank : null,
   }));
   const maps = (Array.isArray(v.maps) ? v.maps : []).map(str).filter((m) => m !== "");
-  return { source: "hltv", match_id: id, demo_path: path, event: str(v.event), played_at: str(v.played_at), teams, maps };
+  const veto = (Array.isArray(v.veto) ? v.veto : []).filter(isRecord).flatMap((s): VetoLine[] => {
+    const action = s.action;
+    return action === "ban" || action === "pick" || action === "decider" ? [{ team: str(s.team), action, map: str(s.map) }] : [];
+  });
+  const format = str(v.format);
+  return {
+    source: "hltv", match_id: id, demo_path: path, event: str(v.event), played_at: str(v.played_at), teams, maps,
+    format: format || undefined, veto: veto.length > 0 ? veto : undefined,
+  };
+}
+
+/** The sidecar with the format and veto of its match page, or null when the page holds neither or the sidecar has them. */
+export function withSeries(sidecar: Sidecar, match: MatchPage | null): Sidecar | null {
+  if ((sidecar.veto?.length ?? 0) > 0 || match === null || (match.format === "" && match.veto.length === 0)) return null;
+  return { ...sidecar, format: match.format || sidecar.format, veto: match.veto.length > 0 ? match.veto : sidecar.veto };
 }

@@ -289,7 +289,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
       },
       {
         term: 'Mapas y veto',
-        text: 'El historial por mapa cuenta resultados, rondas por lado, pistolas, picks y bans. El simulador de veto recomienda cada paso de un BO1, BO3 o BO5 contra un rival y explica por qué.',
+        text: 'El historial por mapa cuenta resultados, rondas por lado, pistolas, picks y bans. El simulador de veto recomienda cada paso de un BO1, BO2, BO3 o BO5 contra un rival y explica por qué.',
       },
       {
         term: 'Ficha de jugador',

@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +115,61 @@ func TestProMatchCatalogSyncsFiltersAndServesFiles(t *testing.T) {
 	}
 	if _, err := syncProCatalog(ctx, a.store, filepath.Join(dir, "missing")); err == nil {
 		t.Fatal("a missing folder must fail instead of emptying the catalog")
+	}
+}
+
+func TestProMatchCatalogServesSeriesAndUpgradesOldCatalog(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "community.db")
+	old, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(strings.Replace(schema, "series           TEXT NOT NULL DEFAULT '',", "", 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO pro_match_maps (match_id, entry, file, size, mod_time, sha256, map, rounds, analysis_version, event, played_at, teams, synced_at)
+		VALUES (2400003, 'alpha-vs-beta-m1-nuke.dem', 'f', 1, 'stamp', 's', 'de_nuke', 16, 9, 'E', '2026-01-01T00:00:00Z', '[]', '2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = old.Close()
+	s, err := openStore(dbPath)
+	if err != nil {
+		t.Fatalf("an old catalog must open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	var stamp string
+	if err := s.db.QueryRow(`SELECT mod_time FROM pro_match_maps`).Scan(&stamp); err != nil || stamp != "" {
+		t.Fatalf("the upgrade must clear the stamps so every analysis is read again: %q %v", stamp, err)
+	}
+	a := newAPI(s)
+	h := a.routes()
+	dir := t.TempDir()
+	a.analysesDir = dir
+	recent := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	teams := []community.ProSidecarTeam{{ID: 1, Name: "Alpha"}, {ID: 2, Name: "Beta"}}
+	withVeto := proHeader(2400003, "alpha-vs-beta-m1-nuke.dem", "de_nuke", recent, teams...)
+	withVeto.Match.Maps, withVeto.Match.Format = []string{"Nuke", "Mirage", "Anubis"}, "bo3"
+	withVeto.Match.Veto = []community.ProSidecarVeto{{Team: "Alpha", Action: "pick", Map: "Nuke"}, {Team: "Beta", Action: "pick", Map: "Mirage"}, {Action: "decider", Map: "Anubis"}}
+	oldSidecar := proHeader(2400004, "alpha-vs-beta-m1-dust2.dem", "de_dust2", recent, teams...)
+	oldSidecar.Match.Maps = []string{"Dust2"}
+	writeProMap(t, dir, withVeto)
+	writeProMap(t, dir, oldSidecar)
+	if _, err := syncProCatalog(context.Background(), a.store, dir); err != nil {
+		t.Fatal(err)
+	}
+	var m community.ProMatch
+	if rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400003", nil); json.Unmarshal(rec.Body.Bytes(), &m) != nil {
+		t.Fatalf("match = %d %s", rec.Code, rec.Body)
+	}
+	if m.Series.Format != "bo3" || len(m.Series.Veto) != 3 || m.Series.Veto[1].TeamID != 2 || m.Series.Maps[0].PickedBy != 1 || !m.Series.Maps[2].Decider {
+		t.Fatalf("series = %+v", m.Series)
+	}
+	m = community.ProMatch{}
+	if rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400004", nil); json.Unmarshal(rec.Body.Bytes(), &m) != nil {
+		t.Fatalf("match = %d %s", rec.Code, rec.Body)
+	}
+	if m.Series.Format != "bo1" || len(m.Series.Veto) != 0 || !m.Series.Maps[0].Decider {
+		t.Fatalf("a sidecar without a veto still gives the format and decider: %+v", m.Series)
 	}
 }
 

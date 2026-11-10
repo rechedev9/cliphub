@@ -101,7 +101,7 @@ export function NewSeriesDialog({ onClose, teamId }: { onClose: () => void; team
         <form onSubmit={(formEvent) => void submit(formEvent)} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>Nueva serie</DialogTitle>
-            <DialogDescription>Una serie agrupa los mapas de un BO1, BO3 o BO5. En su ficha añades las partidas y el veto si lo conoces.</DialogDescription>
+            <DialogDescription>Una serie agrupa los mapas de un BO1, BO2, BO3 o BO5. En su ficha añades las partidas y el veto si lo conoces.</DialogDescription>
           </DialogHeader>
           <Segmented
             label="Formato"

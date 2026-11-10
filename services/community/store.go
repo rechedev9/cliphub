@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS pro_match_maps (
 	played_at        TEXT NOT NULL,
 	teams            TEXT NOT NULL,
 	synced_at        TEXT NOT NULL,
+	series           TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (match_id, entry)
 );
 CREATE TABLE IF NOT EXISTS ranking_lines (
@@ -91,11 +93,40 @@ func openStore(path string) (*store, error) {
 			return nil, fmt.Errorf("initialize database: %w", err)
 		}
 	}
+	if err := addSeriesColumn(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize database: %w", err)
+	}
 	if err := os.Chmod(path, 0o600); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("restrict database: %w", err)
 	}
 	return &store{db: db}, nil
+}
+
+// addSeriesColumn adds the series of a catalog made before it and clears the file
+// stamps, so the next pro-matches run reads every analysis again.
+func addSeriesColumn(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var n int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('pro_match_maps') WHERE name = 'series'`).Scan(&n); err != nil || n > 0 {
+		return err
+	}
+	// Another process may add it between the check and the ALTER; its column is as good as ours.
+	if _, err := tx.Exec(`ALTER TABLE pro_match_maps ADD COLUMN series TEXT NOT NULL DEFAULT ''`); err != nil {
+		if strings.Contains(err.Error(), "duplicate column") {
+			return nil
+		}
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE pro_match_maps SET mod_time = ''`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *store) Close() error { return s.db.Close() }

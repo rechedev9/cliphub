@@ -10,6 +10,7 @@
 //	cliphub-community record-clips      record the planned clips with CS2 and the inputs HUD (operator PC)
 //	cliphub-community sidecars          write one sidecar per analysed match, for the harvester's --refetch
 //	cliphub-community pro-matches       rebuild the pro match catalog from the archived analyses
+//	cliphub-community series-backfill   merge the format and veto of sidecars into the analyses of their matches
 package main
 
 import (
@@ -139,6 +140,19 @@ func run(args []string) error {
 		defer s.Close()
 		n, err := syncProCatalog(ctx, s, os.Getenv("CLIPHUB_COMMUNITY_ANALYSES_DIR"))
 		log.Printf("community stage=pro_matches class=synced changed=%d", n)
+		return err
+	case "series-backfill":
+		fs := flag.NewFlagSet("series-backfill", flag.ContinueOnError)
+		analyses := fs.String("analyses", "", "folder of prepared analyses")
+		sidecars := fs.String("sidecars", "", "folder of <match id>.json sidecars with their veto")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *analyses == "" || *sidecars == "" {
+			return errors.New("series-backfill needs -analyses and -sidecars")
+		}
+		n, err := backfillSeries(*analyses, *sidecars)
+		log.Printf("community stage=series_backfill class=done analyses=%d", n)
 		return err
 	case "record-clips":
 		return runRecordClips(ctx, args[1:])

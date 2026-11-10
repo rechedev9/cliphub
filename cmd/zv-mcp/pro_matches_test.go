@@ -13,7 +13,9 @@ const testProMatchesJSON = `{"status":"ok","updated_at":"2026-11-09T03:00:00Z","
 	"matches":[{"id":2400001,"event":"IEM Chengdu","played_at":"2026-11-08T15:00:00Z",
 	 "teams":[{"id":9565,"name":"Vitality","rank":1,"followed":true},{"id":6667,"name":"FaZe","followed":false}],
 	 "maps":[{"entry":"vitality-vs-faze-m1-cache","map":"de_cache","rounds":24,"analysis_version":6,"radar_may_be_off":true,
-	   "library_match_id":"11111111-1111-4111-8111-111111111111"},{"entry":"vitality-vs-faze-m2-nuke","map":"de_nuke","rounds":20,"analysis_version":6}]}],
+	   "library_match_id":"11111111-1111-4111-8111-111111111111"},{"entry":"vitality-vs-faze-m2-nuke","map":"de_nuke","rounds":20,"analysis_version":6}],
+	 "series":{"format":"bo3","maps":[{"number":1,"map":"de_cache","picked_by":9565},{"number":2,"map":"de_nuke","picked_by":6667},{"number":3,"map":"de_mirage","decider":true}],
+	   "veto":[{"team_id":6667,"team":"FaZe","action":"ban","map":"de_inferno"},{"team":"Faze Clan","action":"ban","map":"de_train"},{"action":"decider","map":"de_mirage"}]}}],
 	"facets":{"teams":[{"id":9565,"name":"Vitality","matches":1}],"events":[{"name":"IEM Chengdu","matches":1}],"maps":[{"name":"de_cache","matches":1}]},
 	"follows":[{"team_id":9565,"name":"Vitality","followed_at":"2026-11-01T00:00:00Z"}]}`
 
@@ -40,6 +42,13 @@ func TestListAndImportProMatches(t *testing.T) {
 	if len(list.Matches) != 1 || list.Matches[0].PlayedAt != "2026-11-08" || !list.Matches[0].Maps[0].RadarMayBeOff ||
 		list.Matches[0].Maps[0].LibraryMatchID == "" || !list.Matches[0].Teams[0].Followed || len(list.Follows) != 1 {
 		t.Fatalf("list = %+v", list)
+	}
+	series, veto := list.Matches[0].Series, list.Matches[0].Veto
+	if series.Format != "bo3" || len(series.Maps) != 3 || series.Maps[0].PickBy != "Vitality" || !series.Maps[2].Decider || series.Maps[2].PickBy != "" {
+		t.Fatalf("series = %+v", series)
+	}
+	if len(veto) != 3 || veto[0].Team != "FaZe" || veto[1].Team != "Faze Clan" || veto[2] != (proVetoStepOut{Action: "decider", Map: "de_mirage"}) {
+		t.Fatalf("veto = %+v", veto)
 	}
 	toolFails(t, cs, "list_pro_matches", map[string]any{"days": 500}, "days must be")
 

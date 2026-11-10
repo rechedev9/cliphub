@@ -4,6 +4,7 @@
 //
 //   pnpm start -- --days 30 --top 50 --out C:\Users\me\cliphub-hltv
 //   pnpm start -- --best-maps --days 90 --top 20 --min-maps 10 --per-map 5
+//   pnpm start -- --veto-backfill C:\Users\me\cliphub-hltv\series-sidecars
 import { app, BrowserWindow, session, type DownloadItem, type Session } from "electron";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -11,7 +12,7 @@ import { join } from "node:path";
 import {
   CHALLENGE_SCRIPT, HLTV, MATCH_SCRIPT, RANKING_SCRIPT, RESULTS_SCRIPT,
   isCandidate, needsVisit, normalizeName, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState,
-  rankedTeamIn, sidecarFor, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
+  rankedTeamIn, sidecarFor, withSeries, type HarvestRecord, type HarvestState, type RankedTeam, type ResultRow,
 } from "./hltv.ts";
 import { MAP_STATS_SCRIPT, isoDay, parseTeamMapStats, pickBestPerMap, teamSlug, type BestMapPick, type TeamStats } from "./best-maps.ts";
 
@@ -198,6 +199,29 @@ async function refetch(win: BrowserWindow, ses: Session): Promise<void> {
   log(`class=done refetched=${downloaded}`);
 }
 
+// vetoBackfill reads the format and veto of each sidecar's match page into the sidecar; it downloads no demo.
+async function vetoBackfill(win: BrowserWindow): Promise<void> {
+  const browser = new Browser(win);
+  let filled = 0;
+  for (const name of readdirSync(opts.vetoBackfill).filter((f) => f.endsWith(".json")).sort()) {
+    if (filled === opts.maxMatches) break;
+    const path = join(opts.vetoBackfill, name);
+    const sidecar = parseSidecar(JSON.parse(readFileSync(path, "utf8")));
+    if (sidecar === null || (sidecar.veto?.length ?? 0) > 0) continue;
+    await pause();
+    await browser.open(`${HLTV}/matches/${sidecar.match_id}/match`);
+    const next = withSeries(sidecar, parseMatch(await browser.read(MATCH_SCRIPT)));
+    if (next === null) {
+      log(`class=veto_missing match=${sidecar.match_id}`);
+      continue;
+    }
+    writeFileSync(path, JSON.stringify(next, null, 2));
+    log(`class=veto_filled match=${sidecar.match_id} format=${next.format ?? ""} steps=${next.veto?.length ?? 0}`);
+    filled++;
+  }
+  log(`class=done veto_filled=${filled}`);
+}
+
 // bestMaps reads every ranked team's map stats, picks the best team per map and writes a
 // sidecar for its latest matches on that map into refetch-best, for the clip backfill.
 async function bestMaps(win: BrowserWindow): Promise<void> {
@@ -253,7 +277,8 @@ app.whenReady().then(async () => {
   const ses = session.fromPartition("persist:hltv");
   const win = new BrowserWindow({ width: 1280, height: 860, show: true, title: "ClipHub: recolector HLTV", webPreferences: { session: ses, contextIsolation: true, sandbox: true } });
   try {
-    if (opts.bestMaps) await bestMaps(win);
+    if (opts.vetoBackfill !== "") await vetoBackfill(win);
+    else if (opts.bestMaps) await bestMaps(win);
     else await (opts.refetch === "" ? harvest(win, ses) : refetch(win, ses));
   } catch (err) {
     log(`class=fatal error="${String(err)}"`);

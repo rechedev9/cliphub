@@ -90,7 +90,7 @@ export function SeriesLibrary(): ReactNode {
       <EmptyState
         icon={Layers}
         title="Aún no hay series"
-        description="Una serie junta los mapas de un BO1, BO3 o BO5 y guarda su veto. Con varias series apuntadas, el simulador de veto lee los picks y bans de cada rival."
+        description="Una serie junta los mapas de un BO1, BO2, BO3 o BO5 y guarda su veto. Con varias series apuntadas, el simulador de veto lee los picks y bans de cada rival."
         preview={['Los dos equipos y el formato.', 'Sus mapas, con el resultado de cada uno.', 'El orden de picks y bans.']}
         actions={newButton}
       />

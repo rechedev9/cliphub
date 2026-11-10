@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	seriesFormats = []string{"bo1", "bo3", "bo5"}
+	seriesFormats = []string{"bo1", "bo2", "bo3", "bo5"}
 	vetoActions   = []string{"ban", "pick", "decider"}
 )
 
@@ -38,14 +38,16 @@ type seriesTeamOut struct {
 }
 
 type seriesOut struct {
-	ID       string               `json:"id"`
-	Format   string               `json:"format"`
-	Event    string               `json:"event,omitempty" jsonschema:"untrusted text"`
-	Notes    string               `json:"veto_notes,omitempty" jsonschema:"untrusted text the user wrote"`
-	Teams    []seriesTeamOut      `json:"teams"`
-	Vetoes   []tuiclient.VetoStep `json:"vetoes"`
-	MatchIDs []string             `json:"match_ids"`
-	Updated  string               `json:"updated" jsonschema:"YYYY-MM-DD"`
+	ID     string               `json:"id"`
+	Format string               `json:"format"`
+	Event  string               `json:"event,omitempty" jsonschema:"untrusted text"`
+	Notes  string               `json:"veto_notes,omitempty" jsonschema:"untrusted text the user wrote"`
+	Teams  []seriesTeamOut      `json:"teams"`
+	Vetoes []tuiclient.VetoStep `json:"vetoes"`
+	// FromImport is a pro import's format, teams and veto, refreshed by later imports until edited.
+	FromImport bool     `json:"from_import,omitempty" jsonschema:"format, teams and veto came from HLTV through a pro import; later imports refresh them until they are edited"`
+	MatchIDs   []string `json:"match_ids"`
+	Updated    string   `json:"updated" jsonschema:"YYYY-MM-DD"`
 }
 
 type listSeriesOut struct {
@@ -59,7 +61,7 @@ type vetoStepIn struct {
 }
 
 type seriesFieldsIn struct {
-	Format  string        `json:"format,omitempty" jsonschema:"bo1, bo3 or bo5"`
+	Format  string        `json:"format,omitempty" jsonschema:"bo1, bo2, bo3 or bo5"`
 	Event   *string       `json:"event,omitempty" jsonschema:"the event name; omit to keep it"`
 	Notes   *string       `json:"veto_notes,omitempty" jsonschema:"free notes on the veto, at most 480 characters; omit to keep them"`
 	TeamIDs *[]string     `json:"team_ids,omitempty" jsonschema:"two team ids from list_teams, slot a first, or [] for none; omit to keep them"`
@@ -118,7 +120,7 @@ type teamMapsOut struct {
 type vetoIn struct {
 	TeamID     string   `json:"team_id" jsonschema:"our team, id from list_teams; slot a"`
 	OpponentID string   `json:"opponent_id" jsonschema:"the rival, id from list_teams; slot b"`
-	Format     string   `json:"format,omitempty" jsonschema:"bo1, bo3 (default) or bo5"`
+	Format     string   `json:"format,omitempty" jsonschema:"bo1, bo2, bo3 (default) or bo5"`
 	First      string   `json:"first,omitempty" jsonschema:"a (default) or b: who bans first"`
 	Pool       []string `json:"pool,omitempty" jsonschema:"the map pool; default the active duty pool"`
 	Done       []string `json:"done,omitempty" jsonschema:"maps of the steps already made, in order; the rest is recommended"`
@@ -157,7 +159,7 @@ func registerLibrarySeriesTools(server *mcp.Server, s *studio) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_library_series", Annotations: readOnly,
-		Description: "List the series of the library (the BO1, BO3 and BO5 that group matches, with their teams and veto), optionally those of one team."},
+		Description: "List the series of the library (the BO1, BO2, BO3 and BO5 that group matches, with their teams and veto), optionally those of one team."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listSeriesIn) (*mcp.CallToolResult, listSeriesOut, error) {
 			if in.TeamID != "" {
 				if err := checkUUID("team_id", in.TeamID); err != nil {
@@ -310,7 +312,7 @@ func registerLibrarySeriesTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "simulate_veto", Annotations: readOnly,
-		Description: "Simulate a BO1, BO3 or BO5 veto between our team (slot a) and a rival (slot b), as the Veto tab does: the steps already made " +
+		Description: "Simulate a BO1, BO2, BO3 or BO5 veto between our team (slot a) and a rival (slot b), as the Veto tab does: the steps already made " +
 			"are kept and the rest recommended from both map records and the rival's known bans and picks."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in vetoIn) (*mcp.CallToolResult, vetoOut, error) {
 			q, err := in.query()
@@ -333,7 +335,7 @@ func (in seriesFieldsIn) input() (tuiclient.SeriesInput, error) {
 	var body tuiclient.SeriesInput
 	if in.Format != "" {
 		if !slices.Contains(seriesFormats, in.Format) {
-			return body, errors.New("format must be bo1, bo3 or bo5")
+			return body, errors.New("format must be bo1, bo2, bo3 or bo5")
 		}
 		body.Format = &in.Format
 	}
@@ -402,7 +404,7 @@ func (in vetoIn) query() (tuiclient.VetoQuery, error) {
 		return q, errors.New("the opponent must be another team")
 	}
 	if in.Format != "" && !slices.Contains(seriesFormats, in.Format) {
-		return q, errors.New("format must be bo1, bo3 or bo5")
+		return q, errors.New("format must be bo1, bo2, bo3 or bo5")
 	}
 	if in.First != "" && in.First != "a" && in.First != "b" {
 		return q, errors.New("first must be a or b")
@@ -427,7 +429,7 @@ func (in vetoIn) query() (tuiclient.VetoQuery, error) {
 
 func seriesOf(se tuiclient.LibrarySeries) seriesOut {
 	out := seriesOut{ID: se.ID, Format: se.Format, Event: cleanName(se.Event), Notes: cleanText(se.Veto, maxSeriesNotesRunes),
-		Teams: []seriesTeamOut{}, Vetoes: []tuiclient.VetoStep{}, MatchIDs: se.MatchIDs, Updated: se.UpdatedAt.Format(time.DateOnly)}
+		Teams: []seriesTeamOut{}, Vetoes: []tuiclient.VetoStep{}, FromImport: se.VetoAuto, MatchIDs: se.MatchIDs, Updated: se.UpdatedAt.Format(time.DateOnly)}
 	for _, t := range se.Teams {
 		out.Teams = append(out.Teams, seriesTeamOut{Slot: t.Slot, TeamID: t.TeamID, Name: cleanName(t.Name)})
 	}

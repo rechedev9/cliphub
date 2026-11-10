@@ -119,7 +119,7 @@ export function TeamVeto({
   const plan = result !== null && result !== 'failed' ? result.plan : null;
   const opponentName = teams?.find((team) => team.id === opponent)?.name ?? 'Rival';
   const slotNames: Record<string, string> = { a: 'Nosotros', b: opponentName, '': 'Ninguno' };
-  const minPool = { bo1: 2, bo3: 3, bo5: 5 }[format];
+  const minPool = { bo1: 2, bo2: 3, bo3: 3, bo5: 5 }[format];
   let notice: ReactNode = null;
   if (opponent === NO_OPPONENT) notice = <p className="text-body-sm text-fg-2">Elige un rival en el filtro de arriba para simular el veto.</p>;
   else if (!fits) {

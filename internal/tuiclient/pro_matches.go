@@ -29,12 +29,13 @@ type ProMatchMap struct {
 
 // ProMatch is one HLTV match of the community catalog.
 type ProMatch struct {
-	ID       int            `json:"id"`
-	Event    string         `json:"event"`
-	PlayedAt time.Time      `json:"played_at"`
-	HLTVURL  string         `json:"hltv_url"`
-	Teams    []ProMatchTeam `json:"teams"`
-	Maps     []ProMatchMap  `json:"maps"`
+	ID       int                 `json:"id"`
+	Event    string              `json:"event"`
+	PlayedAt time.Time           `json:"played_at"`
+	HLTVURL  string              `json:"hltv_url"`
+	Teams    []ProMatchTeam      `json:"teams"`
+	Maps     []ProMatchMap       `json:"maps"`
+	Series   community.ProSeries `json:"series"`
 }
 
 // ProMatches is one page of the catalog. Status is ok, disabled (no community

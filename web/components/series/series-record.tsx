@@ -160,7 +160,7 @@ function SeriesRecordView({ data, onChanged }: { data: Loaded; onChanged: () => 
           )
         }
         fields={[
-          { label: 'Formato', value: SERIES_FORMAT_LABEL[series.format] },
+          { label: 'Formato', value: series.veto_auto ? `${SERIES_FORMAT_LABEL[series.format]} · leído de HLTV` : SERIES_FORMAT_LABEL[series.format] },
           { label: 'Evento', value: series.event || <EmptyCell label="Sin evento" /> },
           { label: 'Creada', value: formatShortDate(series.created_at) },
         ]}

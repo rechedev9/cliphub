@@ -473,3 +473,29 @@ Trust a delta only when `wall_cv_percent` is under 10 (`run_noisy` otherwise) an
   `vX.Y.Z` ("ClipHub Studio X.Y.Z"). `.github/workflows/desktop-release.yml`
   builds the installer and publishes the GitHub Release as `latest`, which
   is what the in-app updater reads.
+
+## Pro match series and veto backfill (G7, 2026-11-10)
+
+The harvester reads the series format and the veto from each HLTV match page into the
+sidecar, and `prepare-hltv` copies them into the analysis header. Analyses prepared
+before that hold only the map list, which gives the format and the decider but not who
+banned or picked. A one-time backfill reads the match pages again without downloading
+any demo:
+
+1. On the operator PC, write one sidecar per analysed match:
+   `cliphub-community sidecars -analyses C:\Users\reche\cliphub-hltv\analyses -out C:\Users\reche\cliphub-hltv\series-sidecars`
+2. Read the veto of each into its sidecar (a visible window, one page every 6 to 12 s;
+   a Cloudflare check waits for the operator):
+   `pnpm --dir tools/hltv-harvester start -- --veto-backfill C:\Users\reche\cliphub-hltv\series-sidecars --out C:\Users\reche\cliphub-hltv`
+3. Copy `series-sidecars` to the server and, as the service user, merge them into the
+   archived analyses, then rebuild the catalog:
+   `cliphub-community series-backfill -analyses "$CLIPHUB_COMMUNITY_ANALYSES_DIR" -sidecars <copied folder>`
+   `cliphub-community pro-matches`
+   Run the same `series-backfill` on the operator PC's `analyses` folder so both copies match.
+
+`series-backfill` only rewrites the header of an analysis whose sidecar adds a format or a
+longer veto; the position data is unchanged. The rewrite changes the file's hash, so
+Studio treats those maps as prepared again: the next import of an imported map swaps in
+the new file and refreshes its series while the series is still marked as written by an
+import. A new `cliphub-community` also adds the `series` column to an old catalog on
+first open and clears the file stamps, so its first `pro-matches` run rereads every analysis.

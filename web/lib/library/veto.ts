@@ -2,7 +2,7 @@ import type { SeriesFormat, SeriesSlot, VetoAction, VetoBasis, VetoStep, VetoTea
 
 /** Pure reads for series, map history and the veto simulator. */
 
-export const SERIES_FORMAT_LABEL: Record<SeriesFormat, string> = { bo1: 'BO1', bo3: 'BO3', bo5: 'BO5' };
+export const SERIES_FORMAT_LABEL: Record<SeriesFormat, string> = { bo1: 'BO1', bo2: 'BO2', bo3: 'BO3', bo5: 'BO5' };
 
 export const VETO_ACTION_LABEL: Record<VetoAction, string> = { ban: 'Ban', pick: 'Pick', decider: 'Decider' };
 
@@ -19,7 +19,7 @@ export const VETO_BASIS_LABEL: Record<VetoBasis, string> = {
  * the decider, teams alternating from `first`. Null when the pool does not fit.
  */
 export function vetoSequence(format: SeriesFormat, pool: number, first: SeriesSlot): { team: VetoTeam; action: VetoAction }[] | null {
-  const picks = { bo1: 0, bo3: 2, bo5: 4 }[format];
+  const picks = { bo1: 0, bo2: 2, bo3: 2, bo5: 4 }[format];
   if (pool < Math.max(2, picks + 1) || pool > 9) return null;
   const bans = pool - picks - 1;
   const lead = Math.min(2, bans);

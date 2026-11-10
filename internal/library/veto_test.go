@@ -21,7 +21,7 @@ func TestCleanSeriesChecksTeamsAndVetoSteps(t *testing.T) {
 		t.Fatalf("CleanSeries = %+v, %v", got, err)
 	}
 	for name, s := range map[string]Series{
-		"format":        {Format: "bo2"},
+		"format":        {Format: "bo4"},
 		"one team":      {Format: FormatBO1, TeamIDs: []uuid.UUID{a}},
 		"same team":     {Format: FormatBO1, TeamIDs: []uuid.UUID{a, a}},
 		"no teams":      {Format: FormatBO1, Vetoes: []VetoStep{{Team: "a", Action: VetoBan, Map: "de_nuke"}}},
@@ -47,6 +47,7 @@ func TestVetoSequenceFollowsTheFormats(t *testing.T) {
 	}
 	cases := map[string]string{
 		FormatBO1: "a:ban b:ban a:ban b:ban a:ban b:ban :decider",
+		FormatBO2: "a:ban b:ban a:pick b:pick a:ban b:ban :decider",
 		FormatBO3: "a:ban b:ban a:pick b:pick a:ban b:ban :decider",
 		FormatBO5: "a:ban b:ban a:pick b:pick a:pick b:pick :decider",
 	}
@@ -97,6 +98,11 @@ func TestSimulateVetoRecommendsByEdgeAndOpponentHabits(t *testing.T) {
 	}
 	if last := plan.Steps[len(plan.Steps)-1]; last.Action != VetoDecider || last.Basis != VetoBasisLeftover || len(plan.Played) != 3 {
 		t.Fatalf("decider = %+v, played %v", last, plan.Played)
+	}
+	bo2 := req
+	bo2.Format = FormatBO2
+	if plan, err := SimulateVeto(bo2); err != nil || len(plan.Played) != 2 {
+		t.Fatalf("a bo2 plays its two picks, not the map left over: %v %v", plan.Played, err)
 	}
 
 	// Shuffled pool and records give the same plan.

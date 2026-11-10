@@ -82,6 +82,8 @@ type ProMatch struct {
 	PlayedAt time.Time    `json:"played_at"`
 	Teams    []ProTeam    `json:"teams"`
 	Maps     []ProMapFile `json:"maps"`
+	// Series is empty from a server older than the series catalog.
+	Series ProSeries `json:"series"`
 }
 
 // ProTeamCount is a team of the period and its matches.

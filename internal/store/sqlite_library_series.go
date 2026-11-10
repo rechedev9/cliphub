@@ -12,7 +12,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 )
 
-const librarySeriesColumns = `SELECT s.id, s.format, s.event, s.veto, s.veto_steps, s.team_a, ta.name, s.team_b, tb.name, s.created_at, s.updated_at
+const librarySeriesColumns = `SELECT s.id, s.format, s.event, s.veto, s.veto_steps, s.veto_auto, s.team_a, ta.name, s.team_b, tb.name, s.created_at, s.updated_at
 	FROM library_series s
 	LEFT JOIN library_teams ta ON ta.id = s.team_a
 	LEFT JOIN library_teams tb ON tb.id = s.team_b`
@@ -55,9 +55,9 @@ func (r *SQLiteLibraryRepository) CreateSeries(ctx context.Context, s *library.S
 		if err := seriesTeamsExist(ctx, tx, s.TeamIDs); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_series (id, format, event, veto, veto_steps, team_a, team_b, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			s.ID.String(), s.Format, s.Event, s.Veto, string(steps), teamA, teamB, millis(now), millis(now)); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO library_series (id, format, event, veto, veto_steps, veto_auto, team_a, team_b, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			s.ID.String(), s.Format, s.Event, s.Veto, string(steps), s.VetoAuto, teamA, teamB, millis(now), millis(now)); err != nil {
 			return fmt.Errorf("insert series: %w", err)
 		}
 		return nil
@@ -78,7 +78,7 @@ func scanLibrarySeries(row sqlScanner) (library.Series, error) {
 	var id, steps string
 	var teamA, nameA, teamB, nameB sql.NullString
 	var created, updated int64
-	if err := row.Scan(&id, &s.Format, &s.Event, &s.Veto, &steps, &teamA, &nameA, &teamB, &nameB, &created, &updated); err != nil {
+	if err := row.Scan(&id, &s.Format, &s.Event, &s.Veto, &steps, &s.VetoAuto, &teamA, &nameA, &teamB, &nameB, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return library.Series{}, library.ErrNotFound
 		}
@@ -202,8 +202,8 @@ func (r *SQLiteLibraryRepository) UpdateSeries(ctx context.Context, id uuid.UUID
 		if err := seriesTeamsExist(ctx, tx, s.TeamIDs); err != nil {
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `UPDATE library_series SET format = ?, event = ?, veto = ?, veto_steps = ?, team_a = ?, team_b = ?, updated_at = ? WHERE id = ?`,
-			s.Format, s.Event, s.Veto, string(steps), teamA, teamB, millis(libraryNow()), id.String())
+		res, err := tx.ExecContext(ctx, `UPDATE library_series SET format = ?, event = ?, veto = ?, veto_steps = ?, veto_auto = ?, team_a = ?, team_b = ?, updated_at = ? WHERE id = ?`,
+			s.Format, s.Event, s.Veto, string(steps), s.VetoAuto, teamA, teamB, millis(libraryNow()), id.String())
 		if err != nil {
 			return fmt.Errorf("update series: %w", err)
 		}

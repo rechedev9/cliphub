@@ -35,7 +35,11 @@ type ProSidecar struct {
 	Event    string           `json:"event"`
 	PlayedAt string           `json:"played_at"`
 	Teams    []ProSidecarTeam `json:"teams"`
-	Maps     []string         `json:"maps"`
+	// Maps are every map of the series in play order, the unplayed decider included.
+	Maps []string `json:"maps"`
+	// Format and Veto come from the match page; sidecars harvested before them have neither.
+	Format string           `json:"format,omitempty"`
+	Veto   []ProSidecarVeto `json:"veto,omitempty"`
 }
 
 // ProSidecarTeam is one team of the sidecar; Rank is nil outside the HLTV ranking.

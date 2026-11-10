@@ -10,6 +10,7 @@ test('the veto order matches the Go sequence for every format', () => {
   assert.equal(describe(vetoSequence('bo3', 7, 'a')), 'a:ban b:ban a:pick b:pick a:ban b:ban :decider');
   assert.equal(describe(vetoSequence('bo5', 7, 'b')), 'b:ban a:ban b:pick a:pick b:pick a:pick :decider');
   assert.equal(vetoSequence('bo5', 4, 'a'), null);
+  assert.equal(describe(vetoSequence('bo2', 7, 'a')), 'a:ban b:ban a:pick b:pick a:ban b:ban :decider');
 });
 
 test('the series template keeps the maps already entered', () => {

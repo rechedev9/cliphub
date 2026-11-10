@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, type ProMatch } from './pro-matches.ts';
+import { DEFAULT_PRO_QUERY, groupByDay, parseProQuery, proQueryAddress, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, proSeriesVeto, type ProMatch } from './pro-matches.ts';
 
 const match = (id: number, playedAt: string): ProMatch => ({
   id,
@@ -12,6 +12,7 @@ const match = (id: number, playedAt: string): ProMatch => ({
     { id: 2, name: 'FaZe', followed: true },
   ],
   maps: [],
+  series: { maps: [], veto: [] },
 });
 
 test('a catalog read sends only what differs from the defaults', () => {
@@ -62,4 +63,19 @@ test('the filters travel in the address and read back the same', () => {
   assert.equal(proQueryAddress(DEFAULT_PRO_QUERY), '');
   assert.deepEqual(parseProQuery(new URLSearchParams('dias=60')), { ...DEFAULT_PRO_QUERY, days: 60 });
   assert.deepEqual(parseProQuery(new URLSearchParams('dias=999&mapa=../x&pagina=0')), DEFAULT_PRO_QUERY);
+});
+test('a pro series reads its bans and how each map came to be played', () => {
+  const m: ProMatch = {
+    ...match(1, '2026-11-08T15:00:00Z'),
+    series: {
+      format: 'bo3',
+      maps: [{ number: 1, map: 'de_ancient', picked_by: 1 }, { number: 2, map: 'de_dust2', picked_by: 7 }, { number: 3, map: 'de_nuke', decider: true }],
+      veto: [{ team_id: 2, team: 'FaZe', action: 'ban', map: 'de_mirage' }, { team: 'Faze Clan', action: 'ban', map: 'de_train' }, { action: 'decider', map: 'de_nuke' }],
+    },
+  };
+  const veto = proSeriesVeto(m);
+  assert.equal(veto.format, 'BO3');
+  assert.deepEqual(veto.bans, [{ map: 'de_mirage', team: 'FaZe' }, { map: 'de_train', team: 'Faze Clan' }]);
+  assert.deepEqual([...veto.marks], [['de_ancient', 'PICK de Vitality'], ['de_dust2', 'PICK'], ['de_nuke', 'DECIDER']]);
+  assert.deepEqual(proSeriesVeto(match(2, '2026-11-08T15:00:00Z')), { format: null, bans: [], marks: new Map() });
 });

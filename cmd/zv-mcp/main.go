@@ -120,7 +120,7 @@ reads a map's places with the team's own names, rename_callout names one or rese
 export_libreta writes the whole Libreta to a file; import_plays reads any Libreta file back.
 search_studio finds plays, lineups, calls, teams, players and matches by words, as Ctrl+K does;
 a map name or grenade word in the query narrows it.
-Series of the library (BO1, BO3, BO5 with teams and veto): list_library_series, create_library_series,
+Series of the library (BO1, BO2, BO3, BO5 with teams and veto; a BO2 does not play its map left over): list_library_series, create_library_series,
 update_library_series, delete_library_series and set_match_series. The maps of one FACEIT match
 (files 1-<match id>-<map>-1.dem) join one series on their own once two are analysed. team_maps reads a team's map record
 and, with the scope keys of the bar, the matches per map (scope_matches); simulate_veto recommends a veto against a rival.
@@ -133,9 +133,12 @@ recorded) and list_pro_combos (each with clip_url once a round of it is recorded
 one into the Libreta. pro_grenade_meta is the Meta view: one map side's grenades ranked by throws per 100 rounds in a
 period, the teams that use each and the trend (new, rising, falling or steady), so a grenade entering the meta shows.
 Partidas pro are recent HLTV matches the same server analysed: list_pro_matches (period, team, event, map; studio_path opens the list with those filters;
-each match has its hltv_url, where its .dem files are downloaded to record clips), import_pro_match (one map, its
+each match has its event, hltv_url, where its .dem files are downloaded to record clips, its series (format and each map's
+pick_by or decider) and the HLTV veto when the server has one), import_pro_match (one map, its
 demos joined after a server restart; returns the library match_id and studio_path, read only until its .dem is
-imported; old_analysis marks one older than the current scan), follow_pro_team, unfollow_pro_team and
+imported; old_analysis marks one older than the current scan; the maps of one HLTV match share a library series that
+carries its format, event and veto, so set_match_series is not needed; list_library_series marks it from_import,
+and later imports refresh it until someone edits it), follow_pro_team, unfollow_pro_team and
 list_pro_follows (a followed team's last five maps and its new ones are imported on their own).
 launch_practice opens CS2 on a practice server at grenade spots: origin and view from team_grenades,
 lineup_ids of Libreta lineups or pro_lineup_ids of pro lineups on one map.

@@ -83,13 +83,15 @@ const (
 
 const (
 	FormatBO1 = "bo1"
+	// FormatBO2 is vetoed like a BO3, but its map left over is not played.
+	FormatBO2 = "bo2"
 	FormatBO3 = "bo3"
 	FormatBO5 = "bo5"
 )
 
 // ValidSeriesFormat reports whether f is a known series format.
 func ValidSeriesFormat(f string) bool {
-	return f == FormatBO1 || f == FormatBO3 || f == FormatBO5
+	return f == FormatBO1 || f == FormatBO2 || f == FormatBO3 || f == FormatBO5
 }
 
 // Demo is one imported demo file, keyed by the SHA-256 of its decompressed
@@ -218,19 +220,21 @@ type TeamAssignment struct {
 	RememberAlias bool
 }
 
-// Series groups the maps of one BO1, BO3 or BO5. Veto is the user's free
+// Series groups the maps of one BO1, BO2, BO3 or BO5. Veto is the user's free
 // notes; Vetoes is the known pick and ban order, by team slot.
 type Series struct {
-	ID        uuid.UUID    `json:"id"`
-	Format    string       `json:"format"`
-	Event     string       `json:"event"`
-	Veto      string       `json:"veto,omitempty"`
-	TeamIDs   []uuid.UUID  `json:"team_ids"`
-	Teams     []SeriesTeam `json:"teams"`
-	Vetoes    []VetoStep   `json:"vetoes"`
-	MatchIDs  []uuid.UUID  `json:"match_ids"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID      uuid.UUID    `json:"id"`
+	Format  string       `json:"format"`
+	Event   string       `json:"event"`
+	Veto    string       `json:"veto,omitempty"`
+	TeamIDs []uuid.UUID  `json:"team_ids"`
+	Teams   []SeriesTeam `json:"teams"`
+	Vetoes  []VetoStep   `json:"vetoes"`
+	// VetoAuto marks a format, teams and veto an import wrote; later imports may refresh them until a person edits one.
+	VetoAuto  bool        `json:"veto_auto"`
+	MatchIDs  []uuid.UUID `json:"match_ids"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 // Team is a team identity across matches. Aliases are the clan names that

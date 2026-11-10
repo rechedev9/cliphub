@@ -109,6 +109,10 @@ func prepareArchive(ctx context.Context, sidecarPath, archive string, dirs prepa
 		}
 		if _, err := os.Stat(out); err == nil {
 			written++
+			// An analysis made before its sidecar had the veto takes it now.
+			if _, err := mergeSidecarSeries(out, meta); err != nil {
+				return written, fmt.Errorf("%s: series: %w", entry, err)
+			}
 			if err := keepDemo(r, keep); err != nil {
 				return written, fmt.Errorf("%s: %w", entry, err)
 			}

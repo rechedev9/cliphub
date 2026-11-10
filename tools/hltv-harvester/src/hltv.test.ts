@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn } from "./hltv.ts";
+import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, sidecarFor } from "./hltv.ts";
 
 test("parseRanking keeps teams with an id, rank and name", () => {
   const got = parseRanking([
@@ -42,12 +42,35 @@ test("only matches never seen or still without a demo are visited again", () => 
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5 });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "" });
 });
 
 test("--refetch names a folder of sidecars to download again", () => {
   assert.equal(parseArgs(["--refetch", "C:\sidecars", "--max", "3"], "out").refetch, "C:\sidecars");
   assert.equal(parseArgs([], "out").refetch, "");
+  assert.equal(parseArgs(["--veto-backfill", "sidecars"], "out").vetoBackfill, "sidecars");
+});
+
+test("parseMatch reads the series format and the ordered veto from the veto boxes", () => {
+  const match = parseMatch({
+    teams: [], event: "IEM", unix: "5", demos: [], maps: ["Ancient", "Dust2", "Nuke"],
+    vetoBoxes: [
+      ["Best of 3 (LAN)\n\n* Upper bracket final"],
+      ["1. FURIA removed Mirage", "2. Natus Vincere removed Inferno", "3. FURIA picked Ancient", "4. Natus Vincere picked Dust2",
+        "5. FURIA removed Train", "6. Natus Vincere removed Anubis", "7. Nuke was left over"],
+    ],
+  });
+  assert.ok(match);
+  assert.equal(match.format, "bo3");
+  assert.equal(match.veto.length, 7);
+  assert.deepEqual(match.veto[1], { team: "Natus Vincere", action: "ban", map: "Inferno" });
+  assert.deepEqual(match.veto[2], { team: "FURIA", action: "pick", map: "Ancient" });
+  assert.deepEqual(match.veto[6], { team: "", action: "decider", map: "Nuke" });
+  const sidecar = sidecarFor(1, "/download/demo/1", match, []);
+  assert.equal(parseSidecar(sidecar)?.veto?.length, 7);
+  const bare = parseMatch({ teams: [], event: "", unix: "5", demos: [], maps: [] });
+  assert.deepEqual([bare?.format, bare?.veto], ["", []]);
+  assert.equal(sidecarFor(1, "/download/demo/1", { ...match, format: "", veto: [] }, []).veto, undefined);
 });
 
 test("parseSidecar keeps only an HLTV demo download of a real match", () => {
