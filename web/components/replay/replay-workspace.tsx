@@ -46,6 +46,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CentreState } from './centre-state';
 import { MapHud } from './map-hud';
+import { PlayerMarksMenu } from './player-marks-menu';
 import { MapFooter } from './map-footer';
 import type { DemoLink } from './map-footer';
 import { ReplayToolbar } from './replay-toolbar';
@@ -650,7 +651,7 @@ export function ReplayWorkspace({
           <SetposNotice note={setpos.note} />
         </div>
         {gif.open ? <GifPanel gif={gif} tramo={{ tramo, onChange: setTramo }} multi={multi} speed={speed} onClose={gif.toggle} /> : null}
-        <MapFooter demo={demoLink} zoomSlot={setZoomSlot} />
+        <MapFooter demo={demoLink} zoomSlot={setZoomSlot} marks={<PlayerMarksMenu settings={mapSettings} multi={multi} onSettings={setMapSettings} />} />
       </div>
 
       <aside

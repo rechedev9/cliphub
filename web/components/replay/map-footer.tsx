@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils';
 export type DemoLink = { date: string | null; href: string };
 
 /** The strip under the map: Detalles de la demo as a pill, centred, and the map's zoom buttons at its right. */
-export function MapFooter({ demo, zoomSlot }: { demo: DemoLink | null; zoomSlot: (element: HTMLDivElement | null) => void }): ReactNode {
+export function MapFooter({ demo, zoomSlot, marks }: { demo: DemoLink | null; zoomSlot: (element: HTMLDivElement | null) => void; marks?: ReactNode }): ReactNode {
   return (
     <div className="relative flex min-h-9 shrink-0 items-center justify-center border-t border-border-subtle bg-surface-1 px-2 py-1.5">
+      {marks === undefined ? null : <div className="absolute left-2">{marks}</div>}
       {demo === null ? null : (
         <Link
           href={demo.href}
