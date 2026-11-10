@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Info } from 'lucide-react';
 import { LIBRARY_ROLES, getTeamSideStats } from '@/lib/api/library';
 import type { ReportSide } from '@/lib/api/scout';
 import type { SideStat, SideStats, SideStatsPlayer, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
-import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
+import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
+import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import {
   SIDE_STAT_TILES,
@@ -205,12 +206,16 @@ export type TeamSideStatsProps = {
   onCounts: (counts: ScopeCounts | null) => void;
 };
 
+/** The scope fields Estadísticas sends beyond map, side, period, rival and lineup. */
+const SIDE_STATS_CRITERIA: readonly ScopeField[] = ['buy', 'opponentBuy'];
+
 /** Estadísticas: the team's figures in the scope against the "Comparar con" group, and a card per player. */
 export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: TeamSideStatsProps): ReactNode {
   const [data, setData] = useState<TeamSideStatsReport | null | 'failed'>(null);
   const [now] = useState(() => Date.now());
-  const { map, side, opponent, buy, opponentBuy } = scope;
+  const { map, side, opponent } = scope;
   const { from, to } = scopeDateRange(scope.period, now);
+  const criteria = useMemo(() => teamScopeEntries(scope, SIDE_STATS_CRITERIA), [scope]);
   const compareKey = compare.join(',');
 
   useEffect(() => {
@@ -224,8 +229,7 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
       to,
       opponent_ids: opponent === '' ? [] : [opponent],
       lineup,
-      buy,
-      opponent_buy: opponentBuy,
+      criteria,
       compare: compareKey === '' ? [] : compareKey.split(','),
     })
       .then((report) => {
@@ -239,7 +243,7 @@ export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: Team
     return () => {
       active = false;
     };
-  }, [teamId, map, side, from, to, opponent, lineup, buy, opponentBuy, compareKey, onCounts]);
+  }, [teamId, map, side, from, to, opponent, lineup, criteria, compareKey, onCounts]);
 
   if (data === 'failed') {
     return (

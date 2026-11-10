@@ -30,9 +30,13 @@ const SchemaVersion = "1.0"
 // 8: Cache uses its shipped radar calibration instead of a derived one;
 // 9: dropped bombs, utility end ticks, no freeze time deaths, halftime and
 // pre-live waits cut from the round start; 10: timeouts, which keep their part
-// of the freeze time, and kills from the air).
+// of the freeze time, and kills from the air;
+// 11: each player's AWP once the buy window closes).
 // The library scans a stored analysis below it again; bump it with each change.
-const AnalysisVersion = 10
+const AnalysisVersion = 11
+
+// AWPFlagVersion is the first AnalysisVersion whose PlayerRound.AWP is trustworthy.
+const AWPFlagVersion = 11
 
 // Side is a playing side. Spectators never appear in a tactical document.
 type Side string
@@ -361,6 +365,9 @@ type PlayerRound struct {
 	// inside the trade window; TradeKills counts trades this player made.
 	Traded     bool `json:"traded,omitempty"`
 	TradeKills int  `json:"trade_kills,omitempty"`
+	// AWP reports an AWP in the player's hands once the buy window closed.
+	// Older analyses lack it; the round filter then reads AWP kills and hits.
+	AWP bool `json:"awp,omitempty"`
 }
 
 // Event is one thing that happened at a tick. Positions are world coordinates,

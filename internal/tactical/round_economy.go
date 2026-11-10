@@ -1,6 +1,10 @@
 package tactical
 
-import "github.com/rechedev9/cliphub/internal/tacticalplan"
+import (
+	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
+)
 
 // The economy of a round: what each player took into it, read once the buy window closes.
 
@@ -48,6 +52,7 @@ func (s *scanner) sampleEconomy() {
 		acc := r.playerStats(slot)
 		acc.equipValue = value
 		acc.money = money
+		acc.awp = holdsAWP(pl)
 		r.sides[slot] = side
 		if side == tacticalplan.SideCT {
 			r.economy.CTEquipValue += value
@@ -57,4 +62,14 @@ func (s *scanner) sampleEconomy() {
 			r.economy.TMoney += money
 		}
 	}
+}
+
+// holdsAWP reports whether the player carries an AWP once the buy window closes.
+func holdsAWP(pl *common.Player) bool {
+	for _, w := range pl.Weapons() {
+		if w != nil && w.Type == common.EqAWP {
+			return true
+		}
+	}
+	return false
 }

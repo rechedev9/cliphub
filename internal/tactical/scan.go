@@ -241,6 +241,7 @@ type playerRoundAcc struct {
 	deathTick  int
 	tradeKills int
 	traded     bool
+	awp        bool
 }
 
 func newScanner(p demoinfocs.Parser, opts Options, hz float64) *scanner {

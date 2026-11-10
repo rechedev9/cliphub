@@ -20,14 +20,13 @@ type SideStatsMatch struct {
 	Opponent string
 }
 
-// SideStatsOptions is the round scope: the side, both buys and the lineup.
-// Roles names each SteamID's inferred role for the player cards.
+// SideStatsOptions is the round scope: the side, the lineup and the team scope's round
+// criteria (buys, AWP, advantage, range). Roles names each SteamID's inferred role.
 type SideStatsOptions struct {
-	Side         Side
-	Buys         []BuyType
-	OpponentBuys []BuyType
-	Lineup       Lineup
-	Roles        map[string]string
+	Side   Side
+	Rounds Filter
+	Lineup Lineup
+	Roles  map[string]string
 }
 
 // SideStat is one figure (nil Value without data; rates in percent) and the mean
@@ -307,7 +306,8 @@ func newTeamRun(group bool) *teamRun {
 func (run *teamRun) addMatch(m SideStatsMatch, opts SideStatsOptions) {
 	run.added++
 	doc := m.Document
-	filter := Filter{TeamKey: m.TeamKey, Side: opts.Side, Buys: opts.Buys, OpponentBuys: opts.OpponentBuys, Lineup: opts.Lineup}
+	filter := opts.Rounds
+	filter.TeamKey, filter.Side, filter.Lineup, filter.Slots, filter.Subjects = m.TeamKey, opts.Side, opts.Lineup, nil, nil
 	run.overall.seenMatch, run.ct.seenMatch, run.t.seenMatch = false, false, false
 	kept := 0
 	names := map[uint8]Player{}
@@ -404,7 +404,7 @@ type SideStatsGroup struct {
 
 // NewSideStatsGroup starts a group over the round scope; the lineup never narrows a group.
 func NewSideStatsGroup(scope SideStatsOptions) *SideStatsGroup {
-	opts := SideStatsOptions{Side: scope.Side, Buys: scope.Buys, OpponentBuys: scope.OpponentBuys}
+	opts := SideStatsOptions{Side: scope.Side, Rounds: scope.Rounds}
 	return &SideStatsGroup{opts: opts, teams: map[string]*teamRun{}, matches: map[uuid.UUID]bool{}}
 }
 

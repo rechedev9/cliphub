@@ -21,10 +21,10 @@ func TestTeamSideStatsForwardsTheScopeAndKeepsGroupAverages(t *testing.T) {
 
 	var out teamSideStatsOut
 	callTool(t, cs, "team_side_stats", map[string]any{
-		"team_id": testTeamID, "map": "de_nuke", "side": "t", "buy": "Full", "compare_to": []string{testTeamID},
-		"from": "2026-09-01", "to": "2026-10-31", "opponent_id": []string{testTeamID},
+		"team_id": testTeamID, "map": "de_nuke", "side": "t", "buy": []string{"Semi", "force"}, "opponent_buy": []string{"full"}, "compare_to": []string{testTeamID},
+		"from": "2026-09-01", "to": "2026-10-31", "opponent_id": []string{testTeamID}, "awp": "with", "round_from": 3, "max_matches": 5,
 	}, &out)
-	for _, want := range []string{"buy=full", "side=T", "map=de_nuke", "compare_team=" + testTeamID} {
+	for _, want := range []string{"buy=semi", "buy=force", "opponent_buy=full", "awp=with", "round_from=3", "max_matches=5", "side=T", "map=de_nuke", "compare_team=" + testTeamID} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query %q lacks %s", query, want)
 		}
@@ -39,11 +39,12 @@ func TestTeamSideStatsForwardsTheScopeAndKeepsGroupAverages(t *testing.T) {
 	if len(out.MatchList) != 1 || out.MatchList[0].Opponent != "MOUZ" || !out.MatchList[0].Won || !out.GroupCapped || out.GroupMatches != 20 {
 		t.Fatalf("match list %+v, group %d capped %v", out.MatchList, out.GroupMatches, out.GroupCapped)
 	}
-	for _, want := range []string{"tab=estadisticas", "comparar=", "from=2026-09-01", "to=2026-10-31", "opponent=" + testTeamID} {
+	for _, want := range []string{"tab=estadisticas", "comparar=", "from=2026-09-01", "to=2026-10-31", "opponent=" + testTeamID, "buy=half", "opponent_buy=full"} {
 		if !strings.Contains(out.StudioPath, want) {
 			t.Fatalf("studio path = %s lacks %s", out.StudioPath, want)
 		}
 	}
-	toolFails(t, cs, "team_side_stats", map[string]any{"team_id": testTeamID, "buy": "rich"}, "buy must be one of")
+	toolFails(t, cs, "team_side_stats", map[string]any{"team_id": testTeamID, "buy": []string{"rich"}}, "buy")
+	toolFails(t, cs, "team_side_stats", map[string]any{"team_id": testTeamID, "buy": []string{"eco", "full"}}, "holds one buy")
 	toolFails(t, cs, "team_side_stats", map[string]any{"team_id": testTeamID, "compare_to": []string{"nope"}}, "compare_to")
 }

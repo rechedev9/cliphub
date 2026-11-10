@@ -260,6 +260,7 @@ func (s *scanner) buildRound(acc *roundAcc, remap map[uint8]uint8) tacticalplan.
 			OpeningDeath: openingDeathSlot != nil && *openingDeathSlot == final,
 			Traded:       stats.traded,
 			TradeKills:   stats.tradeKills,
+			AWP:          stats.awp,
 		})
 	}
 

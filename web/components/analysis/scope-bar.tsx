@@ -4,15 +4,17 @@ import { useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, X } from 'lucide-react';
 import type { ReportSide } from '@/lib/api/scout';
-import type { TacticalBuyType } from '@/lib/api/tactical';
 import { BASELINE_SCOPES, type Baseline } from '@/lib/api/baseline';
-import type { TeamLineups } from '@/lib/api/team-insights';
+import type { SampleNotes, TeamLineups } from '@/lib/api/team-insights';
 import { switchEntityHref, resultRecord, type ResultDot } from '@/lib/analysis/context-bar';
 import { buyIcon } from '@/lib/analysis/icons';
 import { SCOPE_LABEL, proReferenceShort, proSourceText } from '@/lib/analysis/reference';
 import {
+  HALF_BUY,
   PERIOD_PRESETS,
   SCOPE_BUYS,
+  SCOPE_LIMIT_MAX,
+  parseScopeBuy,
   scopeCountText,
   scopeFieldActive,
   type AnalysisScope,
@@ -22,6 +24,14 @@ import { prettyMapName } from '@/lib/format';
 import { buyLabel } from '@/lib/tactical-labels';
 import { LineupPicker } from '@/components/analysis/lineup-picker';
 import { MapThumb } from '@/components/analysis/map-thumb';
+import {
+  AdvantageSelect,
+  AwpSelect,
+  BuyMatchupSelect,
+  OpponentTopSelect,
+  RoundRangeControl,
+  WhoseSelect,
+} from '@/components/analysis/scope-round-controls';
 import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Input } from '@/components/ui/input';
@@ -34,7 +44,9 @@ const ALL = '__all__';
 const RANGE = '__range__';
 const TRIGGER = 'h-8 gap-1.5 px-2.5 text-body-sm';
 /** Filters most views rarely change; they open under a "Filtros" button unless one is set. */
-const SECONDARY: ReadonlySet<ScopeField> = new Set(['buy', 'opponentBuy', 'opponent']);
+const SECONDARY: ReadonlySet<ScopeField> = new Set([
+  'buy', 'opponentBuy', 'opponent', 'awp', 'opponentAwp', 'advantage', 'rounds', 'opponentTop', 'whose',
+]);
 const MAX_DOTS = 10;
 const MAX_INLINE = 4;
 
@@ -44,7 +56,8 @@ const SIDES: readonly { value: ReportSide; label: string }[] = [
   { value: 'T', label: 'T' },
 ];
 
-export type ScopeCounts = { readonly maps: number; readonly rounds: number };
+/** `notes` says what the count leaves out or estimates: unrated rivals, the match cap, AWP from kills. */
+export type ScopeCounts = { readonly maps: number; readonly rounds: number; readonly notes?: SampleNotes };
 
 export type ScopeOption = { readonly value: string; readonly label: string };
 
@@ -80,6 +93,8 @@ export type ScopeBarProps = {
   lineups?: TeamLineups | null;
   /** The pro reference the view reads, so the bar can say where Pro comes from; null while loading. */
   proReference?: Baseline | null;
+  /** Teams marked as Mi equipo; with none, the whose-matches control stays off. */
+  ownTeams?: number;
   /** Fixed context the person cannot change here, such as a report's rival and side. */
   context?: ReactNode;
   /** What the view's figures are compared with, such as the "Comparar con" teams; sits by the sample. */
@@ -181,17 +196,13 @@ function PeriodControl({ scope, onChange }: { scope: AnalysisScope; onChange: Sc
 }
 
 function buyOptions(): ScopeOption[] {
-  return SCOPE_BUYS.map((buy) => ({ value: buy, label: buyLabel(buy) }));
+  return [...SCOPE_BUYS.map((buy) => ({ value: buy, label: buyLabel(buy) })), { value: HALF_BUY, label: 'Media (semi o force)' }];
 }
 
 function BuyGlyph({ value }: { value: string }): ReactNode {
   const buy = SCOPE_BUYS.find((entry) => entry === value);
   const icon = buy === undefined ? null : buyIcon(buy);
   return icon === null ? null : <EquipmentIcon name={icon} height={12} className="text-fg-2" />;
-}
-
-function parseBuy(value: string): TacticalBuyType | '' {
-  return SCOPE_BUYS.find((entry) => entry === value) ?? '';
 }
 
 function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProps }): ReactNode {
@@ -234,14 +245,17 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
     }
     case 'buy':
       return (
-        <OptionSelect
+        <>
+          {props.fields.includes('opponentBuy') ? <BuyMatchupSelect scope={scope} onChange={onChange} /> : null}
+          <OptionSelect
           label="Compra propia"
           allLabel="Compra propia: todas"
           value={scope.buy}
           options={buyOptions()}
           icon={(value) => <BuyGlyph value={value} />}
-          onChange={(buy) => onChange({ buy: parseBuy(buy) })}
-        />
+          onChange={(buy) => onChange({ buy: parseScopeBuy(buy) })}
+          />
+        </>
       );
     case 'opponentBuy':
       return (
@@ -251,7 +265,7 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
           value={scope.opponentBuy}
           options={buyOptions()}
           icon={(value) => <BuyGlyph value={value} />}
-          onChange={(buy) => onChange({ opponentBuy: parseBuy(buy) })}
+          onChange={(buy) => onChange({ opponentBuy: parseScopeBuy(buy) })}
         />
       );
     case 'opponent':
@@ -264,6 +278,18 @@ function FieldControl({ field, props }: { field: ScopeField; props: ScopeBarProp
           onChange={(opponent) => onChange({ opponent })}
         />
       );
+    case 'awp':
+      return <AwpSelect rival={false} scope={scope} onChange={onChange} />;
+    case 'opponentAwp':
+      return <AwpSelect rival scope={scope} onChange={onChange} />;
+    case 'advantage':
+      return <AdvantageSelect scope={scope} onChange={onChange} />;
+    case 'rounds':
+      return <RoundRangeControl scope={scope} onChange={onChange} />;
+    case 'opponentTop':
+      return <OpponentTopSelect scope={scope} onChange={onChange} />;
+    case 'whose':
+      return <WhoseSelect scope={scope} ownTeams={props.ownTeams ?? 0} onChange={onChange} />;
     default:
       return null;
   }
@@ -295,6 +321,23 @@ function EntityPicker({ entity }: { entity: ScopeEntity }): ReactNode {
 const DOT: Record<ResultDot, string> = { win: 'bg-outcome-win', loss: 'bg-outcome-loss', draw: 'bg-fg-3' };
 const DOT_WORD: Record<ResultDot, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
 
+function SampleNoteList({ notes }: { notes: SampleNotes }): ReactNode {
+  const items = [
+    { count: notes.unrated, text: `${notes.unrated} sin ranking`, title: 'Partidas fuera porque el rival no tiene ranking HLTV' },
+    { count: notes.capped, text: `${notes.capped} fuera por el tope de ${SCOPE_LIMIT_MAX}`, title: `Se leen como mucho las ${SCOPE_LIMIT_MAX} partidas más recientes` },
+    {
+      count: notes.awpEstimated,
+      text: `AWP estimado en ${notes.awpEstimated} ${notes.awpEstimated === 1 ? 'partida' : 'partidas'}`,
+      title: 'Su análisis es anterior al registro de AWP: se deduce de las bajas y los daños con AWP. Vuelve a analizarlas para el dato exacto.',
+    },
+  ].filter((item) => item.count > 0);
+  return items.map((item) => (
+    <p key={item.text} className="text-meta whitespace-nowrap text-fg-3 tabular-nums" title={item.title}>
+      {item.text}
+    </p>
+  ));
+}
+
 function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined; results: readonly ResultDot[] | undefined }): ReactNode {
   if (counts === undefined) return null;
   const dots = (results ?? []).slice(-MAX_DOTS);
@@ -303,6 +346,7 @@ function SampleBox({ counts, results }: { counts: ScopeCounts | null | undefined
       <p className="text-meta whitespace-nowrap text-fg-2 tabular-nums">
         {counts === null ? <span className="text-fg-3">Contando</span> : scopeCountText(counts.maps, counts.rounds)}
       </p>
+      {counts !== null && counts.notes !== undefined ? <SampleNoteList notes={counts.notes} /> : null}
       {dots.length > 0 ? (
         <p className="flex items-center gap-1" title={`Últimos resultados: ${resultRecord(dots)}`}>
           <span className="sr-only">Últimos resultados: {resultRecord(dots)}</span>

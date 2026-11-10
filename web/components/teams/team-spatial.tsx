@@ -2,8 +2,10 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { LibraryRosterEntry } from '@/lib/api/library';
+import type { LibraryRosterEntry, TeamCriterion } from '@/lib/api/library';
 import type { SpatialResponse } from '@/lib/api/spatial';
+import { sampleNotes } from '@/lib/api/team-insights';
+import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { heatChoiceFromQuery, writeHeatChoice } from '@/lib/replay/heat-choice';
 import type { HeatChoice } from '@/lib/replay/heat-choice';
@@ -23,20 +25,26 @@ export function TeamSpatial({
   teamId,
   scope,
   lineup,
+  criteria,
   view,
   roster,
   onMapChange,
   onCounts,
+  onRounds,
 }: {
   teamId: string;
   scope: AnalysisScope;
   /** The scope's lineup as SteamID64s; empty counts every round. */
   lineup: readonly string[];
+  /** The rest of the Replay's filters bar, as query entries; the buys travel here too. */
+  criteria: readonly TeamCriterion[];
   /** The form the team's Replay is on: a heatmap or the superposed paths. */
   view: 'heatmap' | 'overlay';
   roster: readonly LibraryRosterEntry[];
   onMapChange: (map: string) => void;
   onCounts: (counts: ScopeCounts | null) => void;
+  /** The rounds the figure counts on its map, for the playlist link. */
+  onRounds: (refs: readonly ReplayRef[]) => void;
 }): ReactNode {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,9 +54,10 @@ export function TeamSpatial({
   const onLoaded = useCallback(
     (response: SpatialResponse) => {
       const rounds = response.heatmap?.rounds ?? response.overlay?.total ?? 0;
-      onCounts({ maps: response.matches.length, rounds });
+      onCounts({ maps: response.matches.length, rounds, notes: sampleNotes(response.skipped, response.awp_estimated) });
+      onRounds(response.matches.flatMap((match) => (match.rounds ?? []).map((round) => ({ matchId: match.match_id, round }))));
     },
-    [onCounts],
+    [onCounts, onRounds],
   );
   const replace = useCallback(
     (query: string) => router.replace(query === '' ? pathname : `${pathname}?${query}`, { scroll: false }),
@@ -108,8 +117,7 @@ export function TeamSpatial({
             from,
             to,
             lineup,
-            buys: scope.buy === '' ? [] : [scope.buy],
-            opponent_buys: scope.opponentBuy === '' ? [] : [scope.opponentBuy],
+            criteria,
             players: focus,
           },
         }}

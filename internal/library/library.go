@@ -235,8 +235,11 @@ type Team struct {
 	Aliases    []string      `json:"aliases"`
 	MatchCount int           `json:"match_count"`
 	Roster     []RosterEntry `json:"roster,omitempty"`
-	CreatedAt  time.Time     `json:"created_at"`
-	UpdatedAt  time.Time     `json:"updated_at"`
+	// Own and HLTVRank come from the team's profile (TeamProfile); the API fills them.
+	Own       bool      `json:"own"`
+	HLTVRank  int       `json:"hltv_rank"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // RosterEntry is one player who played for a team, with the dates of the

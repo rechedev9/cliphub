@@ -53,6 +53,8 @@ export type TeamSideStats = {
   compare_skipped: string[];
   /** A group team had more matches than the per team cap, so only its newest count. */
   group_capped: boolean;
+  /** Matches whose AWP filter was estimated from AWP kills: their analysis predates the AWP flag. */
+  awp_estimated: number;
   group_matches: number;
   group_min_rounds: number;
   matches: number;
@@ -69,9 +71,10 @@ export type TeamSideStats = {
 export const TEAM_SIDE_STATS_KEYS = [
   'team_id', 'team_name', 'skipped', 'compare', 'compare_teams', 'matches', 'rounds', 'overall', 'ct', 't', 'players',
   'match_list', 'group_teams', 'compare_skipped', 'group_capped', 'group_matches', 'group_min_rounds', 'rating_formula',
+  'awp_estimated',
 ] as const;
 export const TEAM_SIDE_STATS_QUERY = [
-  'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'buy', 'opponent_buy', 'compare_team',
+  'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'compare_team',
 ] as const;
 /** The server's cap on the teams of "Comparar con" (`httpapi.maxCompareTeams`). */
 export const COMPARE_TEAMS_MAX = 20;

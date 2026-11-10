@@ -13,7 +13,8 @@ import (
 // with the matches it could not read.
 type teamGrenadesResponse struct {
 	tacticalplan.TeamGrenades
-	Skipped []scoutSkipped `json:"skipped"`
+	Skipped      []scoutSkipped `json:"skipped"`
+	AWPEstimated int            `json:"awp_estimated,omitempty"`
 }
 
 // grenadeKindsQuery reads the repeatable kind parameter.
@@ -61,7 +62,9 @@ func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Reques
 		internalError(w, "list team grenades", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, teamGrenadesResponse{
-		TeamGrenades: tacticalplan.CollectTeamGrenades(loaded, filter, kinds), Skipped: skipped,
-	})
+	resp := teamGrenadesResponse{TeamGrenades: tacticalplan.CollectTeamGrenades(loaded, filter, kinds), Skipped: skipped}
+	for _, m := range loaded {
+		resp.AWPEstimated += awpEstimated(filter, m)
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

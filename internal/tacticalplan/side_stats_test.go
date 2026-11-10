@@ -92,7 +92,7 @@ func TestTeamSideStatsEveryFigure(t *testing.T) {
 }
 
 func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
-	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Buys: []BuyType{BuyFull}, Side: SideT}})
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Rounds: Filter{Buys: []BuyType{BuyFull}}, Side: SideT}})
 	if r.Rounds != 2 {
 		t.Fatalf("full buy T rounds = %d, want 2", r.Rounds)
 	}
@@ -103,6 +103,14 @@ func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
 	wantStat(t, "rounds won", r.Overall.RoundsWon, 50)
 	if r.CT.RoundsPlayed.Value != nil {
 		t.Fatalf("CT rounds outside the side scope = %v", *r.CT.RoundsPlayed.Value)
+	}
+}
+
+func TestTeamSideStatsRoundRange(t *testing.T) {
+	all := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}})
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Rounds: Filter{RoundFrom: 2}}})
+	if all.Rounds < 2 || r.Rounds != all.Rounds-1 {
+		t.Fatalf("rounds from 2 = %d of %d, want one fewer", r.Rounds, all.Rounds)
 	}
 }
 

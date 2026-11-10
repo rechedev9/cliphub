@@ -52,6 +52,11 @@ type Filter struct {
 	Phase     Phase   `json:"phase,omitempty"`
 	// Lineup keeps the rounds in which every player of the perspective's side is in it.
 	Lineup Lineup `json:"lineup,omitempty"`
+	// AWP and OpponentAWP keep the rounds in which a player of that side held an AWP, or none did.
+	AWP         Presence `json:"awp,omitempty"`
+	OpponentAWP Presence `json:"opponent_awp,omitempty"`
+	// Advantages keeps the rounds that reached one of these counts at some moment.
+	Advantages []Advantage `json:"advantages,omitempty"`
 }
 
 // Empty reports whether the filter selects everything.
@@ -59,7 +64,7 @@ func (f Filter) Empty() bool {
 	return f.TeamKey == "" && f.Side == "" && len(f.Buys) == 0 && len(f.OpponentBuys) == 0 &&
 		len(f.Sites) == 0 && f.Outcome == "" && len(f.TPatterns) == 0 && len(f.CTPatterns) == 0 &&
 		len(f.Tags) == 0 && len(f.Slots) == 0 && f.RoundFrom == 0 && f.RoundTo == 0 && f.Phase == "" &&
-		len(f.Lineup) == 0
+		len(f.Lineup) == 0 && f.AWP == "" && f.OpponentAWP == "" && len(f.Advantages) == 0
 }
 
 // Perspective returns the side the filter looks from in a given round, or the
@@ -124,6 +129,16 @@ func (f Filter) Match(d Document, r Round) bool {
 		}
 	}
 	if len(f.Slots) > 0 && !matchSlots(r, f.Slots, side) {
+		return false
+	}
+	estimate := AWPEstimated(d)
+	if f.AWP != "" && !matchPresence(presenceQuery{Want: f.AWP, Round: r, Side: side, Estimate: estimate}) {
+		return false
+	}
+	if f.OpponentAWP != "" && !matchPresence(presenceQuery{Want: f.OpponentAWP, Round: r, Side: side.Opponent(), Estimate: estimate}) {
+		return false
+	}
+	if len(f.Advantages) > 0 && !matchAdvantage(advantageQuery{Round: r, Side: side, Want: f.Advantages}) {
 		return false
 	}
 	return f.Lineup.Keeps(LineupRound{Document: d, Round: r, Side: side})
@@ -255,6 +270,15 @@ func FilterFromValues(values url.Values) (Filter, error) {
 		return Filter{}, err
 	}
 	if f.Phase, err = parsePhase(values.Get("phase")); err != nil {
+		return Filter{}, err
+	}
+	if f.AWP, err = parsePresence(values.Get("awp"), "awp"); err != nil {
+		return Filter{}, err
+	}
+	if f.OpponentAWP, err = parsePresence(values.Get("opponent_awp"), "opponent_awp"); err != nil {
+		return Filter{}, err
+	}
+	if f.Advantages, err = parseAdvantages(multi(values, "advantage")); err != nil {
 		return Filter{}, err
 	}
 	if f.RoundFrom > 0 && f.RoundTo > 0 && f.RoundFrom > f.RoundTo {

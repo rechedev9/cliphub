@@ -68,13 +68,22 @@ only the rounds every player of the team played in it, like the Alineación sele
 players of the team's latest match, which team_lineups lists, and an empty lineup keeps every round. team_playbook lists every
 tactic key its rounds show; pass keys in with and without to combine them (every count is then over the
 kept rounds), and save_playbook_combo stores a combination in the Libreta.
+Every team tool (team_side_stats too) also takes the rest of the team Replay's filter bar, so all team figures count the same rounds:
+max_matches (last 3 or 5), last_days (3, 7, 14, 30, 90, 180, 365), opponent_top (HLTV top 5 to 200, by each
+rival's rank today; rivals without a rank come back as unranked), whose (own: matches of the user's own team,
+the one list_teams marks own; others: scouting), buy and opponent_buy (full with full, half is semi and force,
+pistol with pistol), awp and opponent_awp (with or without; awp_estimated counts older analyses read from AWP
+kills), advantage (4v5, 5v4 at some moment) and round_from/round_to. team_rounds lists those rounds over
+the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
+holds one buy (or half) and one advantage per side, so studio_path refuses longer lists.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
 position) and round refs. The rating is the Rating de ClipHub. Without from and to the library scope reads the last 90 days, like the page. Scope pro ranks the pro players of the community server
 (last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
 (team_top) and event (the answer's events lists them); those rows carry a team and no refs.
-Fix the library's teams: update_team renames or replaces the aliases (start from get_team),
+Fix the library's teams: update_team renames or replaces the aliases (start from get_team) and sets
+own (Mi equipo, one team at most: setting it moves the mark) and hltv_rank,
 assign_match_team sets the team of one side of a match (side keys from get_match), merge_teams folds
 a duplicate team into another.
 Scouting reports (Informes): list_reports, get_report (sections and players), create_report,
@@ -116,7 +125,7 @@ replay_rounds with the same buy, site or shape gives the rounds behind one of it
 check_integrity screens a match's players for unusual aim: a statistical signal, never proof;
 integrity_dossier is one screened player's evidence pack and the official ways to report them.
 replay_rounds reads the rounds of one match that a Replay scope keeps (team, side, result, buys, site, round shapes, tags, players,
-round range, phase); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
+round range, phase, AWP of each side, numeric advantage); its studio_path opens the Replay on that scope in one of its four forms: repeticion, calor, recorridos or granadas.
 Its focus (SteamID64s) puts players in the foreground of every form without dropping rounds, as a click on a player does.
 replay_overlay superposes those rounds from the end of freeze time, as Superponer does, with the same scope and focus.
 match_heatmap is the Mapa de calor of those rounds: kind position, death, kill (kill_at killer or victim), utility or timing,

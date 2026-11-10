@@ -40,6 +40,9 @@ type replayScopeIn struct {
 	RoundFrom    int      `json:"round_from,omitempty"`
 	RoundTo      int      `json:"round_to,omitempty"`
 	Phase        string   `json:"phase,omitempty" jsonschema:"regulation or overtime"`
+	AWP          string   `json:"awp,omitempty" jsonschema:"with: rounds in which a player of the team or side bought or used an AWP; without: none did"`
+	OpponentAWP  string   `json:"opponent_awp,omitempty" jsonschema:"with or without, for the other side's AWP"`
+	Advantage    []string `json:"advantage,omitempty" jsonschema:"numeric advantage at some moment, the team's or side's players alive first: 4v5, 5v4..."`
 }
 
 type replayRoundOut struct {
@@ -80,12 +83,13 @@ func (in replayScopeIn) values(doc tacticalplan.Document) (url.Values, error) {
 	if outcome != "" && in.TeamKey == "" && side == "" {
 		return nil, fmt.Errorf("result needs team_key or side: a round is won or lost by someone")
 	}
-	for key, value := range map[string]string{"team": in.TeamKey, "side": side, "outcome": outcome, "phase": strings.ToLower(strings.TrimSpace(in.Phase))} {
+	for key, value := range map[string]string{"team": in.TeamKey, "side": side, "outcome": outcome, "phase": strings.ToLower(strings.TrimSpace(in.Phase)),
+		"awp": strings.ToLower(strings.TrimSpace(in.AWP)), "opponent_awp": strings.ToLower(strings.TrimSpace(in.OpponentAWP))} {
 		if value != "" {
 			v.Set(key, value)
 		}
 	}
-	for key, list := range map[string][]string{"buy": in.Buy, "opponent_buy": in.OpponentBuy, "site": in.Site, "t_pattern": in.AttackShape, "ct_pattern": in.DefenseShape, "tag": in.Tag} {
+	for key, list := range map[string][]string{"buy": in.Buy, "opponent_buy": in.OpponentBuy, "site": in.Site, "t_pattern": in.AttackShape, "ct_pattern": in.DefenseShape, "tag": in.Tag, "advantage": in.Advantage} {
 		for _, value := range list {
 			v.Add(key, strings.TrimSpace(value))
 		}

@@ -42,12 +42,13 @@ func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tact
 	if err != nil {
 		return nil, nil, err
 	}
-	kept, more := h.keepTeamMatches(keepQuery{teamID: q.team.ID, candidates: candidates, selected: q.filter.Select(pending), lineup: q.filter.Lineup})
+	selected, unrated := selectTeamMatches(q.filter, pending)
+	kept, more := h.keepTeamMatches(keepQuery{teamID: q.team.ID, candidates: candidates, selected: selected, lineup: q.filter.Lineup, limit: q.filter.MaxMatches})
 	loaded := make([]tacticalplan.FramedMatch, 0, len(kept))
 	for _, k := range kept {
 		loaded = append(loaded, tacticalplan.FramedMatch{ScoutMatch: k.scout, Blob: h.positionsReader(k.demoID)})
 	}
-	return loaded, append(skipped, more...), nil
+	return loaded, append(append(skipped, unrated...), more...), nil
 }
 
 // framedRequest reads the team and the scout filter of a playbook or a prep.

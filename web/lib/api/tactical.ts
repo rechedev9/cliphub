@@ -594,6 +594,9 @@ export const TACTICAL_FILTER_PARAMS = {
   roundFrom: 'round_from',
   roundTo: 'round_to',
   phase: 'phase',
+  awp: 'awp',
+  opponentAwp: 'opponent_awp',
+  advantage: 'advantage',
 } as const;
 export type TacticalFilterParam =
   (typeof TACTICAL_FILTER_PARAMS)[keyof typeof TACTICAL_FILTER_PARAMS];
@@ -613,6 +616,9 @@ export const TACTICAL_FILTER_PARAM_NAMES: readonly TacticalFilterParam[] = [
   TACTICAL_FILTER_PARAMS.roundFrom,
   TACTICAL_FILTER_PARAMS.roundTo,
   TACTICAL_FILTER_PARAMS.phase,
+  TACTICAL_FILTER_PARAMS.awp,
+  TACTICAL_FILTER_PARAMS.opponentAwp,
+  TACTICAL_FILTER_PARAMS.advantage,
 ];
 
 /** A count over a denominator (`tacticalplan.Rate`). Never render `pct` without `total`. */

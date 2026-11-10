@@ -44,21 +44,30 @@ func TestHeatmapViewReadsAsTheOrchestratorAndTheReplayURL(t *testing.T) {
 
 func TestTeamHeatmapPathCarriesTheTeamScope(t *testing.T) {
 	team := uuid.NewString()
-	in := teamHeatmapIn{TeamID: team, analysisFilterIn: analysisFilterIn{Side: "ct", From: "2026-10-01"}, Buy: "full",
+	in := teamHeatmapIn{TeamID: team, analysisFilterIn: analysisFilterIn{Side: "ct", From: "2026-10-01"},
+		teamScopeIn: teamScopeIn{teamRoundScopeIn: teamRoundScopeIn{Buy: []string{"semi", "force"}, AWP: "with", MaxMatches: 5}},
 		Players: []string{"76561198000000001"}, heatmapViewIn: heatmapViewIn{Kind: "death", ClockTo: 55}}
 	heat, err := in.teamValues()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if heat.Get("player") != "76561198000000001" || heat.Get("buy") != "full" || heat.Get("kind") != "death" {
-		t.Fatalf("team query = %s", heat.Encode())
+	if heat.Get("player") != "76561198000000001" || heat.Get("kind") != "death" || heat.Has("buy") {
+		t.Fatalf("team query = %s, want the focus and view only: the buys travel in the scope", heat.Encode())
 	}
-	want := "/equipos/" + team + "?buy=full&cuenta=death&forma=calor&from=2026-10-01&jugador=76561198000000001&map=de_nuke&side=CT&tab=replay&tramo=0-55"
-	if got := teamHeatmapPath(in, "de_nuke", heat); got != want {
-		t.Fatalf("path = %s, want %s", got, want)
+	q, err := teamQuery(in.analysisFilterIn, in.teamScopeIn)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := (teamHeatmapIn{Buy: "lots"}).teamValues(); err == nil {
-		t.Fatal("an unknown buy: no error")
+	want := "/equipos/" + team + "?awp=with&buy=half&cuenta=death&forma=calor&from=2026-10-01&jugador=76561198000000001&limit=5&lineup=all&map=de_nuke&side=CT&tab=replay&tramo=0-55"
+	if got, err := teamHeatmapPath(in, "de_nuke", q); err != nil || got != want {
+		t.Fatalf("path = %s, %v; want %s", got, err, want)
+	}
+	in.Buy = []string{"eco", "full"}
+	if q, err = teamQuery(in.analysisFilterIn, in.teamScopeIn); err == nil {
+		_, err = teamHeatmapPath(in, "de_nuke", q)
+	}
+	if err == nil {
+		t.Fatal("two buys the bar cannot hold: no error")
 	}
 }
 

@@ -84,7 +84,7 @@ func (h *Handlers) GetLibraryTeamLineups(w http.ResponseWriter, r *http.Request)
 		writeLibraryError(w, "get match", err)
 		return
 	}
-	c, ok := candidateFor(latest, team.ID)
+	c, ok := candidateFor(latest, team.ID, nil)
 	if !ok {
 		// No side of the latest match is the team's, so there is no latest lineup to offer.
 		writeJSON(w, http.StatusOK, resp)

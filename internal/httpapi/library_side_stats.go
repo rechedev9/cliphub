@@ -36,6 +36,8 @@ type sideStatsResponse struct {
 	CompareTeams   []sideStatsTeam `json:"compare_teams"`
 	CompareSkipped []uuid.UUID     `json:"compare_skipped"`
 	GroupCapped    bool            `json:"group_capped"`
+	// AWPEstimated counts the team's matches whose AWP rounds come from kills, not the AWP flag.
+	AWPEstimated int `json:"awp_estimated"`
 	tacticalplan.SideStatsReport
 }
 
@@ -48,10 +50,6 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 	}
 	q := r.URL.Query()
 	filter, matchIDs, err := scoutQuery(q)
-	var rounds tacticalplan.Filter
-	if err == nil {
-		rounds, err = tacticalplan.FilterFromValues(q)
-	}
 	var asked []uuid.UUID
 	if err == nil {
 		asked, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)
@@ -84,18 +82,20 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		internalError(w, "team side stats", err)
 		return
 	}
-	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: filter.Select(pending), lineup: filter.Lineup})
-	resp.Skipped = append(skipped, more...)
+	selected, unrated := selectTeamMatches(filter, pending)
+	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: selected, lineup: filter.Lineup, limit: filter.MaxMatches})
+	resp.Skipped = append(append(skipped, unrated...), more...)
 	own := make([]tacticalplan.SideStatsMatch, 0, len(kept))
 	ownDocs := map[uuid.UUID]tacticalplan.Document{}
 	for _, k := range kept {
+		resp.AWPEstimated += awpEstimated(filter, k.scout)
 		ownDocs[k.scout.MatchID] = k.scout.Document
 		own = append(own, tacticalplan.SideStatsMatch{
 			MatchID: k.scout.MatchID, PlayedAt: k.scout.PlayedAt, Document: k.scout.Document, TeamKey: k.scout.TeamKey, Opponent: k.scout.Opponent,
 		})
 	}
 	opts := tacticalplan.SideStatsOptions{
-		Side: filter.Side, Buys: rounds.Buys, OpponentBuys: rounds.OpponentBuys, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
+		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
 	}
 	group := tacticalplan.NewSideStatsGroup(opts)
 	resp.GroupCapped, err = h.foldSideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, ownDocs: ownDocs, group: group})

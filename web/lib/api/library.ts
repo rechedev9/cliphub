@@ -16,7 +16,7 @@ import type {
 import type { TacticalBuyType } from './tactical.ts';
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 import { vetoSearch, type LibrarySeries, type SeriesInput, type TeamMaps, type VetoQuery, type VetoSimulation } from './veto.ts';
-import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites, TeamLineups } from './team-insights.ts';
+import type { PlayerPositions, PlayerPositionsQuery, TeamBombsites, TeamLineups, TeamProfile, TeamRounds } from './team-insights.ts';
 import type { Baseline, BaselineQuery, Leaderboard, LeaderboardQuery } from './baseline.ts';
 import type { LibraryNorms, LibraryNormsQuery } from './norms.ts';
 import type { TeamPlaybook, TeamPlaybookQuery, TeamPrep, TeamPrepQuery } from './playbook.ts';
@@ -115,6 +115,10 @@ export type LibraryTeam = {
   aliases: string[];
   match_count: number;
   roster?: LibraryRosterEntry[];
+  /** Mi equipo: at most one team is the user's own. */
+  own?: boolean;
+  /** The team's HLTV rank today; 0 when not ranked. */
+  hltv_rank?: number;
   created_at: string;
   updated_at: string;
 };
@@ -482,7 +486,40 @@ export type TeamScoutQuery = {
   match_ids?: readonly string[];
   /** SteamID64s: only rounds in which every player of the team is one of them; empty keeps every round. */
   lineup?: readonly string[];
+  /** The rest of the team scope as query entries (`teamScopeEntries`). */
+  criteria?: readonly TeamCriterion[];
 };
+
+/** One query entry of the team scope, such as `['awp', 'with']`. */
+export type TeamCriterion = readonly [string, string];
+
+function scoutParams(query: TeamScoutQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const map of query.maps ?? []) params.append('map', map);
+  if (query.side) params.set('side', query.side);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of query.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
+  for (const [key, value] of query.criteria ?? []) params.append(key, value);
+  return params;
+}
+
+/** The rounds the team scope keeps on each match, for a playlist of them. */
+export function getTeamRounds(teamId: string, query: TeamScoutQuery = {}): Promise<TeamRounds> {
+  const search = scoutParams(query).toString();
+  return request<TeamRounds>(`/teams/${id(teamId)}/rounds${search === '' ? '' : `?${search}`}`);
+}
+
+export function getTeamProfile(teamId: string): Promise<TeamProfile> {
+  return request<TeamProfile>(`/teams/${id(teamId)}/profile`);
+}
+
+/** Marks the team as the user's own and sets its HLTV rank; 0 clears the rank. */
+export function setTeamProfile(teamId: string, patch: { own?: boolean; hltv_rank?: number }): Promise<TeamProfile> {
+  return request<TeamProfile>(`/teams/${id(teamId)}/profile`, jsonInit('PUT', patch));
+}
 
 /** A team's scouting report over its matches, filtered by map, side, date and rival. */
 export function getLibraryTeamScout(teamId: string, query: TeamScoutQuery = {}): Promise<ScoutReport> {
@@ -515,6 +552,7 @@ export type TeamSpatialQuery = {
   opponent_buys?: readonly TacticalBuyType[];
   /** SteamID64s counted alone; the team's rounds all stay. */
   players?: readonly string[];
+  criteria?: readonly TeamCriterion[];
 };
 
 export type HeatmapQuery = {
@@ -543,6 +581,7 @@ export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', ex
     for (const buy of q.buys ?? []) params.append('buy', buy);
     for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
     for (const player of q.players ?? []) params.append('player', player);
+    for (const [key, value] of q.criteria ?? []) params.append(key, value);
   }
   for (const [key, value] of extra) params.append(key, value);
   const search = params.toString();
@@ -678,14 +717,7 @@ export type TeamGrenadeQuery = TeamScoutQuery & { kinds?: readonly TeamGrenadeKi
 
 /** Every grenade a team threw on its matches, filtered like the scout and by kind. */
 export function listTeamGrenades(teamId: string, query: TeamGrenadeQuery = {}): Promise<TeamGrenades> {
-  const params = new URLSearchParams();
-  for (const map of query.maps ?? []) params.append('map', map);
-  if (query.side) params.set('side', query.side);
-  if (query.from) params.set('from', query.from);
-  if (query.to) params.set('to', query.to);
-  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
-  for (const match of query.match_ids ?? []) params.append('match_id', match);
-  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
+  const params = scoutParams(query);
   for (const kind of query.kinds ?? []) params.append('kind', kind);
   const search = params.toString();
   return request<TeamGrenades>(`/teams/${id(teamId)}/grenades${search === '' ? '' : `?${search}`}`);
@@ -706,23 +738,13 @@ export function getTeamBombsites(teamId: string, query: TeamScoutQuery = {}): Pr
 }
 
 export type TeamSideStatsQuery = TeamScoutQuery & {
-  buy?: TacticalBuyType | '';
-  opponent_buy?: TacticalBuyType | '';
   /** Team ids to compare with; empty compares with every other team of the library. */
   compare?: readonly string[];
 };
 
 /** A team's figures overall and per side, each with the mean of the comparison group. */
 export function getTeamSideStats(teamId: string, query: TeamSideStatsQuery = {}): Promise<TeamSideStats> {
-  const params = new URLSearchParams();
-  for (const map of query.maps ?? []) params.append('map', map);
-  if (query.side) params.set('side', query.side);
-  if (query.from) params.set('from', query.from);
-  if (query.to) params.set('to', query.to);
-  for (const opponent of query.opponent_ids ?? []) params.append('opponent_id', opponent);
-  for (const steamId of query.lineup ?? []) params.append('lineup', steamId);
-  if (query.buy) params.set('buy', query.buy);
-  if (query.opponent_buy) params.set('opponent_buy', query.opponent_buy);
+  const params = scoutParams(query);
   for (const team of query.compare ?? []) params.append('compare_team', team);
   const search = params.toString();
   return request<TeamSideStats>(`/teams/${id(teamId)}/side-stats${search === '' ? '' : `?${search}`}`);
