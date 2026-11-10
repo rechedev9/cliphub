@@ -607,7 +607,12 @@ export function ReplayWorkspace({
     voice:
       matchVoice === null || focused?.matchId !== voice.matchId
         ? null
-        : { synced: matchVoice.sync.state !== 'unsynced', tracks: matchVoice.tracks.map((track) => track.track).filter((track) => !voice.mutedTracks.has(track)) },
+        : {
+            synced: matchVoice.sync.state !== 'unsynced' || voice.draft !== null,
+            tracks: matchVoice.tracks.filter((track) => !voice.mutedTracks.has(track.track)).map((track) => ({ track: track.track, durationMs: track.duration_ms })),
+            offsetMs: voice.offsetMs,
+            freezeOnly: voice.freezeOnly,
+          },
     draft: library ? draft.strokes : [],
     notes: focusTimeline === null ? [] : (notes.notes ?? []).map((note) => ({ at: clockSecondsOf(focusTimeline, note.tick), strokes: note.strokes })),
     onStart: () => setPlaying(false),

@@ -7,7 +7,7 @@ import { prettyMapName } from '@/lib/format';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import { gifCaption, gifSpan, plantSecondsOf } from '@/lib/replay/replay-gif';
 import type { GifSpan } from '@/lib/replay/replay-gif';
-import { VIDEO_FPS, VIDEO_MAX_SECONDS, replayVideoFileName, videoFrameTimes, videoSeconds } from '@/lib/replay/replay-video';
+import { VIDEO_FPS, replayVideoFileName, videoBlocked, videoFrameTimes, videoSeconds, voiceCovers, voiceEndTick } from '@/lib/replay/replay-video';
 import { pickVideoTarget, writeVideoTarget } from '@/lib/replay/save-gif';
 import type { Tramo } from '@/lib/replay/tramo';
 import { noteVisibleAt } from '@/lib/tactical-spatial';
@@ -24,8 +24,16 @@ export type VideoState =
   | { kind: 'done'; message: string }
   | { kind: 'failed'; message: string };
 
-/** The match's team voice as the export can use it: null when it has no synced recording. */
-export type VideoVoice = { synced: boolean; tracks: readonly number[] } | null;
+/**
+ * The match's team voice as the Replay plays it: the tracks not muted, the offset heard (an unsaved
+ * adjustment included) and the freeze-time filter. Null when the match has no recording.
+ */
+export type VideoVoice = {
+  synced: boolean;
+  tracks: readonly { track: number; durationMs: number }[];
+  offsetMs: number;
+  freezeOnly: boolean;
+} | null;
 
 export type ReplayVideo = {
   state: VideoState;
@@ -44,7 +52,6 @@ const NO_PLANT = 'Esta ronda no tiene plant: elige otro tramo.';
 const OUTSIDE = 'El tramo queda fuera de esta ronda: elige otro.';
 const NOT_READY = 'El mapa todavía no se puede dibujar.';
 const NOT_LIBRARY = 'El MP4 se exporta desde las partidas de la biblioteca.';
-const TOO_LONG = `El MP4 dura como mucho ${VIDEO_MAX_SECONDS} s: elige un tramo más corto o más velocidad.`;
 
 function isBusy(state: VideoState): boolean {
   return state.kind === 'picking' || state.kind === 'rendering' || state.kind === 'encoding' || state.kind === 'saving';
@@ -59,11 +66,22 @@ function download(bytes: Uint8Array<ArrayBuffer>, fileName: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-function voiceHint(voice: VideoVoice): string | null {
+type VoiceTicks = { fromTick: number; toTick: number; voiceTo: number; tickrate: number };
+
+function voiceHint(voice: VideoVoice, ticks: VoiceTicks | null): string | null {
   if (voice === null) return 'Esta partida no tiene voz del equipo.';
   if (!voice.synced) return 'Sincroniza la voz del equipo para incluirla.';
   if (voice.tracks.length === 0) return 'Todas las pistas de voz están silenciadas.';
-  return null;
+  if (ticks === null) return null;
+  const covers = voiceCovers({
+    fromTick: ticks.fromTick,
+    toTick: ticks.voiceTo,
+    tickrate: ticks.tickrate,
+    offsetMs: voice.offsetMs,
+    durationsMs: voice.tracks.map((track) => track.durationMs),
+  });
+  if (covers) return null;
+  return voice.freezeOnly ? 'Con «Solo tiempo de compra», este tramo no tiene voz.' : 'La grabación de voz no cubre este tramo.';
 }
 
 /**
@@ -104,15 +122,23 @@ export function useReplayVideo(source: {
   if (!library) blocked = NOT_LIBRARY;
   else if (focused === null) blocked = NOT_READY;
   else if (span === null) blocked = tramo.fromPlant === true && plantSeconds === null ? NO_PLANT : OUTSIDE;
-  else if (seconds > VIDEO_MAX_SECONDS) blocked = TOO_LONG;
-  const hint = voiceHint(voice);
+  else blocked = videoBlocked({ span, speed });
+  const freezeOnly = voice?.freezeOnly ?? false;
+  const ticks = useMemo<VoiceTicks | null>(() => {
+    if (focused === null || span === null) return null;
+    const fromTick = Math.max(0, tickOf(focused, span.from));
+    const toTick = Math.max(fromTick + 1, tickOf(focused, span.to));
+    const voiceTo = voiceEndTick({ fromTick, toTick, freezeOnly, freezeEndTick: focused.round.tick_freeze_end });
+    return { fromTick, toTick, voiceTo, tickrate: focused.timeline.tickrate };
+  }, [focused, freezeOnly, span, tickOf]);
+  const hint = voiceHint(voice, ticks);
   const includeVoice = wantVoice && hint === null;
   const busy = isBusy(state);
 
   const start = useCallback(() => {
     if (busy) return;
     const capture = captureRef.current;
-    if (capture === null || focused === null || span === null || blocked !== null) {
+    if (capture === null || focused === null || span === null || ticks === null || blocked !== null) {
       setState({ kind: 'failed', message: blocked ?? NOT_READY });
       return;
     }
@@ -131,9 +157,9 @@ export function useReplayVideo(source: {
       captionAt: (at) => gifCaption({ rounds: roundsLabel, events, seconds: at, freezeSeconds }),
     };
     const times = videoFrameTimes(span, speed);
-    const fromTick = Math.max(0, tickOf(focused, span.from));
-    const toTick = Math.max(fromTick + 1, tickOf(focused, span.to));
-    const tracks = voice === null ? [] : [...voice.tracks];
+    const tracks = voice === null ? [] : voice.tracks.map((track) => track.track);
+    const voiceSpec = includeVoice && voice !== null ? { offset_ms: voice.offsetMs } : {};
+    const voiceTo = includeVoice && freezeOnly ? { voice_to_tick: ticks.voiceTo } : {};
     const controller = new AbortController();
     abortRef.current = controller;
     onStart();
@@ -167,7 +193,8 @@ export function useReplayVideo(source: {
           speed: speed > 0 ? speed : 1,
           include_voice: includeVoice,
           voice_tracks: includeVoice ? tracks : [],
-          segments: [{ round: focused.round.number, from_tick: fromTick, to_tick: toTick, frames: drawn.frames.length }],
+          ...voiceSpec,
+          segments: [{ round: focused.round.number, from_tick: ticks.fromTick, to_tick: ticks.toTick, frames: drawn.frames.length, ...voiceTo }],
         };
         const made = await createReplayVideo({ matchId: focused.matchId, spec, frames: drawn.frames, signal: controller.signal });
         const bytes = await readReplayVideo(made.video_id, controller.signal);
@@ -187,7 +214,7 @@ export function useReplayVideo(source: {
         if (abortRef.current === controller) abortRef.current = null;
       }
     })();
-  }, [blocked, busy, captureRef, draft, events, focused, freezeSeconds, includeVoice, multi, notes, onStart, rounds, span, speed, tickOf, voice]);
+  }, [blocked, busy, captureRef, draft, events, focused, freezeOnly, freezeSeconds, includeVoice, multi, notes, onStart, rounds, span, speed, ticks, voice]);
 
   const cancel = useCallback(() => abortRef.current?.abort(), []);
   return { state, busy, seconds, blocked, voice: { available: hint === null, hint }, includeVoice, setIncludeVoice, start, cancel };
