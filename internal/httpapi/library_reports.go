@@ -120,6 +120,9 @@ func (h *Handlers) teamCandidates(ctx context.Context, team library.Team, matchI
 			skipped = append(skipped, scoutSkipped{MatchID: m.ID, Reason: scoutSkipTeamMissing})
 			continue
 		}
+		if m.Source == library.SourcePro {
+			c.scout.OpponentRank = h.proRivalRank(ctx, c)
+		}
 		candidates[m.ID] = c
 		pending = append(pending, c.scout)
 	}

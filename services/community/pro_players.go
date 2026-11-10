@@ -207,7 +207,7 @@ func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string]
 		if !ok {
 			continue
 		}
-		key := match + "/" + mapKey(entry)
+		key := proMapGroup(match, entry)
 		if groups[key] == nil {
 			keys = append(keys, key)
 		}

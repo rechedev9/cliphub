@@ -108,6 +108,13 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	if match.Source != library.SourcePro || strings.Join(names, ",") != "Vitality,FaZe" {
 		t.Fatalf("pro match = %s teams %v", match.Source, names)
 	}
+	faze, err := env.h.teamByName(t.Context(), "FaZe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, pending, _, err := env.h.teamCandidates(t.Context(), faze, nil); err != nil || len(pending) != 1 || pending[0].OpponentRank != 1 {
+		t.Fatalf("the rival level must read the catalog rank of a pro match: %+v %v", pending, err)
+	}
 	var again proImportResponse
 	env.json(http.MethodPost, "/api/library/pro-matches/2400001/vitality-vs-faze-m1-mirage/import", nil, http.StatusOK, &again)
 	if again.Created || again.MatchID != first.MatchID {

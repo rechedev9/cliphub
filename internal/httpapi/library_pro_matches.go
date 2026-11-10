@@ -254,3 +254,18 @@ func (h *Handlers) GetLibraryMatchPro(w http.ResponseWriter, r *http.Request) {
 }
 
 func proStudioPath(matchID uuid.UUID) string { return "/partidas/" + matchID.String() + "?tab=replay" }
+
+// proRivalRank is the rival's HLTV rank on the day of a pro match, as the catalog
+// knew it; without one the rival keeps its team profile's rank.
+func (h *Handlers) proRivalRank(ctx context.Context, c scoutCandidate) int {
+	rec, err := h.libraryRepo.ProMapForDemo(ctx, c.match.DemoID)
+	if err != nil {
+		return c.scout.OpponentRank
+	}
+	for _, t := range rec.Teams {
+		if t.Rank > 0 && library.NormalizeName(t.Name) == library.NormalizeName(c.scout.Opponent) {
+			return t.Rank
+		}
+	}
+	return c.scout.OpponentRank
+}
