@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickGifTarget, pickVideoTarget, writeGifTarget, writeVideoTarget } from './save-gif.ts';
+import { pickGifTarget, writeGifTarget } from './save-gif.ts';
 
 function bridge(pickAnswer: unknown, writeAnswer: unknown, calls: string[]): object {
   return {
@@ -35,24 +35,4 @@ test('a closed dialog, a refusal and a bad answer are told apart', async () => {
 test('without the bridge the GIF downloads', async () => {
   assert.deepEqual(await pickGifTarget('a.gif', {}), { kind: 'download' });
   assert.deepEqual(await pickGifTarget('a.gif', { cliphubReplay: { pickGif: 'no' } }), { kind: 'download' });
-});
-
-test('the MP4 goes through its own bridge calls, and a desktop without them downloads it', async () => {
-  const calls: string[] = [];
-  const scope = {
-    cliphubReplay: {
-      pickVideo: async (fileName: string) => {
-        calls.push(`pick ${fileName}`);
-        return { ok: true, token: 'v1' };
-      },
-      writeVideo: async (token: string, bytes: Uint8Array) => {
-        calls.push(`write ${token} ${bytes.length}`);
-        return { ok: true, name: 'a.mp4' };
-      },
-    },
-  };
-  assert.deepEqual(await pickVideoTarget('a.mp4', scope), { kind: 'file', token: 'v1' });
-  assert.deepEqual(await writeVideoTarget({ token: 'v1', bytes: new Uint8Array(8), scope }), { kind: 'saved', name: 'a.mp4' });
-  assert.deepEqual(calls, ['pick a.mp4', 'write v1 8']);
-  assert.deepEqual(await pickVideoTarget('a.mp4', bridge({ ok: true, token: 't' }, null, [])), { kind: 'download' });
 });

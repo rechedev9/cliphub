@@ -18,7 +18,7 @@ test('hit lines: a hit shows for a second and fades, newest last', () => {
     { tick: 640, actor_slot: 1, target_slot: 7, damage: 27, weapon: 'ak47', headshot: true },
     { tick: 672, actor_slot: 2, target_slot: 8, damage: 60, weapon: 'hegrenade' },
   ];
-  const lines = hitLines({ hits, events: [], nowSeconds: 10.5, secondsOf, hiddenSlots: [] });
+  const lines = hitLines({ hits, events: [], nowSeconds: 10.5, secondsOf });
   assert.deepEqual(
     lines.map((line) => [line.from, line.to, line.kind, line.amount, line.headshot, line.alpha]),
     [
@@ -26,20 +26,14 @@ test('hit lines: a hit shows for a second and fades, newest last', () => {
       [2, 8, 'he', 60, false, 1],
     ],
   );
-  assert.equal(hitLines({ hits, events: [], nowSeconds: 9.9, secondsOf, hiddenSlots: [] }).length, 0);
-  assert.equal(hitLines({ hits, events: [], nowSeconds: 11.6, secondsOf, hiddenSlots: [] }).length, 0);
+  assert.equal(hitLines({ hits, events: [], nowSeconds: 9.9, secondsOf }).length, 0);
+  assert.equal(hitLines({ hits, events: [], nowSeconds: 11.6, secondsOf }).length, 0);
 });
 
 test('hit lines: a flash draws a line to each blinded enemy only', () => {
   const events = [flash(640, 3, [{ slot: 7, seconds: 2.4, enemy: true }, { slot: 4, seconds: 1, enemy: false }])];
-  const lines = hitLines({ hits: [], events, nowSeconds: 10.25, secondsOf, hiddenSlots: [] });
+  const lines = hitLines({ hits: [], events, nowSeconds: 10.25, secondsOf });
   assert.deepEqual(lines.map((line) => [line.from, line.to, line.kind, line.amount]), [[3, 7, 'flash', 2.4]]);
-});
-
-test('hit lines: a hidden player takes their lines with them', () => {
-  const hits = [{ tick: 640, actor_slot: 1, target_slot: 7, damage: 27 }];
-  assert.equal(hitLines({ hits, events: [], nowSeconds: 10, secondsOf, hiddenSlots: [7] }).length, 0);
-  assert.equal(hitLines({ hits, events: [], nowSeconds: 10, secondsOf, hiddenSlots: [1] }).length, 0);
 });
 
 test('hit lines: fire weapons read as fire', () => {

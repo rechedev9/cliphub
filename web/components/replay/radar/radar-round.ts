@@ -4,6 +4,7 @@ import { OFF_FLOOR_ALPHA, levelAlpha } from '@/lib/analysis/floors';
 import { arcLevels } from '@/lib/replay/floor-assign';
 import { equipmentIconUrl } from '@/lib/api/game-assets';
 import type { EquipmentIconName } from '@/lib/api/game-assets';
+import type { HitLine } from '@/lib/replay/hit-lines';
 import { inFocus } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import type { MapShows } from '@/lib/replay/map-settings';
@@ -17,8 +18,8 @@ import type { TimelineEvent } from '@/lib/tactical-timeline';
 import { levelForAltitude, worldToRendered, yawToRadarAngle } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
-import { drawHitLabels, drawHitLines, drawSightPairs, drawViewWedges } from './radar-analysis';
-import type { AcrossFloors, FrameAnalysis } from './radar-analysis';
+import { drawHitLabels, drawHitLines } from './radar-analysis';
+import type { AcrossFloors } from './radar-analysis';
 
 /** World radii of the grenade effects, in CS2 units. */
 const SMOKE_RADIUS = 144;
@@ -59,8 +60,6 @@ export type RoundFrame = {
   labels: ReadonlyMap<number, string>;
   /** The players in the foreground; the rest are drawn translucent, without trail or name. */
   focus: PlayerFocus;
-  /** Players taken off the map in the side panel: drawn translucent too, never hidden. */
-  dimmed: readonly number[];
   /** Ajustes del mapa: what is drawn on and around each player. */
   show: MapShows;
   /** Players just hurt, with how strongly their dot still shows it. */
@@ -71,8 +70,8 @@ export type RoundFrame = {
   utility: boolean;
   bomb: boolean;
   style: RadarStyle;
-  /** Sight and hit lines; only the focused round carries them. */
-  analysis: FrameAnalysis | null;
+  /** Hit lines; only the focused round carries them. */
+  hits: readonly HitLine[];
   /** Players heard on the team voice right now, by slot; only the focused round carries them. */
   speaking?: ReadonlySet<number>;
 };
@@ -99,7 +98,7 @@ export function discRadius(size: number, scale = 1): number {
 const UNFOCUSED_ALPHA = 0.35;
 
 function foreground(frame: RoundFrame, slot: number): boolean {
-  return inFocus(frame.focus, slot) && !frame.dimmed.includes(slot);
+  return inFocus(frame.focus, slot);
 }
 
 const GRENADE_PIP: Partial<Record<TacticalEquipment, string>> = {
@@ -359,8 +358,7 @@ function drawTrails(ctx: CanvasRenderingContext2D, frame: RoundFrame): void {
 function drawDead(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: TacticalSample, at: RadarPoint): void {
   const age = frame.deadFor.get(sample.slot) ?? DEAD_FADE_SECONDS;
   const arm = discRadius(frame.size, frame.dotScale) * 0.75;
-  const strength = frame.dimmed.includes(sample.slot) ? UNFOCUSED_ALPHA : 1;
-  ctx.globalAlpha = strength * (DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS));
+  ctx.globalAlpha = DEAD_REST_ALPHA + (1 - DEAD_REST_ALPHA) * Math.max(0, 1 - age / DEAD_FADE_SECONDS);
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#0b0c0e';
   ctx.lineWidth = 4;
@@ -385,20 +383,18 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
   const color = sideColor(style, side);
   const radius = discRadius(frame.size, frame.dotScale);
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
-  if (frame.analysis?.sight?.wedges.has(sample.slot) !== true) {
-    const reach = radius * 6;
-    const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
-    cone.addColorStop(0, color);
-    cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.globalAlpha = 0.42;
-    ctx.fillStyle = cone;
-    ctx.beginPath();
-    ctx.moveTo(at.x, at.y);
-    ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+  const reach = radius * 6;
+  const cone = ctx.createRadialGradient(at.x, at.y, radius, at.x, at.y, reach);
+  cone.addColorStop(0, color);
+  cone.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = cone;
+  ctx.beginPath();
+  ctx.moveTo(at.x, at.y);
+  ctx.arc(at.x, at.y, reach, heading - 0.4, heading + 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   if (frame.focus.includes(sample.slot)) {
     ctx.strokeStyle = '#ffffff';
@@ -455,7 +451,7 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
       ctx.stroke();
     }
   }
-  if (frame.show.held) drawHeld(ctx, { frame, sample, at, radius });
+  drawHeld(ctx, { frame, sample, at, radius });
   if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.defusing)) {
     ctx.strokeStyle = style.defuse;
     ctx.lineWidth = 2;
@@ -472,7 +468,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
   const { frame, sample, at, radius } = options;
   const { style } = frame;
   const s = Math.max(6, radius * 0.95);
-  if (sample.defuser === true) {
+  if (frame.show.kit && sample.defuser === true) {
     ctx.fillStyle = style.defuse;
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1.25;
@@ -482,7 +478,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
     ctx.stroke();
   }
   const pips: string[] = [];
-  for (const entry of sample.inventory ?? []) {
+  for (const entry of frame.show.held ? (sample.inventory ?? []) : []) {
     const color = GRENADE_PIP[entry.item];
     for (let i = 0; color !== undefined && i < entry.count; i += 1) pips.push(color);
   }
@@ -496,7 +492,7 @@ function drawHeld(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; s
     ctx.fill();
     ctx.stroke();
   });
-  if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
+  if (frame.show.bomb && hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.hasBomb)) {
     ctx.fillStyle = style.bomb;
     ctx.strokeStyle = '#0b0c0e';
     ctx.lineWidth = 1.25;
@@ -554,8 +550,7 @@ function drawTags(ctx: CanvasRenderingContext2D, options: { frame: RoundFrame; p
 
 /**
  * Paints one round over the baked plate: smokes, fires and throws first, the
- * view wedges and trails, the bomb on the ground, the dead, sight and hit
- * lines, the living, and the name tags on top. Answers where each player was
+ * trails, the bomb on the ground, the dead, the hit lines, the living, and the name tags on top. Answers where each player was
  * drawn, for hover and click.
  */
 export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame, tags: { visible: TagRect; spots: Map<number, number> } | null): DrawnPlayer[] {
@@ -563,9 +558,7 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     for (const visual of utilityVisuals(frame.events, frame.nowSeconds, frame.secondsOf)) drawGrenade(ctx, frame, visual);
   }
   const canvas = { ctx, calibration: frame.calibration, size: frame.size, style: frame.style, samples: frame.samples, across: frame.across };
-  const sight = frame.analysis?.sight ?? null;
-  const hits = frame.analysis?.hits ?? [];
-  if (sight !== null) drawViewWedges(canvas, sight);
+  const { hits } = frame;
   drawTrails(ctx, frame);
   if (frame.bomb) drawBomb(ctx, frame);
   const players: DrawnPlayer[] = [];
@@ -581,7 +574,6 @@ export function drawRoundFrame(ctx: CanvasRenderingContext2D, frame: RoundFrame,
     drawDead(ctx, frame, sample, at);
     ctx.filter = 'none';
   }
-  if (sight !== null) drawSightPairs(canvas, sight);
   drawHitLines(canvas, hits);
   for (const sample of frame.samples) {
     const player = players.find((entry) => entry.slot === sample.slot);

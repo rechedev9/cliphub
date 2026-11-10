@@ -2,11 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TACTICAL_SAMPLE_FLAGS } from '../api/tactical.ts';
 import type { TacticalEvent, TacticalRound } from '../api/tactical.ts';
-import type { WinPoint } from '../api/metrics.ts';
 import { roundTimeline, timelineEvents } from '../tactical-timeline.ts';
 import { alignedTick, fromLiveSeconds, liveDuration, liveEvents, liveTimeline, toLiveSeconds } from './multi-round.ts';
 import { playerCards, utilityLine } from './player-cards.ts';
-import { winProbabilityAt, winStripPath, winStripPoints } from './win-strip.ts';
 
 const timeline = roundTimeline({ tick_start: 1000, tick_freeze_end: 2280, tick_end: 8680, tick_official: 9000 }, 64);
 const short = roundTimeline({ tick_start: 0, tick_freeze_end: 640, tick_end: 1920, tick_official: 2000 }, 64);
@@ -69,19 +67,4 @@ test('player cards: health, bomb, kills, grenades and weapon up to the playhead'
     ['Jugador 3', true, null],
   ]);
   assert.equal(utilityLine(cards.ct[1].utility), '1 flash');
-});
-
-test('win strip: steps sit after the freeze band and read back at a moment', () => {
-  const points: WinPoint[] = [
-    { tick: 0, seconds: 0, kind: 'start', alive_ct: 5, alive_t: 5, probability_ct: 0.5 },
-    { tick: 0, seconds: 10, kind: 'kill', alive_ct: 5, alive_t: 4, probability_ct: 0.7 },
-  ];
-  assert.deepEqual(winStripPoints(points, 20, 100), [
-    { fraction: 0.2, probability: 0.5 },
-    { fraction: 0.3, probability: 0.7 },
-  ]);
-  assert.equal(winStripPath(winStripPoints(points, 0, 100), 100, 10), 'M0 5 H10 V3 H100');
-  assert.equal(winProbabilityAt(points, 5), 0.5);
-  assert.equal(winProbabilityAt(points, 12), 0.7);
-  assert.equal(winProbabilityAt(points, -1), null);
 });

@@ -1,15 +1,10 @@
 'use client';
 
 import type { ReactNode, RefObject } from 'react';
-import type { HitLineKind } from '@/lib/replay/hit-lines';
-import { LAYER_LABELS, TRAIL_LENGTHS } from '@/lib/replay/layers';
-import type { LayerToggle, ReplayLayers, TrailSeconds } from '@/lib/replay/layers';
 import {
   DOT_SIZES,
   DOT_SIZE_LABELS,
   FRAME_RATES,
-  MAP_ARTS,
-  MAP_ART_LABELS,
   MAP_SHOW_HINTS,
   MAP_SHOW_LABELS,
   MAP_SIZES,
@@ -21,28 +16,11 @@ import {
   frameRateLabel,
 } from '@/lib/replay/map-settings';
 import type { MapSettings, MapShow } from '@/lib/replay/map-settings';
-import { HIT_TOKENS } from '@/components/tactical/radar-style';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { ShortcutTable } from './shortcut-table';
-
-const HIT_LEGEND: readonly [HitLineKind, string][] = [
-  ['bullet', 'Bala'],
-  ['he', 'HE'],
-  ['fire', 'Fuego'],
-  ['flash', 'Flash'],
-];
-
-const LAYER_HINTS: Partial<Record<LayerToggle, string>> = {
-  sight: 'Une a los rivales que se ven, con las paredes y los humos reales del mapa, y recorta los conos de visión en las paredes',
-  hits: 'Una línea del atacante a la víctima en cada impacto y cada flash a un rival',
-  moments: 'Primera baja, intercambios, plant, desactivaciones y clutch en la línea de tiempo',
-};
-
-/** The layers the map draws, in the order the dialog lists them; Nombres has its own rows under Jugador. */
-const LAYER_ORDER: readonly Exclude<LayerToggle, 'names'>[] = ['utility', 'bomb', 'trails', 'hits', 'sight', 'moments'];
 
 function Group({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -73,18 +51,16 @@ function Check({ label, hint, checked, onChange }: { label: string; hint?: strin
 }
 
 /**
- * Preferencias del replay: how the Replay draws the map and its players, which
- * layers it shows, how fast it plays, and every keyboard shortcut. They apply
- * at once and stay for every match.
+ * Preferencias del replay, with the settings of EDGE's replayer: the timeline's
+ * ticks, the kill feed, the scoreline and the floors; the effects, lines and
+ * inventory on each player; the size of the dots and names; the zoom and the
+ * frame rate. They apply at once and stay for every match.
  */
 export function ReplayPreferences({
   open,
   onOpenChange,
   settings,
   onSettings,
-  layers,
-  onToggleLayer,
-  onTrailSeconds,
   twoFloors,
   drawing,
   container,
@@ -94,9 +70,6 @@ export function ReplayPreferences({
   onOpenChange: (open: boolean) => void;
   settings: MapSettings;
   onSettings: (settings: MapSettings) => void;
-  layers: ReplayLayers;
-  onToggleLayer: (key: LayerToggle) => void;
-  onTrailSeconds: (seconds: TrailSeconds) => void;
   /** The map has a lower floor (Nuke, Vertigo), so it can split the floors. */
   twoFloors: boolean;
   /** The drawing shortcuts work here, so the table lists them. */
@@ -132,23 +105,14 @@ export function ReplayPreferences({
         </DialogHeader>
         <div className="flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-contain p-4 [scrollbar-width:thin]">
           <Group title="Interfaz">
-            <Setting label="Dibujo del mapa" className="sm:col-span-2">
-              <Segmented
-                label="Dibujo del mapa"
-                value={settings.art}
-                options={MAP_ARTS.map((art) => ({ value: art, label: MAP_ART_LABELS[art] }))}
-                onChange={(art) => onSettings({ ...settings, art })}
-              />
-            </Setting>
-            <Setting label="Velocidad del zoom con la rueda">
-              <Segmented
-                label="Velocidad del zoom con la rueda"
-                value={settings.zoom}
-                options={MAP_SIZES.map((size) => ({ value: size, label: ZOOM_SPEED_LABELS[size] }))}
-                onChange={(zoom) => onSettings({ ...settings, zoom })}
-              />
+            <Setting label="Línea de tiempo">
+              {show('tlEvents')}
+              {show('tlUtility')}
+              {show('tlKills')}
             </Setting>
             <Setting label="Mapa">
+              {show('killfeed')}
+              {show('scoreline')}
               {twoFloors ? (
                 <Check
                   label={SEPARATE_FLOORS_LABEL}
@@ -157,29 +121,6 @@ export function ReplayPreferences({
                   onChange={(checked) => onSettings({ ...settings, floors: checked ? 'both' : 'one' })}
                 />
               ) : null}
-              {show('zones')}
-              {show('scoreline')}
-              {show('killfeed')}
-            </Setting>
-            <Setting label="Capas" className="sm:col-span-2">
-              <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                {LAYER_ORDER.map((key) => (
-                  <div key={key} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Check label={LAYER_LABELS[key]} hint={LAYER_HINTS[key]} checked={layers[key]} onChange={() => onToggleLayer(key)} />
-                    {key === 'trails' && layers.trails ? (
-                      <Segmented
-                        label="Largo de los rastros"
-                        value={String(layers.trailSeconds)}
-                        options={TRAIL_LENGTHS.map((seconds) => ({ value: String(seconds), label: `${seconds} s` }))}
-                        onChange={(value) => {
-                          const seconds = TRAIL_LENGTHS.find((length) => String(length) === value);
-                          if (seconds !== undefined) onTrailSeconds(seconds);
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                ))}
-              </div>
             </Setting>
           </Group>
           <Group title="Jugador">
@@ -187,8 +128,15 @@ export function ReplayPreferences({
               {show('flashed')}
               {show('damage')}
             </Setting>
-            <Setting label="Líneas">{show('trajectories')}</Setting>
-            <Setting label="Inventario">{show('held')}</Setting>
+            <Setting label="Líneas">
+              {show('trajectories')}
+              {show('bullets')}
+            </Setting>
+            <Setting label="Inventario">
+              {show('held')}
+              {show('bomb')}
+              {show('kit')}
+            </Setting>
             <Setting label="Tamaño de los puntos">
               <Segmented
                 label="Tamaño de los puntos"
@@ -209,15 +157,13 @@ export function ReplayPreferences({
                 onChange={(names) => onSettings({ ...settings, names })}
               />
             </Setting>
-            <Setting label="Colores del daño">
-              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-fg-2" aria-label="Colores del daño">
-                {HIT_LEGEND.map(([kind, label]) => (
-                  <li key={kind} className="flex items-center gap-1.5">
-                    <span className="h-0.5 w-4 rounded-full" style={{ backgroundColor: `var(${HIT_TOKENS[kind]})` }} aria-hidden />
-                    {label}
-                  </li>
-                ))}
-              </ul>
+            <Setting label="Sensibilidad del zoom">
+              <Segmented
+                label="Sensibilidad del zoom"
+                value={settings.zoom}
+                options={MAP_SIZES.map((size) => ({ value: size, label: ZOOM_SPEED_LABELS[size] }))}
+                onChange={(zoom) => onSettings({ ...settings, zoom })}
+              />
             </Setting>
           </Group>
           <Group title="Rendimiento">

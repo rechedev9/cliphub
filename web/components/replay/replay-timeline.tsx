@@ -5,7 +5,7 @@ import type { ReactNode, RefObject } from 'react';
 import { Bomb, Pause, Play, Repeat } from 'lucide-react';
 import { TACTICAL_EVENT_KINDS, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalEvent, TacticalTimeout } from '@/lib/api/tactical';
-import { isBombKind } from '@/lib/replay/layers';
+import { isBombKind } from '@/lib/replay/event-kinds';
 import { postPlantSpan, timeoutSpans } from '@/lib/replay/map-hud';
 import { SCRUB_STEP_SECONDS } from '@/lib/replay/playback';
 import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
@@ -46,7 +46,6 @@ export function ReplayTimeline({
   onToggleLoop,
   onSeek,
   onScrubbingChange,
-  below,
   tramo,
   timeouts = [],
 }: {
@@ -65,8 +64,6 @@ export function ReplayTimeline({
   onSeek: (seconds: number) => void;
   /** The scrubber is pressed or let go; the release can land outside it, even outside the window. */
   onScrubbingChange: (scrubbing: boolean) => void;
-  /** Drawn under the track on its scale, such as the win probability. */
-  below?: ReactNode;
   /** The span the superposed rounds play in, drawn over the track; absent while one round plays. */
   tramo?: TramoControl;
 }): ReactNode {
@@ -176,7 +173,6 @@ export function ReplayTimeline({
             <QuickTramos tramo={tramo.tramo} onChange={tramo.onChange} plant={false} />
           </div>
         )}
-        {below}
       </div>
       <div className="flex h-10 items-center gap-1">
         <div className="flex items-center rounded-md border border-border-strong bg-surface-1 p-0.5" role="group" aria-label="Velocidad">

@@ -12,7 +12,6 @@ export const MAX_PLAYLIST_FOLDER = 60;
 export const MAX_PLAYLIST_AUTHOR = 60;
 export const MAX_PLAYLIST_COMMENT = 1000;
 export const MAX_PLAYLIST_ROUNDS = 200;
-export const MAX_PLAYLIST_ROUND_NOTES = 20;
 
 /** A note and drawing on a playlist round, anchored to a tick as a match's note is; a new one has no id yet. */
 export type PlaylistNote = { id?: string; tick: number; text: string; strokes: Stroke[] };

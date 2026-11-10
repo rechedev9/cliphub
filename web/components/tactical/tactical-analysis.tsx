@@ -157,7 +157,12 @@ export function TacticalAnalysis({
 
   const tendencies = useTeamTendencies({ source, filter, doc, enabled: sourceKind !== 'library' });
 
-  const rounds = useMemo(() => (doc === null ? [] : filterTacticalRounds(doc.teams, filter, doc.rounds)), [doc, filter]);
+  // The replay of one match has no filters, as in EDGE; the other forms read the rounds the scope kept.
+  const replaying = form === DEFAULT_REPLAY_FORM;
+  const rounds = useMemo(() => {
+    if (doc === null) return [];
+    return replaying ? doc.rounds : filterTacticalRounds(doc.teams, filter, doc.rounds);
+  }, [doc, filter, replaying]);
   // A filter that hides the open round moves to the first one it kept.
   const found = rounds.findIndex((round) => round.number === selectedRound);
   const index = found < 0 ? 0 : found;
@@ -290,7 +295,7 @@ export function TacticalAnalysis({
   return (
     <div ref={rootRef} style={REPLAY_ABOVE} className="flex scroll-mt-[calc(var(--shell-strip-height)+var(--replay-tabs))] flex-col gap-2">
       <TacticalDemoSummary doc={doc} generatedAt={generatedAt} />
-      <ReplayScopeBar doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />
+      {replaying ? null : <ReplayScopeBar doc={doc} filter={filter} onChange={applyFilter} matched={rounds.length} total={doc.rounds.length} />}
       {forms.length > 1 ? <ReplayFormTabs forms={forms} value={form} onChange={setForm} /> : null}
 
       {rounded}

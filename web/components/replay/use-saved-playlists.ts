@@ -1,32 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReplayRef } from '@/lib/analysis/replay-link';
 import { isLibraryNotFound, listLibraryMatches } from '@/lib/api/library';
 import {
-  MAX_PLAYLIST_ROUND_NOTES,
   addPlaylistRounds,
   createPlaylist,
   getPlaylist,
   listPlaylists,
-  patchPlaylistRound,
   removePlaylistRound,
-  type PlaylistNote,
   type SavedPlaylist,
 } from '@/lib/api/playlists';
 import {
   DEFAULT_PLAYLIST_NAME,
   LEGACY_PLAYLIST_KEY,
   TARGET_PLAYLIST_KEY,
-  editRoundNotes,
   holdsRound,
   legacyRoundsToSave,
   parseLegacyPlaylist,
-  playlistRound,
-  roundAnnotations,
   targetPlaylist,
 } from '@/lib/replay/saved-playlist';
-import type { AnnotationStore } from '@/components/tactical/spatial/annotation-panel';
 
 /** Every part of the window that shows a playlist reads it again on this event. */
 const PLAYLISTS_CHANGED = 'cliphub:playlists-changed';
@@ -204,57 +197,4 @@ export function useOpenPlaylist(id: string | null): { playlist: SavedPlaylist | 
     };
   }, [id, attempt]);
   return { playlist: id === null ? null : playlist, replace: setPlaylist };
-}
-
-/**
- * The notes and drawings of the open playlist's round `at`, kept with that
- * round instead of its match, as the Replay's notes panel reads them.
- */
-export function usePlaylistRoundNotes(input: {
-  playlist: SavedPlaylist | null | undefined;
-  at: ReplayRef | undefined;
-  onSaved: (next: SavedPlaylist) => void;
-}): AnnotationStore {
-  const { playlist, at, onSaved } = input;
-  const [error, setError] = useState<string | null>(null);
-  const round = playlist && at ? playlistRound(playlist, at) : undefined;
-  const notes = useMemo(() => (round === undefined ? null : roundAnnotations(round)), [round]);
-
-  const write = useCallback(
-    async (edit: (held: PlaylistNote[]) => PlaylistNote[] | string, failure: string): Promise<boolean> => {
-      if (!playlist || round === undefined) return false;
-      const next = edit(round.notes ?? []);
-      if (typeof next === 'string') {
-        setError(next);
-        return false;
-      }
-      try {
-        onSaved(await patchPlaylistRound({ playlistId: playlist.id, matchId: round.match_id, round: round.round }, { notes: next }));
-        announcePlaylistChange();
-        setError(null);
-        return true;
-      } catch {
-        setError(failure);
-        return false;
-      }
-    },
-    [onSaved, playlist, round],
-  );
-
-  return {
-    notes,
-    error,
-    create: (note) =>
-      write(
-        (held) =>
-          held.length >= MAX_PLAYLIST_ROUND_NOTES
-            ? `Una ronda de la playlist guarda hasta ${MAX_PLAYLIST_ROUND_NOTES} notas. Borra una para guardar otra.`
-            : editRoundNotes(held, { add: { tick: note.tick, text: note.text, strokes: note.strokes } }),
-        'No se pudo guardar la nota en la playlist.',
-      ),
-    update: (id, text) => write((held) => editRoundNotes(held, { id, text }), 'No se pudo editar la nota.'),
-    remove: async (id) => {
-      await write((held) => editRoundNotes(held, { remove: id }), 'No se pudo borrar la nota.');
-    },
-  };
 }

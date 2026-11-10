@@ -76,7 +76,7 @@ function DrawOptions({ draft, mode }: { draft: TelestratorDraft; mode: DrawMode 
 
 /**
  * The row of icon buttons over the round chips: Ajustes, Atajos, Mover,
- * Dibujar, Borrar and GIF / MP4, with the player the map follows. The pencil's
+ * Dibujar, Borrar and GIF, with the player the map follows. The pencil's
  * colours and timed strokes open beside it while a drawing tool is chosen.
  */
 export function ReplayToolbar({
@@ -131,7 +131,7 @@ export function ReplayToolbar({
           </ToolButton>
         </>
       )}
-      <ToolButton pressed={gif.open} aria-expanded={gif.open} onClick={gif.onToggle} title="Exportar el tramo como GIF o MP4 (G)" aria-label="Exportar el tramo como GIF o MP4">
+      <ToolButton pressed={gif.open} aria-expanded={gif.open} onClick={gif.onToggle} title="Grabar el tramo como GIF (G)" aria-label="Grabar el tramo como GIF">
         <Film aria-hidden />
       </ToolButton>
       {draft === null || mode === 'move' ? null : <DrawOptions draft={draft} mode={mode} />}

@@ -13,8 +13,6 @@ export type ReplayShortcut =
   | 'tool-erase'
   | 'tool-timed'
   | 'undo-stroke'
-  | 'fold-left'
-  | 'fold-right'
   | 'play'
   | 'round-prev'
   | 'round-next'
@@ -61,8 +59,6 @@ const CHARACTER_KEYS: Readonly<Record<string, ReplayShortcut>> = {
   T: 'tool-timed',
   z: 'undo-stroke',
   Z: 'undo-stroke',
-  ',': 'fold-left',
-  '.': 'fold-right',
   ' ': 'play',
   '[': 'round-prev',
   ']': 'round-next',

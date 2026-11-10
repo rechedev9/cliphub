@@ -14,7 +14,10 @@ export function SetposNotice({ note }: { note: SetposNote | null }): ReactNode {
           className="flex max-w-full items-center gap-1.5 rounded-md border border-border-strong bg-surface-0/90 px-3 py-1.5 text-body-sm font-medium text-fg-1 shadow-[var(--elev-2)] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1"
         >
           {note.ok ? <Check className="size-4 shrink-0 text-success" aria-hidden /> : <TriangleAlert className="size-4 shrink-0 text-destructive" aria-hidden />}
-          <span className="truncate">{note.text}</span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">{note.text}</span>
+            {note.command === null ? null : <code className="truncate font-mono text-meta font-normal text-fg-2">{note.command}</code>}
+          </span>
         </p>
       )}
     </div>

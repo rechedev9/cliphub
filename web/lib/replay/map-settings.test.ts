@@ -5,7 +5,7 @@ import { DEFAULT_MAP_SETTINGS, floorsSeparated, namesShown, parseMapSettings, to
 test('stored map settings keep what is valid and default the rest', () => {
   assert.deepEqual(parseMapSettings(null), DEFAULT_MAP_SETTINGS);
   assert.deepEqual(parseMapSettings('not json'), DEFAULT_MAP_SETTINGS);
-  assert.deepEqual(parseMapSettings('{"art":"real","dots":"xl","names":"s"}'), { ...DEFAULT_MAP_SETTINGS, art: 'real', dots: 'xl', names: 's' });
+  assert.deepEqual(parseMapSettings('{"dots":"xl","names":"s"}'), { ...DEFAULT_MAP_SETTINGS, dots: 'xl', names: 's' });
   assert.equal(parseMapSettings('{"dots":"huge"}').dots, 'm');
   assert.equal(parseMapSettings('{"floors":"one"}').floors, 'one');
   assert.equal(parseMapSettings('{"floors":"three"}').floors, 'both');
@@ -26,10 +26,8 @@ test('names are switched for the mode on screen only', () => {
   assert.deepEqual(parseMapSettings(JSON.stringify(multiOff)), multiOff);
 });
 
-test('Nombres de zonas is off unless the stored settings turn it on, and the old floors words keep reading', () => {
-  assert.equal(DEFAULT_MAP_SETTINGS.show.zones, false);
-  assert.equal(parseMapSettings('{"show":{"killfeed":false}}').show.zones, false);
-  assert.equal(parseMapSettings('{"show":{"zones":true}}').show.zones, true);
+test('settings the replay no longer has are ignored, and the old floors words keep reading', () => {
+  assert.deepEqual(parseMapSettings('{"art":"real","show":{"zones":true,"killfeed":false}}'), { ...DEFAULT_MAP_SETTINGS, show: { ...DEFAULT_MAP_SETTINGS.show, killfeed: false } });
   assert.equal(floorsSeparated(parseMapSettings('{"floors":"both"}')), true);
   assert.equal(floorsSeparated(parseMapSettings('{"floors":"one"}')), false);
   assert.equal(floorsSeparated(DEFAULT_MAP_SETTINGS), true);

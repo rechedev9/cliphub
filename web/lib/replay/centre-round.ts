@@ -1,8 +1,6 @@
 import type { TacticalDocument, TacticalFrame, TacticalRound } from '../api/tactical.ts';
 import { roundTimeline, timelineEvents } from '../tactical-timeline.ts';
 import type { RoundTimeline, TimelineEvent } from '../tactical-timeline.ts';
-import { layerEvents, layerLabels } from './layers.ts';
-import type { ReplayLayers } from './layers.ts';
 import { tagName } from './tag-layout.ts';
 
 /** One round the centre draws: the focused one, plus the superposed ones in multi-round mode. */
@@ -15,9 +13,9 @@ export type CentreRound = {
   /** Decoded position frames; empty when the analysis stored none for this round. */
   frames: readonly TacticalFrame[];
   timeline: RoundTimeline;
-  /** On the round's own bar, already filtered by the layers. */
+  /** On the round's own bar. */
   events: readonly TimelineEvent[];
-  /** Name tags by slot; empty with the names layer off. */
+  /** Name tag text by slot; empty with Mostrar nombres off. */
   labels: ReadonlyMap<number, string>;
   focused: boolean;
 };
@@ -39,7 +37,7 @@ export function centreRound(options: {
   doc: TacticalDocument;
   round: TacticalRound;
   frames: readonly TacticalFrame[];
-  layers: ReplayLayers;
+  names: boolean;
   focused: boolean;
 }): CentreRound {
   const timeline = roundTimeline(options.round, options.doc.demo.tickrate);
@@ -50,8 +48,8 @@ export function centreRound(options: {
     round: options.round,
     frames: options.frames,
     timeline,
-    events: layerEvents(timelineEvents(timeline, options.round.events), options.layers),
-    labels: layerLabels(docLabels(options.doc), options.layers),
+    events: timelineEvents(timeline, options.round.events),
+    labels: options.names ? docLabels(options.doc) : new Map(),
     focused: options.focused,
   };
 }

@@ -1,12 +1,3 @@
-export const MAP_ARTS = ['scheme', 'official', 'real'] as const;
-export type MapArtSource = (typeof MAP_ARTS)[number];
-
-export const MAP_ART_LABELS: Record<MapArtSource, string> = {
-  scheme: 'Esquema',
-  official: 'Radar oficial',
-  real: 'Mapa real',
-};
-
 export const MAP_SIZES = ['s', 'm', 'l'] as const;
 export type MapSize = (typeof MAP_SIZES)[number];
 
@@ -48,19 +39,24 @@ export function frameRateLabel(rate: FrameRate): string {
   return rate === 0 ? 'Sin límite' : String(rate);
 }
 
-/** What the map draws on and around the players, each on or off. */
-export const MAP_SHOWS = ['killfeed', 'scoreline', 'flashed', 'damage', 'trajectories', 'held', 'zones'] as const;
+/** What the replay draws on and around the players and on its timeline, each on or off. */
+export const MAP_SHOWS = ['killfeed', 'scoreline', 'flashed', 'damage', 'trajectories', 'bullets', 'held', 'bomb', 'kit', 'tlEvents', 'tlUtility', 'tlKills'] as const;
 export type MapShow = (typeof MAP_SHOWS)[number];
 export type MapShows = Readonly<Record<MapShow, boolean>>;
 
 export const MAP_SHOW_LABELS: Record<MapShow, string> = {
   killfeed: 'Feed de bajas',
   scoreline: 'Marcador arriba',
-  flashed: 'Cegados',
+  flashed: 'Cegado',
   damage: 'Daño recibido',
-  trajectories: 'Trayectorias',
-  held: 'Utilidad, bomba y kit',
-  zones: 'Nombres de zonas',
+  trajectories: 'Trayectorias de granadas',
+  bullets: 'Trazas de disparo',
+  held: 'Utilidad en mano',
+  bomb: 'Bomba',
+  kit: 'Kit de desactivación',
+  tlEvents: 'Eventos',
+  tlUtility: 'Utilidades',
+  tlKills: 'Bajas',
 };
 
 export const MAP_SHOW_HINTS: Record<MapShow, string> = {
@@ -69,13 +65,17 @@ export const MAP_SHOW_HINTS: Record<MapShow, string> = {
   flashed: 'Un centro blanco en el punto de quien está cegado',
   damage: 'Un aro rojo en el punto de quien acaba de recibir daño',
   trajectories: 'La parábola de cada granada mientras vuela',
-  held: 'Las granadas que lleva cada jugador, la bomba y el kit',
-  zones: 'Los nombres de los lugares, las bombsites y los spawns sobre el mapa de esquema',
+  bullets: 'Una línea del atacante a la víctima en cada impacto',
+  held: 'Un punto bajo cada jugador por cada granada que lleva',
+  bomb: 'La bomba en el punto de quien la lleva',
+  kit: 'El kit de desactivación en el punto de quien lo lleva',
+  tlEvents: 'Las marcas de la bomba en la línea de tiempo',
+  tlUtility: 'Una marca por cada granada en la línea de tiempo',
+  tlKills: 'Una marca por cada baja en la línea de tiempo',
 };
 
 /** How the Replay's map is drawn, kept per user across matches. Names are on or off per mode. */
 export type MapSettings = {
-  art: MapArtSource;
   dots: DotSize;
   names: MapSize;
   floors: MapFloors;
@@ -86,9 +86,22 @@ export type MapSettings = {
   namesMulti: boolean;
 };
 
-const DEFAULT_SHOWS: MapShows = { killfeed: true, scoreline: true, flashed: true, damage: true, trajectories: true, held: true, zones: false };
+const DEFAULT_SHOWS: MapShows = {
+  killfeed: true,
+  scoreline: true,
+  flashed: true,
+  damage: true,
+  trajectories: true,
+  bullets: true,
+  held: true,
+  bomb: true,
+  kit: true,
+  tlEvents: true,
+  tlUtility: true,
+  tlKills: true,
+};
 
-export const DEFAULT_MAP_SETTINGS: MapSettings = { art: 'scheme', dots: 'm', names: 'm', floors: 'both', zoom: 'm', fps: 0, show: DEFAULT_SHOWS, namesOne: true, namesMulti: true };
+export const DEFAULT_MAP_SETTINGS: MapSettings = { dots: 'm', names: 'm', floors: 'both', zoom: 'm', fps: 0, show: DEFAULT_SHOWS, namesOne: true, namesMulti: true };
 
 export const MAP_SETTINGS_KEY = 'cliphub.replay.map';
 
@@ -96,7 +109,7 @@ function oneOf<T extends string>(values: readonly T[], value: unknown, fallback:
   return values.find((entry) => entry === value) ?? fallback;
 }
 
-/** Reads stored settings; anything missing or unknown falls back to the default. */
+/** Reads stored settings; anything missing or unknown, such as a setting the replay no longer has, falls back to the default or is ignored. */
 export function parseMapSettings(raw: string | null): MapSettings {
   if (raw === null) return DEFAULT_MAP_SETTINGS;
   let parsed: unknown;
@@ -106,9 +119,8 @@ export function parseMapSettings(raw: string | null): MapSettings {
     return DEFAULT_MAP_SETTINGS;
   }
   if (typeof parsed !== 'object' || parsed === null) return DEFAULT_MAP_SETTINGS;
-  const stored: { art?: unknown; dots?: unknown; names?: unknown; floors?: unknown; zoom?: unknown; fps?: unknown; show?: unknown; namesOne?: unknown; namesMulti?: unknown } = parsed;
+  const stored: { dots?: unknown; names?: unknown; floors?: unknown; zoom?: unknown; fps?: unknown; show?: unknown; namesOne?: unknown; namesMulti?: unknown } = parsed;
   return {
-    art: oneOf(MAP_ARTS, stored.art, DEFAULT_MAP_SETTINGS.art),
     dots: oneOf(DOT_SIZES, stored.dots, DEFAULT_MAP_SETTINGS.dots),
     names: oneOf(MAP_SIZES, stored.names, DEFAULT_MAP_SETTINGS.names),
     floors: oneOf(MAP_FLOORS, stored.floors, DEFAULT_MAP_SETTINGS.floors),

@@ -1,19 +1,18 @@
 'use client';
 
 import type { MouseEvent, ReactNode } from 'react';
-import { Crosshair, Eye, EyeOff, Video } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { GRENADE_CATEGORIES, equipmentItem, rowInventory } from '@/lib/replay/equipment';
 import type { PlayerCard } from '@/lib/replay/player-cards';
-import { Button, FOCUS_RING } from '@/components/ui/button';
+import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDecimal } from '@/lib/format';
 import { inFocus } from '@/lib/replay/player-focus';
 import type { PlayerFocus } from '@/lib/replay/player-focus';
 import { EquipmentIcon, GearGlyph } from './equipment-icon';
-import { AllTeamRow, FOLLOW_HINT } from './replay-players';
-import { RowAction } from './round-logs';
+import { FOLLOW_HINT } from './replay-players';
 
 const money = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
 
@@ -36,7 +35,7 @@ function Utility({ card }: { card: PlayerCard }): ReactNode {
   const grenades = card.inventory === null ? [] : rowInventory(card.inventory).filter((item) => GRENADE_CATEGORIES.has(item.category));
   const bomb = card.hasBomb || (card.inventory?.some((entry) => entry.item === 'c4') ?? false);
   return (
-    <span className="flex shrink-0 items-center gap-1 text-fg-2">
+    <span className="flex min-w-0 items-center gap-1 text-fg-2">
       {grenades.map((item, index) => (
         <EquipmentIcon key={`${item.id}-${index}`} name={item.id} />
       ))}
@@ -53,38 +52,31 @@ function Utility({ card }: { card: PlayerCard }): ReactNode {
 
 function PlayerRow({
   card,
-  hidden,
   selected,
   dimmed,
   onSelect,
-  onToggle,
-  onRecordPov,
 }: {
   card: PlayerCard;
-  hidden: boolean;
   selected: boolean;
   /** Others are in the foreground and this player is not. */
   dimmed: boolean;
   onSelect: (event: MouseEvent) => void;
-  onToggle: () => void;
-  onRecordPov: (() => void) | null;
 }): ReactNode {
   const health = card.health ?? 0;
   const armorLabel = card.helmet === true ? 'Chaleco y casco' : 'Chaleco';
   return (
     <li
       className={cn(
-        'group relative flex flex-col gap-1 rounded-sm px-2 py-1.5 transition-[background-color,opacity] duration-(--dur-fast)',
+        'relative flex min-w-0 flex-col gap-1 rounded-sm px-2 py-1.5 transition-[background-color,opacity] duration-(--dur-fast)',
         selected ? 'bg-surface-4' : 'hover:bg-surface-3',
         (!card.alive || dimmed) && 'opacity-45',
-        hidden && 'opacity-35',
       )}
     >
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
-        aria-label={`${selected ? 'Quitar del primer plano' : 'Poner en primer plano'} a ${card.name}`}
+        aria-label={`${selected ? 'Quitar del primer plano' : 'Poner en primer plano'} a ${card.name} y copiar su setpos`}
         title={FOLLOW_HINT}
         className={cn('absolute inset-0 rounded-sm outline-none', FOCUS_RING)}
       />
@@ -118,23 +110,13 @@ function PlayerRow({
         </span>
       </span>
       <span className="pointer-events-none relative flex min-w-0 items-center gap-2">
-        <span className="flex items-center gap-1 text-meta tabular-nums text-fg-2">
+        <span className="flex shrink-0 items-center gap-1 text-meta tabular-nums text-fg-2">
           {card.alive && card.armor !== null && card.armor > 0 ? <GearGlyph kind={card.helmet === true ? 'helmet' : 'armor'} label={`${armorLabel} (${card.armor})`} /> : null}
           ${money.format(card.money)}
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto min-w-0 overflow-hidden">
           <Utility card={card} />
         </span>
-      </span>
-      <span className="absolute top-1 right-1 hidden items-center gap-0.5 rounded-sm bg-surface-3 group-focus-within:flex group-hover:flex">
-        {onRecordPov === null ? null : (
-          <RowAction label={`Grabar su POV de esta ronda (${card.name})`} pressed={false} onClick={onRecordPov}>
-            <Video aria-hidden />
-          </RowAction>
-        )}
-        <RowAction label={hidden ? `Devolver a ${card.name} al mapa` : `Atenuar a ${card.name} en el mapa`} pressed={!hidden} onClick={onToggle}>
-          {hidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-        </RowAction>
       </span>
     </li>
   );
@@ -143,52 +125,32 @@ function PlayerRow({
 /**
  * Both teams at the playhead as two cards, each outlined in its side's colour,
  * with the team and its score on top and three lines per player. A click leaves
- * that player in the foreground, Shift and click adds another, and the first
- * row gives the whole team back.
+ * that player in the foreground and copies their setpos, Shift and click adds another.
  */
 export function PlayerPanel({
   sides,
   teamNames,
   teamScores,
-  hiddenSlots,
   focus,
   onPick,
-  onFocus,
-  onTogglePlayer,
-  onShowAll,
-  pov,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   teamNames: Readonly<Record<TacticalSide, string>>;
   /** Rounds each side's team has won before the round shown. */
   teamScores: Readonly<Record<TacticalSide, number>>;
-  hiddenSlots: readonly number[];
   focus: PlayerFocus;
   onPick: (slot: number, additive: boolean) => void;
-  onFocus: (focus: number[]) => void;
-  onTogglePlayer: (slot: number) => void;
-  onShowAll: () => void;
-  /** Library matches only: a row can record that player's POV of the round shown. */
-  pov: { onRecord: (slot: number) => void } | null;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
     { side: TACTICAL_SIDES.t, cards: sides.t },
   ];
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <AllTeamRow focus={focus} onChange={onFocus} />
-        {hiddenSlots.length === 0 ? null : (
-          <Button type="button" size="xs" variant="ghost" onClick={onShowAll} className="h-6">
-            Mostrar {hiddenSlots.length === 1 ? 'el atenuado' : `los ${hiddenSlots.length} atenuados`}
-          </Button>
-        )}
-      </div>
+    <div className="flex min-w-0 flex-col gap-2">
       {groups.map(({ side, cards }) => {
         const alive = cards.filter((card) => card.alive).length;
         return (
-          <section key={side} aria-label={`${teamNames[side]}, lado ${side}`} className={cn('flex flex-col rounded-sm border', CARD_EDGE[side])}>
+          <section key={side} aria-label={`${teamNames[side]}, lado ${side}`} className={cn('flex min-w-0 flex-col overflow-hidden rounded-sm border', CARD_EDGE[side])}>
             <h3 className="flex items-center gap-2 px-2 pt-1.5 pb-1">
               <span className="min-w-0 flex-1 truncate text-body-sm font-bold text-fg-1">{teamNames[side]}</span>
               <span className="text-meta tabular-nums text-fg-3" title="Jugadores vivos">
@@ -199,17 +161,14 @@ export function PlayerPanel({
                 <span className="sr-only">{teamScores[side]} rondas ganadas antes de esta</span>
               </span>
             </h3>
-            <ul className="flex flex-col px-0.5 pb-0.5">
+            <ul className="flex min-w-0 flex-col px-0.5 pb-0.5">
               {cards.map((card) => (
                 <PlayerRow
                   key={card.slot}
                   card={card}
-                  hidden={hiddenSlots.includes(card.slot)}
                   selected={focus.includes(card.slot)}
                   dimmed={!inFocus(focus, card.slot)}
                   onSelect={(event) => onPick(card.slot, event.shiftKey)}
-                  onToggle={() => onTogglePlayer(card.slot)}
-                  onRecordPov={pov === null ? null : () => pov.onRecord(card.slot)}
                 />
               ))}
             </ul>

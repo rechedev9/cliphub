@@ -11,7 +11,6 @@ const PLAYBACK: readonly Shortcut[] = [
   { keys: ['[', ']'], or: ['J', 'K'], does: 'Ronda anterior o siguiente' },
   { keys: ['M'], does: 'Superponer rondas, o dejar de hacerlo' },
   { keys: ['B'], does: 'Añadir la ronda a la última playlist elegida, o quitarla' },
-  { keys: [',', '.'], does: 'Plegar el panel de la ronda o el de jugadores' },
   { keys: ['P'], does: 'Pantalla completa; otra vez o Esc para salir' },
   { keys: ['?'], does: 'Mostrar estos atajos' },
 ];
@@ -20,8 +19,8 @@ const MAP: readonly Shortcut[] = [
   { keys: ['Clic'], does: 'Dejar a un jugador en primer plano; los demás quedan translúcidos' },
   { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
   { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
-  { keys: ['S'], or: ['Clic derecho'], does: 'Copiar el setpos del jugador bajo el cursor' },
-  { keys: ['G'], does: 'Abrir la exportación del tramo (GIF o MP4); otra vez para exportar el GIF' },
+  { keys: ['S'], or: ['Clic derecho'], does: 'Copiar el setpos del jugador bajo el cursor (un clic en un jugador también lo copia)' },
+  { keys: ['G'], does: 'Abrir la grabación del tramo; otra vez para grabar el GIF' },
   { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
   { keys: ['Arrastrar'], does: 'Mover el mapa' },

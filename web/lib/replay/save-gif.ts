@@ -1,5 +1,5 @@
 /**
- * Where the Replay's GIF or MP4 goes. In Studio the desktop asks where to save it the
+ * Where the Replay's GIF goes. In Studio the desktop asks where to save it the
  * moment the user clicks, while the click still counts as theirs, then writes
  * the finished file there. A plain browser has no bridge and downloads it.
  */
@@ -15,7 +15,6 @@ export type GifWrite = { readonly kind: 'saved'; readonly name: string } | { rea
 type Format = { pick: string; write: string; failed: string };
 
 const GIF: Format = { pick: 'pickGif', write: 'writeGif', failed: 'No se pudo guardar el GIF.' };
-const VIDEO: Format = { pick: 'pickVideo', write: 'writeVideo', failed: 'No se pudo guardar el MP4.' };
 
 type Call = (...args: unknown[]) => Promise<unknown>;
 
@@ -69,14 +68,4 @@ export function pickGifTarget(fileName: string, scope: object = globalThis): Pro
 /** Writes the finished GIF where the user chose; `name` is the file's name, without its folder. */
 export function writeGifTarget(token: string, bytes: Uint8Array, scope: object = globalThis): Promise<GifWrite> {
   return writeTarget({ token, bytes, scope, format: GIF });
-}
-
-/** Asks the desktop where to save the MP4; call it straight from the click. */
-export function pickVideoTarget(fileName: string, scope: object = globalThis): Promise<GifTarget> {
-  return pickTarget({ fileName, scope, format: VIDEO });
-}
-
-/** Writes the finished MP4 where the user chose. */
-export function writeVideoTarget(options: { token: string; bytes: Uint8Array; scope?: object }): Promise<GifWrite> {
-  return writeTarget({ token: options.token, bytes: options.bytes, scope: options.scope ?? globalThis, format: VIDEO });
 }

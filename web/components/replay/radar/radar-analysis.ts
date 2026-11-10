@@ -1,14 +1,9 @@
-import { TACTICAL_SAMPLE_FLAGS, TACTICAL_SIDES, hasSampleFlags } from '@/lib/api/tactical';
-import type { RadarCalibration, TacticalSample, TacticalSide } from '@/lib/api/tactical';
+import type { RadarCalibration, TacticalSample } from '@/lib/api/tactical';
 import type { HitLine } from '@/lib/replay/hit-lines';
-import type { FrameSight } from '@/lib/replay/sight-lines';
 import { worldToRendered } from '@/lib/tactical-transform';
 import type { RadarPoint } from '@/lib/tactical-transform';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { formatDecimal } from '@/lib/format';
-
-/** What the analysis layers add to one frame of the focused round. */
-export type FrameAnalysis = { sight: FrameSight | null; hits: readonly HitLine[] };
 
 /** Where the other floor's pane lies from this one, so a line to a player there ends in a stub toward it. */
 export type AcrossFloors = { dx: number; dy: number; label: string; slots: ReadonlySet<number> };
@@ -61,76 +56,10 @@ function drawStub(canvas: Canvas, options: { from: RadarPoint; color: string; wi
   ctx.globalAlpha = 1;
 }
 
-function sideOf(sample: TacticalSample): TacticalSide {
-  return hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.sideT) ? TACTICAL_SIDES.t : TACTICAL_SIDES.ct;
-}
-
-function colorOf(canvas: Canvas, side: TacticalSide): string {
-  return side === TACTICAL_SIDES.ct ? canvas.style.ct : canvas.style.t;
-}
-
-function placed(canvas: Canvas): Map<number, { at: RadarPoint; side: TacticalSide }> {
-  const out = new Map<number, { at: RadarPoint; side: TacticalSide }>();
-  for (const sample of canvas.samples) out.set(sample.slot, { at: worldToRendered(canvas.calibration, sample.x, sample.y, canvas.size), side: sideOf(sample) });
+function placed(canvas: Canvas): Map<number, { at: RadarPoint }> {
+  const out = new Map<number, { at: RadarPoint }>();
+  for (const sample of canvas.samples) out.set(sample.slot, { at: worldToRendered(canvas.calibration, sample.x, sample.y, canvas.size) });
   return out;
-}
-
-/** Each living player's view across the real field of view, stopped at the first wall. */
-export function drawViewWedges(canvas: Canvas, sight: FrameSight): void {
-  const { ctx } = canvas;
-  const players = placed(canvas);
-  for (const [slot, points] of sight.wedges) {
-    const player = players.get(slot);
-    if (player === undefined || points.length < 2) continue;
-    const corners = points.map((point) => worldToRendered(canvas.calibration, point.x, point.y, canvas.size));
-    const reach = Math.max(...corners.map((corner) => Math.hypot(corner.x - player.at.x, corner.y - player.at.y)), 1);
-    const gradient = ctx.createRadialGradient(player.at.x, player.at.y, 0, player.at.x, player.at.y, reach);
-    gradient.addColorStop(0, colorOf(canvas, player.side));
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.globalAlpha = 0.24;
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(player.at.x, player.at.y);
-    for (const corner of corners) ctx.lineTo(corner.x, corner.y);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-/**
- * A thin line between enemies with nothing between them: white when both look
- * at each other, the watcher's colour when only one does, dashed when neither.
- */
-export function drawSightPairs(canvas: Canvas, sight: FrameSight): void {
-  const { ctx } = canvas;
-  const players = placed(canvas);
-  ctx.lineCap = 'round';
-  for (const pair of sight.pairs) {
-    const a = players.get(pair.a);
-    const b = players.get(pair.b);
-    const stub = stubbed(canvas, { a, b, slotA: pair.a, slotB: pair.b });
-    const here = a ?? b;
-    if (stub !== null && here !== undefined) {
-      const looked = stub.here === pair.a ? pair.aSees : pair.bSees;
-      drawStub(canvas, { from: here.at, color: colorOf(canvas, here.side), width: 1, alpha: looked ? 0.7 : 0.35 });
-      continue;
-    }
-    if (a === undefined || b === undefined) continue;
-    let color = '#f2f4f6';
-    if (pair.aSees !== pair.bSees) color = colorOf(canvas, pair.aSees ? a.side : b.side);
-    const looked = pair.aSees || pair.bSees;
-    ctx.globalAlpha = looked ? 0.85 : 0.4;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = looked ? 1.5 : 1;
-    ctx.setLineDash(looked ? [] : [4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(a.at.x, a.at.y);
-    ctx.lineTo(b.at.x, b.at.y);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.globalAlpha = 1;
 }
 
 /** Attacker to victim, with a head at the victim, fading over the line's second. */

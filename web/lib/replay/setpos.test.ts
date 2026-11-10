@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TacticalFrame, TacticalSample } from '../api/tactical.ts';
 import { roundTimeline } from '../tactical-timeline.ts';
-import { playerSetpos, withSetpos } from './setpos.ts';
+import { playerSetpos } from './setpos.ts';
 
 const sample = (slot: number, x: number, extra: Partial<TacticalSample> = {}): TacticalSample => ({ slot, x, y: 20, z: -167.97, yaw: 291.89, pitch: 352.62, health: 100, flags: 1, ...extra });
 const frames: TacticalFrame[] = [
@@ -27,10 +27,4 @@ test('playerSetpos falls back to the earlier sample, and gives null without one'
   assert.equal(playerSetpos({ ...base, slot: 5, tick: 1007 })?.name, 'Jugador 5');
   assert.equal(playerSetpos({ ...base, slot: 9, tick: 1004 }), null);
   assert.equal(playerSetpos({ ...base, frames: [], slot: 4, tick: 1004 }), null);
-});
-
-test('withSetpos puts a new line on top and moves a repeated one up', () => {
-  const one = withSetpos([], { name: 'a', at: 'R1', command: 'x' });
-  const two = withSetpos(one, { name: 'b', at: 'R1', command: 'y' });
-  assert.deepEqual(withSetpos(two, { name: 'a', at: 'R2', command: 'x' }).map((entry) => [entry.name, entry.at]), [['a', 'R2'], ['b', 'R1']]);
 });
