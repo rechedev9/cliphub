@@ -71,6 +71,23 @@ func TestTeamHeatmapPathCarriesTheTeamScope(t *testing.T) {
 	}
 }
 
+func TestRestrictToAreaKeepsTheCellsInTheZoneAndFloor(t *testing.T) {
+	got := tuiclient.SpatialHeatmap{Heatmap: &tacticalplan.Heatmap{CellSize: 100, Cells: []tacticalplan.HeatmapCell{
+		{X: 1, Y: 1, Count: 3}, {X: 5, Y: 5, Count: 9}, {X: 1, Y: 1, Level: "lower", Count: 2},
+	}}}
+	area := &tacticalplan.PatternArea{MinX: 0, MinY: 0, MaxX: 300, MaxY: 300, Level: "lower"}
+	if cells := restrictToArea(got, area).Heatmap.Cells; len(cells) != 1 || cells[0].Count != 2 {
+		t.Fatalf("lower area cells = %+v, want the lower cell in the zone", cells)
+	}
+	area.Level = ""
+	if cells := restrictToArea(got, area).Heatmap.Cells; len(cells) != 2 {
+		t.Fatalf("both floors cells = %+v, want the two cells in the zone", cells)
+	}
+	if len(got.Heatmap.Cells) != 3 {
+		t.Fatal("the answer was changed in place")
+	}
+}
+
 func TestSummarizeHeatmapNamesAndSumsTheHottestCells(t *testing.T) {
 	match := uuid.New()
 	got := tuiclient.SpatialHeatmap{

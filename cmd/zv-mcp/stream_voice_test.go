@@ -7,7 +7,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-func TestDescribePlayScanListsVoicePeaksAndNeverExceedsTheLimit(t *testing.T) {
+func TestDescribePlayScanListsVoicePeaksAndKeepsMarkedOnesPastTheLimit(t *testing.T) {
 	scan := tuiclient.StreamPlayScan{
 		Status: playScanDone,
 		Plays: []tuiclient.StreamPlay{
@@ -19,8 +19,8 @@ func TestDescribePlayScanListsVoicePeaksAndNeverExceedsTheLimit(t *testing.T) {
 		Voice: &tuiclient.StreamVoiceScan{Enabled: true, Sensitivity: 3, Status: "done", Peaks: 2, Mix: true},
 	}
 	out := describePlayScan(scan, 1)
-	if out.Total != 4 || len(out.Plays) != 1 {
-		t.Fatalf("plays = %+v, want exactly the limit of 1", out.Plays)
+	if out.Total != 4 || len(out.Plays) != 3 || out.Plays[1].PlayID != "voice-001" || out.Plays[2].PlayID != "voice-002" {
+		t.Fatalf("plays = %+v, want the best play and both marked shouts past the limit of 1", out.Plays)
 	}
 	if out.Plays[0].PlayID != "play-001" || !out.Plays[0].VoicePeak || !strings.Contains(out.Plays[0].Note, "raised the score") {
 		t.Fatalf("best play = %+v", out.Plays[0])
