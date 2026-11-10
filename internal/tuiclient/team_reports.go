@@ -195,7 +195,8 @@ func (c *Client) TeamPrepReport(ctx context.Context, teamID string, q AnalysisQu
 // TeamGrenades is GET /api/library/teams/{id}/grenades.
 type TeamGrenades struct {
 	tacticalplan.TeamGrenades
-	Skipped []AnalysisSkipped `json:"skipped"`
+	Skipped      []AnalysisSkipped `json:"skipped"`
+	AWPEstimated int               `json:"awp_estimated"`
 }
 
 // TeamGrenadeQuery names the team, the matches and rounds, the kinds (all when

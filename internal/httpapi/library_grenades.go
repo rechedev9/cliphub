@@ -39,8 +39,8 @@ func grenadeQuery(q url.Values) (tacticalplan.GrenadeQuery, error) {
 
 // ListLibraryTeamGrenades handles GET /api/library/teams/{id}/grenades: every
 // grenade the team threw, where from, where it landed and what the team did
-// after it, with every round the filter kept. It takes the scout filter (map,
-// side, from, to, opponent_id, match_id, lineup), a repeatable kind and
+// after it, with every round the filter kept. It takes the scout filter with the
+// team scope (teamScopeQuery, read from the team's side), a repeatable kind and
 // opponents=1 for the grenades of the team's rivals in the same rounds. The
 // map is required, since the follow-up reads every position of each round.
 func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Request) {

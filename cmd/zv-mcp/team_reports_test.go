@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -74,12 +74,19 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 		if r.URL.Query().Get("opponents") == "1" {
 			round = strings.Replace(round, `"buy":"%s"`, `"buy":"eco"`, 1)
 		}
-		rounds := fmt.Sprintf(round, 1, "full", true, "") + `,` + fmt.Sprintf(round, 2, "full", true, "") + `,` +
-			fmt.Sprintf(round, 3, "eco", false, `,"plant_seconds":50`) + `,` + fmt.Sprintf(round, 4, "full", false, "")
-		_, _ = w.Write([]byte(`{"rounds":4,"round_list":[` + rounds + `],"skipped":[],"grenades":[` + row("1", "5", "smoke", grenadeA, "smoke:one") + `,` +
-			row("1", "7", "smoke", grenadeB, "smoke:two") + `,` + row("2", "3", "flash", grenadeA, "flash:three") + `,` +
-			strings.Replace(row("2", "9", "smoke", grenadeA, "smoke:one"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1) + `,` +
-			row("3", "60", "smoke", grenadeB, "smoke:two") + `]}`))
+		rounds := []string{fmt.Sprintf(round, 1, "full", true, ""), fmt.Sprintf(round, 2, "full", true, ""),
+			fmt.Sprintf(round, 3, "eco", false, `,"plant_seconds":50`), fmt.Sprintf(round, 4, "full", false, "")}
+		grenades := []string{row("1", "5", "smoke", grenadeA, "smoke:one"), row("1", "7", "smoke", grenadeB, "smoke:two"),
+			row("2", "3", "flash", grenadeA, "flash:three"),
+			strings.Replace(row("2", "9", "smoke", grenadeA, "smoke:one"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1),
+			row("3", "60", "smoke", grenadeB, "smoke:two")}
+		// Like the server, buy keeps the rounds of the team's own buy, also with opponents: round 3 is the only eco.
+		if r.URL.Query().Get("buy") == "full" {
+			rounds = slices.Delete(rounds, 2, 3)
+			grenades = grenades[:4]
+		}
+		_, _ = w.Write([]byte(`{"rounds":` + strconv.Itoa(len(rounds)) + `,"round_list":[` + strings.Join(rounds, ",") + `],"skipped":[],"grenades":[` +
+			strings.Join(grenades, ",") + `]}`))
 	})
 	mux.HandleFunc("GET /api/library/maps/de_nuke/callouts", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"map":"de_nuke","callouts":[{"token":"Ramp","name":"Rampa"},{"token":"Hut"}]}`))
@@ -224,13 +231,13 @@ func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
 	}
 
 	var full teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": "full", "players": []string{grenadeB}}, &full)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": []string{"full"}, "players": []string{grenadeB}}, &full)
 	if full.Rounds != 3 || full.Total != 1 || full.MatchingRounds != 1 || full.Grenades[0].Ref != testMatchID+"/1" {
 		t.Errorf("full buys of B = %+v, want B's one smoke over the 3 full rounds", full)
 	}
 	// With the rivals' utility, buy still reads the scouted team's buy.
 	var rivals teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": "full", "opponents": true}, &rivals)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": []string{"full"}, "opponents": true}, &rivals)
 	if rivals.Rounds != 3 {
 		t.Errorf("opponents with the team's full buys = %d rounds, want 3", rivals.Rounds)
 	}
@@ -240,20 +247,18 @@ func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
 	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "players": []string{"zywoo"}}, "is not a SteamID64")
 }
 
-func TestNewestMatchesKeepsTheLimitNewestFirst(t *testing.T) {
-	at := func(id, day, rival string) tuiclient.LibraryMatch {
-		played, _ := time.Parse(time.DateOnly, day)
-		return tuiclient.LibraryMatch{ID: id, PlayedAt: played, Teams: []tuiclient.LibraryMatchTeam{{TeamID: testTeamID}, {TeamID: rival}}}
+func TestTeamGrenadesSendsTheTeamScope(t *testing.T) {
+	in := teamGrenadesIn{TeamID: testTeamID, Opponents: true, analysisFilterIn: analysisFilterIn{Map: "de_nuke"},
+		teamScopeIn: teamScopeIn{teamRoundScopeIn: teamRoundScopeIn{MaxMatches: 5, Buy: []string{"full"}, AWP: "with", OpponentTop: 30, RoundFrom: 3}}}
+	read, err := in.read()
+	if err != nil {
+		t.Fatal(err)
 	}
-	list := []tuiclient.LibraryMatch{at("a", "2026-10-01", "x"), at("c", "2026-10-03", "y"), at("b", "2026-10-02", "x")}
-	if got := newestMatches(list, tuiclient.AnalysisQuery{}, newestOptions{teamID: testTeamID, limit: 2}); fmt.Sprint(got) != "[c b]" {
-		t.Errorf("newest 2 = %v, want [c b]", got)
+	if got := read.Query.Scope.Encode(); got != "awp=with&buy=full&max_matches=5&opponent_top=30&round_from=3" {
+		t.Errorf("scope = %s, want the team scope keys every team tool sends", got)
 	}
-	if got := newestMatches(list, tuiclient.AnalysisQuery{Opponents: []string{"x"}}, newestOptions{teamID: testTeamID, limit: 1}); fmt.Sprint(got) != "[b]" {
-		t.Errorf("newest vs x = %v, want [b]", got)
-	}
-	if got := newestMatches(list, tuiclient.AnalysisQuery{}, newestOptions{teamID: testTeamID, limit: 3}); got != nil {
-		t.Errorf("a limit the scope fits = %v, want every match", got)
+	if !read.Opponents {
+		t.Error("opponents was dropped")
 	}
 }
 
