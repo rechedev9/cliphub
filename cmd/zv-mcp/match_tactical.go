@@ -224,7 +224,7 @@ func registerMatchTacticalTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, tendenciesOut{}, toolError(err)
 			}
-			return nil, summarizeTendencies(t), nil
+			return nil, summarizeTendencies(t, nil), nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "integrity_dossier", Annotations: readOnly,

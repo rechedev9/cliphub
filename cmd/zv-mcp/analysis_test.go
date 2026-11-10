@@ -94,7 +94,7 @@ func fakeAnalysisStudio(t *testing.T) *mcp.ClientSession {
 	})
 	mux.HandleFunc("GET /api/library/teams/"+testTeamID+"/plays", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"team_name":"Vitality","matches":1,"rounds":2,"compared":2,"plays":[{"map":"de_nuke","side":"CT","kind":"hold","site":"A","rounds":24,
-			"seed":{"match_id":"` + testMatchID + `","round":1},"examples":[{"match_id":"` + testMatchID + `","round":1}]}]}`))
+			"seed":{"match_id":"` + testMatchID + `","round":1},"examples":[{"match_id":"` + testMatchID + `","round":1}],"refs":[{"match_id":"` + testMatchID + `","round":1}]}]}`))
 	})
 	addTeamReportRoutes(mux)
 	addFirstDeathRoutes(mux)

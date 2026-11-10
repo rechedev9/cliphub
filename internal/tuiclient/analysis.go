@@ -138,6 +138,8 @@ type ScoutReport struct {
 		Rounds  int    `json:"rounds"`
 		WinRate Rate   `json:"win_rate"`
 		Plants  Rate   `json:"plants"`
+		// Refs holds every execute round.
+		Refs []Evidence `json:"refs"`
 	} `json:"executes"`
 	AWP struct {
 		Sides []struct {
@@ -183,6 +185,8 @@ type ScoutBucket struct {
 	Rounds  int    `json:"rounds"`
 	Share   Rate   `json:"share"`
 	WinRate Rate   `json:"win_rate"`
+	// Refs holds every round of the bucket.
+	Refs []Evidence `json:"refs"`
 }
 
 // TeamScout returns a team's scouting report over its matches.

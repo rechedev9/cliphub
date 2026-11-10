@@ -137,6 +137,7 @@ type shareOut struct {
 	SharePct float64 `json:"share_pct"`
 	WinPct   float64 `json:"win_pct"`
 	Reliable bool    `json:"reliable" jsonschema:"false when the sample is too small to trust"`
+	linkOut
 }
 
 type scoutMapOut struct {
@@ -162,6 +163,7 @@ type scoutExecuteOut struct {
 	Rounds   int     `json:"rounds"`
 	WinPct   float64 `json:"win_pct"`
 	PlantPct float64 `json:"plant_pct"`
+	linkOut
 }
 
 type scoutAWPOut struct {
@@ -290,7 +292,8 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "scout_team", Annotations: readOnly,
 		Description: "Summarize a team's scouting report from its library matches: record per map, buys, bombsites, " +
-			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side, dates, rivals (opponent_id) and matches (match_id)."},
+			"T and CT round shapes, opening duels, executes, AWP use and players. Filter by map, side, dates, rivals (opponent_id) and matches (match_id). " +
+			"Each buy, site, round shape and execute row has a studio_path that opens its rounds in the 2D Replay (rounds_linked when cut at 200)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in scoutTeamIn) (*mcp.CallToolResult, scoutTeamOut, error) {
 			if err := checkUUID("team_id", in.TeamID); err != nil {
 				return nil, scoutTeamOut{}, err
@@ -365,8 +368,12 @@ func registerAnalysisTools(server *mcp.Server, s *studio) {
 }
 
 func summarizeScout(r tuiclient.ScoutReport) scoutTeamOut {
+	scope := titleScope{team: cleanName(r.TeamName)}
+	if len(r.Maps) == 1 {
+		scope.mapName = cleanName(r.Maps[0].Map)
+	}
 	out := scoutTeamOut{
-		Team: cleanName(r.TeamName), Matches: len(r.Matches), tendenciesOut: summarizeTendencies(r.Tendencies),
+		Team: scope.team, Matches: len(r.Matches), tendenciesOut: summarizeTendencies(r.Tendencies, &scope),
 		Maps: []scoutMapOut{}, RecentMatches: []scoutMatchOut{}, Executes: []scoutExecuteOut{}, AWP: []scoutAWPOut{}, SkippedMatches: len(r.Skipped),
 	}
 	for _, m := range r.Maps {
@@ -381,7 +388,9 @@ func summarizeScout(r tuiclient.ScoutReport) scoutTeamOut {
 			PlayedAt: m.PlayedAt.Format(time.DateOnly), Opponent: cleanName(m.Opponent), Score: fmt.Sprintf("%d-%d", m.Score, m.OpponentScore)})
 	}
 	for _, e := range r.Executes {
-		out.Executes = append(out.Executes, scoutExecuteOut{Site: e.Site, Rounds: e.Rounds, WinPct: e.WinRate.Pct, PlantPct: e.Plants.Pct})
+		link := findingLink{title: titleScope{team: scope.team, side: "T", mapName: scope.mapName}.of("Ejecución " + siteLabel(e.Site)), refs: e.Refs}
+		out.Executes = append(out.Executes, scoutExecuteOut{Site: e.Site, Rounds: e.Rounds, WinPct: e.WinRate.Pct, PlantPct: e.Plants.Pct,
+			linkOut: link.outFor(e.Rounds)})
 	}
 	for _, a := range r.AWP.Sides {
 		out.AWP = append(out.AWP, scoutAWPOut{Side: a.Side, Rounds: a.Rounds, Kills: a.Kills, OpeningKills: a.OpeningKills})
@@ -389,9 +398,23 @@ func summarizeScout(r tuiclient.ScoutReport) scoutTeamOut {
 	return out
 }
 
-func summarizeTendencies(t tuiclient.Tendencies) tendenciesOut {
-	out := tendenciesOut{Rounds: t.RoundCount, RoundWinPct: pct(t.Wins, t.RoundCount), Buys: shares(t.Buys), Sites: shares(t.Sites),
-		TPatterns: shares(t.TPatterns), CTPatterns: shares(t.CTPatterns), OpeningRounds: t.Openings.Rounds,
+// summarizeTendencies lists the buckets; with a scope each row links its rounds, when the buckets hold them.
+func summarizeTendencies(t tuiclient.Tendencies, scope *titleScope) tendenciesOut {
+	linked := func(what func(tuiclient.ScoutBucket) string, side string) func(tuiclient.ScoutBucket) linkOut {
+		if scope == nil {
+			return nil
+		}
+		s := *scope
+		s.side = side
+		return func(b tuiclient.ScoutBucket) linkOut {
+			return findingLink{title: s.of(what(b)), refs: b.Refs}.outFor(b.Rounds)
+		}
+	}
+	buy := func(b tuiclient.ScoutBucket) string { return "Compra " + strings.ToLower(buyLabel(b.Buy)) }
+	site := func(b tuiclient.ScoutBucket) string { return "Rondas en " + siteLabel(b.Site) }
+	pattern := func(b tuiclient.ScoutBucket) string { return patternLabel(b.Pattern) }
+	out := tendenciesOut{Rounds: t.RoundCount, RoundWinPct: pct(t.Wins, t.RoundCount), Buys: shares(t.Buys, linked(buy, "")), Sites: shares(t.Sites, linked(site, "")),
+		TPatterns: shares(t.TPatterns, linked(pattern, "T")), CTPatterns: shares(t.CTPatterns, linked(pattern, "CT")), OpeningRounds: t.Openings.Rounds,
 		OpeningWinPct: t.Openings.Won.Pct, OpeningTradedPct: t.Openings.TradedOnLoss.Pct, Players: []scoutPlayerOut{}}
 	for i, p := range t.Players {
 		if i == maxScoutPlayers {
@@ -404,14 +427,18 @@ func summarizeTendencies(t tuiclient.Tendencies) tendenciesOut {
 }
 
 // shares keeps the buckets that hold rounds, named by their buy, site or pattern.
-func shares(buckets []tuiclient.ScoutBucket) []shareOut {
+func shares(buckets []tuiclient.ScoutBucket, link func(tuiclient.ScoutBucket) linkOut) []shareOut {
 	out := []shareOut{}
 	for _, b := range buckets {
 		if b.Rounds == 0 {
 			continue
 		}
 		name := b.Buy + b.Site + b.Pattern
-		out = append(out, shareOut{Name: cleanName(name), Rounds: b.Rounds, SharePct: b.Share.Pct, WinPct: b.WinRate.Pct, Reliable: b.WinRate.Reliable})
+		row := shareOut{Name: cleanName(name), Rounds: b.Rounds, SharePct: b.Share.Pct, WinPct: b.WinRate.Pct, Reliable: b.WinRate.Reliable}
+		if link != nil {
+			row.linkOut = link(b)
+		}
+		out = append(out, row)
 	}
 	return out
 }

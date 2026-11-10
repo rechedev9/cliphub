@@ -35,7 +35,8 @@ func stratbookStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "GET /api/library/teams/{id}/plays", `{"team_name":"Vitality","matches":3,"rounds":40,"compared":30,"thresholds":{"position_seconds":20},
 		"plays":[{"map":"de_mirage","side":"T","kind":"execute","site":"B","rounds":5,"share":{"pct":12.5},"win_rate":{"pct":60,"reliable":true},
 		"grenades":[{"kind":"flash","seconds":30,"pos":[0,0,0]}],"positions":[{"player":"x","pos":[0,0,0]}],
-		"seed":{"match_id":"`+testMatchID+`","round":7},"examples":[{"match_id":"`+testMatchID+`","round":7},{"match_id":"`+testMatchID+`","round":9}]}]}`)
+		"seed":{"match_id":"`+testMatchID+`","round":7},"examples":[{"match_id":"`+testMatchID+`","round":7},{"match_id":"`+testMatchID+`","round":9}],
+		"refs":[{"match_id":"`+testMatchID+`","round":7},{"match_id":"`+testMatchID+`","round":9},{"match_id":"`+testMatchID+`","round":11}]}]}`)
 	rec.handle(mux, "GET /api/library/reports", `{"reports":[{"id":"`+testReportID+`","title":"Vitality Mirage","team_id":"`+testTeamID+`","match_ids":["`+testMatchID+`"],"side":"T","notes":"`+strings.Repeat("Plan. ", 200)+`",
 		"round_lists":[{"title":"Split B","rounds":[{"match_id":"`+testMatchID+`","round":4},{"match_id":"`+testMatchID+`","round":7}]}],"updated_at":"2026-11-01T00:00:00Z"}]}`)
 	rec.handle(mux, "GET /api/library/reports/{id}", `{"id":"`+testReportID+`","title":"Vitality Mirage","team_id":"`+testTeamID+`","team_name":"Vitality","match_ids":[],"side":"","notes":"a\u0007b\nc","updated_at":"2026-11-01T00:00:00Z"}`)

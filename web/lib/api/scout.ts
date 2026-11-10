@@ -73,6 +73,8 @@ export type ScoutSetups = ScoutRounds & {
 export type ScoutExecute = ScoutRounds & {
   site: TacticalSite;
   patterns: ScoutPatternRow[];
+  /** Every execute round; `examples` holds the first ones. */
+  refs?: ScoutEvidence[];
   plants: TacticalRate;
   plant_time: TacticalHistogram;
   first_contact: TacticalHistogram;

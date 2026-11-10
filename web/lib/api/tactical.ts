@@ -637,6 +637,8 @@ type TacticalBuyBucket = {
   share: TacticalRate;
   win_rate: TacticalRate;
   conversion: TacticalRate;
+  /** Every round of the bucket, listed when it was read over several matches. */
+  refs?: { match_id: string; round: number; tick: number }[];
 };
 
 /** The perspective's buy crossed with the opponent's: the correct "anti-eco". */
@@ -653,6 +655,8 @@ type TacticalSiteBucket = {
   rounds: number;
   share: TacticalRate;
   win_rate: TacticalRate;
+  /** Every round of the bucket, listed when it was read over several matches. */
+  refs?: { match_id: string; round: number; tick: number }[];
 };
 
 /** On this economy, where do they go, and does it work (`tacticalplan.BuySiteBucket`). */
@@ -670,6 +674,8 @@ type TacticalPatternBucket = {
   rounds: number;
   share: TacticalRate;
   win_rate: TacticalRate;
+  /** Every round of the bucket, listed when it was read over several matches. */
+  refs?: { match_id: string; round: number; tick: number }[];
 };
 
 /** The opening duel (`tacticalplan.OpeningSummary`), the most predictive round event. */

@@ -76,10 +76,12 @@ func tacticName(t tuiclient.PlaybookTactic) string {
 	}
 }
 
-func tacticsOf(pb tuiclient.TeamPlaybook) (tactics []tacticOut, with, without []string) {
+func tacticsOf(pb tuiclient.TeamPlaybook, scope titleScope) (tactics []tacticOut, with, without []string) {
 	tactics = []tacticOut{}
 	for _, t := range pb.Tactics {
-		tactics = append(tactics, tacticOut{Key: cleanName(t.Key), Kind: cleanName(t.Kind), groupOut: groupOf(tacticName(t), t.ReportGroup)})
+		name := tacticName(t)
+		tactics = append(tactics, tacticOut{Key: cleanName(t.Key), Kind: cleanName(t.Kind),
+			groupOut: groupOf(groupSpec{title: scope.of(tacticLabel(t)), name: name, group: t.ReportGroup})})
 	}
 	return tactics, cleanKeys(pb.Combo.With), cleanKeys(pb.Combo.Without)
 }

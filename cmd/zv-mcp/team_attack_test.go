@@ -169,7 +169,7 @@ func TestMatchPrepPromptLaysOutTheFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := got.Messages[0].Content.(*mcp.TextContent).Text
-	for _, want := range []string{"against Vitality on de_nuke", "prepare_team", "show_zones", "create_report", "studio_path"} {
+	for _, want := range []string{"against Vitality on de_nuke", "prepare_team", "show_zones", "create_report", "studio_path", "Anti-estrategias", "Tendencias en T por compra", "Setups CT por ventana de tiempo", "Utilidad recurrente", "Jugadores clave"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("prompt lacks %q: %s", want, text)
 		}

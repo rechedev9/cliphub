@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"github.com/google/uuid"
 )
 
 // MinReliableSample is the round count below which a rate is reported but
@@ -62,6 +64,8 @@ type BuyBucket struct {
 	Share         Rate    `json:"share"`
 	WinRate       Rate    `json:"win_rate"`
 	PlantOrDefuse Rate    `json:"conversion"`
+	// Refs holds every round of the bucket when it was read over several matches.
+	Refs []Evidence `json:"refs,omitempty"`
 }
 
 // MatchupBucket crosses the perspective's buy with the opponent's, which is the
@@ -79,6 +83,8 @@ type SiteBucket struct {
 	Rounds  int  `json:"rounds"`
 	Share   Rate `json:"share"`
 	WinRate Rate `json:"win_rate"`
+	// Refs holds every round of the bucket when it was read over several matches.
+	Refs []Evidence `json:"refs,omitempty"`
 }
 
 // BuySiteBucket answers the scouting question directly: on this economy, where
@@ -97,6 +103,8 @@ type PatternBucket struct {
 	Rounds  int    `json:"rounds"`
 	Share   Rate   `json:"share"`
 	WinRate Rate   `json:"win_rate"`
+	// Refs holds every round of the bucket when it was read over several matches.
+	Refs []Evidence `json:"refs,omitempty"`
 }
 
 // OpeningSummary describes the opening duel, the single most predictive event
@@ -170,6 +178,13 @@ type aggregator struct {
 	ctRounds, ctWins                  map[CTPattern]int
 	tSideRounds, ctSideRounds         int
 
+	// matchID names the match being added so buckets can list their rounds; nil reads one document.
+	matchID  uuid.UUID
+	buyRefs  map[BuyType][]Evidence
+	siteRefs map[Site][]Evidence
+	tRefs    map[TPattern][]Evidence
+	ctRefs   map[CTPattern][]Evidence
+
 	openings, openingWon, openingLost   int
 	openingLostTraded                   int
 	roundWinAfterWin, roundWinAfterLoss int
@@ -200,6 +215,8 @@ func newAggregator(f Filter) *aggregator {
 		ctRounds: map[CTPattern]int{}, ctWins: map[CTPattern]int{},
 		players:        map[string]*PlayerSummary{},
 		playerSurvived: map[string]int{},
+		buyRefs:        map[BuyType][]Evidence{}, siteRefs: map[Site][]Evidence{},
+		tRefs: map[TPattern][]Evidence{}, ctRefs: map[CTPattern][]Evidence{},
 	}
 }
 
@@ -236,6 +253,8 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 		if won {
 			a.t.Wins++
 		}
+		ref := Evidence{MatchID: a.matchID, Round: r.Number, Tick: r.TickFreezeEnd}
+		tracked := a.matchID != uuid.Nil
 
 		// A round has two economies, so a buy type only means something once a
 		// perspective picks one of them. Without a perspective these rollups
@@ -245,6 +264,9 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 			buy := r.Economy.Buy(side)
 			opponentBuy := r.Economy.Buy(side.Opponent())
 			a.buyRounds[buy]++
+			if tracked {
+				a.buyRefs[buy] = append(a.buyRefs[buy], ref)
+			}
 			if won {
 				a.buyWins[buy]++
 			}
@@ -268,6 +290,9 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 		// Where a round was played is a fact about the round, so it is reported
 		// with or without a perspective; only its win rate needs one.
 		a.siteRounds[r.Class.Site]++
+		if tracked {
+			a.siteRefs[r.Class.Site] = append(a.siteRefs[r.Class.Site], ref)
+		}
 		if won {
 			a.siteWins[r.Class.Site]++
 		}
@@ -279,6 +304,9 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 		if side == "" || side == SideT {
 			a.tSideRounds++
 			a.tRounds[r.Class.TSide]++
+			if tracked {
+				a.tRefs[r.Class.TSide] = append(a.tRefs[r.Class.TSide], ref)
+			}
 			if won {
 				a.tWins[r.Class.TSide]++
 			}
@@ -286,6 +314,9 @@ func (a *aggregator) add(d Document, f Filter, rounds []Round) {
 		if side == "" || side == SideCT {
 			a.ctSideRounds++
 			a.ctRounds[r.Class.CTSide]++
+			if tracked {
+				a.ctRefs[r.Class.CTSide] = append(a.ctRefs[r.Class.CTSide], ref)
+			}
 			if won {
 				a.ctWins[r.Class.CTSide]++
 			}
@@ -374,6 +405,7 @@ func (a *aggregator) finish() Tendencies {
 			Share:         newRate(n, total),
 			WinRate:       newRate(a.buyWins[buy], n),
 			PlantOrDefuse: newRate(a.buyConversion[buy], n),
+			Refs:          a.buyRefs[buy],
 		})
 	}
 
@@ -398,7 +430,7 @@ func (a *aggregator) finish() Tendencies {
 			continue
 		}
 		t.Sites = append(t.Sites, SiteBucket{
-			Site: site, Rounds: n, Share: newRate(n, total), WinRate: newRate(a.siteWins[site], n),
+			Site: site, Rounds: n, Share: newRate(n, total), WinRate: newRate(a.siteWins[site], n), Refs: a.siteRefs[site],
 		})
 	}
 
@@ -424,7 +456,7 @@ func (a *aggregator) finish() Tendencies {
 			continue
 		}
 		t.TPatterns = append(t.TPatterns, PatternBucket{
-			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.tSideRounds), WinRate: newRate(a.tWins[pattern], n),
+			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.tSideRounds), WinRate: newRate(a.tWins[pattern], n), Refs: a.tRefs[pattern],
 		})
 	}
 	for _, pattern := range CTPatterns {
@@ -433,7 +465,7 @@ func (a *aggregator) finish() Tendencies {
 			continue
 		}
 		t.CTPatterns = append(t.CTPatterns, PatternBucket{
-			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.ctSideRounds), WinRate: newRate(a.ctWins[pattern], n),
+			Pattern: string(pattern), Rounds: n, Share: newRate(n, a.ctSideRounds), WinRate: newRate(a.ctWins[pattern], n), Refs: a.ctRefs[pattern],
 		})
 	}
 

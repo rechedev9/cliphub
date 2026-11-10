@@ -98,6 +98,8 @@ export type DetectedPlay = {
   positions: PlayPosition[];
   seed: ScoutEvidence;
   examples: ScoutEvidence[];
+  /** Every round of the group; `examples` holds the first ones. */
+  refs?: ScoutEvidence[];
 };
 
 export type PlayDetection = {

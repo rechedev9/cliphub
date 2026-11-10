@@ -26,6 +26,7 @@ type firstDeathZoneOut struct {
 	Seconds float64  `json:"seconds" jsonschema:"seconds the player spent there per round with positions, inside the window and before the round's first death"`
 	Rounds  int      `json:"rounds" jsonschema:"rounds with time in this zone"`
 	Refs    []string `json:"refs" jsonschema:"first round refs (match_id/round)"`
+	linkOut
 }
 
 type firstDeathPlayerOut struct {
@@ -123,6 +124,7 @@ func summarizeFirstDeath(r tuiclient.TeamFirstDeath) *firstDeathOut {
 		Rounds: r.RoundCount, FramedRounds: r.Framed, Players: []firstDeathPlayerOut{},
 		Note: "Seconds per round with positions, counted inside the window and only until the round's first death (anyone's), from the 8 Hz positions.",
 	}
+	scope := titleScope{team: cleanName(r.TeamName), side: cleanName(string(r.Side)), mapName: cleanName(r.Map)}
 	for _, p := range r.Players {
 		po := firstDeathPlayerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), MapRole: mapRoleOf(r.Side, p.MapRole), RoundsWithPositions: p.Rounds, Zones: []firstDeathZoneOut{}}
 		for i, z := range p.Zones {
@@ -130,7 +132,9 @@ func summarizeFirstDeath(r tuiclient.TeamFirstDeath) *firstDeathOut {
 			for _, e := range z.Refs {
 				refs = append(refs, tuiclient.Evidence{MatchID: e.MatchID.String(), Round: e.Round})
 			}
-			po.Zones = append(po.Zones, firstDeathZoneOut{Rank: i + 1, Callout: cleanName(z.Callout), Seconds: z.Seconds, Rounds: z.Rounds, Refs: refStrings(refs)})
+			link := findingLink{title: scope.of(po.Name + " en " + placeLabel(z.Callout) + " hasta la primera muerte"), refs: refs, focus: []string{p.SteamID64}, tramo: windowTramo(r.Window.FromSeconds, r.Window.ToSeconds), zones: []string{z.Callout}}
+			po.Zones = append(po.Zones, firstDeathZoneOut{Rank: i + 1, Callout: cleanName(z.Callout), Seconds: z.Seconds, Rounds: z.Rounds, Refs: refStrings(refs),
+				linkOut: link.outFor(z.Rounds)})
 		}
 		out.Players = append(out.Players, po)
 	}
