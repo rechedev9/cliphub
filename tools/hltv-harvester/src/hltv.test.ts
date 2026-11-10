@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, sidecarFor } from "./hltv.ts";
+import { isCandidate, needsVisit, parseArgs, parseMatch, parseRanking, parseResults, parseSidecar, parseState, rankedTeamIn, selectCandidates, sidecarFor, windowMs } from "./hltv.ts";
 
 test("parseRanking keeps teams with an id, rank and name", () => {
   const got = parseRanking([
@@ -42,7 +42,36 @@ test("only matches never seen or still without a demo are visited again", () => 
 });
 
 test("parseArgs ignores invalid numbers", () => {
-  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "" });
+  assert.deepEqual(parseArgs(["--days", "7", "--top", "-3", "--out", "D:\\x"], "C:\\d"), { days: 7, top: 50, outDir: "D:\\x", maxMatches: 1000, refetch: "", bestMaps: false, minMaps: 10, perMap: 5, vetoBackfill: "", hours: 0, rankedOnly: false });
+});
+
+test("--hours shortens the window and --ranked-only restores the top filter", () => {
+  const o = parseArgs(["--hours", "6", "--ranked-only"], "out");
+  assert.equal(o.rankedOnly, true);
+  assert.equal(windowMs(o), 6 * 3600 * 1000);
+  assert.equal(windowMs(parseArgs(["--days", "2"], "out")), 2 * 24 * 3600 * 1000);
+  assert.equal(parseArgs(["--hours", "0"], "out").hours, 0);
+});
+
+const row = (matchId: number, team1: string, team2: string) => ({ matchId, path: `/matches/${matchId}/x`, team1, team2, event: "", unixMs: 1 });
+
+test("selectCandidates keeps every unseen match by default and counts what it leaves", () => {
+  const state = parseState({ matches: { "1": { status: "downloaded", at: "" }, "2": { status: "no_demo", at: "" } } });
+  const rows = [row(1, "FURIA", "x"), row(2, "a", "b"), row(3, "c", "d"), row(3, "c", "d"), row(4, "FURIA", "e")];
+  const got = selectCandidates(rows, { state, rankedNames: new Set(["furia"]), rankedOnly: false, max: 10 });
+  assert.deepEqual(got.todo.map((r) => r.matchId), [2, 3, 4]);
+  assert.deepEqual([got.seen, got.unranked], [1, 0]);
+});
+
+test("selectCandidates with rankedOnly drops other teams, and with everything seen it reports why none are left", () => {
+  const state = parseState({ matches: { "1": { status: "downloaded", at: "" } } });
+  const rows = [row(1, "FURIA", "x"), row(2, "a", "b"), row(3, "NAVI", "d")];
+  const got = selectCandidates(rows, { state, rankedNames: new Set(["furia", "navi"]), rankedOnly: true, max: 10 });
+  assert.deepEqual(got.todo.map((r) => r.matchId), [3]);
+  assert.deepEqual([got.seen, got.unranked], [1, 1]);
+  const none = selectCandidates([row(1, "FURIA", "x")], { state, rankedNames: new Set(), rankedOnly: false, max: 10 });
+  assert.deepEqual([none.todo.length, none.seen], [0, 1]);
+  assert.equal(selectCandidates(rows, { state: { matches: {} }, rankedNames: new Set(), rankedOnly: false, max: 2 }).todo.length, 2);
 });
 
 test("--refetch names a folder of sidecars to download again", () => {
