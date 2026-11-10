@@ -26,11 +26,15 @@ export const SMOOTHING_DEFAULT = 1;
 /** Under this share of the peak a pixel stays clear, so the radar shows through the empty parts. */
 export const DENSITY_FLOOR = 0.04;
 /** The wash fades in over this many floors above `DENSITY_FLOOR`, so the edge is soft and never a rim. */
-const EDGE_FLOORS = 3;
+const EDGE_FLOORS = 4;
 /** Below 1, so a path a player ran once still reads beside a spot they held for half a minute. */
 const TONE_CURVE = 0.6;
-/** How opaque the wash is at its faintest and at the peak; the plate always shows a little through it. */
-const ALPHA_LOW = 0.4;
+/**
+ * How opaque the wash is at its faintest and at the peak; the plate always shows a little through it.
+ * The flat grey plate sits near the blue's own lightness, so the faintest blue needs 0.6 to stay
+ * clearly apart from it (CIE76 distance 35 at 0.4, 46 at 0.6).
+ */
+const ALPHA_LOW = 0.6;
 const ALPHA_HIGH = 0.88;
 
 /** Pixels of the picture per grid square, so the contour edges stay smooth on a large plate. */

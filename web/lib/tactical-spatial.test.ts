@@ -24,7 +24,6 @@ import {
   renderedToWorld,
   strokeAt,
   thinStroke,
-  topCells,
   trackDeadAt,
   trackPositionAt,
   trackTrail,
@@ -156,7 +155,7 @@ test('labels and arrowheads', () => {
   assert.equal(arrowHead({ x: 0, y: 0 }, { x: 10, y: 0 }, 5).split(' ')[0], '10.0,0.0');
 });
 
-test('the nearest callout prefers the same level and the busiest cells come first', () => {
+test('the nearest callout prefers the same level', () => {
   const callouts = [
     { name: 'Ramp', level: 'default', center: [100, 100] as [number, number] },
     { name: 'Vents', level: 'lower', center: [0, 0] as [number, number] },
@@ -164,8 +163,6 @@ test('the nearest callout prefers the same level and the busiest cells come firs
   assert.equal(nearestCallout({ cell_size: 0, callouts }, 'default', 0, 0), 'Ramp');
   assert.equal(nearestCallout({ cell_size: 0, callouts }, 'lower', 90, 90), 'Vents');
   assert.equal(nearestCallout({ cell_size: 64, callouts: [] }, 'default', 0, 0), '');
-  const top = topCells(heatmapLayer(HEATMAP, 'CT', 'default'), 1);
-  assert.deepEqual(top.map((cell) => cell.count), [4]);
 });
 
 test('the nearest callout is the place that owns the cell, then its closest owned neighbour', () => {

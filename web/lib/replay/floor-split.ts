@@ -1,9 +1,11 @@
 import { RADAR_LEVELS } from '../api/tactical.ts';
 import type { RadarBounds, RadarCalibration, RadarLevel, TacticalGeometry } from '../api/tactical.ts';
 import type { RadarProjection } from '../tactical-spatial.ts';
-import { isMultiLevelMap, levelForAltitude, radarViewRect, worldRectToRadarRect } from '../tactical-transform.ts';
+import { isMultiLevelMap, levelForAltitude, occupancyBounds, radarViewRect, worldRectToRadarRect } from '../tactical-transform.ts';
 import type { RadarRect, WorldMark, WorldRect } from '../tactical-transform.ts';
 import { followView, panView, zoomViewAt } from './map-view.ts';
+import { floorBounds, floorPolygons } from './nav-radar.ts';
+import type { NavRadarModel } from './nav-radar.ts';
 
 /**
  * The shared floor layout of a two-floor map (Nuke, Vertigo), the one the
@@ -227,4 +229,35 @@ export function floorExtent(options: { calibration: RadarCalibration; nav: World
   const rect = worldRectToRadarRect(calibration, world, 1);
   const pad = Math.max(Math.max(rect.width, rect.height) * EXTENT_MARGIN, EXTENT_ROOM);
   return { x: rect.x - pad, y: rect.y - pad, width: rect.width + 2 * pad, height: rect.height + 2 * pad };
+}
+
+/**
+ * Each floor's crop on the nav plate, as the replay frames it: the floor's
+ * walkable ground and where the demos were played on it (`floorExtent`), grown
+ * to hold `marks` (a mark with no altitude is kept in both floors on a split-level map).
+ * A one-floor map answers the same crop for both.
+ */
+export function navFloorRects(options: { geometry: TacticalGeometry; model: NavRadarModel; marks: readonly WorldMark[] }): FloorRects {
+  const { geometry, model, marks } = options;
+  const { calibration } = geometry;
+  const split = isMultiLevelMap(calibration);
+  const of = (level: RadarLevel): RadarRect => {
+    const levelGeometry = split ? { ...geometry, levels: geometry.levels.filter((entry) => entry.name === level) } : geometry;
+    const played = occupancyBounds(levelGeometry);
+    let reach = played === null ? null : { ...played };
+    for (const mark of marks) {
+      const [x, y] = mark;
+      const z = mark.at(2);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      if (split && z !== undefined && levelForAltitude(calibration, z) !== level) continue;
+      reach = reach === null ? { min_x: x, min_y: y, max_x: x, max_y: y } : { min_x: Math.min(reach.min_x, x), min_y: Math.min(reach.min_y, y), max_x: Math.max(reach.max_x, x), max_y: Math.max(reach.max_y, y) };
+    }
+    const nav = floorBounds(floorPolygons(model, calibration.lower_altitude_max, level));
+    return floorExtent({ calibration, nav, played: reach }) ?? radarViewRect(geometry, marks);
+  };
+  if (!split) {
+    const whole = of(RADAR_LEVELS.default);
+    return { default: whole, lower: whole };
+  }
+  return { default: of(RADAR_LEVELS.default), lower: of(RADAR_LEVELS.lower) };
 }

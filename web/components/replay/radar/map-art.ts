@@ -1,5 +1,6 @@
 import { getMapGeometry } from '@/lib/api/map-geometry';
 import { navRadarModel } from '@/lib/replay/nav-radar';
+import { NAV_PATCHES } from '@/lib/replay/nav-patches';
 import type { NavRadarModel } from '@/lib/replay/nav-radar';
 
 /**
@@ -14,7 +15,7 @@ export function loadNavRadar(map: string): Promise<NavRadarModel | null> {
   const cached = navModels.get(map);
   if (cached !== undefined) return cached;
   const pending = getMapGeometry(map, { source: 'nav' })
-    .then((geometry) => navRadarModel(geometry))
+    .then((geometry) => navRadarModel(geometry, NAV_PATCHES[map]))
     .catch(() => null);
   navModels.set(map, pending);
   void pending.then((model) => {

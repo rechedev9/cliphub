@@ -396,13 +396,6 @@ export function nearestCallout(geometry: CalloutGeometry, level: string, x: numb
   return '';
 }
 
-/** The busiest cells of a layer, for the text list beside the radar. */
-export function topCells(layer: HeatmapLayer, limit: number): HeatmapCell[] {
-  return [...layer.cells]
-    .sort((a, b) => b.count - a.count || a.seconds - b.seconds || a.y - b.y || a.x - b.x)
-    .slice(0, limit);
-}
-
 /** What an empty heatmap says, by what it counted and what the rounds in the scope lacked. */
 export function emptyMessage({ kind, rounds, missing, matches }: { kind: HeatmapKind; rounds: number; missing: number; matches: number }): string {
   if (rounds === 0) return 'Ninguna ronda cumple los filtros. Quita alguno para ver el mapa de calor.';

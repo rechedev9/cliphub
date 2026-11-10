@@ -8,7 +8,7 @@ import type { SpatialScope } from '@/lib/api/library';
 import { HEATMAP_GRENADES, HEATMAP_KINDS, KILL_SPOTS } from '@/lib/api/spatial';
 import type { HeatmapCell, HeatmapGrenade, HeatmapKind, SpatialMatchRef, SpatialResponse } from '@/lib/api/spatial';
 import { RADAR_LEVELS, TACTICAL_SIDES } from '@/lib/api/tactical';
-import type { RadarLevel, TacticalGeometry, TacticalSide } from '@/lib/api/tactical';
+import type { RadarLevel, TacticalSide } from '@/lib/api/tactical';
 import { eventKindLabel, placeLabel } from '@/lib/tactical-labels';
 import {
   HEATMAP_KIND_LABEL,
@@ -23,9 +23,10 @@ import {
   heatmapSide,
   mergeHeatmapLayers,
   nearestCallout,
-  topCells,
 } from '@/lib/tactical-spatial';
 import type { HeatmapLayer } from '@/lib/tactical-spatial';
+import { heatPlaces } from '@/lib/heat-places';
+import type { HeatPlace } from '@/lib/heat-places';
 import { SMOOTHING_DEFAULT, SMOOTHING_MAX, SMOOTHING_MIN, densityPicture, heatBandwidth, heatDensity } from '@/lib/heat-density';
 import type { DensityPicture } from '@/lib/heat-density';
 import { worldRectToRadarRect } from '@/lib/tactical-transform';
@@ -44,7 +45,7 @@ import { TramoBar, useTramo } from '@/components/replay/tramo-bar';
 import type { TramoControl } from '@/components/replay/tramo-bar';
 import { isWholeRound } from '@/lib/replay/tramo';
 
-const TOP_CELLS = 8;
+const TOP_PLACES = 8;
 
 /** `ready` keeps the scope its answer belongs to: a new window or kind keeps the old picture up meanwhile, a new scope does not. */
 type Load = { kind: 'loading' } | { kind: 'ready'; data: SpatialResponse; scopeKey: string } | { kind: 'failed' };
@@ -57,10 +58,6 @@ export type HeatControl = { choice: HeatChoice; onChange: (next: HeatChoice) => 
 
 /** One floor's density contours, already on the scale both floors share. */
 type FloorDensity = { level: RadarLevel; picture: DensityPicture };
-
-function cellKey(cell: HeatmapCell): string {
-  return `${cell.side}|${cell.level}|${cell.x}|${cell.y}`;
-}
 
 function useHeatChoice(control: HeatControl | undefined): HeatControl {
   const [choice, setChoice] = useState<HeatChoice>(DEFAULT_HEAT);
@@ -163,7 +160,19 @@ export function HeatmapView({
   // Both floors read on one scale, so a colour means the same on either plate.
   const layer = useMemo(() => (layers.length === 0 ? null : mergeHeatmapLayers(layers.map((entry) => entry.layer))), [layers]);
   const matches = useMemo(() => new Map<string, SpatialMatchRef>((data?.matches ?? []).map((m) => [m.match_id, m])), [data]);
-  const selectedCell = layer?.cells.find((cell) => cellKey(cell) === selected);
+  const bothFloors = shownLevels.length > 1;
+  // The list names places, not 64 unit cells: a place CS2 names by many cells is one line.
+  const placeOf = useCallback(
+    (cell: HeatmapCell): string => {
+      if (!heatmap || !geometry) return '';
+      const cellSize = heatmap.cell_size;
+      const name = placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
+      return bothFloors && cell.level === RADAR_LEVELS.lower ? `${name} (piso inferior)` : name;
+    },
+    [bothFloors, geometry, heatmap],
+  );
+  const places = useMemo(() => (layer === null ? [] : heatPlaces({ cells: layer.cells, nameOf: placeOf })), [layer, placeOf]);
+  const selectedPlace = places.find((place) => place.key === selected);
 
   const densities = useMemo<FloorDensity[]>(() => {
     if (!heatmap || !geometry || !layer) return [];
@@ -197,19 +206,18 @@ export function HeatmapView({
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(image, x * unit, y * unit, width * unit, height * unit);
       }
-      if (selectedCell !== undefined && selectedCell.level === level) {
+      if (selectedPlace !== undefined) {
         const cs = heatmap.cell_size;
-        const rect = worldRectToRadarRect(
-          calibration,
-          { minX: selectedCell.x * cs, minY: selectedCell.y * cs, maxX: (selectedCell.x + 1) * cs, maxY: (selectedCell.y + 1) * cs },
-          size,
-        );
         ctx.strokeStyle = style.text;
         ctx.lineWidth = Math.max(1.5, size * 0.003);
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        for (const cell of selectedPlace.cells) {
+          if (cell.level !== level) continue;
+          const rect = worldRectToRadarRect(calibration, { minX: cell.x * cs, minY: cell.y * cs, maxX: (cell.x + 1) * cs, maxY: (cell.y + 1) * cs }, size);
+          ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        }
       }
     },
-    [densities, geometry, heatmap, selectedCell],
+    [densities, geometry, heatmap, selectedPlace],
   );
   // Every side and level, so switching between them keeps the framing. Each mark carries an altitude
   // on its own floor's side of the cut, so a floor's crop only grows for the cells that stand on it.
@@ -227,9 +235,9 @@ export function HeatmapView({
       if (!heatmap) return;
       const floorLayer = layers.find((entry) => entry.level === level)?.layer;
       const cell = floorLayer ? heatmapCellAt(floorLayer, heatmap.cell_size, world.x, world.y) : undefined;
-      setSelected(cell ? cellKey(cell) : null);
+      setSelected(cell ? `${cell.level}|${placeOf(cell)}` : null);
     },
-    [heatmap, layers],
+    [heatmap, layers, placeOf],
   );
 
   const setKind = (next: HeatmapKind): void => {
@@ -295,16 +303,16 @@ export function HeatmapView({
           missing={heatmap.missing_positions}
           cellSize={heatmap.cell_size}
           sampleSeconds={heatmap.sample_seconds}
-          geometry={geometry}
+          places={places}
           matches={matches}
-          selected={selectedCell}
-          bothFloors={shownLevels.length > 1}
+          selected={selectedPlace}
+          bothFloors={bothFloors}
           otherSide={otherSideTotal > 0 ? otherSide : null}
           onOtherSide={() => {
             setSide(otherSide);
             setSelected(null);
           }}
-          onSelect={(cell) => setSelected(cellKey(cell))}
+          onSelect={(place) => setSelected(place.key)}
         />
       </div>
     );
@@ -424,7 +432,7 @@ function HeatmapSidebar({
   missing,
   cellSize,
   sampleSeconds,
-  geometry,
+  places,
   matches,
   selected,
   bothFloors,
@@ -439,22 +447,17 @@ function HeatmapSidebar({
   missing: number;
   cellSize: number;
   sampleSeconds: number;
-  geometry: TacticalGeometry;
+  places: readonly HeatPlace[];
   matches: ReadonlyMap<string, SpatialMatchRef>;
-  selected: HeatmapCell | undefined;
+  selected: HeatPlace | undefined;
   bothFloors: boolean;
   /** The other side when it has data and this one is empty, so the empty list can offer it. */
   otherSide: TacticalSide | null;
   onOtherSide: () => void;
-  onSelect: (cell: HeatmapCell) => void;
+  onSelect: (place: HeatPlace) => void;
 }): ReactNode {
   const amount = (count: number): string => heatAmount({ kind, count, sampleSeconds });
-  const zone = (cell: HeatmapCell): string => {
-    const name =
-      placeLabel(nearestCallout(geometry, cell.level, (cell.x + 0.5) * cellSize, (cell.y + 0.5) * cellSize, cell.z)) || `Celda ${cell.x}, ${cell.y}`;
-    return bothFloors && cell.level === RADAR_LEVELS.lower ? `${name} (piso inferior)` : name;
-  };
-  const top = topCells(layer, TOP_CELLS);
+  const top = places.slice(0, TOP_PLACES);
   const timing = kind === 'timing';
   return (
     <aside className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-strong bg-surface-1 p-3">
@@ -465,9 +468,10 @@ function HeatmapSidebar({
       <HeatLegend kind={kind} maxCount={layer.maxCount} maxSeconds={layer.maxSeconds} sampleSeconds={sampleSeconds} />
       {selected ? (
         <div className="flex flex-col gap-1.5 rounded-md border border-border p-2.5">
-          <span className="text-body-sm font-medium text-fg-1">{zone(selected)}</span>
+          <span className="text-body-sm font-medium text-fg-1">{selected.name}</span>
           <span className="text-meta tabular-nums text-fg-2">
-            {amount(selected.count)} · {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
+            {amount(selected.count)} · {selected.cells.length > 1 ? 'al menos ' : ''}
+            {selected.rounds} {selected.rounds === 1 ? 'ronda' : 'rondas'}
             {timing ? ` · mediana ${selected.seconds} s` : ''}
           </span>
           <EvidenceChips examples={selected.examples} matches={matches} />
@@ -498,22 +502,22 @@ function HeatmapSidebar({
             </tr>
           </thead>
           <tbody>
-            {top.map((cell) => (
-              <tr key={cellKey(cell)} className={cn('border-t border-border-subtle', selected && cellKey(selected) === cellKey(cell) && 'bg-surface-3')}>
+            {top.map((place) => (
+              <tr key={place.key} className={cn('border-t border-border-subtle', selected?.key === place.key && 'bg-surface-3')}>
                 <td className="py-1 pr-2">
-                  <button type="button" onClick={() => onSelect(cell)} className="text-left text-fg-1 hover:underline">
-                    {zone(cell)}
+                  <button type="button" onClick={() => onSelect(place)} className="text-left text-fg-1 hover:underline">
+                    {place.name}
                   </button>
                 </td>
-                <td className="py-1 text-right tabular-nums text-fg-2">{amount(cell.count)}</td>
-                {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{cell.seconds} s</td> : null}
+                <td className="py-1 text-right tabular-nums text-fg-2">{amount(place.count)}</td>
+                {timing ? <td className="py-1 pl-2 text-right tabular-nums text-fg-3">{place.seconds} s</td> : null}
               </tr>
             ))}
           </tbody>
         </table>
       )}
       <p className="text-meta text-fg-3">
-        Zonas de {cellSize} unidades; el radar las suaviza.
+        Cada zona suma las celdas de {cellSize} unidades que cuenta su lugar; el radar las suaviza.
         {kind === 'position' ? ` El tiempo es el de los jugadores vivos, medido cada ${String(sampleSeconds).replace('.', ',')} s del tramo: una ronda larga pesa más que una corta.` : ''}
         {kind === 'kill' ? ' Las bajas a compañeros no cuentan.' : ''}
         {timing ? ' Cada jugador cuenta su primera llegada a cada zona en cada ronda.' : ''}

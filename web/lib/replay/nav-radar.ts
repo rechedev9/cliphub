@@ -1,13 +1,17 @@
 import type { MapGeometry } from '../api/map-geometry.ts';
 import type { RadarLevel, TacticalGeometry } from '../api/tactical.ts';
+import type { NavPatch } from './nav-patches.ts';
 
 /**
  * The stylized radar drawn from the map's nav mesh: one flat polygon per
  * walkable area, toned by height so higher floors read lighter.
  */
 
-/** One nav area: flat world x,y pairs, its mean height, the lowest and highest of its corners, and its centre. */
-export type NavPolygon = { points: Float64Array; z: number; lowZ: number; highZ: number; cx: number; cy: number };
+/**
+ * One nav area: flat world x,y pairs, its mean height, the lowest and highest of its corners, and its centre.
+ * A patch names the floor it belongs to in `pane`; an area leaves it to its height.
+ */
+export type NavPolygon = { points: Float64Array; z: number; lowZ: number; highZ: number; cx: number; cy: number; pane?: RadarLevel };
 
 export type NavRadarModel = {
   /** Lowest floor first, so higher floors paint over the ones under them. */
@@ -48,8 +52,26 @@ function polygonOf(vertices: Float32Array, indices: readonly number[]): NavPolyg
   return { points, z: z / indices.length, lowZ, highZ, cx: cx / indices.length, cy: cy / indices.length };
 }
 
-/** The radar model of a nav mesh, or null when it has nothing to draw. */
-export function navRadarModel(geometry: Pick<MapGeometry, 'vertices' | 'triangles' | 'areas'>): NavRadarModel | null {
+/**
+ * World units every polygon is grown by when it is painted. The mesh stops a few units short of walls and
+ * leaves hairline gaps between neighbours; one grown outline closes both, with round corners.
+ */
+export const NAV_GROW = 8;
+
+function patchPolygon(patch: NavPatch): NavPolygon | null {
+  const count = patch.points.length / 2;
+  const vertices = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    vertices[i * 3] = patch.points[i * 2];
+    vertices[i * 3 + 1] = patch.points[i * 2 + 1];
+    vertices[i * 3 + 2] = patch.z;
+  }
+  const polygon = polygonOf(vertices, Array.from({ length: count }, (_, i) => i));
+  return polygon === null ? null : { ...polygon, pane: patch.level };
+}
+
+/** The radar model of a nav mesh with the map's patches, or null when it has nothing to draw. */
+export function navRadarModel(geometry: Pick<MapGeometry, 'vertices' | 'triangles' | 'areas'>, patches: readonly NavPatch[] = []): NavRadarModel | null {
   const polygons: NavPolygon[] = [];
   if (geometry.areas.length > 0) {
     for (const area of geometry.areas) {
@@ -61,6 +83,10 @@ export function navRadarModel(geometry: Pick<MapGeometry, 'vertices' | 'triangle
       const polygon = polygonOf(geometry.vertices, [geometry.triangles[i], geometry.triangles[i + 1], geometry.triangles[i + 2]]);
       if (polygon !== null) polygons.push(polygon);
     }
+  }
+  for (const patch of patches) {
+    const polygon = patchPolygon(patch);
+    if (polygon !== null) polygons.push(polygon);
   }
   if (polygons.length === 0) return null;
   polygons.sort((a, b) => a.z - b.z);
@@ -133,7 +159,7 @@ export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitu
     if (!isSite && name !== 'ctspawn') continue;
     const reach = isSite ? SITE_REACH : SPAWN_REACH;
     const [x, y] = callout.center;
-    const onFloor = model.polygons.filter((polygon) => polygonLevel(polygon.z, lowerAltitudeMax) === callout.level);
+    const onFloor = model.polygons.filter((polygon) => (polygon.pane ?? polygonLevel(polygon.z, lowerAltitudeMax)) === callout.level);
     let nearest: NavPolygon | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const polygon of onFloor) {
@@ -160,7 +186,35 @@ export function placeTints(model: NavRadarModel, callouts: Callouts, lowerAltitu
  */
 export function floorPolygons(model: NavRadarModel, lowerAltitudeMax: number | undefined, level: RadarLevel): NavPolygon[] {
   if (lowerAltitudeMax === undefined) return model.polygons;
-  return model.polygons.filter((polygon) => (level === 'lower' ? polygon.lowZ <= lowerAltitudeMax : polygon.highZ > lowerAltitudeMax));
+  return model.polygons.filter((polygon) => {
+    if (polygon.pane !== undefined) return polygon.pane === level;
+    return level === 'lower' ? polygon.lowZ <= lowerAltitudeMax : polygon.highZ > lowerAltitudeMax;
+  });
+}
+
+function segmentDistance(options: { x: number; y: number; ax: number; ay: number; bx: number; by: number }): number {
+  const { x, y, ax, ay, bx, by } = options;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const length = dx * dx + dy * dy;
+  const t = length > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / length)) : 0;
+  return Math.hypot(x - ax - t * dx, y - ay - t * dy);
+}
+
+/**
+ * Whether the plate paints ground at a world point: inside one of `polygons`, or
+ * within `NAV_GROW` of its edge, which is how far `paintFloors` grows each outline.
+ */
+export function isPainted(options: { polygons: readonly NavPolygon[]; x: number; y: number }): boolean {
+  const { polygons, x, y } = options;
+  return polygons.some(({ points }) => {
+    let inside = false;
+    for (let i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
+      if (segmentDistance({ x, y, ax: points[j], ay: points[j + 1], bx: points[i], by: points[i + 1] }) <= NAV_GROW) return true;
+      if (points[i + 1] > y !== points[j + 1] > y && x < ((points[j] - points[i]) * (y - points[i + 1])) / (points[j + 1] - points[i + 1]) + points[i]) inside = !inside;
+    }
+    return inside;
+  });
 }
 
 /** The world rectangle one floor's walkable areas cover, or null when it has none. */
