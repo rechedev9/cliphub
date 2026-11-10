@@ -1,3 +1,5 @@
+import type { PrepWarning } from '../api/first-death.ts';
+
 /** A player of the team's roster, as far as the warnings care. */
 export type RosterSpan = { nick: string; first_played_at: string; last_played_at: string; matches: number };
 
@@ -5,13 +7,11 @@ export type PrepareWarningInput = {
   roster: readonly RosterSpan[];
   /** When each of the team's matches in the period was played, whatever the lineup keeps. */
   periodPlayedAt: readonly string[];
-  /** When each match the sample kept was played, after the lineup; null while it is read. */
-  keptPlayedAt: readonly string[] | null;
-  now: number;
+  /** The server's warnings over the kept sample (`tacticalplan.PrepWarning`); null while it is read. */
+  sample: readonly PrepWarning[] | null;
+  team: string;
 };
 
-/** Matches older than this no longer describe how the team plays today. */
-export const STALE_DAYS = 60;
 /** A player with fewer matches than this is a stand-in, not a lineup change. */
 const MIN_ROSTER_MATCHES = 3;
 const DAY_MS = 86_400_000;
@@ -51,17 +51,24 @@ function lineupChange(roster: readonly RosterSpan[], playedAt: readonly string[]
   return `La alineación cambió en este periodo: ${parts.join('; ')}.`;
 }
 
-/**
- * What a coach must know before trusting a preparation: the matches it kept are
- * old, or the lineup changed inside the period (someone joined or left), whichever lineup it counts.
- */
-export function prepareWarnings({ roster, periodPlayedAt, keptPlayedAt, now }: PrepareWarningInput): string[] {
-  const out: string[] = [];
-  const kept = days(keptPlayedAt ?? []);
-  if (kept.length > 0) {
-    const age = Math.floor(now / DAY_MS) - Math.max(...kept);
-    if (age > STALE_DAYS) out.push(`La partida más reciente de esta muestra es de hace ${age} días: puede que ya no jueguen así.`);
+/** One server warning as the line on top of Preparar says it. */
+export function sampleWarningText(warning: PrepWarning, team: string): string {
+  switch (warning.kind) {
+    case 'stale':
+      return `La última partida de ${team} fue hace ${warning.days} días: puede que hayan cambiado de playbook`;
+    case 'lineup':
+      return `Alineación distinta en ${warning.changed} de ${warning.matches} partidas`;
+    case 'small_sample':
+      return `Muestra pequeña: ${warning.rounds} rondas`;
   }
+}
+
+/**
+ * What a coach must know before trusting a preparation: the server's warnings
+ * over the kept sample, then who joined or left inside the period, whichever lineup it counts.
+ */
+export function prepareWarnings({ roster, periodPlayedAt, sample, team }: PrepareWarningInput): string[] {
+  const out = (sample ?? []).map((warning) => sampleWarningText(warning, team));
   const change = lineupChange(roster, periodPlayedAt);
   if (change !== null) out.push(change);
   return out;

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -46,6 +47,8 @@ type scoutResponse struct {
 	TeamID   uuid.UUID      `json:"team_id"`
 	TeamName string         `json:"team_name"`
 	Skipped  []scoutSkipped `json:"skipped"`
+	// Warnings are the data warnings over the kept matches, as Preparar shows them.
+	Warnings []tacticalplan.DataWarning `json:"warnings"`
 	tacticalplan.ScoutReport
 }
 
@@ -197,10 +200,15 @@ func (h *Handlers) buildScout(ctx context.Context, team library.Team, matchIDs [
 	if err != nil {
 		return scoutResponse{}, err
 	}
-	return scoutResponse{
-		TeamID: team.ID, TeamName: team.Name, Skipped: skipped,
-		ScoutReport: tacticalplan.Scout(loaded, filter),
-	}, nil
+	report := tacticalplan.Scout(loaded, filter)
+	rounds := 0
+	for _, m := range report.Matches {
+		rounds += m.Rounds
+	}
+	warnings := tacticalplan.DataWarnings(tacticalplan.DataWarningInput{
+		Matches: filter.Select(loaded), Lineup: filter.Lineup, Rounds: rounds, Now: time.Now(),
+	})
+	return scoutResponse{TeamID: team.ID, TeamName: team.Name, Skipped: skipped, Warnings: warnings, ScoutReport: report}, nil
 }
 
 // readSetupFrames reads the CT setup frames from a match's position blob. A
@@ -576,7 +584,7 @@ func (h *Handlers) GetLibraryReportScout(w http.ResponseWriter, r *http.Request)
 	filter := tacticalplan.ScoutFilter{Side: tacticalplan.Side(report.Side)}
 	if len(report.MatchIDs) == 0 {
 		writeJSON(w, http.StatusOK, scoutResponse{
-			TeamID: team.ID, TeamName: team.Name, Skipped: []scoutSkipped{},
+			TeamID: team.ID, TeamName: team.Name, Skipped: []scoutSkipped{}, Warnings: []tacticalplan.DataWarning{},
 			ScoutReport: tacticalplan.Scout(nil, filter),
 		})
 		return

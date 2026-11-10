@@ -97,6 +97,7 @@ func fakeAnalysisStudio(t *testing.T) *mcp.ClientSession {
 			"seed":{"match_id":"` + testMatchID + `","round":1},"examples":[{"match_id":"` + testMatchID + `","round":1}]}]}`))
 	})
 	addTeamReportRoutes(mux)
+	addFirstDeathRoutes(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	s := closedStudio(t)

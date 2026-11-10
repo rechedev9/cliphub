@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Printer, TriangleAlert } from 'lucide-react';
 import type { LibraryMatch, LibraryTeam } from '@/lib/api/library';
+import type { PrepWarning } from '@/lib/api/first-death';
 import type { ScoutReport } from '@/lib/api/scout';
 import { NO_MATCHES_TEXT, mapCountText, type MapCounts } from '@/lib/analysis/map-counts';
 import { prepareWarnings } from '@/lib/analysis/prepare-warnings';
@@ -12,6 +13,7 @@ import { prepHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { REPLAY_FORM_LABEL } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { FirstDeathPositions } from '@/components/prep/first-death-positions';
 import { PrepBody } from '@/components/prep/prep-body';
 import { Button } from '@/components/ui/button';
 import { TEAM_REPLAY_FORMS, type TeamReplayForm } from './team-replay';
@@ -20,7 +22,7 @@ import { TeamScout } from './team-scout';
 /**
  * Preparar: everything to get ready for a rival in one tab. First what to
  * distrust (an old sample, a lineup that changed), then the map's preparation
- * (buys, tempo, CT positions, playbooks) and under it the scouting sections.
+ * (buys, tempo, CT positions, playbooks, positions until the first death) and under it the scouting sections.
  * Each part opens the Replay form that shows it.
  */
 export function TeamPrepare({
@@ -50,11 +52,16 @@ export function TeamPrepare({
   const [now] = useState(() => Date.now());
   const { from, to } = scopeDateRange(scope.period, now);
   const opponentIds = useMemo(() => (scope.opponent === '' ? [] : [scope.opponent]), [scope.opponent]);
-  const [kept, setKept] = useState<readonly string[] | null>(null);
-  const onReport = useCallback((report: ScoutReport | null) => setKept(report === null ? null : report.matches.map((match) => match.played_at)), []);
+  const [sample, setSample] = useState<readonly PrepWarning[] | null>(null);
+  const onReport = useCallback((report: ScoutReport | null) => setSample(report === null ? null : report.warnings), []);
   const warnings = useMemo(
-    () => prepareWarnings({ roster: team.roster ?? [], periodPlayedAt: matches.map((match) => match.played_at), keptPlayedAt: kept, now }),
-    [team.roster, matches, kept, now],
+    () => prepareWarnings({ roster: team.roster ?? [], periodPlayedAt: matches.map((match) => match.played_at), sample, team: team.name }),
+    [team.roster, team.name, matches, sample],
+  );
+  // Preparar's bar is lineup, map, side, period and rival; the section counts what it keeps.
+  const firstDeathQuery = useMemo(
+    () => ({ map: scope.map, from, to, lineup, opponent_ids: scope.opponent === '' ? [] : [scope.opponent] }),
+    [scope.map, scope.opponent, from, to, lineup],
   );
   return (
     <div className="flex flex-col gap-5">
@@ -113,6 +120,7 @@ export function TeamPrepare({
             if (known !== undefined) onOpenReplay(known);
           }} />
       )}
+      {scope.map === '' ? null : <FirstDeathPositions teamId={team.id} query={firstDeathQuery} scopeSide={scope.side} />}
       <section aria-label="Scouting" className="flex flex-col gap-2 border-t border-border pt-4">
         <h2 className="text-body font-semibold text-fg-1">Cómo juegan</h2>
         <TeamScout teamId={team.id} scope={scope} lineup={lineup} onCounts={onCounts} onReport={onReport} />

@@ -23,6 +23,7 @@ function fixture(): ScoutReport {
     team_name: 'Vitality <B>',
     skipped: [{ match_id: 'bbbbbbbb-0000-4000-8000-000000000002', reason: 'analysis_missing' }],
     filter: {},
+    warnings: [],
     thresholds: {
       min_reliable_sample: 4,
       example_limit: 8,

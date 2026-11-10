@@ -3,6 +3,7 @@ package tacticalplan
 import (
 	"math"
 	"sort"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/radarmap"
 )
@@ -98,6 +99,8 @@ type Prep struct {
 	Matchups  []PrepMatchup `json:"matchups"`
 	Tempo     []PrepTempo   `json:"tempo"`
 	CTPlayers []PrepPlayer  `json:"ct_players"`
+	// Warnings are the data warnings over the kept sample; empty without PrepOptions.Now.
+	Warnings []DataWarning `json:"warnings"`
 }
 
 // PrepOptions selects the matches and names the roles of the team's players.
@@ -105,6 +108,8 @@ type PrepOptions struct {
 	Filter ScoutFilter
 	// Roles is the inferred role per SteamID; a missing one reads "unknown".
 	Roles map[string]string
+	// Now dates the stale warning; zero leaves the warnings out.
+	Now time.Time
 }
 
 type matchupKey struct {
@@ -211,6 +216,14 @@ func BuildPrep(matches []FramedMatch, opts PrepOptions) Prep {
 	prep.Matchups = run.matchupRows()
 	prep.Tempo = run.tempoRows()
 	prep.CTPlayers = run.playerRows(opts.Roles, prep.Map)
+	prep.Warnings = []DataWarning{}
+	if !opts.Now.IsZero() {
+		kept := make([]ScoutMatch, 0, len(selected))
+		for _, m := range selected {
+			kept = append(kept, m.ScoutMatch)
+		}
+		prep.Warnings = DataWarnings(DataWarningInput{Matches: kept, Lineup: f.Lineup, Rounds: prep.RoundCount, Now: opts.Now})
+	}
 	return prep
 }
 
