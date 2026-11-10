@@ -25,6 +25,7 @@ func stratbookStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	mux := http.NewServeMux()
 	rec.handle(mux, "GET /api/library/plays", `{"plays":[`+testPlayJSON+`,`+testPlayJSON+`]}`)
 	rec.handle(mux, "GET /api/library/plays/{id}", testPlayJSON)
+	rec.handle(mux, "GET /api/library/patterns", `{"patterns":[{"id":"`+testReportID+`","name":"Split A","map":"de_mirage","category":"Ejecuciones","pattern":{"side":"T","blocks":[]},"scope":{}}]}`)
 	rec.handle(mux, "POST /api/library/plays", testPlayJSON)
 	rec.handle(mux, "PATCH /api/library/plays/{id}", testPlayJSON)
 	rec.handle(mux, "DELETE /api/library/plays/{id}", ``)
@@ -79,6 +80,12 @@ func TestPlaysReadCompactly(t *testing.T) {
 	}
 	if len(p.Refs) != 1 || p.Refs[0] != testMatchID+"/4" || len(p.Positions) != 1 || p.Positions[0].Callout != "Palace" {
 		t.Errorf("refs %v, positions %+v", p.Refs, p.Positions)
+	}
+	if got := rec.get("GET /api/library/patterns"); !strings.Contains(got, "play_id="+testPlayID) {
+		t.Errorf("linked patterns query = %s", got)
+	}
+	if len(p.Patterns) != 1 || p.Patterns[0].Category != "Ejecuciones" {
+		t.Errorf("linked patterns = %+v", p.Patterns)
 	}
 }
 

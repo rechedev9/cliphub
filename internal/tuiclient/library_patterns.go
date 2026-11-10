@@ -34,6 +34,8 @@ type SavedPattern struct {
 	Name      string               `json:"name"`
 	Map       string               `json:"map"`
 	TeamID    string               `json:"team_id,omitempty"`
+	Category  string               `json:"category,omitempty"`
+	PlayID    string               `json:"play_id,omitempty"`
 	Pattern   tacticalplan.Pattern `json:"pattern"`
 	Scope     PatternScope         `json:"scope"`
 	UpdatedAt time.Time            `json:"updated_at,omitzero"`
@@ -52,11 +54,13 @@ type PatternRun struct {
 
 // PatternListQuery lists a map's saved patterns; with Stats each runs over the team's scope, or the library without a team.
 type PatternListQuery struct {
-	Map    string
-	TeamID string
-	Stats  bool
-	Scope  AnalysisQuery
-	Extra  url.Values
+	Map      string
+	TeamID   string
+	Category string
+	PlayID   string
+	Stats    bool
+	Scope    AnalysisQuery
+	Extra    url.Values
 }
 
 // TeamPatternQuery is a pattern over a team's matches on one map, read through the team scope.
@@ -89,9 +93,10 @@ func (c *Client) ListPatterns(ctx context.Context, q PatternListQuery) ([]SavedP
 	for key, list := range q.Extra {
 		values[key] = list
 	}
-	values.Set("map", q.Map)
-	if q.TeamID != "" {
-		values.Set("team_id", q.TeamID)
+	for key, value := range map[string]string{"map": q.Map, "team_id": q.TeamID, "category": q.Category, "play_id": q.PlayID} {
+		if value != "" {
+			values.Set(key, value)
+		}
 	}
 	if q.Stats {
 		values.Set("stats", strconv.Itoa(1))
@@ -112,12 +117,61 @@ func (c *Client) GetPattern(ctx context.Context, id string) (SavedPattern, error
 
 // CreatePattern saves a pattern; an empty TeamID saves it for the whole library.
 func (c *Client) CreatePattern(ctx context.Context, p SavedPattern) (SavedPattern, error) {
-	body := map[string]any{"name": p.Name, "map": p.Map, "pattern": p.Pattern, "scope": p.Scope}
+	body := map[string]any{"name": p.Name, "map": p.Map, "pattern": p.Pattern, "scope": p.Scope, "category": p.Category}
 	if p.TeamID != "" {
 		body["team_id"] = p.TeamID
 	}
+	if p.PlayID != "" {
+		body["play_id"] = p.PlayID
+	}
 	var out SavedPattern
 	err := c.doJSON(ctx, http.MethodPost, "/api/library/patterns", body, &out)
+	return out, err
+}
+
+// PatternUpdate is an edit of a saved pattern; nil fields stay as they are.
+type PatternUpdate struct {
+	Name      *string               `json:"name,omitempty"`
+	Map       *string               `json:"map,omitempty"`
+	TeamID    *string               `json:"team_id,omitempty"`
+	ClearTeam bool                  `json:"clear_team,omitempty"`
+	Category  *string               `json:"category,omitempty"`
+	PlayID    *string               `json:"play_id,omitempty"`
+	ClearPlay bool                  `json:"clear_play,omitempty"`
+	Pattern   *tacticalplan.Pattern `json:"pattern,omitempty"`
+	Scope     *PatternScope         `json:"scope,omitempty"`
+}
+
+// UpdatePattern edits a saved pattern.
+func (c *Client) UpdatePattern(ctx context.Context, id string, patch PatternUpdate) (SavedPattern, error) {
+	var out SavedPattern
+	err := c.doJSON(ctx, http.MethodPatch, patternPath(id), patch, &out)
+	return out, err
+}
+
+// MatchPatternHit is a saved pattern that holds in some rounds of a match, from one team's side.
+type MatchPatternHit struct {
+	Pattern SavedPattern                `json:"pattern"`
+	TeamKey string                      `json:"team_key"`
+	Team    string                      `json:"team"`
+	Rounds  []tacticalplan.PatternRound `json:"rounds"`
+}
+
+// MatchPatterns is how many saved patterns apply to a match and the ones its rounds meet.
+type MatchPatterns struct {
+	Map      string            `json:"map"`
+	Total    int               `json:"total"`
+	Patterns []MatchPatternHit `json:"patterns"`
+}
+
+// MatchPatterns lists the saved patterns a match's rounds meet; a round above 0 keeps that round.
+func (c *Client) MatchPatterns(ctx context.Context, matchID string, round int) (MatchPatterns, error) {
+	values := url.Values{}
+	if round > 0 {
+		values.Set("round", strconv.Itoa(round))
+	}
+	var out MatchPatterns
+	err := c.getJSON(ctx, "/api/library/matches/"+url.PathEscape(matchID)+"/patterns"+encodeValues(values), &out)
 	return out, err
 }
 

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,7 +34,7 @@ func TestPatternRepositoryContract(t *testing.T) {
 			}
 			got, err := repo.GetPattern(ctx, smoke.ID)
 			if err != nil || got.TeamID == nil || *got.TeamID != team || len(got.Pattern.Blocks) != 2 ||
-				got.Pattern.Blocks[0].Area == nil || *got.Pattern.Blocks[0].Area != *area || !got.Pattern.Blocks[1].Invert ||
+				got.Pattern.Blocks[0].Area == nil || !reflect.DeepEqual(*got.Pattern.Blocks[0].Area, *area) || !got.Pattern.Blocks[1].Invert ||
 				got.Pattern.Blocks[1].Players[0] != "76561198000000001" || got.Scope.Matches != 3 || got.Scope.Buy != tacticalplan.BuyFull {
 				t.Fatalf("GetPattern = %+v, %v", got, err)
 			}

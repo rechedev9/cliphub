@@ -343,6 +343,7 @@ func run() error {
 	handlers.StartFaceitRosterRefresh()
 	handlers.StartCommunity(ctx)
 	handlers.StartVoice(ctx)
+	handlers.StartPatternDetection(ctx)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {

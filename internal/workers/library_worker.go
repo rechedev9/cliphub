@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/patterndetect"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tactical"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -84,8 +85,10 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 	}
 
 	analysis, scanErr := w.analyze(ctx, d)
+	var match library.Match
 	if scanErr == nil {
-		_, err := w.repo.SaveAnalysis(ctx, analysis)
+		var err error
+		match, err = w.repo.SaveAnalysis(ctx, analysis)
 		if errors.Is(err, library.ErrNotFound) {
 			w.discard(id)
 			return nil
@@ -109,7 +112,20 @@ func (w *LibraryWorker) ProcessAnalyzeLibraryDemo(ctx context.Context, id uuid.U
 	}
 	logWorkerArtifacts(id, tasks.TypeAnalyzeLibraryDemo, []string{artifacts.LibraryTacticalIndexKey(id), artifacts.LibraryTacticalPositionsKey(id)})
 	w.groupFaceitSeries(ctx, d)
+	w.detectPatterns(ctx, match)
 	return nil
+}
+
+// detectPatterns reads the saved patterns of the map over the match just analysed. It never
+// fails the scan: a pattern read later detects the match itself.
+func (w *LibraryWorker) detectPatterns(ctx context.Context, m library.Match) {
+	repo, ok := w.repo.(patterndetect.Repository)
+	if !ok {
+		return
+	}
+	if err := patterndetect.New(repo, w.storage).DetectMatch(ctx, m); err != nil {
+		logWorkerError(m.DemoID, "detect saved patterns", err)
+	}
 }
 
 // analyze scans the demo, publishes the tactical artifacts and summarizes the

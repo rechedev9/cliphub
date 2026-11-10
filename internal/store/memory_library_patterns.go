@@ -11,10 +11,22 @@ import (
 )
 
 func patternMatches(p library.Pattern, f library.PatternFilter) bool {
-	if f.Map != "" && p.Map != f.Map {
+	if (f.Map != "" && p.Map != f.Map) || (f.Category != "" && p.Category != f.Category) {
+		return false
+	}
+	if f.PlayID != nil && (p.PlayID == nil || *p.PlayID != *f.PlayID) {
 		return false
 	}
 	return f.TeamID == nil || p.TeamID == nil || *p.TeamID == *f.TeamID
+}
+
+// playExists reports whether a linked play is there; no link is fine. The caller holds r.mu.
+func (r *MemoryLibraryRepository) playExists(id *uuid.UUID) bool {
+	if id == nil {
+		return true
+	}
+	_, ok := r.plays[*id]
+	return ok
 }
 
 func (r *MemoryLibraryRepository) CreatePattern(ctx context.Context, p *library.Pattern) error {
@@ -28,6 +40,9 @@ func (r *MemoryLibraryRepository) CreatePattern(ctx context.Context, p *library.
 	}
 	if _, taken := r.libreta.patterns[p.ID]; taken {
 		return library.ErrConflict
+	}
+	if !r.playExists(p.PlayID) {
+		return library.ErrNotFound
 	}
 	if r.libreta.patterns == nil {
 		r.libreta.patterns = map[uuid.UUID]library.Pattern{}
@@ -86,6 +101,9 @@ func (r *MemoryLibraryRepository) UpdatePattern(ctx context.Context, id uuid.UUI
 	if !ok {
 		return library.Pattern{}, library.ErrNotFound
 	}
+	if !r.playExists(patch.PlayID) {
+		return library.Pattern{}, library.ErrNotFound
+	}
 	next := library.ApplyPatternPatch(p, patch)
 	next.UpdatedAt = libraryNow()
 	r.libreta.patterns[id] = next
@@ -102,6 +120,7 @@ func (r *MemoryLibraryRepository) DeletePattern(ctx context.Context, id uuid.UUI
 		return library.ErrNotFound
 	}
 	delete(r.libreta.patterns, id)
+	r.libreta.dropPatternRows(func(key patternRowKey) bool { return key.pattern != id })
 	return nil
 }
 

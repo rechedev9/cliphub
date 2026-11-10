@@ -32,7 +32,10 @@ func patternStudio(t *testing.T) (*mcp.ClientSession, *recorder) {
 	rec.handle(mux, "GET /api/library/patterns/{id}/rounds", testPatternRun)
 	rec.handle(mux, "POST /api/library/patterns", testPatternJSON)
 	rec.handle(mux, "DELETE /api/library/patterns/{id}", ``)
-	cs := serveTools(t, mux, func(server *mcp.Server, s *studio) { registerPatternTools(server, s) })
+	rec.handle(mux, "PATCH /api/library/patterns/{id}", testPatternJSON)
+	rec.handle(mux, "GET /api/library/matches/{id}/patterns", `{"map":"de_inferno","total":3,"patterns":[{"pattern":`+testPatternJSON+
+		`,"team_key":"ct-start","team":"FUT","rounds":[{"round":5,"side":"T","won":true,"hits":[],"tick":9000}]}]}`)
+	cs :=serveTools(t, mux, func(server *mcp.Server, s *studio) { registerPatternTools(server, s) })
 	return cs, rec
 }
 
@@ -109,6 +112,34 @@ func TestPatternToolsSaveListRunDelete(t *testing.T) {
 	if !del.NeedsApproval || !strings.Contains(del.Summary, "Banana") || rec.get("DELETE /api/library/patterns/{id}") != "" {
 		t.Fatalf("delete without approval = %+v", del)
 	}
+}
+
+func TestPatternEditAndMatchPatterns(t *testing.T) {
+	cs, rec := patternStudio(t)
+	var saved savedPatternOut
+	callTool(t, cs, "update_pattern", map[string]any{"pattern_id": testPatternID, "category": " Ejecuciones ", "play_id": testPlayID, "side": "CT"}, &saved)
+	body := rec.get("PATCH /api/library/patterns/{id}")
+	for _, want := range []string{`"category":"Ejecuciones"`, `"play_id":"` + testPlayID + `"`, `"side":"CT"`, `"kind":"player"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("patch body %s lacks %s", body, want)
+		}
+	}
+	if strings.Contains(body, "name") || strings.Contains(body, "scope") {
+		t.Errorf("patch sent fields left out: %s", body)
+	}
+	toolFails(t, cs, "update_pattern", map[string]any{"pattern_id": testPatternID, "play_id": testPlayID, "clear_play": true}, "not both")
+	toolFails(t, cs, "update_pattern", map[string]any{"pattern_id": testPatternID, "category": strings.Repeat("x", 41)}, "category")
+
+	var hits matchPatternsOut
+	callTool(t, cs, "match_patterns", map[string]any{"match_id": testCallID, "round": 5}, &hits)
+	if got := rec.get("GET /api/library/matches/{id}/patterns"); !strings.Contains(got, "round=5") {
+		t.Errorf("match query = %s", got)
+	}
+	if hits.Total != 3 || len(hits.Patterns) != 1 || hits.Patterns[0].Refs[0] != testCallID+"/5" ||
+		!strings.Contains(hits.Patterns[0].ReplayPath, url.QueryEscape(testCallID+":5:9000")) {
+		t.Fatalf("hits = %+v", hits)
+	}
+	toolFails(t, cs, "match_patterns", map[string]any{"match_id": testCallID, "round": -1}, "round")
 }
 
 func TestPatternClockAfterThePlant(t *testing.T) {

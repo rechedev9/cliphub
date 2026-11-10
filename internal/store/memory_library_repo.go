@@ -307,6 +307,7 @@ func (r *MemoryLibraryRepository) DeleteDemo(ctx context.Context, id uuid.UUID) 
 			steamIDs = append(steamIDs, p.SteamID64)
 		}
 		delete(r.matches, matchID)
+		r.libreta.dropPatternRows(func(key patternRowKey) bool { return key.match != matchID })
 		delete(r.matchTeams, matchID)
 		delete(r.matchPlayers, matchID)
 		r.dropMatchAnnotations(matchID)

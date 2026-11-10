@@ -2,14 +2,16 @@
 
 import type { ReactNode } from 'react';
 import { Plus, RotateCcw, X } from 'lucide-react';
+import type { MapCallout } from '@/lib/api/callouts';
 import type { LibraryRosterEntry } from '@/lib/api/library';
 import { PATTERN_MAX_BLOCKS, PATTERN_MAX_PLAYERS, type PatternBlock, type PatternBlockKind, type PatternDefinition, type PatternResult } from '@/lib/api/patterns';
 import { TEAM_GRENADE_KINDS, type TeamGrenadeKind } from '@/lib/api/grenades';
 import { GRENADE_KIND_LABEL } from '@/lib/analysis/grenade-patterns';
-import { BLOCK_LABEL, INVERT_LABEL, RIVAL_LABEL, blockSentence, newBlock, patternPlayerToken } from '@/lib/analysis/pattern-finder';
+import { BLOCK_LABEL, INVERT_LABEL, RIVAL_LABEL, areaShape, blockSentence, newBlock, patternPlayerToken, type AreaShape } from '@/lib/analysis/pattern-finder';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
+import { ZoneControls } from './pattern-zone-controls';
 
 const ADD_ORDER: readonly PatternBlockKind[] = ['player', 'utility', 'plant'];
 
@@ -22,10 +24,15 @@ type Props = {
   result: PatternResult | null;
   /** The team's players, most recent first. */
   players: readonly LibraryRosterEntry[];
+  /** The zone tool picked for blocks without a zone yet. */
+  shape: AreaShape;
+  onShape: (shape: AreaShape) => void;
+  callouts: readonly MapCallout[];
 };
 
 /** The blocks of a pattern, each a condition every kept round meets, and the buttons that add more. */
-export function PatternBlocks({ pattern, active, onActive, onChange, onReset, result, players }: Props): ReactNode {
+export function PatternBlocks({ pattern, active, onActive, onChange, onReset, result, players, shape, onShape, callouts }: Props): ReactNode {
+  const names = (token: string): string => callouts.find((entry) => entry.token === token)?.name ?? token;
   const setBlock = (index: number, block: PatternBlock): void => onChange({ ...pattern, blocks: pattern.blocks.map((entry, i) => (i === index ? block : entry)) });
   const remove = (index: number): void => {
     onChange({ ...pattern, blocks: pattern.blocks.filter((_, i) => i !== index) });
@@ -53,6 +60,17 @@ export function PatternBlocks({ pattern, active, onActive, onChange, onReset, re
           active={index === active}
           count={result?.blocks[index] ?? null}
           players={players}
+          shape={block.area === undefined ? shape : areaShape(block.area)}
+          onShape={(next) => {
+            onShape(next);
+            if (block.area !== undefined && areaShape(block.area) !== next) {
+              const out: PatternBlock = { ...block };
+              delete out.area;
+              setBlock(index, out);
+            }
+          }}
+          callouts={callouts}
+          names={names}
           removable={pattern.blocks.length > 1}
           onSelect={() => onActive(index)}
           onChange={(next) => setBlock(index, next)}
@@ -76,6 +94,10 @@ function BlockCard({
   active,
   count,
   players,
+  shape,
+  onShape,
+  callouts,
+  names,
   removable,
   onSelect,
   onChange,
@@ -85,6 +107,10 @@ function BlockCard({
   active: boolean;
   count: { matched: number; rounds: number } | null;
   players: readonly LibraryRosterEntry[];
+  shape: AreaShape;
+  onShape: (shape: AreaShape) => void;
+  callouts: readonly MapCallout[];
+  names: (token: string) => string;
   removable: boolean;
   onSelect: () => void;
   onChange: (block: PatternBlock) => void;
@@ -95,6 +121,8 @@ function BlockCard({
     const next = chosen.includes(id) ? chosen.filter((entry) => entry !== id) : [...chosen, id].slice(0, PATTERN_MAX_PLAYERS);
     const out: PatternBlock = { ...block, players: next };
     if (next.length === 0) delete out.players;
+    if (next.length > 0 && (out.min_players ?? 0) > next.length) out.min_players = next.length;
+    if ((out.min_players ?? 0) <= 1) delete out.min_players;
     onChange(out);
   };
   const flag = (key: 'rival' | 'invert' | 'from_throw', on: boolean): void => {
@@ -102,6 +130,7 @@ function BlockCard({
     if (on) out[key] = true;
     else delete out[key];
     if (key === 'rival') delete out.players;
+    if (key === 'rival' && (out.min_players ?? 0) <= 1) delete out.min_players;
     onChange(out);
   };
   const setGrenade = (value: TeamGrenadeKind | 'any'): void => {
@@ -171,8 +200,8 @@ function BlockCard({
           />
         </div>
       ) : null}
-      <p className="text-body-sm text-fg-2">{blockSentence(block)}</p>
-      {block.area === undefined && active ? <p className="text-meta text-fg-3">Arrastra sobre el radar para dibujar una zona; con zoom, Mayús + arrastrar.</p> : null}
+      {active || block.area !== undefined ? <ZoneControls block={block} shape={shape} onShape={onShape} callouts={callouts} onChange={onChange} /> : null}
+      <p className="text-body-sm text-fg-2">{blockSentence(block, names)}</p>
       {block.area === undefined ? null : (
         <div className="flex flex-wrap gap-1.5">
           <Button type="button" variant="ghost" size="xs" onClick={clearArea}>

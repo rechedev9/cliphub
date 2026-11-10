@@ -232,5 +232,6 @@ func (r *MemoryLibraryRepository) DeletePlay(ctx context.Context, id uuid.UUID) 
 		return library.ErrNotFound
 	}
 	delete(r.plays, id)
+	r.libreta.unlinkPlay(id)
 	return nil
 }

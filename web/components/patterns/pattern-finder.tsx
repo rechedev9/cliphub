@@ -3,11 +3,31 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Map as MapIcon, PlugZap } from 'lucide-react';
+import { getMapCallouts, type MapCallout } from '@/lib/api/callouts';
 import { isLibraryOffline, type LibraryMatch, type LibraryRosterEntry, type TeamCriterion } from '@/lib/api/library';
-import { runTeamPattern, type PatternBlock, type PatternDefinition, type PatternRunResponse, type PatternScope, type TeamPatternScope } from '@/lib/api/patterns';
+import {
+  runTeamPattern,
+  type PatternArea,
+  type PatternBlock,
+  type PatternDefinition,
+  type PatternRunResponse,
+  type PatternScope,
+  type SavedPattern,
+  type TeamPatternScope,
+} from '@/lib/api/patterns';
 import { RADAR_LEVELS, type RadarLevel, type TacticalSide } from '@/lib/api/tactical';
-import type { WorldBox } from '@/lib/analysis/grenade-patterns';
-import { INVERT_LABEL, PATTERN_QUERY, areaOfBox, blockTramo, defaultPattern, patternFromQuery, timedKind, withTramo, writePatternQuery } from '@/lib/analysis/pattern-finder';
+import {
+  INVERT_LABEL,
+  PATTERN_QUERY,
+  areaShape,
+  blockTramo,
+  defaultPattern,
+  patternFromQuery,
+  timedKind,
+  withTramo,
+  writePatternQuery,
+  type AreaShape,
+} from '@/lib/analysis/pattern-finder';
 import { busiestMap, inScopePeriod, scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
 import { prettyMapName } from '@/lib/format';
 import { rivalOf } from '@/lib/library/partidas';
@@ -62,6 +82,9 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [saved, setSaved] = useState(0);
+  const [shape, setShape] = useState<AreaShape>('box');
+  const [opened, setOpened] = useState<SavedPattern | null>(null);
+  const [callouts, setCallouts] = useState<MapCallout[]>([]);
   const { map, opponent, buy, opponentBuy, limit, period } = scope;
   // With no map in the scope the finder opens on the team's busiest one, as Granadas does.
   const defaultMap = useMemo(
@@ -76,6 +99,20 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
   useEffect(() => {
     if (map === '' && defaultMap !== '') onMapChange(defaultMap);
   }, [map, defaultMap, onMapChange]);
+  useEffect(() => {
+    if (map === '') return;
+    let live = true;
+    getMapCallouts(map)
+      .then((read) => {
+        if (live) setCallouts(read.callouts);
+      })
+      .catch(() => {
+        if (live) setCallouts([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [map]);
 
   // Keyed by the raw text, so the pattern only changes when its JSON does.
   const raw = search.get(PATTERN_QUERY);
@@ -184,13 +221,14 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
   const players = [...roster].sort((a, b) => b.last_played_at.localeCompare(a.last_played_at) || b.matches - a.matches);
   const tramo = block === undefined ? WHOLE_ROUND : blockTramo(block);
   const setBlock = (next: PatternBlock): void => setPattern({ ...pattern, blocks: pattern.blocks.map((entry) => (entry === block ? next : entry)) });
-  const onArea = (box: WorldBox | null, level: RadarLevel): void => {
+  const onArea = (area: PatternArea | null): void => {
     if (block === undefined) return;
     const next: PatternBlock = { ...block };
-    if (box === null) delete next.area;
-    else next.area = areaOfBox({ box, level, twoFloors: multiLevel });
+    if (area === null) delete next.area;
+    else next.area = area;
     setBlock(next);
   };
+  const blockShape = block?.area === undefined ? shape : areaShape(block.area);
   const teamName = data.team_name ?? '';
   const shownTramo: Tramo = isWholeRound(tramo) ? { from: 0, to: ROUND_CLOCK_SECONDS } : tramo;
 
@@ -217,14 +255,19 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
           }}
           result={data.result}
           players={players}
+          shape={shape}
+          onShape={setShape}
+          callouts={callouts}
         />
         <SavedPatterns
           map={map}
           teamId={teamId}
+          teamName={data.team_name ?? ''}
           scope={runScope}
           version={saved}
           onOpen={(entry) => {
             setActive(0);
+            setOpened(entry);
             setPattern(entry.pattern);
             onScopeChange({ limit: entry.scope.matches ?? null, buy: entry.scope.buy ?? '', opponentBuy: entry.scope.opponent_buy ?? '' });
           }}
@@ -258,6 +301,7 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
           tramo={focusBlock === undefined ? WHOLE_ROUND : blockTramo(focusBlock)}
           area={block?.area ?? null}
           others={pattern.blocks.flatMap((entry) => (entry === block || entry.area === undefined ? [] : [entry.area]))}
+          tool={blockShape === 'callouts' ? 'none' : blockShape}
           onArea={onArea}
         />
         {block === undefined ? null : (
@@ -308,7 +352,7 @@ export function PatternFinder({ teamId, scope, lineup, criteria, matches, roster
               </>
             )
           }
-          actions={<SavePatternButton map={data.map} teamId={teamId} teamName={teamName} pattern={pattern} scope={saveScope} onSaved={() => setSaved((n) => n + 1)} />}
+          actions={<SavePatternButton map={data.map} teamId={teamId} teamName={teamName} pattern={pattern} scope={saveScope} opened={opened} onSaved={() => setSaved((n) => n + 1)} />}
         />
       </aside>
     </div>

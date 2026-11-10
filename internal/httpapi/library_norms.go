@@ -17,8 +17,8 @@ import (
 type referenceCaches struct {
 	baselines  baselineCache
 	matchReads matchReadCache
+	detection  patternDetection
 	norms      normsCache
-	patterns   patternCache
 	community  CommunityDeps
 	pro        proMatchState
 }

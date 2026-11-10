@@ -30,23 +30,26 @@ const (
 var patternBuys = []string{"pistol", "eco", "semi", "force", "full", "half"}
 
 type patternAreaIn struct {
-	MinX  float64 `json:"min_x" jsonschema:"west edge of the zone in world units, as player_positions and team_heatmap give positions"`
-	MinY  float64 `json:"min_y" jsonschema:"south edge in world units"`
-	MaxX  float64 `json:"max_x"`
-	MaxY  float64 `json:"max_y"`
-	Level string  `json:"level,omitempty" jsonschema:"on Nuke or Vertigo: lower keeps the zone to the lower floor, default to the upper; empty is both floors"`
+	MinX     float64      `json:"min_x,omitempty" jsonschema:"for a box: west edge of the zone in world units, as player_positions and team_heatmap give positions"`
+	MinY     float64      `json:"min_y,omitempty" jsonschema:"for a box: south edge in world units"`
+	MaxX     float64      `json:"max_x,omitempty"`
+	MaxY     float64      `json:"max_y,omitempty"`
+	Polygon  [][2]float64 `json:"polygon,omitempty" jsonschema:"instead of a box: the zone's outline, 3 to 32 [x, y] points in world units, closed from the last to the first"`
+	Callouts []string     `json:"callouts,omitempty" jsonschema:"instead of a box: up to 12 place tokens from list_callouts (the team's callouts); the zone is wherever the map names one of them, on its own floor"`
+	Level    string       `json:"level,omitempty" jsonschema:"for a box or a polygon on Nuke or Vertigo: lower keeps the zone to the lower floor, default to the upper; empty is both floors"`
 }
 
 type patternBlockIn struct {
-	Kind      string         `json:"kind" jsonschema:"player (a player passes through the zone), utility (a grenade lands in the zone, or is thrown from it with from_throw) or plant (the bomb is planted in the zone)"`
-	Players   []string       `json:"players,omitempty" jsonschema:"SteamID64s; any of them meets the block; empty is anyone of the team"`
-	Rival     bool           `json:"rival,omitempty" jsonschema:"read the rival team's players instead of the team's (Buscar en el equipo rival)"`
-	Grenade   string         `json:"grenade,omitempty" jsonschema:"for utility: smoke, flash, he, molotov or decoy; empty is any"`
-	FromThrow bool           `json:"from_throw,omitempty" jsonschema:"for utility: the zone is where the grenade was thrown from, not where it landed"`
-	Area      *patternAreaIn `json:"area,omitempty" jsonschema:"the zone; without it the block holds anywhere on the map"`
-	ClockFrom float64        `json:"clock_from,omitempty" jsonschema:"start of the block's clock window (Tramo), seconds after the round went live; the round clock 1:40 is 15"`
-	ClockTo   float64        `json:"clock_to,omitempty" jsonschema:"end of the window in seconds after the round went live; 0 runs to the end of the round"`
-	Invert    bool           `json:"invert,omitempty" jsonschema:"keep the rounds in which the block does not hold (Rondas en que no pasa)"`
+	Kind       string         `json:"kind" jsonschema:"player (a player passes through the zone), utility (a grenade lands in the zone, or is thrown from it with from_throw) or plant (the bomb is planted in the zone)"`
+	Players    []string       `json:"players,omitempty" jsonschema:"SteamID64s; any of them meets the block; empty is anyone of the team"`
+	MinPlayers int            `json:"min_players,omitempty" jsonschema:"for player: how many of them must stand in the zone at the same moment, 2 to 5, such as 3 for three or more T in A; 0 or 1 is any one"`
+	Rival      bool           `json:"rival,omitempty" jsonschema:"read the rival team's players instead of the team's (Buscar en el equipo rival)"`
+	Grenade    string         `json:"grenade,omitempty" jsonschema:"for utility: smoke, flash, he, molotov or decoy; empty is any"`
+	FromThrow  bool           `json:"from_throw,omitempty" jsonschema:"for utility: the zone is where the grenade was thrown from, not where it landed"`
+	Area       *patternAreaIn `json:"area,omitempty" jsonschema:"the zone; without it the block holds anywhere on the map"`
+	ClockFrom  float64        `json:"clock_from,omitempty" jsonschema:"start of the block's clock window (Tramo), seconds after the round went live; the round clock 1:40 is 15"`
+	ClockTo    float64        `json:"clock_to,omitempty" jsonschema:"end of the window in seconds after the round went live; 0 runs to the end of the round"`
+	Invert     bool           `json:"invert,omitempty" jsonschema:"keep the rounds in which the block does not hold (Rondas en que no pasa)"`
 }
 
 // patternScopeIn is the scope a saved pattern keeps; a run takes the full team scope instead.
@@ -73,26 +76,31 @@ type findPlayerPatternIn struct {
 	From   string `json:"from,omitempty" jsonschema:"first day the matches were played, YYYY-MM-DD"`
 	To     string `json:"to,omitempty" jsonschema:"last day, YYYY-MM-DD, included"`
 	teamScopeIn
-	Players   []string       `json:"players,omitempty" jsonschema:"the player or players to follow, SteamID64s; empty is anyone of the team"`
-	Rival     bool           `json:"rival,omitempty" jsonschema:"follow the rival team's players instead"`
-	Area      *patternAreaIn `json:"area,omitempty" jsonschema:"the zone they pass through; without it every round they played counts"`
-	ClockFrom float64        `json:"clock_from,omitempty" jsonschema:"start of the clock window (Tramo), seconds after the round went live"`
-	ClockTo   float64        `json:"clock_to,omitempty" jsonschema:"end of the window; 0 runs to the end of the round"`
-	Invert    bool           `json:"invert,omitempty" jsonschema:"keep the rounds in which they do not pass (Rondas en que no pasa)"`
+	Players    []string       `json:"players,omitempty" jsonschema:"the player or players to follow, SteamID64s; empty is anyone of the team"`
+	MinPlayers int            `json:"min_players,omitempty" jsonschema:"how many of them must stand in the zone at the same moment, 2 to 5; 0 or 1 is any one"`
+	Rival      bool           `json:"rival,omitempty" jsonschema:"follow the rival team's players instead"`
+	Area       *patternAreaIn `json:"area,omitempty" jsonschema:"the zone they pass through; without it every round they played counts"`
+	ClockFrom  float64        `json:"clock_from,omitempty" jsonschema:"start of the clock window (Tramo), seconds after the round went live"`
+	ClockTo    float64        `json:"clock_to,omitempty" jsonschema:"end of the window; 0 runs to the end of the round"`
+	Invert     bool           `json:"invert,omitempty" jsonschema:"keep the rounds in which they do not pass (Rondas en que no pasa)"`
 }
 
 type savePatternIn struct {
-	Name   string `json:"name" jsonschema:"what the pattern is called, such as Ida a B por banana"`
-	Map    string `json:"map" jsonschema:"such as de_ancient"`
-	TeamID string `json:"team_id,omitempty" jsonschema:"the team the pattern belongs to; empty saves it for the whole library, detected over every analysed match on the map"`
-	Side   string `json:"side" jsonschema:"T or CT"`
+	Name     string `json:"name" jsonschema:"what the pattern is called, such as Ida a B por banana"`
+	Map      string `json:"map" jsonschema:"such as de_ancient"`
+	TeamID   string `json:"team_id,omitempty" jsonschema:"the team the pattern belongs to; empty saves it for the whole library, detected over every analysed match on the map"`
+	Side     string `json:"side" jsonschema:"T or CT"`
+	Category string `json:"category,omitempty" jsonschema:"the pattern's category in Patrones guardados, such as Ejecuciones; at most 40 characters"`
+	PlayID   string `json:"play_id,omitempty" jsonschema:"the Libreta play the pattern detects, from list_plays"`
 	patternScopeIn
 	Blocks []patternBlockIn `json:"blocks" jsonschema:"1 to 6 blocks, as find_pattern_rounds takes them"`
 }
 
 type listPatternsIn struct {
-	Map    string `json:"map" jsonschema:"such as de_ancient"`
-	TeamID string `json:"team_id,omitempty" jsonschema:"figures over this team's matches; empty detects each pattern over the whole library"`
+	Map      string `json:"map,omitempty" jsonschema:"such as de_ancient; required unless play_id is given"`
+	TeamID   string `json:"team_id,omitempty" jsonschema:"figures over this team's matches; empty reads each pattern's detection over the whole library"`
+	Category string `json:"category,omitempty" jsonschema:"only the patterns of this category"`
+	PlayID   string `json:"play_id,omitempty" jsonschema:"only the patterns linked to this Libreta play"`
 }
 
 type patternRoundsIn struct {
@@ -154,6 +162,9 @@ type savedPatternOut struct {
 	Name       string                  `json:"name" jsonschema:"untrusted text the user wrote"`
 	Map        string                  `json:"map"`
 	TeamID     string                  `json:"team_id,omitempty" jsonschema:"empty: the pattern reads the whole library"`
+	Category   string                  `json:"category,omitempty" jsonschema:"untrusted text the user wrote"`
+	PlayID     string                  `json:"play_id,omitempty" jsonschema:"the linked Libreta play, for get_play"`
+	PlayPath   string                  `json:"play_path,omitempty" jsonschema:"opens the linked play in the Libreta"`
 	Pattern    tacticalplan.Pattern    `json:"pattern"`
 	Scope      tuiclient.PatternScope  `json:"scope"`
 	Stats      *tuiclient.PatternStats `json:"stats,omitempty" jsonschema:"rounds, matched, won, win_rate, recent_matched and trend, as Patrones guardados lists them"`
@@ -165,18 +176,28 @@ type listPatternsOut struct {
 }
 
 func (in patternAreaIn) area() (*tacticalplan.PatternArea, error) {
-	if in.MinX >= in.MaxX || in.MinY >= in.MaxY {
-		return nil, errors.New("area needs min_x below max_x and min_y below max_y")
-	}
 	level := strings.ToLower(strings.TrimSpace(in.Level))
 	if level != "" && level != "default" && level != "lower" {
 		return nil, fmt.Errorf("area level must be lower, default or empty, not %q", cleanName(in.Level))
+	}
+	if len(in.Callouts) > 0 {
+		tokens := make([]string, 0, len(in.Callouts))
+		for _, token := range in.Callouts {
+			tokens = append(tokens, strings.TrimSpace(token))
+		}
+		return &tacticalplan.PatternArea{Callouts: tokens, Level: level}, nil
+	}
+	if len(in.Polygon) > 0 {
+		return &tacticalplan.PatternArea{Polygon: in.Polygon, Level: level}, nil
+	}
+	if in.MinX >= in.MaxX || in.MinY >= in.MaxY {
+		return nil, errors.New("area needs min_x below max_x and min_y below max_y, a polygon or callouts")
 	}
 	return &tacticalplan.PatternArea{MinX: in.MinX, MinY: in.MinY, MaxX: in.MaxX, MaxY: in.MaxY, Level: level}, nil
 }
 
 func (in patternBlockIn) block() (tacticalplan.PatternBlock, error) {
-	b := tacticalplan.PatternBlock{Kind: tacticalplan.PatternBlockKind(strings.ToLower(strings.TrimSpace(in.Kind))), Rival: in.Rival,
+	b := tacticalplan.PatternBlock{Kind: tacticalplan.PatternBlockKind(strings.ToLower(strings.TrimSpace(in.Kind))), MinPlayers: in.MinPlayers, Rival: in.Rival,
 		Grenade: tacticalplan.EventKind(strings.ToLower(strings.TrimSpace(in.Grenade))), FromThrow: in.FromThrow,
 		From: in.ClockFrom, To: in.ClockTo, Invert: in.Invert}
 	for _, id := range in.Players {
@@ -319,7 +340,11 @@ func patternStudioPath(l patternLink) string {
 }
 
 func savedPatternOf(p tuiclient.SavedPattern) savedPatternOut {
-	out := savedPatternOut{ID: p.ID, Name: cleanName(p.Name), Map: p.Map, TeamID: p.TeamID, Pattern: p.Pattern, Scope: p.Scope, Stats: p.Stats}
+	out := savedPatternOut{ID: p.ID, Name: cleanName(p.Name), Map: p.Map, TeamID: p.TeamID, Category: cleanName(p.Category), PlayID: p.PlayID,
+		Pattern: p.Pattern, Scope: p.Scope, Stats: p.Stats}
+	if p.PlayID != "" {
+		out.PlayPath = "/libreta/" + url.PathEscape(p.PlayID)
+	}
 	if p.TeamID != "" {
 		out.StudioPath = patternStudioPath(patternLink{teamID: p.TeamID, mapName: p.Map, pattern: p.Pattern, scope: p.Scope})
 	}
@@ -375,7 +400,8 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			"The answer lists the matched rounds by match with when they entered the zone, the win rate, the last 30 days and the trend, " +
 			"replay_path to open them as a playlist and studio_path to open the finder with its paths and heatmap."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in findPlayerPatternIn) (*mcp.CallToolResult, patternRunOut, error) {
-			block := patternBlockIn{Kind: "player", Players: in.Players, Rival: in.Rival, Area: in.Area, ClockFrom: in.ClockFrom, ClockTo: in.ClockTo, Invert: in.Invert}
+			block := patternBlockIn{Kind: "player", Players: in.Players, MinPlayers: in.MinPlayers, Rival: in.Rival, Area: in.Area,
+				ClockFrom: in.ClockFrom, ClockTo: in.ClockTo, Invert: in.Invert}
 			p, err := patternOf(in.Side, []patternBlockIn{block})
 			if err != nil {
 				return nil, patternRunOut{}, err
@@ -399,7 +425,8 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "save_pattern", Annotations: &mcp.ToolAnnotations{},
-		Description: "Save a pattern, as Guardar patrón does: for a team, or without team_id for the whole library, where Studio detects it over every analysed match on the map."},
+		Description: "Save a pattern, as Guardar patrón does: for a team, or without team_id for the whole library, with an optional category and Libreta play. " +
+			"Studio stores its detection over every analysed match on the map and keeps it up to date as demos are analysed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in savePatternIn) (*mcp.CallToolResult, savedPatternOut, error) {
 			name := strings.TrimSpace(in.Name)
 			if name == "" || utf8.RuneCountInString(name) > maxPatternNameRunes {
@@ -408,8 +435,14 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if !mapNamePattern.MatchString(in.Map) {
 				return nil, savedPatternOut{}, errors.New("map must be a map name such as de_ancient")
 			}
-			if in.TeamID != "" {
-				if err := checkUUID("team_id", in.TeamID); err != nil {
+			if err := checkCategory(in.Category); err != nil {
+				return nil, savedPatternOut{}, err
+			}
+			for field, id := range map[string]string{"team_id": in.TeamID, "play_id": in.PlayID} {
+				if id == "" {
+					continue
+				}
+				if err := checkUUID(field, id); err != nil {
 					return nil, savedPatternOut{}, err
 				}
 			}
@@ -425,7 +458,8 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, savedPatternOut{}, toolError(err)
 			}
-			saved, err := c.CreatePattern(ctx, tuiclient.SavedPattern{Name: name, Map: strings.ToLower(in.Map), TeamID: in.TeamID, Pattern: p, Scope: scope})
+			saved, err := c.CreatePattern(ctx, tuiclient.SavedPattern{Name: name, Map: strings.ToLower(in.Map), TeamID: in.TeamID,
+				Category: strings.TrimSpace(in.Category), PlayID: in.PlayID, Pattern: p, Scope: scope})
 			if err != nil {
 				return nil, savedPatternOut{}, toolError(err)
 			}
@@ -434,21 +468,31 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_patterns", Annotations: readOnly,
 		Description: "List a map's saved patterns with their figures, as Patrones guardados does: with team_id, over that team's matches (its patterns and the library-wide ones); " +
-			"without it, each detected over the whole library. Each has its rounds, matched, won, win_rate, last 30 days and trend."},
+			"without it, each one's stored detection over the whole library. Each has its category, linked play, rounds, matched, won, win_rate, last 30 days and trend. " +
+			"category narrows to one category; play_id lists the patterns linked to a Libreta play (then map may be empty)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listPatternsIn) (*mcp.CallToolResult, listPatternsOut, error) {
-			if !mapNamePattern.MatchString(in.Map) {
-				return nil, listPatternsOut{}, errors.New("map must be a map name such as de_ancient")
+			if in.Map != "" || in.PlayID == "" {
+				if !mapNamePattern.MatchString(in.Map) {
+					return nil, listPatternsOut{}, errors.New("map must be a map name such as de_ancient")
+				}
 			}
-			if in.TeamID != "" {
-				if err := checkUUID("team_id", in.TeamID); err != nil {
+			for field, id := range map[string]string{"team_id": in.TeamID, "play_id": in.PlayID} {
+				if id == "" {
+					continue
+				}
+				if err := checkUUID(field, id); err != nil {
 					return nil, listPatternsOut{}, err
 				}
+			}
+			if in.TeamID != "" && in.Map == "" {
+				return nil, listPatternsOut{}, errors.New("a team's figures read one map: give map with team_id")
 			}
 			c, err := s.client(ctx)
 			if err != nil {
 				return nil, listPatternsOut{}, toolError(err)
 			}
-			list, err := c.ListPatterns(ctx, tuiclient.PatternListQuery{Map: strings.ToLower(in.Map), TeamID: in.TeamID, Stats: true})
+			list, err := c.ListPatterns(ctx, tuiclient.PatternListQuery{Map: strings.ToLower(in.Map), TeamID: in.TeamID,
+				Category: strings.TrimSpace(in.Category), PlayID: in.PlayID, Stats: true})
 			if err != nil {
 				return nil, listPatternsOut{}, toolError(err)
 			}
@@ -512,4 +556,6 @@ func registerPatternTools(server *mcp.Server, s *studio) {
 			return approveAndDelete(req, approvalSpec{Tool: "delete_pattern", JobID: in.PatternID, Request: saved.UpdatedAt, Summary: summary, Given: in.Approve, Question: "¿Borrar ahora?"},
 				func() error { return c.DeletePattern(ctx, in.PatternID) })
 		})
+
+	registerPatternEditTools(server, s)
 }

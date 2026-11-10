@@ -62,12 +62,12 @@ func TestLibraryTeamPatternRunsSavesAndDetectsAcrossTheLibrary(t *testing.T) {
 		}
 	}
 
-	// The cached figures are the ones a fresh pass gives.
+	// The stored figures are the ones the first pass gave.
 	first := listed.Patterns
 	f.env.json(http.MethodGet, "/api/library/patterns?map=de_mirage&stats=1", nil, http.StatusOK, &listed)
 	for i, p := range listed.Patterns {
 		if *p.Stats != *first[i].Stats {
-			t.Fatalf("cached figures of %q = %+v, first pass %+v", p.Name, p.Stats, first[i].Stats)
+			t.Fatalf("stored figures of %q = %+v, first pass %+v", p.Name, p.Stats, first[i].Stats)
 		}
 	}
 
