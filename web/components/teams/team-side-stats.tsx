@@ -88,7 +88,7 @@ export type TeamSideStatsProps = {
 };
 
 /** The scope fields Estadísticas sends beyond map, side, period, rival and lineup. */
-const SIDE_STATS_CRITERIA: readonly ScopeField[] = ['buy', 'opponentBuy'];
+const SIDE_STATS_CRITERIA: readonly ScopeField[] = ['buy', 'opponentBuy', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events'];
 
 /** Estadísticas: the team's figures in the scope against the "Comparar con" group, and a card per player. */
 export function TeamSideStats({ teamId, scope, lineup, compare, onCounts }: TeamSideStatsProps): ReactNode {

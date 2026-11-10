@@ -69,6 +69,8 @@ type Filter struct {
 	OpponentEquip EquipRange `json:"opponent_equip,omitempty"`
 	// Numbers, when not nil, keeps only these round numbers: a Libreta play's rounds in one match.
 	Numbers []int `json:"numbers,omitempty"`
+	// Skip drops these round numbers: the rounds of the tactics a scope excludes.
+	Skip []int `json:"skip,omitempty"`
 }
 
 // Empty reports whether the filter selects everything.
@@ -78,7 +80,7 @@ func (f Filter) Empty() bool {
 		len(f.Tags) == 0 && len(f.Slots) == 0 && f.RoundFrom == 0 && f.RoundTo == 0 && f.Phase == "" &&
 		len(f.Lineup) == 0 && f.AWP == "" && f.OpponentAWP == "" && len(f.Advantages) == 0 &&
 		!f.SecondRound && len(f.EndReasons) == 0 && f.Weapon == "" && f.OpponentWeapon == "" &&
-		f.Equip.Empty() && f.OpponentEquip.Empty() && f.Numbers == nil
+		f.Equip.Empty() && f.OpponentEquip.Empty() && f.Numbers == nil && len(f.Skip) == 0
 }
 
 // Perspective returns the side the filter looks from in a given round, or the
@@ -109,6 +111,9 @@ func (f Filter) Match(d Document, r Round) bool {
 		}
 	}
 	if f.Numbers != nil && !slices.Contains(f.Numbers, r.Number) {
+		return false
+	}
+	if slices.Contains(f.Skip, r.Number) {
 		return false
 	}
 	if f.SecondRound && !IsSecondRound(d, r) {

@@ -147,7 +147,7 @@ const TAB_FIELDS: Readonly<Record<string, readonly ScopeField[]>> = {
   plantilla: ['map', 'reference'],
   partidas: ['map', 'period', 'opponent'],
   mapas: ['map', 'period'],
-  estadisticas: ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent'],
+  estadisticas: ['lineup', 'map', 'side', 'period', 'buy', 'opponentBuy', 'opponent', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events'],
   posiciones: ['lineup', 'map', 'side', 'period', 'opponent'],
   veto: ['opponent'],
   sitios: ['lineup', 'map', 'period', 'opponent'],

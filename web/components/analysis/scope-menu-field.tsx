@@ -21,6 +21,7 @@ import {
   TacticSelect,
   WeaponSelect,
 } from '@/components/analysis/scope-replay-controls';
+import { EventChoices, ExcludeTacticChoices, MatchTagChoices } from '@/components/analysis/scope-text-controls';
 
 export type MenuFieldProps = {
   field: ScopeField;
@@ -68,6 +69,14 @@ export function MenuField({ field, scope, onChange, opponents, tactics, ownTeams
       return <WeaponSelect rival scope={scope} onChange={onChange} />;
     case 'tactic':
       return <TacticSelect scope={scope} tactics={tactics} onChange={onChange} />;
+    case 'excludeTactics':
+      return <ExcludeTacticChoices scope={scope} tactics={tactics} onChange={onChange} />;
+    case 'matchTags':
+      return <MatchTagChoices scope={scope} onChange={onChange} exclude={false} />;
+    case 'excludeMatchTags':
+      return <MatchTagChoices scope={scope} onChange={onChange} exclude />;
+    case 'events':
+      return <EventChoices scope={scope} onChange={onChange} />;
     default:
       return null;
   }

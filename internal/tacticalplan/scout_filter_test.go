@@ -3,6 +3,8 @@ package tacticalplan
 import (
 	"reflect"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func matchIDs(ms []ScoutMatch) []string {
@@ -61,5 +63,30 @@ func TestScoutRoundFilterCarriesTheRoundCriteria(t *testing.T) {
 	}
 	if tend := AggregateMatches(ms[:1], f); tend.RoundCount != 1 {
 		t.Fatalf("the tendencies count %d rounds, want the 1 the criteria keep", tend.RoundCount)
+	}
+}
+
+func TestScoutSelectByTagsAndEvent(t *testing.T) {
+	ms := scoutMatches()
+	ms[0].Tags, ms[0].Event = []string{"Scrim"}, "IEM Beijing 2026"
+	ms[1].Tags = []string{"oficial"}
+
+	if got := matchIDs(ScoutFilter{Tags: []string{"scrim"}}.Select(ms)); !reflect.DeepEqual(got, []string{scoutMatchOne.String()}) {
+		t.Fatalf("tag scrim keeps %v, want the first match whatever the case", got)
+	}
+	if got := matchIDs(ScoutFilter{ExcludeTags: []string{"Scrim"}}.Select(ms)); !reflect.DeepEqual(got, []string{scoutMatchTwo.String()}) {
+		t.Fatalf("without scrims keeps %v", got)
+	}
+	if got := matchIDs(ScoutFilter{Events: []string{"iem beijing 2026"}}.Select(ms)); !reflect.DeepEqual(got, []string{scoutMatchOne.String()}) {
+		t.Fatalf("event keeps %v; a match with no series is left out", got)
+	}
+}
+
+func TestScoutRoundFilterSkipsExcludedTacticRounds(t *testing.T) {
+	ms := scoutMatches()
+	f := ScoutFilter{Side: SideCT, SkipRounds: map[uuid.UUID][]int{ms[0].MatchID: {2}}}
+	// Alpha played CT in rounds 1 and 2; the excluded tactic took round 2.
+	if got := roundNumbers(f.rounds(ms[0])); !reflect.DeepEqual(got, []int{1}) {
+		t.Fatalf("CT rounds without the excluded tactic = %v, want [1]", got)
 	}
 }

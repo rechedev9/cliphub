@@ -42,6 +42,10 @@ type teamRoundScopeIn struct {
 	OpponentEquipFrom int      `json:"opponent_equip_from,omitempty" jsonschema:"the rival's equipment value per player, at least"`
 	OpponentEquipTo   int      `json:"opponent_equip_to,omitempty" jsonschema:"the rival's equipment value per player, at most"`
 	Tactic            string   `json:"tactic,omitempty" jsonschema:"a Libreta play id from list_plays (Táctica): only the rounds that play was read from, its example rounds"`
+	ExcludeTactic     []string `json:"exclude_tactic,omitempty" jsonschema:"Libreta play ids from list_plays whose example rounds are left out (Táctica: sin las rondas de)"`
+	MatchTag          []string `json:"match_tag,omitempty" jsonschema:"demo tags (update_demo tags, any case): only matches whose demo carries one of them (Con la etiqueta)"`
+	ExcludeMatchTag   []string `json:"exclude_match_tag,omitempty" jsonschema:"demo tags whose matches are left out (Sin la etiqueta), such as scrim"`
+	Event             []string `json:"event,omitempty" jsonschema:"events of the match's series (list_library_series event, any case): only matches of those events (Torneo); a match in no series is left out"`
 }
 
 // teamOnly reports a key the per-player round reads cannot apply.
@@ -49,7 +53,7 @@ func (in teamRoundScopeIn) teamOnly() bool {
 	return in.MaxMatches != 0 || in.OpponentTop != 0 || in.Whose != "" || in.AWP != "" || in.OpponentAWP != "" || len(in.Advantage) > 0 ||
 		len(in.Site) > 0 || in.Outcome != "" || in.PostPlant || in.Phase != "" || in.SecondRound || len(in.EndReason) > 0 ||
 		in.Weapon != "" || in.OpponentWeapon != "" || in.EquipFrom != 0 || in.EquipTo != 0 || in.OpponentEquipFrom != 0 ||
-		in.OpponentEquipTo != 0 || in.Tactic != ""
+		in.OpponentEquipTo != 0 || in.Tactic != "" || len(in.ExcludeTactic) > 0 || len(in.MatchTag) > 0 || len(in.ExcludeMatchTag) > 0 || len(in.Event) > 0
 }
 
 // values writes the scope as the query the team endpoints read.
@@ -70,6 +74,13 @@ func (in teamRoundScopeIn) values() url.Values {
 	for key, list := range map[string][]string{"buy": in.Buy, "opponent_buy": in.OpponentBuy, "advantage": in.Advantage, "site": in.Site, "end_reason": in.EndReason} {
 		for _, item := range list {
 			v.Add(key, strings.ToLower(strings.TrimSpace(item)))
+		}
+	}
+	for key, list := range map[string][]string{"exclude_tactic": in.ExcludeTactic, "match_tag": in.MatchTag, "exclude_match_tag": in.ExcludeMatchTag, "event": in.Event} {
+		for _, item := range list {
+			if item = strings.TrimSpace(item); item != "" {
+				v.Add(key, item)
+			}
 		}
 	}
 	if in.PostPlant {
@@ -95,6 +106,11 @@ func (in teamRoundScopeIn) apply(q tuiclient.AnalysisQuery) (tuiclient.AnalysisQ
 	}
 	if in.Tactic != "" {
 		if err := checkUUID("tactic", in.Tactic); err != nil {
+			return q, err
+		}
+	}
+	for _, id := range in.ExcludeTactic {
+		if err := checkUUID("exclude_tactic", id); err != nil {
 			return q, err
 		}
 	}

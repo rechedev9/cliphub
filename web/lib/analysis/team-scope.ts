@@ -39,5 +39,9 @@ function readFilters(scope: AnalysisScope, reads: ReadonlySet<ScopeField>): Repl
     equip: orderedEquip(pick('equip')),
     opponentEquip: orderedEquip(pick('opponentEquip')),
     tactic: pick('tactic'),
+    excludeTactics: pick('excludeTactics'),
+    matchTags: pick('matchTags'),
+    excludeMatchTags: pick('excludeMatchTags'),
+    events: pick('events'),
   };
 }

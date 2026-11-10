@@ -5,7 +5,8 @@ import { teamScopeEntries, type TeamScopeEntry } from './team-scope.ts';
 /** The filters bar of a team's Replay, in the order it shows them; every one is applied by the server. */
 export const TEAM_REPLAY_FIELDS: readonly ScopeField[] = [
   'lineup', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'equip', 'opponentEquip', 'awp', 'opponentAwp', 'weapon', 'opponentWeapon',
-  'advantage', 'site', 'outcome', 'endReason', 'postPlant', 'phase', 'secondRound', 'tactic', 'rounds', 'opponent', 'opponentTop', 'whose',
+  'advantage', 'site', 'outcome', 'endReason', 'postPlant', 'phase', 'secondRound', 'tactic', 'excludeTactics', 'rounds', 'opponent', 'opponentTop', 'whose',
+  'matchTags', 'excludeMatchTags', 'events',
 ];
 
 /** The match counts the Replay offers; with none in the URL it reads the last 3, where a rival's habits show cleanest. */

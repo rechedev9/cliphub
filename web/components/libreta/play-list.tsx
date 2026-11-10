@@ -111,6 +111,7 @@ export function PlayList({
   onReload,
   onImported,
   onDetect,
+  tableId = 'libreta-plays',
 }: {
   plays: LibraryPlay[] | null;
   offline: boolean;
@@ -119,13 +120,15 @@ export function PlayList({
   /** After an import, which may also bring lineups, role sheets, calls and callout names. */
   onImported: () => void;
   onDetect: () => void;
+  /** Where the table keeps its sort and filters; a team's Playbook keeps its own, apart from the Libreta's. */
+  tableId?: string;
 }): ReactNode {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
-  const view = useTableView('libreta-plays', {
+  const view = useTableView(tableId, {
     sort: { column: 'updated', direction: 'desc' },
     hidden: ['tags', 'origin'],
     filters: { [SEARCH_FILTER]: FILTER_ANY },

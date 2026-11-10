@@ -63,6 +63,10 @@ test('a full scope survives a round trip through the URL', () => {
     equip: { from: 1000, to: 3250 },
     opponentEquip: { from: 3250, to: null },
     tactic: TEAM,
+    excludeTactics: [TEAM, '1a2b3c4d-0000-4000-8000-000000000001'],
+    matchTags: ['scrim', 'oficial'],
+    excludeMatchTags: ['pov'],
+    events: ['IEM Beijing 2026'],
   };
   assert.deepEqual(parseAnalysisScope(new URLSearchParams(writeAnalysisScope(scope))), scope);
   const half: AnalysisScope = { ...DEFAULT_SCOPE, buy: 'half', period: { kind: 'preset', preset: '14d' }, limit: 3 };

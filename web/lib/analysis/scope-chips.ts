@@ -63,6 +63,13 @@ function advantageText(advantage: string): string {
   return advantage === '' ? '' : `Vivos ${own} contra ${rival}`;
 }
 
+/** "Etiqueta: scrim", or "Etiqueta: scrim y 2 más" once the list grows. */
+function listText(prefix: string, values: readonly string[]): string {
+  const [first] = values;
+  if (first === undefined) return '';
+  return values.length === 1 ? `${prefix}: ${first}` : `${prefix}: ${first} y ${values.length - 1} más`;
+}
+
 type ChipQuery = { readonly scope: AnalysisScope; readonly field: ScopeField; readonly names: ScopeChipNames };
 
 function chipLabel({ scope, field, names }: ChipQuery): string {
@@ -122,6 +129,14 @@ function chipLabel({ scope, field, names }: ChipQuery): string {
     }
     case 'tactic':
       return scope.tactic === '' ? '' : `Táctica: ${names.tactics.get(scope.tactic) ?? 'jugada de la Libreta'}`;
+    case 'excludeTactics':
+      return listText('Sin táctica', scope.excludeTactics.map((id) => names.tactics.get(id) ?? 'jugada de la Libreta'));
+    case 'matchTags':
+      return listText('Etiqueta', scope.matchTags);
+    case 'excludeMatchTags':
+      return listText('Sin etiqueta', scope.excludeMatchTags);
+    case 'events':
+      return listText('Torneo', scope.events);
     default:
       return '';
   }

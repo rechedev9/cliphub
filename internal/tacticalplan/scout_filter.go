@@ -3,6 +3,7 @@ package tacticalplan
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +20,10 @@ type ScoutMatch struct {
 	// OpponentRank is the rival's HLTV rank; 0 when it is not known.
 	OpponentRank int
 	// OwnTeam reports that one of the user's own teams played the match.
-	OwnTeam  bool
+	OwnTeam bool
+	// Tags are the demo's tags and Event the series' event; the loader reads them only when the scope asks.
+	Tags  []string
+	Event string
 	Document Document
 	// Setup holds, per round number, the frame read ScoutSetupSeconds after
 	// freeze end. It is nil when the match has no position blob.
@@ -57,6 +61,30 @@ type ScoutFilter struct {
 	Rounds Filter `json:"rounds"`
 	// PlayRounds, when not nil, keeps only these rounds per match: a Libreta play's examples.
 	PlayRounds map[uuid.UUID][]int `json:"-"`
+	// SkipRounds drops these rounds per match: the examples of the tactics the scope excludes.
+	SkipRounds map[uuid.UUID][]int `json:"-"`
+	// Tags keeps the matches whose demo carries one of them; ExcludeTags drops those carrying any.
+	Tags        []string `json:"tags,omitempty"`
+	ExcludeTags []string `json:"exclude_tags,omitempty"`
+	// Events keeps the matches of a series played at one of these events.
+	Events []string `json:"events,omitempty"`
+}
+
+// ReadsTags reports whether the scope needs each match's demo tags.
+func (f ScoutFilter) ReadsTags() bool { return len(f.Tags) > 0 || len(f.ExcludeTags) > 0 }
+
+// ReadsEvent reports whether the scope needs each match's series event.
+func (f ScoutFilter) ReadsEvent() bool { return len(f.Events) > 0 }
+
+func anyFold(want, have []string) bool {
+	for _, w := range want {
+		for _, h := range have {
+			if strings.EqualFold(strings.TrimSpace(w), strings.TrimSpace(h)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Select returns the matches the filter keeps, most recent first. The order is
@@ -97,7 +125,10 @@ func (f ScoutFilter) KeepsMatch(m ScoutMatch) bool {
 		len(f.Opponents) > 0 && !containsString(f.Opponents, m.OpponentID),
 		f.Whose == WhoseOwn && !m.OwnTeam,
 		f.Whose == WhoseOthers && m.OwnTeam,
-		f.PlayRounds != nil && len(f.PlayRounds[m.MatchID]) == 0:
+		f.PlayRounds != nil && len(f.PlayRounds[m.MatchID]) == 0,
+		len(f.Tags) > 0 && !anyFold(f.Tags, m.Tags),
+		len(f.ExcludeTags) > 0 && anyFold(f.ExcludeTags, m.Tags),
+		len(f.Events) > 0 && !anyFold(f.Events, []string{m.Event}):
 		return false
 	}
 	return true
@@ -125,6 +156,7 @@ func (f ScoutFilter) RoundFilter(m ScoutMatch) Filter {
 	if f.PlayRounds != nil {
 		out.Numbers = append([]int{}, f.PlayRounds[m.MatchID]...)
 	}
+	out.Skip = append([]int(nil), f.SkipRounds[m.MatchID]...)
 	return out
 }
 

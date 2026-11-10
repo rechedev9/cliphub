@@ -30,9 +30,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryGrid, SiteBars, SkippedNote, TempoChart } from './playbook-summary';
 import { ComboBar, TacticBoard, comboLabeler } from './tactic-board';
+import { ManagePlays } from './manage-plays';
 
 /** The playbook's two views, in the URL so a link opens the same one. */
-const SUB_TABS = { tactics: 'tacticas', rounds: 'ronda-a-ronda' } as const;
+const SUB_TABS = { tactics: 'tacticas', rounds: 'ronda-a-ronda', manage: 'gestionar' } as const;
 const SUB_QUERY = 'vista';
 
 function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }): ReactNode {
@@ -122,7 +123,8 @@ export function TeamPlaybook({
   );
   const toggle = useCallback((key: string, mode: ComboMode) => setCombo(toggleTactic(combo, key, mode)), [setCombo, combo]);
   const clear = useCallback(() => setCombo(EMPTY_COMBO), [setCombo]);
-  const subTab = new URLSearchParams(query).get(SUB_QUERY) === SUB_TABS.rounds ? SUB_TABS.rounds : SUB_TABS.tactics;
+  const asked = new URLSearchParams(query).get(SUB_QUERY);
+  const subTab = Object.values(SUB_TABS).find((id) => id === asked) ?? SUB_TABS.tactics;
   const setSubTab = useCallback(
     (next: string) => {
       const params = new URLSearchParams(query);
@@ -240,6 +242,7 @@ export function TeamPlaybook({
         tabs={[
           { id: SUB_TABS.tactics, label: 'Tácticas', content: tacticsView },
           { id: SUB_TABS.rounds, label: 'Ronda a ronda', content: roundsView },
+          { id: SUB_TABS.manage, label: 'Gestionar', content: <ManagePlays teamId={teamId} map={map} side={side} /> },
         ]}
       />
       <SkippedNote skipped={playbook.skipped} />

@@ -20,7 +20,7 @@ export type FilterGroup = {
 
 export const FILTER_GROUPS: readonly FilterGroup[] = [
   { id: 'weapon', label: 'Arma', fields: ['weapon', 'opponentWeapon', 'awp', 'opponentAwp'] },
-  { id: 'tactic', label: 'Táctica', fields: ['tactic'] },
+  { id: 'tactic', label: 'Táctica', fields: ['tactic', 'excludeTactics'] },
   { id: 'advantage', label: 'Ventaja', fields: ['advantage'] },
   { id: 'site', label: 'Sitio atacado', fields: ['site'] },
   { id: 'round', label: 'Ronda', fields: ['rounds', 'secondRound'] },
@@ -28,6 +28,7 @@ export const FILTER_GROUPS: readonly FilterGroup[] = [
   { id: 'postplant', label: 'Postplant', fields: ['postPlant'] },
   { id: 'reason', label: 'Motivo de victoria', fields: ['endReason'] },
   { id: 'outcome', label: 'Resultado', fields: ['outcome'] },
+  { id: 'tags', label: 'Etiquetas y torneo', fields: ['matchTags', 'excludeMatchTags', 'events'] },
   { id: 'rival', label: 'Rival y partidas', fields: ['opponent', 'opponentTop', 'whose'] },
   { id: 'matchup', label: 'Duelo de compras', fields: [], matchup: true },
 ];

@@ -84,7 +84,7 @@ export type ScopeField = keyof AnalysisScope;
 export const SCOPE_FIELDS: readonly ScopeField[] = [
   'map', 'side', 'period', 'limit', 'buy', 'opponentBuy', 'opponent', 'reference', 'lineup', 'awp', 'opponentAwp', 'advantage',
   'rounds', 'opponentTop', 'whose', 'site', 'outcome', 'postPlant', 'phase', 'secondRound', 'endReason', 'weapon', 'opponentWeapon',
-  'equip', 'opponentEquip', 'tactic',
+  'equip', 'opponentEquip', 'tactic', 'excludeTactics', 'matchTags', 'excludeMatchTags', 'events',
 ];
 
 /** Query names. Side and buys share the tactical filter's names; the round filters share the server's. */
@@ -303,7 +303,8 @@ export function writeAnalysisScope(scope: AnalysisScope, current: string | URLSe
   set(SCOPE_PARAMS.roundTo, countParam(scope.rounds.to));
   set(SCOPE_PARAMS.opponentTop, countParam(scope.opponentTop));
   set(SCOPE_PARAMS.whose, scope.whose);
-  for (const [name, value] of replayFilterEntries(scope)) set(name, value);
+  // A list filter repeats its name, so these entries append rather than set.
+  for (const [name, value] of replayFilterEntries(scope)) params.append(name, value);
   return params.toString();
 }
 
@@ -313,6 +314,7 @@ export function scopeFieldActive(scope: AnalysisScope, field: ScopeField): boole
   if (field === 'lineup') return scope.lineup.kind !== 'latest';
   if (field === 'rounds') return scope.rounds.from !== null || scope.rounds.to !== null;
   if (field === 'equip' || field === 'opponentEquip') return equipActive(scope[field]);
+  if (field === 'excludeTactics' || field === 'matchTags' || field === 'excludeMatchTags' || field === 'events') return scope[field].length > 0;
   return scope[field] !== DEFAULT_SCOPE[field];
 }
 
@@ -347,6 +349,10 @@ export function resetScopeFields(scope: AnalysisScope, fields: readonly ScopeFie
     equip: pick('equip'),
     opponentEquip: pick('opponentEquip'),
     tactic: pick('tactic'),
+    excludeTactics: pick('excludeTactics'),
+    matchTags: pick('matchTags'),
+    excludeMatchTags: pick('excludeMatchTags'),
+    events: pick('events'),
   };
 }
 
