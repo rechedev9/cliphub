@@ -6,7 +6,7 @@ import type { ScoutEvidence } from './scout.ts';
  * the Go JSON names; the Go package is the source of truth.
  */
 
-export const SERIES_FORMATS = ['bo1', 'bo3', 'bo5'] as const;
+export const SERIES_FORMATS = ['bo1', 'bo2', 'bo3', 'bo5'] as const;
 export type SeriesFormat = (typeof SERIES_FORMATS)[number];
 
 export const VETO_ACTIONS = ['ban', 'pick', 'decider'] as const;
@@ -28,6 +28,8 @@ export type LibrarySeries = {
   team_ids: string[];
   teams: SeriesTeam[];
   vetoes: VetoStep[];
+  /** The format, teams and veto came from a pro import, which refreshes them until someone edits one. */
+  veto_auto?: boolean;
   match_ids: string[];
   created_at: string;
   updated_at: string;
@@ -151,7 +153,7 @@ export const DEFAULT_MAP_POOL = ['de_ancient', 'de_anubis', 'de_dust2', 'de_infe
 /** Maps the pool editor offers besides the default pool. */
 export const EXTRA_POOL_MAPS = ['de_overpass', 'de_vertigo'] as const;
 
-export const SERIES_KEYS = ['id', 'format', 'event', 'veto', 'team_ids', 'teams', 'vetoes', 'match_ids', 'created_at', 'updated_at'];
+export const SERIES_KEYS = ['id', 'format', 'event', 'veto', 'team_ids', 'teams', 'vetoes', 'veto_auto', 'match_ids', 'created_at', 'updated_at'];
 export const SERIES_FIELDS = ['format', 'event', 'veto', 'team_ids', 'vetoes'];
 /** Matches per map under the team scope (`httpapi.teamMapCountsResponse`); a map with none comes back as 0. */
 export type TeamMapCounts = { team_id: string; team_name: string; maps: { map: string; matches: number }[] };

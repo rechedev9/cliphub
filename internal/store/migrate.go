@@ -45,6 +45,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV19LibraryProMatches,
 	migrateV20LibraryVoice,
 	migrateV21ReportRoundLists,
+	migrateV22SeriesVetoAuto,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -910,6 +911,18 @@ func migrateV21ReportRoundLists(tx *sql.Tx) error {
 	}
 	if _, err := tx.Exec(`ALTER TABLE library_reports ADD COLUMN round_lists TEXT NOT NULL DEFAULT '[]'`); err != nil {
 		return fmt.Errorf("report round lists: %w", err)
+	}
+	return nil
+}
+
+// migrateV22SeriesVetoAuto marks a series whose veto an import wrote, so later imports may refresh it.
+func migrateV22SeriesVetoAuto(tx *sql.Tx) error {
+	found, err := columnExists(tx, "library_series", "veto_auto")
+	if err != nil || found {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE library_series ADD COLUMN veto_auto INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("series veto auto: %w", err)
 	}
 	return nil
 }

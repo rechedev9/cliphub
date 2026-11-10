@@ -25,6 +25,19 @@ func TestProSeriesOfReadsVetoAndPicks(t *testing.T) {
 	}
 }
 
+func TestProSeriesOfGivesUnnamedStepsToTheOtherTeam(t *testing.T) {
+	teams := []ProSidecarTeam{{ID: 1, Name: "Natus Vincere"}, {ID: 2, Name: "FURIA"}}
+	s := ProSeriesOf(ProSidecar{Teams: teams, Maps: []string{"Nuke"}, Veto: []ProSidecarVeto{
+		{Team: "NAVI", Action: "ban", Map: "Nuke"}, {Team: "FURIA", Action: "ban", Map: "Mirage"}, {Team: "NAVI", Action: "pick", Map: "Dust2"},
+	}})
+	if s.Veto[0].TeamID != 1 || s.Veto[1].TeamID != 2 || s.Veto[2].TeamID != 1 {
+		t.Fatalf("NAVI matches no name, so its steps belong to Natus Vincere: %+v", s.Veto)
+	}
+	if s.Maps[0].PickedBy != 0 {
+		t.Fatalf("a banned map has no picker: %+v", s.Maps)
+	}
+}
+
 func TestProSeriesOfOldSidecarCountsMaps(t *testing.T) {
 	for maps, want := range map[int]string{1: "bo1", 2: "bo2", 3: "bo3", 4: "", 5: "bo5"} {
 		names := []string{"Mirage", "Nuke", "Ancient", "Dust2", "Train"}[:maps]

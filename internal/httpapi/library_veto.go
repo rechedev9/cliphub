@@ -294,7 +294,7 @@ func vetoQuery(q url.Values) (library.VetoRequest, uuid.UUID, error) {
 	return req, opponent, nil
 }
 
-// GetLibraryTeamVeto handles GET /api/library/teams/{id}/veto: a BO1, BO3 or
+// GetLibraryTeamVeto handles GET /api/library/teams/{id}/veto: a BO1, BO2, BO3 or
 // BO5 veto against opponent_id over pool, with the steps already done kept
 // and the rest recommended from both teams' map records.
 func (h *Handlers) GetLibraryTeamVeto(w http.ResponseWriter, r *http.Request) {

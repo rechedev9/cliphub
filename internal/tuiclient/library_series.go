@@ -15,7 +15,7 @@ type VetoStep struct {
 	Map    string `json:"map"`
 }
 
-// LibrarySeries groups the maps of one BO1, BO3 or BO5.
+// LibrarySeries groups the maps of one BO1, BO2, BO3 or BO5.
 type LibrarySeries struct {
 	ID     string `json:"id"`
 	Format string `json:"format"`
@@ -27,6 +27,7 @@ type LibrarySeries struct {
 		Name   string `json:"name"`
 	} `json:"teams"`
 	Vetoes    []VetoStep `json:"vetoes"`
+	VetoAuto  bool       `json:"veto_auto"`
 	MatchIDs  []string   `json:"match_ids"`
 	UpdatedAt time.Time  `json:"updated_at"`
 }

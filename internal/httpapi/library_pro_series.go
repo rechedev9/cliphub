@@ -74,56 +74,61 @@ type proSeriesSource struct {
 	added    library.Match
 }
 
-// newProSeries is the series of an HLTV match: its two teams in HLTV order when
-// both are in the library, and the veto as far as those teams allow.
+// newProSeries is the series of an HLTV match, marked as written by the import.
 func (h *Handlers) newProSeries(ctx context.Context, src proSeriesSource) library.Series {
-	info := community.ProSeriesOf(src.sidecar)
-	format := info.Format
-	if !library.ValidSeriesFormat(format) {
-		format = proSeriesFormat(len(src.sidecar.Maps), src.imported)
-	}
-	s := library.Series{Format: format, Event: src.sidecar.Event, TeamIDs: proSeriesTeams(src.added)}
-	teams := h.proLibraryTeams(ctx, src.sidecar.Teams)
-	if pair := proTeamPair(src.sidecar.Teams, teams); pair != nil {
-		s.TeamIDs = pair
-	}
-	s.Vetoes = proLibraryVetoes(info, proSlots(s.TeamIDs, teams))
-	if cleaned, err := library.CleanSeries(s); err == nil {
-		return cleaned
-	}
-	s.Vetoes = nil
-	if cleaned, err := library.CleanSeries(s); err == nil {
-		return cleaned
-	}
-	return s
+	base := library.Series{Format: proSeriesFormat(len(src.sidecar.Maps), src.imported), Event: src.sidecar.Event, TeamIDs: proSeriesTeams(src.added)}
+	return h.proSeriesOver(ctx, proSeriesFill{sidecar: src.sidecar, base: base})
 }
 
 // proSeriesFill is a series of an HLTV match and the sidecar of a map just stored in it.
 type proSeriesFill struct {
 	id      uuid.UUID
 	sidecar community.ProSidecar
+	base    library.Series
 }
 
-// fillProSeries gives a series without a veto the one the catalog knows; a veto
-// the user or an earlier import wrote is kept.
-func (h *Handlers) fillProSeries(ctx context.Context, f proSeriesFill) {
-	s, err := h.libraryRepo.GetSeries(ctx, f.id)
-	if err != nil || len(s.Vetoes) > 0 {
-		return
+// proSeriesOver lays the catalog's format, teams in HLTV order and veto over a series.
+func (h *Handlers) proSeriesOver(ctx context.Context, f proSeriesFill) library.Series {
+	s, info := f.base, community.ProSeriesOf(f.sidecar)
+	if library.ValidSeriesFormat(info.Format) {
+		s.Format = info.Format
 	}
 	teams := h.proLibraryTeams(ctx, f.sidecar.Teams)
-	if pair := proTeamPair(f.sidecar.Teams, teams); len(s.TeamIDs) == 0 && pair != nil {
+	if pair := proTeamPair(f.sidecar.Teams, teams); pair != nil {
 		s.TeamIDs = pair
 	}
-	s.Vetoes = proLibraryVetoes(community.ProSeriesOf(f.sidecar), proSlots(s.TeamIDs, teams))
-	if len(s.Vetoes) == 0 {
+	s.Vetoes, s.VetoAuto = proLibraryVetoes(info, proSlots(s.TeamIDs, teams)), true
+	if cleaned, err := library.CleanSeries(s); err == nil {
+		return cleaned
+	}
+	s.Vetoes = proDecider(info)
+	if cleaned, err := library.CleanSeries(s); err == nil {
+		return cleaned
+	}
+	s.Vetoes = nil
+	return s
+}
+
+// proSeriesRefreshable is a series an import wrote and no person edited since; a series of an
+// older build without the marker counts while it has no veto and was never edited.
+func proSeriesRefreshable(s library.Series) bool {
+	return s.VetoAuto || (len(s.Vetoes) == 0 && s.UpdatedAt.Equal(s.CreatedAt))
+}
+
+// fillProSeries refreshes a series an import wrote with what the catalog knows now, so a
+// veto read later replaces a decider guessed from the map count. A person's edit is kept.
+func (h *Handlers) fillProSeries(ctx context.Context, f proSeriesFill) {
+	s, err := h.libraryRepo.GetSeries(ctx, f.id)
+	if err != nil || !proSeriesRefreshable(s) {
 		return
 	}
-	cleaned, err := library.CleanSeries(s)
-	if err == nil {
-		_, err = h.libraryRepo.UpdateSeries(ctx, f.id, cleaned)
+	f.base = s
+	next := h.proSeriesOver(ctx, f)
+	// A map prepared before the veto was read must not wipe a veto another map brought.
+	if len(next.Vetoes) < len(s.Vetoes) || (next.Format == s.Format && slices.Equal(next.TeamIDs, s.TeamIDs) && slices.Equal(next.Vetoes, s.Vetoes) && s.VetoAuto) {
+		return
 	}
-	if err != nil {
+	if _, err := h.libraryRepo.UpdateSeries(ctx, f.id, next); err != nil {
 		log.Printf("httpapi: fill pro series %s: %v", f.id, err)
 	}
 }
@@ -162,23 +167,29 @@ func proSlots(teamIDs []uuid.UUID, ids map[int]uuid.UUID) map[int]string {
 	return out
 }
 
-// proLibraryVetoes is the catalog veto in library slots. When a team of a step has no
-// slot, only the decider is kept, which needs no team.
+// proLibraryVetoes is the catalog veto in library slots. A step of a team without a slot
+// goes to the other slot when only one team has one; otherwise it is left out.
 func proLibraryVetoes(info community.ProSeries, slots map[int]string) []library.VetoStep {
+	if len(info.Veto) == 0 {
+		return proDecider(info)
+	}
+	only := ""
+	if len(slots) == 1 {
+		for _, slot := range slots {
+			only = map[string]string{library.SeriesTeamA: library.SeriesTeamB, library.SeriesTeamB: library.SeriesTeamA}[slot]
+		}
+	}
 	steps := []library.VetoStep{}
 	for _, v := range info.Veto {
 		slot := slots[v.TeamID]
 		switch {
 		case v.Action == community.ProVetoDecider:
 			steps = append(steps, library.VetoStep{Action: library.VetoDecider, Map: v.Map})
-		case v.TeamID == 0 || slot == "":
-			return proDecider(info)
-		default:
+		case slot != "":
 			steps = append(steps, library.VetoStep{Team: slot, Action: v.Action, Map: v.Map})
+		case only != "" && v.TeamID != 0:
+			steps = append(steps, library.VetoStep{Team: only, Action: v.Action, Map: v.Map})
 		}
-	}
-	if len(info.Veto) == 0 {
-		return proDecider(info)
 	}
 	return steps
 }

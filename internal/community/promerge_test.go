@@ -50,9 +50,13 @@ func TestMergeProPartsKeepsTheReplayedRoundOfTheLaterPart(t *testing.T) {
 		{Slot: 1, SteamID64: "1", Name: "one", TeamKey: "a", StartSide: tacticalplan.SideCT},
 		{Slot: 2, SteamID64: "3", Name: "sub", TeamKey: "b", StartSide: tacticalplan.SideT},
 	}, []partRound{{3, 100, "second"}, {4, 200, "second"}})
+	second.Header.Match.Veto = []ProSidecarVeto{{Action: ProVetoDecider, Map: "Anubis"}}
 	header, blob, err := MergeProParts([]ProPart{second, first})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(header.Match.Veto) != 1 {
+		t.Fatalf("the merge must keep the sidecar with the veto: %+v", header.Match)
 	}
 	doc := header.Document
 	if len(doc.Rounds) != 4 || doc.Rounds[2].EndReason != "second" || doc.Rounds[0].EndReason != "first" {

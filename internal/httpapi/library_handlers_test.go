@@ -237,8 +237,8 @@ func TestLibraryMatchEndpointsListFilterCorrectAndServeEvidence(t *testing.T) {
 	if detached.SeriesID != nil || !detached.PlayedAt.Equal(patched.PlayedAt) {
 		t.Fatalf("series_id null did not detach: %+v", detached)
 	}
-	if rw := env.do(http.MethodPost, "/api/library/series", []byte(`{"format":"bo2"}`), "application/json"); rw.Code != http.StatusBadRequest {
-		t.Fatalf("bo2 series = %d, want 400", rw.Code)
+	if rw := env.do(http.MethodPost, "/api/library/series", []byte(`{"format":"bo4"}`), "application/json"); rw.Code != http.StatusBadRequest {
+		t.Fatalf("bo4 series = %d, want 400", rw.Code)
 	}
 
 	var doc tacticalplan.Document

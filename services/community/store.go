@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -106,15 +107,26 @@ func openStore(path string) (*store, error) {
 // addSeriesColumn adds the series of a catalog made before it and clears the file
 // stamps, so the next pro-matches run reads every analysis again.
 func addSeriesColumn(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('pro_match_maps') WHERE name = 'series'`).Scan(&n); err != nil || n > 0 {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('pro_match_maps') WHERE name = 'series'`).Scan(&n); err != nil || n > 0 {
 		return err
 	}
-	if _, err := db.Exec(`ALTER TABLE pro_match_maps ADD COLUMN series TEXT NOT NULL DEFAULT ''`); err != nil {
+	// Another process may add it between the check and the ALTER; its column is as good as ours.
+	if _, err := tx.Exec(`ALTER TABLE pro_match_maps ADD COLUMN series TEXT NOT NULL DEFAULT ''`); err != nil {
+		if strings.Contains(err.Error(), "duplicate column") {
+			return nil
+		}
 		return err
 	}
-	_, err := db.Exec(`UPDATE pro_match_maps SET mod_time = ''`)
-	return err
+	if _, err := tx.Exec(`UPDATE pro_match_maps SET mod_time = ''`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *store) Close() error { return s.db.Close() }

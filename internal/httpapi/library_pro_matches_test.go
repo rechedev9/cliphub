@@ -166,6 +166,22 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	if len(s.Vetoes) != 7 || s.Vetoes[2] != (library.VetoStep{Team: "a", Action: "pick", Map: "de_mirage"}) || s.Vetoes[3].Team != "b" || s.Vetoes[6] != (library.VetoStep{Action: "decider", Map: "de_nuke"}) {
 		t.Fatalf("the series must carry the HLTV veto in its team slots: %+v", s.Vetoes)
 	}
+	// A decider guessed from the map count gives way to the veto a later import reads.
+	sidecar := community.ProSidecar{MatchID: proTestMatch, Event: "IEM Chengdu", Teams: []community.ProSidecarTeam{{ID: 9565, Name: "Vitality"}, {ID: 6667, Name: "FaZe"}},
+		Maps: []string{"Mirage", "Dust2", "Nuke"}, Veto: proTestVeto}
+	s.Vetoes = []library.VetoStep{{Action: library.VetoDecider, Map: "de_nuke"}}
+	if _, err := env.repo.UpdateSeries(t.Context(), s.ID, s); err != nil {
+		t.Fatal(err)
+	}
+	env.h.fillProSeries(t.Context(), proSeriesFill{id: s.ID, sidecar: sidecar})
+	if got, _ := env.repo.GetSeries(t.Context(), s.ID); len(got.Vetoes) != 7 || !got.VetoAuto {
+		t.Fatalf("an import's guess must be refreshed: %+v", got)
+	}
+	env.json(http.MethodPatch, "/api/library/series/"+s.ID.String(), map[string]any{"vetoes": []any{}}, http.StatusOK, nil)
+	env.h.fillProSeries(t.Context(), proSeriesFill{id: s.ID, sidecar: sidecar})
+	if got, _ := env.repo.GetSeries(t.Context(), s.ID); len(got.Vetoes) != 0 || got.VetoAuto {
+		t.Fatalf("a veto a person edited must stay as they left it: %+v", got)
+	}
 	env.json(http.MethodGet, "/api/library/pro-matches", nil, http.StatusOK, &list)
 	if got := list.Matches[0].Maps[1].LibraryMatchID; got == nil || *got != second.MatchID {
 		t.Fatalf("the catalog must show the imported map: %+v", list.Matches[0].Maps)

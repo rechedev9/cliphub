@@ -43,6 +43,10 @@ func MergeProParts(parts []ProPart) (ProAnalysisHeader, []byte, error) {
 		if err := m.add(p, func(n int) bool { return owner[n] == i }); err != nil {
 			return ProAnalysisHeader{}, nil, fmt.Errorf("merge part %s: %w", p.Header.Entry, err)
 		}
+		// Parts prepared at different times may hold different sidecars; the one with the veto wins, as on the server.
+		if len(p.Header.Match.Veto) > len(m.header.Match.Veto) {
+			m.header.Match = p.Header.Match
+		}
 	}
 	return m.finish()
 }

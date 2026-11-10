@@ -131,7 +131,7 @@ func (r *MemoryLibraryRepository) UpdateSeries(ctx context.Context, id uuid.UUID
 	if !r.seriesTeamsExist(s.TeamIDs) {
 		return library.Series{}, library.ErrNotFound
 	}
-	stored.Format, stored.Event, stored.Veto = s.Format, s.Event, s.Veto
+	stored.Format, stored.Event, stored.Veto, stored.VetoAuto = s.Format, s.Event, s.Veto, s.VetoAuto
 	stored.TeamIDs = append([]uuid.UUID{}, s.TeamIDs...)
 	stored.Vetoes = append([]library.VetoStep{}, s.Vetoes...)
 	stored.UpdatedAt = libraryNow()

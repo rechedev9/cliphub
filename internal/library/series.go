@@ -85,7 +85,7 @@ func CleanSeries(s Series) (Series, error) {
 	}
 	switch {
 	case !ValidSeriesFormat(s.Format):
-		return s, errors.New("format must be bo1, bo3 or bo5")
+		return s, errors.New("format must be bo1, bo2, bo3 or bo5")
 	case len([]rune(s.Event)) > MaxSeriesEventRunes:
 		return s, fmt.Errorf("event must be at most %d characters", MaxSeriesEventRunes)
 	case len([]rune(s.Veto)) > MaxSeriesVetoRunes:
@@ -132,6 +132,9 @@ func CleanSeries(s Series) (Series, error) {
 
 // ApplySeriesPatch returns s with the patch applied, before CleanSeries runs.
 func ApplySeriesPatch(s Series, patch SeriesPatch) Series {
+	if patch.Format != nil || patch.TeamIDs != nil || patch.Vetoes != nil {
+		s.VetoAuto = false
+	}
 	if patch.Format != nil {
 		s.Format = *patch.Format
 	}

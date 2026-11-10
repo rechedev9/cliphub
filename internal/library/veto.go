@@ -93,10 +93,10 @@ type VetoPlan struct {
 // VetoSequence is the step order of a format over a pool: two leading bans,
 // the picks, the remaining bans and the decider, teams alternating from first.
 func VetoSequence(format string, pool int, first string) ([]VetoPlanStep, error) {
-	picks := map[string]int{FormatBO1: 0, FormatBO3: 2, FormatBO5: 4}
+	picks := map[string]int{FormatBO1: 0, FormatBO2: 2, FormatBO3: 2, FormatBO5: 4}
 	n, ok := picks[format]
 	if !ok {
-		return nil, errors.New("format must be bo1, bo3 or bo5")
+		return nil, errors.New("format must be bo1, bo2, bo3 or bo5")
 	}
 	if first != SeriesTeamA && first != SeriesTeamB {
 		return nil, errors.New("first must be a or b")
@@ -250,7 +250,7 @@ func SimulateVeto(req VetoRequest) (VetoPlan, error) {
 			step.Map, step.Basis = recommend(step, maps, left, history >= VetoHistoryMin)
 		}
 		left[step.Map] = false
-		if step.Action != VetoBan {
+		if step.Action == VetoPick || (step.Action == VetoDecider && req.Format != FormatBO2) {
 			plan.Played = append(plan.Played, step.Map)
 		}
 		plan.Steps = append(plan.Steps, step)

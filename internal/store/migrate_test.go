@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -182,7 +181,7 @@ func TestMigrateV21AddsReportRoundListsToAnExistingDatabase(t *testing.T) {
 	}
 	for _, stmt := range []string{
 		`ALTER TABLE library_reports DROP COLUMN round_lists`,
-		fmt.Sprintf(`PRAGMA user_version = %d`, len(migrations)-1),
+		`PRAGMA user_version = 20`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("%s: %v", stmt, err)
@@ -230,6 +229,7 @@ func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
 		// A real version 9 database has the stratbook and report tables that later steps alter.
 		`CREATE TABLE library_plays (id TEXT PRIMARY KEY)`,
 		`CREATE TABLE library_reports (id TEXT PRIMARY KEY)`,
+		`CREATE TABLE library_series (id TEXT PRIMARY KEY)`,
 		`PRAGMA user_version = 9`,
 	} {
 		if _, err := legacy.Exec(stmt); err != nil {
@@ -247,5 +247,30 @@ func TestMigrateV10AddsStreamSourceKindToAnOlderDatabase(t *testing.T) {
 	found, err := columnExists(db, "stream_jobs", "source_kind")
 	if err != nil || !found {
 		t.Fatalf("source_kind after migrate: found=%v err=%v", found, err)
+	}
+}
+
+// A database from before the import marker gains it, and its series read as edited by a person.
+func TestMigrateV22AddsSeriesVetoAuto(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := openSQLite(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{`ALTER TABLE library_series DROP COLUMN veto_auto`, `PRAGMA user_version = 21`} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = openSQLite(path)
+	if err != nil {
+		t.Fatalf("openSQLite: %v", err)
+	}
+	defer db.Close()
+	if found, err := columnExists(db, "library_series", "veto_auto"); err != nil || !found {
+		t.Fatalf("veto_auto after migrate: found=%v err=%v", found, err)
 	}
 }

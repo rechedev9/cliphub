@@ -81,7 +81,32 @@ func ProSeriesOf(s ProSidecar) ProSeries {
 			out.Format = "bo" + strconv.Itoa(n)
 		}
 	}
+	out.Veto = proVeto(s)
+	for i, m := range maps {
+		sm := ProSeriesMap{Number: i + 1, Map: m}
+		for _, v := range out.Veto {
+			if v.Map == m && v.Action == ProVetoPick {
+				sm.PickedBy = v.TeamID
+			}
+			if v.Map == m && v.Action == ProVetoDecider {
+				sm.Decider = true
+			}
+		}
+		// A bo1, bo3 or bo5 always ends on the map left over, the one map of a bo1 included.
+		if len(out.Veto) == 0 && i == len(maps)-1 && out.Format == "bo"+strconv.Itoa(len(maps)) && len(maps)%2 == 1 {
+			sm.Decider = true
+		}
+		out.Maps = append(out.Maps, sm)
+	}
+	return out
+}
+
+// proVeto reads the veto lines, each map once. When the names match only one of the two
+// teams, a ban or pick whose name matches neither belongs to the other team.
+func proVeto(s ProSidecar) []ProVetoStep {
+	out := []ProVetoStep{}
 	seen := map[string]bool{}
+	matched := map[int]bool{}
 	for _, v := range s.Veto {
 		step := ProVetoStep{Action: strings.ToLower(v.Action), Map: ProMapName(v.Map)}
 		switch {
@@ -92,25 +117,25 @@ func ProSeriesOf(s ProSidecar) ProSeries {
 			step.Team = strings.TrimSpace(v.Team)
 			if i := proSidecarTeam(step.Team, s.Teams); i >= 0 {
 				step.TeamID = s.Teams[i].ID
+				matched[i] = true
 			}
 		default:
 			continue
 		}
 		seen[step.Map] = true
-		out.Veto = append(out.Veto, step)
+		out = append(out, step)
 	}
-	for i, m := range maps {
-		sm := ProSeriesMap{Number: i + 1, Map: m}
-		for _, v := range out.Veto {
-			if v.Map == m {
-				sm.PickedBy, sm.Decider = v.TeamID, v.Action == ProVetoDecider
-			}
+	if len(s.Teams) != 2 || len(matched) != 1 {
+		return out
+	}
+	other := s.Teams[0]
+	if matched[0] {
+		other = s.Teams[1]
+	}
+	for i, step := range out {
+		if step.Action != ProVetoDecider && step.TeamID == 0 {
+			out[i].TeamID = other.ID
 		}
-		// A bo1, bo3 or bo5 always ends on the map left over, the one map of a bo1 included.
-		if len(out.Veto) == 0 && i == len(maps)-1 && out.Format == "bo"+strconv.Itoa(len(maps)) && len(maps)%2 == 1 {
-			sm.Decider = true
-		}
-		out.Maps = append(out.Maps, sm)
 	}
 	return out
 }
