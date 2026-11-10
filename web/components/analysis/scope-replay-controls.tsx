@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { END_REASON_LABEL, SITE_LABEL, WEAPON_LABEL } from '@/lib/analysis/scope-chips';
 import { swappedBuys, type AnalysisScope } from '@/lib/analysis/scope';
@@ -10,6 +10,7 @@ import {
   SCOPE_SITES,
   SCOPE_WEAPONS,
   equipEnd,
+  orderedEquip,
   type ScopeEquip,
   type ScopeWeapon,
 } from '@/lib/analysis/scope-replay-filters';
@@ -103,39 +104,48 @@ export function FlagToggle({ label, pressed, onPressedChange }: { label: string;
   );
 }
 
+type EquipEndProps = { label: string; placeholder: string; value: number | null; onCommit: (value: number | null) => void };
+
+/** One end of the range: typing edits a draft, and blur or Enter applies it, so each keystroke is no new query. */
+function EquipEndInput({ label, placeholder, value, onCommit }: EquipEndProps): ReactNode {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (): void => {
+    if (draft === null) return;
+    setDraft(null);
+    if (equipEnd(draft) !== value) onCommit(equipEnd(draft));
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') commit();
+  };
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      aria-label={label}
+      placeholder={placeholder}
+      min={1}
+      max={EQUIP_MAX}
+      step={50}
+      value={draft ?? value ?? ''}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={onKeyDown}
+      className="h-8 w-20 px-2"
+    />
+  );
+}
+
 /** The custom buy: equipment value per player, from and to, next to the fixed buy types. */
 export function EquipRangeControl({ rival, scope, onChange }: Props & { rival: boolean }): ReactNode {
   const range = rival ? scope.opponentEquip : scope.equip;
   const whose = rival ? 'rival' : 'propio';
-  const set = (next: ScopeEquip): void => onChange(rival ? { opponentEquip: next } : { equip: next });
+  const set = (next: ScopeEquip): void => onChange(rival ? { opponentEquip: orderedEquip(next) } : { equip: orderedEquip(next) });
   return (
     <span className="flex items-center gap-1 text-body-sm text-fg-2" title="Valor del equipo por jugador al acabar las compras">
       Equipo {whose} $
-      <Input
-        type="number"
-        inputMode="numeric"
-        aria-label={`Equipo ${whose} por jugador desde`}
-        placeholder="0"
-        min={1}
-        max={EQUIP_MAX}
-        step={50}
-        value={range.from ?? ''}
-        onChange={(event) => set({ from: equipEnd(event.target.value), to: range.to })}
-        className="h-8 w-20 px-2"
-      />
+      <EquipEndInput label={`Equipo ${whose} por jugador desde`} placeholder="0" value={range.from} onCommit={(from) => set({ from, to: range.to })} />
       a
-      <Input
-        type="number"
-        inputMode="numeric"
-        aria-label={`Equipo ${whose} por jugador hasta`}
-        placeholder="sin tope"
-        min={1}
-        max={EQUIP_MAX}
-        step={50}
-        value={range.to ?? ''}
-        onChange={(event) => set({ from: range.from, to: equipEnd(event.target.value) })}
-        className="h-8 w-20 px-2"
-      />
+      <EquipEndInput label={`Equipo ${whose} por jugador hasta`} placeholder="sin tope" value={range.to} onCommit={(to) => set({ from: range.from, to })} />
     </span>
   );
 }

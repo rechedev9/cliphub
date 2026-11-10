@@ -196,7 +196,7 @@ test('the Replay filters read what the server and the MCP write, and drop the re
   const scope = parseAnalysisScope(
     new URLSearchParams('site=a&outcome=draw&tag=ace&tag=postplant&phase=ot&second_round=1&end_reason=time_expired&weapon=knife&equip_from=0&equip_to=25000&opponent_equip_to=1000&tactic=exec-a'),
   );
-  assert.deepEqual(scope, { ...DEFAULT_SCOPE, site: 'A', postPlant: true, endReason: 'time_expired', opponentEquip: { from: null, to: 1000 } });
+  assert.deepEqual(scope, { ...DEFAULT_SCOPE, site: 'A', postPlant: true, secondRound: true, endReason: 'time_expired', opponentEquip: { from: null, to: 1000 } });
   assert.equal(scopeFieldActive(scope, 'opponentEquip'), true);
   assert.equal(scopeFieldActive(resetScopeFields(scope, ['opponentEquip']), 'opponentEquip'), false);
 });

@@ -41,6 +41,7 @@ test('a chip whose name is not loaded still reads', () => {
 
 test('an equipment range reads open on either end', () => {
   assert.equal(equipText({ from: 1000, to: 3250 }), '$1000 a $3250');
+  assert.equal(equipText({ from: 3250, to: 1000 }), '$1000 a $3250');
   assert.equal(equipText({ from: null, to: 1000 }), 'Hasta $1000');
   assert.equal(equipText({ from: null, to: null }), '');
 });

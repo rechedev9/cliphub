@@ -104,7 +104,7 @@ export function parseReplayFilters(query: Query): ReplayFilters {
     outcome: outcome === 'win' || outcome === 'loss' ? outcome : '',
     postPlant: query.getAll(p.tag).includes(POST_PLANT_TAG),
     phase: phase === 'regulation' || phase === 'overtime' ? phase : '',
-    secondRound: query.get(p.secondRound) === 'true',
+    secondRound: query.get(p.secondRound) === 'true' || query.get(p.secondRound) === '1',
     endReason: oneOf(SCOPE_END_REASONS, query.get(p.endReason)),
     weapon: oneOf(SCOPE_WEAPONS, query.get(p.weapon)),
     opponentWeapon: oneOf(SCOPE_WEAPONS, query.get(p.opponentWeapon)),

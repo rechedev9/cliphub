@@ -1,7 +1,7 @@
 import { buyLabel } from '../tactical-labels.ts';
 import { prettyMapName } from '../format.ts';
 import { HALF_BUY, PERIOD_PRESETS, type AnalysisScope, type ScopeBuy, type ScopeField } from './scope.ts';
-import type { ScopeEndReason, ScopeEquip, ScopeSite, ScopeWeapon } from './scope-replay-filters.ts';
+import { orderedEquip, type ScopeEndReason, type ScopeEquip, type ScopeSite, type ScopeWeapon } from './scope-replay-filters.ts';
 
 /** One active filter as the bar's chip: the field its X resets and what it reads. */
 export type ScopeChip = { readonly field: ScopeField; readonly label: string };
@@ -36,7 +36,8 @@ function buyText(buy: ScopeBuy): string {
 }
 
 /** "$1000 a $3250", "Desde $3250", "Hasta $1000" per player. */
-export function equipText(range: ScopeEquip): string {
+export function equipText(input: ScopeEquip): string {
+  const range = orderedEquip(input);
   if (range.from !== null && range.to !== null) return `$${range.from} a $${range.to}`;
   if (range.from !== null) return `Desde $${range.from}`;
   return range.to === null ? '' : `Hasta $${range.to}`;
