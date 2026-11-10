@@ -566,23 +566,26 @@ export type HeatmapQuery = {
   grenades?: readonly HeatmapGrenade[];
 };
 
+/** A team view's query as the orchestrator reads it, in a stable order. */
+export function teamSpatialParams(q: TeamSpatialQuery, params: URLSearchParams = new URLSearchParams()): URLSearchParams {
+  if (q.map) params.set('map', q.map);
+  if (q.side) params.set('side', q.side);
+  if (q.from) params.set('from', q.from);
+  if (q.to) params.set('to', q.to);
+  for (const opponent of q.opponent_ids ?? []) params.append('opponent_id', opponent);
+  for (const match of q.match_ids ?? []) params.append('match_id', match);
+  for (const steamId of q.lineup ?? []) params.append('lineup', steamId);
+  for (const buy of q.buys ?? []) params.append('buy', buy);
+  for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
+  for (const player of q.players ?? []) params.append('player', player);
+  for (const [key, value] of q.criteria ?? []) params.append(key, value);
+  return params;
+}
+
 /** The path of a scope's heatmap or overlay with its query, in a stable order. */
 export function spatialPath(scope: SpatialScope, view: 'heatmap' | 'overlay', extra: URLSearchParams): string {
   const params = new URLSearchParams(scope.kind === 'match' ? scope.filter : '');
-  if (scope.kind === 'team') {
-    const q = scope.query;
-    if (q.map) params.set('map', q.map);
-    if (q.side) params.set('side', q.side);
-    if (q.from) params.set('from', q.from);
-    if (q.to) params.set('to', q.to);
-    for (const opponent of q.opponent_ids ?? []) params.append('opponent_id', opponent);
-    for (const match of q.match_ids ?? []) params.append('match_id', match);
-    for (const steamId of q.lineup ?? []) params.append('lineup', steamId);
-    for (const buy of q.buys ?? []) params.append('buy', buy);
-    for (const buy of q.opponent_buys ?? []) params.append('opponent_buy', buy);
-    for (const player of q.players ?? []) params.append('player', player);
-    for (const [key, value] of q.criteria ?? []) params.append(key, value);
-  }
+  if (scope.kind === 'team') teamSpatialParams(scope.query, params);
   for (const [key, value] of extra) params.append(key, value);
   const search = params.toString();
   const base = scope.kind === 'match' ? `/matches/${id(scope.matchId)}/tactical/${view}` : `/teams/${id(scope.teamId)}/${view}`;

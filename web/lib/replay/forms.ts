@@ -4,13 +4,16 @@ import { buyLabel, ctPatternLabel, outcomeLabel, phaseLabel, roundTagLabel, site
 
 /** The four ways the Replay reads the rounds in its scope. */
 export const REPLAY_FORMS = ['repeticion', 'calor', 'recorridos', 'granadas'] as const;
-export type ReplayForm = (typeof REPLAY_FORMS)[number];
+/** Forms only a team's Replay has: they read rounds across the team's matches. */
+export const TEAM_ONLY_FORMS = ['patrones'] as const;
+export type ReplayForm = (typeof REPLAY_FORMS)[number] | (typeof TEAM_ONLY_FORMS)[number];
 
 export const REPLAY_FORM_LABEL: Record<ReplayForm, string> = {
   repeticion: 'Repetición',
   calor: 'Mapa de calor',
   recorridos: 'Recorridos',
   granadas: 'Granadas',
+  patrones: 'Patrones',
 };
 
 /** Query key of the open form; Repetición is the default and is left out of the URL. */

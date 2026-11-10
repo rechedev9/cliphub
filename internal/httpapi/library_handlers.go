@@ -70,6 +70,7 @@ type LibraryRepository interface {
 	libraryPlayRepository
 	libretaRepository
 	libraryPlaylistRepository
+	patternRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.

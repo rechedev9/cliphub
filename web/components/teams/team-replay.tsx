@@ -9,13 +9,14 @@ import { scopeDateRange, type AnalysisScope, type ScopeField } from '@/lib/analy
 import { teamScopeEntries } from '@/lib/analysis/team-scope';
 import type { ReplayForm } from '@/lib/replay/forms';
 import type { ScopeCounts } from '@/components/analysis/scope-bar';
+import { PatternFinder } from '@/components/patterns/pattern-finder';
 import { TeamGrenades } from '@/components/patterns/team-grenades';
 import { ReplayFormTabs } from '@/components/replay/replay-frame';
 import { Button } from '@/components/ui/button';
 import { TeamSpatial } from './team-spatial';
 
 /** The forms a team's rounds are read in; one round at a time opens from any figure as a playlist. */
-export const TEAM_REPLAY_FORMS = ['calor', 'recorridos', 'granadas'] as const satisfies readonly ReplayForm[];
+export const TEAM_REPLAY_FORMS = ['calor', 'recorridos', 'granadas', 'patrones'] as const satisfies readonly ReplayForm[];
 export type TeamReplayForm = (typeof TEAM_REPLAY_FORMS)[number];
 
 /** The filters bar of the team's Replay, in the order it shows them; every one is applied by the server. */
@@ -113,8 +114,11 @@ export function TeamReplay({
             }}
           />
         </div>
-        <RoundsLink refs={form === 'granadas' ? grenadeRefs : spatialRefs} />
+        {form === 'patrones' ? null : <RoundsLink refs={form === 'granadas' ? grenadeRefs : spatialRefs} />}
       </div>
+      {form === 'patrones' ? (
+        <PatternFinder teamId={teamId} scope={scope} lineup={lineup} matches={matches} roster={roster} onMapChange={onMapChange} onCounts={onCounts} />
+      ) : null}
       {form === 'granadas' ? (
         <TeamGrenades
           teamId={teamId}
@@ -125,7 +129,8 @@ export function TeamReplay({
           onMapChange={onMapChange}
           onCounts={onCounts}
         />
-      ) : (
+      ) : null}
+      {form === 'calor' || form === 'recorridos' ? (
         <TeamSpatial
           teamId={teamId}
           scope={scope}
@@ -137,7 +142,7 @@ export function TeamReplay({
           onCounts={onCounts}
           onRounds={onRounds}
         />
-      )}
+      ) : null}
     </div>
   );
 }

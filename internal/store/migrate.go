@@ -41,6 +41,7 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV15LibraryCalls,
 	migrateV16LibraryPlaylists,
 	migrateV17LibraryTeamProfiles,
+	migrateV18LibraryPatterns,
 }
 
 // sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
@@ -785,6 +786,28 @@ func migrateV17LibraryTeamProfiles(tx *sql.Tx) error {
 	} {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("library team profiles: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateV18LibraryPatterns stores the pattern finder's saved patterns. A pattern
+// outlives its team: without one it reads the whole library.
+func migrateV18LibraryPatterns(tx *sql.Tx) error {
+	for _, stmt := range []string{
+		`CREATE TABLE library_patterns (
+			id         TEXT    PRIMARY KEY,
+			name       TEXT    NOT NULL,
+			map        TEXT    NOT NULL,
+			team_id    TEXT,
+			detail     TEXT    NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX library_patterns_map ON library_patterns(map, team_id)`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("library patterns: %w", err)
 		}
 	}
 	return nil

@@ -30,6 +30,7 @@ import { PRO_LINEUP_MAP_KEYS, PRO_LINEUP_MAPS_KEYS } from '../../../lib/api/pro-
 import { BOT_REPLAY_FIELDS, BOT_REPLAY_KEYS } from '../../../lib/api/bot-replay.ts';
 import { ROLE_SHEET_FIELDS, ROLE_SHEET_KEYS, TEAM_ROLES_KEYS } from '../../../lib/api/roles.ts';
 import { CALL_FIELDS, CALL_KEYS, CALL_LIST_QUERY } from '../../../lib/api/calls.ts';
+import { PATTERN_FIELDS, PATTERN_LIST_QUERY, PATTERN_RUN_KEYS, SAVED_PATTERN_KEYS, TEAM_PATTERN_QUERY } from '../../../lib/api/patterns.ts';
 import {
   PLAYLIST_ADD_FIELDS,
   PLAYLIST_FIELDS,
@@ -235,6 +236,13 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
     response: json(PLAYLIST_KEYS),
   },
   { method: 'DELETE', segments: ['playlists', UUID, 'rounds', UUID, ROUND], response: json(PLAYLIST_KEYS) },
+  { method: 'GET', segments: ['teams', UUID, 'pattern'], query: TEAM_PATTERN_QUERY, response: json(PATTERN_RUN_KEYS) },
+  { method: 'GET', segments: ['patterns'], query: PATTERN_LIST_QUERY, response: json(['patterns']) },
+  { method: 'POST', segments: ['patterns'], body: fields(PATTERN_FIELDS), response: json(SAVED_PATTERN_KEYS) },
+  { method: 'GET', segments: ['patterns', UUID], response: json(SAVED_PATTERN_KEYS) },
+  { method: 'PATCH', segments: ['patterns', UUID], body: fields(PATTERN_FIELDS), response: json(SAVED_PATTERN_KEYS) },
+  { method: 'DELETE', segments: ['patterns', UUID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['patterns', UUID, 'rounds'], query: [...TEAM_PATTERN_QUERY, 'team_id'], response: json(PATTERN_RUN_KEYS) },
   { method: 'GET', segments: ['maps', MAP, 'callouts'], query: MAP_CALLOUTS_QUERY, response: json(MAP_CALLOUTS_KEYS) },
   { method: 'PUT', segments: ['maps', MAP, 'callouts', PLACE], body: fields(CALLOUT_NAME_FIELDS), response: json(CALLOUT_NAME_KEYS) },
   { method: 'DELETE', segments: ['maps', MAP, 'callouts', PLACE], response: { kind: 'empty' } },
