@@ -1,6 +1,10 @@
 package tuiclient
 
-import "context"
+import (
+	"context"
+
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
+)
 
 // SideStat is one team figure: nil Value or GroupAvg when there is no data.
 type SideStat struct {
@@ -27,15 +31,16 @@ type SideStats struct {
 
 // SideStatsPlayer is one player card of the side stats.
 type SideStatsPlayer struct {
-	SteamID64 string  `json:"steamid64"`
-	Name      string  `json:"name"`
-	Role      string  `json:"role"`
-	Rounds    int     `json:"rounds"`
-	Rating    float64 `json:"rating"`
-	KD        float64 `json:"kd"`
-	ADR       float64 `json:"adr"`
-	KPR       float64 `json:"kpr"`
-	DPR       float64 `json:"dpr"`
+	SteamID64 string                       `json:"steamid64"`
+	Name      string                       `json:"name"`
+	Role      string                       `json:"role"`
+	MapRoles  *tacticalplan.PlayerMapRoles `json:"map_roles"`
+	Rounds    int                          `json:"rounds"`
+	Rating    float64                      `json:"rating"`
+	KD        float64                      `json:"kd"`
+	ADR       float64                      `json:"adr"`
+	KPR       float64                      `json:"kpr"`
+	DPR       float64                      `json:"dpr"`
 }
 
 // TeamSideStatsReport is GET /api/library/teams/{id}/side-stats.

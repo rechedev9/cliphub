@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowDown, ArrowUp, Pin, PinOff, Play, TriangleAlert } from 'lucide-react';
 import type { LeaderboardMetric, LeaderboardRow } from '@/lib/api/baseline';
 import { playerHref } from '@/lib/clips/routes';
-import { RANKING_COLUMNS, breakdownText, rolesText } from '@/lib/ranking/columns';
+import { RANKING_COLUMNS, breakdownText, libraryRoleText, rolesText } from '@/lib/ranking/columns';
 import {
   LOW_SAMPLE_ROUNDS,
   cellValue,
@@ -87,7 +87,9 @@ function PlayerRow({
   const name = row?.name ?? pin.name;
   const steamId = row?.steamid64 ?? pin.steamid64;
   const detail = row === null ? '' : breakdownText(row, state.scope.side);
-  const roles = row === null || detail !== '' ? detail : rolesText(row.roles, state.scope.side);
+  const mapRoles = row === null || detail !== '' ? detail : rolesText(row.roles, state.scope.side);
+  const libraryRole = row === null ? '' : libraryRoleText(row.library_role);
+  const roles = [mapRoles, libraryRole].filter((part) => part !== '').join(' · ');
   const href = row === null ? null : playerRoundsHref(row, name);
   return (
     <tr className={cn('border-t border-border-subtle', entry.pinned && 'bg-surface-2')}>

@@ -4,18 +4,27 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Pin, Search } from 'lucide-react';
 import {
   CT_ROLES,
+  GENERIC_ROLES,
   LEADERBOARD_SOURCES,
   PRO_TOPS,
   T_ROLES,
   type LeaderboardMatchSource,
-  type LeaderboardRole,
   type LeaderboardRow,
   type MapRoleOption,
   type ProTop,
 } from '@/lib/api/baseline';
-import { SOURCE_LABEL } from '@/lib/library/partidas';
+import { ROLE_LABEL as LIBRARY_ROLE_LABEL, SOURCE_LABEL } from '@/lib/library/partidas';
 import { ROLE_LABEL } from '@/lib/ranking/columns';
-import { DEFAULT_MIN_ROUNDS, MAX_MIN_ROUNDS, searchPlayers, type PinnedPlayer, type RankingState } from '@/lib/ranking/ranking';
+import {
+  ALLROUND,
+  DEFAULT_MIN_ROUNDS,
+  MAX_MIN_ROUNDS,
+  parseRankingRole,
+  searchPlayers,
+  type PinnedPlayer,
+  type RankingRole,
+  type RankingState,
+} from '@/lib/ranking/ranking';
 import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,9 +33,10 @@ import { cn } from '@/lib/utils';
 /** Radix Select reserves the empty string, so "every value" travels as this. */
 const ALL = '__all__';
 const TRIGGER = 'h-8 gap-1.5 px-2.5 text-body-sm';
+const SIDES = ['T', 'CT'] as const;
 
-function parseRole(value: string): LeaderboardRole | '' {
-  return [...CT_ROLES, ...T_ROLES].find((role) => role === value) ?? '';
+function allroundValue(side: 'CT' | 'T'): string {
+  return `${ALLROUND}:${side}`;
 }
 
 function parseTop(value: string): ProTop | null {
@@ -39,12 +49,14 @@ function parseLevel(value: string): LeaderboardMatchSource | '' {
 
 export type RankingFiltersProps = {
   state: RankingState;
-  onRole: (role: LeaderboardRole | '') => void;
+  onRole: (role: RankingRole | '') => void;
   onLevel: (level: LeaderboardMatchSource | '') => void;
   onTop: (top: ProTop | null) => void;
   onTeamTop: (top: ProTop | null) => void;
   onEvent: (event: string) => void;
   onMapRole: (mapRole: string) => void;
+  /** Todoterreno on a side over every map, or null to clear it. */
+  onAllround: (side: 'CT' | 'T' | null) => void;
   onMinRounds: (rounds: number) => void;
   onReference: (reference: 'library' | 'pro') => void;
   /** Positions players hold on the map and side, and the pro events, as the board lists them. */
@@ -137,6 +149,7 @@ export function RankingFilters({
   onTeamTop,
   onEvent,
   onMapRole,
+  onAllround,
   onMinRounds,
   onReference,
   mapRoles,
@@ -149,9 +162,20 @@ export function RankingFilters({
   const needsMap = state.scope.map === '';
   const needsSide = state.scope.side === '';
   // The options arrive with the board; the chosen value from the URL must show while it loads.
-  const positions = state.mapRole === '' || mapRoles.some((option) => option.key === state.mapRole) ? mapRoles : [{ key: state.mapRole, label: state.mapRole, players: 0 }, ...mapRoles];
+  const chosen = { key: state.mapRole, label: state.mapRole === ALLROUND ? 'Todoterreno' : state.mapRole, players: 0 };
+  const positions = state.mapRole === '' || mapRoles.some((option) => option.key === state.mapRole) ? mapRoles : [chosen, ...mapRoles];
   const eventNames = state.event === '' || events.includes(state.event) ? events : [state.event, ...events];
-  const roleTitle = needsMap ? 'Elige un mapa: el rol se lee en un mapa' : undefined;
+  const roleTitle = pro && needsMap ? 'Elige un mapa: con datos profesionales el rol se lee en un mapa' : undefined;
+  // Without a map, Todoterreno on a side is the Rol filter's own choice; with a map it is a position.
+  const anyMapAllround = needsMap && state.mapRole === ALLROUND && state.scope.side !== '';
+  const pickedRole = state.role === '' ? ALL : state.role;
+  const roleValue = anyMapAllround ? allroundValue(state.scope.side) : pickedRole;
+  function pickRole(next: string): void {
+    const side = SIDES.find((entry) => allroundValue(entry) === next);
+    if (side !== undefined) onAllround(side);
+    else if (next === ALL && anyMapAllround) onAllround(null);
+    else onRole(next === ALL ? '' : parseRankingRole(next, state.scope));
+  }
   const positionTitle = needsMap || needsSide ? 'Elige un mapa y un lado: la posición es una zona del mapa en un lado' : undefined;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -164,26 +188,39 @@ export function RankingFilters({
         ]}
         onChange={onReference}
       />
-      <Select value={state.role === '' ? ALL : state.role} onValueChange={(next) => onRole(next === ALL ? '' : parseRole(next))} disabled={needsMap}>
-        <SelectTrigger
-          aria-label="Rol"
-          title={roleTitle}
-          className={cn(TRIGGER, state.role !== '' && 'border-fg-3 text-fg-1')}
-        >
+      <Select value={roleValue} onValueChange={pickRole} disabled={pro && needsMap}>
+        <SelectTrigger aria-label="Rol" title={roleTitle} className={cn(TRIGGER, roleValue !== ALL && 'border-fg-3 text-fg-1')}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>Todos los roles</SelectItem>
-          {CT_ROLES.map((role) => (
-            <SelectItem key={role} value={role}>
-              CT, {ROLE_LABEL[role].toLowerCase()}
-            </SelectItem>
-          ))}
-          {T_ROLES.map((role) => (
-            <SelectItem key={role} value={role}>
-              T, {ROLE_LABEL[role].toLowerCase()}
-            </SelectItem>
-          ))}
+          {pro
+            ? null
+            : GENERIC_ROLES.map((role) => (
+                <SelectItem key={role} value={role}>
+                  {LIBRARY_ROLE_LABEL[role]}
+                </SelectItem>
+              ))}
+          {needsMap ? (
+            SIDES.map((side) => (
+              <SelectItem key={side} value={allroundValue(side)}>
+                {side} todoterreno
+              </SelectItem>
+            ))
+          ) : (
+            <>
+              {CT_ROLES.map((role) => (
+                <SelectItem key={role} value={role}>
+                  CT, {ROLE_LABEL[role].toLowerCase()}
+                </SelectItem>
+              ))}
+              {T_ROLES.map((role) => (
+                <SelectItem key={role} value={role}>
+                  T, {ROLE_LABEL[role].toLowerCase()}
+                </SelectItem>
+              ))}
+            </>
+          )}
         </SelectContent>
       </Select>
       <Select value={state.mapRole === '' ? ALL : state.mapRole} onValueChange={(next) => onMapRole(next === ALL ? '' : next)} disabled={needsMap || needsSide}>

@@ -1,3 +1,4 @@
+import type { SideMapRole } from './baseline.ts';
 import { request, teamSpatialParams, type TeamSpatialQuery } from './library.ts';
 import type { ScoutEvidence, ScoutSkipReason } from './scout.ts';
 import type { TacticalSide } from './tactical.ts';
@@ -17,7 +18,8 @@ export type FirstDeathZone = {
   floor?: 'lower';
 };
 
-export type FirstDeathPlayer = { steamid64: string; name: string; role: string; rounds: number; zones: FirstDeathZone[] };
+/** `map_role` is the player's role on this side of the map, as the Ranking reads it. */
+export type FirstDeathPlayer = { steamid64: string; name: string; role: string; map_role?: SideMapRole; rounds: number; zones: FirstDeathZone[] };
 
 export type TeamFirstDeath = {
   team_id: string;

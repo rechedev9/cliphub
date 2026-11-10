@@ -83,7 +83,19 @@ func TestLibraryLeaderboard(t *testing.T) {
 	if resp.Source != "bundled" || len(resp.Players) != 5 || resp.Players[0].Team == "" || resp.Players[0].Value < resp.Players[4].Value {
 		t.Fatalf("pro leaderboard without HLTV demos = %+v, want the bundled pros best first", resp)
 	}
-	for _, bad := range []string{"", "?metric=nope", "?metric=kpr&role=a_lurk", "?metric=kpr&map=de_anubis&role=a_lurk&side=CT", "?metric=kpr&source=x", "?metric=kpr&limit=0", "?metric=kpr&min_rounds=x"} {
+	// A library role and Todoterreno read over every map; the two-round player has no library role yet.
+	env.json(http.MethodGet, "/api/library/leaderboard?metric=kpr&min_rounds=1&role=rifler", nil, http.StatusOK, &resp)
+	if resp.Role != "rifler" || len(resp.Players) != 0 {
+		t.Fatalf("rifler board = %+v, want the role echoed and no player under the role's minimum", resp)
+	}
+	env.json(http.MethodGet, "/api/library/leaderboard?metric=kpr&min_rounds=1&map_role=allround&side=T", nil, http.StatusOK, &resp)
+	if resp.MapRole != "allround" || resp.Side != "T" {
+		t.Fatalf("Todoterreno board without a map = %+v", resp)
+	}
+	for _, bad := range []string{
+		"", "?metric=nope", "?metric=kpr&role=a_lurk", "?metric=kpr&map=de_anubis&role=a_lurk&side=CT", "?metric=kpr&source=x", "?metric=kpr&limit=0", "?metric=kpr&min_rounds=x",
+		"?metric=kpr&role=sniper", "?metric=kpr&map_role=allround", "?metric=kpr&map_role=Canal&side=T", "?scope=pro&metric=kpr&role=awp", "?scope=pro&metric=kpr&map_role=allround&side=T",
+	} {
 		if rw := env.do(http.MethodGet, "/api/library/leaderboard"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("leaderboard%s = %d, want 400", bad, rw.Code)
 		}

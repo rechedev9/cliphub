@@ -116,6 +116,39 @@ func TestLeaderboardCTAnchorUsesTheSideOnly(t *testing.T) {
 	}
 }
 
+func TestMapRolesLabelSiteRolesThenCalloutsThenTodoterreno(t *testing.T) {
+	m, frames := roleMatch("00000000-0000-0000-0000-0000000000d5", true)
+	var s LeaderboardSample
+	s.Add(ReadMatch(m, MatchReadOptions{Roles: true, Opening: frames}), "")
+	roles := s.MapRoles()
+	if r := roles["p0"].T; r == nil || r.Role != PositionLurkB || r.Label != "Lurk de B" {
+		t.Fatalf("lurker's T map role = %+v, want Lurk de B", r)
+	}
+	if r := roles["p1"].T; r == nil || r.Role != PositionPack || r.Label == "" || r.Label == MapRoleAllroundLabel {
+		t.Fatalf("pack mate's T map role = %+v, want the callout it holds", r)
+	}
+	if roles["p0"].CT != nil {
+		t.Fatalf("a player without CT rounds has CT role %+v", roles["p0"].CT)
+	}
+	spread := RoleCounts{Sampled: 4, Other: 4, Places: map[string]int{"Mid": 1, "Long": 1, "Short": 1, "Cat": 1}}
+	if got := spread.sideMapRole(SideCT); got == nil || got.Role != PositionRotator || got.Label != MapRoleAllroundLabel {
+		t.Fatalf("rotator with no callout at 40%% = %+v, want Todoterreno", got)
+	}
+}
+
+func TestRowsFilterOnLibraryRole(t *testing.T) {
+	m, frames := roleMatch("00000000-0000-0000-0000-0000000000d6", true)
+	var s LeaderboardSample
+	s.Add(ReadMatch(m, MatchReadOptions{Roles: true, Opening: frames}), "")
+	rows := s.Rows(LeaderboardOptions{Metric: MetricKPR, MinRounds: 1, LibraryRoles: map[string]string{"p0": "awp", "p1": "rifler"}, LibraryRole: "awp"})
+	if len(rows) != 1 || rows[0].SteamID64 != "p0" || rows[0].LibraryRole != "awp" {
+		t.Fatalf("awp rows = %+v, want only p0", rows)
+	}
+	if ex := s.PlayerExamples(LeaderboardOptions{Role: PositionLurkB}); len(ex["p0"]) != 4 || len(ex["p1"]) != 0 {
+		t.Fatalf("lurk B examples = %+v, want p0's four rounds only", ex)
+	}
+}
+
 func TestRatingAndKD(t *testing.T) {
 	totals := playerTotals{rounds: 20, kills: 20, deaths: 10, box: BoxScore{Damage: 1600, Assists: 4, KASTRounds: 15}}
 	values := totals.values()

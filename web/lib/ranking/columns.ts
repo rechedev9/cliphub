@@ -1,15 +1,16 @@
-import type { LeaderboardRole, LeaderboardRoles, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
+import type { GenericRole, LeaderboardRole, LeaderboardRoles, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
 import { RATING_FORMULA_TEXT } from '../analysis/rating.ts';
 import { formatDecimal } from '../format.ts';
-import type { RankingSort } from './ranking.ts';
+import { ROLE_LABEL as ROLE_LABEL_LIBRARY } from '../library/partidas.ts';
+import { ALLROUND, type RankingSort } from './ranking.ts';
 
 export const ROLE_LABEL: Readonly<Record<LeaderboardRole, string>> = {
   a_anchor: 'Ancla A',
   b_anchor: 'Ancla B',
   rotator: 'Rotador',
-  a_lurk: 'Lurker de A',
-  b_lurk: 'Lurker de B',
-  half_lurk: 'Medio lurker',
+  a_lurk: 'Lurk de A',
+  b_lurk: 'Lurk de B',
+  half_lurk: 'Medio lurk',
   pack: 'Pack',
 };
 
@@ -38,8 +39,6 @@ export const RANKING_COLUMNS: readonly RankingColumn[] = [
   { sort: 'rounds', header: 'Rondas', title: 'Rondas jugadas dentro del filtro', format: decimals(0) },
 ];
 
-const ALLROUND = 'allround';
-
 function roleName(key: string): string {
   for (const [role, label] of Object.entries(ROLE_LABEL)) if (role === key) return label.toLowerCase();
   return key;
@@ -64,7 +63,12 @@ export function breakdownText(row: LeaderboardRow, side: '' | 'CT' | 'T'): strin
   return parts.filter((part) => part !== '').join(' · ');
 }
 
-/** "CT Ancla B · T Lurker de B", or empty when no role could be read. */
+/** The library role of a row, such as "AWPer", or empty without one. */
+export function libraryRoleText(role: GenericRole | undefined): string {
+  return role === undefined ? '' : ROLE_LABEL_LIBRARY[role];
+}
+
+/** "CT Ancla B · T Lurk de B", or empty when no role could be read. */
 export function rolesText(roles: LeaderboardRoles | undefined, side: '' | 'CT' | 'T'): string {
   if (roles === undefined) return '';
   const parts: string[] = [];

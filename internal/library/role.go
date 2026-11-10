@@ -102,11 +102,18 @@ func (m RoleMetric) share() float64 {
 	return float64(m.Count) / float64(m.Total)
 }
 
-// InferPlayerRole reads a player's role from the tactical documents of the
-// matches they played. It is a pure function of the documents and their
-// order: the examples are the first rounds counted, in the order given.
-func InferPlayerRole(steamID string, docs []RoleDocument) PlayerRole {
-	role := PlayerRole{
+func (m *RoleMetric) merge(o RoleMetric) {
+	m.Count += o.Count
+	m.Total += o.Total
+	for _, e := range o.Examples {
+		if len(m.Examples) < roleExampleLimit {
+			m.Examples = append(m.Examples, e)
+		}
+	}
+}
+
+func newPlayerRole(steamID string) PlayerRole {
+	return PlayerRole{
 		SteamID64: steamID,
 		Role:      RoleUnknown,
 		AWPKills:  RoleMetric{Examples: []RoleEvidence{}}, TOpenings: RoleMetric{Examples: []RoleEvidence{}},
@@ -116,6 +123,29 @@ func InferPlayerRole(steamID string, docs []RoleDocument) PlayerRole {
 			EntryOpeningShare: RoleEntryOpeningShare, SupportUtilityRatio: RoleSupportUtilityRatio,
 		},
 	}
+}
+
+// FoldPlayerRoles adds up one player's reads of single matches and reads the
+// role again, so it equals InferPlayerRole over the same matches in that order.
+func FoldPlayerRoles(steamID string, parts []PlayerRole) PlayerRole {
+	role := newPlayerRole(steamID)
+	for _, p := range parts {
+		role.MatchCount += p.MatchCount
+		role.Rounds += p.Rounds
+		role.AWPKills.merge(p.AWPKills)
+		role.TOpenings.merge(p.TOpenings)
+		role.Utility.merge(p.Utility)
+		role.TeamUtility.merge(p.TeamUtility)
+	}
+	role.Role = readRole(role)
+	return role
+}
+
+// InferPlayerRole reads a player's role from the tactical documents of the
+// matches they played. It is a pure function of the documents and their
+// order: the examples are the first rounds counted, in the order given.
+func InferPlayerRole(steamID string, docs []RoleDocument) PlayerRole {
+	role := newPlayerRole(steamID)
 	for _, entry := range docs {
 		doc := entry.Document
 		slot, teamKey, ok := playerSlot(doc, steamID)

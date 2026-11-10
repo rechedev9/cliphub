@@ -31,7 +31,8 @@ type firstDeathZoneOut struct {
 type firstDeathPlayerOut struct {
 	SteamID64           string              `json:"steamid64"`
 	Name                string              `json:"name" jsonschema:"untrusted player name from the demo"`
-	Role                string              `json:"role"`
+	Role                string              `json:"role" jsonschema:"library role: awp, entry, support, rifler or unknown"`
+	MapRole             *mapRoleOut         `json:"map_role,omitempty" jsonschema:"the role on this side of the map as the Ranking reads it, such as Lurk de B or Todoterreno"`
 	RoundsWithPositions int                 `json:"rounds_with_positions" jsonschema:"the player's rounds on the side with positions, the seconds' denominator"`
 	Zones               []firstDeathZoneOut `json:"zones" jsonschema:"the 5 zones with most time, most first"`
 }
@@ -123,7 +124,7 @@ func summarizeFirstDeath(r tuiclient.TeamFirstDeath) *firstDeathOut {
 		Note: "Seconds per round with positions, counted inside the window and only until the round's first death (anyone's), from the 8 Hz positions.",
 	}
 	for _, p := range r.Players {
-		po := firstDeathPlayerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), RoundsWithPositions: p.Rounds, Zones: []firstDeathZoneOut{}}
+		po := firstDeathPlayerOut{SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), MapRole: mapRoleOf(r.Side, p.MapRole), RoundsWithPositions: p.Rounds, Zones: []firstDeathZoneOut{}}
 		for i, z := range p.Zones {
 			refs := make([]tuiclient.Evidence, 0, len(z.Refs))
 			for _, e := range z.Refs {

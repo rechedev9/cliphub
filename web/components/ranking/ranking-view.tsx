@@ -8,6 +8,7 @@ import type { Leaderboard } from '@/lib/api/baseline';
 import { DEFAULT_MAP_POOL, EXTRA_POOL_MAPS } from '@/lib/api/veto';
 import { resetScopeFields, type AnalysisScope, type ScopeField } from '@/lib/analysis/scope';
 import {
+  ALLROUND,
   boardSampleText,
   leaderboardRequest,
   nextDir,
@@ -167,7 +168,8 @@ export function RankingView(): ReactNode {
       />
       <RankingFilters
         state={state}
-        onRole={(role) => change(patchRanking(state, { role }))}
+        onRole={(role) => change(patchRanking(state, state.scope.map === '' ? { role, mapRole: '' } : { role }))}
+        onAllround={(side) => change(side === null ? patchRanking(state, { mapRole: '' }) : patchRanking(state, { role: '', mapRole: ALLROUND, scope: { side } }))}
         onLevel={(level) => change(patchRanking(state, { level }))}
         onTop={(top) => change(patchRanking(state, { top }))}
         onTeamTop={(teamTop) => change(patchRanking(state, { teamTop }))}

@@ -53,17 +53,19 @@ func (h *Handlers) GetLibraryTeamFirstDeath(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	loaded, skipped, err := h.loadFramedMatches(r.Context(), q)
+	kept, skipped, err := h.keepFramedMatches(r.Context(), q)
 	if err != nil {
 		internalError(w, "team first death positions", err)
 		return
 	}
+	loaded := h.framedMatches(kept)
 	metrics := make([]tacticalplan.MetricsMatch, 0, len(loaded))
 	for _, m := range loaded {
 		metrics = append(metrics, tacticalplan.MetricsMatch{MatchID: m.MatchID, Document: m.Document, TeamKey: m.TeamKey})
 	}
 	positions := tacticalplan.BuildFirstDeathPositions(loaded, tacticalplan.FirstDeathOptions{
 		Filter: q.filter, Window: window, Movement: movement, Roles: inferRoles(teamSteamIDs(metrics), roleDocuments(metrics)),
+		MapRoles: h.teamMapRoles(kept),
 	})
 	writeJSON(w, http.StatusOK, firstDeathResponse{TeamID: q.team.ID, TeamName: q.team.Name, Skipped: skipped, FirstDeathPositions: positions})
 }

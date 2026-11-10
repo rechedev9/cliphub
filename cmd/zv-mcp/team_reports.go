@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
@@ -139,7 +140,8 @@ type prepWindowOut struct {
 type prepPlayerOut struct {
 	SteamID64 string          `json:"steamid64"`
 	Name      string          `json:"name" jsonschema:"untrusted player name from the demo"`
-	Role      string          `json:"role"`
+	Role      string          `json:"role" jsonschema:"library role: awp, entry, support, rifler or unknown"`
+	MapRole   *mapRoleOut     `json:"map_role,omitempty" jsonschema:"the CT role on the map as the Ranking reads it, such as Ancla A; absent on too few rounds"`
 	Rounds    int             `json:"rounds"`
 	Windows   []prepWindowOut `json:"windows"`
 }
@@ -196,7 +198,7 @@ func registerTeamReportTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "team_prep", Annotations: readOnly,
 		Description: "Prepare a match against a team on one map: how it fares in each buy matchup, how fast it plays per buy, " +
-			"where each CT player stands in each time window and the data warnings Preparar shows on top (stale, lineup, small_sample), " +
+			"where each CT player stands in each time window, each player's library role and map_role (the role on the map as the Ranking reads it), and the data warnings Preparar shows on top (stale, lineup, small_sample), " +
 			"counted on side when given. With side (T or CT), t_from, t_to and movement it also gives first_death: each player's 5 zones " +
 			"with most seconds until the round's first death, as Posiciones hasta la primera muerte. map is required; the prep reads both sides."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamPrepIn) (*mcp.CallToolResult, teamPrepOut, error) {
@@ -364,7 +366,7 @@ func summarizePrep(p tuiclient.TeamPrep) teamPrepOut {
 			Tempo: tempoOf(t.Tempo), Plant: tempoOf(t.Plant)})
 	}
 	for _, pl := range p.CTPlayers {
-		po := prepPlayerOut{SteamID64: cleanName(pl.SteamID64), Name: cleanName(pl.Name), Role: cleanName(pl.Role), Rounds: pl.Rounds, Windows: []prepWindowOut{}}
+		po := prepPlayerOut{SteamID64: cleanName(pl.SteamID64), Name: cleanName(pl.Name), Role: cleanName(pl.Role), MapRole: mapRoleOf(tacticalplan.SideCT, pl.MapRole), Rounds: pl.Rounds, Windows: []prepWindowOut{}}
 		for _, w := range pl.Windows {
 			wo := prepWindowOut{Window: windowName(w.FromSeconds, w.ToSeconds), Rounds: w.Rounds, Spots: []spotOut{}}
 			for _, sp := range w.Spots {

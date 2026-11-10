@@ -155,10 +155,11 @@ type PrepRow struct {
 
 // PrepPlayer is one CT player of a prep and their spots per window.
 type PrepPlayer struct {
-	SteamID64 string `json:"steamid64"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	Rounds    int    `json:"rounds"`
+	SteamID64 string                    `json:"steamid64"`
+	Name      string                    `json:"name"`
+	Role      string                    `json:"role"`
+	MapRole   *tacticalplan.SideMapRole `json:"map_role"`
+	Rounds    int                       `json:"rounds"`
 	Windows   []struct {
 		FromSeconds int `json:"from_seconds"`
 		ToSeconds   int `json:"to_seconds"`
@@ -234,10 +235,11 @@ type PlayerPositions struct {
 		Map     string `json:"map"`
 		Matches int    `json:"matches"`
 		Sides   []struct {
-			Side    string `json:"side"`
-			Rounds  int    `json:"rounds"`
-			Sampled int    `json:"sampled"`
-			Role    string `json:"role"`
+			Side    string                    `json:"side"`
+			Rounds  int                       `json:"rounds"`
+			Sampled int                       `json:"sampled"`
+			Role    string                    `json:"role"`
+			MapRole *tacticalplan.SideMapRole `json:"map_role"`
 			Zones   []struct {
 				Zone   string `json:"zone"`
 				Rounds Rate   `json:"rounds"`
@@ -333,7 +335,9 @@ type LeaderboardPlayer struct {
 	Matches   int                `json:"matches"`
 	Value     float64            `json:"value"`
 	Metrics   map[string]float64 `json:"metrics"`
-	Roles     *struct {
+	// LibraryRole is awp, entry, support or rifler over the board's matches.
+	LibraryRole string `json:"library_role"`
+	Roles       *struct {
 		CT string `json:"ct"`
 		T  string `json:"t"`
 	} `json:"roles"`

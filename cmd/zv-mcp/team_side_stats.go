@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
@@ -24,15 +25,16 @@ type teamSideStatsIn struct {
 }
 
 type sidePlayerOut struct {
-	SteamID64 string  `json:"steamid64"`
-	Name      string  `json:"name" jsonschema:"untrusted player name from the demo"`
-	Role      string  `json:"role" jsonschema:"inferred role: awp, entry, support, rifler or unknown"`
-	Rounds    int     `json:"rounds"`
-	Rating    float64 `json:"rating" jsonschema:"ClipHub's own rating, see rating_formula; not an HLTV rating"`
-	KD        float64 `json:"kd"`
-	ADR       float64 `json:"adr"`
-	KPR       float64 `json:"kpr"`
-	DPR       float64 `json:"dpr"`
+	SteamID64 string       `json:"steamid64"`
+	Name      string       `json:"name" jsonschema:"untrusted player name from the demo"`
+	Role      string       `json:"role" jsonschema:"inferred role: awp, entry, support, rifler or unknown"`
+	MapRoles  []mapRoleOut `json:"map_roles,omitempty" jsonschema:"with one map: the role on each side as the Ranking reads it, such as T Lurk de B, CT Ancla A or Todoterreno"`
+	Rounds    int          `json:"rounds"`
+	Rating    float64      `json:"rating" jsonschema:"ClipHub's own rating, see rating_formula; not an HLTV rating"`
+	KD        float64      `json:"kd"`
+	ADR       float64      `json:"adr"`
+	KPR       float64      `json:"kpr"`
+	DPR       float64      `json:"dpr"`
 }
 
 type sideMatchOut struct {
@@ -130,10 +132,18 @@ func summarizeSideStats(r tuiclient.TeamSideStatsReport, path string) teamSideSt
 		out.CompareTo = append(out.CompareTo, cleanName(team.Name))
 	}
 	for _, p := range r.Players {
-		out.Players = append(out.Players, sidePlayerOut{
+		po := sidePlayerOut{
 			SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), Rounds: p.Rounds,
 			Rating: p.Rating, KD: p.KD, ADR: p.ADR, KPR: p.KPR, DPR: p.DPR,
-		})
+		}
+		if p.MapRoles != nil {
+			for _, side := range []tacticalplan.Side{tacticalplan.SideT, tacticalplan.SideCT} {
+				if role := mapRoleOf(side, p.MapRoles.On(side)); role != nil {
+					po.MapRoles = append(po.MapRoles, *role)
+				}
+			}
+		}
+		out.Players = append(out.Players, po)
 	}
 	for _, m := range r.MatchList {
 		out.MatchList = append(out.MatchList, sideMatchOut{
@@ -148,8 +158,8 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 		Description: "Read a team's statistics, overall and per side, as the team's Estadísticas tab shows them: maps, rounds and pistols won, " +
 			"opening kills, 5v4 and 4v5 rounds won, trades, utility damage and flash assists per round and rounds played, each with group_avg, " +
 			"the mean of the comparison teams (compare_to, or the whole library) over the same map, side, dates and buys; and one card per player " +
-			"(role, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
-				"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to."},
+			"(library role, with one map the role per side as the Ranking reads it in map_roles, ClipHub rating, K/D, ADR, KPR, DPR). Narrow with map, side, dates, opponent_id, match_id, lineup and the team scope: buy and opponent_buy " +
+			"(lists; semi with force is a half buy), max_matches, last_days, opponent_top, whose, awp, opponent_awp, advantage and round_from/round_to."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in teamSideStatsIn) (*mcp.CallToolResult, teamSideStatsOut, error) {
 			q, err := in.query()
 			if err != nil {

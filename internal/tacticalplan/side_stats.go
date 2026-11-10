@@ -27,6 +27,8 @@ type SideStatsOptions struct {
 	Rounds Filter
 	Lineup Lineup
 	Roles  map[string]string
+	// MapRoles is each player's role per side when the scope reads one map.
+	MapRoles map[string]PlayerMapRoles
 }
 
 // SideStat is one figure (nil Value without data; rates in percent) and the mean
@@ -62,18 +64,20 @@ func (s *SideStats) fields() []*SideStat {
 
 // SideStatsPlayer is one player's card: rating, K/D, ADR, KPR and DPR.
 type SideStatsPlayer struct {
-	SteamID64 string  `json:"steamid64"`
-	Name      string  `json:"name"`
-	Role      string  `json:"role"`
-	Rounds    int     `json:"rounds"`
-	Kills     int     `json:"kills"`
-	Deaths    int     `json:"deaths"`
-	Damage    int     `json:"damage"`
-	Rating    float64 `json:"rating"`
-	KD        float64 `json:"kd"`
-	ADR       float64 `json:"adr"`
-	KPR       float64 `json:"kpr"`
-	DPR       float64 `json:"dpr"`
+	SteamID64 string `json:"steamid64"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	// MapRoles is the player's role per side on the map, set when the scope reads one map.
+	MapRoles *PlayerMapRoles `json:"map_roles,omitempty"`
+	Rounds   int             `json:"rounds"`
+	Kills    int             `json:"kills"`
+	Deaths   int             `json:"deaths"`
+	Damage   int             `json:"damage"`
+	Rating   float64         `json:"rating"`
+	KD       float64         `json:"kd"`
+	ADR      float64         `json:"adr"`
+	KPR      float64         `json:"kpr"`
+	DPR      float64         `json:"dpr"`
 }
 
 // SideStatsMatchRef is a match the figures stand on, for "Ver partidas".
@@ -370,7 +374,7 @@ func (run *teamRun) addPlayers(v roundView, names map[uint8]Player) {
 	}
 }
 
-func (run *teamRun) playerCards(roles map[string]string) []SideStatsPlayer {
+func (run *teamRun) playerCards(opts SideStatsOptions) []SideStatsPlayer {
 	list := make([]*playerAccum, 0, len(run.players))
 	for _, p := range run.players {
 		list = append(list, p)
@@ -388,7 +392,10 @@ func (run *teamRun) playerCards(roles map[string]string) []SideStatsPlayer {
 		p.KPR, p.DPR, p.ADR = round2(float64(p.Kills)/rounds), round2(float64(p.Deaths)/rounds), math.Round(float64(p.Damage)/rounds*10)/10
 		p.KD = round2(float64(p.Kills) / float64(max(p.Deaths, 1)))
 		p.Rating = round2(Rating(RatingLine{Rounds: p.Rounds, Kills: p.Kills, Deaths: p.Deaths, Assists: acc.Assists, Damage: p.Damage, KASTRounds: acc.KASTRounds}))
-		p.Role = roles[p.SteamID64]
+		p.Role = opts.Roles[p.SteamID64]
+		if r, ok := opts.MapRoles[p.SteamID64]; ok {
+			p.MapRoles = &r
+		}
 		out = append(out, p)
 	}
 	return out
@@ -452,7 +459,7 @@ func TeamSideStats(in SideStatsInput) SideStatsReport {
 	report := SideStatsReport{
 		Matches: run.overall.matches, Rounds: run.overall.rounds,
 		Overall: run.overall.stats(), CT: sideOnly(run.ct.stats()), T: sideOnly(run.t.stats()),
-		Players: run.playerCards(in.Options.Roles), MatchList: run.refs, GroupMinRounds: GroupMinRounds, RatingFormula: RatingFormula,
+		Players: run.playerCards(in.Options), MatchList: run.refs, GroupMinRounds: GroupMinRounds, RatingFormula: RatingFormula,
 	}
 	var overall, ct, t []groupTeam
 	if in.Group != nil {

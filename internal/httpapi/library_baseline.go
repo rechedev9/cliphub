@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -80,8 +81,8 @@ type leaderboardResponse struct {
 	Event   string `json:"event,omitempty"`
 	MapRole string `json:"map_role,omitempty"`
 	// MapRoles are the positions players have on the side, to offer in a filter; Events the pro events in the period.
-	MapRoles    []tacticalplan.MapRoleOption  `json:"map_roles,omitempty"`
-	Events []string `json:"events,omitempty"`
+	MapRoles []tacticalplan.MapRoleOption `json:"map_roles,omitempty"`
+	Events   []string                     `json:"events,omitempty"`
 	// Side, Role, From, To and MatchSource echo the library filters applied.
 	Side        string                        `json:"side,omitempty"`
 	Role        string                        `json:"role,omitempty"`
@@ -173,7 +174,7 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	}
 	out := leaderboardResponse{
 		Scope: q.scope, Map: q.mapName, Source: referenceSourceLibrary, Metric: metric, HigherIsBetter: !tacticalplan.LowerIsBetter(metric),
-		MinRounds: q.minRounds, Side: string(filters.side), Role: filters.role, MapRole: filters.mapRole, From: filters.from, To: filters.to, MatchSource: string(filters.source),
+		MinRounds: q.minRounds, Side: string(filters.side), Role: cmp.Or(filters.role, filters.libraryRole), MapRole: filters.mapRole, From: filters.from, To: filters.to, MatchSource: string(filters.source),
 	}
 	// A pro board with the community server on always reads its per-player lines; the same
 	// request without a period gets the same three months on the page and on MCP.
@@ -186,17 +187,18 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if q.scope == baselineScopeLibrary {
-		sample, skipped, err := h.leaderboardSample(r.Context(), leaderboardRead{query: q, filters: filters})
+		fold, err := h.leaderboardSample(r.Context(), leaderboardRead{query: q, filters: filters})
 		if err != nil {
 			internalError(w, "leaderboard", err)
 			return
 		}
-		out.Matches, out.Rounds, out.Skipped = sample.Matches, sample.Rounds, skipped
-		out.Players = sample.Rows(tacticalplan.LeaderboardOptions{
+		out.Matches, out.Rounds, out.Skipped = fold.sample.Matches, fold.sample.Rounds, fold.skipped
+		out.Players = fold.sample.Rows(tacticalplan.LeaderboardOptions{
 			Metric: metric, MinRounds: q.minRounds, Limit: limit, Role: filters.role, MapRole: filters.mapRole, MapRoleSide: filters.side,
+			LibraryRoles: fold.libraryRoles, LibraryRole: filters.libraryRole,
 		})
 		if q.mapName != "" && filters.side != "" {
-			out.MapRoles = sample.MapRoleOptions(filters.side, q.minRounds)
+			out.MapRoles = fold.sample.MapRoleOptions(filters.side, q.minRounds)
 		}
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -217,6 +219,7 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 	} else {
 		out.Players = entry.sample.Leaderboard(metric, q.minRounds, limit)
 	}
+	h.attachLibraryRounds(r.Context(), out.Players, leaderboardRead{query: baselineQuery{scope: baselineScopeLibrary, mapName: q.mapName}, filters: filters})
 	writeJSON(w, http.StatusOK, out)
 }
 

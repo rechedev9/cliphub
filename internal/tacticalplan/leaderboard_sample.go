@@ -112,6 +112,10 @@ type LeaderboardOptions struct {
 	// (or MapRoleAllround); the sample must hold that side only.
 	MapRole     string
 	MapRoleSide Side
+	// LibraryRoles is each player's library role (awp, entry, support, rifler);
+	// LibraryRole keeps the players with that one.
+	LibraryRoles map[string]string
+	LibraryRole  string
 }
 
 type leaderboardPlayer struct {
@@ -213,6 +217,18 @@ func (p *leaderboardPlayer) rowExamples(opts LeaderboardOptions) []RoundRef {
 	return p.examples
 }
 
+// PlayerExamples is the rounds each player's row opens under the role and map
+// role of opts, by SteamID64, whatever the player's metrics or rounds.
+func (s *LeaderboardSample) PlayerExamples(opts LeaderboardOptions) map[string][]RoundRef {
+	out := map[string][]RoundRef{}
+	for steam, p := range s.players {
+		if refs := p.rowExamples(opts); len(refs) > 0 {
+			out[steam] = refs
+		}
+	}
+	return out
+}
+
 // Rows ranks the players with at least MinRounds rounds on the metric, best
 // first. A player without the metric, or without the role, is left out.
 func (s *LeaderboardSample) Rows(opts LeaderboardOptions) []LeaderboardRow {
@@ -232,9 +248,13 @@ func (s *LeaderboardSample) Rows(opts LeaderboardOptions) []LeaderboardRow {
 		if opts.MapRole != "" && p.countsOn(opts.MapRoleSide).mapRole() != opts.MapRole {
 			continue
 		}
+		libraryRole := opts.LibraryRoles[p.totals.steamID]
+		if opts.LibraryRole != "" && libraryRole != opts.LibraryRole {
+			continue
+		}
 		row := LeaderboardRow{
 			SteamID64: p.totals.steamID, Name: p.totals.name, Rounds: p.totals.rounds, Matches: p.totals.matches,
-			Value: v, Metrics: values, Examples: p.rowExamples(opts), Team: p.team,
+			Value: v, Metrics: values, Examples: p.rowExamples(opts), Team: p.team, LibraryRole: libraryRole,
 		}
 		if s.roles {
 			row.Roles = &PlayerRoles{CT: p.roleOn(SideCT), T: p.roleOn(SideT)}

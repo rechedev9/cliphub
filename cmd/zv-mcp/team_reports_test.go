@@ -93,7 +93,7 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /api/library/players/"+testSteamID+"/positions", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","match_count":2,"window_seconds":25,"min_reliable_sample":5,"skipped":[],
-			"maps":[{"map":"de_nuke","matches":2,"sides":[{"side":"CT","rounds":24,"sampled":20,"role":"a_anchor",
+			"maps":[{"map":"de_nuke","matches":2,"sides":[{"side":"CT","rounds":24,"sampled":20,"role":"a_anchor","map_role":{"role":"a_anchor","map_role":"Hut","label":"Ancla A"},
 			"zones":[{"zone":"A","rounds":{"count":14,"pct":70}}],"places":[{"place":"Hut","label":"Hut","rounds":{"count":8,"pct":40}}],
 			"awp_kills":{"pct":80},"awp_rounds":{"pct":45}}]}]}`))
 	})
@@ -270,7 +270,7 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 		t.Fatalf("positions = %+v", pos)
 	}
 	ct := pos.Maps[0].Sides[0]
-	if ct.Role != "a_anchor" || !ct.ReliableShare || ct.Zones[0].Pct != 70 || ct.Places[0].Name != "Hut" || ct.AWPKillPct != 80 {
+	if ct.Role != "a_anchor" || ct.MapRole == nil || ct.MapRole.Label != "Ancla A" || ct.MapRole.Side != "CT" || !ct.ReliableShare || ct.Zones[0].Pct != 70 || ct.Places[0].Name != "Hut" || ct.AWPKillPct != 80 {
 		t.Errorf("CT = %+v", ct)
 	}
 
@@ -300,6 +300,11 @@ func TestPlayerPositionsAndLeaderboard(t *testing.T) {
 	}
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "nope"}, "metric must be one of")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "b_lurk"}, "role needs a map")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "role": "awp"}, "need scope library")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "scope": "pro", "side": "T", "map_role": "allround"}, "pro scope reads map_role on one map")
+	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map_role": "allround"}, "map_role needs a map and a side")
+	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "role": "awp"}, &board)
+	callTool(t, cs, "leaderboard", map[string]any{"metric": "adr", "side": "T", "map_role": "allround"}, &board)
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "map": "de_anubis", "role": "boss"}, "role must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "source": "x"}, "source must be")
 	toolFails(t, cs, "leaderboard", map[string]any{"metric": "adr", "days": 30}, "days, top, team_top and event are for scope pro")

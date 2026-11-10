@@ -4,6 +4,7 @@ import { LIBRARY_ROLES } from '@/lib/api/library';
 import type { PrepPlayer, TeamPlaybook, TeamPrep } from '@/lib/api/playbook';
 import type { TacticalSide } from '@/lib/api/tactical';
 import { buyIcon } from '@/lib/analysis/icons';
+import { cardRoleText } from '@/lib/analysis/map-role';
 import { evidenceRefs } from '@/lib/analysis/playbook';
 import { matchupGrid, matchupKey, prepWindowLabel, secondsLabel, tempoRows } from '@/lib/analysis/prep';
 import { replayHref } from '@/lib/analysis/replay-link';
@@ -142,7 +143,7 @@ export function roleText(role: string): string {
 }
 
 function PlayerPositions({ prep, player, index }: { prep: TeamPrep; player: PrepPlayer; index: number }): ReactNode {
-  const role = roleText(player.role);
+  const role = cardRoleText({ side: 'CT', mapRole: player.map_role, role: roleText(player.role) });
   return (
     <article aria-label={player.name} className="studio-panel flex flex-col gap-2 px-3 py-2.5 print:break-inside-avoid">
       <header className="flex flex-wrap items-baseline gap-x-2">
@@ -151,7 +152,7 @@ function PlayerPositions({ prep, player, index }: { prep: TeamPrep; player: Prep
           {player.name}
         </h3>
         <p className="text-meta text-fg-3">
-          {role === '' ? '' : `${role} · `}
+          {role === '' ? '' : `${role}. `}
           {player.rounds} rondas de CT
         </p>
       </header>

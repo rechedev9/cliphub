@@ -97,6 +97,9 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 	opts := tacticalplan.SideStatsOptions{
 		Side: filter.Side, Rounds: filter.Rounds, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
 	}
+	if len(filter.Maps) == 1 {
+		opts.MapRoles = h.teamMapRoles(kept)
+	}
 	group := tacticalplan.NewSideStatsGroup(opts)
 	resp.GroupCapped, err = h.foldSideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, ownDocs: ownDocs, group: group})
 	if err != nil {

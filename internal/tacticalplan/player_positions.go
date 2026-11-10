@@ -66,10 +66,12 @@ type PlayerMapPositions struct {
 // PlayerSidePositions is one side of one map. Sampled counts the rounds with a
 // position read; zone and place rates are over it. Role is set on CT only.
 type PlayerSidePositions struct {
-	Side      Side            `json:"side"`
-	Rounds    int             `json:"rounds"`
-	Sampled   int             `json:"sampled"`
-	Role      string          `json:"role,omitempty"`
+	Side    Side   `json:"side"`
+	Rounds  int    `json:"rounds"`
+	Sampled int    `json:"sampled"`
+	Role    string `json:"role,omitempty"`
+	// MapRole is the side's role read like the Ranking's, nil on a small sample.
+	MapRole   *SideMapRole    `json:"map_role,omitempty"`
 	Zones     []PositionZone  `json:"zones"`
 	Places    []PositionPlace `json:"places"`
 	AWPKills  Rate            `json:"awp_kills"`
@@ -213,6 +215,7 @@ type sidePositionsAcc struct {
 	rounds, sampled, kills, awpKills, awpRounds int
 	zones                                       map[string]int
 	places                                      map[string]*placeCount
+	roles                                       RoleCounts
 }
 
 type mapPositionsAcc struct {
@@ -228,7 +231,22 @@ func newMapPositionsAcc() *mapPositionsAcc {
 	return acc
 }
 
-func (s *sidePositionsAcc) addRound(m PositionMatch, r Round, slot uint8, zones map[string]siteZone) {
+// sideRound is one round of the player to count on a side.
+type sideRound struct {
+	match PositionMatch
+	round Round
+	slot  uint8
+	side  Side
+	zones map[string]siteZone
+}
+
+func (s *sidePositionsAcc) addRound(in sideRound) {
+	m, r, slot, zones := in.match, in.round, in.slot, in.zones
+	if frames := m.Opening[r.Number]; len(frames) > 0 {
+		if rr, ok := readRoleRound(roundReadInput{doc: m.Document, zones: zones, frames: frames, round: r, slot: slot, side: in.side}); ok {
+			s.roles.add(rr.counts)
+		}
+	}
 	s.rounds++
 	awp := false
 	for _, ev := range r.Events {
@@ -277,7 +295,7 @@ func (s *sidePositionsAcc) addRound(m PositionMatch, r Round, slot uint8, zones 
 func (s *sidePositionsAcc) finish(side Side) PlayerSidePositions {
 	out := PlayerSidePositions{
 		Side: side, Rounds: s.rounds, Sampled: s.sampled, Zones: []PositionZone{}, Places: []PositionPlace{},
-		AWPKills: newRate(s.awpKills, s.kills), AWPRounds: newRate(s.awpRounds, s.rounds),
+		AWPKills: newRate(s.awpKills, s.kills), AWPRounds: newRate(s.awpRounds, s.rounds), MapRole: s.roles.sideMapRole(side),
 	}
 	for _, zone := range []string{ZoneA, ZoneB, ZoneOther} {
 		out.Zones = append(out.Zones, PositionZone{Zone: zone, Rounds: newRate(s.zones[zone], s.sampled)})
@@ -344,7 +362,7 @@ func PlayerPositions(steamID string, matches []PositionMatch) PlayerPositionsRep
 		for _, r := range m.Document.Rounds {
 			for _, pr := range r.Players {
 				if pr.Slot == slot && acc.sides[pr.Side] != nil {
-					acc.sides[pr.Side].addRound(m, r, slot, zones)
+					acc.sides[pr.Side].addRound(sideRound{match: m, round: r, slot: slot, side: pr.Side, zones: zones})
 				}
 			}
 		}
