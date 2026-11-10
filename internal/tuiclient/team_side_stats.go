@@ -47,6 +47,18 @@ type TeamSideStatsReport struct {
 		TeamID string `json:"team_id"`
 		Name   string `json:"name"`
 	} `json:"compare_teams"`
+	CompareSkipped []string `json:"compare_skipped"`
+	GroupCapped    bool     `json:"group_capped"`
+	GroupMatches   int      `json:"group_matches"`
+	GroupMinRounds int      `json:"group_min_rounds"`
+	MatchList      []struct {
+		MatchID  string `json:"match_id"`
+		Map      string `json:"map"`
+		PlayedAt string `json:"played_at"`
+		Opponent string `json:"opponent"`
+		Rounds   int    `json:"rounds"`
+		Won      bool   `json:"won"`
+	} `json:"match_list"`
 	Matches       int               `json:"matches"`
 	Rounds        int               `json:"rounds"`
 	GroupTeams    int               `json:"group_teams"`

@@ -36,16 +36,30 @@ type sidePlayerOut struct {
 	DPR       float64 `json:"dpr"`
 }
 
+type sideMatchOut struct {
+	MatchID  string `json:"match_id"`
+	Map      string `json:"map"`
+	PlayedAt string `json:"played_at"`
+	Opponent string `json:"opponent" jsonschema:"untrusted team name"`
+	Rounds   int    `json:"rounds" jsonschema:"rounds of this match the scope keeps"`
+	Won      bool   `json:"won" jsonschema:"the team won the map; a draw is false"`
+}
+
 type teamSideStatsOut struct {
 	Team           string              `json:"team" jsonschema:"untrusted team name"`
 	Matches        int                 `json:"matches"`
 	Rounds         int                 `json:"rounds"`
 	CompareTo      []string            `json:"compare_to" jsonschema:"untrusted names of the comparison teams; empty means the whole library"`
+	CompareSkipped []string            `json:"compare_skipped" jsonschema:"compare_to ids that are no team of the library, left out"`
 	GroupTeams     int                 `json:"group_teams" jsonschema:"comparison teams with rounds in the same map, side, dates and buys"`
+	GroupMatches   int                 `json:"group_matches" jsonschema:"comparison matches read, at most 20 per team"`
+	GroupCapped    bool                `json:"group_capped" jsonschema:"true when a team had more matches than the cap, so only its newest count"`
+	GroupMinRounds int                 `json:"group_min_rounds" jsonschema:"a team enters a figure's mean only with this many rounds behind it; each figure's group_teams says how many did"`
 	Overall        tuiclient.SideStats `json:"overall" jsonschema:"each figure: value (percent for rates, per round for utility damage and flash assists, a count for rounds_played; null without data) and group_avg, the plain mean of the comparison teams"`
 	CT             tuiclient.SideStats `json:"ct" jsonschema:"the figures on CT; maps_won is null on a side"`
 	T              tuiclient.SideStats `json:"t" jsonschema:"the figures on T; maps_won is null on a side"`
 	Players        []sidePlayerOut     `json:"players"`
+	MatchList      []sideMatchOut      `json:"match_list" jsonschema:"the matches the figures stand on, newest first"`
 	RatingFormula  string              `json:"rating_formula"`
 	StudioPath     string              `json:"studio_path" jsonschema:"the path that opens the team's Estadísticas tab with this scope in Studio"`
 	SkippedMatches int                 `json:"skipped_matches,omitempty"`
@@ -83,32 +97,34 @@ func (in teamSideStatsIn) query() (tuiclient.SideStatsQuery, error) {
 	return q, nil
 }
 
-// sideStatsPath is the team's Estadísticas tab with the query's scope, as the web writes it.
-func sideStatsPath(q tuiclient.SideStatsQuery) string {
+// sideStatsPath is the team's Estadísticas tab with the call's scope, as the web writes it.
+func sideStatsPath(in teamSideStatsIn, q tuiclient.SideStatsQuery) string {
 	v := url.Values{"tab": {"estadisticas"}, "lineup": {"all"}}
-	set := func(k, val string) {
-		if val != "" {
-			v.Set(k, val)
+	for key, value := range map[string]string{
+		"map": q.Scope.Map, "side": q.Scope.Side, "from": in.From, "to": in.To, "buy": q.Buy, "opponent_buy": q.OpponentBuy,
+	} {
+		if value != "" {
+			v.Set(key, value)
 		}
 	}
-	set("map", q.Scope.Map)
-	set("side", q.Scope.Side)
-	set("buy", q.Buy)
-	set("opponent_buy", q.OpponentBuy)
+	if len(in.OpponentID) == 1 {
+		v.Set("opponent", in.OpponentID[0])
+	}
 	if len(q.Scope.Lineup) > 0 {
 		v.Set("lineup", strings.Join(slices.Compact(slices.Sorted(slices.Values(q.Scope.Lineup))), ","))
 	}
 	if len(q.CompareTo) > 0 {
-		v.Set("comparar", strings.Join(q.CompareTo, ","))
+		v.Set("comparar", strings.Join(slices.Compact(slices.Sorted(slices.Values(q.CompareTo))), ","))
 	}
 	return "/equipos/" + url.PathEscape(q.TeamID) + "?" + v.Encode()
 }
 
-func summarizeSideStats(r tuiclient.TeamSideStatsReport, q tuiclient.SideStatsQuery) teamSideStatsOut {
+func summarizeSideStats(r tuiclient.TeamSideStatsReport, path string) teamSideStatsOut {
 	out := teamSideStatsOut{
-		Team: cleanName(r.TeamName), Matches: r.Matches, Rounds: r.Rounds, CompareTo: []string{}, GroupTeams: r.GroupTeams,
-		Overall: r.Overall, CT: r.CT, T: r.T, Players: []sidePlayerOut{}, RatingFormula: r.RatingFormula,
-		StudioPath: sideStatsPath(q), SkippedMatches: len(r.Skipped),
+		Team: cleanName(r.TeamName), Matches: r.Matches, Rounds: r.Rounds, CompareTo: []string{}, CompareSkipped: cleanNames(r.CompareSkipped),
+		GroupTeams: r.GroupTeams, GroupMatches: r.GroupMatches, GroupCapped: r.GroupCapped, GroupMinRounds: r.GroupMinRounds,
+		Overall: r.Overall, CT: r.CT, T: r.T, Players: []sidePlayerOut{}, MatchList: []sideMatchOut{}, RatingFormula: r.RatingFormula,
+		StudioPath: path, SkippedMatches: len(r.Skipped),
 	}
 	for _, team := range r.CompareTeams {
 		out.CompareTo = append(out.CompareTo, cleanName(team.Name))
@@ -117,6 +133,11 @@ func summarizeSideStats(r tuiclient.TeamSideStatsReport, q tuiclient.SideStatsQu
 		out.Players = append(out.Players, sidePlayerOut{
 			SteamID64: cleanName(p.SteamID64), Name: cleanName(p.Name), Role: cleanName(p.Role), Rounds: p.Rounds,
 			Rating: p.Rating, KD: p.KD, ADR: p.ADR, KPR: p.KPR, DPR: p.DPR,
+		})
+	}
+	for _, m := range r.MatchList {
+		out.MatchList = append(out.MatchList, sideMatchOut{
+			MatchID: cleanName(m.MatchID), Map: cleanName(m.Map), PlayedAt: cleanName(m.PlayedAt), Opponent: cleanName(m.Opponent), Rounds: m.Rounds, Won: m.Won,
 		})
 	}
 	return out
@@ -141,6 +162,6 @@ func registerTeamSideStatsTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, teamSideStatsOut{}, toolError(err)
 			}
-			return nil, summarizeSideStats(report, q), nil
+			return nil, summarizeSideStats(report, sideStatsPath(in, q)), nil
 		})
 }

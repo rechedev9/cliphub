@@ -16,17 +16,22 @@ func TestLibraryTeamSideStatsComparesWithTheLibraryOrChosenTeams(t *testing.T) {
 	if resp.TeamName != "Vitality" || resp.Matches != 2 || resp.Rounds != 4 || len(resp.MatchList) != 2 || resp.Compare != "library" {
 		t.Fatalf("side stats = %s, %d matches, %d rounds, compare %s", resp.TeamName, resp.Matches, resp.Rounds, resp.Compare)
 	}
-	// Every other team of the library: MOUZ, Spirit, NAVI and G2.
-	if resp.GroupTeams != 4 || resp.Overall.RoundsWon.GroupAvg == nil || resp.Overall.RoundsWon.GroupTeams != 4 {
-		t.Fatalf("library group = %d teams, rounds won %+v", resp.GroupTeams, resp.Overall.RoundsWon)
+	// Every other team of the library (MOUZ, Spirit, NAVI, G2) over the 3 matches; 2 rounds each are too few for a mean.
+	if resp.GroupTeams != 4 || resp.GroupMatches != 3 || resp.GroupCapped || resp.Overall.RoundsWon.GroupAvg != nil || resp.GroupMinRounds != 20 {
+		t.Fatalf("library group = %d teams over %d matches, rounds won %+v", resp.GroupTeams, resp.GroupMatches, resp.Overall.RoundsWon)
 	}
 	if len(resp.Players) == 0 || resp.RatingFormula == "" {
 		t.Fatalf("players = %+v, formula %q", resp.Players, resp.RatingFormula)
 	}
 
-	f.env.json(http.MethodGet, base+"?side=ct&compare_team="+f.spirit.String(), nil, http.StatusOK, &resp)
+	stale := uuid.NewString()
+	query := "?side=ct&compare_team=" + f.spirit.String() + "&compare_team=" + f.spirit.String() + "&compare_team=" + stale + "&compare_team=" + f.vitality.String()
+	f.env.json(http.MethodGet, base+query, nil, http.StatusOK, &resp)
 	if resp.Rounds != 2 || resp.Compare != "teams" || resp.GroupTeams != 1 || len(resp.CompareTeams) != 1 || resp.CompareTeams[0].Name != "Spirit" {
 		t.Fatalf("CT against Spirit = %d rounds, compare %s %+v, %d group teams", resp.Rounds, resp.Compare, resp.CompareTeams, resp.GroupTeams)
+	}
+	if len(resp.CompareSkipped) != 1 || resp.CompareSkipped[0].String() != stale {
+		t.Fatalf("compare skipped = %v, want the unknown team only", resp.CompareSkipped)
 	}
 	if resp.Overall.MapsWon.Value == nil || resp.CT.MapsWon.Value != nil {
 		t.Fatalf("maps won = overall %v, CT %v", resp.Overall.MapsWon.Value, resp.CT.MapsWon.Value)
@@ -41,8 +46,5 @@ func TestLibraryTeamSideStatsComparesWithTheLibraryOrChosenTeams(t *testing.T) {
 		if rw := f.env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Fatalf("side stats%s = %d, want 400", bad, rw.Code)
 		}
-	}
-	if rw := f.env.do(http.MethodGet, base+"?compare_team="+uuid.NewString(), nil, ""); rw.Code != http.StatusNotFound {
-		t.Fatalf("an unknown compare team = %d, want 404", rw.Code)
 	}
 }

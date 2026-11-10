@@ -1,4 +1,5 @@
 import type { LeaderboardRole, LeaderboardRoles, LeaderboardRow, SideBreakdown } from '../api/baseline.ts';
+import { RATING_FORMULA_TEXT } from '../analysis/rating.ts';
 import { formatDecimal } from '../format.ts';
 import type { RankingSort } from './ranking.ts';
 
@@ -11,10 +12,6 @@ export const ROLE_LABEL: Readonly<Record<LeaderboardRole, string>> = {
   half_lurk: 'Medio lurker',
   pack: 'Pack',
 };
-
-/** The formula behind the rating column, for its tooltip. */
-const RATING_FORMULA =
-  '0,0073 KAST + 0,3591 KPR - 0,5329 DPR + 0,2372 impacto + 0,0032 ADR + 0,1587, con impacto = 2,13 KPR + 0,42 APR - 0,41';
 
 export type RankingColumn = {
   readonly sort: RankingSort;
@@ -29,7 +26,7 @@ const percent = (value: number): string => `${formatDecimal(value, 0)} %`;
 
 /** Table columns after the player, in reading order. Rating leads, as in every player ranking. */
 export const RANKING_COLUMNS: readonly RankingColumn[] = [
-  { sort: 'rating', header: 'Rating', title: `Rating de ClipHub: ${RATING_FORMULA}`, format: decimals(2) },
+  { sort: 'rating', header: 'Rating', title: RATING_FORMULA_TEXT, format: decimals(2) },
   { sort: 'adr', header: 'ADR', title: 'Daño medio por ronda', format: decimals(1) },
   { sort: 'kast', header: 'KAST', title: 'Rondas con baja, asistencia, supervivencia o muerte vengada', format: percent },
   { sort: 'kd', header: 'K/D', title: 'Bajas entre muertes', format: decimals(2) },

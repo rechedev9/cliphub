@@ -2,11 +2,8 @@ import { COMPARE_TEAMS_MAX, type SideStat, type SideStatKey } from '../api/side-
 import { formatDecimal } from '../format.ts';
 import { compareDelta, deltaArrow, type DeltaTone } from './compare.ts';
 
-/**
- * The Estadísticas tab's arithmetic: the tiles in their order with labels and
- * formulas, how a figure and its difference to the group read, and the
- * "Comparar con" teams kept in the URL.
- */
+// The Estadísticas tab's arithmetic: the tiles in order, how a figure and its
+// difference to the group read, and the "Comparar con" teams kept in the URL.
 
 type Unit = 'pct' | 'per-round' | 'count';
 
@@ -35,10 +32,6 @@ export const SIDE_STAT_TILES: readonly SideStatTile[] = [
   { key: 'rounds_played', label: 'Rondas jugadas', unit: 'count', formula: 'Rondas con ganador que cuentan en el alcance.' },
 ];
 
-/** The text of the rating's (i): ClipHub's own rating, never HLTV's. */
-export const RATING_FORMULA_TEXT =
-  'Rating de ClipHub: la media de KPR / 0,68, (1 - DPR) / 0,32 y ADR / 75. Un jugador medio da 1,00.';
-
 const NO_DATA = '-';
 
 /** A figure in its unit: "52 %", "8,4", "37"; "-" without data, never 0 %. */
@@ -51,18 +44,21 @@ export function formatSideValue(value: number | null, unit: Unit): string {
 
 export type SideDelta = { readonly text: string; readonly tone: DeltaTone };
 
-/** "▼ 15 %": the difference to the group mean in the figure's own unit; null when either is missing. */
+/** "▼ 15 pp" for a rate, "▲ 0,11" per round; null without both numbers and for a count, which is the sample. */
 export function sideDelta(stat: SideStat, unit: Unit): SideDelta | null {
-  if (stat.value === null || stat.group_avg === null) return null;
+  if (unit === 'count' || stat.value === null || stat.group_avg === null) return null;
   const epsilon = unit === 'per-round' ? 0.005 : 0.5;
   const { delta, tone } = compareDelta(stat.value, stat.group_avg, { higherIsBetter: true, epsilon });
   if (tone === 'even') return { text: '=', tone };
-  return { text: `${deltaArrow(delta, epsilon)} ${formatSideValue(Math.abs(delta), unit)}`, tone };
+  const size = unit === 'pct' ? `${Math.round(Math.abs(delta))} pp` : formatSideValue(Math.abs(delta), unit);
+  return { text: `${deltaArrow(delta, epsilon)} ${size}`, tone };
 }
 
-/** "media 75 %", the group mean under the tile. */
+/** "media 75 % · 4 equipos": the group mean under the tile and how many teams it counts. */
 export function groupMeanText(stat: SideStat, unit: Unit): string {
-  return stat.group_avg === null ? 'Sin media del grupo' : `media ${formatSideValue(stat.group_avg, unit)}`;
+  if (stat.group_avg === null) return 'Sin media del grupo';
+  const teams = stat.group_teams === 1 ? '1 equipo' : `${stat.group_teams} equipos`;
+  return `media ${formatSideValue(stat.group_avg, unit)} · ${teams}`;
 }
 
 /** The URL key of the "Comparar con" teams: comma separated team ids; none is the whole library. */

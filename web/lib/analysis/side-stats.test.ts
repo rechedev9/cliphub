@@ -36,8 +36,9 @@ test('a figure without data reads as a dash, never 0 %', () => {
   assert.equal(formatSideValue(37, 'count'), '37');
 });
 
-test('the delta is in the figure unit, with the arrow and tone of its sign', () => {
-  assert.deepEqual(sideDelta(stat(60, 75), 'pct'), { text: '▼ 15 %', tone: 'worse' });
+test('a rate delta reads in points, a per round one in its unit, a count has none', () => {
+  assert.deepEqual(sideDelta(stat(60, 75), 'pct'), { text: '▼ 15 pp', tone: 'worse' });
+  assert.equal(sideDelta(stat(40, 30), 'count'), null);
   assert.deepEqual(sideDelta(stat(0.31, 0.2), 'per-round'), { text: '▲ 0,11', tone: 'better' });
   assert.deepEqual(sideDelta(stat(50.2, 50), 'pct'), { text: '=', tone: 'even' });
   assert.equal(sideDelta(stat(null, 50), 'pct'), null);
@@ -45,7 +46,7 @@ test('the delta is in the figure unit, with the arrow and tone of its sign', () 
 });
 
 test('the group mean reads under the tile', () => {
-  assert.equal(groupMeanText(stat(60, 75), 'pct'), 'media 75 %');
+  assert.equal(groupMeanText(stat(60, 75), 'pct'), 'media 75 % · 3 equipos');
   assert.equal(groupMeanText(stat(60, null), 'pct'), 'Sin media del grupo');
 });
 

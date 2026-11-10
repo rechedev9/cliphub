@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"slices"
@@ -12,8 +13,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// maxCompareTeams caps the teams a person can pick for "Comparar con".
-const maxCompareTeams = 20
+const (
+	// maxCompareTeams caps the teams a person can pick for "Comparar con".
+	maxCompareTeams = 20
+	// groupTeamMatches caps the matches read per group team, in both modes.
+	groupTeamMatches = 20
+)
 
 // sideStatsTeam is a comparison team, by id and name.
 type sideStatsTeam struct {
@@ -24,17 +29,18 @@ type sideStatsTeam struct {
 // sideStatsResponse is a team's figures per side with the group they are compared to.
 // Compare is "library" (every other team in the library) or "teams" (CompareTeams).
 type sideStatsResponse struct {
-	TeamID       uuid.UUID       `json:"team_id"`
-	TeamName     string          `json:"team_name"`
-	Skipped      []scoutSkipped  `json:"skipped"`
-	Compare      string          `json:"compare"`
-	CompareTeams []sideStatsTeam `json:"compare_teams"`
+	TeamID         uuid.UUID       `json:"team_id"`
+	TeamName       string          `json:"team_name"`
+	Skipped        []scoutSkipped  `json:"skipped"`
+	Compare        string          `json:"compare"`
+	CompareTeams   []sideStatsTeam `json:"compare_teams"`
+	CompareSkipped []uuid.UUID     `json:"compare_skipped"`
+	GroupCapped    bool            `json:"group_capped"`
 	tacticalplan.SideStatsReport
 }
 
-// GetLibraryTeamSideStats handles GET /api/library/teams/{id}/side-stats: the
-// team's figures over the scope (map, side, dates, rival, lineup and both buys),
-// each against the mean of the comparison teams over the same map, side, dates and buys.
+// GetLibraryTeamSideStats handles GET /api/library/teams/{id}/side-stats: the team's
+// figures over the scope, each against the group mean over the same map, side, dates and buys.
 func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Request) {
 	team, ok := h.loadLibraryTeam(w, r)
 	if !ok {
@@ -46,21 +52,30 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 	if err == nil {
 		rounds, err = tacticalplan.FilterFromValues(q)
 	}
-	var compareIDs []uuid.UUID
+	var asked []uuid.UUID
 	if err == nil {
-		compareIDs, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)
+		asked, err = uuidList(q["compare_team"], "compare_team", maxCompareTeams)
 	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp := sideStatsResponse{TeamID: team.ID, TeamName: team.Name, Compare: "library", CompareTeams: []sideStatsTeam{}}
-	for _, id := range compareIDs {
+	resp := sideStatsResponse{TeamID: team.ID, TeamName: team.Name, Compare: "library", CompareTeams: []sideStatsTeam{}, CompareSkipped: []uuid.UUID{}}
+	var compareIDs []uuid.UUID
+	for _, id := range asked {
+		if id == team.ID || slices.Contains(compareIDs, id) || slices.Contains(resp.CompareSkipped, id) {
+			continue
+		}
 		other, err := h.libraryRepo.GetTeam(r.Context(), id)
+		if errors.Is(err, library.ErrNotFound) {
+			resp.CompareSkipped = append(resp.CompareSkipped, id)
+			continue
+		}
 		if err != nil {
 			writeLibraryError(w, "get compare team", err)
 			return
 		}
+		compareIDs = append(compareIDs, id)
 		resp.Compare = "teams"
 		resp.CompareTeams = append(resp.CompareTeams, sideStatsTeam{TeamID: other.ID, Name: other.Name})
 	}
@@ -72,21 +87,23 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 	kept, more := h.keepTeamMatches(keepQuery{teamID: team.ID, candidates: candidates, selected: filter.Select(pending), lineup: filter.Lineup})
 	resp.Skipped = append(skipped, more...)
 	own := make([]tacticalplan.SideStatsMatch, 0, len(kept))
-	docs := map[uuid.UUID]tacticalplan.Document{}
+	ownDocs := map[uuid.UUID]tacticalplan.Document{}
 	for _, k := range kept {
-		docs[k.scout.MatchID] = k.scout.Document
+		ownDocs[k.scout.MatchID] = k.scout.Document
 		own = append(own, tacticalplan.SideStatsMatch{
 			MatchID: k.scout.MatchID, PlayedAt: k.scout.PlayedAt, Document: k.scout.Document, TeamKey: k.scout.TeamKey, Opponent: k.scout.Opponent,
 		})
 	}
-	group, err := h.sideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, docs: docs})
+	opts := tacticalplan.SideStatsOptions{
+		Side: filter.Side, Buys: rounds.Buys, OpponentBuys: rounds.OpponentBuys, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
+	}
+	group := tacticalplan.NewSideStatsGroup(opts)
+	resp.GroupCapped, err = h.foldSideStatsGroup(r.Context(), sideStatsGroupQuery{teamID: team.ID, filter: filter, compare: compareIDs, ownDocs: ownDocs, group: group})
 	if err != nil {
 		internalError(w, "team side stats group", err)
 		return
 	}
-	resp.SideStatsReport = tacticalplan.TeamSideStats(own, group, tacticalplan.SideStatsOptions{
-		Side: filter.Side, Buys: rounds.Buys, OpponentBuys: rounds.OpponentBuys, Lineup: filter.Lineup, Roles: sideStatsRoles(own),
-	})
+	resp.SideStatsReport = tacticalplan.TeamSideStats(tacticalplan.SideStatsInput{Team: own, Options: opts, Group: group})
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -109,38 +126,37 @@ func sideStatsRoles(matches []tacticalplan.SideStatsMatch) map[string]string {
 	return roles
 }
 
-// sideStatsGroupQuery is the comparison group: the chosen teams, or every
-// other team when none is chosen. docs holds the documents already read.
+// sideStatsGroupQuery is the comparison group: the chosen teams, or every other
+// team when none is chosen. ownDocs are the team's documents, already in memory.
 type sideStatsGroupQuery struct {
 	teamID  uuid.UUID
 	filter  tacticalplan.ScoutFilter
 	compare []uuid.UUID
-	docs    map[uuid.UUID]tacticalplan.Document
+	ownDocs map[uuid.UUID]tacticalplan.Document
+	group   *tacticalplan.SideStatsGroup
 }
 
-// sideStatsGroup reads the group's matches on the scope's maps and dates, per
-// team. The rival and the lineup belong to the team, so they never narrow it.
-func (h *Handlers) sideStatsGroup(ctx context.Context, q sideStatsGroupQuery) (map[string][]tacticalplan.SideStatsMatch, error) {
+// groupCandidates lists the group's matches, newest first, and whether a list hit its cap.
+func (h *Handlers) groupCandidates(ctx context.Context, q sideStatsGroupQuery) ([]library.Match, bool, error) {
 	base := library.MatchFilter{From: q.filter.From, To: q.filter.To, Limit: library.MaxListLimit}
 	if len(q.filter.Maps) == 1 {
 		base.Map = q.filter.Maps[0]
 	}
-	var matches []library.Match
 	if len(q.compare) == 0 {
 		listed, err := h.libraryRepo.ListMatches(ctx, base)
-		if err != nil {
-			return nil, err
-		}
-		matches = listed
+		return listed, len(listed) >= library.MaxListLimit, err
 	}
-	seen := map[uuid.UUID]bool{}
+	var matches []library.Match
+	seen, capped := map[uuid.UUID]bool{}, false
 	for _, id := range q.compare {
 		f := base
-		f.TeamID, f.Limit = &id, library.MaxReportMatches
+		// One more than the cap tells a full list from a team with exactly the cap.
+		f.TeamID, f.Limit = &id, groupTeamMatches+1
 		listed, err := h.libraryRepo.ListMatches(ctx, f)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		capped = capped || len(listed) > groupTeamMatches
 		for _, m := range listed {
 			if !seen[m.ID] {
 				seen[m.ID] = true
@@ -148,36 +164,47 @@ func (h *Handlers) sideStatsGroup(ctx context.Context, q sideStatsGroupQuery) (m
 			}
 		}
 	}
-	group := map[string][]tacticalplan.SideStatsMatch{}
+	return matches, capped, nil
+}
+
+// foldSideStatsGroup reads each group match once, folds it into every group team
+// that played it, under groupTeamMatches per team, and drops the document.
+func (h *Handlers) foldSideStatsGroup(ctx context.Context, q sideStatsGroupQuery) (bool, error) {
+	matches, capped, err := h.groupCandidates(ctx, q)
+	if err != nil {
+		return false, err
+	}
 	for _, m := range matches {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		if len(q.filter.Maps) > 0 && !slices.Contains(q.filter.Maps, m.Map) {
 			continue
 		}
+		var sides []library.MatchTeam
 		for _, t := range m.Teams {
 			if t.TeamID == nil || *t.TeamID == q.teamID || (len(q.compare) > 0 && !slices.Contains(q.compare, *t.TeamID)) {
 				continue
 			}
-			doc, ok := h.groupDocument(q.docs, m)
-			if !ok {
-				break
+			if q.group.Added(t.TeamID.String()) >= groupTeamMatches {
+				capped = true
+				continue
 			}
-			key := t.TeamID.String()
-			group[key] = append(group[key], tacticalplan.SideStatsMatch{MatchID: m.ID, PlayedAt: m.PlayedAt, Document: doc, TeamKey: t.Key})
+			sides = append(sides, t)
+		}
+		if len(sides) == 0 {
+			continue
+		}
+		doc, ok := q.ownDocs[m.ID]
+		if !ok {
+			if doc, err = h.readLibraryDocument(m.DemoID); err != nil {
+				log.Printf("httpapi: side stats group skips match %s: %v", m.ID, err)
+				continue
+			}
+		}
+		for _, t := range sides {
+			q.group.Add(t.TeamID.String(), tacticalplan.SideStatsMatch{MatchID: m.ID, PlayedAt: m.PlayedAt, Document: doc, TeamKey: t.Key})
 		}
 	}
-	return group, nil
-}
-
-// groupDocument reads a match's document once per request; an unreadable one is left out.
-func (h *Handlers) groupDocument(docs map[uuid.UUID]tacticalplan.Document, m library.Match) (tacticalplan.Document, bool) {
-	if doc, ok := docs[m.ID]; ok {
-		return doc, true
-	}
-	doc, err := h.readLibraryDocument(m.DemoID)
-	if err != nil {
-		log.Printf("httpapi: side stats group skips match %s: %v", m.ID, err)
-		return tacticalplan.Document{}, false
-	}
-	docs[m.ID] = doc
-	return doc, true
+	return capped, nil
 }

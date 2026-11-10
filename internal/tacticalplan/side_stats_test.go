@@ -66,7 +66,7 @@ func wantStat(t *testing.T, name string, got SideStat, want float64) {
 }
 
 func TestTeamSideStatsEveryFigure(t *testing.T) {
-	r := TeamSideStats([]SideStatsMatch{sideStatsMatch("home")}, nil, SideStatsOptions{})
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}})
 	if r.Matches != 1 || r.Rounds != 4 {
 		t.Fatalf("sample = %d matches, %d rounds", r.Matches, r.Rounds)
 	}
@@ -92,7 +92,7 @@ func TestTeamSideStatsEveryFigure(t *testing.T) {
 }
 
 func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
-	r := TeamSideStats([]SideStatsMatch{sideStatsMatch("home")}, nil, SideStatsOptions{Buys: []BuyType{BuyFull}, Side: SideT})
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Buys: []BuyType{BuyFull}, Side: SideT}})
 	if r.Rounds != 2 {
 		t.Fatalf("full buy T rounds = %d, want 2", r.Rounds)
 	}
@@ -107,7 +107,7 @@ func TestTeamSideStatsBuyScopeAndEmptyFigures(t *testing.T) {
 }
 
 func TestTeamSideStatsPlayerCards(t *testing.T) {
-	r := TeamSideStats([]SideStatsMatch{sideStatsMatch("home")}, nil, SideStatsOptions{Roles: map[string]string{"10": "awp"}})
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Options: SideStatsOptions{Roles: map[string]string{"10": "awp"}}})
 	if len(r.Players) != 2 {
 		t.Fatalf("players = %+v", r.Players)
 	}
@@ -115,36 +115,54 @@ func TestTeamSideStatsPlayerCards(t *testing.T) {
 	if p.SteamID64 != "10" || p.Role != "awp" || p.Rounds != 4 || p.Kills != 3 || p.Deaths != 1 {
 		t.Fatalf("h0 = %+v", p)
 	}
-	if p.KPR != 0.75 || p.DPR != 0.25 || p.ADR != 67.5 || p.KD != 3 || p.Rating != 1.45 {
+	if p.KPR != 0.75 || p.DPR != 0.25 || p.ADR != 67.5 || p.KD != 3 || p.Rating != 1.16 {
 		t.Fatalf("h0 rates = %+v", p)
-	}
-	if got := playerRating(0.68, 0.68, 75); got != 1 {
-		t.Fatalf("an average line rates %v, want 1", got)
 	}
 }
 
-func TestTeamSideStatsGroupAverage(t *testing.T) {
-	group := map[string][]SideStatsMatch{"away": {sideStatsMatch("away")}, "empty": {}}
-	r := TeamSideStats([]SideStatsMatch{sideStatsMatch("home")}, group, SideStatsOptions{})
-	if r.GroupTeams != 1 {
-		t.Fatalf("group teams = %d, want 1: a team without rounds does not count", r.GroupTeams)
+func TestTeamSideStatsGroupFoldsMatchesAndNeedsTwentyRounds(t *testing.T) {
+	group := NewSideStatsGroup(SideStatsOptions{Lineup: Lineup{"999"}})
+	for i := range 5 {
+		m := sideStatsMatch("away")
+		m.MatchID = uuid.New()
+		group.Add("away", m)
+		if i == 0 {
+			// One match is 4 rounds: under GroupMinRounds no figure enters the mean.
+			if r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Group: group}); r.Overall.RoundsWon.GroupAvg != nil {
+				t.Fatalf("a 4 round team entered the mean: %+v", r.Overall.RoundsWon)
+			}
+		}
 	}
+	group.Add("thin", sideStatsMatch("home"))
+	if group.Added("away") != 5 || group.Added("nobody") != 0 {
+		t.Fatalf("added = %d", group.Added("away"))
+	}
+	r := TeamSideStats(SideStatsInput{Team: []SideStatsMatch{sideStatsMatch("home")}, Group: group})
+	if r.GroupTeams != 2 || r.GroupMatches != 6 || r.GroupMinRounds != GroupMinRounds {
+		t.Fatalf("group = %d teams over %d matches", r.GroupTeams, r.GroupMatches)
+	}
+	// The group ignores the team's lineup, and only away has 20 rounds.
 	rw := r.Overall.RoundsWon
 	if rw.GroupAvg == nil || *rw.GroupAvg != 50 || rw.GroupTeams != 1 {
 		t.Fatalf("rounds won group = %+v", rw)
 	}
-	// The map ended 2 to 2 and a draw is no win, so the group maps won is 0 %.
+	// Each map ended 2 to 2 and a draw is no win, so the group maps won is 0 %.
 	if mw := r.Overall.MapsWon; mw.GroupAvg == nil || *mw.GroupAvg != 0 {
 		t.Fatalf("maps won group = %+v", mw)
+	}
+	// Five pistol rounds are too few for the pistol mean.
+	if pw := r.Overall.PistolsWon; pw.GroupAvg != nil || pw.GroupTeams != 0 {
+		t.Fatalf("pistols won group = %+v", pw)
 	}
 }
 
 func TestApplyGroupAverageIsThePlainMeanOfTeamsWithData(t *testing.T) {
 	v := func(x float64) *float64 { return &x }
-	group := []SideStats{
-		{RoundsWon: SideStat{Value: v(40)}, PistolsWon: SideStat{Value: v(100)}},
-		{RoundsWon: SideStat{Value: v(60)}},
-		{RoundsWon: SideStat{Value: v(55)}},
+	stat := func(x float64, total int) SideStat { return SideStat{Value: v(x), Total: total} }
+	group := []groupTeam{
+		{stats: SideStats{RoundsWon: stat(40, 30), PistolsWon: stat(100, 20)}, rounds: 30},
+		{stats: SideStats{RoundsWon: stat(60, 25), PistolsWon: stat(0, 2)}, rounds: 25},
+		{stats: SideStats{RoundsWon: stat(55, 40)}, rounds: 40},
 	}
 	var target SideStats
 	applyGroupAverage(&target, group)

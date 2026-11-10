@@ -8,8 +8,8 @@ import type { ReportSide } from '@/lib/api/scout';
 import type { SideStat, SideStats, SideStatsPlayer, TeamSideStats as TeamSideStatsReport } from '@/lib/api/side-stats';
 import type { DeltaTone } from '@/lib/analysis/compare';
 import { scopeDateRange, type AnalysisScope } from '@/lib/analysis/scope';
+import { RATING_FORMULA_TEXT, RATING_LABEL } from '@/lib/analysis/rating';
 import {
-  RATING_FORMULA_TEXT,
   SIDE_STAT_TILES,
   formatSideValue,
   groupMeanText,
@@ -147,8 +147,8 @@ function PlayerCard({ player, side }: { player: SideStatsPlayer; side: ReportSid
       </div>
       <p className="flex items-baseline gap-1.5">
         <span className="text-title font-semibold text-fg-1 tabular-nums">{formatDecimal(player.rating, 2)}</span>
-        <span className="text-meta text-fg-3">Rating</span>
-        <InfoTip label="Rating" text={RATING_FORMULA_TEXT} />
+        <span className="text-meta text-fg-3">{RATING_LABEL}</span>
+        <InfoTip label={RATING_LABEL} text={RATING_FORMULA_TEXT} />
       </p>
       <dl className="grid grid-cols-4 gap-2">
         {lines.map((line) => (
@@ -165,9 +165,13 @@ function PlayerCard({ player, side }: { player: SideStatsPlayer; side: ReportSid
 
 function groupText(report: TeamSideStatsReport): string {
   if (report.group_teams === 0) return 'Ningún equipo del grupo tiene rondas con este mapa, lado, fechas y compras, así que no hay media.';
-  if (report.compare === 'teams') return `Comparado con ${report.compare_teams.map((team) => team.name).join(', ')}, cada uno con el mismo peso.`;
-  const teams = report.group_teams === 1 ? '1 equipo' : `${report.group_teams} equipos`;
-  return `Comparado con el resto de la biblioteca: ${teams} con rondas en este alcance, cada uno con el mismo peso.`;
+  const who =
+    report.compare === 'teams'
+      ? `Comparado con ${report.compare_teams.map((team) => team.name).join(', ')}`
+      : `Comparado con el resto de la biblioteca (${report.group_teams === 1 ? '1 equipo' : `${report.group_teams} equipos`} con rondas en este alcance)`;
+  const matches = report.group_matches === 1 ? '1 partida' : `${report.group_matches} partidas`;
+  const cap = report.group_capped ? ` De cada equipo cuentan sus 20 partidas más recientes.` : '';
+  return `${who}, sobre ${matches}. Cada equipo pesa lo mismo y entra en una cifra con al menos ${report.group_min_rounds} rondas detrás.${cap}`;
 }
 
 function MatchList({ report }: { report: TeamSideStatsReport }): ReactNode {

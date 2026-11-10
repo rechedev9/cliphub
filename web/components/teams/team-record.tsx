@@ -194,7 +194,13 @@ function TeamRecordView({ data, onChanged }: { data: Loaded; onChanged: () => vo
   const lineup = useMemo(() => (lineupKey === '' ? [] : lineupKey.split(',')), [lineupKey]);
   const showEveryone = useCallback(() => setScope({ lineup: { kind: 'all' } }), [setScope]);
   const compareKey = parseCompareTeams(search.get(COMPARE_PARAM)).join(',');
-  const compare = useMemo(() => (compareKey === '' ? [] : compareKey.split(',')), [compareKey]);
+  // A stale or own id in the URL drops out: the picker lists only the other library teams.
+  const compare = useMemo(() => {
+    const ids = compareKey === '' ? [] : compareKey.split(',').filter((id) => id !== team.id);
+    if (teams === null) return ids;
+    const known = new Set(teams.map((entry) => entry.id));
+    return ids.filter((id) => known.has(id));
+  }, [compareKey, team.id, teams]);
   const setCompare = useCallback(
     (ids: readonly string[]) => router.replace(`${pathname}?${writeCompareTeams(search.toString(), ids)}`, { scroll: false }),
     [pathname, router, search],

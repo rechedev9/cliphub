@@ -1,7 +1,5 @@
-/**
- * Browser-side contract of a team's figures per side (`tacticalplan.SideStatsReport`
- * behind `GET /api/library/teams/{id}/side-stats`). Field names are the Go JSON names.
- */
+// Browser-side contract of `tacticalplan.SideStatsReport` (`GET /api/library/teams/{id}/side-stats`),
+// with the Go JSON names.
 
 /** One figure; `value` and `group_avg` are null without data. Rates are percents. */
 export type SideStat = {
@@ -51,6 +49,12 @@ export type TeamSideStats = {
   skipped: { match_id: string; reason: string }[];
   compare: 'library' | 'teams';
   compare_teams: { team_id: string; name: string }[];
+  /** Compare ids that are no library team, left out. */
+  compare_skipped: string[];
+  /** A group team had more matches than the per team cap, so only its newest count. */
+  group_capped: boolean;
+  group_matches: number;
+  group_min_rounds: number;
   matches: number;
   rounds: number;
   overall: SideStats;
@@ -64,7 +68,7 @@ export type TeamSideStats = {
 
 export const TEAM_SIDE_STATS_KEYS = [
   'team_id', 'team_name', 'skipped', 'compare', 'compare_teams', 'matches', 'rounds', 'overall', 'ct', 't', 'players',
-  'match_list', 'group_teams', 'rating_formula',
+  'match_list', 'group_teams', 'compare_skipped', 'group_capped', 'group_matches', 'group_min_rounds', 'rating_formula',
 ] as const;
 export const TEAM_SIDE_STATS_QUERY = [
   'map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'buy', 'opponent_buy', 'compare_team',
