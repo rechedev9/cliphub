@@ -8,10 +8,11 @@ import type { LibrarySeries } from '@/lib/api/veto';
 import { matchHref, matchReplayHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
-import { hasPov, ownOutcome, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
+import { hasPov, ownOutcome, seriesScore, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
 import type { VoiceByMatch } from '@/lib/library/voice-summary';
 import { OUTCOME_LABEL, matchTitle, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
+import { MapThumb } from '@/components/analysis/map-thumb';
 import { DemoStatus, RowActions, Scoreline, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
@@ -37,6 +38,8 @@ function dayHeading(day: string): string {
 const GROUPS_PER_PAGE = 40;
 
 export type GroupListContext = {
+  /** Every library row, unfiltered, so a series score counts maps a filter hides. */
+  libraryRows: readonly PartidaRow[];
   ownTeam: string | null;
   /** The name of the own team, for the label of the row edge. */
   ownName: string;
@@ -81,6 +84,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
         className="relative z-10 size-4 accent-primary"
       />
       {edgeLabel ? <span className="sr-only">{edgeLabel}</span> : null}
+      {match ? <MapThumb map={match.map} className="h-10 w-16" crop={1.5} /> : null}
       <div className="flex w-44 shrink-0 flex-col">
         <span className="flex items-center gap-2 font-semibold">
           {failed}
@@ -139,12 +143,21 @@ function seriesTitle(series: LibrarySeries, rows: readonly PartidaRow[]): string
 /** A series: its title, format and event, the bans, and its maps with how each was picked. */
 function SeriesCard({ series, rows, context }: { series: LibrarySeries; rows: readonly PartidaRow[]; context: GroupListContext }): ReactNode {
   const veto = seriesVeto(series);
+  const score = seriesScore(series, context.libraryRows.filter((row) => row.match?.series_id === series.id));
   return (
     <section aria-label={seriesTitle(series, rows)} className="studio-panel overflow-hidden">
       <header className="flex flex-col gap-1 border-b border-border-subtle bg-surface-2 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" shape="square">{SERIES_FORMAT_LABEL[series.format]}</Badge>
           <h3 className="text-body font-semibold">{seriesTitle(series, rows)}</h3>
+          {score ? (
+            <span className="text-body font-semibold tabular-nums">
+              {score[0]}
+              <span aria-hidden className="px-1.5 text-fg-3">:</span>
+              <span className="sr-only"> a </span>
+              {score[1]}
+            </span>
+          ) : null}
           {series.event ? <span className="truncate text-body-sm text-fg-2">{series.event}</span> : null}
         </div>
         {veto.bans.length > 0 ? (

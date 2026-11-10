@@ -572,6 +572,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
               days={groupPartidas({ rows: shown, series: loaded.series, sort: listView.sort })}
               context={{
                 ownTeam,
+                libraryRows: rows,
                 ownName: ownTeam === null ? '' : ownTeamName(rows, ownTeam),
                 povJobs,
                 voices,

@@ -46,7 +46,7 @@ function importErrorText(error: unknown): string {
   return 'No se pudo abrir el mapa. Vuelve a intentarlo.';
 }
 
-/** Partidas pro: the server's recent HLTV matches, filtered, with Abrir en el Replay and Seguir equipo. */
+/** Partidas pro: the server's recent HLTV matches, filtered, with a 2D button per map and Seguir equipo. */
 export function ProMatchList(): ReactNode {
   const router = useRouter();
   const search = useSearchParams();

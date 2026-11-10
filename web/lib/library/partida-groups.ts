@@ -226,6 +226,29 @@ export function seriesVeto(series: LibrarySeries): SeriesVeto {
   return { bans, marks };
 }
 
+function invert(outcome: Outcome | null): Outcome | null {
+  if (outcome === 'win') return 'loss';
+  if (outcome === 'loss') return 'win';
+  return outcome;
+}
+
+/** Maps won by each series team, from the finished maps of its rows; null when the series has no two teams. */
+export function seriesScore(series: LibrarySeries, rows: readonly PartidaRow[]): readonly [number, number] | null {
+  const a = series.teams.find((team) => team.slot === 'a');
+  const b = series.teams.find((team) => team.slot === 'b');
+  if (a === undefined || b === undefined) return null;
+  let wonA = 0;
+  let wonB = 0;
+  for (const { match } of rows) {
+    if (match === null) continue;
+    const outcomeA = teamOutcome(match, a.team_id);
+    const outcome = outcomeA ?? invert(teamOutcome(match, b.team_id));
+    if (outcome === 'win') wonA += 1;
+    else if (outcome === 'loss') wonB += 1;
+  }
+  return [wonA, wonB];
+}
+
 const MAX_SUGGESTIONS = 6;
 
 /** Existing tags that start with, then contain, what was typed and are not on the demo yet. */
