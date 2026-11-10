@@ -97,7 +97,8 @@ kills), advantage (4v5, 5v4 at some moment), round_from/round_to, site, outcome 
 and opponent_weapon (scout, no_scout, hero_ak, hero_awp; docs/studio-mcp.md has each rule), a custom buy range per
 player (equip_from/equip_to, opponent_equip_from/opponent_equip_to, in dollars of equipment) and tactic (a Libreta
 play id: only its example rounds). Team views read every match the team played and keep the newest 50; older ones come
-back as over_match_limit skips, so say when more_matches is true. team_rounds lists those rounds over
+back as over_match_limit skips. One view opens at most 200 analyses (the lineup and a single map or date range are
+applied first); the rest come back as over_read_limit skips. Say when more_matches is true. team_rounds lists those rounds over
 the matches, with the Replay's studio_path and a playlist_path to play them one after another. The Replay
 holds one buy (or half), one advantage, one site and one end_reason, so studio_path refuses longer lists.
 team_attack (one map, T side) is the match prep read: sites and Bombsite Tempo (rush, set strat, mid round, no site)

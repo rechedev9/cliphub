@@ -81,7 +81,7 @@ func (h *Handlers) GetLibraryTeamSideStats(w http.ResponseWriter, r *http.Reques
 		resp.Compare = "teams"
 		resp.CompareTeams = append(resp.CompareTeams, sideStatsTeam{TeamID: other.ID, Name: other.Name})
 	}
-	candidates, pending, skipped, err := h.teamCandidates(r.Context(), team, matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(r.Context(), candidateQuery{team: team, matchIDs: matchIDs, scope: filter})
 	if err != nil {
 		internalError(w, "team side stats", err)
 		return

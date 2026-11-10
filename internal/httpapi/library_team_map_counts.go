@@ -35,7 +35,9 @@ type teamMapCountsQuery struct {
 // side and round criteria do not narrow it.
 func (h *Handlers) teamMapCounts(ctx context.Context, q teamMapCountsQuery) (teamMapCountsResponse, error) {
 	resp := teamMapCountsResponse{TeamID: q.team.ID, TeamName: q.team.Name, Maps: []teamMapCount{}}
-	candidates, pending, _, err := h.teamCandidates(ctx, q.team, nil)
+	every := q.filter
+	every.Maps = nil
+	candidates, pending, _, err := h.teamCandidates(ctx, candidateQuery{team: q.team, scope: every})
 	if err != nil {
 		return resp, err
 	}
@@ -44,12 +46,13 @@ func (h *Handlers) teamMapCounts(ctx context.Context, q teamMapCountsQuery) (tea
 		counts[m.Document.Demo.Map] = 0
 	}
 	selected, _ := selectTeamMatches(q.filter, pending)
+	reads := maxTeamDocReads
 	byMap := map[string][]tacticalplan.ScoutMatch{}
 	for _, m := range selected {
 		byMap[m.Document.Demo.Map] = append(byMap[m.Document.Demo.Map], m)
 	}
 	for name, matches := range byMap {
-		keep := keepQuery{teamID: q.team.ID, candidates: candidates, selected: matches, lineup: q.filter.Lineup, limit: q.filter.MaxMatches}
+		keep := keepQuery{teamID: q.team.ID, candidates: candidates, selected: matches, lineup: q.filter.Lineup, limit: q.filter.MaxMatches, reads: &reads}
 		if len(q.filter.Lineup) == 0 {
 			counts[name] = h.countAnalysed(keep)
 			continue

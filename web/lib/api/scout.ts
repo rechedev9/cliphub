@@ -159,7 +159,7 @@ export type ScoutFilter = {
   opponents?: string[];
 };
 
-export const SCOUT_SKIP_REASONS = ['not_found', 'team_not_in_match', 'analysis_missing', 'over_match_limit', 'opponent_unranked'] as const;
+export const SCOUT_SKIP_REASONS = ['not_found', 'team_not_in_match', 'analysis_missing', 'over_match_limit', 'over_read_limit', 'opponent_unranked'] as const;
 export type ScoutSkipReason = (typeof SCOUT_SKIP_REASONS)[number];
 
 export type ScoutReport = {

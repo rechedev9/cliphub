@@ -376,6 +376,7 @@ function SampleNoteList({ notes }: { notes: SampleNotes }): ReactNode {
   const items = [
     { count: notes.unrated, text: `${notes.unrated} sin ranking`, title: 'Partidas fuera porque el rival no tiene ranking HLTV' },
     { count: notes.capped, text: `${notes.capped} fuera por el tope de ${SCOPE_LIMIT_MAX}`, title: `Se leen como mucho las ${SCOPE_LIMIT_MAX} partidas más recientes` },
+    { count: notes.unread, text: `${notes.unread} sin leer por el tope de 200`, title: 'Se abren como mucho 200 análisis por vista: acota el mapa, las fechas o la alineación para leer el resto' },
     {
       count: notes.awpEstimated,
       text: `AWP estimado en ${notes.awpEstimated} ${notes.awpEstimated === 1 ? 'partida' : 'partidas'}`,

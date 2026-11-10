@@ -25,6 +25,8 @@ const (
 	roundResultLost    = "lost"
 	// overMatchLimit is the skip reason of a team match past the scope's cap.
 	overMatchLimit = "over_match_limit"
+	// overReadLimit is the skip reason of a match past the server's 200 analyses read.
+	overReadLimit = "over_read_limit"
 )
 
 var buyTypes = []string{"pistol", "eco", "semi", "force", "full"}
@@ -257,7 +259,7 @@ func (in findRoundsIn) teamRounds(call roundsCall) (findRoundsOut, error) {
 	}
 	out.team = cleanName(got.TeamName)
 	for _, skipped := range got.Skipped {
-		if skipped.Reason == overMatchLimit {
+		if skipped.Reason == overMatchLimit || skipped.Reason == overReadLimit {
 			out.MoreMatches = true
 		} else {
 			out.MatchesSkipped++

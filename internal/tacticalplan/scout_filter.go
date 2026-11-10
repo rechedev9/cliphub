@@ -71,7 +71,7 @@ func (f ScoutFilter) Select(matches []ScoutMatch) []ScoutMatch {
 func (f ScoutFilter) SelectRated(matches []ScoutMatch) (kept, unrated []ScoutMatch) {
 	kept = make([]ScoutMatch, 0, len(matches))
 	for _, m := range matches {
-		if !f.keepsMatch(m) {
+		if !f.KeepsMatch(m) {
 			continue
 		}
 		if f.OpponentTop > 0 && m.OpponentRank <= 0 {
@@ -88,7 +88,8 @@ func (f ScoutFilter) SelectRated(matches []ScoutMatch) (kept, unrated []ScoutMat
 	return kept, unrated
 }
 
-func (f ScoutFilter) keepsMatch(m ScoutMatch) bool {
+// KeepsMatch reports whether the match-level criteria keep m, before the rival level.
+func (f ScoutFilter) KeepsMatch(m ScoutMatch) bool {
 	switch {
 	case len(f.Maps) > 0 && !containsString(f.Maps, m.Document.Demo.Map),
 		f.From != nil && m.PlayedAt.Before(*f.From),

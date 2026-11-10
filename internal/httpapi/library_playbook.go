@@ -47,7 +47,7 @@ func (h *Handlers) loadFramedMatches(ctx context.Context, q framedQuery) ([]tact
 
 // keepFramedMatches reads the team's matches the filter selects, with their documents.
 func (h *Handlers) keepFramedMatches(ctx context.Context, q framedQuery) ([]keptMatch, []scoutSkipped, error) {
-	candidates, pending, skipped, err := h.teamCandidates(ctx, q.team, q.matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(ctx, candidateQuery{team: q.team, matchIDs: q.matchIDs, scope: q.filter})
 	if err != nil {
 		return nil, nil, err
 	}

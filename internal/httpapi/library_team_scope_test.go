@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
@@ -132,15 +133,36 @@ func TestTeamScopeTacticKeepsThePlayRounds(t *testing.T) {
 	}
 }
 
-func TestTeamCandidatesReadEveryMatch(t *testing.T) {
+func TestTeamCandidatesReadEveryMatchAndBoundTheDocuments(t *testing.T) {
 	env := newLibraryTestEnv(t)
-	first := env.seedLibraryMatch("m0", "Vitality", "MOUZ")
-	team := *teamOfMatch(t, first, "ct-start").TeamID
+	seeded := []library.Match{env.seedLibraryMatch("m0", "Vitality", "MOUZ")}
+	teamID := *teamOfMatch(t, seeded[0], "ct-start").TeamID
 	for i := 1; i <= library.MaxListLimit; i++ {
-		env.seedLibraryMatch(fmt.Sprintf("m%d", i), "Vitality", "MOUZ")
+		seeded = append(seeded, env.seedLibraryMatch(fmt.Sprintf("m%d", i), "Vitality", "MOUZ"))
 	}
-	got, err := env.h.allMatches(t.Context(), library.MatchFilter{TeamID: &team})
-	if err != nil || len(got) != library.MaxListLimit+1 {
-		t.Fatalf("listed %d matches (%v), want all %d", len(got), err, library.MaxListLimit+1)
+	team, err := env.repo.GetTeam(t.Context(), teamID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opens := func() int {
+		n := 0
+		for _, m := range seeded {
+			n += env.storage.openCount(artifacts.LibraryTacticalIndexKey(m.DemoID))
+		}
+		return n
+	}
+	env.storage.resetOpenCounts()
+	candidates, pending, _, err := env.h.teamCandidates(t.Context(), candidateQuery{team: team})
+	if err != nil || len(pending) != library.MaxListLimit+1 {
+		t.Fatalf("listed %d matches (%v), want all %d", len(pending), err, library.MaxListLimit+1)
+	}
+	away := tacticalplan.ScoutFilter{Lineup: tacticalplan.Lineup{"76561198000000099"}}
+	if _, none, _, err := env.h.teamCandidates(t.Context(), candidateQuery{team: team, scope: away}); err != nil || len(none) != 0 || opens() != 0 {
+		t.Fatalf("a lineup that never played must drop every match before a read: %d left, %d reads (%v)", len(none), opens(), err)
+	}
+	budget := 3
+	kept, skipped := env.h.keepTeamMatches(keepQuery{teamID: teamID, candidates: candidates, selected: pending, reads: &budget})
+	if len(kept) != 3 || opens() != 3 || len(skipped) != len(pending)-3 || skipped[0].Reason != scoutSkipReadLimit {
+		t.Fatalf("a read budget of 3 kept %d, read %d, skipped %d (%+v)", len(kept), opens(), len(skipped), skipped[:1])
 	}
 }

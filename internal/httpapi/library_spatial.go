@@ -305,7 +305,7 @@ func (h *Handlers) teamSpatial(ctx context.Context, team library.Team, q url.Val
 	if err != nil {
 		return spatialResponse{}, nil, errBadSpatialQuery{err}
 	}
-	candidates, pending, skipped, err := h.teamCandidates(ctx, team, matchIDs)
+	candidates, pending, skipped, err := h.teamCandidates(ctx, candidateQuery{team: team, matchIDs: matchIDs, scope: scout})
 	if err != nil {
 		return spatialResponse{}, nil, err
 	}
