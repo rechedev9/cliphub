@@ -29,7 +29,8 @@ func TestLibraryTeamGrenadesListsWhereEachGrenadeCameFrom(t *testing.T) {
 	if err := env.storage.Put(key, bytes.NewReader(b)); err != nil {
 		t.Fatal(err)
 	}
-	base := "/api/library/teams/" + teamOfMatch(t, m, "ct-start").TeamID.String() + "/grenades"
+	path := "/api/library/teams/" + teamOfMatch(t, m, "ct-start").TeamID.String() + "/grenades"
+	base := path + "?map=" + m.Map
 
 	var got struct {
 		Grenades  []map[string]any            `json:"grenades"`
@@ -60,22 +61,26 @@ func TestLibraryTeamGrenadesListsWhereEachGrenadeCameFrom(t *testing.T) {
 		}
 	}
 
-	env.json(http.MethodGet, base+"?kind=smoke&kind=he", nil, http.StatusOK, &got)
+	env.json(http.MethodGet, base+"&kind=smoke&kind=he", nil, http.StatusOK, &got)
 	if len(got.Grenades) != 1 || got.Grenades[0]["kind"] != "smoke" {
 		t.Fatalf("smokes and HEs = %+v", got.Grenades)
 	}
-	env.json(http.MethodGet, base+"?map=de_nuke", nil, http.StatusOK, &got)
+	env.json(http.MethodGet, path+"?map=de_nuke", nil, http.StatusOK, &got)
 	if len(got.Grenades) != 0 || got.Rounds != 0 {
 		t.Fatalf("another map = %+v, want nothing", got)
 	}
 	// The rivals threw nothing; their rounds are the team's, seen from T.
-	env.json(http.MethodGet, base+"?rivals=1", nil, http.StatusOK, &got)
+	env.json(http.MethodGet, base+"&opponents=1", nil, http.StatusOK, &got)
 	if len(got.Grenades) != 0 || got.Rounds != 2 || got.RoundList[0].Side != tacticalplan.SideT {
-		t.Fatalf("rivals = %+v, want no grenades over the same 2 rounds on T", got)
+		t.Fatalf("opponents = %+v, want no grenades over the same 2 rounds on T", got)
 	}
-	for _, bad := range []string{"?kind=incgrenade", "?side=mid", "?match_id=nope", "?rivals=yes"} {
-		if rw := env.do(http.MethodGet, base+bad, nil, ""); rw.Code != http.StatusBadRequest {
-			t.Fatalf("GET %s = %d, want 400", bad, rw.Code)
+	for _, bad := range []string{"", "&kind=incgrenade", "&side=mid", "&match_id=nope", "&opponents=yes"} {
+		url := base + bad
+		if bad == "" {
+			url = path
+		}
+		if rw := env.do(http.MethodGet, url, nil, ""); rw.Code != http.StatusBadRequest {
+			t.Fatalf("GET %s = %d, want 400", url, rw.Code)
 		}
 	}
 }

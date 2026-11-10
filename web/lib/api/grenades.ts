@@ -42,6 +42,8 @@ export type TeamGrenade = {
   /** Key of the repeated throw it belongs to, the same key the MCP's team_grenades names. */
   spot: string;
   after: GrenadeAfter;
+  /** The demo's ticks per second, so a replay opens seconds before the throw. */
+  tickrate: number;
 };
 
 /** One round the filter kept, seen from the throwers' side (`tacticalplan.GrenadeRound`). */
@@ -53,6 +55,8 @@ export type GrenadeRound = {
   side: TacticalSide;
   buy: TacticalBuyType;
   opponent_buy: TacticalBuyType;
+  /** The scouted team's buy, also when the rivals threw: what «Compra propia» filters on. */
+  team_buy: TacticalBuyType;
   won: boolean;
   /** The round's playbook category and site; empty when the round could not be read. */
   category: string;
@@ -71,4 +75,4 @@ export type TeamGrenades = {
 };
 
 export const TEAM_GRENADES_KEYS = ['grenades', 'rounds', 'round_list', 'skipped', 'awp_estimated'] as const;
-export const TEAM_GRENADES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'kind', 'rivals'] as const;
+export const TEAM_GRENADES_QUERY = ['map', 'side', 'from', 'to', 'opponent_id', 'match_id', 'lineup', 'kind', 'opponents'] as const;

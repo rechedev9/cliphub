@@ -20,6 +20,8 @@ import (
 const (
 	metaTrendFactor = 1.5
 	metaTrendMin    = 1.0
+	// metaSmallSample marks a row with fewer throws in the period, as the web's «Poca muestra».
+	metaSmallSample = 5
 )
 
 type proGrenadeMetaIn struct {
@@ -49,6 +51,7 @@ type proGrenadeMetaRowOut struct {
 	LandPlace  string        `json:"land_place"`
 	ThrowPlace string        `json:"throw_place"`
 	Throws     int           `json:"throws" jsonschema:"throws in the period"`
+	Small      bool          `json:"small_sample,omitempty" jsonschema:"fewer than 5 throws in the period: read its rank and trend with care"`
 	Per100     float64       `json:"per_100_rounds" jsonschema:"throws per 100 side rounds in the period: the ranking"`
 	RoundShare float64       `json:"round_share" jsonschema:"share of the side's recent rounds with the throw, 0 to 1"`
 	Teams      []metaTeamOut `json:"teams" jsonschema:"recent teams, most rounds first, at most 3"`
@@ -160,7 +163,7 @@ func grenadeMeta(idx tuiclient.ProLineupIndex, f metaFilter) proGrenadeMetaOut {
 
 func metaRow(l prolineups.Lineup, throws, rounds int) proGrenadeMetaRowOut {
 	row := proGrenadeMetaRowOut{ID: cleanName(l.ID), Title: cleanText(l.Title, maxErrorRunes), Kind: string(l.Kind), LandPlace: cleanName(l.LandPlace),
-		ThrowPlace: cleanName(l.ThrowPlace), Throws: throws, RoundShare: l.RoundShare, TeamCount: l.TeamCount, Teams: []metaTeamOut{}}
+		ThrowPlace: cleanName(l.ThrowPlace), Throws: throws, Small: throws < metaSmallSample, RoundShare: l.RoundShare, TeamCount: l.TeamCount, Teams: []metaTeamOut{}}
 	if rounds > 0 {
 		row.Per100 = math.Round(1000*float64(throws)/float64(rounds)) / 10
 	}
@@ -176,7 +179,7 @@ func metaRow(l prolineups.Lineup, throws, rounds int) proGrenadeMetaRowOut {
 // metaTrend reads throws per 100 side rounds now against before.
 func metaTrend(now, before float64) string {
 	switch {
-	case before == 0 && now > 0:
+	case before == 0 && now >= metaTrendMin:
 		return "new"
 	case now >= before*metaTrendFactor && now-before >= metaTrendMin:
 		return "rising"

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
@@ -64,16 +65,24 @@ func addTeamReportRoutes(mux *http.ServeMux) {
 			return
 		}
 		g := `{"match_id":"` + testMatchID + `","round":%s,"tick":%s000,"seconds":%s,"kind":"%s","side":"T","thrower_steamid64":"%s","thrower_name":"p",` +
-			`"landing":[10.4,20.6,-3],"land_place":"Ramp","spot":"%s","after":{"zones":["Middle"],"fight":"Middle"},"round_won":%s}`
+			`"landing":[10.4,20.6,-3],"land_place":"Ramp","spot":"%s","after":{"zones":["Middle"],"fight":"Middle"},"round_won":%s,"tickrate":64}`
 		row := func(round, secs, kind, thrower, spot string) string {
 			return fmt.Sprintf(g, round, round, secs, kind, thrower, spot, strconv.FormatBool(round != "3"))
 		}
-		round := `{"match_id":"` + testMatchID + `","round":%d,"tick":100,"side":"T","buy":"%s","won":%t,"category":"execute","site":"A"}`
-		rounds := fmt.Sprintf(round, 1, "full", true) + `,` + fmt.Sprintf(round, 2, "full", true) + `,` + fmt.Sprintf(round, 3, "eco", false) + `,` + fmt.Sprintf(round, 4, "full", false)
+		// The rivals' rounds keep the team's own buy in team_buy; round 3 was planted at 50 s.
+		round := `{"match_id":"` + testMatchID + `","round":%d,"tick":100,"side":"T","buy":"%s","opponent_buy":"%[2]s","team_buy":"%[2]s","won":%t,"category":"execute","site":"A"%s}`
+		if r.URL.Query().Get("opponents") == "1" {
+			round = strings.Replace(round, `"buy":"%s"`, `"buy":"eco"`, 1)
+		}
+		rounds := fmt.Sprintf(round, 1, "full", true, "") + `,` + fmt.Sprintf(round, 2, "full", true, "") + `,` +
+			fmt.Sprintf(round, 3, "eco", false, `,"plant_seconds":50`) + `,` + fmt.Sprintf(round, 4, "full", false, "")
 		_, _ = w.Write([]byte(`{"rounds":4,"round_list":[` + rounds + `],"skipped":[],"grenades":[` + row("1", "5", "smoke", grenadeA, "smoke:one") + `,` +
 			row("1", "7", "smoke", grenadeB, "smoke:two") + `,` + row("2", "3", "flash", grenadeA, "flash:three") + `,` +
 			strings.Replace(row("2", "9", "smoke", grenadeA, "smoke:one"), `"landing"`, `"origin":[1,2,3],"throw_tick":640,"view":[90,-10],"landing"`, 1) + `,` +
 			row("3", "60", "smoke", grenadeB, "smoke:two") + `]}`))
+	})
+	mux.HandleFunc("GET /api/library/maps/de_nuke/callouts", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"map":"de_nuke","callouts":[{"token":"Ramp","name":"Rampa"},{"token":"Hut"}]}`))
 	})
 	mux.HandleFunc("GET /api/library/players/"+testSteamID+"/positions", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"steamid64":"` + testSteamID + `","match_count":2,"window_seconds":25,"min_reliable_sample":5,"skipped":[],
@@ -154,7 +163,7 @@ const (
 func TestTeamGrenadesGroupsByKind(t *testing.T) {
 	cs := fakeAnalysisStudio(t)
 	var out teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"Smoke", "flash"}, "limit": 3}, &out)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"Smoke", "flash"}, "limit": 3}, &out)
 	if out.Total != 5 || out.Rounds != 4 || out.MatchingRounds != 3 || len(out.Kinds) != 2 || len(out.Grenades) != 3 || !out.Truncated || out.Note == "" {
 		t.Fatalf("grenades = %+v", out)
 	}
@@ -169,20 +178,20 @@ func TestTeamGrenadesGroupsByKind(t *testing.T) {
 		t.Errorf("first row = %+v", g)
 	}
 	var all teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"smoke", "flash"}}, &all)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"smoke", "flash"}}, &all)
 	if g := all.Grenades[3]; g.ThrowTick == nil || *g.ThrowTick != 640 || g.Origin == nil {
 		t.Errorf("a recorded throw = %+v, want the throw_tick save_lineup reads", g)
 	}
-	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": []string{"c4"}}, "kind must be one of")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": []string{"c4"}}, "kind must be one of")
 }
 
 func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
 	cs := fakeAnalysisStudio(t)
 	kinds := []string{"smoke", "flash"}
 	var out teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds}, &out)
-	if len(out.Clock) != 2 || out.Clock[0].Span != "1:55-1:45" || out.Clock[0].Throws != 4 || out.Clock[1].Span != "0:55-0:45" {
-		t.Fatalf("clock = %+v, want the opening bin and the late smoke", out.Clock)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds}, &out)
+	if len(out.Clock) != 2 || out.Clock[0].Span != "1:55-1:45" || out.Clock[0].Throws != 4 || out.Clock[1].Span != "Tras la plant" {
+		t.Fatalf("clock = %+v, want the opening bin and the smoke after the plant", out.Clock)
 	}
 	if p := out.Clock[0].Players; len(p) != 2 || p[0].SteamID64 != grenadeA || p[0].Throws != 3 || p[1].Throws != 1 {
 		t.Errorf("opening bin players = %+v", p)
@@ -192,7 +201,7 @@ func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
 	}
 
 	var spot teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds, "spot": "smoke:one"}, &spot)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:one"}, &spot)
 	d := spot.Spot
 	if d == nil || spot.MatchingRounds != 2 || d.Rounds != 2 || d.Won != 2 || len(d.RoundList) != 2 || d.RoundList[1].Ref != testMatchID+"/2" {
 		t.Fatalf("spot = %+v over %d rounds", d, spot.MatchingRounds)
@@ -204,23 +213,48 @@ func TestTeamGrenadesReadsTheClockSpotsAndRounds(t *testing.T) {
 	if d.Setpos != "setpos 1.00 2.00 3.00;setang -10.00 90.00 0" {
 		t.Errorf("setpos = %q", d.Setpos)
 	}
-	if !strings.Contains(d.StudioPath, "r="+testMatchID+"%3A1%3A808") || !strings.Contains(d.StudioPath, "%3A2%3A448") || !strings.HasSuffix(d.StudioPath, "s=1&t=Humo+a+Ramp+%C2%B7+2+rondas") {
+	if !strings.Contains(d.StudioPath, "r="+testMatchID+"%3A1%3A808") || !strings.Contains(d.StudioPath, "%3A2%3A448") || !strings.HasSuffix(d.StudioPath, "s=1&t=Humo+a+Rampa+%C2%B7+2+rondas") {
 		t.Errorf("studio_path = %s, want both rounds from before the throw, superposed", d.StudioPath)
 	}
 
 	var inverted teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds, "spot": "smoke:one", "invert": true}, &inverted)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:one", "invert": true}, &inverted)
 	if inverted.MatchingRounds != 2 || len(inverted.Inverted) != 2 || inverted.Inverted[0].Ref != testMatchID+"/3" || inverted.Inverted[1].Play != "execute@A" {
 		t.Errorf("inverted = %+v over %d rounds", inverted.Inverted, inverted.MatchingRounds)
 	}
 
 	var full teamGrenadesOut
-	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds, "buy": "full", "players": []string{grenadeB}}, &full)
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": "full", "players": []string{grenadeB}}, &full)
 	if full.Rounds != 3 || full.Total != 1 || full.MatchingRounds != 1 || full.Grenades[0].Ref != testMatchID+"/1" {
 		t.Errorf("full buys of B = %+v, want B's one smoke over the 3 full rounds", full)
 	}
-	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds, "spot": "smoke:nope"}, "no spot")
-	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds, "players": []string{"zywoo"}}, "is not a SteamID64")
+	// With the rivals' utility, buy still reads the scouted team's buy.
+	var rivals teamGrenadesOut
+	callTool(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "buy": "full", "opponents": true}, &rivals)
+	if rivals.Rounds != 3 {
+		t.Errorf("opponents with the team's full buys = %d rounds, want 3", rivals.Rounds)
+	}
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "kind": kinds}, "map is required")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "max_matches": 51}, "max_matches")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "spot": "smoke:nope"}, "no spot")
+	toolFails(t, cs, "team_grenades", map[string]any{"team_id": testTeamID, "map": "de_nuke", "kind": kinds, "players": []string{"zywoo"}}, "is not a SteamID64")
+}
+
+func TestNewestMatchesKeepsTheLimitNewestFirst(t *testing.T) {
+	at := func(id, day, rival string) tuiclient.LibraryMatch {
+		played, _ := time.Parse(time.DateOnly, day)
+		return tuiclient.LibraryMatch{ID: id, PlayedAt: played, Teams: []tuiclient.LibraryMatchTeam{{TeamID: testTeamID}, {TeamID: rival}}}
+	}
+	list := []tuiclient.LibraryMatch{at("a", "2026-10-01", "x"), at("c", "2026-10-03", "y"), at("b", "2026-10-02", "x")}
+	if got := newestMatches(list, tuiclient.AnalysisQuery{}, newestOptions{teamID: testTeamID, limit: 2}); fmt.Sprint(got) != "[c b]" {
+		t.Errorf("newest 2 = %v, want [c b]", got)
+	}
+	if got := newestMatches(list, tuiclient.AnalysisQuery{Opponents: []string{"x"}}, newestOptions{teamID: testTeamID, limit: 1}); fmt.Sprint(got) != "[b]" {
+		t.Errorf("newest vs x = %v, want [b]", got)
+	}
+	if got := newestMatches(list, tuiclient.AnalysisQuery{}, newestOptions{teamID: testTeamID, limit: 3}); got != nil {
+		t.Errorf("a limit the scope fits = %v, want every match", got)
+	}
 }
 
 func TestPlayerPositionsAndLeaderboard(t *testing.T) {

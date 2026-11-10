@@ -67,7 +67,7 @@ export function GrenadeSpotList({ spots, total, highlight, onHover, chosen, onCh
               <div className="flex items-start gap-2">
                 <input
                   type="checkbox"
-                  aria-label={`Elegir ${label} para practicar`}
+                  aria-label={`Elegir ${label} para practicar o crear una táctica`}
                   title={best === null ? NO_ORIGIN_REASON : undefined}
                   checked={isChosen}
                   disabled={best === null || (full && !isChosen)}

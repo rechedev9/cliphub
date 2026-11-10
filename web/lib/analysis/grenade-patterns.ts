@@ -4,7 +4,7 @@ import { onShownFloor } from './floors.ts';
 import type { ShownFloor } from './floors.ts';
 import { renderedToWorld } from '../tactical-spatial.ts';
 import { isCalibrationUsable, worldToRendered, type RadarPoint } from '../tactical-transform.ts';
-import type { ReplayRef } from './replay-link.ts';
+import { REPLAY_MAX_REFS, type ReplayRef } from './replay-link.ts';
 import { ROUND_CLOCK_SECONDS } from '../replay/tramo.ts';
 
 /**
@@ -168,39 +168,60 @@ function toSpot(key: string, grenades: TeamGrenade[]): GrenadeSpot {
   };
 }
 
-/** One bar of the round clock histogram: `[start, end)` seconds after freeze end, with the throws of each player. */
-export type ClockBin = { start: number; end: number; count: number; byPlayer: ReadonlyMap<string, number> };
+/** Throws and who threw them, in one bar of the round clock histogram. */
+export type ClockCount = { count: number; byPlayer: ReadonlyMap<string, number> };
+/** One bar of the round clock: `[start, end)` seconds after freeze end. */
+export type ClockBin = ClockCount & { start: number; end: number };
 
-/**
- * Throw times in bins of `width` seconds over the round clock (1:55 to 0:00);
- * later throws, such as post-plant utility, fall in the last bin.
- */
-export function clockBins(grenades: readonly TeamGrenade[], width = 5): ClockBin[] {
-  const count = Math.max(1, Math.ceil(ROUND_CLOCK_SECONDS / width));
-  const bins = Array.from({ length: count }, (_, index) => ({ start: index * width, end: (index + 1) * width, count: 0, byPlayer: new Map<string, number>() }));
-  for (const grenade of grenades) {
-    if (!Number.isFinite(grenade.seconds)) continue;
-    const bin = bins[Math.min(count - 1, Math.max(0, Math.floor(grenade.seconds / width)))];
-    if (bin === undefined) continue;
-    bin.count += 1;
-    bin.byPlayer.set(grenade.thrower_steamid64, (bin.byPlayer.get(grenade.thrower_steamid64) ?? 0) + 1);
-  }
-  return bins;
+/** The histogram's bar width in seconds, the same as the MCP's `clock`. */
+export const CLOCK_BIN_SECONDS = 10;
+
+function addThrow(bin: { count: number; byPlayer: Map<string, number> }, grenade: TeamGrenade): void {
+  bin.count += 1;
+  bin.byPlayer.set(grenade.thrower_steamid64, (bin.byPlayer.get(grenade.thrower_steamid64) ?? 0) + 1);
 }
 
-/** CS2 demos tick at 64 a second; a replay opens this long before the throw. */
-const LEAD_TICKS = 3 * 64;
+/**
+ * Throw times in bins of CLOCK_BIN_SECONDS over the round clock (1:55 to 0:00);
+ * a throw at or after its round's plant counts in `afterPlant` instead.
+ */
+export function clockBins(
+  grenades: readonly TeamGrenade[],
+  plantOf: (matchId: string, round: number) => number | null,
+): { bins: ClockBin[]; afterPlant: ClockCount } {
+  const width = CLOCK_BIN_SECONDS;
+  const count = Math.max(1, Math.ceil(ROUND_CLOCK_SECONDS / width));
+  const bins = Array.from({ length: count }, (_, index) => ({ start: index * width, end: (index + 1) * width, count: 0, byPlayer: new Map<string, number>() }));
+  const afterPlant = { count: 0, byPlayer: new Map<string, number>() };
+  for (const grenade of grenades) {
+    if (!Number.isFinite(grenade.seconds)) continue;
+    const plant = plantOf(grenade.match_id, grenade.round);
+    if (plant !== null && grenade.seconds >= plant) {
+      addThrow(afterPlant, grenade);
+      continue;
+    }
+    const bin = bins[Math.min(count - 1, Math.max(0, Math.floor(grenade.seconds / width)))];
+    if (bin !== undefined) addThrow(bin, grenade);
+  }
+  return { bins, afterPlant };
+}
+
+/** A replay opens this long before the throw; demos without a tick rate read as CS2's 64. */
+const LEAD_SECONDS = 3;
+const DEFAULT_TICKRATE = 64;
 
 /** One replay entry per round, starting just before the first throw of that round. */
 export function spotReplayRefs(grenades: readonly TeamGrenade[]): ReplayRef[] {
   const refs = new Map<string, ReplayRef>();
   for (const grenade of grenades) {
     const key = `${grenade.match_id}:${grenade.round}`;
-    const tick = Math.max(0, (grenade.throw_tick ?? grenade.tick) - LEAD_TICKS);
+    const lead = Math.round(LEAD_SECONDS * (grenade.tickrate > 0 ? grenade.tickrate : DEFAULT_TICKRATE));
+    const tick = Math.max(0, (grenade.throw_tick ?? grenade.tick) - lead);
     const known = refs.get(key);
     if (known === undefined || (known.tick ?? 0) > tick) refs.set(key, { matchId: grenade.match_id, round: grenade.round, tick });
   }
-  return [...refs.values()];
+  // The Replay plays at most REPLAY_MAX_REFS rounds, so the count shown never promises more.
+  return [...refs.values()].slice(0, REPLAY_MAX_REFS);
 }
 
 /** One player who threw: how many of the grenades are theirs. */

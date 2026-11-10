@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Crosshair, Layers, X } from 'lucide-react';
+import { BookPlus, Crosshair, Layers, X } from 'lucide-react';
 import { TEAM_GRENADE_KINDS, type TeamGrenade, type TeamGrenades, type TeamGrenadeKind } from '@/lib/api/grenades';
 import type { LineupThrow } from '@/lib/api/lineups';
 import { PRACTICE_MAX_SPOTS } from '@/lib/api/practice';
@@ -19,10 +19,10 @@ import {
   type GrenadeArea,
   type WorldBox,
 } from '@/lib/analysis/grenade-patterns';
-import { playFromGrenadeSpot } from '@/lib/analysis/grenade-play';
+import { playFromGrenadeSpots } from '@/lib/analysis/grenade-play';
 import { grenadeIcon } from '@/lib/analysis/icons';
 import { practiceSpotsForSpots, spotLabel } from '@/lib/analysis/practice-spots';
-import { superposedReplayHref } from '@/lib/analysis/replay-link';
+import { REPLAY_MAX_REFS, superposedReplayHref } from '@/lib/analysis/replay-link';
 import { inTramo } from '@/lib/replay/tramo';
 import { LEVEL_LABEL } from '@/lib/tactical-spatial';
 import { isMultiLevelMap, levelForAltitude } from '@/lib/tactical-transform';
@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { EquipmentIcon } from '@/components/ui/equipment-icon';
 import { Segmented } from '@/components/ui/segmented';
 import { Toggle } from '@/components/ui/toggle';
-import { GrenadeClockMarks } from './grenade-clock';
+import { GrenadeAfterPlant, GrenadeClockMarks } from './grenade-clock';
 import { GrenadePlayerPicker, playerToken } from './grenade-players';
 import { GRENADE_KIND_TOKEN, GrenadeRadar } from './grenade-radar';
 import { GrenadeRoundList } from './grenade-round-list';
@@ -87,7 +87,7 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
   const [results, setResults] = useState<ResultsView>('spots');
   const [invert, setInvert] = useState(false);
   const [saving, setSaving] = useState<{ from: LineupThrow; label: string } | null>(null);
-  const [savingPlay, setSavingPlay] = useState(false);
+  const [savingPlay, setSavingPlay] = useState<readonly LabelledSpot[] | null>(null);
   const practice = usePracticeLaunch(map);
   const calloutLabel = useCalloutNames([map]);
   const place = useCallback((token: string) => calloutLabel(map, token), [calloutLabel, map]);
@@ -100,8 +100,8 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
     [multiLevel, floor],
   );
 
-  // The scope's rounds after the bar's buy: the denominator of every count here.
-  const scopeRounds = useMemo(() => data.round_list.filter((round) => buy === '' || round.buy === buy), [data.round_list, buy]);
+  // The scope's rounds after the bar's buy, the team's own also with the rivals' grenades: the denominator of every count here.
+  const scopeRounds = useMemo(() => data.round_list.filter((round) => buy === '' || round.team_buy === buy), [data.round_list, buy]);
   const total = data.round_list.length === 0 && buy === '' ? data.rounds : scopeRounds.length;
   const side = roundsSide(scopeRounds);
   const plants = useMemo(() => new Map(data.round_list.map((round) => [roundKey(round.match_id, round.round), round.plant_seconds])), [data.round_list]);
@@ -110,9 +110,20 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
     [plantSeconds, plants],
   );
 
-  const ofBuy = useMemo(() => data.grenades.filter((grenade) => buy === '' || grenade.buy === buy), [data.grenades, buy]);
-  const throwers = useMemo(() => throwersOf(ofBuy), [ofBuy]);
-  const tokens = useMemo(() => new Map(throwers.map((thrower, index) => [thrower.steamid64, playerToken(index)])), [throwers]);
+  const ofBuy = useMemo(() => {
+    if (buy === '') return data.grenades;
+    if (data.round_list.length === 0) return data.grenades.filter((grenade) => grenade.buy === buy);
+    const kept = new Set(scopeRounds.map((round) => roundKey(round.match_id, round.round)));
+    return data.grenades.filter((grenade) => kept.has(roundKey(grenade.match_id, grenade.round)));
+  }, [data.grenades, data.round_list.length, scopeRounds, buy]);
+  // The order (and so the colours) comes from every throw, so a filter never moves a player's colour.
+  const order = useMemo(() => throwersOf(data.grenades), [data.grenades]);
+  const tokens = useMemo(() => new Map(order.map((thrower, index) => [thrower.steamid64, playerToken(index)])), [order]);
+  const throwers = useMemo(() => {
+    const counts = new Map(throwersOf(ofBuy).map((thrower) => [thrower.steamid64, thrower.throws]));
+    return order.map((thrower) => ({ ...thrower, throws: counts.get(thrower.steamid64) ?? 0 }));
+  }, [order, ofBuy]);
+  const names = useMemo(() => new Map(order.map((thrower) => [thrower.steamid64, thrower.name])), [order]);
   const onLevel = useMemo(
     () =>
       ofBuy.filter(
@@ -149,10 +160,14 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
   const matchingRounds = invert ? Math.max(0, total - thrown.size) : thrown.size;
   const rows = useMemo(() => roundRows(scopeRounds, shown, invert), [scopeRounds, shown, invert]);
   const followUp = useMemo(() => (openSpot === undefined ? null : followUpOf(openSpot.spot.grenades, scopeRounds)), [openSpot, scopeRounds]);
-  const bins = useMemo(() => clockBins(ofKinds), [ofKinds]);
+  const clock = useMemo(() => clockBins(ofKinds, plantOf), [ofKinds, plantOf]);
   const stack = picked.map((steamid64) => ({ steamid64, token: tokens.get(steamid64) ?? '--fg-3' }));
   const byPlayer = useCallback((grenade: TeamGrenade) => tokens.get(grenade.thrower_steamid64) ?? GRENADE_KIND_TOKEN[grenade.kind], [tokens]);
-  const replayRefs = invert ? rows.map(({ round }) => ({ matchId: round.match_id, round: round.round, tick: round.tick })) : spotReplayRefs(shown);
+  const replayRefs = (invert ? rows.map(({ round }) => ({ matchId: round.match_id, round: round.round, tick: round.tick })) : spotReplayRefs(shown)).slice(0, REPLAY_MAX_REFS);
+  const savingFollowUp = useMemo(
+    () => (savingPlay === null ? null : followUpOf(savingPlay.flatMap(({ spot }) => spot.grenades), scopeRounds)),
+    [savingPlay, scopeRounds],
+  );
   const missingOrigins = matching.filter((grenade) => grenade.origin === null).length;
   const chosenSpots = spots.filter(({ spot }) => chosen.includes(spot.key));
   const counter = denominatorText({ count: matchingRounds, total, side, buy });
@@ -180,7 +195,7 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
         busy={practice.state.kind === 'busy'}
         onPractice={practice.launch}
         onSaveLineup={(from, label) => setSaving({ from, label })}
-        onSavePlay={teamId === null || side === '' ? null : () => setSavingPlay(true)}
+        onSavePlay={teamId === null || side === '' ? null : () => setSavingPlay([openSpot])}
         onBack={() => setOpen(null)}
       />
     );
@@ -285,7 +300,8 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
                 }
           }
         />
-        <TramoBar tramo={tramo} onChange={setTramo} marks={<GrenadeClockMarks bins={bins} stack={stack} />} />
+        <TramoBar tramo={tramo} onChange={setTramo} marks={<GrenadeClockMarks bins={clock.bins} stack={stack} />} />
+        <GrenadeAfterPlant bin={clock.afterPlant} stack={stack} names={names} />
       </section>
 
       <section aria-labelledby="granadas-posiciones" className="flex flex-col gap-2 lg:sticky lg:top-[calc(var(--shell-strip-height)+3.5rem)] lg:max-h-[calc(100dvh-var(--shell-strip-height)-4.5rem)] lg:overflow-y-auto">
@@ -322,6 +338,19 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
               <Crosshair aria-hidden />
               {chosenSpots.length === 0 ? 'Practicar selección' : `Practicar selección (${chosenSpots.length})`}
             </Button>
+            {teamId === null || side === '' ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={chosenSpots.length === 0}
+                title="Guarda las granadas elegidas como una jugada de la Libreta"
+                onClick={() => setSavingPlay(chosenSpots)}
+              >
+                <BookPlus aria-hidden />
+                {chosenSpots.length === 0 ? 'Crear táctica' : `Crear táctica (${chosenSpots.length})`}
+              </Button>
+            )}
           </div>
         </header>
         <PracticeResult state={practice.state} onDismiss={practice.dismiss} />
@@ -335,11 +364,13 @@ export function GrenadeFinder({ map, geometry, data, buy, matchLabel, tramo: tra
         {content}
       </section>
       {saving ? <SaveLineupDialog from={saving.from} label={saving.label} onClose={() => setSaving(null)} /> : null}
-      {savingPlay && openSpot !== undefined && followUp !== null && teamId !== null && side !== '' ? (
+      {savingPlay !== null && savingPlay.length > 0 && savingFollowUp !== null && teamId !== null && side !== '' ? (
         <SaveGrenadePlayDialog
-          defaultTitle={openSpot.label}
-          play={(title) => playFromGrenadeSpot({ teamId, map, side, title, spot: openSpot.spot, rounds: scopeRounds, followUp, place })}
-          onClose={() => setSavingPlay(false)}
+          defaultTitle={savingPlay.map(({ label }) => label).join(' + ')}
+          play={(title) =>
+            playFromGrenadeSpots({ teamId, map, side, title, spots: savingPlay.map(({ spot }) => spot), rounds: scopeRounds, followUp: savingFollowUp, place })
+          }
+          onClose={() => setSavingPlay(null)}
         />
       ) : null}
     </div>

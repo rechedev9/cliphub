@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { pct } from '@/lib/api/pro-lineups';
 import { grenadeIcon } from '@/lib/analysis/icons';
-import { META_TREND_LABEL, type MetaPeriod, type MetaRow, type MetaTrend } from '@/lib/pro-lineups-meta';
+import { META_SMALL_SAMPLE, META_TREND_LABEL, type MetaPeriod, type MetaRow, type MetaTrend } from '@/lib/pro-lineups-meta';
 import { plainTitle } from '@/lib/pro-lineups-view';
 import { GRENADE_KIND_TOKEN } from '@/components/patterns/grenade-radar';
 import { Badge } from '@/components/ui/badge';
@@ -85,6 +85,11 @@ export function MetaList({
                     <span className="flex items-center gap-2">
                       <span className="truncate text-body-sm font-medium text-fg-1">{plainTitle(lineup.title)}</span>
                       <TrendBadge trend={row.trend} />
+                      {row.small ? (
+                        <Badge variant="outline" title={`Menos de ${META_SMALL_SAMPLE} lanzamientos en el periodo`}>
+                          Poca muestra
+                        </Badge>
+                      ) : null}
                     </span>
                     <span className="text-meta text-fg-2 tabular-nums">
                       {row.per100.toLocaleString('es-ES')} por 100 rondas · {row.throws} lanzamientos · en el {pct(lineup.round_share)} de las rondas recientes

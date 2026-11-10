@@ -24,11 +24,13 @@ type spotBuild struct {
 }
 
 // assignSpots groups throws that repeat (same kind, origins and landings close
-// together) greedily in the given order, comparing each throw with the running
-// centre of every spot, and writes the spot's key on each throw.
+// together) greedily, oldest match first, comparing each throw with the running
+// centre of every spot, and writes the spot's key on each throw. The key names
+// the spot's oldest throw, so importing newer matches keeps it; a filter that
+// drops that throw (dates, side, opponents) can still change it.
 func assignSpots(grenades []TeamGrenade) {
 	var spots []*spotBuild
-	for i := range grenades {
+	for _, i := range oldestMatchFirst(grenades) {
 		g := grenades[i]
 		var into *spotBuild
 		for _, s := range spots {
@@ -50,6 +52,24 @@ func assignSpots(grenades []TeamGrenade) {
 			grenades[i].Spot = key
 		}
 	}
+}
+
+// oldestMatchFirst is the order of the grenades (listed newest match first)
+// with the matches reversed and the game order kept inside each.
+func oldestMatchFirst(grenades []TeamGrenade) []int {
+	var groups [][]int
+	for i, g := range grenades {
+		if n := len(groups); n > 0 && grenades[groups[n-1][0]].MatchID == g.MatchID {
+			groups[n-1] = append(groups[n-1], i)
+			continue
+		}
+		groups = append(groups, []int{i})
+	}
+	order := make([]int, 0, len(grenades))
+	for k := len(groups) - 1; k >= 0; k-- {
+		order = append(order, groups[k]...)
+	}
+	return order
 }
 
 // grenadeID is a stable id of one throw.

@@ -46,7 +46,10 @@ func TestCollectTeamGrenadesListsTheTeamsGrenadesNewestMatchFirst(t *testing.T) 
 	if smoke.LandPlace != "BombsiteA" || smoke.ThrowPlace != "Middle" || smoke.Spot == "" || smoke.After.Zones == nil {
 		t.Fatalf("smoke places, spot and after = %q %q %q %+v", smoke.LandPlace, smoke.ThrowPlace, smoke.Spot, smoke.After)
 	}
-	smoke.LandPlace, smoke.ThrowPlace, smoke.Spot, smoke.After = "", "", "", GrenadeAfter{}
+	if smoke.Tickrate <= 0 {
+		t.Fatalf("smoke tickrate = %v, want the demo's", smoke.Tickrate)
+	}
+	smoke.LandPlace, smoke.ThrowPlace, smoke.Spot, smoke.After, smoke.Tickrate = "", "", "", GrenadeAfter{}, 0
 	origin, tick, view := [3]float64{-500, 200, 16}, 1400, [2]float64{45, 350}
 	want := TeamGrenade{
 		MatchID: scoutMatchOne, Round: 1, Tick: 1600, Seconds: 15, Kind: EventSmoke, Side: SideT,
@@ -63,7 +66,7 @@ func TestCollectTeamGrenadesListsTheTeamsGrenadesNewestMatchFirst(t *testing.T) 
 	if molly := got.Grenades[3]; molly.Side != SideCT || molly.Buy != BuyForce || molly.RoundWon || molly.Seconds != 10 {
 		t.Fatalf("second-half molotov = %+v", molly)
 	}
-	if r := got.RoundList[2]; r.Side != SideCT || r.Buy != BuyForce || r.OpponentBuy != BuyFull || r.Won || r.Tick != 20640 {
+	if r := got.RoundList[2]; r.Side != SideCT || r.Buy != BuyForce || r.OpponentBuy != BuyFull || r.TeamBuy != BuyForce || r.Won || r.Tick != 20640 {
 		t.Fatalf("second-half round = %+v", r)
 	}
 }
@@ -82,12 +85,17 @@ func TestCollectTeamGrenadesFiltersBySideKindAndRivals(t *testing.T) {
 		t.Fatalf("another map = %+v, want an empty list", other)
 	}
 	// The rivals' flash in the team's T rounds, from the rivals' CT side.
-	rivals := CollectTeamGrenades(grenadeMatches(), ScoutFilter{Side: SideT}, GrenadeQuery{Rivals: true})
+	rivals := CollectTeamGrenades(grenadeMatches(), ScoutFilter{Side: SideT}, GrenadeQuery{Opponents: true})
 	if rivals.Rounds != 2 || len(rivals.Grenades) != 1 || rivals.Grenades[0].Kind != EventFlash || rivals.Grenades[0].Side != SideCT || rivals.Grenades[0].RoundWon {
 		t.Fatalf("rivals = %+v, want the CT flash of a round they lost", rivals)
 	}
 	if r := rivals.RoundList[0]; r.Side != SideCT || r.Won {
 		t.Fatalf("rivals' round = %+v, want CT and lost", r)
+	}
+	// «Compra propia» still reads the scouted team's buy with the rivals' grenades.
+	all := CollectTeamGrenades(grenadeMatches(), ScoutFilter{}, GrenadeQuery{Opponents: true})
+	if r := all.RoundList[2]; r.Buy != BuyFull || r.OpponentBuy != BuyForce || r.TeamBuy != BuyForce {
+		t.Fatalf("rivals' second-half round = %+v, want their full buy and the team's force", r)
 	}
 }
 
@@ -143,6 +151,18 @@ func TestStayedZonesNeedsAPlayerToStay(t *testing.T) {
 	}
 }
 
+func TestGrenadePlaceNamesOnlyANearCallout(t *testing.T) {
+	var g MapGeometry
+	level := g.Calibration.Level(0)
+	g.Callouts = []Callout{{Name: "Ramp", Level: level, Center: [2]float64{0, 0}}, {Name: "Hut", Level: level, Center: [2]float64{2000, 0}}}
+	if got := grenadePlace(g, [3]float64{500, 0, 0}); got != "Ramp" {
+		t.Errorf("near Ramp = %q", got)
+	}
+	if got := grenadePlace(g, [3]float64{1000, 0, 0}); got != "" {
+		t.Errorf("past the reach of both = %q, want no name", got)
+	}
+}
+
 func TestAssignSpotsGroupsRepeatedThrows(t *testing.T) {
 	at := func(round int, origin, landing [3]float64) TeamGrenade {
 		return TeamGrenade{MatchID: scoutMatchOne, Round: round, Tick: round * 100, Kind: EventSmoke, ThrowerSteamID64: "1", Origin: &origin, Landing: landing}
@@ -170,6 +190,15 @@ func TestAssignSpotsGroupsRepeatedThrows(t *testing.T) {
 	}
 	if want := "smoke:" + grenadeID(gs[0]); gs[0].Spot != want {
 		t.Fatalf("key = %q, want %q", gs[0].Spot, want)
+	}
+
+	// A newer match listed first keeps the key, which names the oldest throw.
+	newer := at(1, [3]float64{20, 0, 10}, [3]float64{530, 510, 0})
+	newer.MatchID = scoutMatchTwo
+	again := append([]TeamGrenade{newer}, gs...)
+	assignSpots(again)
+	if again[0].Spot != gs[0].Spot || again[1].Spot != gs[0].Spot {
+		t.Fatalf("after a newer match the key = %q and %q, want %q", again[0].Spot, again[1].Spot, gs[0].Spot)
 	}
 }
 

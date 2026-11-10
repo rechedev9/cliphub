@@ -201,10 +201,10 @@ type TeamGrenades struct {
 // TeamGrenadeQuery names the team, the matches and rounds, the kinds (all when
 // none) and whether to read the rivals' grenades instead of the team's.
 type TeamGrenadeQuery struct {
-	TeamID string
-	Query  AnalysisQuery
-	Kinds  []string
-	Rivals bool
+	TeamID    string
+	Query     AnalysisQuery
+	Kinds     []string
+	Opponents bool
 }
 
 // TeamGrenadeList returns the grenades the query asks for.
@@ -214,8 +214,8 @@ func (c *Client) TeamGrenadeList(ctx context.Context, q TeamGrenadeQuery) (TeamG
 	for _, kind := range q.Kinds {
 		values.Add("kind", kind)
 	}
-	if q.Rivals {
-		values.Set("rivals", "1")
+	if q.Opponents {
+		values.Set("opponents", "1")
 	}
 	path := teamPath(q.TeamID, "grenades") + encodeValues(values)
 	var out TeamGrenades

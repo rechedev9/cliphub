@@ -28,6 +28,7 @@ function throwAt(over: Partial<TeamGrenade>): TeamGrenade {
     throw_place: '',
     spot: 'smoke:a',
     after: { zones: [] },
+    tickrate: 64,
     ...over,
   };
 }
@@ -72,12 +73,25 @@ test('throws group by the spot the server named, most rounds first', () => {
   assert.ok(spots.some((spot) => spot.key.startsWith('smoke:') && spot.key !== 'smoke:a'), 'a throw without a key stands alone');
 });
 
-test('the round clock bins stack each player and late throws land in the last bin', () => {
-  const bins = clockBins([throwAt({ seconds: 0 }), throwAt({ seconds: 4.9, thrower_steamid64: '2' }), throwAt({ seconds: 12 }), throwAt({ seconds: 300 })], 5);
-  assert.equal(bins.length, 23);
+test('the round clock bins 10 seconds by player, and throws after the plant count apart', () => {
+  const plantOf = (_matchId: string, round: number): number | null => (round === 2 ? 40 : null);
+  const { bins, afterPlant } = clockBins(
+    [
+      throwAt({ seconds: 0 }),
+      throwAt({ seconds: 9.9, thrower_steamid64: '2' }),
+      throwAt({ seconds: 12 }),
+      throwAt({ seconds: 300 }),
+      throwAt({ round: 2, seconds: 30 }),
+      throwAt({ round: 2, seconds: 45, thrower_steamid64: '2' }),
+    ],
+    plantOf,
+  );
+  assert.equal(bins.length, 12);
   assert.deepEqual([bins[0]?.count, bins[0]?.byPlayer.get('1'), bins[0]?.byPlayer.get('2')], [2, 1, 1]);
-  assert.equal(bins[2]?.count, 1);
-  assert.deepEqual([bins[22]?.start, bins[22]?.end, bins[22]?.count], [110, 115, 1]);
+  assert.equal(bins[1]?.count, 1);
+  assert.equal(bins[3]?.count, 1);
+  assert.deepEqual([bins[11]?.start, bins[11]?.end, bins[11]?.count], [110, 120, 1]);
+  assert.deepEqual([afterPlant.count, afterPlant.byPlayer.get('2')], [1, 1]);
 });
 
 test('a spot replays each round once, from just before its first throw', () => {

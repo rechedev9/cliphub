@@ -84,8 +84,8 @@ export function TeamGrenades({
     let active = true;
     setLoad({ kind: 'loading' });
     onCounts(null);
-    // The server applies the whole team scope (criteria), the match limit and the buy among them.
-    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria, rivals })
+    // The server applies the whole team scope (criteria), the match limit and the team's own buy among them.
+    listTeamGrenades(teamId, { maps: [map], side, from, to, opponent_ids: opponent === '' ? [] : [opponent], lineup, criteria, opponents: rivals })
       .then((data) => {
         if (!active) return;
         setLoad({ kind: 'ready', data });

@@ -17,7 +17,7 @@ type teamGrenadesResponse struct {
 	AWPEstimated int            `json:"awp_estimated,omitempty"`
 }
 
-// grenadeQuery reads the repeatable kind parameter and rivals=1.
+// grenadeQuery reads the repeatable kind parameter and opponents=1.
 func grenadeQuery(q url.Values) (tacticalplan.GrenadeQuery, error) {
 	out := tacticalplan.GrenadeQuery{Kinds: make([]tacticalplan.EventKind, 0, len(q["kind"]))}
 	for _, raw := range q["kind"] {
@@ -27,12 +27,12 @@ func grenadeQuery(q url.Values) (tacticalplan.GrenadeQuery, error) {
 		}
 		out.Kinds = append(out.Kinds, kind)
 	}
-	switch q.Get("rivals") {
+	switch q.Get("opponents") {
 	case "", "0":
 	case "1":
-		out.Rivals = true
+		out.Opponents = true
 	default:
-		return out, errors.New("rivals must be 0 or 1")
+		return out, errors.New("opponents must be 0 or 1")
 	}
 	return out, nil
 }
@@ -41,7 +41,8 @@ func grenadeQuery(q url.Values) (tacticalplan.GrenadeQuery, error) {
 // grenade the team threw, where from, where it landed and what the team did
 // after it, with every round the filter kept. It takes the scout filter (map,
 // side, from, to, opponent_id, match_id, lineup), a repeatable kind and
-// rivals=1 for the grenades of the team's rivals in the same rounds.
+// opponents=1 for the grenades of the team's rivals in the same rounds. The
+// map is required, since the follow-up reads every position of each round.
 func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -59,6 +60,10 @@ func (h *Handlers) ListLibraryTeamGrenades(w http.ResponseWriter, r *http.Reques
 	read, err := grenadeQuery(q)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(filter.Maps) == 0 {
+		writeError(w, http.StatusBadRequest, "map is required")
 		return
 	}
 	team, err := h.libraryRepo.GetTeam(r.Context(), id)

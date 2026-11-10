@@ -51,7 +51,7 @@ func TestMetaTrendNeedsARealMove(t *testing.T) {
 	for _, c := range []struct {
 		now, before float64
 		want        string
-	}{{3, 0, "new"}, {0, 0, "steady"}, {9, 6, "rising"}, {1.2, 0.6, "steady"}, {2, 6, "falling"}, {6, 6.5, "steady"}} {
+	}{{3, 0, "new"}, {0.4, 0, "steady"}, {0, 0, "steady"}, {9, 6, "rising"}, {1.2, 0.6, "steady"}, {2, 6, "falling"}, {6, 6.5, "steady"}} {
 		if got := metaTrend(c.now, c.before); got != c.want {
 			t.Errorf("metaTrend(%v, %v) = %s, want %s", c.now, c.before, got, c.want)
 		}

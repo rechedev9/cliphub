@@ -17,9 +17,20 @@ const (
 	// spotAfterFacts is how many follow-up facts a spot row names; the detail names them all.
 	spotAfterFacts  = 3
 	clockBinSeconds = 10
-	// replayLeadTicks opens a replay this long before the throw, as the web's spotReplayRefs.
-	replayLeadTicks = 3 * 64
+	// replayLeadSeconds opens a replay this long before the throw, as the web's spotReplayRefs.
+	replayLeadSeconds = 3
+	defaultTickrate   = 64
+	// afterPlantSpan names the clock bin of the throws after the bomb went down.
+	afterPlantSpan = "Tras la plant"
 )
+
+// spotRead is what readSpots needs beyond the kept grenades.
+type spotRead struct {
+	in    teamGrenadesIn
+	limit int
+	// names maps a callout token to the team's name for it.
+	names map[string]string
+}
 
 type clockPlayerOut struct {
 	SteamID64 string `json:"steamid64"`
@@ -77,8 +88,9 @@ type invertedRoundOut struct {
 }
 
 // readSpots adds the clock, the spots, the spot read in full and the inverted rounds.
-func readSpots(out *teamGrenadesOut, kept tacticalplan.TeamGrenades, in teamGrenadesIn, limit int) {
-	out.Clock = clockBins(kept.Grenades)
+func readSpots(out *teamGrenadesOut, kept tacticalplan.TeamGrenades, sr spotRead) {
+	in, limit := sr.in, sr.limit
+	out.Clock = clockBins(kept.Grenades, kept.RoundList)
 	spots := tacticalplan.GrenadeSpots(kept.Grenades, kept.RoundList)
 	out.Spots = make([]grenadeSpotOut, 0, min(len(spots), maxGrenadeSpots))
 	for _, s := range spots[:min(len(spots), maxGrenadeSpots)] {
@@ -89,7 +101,7 @@ func readSpots(out *teamGrenadesOut, kept tacticalplan.TeamGrenades, in teamGren
 		matching = slices.DeleteFunc(slices.Clone(kept.Grenades), func(g tacticalplan.TeamGrenade) bool { return g.Spot != in.Spot })
 		for _, s := range spots {
 			if s.Key == in.Spot {
-				detail := spotDetail(s, matching, kept.RoundList)
+				detail := spotDetail(s, matching, spotContext{rounds: kept.RoundList, names: sr.names})
 				out.Spot = &detail
 			}
 		}
@@ -128,10 +140,15 @@ func grenadeSpotRow(s tacticalplan.GrenadeSpot, facts int) grenadeSpotOut {
 	return out
 }
 
-func spotDetail(s tacticalplan.GrenadeSpot, grenades []tacticalplan.TeamGrenade, rounds []tacticalplan.GrenadeRound) grenadeDetailOut {
+type spotContext struct {
+	rounds []tacticalplan.GrenadeRound
+	names  map[string]string
+}
+
+func spotDetail(s tacticalplan.GrenadeSpot, grenades []tacticalplan.TeamGrenade, sc spotContext) grenadeDetailOut {
 	out := grenadeDetailOut{grenadeSpotOut: grenadeSpotRow(s, len(s.FollowUp.Facts)), RoundList: []spotRoundOut{}}
 	byRef := map[string]tacticalplan.GrenadeRound{}
-	for _, r := range rounds {
+	for _, r := range sc.rounds {
 		byRef[roundRef(r.MatchID.String(), r.Round)] = r
 	}
 	v := url.Values{}
@@ -150,10 +167,10 @@ func spotDetail(s tacticalplan.GrenadeSpot, grenades []tacticalplan.TeamGrenade,
 			if g.ThrowTick != nil {
 				tick = *g.ThrowTick
 			}
-			v.Add("r", g.MatchID.String()+":"+strconv.Itoa(g.Round)+":"+strconv.Itoa(max(0, tick-replayLeadTicks)))
+			v.Add("r", g.MatchID.String()+":"+strconv.Itoa(g.Round)+":"+strconv.Itoa(max(0, tick-leadTicks(g.Tickrate))))
 		}
 	}
-	v.Set("t", fmt.Sprintf("%s · %d rondas", spotTitle(s), len(out.RoundList)))
+	v.Set("t", fmt.Sprintf("%s · %d rondas", spotTitle(s, sc.names), min(len(out.RoundList), maxPlaylistRounds)))
 	v.Set("s", "1")
 	out.StudioPath = "/replay?" + v.Encode()
 	if g, ok := representativeThrow(grenades); ok {
@@ -168,14 +185,24 @@ var grenadeKindLabel = map[tacticalplan.EventKind]string{
 	tacticalplan.EventMolotov: "Molotov", tacticalplan.EventDecoy: "Señuelo",
 }
 
-// spotTitle names a spot as the web's spotLabel does: "Humo a Ramp desde T Spawn".
-func spotTitle(s tacticalplan.GrenadeSpot) string {
+// leadTicks is replayLeadSeconds at the demo's tick rate.
+func leadTicks(tickrate float64) int {
+	if tickrate <= 0 {
+		tickrate = defaultTickrate
+	}
+	return int(math.Round(replayLeadSeconds * tickrate))
+}
+
+// spotTitle names a spot as the web's spotLabel does, with the team's callout
+// names (the web's calloutLabel): "Humo a Ramp desde T Spawn".
+func spotTitle(s tacticalplan.GrenadeSpot, names map[string]string) string {
+	label := func(token string) string { return cleanName(cmp.Or(names[token], token)) }
 	title := grenadeKindLabel[s.Kind]
 	if s.LandPlace != "" {
-		title += " a " + cleanName(s.LandPlace)
+		title += " a " + label(s.LandPlace)
 	}
 	if s.ThrowPlace != "" {
-		title += " desde " + cleanName(s.ThrowPlace)
+		title += " desde " + label(s.ThrowPlace)
 	}
 	return title
 }
@@ -205,12 +232,22 @@ func representativeThrow(grenades []tacticalplan.TeamGrenade) (tacticalplan.Team
 	return best, true
 }
 
-// clockBins counts throws per clockBinSeconds of the round clock; later throws go in the last bin.
-func clockBins(grenades []tacticalplan.TeamGrenade) []clockBinOut {
+// clockBins counts throws per clockBinSeconds of the round clock, as the web's
+// clockBins; throws after the plant go in a last "Tras la plant" bin.
+func clockBins(grenades []tacticalplan.TeamGrenade, rounds []tacticalplan.GrenadeRound) []clockBinOut {
 	bins := int(math.Ceil(float64(roundClockSeconds) / clockBinSeconds))
-	counts := make([]map[string]*clockPlayerOut, bins)
+	plants := map[string]float64{}
+	for _, r := range rounds {
+		if r.PlantSeconds != nil {
+			plants[roundRef(r.MatchID.String(), r.Round)] = *r.PlantSeconds
+		}
+	}
+	counts := make([]map[string]*clockPlayerOut, bins+1)
 	for _, g := range grenades {
 		i := min(bins-1, max(0, int(g.Seconds/clockBinSeconds)))
+		if plant, ok := plants[roundRef(g.MatchID.String(), g.Round)]; ok && g.Seconds >= plant {
+			i = bins
+		}
 		if counts[i] == nil {
 			counts[i] = map[string]*clockPlayerOut{}
 		}
@@ -226,7 +263,11 @@ func clockBins(grenades []tacticalplan.TeamGrenade) []clockBinOut {
 		if players == nil {
 			continue
 		}
-		bin := clockBinOut{Span: roundClock(i*clockBinSeconds) + "-" + roundClock((i+1)*clockBinSeconds), Players: []clockPlayerOut{}}
+		span := afterPlantSpan
+		if i < bins {
+			span = roundClock(i*clockBinSeconds) + "-" + roundClock((i+1)*clockBinSeconds)
+		}
+		bin := clockBinOut{Span: span, Players: []clockPlayerOut{}}
 		for _, p := range players {
 			bin.Throws += p.Throws
 			bin.Players = append(bin.Players, *p)

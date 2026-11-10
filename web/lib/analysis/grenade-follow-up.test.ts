@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GrenadeRound, TeamGrenade } from '../api/grenades.ts';
 import { denominatorText, factLabel, followUpOf, roundRows, roundsSide } from './grenade-follow-up.ts';
-import { playFromGrenadeSpot } from './grenade-play.ts';
-import { groupSpots, pickThrower, throwersOf } from './grenade-patterns.ts';
+import { playFromGrenadeSpots } from './grenade-play.ts';
+import { groupSpots, pickThrower, spotReplayRefs, throwersOf } from './grenade-patterns.ts';
 
 const MATCH = '11111111-1111-4111-8111-111111111111';
 
@@ -27,12 +27,13 @@ function smoke(over: Partial<TeamGrenade>): TeamGrenade {
     throw_place: 'TSpawn',
     spot: 'smoke:ramp',
     after: { zones: [], fight: '' },
+    tickrate: 64,
     ...over,
   };
 }
 
 function round(number: number, over: Partial<GrenadeRound> = {}): GrenadeRound {
-  return { match_id: MATCH, round: number, tick: 100, side: 'T', buy: 'full', opponent_buy: 'full', won: true, category: 'execute', site: 'A', plant_seconds: null, ...over };
+  return { match_id: MATCH, round: number, tick: 100, side: 'T', buy: 'full', opponent_buy: 'full', team_buy: 'full', won: true, category: 'execute', site: 'A', plant_seconds: null, ...over };
 }
 
 test('what follows a grenade counts each round once, every fact over the same rounds', () => {
@@ -106,12 +107,12 @@ test('a grenade saved as a play keeps where it lands, what follows and its round
   const [spot] = groupSpots(grenades);
   assert.ok(spot);
   const rounds = [round(1), round(2, { site: 'B' }), round(3, { site: 'B' })];
-  const play = playFromGrenadeSpot({
+  const play = playFromGrenadeSpots({
     teamId: 't',
     map: 'de_nuke',
     side: 'T',
     title: ' Humo a Ramp ',
-    spot,
+    spots: [spot],
     rounds,
     followUp: followUpOf(grenades, rounds),
     place: (token) => token,
@@ -125,4 +126,25 @@ test('a grenade saved as a play keeps where it lands, what follows and its round
     { match_id: MATCH, round: 1, tick: 708 },
     { match_id: MATCH, round: 2, tick: 1808 },
   ]);
+});
+
+test('a selection of grenades saved as one play keeps each grenade in throw order', () => {
+  const flash = smoke({ kind: 'flash', round: 3, seconds: 4, spot: 'flash:a', land_place: 'Hut', landing: [100, 100, 0] });
+  const grenades = [smoke({ round: 1, seconds: 8 }), flash];
+  const spots = groupSpots(grenades);
+  const rounds = [round(1), round(3)];
+  const play = playFromGrenadeSpots({ teamId: 't', map: 'de_nuke', side: 'T', title: 'Ejecución', spots, rounds, followUp: followUpOf(grenades, rounds), place: (token) => token });
+  assert.deepEqual(
+    play.grenades.map((entry) => [entry.kind, entry.callout]),
+    [
+      ['flash', 'Hut'],
+      ['smoke', 'Ramp'],
+    ],
+  );
+  assert.match(play.notes, /^2 granadas en 2 rondas/);
+  assert.equal(play.examples.length, 2);
+});
+
+test('a replay opens 3 seconds before the throw at the demo tick rate', () => {
+  assert.deepEqual(spotReplayRefs([smoke({ throw_tick: 1000, tickrate: 128 })]), [{ matchId: MATCH, round: 1, tick: 616 }]);
 });

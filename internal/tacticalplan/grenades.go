@@ -33,6 +33,32 @@ type TeamGrenade struct {
 	// Spot is the key of the repeated throw this grenade belongs to (see assignSpots).
 	Spot  string       `json:"spot"`
 	After GrenadeAfter `json:"after"`
+	// Tickrate is the demo's ticks per second, so a replay can open seconds before the throw.
+	Tickrate float64 `json:"tickrate"`
+}
+
+// GrenadePlaceReach is how far, in world units, a callout's centre may be from
+// a grenade to name it; past it the place stays empty.
+const GrenadePlaceReach = 600
+
+// grenadePlace is the callout a grenade point is in, or the nearest one on its
+// floor within GrenadePlaceReach.
+func grenadePlace(g MapGeometry, pos [3]float64) string {
+	level := g.Calibration.Level(pos[2])
+	if name := calloutAt(g, level, pos[0], pos[1], pos[2]); name != "" {
+		return name
+	}
+	best, bestDist := "", float64(GrenadePlaceReach*GrenadePlaceReach)
+	for _, c := range g.Callouts {
+		if c.Level != level {
+			continue
+		}
+		dx, dy := c.Center[0]-pos[0], c.Center[1]-pos[1]
+		if d := dx*dx + dy*dy; d < bestDist || (d == bestDist && c.Name < best) {
+			best, bestDist = c.Name, d
+		}
+	}
+	return best
 }
 
 // GrenadeRound is one round the filter kept, seen from the side of the throwers.
@@ -43,7 +69,10 @@ type GrenadeRound struct {
 	Side        Side      `json:"side"`
 	Buy         BuyType   `json:"buy"`
 	OpponentBuy BuyType   `json:"opponent_buy"`
-	Won         bool      `json:"won"`
+	// TeamBuy is the scouted team's buy: Buy, or OpponentBuy when the rivals threw.
+	// The bar's «Compra propia» filters on it.
+	TeamBuy BuyType `json:"team_buy"`
+	Won     bool    `json:"won"`
 	// Category is the round's playbook category and Site where it went.
 	Category string `json:"category"`
 	Site     Site   `json:"site"`
@@ -64,8 +93,8 @@ type TeamGrenades struct {
 type GrenadeQuery struct {
 	// Kinds keeps only these kinds; empty keeps them all.
 	Kinds []EventKind
-	// Rivals reads the grenades the team's rivals threw in the same rounds.
-	Rivals bool
+	// Opponents reads the grenades the team's rivals threw in the same rounds.
+	Opponents bool
 }
 
 // CollectTeamGrenades lists the team's grenades of the kinds asked for, newest
@@ -79,13 +108,18 @@ func CollectTeamGrenades(matches []FramedMatch, f ScoutFilter, q GrenadeQuery) T
 		doc := m.Document
 		for _, r := range f.rounds(m.ScoutMatch) {
 			side := doc.TeamSide(m.TeamKey, r)
-			if q.Rivals {
+			if q.Opponents {
 				side = side.Opponent()
 			}
 			team := teamSlots(r, side)
 			track := teamTrack(doc, r, team, src.round(r.Number))
 			category, _ := readPlaybookTrack(doc, r, side, track).category()
-			out.RoundList = append(out.RoundList, grenadeRound(m.ScoutMatch, r, side, category))
+			round := grenadeRound(m.ScoutMatch, r, side, category)
+			round.TeamBuy = round.Buy
+			if q.Opponents {
+				round.TeamBuy = round.OpponentBuy
+			}
+			out.RoundList = append(out.RoundList, round)
 			for _, ev := range r.Events {
 				if !isGrenadeEvent(ev.Kind) || ev.ActorSlot == nil || !team[*ev.ActorSlot] {
 					continue
@@ -123,7 +157,7 @@ func teamGrenade(m ScoutMatch, r Round, side Side, ev Event) TeamGrenade {
 	g := TeamGrenade{
 		MatchID: m.MatchID, Round: r.Number, Tick: ev.Tick, Kind: ev.Kind, Side: side,
 		Landing: ev.Pos, Buy: r.Economy.Buy(side), RoundWon: r.Winner == side,
-		LandPlace: NearestCallout(m.Document.Geometry, ev.Pos),
+		LandPlace: grenadePlace(m.Document.Geometry, ev.Pos), Tickrate: m.Document.Demo.Tickrate,
 	}
 	if secs, ok := secondsSince(r, ev.Tick, m.Document.Demo.Tickrate); ok {
 		g.Seconds = math.Round(secs*100) / 100
@@ -134,7 +168,7 @@ func teamGrenade(m ScoutMatch, r Round, side Side, ev Event) TeamGrenade {
 	if t := ev.Throw; t != nil {
 		origin, tick, view := t.Pos, t.Tick, [2]float64{t.Yaw, t.Pitch}
 		g.Origin, g.ThrowTick, g.View = &origin, &tick, &view
-		g.ThrowPlace = NearestCallout(m.Document.Geometry, t.Pos)
+		g.ThrowPlace = grenadePlace(m.Document.Geometry, t.Pos)
 	}
 	return g
 }

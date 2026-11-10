@@ -62,9 +62,10 @@ For a team: team_bombsites, team_playbook (one map and side), team_prep (one map
 team_side_stats is the team's Estadísticas tab: figures overall and per side, each with group_avg over the
 compare_to teams (empty: the whole library) in the same map, side, dates and buys (buy, opponent_buy), and
 one card per player; its rating is ClipHub's own (rating_formula), never call it an HLTV rating.
-team_grenades is the Granadas finder: clock (throws per 10 s of the round clock by player), spots (repeated throws with
-what the team does in the 20 s after) and, with spot, one grenade in full: its rounds over the scope's rounds, what follows,
-a setpos and a studio_path that superposes its rounds. players, buy, rivals (their utility) and invert (rounds without it) narrow it.
+team_grenades is the Granadas finder of one map (map required): clock (throws per 10 s of the round clock by player, then
+a Tras la plant bin), spots (repeated throws with what the team does in the 20 s after) and, with spot, one grenade in full: its
+rounds over the scope's rounds, what follows, a setpos and a studio_path that superposes its rounds. players, buy (the scouted
+team's), max_matches (the newest N, like the bar's match limit), opponents (the rivals' utility) and invert (rounds without it) narrow it.
 prepare_team is the team's Preparar tab in one call: scout_team and team_prep over the same matches of one map;
 these and scout_team take opponent_id and match_id to narrow the matches, and lineup (SteamID64s) to keep
 only the rounds every player of the team played in it, like the Alineación selector; the UI defaults to the

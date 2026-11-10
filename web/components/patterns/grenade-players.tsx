@@ -5,9 +5,13 @@ import { pickThrower, type GrenadeThrower } from '@/lib/analysis/grenade-pattern
 import { PLAYER_COLORS } from '@/components/prep/ct-positions-map';
 import { Toggle } from '@/components/ui/toggle';
 
+/** A team has five players; a sixth thrower (a stand-in) gets a neutral colour instead of repeating one. */
+const PLAYER_COLOR_SLOTS = 5;
+const NEUTRAL_TOKEN = '--fg-3';
+
 /** The colour token of the player at `index` of the picker, the same on the radar and the histogram. */
 export function playerToken(index: number): string {
-  return PLAYER_COLORS[index % PLAYER_COLORS.length] ?? '--fg-1';
+  return index < PLAYER_COLOR_SLOTS ? (PLAYER_COLORS[index] ?? NEUTRAL_TOKEN) : NEUTRAL_TOKEN;
 }
 
 /** Whose grenades count: everyone, one player with a click, or several with Shift + click. */

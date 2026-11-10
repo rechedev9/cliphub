@@ -42,6 +42,7 @@ function lineup(over: Partial<ProLineup>): ProLineup {
 
 test('a trend needs a real move to rise or fall, and a grenade new in the window enters the meta', () => {
   assert.equal(metaTrend([3, 0]), 'new');
+  assert.equal(metaTrend([0.4, 0]), 'steady');
   assert.equal(metaTrend([0, 0]), 'steady');
   assert.equal(metaTrend([9, 6]), 'rising');
   assert.equal(metaTrend([1.2, 0.6]), 'steady');
