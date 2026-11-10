@@ -57,6 +57,8 @@ export interface DesktopSettingsBridge {
   /** Optional so a current UI can still use settings exposed by an older preload. */
   getAssistantAccess?(): Promise<unknown>;
   updateAssistantAccess?(enabled: boolean): Promise<unknown>;
+  /** Opens the bundled .ts3_plugin package with TeamSpeak 3; optional for an older preload. */
+  installTeamSpeakPlugin?(): Promise<unknown>;
 }
 
 /** Narrows an assistant-access reply; the main process answers a failure with another shape. */
@@ -64,6 +66,13 @@ export function parseAssistantAccess(value: unknown): StudioAssistantAccess | nu
   if (!isRecord(value) || typeof value.enabled !== 'boolean') return null;
   if (typeof value.mcpPath !== 'string' || value.mcpPath === '') return null;
   return { enabled: value.enabled, mcpPath: value.mcpPath };
+}
+
+/** Narrows the install reply to the error to show, or null when TeamSpeak opened the package. */
+export function teamSpeakInstallError(value: unknown): string | null {
+  if (isRecord(value) && value.ok === true) return null;
+  if (isRecord(value) && typeof value.error === 'string' && value.error !== '') return value.error;
+  return 'No se pudo abrir el plugin de TeamSpeak.';
 }
 
 /** The Claude Desktop config block that registers the bundled server. */
@@ -94,7 +103,8 @@ function isDesktopSettingsBridge(value: unknown): value is DesktopSettingsBridge
     && typeof value.getTelemetry === 'function'
     && typeof value.updateTelemetry === 'function'
     && (value.getAssistantAccess === undefined || typeof value.getAssistantAccess === 'function')
-    && (value.updateAssistantAccess === undefined || typeof value.updateAssistantAccess === 'function');
+    && (value.updateAssistantAccess === undefined || typeof value.updateAssistantAccess === 'function')
+    && (value.installTeamSpeakPlugin === undefined || typeof value.installTeamSpeakPlugin === 'function');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

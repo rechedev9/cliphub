@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os/exec"
 	"path/filepath"
@@ -121,6 +122,29 @@ func (m Media) Encode(ctx context.Context, job EncodeJob) error {
 		args = append(append(append(args, "-map", fmt.Sprintf("[o%d]", c)), opusArgs...), dst)
 	}
 	return m.run(ctx, args)
+}
+
+// PCMEncodeJob is raw signed 16-bit mono audio, such as a TeamSpeak plugin track, to encode.
+type PCMEncodeJob struct {
+	PCM        io.Reader
+	SampleRate int
+	Dst        string
+}
+
+// EncodePCM writes raw mono PCM fed on stdin as the same Ogg Opus as Encode.
+func (m Media) EncodePCM(ctx context.Context, job PCMEncodeJob) error {
+	if m.FFmpeg == "" {
+		return ErrNoFFmpeg
+	}
+	args := append([]string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-protocol_whitelist", localProtocols,
+		"-f", "s16le", "-ar", strconv.Itoa(job.SampleRate), "-ac", "1", "-i", "pipe:0"}, opusArgs...)
+	// #nosec G204 -- the configured FFmpeg receives a generated local path as an argv value.
+	cmd := exec.CommandContext(ctx, m.FFmpeg, append(args, job.Dst)...)
+	cmd.Stdin = job.PCM
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // WAV writes the 16 kHz mono WAV whisper.cpp reads.

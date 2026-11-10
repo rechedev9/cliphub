@@ -136,6 +136,7 @@ type LibraryRepository interface {
 	PatternRepository
 	ProMatchRepository
 	VoiceRepository
+	VoiceRecordingRepository
 }
 
 type Repositories struct {

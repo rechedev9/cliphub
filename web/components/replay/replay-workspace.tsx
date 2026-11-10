@@ -684,6 +684,7 @@ export function ReplayWorkspace({
               settings={mapSettings}
               barSlot={zoomSlot}
               captureRef={captureRef}
+              speakingAt={voice.speakingAt}
             />
           )}
           {focused === null ? null : (

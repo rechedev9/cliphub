@@ -5,6 +5,7 @@ import {
   claudeDesktopConfigSnippet,
   getDesktopSettingsBridge,
   parseAssistantAccess,
+  teamSpeakInstallError,
   type DesktopSettingsBridge,
 } from './desktop-settings.ts';
 
@@ -98,4 +99,11 @@ test('builds the Claude snippets with the path escaped for each format', () => {
   // A shell command takes the path as typed, quoted because of the space.
   assert.equal(claudeCodeCommand(mcpPath), `claude mcp add cliphub-studio -- "${mcpPath}"`);
   assert.ok(!claudeCodeCommand(mcpPath).includes('\\\\'));
+});
+
+test('teamSpeakInstallError shows the main process reason or a generic one', () => {
+  assert.equal(teamSpeakInstallError({ ok: true }), null);
+  assert.equal(teamSpeakInstallError({ ok: false, error: 'Instala TeamSpeak 3.' }), 'Instala TeamSpeak 3.');
+  assert.equal(teamSpeakInstallError(undefined), 'No se pudo abrir el plugin de TeamSpeak.');
+  assert.equal(teamSpeakInstallError({ ok: false, error: '' }), 'No se pudo abrir el plugin de TeamSpeak.');
 });

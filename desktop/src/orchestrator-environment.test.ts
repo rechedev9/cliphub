@@ -4,11 +4,11 @@ import { createOrchestratorEnvironment } from './orchestrator-environment.ts';
 import { steamEnvironment } from './steam-environment.ts';
 
 test('pins the bundled overlay renderer and supplies the dev entry only when needed', () => {
-  const environment = createOrchestratorEnvironment({ dataDir: 'data', httpAddress: '127.0.0.1:8090', musicDir: 'music', recorderPath: 'recorder.exe', securityEnvironment: {}, toolEnvironment: { ZV_OVERLAY_RENDERER_PATH: 'stale.exe' }, overlayRendererPath: 'Studio.exe', overlayRendererApp: 'desktop' });
+  const environment = createOrchestratorEnvironment({ dataDir: 'data', httpAddress: '127.0.0.1:8090', webOrigin: 'http://127.0.0.1:8091', musicDir: 'music', recorderPath: 'recorder.exe', securityEnvironment: {}, toolEnvironment: { ZV_OVERLAY_RENDERER_PATH: 'stale.exe' }, overlayRendererPath: 'Studio.exe', overlayRendererApp: 'desktop' });
   assert.equal(environment.ZV_OVERLAY_RENDERER_PATH, 'Studio.exe');
   assert.equal(environment.ZV_OVERLAY_RENDERER_APP, 'desktop');
 
-  const packaged = createOrchestratorEnvironment({ dataDir: 'data', httpAddress: '127.0.0.1:8090', musicDir: 'music', recorderPath: 'recorder.exe', securityEnvironment: {}, toolEnvironment: {}, overlayRendererPath: 'Studio.exe' });
+  const packaged = createOrchestratorEnvironment({ dataDir: 'data', httpAddress: '127.0.0.1:8090', webOrigin: 'http://127.0.0.1:8091', musicDir: 'music', recorderPath: 'recorder.exe', securityEnvironment: {}, toolEnvironment: {}, overlayRendererPath: 'Studio.exe' });
   assert.equal(packaged.ZV_OVERLAY_RENDERER_PATH, 'Studio.exe');
   assert.equal('ZV_OVERLAY_RENDERER_APP' in packaged, false);
 });
@@ -17,6 +17,7 @@ test('carries Steam credentials without displacing the recorder pin', () => {
   const environment = createOrchestratorEnvironment({
     dataDir: 'data',
     httpAddress: '127.0.0.1:8080',
+    webOrigin: 'http://127.0.0.1:3000',
     musicDir: 'music',
     recorderPath: 'bin/zv-recorder.exe',
     securityEnvironment: {},
@@ -34,6 +35,7 @@ test('carries Steam credentials without displacing the recorder pin', () => {
     ZV_RECORDER_PATH: 'bin/zv-recorder.exe',
     ZV_STEAM_PASSWORD: 'pw',
     ZV_STEAM_USERNAME: 'user',
+    ZV_WEB_ORIGIN: 'http://127.0.0.1:3000',
   });
 });
 
@@ -56,6 +58,7 @@ test('pins the bundled recorder over stale runtime tool overrides', () => {
     const environment = createOrchestratorEnvironment({
       dataDir: String.raw`C:\Users\player\AppData\Roaming\cliphub-studio\data`,
       httpAddress: '127.0.0.1:23947',
+      webOrigin: 'http://127.0.0.1:23948',
       musicDir: String.raw`C:\Users\player\AppData\Roaming\cliphub-studio\data\music`,
       recorderPath: bundledRecorder,
       securityEnvironment: { ZV_DISCOVERY_SECRET: 'discovery' },
@@ -70,6 +73,7 @@ test('preserves the remaining orchestrator runtime environment', () => {
   const environment = createOrchestratorEnvironment({
     dataDir: 'data',
     httpAddress: '127.0.0.1:45975',
+    webOrigin: 'http://127.0.0.1:45976',
     musicDir: 'music',
     recorderPath: 'bin/zv-recorder',
     securityEnvironment: { ZV_DISCOVERY_SECRET: 'discovery' },
@@ -85,5 +89,6 @@ test('preserves the remaining orchestrator runtime environment', () => {
     ZV_HTTP_ADDR: '127.0.0.1:45975',
     ZV_MUSIC_DIR: 'music',
     ZV_RECORDER_PATH: 'bin/zv-recorder',
+    ZV_WEB_ORIGIN: 'http://127.0.0.1:45976',
   });
 });

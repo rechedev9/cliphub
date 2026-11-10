@@ -1,6 +1,8 @@
 export interface OrchestratorEnvironmentOptions {
   dataDir: string;
   httpAddress: string;
+  /** The web server's origin: CS2's game state config and the TeamSpeak plugin reach Studio there. */
+  webOrigin: string;
   musicDir: string;
   recorderPath: string;
   overlayRendererPath?: string;
@@ -19,6 +21,7 @@ export function createOrchestratorEnvironment(
     ZV_DATABASE_URL: 'sqlite',
     ZV_DATA_DIR: options.dataDir,
     ZV_HTTP_ADDR: options.httpAddress,
+    ZV_WEB_ORIGIN: options.webOrigin,
     ZV_MUSIC_DIR: options.musicDir,
     GOLANG_PROTOBUF_REGISTRATION_CONFLICT: 'ignore',
     ...options.securityEnvironment,

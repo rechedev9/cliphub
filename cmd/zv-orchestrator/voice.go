@@ -9,6 +9,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/teamvoice"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
+	"github.com/rechedev9/cliphub/internal/voiceplugin"
 )
 
 // voiceDeps keeps team voice under <DataDir>/voice and the whisper.cpp install under
@@ -29,6 +30,8 @@ func voiceDeps(cfg config) httpapi.VoiceDeps {
 			CLI:   os.Getenv("ZV_WHISPER_CLI"),
 			Model: os.Getenv("ZV_WHISPER_MODEL"),
 		}),
+		// The plugin finds this folder from the profile; the desktop passes the web server CS2 posts to.
+		Plugin: httpapi.VoicePluginDeps{Dir: voiceplugin.Dir(filepath.Join(cfg.DataDir, "voice-plugin")), WebOrigin: os.Getenv("ZV_WEB_ORIGIN"), Media: media},
 	}
 }
 

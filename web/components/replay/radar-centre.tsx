@@ -87,7 +87,7 @@ function spotsOf(spots: Map<RadarLevel, Map<number, number>>, level: RadarLevel)
  * a right-click copies their setpos.
  * The canvas mirrors the clock and is `aria-hidden`; the panels say the same in text.
  */
-export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, zones, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef }: ReplayCentreProps): ReactNode {
+export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, zones, focus, onPickSlot, onHoverSlot, onCopySlot, followSlot, onFollowSlot, settings, barSlot, captureRef, speakingAt }: ReplayCentreProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLCanvasElement | null>(null);
@@ -330,11 +330,12 @@ export function RadarCentre({ mode, rounds, clock, tickOf, layers, telestrator, 
           hurt: show.damage ? recentDamage({ hits: round.round.hits ?? [], nowSeconds, secondsOf }) : NO_HURT,
           style,
           analysis,
+          speaking: round.focused && speakingAt !== undefined ? speakingAt(round, tick) : undefined,
         },
         round.focused ? { visible, spots: spotsOf(spotsRef.current, level) } : null,
       );
     },
-    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, readers, show, sightBvh, tickOf],
+    [bothFloors, dotScale, focus, focusByMatch, geometry, layers, nameScale, readers, show, sightBvh, speakingAt, tickOf],
   );
 
   // With Seguir on, the view that keeps the followed player in it, moved on from `from`.

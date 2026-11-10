@@ -1,5 +1,5 @@
 // Assembles the resources electron-builder bundles into the installer:
-//   build-resources/bin/   -> zv-orchestrator.exe, zv-editor.exe, zv-recorder.exe, zv-mcp.exe
+//   build-resources/bin/   -> zv-orchestrator.exe, zv-editor.exe, zv-recorder.exe, zv-mcp.exe, cliphub_teamspeak.ts3_plugin
 //   build-resources/web/   -> the Next.js standalone server, ready to run
 //   build-resources/hlae/  -> pinned HLAE release archive (desktop/src/hlae-tool.json)
 //   build-resources/music/ -> catalog.json (track metadata; audio is downloaded on first boot)
@@ -40,6 +40,17 @@ const zvOrchestrator = join(bin, 'zv-orchestrator.exe');
 const zvEditor = join(bin, 'zv-editor.exe');
 const zvRecorder = join(bin, 'zv-recorder.exe');
 const zvMcp = join(bin, 'zv-mcp.exe');
+// The TeamSpeak 3 plugin package Ajustes opens (scripts/build-teamspeak-plugin.ps1). build.ps1 skips it
+// without gcc; CLIPHUB_ASSEMBLE_REQUIRE_TEAMSPEAK=1 makes a missing package fail the assemble.
+const teamspeakPlugin = join(bin, 'cliphub_teamspeak.ts3_plugin');
+const shipsTeamspeak = existsSync(teamspeakPlugin);
+if (!shipsTeamspeak) {
+  if (process.env.CLIPHUB_ASSEMBLE_REQUIRE_TEAMSPEAK === '1') {
+    console.error(`\nmissing ${teamspeakPlugin}\nBuild it with gcc:  .\\scripts\\build.ps1 -TeamSpeakPlugin\n`);
+    process.exit(1);
+  }
+  console.warn(`[assemble] ${teamspeakPlugin} not built (no gcc): this build ships without the TeamSpeak plugin.`);
+}
 for (const required of [zvOrchestrator, zvEditor, zvRecorder, zvMcp]) {
   if (!existsSync(required)) {
     console.error(`\nmissing ${required}\nBuild the Go binaries first:  .\\scripts\\build.ps1\n`);
@@ -96,6 +107,7 @@ cpSync(zvOrchestrator, join(out, 'bin', 'zv-orchestrator.exe'));
 cpSync(zvEditor, join(out, 'bin', 'zv-editor.exe'));
 cpSync(zvRecorder, join(out, 'bin', 'zv-recorder.exe'));
 cpSync(zvMcp, join(out, 'bin', 'zv-mcp.exe'));
+if (shipsTeamspeak) cpSync(teamspeakPlugin, join(out, 'bin', 'cliphub_teamspeak.ts3_plugin'));
 
 // HLAE: ship the exact pinned archive in the installer. Both this staging
 // step and runtime provisioning verify the pinned digest before using it.

@@ -52,12 +52,14 @@ type VoiceDeps struct {
 	Media       VoiceMedia
 	Transcriber VoiceTranscriber
 	DemoVoice   DemoVoiceExtractor
+	Plugin      VoicePluginDeps
 }
 
 // WithVoice enables the team voice routes of the library.
 func WithVoice(deps VoiceDeps) Option {
 	return func(h *Handlers) {
-		h.voice = &voiceService{deps: deps, queue: make(chan voiceJob, 64), progress: map[uuid.UUID]float64{}, demoJobs: map[uuid.UUID]string{}}
+		h.voice = &voiceService{deps: deps, queue: make(chan voiceJob, 64), progress: map[uuid.UUID]float64{}, demoJobs: map[uuid.UUID]string{},
+			plugin: &voicePlugin{}}
 	}
 }
 
@@ -75,6 +77,7 @@ type voiceService struct {
 	demoJobs map[uuid.UUID]string
 	// installCtx outlives the request that asked for an install or a demo voice extraction.
 	installCtx context.Context
+	plugin     *voicePlugin
 }
 
 // lifetime is the context background voice work runs under: Studio's, once StartVoice ran.
@@ -338,6 +341,9 @@ func (h *Handlers) PatchLibraryMatchVoiceTrack(w http.ResponseWriter, r *http.Re
 	if _, err := h.libraryRepo.UpdateVoiceTrack(r.Context(), patch); err != nil {
 		writeLibraryError(w, "update voice track", err)
 		return
+	}
+	if patch.SteamID64 != nil {
+		h.rememberVoiceSpeaker(r.Context(), speakerChoice{match: m, track: track, steamID64: *patch.SteamID64})
 	}
 	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }

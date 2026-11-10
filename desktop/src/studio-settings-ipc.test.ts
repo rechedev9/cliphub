@@ -28,6 +28,9 @@ test('parses only the narrow Studio settings action shape', () => {
     action: STUDIO_SETTINGS_ACTION.assistantUpdate,
     enabled: true,
   });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'teamspeak-plugin-install' }), {
+    action: STUDIO_SETTINGS_ACTION.teamspeakPluginInstall,
+  });
 
   for (const invalid of [
     null,
@@ -38,6 +41,7 @@ test('parses only the narrow Studio settings action shape', () => {
     { action: 'save', apiKey: 'secret' },
     { action: 'app-info', extra: true },
     { action: 'playback-info', includeGPUInfo: true },
+    { action: 'teamspeak-plugin-install', path: 'C:\\evil.exe' },
     { action: 'telemetry-update' },
     { action: 'telemetry-update', enabled: 'yes' },
     { action: 'telemetry-update', enabled: true, extra: true },

@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('cliphubSettings', {
     STUDIO_SETTINGS_CHANNEL,
     { action: 'assistant-update', enabled },
   ),
+  installTeamSpeakPlugin: (): Promise<unknown> => {
+    if (!userIsActive()) return Promise.resolve({ ok: false, error: 'El plugin se instala desde un clic.' });
+    return ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'teamspeak-plugin-install' });
+  },
 });
 
 contextBridge.exposeInMainWorld('cliphubDownloads', {

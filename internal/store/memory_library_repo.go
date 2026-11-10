@@ -33,6 +33,7 @@ type MemoryLibraryRepository struct {
 	libreta      memoryLibreta
 	pro          memoryPro
 	voices       map[uuid.UUID]memoryVoice
+	recordings   memoryRecordings
 }
 
 type memoryJobLink struct {
@@ -309,6 +310,7 @@ func (r *MemoryLibraryRepository) DeleteDemo(ctx context.Context, id uuid.UUID) 
 		delete(r.matchPlayers, matchID)
 		r.dropMatchAnnotations(matchID)
 		delete(r.voices, matchID)
+		r.recordings.unlinkMatch(matchID)
 		r.refreshNicks(steamIDs)
 	}
 	return nil

@@ -1,7 +1,9 @@
 # ClipHub Go runtime build. -RequireFaceitEmbed is the installer path: dist
 # must fail rather than ship zv-orchestrator.exe without a FACEIT Data API key.
 param(
-    [switch]$RequireFaceitEmbed
+    [switch]$RequireFaceitEmbed,
+    # Build the TeamSpeak plugin even when gcc is not found, so a missing gcc fails the build.
+    [switch]$TeamSpeakPlugin
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +150,16 @@ try {
     # testable transaction: every earlier target rolls back on failure, while an
     # incomplete rollback preserves the backup directory for manual recovery.
     Publish-BuildArtifacts -Names $commands -BinDir $binDir -StagingDir $stagingDir -BackupDir $backupDir -PublicationLock $publicationLock
+
+    # The TeamSpeak 3 plugin package ships in the installer beside the Go runtimes; it needs MinGW-w64 gcc.
+    if ($TeamSpeakPlugin -or (Get-Command gcc -ErrorAction SilentlyContinue)) {
+        & (Join-Path $PSScriptRoot "build-teamspeak-plugin.ps1")
+        if ($LASTEXITCODE -ne 0) {
+            throw "build-teamspeak-plugin.ps1 failed with exit $LASTEXITCODE"
+        }
+    } else {
+        Write-Host "TeamSpeak plugin skipped: gcc (MinGW-w64) is not on PATH. Install it or pass -TeamSpeakPlugin to build bin\cliphub_teamspeak.ts3_plugin." -ForegroundColor Yellow
+    }
 } finally {
     try {
         # Both paths are GUID-named children of the resolved repository bin dir.

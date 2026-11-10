@@ -5,6 +5,7 @@ import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { StudioInfo } from '@/components/settings/studio-info';
 import { SteamAccount } from '@/components/settings/steam-account';
 import { TelemetrySettings } from '@/components/settings/telemetry-settings';
+import { TeamSpeakSettings } from '@/components/settings/teamspeak-settings';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { PlaybackDiagnostics } from '@/components/settings/playback-diagnostics';
 
@@ -22,6 +23,7 @@ export default function SettingsPage(): ReactNode {
         <AppearanceSettings />
         <StudioInfo />
         <AssistantSettings />
+        <TeamSpeakSettings />
         <PlaybackDiagnostics />
         <TelemetrySettings />
       </div>

@@ -5,6 +5,7 @@ import { demoVoiceAudioUrl, voiceTrackAudioUrl } from '@/lib/api/voice';
 import type { CentreRound } from '@/lib/replay/centre-round';
 import type { ReplayClock } from '@/lib/replay/clock';
 import { demoMsOfTick, silentOutsideFreeze } from '@/lib/replay/voice-sync';
+import { speakingSteamIds, type SpeakingTrack } from '@/lib/replay/voice-speaking';
 import { useDemoVoice } from './use-demo-voice';
 import type { DemoVoiceControl } from './use-demo-voice';
 import { useMatchVoice } from './use-match-voice';
@@ -13,6 +14,7 @@ import { useVoicePlayback } from './use-voice-playback';
 import type { PlaybackTrack } from './use-voice-playback';
 
 const VOLUME_KEY = 'cliphub.replay.voice-volume';
+const NO_SLOTS: ReadonlySet<number> = new Set();
 
 export type ReplayVoice = MatchVoiceControl & {
   matchId: string | null;
@@ -29,6 +31,10 @@ export type ReplayVoice = MatchVoiceControl & {
   setMuted: (muted: boolean) => void;
   mutedTracks: ReadonlySet<number>;
   toggleTrack: (track: number) => void;
+  /** Hears only this track; again on a soloed track brings every track back. */
+  soloTrack: (track: number) => void;
+  /** The focused round's players heard at a tick, by slot, for the mark on the map. */
+  speakingAt: (round: CentreRound, tick: number) => ReadonlySet<number>;
   /** Only freeze time: the comms list keeps its phrases and playback goes quiet once the round is live. */
   freezeOnly: boolean;
   setFreezeOnly: (on: boolean) => void;
@@ -97,6 +103,33 @@ export function useReplayVoice(options: {
   const silentAt = useCallback((tick: number) => silentOutsideFreeze({ tick, freezeOnly, freezeEndTick }), [freezeEndTick, freezeOnly]);
   const voice = control.state.kind === 'ready' && control.state.voice.present ? control.state.voice : null;
   const offsetMs = draft ?? voice?.sync.offset_ms ?? 0;
+  const trackNumbers = useMemo(() => voice?.tracks.map((track) => track.track) ?? [], [voice]);
+  const soloTrack = useCallback(
+    (track: number) => {
+      setMutedTracks((current) => {
+        const others = trackNumbers.filter((n) => n !== track);
+        const soloed = !current.has(track) && others.every((n) => current.has(n));
+        return soloed ? new Set() : new Set(others);
+      });
+    },
+    [trackNumbers],
+  );
+  const comms = control.state.kind === 'ready' ? control.state.comms : null;
+  const speakingTracks = useMemo<SpeakingTrack[]>(() => {
+    if (voice === null || comms === null) return [];
+    const speech = new Map(comms.tracks.map((track) => [track.track, track.speech]));
+    return voice.tracks.map((track) => ({ track: track.track, steamid64: track.steamid64, speech: speech.get(track.track) ?? [] }));
+  }, [comms, voice]);
+  const speakingAt = useCallback(
+    (round: CentreRound, tick: number): ReadonlySet<number> => {
+      if (muted || speakingTracks.length === 0 || round.matchId !== matchId || silentAt(tick)) return NO_SLOTS;
+      const audioMs = demoMsOfTick(tick, round.timeline.tickrate) - offsetMs;
+      const ids = speakingSteamIds({ tracks: speakingTracks, muted: mutedTracks, audioMs });
+      if (ids.size === 0) return NO_SLOTS;
+      return new Set(round.doc.players.filter((player) => ids.has(player.steamid64)).map((player) => player.slot));
+    },
+    [matchId, muted, mutedTracks, offsetMs, silentAt, speakingTracks],
+  );
   const teamTracks = useMemo<PlaybackTrack[]>(
     () =>
       voice === null || matchId === null
@@ -139,6 +172,8 @@ export function useReplayVoice(options: {
     setMuted,
     mutedTracks,
     toggleTrack,
+    soloTrack,
+    speakingAt,
     freezeOnly,
     setFreezeOnly,
     demoVoice,
