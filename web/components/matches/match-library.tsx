@@ -541,7 +541,9 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
         <LibraryListControls view={listView} onChange={changeListView} />
         {listView.mode === 'series' ? (
           <div className="flex flex-col gap-4">
-            {filterBar}
+            <div className="flex flex-wrap items-start gap-2">
+              {filterBar}
+            </div>
             <PartidaGroupsList
               days={groupPartidas({ rows: shown, series: loaded.series, sort: listView.sort })}
               context={{
