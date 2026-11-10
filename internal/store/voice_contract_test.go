@@ -128,6 +128,15 @@ func TestVoiceRepositoryContract(t *testing.T) {
 				if kept, _ := f.repo.ListVoiceLines(f.ctx, library.VoiceLineFilter{MatchIDs: []uuid.UUID{a.ID}}); len(kept) != 2 {
 					t.Fatalf("a state change without lines kept %d lines, want 2", len(kept))
 				}
+				sums, err := f.repo.ListVoiceSummaries(f.ctx)
+				if err != nil || len(sums) != 2 {
+					t.Fatalf("ListVoiceSummaries = %+v, %v; want both matches", sums, err)
+				}
+				for _, s := range sums {
+					if s.Tracks < 1 || s.Sync.State == "" {
+						t.Fatalf("summary %+v lacks tracks or a sync state", s)
+					}
+				}
 				if err := f.repo.DeleteDemo(f.ctx, d.ID); err != nil {
 					t.Fatal(err)
 				}

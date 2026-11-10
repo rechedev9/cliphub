@@ -34,6 +34,9 @@ func listMatchesStudio(t *testing.T) *mcp.ClientSession {
 			{"id":"` + listDemoA + `","source":"faceit","tags":["ESL"],"job_ids":[],"imported_at":"2026-11-02T10:00:00Z"},
 			{"id":"` + listDemoB + `","source":"scrim","tags":[],"job_ids":["` + listJobWithV + `"],"imported_at":"2026-11-09T10:00:00Z"}]}`))
 	})
+	mux.HandleFunc("GET /api/library/voice/summary", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"voices":[{"match_id":"` + listMatchB + `","tracks":2,"sync":{"state":"unsynced","method":"round_start","note":"la grabación no encaja"}}]}`))
+	})
 	mux.HandleFunc("GET /api/library/series", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"series":[{"id":"` + testSeriesID + `","format":"bo3","event":"IEM","teams":[{"slot":"a","team_id":"` + testTeamID + `","name":"Vitality"}],
 			"vetoes":[{"team":"a","action":"ban","map":"de_nuke"},{"team":"a","action":"pick","map":"de_mirage"}],"match_ids":["` + listMatchA + `"],"updated_at":"2026-11-01T00:00:00Z"}]}`))
@@ -84,6 +87,10 @@ func TestListMatchesFiltersByKindAndPOVAndSortsByImport(t *testing.T) {
 	callTool(t, cs, "list_matches", map[string]any{"has_pov": true}, &out)
 	if want := []string{listMatchB}; !slices.Equal(listedIDs(out), want) || !out.Matches[0].HasPOV {
 		t.Errorf("has_pov = %v, want %v", listedIDs(out), want)
+	}
+	callTool(t, cs, "list_matches", map[string]any{"has_voice": true}, &out)
+	if b := out.Matches[0]; !slices.Equal(listedIDs(out), []string{listMatchB}) || !b.HasVoice || b.VoiceSync != "unsynced" || b.VoiceNote != "la grabación no encaja" {
+		t.Errorf("has_voice = %v %+v", listedIDs(out), b)
 	}
 	callTool(t, cs, "list_matches", map[string]any{"event": "iem"}, &out)
 	if want := []string{listMatchA}; !slices.Equal(listedIDs(out), want) {

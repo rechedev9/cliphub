@@ -18,6 +18,7 @@ import {
   type LibrarySource,
 } from '@/lib/api/library';
 import type { LibrarySeries } from '@/lib/api/veto';
+import { listVoiceSummaries, type VoiceSummary } from '@/lib/api/voice';
 import { LIBRARY_SERIES_HREF, LONG_VIDEOS_HREF, MATCHES_QUERY, PRO_MATCHES_HREF, matchHref } from '@/lib/clips/routes';
 import { bulkDeleteSummary, deleteErrorMessage } from '@/lib/delete-error';
 import { formatShortDate, prettyMapName } from '@/lib/format';
@@ -51,6 +52,7 @@ import {
   type PartidaRow,
 } from '@/lib/library/partidas';
 import { loadPovJobs } from '@/lib/library/pov-jobs';
+import { voiceIndex } from '@/lib/library/voice-summary';
 import type { CountNoun } from '@/lib/records/selection';
 import { FILTER_ANY, SEARCH_FILTER, filterRows, type TableViewState } from '@/lib/records/table-view';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -221,18 +223,20 @@ function initialView(search: URLSearchParams): TableViewState {
   };
 }
 
-type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number };
+type Loaded = { rows: PartidaRow[]; series: LibrarySeries[]; unlinkedJobs: number; voices: VoiceSummary[] };
 
 async function loadLibrary(): Promise<Loaded> {
-  const [demos, matches, unlinked, series] = await Promise.all([
+  const [demos, matches, unlinked, series, voices] = await Promise.all([
     listLibraryDemos(),
     listLibraryMatches(),
     // The Crear backlog is a hint; the table stands without it.
     listUnlinkedLibraryJobs().catch(() => []),
     // Without series every partida stands alone, as before.
     listLibrarySeries().catch((): LibrarySeries[] => []),
+    // Voice is an icon on the rows; without it they show none.
+    listVoiceSummaries().catch((): VoiceSummary[] => []),
   ]);
-  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length };
+  return { rows: buildPartidaRows(demos, matches), series, unlinkedJobs: unlinked.length, voices };
 }
 
 /** Title and page actions. `PartidasSkeleton` passes a placeholder where the live importer goes. */
@@ -302,7 +306,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
     } catch (error) {
       if (read !== readRef.current) return;
       setReadError(isLibraryOffline(error) ? 'offline' : 'error');
-      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0 });
+      setLoaded((current) => current ?? { rows: [], series: [], unlinkedJobs: 0, voices: [] });
     }
   }, []);
 
@@ -471,6 +475,7 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
 
   const now = Date.now();
   const seriesById = seriesIndex(loaded.series);
+  const voices = voiceIndex(loaded.voices);
   // Mi equipo comes from the team profile of #411; until it is read here, the scrims decide.
   const ownTeam = ownTeamId({ rows, explicit: null });
   const selectedMap = view.state.filters.map ?? FILTER_ANY;
@@ -488,7 +493,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
   })
     .filter((row) => inDateRange(view.state.filters.date ?? FILTER_ANY, partidaDate(row), now))
     .filter((row) => listView.kind === null || rowKind(row, seriesById) === listView.kind)
-    .filter((row) => !listView.pov || hasPov(row, povJobs));
+    .filter((row) => !listView.pov || hasPov(row, povJobs))
+    .filter((row) => !listView.voice || (row.match !== null && voices.has(row.match.id)));
   const shown = selectedMap === FILTER_ANY ? facet : facet.filter(({ match }) => match?.map === selectedMap);
   const chips = mapChips({ library: rows.map(({ match }) => match), listed: facet.map(({ match }) => match), selected: selectedMap });
   const pending = rows.filter(isPending).length;
@@ -556,6 +562,8 @@ function MatchLibraryTable({ search }: { search: URLSearchParams }): ReactNode {
                 ownTeam,
                 ownName: ownTeam === null ? '' : ownTeamName(rows, ownTeam),
                 povJobs,
+                voices,
+                onVoiceResynced: () => pollRef.current(),
                 allTags: libraryTags(rows),
                 handlers,
                 selected,

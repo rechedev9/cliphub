@@ -197,3 +197,14 @@ export function getDemoVoice(matchId: string): Promise<DemoVoice> {
 export function extractDemoVoice(matchId: string): Promise<DemoVoice> {
   return request<DemoVoice>(`${voicePath(matchId)}/demo`, { method: 'POST' });
 }
+
+/** A match's voice as the library list shows it: the sync state, no tracks (`library.VoiceSummary` in Go). */
+export type VoiceSummary = { match_id: string; tracks: number; sync: VoiceSync };
+
+export const VOICE_SUMMARY_KEYS = ['voices'] as const;
+
+/** Every match with team voice, for the Partidas list. */
+export async function listVoiceSummaries(): Promise<VoiceSummary[]> {
+  const body = await request<{ voices: VoiceSummary[] }>('/voice/summary');
+  return body.voices;
+}

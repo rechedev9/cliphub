@@ -9,11 +9,13 @@ import { matchHref, matchReplayHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { SERIES_FORMAT_LABEL } from '@/lib/library/veto';
 import { hasPov, ownOutcome, seriesVeto, type DayGroup, type PartidaGroup, type VetoMark } from '@/lib/library/partida-groups';
+import type { VoiceByMatch } from '@/lib/library/voice-summary';
 import { OUTCOME_LABEL, matchTitle, type Outcome, type PartidaRow } from '@/lib/library/partidas';
 import { cn } from '@/lib/utils';
 import { DemoStatus, RowActions, Scoreline, type RowHandlers } from '@/components/matches/partida-cells';
 import { PartidaSource } from '@/components/matches/partida-source';
 import { PartidaTags } from '@/components/matches/partida-tags';
+import { PartidaVoice } from '@/components/matches/partida-voice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -39,6 +41,8 @@ export type GroupListContext = {
   /** The name of the own team, for the label of the row edge. */
   ownName: string;
   povJobs: ReadonlySet<string>;
+  voices: VoiceByMatch;
+  onVoiceResynced: () => void;
   allTags: readonly string[];
   handlers: RowHandlers;
   selected: ReadonlySet<string>;
@@ -57,6 +61,7 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
   const { demo, match } = row;
   const outcome = ownOutcome(row, context.ownTeam);
   const pov = hasPov(row, context.povJobs);
+  const voice = match ? context.voices.get(match.id) : undefined;
   const edgeLabel = outcome === null ? undefined : `Resultado de ${context.ownName}: ${OUTCOME_LABEL[outcome]}`;
   const name = match ? prettyMapName(match.map) : demo.file_name;
   const failed = demo.state === 'failed' ? <TriangleAlert aria-hidden className="size-4 shrink-0 text-destructive" /> : null;
@@ -97,6 +102,11 @@ function MapRow({ row, mark, context }: { row: PartidaRow; mark?: VetoMark; cont
           <Video aria-hidden />
           POV
         </Badge>
+      ) : null}
+      {voice ? (
+        <div className="relative z-10">
+          <PartidaVoice summary={voice} onResynced={context.onVoiceResynced} />
+        </div>
       ) : null}
       <div className="relative z-10">
         <PartidaSource demo={demo} onChange={context.onSourceChange} />

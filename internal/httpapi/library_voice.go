@@ -28,6 +28,7 @@ type libraryVoiceRepository interface {
 	SetVoiceTranscript(ctx context.Context, update library.VoiceTranscriptUpdate) error
 	ListVoiceLines(ctx context.Context, filter library.VoiceLineFilter) ([]library.VoiceLine, error)
 	ListVoicesByTranscript(ctx context.Context, states []string) ([]uuid.UUID, error)
+	ListVoiceSummaries(ctx context.Context) ([]library.VoiceSummary, error)
 	DeleteMatchVoice(ctx context.Context, matchID uuid.UUID) error
 }
 
