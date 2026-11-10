@@ -141,4 +141,9 @@ contextBridge.exposeInMainWorld('cliphubReplay', {
     return ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'pick', fileName });
   },
   writeGif: (token: unknown, bytes: unknown): Promise<unknown> => ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'write', token, bytes }),
+  pickVideo: (fileName: unknown): Promise<unknown> => {
+    if (!userIsActive()) return Promise.resolve({ ok: false, error: 'El MP4 se guarda desde un clic.' });
+    return ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'pick', fileName, format: 'mp4' });
+  },
+  writeVideo: (token: unknown, bytes: unknown): Promise<unknown> => ipcRenderer.invoke(STUDIO_REPLAY_GIF_CHANNEL, { action: 'write', token, bytes }),
 });

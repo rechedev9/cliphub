@@ -24,20 +24,23 @@ type inks struct {
 	plate, outline, white, ct, t, dead, smoke, fire, bomb, mark uint8
 }
 
+// inkColors are the overlay's colours, in the order of the inks fields.
+var inkColors = color.Palette{
+	plateColor,
+	color.RGBA{0x05, 0x05, 0x06, 0xff},
+	color.RGBA{0xf3, 0xf4, 0xf7, 0xff},
+	ctColor,
+	tColor,
+	color.RGBA{0x8a, 0x8f, 0x96, 0xff},
+	color.RGBA{0xc8, 0xcd, 0xd2, 0xff},
+	color.RGBA{0xff, 0x68, 0x24, 0xff},
+	color.RGBA{0xe5, 0x3b, 0x30, 0xff},
+	color.RGBA{0xa0, 0x7c, 0xf5, 0xff},
+}
+
 func newInks(pal color.Palette) inks {
-	at := func(c color.Color) uint8 { return uint8(pal.Index(c)) }
-	return inks{
-		plate:   at(plateColor),
-		outline: at(color.RGBA{0x05, 0x05, 0x06, 0xff}),
-		white:   at(color.RGBA{0xf3, 0xf4, 0xf7, 0xff}),
-		ct:      at(ctColor),
-		t:       at(tColor),
-		dead:    at(color.RGBA{0x8a, 0x8f, 0x96, 0xff}),
-		smoke:   at(color.RGBA{0xc8, 0xcd, 0xd2, 0xff}),
-		fire:    at(color.RGBA{0xff, 0x68, 0x24, 0xff}),
-		bomb:    at(color.RGBA{0xe5, 0x3b, 0x30, 0xff}),
-		mark:    at(color.RGBA{0xa0, 0x7c, 0xf5, 0xff}),
-	}
+	at := func(i int) uint8 { return uint8(pal.Index(inkColors[i])) }
+	return inks{plate: at(0), outline: at(1), white: at(2), ct: at(3), t: at(4), dead: at(5), smoke: at(6), fire: at(7), bomb: at(8), mark: at(9)}
 }
 
 func (in inks) stroke(token string) uint8 {
@@ -68,6 +71,9 @@ func (s Scene) units(world float64) float64 {
 // drawAt paints one moment over the plate: utility, the bomb, the drawings, the players and the clock.
 func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 	for _, e := range s.Round.Events {
+		if s.Hide.Utility {
+			break
+		}
 		kind, radius, last := e.Kind, 0.0, e.EndTick
 		switch kind {
 		case tacticalplan.EventSmoke:
@@ -93,7 +99,7 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 			ring(img, ringSpec{x: x, y: y, r: s.units(radius), width: 2.5, ink: in.fire})
 		}
 	}
-	if b := s.Round.Bomb; b != nil && b.PlantTick > 0 && tick >= b.PlantTick && (b.DefuseTick == 0 || tick < b.DefuseTick) && (b.ExplodeTick == 0 || tick < b.ExplodeTick) {
+	if b := s.Round.Bomb; !s.Hide.Bomb && b != nil && b.PlantTick > 0 && tick >= b.PlantTick && (b.DefuseTick == 0 || tick < b.DefuseTick) && (b.ExplodeTick == 0 || tick < b.ExplodeTick) {
 		for _, e := range s.Round.Events {
 			if e.Kind == tacticalplan.EventPlant {
 				x, y := s.px(e.Pos[0], e.Pos[1])
@@ -109,6 +115,12 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 		for _, st := range note.Strokes {
 			s.drawStroke(img, st, in.stroke(st.Color))
 		}
+	}
+	if !s.Hide.Clock {
+		defer caption(img, clockLabel(s.Round, tick, s.Tickrate), in)
+	}
+	if s.Hide.Players {
+		return
 	}
 	r := math.Max(4, float64(s.Size)*0.0095)
 	samples := samplesAt(s.Frames, tick)
@@ -132,7 +144,6 @@ func (s Scene) drawAt(img *image.Paletted, tick int, in inks) {
 		disc(img, x, y, r+1.5, in.outline)
 		disc(img, x, y, r, side)
 	}
-	caption(img, clockLabel(s.Round, tick, s.Tickrate), in)
 }
 
 func (s Scene) drawStroke(img *image.Paletted, st Stroke, ink uint8) {

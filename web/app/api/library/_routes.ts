@@ -74,6 +74,7 @@ import {
   VOICE_TRANSCRIBE_FIELDS,
   VOICE_UPLOAD_BYTES,
 } from '../../../lib/api/voice.ts';
+import { REPLAY_VIDEO_BYTES, REPLAY_VIDEO_KEYS } from '../../../lib/api/replay-video.ts';
 import {
   RECORDING_ATTACH_FIELDS,
   RECORDING_KEYS,
@@ -217,6 +218,8 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'PATCH', segments: ['matches', UUID, 'voice', 'tracks', VOICE_TRACK], body: fields(VOICE_TRACK_FIELDS), response: json(VOICE_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'voice', 'tracks', VOICE_TRACK, 'audio'], response: { kind: 'stream' } },
   { method: 'POST', segments: ['matches', UUID, 'voice', 'transcribe'], body: fields(VOICE_TRANSCRIBE_FIELDS), response: json(VOICE_KEYS) },
+  { method: 'POST', segments: ['matches', UUID, 'replay-video'], body: { kind: 'multipart', maxBytes: REPLAY_VIDEO_BYTES }, response: json(REPLAY_VIDEO_KEYS) },
+  { method: 'GET', segments: ['replay-videos', UUID], response: { kind: 'stream' } },
   { method: 'GET', segments: ['matches', UUID, 'voice', 'comms'], query: VOICE_COMMS_QUERY, response: json(VOICE_COMMS_KEYS) },
   { method: 'GET', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },
   { method: 'POST', segments: ['matches', UUID, 'voice', 'demo'], response: json(DEMO_VOICE_KEYS) },

@@ -70,6 +70,12 @@ type Scene struct {
 	// Speed plays the tramo faster (2) or slower (0.5); 0 means 1.
 	Speed float64
 	Size  int
+	Hide  Layers
+}
+
+// Layers are what a frame leaves out; the zero value draws every layer.
+type Layers struct {
+	Players, Utility, Bomb, Clock bool
 }
 
 // Result says how long the GIF plays and at what frame rate.
@@ -86,23 +92,9 @@ var gifRates = []int{MaxFPS, 5, 4, 2, 1}
 // the rectangle that changed, with the pixels inside it that did not change
 // left transparent, and a frame like the one before only lengthens it.
 func Encode(ctx context.Context, w io.Writer, s Scene) (Result, error) {
-	if !s.Calibration.Valid() {
-		return Result{}, errors.New("the match has no radar calibration")
-	}
-	if s.Tickrate <= 0 {
-		return Result{}, errors.New("the match has no tickrate")
-	}
-	if s.Size == 0 {
-		s.Size = DefaultSize
-	}
-	if s.Size < 128 || s.Size > 1024 {
-		return Result{}, errors.New("size must be from 128 to 1024")
-	}
-	if s.Speed <= 0 {
-		s.Speed = 1
-	}
-	if s.ToTick <= s.FromTick {
-		return Result{}, errors.New("the tramo is empty")
+	s, err := s.checked()
+	if err != nil {
+		return Result{}, err
 	}
 	fps, ok := frameRate(s)
 	if !ok {
@@ -150,6 +142,29 @@ func Encode(ctx context.Context, w io.Writer, s Scene) (Result, error) {
 	return Result{Frames: len(ticks), FPS: fps, Seconds: float64(len(ticks)) / float64(fps)}, nil
 }
 
+// checked is the scene with its defaults, or why it cannot be drawn.
+func (s Scene) checked() (Scene, error) {
+	if !s.Calibration.Valid() {
+		return s, errors.New("the match has no radar calibration")
+	}
+	if s.Tickrate <= 0 {
+		return s, errors.New("the match has no tickrate")
+	}
+	if s.Size == 0 {
+		s.Size = DefaultSize
+	}
+	if s.Size < 128 || s.Size > 1024 {
+		return s, errors.New("size must be from 128 to 1024")
+	}
+	if s.Speed <= 0 {
+		s.Speed = 1
+	}
+	if s.ToTick <= s.FromTick {
+		return s, errors.New("the tramo is empty")
+	}
+	return s, nil
+}
+
 // frameRate is the fastest GIF rate whose frames, at this size, stay within maxPixels.
 func frameRate(s Scene) (int, bool) {
 	budget := maxPixels / (s.Size * s.Size)
@@ -182,6 +197,14 @@ func frameTicks(from, to int, tickrate, step float64) []int {
 
 // plate is the radar scaled to the GIF and reduced to its palette once.
 func plate(s Scene, pal color.Palette) *image.Paletted {
+	rgba := radarRGBA(s)
+	out := image.NewPaletted(rgba.Rect, pal)
+	xdraw.FloydSteinberg.Draw(out, rgba.Rect, rgba, image.Point{})
+	return out
+}
+
+// radarRGBA is the radar scaled to the scene's size, in full colour.
+func radarRGBA(s Scene) *image.RGBA {
 	r := image.Rect(0, 0, s.Size, s.Size)
 	rgba := image.NewRGBA(r)
 	xdraw.Draw(rgba, r, image.NewUniform(plateColor), image.Point{}, xdraw.Src)
@@ -189,9 +212,7 @@ func plate(s Scene, pal color.Palette) *image.Paletted {
 		// The overview spans the calibration's native size whatever its pixel count.
 		xdraw.ApproxBiLinear.Scale(rgba, r, s.Radar, s.Radar.Bounds(), xdraw.Over, nil)
 	}
-	out := image.NewPaletted(r, pal)
-	xdraw.FloydSteinberg.Draw(out, r, rgba, image.Point{})
-	return out
+	return rgba
 }
 
 // changed is the smallest rectangle where two frames of the same size differ.

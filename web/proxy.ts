@@ -10,5 +10,5 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   // Large uploads and CS2's game state (no capability cookie) check the guard in-handler.
-  matcher: '/api/((?!demos/scan/?$|library/demos/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
+  matcher: '/api/((?!demos/scan/?$|library/demos/?$|library/import-package/?$|library/matches/[^/]+/voice/?$|library/matches/[^/]+/replay-video/?$|streams/?$|editor/assets/?$|full-demo/overlay-images/?$|session/bootstrap/?$|voice-plugin/gamestate/?$).*)',
 };

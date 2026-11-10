@@ -21,7 +21,7 @@ const MAP: readonly Shortcut[] = [
   { keys: ['Mayús', 'Clic'], does: 'Sumar otro jugador al primer plano' },
   { keys: ['F'], does: 'Centrar el mapa en el jugador elegido; otra vez para soltarlo' },
   { keys: ['S'], or: ['Clic derecho'], does: 'Copiar el setpos del jugador bajo el cursor' },
-  { keys: ['G'], does: 'Abrir el GIF del tramo; otra vez para exportarlo' },
+  { keys: ['G'], does: 'Abrir la exportación del tramo (GIF o MP4); otra vez para exportar el GIF' },
   { keys: ['Esc'], does: 'Dejar de seguir y volver a todo el equipo' },
   { keys: ['Rueda'], does: 'Acercar o alejar' },
   { keys: ['Arrastrar'], does: 'Mover el mapa' },

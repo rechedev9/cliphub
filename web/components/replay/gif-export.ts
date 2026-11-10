@@ -89,7 +89,33 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, capture: MapCa
   ctx.fillText(text, 16, 20);
 }
 
-function nextTask(): Promise<void> {
+/** One canvas of `size` that `paint` fills with the map at a moment, the drawings and the HUD's line; `size.scale` maps the box into it. */
+export function framePainter(options: {
+  capture: MapCapture;
+  overlay: GifOverlay;
+  size: { width: number; height: number; scale: number };
+}): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; paint: (seconds: number) => void } {
+  const { capture, overlay, size } = options;
+  const canvas = document.createElement('canvas');
+  canvas.width = size.width;
+  canvas.height = size.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (ctx === null) throw new Error('2D canvas unavailable');
+  ctx.imageSmoothingQuality = 'high';
+  const paint = (seconds: number): void => {
+    const map = capture.paint(seconds);
+    if (map === null) throw new Error('the map could not draw');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(map.canvas, 0, 0, size.width, size.height);
+    ctx.setTransform(size.scale, 0, 0, size.scale, 0, 0);
+    const strokes = overlay.strokesAt(seconds);
+    for (const pane of map.panes) drawStrokes(ctx, strokes, { capture, pane });
+    drawCaption(ctx, overlay.captionAt(seconds), capture);
+  };
+  return { canvas, ctx, paint };
+}
+
+export function nextTask(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
@@ -120,22 +146,10 @@ export async function encodeReplayGif(options: {
 }): Promise<Uint8Array<ArrayBuffer>> {
   const { capture, frames, overlay, onProgress, signal } = options;
   const size = gifSize(capture.box);
-  const canvas = document.createElement('canvas');
-  canvas.width = size.width;
-  canvas.height = size.height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (ctx === null) throw new Error('2D canvas unavailable');
-  ctx.imageSmoothingQuality = 'high';
+  const painter = framePainter({ capture, overlay, size });
   const frameAt = (seconds: number): Uint8ClampedArray => {
-    const map = capture.paint(seconds);
-    if (map === null) throw new Error('the map could not draw');
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(map.canvas, 0, 0, size.width, size.height);
-    ctx.setTransform(size.scale, 0, 0, size.scale, 0, 0);
-    const strokes = overlay.strokesAt(seconds);
-    for (const pane of map.panes) drawStrokes(ctx, strokes, { capture, pane });
-    drawCaption(ctx, overlay.captionAt(seconds), capture);
-    return ctx.getImageData(0, 0, size.width, size.height).data;
+    painter.paint(seconds);
+    return painter.ctx.getImageData(0, 0, size.width, size.height).data;
   };
 
   const colors = pickPalette(frames, frameAt);

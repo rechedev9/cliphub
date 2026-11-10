@@ -103,9 +103,9 @@ export function MapToolsBar({
   return (
     <div className="@container flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border-subtle bg-surface-1 px-2 py-1.5">
       {draft === null ? null : <DrawTools draft={draft} />}
-      <ReplayChip pressed={gif.open} aria-expanded={gif.open} onClick={gif.onToggle} title="GIF del tramo (G)" aria-label="GIF del tramo">
+      <ReplayChip pressed={gif.open} aria-expanded={gif.open} onClick={gif.onToggle} title="Exportar el tramo como GIF o MP4 (G)" aria-label="Exportar el tramo">
         <Film aria-hidden />
-        GIF
+        GIF / MP4
       </ReplayChip>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         {demo === null ? null : (

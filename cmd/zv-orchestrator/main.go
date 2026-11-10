@@ -327,6 +327,7 @@ func run() error {
 		httpapi.WithPractice(practice.SteamGame{CS2Path: cfg.CS2Path}),
 		httpapi.WithCommunity(communityDeps(cfg.DataDir)),
 		httpapi.WithVoice(voiceDeps(cfg)),
+		httpapi.WithReplayVideo(replayVideoDeps(cfg)),
 	)
 	// Settle every legacy render state once so Studio polls read durable
 	// state instead of migrating it on the request path. Reuses the job
@@ -344,6 +345,7 @@ func run() error {
 	handlers.StartCommunity(ctx)
 	handlers.StartVoice(ctx)
 	handlers.StartPatternDetection(ctx)
+	handlers.StartReplayVideoSweep(ctx)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {
