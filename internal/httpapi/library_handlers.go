@@ -73,6 +73,7 @@ type LibraryRepository interface {
 	patternRepository
 	libraryProRepository
 	libraryVoiceRepository
+	libraryVoiceRecordingRepository
 }
 
 // WithLibrary enables the /api/library routes over repo.

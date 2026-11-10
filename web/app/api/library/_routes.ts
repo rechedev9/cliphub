@@ -68,6 +68,13 @@ import {
   VOICE_UPLOAD_BYTES,
 } from '../../../lib/api/voice.ts';
 import {
+  RECORDING_ATTACH_FIELDS,
+  RECORDING_KEYS,
+  RECORDING_LIST_KEYS,
+  VOICE_PLUGIN_KEYS,
+  VOICE_SPEAKERS_FIELDS,
+} from '../../../lib/api/voice-plugin.ts';
+import {
   PLAYER_POSITIONS_KEYS,
   PLAYER_POSITIONS_QUERY,
   TEAM_BOMBSITES_KEYS,
@@ -129,6 +136,8 @@ const PRO_ENTRY = /^[A-Za-z0-9][A-Za-z0-9_.()-]{0,200}$/;
 const PLACE = /^[A-Za-z0-9_][A-Za-z0-9_ '.-]{0,63}$/;
 /** A team voice track number, 1 to 16. */
 const VOICE_TRACK = /^([1-9]|1[0-6])$/;
+/** A TeamSpeak plugin recording: its UTC start and 4 hex digits. */
+const RECORDING_ID = /^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$/;
 
 const PAGING = ['limit', 'offset'];
 /** A Libreta file holds up to 1000 plays and its other sections, so its import gets the 8 MiB the orchestrator reads. */
@@ -208,6 +217,12 @@ export const LIBRARY_ROUTES: readonly LibraryRoute[] = [
   { method: 'GET', segments: ['voice', 'search'], query: VOICE_SEARCH_QUERY, response: json(VOICE_SEARCH_KEYS) },
   { method: 'GET', segments: ['voice', 'transcriber'], response: json(TRANSCRIBER_KEYS) },
   { method: 'POST', segments: ['voice', 'transcriber', 'install'], response: json(TRANSCRIBER_KEYS) },
+  { method: 'PUT', segments: ['matches', UUID, 'voice', 'speakers'], body: fields(VOICE_SPEAKERS_FIELDS), response: json(VOICE_KEYS) },
+  { method: 'GET', segments: ['voice', 'recordings'], response: json(RECORDING_LIST_KEYS) },
+  { method: 'POST', segments: ['voice', 'recordings', RECORDING_ID, 'attach'], body: fields(RECORDING_ATTACH_FIELDS), response: json(RECORDING_KEYS) },
+  { method: 'DELETE', segments: ['voice', 'recordings', RECORDING_ID], response: { kind: 'empty' } },
+  { method: 'GET', segments: ['voice', 'plugin'], response: json(VOICE_PLUGIN_KEYS) },
+  { method: 'POST', segments: ['voice', 'plugin', 'setup'], response: json(VOICE_PLUGIN_KEYS) },
   { method: 'GET', segments: ['teams'], query: ['q', ...PAGING], response: json(['teams']) },
   { method: 'GET', segments: ['teams', UUID], response: json(TEAM_KEYS) },
   { method: 'PATCH', segments: ['teams', UUID], body: fields(['name', 'aliases']), response: json(TEAM_KEYS) },

@@ -16,6 +16,8 @@
 
 # Built binaries
 *.exe
+# TeamSpeak plugin intermediates and the fetched SDK headers (scripts/build-teamspeak-plugin.ps1)
+/plugins/teamspeak/build/
 
 # Generated media and overlay renders
 *.dem

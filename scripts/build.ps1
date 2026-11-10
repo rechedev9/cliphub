@@ -148,6 +148,12 @@ try {
     # testable transaction: every earlier target rolls back on failure, while an
     # incomplete rollback preserves the backup directory for manual recovery.
     Publish-BuildArtifacts -Names $commands -BinDir $binDir -StagingDir $stagingDir -BackupDir $backupDir -PublicationLock $publicationLock
+
+    # The TeamSpeak 3 plugin package ships in the installer beside the Go runtimes (assemble requires it).
+    & (Join-Path $PSScriptRoot "build-teamspeak-plugin.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "build-teamspeak-plugin.ps1 failed with exit $LASTEXITCODE"
+    }
 } finally {
     try {
         # Both paths are GUID-named children of the resolved repository bin dir.

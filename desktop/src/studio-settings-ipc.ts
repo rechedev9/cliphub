@@ -7,6 +7,7 @@ export const STUDIO_SETTINGS_ACTION = {
   telemetryUpdate: 'telemetry-update',
   assistantStatus: 'assistant-status',
   assistantUpdate: 'assistant-update',
+  teamspeakPluginInstall: 'teamspeak-plugin-install',
 } as const;
 
 export type StudioSettingsRequest =
@@ -15,7 +16,8 @@ export type StudioSettingsRequest =
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean }
   | { action: typeof STUDIO_SETTINGS_ACTION.assistantStatus }
-  | { action: typeof STUDIO_SETTINGS_ACTION.assistantUpdate; enabled: boolean };
+  | { action: typeof STUDIO_SETTINGS_ACTION.assistantUpdate; enabled: boolean }
+  | { action: typeof STUDIO_SETTINGS_ACTION.teamspeakPluginInstall };
 
 export interface TrustedSettingsSenderInput {
   expectedOrigin: string | null;
@@ -34,7 +36,8 @@ export function parseStudioSettingsRequest(value: unknown): StudioSettingsReques
   if (action === STUDIO_SETTINGS_ACTION.appInfo
     || action === STUDIO_SETTINGS_ACTION.playbackInfo
     || action === STUDIO_SETTINGS_ACTION.telemetryStatus
-    || action === STUDIO_SETTINGS_ACTION.assistantStatus) {
+    || action === STUDIO_SETTINGS_ACTION.assistantStatus
+    || action === STUDIO_SETTINGS_ACTION.teamspeakPluginInstall) {
     requireExactKeys(value, ['action']);
     return { action };
   }

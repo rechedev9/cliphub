@@ -40,6 +40,8 @@ export type ReplayCentreProps = {
   settings: MapSettings;
   /** Where the map puts its zoom buttons: the bar over it. */
   barSlot: HTMLElement | null;
+  /** The focused round's players heard on the team voice at a tick, by slot. */
+  speakingAt?: (round: CentreRound, tick: number) => ReadonlySet<number>;
   /** Filled with a way to draw any moment off screen, for the GIF; null while the map cannot draw. */
   captureRef?: RefObject<MapCapture | null>;
 };

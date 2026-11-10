@@ -189,6 +189,10 @@ install_transcriber (about 200 MB, local whisper.cpp) then transcribe_voice; voi
 demo_voice reads the demo's own in-game voice (extract true, then call again until ready), which the Replay plays as Voz de la demo.
 get_round_comms gives one round's talk time by phase and phrases, match_talk_time every round's talk time, and
 search_comms finds a phrase by team, dates and period (round phase); each phrase has a studio_path to its moment.
+The TeamSpeak plugin (Instalar plugin de TeamSpeak in Ajustes) records one track per person while CS2 says a match is live;
+voice_plugin_status checks it (setup_cs2 true writes CS2's config). Studio attaches a recording to its match on its own;
+list_voice_recordings shows the pending ones with a note, attach_voice_recording attaches one by hand, and set_voice_speakers
+ties tracks to players, which the teams remember for later recordings. delete_voice_recording removes one from this PC.
 real_map_status checks that the Replay can draw a map as CS2 does, as its Mapa real floor plan, and says how to open it and full screen.
 A stream (Twitch, Kick or YouTube VOD or clip, or a local .mp4): import_stream, wait_for_stream until
 ready, find_stream_plays (call again while running) for the streamer's kills and voice peaks (kind voice_peak,

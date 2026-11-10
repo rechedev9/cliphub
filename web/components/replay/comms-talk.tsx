@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Trash2, Volume2, VolumeX } from 'lucide-react';
+import { Headphones, Trash2, Volume2, VolumeX } from 'lucide-react';
 import type { TacticalDocument } from '@/lib/api/tactical';
 import type { VoicePhase, VoicePhaseTalk, VoiceSpeakerTalk, VoiceTrack } from '@/lib/api/voice';
 import { Button } from '@/components/ui/button';
@@ -93,16 +93,24 @@ export function MatchTalkSummary({ totals, names }: { totals: readonly VoiceSpea
 /** Each track: mute it, and say which player speaks on it, which splits their talk into alive and dead. */
 export function VoiceTracks({ voice, tracks, players }: { voice: ReplayVoice; tracks: readonly VoiceTrack[]; players: TacticalDocument['players'] }): ReactNode {
   const [confirm, setConfirm] = useState(false);
+  const untied = tracks.some((track) => !track.steamid64);
   return (
     <div className="flex flex-col gap-1.5">
+      {untied ? <p className="text-meta text-fg-2">Elige quién habla en cada pista: Studio lo recordará en las próximas grabaciones del equipo.</p> : null}
       <ul className="flex flex-col gap-1">
         {tracks.map((track) => {
           const off = voice.mutedTracks.has(track.track);
+          const solo = !off && tracks.length > 1 && tracks.every((other) => other.track === track.track || voice.mutedTracks.has(other.track));
           return (
             <li key={track.track} className="flex items-center gap-1.5">
               <Button type="button" size="icon-xs" variant="ghost" aria-pressed={off} aria-label={off ? `Activar ${track.label}` : `Silenciar ${track.label}`} onClick={() => voice.toggleTrack(track.track)}>
                 {off ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
               </Button>
+              {tracks.length > 1 ? (
+                <Button type="button" size="icon-xs" variant="ghost" aria-pressed={solo} aria-label={solo ? 'Oír todas las pistas' : `Oír solo ${track.label}`} onClick={() => voice.soloTrack(track.track)}>
+                  <Headphones aria-hidden className={solo ? 'text-primary' : undefined} />
+                </Button>
+              ) : null}
               <Select value={track.steamid64 || NOBODY} onValueChange={(value) => voice.nameTrack(track.track, { steamid64: value === NOBODY ? '' : value })}>
                 <SelectTrigger aria-label={`Quién habla en ${track.label}`} className="h-8 min-w-0 flex-1 text-meta">
                   <SelectValue />

@@ -65,7 +65,11 @@ export type RoundFrame = {
   style: RadarStyle;
   /** Sight and hit lines; only the focused round carries them. */
   analysis: FrameAnalysis | null;
+  /** Players heard on the team voice right now, by slot; only the focused round carries them. */
+  speaking?: ReadonlySet<number>;
 };
+
+const SPEAKING_COLOR = '#7ee787';
 
 /** Where a drawn player sits in the square's CSS pixels, for hover and click. */
 export type DrawnPlayer = { slot: number; x: number; y: number; side: TacticalSide; alive: boolean };
@@ -407,6 +411,16 @@ function drawAlive(ctx: CanvasRenderingContext2D, frame: RoundFrame, sample: Tac
     ctx.beginPath();
     ctx.arc(at.x, at.y, radius * 0.6, 0, Math.PI * 2);
     ctx.fill();
+  }
+  if (frame.speaking?.has(sample.slot) === true) {
+    // Two sound waves on the dot's right, clear of the health ring and the focus circle.
+    ctx.strokeStyle = SPEAKING_COLOR;
+    ctx.lineWidth = 2;
+    for (const reach of [ring + 4, ring + 8]) {
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, reach, -0.55, 0.55);
+      ctx.stroke();
+    }
   }
   if (frame.show.held) drawHeld(ctx, { frame, sample, at, radius });
   if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.defusing)) {

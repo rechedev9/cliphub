@@ -23,6 +23,7 @@ func (h *Handlers) StartVoice(ctx context.Context) {
 	h.voice.mu.Lock()
 	h.voice.installCtx = ctx
 	h.voice.mu.Unlock()
+	h.startVoicePlugin(ctx)
 	go func() {
 		for {
 			select {

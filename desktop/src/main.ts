@@ -44,6 +44,7 @@ import {
 } from './agent-session';
 import { syncStableMcp } from './stable-mcp';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
+import { openTeamSpeakPlugin, TEAMSPEAK_PLUGIN_FILE } from './teamspeak-plugin';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
@@ -627,6 +628,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     createOrchestratorEnvironment({
       dataDir,
       httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
+      webOrigin,
       musicDir,
       recorderPath: recorderExe,
       overlayRendererPath: process.execPath,
@@ -839,12 +841,10 @@ function registerStudioSettingsIPC(): void {
       playbackInfoCache = read.cache;
       return read.info;
     }
-    return {
-      version: app.getVersion(),
-      build: app.isPackaged ? 'production' : 'development',
-      electronVersion: process.versions.electron,
-      chromiumVersion: process.versions.chrome,
-    };
+    const teamspeak = { packagePath: resourcePath('bin', TEAMSPEAK_PLUGIN_FILE), exists: fs.existsSync, openPath: (file: string) => shell.openPath(file), logLine };
+    if (request.action === 'teamspeak-plugin-install') return openTeamSpeakPlugin(teamspeak);
+    const build = app.isPackaged ? 'production' : 'development';
+    return { version: app.getVersion(), build, electronVersion: process.versions.electron, chromiumVersion: process.versions.chrome };
   });
 }
 

@@ -63,6 +63,7 @@ func (r *MemoryLibraryRepository) MergeTeams(ctx context.Context, from, into uui
 	r.libreta.moveTeamRoles(from, into)
 	r.libreta.moveTeamProfile(from, into)
 	r.libreta.moveTeamPatterns(from, into)
+	r.recordings.moveTeamSpeakers(from, into)
 	delete(r.teams, from)
 	target.updatedAt = libraryNow()
 	r.teams[into] = target

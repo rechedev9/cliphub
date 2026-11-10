@@ -69,7 +69,7 @@ type voiceTrackOut struct {
 
 type voiceSyncOut struct {
 	State        string  `json:"state" jsonschema:"unsynced (a guess the user has not confirmed), auto (estimated with confidence) or manual (set by hand)"`
-	Method       string  `json:"method" jsonschema:"demo_voice, kills, round_start or manual"`
+	Method       string  `json:"method" jsonschema:"game_clock, demo_voice, kills, round_start or manual"`
 	OffsetMS     int64   `json:"offset_ms"`
 	AutoOffsetMS int64   `json:"auto_offset_ms" jsonschema:"the automatic estimate Reset goes back to"`
 	Confidence   float64 `json:"confidence"`
@@ -133,6 +133,7 @@ func clockMS(ms int64) string {
 
 func registerVoiceTools(server *mcp.Server, s *studio) {
 	registerVoiceCommsTools(server, s)
+	registerVoiceRecordingTools(server, s)
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	call := func(ctx context.Context, matchID string, do func(*tuiclient.Client) (tuiclient.MatchVoice, error)) (*mcp.CallToolResult, voiceOut, error) {
 		if err := checkUUID("match_id", matchID); err != nil {
