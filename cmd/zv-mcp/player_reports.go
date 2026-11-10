@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -15,6 +16,8 @@ import (
 
 const (
 	defaultLeaderboardRows = 20
+	// leaderboardDefaultDays is the period a library board reads when it names no dates, as the page does.
+	leaderboardDefaultDays = 90
 	maxLeaderboardRows     = 100
 	maxLeaderboardMinRound = 10000
 	maxLeaderboardRefs     = 10
@@ -60,14 +63,14 @@ type playerPositionsOut struct {
 }
 
 type leaderboardIn struct {
-	Metric    string `json:"metric" jsonschema:"the metric to rank on: rating (ClipHub's own formula), kd, kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
+	Metric    string `json:"metric" jsonschema:"the metric to rank on: rating (the Rating de ClipHub, formula in the tool description), kd, kpr, dpr, adr, kast, opening_win_pct, trade_pct, utility_damage_per_round, flash_assists_per_round or wpa_per_round"`
 	Scope     string `json:"scope,omitempty" jsonschema:"library (default): every match in the library; pro: the pro players of the community server's pro maps, last 90 days unless days says otherwise (side, role, map_role, days, top, team_top and event apply; from, to and source do not)"`
 	Map       string `json:"map,omitempty" jsonschema:"only matches on this map, such as de_mirage"`
 	Side      string `json:"side,omitempty" jsonschema:"only the rounds played on this side: CT or T"`
 	Role      string `json:"role,omitempty" jsonschema:"only players with this role on the map and its side (needs map): a_anchor, b_anchor, rotator (CT), a_lurk, b_lurk, half_lurk, pack (T)"`
 	MapRole   string `json:"map_role,omitempty" jsonschema:"only players who hold this callout on the map and side (needs map and side), such as Canal; allround for the ones with no main position; the answer lists them in map_roles"`
-	From      string `json:"from,omitempty" jsonschema:"library only: first day the matches were played, YYYY-MM-DD; empty means no lower bound"`
-	To        string `json:"to,omitempty" jsonschema:"library only: last day the matches were played, YYYY-MM-DD, included; empty means no upper bound"`
+	From      string `json:"from,omitempty" jsonschema:"library only: first day the matches were played, YYYY-MM-DD; with neither from nor to the last 90 days are read, like the Ranking page, so pass 2000-01-01 for every date"`
+	To        string `json:"to,omitempty" jsonschema:"library only: last day the matches were played, YYYY-MM-DD, included; empty means no upper bound (naming it alone drops the 90 day default)"`
 	Days      int    `json:"days,omitempty" jsonschema:"pro only: only maps played in the last 1 to 365 days"`
 	Top       int    `json:"top,omitempty" jsonschema:"pro only: only players who faced a team ranked this high or better in HLTV: 5, 15, 30 or 50"`
 	TeamTop   int    `json:"team_top,omitempty" jsonschema:"pro only: only players whose own team is ranked this high or better in HLTV: 5, 15, 30 or 50"`
@@ -166,7 +169,10 @@ func registerPlayerReportTools(server *mcp.Server, s *studio) {
 		Description: "Rank the library's players on one metric (the get_baseline metrics, plus rating and kd), best first, over the " +
 			"players with at least min_rounds rounds: the Ranking page of Studio. Filter by map, side, role (a role on a map, " +
 			"such as b_lurk on de_anubis), dates and demo source; each row carries every metric, the roles and refs of the player's rounds. " +
-			"Scope pro ranks the pro players of the community server's pro maps by side, role, days and the rank of the rival (top 5, 15, 30 or 50); " +
+			"Without from and to, the library scope reads the last 90 days, like the page. map_role keeps the players who hold one callout on the map and side (or allround); " +
+			"each row carries a breakdown of its rounds per role and position, and map_roles lists the positions to pick from. The rating is the Rating de ClipHub: " + tacticalplan.RatingFormula + ". " +
+			"Scope pro ranks the pro players of the community server's pro maps (last 90 days unless days says otherwise) by side, role, map_role, the rank of the rival (top 5, 15, 30 or 50), " +
+			"the rank of the player's own team (team_top) and event (events lists them); " +
 			"those maps are not in the library, so their rows have a team and no refs."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in leaderboardIn) (*mcp.CallToolResult, leaderboardOut, error) {
 			q, err := in.check()
@@ -238,10 +244,14 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 	if err := checkOptionalFilter("map", in.Map, mapNamePattern); err != nil {
 		return tuiclient.LeaderboardQuery{}, err
 	}
-	filter, err := analysisFilterIn{Side: in.Side, From: in.From, To: in.To}.query()
 	pro := scope == "pro"
-	if !pro && (in.TeamTop != 0 || in.Event != "") {
-		return tuiclient.LeaderboardQuery{}, errors.New("team_top and event are for scope pro")
+	from := in.From
+	if !pro && from == "" && in.To == "" {
+		from = time.Now().UTC().AddDate(0, 0, -leaderboardDefaultDays).Format(time.DateOnly)
+	}
+	filter, err := analysisFilterIn{Side: in.Side, From: from, To: in.To}.query()
+	if !pro && (in.Days != 0 || in.Top != 0 || in.TeamTop != 0 || in.Event != "") {
+		return tuiclient.LeaderboardQuery{}, errors.New("days, top, team_top and event are for scope pro; the library scope takes from and to")
 	}
 	if in.TeamTop != 0 && !slices.Contains([]int{5, 15, 30, 50}, in.TeamTop) {
 		return tuiclient.LeaderboardQuery{}, errors.New("team_top must be 5, 15, 30 or 50")
@@ -250,10 +260,7 @@ func (in leaderboardIn) check() (tuiclient.LeaderboardQuery, error) {
 		return tuiclient.LeaderboardQuery{}, errors.New("map_role needs a map and a side")
 	}
 	if pro && (in.From != "" || in.To != "" || in.Source != "") {
-		return tuiclient.LeaderboardQuery{}, errors.New("from, to and source are for the library scope; the pro scope takes days and top")
-	}
-	if !pro && (in.Days != 0 || in.Top != 0) {
-		return tuiclient.LeaderboardQuery{}, errors.New("days and top are for scope pro; the library scope takes from and to")
+		return tuiclient.LeaderboardQuery{}, errors.New("from, to and source are for the library scope; the pro scope takes days, top, team_top and event")
 	}
 	if in.Days < 0 || in.Days > 365 {
 		return tuiclient.LeaderboardQuery{}, errors.New("days must be from 1 to 365")

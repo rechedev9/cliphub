@@ -152,7 +152,7 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		if _, err := buildLineups(ctx, ix.store, lineupDirs{analyses: ix.archiveDir, clips: ix.clipsDir}, time.Now()); err != nil {
 			log.Printf("community stage=lineups class=kept error=%v", err)
 		}
-		if _, err := buildProPlayers(ctx, ix.store, ix.archiveDir, time.Now()); err != nil {
+		if _, err := buildProPlayers(ctx, proPlayersBuild{store: ix.store, analysesDir: ix.archiveDir, at: time.Now()}); err != nil {
 			log.Printf("community stage=pro-players class=kept error=%v", err)
 		}
 	}

@@ -165,16 +165,14 @@ export function patchRanking(state: RankingState, patch: Partial<Omit<RankingSta
   return { ...next, role, mapRole: scope.map === '' || scope.side === '' ? '' : mapRole, scope };
 }
 
-const PRO_MAX_DAYS = 365;
-
 /**
  * The pro board always names a period, which is what makes the server rank
- * the pros' maps player by player. "Every date" is the longest it keeps.
+ * the pros' maps player by player. "Every date" reads every map, dated or not.
  */
-export function proDays(scope: AnalysisScope): number {
-  if (scope.period.kind !== 'preset') return PRO_MAX_DAYS;
+export function proDays(scope: AnalysisScope): number | 'all' {
+  if (scope.period.kind !== 'preset') return 'all';
   const { preset } = scope.period;
-  return PERIOD_PRESETS.find((entry) => entry.value === preset)?.days ?? PRO_MAX_DAYS;
+  return PERIOD_PRESETS.find((entry) => entry.value === preset)?.days ?? 'all';
 }
 
 /**
@@ -217,7 +215,8 @@ export function leaderboardRequest(state: RankingState, now: number): Leaderboar
 }
 
 /** The value a row has in a column, or null when the player lacks it. */
-export function cellValue(row: LeaderboardRow, sort: RankingSort, boardMetric: LeaderboardMetric): number | null {
+export function cellValue(options: { row: LeaderboardRow; sort: RankingSort; boardMetric: LeaderboardMetric }): number | null {
+  const { row, sort, boardMetric } = options;
   if (sort === 'rounds') return row.rounds;
   const own = row.metrics?.[sort];
   if (own !== undefined) return own;
@@ -236,12 +235,17 @@ export function nextDir(state: Pick<RankingState, 'sort' | 'dir'>, sort: Ranking
 }
 
 /** Sorts by the column; a player without the value goes last. Ties keep more rounds first. */
-export function sortRankingRows(rows: readonly LeaderboardRow[], state: Pick<RankingState, 'sort' | 'dir'>, boardMetric: LeaderboardMetric): LeaderboardRow[] {
+export function sortRankingRows(options: {
+  rows: readonly LeaderboardRow[];
+  state: Pick<RankingState, 'sort' | 'dir'>;
+  boardMetric: LeaderboardMetric;
+}): LeaderboardRow[] {
+  const { rows, state, boardMetric } = options;
   const dir = state.dir ?? naturalDir(state.sort);
   const sign = dir === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
-    const x = cellValue(a, state.sort, boardMetric);
-    const y = cellValue(b, state.sort, boardMetric);
+    const x = cellValue({ row: a, sort: state.sort, boardMetric });
+    const y = cellValue({ row: b, sort: state.sort, boardMetric });
     if (x === null && y === null) return 0;
     if (x === null) return 1;
     if (y === null) return -1;
@@ -278,7 +282,8 @@ export function rankingEntries(sorted: readonly LeaderboardRow[], pins: readonly
 const PLAYER_SEARCH_LIMIT = 8;
 
 /** The ranked players whose name holds `term`, not pinned yet; at most a few, in table order. */
-export function searchPlayers(rows: readonly LeaderboardRow[], term: string, pins: readonly PinnedPlayer[]): LeaderboardRow[] {
+export function searchPlayers(options: { rows: readonly LeaderboardRow[]; term: string; pins: readonly PinnedPlayer[] }): LeaderboardRow[] {
+  const { rows, term, pins } = options;
   const needle = term.trim().toLowerCase();
   if (needle === '') return [];
   const pinned = new Set(pins.map((pin) => pin.steamid64));
@@ -317,10 +322,9 @@ export function parsePins(raw: string | null): PinnedPlayer[] {
 /** The Replay with the player's rounds of the filter, the player in focus, or null when the row has none. */
 export function playerRoundsHref(row: LeaderboardRow, title: string): string | null {
   const examples = row.examples ?? [];
-  const first = examples[0];
-  if (first === undefined) return null;
+  if (examples.length === 0) return null;
   const refs: ReplayRef[] = examples.map((example) => ({ matchId: example.match_id, round: example.round, tick: example.tick }));
-  return focusedReplayHref({ refs, title, subject: first.slot });
+  return focusedReplayHref({ refs, title, steamId: row.steamid64 });
 }
 
 /** What the sample behind the table says: "12 partidas · 340 rondas". */

@@ -94,11 +94,20 @@ func RoleSide(role string) Side {
 	return ""
 }
 
+// RoleFilter is what a board filters on: a role and a position of the map, the
+// side asked for and whether the board reads one map.
+type RoleFilter struct {
+	Role, MapRole string
+	Side          Side
+	HaveMap       bool
+}
+
 // RoleFilterSide is the side a board reads when it filters on a role or a map
 // role. Both are read on one map and played on one side, so they need a map; a
 // role needs a matching side (or none, which the role then sets) and a map role
 // needs the side. An empty role keeps the side as given.
-func RoleFilterSide(role, mapRole string, side Side, haveMap bool) (Side, error) {
+func RoleFilterSide(f RoleFilter) (Side, error) {
+	role, mapRole, side, haveMap := f.Role, f.MapRole, f.Side, f.HaveMap
 	if role != "" {
 		roleSide := RoleSide(role)
 		switch {
@@ -279,13 +288,25 @@ func (r roundRead) keys() []string {
 	return out
 }
 
-func dist3(ax, ay, az, bx, by, bz float64) float64 {
-	return math.Sqrt((ax-bx)*(ax-bx) + (ay-by)*(ay-by) + (az-bz)*(az-bz))
+func dist3(a, b [3]float64) float64 {
+	return math.Sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
+}
+
+// roundReadInput is one player's round to read: the match, the opening frames
+// of the round and the player's slot and side in it.
+type roundReadInput struct {
+	doc    Document
+	zones  map[string]siteZone
+	frames []Frame
+	round  Round
+	slot   uint8
+	side   Side
 }
 
 // readRoleRound reads one player's opening window of one round; false when the
-// window holds no usable position.
-func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, round Round, slot uint8, side Side) (roundRead, bool) {
+// window holds no usable position or no callout names where the player stood.
+func readRoleRound(in roundReadInput) (roundRead, bool) {
+	doc, zones, frames, round, slot, side := in.doc, in.zones, in.frames, in.round, in.slot, in.side
 	var out roundRead
 	places := newTally()
 	zoneTally := newTally()
@@ -301,9 +322,11 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 		}
 	}
 	out.place = places.top()
-	if out.place != "" {
-		out.counts.Places = map[string]int{out.place: 1}
+	// A round no callout places is not a sampled round: shares are of the rounds with a place.
+	if out.place == "" {
+		return roundRead{}, false
 	}
+	out.counts.Places = map[string]int{out.place: 1}
 	if side == SideCT {
 		top := zoneTally.top()
 		if top == "" {
@@ -344,7 +367,7 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 		nearest := math.Inf(1)
 		for _, s := range frame.Samples {
 			if mates[s.Slot] && s.Flags.Has(FlagAlive) {
-				nearest = math.Min(nearest, dist3(s.X, s.Y, s.Z, me.X, me.Y, me.Z))
+				nearest = math.Min(nearest, dist3([3]float64{s.X, s.Y, s.Z}, [3]float64{me.X, me.Y, me.Z}))
 			}
 		}
 		if !math.IsInf(nearest, 1) {
@@ -361,7 +384,7 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 	case mean >= PositionLurkDistance:
 		out.counts.Lurk = 1
 		out.role = PositionHalfLurk
-		switch leanedSite(zones, sumX/float64(seen), sumY/float64(seen)) {
+		switch leanedSite(zones, [2]float64{sumX / float64(seen), sumY / float64(seen)}) {
 		case ZoneA:
 			out.counts.LurkA, out.role = 1, PositionLurkA
 		case ZoneB:
@@ -376,14 +399,14 @@ func readRoleRound(doc Document, zones map[string]siteZone, frames []Frame, roun
 }
 
 // leanedSite is the bombsite nearest to a point, or empty when the map has none read.
-func leanedSite(zones map[string]siteZone, x, y float64) string {
+func leanedSite(zones map[string]siteZone, at [2]float64) string {
 	best, bestDist := "", math.Inf(1)
 	for _, zone := range []string{ZoneA, ZoneB} {
 		z, ok := zones[zone]
 		if !ok {
 			continue
 		}
-		if d := math.Hypot(x-z.center[0], y-z.center[1]); d < bestDist {
+		if d := math.Hypot(at[0]-z.center[0], at[1]-z.center[1]); d < bestDist {
 			best, bestDist = zone, d
 		}
 	}

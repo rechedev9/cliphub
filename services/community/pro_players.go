@@ -181,7 +181,9 @@ func readProPlayersGroup(files []string) (tacticalplan.ProPlayersMatch, bool) {
 		if t, err := time.Parse(time.RFC3339, p.header.Match.PlayedAt); err == nil {
 			info.PlayedAt = t
 		}
-		read = append(read, tacticalplan.ReadProPlayersMatch(tacticalplan.MetricsMatch{MatchID: uuid.UUID{1}, PlayedAt: info.PlayedAt, Document: doc}, p.opening, info))
+		read = append(read, tacticalplan.ReadProPlayersMatch(tacticalplan.ReadProPlayersInput{
+			Match: tacticalplan.MetricsMatch{MatchID: uuid.UUID{1}, PlayedAt: info.PlayedAt, Document: doc}, Opening: p.opening, Info: info,
+		}))
 	}
 	if len(read) == 0 {
 		return tacticalplan.ProPlayersMatch{}, false
@@ -223,9 +225,17 @@ func readProPlayersMatches(ctx context.Context, analysesDir string) (map[string]
 	return out, nil
 }
 
+// proPlayersBuild is where the pro players are read from and stored, and the time they are stamped with.
+type proPlayersBuild struct {
+	store       *store
+	analysesDir string
+	at          time.Time
+}
+
 // buildProPlayers stores one payload per map and the list of maps. Like the
 // lineups, a folder with nothing readable leaves the stored payloads alone.
-func buildProPlayers(ctx context.Context, s *store, analysesDir string, at time.Time) (proPlayersIndex, error) {
+func buildProPlayers(ctx context.Context, in proPlayersBuild) (proPlayersIndex, error) {
+	s, analysesDir, at := in.store, in.analysesDir, in.at
 	byMap, err := readProPlayersMatches(ctx, analysesDir)
 	if err != nil {
 		return proPlayersIndex{}, err
@@ -300,6 +310,8 @@ type proPlayersRequest struct {
 	metric    string
 	minRounds int
 	limit     int
+	// now is when the request was served; days count back from it.
+	now time.Time
 }
 
 func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
@@ -321,7 +333,7 @@ func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 		return req, errors.New("side must be CT or T")
 	}
 	var err error
-	if req.side, err = tacticalplan.RoleFilterSide(req.role, req.mapRole, req.side, req.mapName != ""); err != nil {
+	if req.side, err = tacticalplan.RoleFilterSide(tacticalplan.RoleFilter{Role: req.role, MapRole: req.mapRole, Side: req.side, HaveMap: req.mapName != ""}); err != nil {
 		return req, err
 	}
 	if req.metric == "" {
@@ -344,6 +356,10 @@ func parseProPlayersRequest(r *http.Request) (proPlayersRequest, error) {
 		if raw == "" {
 			continue
 		}
+		if f.name == "days" && raw == "all" {
+			*f.into = 0
+			continue
+		}
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < f.min || n > f.max {
 			return req, fmt.Errorf("%s must be an integer from %d to %d", f.name, f.min, f.max)
@@ -363,7 +379,8 @@ func (a *api) handleProPlayers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	board, err := a.proPlayersBoard(r.Context(), req, time.Now())
+	req.now = time.Now()
+	board, err := a.proPlayersBoard(r.Context(), req)
 	if err != nil {
 		a.internal(w, "pro players", err)
 		return
@@ -403,7 +420,7 @@ func (a *api) proPlayersMaps(ctx context.Context, mapName string) ([]string, err
 	return index.Maps, nil
 }
 
-func (a *api) proPlayersBoard(ctx context.Context, req proPlayersRequest, now time.Time) (community.ProPlayersBoard, error) {
+func (a *api) proPlayersBoard(ctx context.Context, req proPlayersRequest) (community.ProPlayersBoard, error) {
 	mapNames, err := a.proPlayersMaps(ctx, req.mapName)
 	if err != nil {
 		return community.ProPlayersBoard{}, err
@@ -422,9 +439,11 @@ func (a *api) proPlayersBoard(ctx context.Context, req proPlayersRequest, now ti
 		matches = append(matches, p.Matches...)
 		builtAt = p.BuiltAt
 	}
-	res := tacticalplan.ProPlayersBoard(matches,
-		tacticalplan.ProPlayersQuery{Side: req.side, Days: req.days, Now: now, Top: req.top, TeamTop: req.teamTop, Event: req.event, Roles: req.mapName != ""},
-		tacticalplan.LeaderboardOptions{Metric: req.metric, MinRounds: req.minRounds, Limit: req.limit, Role: req.role, MapRole: req.mapRole, MapRoleSide: req.side})
+	res := tacticalplan.ProPlayersBoard(tacticalplan.ProPlayersBoardInput{
+		Matches: matches,
+		Query:   tacticalplan.ProPlayersQuery{Side: req.side, Days: req.days, Now: req.now, Top: req.top, TeamTop: req.teamTop, Event: req.event, Roles: req.mapName != ""},
+		Rows:    tacticalplan.LeaderboardOptions{Metric: req.metric, MinRounds: req.minRounds, Limit: req.limit, Role: req.role, MapRole: req.mapRole, MapRoleSide: req.side},
+	})
 	board := community.ProPlayersBoard{
 		Map: req.mapName, Side: string(req.side), Role: req.role, MapRole: req.mapRole, Event: req.event, Days: req.days, Top: req.top, TeamTop: req.teamTop,
 		Metric: req.metric, HigherIsBetter: !tacticalplan.LowerIsBetter(req.metric), MinRounds: req.minRounds, Maps: res.Maps, Rounds: res.Rounds,

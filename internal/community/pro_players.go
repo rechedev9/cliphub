@@ -17,6 +17,9 @@ const ProPlayersDefaultLimit = 100
 // maxProPlayersBytes bounds a board: 500 rows of a dozen numbers.
 const maxProPlayersBytes = 4 << 20
 
+// ProPlayersAllDates is the Days value that reads every map, dated or not.
+const ProPlayersAllDates = -1
+
 // ProPlayersTops are the opponent levels the server offers: the rival is ranked
 // at most this high in the HLTV world ranking.
 var ProPlayersTops = []int{5, 15, 30, 50}
@@ -30,7 +33,7 @@ type ProPlayersQuery struct {
 	MapRole string
 	// Event keeps the maps of one event.
 	Event string
-	// Days keeps the maps played within this many days.
+	// Days keeps the maps played within this many days; ProPlayersAllDates reads every date.
 	Days int
 	// Top keeps the lines against a rival ranked this high or better.
 	Top int
@@ -84,6 +87,9 @@ func (q ProPlayersQuery) Values() url.Values {
 	set("event", q.Event)
 	set("metric", q.Metric)
 	setInt("days", q.Days)
+	if q.Days == ProPlayersAllDates {
+		v.Set("days", "all")
+	}
 	setInt("top", q.Top)
 	setInt("team_top", q.TeamTop)
 	setInt("min_rounds", q.MinRounds)

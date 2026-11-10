@@ -61,8 +61,8 @@ export type LeaderboardRole = (typeof CT_ROLES)[number] | (typeof T_ROLES)[numbe
 
 export type LeaderboardRoles = { ct?: LeaderboardRole; t?: LeaderboardRole };
 
-/** A round of the row to open in the Replay (`LeaderboardRow.examples`), with the player's slot in that match. */
-export type LeaderboardRound = { match_id: string; round: number; tick: number; slot: number };
+/** A round of the row to open in the Replay (`LeaderboardRow.examples`). */
+export type LeaderboardRound = { match_id: string; round: number; tick: number };
 
 /** A role or a position and the share of the player's rounds it covers, in percent. */
 export type BreakdownShare = { key: string; label?: string; pct: number };
@@ -136,8 +136,8 @@ export type LeaderboardQuery = BaselineQuery & {
   source?: LeaderboardMatchSource;
   /** A callout, or `allround`, held on `side`; needs the map and the side. */
   map_role?: string;
-  /** Pro scope: only maps from the last N days, of one event, against a team ranked `top` or better, and players whose own team is ranked `team_top` or better. */
-  days?: number;
+  /** Pro scope: only maps from the last N days (`all` for every date, dated or not), of one event, against a team ranked `top` or better, and players whose own team is ranked `team_top` or better. */
+  days?: number | 'all';
   top?: ProTop;
   team_top?: ProTop;
   event?: string;

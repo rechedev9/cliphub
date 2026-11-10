@@ -61,3 +61,14 @@ func TestBaselineSpreadRemovesSamplingNoise(t *testing.T) {
 		t.Fatalf("two players borrow the reference prior, got %v", got)
 	}
 }
+
+func TestProLeaderboardDerivesKDAndHasNoRating(t *testing.T) {
+	rows := []ProReferenceRow{{SteamID64: "1", Name: "a", Rounds: 40, Values: map[string]float64{MetricKPR: 0.8, MetricDPR: 0.5}}}
+	got := ProLeaderboard(rows, MetricKD, 20, 0)
+	if len(got) != 1 || got[0].Value != 1.6 || got[0].Metrics[MetricKD] != 1.6 {
+		t.Fatalf("kd board = %+v, want kills per round over deaths per round", got)
+	}
+	if got := ProLeaderboard(rows, MetricRating, 20, 0); len(got) != 0 {
+		t.Fatalf("rating board = %+v, want none: the reference keeps no assists", got)
+	}
+}

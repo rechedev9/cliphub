@@ -116,16 +116,32 @@ func (r ProReference) For(mapName string) (Baseline, []ProReferenceRow, string) 
 }
 
 // ProLeaderboard ranks reference rows on one metric like BaselineSample.Leaderboard.
+// Rows hold the reference metrics and kd, which kills and deaths per round give;
+// the rating needs assists per round, which the reference does not keep, so a
+// rating board over reference rows is empty.
 func ProLeaderboard(rows []ProReferenceRow, metric string, minRounds, limit int) []LeaderboardRow {
 	out := []LeaderboardRow{}
 	for _, row := range rows {
-		v, ok := row.Values[metric]
+		values := referenceValues(row.Values)
+		v, ok := values[metric]
 		if row.Rounds < minRounds || !ok {
 			continue
 		}
-		out = append(out, LeaderboardRow{SteamID64: row.SteamID64, Name: row.Name, Team: row.Team, Rounds: row.Rounds, Matches: row.Matches, Value: v})
+		out = append(out, LeaderboardRow{SteamID64: row.SteamID64, Name: row.Name, Team: row.Team, Rounds: row.Rounds, Matches: row.Matches, Value: v, Metrics: values})
 	}
 	return rankRows(out, metric, limit)
+}
+
+// referenceValues is a reference row's metrics with kd added when deaths per round are known.
+func referenceValues(values map[string]float64) map[string]float64 {
+	out := make(map[string]float64, len(values)+1)
+	for k, v := range values {
+		out[k] = v
+	}
+	if dpr := values[MetricDPR]; dpr > 0 {
+		out[MetricKD] = round4(values[MetricKPR] / dpr)
+	}
+	return out
 }
 
 // rankRows orders rows best first, ties by rounds then id, and numbers them.

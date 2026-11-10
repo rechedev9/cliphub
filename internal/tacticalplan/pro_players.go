@@ -61,10 +61,18 @@ type ProPlayersMatch struct {
 	Sides    []ProPlayerSide `json:"sides"`
 }
 
+// ReadProPlayersInput is a pro map to reduce: its analysis, the opening frames of its rounds and its teams.
+type ReadProPlayersInput struct {
+	Match   MetricsMatch
+	Opening map[int][]Frame
+	Info    ProPlayersInfo
+}
+
 // ReadProPlayersMatch reduces a pro map to the lines of ProPlayersMatch.
-// opening holds the opening-window frames (OpeningFrames); without them no role is read.
-func ReadProPlayersMatch(m MetricsMatch, opening map[int][]Frame, info ProPlayersInfo) ProPlayersMatch {
-	read := ReadMatch(m, MatchReadOptions{Roles: true, Opening: opening})
+// Opening holds the opening-window frames (OpeningFrames); without them no role is read.
+func ReadProPlayersMatch(in ReadProPlayersInput) ProPlayersMatch {
+	m, info := in.Match, in.Info
+	read := ReadMatch(m, MatchReadOptions{Roles: true, Opening: in.Opening})
 	out := ProPlayersMatch{MatchID: info.MatchID, Map: m.Document.Demo.Map, Event: info.Event, PlayedAt: info.PlayedAt, Rounds: read.Rounds}
 	teamKey := map[string]string{}
 	for _, p := range m.Document.Players {
@@ -168,9 +176,17 @@ type ProPlayersResult struct {
 	MapRoles []MapRoleOption
 }
 
+// ProPlayersBoardInput is what a board ranks: the pro maps, the query that narrows them and how the rows are ranked.
+type ProPlayersBoardInput struct {
+	Matches []ProPlayersMatch
+	Query   ProPlayersQuery
+	Rows    LeaderboardOptions
+}
+
 // ProPlayersBoard ranks the players of the pro maps that pass the query, the
 // way a library leaderboard does.
-func ProPlayersBoard(matches []ProPlayersMatch, q ProPlayersQuery, opts LeaderboardOptions) ProPlayersResult {
+func ProPlayersBoard(in ProPlayersBoardInput) ProPlayersResult {
+	matches, q, opts := in.Matches, in.Query, in.Rows
 	var s LeaderboardSample
 	events := map[string]bool{}
 	for _, m := range matches {

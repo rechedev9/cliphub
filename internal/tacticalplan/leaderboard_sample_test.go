@@ -133,3 +133,15 @@ func TestRoleSide(t *testing.T) {
 		t.Fatal("RoleSide put a role on the wrong side")
 	}
 }
+
+func TestLeaderboardRoundWithoutACalloutIsNotSampled(t *testing.T) {
+	m, frames := roleMatch("00000000-0000-0000-0000-0000000000d5", true)
+	m.Document.Geometry = MapGeometry{}
+	var s LeaderboardSample
+	s.Add(ReadMatch(m, MatchReadOptions{Roles: true, Opening: frames}), SideT)
+	for _, row := range s.Rows(LeaderboardOptions{Metric: MetricKPR, MinRounds: 1}) {
+		if (row.Roles != nil && (row.Roles.CT != "" || row.Roles.T != "")) || row.Breakdown != nil {
+			t.Fatalf("row %s has roles %+v without any callout to place its rounds", row.Name, row.Roles)
+		}
+	}
+}

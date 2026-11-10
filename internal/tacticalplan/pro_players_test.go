@@ -13,10 +13,10 @@ func proMatch(id string, playedAt time.Time, rankOfCT int) ProPlayersMatch {
 		m.Document.Players[i].TeamKey = "t-start"
 	}
 	m.Document.Players[3].TeamKey = "ct-start"
-	return ReadProPlayersMatch(m, frames, ProPlayersInfo{
+	return ReadProPlayersMatch(ReadProPlayersInput{Match: m, Opening: frames, Info: ProPlayersInfo{
 		MatchID: id, PlayedAt: playedAt, Event: "IEM Cologne",
 		Teams: map[string]ProPlayersTeam{"t-start": {Name: "Falcons", Rank: 3}, "ct-start": {Name: "Vitality", Rank: rankOfCT}},
-	})
+	}})
 }
 
 func TestProPlayersMatchKeepsTeamRanksAndRoles(t *testing.T) {
@@ -40,27 +40,27 @@ func TestProPlayersBoardFiltersByRoleDaysEventAndRanks(t *testing.T) {
 	}
 	matches[1].Event = "BLAST Open"
 	opts := LeaderboardOptions{Metric: MetricRating, MinRounds: 1, Role: PositionLurkB}
-	res := ProPlayersBoard(matches, ProPlayersQuery{Side: SideT, Now: proNow, Roles: true}, opts)
+	res := ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideT, Now: proNow, Roles: true}, Rows: opts})
 	if len(res.Rows) != 1 || res.Rows[0].SteamID64 != "p0" || res.Rows[0].Team != "Falcons" || res.Rows[0].Rounds != 12 || res.Rows[0].Matches != 3 || res.Maps != 3 {
 		t.Fatalf("rows = %+v maps=%d, want the lurker over three maps", res.Rows, res.Maps)
 	}
-	res = ProPlayersBoard(matches, ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Roles: true}, opts)
+	res = ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Roles: true}, Rows: opts})
 	if len(res.Rows) != 1 || res.Rows[0].Matches != 2 || res.Maps != 2 {
 		t.Fatalf("30 days = %+v maps=%d, want the two recent maps", res.Rows, res.Maps)
 	}
-	res = ProPlayersBoard(matches, ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Top: 30, Roles: true}, opts)
+	res = ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Top: 30, Roles: true}, Rows: opts})
 	if len(res.Rows) != 1 || res.Rows[0].Matches != 1 || res.Maps != 1 {
 		t.Fatalf("top 30 = %+v maps=%d, want only the map against rank 1", res.Rows, res.Maps)
 	}
-	res = ProPlayersBoard(matches, ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Event: "blast open", Roles: true}, opts)
+	res = ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideT, Now: proNow, Days: 30, Event: "blast open", Roles: true}, Rows: opts})
 	if res.Maps != 1 || len(res.Events) != 2 {
 		t.Fatalf("event = %+v, want the one BLAST map and both events listed", res)
 	}
-	res = ProPlayersBoard(matches, ProPlayersQuery{Side: SideT, Now: proNow, TeamTop: 2, Roles: true}, opts)
+	res = ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideT, Now: proNow, TeamTop: 2, Roles: true}, Rows: opts})
 	if len(res.Rows) != 0 {
 		t.Fatalf("team top 2 = %+v, want nobody: Falcons are ranked 3", res.Rows)
 	}
-	res = ProPlayersBoard(matches, ProPlayersQuery{Side: SideCT, Now: proNow, Roles: true}, LeaderboardOptions{Metric: MetricRating, MinRounds: 1, Role: PositionAnchorB})
+	res = ProPlayersBoard(ProPlayersBoardInput{Matches: matches, Query: ProPlayersQuery{Side: SideCT, Now: proNow, Roles: true}, Rows: LeaderboardOptions{Metric: MetricRating, MinRounds: 1, Role: PositionAnchorB}})
 	if len(res.Rows) != 0 {
 		t.Fatalf("anchor B rows = %+v, want none: nobody played CT", res.Rows)
 	}
@@ -68,7 +68,7 @@ func TestProPlayersBoardFiltersByRoleDaysEventAndRanks(t *testing.T) {
 
 func TestProPlayersBoardUnknownRankIsNotTopN(t *testing.T) {
 	unranked := proMatch("1", proNow, 0)
-	res := ProPlayersBoard([]ProPlayersMatch{unranked}, ProPlayersQuery{Now: proNow, Top: 50}, LeaderboardOptions{Metric: MetricKPR, MinRounds: 1})
+	res := ProPlayersBoard(ProPlayersBoardInput{Matches: []ProPlayersMatch{unranked}, Query: ProPlayersQuery{Now: proNow, Top: 50}, Rows: LeaderboardOptions{Metric: MetricKPR, MinRounds: 1}})
 	if res.Maps != 1 || len(res.Rows) != 1 || res.Rows[0].SteamID64 != "p3" {
 		t.Fatalf("rows = %+v maps=%d, want only the player who faced a ranked team", res.Rows, res.Maps)
 	}
@@ -109,5 +109,15 @@ func TestMapRolesNameWhereTheWindowIsSpent(t *testing.T) {
 	}
 	if got := s.Rows(LeaderboardOptions{Metric: MetricKPR, MinRounds: 1, MapRole: MapRoleAllround, MapRoleSide: SideT}); len(got) != 0 {
 		t.Fatalf("allround rows = %+v, want none: everyone holds a place", got)
+	}
+}
+
+func TestProPlayersBoardEveryDateKeepsMapsWithoutADate(t *testing.T) {
+	undated := proMatch("1", time.Time{}, 1)
+	rows := LeaderboardOptions{Metric: MetricKPR, MinRounds: 1}
+	every := ProPlayersBoard(ProPlayersBoardInput{Matches: []ProPlayersMatch{undated}, Query: ProPlayersQuery{Now: proNow}, Rows: rows})
+	recent := ProPlayersBoard(ProPlayersBoardInput{Matches: []ProPlayersMatch{undated}, Query: ProPlayersQuery{Now: proNow, Days: 90}, Rows: rows})
+	if every.Maps != 1 || recent.Maps != 0 {
+		t.Fatalf("every date read %d maps and 90 days %d, want 1 and 0", every.Maps, recent.Maps)
 	}
 }

@@ -114,7 +114,7 @@ function PlayerRow({
         </div>
       </td>
       {RANKING_COLUMNS.map((column) => {
-        const value = row === null ? null : cellValue(row, column.sort, boardMetric);
+        const value = row === null ? null : cellValue({ row, sort: column.sort, boardMetric });
         return (
           <td key={column.sort} className={cn('px-2 py-1.5 text-right tabular-nums', state.sort === column.sort ? 'text-fg-1' : 'text-fg-2')}>
             {value === null ? <span className="text-fg-4">-</span> : column.format(value)}

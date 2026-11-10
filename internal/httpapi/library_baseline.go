@@ -73,7 +73,7 @@ type leaderboardResponse struct {
 	Matches        int    `json:"matches"`
 	Rounds         int    `json:"rounds"`
 	Skipped        int    `json:"skipped"`
-	// Side, Role, From, To and MatchSource echo the library filters applied.
+	// Days, Top, TeamTop and Event echo the pro filters applied; Days is 0 for every date.
 	Days    int    `json:"days,omitempty"`
 	Top     int    `json:"top,omitempty"`
 	TeamTop int    `json:"team_top,omitempty"`
@@ -81,7 +81,8 @@ type leaderboardResponse struct {
 	MapRole string `json:"map_role,omitempty"`
 	// MapRoles are the positions players have on the side, to offer in a filter; Events the pro events in the period.
 	MapRoles    []tacticalplan.MapRoleOption  `json:"map_roles,omitempty"`
-	Events      []string                      `json:"events,omitempty"`
+	Events []string `json:"events,omitempty"`
+	// Side, Role, From, To and MatchSource echo the library filters applied.
 	Side        string                        `json:"side,omitempty"`
 	Role        string                        `json:"role,omitempty"`
 	From        *time.Time                    `json:"from,omitempty"`
@@ -180,12 +181,12 @@ func (h *Handlers) GetLibraryLeaderboard(w http.ResponseWriter, r *http.Request)
 		if filters.days == 0 {
 			filters.days = proDefaultDays
 		}
-		out.Days, out.Top, out.TeamTop, out.Event = filters.days, filters.top, filters.teamTop, filters.event
-		h.writeProLeaderboard(r.Context(), w, out, filters, limit)
+		out.Days, out.Top, out.TeamTop, out.Event = max(filters.days, 0), filters.top, filters.teamTop, filters.event
+		h.writeProLeaderboard(w, proBoard{ctx: r.Context(), out: out, filters: filters, limit: limit})
 		return
 	}
 	if q.scope == baselineScopeLibrary {
-		sample, skipped, err := h.leaderboardSample(r.Context(), q, filters)
+		sample, skipped, err := h.leaderboardSample(r.Context(), leaderboardRead{query: q, filters: filters})
 		if err != nil {
 			internalError(w, "leaderboard", err)
 			return

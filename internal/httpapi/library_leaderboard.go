@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/library"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
@@ -73,7 +74,7 @@ func parseLeaderboardFilters(q url.Values, base baselineQuery) (leaderboardFilte
 		}
 	}
 	f.role, f.mapRole, f.event = q.Get("role"), q.Get("map_role"), q.Get("event")
-	if f.side, err = tacticalplan.RoleFilterSide(f.role, f.mapRole, f.side, base.mapName != ""); err != nil {
+	if f.side, err = tacticalplan.RoleFilterSide(tacticalplan.RoleFilter{Role: f.role, MapRole: f.mapRole, Side: f.side, HaveMap: base.mapName != ""}); err != nil {
 		return f, err
 	}
 	for _, in := range []struct {
@@ -83,6 +84,10 @@ func parseLeaderboardFilters(q url.Values, base baselineQuery) (leaderboardFilte
 	}{{"days", &f.days, 365}, {"top", &f.top, 50}, {"team_top", &f.teamTop, 50}} {
 		raw := q.Get(in.name)
 		if raw == "" {
+			continue
+		}
+		if in.name == "days" && raw == "all" {
+			f.days = community.ProPlayersAllDates
 			continue
 		}
 		n, err := strconv.Atoi(raw)
@@ -128,11 +133,18 @@ func (c *matchReadCache) put(id uuid.UUID, e matchReadEntry) {
 	c.entries[id] = e
 }
 
+// leaderboardRead is the query and the filters a leaderboard sample folds the library by.
+type leaderboardRead struct {
+	query   baselineQuery
+	filters leaderboardFilters
+}
+
 // leaderboardSample folds the library's matches that pass the filters, newest
 // first, and returns how many it could not read. Roles are read only on a map.
 // Matches are read without holding the cache lock, so a slow first read does
 // not stall other requests; two requests may read the same match once each.
-func (h *Handlers) leaderboardSample(ctx context.Context, q baselineQuery, f leaderboardFilters) (*tacticalplan.LeaderboardSample, int, error) {
+func (h *Handlers) leaderboardSample(ctx context.Context, in leaderboardRead) (*tacticalplan.LeaderboardSample, int, error) {
+	q, f := in.query, in.filters
 	matches, err := h.allLibraryMatches(ctx, library.MatchFilter{Map: q.mapName, From: f.from, To: f.to, Source: f.source})
 	if err != nil {
 		return nil, 0, err

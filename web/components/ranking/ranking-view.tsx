@@ -68,13 +68,22 @@ function RankingBody({
       </p>
     );
   }
+  if (entries.length === 0 && pro && load.board.source === 'bundled') {
+    return (
+      <EmptyState
+        icon={Trophy}
+        title="Los datos pro no están disponibles"
+        description="Sin el servidor de ClipHub, Studio solo trae una muestra de profesionales sin rating ni posiciones. Activa el servidor de la comunidad en los ajustes, o ordena por ADR, KAST, KPR, DPR o K/D."
+      />
+    );
+  }
   if (entries.length === 0) {
     return (
       <EmptyState
         icon={Trophy}
         title="Nadie llega al mínimo de rondas"
         description={`Baja las rondas mínimas, amplía el periodo o quita el rol y la posición${pro ? ', el evento o el nivel de los equipos' : ''}. ${
-          pro ? 'Los profesionales salen de los mapas de HLTV que indexa el servidor de ClipHub.' : 'El ranking sale de las demos analizadas de tu biblioteca.'
+          pro ? 'Los profesionales salen de los mapas profesionales que indexa el servidor de ClipHub.' : 'El ranking sale de las demos analizadas de tu biblioteca.'
         }`}
       />
     );
@@ -124,7 +133,7 @@ export function RankingView(): ReactNode {
 
   const current = load?.key === query ? load : null;
   const board = current !== null && 'board' in current ? current.board : null;
-  const sorted = useMemo(() => (board === null ? [] : sortRankingRows(board.players, state, board.metric)), [board, state]);
+  const sorted = useMemo(() => (board === null ? [] : sortRankingRows({ rows: board.players, state, boardMetric: board.metric })), [board, state]);
   const entries = useMemo(() => rankingEntries(sorted, pins), [sorted, pins]);
 
   function sortBy(sort: RankingSort): void {

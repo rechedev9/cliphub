@@ -82,7 +82,7 @@ func ReadMatch(m MetricsMatch, opts MatchReadOptions) MatchRead {
 			if !opts.Roles || len(opts.Opening[r.Number]) == 0 {
 				continue
 			}
-			rr, ok := readRoleRound(m.Document, zones, opts.Opening[r.Number], r, pr.Slot, pr.Side)
+			rr, ok := readRoleRound(roundReadInput{doc: m.Document, zones: zones, frames: opts.Opening[r.Number], round: r, slot: pr.Slot, side: pr.Side})
 			if !ok {
 				continue
 			}

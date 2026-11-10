@@ -115,7 +115,7 @@ func TestRebuildReferenceKeepsTheProPlayersPayloads(t *testing.T) {
 func TestBuildProPlayersKeepsStoredPayloadsWhenNothingIsRead(t *testing.T) {
 	a, _ := testAPI(t)
 	storeProPlayers(t, a, nil, time.Now())
-	if _, err := buildProPlayers(context.Background(), a.store, filepath.Join(t.TempDir(), "missing"), time.Now()); err == nil {
+	if _, err := buildProPlayers(context.Background(), proPlayersBuild{store: a.store, analysesDir: filepath.Join(t.TempDir(), "missing"), at: time.Now()}); err == nil {
 		t.Fatal("an empty analyses folder must not rebuild the pro players")
 	}
 	if _, _, err := a.store.referenceBody(context.Background(), proPlayersPrefix+"de_anubis"); err != nil {

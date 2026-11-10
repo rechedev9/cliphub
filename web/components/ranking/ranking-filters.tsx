@@ -93,7 +93,7 @@ function MinRoundsInput({ value, onCommit }: { value: number; onCommit: (rounds:
 /** Search among the ranked players and pin one, so a player can be followed through any filter. */
 function PlayerSearch({ players, pins, onPin }: { players: readonly LeaderboardRow[]; pins: readonly PinnedPlayer[]; onPin: (pin: PinnedPlayer) => void }): ReactNode {
   const [term, setTerm] = useState('');
-  const found = searchPlayers(players, term, pins);
+  const found = searchPlayers({ rows: players, term, pins });
   return (
     <div className="relative">
       <Search aria-hidden className="pointer-events-none absolute top-2 left-2 size-3.5 text-fg-3" />
@@ -148,6 +148,9 @@ export function RankingFilters({
   const pro = state.scope.reference === 'pro';
   const needsMap = state.scope.map === '';
   const needsSide = state.scope.side === '';
+  // The options arrive with the board; the chosen value from the URL must show while it loads.
+  const positions = state.mapRole === '' || mapRoles.some((option) => option.key === state.mapRole) ? mapRoles : [{ key: state.mapRole, label: state.mapRole, players: 0 }, ...mapRoles];
+  const eventNames = state.event === '' || events.includes(state.event) ? events : [state.event, ...events];
   const roleTitle = needsMap ? 'Elige un mapa: el rol se lee en un mapa' : undefined;
   const positionTitle = needsMap || needsSide ? 'Elige un mapa y un lado: la posición es una zona del mapa en un lado' : undefined;
   return (
@@ -189,9 +192,9 @@ export function RankingFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>Todas las posiciones</SelectItem>
-          {mapRoles.map((option) => (
+          {positions.map((option) => (
             <SelectItem key={option.key} value={option.key}>
-              {option.label} ({option.players})
+              {option.players > 0 ? `${option.label} (${option.players})` : option.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -230,7 +233,7 @@ export function RankingFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Todos los eventos</SelectItem>
-              {events.map((event) => (
+              {eventNames.map((event) => (
                 <SelectItem key={event} value={event}>
                   {event}
                 </SelectItem>

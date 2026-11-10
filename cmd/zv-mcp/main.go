@@ -68,7 +68,7 @@ kept rounds), and save_playbook_combo stores a combination in the Libreta.
 For a player: player_positions; leaderboard is the Ranking page: it ranks the library's players on one metric (rating, kd or a get_baseline one),
 filtered by map, side, role (such as b_lurk on de_anubis), map_role (a callout held on the map and side, or allround; the answer's
 map_roles lists them), dates and demo source, with each player's metrics, roles, breakdown (percent of rounds per role and per
-position) and round refs. The rating is the Rating de ClipHub. Scope pro ranks the pro players of the community server
+position) and round refs. The rating is the Rating de ClipHub. Without from and to the library scope reads the last 90 days, like the page. Scope pro ranks the pro players of the community server
 (last 90 days unless days says otherwise) by side, role, map_role, the HLTV rank of the rival (top) and of the player's own team
 (team_top) and event (the answer's events lists them); those rows carry a team and no refs.
 Fix the library's teams: update_team renames or replaces the aliases (start from get_team),

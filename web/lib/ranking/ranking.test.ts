@@ -113,7 +113,7 @@ test('the pro request names a period, rival and team level, event and position, 
     ['pro', 'de_anubis', 'b_lurk', 'T', 30, 30, undefined, undefined],
   );
   assert.equal(leaderboardRequest(parse('ref=pro'), NOW).days, 90);
-  assert.equal(leaderboardRequest(parse('ref=pro&period=all'), NOW).days, 365);
+  assert.equal(leaderboardRequest(parse('ref=pro&period=all'), NOW).days, 'all');
   assert.equal(leaderboardRequest(parse('ref=pro&rival=7'), NOW).top, undefined);
   assert.equal(parse('rival=30').top, null);
   assert.equal(parse('ref=pro&rival=30').top, 30);
@@ -122,10 +122,10 @@ test('the pro request names a period, rival and team level, event and position, 
 
 test('sorting puts the best first, deaths per round lowest first, and rows without the value last', () => {
   const rows = [row('1', 1.0, 100, 0.8), row('2', 1.3, 60, 0.6), { ...row('3', 1.1, 80), metrics: { rating: 1.1 } }];
-  assert.deepEqual(sortRankingRows(rows, { sort: 'rating', dir: null }, 'rating').map((r) => r.steamid64), ['2', '3', '1']);
-  assert.deepEqual(sortRankingRows(rows, { sort: 'rating', dir: 'asc' }, 'rating').map((r) => r.steamid64), ['1', '3', '2']);
-  assert.deepEqual(sortRankingRows(rows, { sort: 'dpr', dir: null }, 'rating').map((r) => r.steamid64), ['2', '1', '3']);
-  assert.deepEqual(sortRankingRows(rows, { sort: 'rounds', dir: null }, 'rating').map((r) => r.steamid64), ['1', '3', '2']);
+  assert.deepEqual(sortRankingRows({ rows, state: { sort: 'rating', dir: null }, boardMetric: 'rating' }).map((r) => r.steamid64), ['2', '3', '1']);
+  assert.deepEqual(sortRankingRows({ rows, state: { sort: 'rating', dir: 'asc' }, boardMetric: 'rating' }).map((r) => r.steamid64), ['1', '3', '2']);
+  assert.deepEqual(sortRankingRows({ rows, state: { sort: 'dpr', dir: null }, boardMetric: 'rating' }).map((r) => r.steamid64), ['2', '1', '3']);
+  assert.deepEqual(sortRankingRows({ rows, state: { sort: 'rounds', dir: null }, boardMetric: 'rating' }).map((r) => r.steamid64), ['1', '3', '2']);
 });
 
 test('pinned players stay on top in table order and the ones the filter leaves out close the table', () => {
@@ -143,9 +143,9 @@ test('pinned players stay on top in table order and the ones the filter leaves o
 
 test('searching finds ranked players by name and skips the pinned ones', () => {
   const rows = [row('1', 1, 90), row('2', 1, 90), { ...row('3', 1, 90), name: 'Zywoo' }];
-  assert.deepEqual(searchPlayers(rows, ' ZYW ', []).map((r) => r.steamid64), ['3']);
-  assert.deepEqual(searchPlayers(rows, 'zywoo', [{ steamid64: '3', name: 'Zywoo' }]), []);
-  assert.deepEqual(searchPlayers(rows, '', []), []);
+  assert.deepEqual(searchPlayers({ rows, term: ' ZYW ', pins: [] }).map((r) => r.steamid64), ['3']);
+  assert.deepEqual(searchPlayers({ rows, term: 'zywoo', pins: [{ steamid64: '3', name: 'Zywoo' }] }), []);
+  assert.deepEqual(searchPlayers({ rows, term: '', pins: [] }), []);
   assert.equal(lowSample(row('1', 1, 49)), true);
   assert.equal(lowSample(row('1', 1, 50)), false);
 });
@@ -158,9 +158,10 @@ test('pins toggle and a corrupt store reads as none', () => {
 });
 
 test('a row opens its rounds in the Replay', () => {
-  const withRounds = { ...row('1', 1, 10), examples: [{ match_id: MATCH, round: 4, tick: 900, slot: 7 }] };
+  const id = '76561198000000001';
+  const withRounds = { ...row(id, 1, 10), examples: [{ match_id: MATCH, round: 4, tick: 900 }] };
   const href = playerRoundsHref(withRounds, 'p1');
   assert.equal(href?.startsWith(`/replay?r=${MATCH}%3A4%3A900`), true);
-  assert.match(href ?? '', /subject=7/);
+  assert.match(href ?? '', new RegExp(`jugador=${id}`));
   assert.equal(playerRoundsHref(row('2', 1, 10), 'p2'), null);
 });

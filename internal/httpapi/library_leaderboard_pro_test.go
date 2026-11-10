@@ -44,6 +44,12 @@ func TestProLeaderboardWithFiltersComesFromTheCommunityServer(t *testing.T) {
 	if resp.MinRounds != tacticalplan.BaselineMinRounds {
 		t.Errorf("min rounds = %d, want the shared %d", resp.MinRounds, tacticalplan.BaselineMinRounds)
 	}
+	// "Every date" reaches the server as days=all, so maps with no date are read too.
+	var every leaderboardResponse
+	env.json(http.MethodGet, "/api/library/leaderboard?scope=pro&metric=rating&days=all", nil, http.StatusOK, &every)
+	if asked.Get("days") != "all" || every.Days != 0 {
+		t.Errorf("days=all asked the server days=%q and answered %d, want all and 0", asked.Get("days"), every.Days)
+	}
 	for _, bad := range []string{"&scope=pro&team_top=5&map_role=Canal&map=de_anubis", "&scope=pro&from=2026-01-01T00:00:00Z", "&scope=pro&source=hltv", "&top=5", "&days=30", "&scope=pro&top=51", "&map=de_anubis&map_role=Canal", "&map_role=Canal&side=T", "&team_top=15"} {
 		if rw := env.do(http.MethodGet, "/api/library/leaderboard?metric=rating"+bad, nil, ""); rw.Code != http.StatusBadRequest {
 			t.Errorf("leaderboard%s = %d, want 400", bad, rw.Code)
