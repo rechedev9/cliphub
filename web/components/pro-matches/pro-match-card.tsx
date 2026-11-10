@@ -123,11 +123,16 @@ function ProMapRow({ map, teams, mark, notes, busy, disabled, onOpen }: ProMapRo
           <span className="font-semibold">{name}</span>
           {mark ? <span className="text-meta font-medium tracking-wide text-fg-3">{mark}</span> : null}
         </div>
-        <div className="min-w-56 flex-1 text-body-sm text-fg-2">
-          {teams.map((team) => team.name).join(' vs ')}
-          {demos ? <span className="text-fg-3"> · {demos}</span> : null}
-          <span className="text-fg-3 tabular-nums"> · {map.rounds} rondas</span>
-        </div>
+        <p className="flex min-w-56 flex-1 flex-wrap gap-x-2 text-body-sm text-fg-2">
+          {[teams.length === 2 ? teams.map((team) => team.name).join(' vs ') : null, demos, `${map.rounds} rondas`]
+            .filter((part) => part !== null)
+            .map((part, i) => (
+              <span key={part} className={i === 0 ? undefined : 'text-fg-3 tabular-nums'}>
+                {i === 0 ? '' : '· '}
+                {part}
+              </span>
+            ))}
+        </p>
         {map.library_match_id ? (
           <Button asChild variant="outline" size="xs">
             <Link href={`/partidas/${encodeURIComponent(map.library_match_id)}?tab=replay`} aria-label={label}>
@@ -136,7 +141,7 @@ function ProMapRow({ map, teams, mark, notes, busy, disabled, onOpen }: ProMapRo
             </Link>
           </Button>
         ) : (
-          <Button type="button" variant="outline" size="xs" aria-label={label} disabled={disabled} onClick={onOpen}>
+          <Button type="button" size="xs" aria-label={busy ? `Importando ${name}…` : label} aria-busy={busy} disabled={disabled} onClick={onOpen}>
             <MonitorPlay aria-hidden />
             {busy ? 'Importando…' : '2D'}
           </Button>

@@ -177,3 +177,14 @@ test('the series score counts the maps each team won', () => {
   assert.deepEqual(seriesScore(series('s1', []), rows), [1, 2]);
   assert.equal(seriesScore({ ...series('s1', []), teams: [] }, rows), null);
 });
+
+test('the series score counts a map where only team B is assigned, and leaves a draw out', () => {
+  const draw = row('d', { at: '2026-10-01T13:00:00Z', series: 's1' });
+  const tied = draw.match === null ? draw : { ...draw, match: { ...draw.match, teams: draw.match.teams.map((team) => ({ ...team, score: 15 })) } };
+  const rows = [
+    row('b1', { at: '2026-10-01T10:00:00Z', series: 's1', teams: [null, B] }),
+    row('b2', { at: '2026-10-01T11:00:00Z', series: 's1', teams: [B, null] }),
+    tied,
+  ];
+  assert.deepEqual(seriesScore(series('s1', []), rows), [1, 1]);
+});

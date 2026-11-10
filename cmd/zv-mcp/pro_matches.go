@@ -154,7 +154,7 @@ func registerProMatchTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "import_pro_match", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Import one map of a pro match into the library, as Abrir en el Replay does on Partidas pro: Studio downloads its analysis (never the demo) " +
+		Description: "Import one map of a pro match into the library, as the 2D button of a map does on Partidas pro: Studio downloads its analysis (never the demo) " +
 			"and the match opens in the Replay and the analysis tools at once. It cannot be analysed again or recorded until its .dem is imported with import_demo. " +
 			"A map played over several demos after a server restart comes in as one match. Importing it again returns the same match, " +
 			"or swaps in the newer analysis when the server prepared the map again; delete_demo removes it."},

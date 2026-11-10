@@ -38,6 +38,8 @@ function dayHeading(day: string): string {
 const GROUPS_PER_PAGE = 40;
 
 export type GroupListContext = {
+  /** Every library row, unfiltered, so a series score counts maps a filter hides. */
+  libraryRows: readonly PartidaRow[];
   ownTeam: string | null;
   /** The name of the own team, for the label of the row edge. */
   ownName: string;
@@ -141,7 +143,7 @@ function seriesTitle(series: LibrarySeries, rows: readonly PartidaRow[]): string
 /** A series: its title, format and event, the bans, and its maps with how each was picked. */
 function SeriesCard({ series, rows, context }: { series: LibrarySeries; rows: readonly PartidaRow[]; context: GroupListContext }): ReactNode {
   const veto = seriesVeto(series);
-  const score = seriesScore(series, rows);
+  const score = seriesScore(series, context.libraryRows.filter((row) => row.match?.series_id === series.id));
   return (
     <section aria-label={seriesTitle(series, rows)} className="studio-panel overflow-hidden">
       <header className="flex flex-col gap-1 border-b border-border-subtle bg-surface-2 px-3 py-2">
