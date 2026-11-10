@@ -55,19 +55,25 @@ function PlayerRow({
   selected,
   dimmed,
   onSelect,
+  onHover,
 }: {
   card: PlayerCard;
   selected: boolean;
   /** Others are in the foreground and this player is not. */
   dimmed: boolean;
   onSelect: (event: MouseEvent) => void;
+  onHover: (element: HTMLElement | null) => void;
 }): ReactNode {
   const health = card.health ?? 0;
   const armorLabel = card.helmet === true ? 'Chaleco y casco' : 'Chaleco';
   return (
     <li
+      onMouseEnter={(event) => onHover(event.currentTarget)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={(event) => onHover(event.currentTarget)}
+      onBlur={() => onHover(null)}
       className={cn(
-        'relative flex min-w-0 flex-col gap-1 rounded-sm px-2 py-1.5 transition-[background-color,opacity] duration-(--dur-fast)',
+        'relative flex min-w-0 flex-col gap-0.5 rounded-sm px-2 py-0.5 transition-[background-color,opacity] duration-(--dur-fast)',
         selected ? 'bg-surface-4' : 'hover:bg-surface-3',
         (!card.alive || dimmed) && 'opacity-45',
       )}
@@ -81,7 +87,7 @@ function PlayerRow({
         className={cn('absolute inset-0 rounded-sm outline-none', FOCUS_RING)}
       />
       <span className="pointer-events-none relative flex min-w-0 items-center gap-1.5">
-        <span className={cn('min-w-0 flex-1 truncate text-body-sm font-semibold tracking-wide text-fg-1 uppercase', !card.alive && 'line-through decoration-fg-3')}>{card.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate text-body-sm leading-4 font-semibold tracking-wide text-fg-1 uppercase', !card.alive && 'line-through decoration-fg-3')}>{card.name}</span>
         <span
           className="flex items-center gap-0.5 text-meta tabular-nums text-fg-3"
           title={
@@ -101,15 +107,13 @@ function PlayerRow({
         </span>
         <WeaponIcon card={card} />
       </span>
-      <span className="pointer-events-none relative flex min-w-0 items-center gap-2">
-        <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-0" aria-hidden>
-          <span className={cn('block h-full rounded-full', HEALTH_FILL[card.side])} style={{ width: `${health}%` }} />
-        </span>
-        <span className="w-7 text-right text-meta font-semibold tabular-nums text-fg-1" aria-label={card.alive ? `${health} de vida` : 'Muerto'}>
-          {card.alive ? (card.health ?? '·') : '0'}
-        </span>
+      <span className="pointer-events-none relative block h-[3px] overflow-hidden rounded-full bg-surface-0" aria-hidden>
+        <span className={cn('block h-full rounded-full', HEALTH_FILL[card.side])} style={{ width: `${health}%` }} />
       </span>
       <span className="pointer-events-none relative flex min-w-0 items-center gap-2">
+        <span className="w-6 text-meta font-semibold tabular-nums text-fg-1" aria-label={card.alive ? `${health} de vida` : 'Muerto'}>
+          {card.alive ? (card.health ?? '·') : '0'}
+        </span>
         <span className="flex shrink-0 items-center gap-1 text-meta tabular-nums text-fg-2">
           {card.alive && card.armor !== null && card.armor > 0 ? <GearGlyph kind={card.helmet === true ? 'helmet' : 'armor'} label={`${armorLabel} (${card.armor})`} /> : null}
           ${money.format(card.money)}
@@ -133,6 +137,7 @@ export function PlayerPanel({
   teamScores,
   focus,
   onPick,
+  onHover,
 }: {
   sides: { ct: readonly PlayerCard[]; t: readonly PlayerCard[] };
   teamNames: Readonly<Record<TacticalSide, string>>;
@@ -140,6 +145,8 @@ export function PlayerPanel({
   teamScores: Readonly<Record<TacticalSide, number>>;
   focus: PlayerFocus;
   onPick: (slot: number, additive: boolean) => void;
+  /** The row under the pointer or the keyboard, null when it leaves. */
+  onHover: (slot: number, element: HTMLElement | null) => void;
 }): ReactNode {
   const groups = [
     { side: TACTICAL_SIDES.ct, cards: sides.ct },
@@ -151,7 +158,7 @@ export function PlayerPanel({
         const alive = cards.filter((card) => card.alive).length;
         return (
           <section key={side} aria-label={`${teamNames[side]}, lado ${side}`} className={cn('flex min-w-0 flex-col overflow-hidden rounded-sm border', CARD_EDGE[side])}>
-            <h3 className="flex items-center gap-2 px-2 pt-1.5 pb-1">
+            <h3 className="flex items-center gap-2 px-2 pt-1 pb-0.5">
               <span className="min-w-0 flex-1 truncate text-body-sm font-bold text-fg-1">{teamNames[side]}</span>
               <span className="text-meta tabular-nums text-fg-3" title="Jugadores vivos">
                 <span className="text-fg-1">{alive}</span>/{cards.length}
@@ -169,6 +176,7 @@ export function PlayerPanel({
                   selected={focus.includes(card.slot)}
                   dimmed={!inFocus(focus, card.slot)}
                   onSelect={(event) => onPick(card.slot, event.shiftKey)}
+                  onHover={(element) => onHover(card.slot, element)}
                 />
               ))}
             </ul>

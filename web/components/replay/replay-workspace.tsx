@@ -651,7 +651,7 @@ export function ReplayWorkspace({
           fullscreen.active ? 'col-start-2 row-start-1' : 'min-[1180px]:col-start-2 min-[1180px]:row-start-1',
         )}
       >
-        <ReplaySidePanel focused={focused} nowSeconds={nowSeconds} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} />
+        <ReplaySidePanel focused={focused} nowSeconds={nowSeconds} tickOf={tickOf} focus={focus} onPickSlot={pickSlot} onCopySlot={copyPlayerSetpos} />
       </aside>
 
       <ReplayTransport
