@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,10 +21,13 @@ import (
 	"github.com/rechedev9/cliphub/internal/voiceplugin"
 )
 
-// fakePluginMedia stores the rebuilt PCM as the "encoded" track.
+// fakePluginMedia stores the rebuilt PCM as the "encoded" track; a track named bad fails to encode.
 type fakePluginMedia struct{}
 
 func (fakePluginMedia) EncodePCM(_ context.Context, job teamvoice.PCMEncodeJob) error {
+	if strings.Contains(filepath.Base(job.Dst), "-bad.") {
+		return errors.New("ffmpeg: invalid data")
+	}
 	b, err := io.ReadAll(job.PCM)
 	if err != nil {
 		return err
@@ -166,11 +170,19 @@ func TestPluginRecordingWaitsWithANoteAndIsAttachedByHand(t *testing.T) {
 	m, _ = env.repo.GetMatch(ctx, m.ID)
 	other := m
 	other.Map = "de_nuke"
-	writePluginRecording(t, plugin.Inbox(), pluginRecordingSpec{id: "20261109-200000-0001", start: m.PlayedAt.Add(-time.Hour), m: other, tracks: []string{"solo"}})
+	dir := writePluginRecording(t, plugin.Inbox(), pluginRecordingSpec{id: "20261109-200000-0001", start: m.PlayedAt.Add(-time.Hour), m: other, tracks: []string{"solo", "bad"}})
+	// A track that fails to encode is stored as failed, once; the rest of the recording still goes in.
+	env.h.scanVoiceInbox(ctx)
 	env.h.scanVoiceInbox(ctx)
 	rec, err := env.repo.GetVoiceRecording(ctx, "20261109-200000-0001")
 	if err != nil || rec.MatchID != nil || !strings.Contains(rec.Note, "de_nuke") {
 		t.Fatalf("waiting recording = %+v, %v", rec, err)
+	}
+	if len(rec.Tracks) != 2 || rec.Tracks[0].Failed != "" || rec.Tracks[1].Failed == "" {
+		t.Fatalf("tracks = %+v, want the second one failed", rec.Tracks)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "02-bad.pcm")); err != nil {
+		t.Fatalf("the failed track's raw speech is gone: %v", err)
 	}
 	var plugged voicePluginStatus
 	env.json(http.MethodGet, "/api/library/voice/plugin", nil, http.StatusOK, &plugged)

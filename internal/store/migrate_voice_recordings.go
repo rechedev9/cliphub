@@ -9,7 +9,7 @@ import (
 // were added to, and each team's speakers: who a TeamSpeak identity is in CS2.
 func migrateV23LibraryVoiceRecordings(tx *sql.Tx) error {
 	for _, stmt := range []string{
-		`CREATE TABLE library_voice_recordings (
+		`CREATE TABLE IF NOT EXISTS library_voice_recordings (
 			id            TEXT    PRIMARY KEY,
 			started_at    INTEGER NOT NULL,
 			ended_at      INTEGER NOT NULL,
@@ -28,8 +28,8 @@ func migrateV23LibraryVoiceRecordings(tx *sql.Tx) error {
 			created_at    INTEGER NOT NULL,
 			updated_at    INTEGER NOT NULL
 		)`,
-		`CREATE INDEX library_voice_recordings_match ON library_voice_recordings(match_id)`,
-		`CREATE TABLE library_voice_speakers (
+		`CREATE INDEX IF NOT EXISTS library_voice_recordings_match ON library_voice_recordings(match_id)`,
+		`CREATE TABLE IF NOT EXISTS library_voice_speakers (
 			team_id     TEXT    NOT NULL REFERENCES library_teams(id) ON DELETE CASCADE,
 			speaker_key TEXT    NOT NULL,
 			nickname    TEXT    NOT NULL DEFAULT '',

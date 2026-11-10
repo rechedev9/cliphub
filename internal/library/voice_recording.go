@@ -47,14 +47,20 @@ type RecordingTrack struct {
 	DurationMS int64  `json:"duration_ms"`
 	// MatchTrack is the voice track it became in the attached match; 0 while unattached.
 	MatchTrack int `json:"match_track,omitempty"`
+	// Failed says why Studio could not read the track; the rest of the recording still works.
+	Failed string `json:"failed,omitempty"`
 }
 
-// SpeakerKey is how a team remembers who a track's person is: the TeamSpeak identity, else the nickname.
+// SpeakerKey is how a team remembers who a track's person is: the TeamSpeak identity, else the
+// nickname; empty when neither is known. A "clientid:" UID is ignored: TeamSpeak reuses client ids.
 func (t RecordingTrack) SpeakerKey() string {
-	if t.UID != "" {
+	if t.UID != "" && !strings.HasPrefix(t.UID, "clientid:") {
 		return "uid:" + t.UID
 	}
-	return "nick:" + strings.ToLower(CleanName(t.Nickname))
+	if nick := strings.ToLower(CleanName(t.Nickname)); nick != "" {
+		return "nick:" + nick
+	}
+	return ""
 }
 
 // RecordingRound is when a round went live in CS2, by the wall clock of this PC.

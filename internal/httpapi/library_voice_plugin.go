@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -148,25 +147,42 @@ func (h *Handlers) scanVoiceInbox(ctx context.Context) {
 	}
 }
 
-// storeRecording encodes each track next to the manifest, removes the raw speech and stores the recording.
+// trackFailedNote is what Ajustes and the MCP show for a track Studio could not read.
+const trackFailedNote = "No se pudo convertir el audio de esta pista; el resto de la grabación sí se guardó."
+
+// storeRecording encodes each track next to the manifest, removes the raw speech and stores the
+// recording. A track that fails is stored as failed, with its raw files kept, and never retried.
 func (h *Handlers) storeRecording(ctx context.Context, f voiceplugin.Found) error {
 	rec := f.Manifest.Recording(f.ID)
+	failed := 0
 	for i, t := range rec.Tracks {
 		ms, err := h.encodePluginTrack(ctx, encodeTarget{dir: f.Dir, file: t.File})
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err != nil {
-			return fmt.Errorf("track %s: %w", t.File, err)
+			log.Printf("httpapi: TeamSpeak recording %s track %s: %v", f.ID, t.File, err)
+			rec.Tracks[i].Failed = trackFailedNote
+			failed++
+			continue
 		}
 		rec.Tracks[i].DurationMS = ms
 	}
-	rec.Tracks = slices.DeleteFunc(rec.Tracks, func(t library.RecordingTrack) bool { return t.DurationMS == 0 })
+	rec.Tracks = slices.DeleteFunc(rec.Tracks, func(t library.RecordingTrack) bool { return t.DurationMS == 0 && t.Failed == "" })
 	if err := h.libraryRepo.CreateVoiceRecording(ctx, rec); err != nil && !errors.Is(err, library.ErrConflict) {
 		return err
 	}
-	for _, t := range f.Manifest.Tracks {
-		_ = os.Remove(filepath.Join(f.Dir, t.File+".pcm"))
-		_ = os.Remove(filepath.Join(f.Dir, t.File+".idx"))
+	keep := map[string]bool{}
+	for _, t := range rec.Tracks {
+		keep[t.File] = t.Failed != ""
 	}
-	log.Printf("httpapi: TeamSpeak recording %s stored: %d tracks, map %q", rec.ID, len(rec.Tracks), rec.Map)
+	for _, t := range f.Manifest.Tracks {
+		if !keep[t.File] {
+			_ = os.Remove(filepath.Join(f.Dir, t.File+".pcm"))
+			_ = os.Remove(filepath.Join(f.Dir, t.File+".idx"))
+		}
+	}
+	log.Printf("httpapi: TeamSpeak recording %s stored: %d tracks (%d failed), map %q", rec.ID, len(rec.Tracks), failed, rec.Map)
 	return nil
 }
 
@@ -290,8 +306,9 @@ func (h *Handlers) attachRecording(ctx context.Context, req attachRequest) (libr
 	if err != nil {
 		return rec, err
 	}
-	ties := voiceplugin.TiePlayers(rec, m, saved)
-	picked := loudestTracks(rec.Tracks, library.MaxVoiceTracks)
+	ties := voiceplugin.TiePlayers(voiceplugin.TieInput{Recording: rec, Match: m, Saved: saved})
+	readable := slices.DeleteFunc(slices.Clone(rec.Tracks), func(t library.RecordingTrack) bool { return t.Failed != "" })
+	picked := loudestTracks(readable, library.MaxVoiceTracks)
 	tracks := make([]library.VoiceTrack, 0, len(picked))
 	for _, t := range picked {
 		vt, err := h.copyPluginTrack(ctx, pluginTrackCopy{dir: dir, matchID: m.ID, track: t})
@@ -401,21 +418,29 @@ type pluginSyncSubject struct {
 	tracks []library.VoiceTrack
 }
 
-// pluginSync places a plugin recording by CS2's round clock when it saw enough rounds, else as an upload is placed.
+// pluginSync places a plugin recording by CS2's round clock when it saw enough rounds, else as an
+// upload is placed; an analysis it cannot read only costs the round clock.
 func (h *Handlers) pluginSync(ctx context.Context, s pluginSyncSubject) (library.VoiceSync, error) {
 	doc, err := h.readLibraryDocument(s.match.DemoID)
 	if err != nil {
-		return library.VoiceSync{}, fmt.Errorf("read the match analysis: %w", err)
-	}
-	if sync, ok := teamvoice.GameClock(teamvoice.GameClockInput{StartedAt: s.rec.StartedAt, Rounds: s.rec.Rounds, Timeline: teamvoice.TimelineOf(doc)}); ok {
+		log.Printf("httpapi: TeamSpeak recording %s: read the match analysis, placing it by the audio instead: %v", s.rec.ID, err)
+	} else if sync, ok := teamvoice.GameClock(teamvoice.GameClockInput{StartedAt: s.rec.StartedAt, Rounds: s.rec.Rounds, Timeline: teamvoice.TimelineOf(doc)}); ok {
 		return sync, nil
 	}
 	res, err := h.estimateVoiceSync(ctx, voiceSyncSubject{match: s.match, tracks: s.tracks})
 	return res.Sync, err
 }
 
+// speakerChoice is a match voice track and the player the user said speaks on it.
+type speakerChoice struct {
+	match     library.Match
+	track     int
+	steamID64 string
+}
+
 // rememberVoiceSpeaker keeps on the player's team who a plugin track's TeamSpeak identity is.
-func (h *Handlers) rememberVoiceSpeaker(ctx context.Context, m library.Match, track int, steamID string) {
+func (h *Handlers) rememberVoiceSpeaker(ctx context.Context, c speakerChoice) {
+	m, track, steamID := c.match, c.track, c.steamID64
 	if steamID == "" {
 		return
 	}
@@ -432,7 +457,7 @@ func (h *Handlers) rememberVoiceSpeaker(ctx context.Context, m library.Match, tr
 			if t.MatchTrack != track {
 				continue
 			}
-			if s, ok := voiceplugin.Remember(m, t, steamID); ok {
+			if s, ok := voiceplugin.Remember(voiceplugin.RememberInput{Match: m, Track: t, SteamID64: steamID}); ok {
 				if err := h.libraryRepo.SaveVoiceSpeakers(ctx, []library.VoiceSpeaker{s}); err != nil {
 					log.Printf("httpapi: remember TeamSpeak speaker %q: %v", t.Nickname, err)
 				}

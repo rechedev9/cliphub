@@ -19,6 +19,7 @@ type recordingTrackOut struct {
 	Self       bool   `json:"self,omitempty" jsonschema:"the user's own microphone"`
 	Duration   string `json:"duration"`
 	MatchTrack int    `json:"match_track,omitempty" jsonschema:"the voice track it became in the attached match (voice_status, set_voice_speakers)"`
+	Failed     string `json:"failed,omitempty" jsonschema:"why Studio could not read this track; the other tracks still attach"`
 }
 
 type recordingOut struct {
@@ -49,7 +50,7 @@ func recordingOutOf(r tuiclient.VoiceRecording) recordingOut {
 		out.StudioPath = "/replay?r=" + r.MatchID + ":1"
 	}
 	for _, t := range r.Tracks {
-		out.Tracks = append(out.Tracks, recordingTrackOut{Nickname: cleanName(t.Nickname), Self: t.Self, Duration: clockMS(t.DurationMS), MatchTrack: t.MatchTrack})
+		out.Tracks = append(out.Tracks, recordingTrackOut{Nickname: cleanName(t.Nickname), Self: t.Self, Duration: clockMS(t.DurationMS), MatchTrack: t.MatchTrack, Failed: t.Failed})
 	}
 	return out
 }
@@ -123,7 +124,7 @@ func registerVoiceRecordingTools(server *mcp.Server, s *studio) {
 
 	mcp.AddTool(server, &mcp.Tool{Name: "list_voice_recordings", Annotations: readOnly,
 		Description: "List the TeamSpeak plugin's recordings, newest first: pending ones wait for their match (the note says why), attached ones are in a match's team voice. " +
-			"Studio attaches a recording on its own when exactly one imported match fits its map, time and score."},
+			"Studio attaches a recording on its own only when it has its final score and exactly one imported match fits its map, time and score; a track it could not read says so in failed."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listRecordingsIn) (*mcp.CallToolResult, listRecordingsOut, error) {
 			if in.Status != "" && in.Status != "pending" && in.Status != "attached" {
 				return nil, listRecordingsOut{}, errors.New("status must be pending, attached or empty")

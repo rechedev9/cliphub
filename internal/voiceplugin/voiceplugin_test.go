@@ -109,10 +109,26 @@ func TestPickMatchByMapTimeAndScore(t *testing.T) {
 	if p := PickMatch(rec, []library.Match{right, twin}); p.MatchID != nil || !strings.Contains(p.Note, "2 partidas") {
 		t.Fatalf("two fits = %+v", p)
 	}
+	// A match dated by its import may come days later; one with its real date that late is another match.
+	imported := match("de_mirage", start.Add(5*24*time.Hour), 13, 9)
+	imported.CreatedAt = imported.PlayedAt.Add(5 * time.Minute)
+	if p := PickMatch(rec, []library.Match{imported}); p.MatchID == nil || *p.MatchID != imported.ID {
+		t.Fatalf("import-dated match = %+v, want it", p)
+	}
+	late := match("de_mirage", start.Add(5*24*time.Hour), 13, 9)
+	late.CreatedAt = late.PlayedAt.Add(48 * time.Hour)
+	if p := PickMatch(rec, []library.Match{late}); p.MatchID != nil {
+		t.Fatalf("a match really played 5 days later = %+v, want it waiting", p)
+	}
 	cut := rec
 	cut.Interrupted, cut.ScoreCT, cut.ScoreT = true, 5, 4
-	if p := PickMatch(cut, []library.Match{right}); p.MatchID == nil {
-		t.Fatalf("an interrupted recording with a partial score = %+v, want the only mirage", p)
+	if p := PickMatch(cut, []library.Match{right}); p.MatchID != nil || !strings.Contains(p.Note, "Asociar") {
+		t.Fatalf("an interrupted recording = %+v, want it waiting for Asociar", p)
+	}
+	warmup := rec
+	warmup.ScoreCT, warmup.ScoreT = 0, 0
+	if p := PickMatch(warmup, []library.Match{match("de_mirage", start.Add(time.Hour), 0, 0)}); p.MatchID != nil {
+		t.Fatalf("a recording without score = %+v, want it waiting", p)
 	}
 	if p := PickMatch(library.VoiceRecording{StartedAt: start, EndedAt: start}, []library.Match{right}); p.MatchID != nil || p.Note == "" {
 		t.Fatalf("a recording without map = %+v, want it waiting", p)
@@ -136,15 +152,22 @@ func TestTiePlayersUsesTheOwnSteamIDThenTheTeamsMemory(t *testing.T) {
 		{TeamID: team, SpeakerKey: "uid:g", SteamID64: "77"}, // not in this match
 		{TeamID: team, SpeakerKey: "uid:c", SteamID64: "1"},  // already the user's own track
 	}
-	got := TiePlayers(rec, m, saved)
+	got := TiePlayers(TieInput{Recording: rec, Match: m, Saved: saved})
 	if len(got) != 2 || got["01-me"] != "1" || got["02-mate"] != "2" {
 		t.Fatalf("ties = %v", got)
 	}
-	if s, ok := Remember(m, rec.Tracks[1], "2"); !ok || s.TeamID != team || s.SpeakerKey != "nick:mate" {
+	if s, ok := Remember(RememberInput{Match: m, Track: rec.Tracks[1], SteamID64: "2"}); !ok || s.TeamID != team || s.SpeakerKey != "nick:mate" {
 		t.Fatalf("Remember = %+v, %v", s, ok)
 	}
-	if _, ok := Remember(m, rec.Tracks[2], "9"); ok {
+	if _, ok := Remember(RememberInput{Match: m, Track: rec.Tracks[2], SteamID64: "9"}); ok {
 		t.Fatal("a side without a library team remembered a speaker")
+	}
+	old := library.RecordingTrack{File: "05-old", UID: "clientid:7"}
+	if _, ok := Remember(RememberInput{Match: m, Track: old, SteamID64: "2"}); ok || old.SpeakerKey() != "" {
+		t.Fatalf("a reused client id without a nickname gave the key %q", old.SpeakerKey())
+	}
+	if k := (library.RecordingTrack{UID: "clientid:7", Nickname: "Mate"}).SpeakerKey(); k != "nick:mate" {
+		t.Fatalf("clientid key = %q, want the nickname", k)
 	}
 }
 

@@ -109,6 +109,14 @@ func (h *Handlers) AttachVoiceRecording(w http.ResponseWriter, r *http.Request) 
 		writeLibraryError(w, "get match", err)
 		return
 	}
+	// A scan attaches under the same lock, so read the recording again once it is held.
+	p := h.voice.plugin
+	p.scanMu.Lock()
+	defer p.scanMu.Unlock()
+	if rec, err = h.libraryRepo.GetVoiceRecording(r.Context(), rec.ID); err != nil {
+		writeLibraryError(w, "get voice recording", err)
+		return
+	}
 	if rec.MatchID != nil {
 		if *rec.MatchID == m.ID {
 			writeJSON(w, http.StatusOK, recordingView(rec))
@@ -196,7 +204,7 @@ func (h *Handlers) PutLibraryMatchVoiceSpeakers(w http.ResponseWriter, r *http.R
 			writeLibraryError(w, "update voice track", err)
 			return
 		}
-		h.rememberVoiceSpeaker(r.Context(), m, s.Track, steamID)
+		h.rememberVoiceSpeaker(r.Context(), speakerChoice{match: m, track: s.Track, steamID64: steamID})
 	}
 	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }

@@ -11,6 +11,7 @@
 #define RECOVER_MIN_AGE_MS 90000
 
 typedef struct {
+    /* Files open and published; a reserved slot stays 0 until rec_add_track opens them. */
     int used;
     unsigned client_id;
     int self;
@@ -122,13 +123,16 @@ static char *manifest_json_locked(int complete, int64_t ended_ms) {
     m->score_t = R.score_t;
     m->nrounds = R.nrounds;
     memcpy(m->rounds, R.rounds, sizeof(CoreRound) * (size_t)R.nrounds);
+    m->ntracks = 0;
     for (i = 0; i < R.ntracks; i++) {
-        snprintf(m->tracks[i].file, sizeof(m->tracks[i].file), "%s", R.tracks[i].base);
-        snprintf(m->tracks[i].nickname, sizeof(m->tracks[i].nickname), "%s", R.tracks[i].nick);
-        snprintf(m->tracks[i].uid, sizeof(m->tracks[i].uid), "%s", R.tracks[i].uid);
-        m->tracks[i].self = R.tracks[i].self;
+        CoreManifestTrack *out = &m->tracks[m->ntracks];
+        if (!R.tracks[i].used) continue;
+        snprintf(out->file, sizeof(out->file), "%s", R.tracks[i].base);
+        snprintf(out->nickname, sizeof(out->nickname), "%s", R.tracks[i].nick);
+        snprintf(out->uid, sizeof(out->uid), "%s", R.tracks[i].uid);
+        out->self = R.tracks[i].self;
+        m->ntracks++;
     }
-    m->ntracks = R.ntracks;
     json = core_manifest_json(m);
     free(m);
     return json;
@@ -204,21 +208,23 @@ int rec_start(const RecStartOpts *o) {
     return 1;
 }
 
-static void close_track_locked(Track *t) {
-    int64_t s, c;
+/* A track's files and its last run, taken out under the lock and finished after it is released. */
+typedef struct {
+    FILE *pcm;
+    FILE *idx;
     char line[64];
-    if (core_run_close(&t->run, &s, &c) && t->idx) {
-        core_idx_line(line, sizeof(line), s, c);
-        fputs(line, t->idx);
-    }
-    if (t->pcm) fclose(t->pcm);
-    if (t->idx) fclose(t->idx);
-    t->pcm = t->idx = NULL;
+} Closing;
+
+static void finish_closing(Closing *c) {
+    if (c->idx && c->line[0]) fputs(c->line, c->idx);
+    if (c->pcm) fclose(c->pcm);
+    if (c->idx) fclose(c->idx);
 }
 
 int rec_stop(void) {
     char *json;
     wchar_t dir[DIR_MAX];
+    Closing closing[CORE_MAX_TRACKS];
     int i, n;
     EnterCriticalSection(&R.lock);
     if (!R.active) {
@@ -227,12 +233,22 @@ int rec_stop(void) {
     }
     R.active = 0;
     R.gen++;
-    for (i = 0; i < R.ntracks; i++) close_track_locked(&R.tracks[i]);
     n = R.ntracks;
+    for (i = 0; i < n; i++) {
+        Track *t = &R.tracks[i];
+        int64_t s, c;
+        closing[i].pcm = t->pcm;
+        closing[i].idx = t->idx;
+        closing[i].line[0] = 0;
+        if (core_run_close(&t->run, &s, &c)) core_idx_line(closing[i].line, sizeof(closing[i].line), s, c);
+        t->pcm = t->idx = NULL;
+    }
     wcscpy(dir, R.dir);
     json = manifest_json_locked(1, now_unix_ms());
     R.ntracks = 0;
     LeaveCriticalSection(&R.lock);
+    /* No writer touches these files once active is 0 and the generation moved on. */
+    for (i = 0; i < n; i++) finish_closing(&closing[i]);
     if (json) {
         write_file_atomic(dir, json);
         free(json);
@@ -283,50 +299,75 @@ int rec_find_self(uint64_t schid, RecHandle *h) {
     return found;
 }
 
+/* Same person within one recording: the TeamSpeak identity when there is one, else the client id. */
+static int same_person_locked(const Track *t, const RecTrackInfo *info) {
+    if (t->self != info->self) return 0;
+    if (info->uid[0]) return strcmp(t->uid, info->uid) == 0;
+    return !t->uid[0] && t->client_id == info->client_id;
+}
+
+/*
+ * Reserves the slot under the lock, opens the files with the lock released, then publishes them.
+ * Until then the slot is not ready: rec_write drops its samples and the manifest leaves it out.
+ */
 int rec_add_track(uint64_t schid, const RecTrackInfo *info, RecHandle *h) {
-    int i, ok = 0;
+    int i, slot = -1;
+    unsigned gen;
+    wchar_t wbase[160], pcm_path[DIR_MAX], idx_path[DIR_MAX];
+    FILE *pcm, *idx;
+    Closing stale = {0};
     EnterCriticalSection(&R.lock);
-    if (R.active && R.schid == schid) {
-        for (i = 0; i < R.ntracks; i++) {
-            if (strcmp(R.tracks[i].uid, info->uid) == 0) {
-                R.tracks[i].client_id = info->client_id;
-                h->idx = i;
-                h->gen = R.gen;
-                ok = 1;
-                break;
-            }
-        }
-        if (!ok && R.ntracks < CORE_MAX_TRACKS) {
-            Track *t = &R.tracks[R.ntracks];
-            wchar_t wbase[160], path[DIR_MAX];
-            memset(t, 0, sizeof(*t));
-            snprintf(t->uid, sizeof(t->uid), "%s", info->uid);
-            snprintf(t->nick, sizeof(t->nick), "%s", info->nickname);
-            core_track_base(t->base, sizeof(t->base), R.ntracks + 1, info->nickname);
-            t->client_id = info->client_id;
-            t->self = info->self;
-            rec_utf8_to_wide(t->base, wbase, 160);
-            _snwprintf(path, DIR_MAX, L"%ls\\%ls.pcm", R.dir, wbase);
-            path[DIR_MAX - 1] = 0;
-            t->pcm = _wfopen(path, L"wb");
-            _snwprintf(path, DIR_MAX, L"%ls\\%ls.idx", R.dir, wbase);
-            path[DIR_MAX - 1] = 0;
-            t->idx = _wfopen(path, L"wb");
-            if (t->pcm && t->idx) {
-                setvbuf(t->pcm, NULL, _IOFBF, 65536);
-                h->idx = R.ntracks++;
-                h->gen = R.gen;
-                R.dirty = 1;
-                ok = 1;
-            } else {
-                if (t->pcm) fclose(t->pcm);
-                if (t->idx) fclose(t->idx);
-                memset(t, 0, sizeof(*t));
-            }
+    if (!R.active || R.schid != schid) {
+        LeaveCriticalSection(&R.lock);
+        return 0;
+    }
+    for (i = 0; i < R.ntracks; i++) {
+        if (same_person_locked(&R.tracks[i], info)) {
+            R.tracks[i].client_id = info->client_id;
+            h->idx = i;
+            h->gen = R.gen;
+            LeaveCriticalSection(&R.lock);
+            return 1;
         }
     }
+    if (R.ntracks < CORE_MAX_TRACKS) {
+        Track *t = &R.tracks[R.ntracks];
+        memset(t, 0, sizeof(*t));
+        snprintf(t->uid, sizeof(t->uid), "%s", info->uid);
+        snprintf(t->nick, sizeof(t->nick), "%s", info->nickname);
+        core_track_base(t->base, sizeof(t->base), R.ntracks + 1, info->nickname);
+        t->client_id = info->client_id;
+        t->self = info->self;
+        rec_utf8_to_wide(t->base, wbase, 160);
+        _snwprintf(pcm_path, DIR_MAX, L"%ls\\%ls.pcm", R.dir, wbase);
+        _snwprintf(idx_path, DIR_MAX, L"%ls\\%ls.idx", R.dir, wbase);
+        pcm_path[DIR_MAX - 1] = idx_path[DIR_MAX - 1] = 0;
+        slot = R.ntracks++;
+    }
+    gen = R.gen;
     LeaveCriticalSection(&R.lock);
-    return ok;
+    if (slot < 0) return 0;
+
+    pcm = _wfopen(pcm_path, L"wb");
+    idx = _wfopen(idx_path, L"wb");
+    if (pcm) setvbuf(pcm, NULL, _IOFBF, 65536);
+
+    EnterCriticalSection(&R.lock);
+    if (R.active && R.gen == gen && pcm && idx) {
+        R.tracks[slot].pcm = pcm;
+        R.tracks[slot].idx = idx;
+        R.tracks[slot].used = 1;
+        R.dirty = 1;
+        h->idx = slot;
+        h->gen = gen;
+        LeaveCriticalSection(&R.lock);
+        return 1;
+    }
+    LeaveCriticalSection(&R.lock);
+    stale.pcm = pcm;
+    stale.idx = idx;
+    finish_closing(&stale);
+    return 0;
 }
 
 void rec_write(const RecHandle *h, const short *samples, int count, int channels) {
@@ -341,6 +382,10 @@ void rec_write(const RecHandle *h, const short *samples, int count, int channels
         return;
     }
     t = &R.tracks[h->idx];
+    if (!t->used) {
+        LeaveCriticalSection(&R.lock);
+        return;
+    }
     QueryPerformanceCounter(&q);
     now = (q.QuadPart - R.qpc0.QuadPart) * CORE_SAMPLE_RATE / R.freq.QuadPart;
     core_place_chunk(&t->run, now, count, &pl);

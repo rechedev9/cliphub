@@ -85,6 +85,7 @@ export function TeamSpeakSettings(): ReactNode {
     body = <p className="text-body-sm text-fg-2">Studio no responde ahora. Vuelve a abrir Ajustes en un momento.</p>;
   } else {
     const pending = state.recordings.filter((recording) => recording.status === 'pending');
+    const attachedWithFailures = state.recordings.filter((recording) => recording.status === 'attached' && recording.tracks.some((track) => track.failed));
     body = (
       <>
         <PluginStatusLines status={state.status} />
@@ -93,6 +94,17 @@ export function TeamSpeakSettings(): ReactNode {
             <h3 className="font-display text-body-sm font-bold text-fg-1">Grabaciones sin partida</h3>
             {pending.map((recording) => (
               <PendingRecording key={recording.id} recording={recording} matches={state.matches} onChange={load} />
+            ))}
+          </div>
+        ) : null}
+        {attachedWithFailures.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <h3 className="font-display text-body-sm font-bold text-fg-1">Pistas que no se pudieron leer</h3>
+            {attachedWithFailures.map((recording) => (
+              <div key={recording.id} className="flex flex-col gap-1 border border-border bg-surface-2 px-3.5 py-3">
+                <p className="text-body-sm font-semibold text-fg-1">{recordingTitle(recording)}</p>
+                <FailedTracks recording={recording} />
+              </div>
             ))}
           </div>
         ) : null}
@@ -141,7 +153,19 @@ function PluginStatusLines({ status }: { status: VoicePluginStatus }): ReactNode
   );
 }
 
-type PendingProps = { recording: VoiceRecording; matches: LibraryMatch[]; onChange: () => Promise<void> };
+function FailedTracks({ recording }: { recording: VoiceRecording }): ReactNode {
+  const failed = recording.tracks.filter((track) => track.failed);
+  if (failed.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-0.5 text-meta text-destructive">
+      {failed.map((track) => (
+        <li key={track.file}>{`${track.nickname || track.file}: ${track.failed}`}</li>
+      ))}
+    </ul>
+  );
+}
+
+type PendingProps ={ recording: VoiceRecording; matches: LibraryMatch[]; onChange: () => Promise<void> };
 
 function PendingRecording({ recording, matches, onChange }: PendingProps): ReactNode {
   const choices = recordingMatchChoices(recording, matches);
@@ -169,6 +193,7 @@ function PendingRecording({ recording, matches, onChange }: PendingProps): React
       <p className="text-body-sm font-semibold text-fg-1">{recordingTitle(recording)}</p>
       {recording.note ? <p className="text-meta text-fg-2">{recording.note}</p> : null}
       <p className="text-meta text-fg-3">{recording.tracks.map((track) => track.nickname).join(', ')}</p>
+      <FailedTracks recording={recording} />
       <div className="flex flex-wrap items-center gap-2">
         {choices.length > 0 ? (
           <>

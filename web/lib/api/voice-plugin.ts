@@ -1,5 +1,4 @@
 import { jsonInit, request } from './library.ts';
-import type { MatchVoice } from './voice.ts';
 
 /**
  * Browser-side contract of the TeamSpeak plugin (`internal/voiceplugin` in Go): the recordings it
@@ -17,6 +16,8 @@ export type RecordingTrack = {
   duration_ms: number;
   /** The team voice track it became in the attached match. */
   match_track?: number;
+  /** Why Studio could not read this track; the other tracks still attach. */
+  failed?: string;
 };
 
 export type VoiceRecording = {
@@ -67,11 +68,6 @@ export function attachVoiceRecording(target: { id: string; matchId: string }): P
 
 export function deleteVoiceRecording(id: string): Promise<void> {
   return request<void>(`/voice/recordings/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
-
-/** Ties tracks to players at once; the players' teams remember a plugin track's TeamSpeak identity. */
-export function setVoiceSpeakers(matchId: string, speakers: readonly { track: number; steamid64: string }[]): Promise<MatchVoice> {
-  return request<MatchVoice>(`/matches/${encodeURIComponent(matchId)}/voice/speakers`, jsonInit('PUT', { speakers }));
 }
 
 export function getVoicePlugin(): Promise<VoicePluginStatus> {

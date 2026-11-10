@@ -317,7 +317,8 @@ static DWORD WINAPI worker_main(LPVOID arg) {
 static void fetch_identity(uint64 schid, anyID client_id, char *uid, size_t uidcap, char *nick, size_t nickcap) {
     char *u = NULL, *n = NULL;
     if (ts3.getClientVariableAsString(schid, client_id, CLIENT_UNIQUE_IDENTIFIER, &u) == 0 && u && u[0]) snprintf(uid, uidcap, "%s", u);
-    else snprintf(uid, uidcap, "clientid:%u", (unsigned)client_id);
+    /* TeamSpeak reuses client ids, so without an identity the nickname names the speaker. */
+    else uid[0] = 0;
     if (ts3.getClientVariableAsString(schid, client_id, CLIENT_NICKNAME, &n) == 0 && n) snprintf(nick, nickcap, "%s", n);
     else nick[0] = 0;
     if (u) ts3.freeMemory(u);

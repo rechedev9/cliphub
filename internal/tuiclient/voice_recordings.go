@@ -15,6 +15,7 @@ type RecordingTrack struct {
 	Self       bool   `json:"self,omitempty"`
 	DurationMS int64  `json:"duration_ms"`
 	MatchTrack int    `json:"match_track,omitempty"`
+	Failed     string `json:"failed,omitempty"`
 }
 
 // VoiceRecording is a recording the TeamSpeak plugin left for Studio.

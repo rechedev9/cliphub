@@ -343,7 +343,7 @@ func (h *Handlers) PatchLibraryMatchVoiceTrack(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if patch.SteamID64 != nil {
-		h.rememberVoiceSpeaker(r.Context(), m, track, *patch.SteamID64)
+		h.rememberVoiceSpeaker(r.Context(), speakerChoice{match: m, track: track, steamID64: *patch.SteamID64})
 	}
 	h.writeVoice(w, r, voiceReply{matchID: m.ID, status: http.StatusOK})
 }
