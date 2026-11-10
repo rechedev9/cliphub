@@ -62,7 +62,7 @@ func registerRoundPOVTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, recordRoundPOVOut{}, toolError(err)
 			}
-			status, err := waitParsed(ctx, c, job.JobID, in.WaitSeconds)
+			status, err := waitParsed(ctx, parseWait{Client: c, JobID: job.JobID, Seconds: in.WaitSeconds})
 			if err != nil {
 				return nil, recordRoundPOVOut{}, err
 			}
@@ -74,7 +74,7 @@ func registerRoundPOVTool(server *mcp.Server, s *studio) {
 			if err != nil {
 				return nil, recordRoundPOVOut{}, err
 			}
-			res, out, err := startFullDemo(ctx, req, c, fullDemoStart{Tool: "record_round_pov", JobID: job.JobID, Doc: doc, Approve: in.Approve})
+			res, out, err := startFullDemo(ctx, fullDemoStart{Request: req, Client: c, Tool: "record_round_pov", JobID: job.JobID, Doc: doc, Approve: in.Approve})
 			return res, recordRoundPOVOut{generateOut: out}, err
 		})
 }
@@ -90,10 +90,17 @@ func checkRoundPOV(m tuiclient.LibraryMatch, in recordRoundPOVIn) error {
 	return nil
 }
 
+type parseWait struct {
+	Client  *tuiclient.Client
+	JobID   string
+	Seconds int
+}
+
 // waitParsed returns "parsed" once the job is, or the last status read when the wait ends first.
-func waitParsed(ctx context.Context, c *tuiclient.Client, jobID string, waitSeconds int) (string, error) {
+func waitParsed(ctx context.Context, w parseWait) (string, error) {
+	c, jobID := w.Client, w.JobID
 	status := ""
-	err := poll(ctx, waitSeconds, func() (bool, error) {
+	err := poll(ctx, w.Seconds, func() (bool, error) {
 		st, err := c.GetJobStatus(ctx, jobID)
 		if err != nil {
 			return false, toolError(err)
@@ -110,11 +117,19 @@ func waitParsed(ctx context.Context, c *tuiclient.Client, jobID string, waitSeco
 	return status, err
 }
 
+// isRoundPOVPlan: a saved plan already limited to this round with no effects is kept as it is, pro settings included.
+func isRoundPOVPlan(doc recapplan.Document, round int) bool {
+	return len(doc.Options.Rounds) == 1 && doc.Options.Rounds[0] == round && (doc.Options.Transitions == nil || !doc.Options.Transitions.Enabled) && len(doc.Blockers) == 0
+}
+
 // planRoundPOV saves the plan of a parsed job and returns it as Studio stored it.
 func planRoundPOV(ctx context.Context, c *tuiclient.Client, in planFullDemoIn) (recapplan.Document, error) {
 	state, err := loadFullDemoState(ctx, c, in.JobID)
 	if err != nil {
 		return recapplan.Document{}, toolError(err)
+	}
+	if saved := state.Document; saved != nil && isRoundPOVPlan(*saved, in.Rounds[0]) {
+		return *saved, nil
 	}
 	options, err := applyFullDemoChoices(state.Defaults, in)
 	if err != nil {

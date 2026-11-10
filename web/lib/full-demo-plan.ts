@@ -326,7 +326,10 @@ function planURL(jobId: string): string {
 }
 async function responseJSON(response: Response): Promise<unknown> {
   const value: unknown = await response.json();
-  if (!response.ok) throw new Error(record(value) && typeof value.error === 'string' ? value.error : `Solicitud fallida (${response.status}).`);
+  if (!response.ok) {
+    const message = record(value) && typeof value.error === 'string' ? value.error : `Solicitud fallida (${response.status}).`;
+    throw Object.assign(new Error(message), record(value) && typeof value.code === 'string' ? { code: value.code } : {});
+  }
   return value;
 }
 const envelopeShape = object({ document: nullable(documentShape), defaults: isFullDemoOptions, pro_players: array(proPlayer, 500), compatibility: oneOf('legacy-until-planned-and-approved', 'editorial-v1') }, ['pro_players']);

@@ -12,8 +12,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
@@ -46,7 +48,8 @@ func TestCrearJobsJoinTheLibrary(t *testing.T) {
 	repo := store.NewMemoryLibraryRepository()
 	files := newFakeStorage()
 	queue := &fakeQueue{}
-	env := libraryTestEnv{t: t, repo: repo, storage: files, queue: queue, router: Routes(NewHandlers(jobs, files, queue, WithLibrary(repo)))}
+	handlers := NewHandlers(jobs, files, queue, WithLibrary(repo))
+	env := libraryTestEnv{t: t, repo: repo, storage: files, queue: queue, router: Routes(handlers)}
 	data := append(append([]byte{}, demoMagic...), []byte("crear demo")...)
 
 	jobID := uploadJobDemo(t, env.router, data)
@@ -89,6 +92,15 @@ func TestCrearJobsJoinTheLibrary(t *testing.T) {
 	env.json(http.MethodPost, "/api/library/demos/"+demo.ID.String()+"/jobs", target, http.StatusOK, &pov)
 	if pov.JobID != first || !pov.Reused {
 		t.Fatalf("second ask = %+v, want job %s reused", pov, first)
+	}
+	// A job whose capture is queued is not reused: planning another video on it would answer 409.
+	live := renderplan.GenerateIntent{Variant: editor.PresetCleanPOV60, Edit: renderplan.DefaultEditRequest(), ActiveRunID: uuid.New()}
+	if err := handlers.generateIntents.Begin(first, live, nil); err != nil {
+		t.Fatal(err)
+	}
+	env.json(http.MethodPost, "/api/library/demos/"+demo.ID.String()+"/jobs", target, http.StatusCreated, &pov)
+	if pov.JobID == first || pov.Reused {
+		t.Fatalf("ask during a live capture = %+v, want a new job", pov)
 	}
 	if rw := env.do(http.MethodPost, "/api/library/demos/"+demo.ID.String()+"/jobs", []byte(`{"target_steamid":"x"}`), "application/json"); rw.Code != http.StatusBadRequest {
 		t.Fatalf("bad target = %d, want 400", rw.Code)

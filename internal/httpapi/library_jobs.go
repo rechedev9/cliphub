@@ -272,7 +272,7 @@ type createLibraryJobRequest struct {
 
 // reusableLibraryJob returns a linked job that already parses or parsed the
 // target and has not made a video yet, so a second click does not parse the
-// demo again. A job that recorded keeps its videos; the next video gets a new job.
+// demo again. A job with a live generate run or a recording keeps its videos; the next video gets a new job.
 func (h *Handlers) reusableLibraryJob(ctx context.Context, d library.Demo, target string) (job.Job, bool) {
 	for i := len(d.JobIDs) - 1; i >= 0; i-- {
 		j, err := h.repo.Get(ctx, d.JobIDs[i])
@@ -281,6 +281,10 @@ func (h *Handlers) reusableLibraryJob(ctx context.Context, d library.Demo, targe
 		}
 		switch j.Status {
 		case job.StatusQueued, job.StatusParsing, job.StatusParsed:
+			// A queued capture holds the job; planning another video on it answers 409.
+			if intent, found, err := h.readGenerateIntent(j.ID); err != nil || (found && intent.ActiveRunID != uuid.Nil) {
+				continue
+			}
 			if exists, err := h.storage.Exists(j.DemoPath); err == nil && exists {
 				return j, true
 			}

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
-import { createPlayerJob, getLibraryMatch } from '@/lib/api/library';
+import { createPlayerJob, getLibraryMatch, isLibraryOffline } from '@/lib/api/library';
 import { approveFullDemo, FULL_DEMO_CAPTURE_VARIANT, fullDemoPlanEdit, loadFullDemoPlan, saveFullDemoPlan } from '@/lib/full-demo-plan';
-import { roundPovDone, roundPovFollowing, roundPovKey, roundPovOptions } from '@/lib/replay/round-pov';
+import { RoundPovFailure, roundPovBlocked, roundPovDone, roundPovError, roundPovFollowing, roundPovKey, roundPovOptions } from '@/lib/replay/round-pov';
 import type { RoundPovRun } from '@/lib/replay/round-pov';
 
 const PARSE_POLL_MS = 1000;
@@ -25,10 +25,10 @@ async function waitParsed(jobId: string, signal: AbortSignal): Promise<void> {
   for (let attempt = 0; attempt < PARSE_ATTEMPTS && !signal.aborted; attempt++) {
     const match = await api.getMatch(jobId);
     if (match?.status === 'parsed') return;
-    if (match?.status === 'failed') throw new Error(parseFailureReason(match.failureReason, { job: true }).message);
+    if (match?.status === 'failed') throw new RoundPovFailure(parseFailureReason(match.failureReason, { job: true }).message);
     await sleep(PARSE_POLL_MS, signal);
   }
-  if (!signal.aborted) throw new Error('El jugador tarda demasiado en prepararse. Inténtalo otra vez.');
+  if (!signal.aborted) throw new RoundPovFailure('El jugador tarda demasiado en prepararse. Inténtalo otra vez.');
 }
 
 /**
@@ -41,6 +41,8 @@ export function useRoundPov(): { runs: readonly RoundPovRun[]; record: (request:
   runsRef.current = runs;
   const videoIds = useRef(new Map<string, string>());
   const controller = useRef<AbortController | null>(null);
+  // One recording at a time per player: a second click waits until the first one has queued its video.
+  const chains = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
     const own = new AbortController();
@@ -58,7 +60,7 @@ export function useRoundPov(): { runs: readonly RoundPovRun[]; record: (request:
     const existing = runsRef.current.find((run) => run.key === key);
     if (signal === undefined || (existing !== undefined && existing.phase !== 'failed')) return;
     setRuns((current) => [{ key, round: request.round, name: request.name, phase: 'preparing' }, ...current.filter((run) => run.key !== key)]);
-    void (async () => {
+    const run = async (): Promise<void> => {
       try {
         const match = await getLibraryMatch(request.matchId);
         const job = await createPlayerJob(match.demo_id, request.steamId);
@@ -67,7 +69,7 @@ export function useRoundPov(): { runs: readonly RoundPovRun[]; record: (request:
         const plan = await loadFullDemoPlan(job.job_id, signal);
         const planned = await saveFullDemoPlan(job.job_id, roundPovOptions(plan.defaults, request.round), signal);
         const blocker = planned.blockers?.[0];
-        if (blocker) throw new Error(blocker.message);
+        if (blocker) throw roundPovBlocked(blocker.code);
         const video = await api.createVideo({
           matchId: job.job_id,
           playIds: planned.rounds.map((round) => round.round_id),
@@ -75,15 +77,20 @@ export function useRoundPov(): { runs: readonly RoundPovRun[]; record: (request:
           variant: FULL_DEMO_CAPTURE_VARIANT,
           editConfig: fullDemoPlanEdit(approveFullDemo(planned)),
           signal,
+        }).catch((failure: unknown) => {
+          throw new RoundPovFailure(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.');
         });
         videoIds.current.set(key, video.id);
         patch(key, (run) => roundPovFollowing(run, video));
       } catch (failure) {
         if (signal.aborted) return;
-        const error = failure instanceof Error ? failure.message : 'No se pudo preparar la grabación.';
+        const error = isLibraryOffline(failure) ? 'El servicio local no responde. Vuelve a intentarlo.' : roundPovError(failure);
         patch(key, (run) => ({ ...run, phase: 'failed', error }));
       }
-    })();
+    };
+    const player = `${request.matchId}:${request.steamId}`;
+    const next = (chains.current.get(player) ?? Promise.resolve()).then(run);
+    chains.current.set(player, next);
   }, [patch]);
 
   const following = runs.some((run) => !roundPovDone(run) && videoIds.current.has(run.key));

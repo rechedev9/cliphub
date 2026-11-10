@@ -43,3 +43,18 @@ func TestCheckRoundPOV(t *testing.T) {
 		}
 	}
 }
+
+func TestIsRoundPOVPlan(t *testing.T) {
+	var doc recapplan.Document
+	doc.Options.Rounds = []int{7}
+	if !isRoundPOVPlan(doc, 7) {
+		t.Fatal("a saved one round plan without effects should be kept")
+	}
+	if isRoundPOVPlan(doc, 8) {
+		t.Fatal("another round needs a new plan")
+	}
+	doc.Options.Transitions = &recapplan.TransitionOptions{Enabled: true}
+	if isRoundPOVPlan(doc, 7) {
+		t.Fatal("a plan with effects is not the plain one")
+	}
+}

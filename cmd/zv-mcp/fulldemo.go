@@ -199,11 +199,13 @@ func registerFullDemoTools(server *mcp.Server, s *studio) {
 			if doc.PlanHash == "" || doc.PlanHash != in.PlanHash {
 				return nil, generateOut{}, errors.New("plan_hash is not the saved plan of this job (it was replaced or is stale); call plan_full_demo again")
 			}
-			return startFullDemo(ctx, req, c, fullDemoStart{Tool: "render_full_demo", JobID: in.JobID, Doc: *doc, Approve: in.Approve})
+			return startFullDemo(ctx, fullDemoStart{Request: req, Client: c, Tool: "render_full_demo", JobID: in.JobID, Doc: *doc, Approve: in.Approve})
 		})
 }
 
 type fullDemoStart struct {
+	Request *mcp.CallToolRequest
+	Client  *tuiclient.Client
 	Tool    string
 	JobID   string
 	Doc     recapplan.Document
@@ -212,8 +214,8 @@ type fullDemoStart struct {
 
 // startFullDemo asks for approval and starts the capture of a saved plan; the
 // tool name keeps an approval code from one tool out of another.
-func startFullDemo(ctx context.Context, req *mcp.CallToolRequest, c *tuiclient.Client, start fullDemoStart) (*mcp.CallToolResult, generateOut, error) {
-	doc := start.Doc
+func startFullDemo(ctx context.Context, start fullDemoStart) (*mcp.CallToolResult, generateOut, error) {
+	c, req, doc := start.Client, start.Request, start.Doc
 	plan := describeFullDemoPlan(start.JobID, doc)
 	if !plan.Ready {
 		return nil, generateOut{}, fmt.Errorf("the plan cannot be rendered yet: %s", strings.Join(plan.Blockers, "; "))
