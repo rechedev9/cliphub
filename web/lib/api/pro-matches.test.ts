@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRO_QUERY, groupByDay, proCatalogNotice, proMapPart, proMatchSearch, proMatchTitle, type ProMatch } from './pro-matches.ts';
+import { DEFAULT_PRO_QUERY, groupByDay, localDay, proCatalogNotice, proDayLabel, proMapDemos, proMatchSearch, proMatchTitle, type ProMatch } from './pro-matches.ts';
 
 const match = (id: number, playedAt: string): ProMatch => ({
   id,
   event: 'IEM Chengdu',
   played_at: playedAt,
+  hltv_url: `https://www.hltv.org/matches/${id}/match`,
   teams: [
     { id: 1, name: 'Vitality', followed: false },
     { id: 2, name: 'FaZe', followed: true },
@@ -16,10 +17,14 @@ const match = (id: number, playedAt: string): ProMatch => ({
 test('a catalog read sends only what differs from the defaults', () => {
   assert.equal(proMatchSearch(DEFAULT_PRO_QUERY), '');
   assert.equal(proMatchSearch({ ...DEFAULT_PRO_QUERY, days: 30, team: '9565', page: 2 }), '?days=30&team=9565&page=2');
+  const now = new Date(2026, 10, 9, 18, 30);
+  const since = new URLSearchParams(proMatchSearch({ ...DEFAULT_PRO_QUERY, days: 1 }, now)).get('since');
+  assert.equal(since, new Date(2026, 10, 9).toISOString(), 'Hoy starts at local midnight');
 });
 
-test('matches group by the day they were played, in the server order', () => {
-  const groups = groupByDay([match(3, '2026-11-09T20:00:00Z'), match(2, '2026-11-09T12:00:00Z'), match(1, '2026-11-08T18:00:00Z')]);
+test('matches group by the local day they were played, in the server order', () => {
+  const at = (d: number, h: number) => new Date(2026, 10, d, h, 30).toISOString();
+  const groups = groupByDay([match(3, at(9, 23)), match(2, at(9, 0)), match(1, at(8, 23))]);
   assert.deepEqual(
     groups.map((g) => [g.day, g.matches.map((m) => m.id)]),
     [
@@ -29,11 +34,18 @@ test('matches group by the day they were played, in the server order', () => {
   );
 });
 
-test('a match reads as its two teams and a restart part is named', () => {
+test('a match reads as its two teams and a joined map says so', () => {
   assert.equal(proMatchTitle(match(1, '2026-11-09T00:00:00Z')), 'Vitality vs FaZe');
   assert.equal(proMatchTitle({ teams: [], event: 'BLAST' }), 'BLAST');
-  assert.equal(proMapPart('a-vs-b-m2-nuke-p2'), 'parte 2');
-  assert.equal(proMapPart('a-vs-b-m2-nuke'), null);
+  assert.equal(proMapDemos({ parts: [{ entry: 'a', first_round: 1, rounds: 9 }, { entry: 'a-p2', first_round: 9, rounds: 13 }] }), '2 demos unidas');
+  assert.equal(proMapDemos({ parts: [{ entry: 'a', first_round: 1, rounds: 21 }] }), null);
+});
+
+test('day headings read Hoy and Ayer in local time', () => {
+  const now = new Date(2026, 10, 9, 0, 10);
+  assert.equal(proDayLabel(localDay(now), now), 'Hoy');
+  assert.equal(proDayLabel(localDay(new Date(2026, 10, 8, 23, 50)), now), 'Ayer');
+  assert.equal(proDayLabel('2026-11-01', now), '1 nov');
 });
 
 test('every catalog state but ok has its own message', () => {

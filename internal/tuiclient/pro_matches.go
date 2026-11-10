@@ -24,6 +24,7 @@ type ProMatchMap struct {
 	community.ProMapFile
 	LibraryMatchID *uuid.UUID `json:"library_match_id,omitempty"`
 	RadarMayBeOff  bool       `json:"radar_may_be_off"`
+	OldAnalysis    bool       `json:"old_analysis"`
 }
 
 // ProMatch is one HLTV match of the community catalog.
@@ -31,6 +32,7 @@ type ProMatch struct {
 	ID       int            `json:"id"`
 	Event    string         `json:"event"`
 	PlayedAt time.Time      `json:"played_at"`
+	HLTVURL  string         `json:"hltv_url"`
 	Teams    []ProMatchTeam `json:"teams"`
 	Maps     []ProMatchMap  `json:"maps"`
 }

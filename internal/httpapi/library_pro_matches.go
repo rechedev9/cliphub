@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/community"
 	"github.com/rechedev9/cliphub/internal/library"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // Catalog states the Partidas pro page shows: the server answered, Studio has
@@ -25,6 +27,7 @@ const (
 	proCatalogUnavailable = "unavailable"
 	codeNoProMap          = "no_pro_map"
 	codeProMapPending     = "pro_map_pending"
+	codeProMapUnreadable  = "pro_map_unreadable"
 )
 
 // libraryProRepository is the slice of the library store the pro match pages use.
@@ -43,6 +46,8 @@ type libraryProRepository interface {
 type proMatchState struct {
 	importMu sync.Mutex
 	wake     chan struct{}
+	// broken holds the catalog hashes that failed to read, so the sync does not fetch them again; importMu guards it.
+	broken map[string]bool
 }
 
 type proTeamView struct {
@@ -55,12 +60,15 @@ type proMapView struct {
 	// LibraryMatchID is the library match of an imported map.
 	LibraryMatchID *uuid.UUID `json:"library_match_id,omitempty"`
 	RadarMayBeOff  bool       `json:"radar_may_be_off"`
+	// OldAnalysis is an analysis older than the current scan, which reads less from the demo.
+	OldAnalysis bool `json:"old_analysis"`
 }
 
 type proMatchView struct {
 	ID       int           `json:"id"`
 	Event    string        `json:"event"`
 	PlayedAt time.Time     `json:"played_at"`
+	HLTVURL  string        `json:"hltv_url"`
 	Teams    []proTeamView `json:"teams"`
 	Maps     []proMapView  `json:"maps"`
 }
@@ -131,12 +139,13 @@ func (h *Handlers) proMatchViews(ctx context.Context, matches []community.ProMat
 		if err != nil {
 			return nil, err
 		}
-		v := proMatchView{ID: m.ID, Event: m.Event, PlayedAt: m.PlayedAt, Teams: []proTeamView{}, Maps: []proMapView{}}
+		v := proMatchView{ID: m.ID, Event: m.Event, PlayedAt: m.PlayedAt, HLTVURL: community.ProMatchURL(m.ID), Teams: []proTeamView{}, Maps: []proMapView{}}
 		for _, t := range m.Teams {
 			v.Teams = append(v.Teams, proTeamView{ProTeam: t, Followed: followed[t.ID]})
 		}
 		for _, f := range m.Maps {
-			v.Maps = append(v.Maps, proMapView{ProMapFile: f, LibraryMatchID: imported[f.Entry], RadarMayBeOff: library.RadarMayBeOff(f.Map, f.AnalysisVersion)})
+			v.Maps = append(v.Maps, proMapView{ProMapFile: f, LibraryMatchID: imported[f.Entry], RadarMayBeOff: library.RadarMayBeOff(f.Map, f.AnalysisVersion),
+				OldAnalysis: f.AnalysisVersion < tacticalplan.AnalysisVersion})
 		}
 		out = append(out, v)
 	}
@@ -186,14 +195,15 @@ func (h *Handlers) ImportLibraryProMatch(w http.ResponseWriter, r *http.Request)
 		writeCodedError(w, http.StatusServiceUnavailable, codeCommunityOff, "the community server is disabled")
 		return
 	}
-	res, err := h.importProMap(r.Context(), proMapRef{matchID: matchID, entry: entry, explicit: true})
+	res, err := h.importCatalogMap(r.Context(), matchID, entry)
 	switch {
 	case errors.Is(err, community.ErrNoProMap), errors.Is(err, community.ErrNoProCatalog):
 		writeCodedError(w, http.StatusNotFound, codeNoProMap, "the community server has no analysis of this map")
 	case errors.Is(err, errProMapPending):
 		writeCodedError(w, http.StatusConflict, codeProMapPending, err.Error())
 	case errors.Is(err, errProMapBroken):
-		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, err.Error())
+		log.Printf("httpapi: pro map %d/%s: %v", matchID, entry, err)
+		writeCodedError(w, http.StatusBadGateway, codeProMapUnreadable, "El servidor de la comunidad envió un análisis de este mapa que Studio no puede leer.")
 	case errors.Is(err, errProDownload):
 		writeCodedError(w, http.StatusBadGateway, codeCommunityDown, "the community server did not answer")
 	case err != nil:
@@ -203,9 +213,28 @@ func (h *Handlers) ImportLibraryProMatch(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// importCatalogMap reads the map from the catalog, so every part of it is imported.
+func (h *Handlers) importCatalogMap(ctx context.Context, matchID int, entry string) (proImportResponse, error) {
+	m, err := h.references.community.Client.ProMatch(ctx, matchID)
+	if errors.Is(err, community.ErrNoProMap) {
+		return proImportResponse{}, err
+	}
+	if err != nil {
+		return proImportResponse{}, fmt.Errorf("%w: %w", errProDownload, err)
+	}
+	for _, f := range m.Maps {
+		if f.Entry == entry {
+			return h.importProMap(ctx, proMapRef{matchID: matchID, file: f, explicit: true})
+		}
+	}
+	return proImportResponse{}, community.ErrNoProMap
+}
+
 type proMatchInfo struct {
 	library.ProMap
-	RadarMayBeOff bool `json:"radar_may_be_off"`
+	RadarMayBeOff bool   `json:"radar_may_be_off"`
+	OldAnalysis   bool   `json:"old_analysis"`
+	HLTVURL       string `json:"hltv_url"`
 }
 
 // GetLibraryMatchPro handles GET /api/library/matches/{id}/pro: the HLTV match a
@@ -220,7 +249,8 @@ func (h *Handlers) GetLibraryMatchPro(w http.ResponseWriter, r *http.Request) {
 		writeLibraryError(w, "get pro map", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, proMatchInfo{ProMap: rec, RadarMayBeOff: library.RadarMayBeOff(rec.Map, rec.AnalysisVersion)})
+	writeJSON(w, http.StatusOK, proMatchInfo{ProMap: rec, RadarMayBeOff: library.RadarMayBeOff(rec.Map, rec.AnalysisVersion),
+		OldAnalysis: rec.AnalysisVersion < tacticalplan.AnalysisVersion, HLTVURL: community.ProMatchURL(rec.MatchID)})
 }
 
 func proStudioPath(matchID uuid.UUID) string { return "/partidas/" + matchID.String() + "?tab=replay" }

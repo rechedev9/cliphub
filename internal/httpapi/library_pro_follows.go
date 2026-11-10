@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	// proFollowFirstDays is how far back following a team imports its matches.
-	proFollowFirstDays = 14
-	proFollowEvery     = 3 * time.Hour
-	proFollowFirstWait = 2 * time.Minute
-	maxProFollows      = 50
+	// proFollowDays is the period each sync reads; maps already in the library are skipped.
+	proFollowDays = 14
+	// proFollowLatestMaps is how many of its newest maps following a team imports, however old.
+	proFollowLatestMaps = 5
+	proFollowEvery      = 3 * time.Hour
+	proFollowFirstWait  = 2 * time.Minute
+	maxProFollows       = 50
 )
 
 type proFollowRequest struct {
@@ -41,7 +43,7 @@ func (h *Handlers) ListLibraryProFollows(w http.ResponseWriter, r *http.Request)
 }
 
 // FollowLibraryProTeam handles POST /api/library/pro-follows: Studio imports the
-// team's pro matches of the last two weeks and every new one after that.
+// team's last five maps, its maps of the last two weeks and every new one after that.
 func (h *Handlers) FollowLibraryProTeam(w http.ResponseWriter, r *http.Request) {
 	if !h.libraryReady(w) {
 		return
@@ -132,9 +134,9 @@ func (h *Handlers) syncProFollows(ctx context.Context) (int, error) {
 	imported := 0
 	for _, f := range follows {
 		started := time.Now().UTC()
-		n, err := h.syncProFollow(ctx, client, f)
+		n, err := h.syncProFollow(ctx, f)
 		imported += n
-		if errors.Is(err, community.ErrNoProCatalog) || ctx.Err() != nil {
+		if errors.Is(err, community.ErrNoProCatalog) || errors.Is(err, community.ErrProServerDown) || ctx.Err() != nil {
 			return imported, err
 		}
 		if err != nil {
@@ -148,11 +150,9 @@ func (h *Handlers) syncProFollows(ctx context.Context) (int, error) {
 	return imported, nil
 }
 
-func (h *Handlers) syncProFollow(ctx context.Context, client *community.Client, f library.ProFollow) (int, error) {
-	q := community.ProMatchQuery{Days: proFollowFirstDays, Team: strconv.Itoa(f.TeamID), Page: 1}
-	if f.SyncedAt != nil {
-		q.Days = min(max(int(time.Since(*f.SyncedAt).Hours()/24)+2, 1), community.MaxProMatchDays)
-	}
+func (h *Handlers) syncProFollow(ctx context.Context, f library.ProFollow) (int, error) {
+	client := h.references.community.Client
+	q := community.ProMatchQuery{Days: proFollowDays, Team: strconv.Itoa(f.TeamID), Page: 1}
 	imported := 0
 	for {
 		page, err := client.ProMatches(ctx, q)
@@ -161,23 +161,63 @@ func (h *Handlers) syncProFollow(ctx context.Context, client *community.Client, 
 		}
 		for _, m := range page.Matches {
 			for _, file := range m.Maps {
-				if _, err := h.libraryRepo.GetProMap(ctx, m.ID, file.Entry); err == nil {
-					continue
-				}
-				_, err := h.importProMap(ctx, proMapRef{matchID: m.ID, entry: file.Entry})
-				switch {
-				case err == nil:
-					imported++
-				case errors.Is(err, errProDownload):
+				ok, err := h.syncProMap(ctx, proMapRef{matchID: m.ID, file: file})
+				if err != nil {
 					return imported, err
-				case !errors.Is(err, errProMapRemoved):
-					log.Printf("httpapi: pro follow %d skips %d/%s: %v", f.TeamID, m.ID, file.Entry, err)
+				}
+				if ok {
+					imported++
 				}
 			}
 		}
 		if page.Page >= page.Pages || len(page.Matches) == 0 {
-			return imported, nil
+			break
 		}
 		q.Page++
 	}
+	if f.SyncedAt != nil {
+		return imported, nil
+	}
+	n, err := h.syncLatestProMaps(ctx, f)
+	return imported + n, err
+}
+
+// syncLatestProMaps imports a newly followed team's newest maps, from before the sync period too.
+func (h *Handlers) syncLatestProMaps(ctx context.Context, f library.ProFollow) (int, error) {
+	page, err := h.references.community.Client.ProMatches(ctx, community.ProMatchQuery{Days: community.MaxProMatchDays, Team: strconv.Itoa(f.TeamID), Page: 1})
+	if err != nil {
+		return 0, err
+	}
+	imported, seen := 0, 0
+	for _, m := range page.Matches {
+		for i := len(m.Maps) - 1; i >= 0 && seen < proFollowLatestMaps; i-- {
+			seen++
+			ok, err := h.syncProMap(ctx, proMapRef{matchID: m.ID, file: m.Maps[i]})
+			if err != nil {
+				return imported, err
+			}
+			if ok {
+				imported++
+			}
+		}
+	}
+	return imported, nil
+}
+
+// syncProMap imports one map the library lacks or holds in an older analysis.
+// Only a failed download is an error: it ends the team's sync.
+func (h *Handlers) syncProMap(ctx context.Context, ref proMapRef) (bool, error) {
+	if rec, err := h.libraryRepo.GetProMap(ctx, ref.matchID, ref.file.Entry); err == nil && !proMapNewer(rec, ref.file) {
+		return false, nil
+	}
+	res, err := h.importProMap(ctx, ref)
+	switch {
+	case err == nil:
+		return res.Created, nil
+	case errors.Is(err, errProDownload):
+		return false, err
+	case !errors.Is(err, errProMapRemoved):
+		log.Printf("httpapi: pro follow sync skips %d/%s: %v", ref.matchID, ref.file.Entry, err)
+	}
+	return false, nil
 }

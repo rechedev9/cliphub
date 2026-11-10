@@ -67,9 +67,22 @@ type indexOptions struct {
 	maxDemos int
 }
 
-// run lists every dataset, indexes up to maxDemos new demos one at a time
-// (each file is deleted right after its scan) and rebuilds the reference.
+// run indexes and then syncs the pro match catalog, even when indexing failed early.
 func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
+	err := ix.index(ctx, opts)
+	if ix.archiveDir != "" && ctx.Err() == nil {
+		if n, err := syncProCatalog(ctx, ix.store, ix.archiveDir); err != nil {
+			log.Printf("community stage=pro_matches class=kept error=%v", err)
+		} else {
+			log.Printf("community stage=pro_matches class=synced changed=%d", n)
+		}
+	}
+	return err
+}
+
+// index lists every dataset, indexes up to maxDemos new demos one at a time
+// (each file is deleted right after its scan) and rebuilds the reference.
+func (ix *indexer) index(ctx context.Context, opts indexOptions) error {
 	todo := []pendingDemo{}
 	known := map[string]bool{}
 	for _, spec := range opts.datasets {
@@ -154,13 +167,6 @@ func (ix *indexer) run(ctx context.Context, opts indexOptions) error {
 		}
 		if _, err := buildProPlayers(ctx, proPlayersBuild{store: ix.store, analysesDir: ix.archiveDir, at: time.Now()}); err != nil {
 			log.Printf("community stage=pro-players class=kept error=%v", err)
-		}
-	}
-	if ix.archiveDir != "" {
-		if n, err := syncProCatalog(ctx, ix.store, ix.archiveDir); err != nil {
-			log.Printf("community stage=pro_matches class=kept error=%v", err)
-		} else {
-			log.Printf("community stage=pro_matches class=synced changed=%d", n)
 		}
 	}
 	log.Printf("community stage=index class=built indexed=%d failed=%d remaining=%d maps=%d rounds=%d players=%d", done, failed, max(len(todo)-done-failed, 0), index.Matches, index.Rounds, index.Players)

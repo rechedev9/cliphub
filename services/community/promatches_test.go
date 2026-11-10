@@ -18,12 +18,22 @@ import (
 func writeProMap(t *testing.T, dir string, h community.ProAnalysisHeader) string {
 	t.Helper()
 	h.Format = community.ProAnalysisFormat
-	h.Document.Rounds = append(h.Document.Rounds, tacticalplan.Round{Number: 1}, tacticalplan.Round{Number: 2})
+	if len(h.Document.Rounds) == 0 {
+		h.Document.Rounds = proRounds(1, 16)
+	}
 	name := filepath.Join(dir, analysisFileName(strconv.Itoa(h.Match.MatchID)+"/"+h.Entry))
 	if err := writeAnalysis(name, h, []byte{1, 2, 3}); err != nil {
 		t.Fatal(err)
 	}
 	return name
+}
+
+func proRounds(first, last int) []tacticalplan.Round {
+	out := []tacticalplan.Round{}
+	for n := first; n <= last; n++ {
+		out = append(out, tacticalplan.Round{Number: n})
+	}
+	return out
 }
 
 func proHeader(match int, entry, mapName, playedAt string, teams ...community.ProSidecarTeam) community.ProAnalysisHeader {
@@ -110,5 +120,50 @@ func TestProMatchesWithoutArchiveIsNotFound(t *testing.T) {
 	_, h := testAPI(t)
 	if rec := do(t, h, http.MethodGet, "/v1/pro-matches", nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("no archive folder = %d, want 404 so Studio shows its empty state", rec.Code)
+	}
+}
+
+func TestProMatchCatalogJoinsPartsAndDropsFragments(t *testing.T) {
+	a, h := testAPI(t)
+	dir := t.TempDir()
+	a.analysesDir = dir
+	recent := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	teams := []community.ProSidecarTeam{{ID: 1, Name: "Alpha"}, {ID: 2, Name: "Beta"}}
+	first := proHeader(2400002, "alpha-vs-beta-m1-anubis.dem", "de_anubis", recent, teams...)
+	first.Document.Rounds = proRounds(1, 9)
+	second := proHeader(2400002, "alpha-vs-beta-m1-anubis-p2.dem", "de_anubis", recent, teams...)
+	second.Document.Rounds = proRounds(9, 21)
+	fragment := proHeader(2400002, "alpha-vs-beta-m2-nuke.dem", "de_nuke", recent, teams...)
+	fragment.Document.Rounds = proRounds(1, 8)
+	for _, hd := range []community.ProAnalysisHeader{first, second, fragment} {
+		writeProMap(t, dir, hd)
+	}
+	if _, err := syncProCatalog(context.Background(), a.store, dir); err != nil {
+		t.Fatal(err)
+	}
+	var m community.ProMatch
+	rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400002", nil)
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &m) != nil {
+		t.Fatalf("match = %d %s", rec.Code, rec.Body)
+	}
+	if len(m.Maps) != 1 {
+		t.Fatalf("the parts must join into one map and the fragment drop: %+v", m.Maps)
+	}
+	got := m.Maps[0]
+	if got.Entry != "alpha-vs-beta-m1-anubis" || got.Rounds != 21 || len(got.Parts) != 2 || got.Parts[1].Entry != "alpha-vs-beta-m1-anubis-p2" || got.Parts[1].FirstRound != 9 {
+		t.Fatalf("joined map = %+v", got)
+	}
+	if got.SHA256 == got.Parts[0].SHA256 || len(got.SHA256) != 64 {
+		t.Fatalf("a joined map's hash must cover every part: %q", got.SHA256)
+	}
+	if rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400999", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("an unknown match = %d, want 404", rec.Code)
+	}
+	a.downloads.limit = 1
+	if rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400002/alpha-vs-beta-m1-anubis-p2", nil); rec.Code != http.StatusOK {
+		t.Fatalf("a part file = %d", rec.Code)
+	}
+	if rec := do(t, h, http.MethodGet, "/v1/pro-matches/2400002/alpha-vs-beta-m1-anubis", nil); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("a download past the hourly cap = %d, want 429", rec.Code)
 	}
 }

@@ -32,10 +32,12 @@ type proMatchTeamOut struct {
 }
 
 type proMatchMapOut struct {
-	Entry           string `json:"entry" jsonschema:"the map file to pass to import_pro_match"`
+	Entry           string `json:"entry" jsonschema:"the map to pass to import_pro_match, as the catalog names it"`
 	Map             string `json:"map"`
 	Rounds          int    `json:"rounds"`
+	Demos           int    `json:"demos" jsonschema:"demos the map was played in; above 1 the server restarted and Studio joins them"`
 	AnalysisVersion int    `json:"analysis_version"`
+	OldAnalysis     bool   `json:"old_analysis,omitempty" jsonschema:"older than the current scan: some numbers may be missing until the server prepares it again"`
 	LibraryMatchID  string `json:"library_match_id,omitempty" jsonschema:"set once the map is in the library"`
 	RadarMayBeOff   bool   `json:"radar_may_be_off,omitempty" jsonschema:"the analysis is older than this map's radar calibration, so the 2D may draw positions off"`
 }
@@ -44,6 +46,7 @@ type proMatchOut struct {
 	HLTVMatchID int               `json:"hltv_match_id"`
 	Event       string            `json:"event" jsonschema:"untrusted event name"`
 	PlayedAt    string            `json:"played_at" jsonschema:"YYYY-MM-DD"`
+	HLTVURL     string            `json:"hltv_url" jsonschema:"the HLTV match page, where its .dem files can be downloaded to record clips"`
 	Teams       []proMatchTeamOut `json:"teams"`
 	Maps        []proMatchMapOut  `json:"maps"`
 }
@@ -126,7 +129,8 @@ func registerProMatchTools(server *mcp.Server, s *studio) {
 	mcp.AddTool(server, &mcp.Tool{Name: "import_pro_match", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
 		Description: "Import one map of a pro match into the library, as Abrir en el Replay does on Partidas pro: Studio downloads its analysis (never the demo) " +
 			"and the match opens in the Replay and the analysis tools at once. It cannot be analysed again or recorded until its .dem is imported with import_demo. " +
-			"Importing it again returns the same match; delete_demo removes it."},
+			"A map played over several demos after a server restart comes in as one match. Importing it again returns the same match, " +
+			"or swaps in the newer analysis when the server prepared the map again; delete_demo removes it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in importProMatchIn) (*mcp.CallToolResult, importProMatchOut, error) {
 			entry := strings.TrimSuffix(strings.TrimSpace(in.Entry), ".dem")
 			if in.HLTVMatchID <= 0 || !community.ProEntryPattern.MatchString(entry) {
@@ -145,7 +149,7 @@ func registerProMatchTools(server *mcp.Server, s *studio) {
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "follow_pro_team", Annotations: &mcp.ToolAnnotations{IdempotentHint: true},
-		Description: "Follow an HLTV team, as Seguir equipo does on Partidas pro: Studio imports its pro maps of the last two weeks and every new one after each catalog refresh. " +
+		Description: "Follow an HLTV team, as Seguir equipo does on Partidas pro: Studio imports its last five maps, its maps of the last two weeks and every new one after each catalog refresh. " +
 			"unfollow_pro_team stops it."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in followProTeamIn) (*mcp.CallToolResult, proFollowOut, error) {
 			name := strings.TrimSpace(in.Name)
@@ -229,6 +233,8 @@ func proMatchesError(err error) error {
 		return proCatalogStatus("unavailable")
 	case "no_pro_map":
 		return errors.New("the community server has no analysis of this map; list_pro_matches lists the maps it has")
+	case "pro_map_unreadable":
+		return errors.New("the community server sent an analysis of this map that Studio cannot read; import another map or retry after the server is updated")
 	case "pro_map_pending":
 		return errors.New("the demo of this pro map is in the library and still being analysed; wait_for_demo, then get_match")
 	}
@@ -242,12 +248,14 @@ func proMatchesOf(page tuiclient.ProMatches) listProMatchesOut {
 		out.UpdatedAt = page.UpdatedAt.Format(time.DateOnly)
 	}
 	for _, m := range page.Matches {
-		row := proMatchOut{HLTVMatchID: m.ID, Event: cleanName(m.Event), PlayedAt: m.PlayedAt.Format(time.DateOnly), Teams: []proMatchTeamOut{}, Maps: []proMatchMapOut{}}
+		row := proMatchOut{HLTVMatchID: m.ID, Event: cleanName(m.Event), PlayedAt: m.PlayedAt.Format(time.DateOnly), HLTVURL: community.ProMatchURL(m.ID),
+			Teams: []proMatchTeamOut{}, Maps: []proMatchMapOut{}}
 		for _, t := range m.Teams {
 			row.Teams = append(row.Teams, proMatchTeamOut{ID: t.ID, Name: cleanName(t.Name), Rank: t.Rank, Followed: t.Followed})
 		}
 		for _, f := range m.Maps {
-			mo := proMatchMapOut{Entry: cleanName(f.Entry), Map: cleanName(f.Map), Rounds: f.Rounds, AnalysisVersion: f.AnalysisVersion, RadarMayBeOff: f.RadarMayBeOff}
+			mo := proMatchMapOut{Entry: f.Entry, Map: cleanName(f.Map), Rounds: f.Rounds, Demos: len(f.Parts), AnalysisVersion: f.AnalysisVersion,
+				OldAnalysis: f.OldAnalysis, RadarMayBeOff: f.RadarMayBeOff}
 			if f.LibraryMatchID != nil {
 				mo.LibraryMatchID = f.LibraryMatchID.String()
 			}

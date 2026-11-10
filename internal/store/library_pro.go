@@ -32,6 +32,9 @@ type ProMatchRepository interface {
 
 func proMapCopy(m library.ProMap) library.ProMap {
 	m.Teams = append([]library.ProTeam{}, m.Teams...)
+	for i := range m.Teams {
+		m.Teams[i].SteamIDs = append([]string(nil), m.Teams[i].SteamIDs...)
+	}
 	if m.DemoID != nil {
 		id := *m.DemoID
 		m.DemoID = &id

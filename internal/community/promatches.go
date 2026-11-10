@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +37,9 @@ var ErrNoProCatalog = errors.New("community: the server has no pro match catalog
 // ErrNoProMap means the server has no analysis of that pro map.
 var ErrNoProMap = errors.New("community: no such pro map")
 
+// ErrProServerDown means the server did not answer, failed or asked to slow down.
+var ErrProServerDown = errors.New("community: the server did not answer")
+
 // ProTeam is one team of a pro match as HLTV names it; Rank is 0 outside the HLTV ranking.
 type ProTeam struct {
 	ID   int    `json:"id"`
@@ -43,15 +47,32 @@ type ProTeam struct {
 	Rank int    `json:"rank,omitempty"`
 }
 
-// ProMapFile is one analysed demo of a pro match. A map split by a server
-// restart has one file per part.
+// ProMapFile is one analysed map of a pro match. Entry names the map without a
+// part suffix; a map split by a server restart lists one part per demo.
 type ProMapFile struct {
+	Entry  string `json:"entry"`
+	Map    string `json:"map"`
+	Rounds int    `json:"rounds"`
+	// AnalysisVersion is the oldest part's; SHA256 changes when any part changes.
+	AnalysisVersion int          `json:"analysis_version"`
+	Bytes           int64        `json:"bytes"`
+	SHA256          string       `json:"sha256"`
+	Parts           []ProMapPart `json:"parts"`
+}
+
+// ProMapPart is one analysed demo of a map; Entry is the {map} of its file route.
+type ProMapPart struct {
 	Entry           string `json:"entry"`
-	Map             string `json:"map"`
+	FirstRound      int    `json:"first_round"`
 	Rounds          int    `json:"rounds"`
 	AnalysisVersion int    `json:"analysis_version"`
 	Bytes           int64  `json:"bytes"`
 	SHA256          string `json:"sha256"`
+}
+
+// ProMatchURL is the HLTV page of a match, where its demos can be downloaded.
+func ProMatchURL(matchID int) string {
+	return "https://www.hltv.org/matches/" + strconv.Itoa(matchID) + "/match"
 }
 
 // ProMatch is one HLTV match of the catalog with its analysed maps in play order.
@@ -96,14 +117,24 @@ type ProMatchesPage struct {
 // ProMatchQuery filters the catalog. Team is an HLTV team id or part of a name;
 // Event is part of an event name; zero fields do not filter.
 type ProMatchQuery struct {
-	Days  int
+	Days int
+	// Since, when set, starts the period instead of Days, such as the reader's local midnight for today.
+	Since time.Time
 	Team  string
 	Event string
 	Map   string
 	Page  int
 }
 
-// ParseProMatchQuery reads days, team, event, map and page, with the defaults filled in.
+// Start is when the period of q begins.
+func (q ProMatchQuery) Start(now time.Time) time.Time {
+	if !q.Since.IsZero() {
+		return q.Since
+	}
+	return now.AddDate(0, 0, -q.Days)
+}
+
+// ParseProMatchQuery reads days, since, team, event, map and page, with the defaults filled in.
 func ParseProMatchQuery(v url.Values) (ProMatchQuery, error) {
 	q := ProMatchQuery{Days: DefaultProMatchDays, Page: 1, Team: strings.TrimSpace(v.Get("team")),
 		Event: strings.TrimSpace(v.Get("event")), Map: v.Get("map")}
@@ -113,6 +144,13 @@ func ParseProMatchQuery(v url.Values) (ProMatchQuery, error) {
 			return q, fmt.Errorf("days must be from 1 to %d", MaxProMatchDays)
 		}
 		q.Days = n
+	}
+	if raw := v.Get("since"); raw != "" {
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil || time.Since(t) > MaxProMatchDays*24*time.Hour || time.Until(t) > 24*time.Hour {
+			return q, fmt.Errorf("since must be an RFC 3339 time within the last %d days", MaxProMatchDays)
+		}
+		q.Since = t.UTC()
 	}
 	if raw := v.Get("page"); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -140,6 +178,9 @@ func (q ProMatchQuery) Values() url.Values {
 		if value != "" {
 			v.Set(key, value)
 		}
+	}
+	if !q.Since.IsZero() {
+		v.Set("since", q.Since.UTC().Format(time.RFC3339))
 	}
 	if q.Page > 1 {
 		v.Set("page", strconv.Itoa(q.Page))
@@ -208,25 +249,110 @@ func MatchProSides(clans []string, teams []ProTeam) []int {
 	return out
 }
 
+// ProSidePairing is what pairs the sides of a demo with the teams of its HLTV match.
+type ProSidePairing struct {
+	// Clans holds each side's clan name, empty for a fallback name.
+	Clans   []string
+	Rosters [][]string
+	Teams   []ProTeam
+	// Known holds the SteamIDs earlier imports put on each HLTV team id.
+	Known map[int][]string
+}
+
+// minRosterOverlap is how many known players a side needs to be taken for a team.
+const minRosterOverlap = 2
+
+// PairProSides pairs sides by clan name first, then by the players earlier
+// imports of each HLTV team fielded. The result holds a team index or -1 per side.
+func PairProSides(p ProSidePairing) []int {
+	out := MatchProSides(p.Clans, p.Teams)
+	if !slices.Contains(out, -1) || len(p.Rosters) != len(out) {
+		return out
+	}
+	overlap := func(side, team int) int {
+		known := p.Known[p.Teams[team].ID]
+		n := 0
+		for _, sid := range p.Rosters[side] {
+			if slices.Contains(known, sid) {
+				n++
+			}
+		}
+		return n
+	}
+	if len(out) == 2 && len(p.Teams) == 2 {
+		straight, crossed := overlap(0, 0)+overlap(1, 1), overlap(0, 1)+overlap(1, 0)
+		switch {
+		case straight > crossed && straight >= minRosterOverlap:
+			out[0], out[1] = 0, 1
+		case crossed > straight && crossed >= minRosterOverlap:
+			out[0], out[1] = 1, 0
+		}
+		return out
+	}
+	taken := map[int]bool{}
+	for _, idx := range out {
+		taken[idx] = true
+	}
+	for i := range out {
+		if out[i] >= 0 {
+			continue
+		}
+		best, bestN := -1, minRosterOverlap-1
+		for j := range p.Teams {
+			if n := overlap(i, j); !taken[j] && n > bestN {
+				best, bestN = j, n
+			}
+		}
+		if best >= 0 {
+			out[i], taken[best] = best, true
+		}
+	}
+	return out
+}
+
+// proRequest is one GET of the pro match routes.
+type proRequest struct {
+	path    string
+	accept  string
+	timeout time.Duration
+	limit   int64
+	missing error
+}
+
+func (c *Client) proGet(ctx context.Context, r proRequest) ([]byte, error) {
+	req, err := c.request(ctx, http.MethodGet, r.path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.accept != "" {
+		req.Header.Set("Accept", r.accept)
+	}
+	client := *c.http
+	if r.timeout > 0 {
+		client.Timeout = r.timeout
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrProServerDown, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, r.missing
+	}
+	body, err := readBody(resp, r.limit)
+	if err != nil && (resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests) {
+		return nil, fmt.Errorf("%w: %w", ErrProServerDown, err)
+	}
+	return body, err
+}
+
 // ProMatches reads one page of the pro match catalog.
 func (c *Client) ProMatches(ctx context.Context, q ProMatchQuery) (ProMatchesPage, error) {
 	path := "/v1/pro-matches"
 	if v := q.Values(); len(v) > 0 {
 		path += "?" + v.Encode()
 	}
-	req, err := c.request(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return ProMatchesPage{}, err
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return ProMatchesPage{}, fmt.Errorf("community: pro matches: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return ProMatchesPage{}, ErrNoProCatalog
-	}
-	body, err := readBody(resp, maxResponseBytes)
+	body, err := c.proGet(ctx, proRequest{path: path, limit: maxResponseBytes, missing: ErrNoProCatalog})
 	if err != nil {
 		return ProMatchesPage{}, err
 	}
@@ -237,25 +363,27 @@ func (c *Client) ProMatches(ctx context.Context, q ProMatchQuery) (ProMatchesPag
 	return page, nil
 }
 
-// ProMapFileBytes downloads the analysis of one pro map, compressed as the server keeps it.
+// ProMatch reads one match of the catalog, whatever its date.
+func (c *Client) ProMatch(ctx context.Context, matchID int) (ProMatch, error) {
+	if matchID <= 0 {
+		return ProMatch{}, fmt.Errorf("community: invalid pro match %d", matchID)
+	}
+	body, err := c.proGet(ctx, proRequest{path: "/v1/pro-matches/" + strconv.Itoa(matchID), limit: maxResponseBytes, missing: ErrNoProMap})
+	if err != nil {
+		return ProMatch{}, err
+	}
+	var m ProMatch
+	if err := json.Unmarshal(body, &m); err != nil {
+		return ProMatch{}, fmt.Errorf("community: decode pro match: %w", err)
+	}
+	return m, nil
+}
+
+// ProMapFileBytes downloads the analysis of one part of a pro map, compressed as the server keeps it.
 func (c *Client) ProMapFileBytes(ctx context.Context, matchID int, entry string) ([]byte, error) {
 	if matchID <= 0 || !ProEntryPattern.MatchString(entry) {
 		return nil, fmt.Errorf("community: invalid pro map %d/%q", matchID, entry)
 	}
-	req, err := c.request(ctx, http.MethodGet, "/v1/pro-matches/"+strconv.Itoa(matchID)+"/"+url.PathEscape(entry), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/zstd")
-	long := *c.http
-	long.Timeout = proFileTimeout
-	resp, err := long.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("community: pro map: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrNoProMap
-	}
-	return readBody(resp, maxProFileBytes)
+	return c.proGet(ctx, proRequest{path: "/v1/pro-matches/" + strconv.Itoa(matchID) + "/" + url.PathEscape(entry),
+		accept: "application/zstd", timeout: proFileTimeout, limit: maxProFileBytes, missing: ErrNoProMap})
 }

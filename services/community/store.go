@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS pro_match_maps (
 	sha256           TEXT NOT NULL,
 	map              TEXT NOT NULL,
 	rounds           INTEGER NOT NULL,
+	first_round      INTEGER NOT NULL DEFAULT 0,
 	analysis_version INTEGER NOT NULL,
 	event            TEXT NOT NULL,
 	played_at        TEXT NOT NULL,

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,8 +22,9 @@ import (
 
 const proTestMatch = 2400001
 
-// fakeProServer serves a catalog of one HLTV match with two maps and their analyses.
-func fakeProServer(t *testing.T) *httptest.Server {
+// fakeProServer serves a catalog of one HLTV match with two maps, their analyses
+// and a third map whose file does not decode; tests may change the match it serves.
+func fakeProServer(t *testing.T) (*httptest.Server, *community.ProMatch) {
 	t.Helper()
 	rank := 1
 	files := map[string][]byte{}
@@ -44,12 +46,22 @@ func fakeProServer(t *testing.T) *httptest.Server {
 			t.Fatal(err)
 		}
 		files[entry] = buf.Bytes()
-		match.Maps = append(match.Maps, community.ProMapFile{Entry: entry, Map: "de_mirage", Rounds: 2, AnalysisVersion: doc.AnalysisVersion, Bytes: int64(buf.Len())})
+		fileSum := sha256.Sum256(buf.Bytes())
+		part := community.ProMapPart{Entry: entry, FirstRound: 1, Rounds: 2, AnalysisVersion: doc.AnalysisVersion, Bytes: int64(buf.Len()), SHA256: hex.EncodeToString(fileSum[:])}
+		match.Maps = append(match.Maps, community.ProMapFile{Entry: entry, Map: "de_mirage", Rounds: 2, AnalysisVersion: doc.AnalysisVersion, Bytes: part.Bytes,
+			SHA256: part.SHA256, Parts: []community.ProMapPart{part}})
 	}
-	page.Matches = []community.ProMatch{match}
+	files["vitality-vs-faze-m3-nuke"] = []byte("not zstd")
+	match.Maps = append(match.Maps, community.ProMapFile{Entry: "vitality-vs-faze-m3-nuke", Map: "de_nuke", Rounds: 20, AnalysisVersion: 9, SHA256: "broken",
+		Parts: []community.ProMapPart{{Entry: "vitality-vs-faze-m3-nuke", FirstRound: 1, Rounds: 20, SHA256: "broken"}}})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/pro-matches" {
+		switch r.URL.Path {
+		case "/v1/pro-matches":
+			page.Matches = []community.ProMatch{match}
 			_ = json.NewEncoder(w).Encode(page)
+			return
+		case "/v1/pro-matches/2400001":
+			_ = json.NewEncoder(w).Encode(match)
 			return
 		}
 		if body, ok := files[strings.TrimPrefix(r.URL.Path, "/v1/pro-matches/2400001/")]; ok {
@@ -59,7 +71,7 @@ func fakeProServer(t *testing.T) *httptest.Server {
 		http.NotFound(w, r)
 	}))
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, &match
 }
 
 func proTestEnv(t *testing.T, url string) libraryTestEnv {
@@ -74,7 +86,8 @@ func proTestEnv(t *testing.T, url string) libraryTestEnv {
 }
 
 func TestProMatchImportFollowAndSeries(t *testing.T) {
-	env := proTestEnv(t, fakeProServer(t).URL)
+	srv, catalog := fakeProServer(t)
+	env := proTestEnv(t, srv.URL)
 	var list proMatchesResponse
 	env.json(http.MethodGet, "/api/library/pro-matches", nil, http.StatusOK, &list)
 	if list.Status != proCatalogOK || len(list.Matches) != 1 || list.Matches[0].Maps[0].LibraryMatchID != nil {
@@ -99,6 +112,20 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 	env.json(http.MethodPost, "/api/library/pro-matches/2400001/vitality-vs-faze-m1-mirage/import", nil, http.StatusOK, &again)
 	if again.Created || again.MatchID != first.MatchID {
 		t.Fatalf("a second import must return the first match: %+v", again)
+	}
+	catalog.Maps[0].SHA256 = "prepared-again"
+	env.json(http.MethodPost, "/api/library/pro-matches/2400001/vitality-vs-faze-m1-mirage/import", nil, http.StatusOK, &again)
+	if rec, err := env.repo.GetProMap(t.Context(), proTestMatch, "vitality-vs-faze-m1-mirage"); err != nil || again.MatchID != first.MatchID || rec.SHA256 != "prepared-again" {
+		t.Fatalf("a newer catalog file must replace the analysis in place: %+v %+v %v", again, rec, err)
+	}
+	if rec, _ := env.repo.GetProMap(t.Context(), proTestMatch, "vitality-vs-faze-m1-mirage"); len(rec.Teams[0].SteamIDs) != 1 || rec.Teams[0].SteamIDs[0] != "1" {
+		t.Fatalf("the record must keep the players of each HLTV team: %+v", rec.Teams)
+	}
+	if rw := env.do(http.MethodPost, "/api/library/pro-matches/2400001/vitality-vs-faze-m3-nuke/import", nil, ""); rw.Code != http.StatusBadGateway || !strings.Contains(rw.Body.String(), codeProMapUnreadable) {
+		t.Fatalf("an unreadable map = %d %s", rw.Code, rw.Body)
+	}
+	if _, err := env.h.importProMap(t.Context(), proMapRef{matchID: proTestMatch, file: catalog.Maps[2]}); !errors.Is(err, errProMapBroken) {
+		t.Fatalf("the sync must skip a hash that failed before: %v", err)
 	}
 	if rw := env.do(http.MethodPost, "/api/library/demos/"+first.DemoID.String()+"/analyze", nil, ""); rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), codeSharedMatch) {
 		t.Fatalf("analyze a pro map = %d %s", rw.Code, rw.Body)
@@ -147,7 +174,8 @@ func TestProMatchImportFollowAndSeries(t *testing.T) {
 }
 
 func TestProFollowSyncImportsNewMaps(t *testing.T) {
-	env := proTestEnv(t, fakeProServer(t).URL)
+	srv, _ := fakeProServer(t)
+	env := proTestEnv(t, srv.URL)
 	env.json(http.MethodPost, "/api/library/pro-follows", map[string]any{"team_id": 9565, "name": "Vitality"}, http.StatusOK, nil)
 	if n, err := env.h.syncProFollows(context.Background()); err != nil || n != 2 {
 		t.Fatalf("sync imported %d: %v", n, err)
@@ -175,5 +203,22 @@ func TestProMatchesDegradeWithoutCatalog(t *testing.T) {
 	}
 	if rw := env.do(http.MethodPost, "/api/library/pro-matches/x/..%2Fy/import", nil, ""); rw.Code != http.StatusBadRequest {
 		t.Fatalf("a bad map name = %d", rw.Code)
+	}
+}
+
+func TestProFollowSyncStopsWhenTheServerFails(t *testing.T) {
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer down.Close()
+	env := proTestEnv(t, down.URL)
+	for _, f := range []map[string]any{{"team_id": 1, "name": "A"}, {"team_id": 2, "name": "B"}} {
+		env.json(http.MethodPost, "/api/library/pro-follows", f, http.StatusOK, nil)
+	}
+	if _, err := env.h.syncProFollows(context.Background()); !errors.Is(err, community.ErrProServerDown) {
+		t.Fatalf("a failing server must end the pass: %v", err)
+	}
+	if follows, _ := env.repo.ListProFollows(t.Context()); follows[0].SyncedAt != nil || follows[1].SyncedAt != nil {
+		t.Fatalf("no team is synced when the server fails: %+v", follows)
 	}
 }

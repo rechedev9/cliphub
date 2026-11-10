@@ -65,7 +65,7 @@ func readLineupThrows(ctx context.Context, analysesDir string) (lineupThrows, er
 			continue
 		}
 		match, entry, _ := analysisName(filepath.Base(name))
-		key := match + "/" + mapKey(entry)
+		key := proMapGroup(match, entry)
 		meta := prolineups.MatchMeta{Source: hltvDataset, MatchID: match, MapKey: key, Event: h.Match.Event}
 		if t, err := time.Parse(time.RFC3339, h.Match.PlayedAt); err == nil {
 			meta.PlayedAt = t

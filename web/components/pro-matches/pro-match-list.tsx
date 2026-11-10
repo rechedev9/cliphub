@@ -9,6 +9,7 @@ import {
   PRO_PERIODS,
   followProTeam,
   groupByDay,
+  proDayLabel,
   importProMatch,
   listProMatches,
   proCatalogNotice,
@@ -19,7 +20,7 @@ import {
   type ProMatchTeam,
   type ProMatchesPage,
 } from '@/lib/api/pro-matches';
-import { formatShortDate, prettyMapName } from '@/lib/format';
+import { prettyMapName } from '@/lib/format';
 import { EmptyState } from '@/components/records/empty-state';
 import { TableSkeleton } from '@/components/records/table-skeleton';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ type Load = { kind: 'loading' } | { kind: 'offline' } | { kind: 'page'; page: Pr
 
 const IMPORT_ERROR: Record<string, string> = {
   no_pro_map: 'El servidor de ClipHub ya no tiene el análisis de este mapa.',
+  pro_map_unreadable: 'El servidor de ClipHub envió un análisis de este mapa que Studio no puede leer. Prueba con otro mapa o vuelve a intentarlo cuando se actualice.',
   pro_map_pending: 'La demo de este mapa ya está en tu biblioteca y se está analizando. Ábrela desde Partidas cuando termine.',
   community_unavailable: 'El servidor de ClipHub no responde. Vuelve a intentarlo en un rato.',
   community_disabled: 'Este Studio no se conecta al servidor de ClipHub.',
@@ -134,8 +136,8 @@ export function ProMatchList(): ReactNode {
           description="Prueba con un periodo más largo o quita algún filtro. El servidor de ClipHub añade las partidas de HLTV cada día." />
       ) : (
         groupByDay(page.matches).map((group) => (
-          <section key={group.day} aria-label={formatShortDate(group.day)} className="flex flex-col gap-3">
-            <h2 className="text-body-sm font-semibold text-fg-2">{formatShortDate(group.day)}</h2>
+          <section key={group.day} aria-label={proDayLabel(group.day)} className="flex flex-col gap-3">
+            <h2 className="text-body-sm font-semibold text-fg-2">{proDayLabel(group.day)}</h2>
             {group.matches.map((m) => (
               <ProMatchCard key={m.id} match={m} importing={importing} following={following}
                 onOpen={(match, map) => void open(match, map)} onToggleFollow={(team: ProMatchTeam) => void toggleFollow(team)} />

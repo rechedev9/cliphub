@@ -6,9 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ProMap is a map of an HLTV pro match imported from the community server's
-// catalog. DemoID is nil once the user deleted its match, so the follow sync
-// does not bring it back; an explicit import does.
+// ProMap is a pro map imported from the community catalog. DemoID is nil once the
+// user deleted its match, so the follow sync leaves it out and only an explicit import brings it back.
 type ProMap struct {
 	MatchID         int        `json:"hltv_match_id"`
 	Entry           string     `json:"entry"`
@@ -22,11 +21,13 @@ type ProMap struct {
 	ImportedAt      time.Time  `json:"imported_at"`
 }
 
-// ProTeam is an HLTV team as the catalog names it.
+// ProTeam is an HLTV team as the catalog names it; SteamIDs are the players it
+// fielded in the map, which pair the sides of its later demos.
 type ProTeam struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Rank int    `json:"rank,omitempty"`
+	ID       int      `json:"id"`
+	Name     string   `json:"name"`
+	Rank     int      `json:"rank,omitempty"`
+	SteamIDs []string `json:"steamids,omitempty"`
 }
 
 // ProFollow is an HLTV team whose new pro matches Studio imports on its own.

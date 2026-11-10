@@ -3,7 +3,9 @@ package main
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/community"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // proFileWriteTimeout covers sending one map analysis, about a megabyte, on a slow link.
@@ -31,6 +34,7 @@ type proMapRow struct {
 	sha256   string
 	mapName  string
 	rounds   int
+	first    int
 	version  int
 	event    string
 	playedAt time.Time
@@ -101,7 +105,7 @@ func readProMapRow(name string, info os.FileInfo) (proMapRow, error) {
 	}
 	row := proMapRow{matchID: h.Match.MatchID, entry: h.Entry, file: filepath.Base(name), size: size,
 		modTime: info.ModTime().UTC().Format(time.RFC3339Nano), sha256: sum, mapName: h.Document.Demo.Map,
-		rounds: len(h.Document.Rounds), version: h.Document.AnalysisVersion, event: h.Match.Event, teams: []community.ProTeam{}}
+		rounds: len(h.Document.Rounds), first: firstRoundOf(h.Document.Rounds), version: h.Document.AnalysisVersion, event: h.Match.Event, teams: []community.ProTeam{}}
 	if row.event == "" {
 		row.event = otherEvents
 	}
@@ -117,6 +121,16 @@ func readProMapRow(name string, info os.FileInfo) (proMapRow, error) {
 		row.teams = append(row.teams, team)
 	}
 	return row, nil
+}
+
+func firstRoundOf(rounds []tacticalplan.Round) int {
+	first := 0
+	for _, r := range rounds {
+		if first == 0 || r.Number < first {
+			first = r.Number
+		}
+	}
+	return first
 }
 
 func (s *store) proFileStamps(ctx context.Context) (map[string]string, error) {
@@ -143,12 +157,12 @@ func (s *store) saveProMap(ctx context.Context, r proMapRow) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO pro_match_maps (match_id, entry, file, size, mod_time, sha256, map, rounds, analysis_version, event, played_at, teams, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO pro_match_maps (match_id, entry, file, size, mod_time, sha256, map, rounds, first_round, analysis_version, event, played_at, teams, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (match_id, entry) DO UPDATE SET file = excluded.file, size = excluded.size, mod_time = excluded.mod_time,
-			sha256 = excluded.sha256, map = excluded.map, rounds = excluded.rounds, analysis_version = excluded.analysis_version,
+			sha256 = excluded.sha256, map = excluded.map, rounds = excluded.rounds, first_round = excluded.first_round, analysis_version = excluded.analysis_version,
 			event = excluded.event, played_at = excluded.played_at, teams = excluded.teams, synced_at = excluded.synced_at`,
-		r.matchID, r.entry, r.file, r.size, r.modTime, r.sha256, r.mapName, r.rounds, r.version, r.event, r.playedAt.Format(time.RFC3339), string(teams), now())
+		r.matchID, r.entry, r.file, r.size, r.modTime, r.sha256, r.mapName, r.rounds, r.first, r.version, r.event, r.playedAt.Format(time.RFC3339), string(teams), now())
 	return err
 }
 
@@ -171,10 +185,26 @@ func (s *store) dropProMapsExcept(ctx context.Context, keep map[string]bool) (in
 	return removed, nil
 }
 
+const proMapColumns = `match_id, entry, file, size, sha256, map, rounds, first_round, analysis_version, event, played_at, teams, synced_at`
+
 // proMapRows reads the catalog maps played at or after since.
 func (s *store) proMapRows(ctx context.Context, since time.Time) ([]proMapRow, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT match_id, entry, file, size, sha256, map, rounds, analysis_version, event, played_at, teams, synced_at
-		FROM pro_match_maps WHERE played_at >= ?`, since.UTC().Format(time.RFC3339))
+	return s.queryProMaps(ctx, proMapFilter{where: `played_at >= ?`, arg: since.UTC().Format(time.RFC3339)})
+}
+
+// proMatchRows reads every catalog map of one HLTV match.
+func (s *store) proMatchRows(ctx context.Context, match int) ([]proMapRow, error) {
+	return s.queryProMaps(ctx, proMapFilter{where: `match_id = ?`, arg: match})
+}
+
+// proMapFilter is the WHERE clause of a catalog read and its one argument.
+type proMapFilter struct {
+	where string
+	arg   any
+}
+
+func (s *store) queryProMaps(ctx context.Context, f proMapFilter) ([]proMapRow, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+proMapColumns+` FROM pro_match_maps WHERE `+f.where, f.arg)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +213,7 @@ func (s *store) proMapRows(ctx context.Context, since time.Time) ([]proMapRow, e
 	for rows.Next() {
 		var r proMapRow
 		var playedAt, teams, syncedAt string
-		if err := rows.Scan(&r.matchID, &r.entry, &r.file, &r.size, &r.sha256, &r.mapName, &r.rounds, &r.version, &r.event, &playedAt, &teams, &syncedAt); err != nil {
+		if err := rows.Scan(&r.matchID, &r.entry, &r.file, &r.size, &r.sha256, &r.mapName, &r.rounds, &r.first, &r.version, &r.event, &playedAt, &teams, &syncedAt); err != nil {
 			return nil, err
 		}
 		r.playedAt, _ = time.Parse(time.RFC3339, playedAt)
@@ -202,28 +232,72 @@ func (s *store) proMapFile(ctx context.Context, match int, entry string) (string
 	return file, sum, err
 }
 
-// proCatalogPage groups the rows into matches, newest first, and applies the query.
-func proCatalogPage(rows []proMapRow, q community.ProMatchQuery) community.ProMatchesPage {
+// proMatchesOf groups the rows into matches, newest first, with the parts of a
+// map joined into one map and fragments under minMapRounds left out.
+func proMatchesOf(rows []proMapRow) []community.ProMatch {
 	byID := map[int]*community.ProMatch{}
-	page := community.ProMatchesPage{Days: q.Days, Page: q.Page, Matches: []community.ProMatch{}}
+	groups := map[string][]proMapRow{}
 	for _, r := range rows {
-		page.UpdatedAt = maxTime(page.UpdatedAt, r.syncedAt)
-		m := byID[r.matchID]
-		if m == nil {
-			m = &community.ProMatch{ID: r.matchID, Event: r.event, PlayedAt: r.playedAt, Teams: r.teams}
-			byID[r.matchID] = m
+		if byID[r.matchID] == nil {
+			byID[r.matchID] = &community.ProMatch{ID: r.matchID, Event: r.event, PlayedAt: r.playedAt, Teams: r.teams, Maps: []community.ProMapFile{}}
 		}
-		m.Maps = append(m.Maps, community.ProMapFile{Entry: strings.TrimSuffix(r.entry, ".dem"), Map: r.mapName, Rounds: r.rounds,
-			AnalysisVersion: r.version, Bytes: r.size, SHA256: r.sha256})
+		key := proMapGroup(strconv.Itoa(r.matchID), r.entry)
+		groups[key] = append(groups[key], r)
+	}
+	for key, parts := range groups {
+		_, entry, _ := strings.Cut(key, "/")
+		if f, ok := joinProMapRows(entry, parts); ok {
+			m := byID[parts[0].matchID]
+			m.Maps = append(m.Maps, f)
+		}
 	}
 	all := make([]community.ProMatch, 0, len(byID))
 	for _, m := range byID {
+		if len(m.Maps) == 0 {
+			continue
+		}
 		slices.SortFunc(m.Maps, func(a, b community.ProMapFile) int { return strings.Compare(a.Entry, b.Entry) })
 		all = append(all, *m)
 	}
 	slices.SortFunc(all, func(a, b community.ProMatch) int {
 		return cmp.Or(b.PlayedAt.Compare(a.PlayedAt), b.ID-a.ID)
 	})
+	return all
+}
+
+// joinProMapRows is one map from its part rows; a replayed round counts once.
+func joinProMapRows(entry string, rows []proMapRow) (community.ProMapFile, bool) {
+	slices.SortFunc(rows, func(a, b proMapRow) int { return cmp.Or(a.first-b.first, strings.Compare(a.entry, b.entry)) })
+	f := community.ProMapFile{Entry: entry, Map: rows[0].mapName, AnalysisVersion: rows[0].version, Parts: []community.ProMapPart{}}
+	played := map[int]bool{}
+	sums := []string{}
+	for _, r := range rows {
+		first := max(r.first, 1)
+		for n := first; n < first+r.rounds; n++ {
+			played[n] = true
+		}
+		f.AnalysisVersion = min(f.AnalysisVersion, r.version)
+		f.Bytes += r.size
+		sums = append(sums, r.sha256)
+		f.Parts = append(f.Parts, community.ProMapPart{Entry: strings.TrimSuffix(r.entry, ".dem"), FirstRound: r.first, Rounds: r.rounds,
+			AnalysisVersion: r.version, Bytes: r.size, SHA256: r.sha256})
+	}
+	f.Rounds = len(played)
+	f.SHA256 = sums[0]
+	if len(sums) > 1 {
+		sum := sha256.Sum256([]byte(strings.Join(sums, "\n")))
+		f.SHA256 = hex.EncodeToString(sum[:])
+	}
+	return f, f.Rounds >= minMapRounds
+}
+
+// proCatalogPage is one page of the grouped matches that pass the query.
+func proCatalogPage(rows []proMapRow, q community.ProMatchQuery) community.ProMatchesPage {
+	page := community.ProMatchesPage{Days: q.Days, Page: q.Page, Matches: []community.ProMatch{}}
+	for _, r := range rows {
+		page.UpdatedAt = maxTime(page.UpdatedAt, r.syncedAt)
+	}
+	all := proMatchesOf(rows)
 	page.Facets = proFacets(all)
 	kept := []community.ProMatch{}
 	for _, m := range all {
@@ -237,7 +311,6 @@ func proCatalogPage(rows []proMapRow, q community.ProMatchQuery) community.ProMa
 	page.Matches = append(page.Matches, kept[start:min(start+community.ProMatchesPageSize, len(kept))]...)
 	return page
 }
-
 func maxTime(a, b time.Time) time.Time {
 	if b.After(a) {
 		return b
@@ -319,7 +392,7 @@ func (a *api) handleProMatches(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	rows, err := a.store.proMapRows(r.Context(), time.Now().AddDate(0, 0, -q.Days))
+	rows, err := a.store.proMapRows(r.Context(), q.Start(time.Now()))
 	if err != nil {
 		a.internal(w, "pro_matches", err)
 		return
@@ -328,12 +401,37 @@ func (a *api) handleProMatches(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, proCatalogPage(rows, q))
 }
 
+// handleProMatch serves one match of the catalog, whatever its date.
+func (a *api) handleProMatch(w http.ResponseWriter, r *http.Request) {
+	match, err := strconv.Atoi(r.PathValue("match"))
+	if a.analysesDir == "" || err != nil || match <= 0 {
+		writeError(w, http.StatusNotFound, "no such pro match")
+		return
+	}
+	rows, err := a.store.proMatchRows(r.Context(), match)
+	if err != nil {
+		a.internal(w, "pro_match", err)
+		return
+	}
+	matches := proMatchesOf(rows)
+	if len(matches) == 0 {
+		writeError(w, http.StatusNotFound, "no such pro match")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	writeJSON(w, http.StatusOK, matches[0])
+}
+
 // handleProMatchFile serves the derived analysis of one map, never a demo.
 func (a *api) handleProMatchFile(w http.ResponseWriter, r *http.Request) {
 	match, err := strconv.Atoi(r.PathValue("match"))
 	entry := r.PathValue("map")
 	if a.analysesDir == "" || err != nil || match <= 0 || !community.ProEntryPattern.MatchString(entry) {
 		writeError(w, http.StatusNotFound, "no such pro map")
+		return
+	}
+	if !a.downloads.allow(clientIP(r)) {
+		writeError(w, http.StatusTooManyRequests, "too many pro map downloads from this address; try again later")
 		return
 	}
 	file, sum, err := a.store.proMapFile(r.Context(), match, entry+".dem")

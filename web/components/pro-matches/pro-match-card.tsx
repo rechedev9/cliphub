@@ -2,12 +2,14 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Check, MonitorPlay, Plus, TriangleAlert } from 'lucide-react';
-import { proMapPart, proMatchTitle, type ProMatch, type ProMatchMap, type ProMatchTeam } from '@/lib/api/pro-matches';
+import { Check, ExternalLink, History, MonitorPlay, Plus, TriangleAlert } from 'lucide-react';
+import { proMapDemos, proMatchTitle, type ProMatch, type ProMatchMap, type ProMatchTeam } from '@/lib/api/pro-matches';
 import { prettyMapName } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 
 export const RADAR_OFF_NOTE = 'El radar de este mapa cambió después de analizar la partida: las posiciones pueden salir algo desplazadas.';
+export const OLD_ANALYSIS_NOTE = 'Análisis antiguo: se hizo con una versión anterior de ClipHub y puede faltarle algún dato que hoy se lee de la demo.';
+export const HLTV_DEMO_NOTE = 'Para grabar clips necesitas la .dem, que puedes bajar desde la página de la partida en HLTV.';
 
 export type ProMatchCardProps = {
   match: ProMatch;
@@ -27,6 +29,13 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
         <h3 className="text-body font-semibold text-fg-1">{proMatchTitle(match)}</h3>
         <p className="text-meta text-fg-3">{match.event}</p>
       </div>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-fg-3">
+        <a href={match.hltv_url} target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-1 text-fg-1 underline decoration-fg-4 underline-offset-4 hover:decoration-fg-1">
+          Ver en HLTV <ExternalLink aria-hidden className="size-3.5" />
+        </a>
+        <span>{HLTV_DEMO_NOTE}</span>
+      </p>
       <div className="flex flex-wrap gap-2">
         {match.teams.map((team) => (
           <Button
@@ -37,7 +46,7 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
             aria-pressed={team.followed}
             disabled={following === team.id}
             onClick={() => onToggleFollow(team)}
-            title={team.followed ? 'Studio importa sus partidas nuevas. Pulsa para dejar de seguirlo.' : 'Importa sus partidas de las dos últimas semanas y las nuevas'}
+            title={team.followed ? 'Studio importa sus partidas nuevas. Pulsa para dejar de seguirlo.' : 'Importa sus cinco últimos mapas, los de las dos últimas semanas y los nuevos'}
           >
             {team.followed ? <Check aria-hidden /> : <Plus aria-hidden />}
             {team.followed ? `Sigues a ${team.name}` : `Seguir a ${team.name}`}
@@ -55,13 +64,13 @@ export function ProMatchCard({ match, importing, following, onOpen, onToggleFoll
 }
 
 function ProMapRow({ map, busy, disabled, onOpen }: { map: ProMatchMap; busy: boolean; disabled: boolean; onOpen: () => void }): ReactNode {
-  const part = proMapPart(map.entry);
+  const demos = proMapDemos(map);
   return (
     <li className="flex flex-col gap-1.5 py-2 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
         <span className="text-body-sm text-fg-1">
           {prettyMapName(map.map)}
-          {part ? <span className="text-fg-3"> · {part}</span> : null}
+          {demos ? <span className="text-fg-3"> · {demos}</span> : null}
           <span className="text-fg-3 tabular-nums"> · {map.rounds} rondas</span>
         </span>
         {map.library_match_id ? (
@@ -78,6 +87,12 @@ function ProMapRow({ map, busy, disabled, onOpen }: { map: ProMatchMap; busy: bo
           </Button>
         )}
       </div>
+      {map.old_analysis ? (
+        <p className="flex items-start gap-1.5 text-meta text-fg-3">
+          <History aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          {OLD_ANALYSIS_NOTE}
+        </p>
+      ) : null}
       {map.radar_may_be_off ? (
         <p className="flex items-start gap-1.5 text-meta text-warning">
           <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />

@@ -1,9 +1,7 @@
 import { jsonInit, request } from './library.ts';
 
-/**
- * Browser-side contract of Partidas pro (`internal/httpapi/library_pro_matches.go`):
- * recent HLTV matches the ClipHub server analysed, imported map by map without the demo.
- */
+// Browser-side contract of Partidas pro (`internal/httpapi/library_pro_matches.go`):
+// recent HLTV matches the ClipHub server analysed, imported map by map without the demo.
 
 /** ok: the server answered; disabled: no community server; missing: it has no catalog yet; unavailable: it did not answer. */
 export type ProCatalogStatus = 'ok' | 'disabled' | 'missing' | 'unavailable';
@@ -17,13 +15,18 @@ export type ProMatchMap = {
   analysis_version: number;
   bytes: number;
   sha256: string;
+  /** One per demo; a server restart splits a map, and Studio joins the parts. */
+  parts: { entry: string; first_round: number; rounds: number }[];
+  /** The analysis is older than the current scan, so some numbers may be missing. */
+  old_analysis: boolean;
   /** The library match once the map is imported. */
   library_match_id?: string;
   /** The analysis is older than the map's radar calibration: the 2D may draw positions off. */
   radar_may_be_off: boolean;
 };
 
-export type ProMatch = { id: number; event: string; played_at: string; teams: ProMatchTeam[]; maps: ProMatchMap[] };
+/** hltv_url is the match page on HLTV, where its demos can be downloaded. */
+export type ProMatch = { id: number; event: string; played_at: string; hltv_url: string; teams: ProMatchTeam[]; maps: ProMatchMap[] };
 
 export type ProTeamCount = { id: number; name: string; rank?: number; matches: number };
 export type ProNameCount = { name: string; matches: number };
@@ -54,18 +57,21 @@ export type ProMatchInfo = {
   teams: { id: number; name: string; rank?: number }[];
   analysis_version: number;
   radar_may_be_off: boolean;
+  old_analysis: boolean;
+  hltv_url: string;
 };
 
 export type ProMatchQuery = { days: number; team: string; event: string; map: string; page: number };
 
-export const PRO_MATCH_QUERY = ['days', 'team', 'event', 'map', 'page'] as const satisfies readonly (keyof ProMatchQuery)[];
+/** since is the local midnight proMatchSearch sends for Hoy. */
+export const PRO_MATCH_QUERY = ['days', 'since', 'team', 'event', 'map', 'page'] as const satisfies readonly (keyof ProMatchQuery | 'since')[];
 export const PRO_MATCHES_KEYS = [
   'status', 'updated_at', 'days', 'page', 'pages', 'total', 'matches', 'facets', 'follows',
 ] as const satisfies readonly (keyof ProMatchesPage)[];
 export const PRO_IMPORT_KEYS = ['match_id', 'demo_id', 'created', 'studio_path', 'radar_may_be_off'] as const satisfies readonly (keyof ProImport)[];
 export const PRO_FOLLOW_KEYS = ['team_id', 'name', 'followed_at', 'synced_at'] as const satisfies readonly (keyof ProFollow)[];
 export const PRO_MATCH_INFO_KEYS = [
-  'hltv_match_id', 'entry', 'map', 'event', 'played_at', 'teams', 'analysis_version', 'radar_may_be_off',
+  'hltv_match_id', 'entry', 'map', 'event', 'played_at', 'teams', 'analysis_version', 'radar_may_be_off', 'old_analysis', 'hltv_url',
 ] as const satisfies readonly (keyof ProMatchInfo)[];
 
 /** The periods the page offers, in days. */
@@ -78,10 +84,11 @@ export const PRO_PERIODS = [
 
 export const DEFAULT_PRO_QUERY: ProMatchQuery = { days: 7, team: '', event: '', map: '', page: 1 };
 
-/** The query string of a catalog read, without the defaults. */
-export function proMatchSearch(q: ProMatchQuery): string {
+/** The query string of a catalog read, without the defaults. Hoy starts at the reader's midnight. */
+export function proMatchSearch(q: ProMatchQuery, now: Date = new Date()): string {
   const params = new URLSearchParams();
   if (q.days !== DEFAULT_PRO_QUERY.days) params.set('days', String(q.days));
+  if (q.days === 1) params.set('since', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString());
   if (q.team) params.set('team', q.team);
   if (q.event) params.set('event', q.event);
   if (q.map) params.set('map', q.map);
@@ -133,11 +140,28 @@ export function proCatalogNotice(status: ProCatalogStatus): { title: string; des
   }
 }
 
-/** The matches grouped by the day they were played, newest day first, keeping the server's order. */
+/** The local calendar day of a time, as YYYY-MM-DD. */
+export function localDay(value: string | Date): string {
+  const d = new Date(value);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** A day heading: Hoy, Ayer or the local date. */
+export function proDayLabel(day: string, now: Date = new Date()): string {
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (day === localDay(now)) return 'Hoy';
+  if (day === localDay(yesterday)) return 'Ayer';
+  const [y, m, d] = day.split('-').map(Number);
+  const date = new Date(y ?? 0, (m ?? 1) - 1, d ?? 1);
+  const year = date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' as const };
+  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', ...year }).format(date);
+}
+
+/** The matches grouped by the local day they were played, newest day first, keeping the server's order. */
 export function groupByDay(matches: readonly ProMatch[]): { day: string; matches: ProMatch[] }[] {
   const groups: { day: string; matches: ProMatch[] }[] = [];
   for (const m of matches) {
-    const day = m.played_at.slice(0, 10);
+    const day = localDay(m.played_at);
     const last = groups.at(-1);
     if (last && last.day === day) last.matches.push(m);
     else groups.push({ day, matches: [m] });
@@ -150,8 +174,7 @@ export function proMatchTitle(m: Pick<ProMatch, 'teams' | 'event'>): string {
   return m.teams.length === 2 ? `${m.teams[0]?.name} vs ${m.teams[1]?.name}` : m.event;
 }
 
-/** A map's part label: a server restart splits one map into parts p1, p2. */
-export function proMapPart(entry: string): string | null {
-  const part = /-p([0-9]+)$/.exec(entry);
-  return part ? `parte ${part[1]}` : null;
+/** Says a map was played over several demos, which Studio joins; null for one demo. */
+export function proMapDemos(map: Pick<ProMatchMap, 'parts'>): string | null {
+  return map.parts.length > 1 ? `${map.parts.length} demos unidas` : null;
 }

@@ -15,9 +15,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
-// ProAnalysisFormat is the first field of a pro analysis file: zstd of one JSON
-// header line followed by the raw position blob. The server prepares one per
-// map of a pro match; Studio imports it without the demo.
+// ProAnalysisFormat opens a pro analysis file: zstd of one JSON header line and the raw
+// position blob, one per demo of a pro map, which Studio imports without the demo.
 const ProAnalysisFormat = "zvpro1"
 
 // ProAnalysisSuffix ends the name of every pro analysis file.

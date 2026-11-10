@@ -13,12 +13,15 @@ import (
 const (
 	// writesPerHour bounds submit and delete calls from one client IP.
 	writesPerHour = 30
-	maxTrackedIPs = 50000
+	// proDownloadsPerHour bounds the pro map files one client IP fetches; a map is a few parts.
+	proDownloadsPerHour = 300
+	maxTrackedIPs       = 50000
 )
 
 type api struct {
-	store   *store
-	limiter *ipLimiter
+	store     *store
+	limiter   *ipLimiter
+	downloads *ipLimiter
 	// clipsDir holds the recorded pro lineup clips; empty serves none.
 	clipsDir string
 	// proPlayers keeps the decoded pro players payloads.
@@ -28,7 +31,8 @@ type api struct {
 }
 
 func newAPI(s *store) *api {
-	return &api{store: s, limiter: &ipLimiter{limit: writesPerHour, window: time.Hour, seen: map[string]*ipWindow{}}}
+	return &api{store: s, limiter: &ipLimiter{limit: writesPerHour, window: time.Hour, seen: map[string]*ipWindow{}},
+		downloads: &ipLimiter{limit: proDownloadsPerHour, window: time.Hour, seen: map[string]*ipWindow{}}}
 }
 
 func (a *api) routes() http.Handler {
@@ -38,6 +42,7 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("GET /v1/pro-players", a.handleProPlayers)
 	mux.HandleFunc("GET /v1/pro-clips/{match}/{file}", a.handleProClip)
 	mux.HandleFunc("GET /v1/pro-matches", a.handleProMatches)
+	mux.HandleFunc("GET /v1/pro-matches/{match}", a.handleProMatch)
 	mux.HandleFunc("GET /v1/pro-matches/{match}/{map}", a.handleProMatchFile)
 	mux.HandleFunc("GET /v1/rankings", a.handleRankings)
 	mux.HandleFunc("POST /v1/rankings/submit", a.handleSubmit)
